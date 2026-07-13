@@ -57,33 +57,81 @@ describe("InMemoryEvalRuns double", () => {
   it("keeps recorded runs for assertion", async () => {
     const evals = new InMemoryEvalRuns();
 
-    await evals.record({ team: "platform", pass_rate: 0.9, total_tests: 10, passed: 9, failed: 1 });
+    await evals.record({
+      team: "platform",
+      pass_rate: 0.9,
+      total_tests: 10,
+      passed: 9,
+      failed: 1,
+    });
 
     expect(evals.runs).toEqual([
-      { team: "platform", pass_rate: 0.9, total_tests: 10, passed: 9, failed: 1 },
+      {
+        team: "platform",
+        pass_rate: 0.9,
+        total_tests: 10,
+        passed: 9,
+        failed: 1,
+      },
     ]);
   });
 
   it("returns the latest run for a team newest-first", async () => {
     const evals = new InMemoryEvalRuns();
-    await evals.record({ team: "platform", pass_rate: 0.6, total_tests: 10, passed: 6, failed: 4 });
-    await evals.record({ team: "platform", pass_rate: 0.8, total_tests: 10, passed: 8, failed: 2 });
+    await evals.record({
+      team: "platform",
+      pass_rate: 0.6,
+      total_tests: 10,
+      passed: 6,
+      failed: 4,
+    });
+    await evals.record({
+      team: "platform",
+      pass_rate: 0.8,
+      total_tests: 10,
+      passed: 8,
+      failed: 2,
+    });
 
     expect(await evals.recent("platform", 1)).toEqual([{ pass_rate: 0.8 }]);
   });
 
   it("returns the previous run with offset 1 for the regression check", async () => {
     const evals = new InMemoryEvalRuns();
-    await evals.record({ team: "platform", pass_rate: 0.6, total_tests: 10, passed: 6, failed: 4 });
-    await evals.record({ team: "platform", pass_rate: 0.8, total_tests: 10, passed: 8, failed: 2 });
+    await evals.record({
+      team: "platform",
+      pass_rate: 0.6,
+      total_tests: 10,
+      passed: 6,
+      failed: 4,
+    });
+    await evals.record({
+      team: "platform",
+      pass_rate: 0.8,
+      total_tests: 10,
+      passed: 8,
+      failed: 2,
+    });
 
     expect(await evals.recent("platform", 1, 1)).toEqual([{ pass_rate: 0.6 }]);
   });
 
   it("scopes recent reads to the requested team", async () => {
     const evals = new InMemoryEvalRuns();
-    await evals.record({ team: "platform", pass_rate: 0.9, total_tests: 10, passed: 9, failed: 1 });
-    await evals.record({ team: "web", pass_rate: 0.5, total_tests: 10, passed: 5, failed: 5 });
+    await evals.record({
+      team: "platform",
+      pass_rate: 0.9,
+      total_tests: 10,
+      passed: 9,
+      failed: 1,
+    });
+    await evals.record({
+      team: "web",
+      pass_rate: 0.5,
+      total_tests: 10,
+      passed: 5,
+      failed: 5,
+    });
 
     expect(await evals.recent("web", 5)).toEqual([{ pass_rate: 0.5 }]);
   });

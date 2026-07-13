@@ -1,4 +1,8 @@
-import { prFooter, type Project, type StationCompletion } from "@re-cinq/lore-shared";
+import {
+  prFooter,
+  type Project,
+  type StationCompletion,
+} from "@re-cinq/lore-shared";
 import { generateArtifactCopy } from "../lib/artifact-copy.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 
@@ -8,7 +12,10 @@ import { setStatus, insertEvent } from "./task-helpers.js";
  * analysis still stands; the wizard shows it). Never badge a failed feature
  * 'awaiting-input' — that implies a result is waiting for the user.
  */
-export async function revertFeatureAfterFailure(project: Project, featureId: string): Promise<void> {
+export async function revertFeatureAfterFailure(
+  project: Project,
+  featureId: string,
+): Promise<void> {
   const feature = await project.features.get(featureId);
   if (!feature) return;
   if (!feature.iterations.some((i) => i.gap_result)) {
@@ -21,7 +28,11 @@ export async function revertFeatureAfterFailure(project: Project, featureId: str
  * non-empty lines, bounded. Pure. The cause of an exit (e.g. a git "Repository
  * not found" on 128) lives in the output, not the code, so surface it.
  */
-export function stationLogTail(output: string, maxLines = 40, maxChars = 3000): string {
+export function stationLogTail(
+  output: string,
+  maxLines = 40,
+  maxChars = 3000,
+): string {
   const trimmed = (output ?? "").trim();
   if (!trimmed) return "";
   let tail = trimmed
@@ -58,9 +69,18 @@ export async function finalizeStationRun(opts: {
     const reason = `Station exited ${completion.exitCode}.${tail ? `\n\n${tail}` : ""}`;
     // Keep the feature row consistent: a failed planning round must mark its
     // iteration failed (not leave it 'running') + drop the feature to awaiting-input.
-    if (task.task_type === "feature-planning" && task.context_bundle?.feature_id && task.context_bundle?.iteration != null) {
+    if (
+      task.task_type === "feature-planning" &&
+      task.context_bundle?.feature_id &&
+      task.context_bundle?.iteration != null
+    ) {
       await project.features
-        .setIterationResult(task.context_bundle.feature_id, task.context_bundle.iteration, null, "failed")
+        .setIterationResult(
+          task.context_bundle.feature_id,
+          task.context_bundle.iteration,
+          null,
+          "failed",
+        )
         .catch(() => {});
       await revertFeatureAfterFailure(project, task.context_bundle.feature_id);
     }
@@ -83,7 +103,10 @@ export async function finalizeStationRun(opts: {
     const row = feature?.iterations.find((i) => i.iteration === iteration);
     if (row?.status === "ready" && row.gap_result) {
       await setStatus(task.id, "completed");
-      await insertEvent(task.id, "running", "completed", { feature_id: featureId, iteration });
+      await insertEvent(task.id, "running", "completed", {
+        feature_id: featureId,
+        iteration,
+      });
       return;
     }
     const tail = stationLogTail(completion.output);
@@ -91,18 +114,24 @@ export async function finalizeStationRun(opts: {
       `Planning run finished (exit 0) but posted no result — the agent did not produce a result.json the container could POST.` +
       (tail ? `\n\n${tail}` : "");
     if (featureId && iteration != null) {
-      await project.features.setIterationResult(featureId, iteration, null, "failed").catch(() => {});
+      await project.features
+        .setIterationResult(featureId, iteration, null, "failed")
+        .catch(() => {});
       await revertFeatureAfterFailure(project, featureId);
     }
     await setStatus(task.id, "failed", { failure_reason: reason });
-    await insertEvent(task.id, "running", "failed", { reason: "planning posted no result" });
+    await insertEvent(task.id, "running", "failed", {
+      reason: "planning posted no result",
+    });
     return;
   }
 
   // Non-planning, no file changes → no PR. Just close the task out.
   if (completion.changedFiles === 0) {
     await setStatus(task.id, "completed");
-    await insertEvent(task.id, "running", "completed", { changedFiles: completion.changedFiles });
+    await insertEvent(task.id, "running", "completed", {
+      changedFiles: completion.changedFiles,
+    });
     return;
   }
 
@@ -115,8 +144,17 @@ export async function finalizeStationRun(opts: {
     changedFiles: completion.changedFiles,
     repo: targetRepo,
   });
-  const footer = prFooter({ issueNumber: task.issue_number ?? undefined, taskId: task.id });
-  const pr = await project.pulls.open(branch, copy.title, `${copy.body}${footer}`, "main", ["needs-review"]);
+  const footer = prFooter({
+    issueNumber: task.issue_number ?? undefined,
+    taskId: task.id,
+  });
+  const pr = await project.pulls.open(
+    branch,
+    copy.title,
+    `${copy.body}${footer}`,
+    "main",
+    ["needs-review"],
+  );
 
   await setStatus(task.id, "pr-created", {
     pr_url: pr.url,
@@ -126,12 +164,19 @@ export async function finalizeStationRun(opts: {
   await insertEvent(task.id, "running", "pr-created", { pr_url: pr.url });
 
   // feature-finalize: link the PR back to the feature row (Features tab → pr-open).
-  if (task.task_type === "feature-finalize" && task.context_bundle?.feature_id) {
+  if (
+    task.task_type === "feature-finalize" &&
+    task.context_bundle?.feature_id
+  ) {
     const slug = task.context_bundle.slug as string | undefined;
-    await project.features.transitionStatus(task.context_bundle.feature_id, "pr-open", {
-      spec_pr_url: pr.url,
-      spec_pr_number: pr.number,
-      ...(slug ? { spec_path: `specs/${slug}/spec.md` } : {}),
-    });
+    await project.features.transitionStatus(
+      task.context_bundle.feature_id,
+      "pr-open",
+      {
+        spec_pr_url: pr.url,
+        spec_pr_number: pr.number,
+        ...(slug ? { spec_path: `specs/${slug}/spec.md` } : {}),
+      },
+    );
   }
 }

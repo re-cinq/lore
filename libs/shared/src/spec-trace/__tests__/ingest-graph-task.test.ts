@@ -44,29 +44,47 @@ describe("selectIngestFiles", () => {
   });
 
   it("uses manifest globs (replacing the prefix defaults) when patterns are given", () => {
-    const tree = ["specs/auth/spec.md", "design/decisions/x.md", "design/draft.md", "docs/notes.md"];
-    expect(selectIngestFiles(tree, "specs", undefined, undefined, ["design/**/*.md"])).toEqual([
+    const tree = [
+      "specs/auth/spec.md",
       "design/decisions/x.md",
       "design/draft.md",
-    ]);
+      "docs/notes.md",
+    ];
+    expect(
+      selectIngestFiles(tree, "specs", undefined, undefined, [
+        "design/**/*.md",
+      ]),
+    ).toEqual(["design/decisions/x.md", "design/draft.md"]);
   });
 });
 
 describe("summarizeIngest", () => {
   it("reports completed when everything projected", () => {
-    expect(summarizeIngest("specs", 3, 3, 0, [])).toMatchObject({ status: "completed", projected: 3, skipped: 0, failed: 0 });
+    expect(summarizeIngest("specs", 3, 3, 0, [])).toMatchObject({
+      status: "completed",
+      projected: 3,
+      skipped: 0,
+      failed: 0,
+    });
   });
 
   it("reports completed when everything was an unchanged skip", () => {
-    expect(summarizeIngest("specs", 3, 0, 3, [])).toMatchObject({ status: "completed", skipped: 3 });
+    expect(summarizeIngest("specs", 3, 0, 3, [])).toMatchObject({
+      status: "completed",
+      skipped: 3,
+    });
   });
 
   it("reports failed only when every attempted file failed", () => {
-    expect(summarizeIngest("specs", 2, 0, 0, ["a.md", "b.md"]).status).toBe("failed");
+    expect(summarizeIngest("specs", 2, 0, 0, ["a.md", "b.md"]).status).toBe(
+      "failed",
+    );
   });
 
   it("stays completed on a partial failure", () => {
-    expect(summarizeIngest("specs", 3, 2, 0, ["c.md"]).status).toBe("completed");
+    expect(summarizeIngest("specs", 3, 2, 0, ["c.md"]).status).toBe(
+      "completed",
+    );
   });
 });
 
@@ -106,17 +124,37 @@ describe("runIngestGraph", () => {
       readFile: async (p: string) => `content of ${p}`,
     };
 
-    const first = await runIngestGraph({ kind: "specs", repo: "o/r" }, ports, registry);
-    const second = await runIngestGraph({ kind: "specs", repo: "o/r" }, ports, registry);
+    const first = await runIngestGraph(
+      { kind: "specs", repo: "o/r" },
+      ports,
+      registry,
+    );
+    const second = await runIngestGraph(
+      { kind: "specs", repo: "o/r" },
+      ports,
+      registry,
+    );
 
-    expect(first).toMatchObject({ projected: 2, skipped: 0, status: "completed" });
-    expect(second).toMatchObject({ projected: 0, skipped: 2, status: "completed" });
+    expect(first).toMatchObject({
+      projected: 2,
+      skipped: 0,
+      status: "completed",
+    });
+    expect(second).toMatchObject({
+      projected: 0,
+      skipped: 2,
+      status: "completed",
+    });
   });
 
   it("self-skips the tests kind when no buildTestReport port is provided (cluster)", async () => {
     const result = await runIngestGraph(
       { kind: "tests", repo: "o/r" },
-      { dgraph: DUMMY_DGRAPH, listTree: async () => [], readFile: async () => "" },
+      {
+        dgraph: DUMMY_DGRAPH,
+        listTree: async () => [],
+        readFile: async () => "",
+      },
     );
     expect(result.status).toBe("skipped");
     expect(result.message).toMatch(/local/i);

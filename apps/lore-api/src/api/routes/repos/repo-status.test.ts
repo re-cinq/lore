@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const originalEnv = { ...process.env };
 const get = (pool: unknown, url = "/api/repo-status?repo=o/r") =>
@@ -38,7 +43,11 @@ describe("GET /api/repo-status", () => {
   it("returns full stats with stale=false for a fresh repo", async () => {
     const pool = makePool();
     pool.query
-      .mockResolvedValueOnce({ rows: [{ settings: { auto_review: true }, last_ingested_at: new Date() }] })
+      .mockResolvedValueOnce({
+        rows: [
+          { settings: { auto_review: true }, last_ingested_at: new Date() },
+        ],
+      })
       .mockResolvedValueOnce({ rows: [{ c: "1" }] })
       .mockResolvedValueOnce({ rows: [{ c: "2" }] })
       .mockResolvedValueOnce({ rows: [{ c: "5" }] });
@@ -57,23 +66,37 @@ describe("GET /api/repo-status", () => {
   it("marks stale=true when last_ingested_at is null", async () => {
     const pool = makePool();
     pool.query
-      .mockResolvedValueOnce({ rows: [{ settings: {}, last_ingested_at: null }] })
+      .mockResolvedValueOnce({
+        rows: [{ settings: {}, last_ingested_at: null }],
+      })
       .mockResolvedValueOnce({ rows: [{ c: "0" }] })
       .mockResolvedValueOnce({ rows: [{ c: "0" }] })
       .mockResolvedValueOnce({ rows: [{ c: "0" }] });
     const res = await get(pool);
-    expect(res.result).toMatchObject({ onboarded: true, stale: true, auto_review: false });
+    expect(res.result).toMatchObject({
+      onboarded: true,
+      stale: true,
+      auto_review: false,
+    });
   });
 
   it("handles null settings and count rows missing", async () => {
     const pool = makePool();
     pool.query
-      .mockResolvedValueOnce({ rows: [{ settings: null, last_ingested_at: new Date() }] })
+      .mockResolvedValueOnce({
+        rows: [{ settings: null, last_ingested_at: new Date() }],
+      })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
     const res = await get(pool);
-    expect(res.result).toMatchObject({ onboarded: true, running: 0, pr_ready: 0, memories: 0, auto_review: false });
+    expect(res.result).toMatchObject({
+      onboarded: true,
+      running: 0,
+      pr_ready: 0,
+      memories: 0,
+      auto_review: false,
+    });
   });
 
   it("returns onboarded:false with error when a query throws", async () => {

@@ -5,9 +5,15 @@ import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline
 import { rawBody } from "../../../server/raw-body.js";
 
 /** Constant-time HMAC compare for the Slack `v0=…` signature. */
-export function verifySlackSignature(secret: string, timestamp: string, signature: string, body: string): boolean {
+export function verifySlackSignature(
+  secret: string,
+  timestamp: string,
+  signature: string,
+  body: string,
+): boolean {
   const sigBase = `v0:${timestamp}:${body}`;
-  const expected = "v0=" + createHmac("sha256", secret).update(sigBase).digest("hex");
+  const expected =
+    "v0=" + createHmac("sha256", secret).update(sigBase).digest("hex");
   const sigBuf = Buffer.from(signature);
   const expBuf = Buffer.from(expected);
   return sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf);
@@ -24,20 +30,30 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
       const slackSecret = process.env.LORE_SLACK_SIGNING_SECRET;
       // Plain-string error bodies: pin text/plain (hapi would default a string to
       // text/html) to match the legacy node:http `res.end("…")` responses.
-      if (!slackSecret) return h.response("Slack signing secret not configured").type("text/plain").code(503);
+      if (!slackSecret)
+        return h
+          .response("Slack signing secret not configured")
+          .type("text/plain")
+          .code(503);
 
       const timestamp = request.headers["x-slack-request-timestamp"] as string;
       const slackSig = request.headers["x-slack-signature"] as string;
-      if (!timestamp || !slackSig) return h.response("Unauthorized").type("text/plain").code(401);
-      if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return h.response("Request too old").type("text/plain").code(401);
-      if (!verifySlackSignature(slackSecret, timestamp, slackSig, body)) return h.response("Invalid signature").type("text/plain").code(401);
+      if (!timestamp || !slackSig)
+        return h.response("Unauthorized").type("text/plain").code(401);
+      if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300)
+        return h.response("Request too old").type("text/plain").code(401);
+      if (!verifySlackSignature(slackSecret, timestamp, slackSig, body))
+        return h.response("Invalid signature").type("text/plain").code(401);
 
       const params = new URLSearchParams(body);
 
       if (params.get("type") === "url_verification") {
         // hapi returns 204 for an empty payload; Slack expects 200 even for an
         // empty challenge, so pin the code.
-        return h.response(params.get("challenge") || "").type("text/plain").code(200);
+        return h
+          .response(params.get("challenge") || "")
+          .type("text/plain")
+          .code(200);
       }
 
       const commandText = (params.get("text") || "").trim();
@@ -53,20 +69,37 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
 
       let words = commandText.split(/\s+/);
       let priority = "normal";
-      if (words[0] === "!") { priority = "immediate"; words = words.slice(1); }
+      if (words[0] === "!") {
+        priority = "immediate";
+        words = words.slice(1);
+      }
 
       if (words[0] === "retry" && words[1]) {
         const retryTaskId = words[1];
         try {
-          const { retryTask } = await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
+          const { retryTask } =
+            await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
           const retryResult = await retryTask(retryTaskId);
-          return h.response({ response_type: "in_channel", text: `Retrying task \`${retryTaskId}\`\nNew task: \`${retryResult.task_id}\`` });
+          return h.response({
+            response_type: "in_channel",
+            text: `Retrying task \`${retryTaskId}\`\nNew task: \`${retryResult.task_id}\``,
+          });
         } catch (err: any) {
-          return h.response({ response_type: "ephemeral", text: `Retry failed: ${err.message}` });
+          return h.response({
+            response_type: "ephemeral",
+            text: `Retry failed: ${err.message}`,
+          });
         }
       }
 
-      const knownTypes = ["general", "implementation", "runbook", "gap-fill", "review", "feature-request"];
+      const knownTypes = [
+        "general",
+        "implementation",
+        "runbook",
+        "gap-fill",
+        "review",
+        "feature-request",
+      ];
       let taskType = "general";
       let description = words.join(" ");
       if (words.length > 1 && knownTypes.includes(words[0])) {
@@ -79,26 +112,46 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
       if (pool) {
         try {
           const { rows } = await pool.query(
-            `SELECT full_name FROM lore.repos WHERE settings->>'slack_channel_id' = $1`, [channelId],
+            `SELECT full_name FROM lore.repos WHERE settings->>'slack_channel_id' = $1`,
+            [channelId],
           );
           if (rows.length > 0) targetRepo = rows[0].full_name;
-        } catch { /* fall through */ }
+        } catch {
+          /* fall through */
+        }
       }
 
       if (!targetRepo) {
-        return h.response({ response_type: "ephemeral", text: "No repo mapped to this channel. Set `slack_channel_id` in repo settings." });
+        return h.response({
+          response_type: "ephemeral",
+          text: "No repo mapped to this channel. Set `slack_channel_id` in repo settings.",
+        });
       }
 
-      const contextBundle = { slack_channel_id: channelId, slack_user: userName };
+      const contextBundle = {
+        slack_channel_id: channelId,
+        slack_user: userName,
+      };
       try {
-        const taskResult = await createTask(description, taskType, targetRepo, `slack:${userName}`, contextBundle, priority);
-        const priorityLabel = priority === "immediate" ? " | Priority: `immediate`" : "";
+        const taskResult = await createTask(
+          description,
+          taskType,
+          targetRepo,
+          `slack:${userName}`,
+          contextBundle,
+          priority,
+        );
+        const priorityLabel =
+          priority === "immediate" ? " | Priority: `immediate`" : "";
         return h.response({
           response_type: "in_channel",
           text: `Task created on \`${targetRepo}\`:\n> ${description}\n\nType: \`${taskType}\`${priorityLabel} | ID: \`${taskResult.task_id}\`\n${priority === "immediate" ? "Agent will pick this up shortly." : "Task in backlog — claim locally or use the UI to run now."}`,
         });
       } catch (err: any) {
-        return h.response({ response_type: "ephemeral", text: `Failed to create task: ${err.message}` });
+        return h.response({
+          response_type: "ephemeral",
+          text: `Failed to create task: ${err.message}`,
+        });
       }
     },
   };

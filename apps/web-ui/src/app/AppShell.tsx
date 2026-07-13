@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { usePathname } from 'next/navigation';
-import Icon from '@/components/Icon';
+import { useState, useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
+import Icon from "@/components/Icon";
 
 export default function AppShell({
   sidebar,
@@ -34,14 +34,14 @@ export default function AppShell({
   useEffect(() => {
     if (!sidebarOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSidebarOpen(false);
+      if (e.key === "Escape") setSidebarOpen(false);
     };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [sidebarOpen]);
 
   return (
-    <div className={`app-layout${sidebarOpen ? ' sidebar-open' : ''}`}>
+    <div className={`app-layout${sidebarOpen ? " sidebar-open" : ""}`}>
       {sidebarOpen && (
         <div
           className="sidebar-overlay"

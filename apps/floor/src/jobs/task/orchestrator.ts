@@ -8,14 +8,23 @@ import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-li
 import { assemblyLines } from "../../kernel/queues.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
-import { gitAuthArgs, repoCloneUrl } from "@re-cinq/lore-shared/project/workspace/git-auth.js";
+import {
+  gitAuthArgs,
+  repoCloneUrl,
+} from "@re-cinq/lore-shared/project/workspace/git-auth.js";
 import { generateArtifactCopy } from "../lib/artifact-copy.js";
 import { linkifyMarkdown } from "@re-cinq/lore-shared";
 import { slugify } from "./task-helpers.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { taskStore } from "../../kernel/queues.js";
-import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
-import { evaluateAndMerge, type AutoMergeJobInputs } from "../merge/auto-merge.js";
+import {
+  writeEpisode,
+  writeEpisodeWithCuration,
+} from "../lib/episode-writer.js";
+import {
+  evaluateAndMerge,
+  type AutoMergeJobInputs,
+} from "../merge/auto-merge.js";
 import {
   resolvePrForTaskFromDb,
   type PrForAutoMerge,
@@ -81,11 +90,7 @@ const defaultGitToken = (): Promise<string> =>
 
 export interface ProcessTaskViaSupervisorResult {
   outcome:
-    | "pr_created"
-    | "no_changes"
-    | "lease_held"
-    | "iteration_max"
-    | "error";
+    "pr_created" | "no_changes" | "lease_held" | "iteration_max" | "error";
   prUrl?: string;
   prNumber?: number;
   branchName?: string;
@@ -117,7 +122,9 @@ export async function processTaskViaSupervisor(
   const { task, settings } = opts;
   const branchName = opts.branchName ?? buildBranchName(task);
 
-  const definitions = await (opts.loadAssemblyLines ?? loadBuiltinAssemblyLines)();
+  const definitions = await (
+    opts.loadAssemblyLines ?? loadBuiltinAssemblyLines
+  )();
   const assemblyLine = definitions.get(task.task_type);
   if (!assemblyLine) {
     return {
@@ -186,7 +193,8 @@ export async function processTaskViaSupervisor(
       handlers,
       trace: {
         onNodeStart: (i) => assemblyLinesPort.recordNodeStart(i),
-        onNodeFinish: (ref, outcome, sha) => assemblyLinesPort.recordNodeFinish(ref, outcome, sha),
+        onNodeFinish: (ref, outcome, sha) =>
+          assemblyLinesPort.recordNodeFinish(ref, outcome, sha),
       },
       leaseBackend: leaseBackendForEnv(),
       audit: process.env.LORE_DB_HOST ? { write: writeAuditLog } : undefined,
@@ -278,13 +286,7 @@ async function cloneAndBranch(
     "user.email",
     "lore-agent@re-cinq.com",
   ]);
-  await execFile("git", [
-    "-C",
-    workdir,
-    "config",
-    "user.name",
-    "Lore Agent",
-  ]);
+  await execFile("git", ["-C", workdir, "config", "user.name", "Lore Agent"]);
 }
 
 /**

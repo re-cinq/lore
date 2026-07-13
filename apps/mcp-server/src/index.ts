@@ -17,7 +17,9 @@ async function main() {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("[lore] Local MCP adapter ready (stdio) — proxying to LORE_API_URL");
+  console.error(
+    "[lore] Local MCP adapter ready (stdio) — proxying to LORE_API_URL",
+  );
 
   // Dump session log on exit (for the Stop hook to POST as an episode)
   const exitHandler = () => dumpSessionLog();

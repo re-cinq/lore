@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { usePathname } from 'next/navigation';
-import NavLink from '@/components/NavLink';
-import { isNavActive } from '@/lib/nav-active';
+import { usePathname } from "next/navigation";
+import NavLink from "@/components/NavLink";
+import { isNavActive } from "@/lib/nav-active";
 
 export interface Tab {
   href: string;

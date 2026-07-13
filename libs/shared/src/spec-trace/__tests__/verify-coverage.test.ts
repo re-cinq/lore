@@ -18,11 +18,18 @@ import { verifyCoverageLink } from "../verify-coverage.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const REPO_ROOT = join(process.cwd(), "..");
-const APPLIER = join(REPO_ROOT, "scripts", "infra", "setup-spec-trace-schema.sh");
+const APPLIER = join(
+  REPO_ROOT,
+  "scripts",
+  "infra",
+  "setup-spec-trace-schema.sh",
+);
 
 async function dgraphReachable(): Promise<boolean> {
   try {
-    return (await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })).ok;
+    return (
+      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
+    ).ok;
   } catch {
     return false;
   }
@@ -31,23 +38,35 @@ async function dgraphReachable(): Promise<boolean> {
 const reachable = await dgraphReachable();
 
 describe.skipIf(!reachable)("verifyCoverageLink (live Dgraph)", () => {
-  const dgraphClient = new dgraph.DgraphClient(new dgraph.DgraphClientStub(DGRAPH_HTTP));
+  const dgraphClient = new dgraph.DgraphClient(
+    new dgraph.DgraphClientStub(DGRAPH_HTTP),
+  );
 
   beforeAll(() => {
-    execFileSync("bash", [APPLIER], { env: { ...process.env, DGRAPH_HTTP }, stdio: "pipe" });
+    execFileSync("bash", [APPLIER], {
+      env: { ...process.env, DGRAPH_HTTP },
+      stdio: "pipe",
+    });
   });
 
-  async function mutate(setJson: Record<string, unknown>): Promise<Record<string, string>> {
+  async function mutate(
+    setJson: Record<string, unknown>,
+  ): Promise<Record<string, string>> {
     const txn = dgraphClient.newTxn();
     try {
-      const res = (await txn.mutate({ setJson, commitNow: true })) as { data?: { uids?: Record<string, string> } };
+      const res = (await txn.mutate({ setJson, commitNow: true })) as {
+        data?: { uids?: Record<string, string> };
+      };
       return res.data?.uids ?? {};
     } finally {
       await txn.discard().catch(() => {});
     }
   }
 
-  async function deleteRepoNodes(repo: string, statementXid: string): Promise<void> {
+  async function deleteRepoNodes(
+    repo: string,
+    statementXid: string,
+  ): Promise<void> {
     const txn = dgraphClient.newTxn();
     try {
       const res = await txn.queryWithVars(

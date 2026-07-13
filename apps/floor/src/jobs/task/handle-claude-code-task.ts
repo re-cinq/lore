@@ -60,7 +60,10 @@ export async function handleClaudeCodeTask(
       ? {
           extraLabels: { "lore.re-cinq.com/dark-factory": "true" },
           // `workflowName` is the CR-spec wire field (read by the pod via LORE_DARK_FACTORY_WORKFLOW) — renaming it needs both sides.
-          darkFactory: { workflowName: darkFactoryAssemblyLine, baseBranch: darkFactoryBaseBranch ?? "main" },
+          darkFactory: {
+            workflowName: darkFactoryAssemblyLine,
+            baseBranch: darkFactoryBaseBranch ?? "main",
+          },
         }
       : {}),
   });
@@ -70,7 +73,13 @@ export async function handleClaudeCodeTask(
   // the agent-watcher resolves it later. See ADR-028.
   if (result.completion) {
     const { finalizeStationRun } = await import("./finalize-station-run.js");
-    await finalizeStationRun({ task, targetRepo, branch: branchName, completion: result.completion, project });
+    await finalizeStationRun({
+      task,
+      targetRepo,
+      branch: branchName,
+      completion: result.completion,
+      project,
+    });
     return;
   }
 

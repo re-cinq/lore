@@ -25,13 +25,24 @@ const ZERO_USAGE = {
 };
 
 /** Minimal exec seam: file + args → { stdout }. Defaults to a promisified execFile. */
-export type ExecFn = (file: string, args: string[], opts?: { timeout?: number }) => Promise<{ stdout: string }>;
+export type ExecFn = (
+  file: string,
+  args: string[],
+  opts?: { timeout?: number },
+) => Promise<{ stdout: string }>;
 
-async function defaultExec(file: string, args: string[], opts?: { timeout?: number }): Promise<{ stdout: string }> {
+async function defaultExec(
+  file: string,
+  args: string[],
+  opts?: { timeout?: number },
+): Promise<{ stdout: string }> {
   const { execFile } = await import("node:child_process");
   const { promisify } = await import("node:util");
   const run = promisify(execFile);
-  const { stdout } = await run(file, args, { timeout: opts?.timeout ?? 30_000, env: { ...process.env } });
+  const { stdout } = await run(file, args, {
+    timeout: opts?.timeout ?? 30_000,
+    env: { ...process.env },
+  });
   return { stdout: String(stdout) };
 }
 
@@ -51,7 +62,10 @@ export class CliProvider implements LlmProvider {
 
   async completeWithTool<T>(req: LlmToolRequest): Promise<LlmToolResult<T>> {
     const instruction = `${req.toolDescription}\nRespond with ONLY a JSON object matching this schema: ${JSON.stringify(req.toolSchema)}`;
-    const prompt = this.combine(req.systemPrompt ? `${req.systemPrompt}\n${instruction}` : instruction, req.prompt);
+    const prompt = this.combine(
+      req.systemPrompt ? `${req.systemPrompt}\n${instruction}` : instruction,
+      req.prompt,
+    );
     return { data: JSON.parse(await this.run(prompt)) as T, ...ZERO_USAGE };
   }
 
@@ -61,7 +75,11 @@ export class CliProvider implements LlmProvider {
 
   private async run(prompt: string): Promise<string> {
     const exec = this.opts.execFn ?? defaultExec;
-    const { stdout } = await exec("claude", ["-p", prompt, "--output-format", "text"], { timeout: 30_000 });
+    const { stdout } = await exec(
+      "claude",
+      ["-p", prompt, "--output-format", "text"],
+      { timeout: 30_000 },
+    );
     return stdout.trim();
   }
 }

@@ -41,7 +41,10 @@ export async function runTestsRun(
   cwd: string,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<RunResult> {
-  const { stdout } = await execShell(substituteSelector(runCommand, selector), { cwd, timeout: timeoutMs });
+  const { stdout } = await execShell(substituteSelector(runCommand, selector), {
+    cwd,
+    timeout: timeoutMs,
+  });
   return parseRunResult(parseCommandJson(stdout, "tests.run"));
 }
 
@@ -49,7 +52,9 @@ export function parseCommandJson(stdout: string, what: string): unknown {
   try {
     return JSON.parse(stdout);
   } catch {
-    throw new Error(`${what} command did not emit valid JSON: ${stdout.slice(0, 200)}`);
+    throw new Error(
+      `${what} command did not emit valid JSON: ${stdout.slice(0, 200)}`,
+    );
   }
 }
 
@@ -69,14 +74,21 @@ export class ExecTestRunner implements TestRunnerPort {
     return runTestsRun(manifest.run, selector, resolveCwd(manifest, cwd));
   }
 
-  async report(cwd: string, concurrency = REPORT_CONCURRENCY): Promise<TestRunReport> {
+  async report(
+    cwd: string,
+    concurrency = REPORT_CONCURRENCY,
+  ): Promise<TestRunReport> {
     const tests = await this.listTests(cwd);
     // Coverage/run is file-level: run each file ONCE (selector = file) under a
     // concurrency cap, then fan its result to every descriptor sharing the file.
     const byFile = groupRunsByFile(tests);
     const files = [...byFile.keys()];
-    const fileResults = await mapWithLimit(files, concurrency, (file) => this.runTest(cwd, file));
-    const resultByFile = new Map(files.map((file, index) => [file, fileResults[index]]));
+    const fileResults = await mapWithLimit(files, concurrency, (file) =>
+      this.runTest(cwd, file),
+    );
+    const resultByFile = new Map(
+      files.map((file, index) => [file, fileResults[index]]),
+    );
     const results: RunResult[] = [];
     for (const [file, ids] of byFile) {
       const run = resultByFile.get(file)!;
@@ -92,7 +104,9 @@ function loadManifest(cwd: string): TestCommandManifest {
   if (!existsSync(file)) {
     throw new Error(`No test-command manifest at ${file}`);
   }
-  const manifests = resolveTestCommandManifest({ file: parse(readFileSync(file, "utf8")) });
+  const manifests = resolveTestCommandManifest({
+    file: parse(readFileSync(file, "utf8")),
+  });
   if (!manifests || manifests.length === 0) {
     throw new Error(`No usable test-command manifest in ${file}`);
   }

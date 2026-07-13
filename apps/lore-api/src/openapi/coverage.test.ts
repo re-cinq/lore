@@ -20,27 +20,39 @@ describe("OpenAPI coverage drift guard", () => {
   });
 
   it("catches a new body-bearing route that declares neither a schema nor a sidecar entry", () => {
-    const naked: ServerRoute = { method: "POST", path: "/api/__drift_probe__", options: bearerScope("write"), handler: () => null };
+    const naked: ServerRoute = {
+      method: "POST",
+      path: "/api/__drift_probe__",
+      options: bearerScope("write"),
+      handler: () => null,
+    };
     const probe = generateOpenApi([naked]);
     expect(probe.coverage.uncovered).toEqual(["POST /api/__drift_probe__"]);
   });
 
   it("documents every /api/* route's path exactly once, dropping none", () => {
-    const expected = new Set(routes.filter(isApi).map(r => normalizePath(r.path)));
+    const expected = new Set(
+      routes.filter(isApi).map((r) => normalizePath(r.path)),
+    );
     expect(new Set(Object.keys(document.paths))).toEqual(expected);
   });
 
   it("excludes only the operational non-API paths", () => {
-    expect(coverage.excluded.every(p => !p.startsWith("/api/"))).toBe(true);
-    expect(Object.keys(document.paths).every(p => p.startsWith("/api/"))).toBe(true);
+    expect(coverage.excluded.every((p) => !p.startsWith("/api/"))).toBe(true);
+    expect(
+      Object.keys(document.paths).every((p) => p.startsWith("/api/")),
+    ).toBe(true);
   });
 
   it("assigns every operation exactly one declared category, none uncategorized", () => {
-    const declared = new Set(document.tags.map(t => t.name));
+    const declared = new Set(document.tags.map((t) => t.name));
     for (const [path, item] of Object.entries(document.paths)) {
       for (const [method, op] of Object.entries(item)) {
         expect(op.tags, `${method} ${path} tags`).toHaveLength(1);
-        expect(declared.has(op.tags[0]), `${method} ${path} -> ${op.tags[0]}`).toBe(true);
+        expect(
+          declared.has(op.tags[0]),
+          `${method} ${path} -> ${op.tags[0]}`,
+        ).toBe(true);
       }
     }
   });
@@ -49,8 +61,14 @@ describe("OpenAPI coverage drift guard", () => {
 describe("OpenAPI document is structurally valid 3.1", () => {
   it("has the 3.1 envelope, info, security scheme, and error components", () => {
     expect(document.openapi).toBe("3.1.0");
-    expect(document.info).toMatchObject({ title: expect.any(String), version: expect.any(String) });
-    expect(document.components.securitySchemes.bearerAuth).toEqual({ type: "http", scheme: "bearer" });
+    expect(document.info).toMatchObject({
+      title: expect.any(String),
+      version: expect.any(String),
+    });
+    expect(document.components.securitySchemes.bearerAuth).toEqual({
+      type: "http",
+      scheme: "bearer",
+    });
     expect(document.components.schemas.Error).toBeDefined();
   });
 
@@ -59,7 +77,10 @@ describe("OpenAPI document is structurally valid 3.1", () => {
       for (const [method, op] of Object.entries(item)) {
         expect(op.security, `${method} ${path} security`).toBeDefined();
         expect(op.responses, `${method} ${path} responses`).toBeDefined();
-        expect(op["x-rate-limit-bucket"], `${method} ${path} bucket`).toBeDefined();
+        expect(
+          op["x-rate-limit-bucket"],
+          `${method} ${path} bucket`,
+        ).toBeDefined();
       }
     }
   });
@@ -67,7 +88,8 @@ describe("OpenAPI document is structurally valid 3.1", () => {
   it("shapes every request body as an application/json schema", () => {
     for (const item of Object.values(document.paths)) {
       for (const op of Object.values(item)) {
-        if (op.requestBody) expect(op.requestBody.content).toHaveProperty(["application/json"]);
+        if (op.requestBody)
+          expect(op.requestBody.content).toHaveProperty(["application/json"]);
       }
     }
   });

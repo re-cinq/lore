@@ -50,15 +50,25 @@ describe("POST /api/webhook/ci-ingest", () => {
 
   it("returns 400 with the mapper message on a valid JSON body that fails validation", async () => {
     process.env.LORE_INGEST_TOKEN = "right-token";
-    const res = await authed(JSON.stringify({ repo: "re-cinq/lore", kinds: ["bogus"] }));
+    const res = await authed(
+      JSON.stringify({ repo: "re-cinq/lore", kinds: ["bogus"] }),
+    );
     expect(res.statusCode).toBe(400);
-    expect((res.result as { message?: string }).message).toContain("unsupported kind(s): bogus");
+    expect((res.result as { message?: string }).message).toContain(
+      "unsupported kind(s): bogus",
+    );
   });
 
   it("returns 500 when the event insert fails (so the sender redelivers)", async () => {
     process.env.LORE_INGEST_TOKEN = "right-token";
     vi.mocked(insertEventList).mockRejectedValueOnce(new Error("db down"));
-    const res = await authed(JSON.stringify({ repo: "re-cinq/lore", kinds: ["specs"], commit: "abc123" }));
+    const res = await authed(
+      JSON.stringify({
+        repo: "re-cinq/lore",
+        kinds: ["specs"],
+        commit: "abc123",
+      }),
+    );
     expect(res.statusCode).toBe(500);
   });
 });

@@ -72,7 +72,13 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
   readonly auditLog: AuditLogInsert[] = [];
   private seq = 0;
 
-  constructor(seed: { memories?: MemoryLifecycleRow[]; facts?: FactRow[]; episodes?: EpisodeRow[] } = {}) {
+  constructor(
+    seed: {
+      memories?: MemoryLifecycleRow[];
+      facts?: FactRow[];
+      episodes?: EpisodeRow[];
+    } = {},
+  ) {
     this.memories = seed.memories ?? [];
     this.facts = seed.facts ?? [];
     this.episodes = seed.episodes ?? [];
@@ -133,7 +139,11 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
   async expireMemories(): Promise<number> {
     let count = 0;
     for (const m of this.memories) {
-      if (m.expires_at !== null && new Date(m.expires_at).getTime() < Date.now() && !m.is_deleted) {
+      if (
+        m.expires_at !== null &&
+        new Date(m.expires_at).getTime() < Date.now() &&
+        !m.is_deleted
+      ) {
         m.is_deleted = true;
         count++;
       }
@@ -143,17 +153,28 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
 
   async upsertMemory(memory: MemoryUpsert): Promise<void> {
     const existing = this.memories.find(
-      (m) => m.agent_id === memory.agentId && m.key === memory.key && m.version === 1,
+      (m) =>
+        m.agent_id === memory.agentId &&
+        m.key === memory.key &&
+        m.version === 1,
     );
     if (existing) {
       existing.value = memory.value;
       return;
     }
-    this.memories.push(this.newMemoryRow(memory.agentId, memory.key, memory.value, 1));
+    this.memories.push(
+      this.newMemoryRow(memory.agentId, memory.key, memory.value, 1),
+    );
   }
 
-  async appendMemory(agentId: string, key: string, value: string): Promise<void> {
-    const existing = this.memories.find((m) => m.agent_id === agentId && m.key === key);
+  async appendMemory(
+    agentId: string,
+    key: string,
+    value: string,
+  ): Promise<void> {
+    const existing = this.memories.find(
+      (m) => m.agent_id === agentId && m.key === key,
+    );
     if (existing) {
       existing.value = `${existing.value}\n${value}`;
       existing.version += 1;
@@ -178,7 +199,10 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
       .map(([agent_id, cnt]) => ({ agent_id, cnt }));
   }
 
-  async deleteOldestInvalidatedFacts(limit: number, minAgeDays: number): Promise<number> {
+  async deleteOldestInvalidatedFacts(
+    limit: number,
+    minAgeDays: number,
+  ): Promise<number> {
     const victims = this.facts
       .filter((f) => olderThanDays(f.valid_to, minAgeDays))
       .sort((a, b) => (a.valid_to ?? "").localeCompare(b.valid_to ?? ""))
@@ -205,9 +229,14 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
     return count;
   }
 
-  async findRecentValidFacts(lookbackDays: number, limit: number): Promise<RecentFact[]> {
+  async findRecentValidFacts(
+    lookbackDays: number,
+    limit: number,
+  ): Promise<RecentFact[]> {
     return this.facts
-      .filter((f) => f.valid_to === null && newerThanDays(f.created_at, lookbackDays))
+      .filter(
+        (f) => f.valid_to === null && newerThanDays(f.created_at, lookbackDays),
+      )
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
       .slice(0, limit)
       .map((f) => ({ fact_text: f.fact_text, repo: f.repo || "unknown" }));
@@ -215,28 +244,38 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
 
   // PR-outcome feedback ──────────────────────────────────────────────
 
-  async boostContributors(factIds: string[], memoryIds: string[]): Promise<void> {
+  async boostContributors(
+    factIds: string[],
+    memoryIds: string[],
+  ): Promise<void> {
     if (factIds.length > 0) {
       for (const f of this.facts) {
-        if (factIds.includes(f.id)) f.half_life_days = Math.min((f.half_life_days ?? 30) + 5, 365);
+        if (factIds.includes(f.id))
+          f.half_life_days = Math.min((f.half_life_days ?? 30) + 5, 365);
       }
     }
     if (memoryIds.length > 0) {
       for (const m of this.memories) {
-        if (memoryIds.includes(m.id)) m.half_life_days = Math.min((m.half_life_days ?? 60) + 5, 365);
+        if (memoryIds.includes(m.id))
+          m.half_life_days = Math.min((m.half_life_days ?? 60) + 5, 365);
       }
     }
   }
 
-  async penalizeContributors(factIds: string[], memoryIds: string[]): Promise<void> {
+  async penalizeContributors(
+    factIds: string[],
+    memoryIds: string[],
+  ): Promise<void> {
     if (factIds.length > 0) {
       for (const f of this.facts) {
-        if (factIds.includes(f.id)) f.half_life_days = Math.max(7, (f.half_life_days ?? 30) - 3);
+        if (factIds.includes(f.id))
+          f.half_life_days = Math.max(7, (f.half_life_days ?? 30) - 3);
       }
     }
     if (memoryIds.length > 0) {
       for (const m of this.memories) {
-        if (memoryIds.includes(m.id)) m.half_life_days = Math.max(7, (m.half_life_days ?? 60) - 3);
+        if (memoryIds.includes(m.id))
+          m.half_life_days = Math.max(7, (m.half_life_days ?? 60) - 3);
       }
     }
   }
@@ -251,7 +290,9 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
 
   async insertEpisode(episode: EpisodeInsert): Promise<string | null> {
     const dup = this.episodes.some(
-      (e) => e.agent_id === episode.agentId && e.content_hash === episode.contentHash,
+      (e) =>
+        e.agent_id === episode.agentId &&
+        e.content_hash === episode.contentHash,
     );
     if (dup) return null;
     const id = `episode-${this.episodes.length + 1}`;
@@ -268,7 +309,12 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
 
   // ── helpers ────────────────────────────────────────────────────────
 
-  private newMemoryRow(agentId: string, key: string, value: string, version: number): MemoryLifecycleRow {
+  private newMemoryRow(
+    agentId: string,
+    key: string,
+    value: string,
+    version: number,
+  ): MemoryLifecycleRow {
     return {
       id: `mem-${++this.seq}`,
       agent_id: agentId,

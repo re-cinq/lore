@@ -89,7 +89,11 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
     );
   }
 
-  async appendMemory(agentId: string, key: string, value: string): Promise<void> {
+  async appendMemory(
+    agentId: string,
+    key: string,
+    value: string,
+  ): Promise<void> {
     await this.pool.query(
       `INSERT INTO memory.memories (agent_id, key, value)
        VALUES ($1, $2, $3)
@@ -118,7 +122,10 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
     return rows as AgentCount[];
   }
 
-  async deleteOldestInvalidatedFacts(limit: number, minAgeDays: number): Promise<number> {
+  async deleteOldestInvalidatedFacts(
+    limit: number,
+    minAgeDays: number,
+  ): Promise<number> {
     const { rows } = await this.pool.query(
       `WITH oldest AS (
          SELECT id FROM memory.facts
@@ -146,7 +153,10 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
     return rows.length;
   }
 
-  async findRecentValidFacts(lookbackDays: number, limit: number): Promise<RecentFact[]> {
+  async findRecentValidFacts(
+    lookbackDays: number,
+    limit: number,
+  ): Promise<RecentFact[]> {
     const { rows } = await this.pool.query(
       `SELECT f.fact_text, COALESCE(e.ref, 'unknown') AS repo
      FROM memory.facts f
@@ -161,7 +171,10 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
 
   // PR-outcome feedback (merge-check.ts) ─────────────────────────────
 
-  async boostContributors(factIds: string[], memoryIds: string[]): Promise<void> {
+  async boostContributors(
+    factIds: string[],
+    memoryIds: string[],
+  ): Promise<void> {
     if (factIds.length > 0) {
       await this.pool.query(
         `UPDATE memory.facts SET half_life_days = LEAST(COALESCE(half_life_days, 30) + 5, 365) WHERE id = ANY($1::uuid[])`,
@@ -176,7 +189,10 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
     }
   }
 
-  async penalizeContributors(factIds: string[], memoryIds: string[]): Promise<void> {
+  async penalizeContributors(
+    factIds: string[],
+    memoryIds: string[],
+  ): Promise<void> {
     if (factIds.length > 0) {
       await this.pool.query(
         `UPDATE memory.facts SET half_life_days = GREATEST(7, COALESCE(half_life_days, 30) - 3) WHERE id = ANY($1::uuid[])`,
@@ -209,7 +225,13 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (agent_id, content_hash) DO NOTHING
        RETURNING id`,
-      [episode.agentId, episode.content, episode.contentHash, episode.source, episode.ref],
+      [
+        episode.agentId,
+        episode.content,
+        episode.contentHash,
+        episode.source,
+        episode.ref,
+      ],
     );
     return rows[0]?.id || null;
   }

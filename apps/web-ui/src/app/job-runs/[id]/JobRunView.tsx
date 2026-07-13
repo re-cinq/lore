@@ -24,30 +24,51 @@ export default function JobRunView({ id, run, logs }: JobRunViewProps) {
       <div>
         <h1>Job Run</h1>
         <p className="meta">Run not found: {id}</p>
-        <p><Link href="/analytics">← Back to analytics</Link></p>
+        <p>
+          <Link href="/analytics">← Back to analytics</Link>
+        </p>
       </div>
     );
   }
 
   return (
     <div>
-      <p><Link href="/analytics">← Back to analytics</Link></p>
-      <h1><span className="badge">{run.job_name}</span> <span className={`op-badge op-${run.status}`}>{run.status}</span></h1>
+      <p>
+        <Link href="/analytics">← Back to analytics</Link>
+      </p>
+      <h1>
+        <span className="badge">{run.job_name}</span>{" "}
+        <span className={`op-badge op-${run.status}`}>{run.status}</span>
+      </h1>
 
       <div className={`spec-card ${styles.card}`}>
-        <div><span className="meta">Run ID:</span> <code>{run.id}</code></div>
-        <div><span className="meta">Started:</span> {new Date(run.started_at).toLocaleString()}</div>
+        <div>
+          <span className="meta">Run ID:</span> <code>{run.id}</code>
+        </div>
+        <div>
+          <span className="meta">Started:</span>{" "}
+          {new Date(run.started_at).toLocaleString()}
+        </div>
         {run.completed_at && (
-          <div><span className="meta">Completed:</span> {new Date(run.completed_at).toLocaleString()}</div>
+          <div>
+            <span className="meta">Completed:</span>{" "}
+            {new Date(run.completed_at).toLocaleString()}
+          </div>
         )}
         {run.result_summary && (
-          <div><span className="meta">Summary:</span> {run.result_summary}</div>
+          <div>
+            <span className="meta">Summary:</span> {run.result_summary}
+          </div>
         )}
         {run.error && (
-          <div className={styles.error}><span className="meta">Error:</span> {run.error}</div>
+          <div className={styles.error}>
+            <span className="meta">Error:</span> {run.error}
+          </div>
         )}
         {run.log_path && (
-          <div><span className="meta">Log path:</span> <code>{run.log_path}</code></div>
+          <div>
+            <span className="meta">Log path:</span> <code>{run.log_path}</code>
+          </div>
         )}
       </div>
 

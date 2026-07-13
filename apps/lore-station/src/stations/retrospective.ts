@@ -13,7 +13,9 @@ async function postEpisode(input: StationInput): Promise<void> {
   const baseUrl = process.env.LORE_API_URL;
   if (!baseUrl) return; // no API wired → nothing to write (local/dev)
   const token = process.env.LORE_STATION_TOKEN ?? process.env.LORE_INGEST_TOKEN;
-  const headers: Record<string, string> = { "content-type": "application/json" };
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
   if (token) headers["authorization"] = `Bearer ${token}`;
 
   const content =
@@ -22,16 +24,26 @@ async function postEpisode(input: StationInput): Promise<void> {
   const res = await fetch(`${baseUrl}/api/episode`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ content, source: "retrospective-station", ref: input.branch }),
+    body: JSON.stringify({
+      content,
+      source: "retrospective-station",
+      ref: input.branch,
+    }),
   });
   if (!res.ok) throw new Error(`episode write failed: ${res.status}`);
 }
 
-export async function runRetrospectiveStation(input: StationInput): Promise<NodeResult> {
+export async function runRetrospectiveStation(
+  input: StationInput,
+): Promise<NodeResult> {
   try {
     await postEpisode(input);
   } catch (err) {
-    console.log(eventLine(`retrospective episode write failed: ${(err as Error).message}`));
+    console.log(
+      eventLine(
+        `retrospective episode write failed: ${(err as Error).message}`,
+      ),
+    );
   }
   return { outcome: "success", extras: { "Lore-Retro": "episode" } };
 }

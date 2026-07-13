@@ -75,7 +75,9 @@ describe("AgentDefsYaml", () => {
   });
 
   it("returns null for an unknown agent name", async () => {
-    expect(await new AgentDefsYaml(path).resolve("re-cinq/lore", "nope")).toBeNull();
+    expect(
+      await new AgentDefsYaml(path).resolve("re-cinq/lore", "nope"),
+    ).toBeNull();
   });
 
   it("serves PLANNING_INSTRUCTIONS as the feature-planning prompt, not the yaml wrapper", async () => {
@@ -93,7 +95,10 @@ describe("AgentDefsYaml", () => {
         "",
       ].join("\n"),
     );
-    const def = await new AgentDefsYaml(fp).resolve("re-cinq/lore", "feature-planning");
+    const def = await new AgentDefsYaml(fp).resolve(
+      "re-cinq/lore",
+      "feature-planning",
+    );
     expect(def?.prompt).toBe(PLANNING_INSTRUCTIONS);
     expect(def?.model).toBe("claude-sonnet-4-6");
     expect(def?.timeout_minutes).toBe(15);
@@ -113,7 +118,10 @@ describe("AgentDefsYaml", () => {
         "",
       ].join("\n"),
     );
-    const def = await new AgentDefsYaml(fp).resolve("re-cinq/lore", "feature-decompose");
+    const def = await new AgentDefsYaml(fp).resolve(
+      "re-cinq/lore",
+      "feature-decompose",
+    );
     expect(def?.prompt).toBe(DECOMPOSITION_INSTRUCTIONS);
     expect(def?.model).toBe("claude-sonnet-4-6");
   });
@@ -131,6 +139,8 @@ describe("AgentDefsYaml", () => {
         execution_mode: "claude-code",
         review_required: false,
       }),
-    ).rejects.toThrow(new Error("agent definitions are read-only without a database"));
+    ).rejects.toThrow(
+      new Error("agent definitions are read-only without a database"),
+    );
   });
 });

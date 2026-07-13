@@ -5,9 +5,9 @@
  * helpers for prompt building, default repos, and type enumeration.
  */
 
-import { readFileSync } from 'node:fs';
-import { resolve, join } from 'node:path';
-import { parse } from 'yaml';
+import { readFileSync } from "node:fs";
+import { resolve, join } from "node:path";
+import { parse } from "yaml";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -50,14 +50,14 @@ export function loadTaskTypes(configPath?: string): void {
   }
 
   paths.push(
-    resolve('./task-types.yaml'),
-    resolve('../scripts/task-types.yaml'),
-    '/config/task-types.yaml',
+    resolve("./task-types.yaml"),
+    resolve("../scripts/task-types.yaml"),
+    "/config/task-types.yaml",
   );
 
   for (const p of paths) {
     try {
-      const raw = readFileSync(p, 'utf-8');
+      const raw = readFileSync(p, "utf-8");
       const parsed = parse(raw);
       const types: Record<string, TaskTypeConfig> = parsed.task_types || {};
 
@@ -73,11 +73,13 @@ export function loadTaskTypes(configPath?: string): void {
     }
   }
 
-  console.warn('[floor] No task-types.yaml found, using empty config');
+  console.warn("[floor] No task-types.yaml found, using empty config");
 }
 
 /** Return the config for a specific task type, or undefined. */
-export function getTaskTypeConfig(taskType: string): TaskTypeConfig | undefined {
+export function getTaskTypeConfig(
+  taskType: string,
+): TaskTypeConfig | undefined {
   return taskTypes.get(taskType);
 }
 
@@ -93,9 +95,10 @@ export function getTaskTypes(): string[] {
  * and to a hardcoded default if "general" is also missing.
  */
 export function buildPrompt(taskType: string, description: string): string {
-  const cfg = taskTypes.get(taskType) ?? taskTypes.get('general');
-  const template = cfg?.prompt_template ?? 'Complete the following task: {description}';
-  return template.replace('{description}', description);
+  const cfg = taskTypes.get(taskType) ?? taskTypes.get("general");
+  const template =
+    cfg?.prompt_template ?? "Complete the following task: {description}";
+  return template.replace("{description}", description);
 }
 
 /**
@@ -104,5 +107,5 @@ export function buildPrompt(taskType: string, description: string): string {
  * Falls back to "re-cinq/lore" when the type has no explicit target_repo.
  */
 export function getDefaultRepo(taskType: string): string {
-  return taskTypes.get(taskType)?.target_repo || 're-cinq/lore';
+  return taskTypes.get(taskType)?.target_repo || "re-cinq/lore";
 }

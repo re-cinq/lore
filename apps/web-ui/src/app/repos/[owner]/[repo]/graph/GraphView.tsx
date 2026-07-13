@@ -1,26 +1,26 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import type { SpecGraph } from '@/lib/spec-graph';
-import SpecGraphD3 from './SpecGraphD3';
+import { useState } from "react";
+import type { SpecGraph } from "@/lib/spec-graph";
+import SpecGraphD3 from "./SpecGraphD3";
 
 const SEARCH_INPUT: React.CSSProperties = {
-  padding: '6px 10px',
-  border: '1px solid var(--border)',
+  padding: "6px 10px",
+  border: "1px solid var(--border)",
   borderRadius: 6,
-  background: 'var(--bg-surface)',
-  color: 'var(--text)',
+  background: "var(--bg-surface)",
+  color: "var(--text)",
   fontSize: 13,
   minWidth: 200,
 };
 
 const BTN: React.CSSProperties = {
-  padding: '6px 12px',
-  border: '1px solid var(--border)',
+  padding: "6px 12px",
+  border: "1px solid var(--border)",
   borderRadius: 6,
-  background: 'var(--bg-surface)',
-  color: 'var(--text)',
-  cursor: 'pointer',
+  background: "var(--bg-surface)",
+  color: "var(--text)",
+  cursor: "pointer",
   fontSize: 13,
 };
 
@@ -30,8 +30,16 @@ const BTN: React.CSSProperties = {
  * above the D3 graph. Reset clears the persisted layout for this repo and bumps
  * `resetSignal`, which re-runs the graph's layout effect from scratch.
  */
-export default function GraphView({ owner, repo, data }: { owner: string; repo: string; data: SpecGraph }) {
-  const [query, setQuery] = useState('');
+export default function GraphView({
+  owner,
+  repo,
+  data,
+}: {
+  owner: string;
+  repo: string;
+  data: SpecGraph;
+}) {
+  const [query, setQuery] = useState("");
   const [resetSignal, setResetSignal] = useState(0);
   const repoId = `${owner}/${repo}`;
 
@@ -41,14 +49,29 @@ export default function GraphView({ owner, repo, data }: { owner: string; repo: 
     } catch {
       // storage unavailable — the signal bump alone still re-settles the layout
     }
-    setQuery('');
+    setQuery("");
     setResetSignal((n) => n + 1);
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        flex: 1,
+        minHeight: 0,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          alignItems: "flex-start",
+          justifyContent: "flex-end",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <input
             type="text"
             placeholder="Search nodes…"
@@ -57,10 +80,17 @@ export default function GraphView({ owner, repo, data }: { owner: string; repo: 
             style={SEARCH_INPUT}
             aria-label="Search nodes"
           />
-          <button style={BTN} onClick={reset}>Reset</button>
+          <button style={BTN} onClick={reset}>
+            Reset
+          </button>
         </div>
       </div>
-      <SpecGraphD3 data={data} repo={repoId} searchQuery={query} resetSignal={resetSignal} />
+      <SpecGraphD3
+        data={data}
+        repo={repoId}
+        searchQuery={query}
+        resetSignal={resetSignal}
+      />
     </div>
   );
 }

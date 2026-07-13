@@ -49,7 +49,11 @@ export function applyPoint(transform: ZoomTransform, world: Point): Point {
  * choosing the nearest centre when discs overlap. Null when the point is clear
  * of every node. Coordinates are in world space (invert the pointer first).
  */
-export function findNodeAtPoint(world: Point, nodes: HitNode[], slop = 0): string | null {
+export function findNodeAtPoint(
+  world: Point,
+  nodes: HitNode[],
+  slop = 0,
+): string | null {
   let bestId: string | null = null;
   let bestDistance = Infinity;
   for (const node of nodes) {

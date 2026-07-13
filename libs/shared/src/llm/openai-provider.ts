@@ -43,7 +43,10 @@ export class OpenAiProvider implements LlmProvider {
 
   async completeWithTool<T>(req: LlmToolRequest): Promise<LlmToolResult<T>> {
     const instruction = `${req.toolDescription}\nRespond with ONLY a JSON object matching this schema: ${JSON.stringify(req.toolSchema)}`;
-    const text = await this.chat(req.systemPrompt ? `${req.systemPrompt}\n${instruction}` : instruction, req.prompt);
+    const text = await this.chat(
+      req.systemPrompt ? `${req.systemPrompt}\n${instruction}` : instruction,
+      req.prompt,
+    );
     return {
       data: JSON.parse(text) as T,
       model: this.opts.model,
@@ -54,7 +57,10 @@ export class OpenAiProvider implements LlmProvider {
     };
   }
 
-  private async chat(systemPrompt: string | undefined, prompt: string): Promise<string> {
+  private async chat(
+    systemPrompt: string | undefined,
+    prompt: string,
+  ): Promise<string> {
     const apiKey = this.opts.apiKey ?? process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error("OPENAI_API_KEY not set");
     const messages = [
@@ -64,11 +70,21 @@ export class OpenAiProvider implements LlmProvider {
     const doFetch = this.opts.fetchFn ?? fetch;
     const res = await doFetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: this.opts.model, messages, temperature: 0 }),
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: this.opts.model,
+        messages,
+        temperature: 0,
+      }),
     });
-    if (!res.ok) throw new Error(`OpenAI API error: ${res.status} ${res.statusText}`);
-    const json = (await res.json()) as { choices: Array<{ message: { content: string } }> };
+    if (!res.ok)
+      throw new Error(`OpenAI API error: ${res.status} ${res.statusText}`);
+    const json = (await res.json()) as {
+      choices: Array<{ message: { content: string } }>;
+    };
     return json.choices[0].message.content;
   }
 }

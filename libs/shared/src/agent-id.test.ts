@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -55,8 +61,12 @@ describe("resolveAgentId", () => {
   it("generates a uuid and persists it when no source is set", async () => {
     const resolveAgentId = await loadResolveAgentId(home);
     const id = resolveAgentId();
-    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
-    expect(readFileSync(join(home, ".lore", "agent-id"), "utf-8").trim()).toBe(id);
+    expect(id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+    expect(readFileSync(join(home, ".lore", "agent-id"), "utf-8").trim()).toBe(
+      id,
+    );
     // A second resolution reads the persisted id back rather than regenerating.
     const again = await loadResolveAgentId(home);
     expect(again()).toBe(id);

@@ -14,7 +14,8 @@ export const PLANNING_EXAMPLE: GapResult = {
     },
     {
       title: "Trigger & flow",
-      content: "On a **spec PR merge**, fire the planning agent; it reads the spec and writes a reviewed `plan.md`.",
+      content:
+        "On a **spec PR merge**, fire the planning agent; it reads the spec and writes a reviewed `plan.md`.",
       mockups: [
         {
           title: "Pipeline",

@@ -6,7 +6,12 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { parseTasks, inferPhaseDependencies, syncTasksToDb, specSlugFromBranch } from "@re-cinq/lore-shared";
+import {
+  parseTasks,
+  inferPhaseDependencies,
+  syncTasksToDb,
+  specSlugFromBranch,
+} from "@re-cinq/lore-shared";
 import { getPool } from "../kernel/db.js";
 import { projectFor } from "../composition/project-boot.js";
 import { settings, taskStore, taskQueue } from "../kernel/queues.js";
@@ -45,18 +50,27 @@ export const issuesLabeled: EventHandler = async (params) => {
   const { repo, label, issue } = params as {
     repo: string;
     label: string;
-    issue: { number: number; title: string; body: string; html_url: string; labels: string[] };
+    issue: {
+      number: number;
+      title: string;
+      body: string;
+      html_url: string;
+      labels: string[];
+    };
   };
   let dispatchLabel = "lore";
   let dispatchDefaultType = "general";
   const repoSettings = await settings().rawSettings(repo);
   if (repoSettings) {
-    const parsed = (typeof repoSettings === "string" ? JSON.parse(repoSettings) : repoSettings) as {
+    const parsed = (
+      typeof repoSettings === "string" ? JSON.parse(repoSettings) : repoSettings
+    ) as {
       dispatch_label?: string;
       dispatch_default_type?: string;
     };
     if (parsed.dispatch_label) dispatchLabel = parsed.dispatch_label;
-    if (parsed.dispatch_default_type) dispatchDefaultType = parsed.dispatch_default_type;
+    if (parsed.dispatch_default_type)
+      dispatchDefaultType = parsed.dispatch_default_type;
   }
   if (label !== dispatchLabel) return; // not the dispatch label → no-op
 
@@ -68,7 +82,10 @@ export const issuesLabeled: EventHandler = async (params) => {
   const issues = (await projectFor(repo)).issues;
   const existing = await taskQueue().activeTaskByIssue(repo, issue.number);
   if (existing) {
-    await issues.comment(issue.number, `Already being worked on: task \`${existing.id}\``);
+    await issues.comment(
+      issue.number,
+      `Already being worked on: task \`${existing.id}\``,
+    );
     return;
   }
 
@@ -84,9 +101,15 @@ export const issuesLabeled: EventHandler = async (params) => {
       github_issue_body: issue.body,
     },
   });
-  await taskQueue().setColumns(task.task_id, { issue_number: issue.number, issue_url: issue.html_url });
+  await taskQueue().setColumns(task.task_id, {
+    issue_number: issue.number,
+    issue_url: issue.html_url,
+  });
   await Promise.allSettled([
-    issues.comment(issue.number, `Lore agent is working on this. Task: \`${task.task_id}\``),
+    issues.comment(
+      issue.number,
+      `Lore agent is working on this. Task: \`${task.task_id}\``,
+    ),
     issues.addLabel(issue.number, "lore-managed"),
   ]);
 };
@@ -107,10 +130,9 @@ export const specPrMerge: EventHandler = async (params) => {
 
   if (await taskQueue().hasSpecTasksForSlug(repo, specSlug)) return; // already synced
 
-  const tasksContent = await (await projectFor(repo)).repo.read(
-    `specs/${specSlug}/tasks.md`,
-    merge_commit_sha ?? undefined,
-  );
+  const tasksContent = await (
+    await projectFor(repo)
+  ).repo.read(`specs/${specSlug}/tasks.md`, merge_commit_sha ?? undefined);
   if (!tasksContent) return;
 
   const withDeps = inferPhaseDependencies(parseTasks(tasksContent));
@@ -118,6 +140,10 @@ export const specPrMerge: EventHandler = async (params) => {
   // syncTasksToDb is a shared, multi-app helper that takes the pool directly.
   await syncTasksToDb(getPool(), repo, specSlug, withDeps, taskGroupId);
 
-  await taskQueue().markFeatureRequestMergedOnBranch(repo, branch).catch(() => {});
-  console.log(`[events] spec PR merged: ${repo}/${specSlug} → spec-tasks (group ${taskGroupId})`);
+  await taskQueue()
+    .markFeatureRequestMergedOnBranch(repo, branch)
+    .catch(() => {});
+  console.log(
+    `[events] spec PR merged: ${repo}/${specSlug} → spec-tasks (group ${taskGroupId})`,
+  );
 };

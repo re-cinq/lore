@@ -57,7 +57,8 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
     private readonly minter: TokenMinter,
     private readonly secrets: SecretKeyWriter,
     private readonly catalog: CatalogApi,
-    private readonly secretName = process.env.LORE_AGENT_SECRETS_NAME ?? "agent-secrets",
+    private readonly secretName = process.env.LORE_AGENT_SECRETS_NAME ??
+      "agent-secrets",
   ) {}
 
   async provision(spec: LoreTaskSpec): Promise<string | undefined> {
@@ -66,11 +67,19 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
     if (!catalogDef || !catalogStation) return undefined;
 
     const key = tokenSecretKey(spec.taskId);
-    await this.secrets.setKey(this.secretName, key, await this.minter.mint(spec.targetRepo));
+    await this.secrets.setKey(
+      this.secretName,
+      key,
+      await this.minter.mint(spec.targetRepo),
+    );
 
     const name = perTaskName(spec.taskId);
-    await this.catalog.applyAgentDefinition(injectRepoToken(catalogDef, spec, key, name));
-    await this.catalog.applyStation(perTaskStation(catalogStation, name, name, spec.taskId));
+    await this.catalog.applyAgentDefinition(
+      injectRepoToken(catalogDef, spec, key, name),
+    );
+    await this.catalog.applyStation(
+      perTaskStation(catalogStation, name, name, spec.taskId),
+    );
     return name;
   }
 
@@ -88,7 +97,9 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
  *  least-privilege scoping is a follow-up — the repo arg is accepted now so the port
  *  is stable when scoping lands. */
 export class GithubTokenMinter implements TokenMinter {
-  constructor(private readonly gh: { getInstallationToken(): Promise<string> }) {}
+  constructor(
+    private readonly gh: { getInstallationToken(): Promise<string> },
+  ) {}
   async mint(_repo: string): Promise<string> {
     return this.gh.getInstallationToken();
   }
@@ -96,7 +107,8 @@ export class GithubTokenMinter implements TokenMinter {
 
 export class KubeSecretKeyWriter implements SecretKeyWriter {
   constructor(
-    private readonly namespace = process.env.LORE_AGENTS_NAMESPACE ?? "ai-agents",
+    private readonly namespace = process.env.LORE_AGENTS_NAMESPACE ??
+      "ai-agents",
   ) {}
 
   private async core() {
@@ -126,12 +138,19 @@ export class KubeSecretKeyWriter implements SecretKeyWriter {
   ): Promise<void> {
     const core = await this.core();
     for (let attempt = 0; ; attempt++) {
-      const current = await core.readNamespacedSecret({ name: secret, namespace: this.namespace });
+      const current = await core.readNamespacedSecret({
+        name: secret,
+        namespace: this.namespace,
+      });
       const data = (current.data ?? {}) as Record<string, string>;
       change(data);
       current.data = data;
       try {
-        await core.replaceNamespacedSecret({ name: secret, namespace: this.namespace, body: current });
+        await core.replaceNamespacedSecret({
+          name: secret,
+          namespace: this.namespace,
+          body: current,
+        });
         return;
       } catch (err) {
         if (isConflict(err) && attempt < 4) continue;
@@ -143,11 +162,13 @@ export class KubeSecretKeyWriter implements SecretKeyWriter {
 
 export class KubeCatalogApi implements CatalogApi {
   constructor(
-    private readonly namespace = process.env.LORE_AGENTS_NAMESPACE ?? "ai-agents",
+    private readonly namespace = process.env.LORE_AGENTS_NAMESPACE ??
+      "ai-agents",
   ) {}
 
   private async api() {
-    const { KubeConfig, CustomObjectsApi } = await import("@kubernetes/client-node");
+    const { KubeConfig, CustomObjectsApi } =
+      await import("@kubernetes/client-node");
     const kc = new KubeConfig();
     kc.loadFromCluster();
     return kc.makeApiClient(CustomObjectsApi);
@@ -189,7 +210,11 @@ export class KubeCatalogApi implements CatalogApi {
   }
 
   // Create, or replace (carrying the live resourceVersion) when it already exists.
-  private async apply(plural: string, name: string, body: object): Promise<void> {
+  private async apply(
+    plural: string,
+    name: string,
+    body: object,
+  ): Promise<void> {
     const api = await this.api();
     try {
       await api.createNamespacedCustomObject({
@@ -208,14 +233,21 @@ export class KubeCatalogApi implements CatalogApi {
         plural,
         name,
       })) as { metadata?: { resourceVersion?: string } };
-      const meta = (body as { metadata?: Record<string, unknown> }).metadata ?? {};
+      const meta =
+        (body as { metadata?: Record<string, unknown> }).metadata ?? {};
       await api.replaceNamespacedCustomObject({
         group: GROUP,
         version: VERSION,
         namespace: this.namespace,
         plural,
         name,
-        body: { ...body, metadata: { ...meta, resourceVersion: current.metadata?.resourceVersion } },
+        body: {
+          ...body,
+          metadata: {
+            ...meta,
+            resourceVersion: current.metadata?.resourceVersion,
+          },
+        },
       });
     }
   }

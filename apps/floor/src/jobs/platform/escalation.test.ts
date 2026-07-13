@@ -1,26 +1,38 @@
 import { describe, it, expect, vi } from "vitest";
-import { escalate, renderEscalationBody, type IssueCreator } from "./escalation.js";
+import {
+  escalate,
+  renderEscalationBody,
+  type IssueCreator,
+} from "./escalation.js";
 
 // Avoid touching the real DB / audit log in unit tests.
 vi.mock("../../kernel/db.js", () => ({
   query: vi.fn(async () => []),
 }));
 
-function mockIssues(opts: {
-  failures?: number;
-  alwaysFails?: boolean;
-} = {}): { issues: IssueCreator; createCalls: Array<{ title: string; body: string; labels?: string[] }> } {
-  const createCalls: Array<{ title: string; body: string; labels?: string[] }> = [];
+function mockIssues(
+  opts: {
+    failures?: number;
+    alwaysFails?: boolean;
+  } = {},
+): {
+  issues: IssueCreator;
+  createCalls: Array<{ title: string; body: string; labels?: string[] }>;
+} {
+  const createCalls: Array<{ title: string; body: string; labels?: string[] }> =
+    [];
   let attempts = 0;
-  const create = vi.fn(async (title: string, body: string, labels?: string[]) => {
-    createCalls.push({ title, body, labels });
-    attempts++;
-    if (opts.alwaysFails) throw new Error("github 503");
-    if (opts.failures && attempts <= opts.failures) {
-      throw new Error("transient 502");
-    }
-    return { number: 42, url: "https://github.com/owner/repo/issues/42" };
-  });
+  const create = vi.fn(
+    async (title: string, body: string, labels?: string[]) => {
+      createCalls.push({ title, body, labels });
+      attempts++;
+      if (opts.alwaysFails) throw new Error("github 503");
+      if (opts.failures && attempts <= opts.failures) {
+        throw new Error("transient 502");
+      }
+      return { number: 42, url: "https://github.com/owner/repo/issues/42" };
+    },
+  );
   return { issues: { create }, createCalls };
 }
 
@@ -114,12 +126,10 @@ describe("escalate — retry then success", () => {
     // tests waiting on the 4s + 16s sleeps.
     const { issues, createCalls } = mockIssues({ failures: 1 });
     // Stub setTimeout to skip backoff sleeps.
-    vi.spyOn(globalThis, "setTimeout").mockImplementation(
-      ((fn: () => void) => {
-        fn();
-        return 0;
-      }) as unknown as typeof setTimeout,
-    );
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => {
+      fn();
+      return 0;
+    }) as unknown as typeof setTimeout);
 
     const r = await escalate({
       taskId: "t",
@@ -139,12 +149,10 @@ describe("escalate — retry then success", () => {
 describe("escalate — audit_only fallback (T041)", () => {
   it("degrades to audit_only after 2 attempts and inlines body to Slack", async () => {
     const { issues, createCalls } = mockIssues({ alwaysFails: true });
-    vi.spyOn(globalThis, "setTimeout").mockImplementation(
-      ((fn: () => void) => {
-        fn();
-        return 0;
-      }) as unknown as typeof setTimeout,
-    );
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => {
+      fn();
+      return 0;
+    }) as unknown as typeof setTimeout);
 
     const notifyCalls: Array<{ msg: string; level: string }> = [];
     const r = await escalate({

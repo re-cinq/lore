@@ -48,15 +48,21 @@ export async function staleTaskCheckJob(): Promise<string> {
 
       if (task.issue_number) {
         const project = await projectFor(task.target_repo);
-        await project.issues.comment(
-          task.issue_number,
-          `Task has been in \`running\` status for ${ageHoursRounded}h — exceeded the ${STALE_THRESHOLD_HOURS}h safety-net threshold. Auto-escalated to \`needs-human-help\`. Task id: \`${task.id}\`.`,
-        ).catch(() => {});
-        await project.issues.addLabel(task.issue_number, "needs-human-help").catch(() => {});
+        await project.issues
+          .comment(
+            task.issue_number,
+            `Task has been in \`running\` status for ${ageHoursRounded}h — exceeded the ${STALE_THRESHOLD_HOURS}h safety-net threshold. Auto-escalated to \`needs-human-help\`. Task id: \`${task.id}\`.`,
+          )
+          .catch(() => {});
+        await project.issues
+          .addLabel(task.issue_number, "needs-human-help")
+          .catch(() => {});
       }
 
       escalated++;
-      console.log(`[stale-task-check] escalated ${task.id} (${task.task_type} on ${task.target_repo}, age ${ageHoursRounded}h)`);
+      console.log(
+        `[stale-task-check] escalated ${task.id} (${task.task_type} on ${task.target_repo}, age ${ageHoursRounded}h)`,
+      );
     } catch (err) {
       console.error(`[stale-task-check] error escalating ${task.id}:`, err);
     }

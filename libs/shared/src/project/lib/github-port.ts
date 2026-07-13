@@ -28,21 +28,42 @@ export interface GitHubPort {
   // reads
   listIssues(repo: string, filter?: IssueFilter): Promise<IssueRef[]>;
   getIssue(repo: string, number: number): Promise<IssueRef | null>;
-  getFileContent(repo: string, path: string, ref?: string): Promise<string | null>;
+  getFileContent(
+    repo: string,
+    path: string,
+    ref?: string,
+  ): Promise<string | null>;
   listDirectory(repo: string, path: string): Promise<string[]>;
   listTree(repo: string, ref?: string): Promise<string[]>;
   getDefaultBranch(repo: string): Promise<string>;
-  listCommitsSince(repo: string, since: string): Promise<Array<{ sha: string; files: string[] }>>;
+  listCommitsSince(
+    repo: string,
+    since: string,
+  ): Promise<Array<{ sha: string; files: string[] }>>;
   getIssueLabels(repo: string, number: number): Promise<string[]>;
   // issue writes
-  createIssue(repo: string, title: string, body: string, labels?: string[]): Promise<IssueRef>;
+  createIssue(
+    repo: string,
+    title: string,
+    body: string,
+    labels?: string[],
+  ): Promise<IssueRef>;
   /** Ensure a set of repo labels exists (create-or-ignore-existing) — onboarding. */
-  createLabels(repo: string, labels: Array<{ name: string; color?: string; description?: string }>): Promise<void>;
+  createLabels(
+    repo: string,
+    labels: Array<{ name: string; color?: string; description?: string }>,
+  ): Promise<void>;
   commentOnIssue(repo: string, number: number, body: string): Promise<void>;
   closeIssue(repo: string, number: number, reason?: CloseReason): Promise<void>;
   addIssueLabel(repo: string, number: number, label: string): Promise<void>;
   removeIssueLabel(repo: string, number: number, label: string): Promise<void>;
   // API writes (no clone) — branch + single-file commit
   createBranch(repo: string, branch: string, base?: string): Promise<void>;
-  commitFile(repo: string, branch: string, path: string, content: string, message: string): Promise<void>;
+  commitFile(
+    repo: string,
+    branch: string,
+    path: string,
+    content: string,
+    message: string,
+  ): Promise<void>;
 }

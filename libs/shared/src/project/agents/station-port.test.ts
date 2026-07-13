@@ -8,16 +8,23 @@ describe("selectStationBackend", () => {
 
   it("honors an explicit docker override even in-cluster", () => {
     expect(
-      selectStationBackend({ LORE_STATION_BACKEND: "docker", KUBERNETES_SERVICE_HOST: "10.0.0.1" }),
+      selectStationBackend({
+        LORE_STATION_BACKEND: "docker",
+        KUBERNETES_SERVICE_HOST: "10.0.0.1",
+      }),
     ).toBe("docker");
   });
 
   it("honors the inprocess escape hatch", () => {
-    expect(selectStationBackend({ LORE_STATION_BACKEND: "inprocess" })).toBe("inprocess");
+    expect(selectStationBackend({ LORE_STATION_BACKEND: "inprocess" })).toBe(
+      "inprocess",
+    );
   });
 
   it("defaults to k8s in-cluster", () => {
-    expect(selectStationBackend({ KUBERNETES_SERVICE_HOST: "10.0.0.1" })).toBe("k8s");
+    expect(selectStationBackend({ KUBERNETES_SERVICE_HOST: "10.0.0.1" })).toBe(
+      "k8s",
+    );
   });
 
   it("defaults to docker off-cluster", () => {
@@ -25,9 +32,14 @@ describe("selectStationBackend", () => {
   });
 
   it("ignores an unrecognized value and falls back to context", () => {
-    expect(selectStationBackend({ LORE_STATION_BACKEND: "bogus" })).toBe("docker");
+    expect(selectStationBackend({ LORE_STATION_BACKEND: "bogus" })).toBe(
+      "docker",
+    );
     expect(
-      selectStationBackend({ LORE_STATION_BACKEND: "bogus", KUBERNETES_SERVICE_HOST: "x" }),
+      selectStationBackend({
+        LORE_STATION_BACKEND: "bogus",
+        KUBERNETES_SERVICE_HOST: "x",
+      }),
     ).toBe("k8s");
   });
 });

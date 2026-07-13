@@ -8,9 +8,13 @@
 export const MAX_ATTEMPTS = 5;
 const BACKOFF_CAP_SECONDS = 300;
 
-export type RetryDecision = { kind: "retry"; backoffSeconds: number } | { kind: "dead" };
+export type RetryDecision =
+  { kind: "retry"; backoffSeconds: number } | { kind: "dead" };
 
-export function decideRetry(state: { attempts: number; max?: number }): RetryDecision {
+export function decideRetry(state: {
+  attempts: number;
+  max?: number;
+}): RetryDecision {
   const max = state.max ?? MAX_ATTEMPTS;
   if (state.attempts >= max) return { kind: "dead" };
   const backoffSeconds = Math.min(2 ** state.attempts, BACKOFF_CAP_SECONDS);

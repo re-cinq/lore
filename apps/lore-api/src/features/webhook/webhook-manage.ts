@@ -16,7 +16,11 @@ function ownerRepo(repo: string): [string, string] {
 export async function listRepoWebhooks(repo: string): Promise<RepoHook[]> {
   const octokit = await getOctokit();
   const [owner, name] = ownerRepo(repo);
-  const { data } = await octokit.rest.repos.listWebhooks({ owner, repo: name, per_page: 100 });
+  const { data } = await octokit.rest.repos.listWebhooks({
+    owner,
+    repo: name,
+    per_page: 100,
+  });
   return data as unknown as RepoHook[];
 }
 
@@ -30,16 +34,40 @@ export async function ensureRepoWebhook(
   const [owner, name] = ownerRepo(repo);
   const config = { url, content_type: "json", secret };
 
-  const { data: hooks } = await octokit.rest.repos.listWebhooks({ owner, repo: name, per_page: 100 });
-  const existing = hooks.find((h) => (h.config?.url ?? "").endsWith("/api/webhook/github"));
+  const { data: hooks } = await octokit.rest.repos.listWebhooks({
+    owner,
+    repo: name,
+    per_page: 100,
+  });
+  const existing = hooks.find((h) =>
+    (h.config?.url ?? "").endsWith("/api/webhook/github"),
+  );
 
   if (existing) {
-    await octokit.rest.repos.updateWebhook({ owner, repo: name, hook_id: existing.id, config, events, active: true });
-    await octokit.rest.repos.pingWebhook({ owner, repo: name, hook_id: existing.id }).catch(() => {});
+    await octokit.rest.repos.updateWebhook({
+      owner,
+      repo: name,
+      hook_id: existing.id,
+      config,
+      events,
+      active: true,
+    });
+    await octokit.rest.repos
+      .pingWebhook({ owner, repo: name, hook_id: existing.id })
+      .catch(() => {});
     return { hookId: existing.id, created: false };
   }
 
-  const { data: created } = await octokit.rest.repos.createWebhook({ owner, repo: name, name: "web", config, events, active: true });
-  await octokit.rest.repos.pingWebhook({ owner, repo: name, hook_id: created.id }).catch(() => {});
+  const { data: created } = await octokit.rest.repos.createWebhook({
+    owner,
+    repo: name,
+    name: "web",
+    config,
+    events,
+    active: true,
+  });
+  await octokit.rest.repos
+    .pingWebhook({ owner, repo: name, hook_id: created.id })
+    .catch(() => {});
   return { hookId: created.id, created: true };
 }

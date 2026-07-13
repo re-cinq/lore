@@ -81,9 +81,7 @@ describe("buildBranchName", () => {
       task_type: "implementation",
     });
     // Slug is between "lore/<type>/" and "-<id8>"; verify the length cap.
-    const slug = branch
-      .replace(/^lore\/[^/]+\//, "")
-      .replace(/-33333333$/, "");
+    const slug = branch.replace(/^lore\/[^/]+\//, "").replace(/-33333333$/, "");
     expect(slug.length).toBeLessThanOrEqual(30);
   });
 
@@ -102,7 +100,12 @@ describe("processTaskViaSupervisor with an unknown definition", () => {
   it("returns error without recording an assembly line row", async () => {
     const port = new InMemoryAssemblyLines();
     const result = await processTaskViaSupervisor({
-      task: { id: "t-1", description: "x", task_type: "no-such-type", target_repo: "o/r" },
+      task: {
+        id: "t-1",
+        description: "x",
+        task_type: "no-such-type",
+        target_repo: "o/r",
+      },
       settings: resolveDarkFactorySettings(undefined),
       assemblyLineId: "al-1",
       loadAssemblyLines: async () => new Map(),

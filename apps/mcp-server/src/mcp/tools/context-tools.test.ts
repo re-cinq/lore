@@ -1,4 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  afterEach,
+  vi,
+} from "vitest";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -50,24 +59,35 @@ afterAll(() => {
 
 describe("lore_search_context file-based fallback", () => {
   it("returns the matching paragraph with its source path", async () => {
-    const result = await searchContext({ query: "Friday afternoons", limit: 8 });
+    const result = await searchContext({
+      query: "Friday afternoons",
+      limit: 8,
+    });
     const text = result.content[0].text;
     expect(text).toContain("**Source:** conventions.md");
     expect(text).toContain("We deploy on Friday afternoons.");
   });
 
   it("matches case-insensitively", async () => {
-    const result = await searchContext({ query: "FRIDAY AFTERNOONS", limit: 8 });
+    const result = await searchContext({
+      query: "FRIDAY AFTERNOONS",
+      limit: 8,
+    });
     expect(result.content[0].text).toContain("We deploy on Friday afternoons.");
   });
 
   it("excludes paragraphs that do not contain the query", async () => {
     const result = await searchContext({ query: "deploy", limit: 8 });
-    expect(result.content[0].text).not.toContain("Unrelated paragraph about cats");
+    expect(result.content[0].text).not.toContain(
+      "Unrelated paragraph about cats",
+    );
   });
 
   it("returns a no-results message when nothing matches", async () => {
-    const result = await searchContext({ query: "nonexistent-term-xyz", limit: 8 });
+    const result = await searchContext({
+      query: "nonexistent-term-xyz",
+      limit: 8,
+    });
     expect(result.content[0].text).toEqual(
       'No results found for "nonexistent-term-xyz".',
     );
@@ -127,22 +147,51 @@ describe("lore_assemble_context proxy path (read-through cache)", () => {
 
   it("returns an empty-but-reachable context as-is instead of a stale cached copy", async () => {
     store(policy, "OLD CONTEXT");
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ text: "" }) })));
-    const result = await assembleContext({ query: "q", template: "default", repo: "owner/r" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => ({ text: "" }) })),
+    );
+    const result = await assembleContext({
+      query: "q",
+      template: "default",
+      repo: "owner/r",
+    });
     expect(result.content[0].text).toBe("");
   });
 
   it("does not serve a stale cached copy when the backend denies access (403)", async () => {
     store(policy, "OLD CONTEXT");
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 403, statusText: "Forbidden", json: async () => ({}) })));
-    const result = await assembleContext({ query: "q", template: "default", repo: "owner/r" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+        json: async () => ({}),
+      })),
+    );
+    const result = await assembleContext({
+      query: "q",
+      template: "default",
+      repo: "owner/r",
+    });
     expect(result.content[0].text).not.toContain("OLD CONTEXT");
     expect(result.content[0].text).toContain("denied access");
   });
 
   it("returns the live result on a reachable hit", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ text: "FRESH CONTEXT" }) })));
-    const result = await assembleContext({ query: "q2", template: "default", repo: "owner/r" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ text: "FRESH CONTEXT" }),
+      })),
+    );
+    const result = await assembleContext({
+      query: "q2",
+      template: "default",
+      repo: "owner/r",
+    });
     expect(result.content[0].text).toBe("FRESH CONTEXT");
   });
 });

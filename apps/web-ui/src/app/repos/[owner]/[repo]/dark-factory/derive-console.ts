@@ -5,7 +5,7 @@
  * `active` when the repo is enabled (all tasks run on the agent-cr subsystem).
  */
 
-import type { ResolvedDarkFactorySettings } from '@/lib/dark-factory-resolve';
+import type { ResolvedDarkFactorySettings } from "@/lib/dark-factory-resolve";
 
 export interface ConsoleTask {
   id: string;
@@ -28,7 +28,7 @@ export interface DarkFactoryConsoleInput {
   decisions: ConsoleAuditEvent[];
 }
 
-export type ActivationState = 'active' | 'disabled';
+export type ActivationState = "active" | "disabled";
 
 export interface Activation {
   state: ActivationState;
@@ -58,30 +58,40 @@ export interface DarkFactoryConsoleModel {
   decisions: DecisionItem[];
 }
 
-function deriveActivation(repoEnabled: boolean): Pick<Activation, 'state' | 'reason'> {
+function deriveActivation(
+  repoEnabled: boolean,
+): Pick<Activation, "state" | "reason"> {
   if (!repoEnabled) {
-    return { state: 'disabled', reason: 'Repo opted out — dark_factory.enabled is false.' };
+    return {
+      state: "disabled",
+      reason: "Repo opted out — dark_factory.enabled is false.",
+    };
   }
-  return { state: 'active', reason: 'Repo enabled — tasks run on the agent-cr subsystem.' };
+  return {
+    state: "active",
+    reason: "Repo enabled — tasks run on the agent-cr subsystem.",
+  };
 }
 
 function summarize(event: ConsoleAuditEvent): string {
   const payload = event.payload ?? {};
   switch (event.event_type) {
-    case 'auto_merge_decision':
-      return `Auto-merge: ${payload.outcome ?? 'unknown'}`;
-    case 'escalation_issued':
-      return `Escalation: ${payload.reason ?? 'needs-human-help'}`;
-    case 'lease_expired':
-      return `Lease takeover (prev ${payload.previous_holder ?? 'unknown'})`;
-    case 'spec_trace_ingest':
+    case "auto_merge_decision":
+      return `Auto-merge: ${payload.outcome ?? "unknown"}`;
+    case "escalation_issued":
+      return `Escalation: ${payload.reason ?? "needs-human-help"}`;
+    case "lease_expired":
+      return `Lease takeover (prev ${payload.previous_holder ?? "unknown"})`;
+    case "spec_trace_ingest":
       return `Graph ingest: ${payload.validated_by ?? 0} validated_by, ${payload.violated ?? 0} violated`;
     default:
       return event.event_type;
   }
 }
 
-export function deriveDarkFactoryConsole(input: DarkFactoryConsoleInput): DarkFactoryConsoleModel {
+export function deriveDarkFactoryConsole(
+  input: DarkFactoryConsoleInput,
+): DarkFactoryConsoleModel {
   return {
     activation: {
       ...deriveActivation(input.resolved.enabled),

@@ -15,7 +15,11 @@ function recordingPool() {
 describe("triggerAgentSpecTrace", () => {
   it("inserts an internal.ingest.spec_trace event carrying repo, kind and payload", async () => {
     const pool = recordingPool();
-    await triggerAgentSpecTrace(pool as never, "re-cinq/lore", "test-report", { commit: "abc", tests: [], results: [] });
+    await triggerAgentSpecTrace(pool as never, "re-cinq/lore", "test-report", {
+      commit: "abc",
+      tests: [],
+      results: [],
+    });
     expect(pool.calls).toHaveLength(1);
     expect(pool.calls[0].text).toContain("INSERT INTO pipeline.events");
     expect(pool.calls[0].params[0]).toBe("internal.ingest.spec_trace");
@@ -28,6 +32,8 @@ describe("triggerAgentSpecTrace", () => {
   });
 
   it("is a no-op when there is no DB pool", async () => {
-    await expect(triggerAgentSpecTrace(null, "o/r", "coverage", {})).resolves.toBeUndefined();
+    await expect(
+      triggerAgentSpecTrace(null, "o/r", "coverage", {}),
+    ).resolves.toBeUndefined();
   });
 });

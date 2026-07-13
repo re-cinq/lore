@@ -7,20 +7,56 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
     "lore_run_task_locally",
     `Starts a brand-new ad-hoc task as a detached background Claude Code process in a local git worktree; returns immediately with task id, branch, worktree path, log file, and PID. Runs on your local machine (your Claude subscription). Instead of this: to run an EXISTING pending pipeline task by id use lore_claim_and_run_locally; to register a task for the GKE agent use lore_create_pipeline_task.`,
     {
-      description: z.string().describe("Free-text instruction for the agent. Must reference the current repo; cross-repo references are refused with a wrong-repo warning."),
-      task_type: z.enum(["implementation", "general", "runbook", "gap-fill"]).default("implementation").describe("Kind of work: 'implementation' (code), 'general' (open-ended), 'runbook' (incident runbook), 'gap-fill' (missing docs)."),
-      model: z.string().optional().describe("Anthropic model id override for the spawned process (e.g. 'claude-opus-4-6')."),
+      description: z
+        .string()
+        .describe(
+          "Free-text instruction for the agent. Must reference the current repo; cross-repo references are refused with a wrong-repo warning.",
+        ),
+      task_type: z
+        .enum(["implementation", "general", "runbook", "gap-fill"])
+        .default("implementation")
+        .describe(
+          "Kind of work: 'implementation' (code), 'general' (open-ended), 'runbook' (incident runbook), 'gap-fill' (missing docs).",
+        ),
+      model: z
+        .string()
+        .optional()
+        .describe(
+          "Anthropic model id override for the spawned process (e.g. 'claude-opus-4-6').",
+        ),
     },
     async (args) => {
       try {
-        const { spawnLocalTask, detectRepo, getRepoRoot } = await import("../../features/pipeline/runner.local.js");
+        const { spawnLocalTask, detectRepo, getRepoRoot } =
+          await import("../../features/pipeline/runner.local.js");
         const repo = detectRepo();
-        if (!repo) return { content: [{ type: "text" as const, text: "Error: not in a git repository with a GitHub remote" }] };
+        if (!repo)
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "Error: not in a git repository with a GitHub remote",
+              },
+            ],
+          };
 
         // Warn if the task description references a different repo
-        const repoRefMatch = args.description.match(/\b([\w-]+\/[\w-]+)(?:#|\s)/);
-        if (repoRefMatch && repoRefMatch[1] !== repo && !args.description.toLowerCase().includes(repo)) {
-          return { content: [{ type: "text" as const, text: `Warning: This task references ${repoRefMatch[1]} but you're in ${repo}. Switch to the target repo first:\n  cd /path/to/${repoRefMatch[1].split("/")[1]} && claude` }] };
+        const repoRefMatch = args.description.match(
+          /\b([\w-]+\/[\w-]+)(?:#|\s)/,
+        );
+        if (
+          repoRefMatch &&
+          repoRefMatch[1] !== repo &&
+          !args.description.toLowerCase().includes(repo)
+        ) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Warning: This task references ${repoRefMatch[1]} but you're in ${repo}. Switch to the target repo first:\n  cd /path/to/${repoRefMatch[1].split("/")[1]} && claude`,
+              },
+            ],
+          };
         }
 
         // Create pipeline task via API
@@ -32,7 +68,10 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
           try {
             const resp = await fetch(`${apiUrl}/api/task`, {
               method: "POST",
-              headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
               body: JSON.stringify({
                 description: args.description,
                 task_type: args.task_type,
@@ -40,9 +79,11 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
                 created_by: "local-runner",
               }),
             });
-            const data = await resp.json() as any;
+            const data = (await resp.json()) as any;
             if (data.task_id) taskId = data.task_id;
-          } catch { /* use generated UUID */ }
+          } catch {
+            /* use generated UUID */
+          }
         }
 
         const task = await spawnLocalTask({
@@ -55,15 +96,19 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
         });
 
         return {
-          content: [{
-            type: "text" as const,
-            text: `Task running locally in background.\n\nTask ID: ${task.taskId}\nBranch: ${task.branch}\nWorktree: ${task.worktreePath}\nLogs: ${task.logFile}\nPID: ${task.pid}\n\nYour session continues normally. Watch progress in the statusline.`,
-          }],
+          content: [
+            {
+              type: "text" as const,
+              text: `Task running locally in background.\n\nTask ID: ${task.taskId}\nBranch: ${task.branch}\nWorktree: ${task.worktreePath}\nLogs: ${task.logFile}\nPID: ${task.pid}\n\nYour session continues normally. Watch progress in the statusline.`,
+            },
+          ],
         };
       } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+        return {
+          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+        };
       }
-    }
+    },
   );
 
   server.tool(
@@ -72,19 +117,25 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
     {},
     async () => {
       try {
-        const { listLocalTasks } = await import("../../features/pipeline/runner.local.js");
+        const { listLocalTasks } =
+          await import("../../features/pipeline/runner.local.js");
         const tasks = listLocalTasks();
         if (tasks.length === 0) {
-          return { content: [{ type: "text" as const, text: "No local tasks." }] };
+          return {
+            content: [{ type: "text" as const, text: "No local tasks." }],
+          };
         }
-        const lines = tasks.map((t: any) =>
-          `${t.taskId.substring(0, 8)} ${t.status} ${t.repo} ${t.branch}${t.prUrl ? " → " + t.prUrl : ""}${t.error ? " ✗ " + t.error : ""}`
+        const lines = tasks.map(
+          (t: any) =>
+            `${t.taskId.substring(0, 8)} ${t.status} ${t.repo} ${t.branch}${t.prUrl ? " → " + t.prUrl : ""}${t.error ? " ✗ " + t.error : ""}`,
         );
         return { content: [{ type: "text" as const, text: lines.join("\n") }] };
       } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+        return {
+          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+        };
       }
-    }
+    },
   );
 
   server.tool(
@@ -95,36 +146,53 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
     },
     async (args) => {
       try {
-        const { cancelLocalTask } = await import("../../features/pipeline/runner.local.js");
+        const { cancelLocalTask } =
+          await import("../../features/pipeline/runner.local.js");
         const result = cancelLocalTask(args.task_id);
         return {
-          content: [{
-            type: "text" as const,
-            text: result.cancelled
-              ? `Task ${args.task_id} cancelled. Worktree cleaned up.`
-              : `Could not cancel: ${result.error}`,
-          }],
+          content: [
+            {
+              type: "text" as const,
+              text: result.cancelled
+                ? `Task ${args.task_id} cancelled. Worktree cleaned up.`
+                : `Could not cancel: ${result.error}`,
+            },
+          ],
         };
       } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+        return {
+          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+        };
       }
-    }
+    },
   );
 
   server.tool(
     "lore_claim_and_run_locally",
     `Claims an EXISTING pending pipeline task by id and runs it on your local machine (your Claude subscription), then removes it from the pending list. ingest-* types run in-process with no worktree; all others spawn a background Claude Code worktree task and return task id, branch, log file, and PID. Instead of this: to start a BRAND-NEW task from a description use lore_run_task_locally; to register a task for the GKE agent use lore_create_pipeline_task.`,
     {
-      task_id: z.string().describe("Id or unique id-prefix of the pending task (from lore_list_pending_tasks); must be in 'pending' status."),
-      model: z.string().optional().describe("Anthropic model id override for non-ingest tasks (e.g. 'claude-opus-4-6')."),
+      task_id: z
+        .string()
+        .describe(
+          "Id or unique id-prefix of the pending task (from lore_list_pending_tasks); must be in 'pending' status.",
+        ),
+      model: z
+        .string()
+        .optional()
+        .describe(
+          "Anthropic model id override for non-ingest tasks (e.g. 'claude-opus-4-6').",
+        ),
     },
     async (args) => {
       try {
-        const { spawnLocalTask, getRepoRoot, skipTask, listPendingTasks } = await import("../../features/pipeline/runner.local.js");
+        const { spawnLocalTask, getRepoRoot, skipTask, listPendingTasks } =
+          await import("../../features/pipeline/runner.local.js");
 
         // Find the task in local pending list first, then fall back to API
         const pending = listPendingTasks();
-        let task = pending.find((t: any) => t.id === args.task_id || t.id.startsWith(args.task_id));
+        let task = pending.find(
+          (t: any) => t.id === args.task_id || t.id.startsWith(args.task_id),
+        );
 
         // If not in local cache, try fetching from API (supports cross-repo tasks)
         if (!task) {
@@ -136,17 +204,33 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
                 headers: { Authorization: `Bearer ${apiToken}` },
               });
               if (resp.ok) {
-                const data = await resp.json() as any;
+                const data = (await resp.json()) as any;
                 if (data.status === "pending") {
-                  task = { id: data.id, description: data.description, task_type: data.task_type, target_repo: data.target_repo, issue_number: data.issue_number, created_at: data.created_at };
+                  task = {
+                    id: data.id,
+                    description: data.description,
+                    task_type: data.task_type,
+                    target_repo: data.target_repo,
+                    issue_number: data.issue_number,
+                    created_at: data.created_at,
+                  };
                 }
               }
-            } catch { /* fall through */ }
+            } catch {
+              /* fall through */
+            }
           }
         }
 
         if (!task) {
-          return { content: [{ type: "text" as const, text: `Task ${args.task_id} not found or not in pending status. Run lore_list_pending_tasks first.` }] };
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Task ${args.task_id} not found or not in pending status. Run lore_list_pending_tasks first.`,
+              },
+            ],
+          };
         }
 
         // Claim via API (best effort)
@@ -156,10 +240,19 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
           try {
             await fetch(`${apiUrl}/api/task`, {
               method: "POST",
-              headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ task_id: task.id, action: "claim", claimed_by: "local-runner" }),
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                task_id: task.id,
+                action: "claim",
+                claimed_by: "local-runner",
+              }),
             });
-          } catch { /* best effort */ }
+          } catch {
+            /* best effort */
+          }
         }
 
         // Spawn locally
@@ -176,47 +269,91 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
         skipTask(task.id);
 
         return {
-          content: [{
-            type: "text" as const,
-            text: `Claimed and running locally.\n\nTask: ${task.id}\nBranch: ${localTask.branch}\nLogs: ${localTask.logFile}\nPID: ${localTask.pid}`,
-          }],
+          content: [
+            {
+              type: "text" as const,
+              text: `Claimed and running locally.\n\nTask: ${task.id}\nBranch: ${localTask.branch}\nLogs: ${localTask.logFile}\nPID: ${localTask.pid}`,
+            },
+          ],
         };
       } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+        return {
+          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+        };
       }
-    }
+    },
   );
 
   server.tool(
     "lore_configure_local_runner",
     `Views or updates the local runner config on your machine; returns current config as JSON when called with no arguments, or writes provided fields and returns 'Config updated:' + JSON. Controls which repos/task-types the local notifier watches and local concurrency/model limits. To run work locally use lore_run_task_locally (new task) or lore_claim_and_run_locally (existing task).`,
     {
-      max_concurrent: z.number().optional().describe("Max simultaneous local background tasks (positive integer)."),
-      repos: z.array(z.string()).optional().describe("owner/repo slugs the local notifier watches (e.g. ['re-cinq/lore']). Replaces the whole list."),
-      task_types: z.array(z.string()).optional().describe("Task-type names eligible to run locally. Replaces the whole list."),
-      model: z.string().optional().describe("Default model id for local tasks (e.g. 'claude-sonnet-4-6')."),
+      max_concurrent: z
+        .number()
+        .optional()
+        .describe(
+          "Max simultaneous local background tasks (positive integer).",
+        ),
+      repos: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "owner/repo slugs the local notifier watches (e.g. ['re-cinq/lore']). Replaces the whole list.",
+        ),
+      task_types: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "Task-type names eligible to run locally. Replaces the whole list.",
+        ),
+      model: z
+        .string()
+        .optional()
+        .describe(
+          "Default model id for local tasks (e.g. 'claude-sonnet-4-6').",
+        ),
     },
     async (args) => {
       try {
-        const { readConfig, writeConfig } = await import("../../features/pipeline/runner.local.js");
+        const { readConfig, writeConfig } =
+          await import("../../features/pipeline/runner.local.js");
         const config = readConfig();
 
         // If no args provided, return current config
-        if (!args.max_concurrent && !args.repos && !args.task_types && !args.model) {
-          return { content: [{ type: "text" as const, text: JSON.stringify(config, null, 2) }] };
+        if (
+          !args.max_concurrent &&
+          !args.repos &&
+          !args.task_types &&
+          !args.model
+        ) {
+          return {
+            content: [
+              { type: "text" as const, text: JSON.stringify(config, null, 2) },
+            ],
+          };
         }
 
         // Update provided fields
-        if (args.max_concurrent !== undefined) config.max_concurrent = args.max_concurrent;
+        if (args.max_concurrent !== undefined)
+          config.max_concurrent = args.max_concurrent;
         if (args.repos) config.repos = args.repos;
         if (args.task_types) config.task_types = args.task_types;
         if (args.model) config.model = args.model;
 
         writeConfig(config);
-        return { content: [{ type: "text" as const, text: `Config updated:\n${JSON.stringify(config, null, 2)}` }] };
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Config updated:\n${JSON.stringify(config, null, 2)}`,
+            },
+          ],
+        };
       } catch (err: any) {
-        return { content: [{ type: "text" as const, text: `Error: ${err.message}` }] };
+        return {
+          content: [{ type: "text" as const, text: `Error: ${err.message}` }],
+        };
       }
-    }
+    },
   );
 }

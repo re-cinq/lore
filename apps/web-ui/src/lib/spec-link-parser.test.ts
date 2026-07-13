@@ -8,11 +8,15 @@ import {
 
 describe("parseTestLinksInStatement", () => {
   it("returns an empty array when the statement has no trailing parenthetical", () => {
-    expect(parseTestLinksInStatement("Returns the expected value.")).toEqual([]);
+    expect(parseTestLinksInStatement("Returns the expected value.")).toEqual(
+      [],
+    );
   });
 
   it("returns an empty array when the trailing paren contains no markdown links", () => {
-    expect(parseTestLinksInStatement("Returns. (a plain note in parens)")).toEqual([]);
+    expect(
+      parseTestLinksInStatement("Returns. (a plain note in parens)"),
+    ).toEqual([]);
   });
 
   it("parses a single test-link parenthetical at end of statement", () => {
@@ -33,8 +37,16 @@ describe("parseTestLinksInStatement", () => {
       "Survives rollout via lease backend. ([primary](agent/src/supervisor/lease.test.ts#L42), [takeover](agent/src/supervisor/lease.test.ts#L74))",
     );
     expect(out).toEqual([
-      { label: "primary", path: "agent/src/supervisor/lease.test.ts", line: 42 },
-      { label: "takeover", path: "agent/src/supervisor/lease.test.ts", line: 74 },
+      {
+        label: "primary",
+        path: "agent/src/supervisor/lease.test.ts",
+        line: 42,
+      },
+      {
+        label: "takeover",
+        path: "agent/src/supervisor/lease.test.ts",
+        line: 74,
+      },
     ]);
   });
 
@@ -42,26 +54,42 @@ describe("parseTestLinksInStatement", () => {
     const out = parseTestLinksInStatement(
       "Uses the lease pattern. ([test](agent/src/supervisor/lease.test.ts#L42), [ADR-015](adrs/ADR-015.md))",
     );
-    expect(out).toEqual([{ label: "test", path: "agent/src/supervisor/lease.test.ts", line: 42 }]);
+    expect(out).toEqual([
+      { label: "test", path: "agent/src/supervisor/lease.test.ts", line: 42 },
+    ]);
   });
 
   it("returns an empty array when the trailing paren contains only non-test links", () => {
-    expect(parseTestLinksInStatement("Per the ADR. ([see ADR-015](adrs/ADR-015.md))")).toEqual([]);
+    expect(
+      parseTestLinksInStatement(
+        "Per the ADR. ([see ADR-015](adrs/ADR-015.md))",
+      ),
+    ).toEqual([]);
   });
 
   it("parses a link with no #Lline anchor (line is null)", () => {
-    const out = parseTestLinksInStatement("Has a file-level test. ([test file](src/x.test.ts))");
-    expect(out).toEqual([{ label: "test file", path: "src/x.test.ts", line: null }]);
+    const out = parseTestLinksInStatement(
+      "Has a file-level test. ([test file](src/x.test.ts))",
+    );
+    expect(out).toEqual([
+      { label: "test file", path: "src/x.test.ts", line: null },
+    ]);
   });
 
   it("strips a leading slash on the href so paths normalize repo-relative", () => {
-    const out = parseTestLinksInStatement("Absolute-style href. ([test](/src/x.test.ts#L1))");
+    const out = parseTestLinksInStatement(
+      "Absolute-style href. ([test](/src/x.test.ts#L1))",
+    );
     expect(out[0].path).toBe("src/x.test.ts");
   });
 
   it("recognizes the Go test path convention", () => {
-    const out = parseTestLinksInStatement("Go service. ([test](pkg/store/store_test.go#L120))");
-    expect(out).toEqual([{ label: "test", path: "pkg/store/store_test.go", line: 120 }]);
+    const out = parseTestLinksInStatement(
+      "Go service. ([test](pkg/store/store_test.go#L120))",
+    );
+    expect(out).toEqual([
+      { label: "test", path: "pkg/store/store_test.go", line: 120 },
+    ]);
   });
 
   it("ignores links mid-text when there is no trailing paren", () => {
@@ -72,7 +100,9 @@ describe("parseTestLinksInStatement", () => {
   });
 
   it("handles a trailing period after the closing parenthesis", () => {
-    const out = parseTestLinksInStatement("Statement. ([test](src/x.test.ts#L42)).");
+    const out = parseTestLinksInStatement(
+      "Statement. ([test](src/x.test.ts#L42)).",
+    );
     expect(out).toEqual([{ label: "test", path: "src/x.test.ts", line: 42 }]);
   });
 
@@ -86,12 +116,20 @@ describe("parseTestLinksInStatement", () => {
 
 describe("parseCodeLinksInStatement", () => {
   it("parses a single non-test code link into one code-link ref", () => {
-    const out = parseCodeLinksInStatement("Runs the task. ([impl](mcp-server/src/runner.ts#L88)).");
-    expect(out).toEqual([{ label: "impl", path: "mcp-server/src/runner.ts", line: 88 }]);
+    const out = parseCodeLinksInStatement(
+      "Runs the task. ([impl](mcp-server/src/runner.ts#L88)).",
+    );
+    expect(out).toEqual([
+      { label: "impl", path: "mcp-server/src/runner.ts", line: 88 },
+    ]);
   });
 
   it("excludes a markdown doc link so an ADR ref is not a code link", () => {
-    expect(parseCodeLinksInStatement("Decided in the ADR. ([ADR-016](adrs/ADR-016.md))")).toEqual([]);
+    expect(
+      parseCodeLinksInStatement(
+        "Decided in the ADR. ([ADR-016](adrs/ADR-016.md))",
+      ),
+    ).toEqual([]);
   });
 });
 
@@ -111,7 +149,9 @@ describe("linksForStatements", () => {
         statement: expect.objectContaining({
           text: "Returns the value ([validated by run](src/x.test.ts#L42))",
         }),
-        testLinks: [{ label: "validated by run", path: "src/x.test.ts", line: 42 }],
+        testLinks: [
+          { label: "validated by run", path: "src/x.test.ts", line: 42 },
+        ],
       },
       {
         statement: expect.objectContaining({ text: "Has no link at all" }),
@@ -123,15 +163,27 @@ describe("linksForStatements", () => {
 
 describe("findMisplacedCoverageLinks", () => {
   it("flags a coverage link buried in a non-trailing parenthetical", () => {
-    const out = findMisplacedCoverageLinks("Returns ([validated by run](src/x.test.ts#L42)) the value.");
-    expect(out).toEqual([{ label: "validated by run", path: "src/x.test.ts", line: 42 }]);
+    const out = findMisplacedCoverageLinks(
+      "Returns ([validated by run](src/x.test.ts#L42)) the value.",
+    );
+    expect(out).toEqual([
+      { label: "validated by run", path: "src/x.test.ts", line: 42 },
+    ]);
   });
 
   it("does not flag a link that is correctly in the trailing parenthetical", () => {
-    expect(findMisplacedCoverageLinks("Returns the value ([validated by run](src/x.test.ts#L42))")).toEqual([]);
+    expect(
+      findMisplacedCoverageLinks(
+        "Returns the value ([validated by run](src/x.test.ts#L42))",
+      ),
+    ).toEqual([]);
   });
 
   it("ignores a non-trailing prose doc link", () => {
-    expect(findMisplacedCoverageLinks("See the guide ([docs](docs/guide.md)) for the rest. End.")).toEqual([]);
+    expect(
+      findMisplacedCoverageLinks(
+        "See the guide ([docs](docs/guide.md)) for the rest. End.",
+      ),
+    ).toEqual([]);
   });
 });

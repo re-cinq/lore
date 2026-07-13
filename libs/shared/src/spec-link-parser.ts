@@ -118,7 +118,10 @@ export function parseTestLinksInStatement(statement: string): TestLinkRef[] {
  * prose documentation (so ADR/docs `.md` refs do not become IMPLEMENTED_BY
  * code links). */
 export function parseCodeLinksInStatement(statement: string): CodeLinkRef[] {
-  return parseLinksInStatement(statement, (path) => !isTestFile(path) && !isDocFile(path));
+  return parseLinksInStatement(
+    statement,
+    (path) => !isTestFile(path) && !isDocFile(path),
+  );
 }
 
 /** Find would-be coverage links (test or source, not prose docs) that sit

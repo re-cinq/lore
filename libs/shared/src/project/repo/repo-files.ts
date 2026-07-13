@@ -28,7 +28,9 @@ export class RepoFiles {
     return this.github.listTree(this.repo, ref);
   }
 
-  listCommitsSince(since: string): Promise<Array<{ sha: string; files: string[] }>> {
+  listCommitsSince(
+    since: string,
+  ): Promise<Array<{ sha: string; files: string[] }>> {
     return this.github.listCommitsSince(this.repo, since);
   }
 
@@ -40,7 +42,12 @@ export class RepoFiles {
     return this.github.createBranch(this.repo, branch, base);
   }
 
-  commitFile(branch: string, path: string, content: string, message: string): Promise<void> {
+  commitFile(
+    branch: string,
+    path: string,
+    content: string,
+    message: string,
+  ): Promise<void> {
     return this.github.commitFile(this.repo, branch, path, content, message);
   }
 }

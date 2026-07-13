@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const originalEnv = { ...process.env };
 const get = (url: string, headers?: Record<string, string>) =>
@@ -40,7 +45,10 @@ describe("GET /api/repos/:owner/:repo/trace/:kind", () => {
   });
 
   it("returns 400 when the path query exceeds the length bound", async () => {
-    const res = await get(`/api/repos/o/r/trace/document?path=${"x".repeat(1025)}`, AUTH);
+    const res = await get(
+      `/api/repos/o/r/trace/document?path=${"x".repeat(1025)}`,
+      AUTH,
+    );
     expect(res.statusCode).toBe(400);
   });
 });

@@ -121,12 +121,8 @@ export class DbLeaseBackend implements LeaseBackend {
         );
 
         if ((result.rowCount ?? 0) > 0) {
-          const tookOverFrom =
-            result.rows[0]?.previous_holder ?? undefined;
-          span.setAttribute(
-            "outcome",
-            tookOverFrom ? "takeover" : "acquired",
-          );
+          const tookOverFrom = result.rows[0]?.previous_holder ?? undefined;
+          span.setAttribute("outcome", tookOverFrom ? "takeover" : "acquired");
           if (tookOverFrom) span.setAttribute("took_over_from", tookOverFrom);
           return tookOverFrom
             ? { acquired: true, tookOverFrom }
@@ -220,7 +216,7 @@ interface FileLeaseRecord {
   task_id: string | null;
   holder: string;
   acquired_at: string; // ISO8601
-  expires_at: string;  // ISO8601
+  expires_at: string; // ISO8601
   phase?: string;
 }
 
@@ -233,7 +229,9 @@ export class FileLeaseBackend implements LeaseBackend {
     return path.join(this.leasesDir, encodeURIComponent(branchName) + ".json");
   }
 
-  private async readRecord(branchName: string): Promise<FileLeaseRecord | null> {
+  private async readRecord(
+    branchName: string,
+  ): Promise<FileLeaseRecord | null> {
     try {
       const raw = await fs.readFile(this.filename(branchName), "utf-8");
       return JSON.parse(raw) as FileLeaseRecord;
@@ -283,10 +281,7 @@ export class FileLeaseBackend implements LeaseBackend {
           acquired_at: new Date(now).toISOString(),
           expires_at: new Date(now + ttlSec * 1000).toISOString(),
         });
-        span.setAttribute(
-          "outcome",
-          tookOverFrom ? "takeover" : "acquired",
-        );
+        span.setAttribute("outcome", tookOverFrom ? "takeover" : "acquired");
         if (tookOverFrom) span.setAttribute("took_over_from", tookOverFrom);
         return tookOverFrom
           ? { acquired: true, tookOverFrom }
@@ -361,8 +356,11 @@ export class FileLeaseBackend implements LeaseBackend {
         }
         const reaped: ExpiredLease[] = [];
         for (const entry of entries) {
-          const rec = await this.readRecord(decodeURIComponent(entry.replace(/\.json$/, "")));
-          if (!rec || new Date(rec.expires_at).getTime() >= cutoff.getTime()) continue;
+          const rec = await this.readRecord(
+            decodeURIComponent(entry.replace(/\.json$/, "")),
+          );
+          if (!rec || new Date(rec.expires_at).getTime() >= cutoff.getTime())
+            continue;
           await fs.unlink(path.join(this.leasesDir, entry));
           reaped.push({
             branch_name: rec.branch_name,

@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 // The Dgraph-configured branches of GET /api/trace/specs. The null-client
 // fail-soft (`{ specs: [] }`) and the 401 no-bearer gate are covered in
@@ -8,14 +13,22 @@ import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lo
 // faked so the success and error paths are reachable.
 vi.mock("@re-cinq/lore-shared", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@re-cinq/lore-shared")>();
-  return { ...actual, createDgraphClient: vi.fn(), listAllSpecDocuments: vi.fn() };
+  return {
+    ...actual,
+    createDgraphClient: vi.fn(),
+    listAllSpecDocuments: vi.fn(),
+  };
 });
 
 import { createDgraphClient, listAllSpecDocuments } from "@re-cinq/lore-shared";
 
 const originalEnv = { ...process.env };
 const get = () =>
-  buildServer(() => makePool() as never).inject({ method: "GET", url: "/api/trace/specs", headers: AUTH });
+  buildServer(() => makePool() as never).inject({
+    method: "GET",
+    url: "/api/trace/specs",
+    headers: AUTH,
+  });
 
 describe("GET /api/trace/specs", () => {
   useRateLimitSafeClock();

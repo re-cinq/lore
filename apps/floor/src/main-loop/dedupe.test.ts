@@ -15,9 +15,9 @@ describe("k8sDedupeKey", () => {
 
 describe("cronDedupeKey", () => {
   it("floors the tick time to the minute so a restart replay collapses with the normal tick", () => {
-    expect(cronDedupeKey("merge_check", new Date("2026-06-29T10:15:42.123Z"))).toBe(
-      "cron:merge_check:2026-06-29T10:15Z",
-    );
+    expect(
+      cronDedupeKey("merge_check", new Date("2026-06-29T10:15:42.123Z")),
+    ).toBe("cron:merge_check:2026-06-29T10:15Z");
   });
 
   it("produces distinct keys for different minutes", () => {

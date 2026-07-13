@@ -22,7 +22,10 @@ export interface KindedLink {
  * Builds the child→parent map from containment links only (parent = source).
  * Cross-cutting kinds are ignored, so leaf artefacts stay out of the tree.
  */
-export function buildContainmentForest(links: KindedLink[], containmentKinds: Set<string>): Map<string, string> {
+export function buildContainmentForest(
+  links: KindedLink[],
+  containmentKinds: Set<string>,
+): Map<string, string> {
   const parent = new Map<string, string>();
   for (const { source, target, kind } of links) {
     if (containmentKinds.has(kind)) parent.set(target, source);
@@ -31,7 +34,10 @@ export function buildContainmentForest(links: KindedLink[], containmentKinds: Se
 }
 
 /** Walk parent links from `id` to its root: [id, parent, …, root]. Cycle-safe. */
-export function ancestorChain(parent: Map<string, string>, id: string): string[] {
+export function ancestorChain(
+  parent: Map<string, string>,
+  id: string,
+): string[] {
   const chain = [id];
   const seen = new Set([id]);
   let current = id;
@@ -50,12 +56,20 @@ export function ancestorChain(parent: Map<string, string>, id: string): string[]
  * common ancestor, then down to target. Falls back to a straight [source, target]
  * when the two share no ancestor (e.g. a leaf with no tree home).
  */
-export function bundleControlIds(parent: Map<string, string>, sourceId: string, targetId: string): string[] {
+export function bundleControlIds(
+  parent: Map<string, string>,
+  sourceId: string,
+  targetId: string,
+): string[] {
   const chainSource = ancestorChain(parent, sourceId);
   const chainTarget = ancestorChain(parent, targetId);
   const targetDepth = new Map(chainTarget.map((id, index) => [id, index]));
 
-  for (let sourceIndex = 0; sourceIndex < chainSource.length; sourceIndex += 1) {
+  for (
+    let sourceIndex = 0;
+    sourceIndex < chainSource.length;
+    sourceIndex += 1
+  ) {
     const lcaTargetIndex = targetDepth.get(chainSource[sourceIndex]);
     if (lcaTargetIndex === undefined) continue;
     const upToLca = chainSource.slice(0, sourceIndex + 1); // source … LCA

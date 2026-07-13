@@ -27,13 +27,20 @@ const PROTECT_SRC = "`[^`]+`|\\[[^\\]]*\\]\\([^)]*\\)|https?:\\/\\/[^\\s)]+";
 
 const SCAN_SRC = `(?<file>${FILE_SRC})|(?<issue>${ISSUE_SRC})|(?<uuid>${UUID_SRC})`;
 
-function hrefFor(match: string, group: "file" | "issue" | "uuid", ctx: RefContext): string | undefined {
+function hrefFor(
+  match: string,
+  group: "file" | "issue" | "uuid",
+  ctx: RefContext,
+): string | undefined {
   if (group === "file") {
     const path = match.replace(/^\.\//, "");
     return `https://github.com/${ctx.repo}/blob/${ctx.branch || "main"}/${path}`;
   }
-  if (group === "issue") return `https://github.com/${ctx.repo}/issues/${match.slice(1)}`;
-  return ctx.uiUrl ? `${ctx.uiUrl.replace(/\/$/, "")}/assembly-lines/${match}` : undefined;
+  if (group === "issue")
+    return `https://github.com/${ctx.repo}/issues/${match.slice(1)}`;
+  return ctx.uiUrl
+    ? `${ctx.uiUrl.replace(/\/$/, "")}/assembly-lines/${match}`
+    : undefined;
 }
 
 function scanPlain(text: string, ctx: RefContext): Segment[] {
@@ -43,7 +50,11 @@ function scanPlain(text: string, ctx: RefContext): Segment[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) out.push({ text: text.slice(last, m.index) });
-    const group: "file" | "issue" | "uuid" = m.groups?.file ? "file" : m.groups?.issue ? "issue" : "uuid";
+    const group: "file" | "issue" | "uuid" = m.groups?.file
+      ? "file"
+      : m.groups?.issue
+        ? "issue"
+        : "uuid";
     const href = hrefFor(m[0], group, ctx);
     out.push(href ? { text: m[0], href } : { text: m[0] });
     last = m.index + m[0].length;

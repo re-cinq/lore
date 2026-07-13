@@ -46,14 +46,21 @@ function buildLinkIndex(specs: SpecSource[]): LinkIndexEntry[] {
     for (const { statement, testLinks } of linksForStatements(spec.content)) {
       for (const link of testLinks) {
         if (link.line === null) continue;
-        entries.push({ path: normalizePath(link.path), line: link.line, anchor: `${spec.path}#${statement.ordinal}` });
+        entries.push({
+          path: normalizePath(link.path),
+          line: link.line,
+          anchor: `${spec.path}#${statement.ordinal}`,
+        });
       }
     }
   }
   return entries;
 }
 
-export function bindDescriptorsToSpecLinks(descriptors: TestDescriptor[], specs: SpecSource[]): TestDescriptor[] {
+export function bindDescriptorsToSpecLinks(
+  descriptors: TestDescriptor[],
+  specs: SpecSource[],
+): TestDescriptor[] {
   const index = buildLinkIndex(specs);
 
   return descriptors.map((descriptor) => {
@@ -65,7 +72,12 @@ export function bindDescriptorsToSpecLinks(descriptors: TestDescriptor[], specs:
     const anchors = [
       ...new Set(
         index
-          .filter((entry) => entry.path === file && entry.line >= startLine && entry.line <= endLine)
+          .filter(
+            (entry) =>
+              entry.path === file &&
+              entry.line >= startLine &&
+              entry.line <= endLine,
+          )
           .map((entry) => entry.anchor),
       ),
     ];

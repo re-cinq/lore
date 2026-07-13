@@ -14,7 +14,9 @@ export function traceSpecsRoute(): ServerRoute {
       try {
         return h.response({ specs: await listAllSpecDocuments(dgraph) });
       } catch (err) {
-        return h.response({ error: err instanceof Error ? err.message : String(err) }).code(500);
+        return h
+          .response({ error: err instanceof Error ? err.message : String(err) })
+          .code(500);
       }
     },
   };

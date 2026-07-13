@@ -16,4 +16,7 @@ export {
   formatBrokenLinksReport,
   hasOpenLinkRotIssue,
 } from "./spec-coverage-validate.js";
-export { specCoverageBackfillJob, type BackfillOptions } from "./spec-coverage-backfill.js";
+export {
+  specCoverageBackfillJob,
+  type BackfillOptions,
+} from "./spec-coverage-backfill.js";

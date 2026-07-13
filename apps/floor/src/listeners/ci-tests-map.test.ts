@@ -32,10 +32,18 @@ describe("mapCiTests", () => {
   });
 
   it("rejects a missing repo with a 400", () => {
-    expect(mapCiTests({ commit: "abc" })).toEqual({ ok: false, status: 400, error: "missing repo" });
+    expect(mapCiTests({ commit: "abc" })).toEqual({
+      ok: false,
+      status: 400,
+      error: "missing repo",
+    });
   });
 
   it("rejects a missing commit with a 400", () => {
-    expect(mapCiTests({ repo: "o/r" })).toEqual({ ok: false, status: 400, error: "missing commit" });
+    expect(mapCiTests({ repo: "o/r" })).toEqual({
+      ok: false,
+      status: 400,
+      error: "missing commit",
+    });
   });
 });

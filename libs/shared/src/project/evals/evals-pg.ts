@@ -18,7 +18,11 @@ export class PgEvalRuns implements EvalRunsPort {
     );
   }
 
-  async recent(team: string, limit: number, offset = 0): Promise<EvalRunSample[]> {
+  async recent(
+    team: string,
+    limit: number,
+    offset = 0,
+  ): Promise<EvalRunSample[]> {
     const { rows } = await this.pool.query(
       `SELECT pass_rate FROM pipeline.eval_runs
        WHERE team = $1

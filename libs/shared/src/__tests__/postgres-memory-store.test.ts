@@ -32,120 +32,167 @@ async function pgReachable(): Promise<boolean> {
 
 const reachable = await pgReachable();
 
-describe.skipIf(!reachable)("PostgresMemoryStore.writeMemory (live Postgres)", () => {
-  const pool = new Pool(PG_CONFIG);
+describe.skipIf(!reachable)(
+  "PostgresMemoryStore.writeMemory (live Postgres)",
+  () => {
+    const pool = new Pool(PG_CONFIG);
 
-  afterAll(async () => {
-    await pool.end();
-  });
+    afterAll(async () => {
+      await pool.end();
+    });
 
-  it("returns version 1 for a brand-new key", async () => {
-    const agent = `pgms-test-${randomUUID()}`;
-    const store = new PostgresMemoryStore(pool);
+    it("returns version 1 for a brand-new key", async () => {
+      const agent = `pgms-test-${randomUUID()}`;
+      const store = new PostgresMemoryStore(pool);
 
-    try {
-      const res = await store.writeMemory({ key: "kernel-key", value: "v1", agentId: agent });
+      try {
+        const res = await store.writeMemory({
+          key: "kernel-key",
+          value: "v1",
+          agentId: agent,
+        });
 
-      expect(res).toMatchObject({ key: "kernel-key", version: 1, agent_id: agent });
-      expect(res.created_at).toBeDefined();
-    } finally {
-      await pool.query("DELETE FROM memory.audit_log WHERE agent_id = $1", [agent]);
-      await pool.query(
-        `DELETE FROM memory.memory_versions
+        expect(res).toMatchObject({
+          key: "kernel-key",
+          version: 1,
+          agent_id: agent,
+        });
+        expect(res.created_at).toBeDefined();
+      } finally {
+        await pool.query("DELETE FROM memory.audit_log WHERE agent_id = $1", [
+          agent,
+        ]);
+        await pool.query(
+          `DELETE FROM memory.memory_versions
          WHERE memory_id IN (SELECT id FROM memory.memories WHERE agent_id = $1)`,
-        [agent],
-      );
-      await pool.query("DELETE FROM memory.memories WHERE agent_id = $1", [agent]);
-    }
-  });
-});
+          [agent],
+        );
+        await pool.query("DELETE FROM memory.memories WHERE agent_id = $1", [
+          agent,
+        ]);
+      }
+    });
+  },
+);
 
-describe.skipIf(!reachable)("PostgresMemoryStore.deleteMemory (live Postgres)", () => {
-  const pool = new Pool(PG_CONFIG);
+describe.skipIf(!reachable)(
+  "PostgresMemoryStore.deleteMemory (live Postgres)",
+  () => {
+    const pool = new Pool(PG_CONFIG);
 
-  afterAll(async () => {
-    await pool.end();
-  });
+    afterAll(async () => {
+      await pool.end();
+    });
 
-  it("soft-deletes so readMemory returns nothing", async () => {
-    const agent = `pgms-test-${randomUUID()}`;
-    const store = new PostgresMemoryStore(pool);
+    it("soft-deletes so readMemory returns nothing", async () => {
+      const agent = `pgms-test-${randomUUID()}`;
+      const store = new PostgresMemoryStore(pool);
 
-    try {
-      await store.writeMemory({ key: "del-key", value: "x", agentId: agent });
-      const res = await store.deleteMemory("del-key", agent);
+      try {
+        await store.writeMemory({ key: "del-key", value: "x", agentId: agent });
+        const res = await store.deleteMemory("del-key", agent);
 
-      expect(res).toEqual({ key: "del-key", deleted: true });
-      expect(await store.readMemory("del-key", agent)).toBeFalsy();
-    } finally {
-      await pool.query("DELETE FROM memory.audit_log WHERE agent_id = $1", [agent]);
-      await pool.query(
-        `DELETE FROM memory.memory_versions
+        expect(res).toEqual({ key: "del-key", deleted: true });
+        expect(await store.readMemory("del-key", agent)).toBeFalsy();
+      } finally {
+        await pool.query("DELETE FROM memory.audit_log WHERE agent_id = $1", [
+          agent,
+        ]);
+        await pool.query(
+          `DELETE FROM memory.memory_versions
          WHERE memory_id IN (SELECT id FROM memory.memories WHERE agent_id = $1)`,
-        [agent],
-      );
-      await pool.query("DELETE FROM memory.memories WHERE agent_id = $1", [agent]);
-    }
-  });
-});
+          [agent],
+        );
+        await pool.query("DELETE FROM memory.memories WHERE agent_id = $1", [
+          agent,
+        ]);
+      }
+    });
+  },
+);
 
-describe.skipIf(!reachable)("PostgresMemoryStore.listMemories (live Postgres)", () => {
-  const pool = new Pool(PG_CONFIG);
+describe.skipIf(!reachable)(
+  "PostgresMemoryStore.listMemories (live Postgres)",
+  () => {
+    const pool = new Pool(PG_CONFIG);
 
-  afterAll(async () => {
-    await pool.end();
-  });
+    afterAll(async () => {
+      await pool.end();
+    });
 
-  it("returns total 2 and the two live keys, excluding the soft-deleted one", async () => {
-    const agent = `pgms-test-${randomUUID()}`;
-    const store = new PostgresMemoryStore(pool);
+    it("returns total 2 and the two live keys, excluding the soft-deleted one", async () => {
+      const agent = `pgms-test-${randomUUID()}`;
+      const store = new PostgresMemoryStore(pool);
 
-    try {
-      await store.writeMemory({ key: "a", value: "1", agentId: agent });
-      await store.writeMemory({ key: "b", value: "2", agentId: agent });
-      await store.writeMemory({ key: "gone", value: "3", agentId: agent });
-      await store.deleteMemory("gone", agent);
+      try {
+        await store.writeMemory({ key: "a", value: "1", agentId: agent });
+        await store.writeMemory({ key: "b", value: "2", agentId: agent });
+        await store.writeMemory({ key: "gone", value: "3", agentId: agent });
+        await store.deleteMemory("gone", agent);
 
-      const out = await store.listMemories({ agentId: agent });
+        const out = await store.listMemories({ agentId: agent });
 
-      expect(out.total).toBe(2);
-      expect(out.memories.map((memory) => memory.key).sort()).toEqual(["a", "b"]);
-    } finally {
-      await pool.query("DELETE FROM memory.audit_log WHERE agent_id = $1", [agent]);
-      await pool.query(
-        `DELETE FROM memory.memory_versions
+        expect(out.total).toBe(2);
+        expect(out.memories.map((memory) => memory.key).sort()).toEqual([
+          "a",
+          "b",
+        ]);
+      } finally {
+        await pool.query("DELETE FROM memory.audit_log WHERE agent_id = $1", [
+          agent,
+        ]);
+        await pool.query(
+          `DELETE FROM memory.memory_versions
          WHERE memory_id IN (SELECT id FROM memory.memories WHERE agent_id = $1)`,
-        [agent],
-      );
-      await pool.query("DELETE FROM memory.memories WHERE agent_id = $1", [agent]);
-    }
-  });
-});
+          [agent],
+        );
+        await pool.query("DELETE FROM memory.memories WHERE agent_id = $1", [
+          agent,
+        ]);
+      }
+    });
+  },
+);
 
-describe.skipIf(!reachable)("PostgresMemoryStore.readMemory (live Postgres)", () => {
-  const pool = new Pool(PG_CONFIG);
+describe.skipIf(!reachable)(
+  "PostgresMemoryStore.readMemory (live Postgres)",
+  () => {
+    const pool = new Pool(PG_CONFIG);
 
-  afterAll(async () => {
-    await pool.end();
-  });
+    afterAll(async () => {
+      await pool.end();
+    });
 
-  it("returns the latest stored value with version 1 for a single write", async () => {
-    const agent = `pgms-test-${randomUUID()}`;
-    const store = new PostgresMemoryStore(pool);
+    it("returns the latest stored value with version 1 for a single write", async () => {
+      const agent = `pgms-test-${randomUUID()}`;
+      const store = new PostgresMemoryStore(pool);
 
-    try {
-      await store.writeMemory({ key: "read-key", value: "hello", agentId: agent });
-      const got = await store.readMemory("read-key", agent);
+      try {
+        await store.writeMemory({
+          key: "read-key",
+          value: "hello",
+          agentId: agent,
+        });
+        const got = await store.readMemory("read-key", agent);
 
-      expect(got).toMatchObject({ key: "read-key", value: "hello", version: 1 });
-    } finally {
-      await pool.query("DELETE FROM memory.audit_log WHERE agent_id = $1", [agent]);
-      await pool.query(
-        `DELETE FROM memory.memory_versions
+        expect(got).toMatchObject({
+          key: "read-key",
+          value: "hello",
+          version: 1,
+        });
+      } finally {
+        await pool.query("DELETE FROM memory.audit_log WHERE agent_id = $1", [
+          agent,
+        ]);
+        await pool.query(
+          `DELETE FROM memory.memory_versions
          WHERE memory_id IN (SELECT id FROM memory.memories WHERE agent_id = $1)`,
-        [agent],
-      );
-      await pool.query("DELETE FROM memory.memories WHERE agent_id = $1", [agent]);
-    }
-  });
-});
+          [agent],
+        );
+        await pool.query("DELETE FROM memory.memories WHERE agent_id = $1", [
+          agent,
+        ]);
+      }
+    });
+  },
+);

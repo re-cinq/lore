@@ -4,7 +4,10 @@ import { InMemoryResearch } from "./research-memory.js";
 import type { ResearchAttempt } from "./research-port.js";
 import type { PgPool } from "../../memory-store.js";
 
-function fakePool(): { pool: PgPool; calls: Array<{ text: string; params?: unknown[] }> } {
+function fakePool(): {
+  pool: PgPool;
+  calls: Array<{ text: string; params?: unknown[] }>;
+} {
   const calls: Array<{ text: string; params?: unknown[] }> = [];
   const pool: PgPool = {
     async query(text: string, params?: unknown[]) {
@@ -47,7 +50,11 @@ describe("InMemoryResearch double", () => {
     const research = new InMemoryResearch();
 
     await research.recordAttempt(directAttempt);
-    await research.recordAttempt({ ...directAttempt, approach: "constraint", delta: -0.02 });
+    await research.recordAttempt({
+      ...directAttempt,
+      approach: "constraint",
+      delta: -0.02,
+    });
 
     expect(research.attempts).toEqual([
       directAttempt,

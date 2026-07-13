@@ -25,13 +25,20 @@ const prInfoReader = (info: TaskPrInfo): PrInfoReader => ({
   prInfo: async () => info,
 });
 
-const repoSettingsReader = (levels: Record<string, TrustLevel>): RepoSettingsReader => ({
-  rawSettings: async (repo) => (levels[repo] ? { trust: { level: levels[repo] } } : null),
+const repoSettingsReader = (
+  levels: Record<string, TrustLevel>,
+): RepoSettingsReader => ({
+  rawSettings: async (repo) =>
+    levels[repo] ? { trust: { level: levels[repo] } } : null,
 });
 
 interface PullsStub {
   files?: string[];
-  checkRuns?: Array<{ name: string; status: string; conclusion: string | null }>;
+  checkRuns?: Array<{
+    name: string;
+    status: string;
+    conclusion: string | null;
+  }>;
   reviews?: Array<{ state: string; user: string }>;
   throws?: boolean;
 }
@@ -78,7 +85,11 @@ const deps = (
 
 describe("resolvePrForTaskFromDb", () => {
   it("returns null when the task has no PR yet", async () => {
-    const result = await resolvePrForTaskFromDb("t1", settings, deps(task({ pr_number: null }), {}));
+    const result = await resolvePrForTaskFromDb(
+      "t1",
+      settings,
+      deps(task({ pr_number: null }), {}),
+    );
     expect(result).toBeNull();
   });
 
@@ -110,13 +121,21 @@ describe("resolvePrForTaskFromDb", () => {
 
   it("passes every changed path through from the (paginated) facade", async () => {
     const files = Array.from({ length: 31 }, (_, i) => `src/f${i}.ts`);
-    const result = await resolvePrForTaskFromDb("t1", settings, deps(task({}), { files }));
+    const result = await resolvePrForTaskFromDb(
+      "t1",
+      settings,
+      deps(task({}), { files }),
+    );
     expect(result?.policy.changedPaths).toHaveLength(31);
     expect(result?.policy.changedPaths).toContain("src/f30.ts");
   });
 
   it("treats an empty check list as CI not succeeded", async () => {
-    const result = await resolvePrForTaskFromDb("t1", settings, deps(task({}), { checkRuns: [] }));
+    const result = await resolvePrForTaskFromDb(
+      "t1",
+      settings,
+      deps(task({}), { checkRuns: [] }),
+    );
     expect(result?.policy.ciSucceeded).toBe(false);
   });
 
@@ -138,7 +157,9 @@ describe("resolvePrForTaskFromDb", () => {
     const result = await resolvePrForTaskFromDb(
       "t1",
       settings,
-      deps(task({}), { reviews: [{ state: "APPROVED", user: "dependabot[bot]" }] }),
+      deps(task({}), {
+        reviews: [{ state: "APPROVED", user: "dependabot[bot]" }],
+      }),
     );
     expect(result?.policy.botApproved).toBe(false);
   });
@@ -147,7 +168,9 @@ describe("resolvePrForTaskFromDb", () => {
     const result = await resolvePrForTaskFromDb(
       "t1",
       settings,
-      deps(task({}), { reviews: [{ state: "CHANGES_REQUESTED", user: "some-bot[bot]" }] }),
+      deps(task({}), {
+        reviews: [{ state: "CHANGES_REQUESTED", user: "some-bot[bot]" }],
+      }),
     );
     expect(result?.policy.humanChangesRequested).toBe(false);
   });
@@ -156,13 +179,19 @@ describe("resolvePrForTaskFromDb", () => {
     const result = await resolvePrForTaskFromDb(
       "t1",
       settings,
-      deps(task({}), { reviews: [{ state: "CHANGES_REQUESTED", user: "alice" }] }),
+      deps(task({}), {
+        reviews: [{ state: "CHANGES_REQUESTED", user: "alice" }],
+      }),
     );
     expect(result?.policy.humanChangesRequested).toBe(true);
   });
 
   it("falls back to conservative defaults when the PR read throws", async () => {
-    const result = await resolvePrForTaskFromDb("t1", settings, deps(task({}), { throws: true }));
+    const result = await resolvePrForTaskFromDb(
+      "t1",
+      settings,
+      deps(task({}), { throws: true }),
+    );
     expect(result?.policy).toMatchObject({
       changedPaths: [],
       ciSucceeded: false,

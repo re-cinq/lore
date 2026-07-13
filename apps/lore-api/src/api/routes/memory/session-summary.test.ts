@@ -1,9 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-vi.mock("@re-cinq/lore-server-core/features/memory/facts.js", () => ({ extractFactsFromEpisode: vi.fn().mockResolvedValue(undefined) }));
-vi.mock("@re-cinq/lore-server-core/features/memory/graph.js", () => ({ extractAndUpdateGraph: vi.fn() }));
+vi.mock("@re-cinq/lore-server-core/features/memory/facts.js", () => ({
+  extractFactsFromEpisode: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("@re-cinq/lore-server-core/features/memory/graph.js", () => ({
+  extractAndUpdateGraph: vi.fn(),
+}));
 
 import { extractFactsFromEpisode } from "@re-cinq/lore-server-core/features/memory/facts.js";
 import { extractAndUpdateGraph } from "@re-cinq/lore-server-core/features/memory/graph.js";
@@ -11,8 +20,17 @@ import { extractAndUpdateGraph } from "@re-cinq/lore-server-core/features/memory
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;
 
-const post = (body: unknown, pool: unknown = makePool(), headers: Record<string, string> = AUTH) =>
-  buildServer(() => pool as any).inject({ method: "POST", url: "/api/session-summary", headers, payload: JSON.stringify(body) });
+const post = (
+  body: unknown,
+  pool: unknown = makePool(),
+  headers: Record<string, string> = AUTH,
+) =>
+  buildServer(() => pool as any).inject({
+    method: "POST",
+    url: "/api/session-summary",
+    headers,
+    payload: JSON.stringify(body),
+  });
 
 describe("POST /api/session-summary", () => {
   useRateLimitSafeClock();
@@ -34,7 +52,9 @@ describe("POST /api/session-summary", () => {
   it("returns 403 when the token lacks write scope", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [{ scopes: ["read"] }] });
-    const res = await post({ session_log: "x" }, pool, { authorization: "Bearer read-only" });
+    const res = await post({ session_log: "x" }, pool, {
+      authorization: "Bearer read-only",
+    });
     expect(res.statusCode).toBe(403);
     expect(JSON.parse(res.payload)).toEqual({ error: "insufficient scope" });
   });
@@ -47,14 +67,20 @@ describe("POST /api/session-summary", () => {
   it("uses the object .summary field", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [{ id: 1 }] });
-    const res = await post({ session_log: { summary: "a sufficiently long summary" }, repo: "o/r" }, pool);
+    const res = await post(
+      { session_log: { summary: "a sufficiently long summary" }, repo: "o/r" },
+      pool,
+    );
     expect(res.result).toEqual({ status: "ok", episode_id: 1 });
   });
 
   it("falls back to JSON.stringify for objects without a summary", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [{ id: 2 }] });
-    const res = await post({ session_log: { detail: "enough content here" } }, pool);
+    const res = await post(
+      { session_log: { detail: "enough content here" } },
+      pool,
+    );
     expect(res.result).toEqual({ status: "ok", episode_id: 2 });
   });
 
@@ -78,10 +104,15 @@ describe("POST /api/session-summary", () => {
   });
 
   it("swallows a failing session fact extraction", async () => {
-    vi.mocked(extractFactsFromEpisode).mockRejectedValueOnce(new Error("facts fail"));
+    vi.mocked(extractFactsFromEpisode).mockRejectedValueOnce(
+      new Error("facts fail"),
+    );
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [{ id: 41 }] });
-    const res = await post({ session_log: "another long enough session summary" }, pool);
+    const res = await post(
+      { session_log: "another long enough session summary" },
+      pool,
+    );
     expect(res.result).toEqual({ status: "ok", episode_id: 41 });
     await new Promise((r) => setTimeout(r, 5));
   });
@@ -89,10 +120,15 @@ describe("POST /api/session-summary", () => {
   it("runs and swallows graph extraction when ANTHROPIC_API_KEY is set", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-test";
     globalThis.fetch = vi.fn() as typeof fetch;
-    vi.mocked(extractAndUpdateGraph).mockRejectedValueOnce(new Error("graph fail"));
+    vi.mocked(extractAndUpdateGraph).mockRejectedValueOnce(
+      new Error("graph fail"),
+    );
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [{ id: 42 }] });
-    const res = await post({ session_log: "a sufficiently long session summary" }, pool);
+    const res = await post(
+      { session_log: "a sufficiently long session summary" },
+      pool,
+    );
     expect(res.result).toEqual({ status: "ok", episode_id: 42 });
     await new Promise((r) => setTimeout(r, 5));
   });

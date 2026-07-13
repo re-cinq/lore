@@ -7,7 +7,10 @@
 import * as path from "node:path";
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
-import { createValidateHandler, type NodeResult } from "@re-cinq/lore-assembly-lines";
+import {
+  createValidateHandler,
+  type NodeResult,
+} from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "../input.js";
 
 const execFile = promisify(execFileCb);
@@ -20,7 +23,13 @@ export interface StationEnv {
  *  (validate everything) when the diff can't be derived (fresh branch, no origin). */
 async function changedFiles(gitDir: string): Promise<string[] | undefined> {
   try {
-    const { stdout } = await execFile("git", ["-C", gitDir, "diff", "--name-only", "origin/HEAD...HEAD"]);
+    const { stdout } = await execFile("git", [
+      "-C",
+      gitDir,
+      "diff",
+      "--name-only",
+      "origin/HEAD...HEAD",
+    ]);
     const files = stdout.split("\n").filter((f) => f.length > 0);
     return files.length > 0 ? files : undefined;
   } catch {
@@ -28,10 +37,15 @@ async function changedFiles(gitDir: string): Promise<string[] | undefined> {
   }
 }
 
-export async function runValidateStation(input: StationInput, env: StationEnv): Promise<NodeResult> {
+export async function runValidateStation(
+  input: StationInput,
+  env: StationEnv,
+): Promise<NodeResult> {
   const gitDir = path.join(env.workspaceDir, "target");
   const changed = await changedFiles(gitDir);
-  const handler = createValidateHandler(changed ? { changedFiles: () => changed } : {});
+  const handler = createValidateHandler(
+    changed ? { changedFiles: () => changed } : {},
+  );
 
   return handler(
     { id: input.node_id, type: "validate", validator: input.params.validator },

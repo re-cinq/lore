@@ -1,12 +1,19 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { makePool, useRateLimitSafeClock } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const originalEnv = { ...process.env };
 
 const post = (body: unknown, pool: unknown = null) => {
   const payload = typeof body === "string" ? body : JSON.stringify(body);
-  return buildServer(() => pool as any).inject({ method: "POST", url: "/api/webhook/incident", payload });
+  return buildServer(() => pool as any).inject({
+    method: "POST",
+    url: "/api/webhook/incident",
+    payload,
+  });
 };
 
 describe("POST /api/webhook/incident", () => {
@@ -29,7 +36,10 @@ describe("POST /api/webhook/incident", () => {
   it("upserts a direct-format incident", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({});
-    const res = await post({ repo: "o/r", title: "down", severity: "high", url: "u" }, pool);
+    const res = await post(
+      { repo: "o/r", title: "down", severity: "high", url: "u" },
+      pool,
+    );
     expect(res.result).toEqual({ ok: true, repo: "o/r" });
   });
 
@@ -37,7 +47,15 @@ describe("POST /api/webhook/incident", () => {
     const pool = makePool();
     pool.query.mockResolvedValue({});
     const res = await post(
-      { incident: { service: { name: "o/r" }, summary: "API down", urgency: "high", status: "resolved", html_url: "https://pd/1" } },
+      {
+        incident: {
+          service: { name: "o/r" },
+          summary: "API down",
+          urgency: "high",
+          status: "resolved",
+          html_url: "https://pd/1",
+        },
+      },
       pool,
     );
     expect(res.result).toEqual({ ok: true, repo: "o/r" });
@@ -58,11 +76,18 @@ describe("POST /api/webhook/incident", () => {
   it("derives resolved=true from status resolved and writes a FIFO-capped entry", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({});
-    const res = await post({ repo: "o/r", title: "outage", status: "resolved" }, pool);
+    const res = await post(
+      { repo: "o/r", title: "outage", status: "resolved" },
+      pool,
+    );
     expect(res.result).toEqual({ ok: true, repo: "o/r" });
     const [sql, args] = pool.query.mock.calls[0];
     expect(sql).toContain("LIMIT 10");
-    expect(JSON.parse(args[1])).toMatchObject({ title: "outage", resolved: true, severity: "unknown" });
+    expect(JSON.parse(args[1])).toMatchObject({
+      title: "outage",
+      resolved: true,
+      severity: "unknown",
+    });
   });
 
   it("defaults title and severity when neither incident field is present", async () => {
@@ -70,6 +95,10 @@ describe("POST /api/webhook/incident", () => {
     pool.query.mockResolvedValue({});
     await post({ repo: "o/r" }, pool);
     const [, args] = pool.query.mock.calls[0];
-    expect(JSON.parse(args[1])).toMatchObject({ title: "Unknown incident", severity: "unknown", resolved: false });
+    expect(JSON.parse(args[1])).toMatchObject({
+      title: "Unknown incident",
+      severity: "unknown",
+      resolved: false,
+    });
   });
 });

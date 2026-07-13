@@ -31,8 +31,16 @@ describe("leaseReaperJob", () => {
 
     expect(result).toBe("Reaped 2 expired leases");
     expect(audit.entries).toMatchObject([
-      { event_type: "lease_expired", task_id: "one", payload: { branch_name: "b1", previous_holder: "pod-a" } },
-      { event_type: "lease_expired", task_id: "two", payload: { branch_name: "b2", previous_holder: "pod-b" } },
+      {
+        event_type: "lease_expired",
+        task_id: "one",
+        payload: { branch_name: "b1", previous_holder: "pod-a" },
+      },
+      {
+        event_type: "lease_expired",
+        task_id: "two",
+        payload: { branch_name: "b2", previous_holder: "pod-b" },
+      },
     ]);
   });
 
@@ -44,10 +52,14 @@ describe("leaseReaperJob", () => {
   });
 
   it("passes through a string expiry without calling toISOString", async () => {
-    const leases = new InMemoryLeaseReaper([lease({ expires_at: "2026-06-03T09:50:00+00:00" })]);
+    const leases = new InMemoryLeaseReaper([
+      lease({ expires_at: "2026-06-03T09:50:00+00:00" }),
+    ]);
     const audit = new InMemoryAudit();
     await leaseReaperJob({ leases, audit }, NOW);
-    expect(audit.entries[0].payload.expired_at).toBe("2026-06-03T09:50:00+00:00");
+    expect(audit.entries[0].payload.expired_at).toBe(
+      "2026-06-03T09:50:00+00:00",
+    );
   });
 
   it("writes no audit entries and reports zero when nothing is expired", async () => {

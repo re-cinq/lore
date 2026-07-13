@@ -33,6 +33,8 @@ export function formatSpecDriftReport(drifted: DriftedStatement[]): string {
     lines.push("");
   }
   lines.push("---");
-  lines.push("Posted by Lore's `spec-trace` job. Re-align the implementation with the spec or update the test to silence this.");
+  lines.push(
+    "Posted by Lore's `spec-trace` job. Re-align the implementation with the spec or update the test to silence this.",
+  );
   return lines.join("\n");
 }

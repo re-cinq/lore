@@ -17,7 +17,12 @@ describe("createDetectTickHandler", () => {
     await handler({});
 
     expect(listed).toHaveLength(1);
-    expect(assemblyLines.rows.map((r) => ({ definitionName: r.definitionName, repo: r.repo }))).toEqual([
+    expect(
+      assemblyLines.rows.map((r) => ({
+        definitionName: r.definitionName,
+        repo: r.repo,
+      })),
+    ).toEqual([
       { definitionName: "spec-drift", repo: "re-cinq/lore" },
       { definitionName: "spec-drift", repo: "re-cinq/other" },
     ]);
@@ -35,7 +40,10 @@ describe("createDetectTickHandler", () => {
     await handler({ repo: "re-cinq/lore" });
 
     expect(assemblyLines.rows).toEqual([
-      expect.objectContaining({ definitionName: "gap-detect", repo: "re-cinq/lore" }),
+      expect.objectContaining({
+        definitionName: "gap-detect",
+        repo: "re-cinq/lore",
+      }),
     ]);
   });
 

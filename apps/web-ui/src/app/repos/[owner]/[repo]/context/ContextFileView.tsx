@@ -1,7 +1,7 @@
-import Link from 'next/link';
-import ChunkBody from './ChunkBody';
-import { type ChunkMeta } from '@/lib/chunk-presenter';
-import styles from './ContextFileView.module.css';
+import Link from "next/link";
+import ChunkBody from "./ChunkBody";
+import { type ChunkMeta } from "@/lib/chunk-presenter";
+import styles from "./ContextFileView.module.css";
 
 export interface ContextFileChunk {
   id: string;
@@ -28,7 +28,7 @@ export interface ContextFileViewProps {
 }
 
 function basename(filePath: string): string {
-  return filePath.split('/').pop() || filePath;
+  return filePath.split("/").pop() || filePath;
 }
 
 /**
@@ -37,7 +37,11 @@ function basename(filePath: string): string {
  * (one group) and the global detail route (one group per repo, with a
  * "view in repo →" link). Pure render.
  */
-export default function ContextFileView({ filePath, contextLink, groups }: ContextFileViewProps) {
+export default function ContextFileView({
+  filePath,
+  contextLink,
+  groups,
+}: ContextFileViewProps) {
   const total = groups.reduce((n, g) => n + g.chunks.length, 0);
 
   if (total === 0) {
@@ -59,12 +63,11 @@ export default function ContextFileView({ filePath, contextLink, groups }: Conte
   return (
     <div>
       <div className="breadcrumb">
-        <Link href={contextLink}>Context</Link> / <strong>{basename(filePath)}</strong>
+        <Link href={contextLink}>Context</Link> /{" "}
+        <strong>{basename(filePath)}</strong>
       </div>
       <h1>{basename(filePath)}</h1>
-      <p className={`meta ${styles.path}`}>
-        {filePath}
-      </p>
+      <p className={`meta ${styles.path}`}>{filePath}</p>
 
       {groups.map((g, gi) => (
         <div key={g.repo} className={styles.group}>
@@ -85,13 +88,17 @@ export default function ContextFileView({ filePath, contextLink, groups }: Conte
                 contentType={c.content_type}
                 filePath={filePath}
                 repo={g.repo}
-                branch={g.branch ?? 'main'}
+                branch={g.branch ?? "main"}
                 metadata={c.metadata ?? undefined}
               />
-              {i < g.chunks.length - 1 && <hr className={`${styles.hr} ${styles.chunkRule}`} />}
+              {i < g.chunks.length - 1 && (
+                <hr className={`${styles.hr} ${styles.chunkRule}`} />
+              )}
             </div>
           ))}
-          {gi < groups.length - 1 && <hr className={`${styles.hr} ${styles.groupRule}`} />}
+          {gi < groups.length - 1 && (
+            <hr className={`${styles.hr} ${styles.groupRule}`} />
+          )}
         </div>
       ))}
     </div>

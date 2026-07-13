@@ -40,7 +40,11 @@ export const CRON_EMITTERS: CronEmitter[] = [
     schedule: "* * * * *",
     note: "delete leases >5min past expiry, writing a lease_expired audit entry each",
   },
-  { name: "events_prune", schedule: "0 * * * *", note: "hourly housekeeping of handled event rows" },
+  {
+    name: "events_prune",
+    schedule: "0 * * * *",
+    note: "hourly housekeeping of handled event rows",
+  },
   {
     name: "gap_detection",
     schedule: "0 9 * * 1",

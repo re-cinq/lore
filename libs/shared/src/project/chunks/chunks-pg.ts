@@ -48,7 +48,11 @@ export class PgChunks implements ChunksPort {
     return Number(rows[0]?.c || 0);
   }
 
-  async deleteChunksForFile(schema: string, filePath: string, repo: string): Promise<void> {
+  async deleteChunksForFile(
+    schema: string,
+    filePath: string,
+    repo: string,
+  ): Promise<void> {
     enforceSchema(schema);
     await this.pool.query(
       `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
@@ -56,7 +60,10 @@ export class PgChunks implements ChunksPort {
     );
   }
 
-  async insertChunk(schema: string, chunk: ChunkInsert): Promise<string | null> {
+  async insertChunk(
+    schema: string,
+    chunk: ChunkInsert,
+  ): Promise<string | null> {
     enforceSchema(schema);
     const { rows } = await this.pool.query(
       `INSERT INTO ${schema}.chunks (content, content_type, team, repo, file_path, metadata)
@@ -74,7 +81,11 @@ export class PgChunks implements ChunksPort {
     return rows[0]?.id ?? null;
   }
 
-  async setEmbedding(schema: string, chunkId: string, embedding: string): Promise<void> {
+  async setEmbedding(
+    schema: string,
+    chunkId: string,
+    embedding: string,
+  ): Promise<void> {
     enforceSchema(schema);
     await this.pool.query(
       `UPDATE ${schema}.chunks SET embedding = $1::vector WHERE id = $2`,
@@ -131,7 +142,11 @@ export class PgChunks implements ChunksPort {
     }));
   }
 
-  async hasChunk(repo: string, contentType: string, fileSuffix?: string): Promise<boolean> {
+  async hasChunk(
+    repo: string,
+    contentType: string,
+    fileSuffix?: string,
+  ): Promise<boolean> {
     const { rows } = await this.pool.query(
       `SELECT id FROM org_shared.chunks
        WHERE repo = $1 AND content_type = $2
@@ -160,7 +175,8 @@ export class PgChunks implements ChunksPort {
       [repo],
     );
     const team = rows[0]?.team as string | undefined;
-    if (team && SCHEMA_RE.test(team) && (await this.schemaExists(team))) return team;
+    if (team && SCHEMA_RE.test(team) && (await this.schemaExists(team)))
+      return team;
     return "org_shared";
   }
 

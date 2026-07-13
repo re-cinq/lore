@@ -46,9 +46,14 @@ export async function evalRunnerJob(): Promise<string> {
     const evalResult = await runPromptfooEval({ configPath });
     if (!evalResult.ok) {
       if (evalResult.reason === "exec-failed") {
-        console.error(`[job] eval-runner: eval failed for team ${team}:`, evalResult.error);
+        console.error(
+          `[job] eval-runner: eval failed for team ${team}:`,
+          evalResult.error,
+        );
       } else {
-        console.error(`[job] eval-runner: no usable stats for team ${team} (${evalResult.reason})`);
+        console.error(
+          `[job] eval-runner: no usable stats for team ${team} (${evalResult.reason})`,
+        );
       }
       continue;
     }

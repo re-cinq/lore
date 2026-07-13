@@ -10,7 +10,13 @@ import type { TestDescriptor } from "../../test-report.js";
  */
 
 const descriptors: TestDescriptor[] = [
-  { id: "t1", name: "adds two numbers", file: "src/add.test.ts", startLine: 1, endLine: 3 },
+  {
+    id: "t1",
+    name: "adds two numbers",
+    file: "src/add.test.ts",
+    startLine: 1,
+    endLine: 3,
+  },
 ];
 
 function fakeRunner(): TestRunnerPort {
@@ -23,10 +29,14 @@ function fakeRunner(): TestRunnerPort {
 
 describe("TestSuite trust gate", () => {
   it("refuses to list tests on the shared server (LORE_DB_HOST set)", async () => {
-    const suite = new TestSuite(fakeRunner(), { LORE_DB_HOST: "lore-db.internal" });
+    const suite = new TestSuite(fakeRunner(), {
+      LORE_DB_HOST: "lore-db.internal",
+    });
 
     await expect(suite.listTests(".")).rejects.toThrow(
-      new Error("Test commands run only in a trusted sandbox — run in CI or locally."),
+      new Error(
+        "Test commands run only in a trusted sandbox — run in CI or locally.",
+      ),
     );
   });
 

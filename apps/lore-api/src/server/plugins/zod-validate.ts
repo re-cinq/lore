@@ -26,7 +26,9 @@ export function formatZodError(error: ZodError): string {
  * so the OpenAPI generator (ADR-035) can recover the declarative contract from a
  * registered route without a parallel registry.
  */
-export type ZodValidateFn<T> = ((value: unknown) => Promise<T>) & { zodSchema: ZodType<T> };
+export type ZodValidateFn<T> = ((value: unknown) => Promise<T>) & {
+  zodSchema: ZodType<T>;
+};
 
 /** Adapt a zod schema to a hapi validation function (payload/query/params). */
 export function zodValidate<T>(schema: ZodType<T>): ZodValidateFn<T> {
@@ -46,7 +48,11 @@ export function getZodSchema(validator: unknown): ZodType | undefined {
 }
 
 /** Server-level validation failAction: reshape any validation error to `{ error }` 400. */
-export function zodFailAction(_request: Request, _h: ResponseToolkit, err?: Error): never {
+export function zodFailAction(
+  _request: Request,
+  _h: ResponseToolkit,
+  err?: Error,
+): never {
   const message = err?.message ?? "invalid request";
   const boom = Boom.badRequest(message);
   boom.output.payload = { error: message } as unknown as Boom.Payload;

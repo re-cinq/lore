@@ -6,10 +6,16 @@
  * row, so a run's true `validated_by`/`violated`/coverage counts are observable.
  */
 
-import type { SpecTraceOutcome, IngestGraphSummary } from "@re-cinq/lore-shared";
+import type {
+  SpecTraceOutcome,
+  IngestGraphSummary,
+} from "@re-cinq/lore-shared";
 import type { AuditLogEntry } from "@re-cinq/lore-shared/project/audit/audit-port.js";
 
-export function specTraceAuditEntry(repo: string, outcome: SpecTraceOutcome): AuditLogEntry {
+export function specTraceAuditEntry(
+  repo: string,
+  outcome: SpecTraceOutcome,
+): AuditLogEntry {
   return {
     event_type: "spec_trace_ingest",
     repo,
@@ -24,7 +30,10 @@ export function specTraceAuditEntry(repo: string, outcome: SpecTraceOutcome): Au
   };
 }
 
-export function specTraceLogLine(repo: string, outcome: SpecTraceOutcome): string {
+export function specTraceLogLine(
+  repo: string,
+  outcome: SpecTraceOutcome,
+): string {
   return (
     `[floor] spec-trace ${outcome.kind} ${repo}: ` +
     `validated_by=${outcome.validatedBy} violated=${outcome.violated} ` +
@@ -32,7 +41,10 @@ export function specTraceLogLine(repo: string, outcome: SpecTraceOutcome): strin
   );
 }
 
-export function graphIngestAuditEntry(repo: string, summary: IngestGraphSummary): AuditLogEntry {
+export function graphIngestAuditEntry(
+  repo: string,
+  summary: IngestGraphSummary,
+): AuditLogEntry {
   return {
     event_type: "spec_trace_ingest",
     repo,
@@ -46,7 +58,10 @@ export function graphIngestAuditEntry(repo: string, summary: IngestGraphSummary)
   };
 }
 
-export function graphIngestLogLine(repo: string, summary: IngestGraphSummary): string {
+export function graphIngestLogLine(
+  repo: string,
+  summary: IngestGraphSummary,
+): string {
   return (
     `[floor] spec-trace ${summary.kind} ${repo}: ` +
     `projected=${summary.projected} skipped=${summary.skipped} failed=${summary.failed} status=${summary.status}`

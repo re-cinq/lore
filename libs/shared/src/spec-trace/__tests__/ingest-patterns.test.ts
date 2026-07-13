@@ -27,7 +27,9 @@ describe("parseIngestPatterns", () => {
 describe("matchesAnyGlob", () => {
   it("matches a path against ** globs and rejects non-matches", () => {
     expect(matchesAnyGlob("specs/auth/spec.md", ["specs/**/*.md"])).toBe(true);
-    expect(matchesAnyGlob(".specify/spec.md", ["specs/**/*.md", ".specify/**/*.md"])).toBe(true);
+    expect(
+      matchesAnyGlob(".specify/spec.md", ["specs/**/*.md", ".specify/**/*.md"]),
+    ).toBe(true);
     expect(matchesAnyGlob("docs/readme.md", ["specs/**/*.md"])).toBe(false);
   });
 });

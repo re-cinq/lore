@@ -44,9 +44,11 @@ const ONBOARDED_REPOS_SQL = `
   ORDER BY full_name`;
 
 const activeSpecRepos = async (): Promise<string[]> =>
-  (await query<{ repo: string }>(ACTIVE_SPEC_REPOS_SQL, [String(ACTIVITY_WINDOW_DAYS)])).map(
-    (r) => r.repo,
-  );
+  (
+    await query<{ repo: string }>(ACTIVE_SPEC_REPOS_SQL, [
+      String(ACTIVITY_WINDOW_DAYS),
+    ])
+  ).map((r) => r.repo);
 
 const specRepos = async (): Promise<string[]> =>
   (await query<{ repo: string }>(SPEC_REPOS_SQL)).map((r) => r.repo);
@@ -69,12 +71,16 @@ export function createDetectTickHandler(
         ? [params.repo]
         : await deps.listTargetRepos();
     if (repos.length === 0) {
-      console.log(`[detect] ${definitionName}: no target repos, nothing to start`);
+      console.log(
+        `[detect] ${definitionName}: no target repos, nothing to start`,
+      );
       return;
     }
     for (const repo of repos) {
       const id = await deps.assemblyLines.start({ definitionName, repo });
-      console.log(`[detect] ${definitionName}: started assembly line ${id} for ${repo}`);
+      console.log(
+        `[detect] ${definitionName}: started assembly line ${id} for ${repo}`,
+      );
     }
   };
 }

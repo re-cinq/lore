@@ -12,15 +12,23 @@ import type { LlmPort } from "./llm-port.js";
  */
 
 describe("AgentRunner", () => {
-  it.skipIf(process.platform === "win32")("local mode spawns the agent CLI and reports started", async () => {
-    const runner = new AgentRunner({ ...process.env, LORE_AGENT_CLI: "true" });
+  it.skipIf(process.platform === "win32")(
+    "local mode spawns the agent CLI and reports started",
+    async () => {
+      const runner = new AgentRunner({
+        ...process.env,
+        LORE_AGENT_CLI: "true",
+      });
 
-    expect(await runner.run("re-cinq/lore", "task-1", { workDir: tmpdir() })).toEqual({
-      taskId: "task-1",
-      mode: "local",
-      started: true,
-    });
-  });
+      expect(
+        await runner.run("re-cinq/lore", "task-1", { workDir: tmpdir() }),
+      ).toEqual({
+        taskId: "task-1",
+        mode: "local",
+        started: true,
+      });
+    },
+  );
 
   it("cluster mode launches a Station via the injected StationBackend", async () => {
     const created: LoreTaskSpec[] = [];
@@ -42,7 +50,11 @@ describe("AgentRunner", () => {
       darkFactory: { workflowName: "gap-fill", baseBranch: "main" },
     });
 
-    expect(result).toEqual({ taskId: "task-2", mode: "cluster", started: true });
+    expect(result).toEqual({
+      taskId: "task-2",
+      mode: "cluster",
+      started: true,
+    });
     expect(created[0]).toMatchObject({
       taskId: "task-2",
       taskType: "implementation",
@@ -83,7 +95,12 @@ describe("AgentRunner", () => {
     };
     const runner = new AgentRunner(process.env, { llm });
 
-    expect(await runner.run("re-cinq/lore", "task-3", { mode: "direct", prompt: "hello" })).toEqual({
+    expect(
+      await runner.run("re-cinq/lore", "task-3", {
+        mode: "direct",
+        prompt: "hello",
+      }),
+    ).toEqual({
       taskId: "task-3",
       mode: "direct",
       started: true,
@@ -94,7 +111,9 @@ describe("AgentRunner", () => {
   it("throws when cluster mode has no StationBackend provider", async () => {
     const runner = new AgentRunner(process.env, {});
 
-    await expect(runner.run("re-cinq/lore", "task-4", { mode: "cluster" })).rejects.toThrow(
+    await expect(
+      runner.run("re-cinq/lore", "task-4", { mode: "cluster" }),
+    ).rejects.toThrow(
       'agents.run mode "cluster" needs a StationBackend provider',
     );
   });

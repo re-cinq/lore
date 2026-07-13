@@ -28,8 +28,14 @@ describe("writeAuditLog", () => {
 
   it("accepts an entry that omits the optional fields", async () => {
     const repo = new InMemoryAudit();
-    await writeAuditLog({ event_type: "lease_expired", payload: { n: 1 } }, repo);
-    expect(repo.entries[0]).toMatchObject({ event_type: "lease_expired", payload: { n: 1 } });
+    await writeAuditLog(
+      { event_type: "lease_expired", payload: { n: 1 } },
+      repo,
+    );
+    expect(repo.entries[0]).toMatchObject({
+      event_type: "lease_expired",
+      payload: { n: 1 },
+    });
   });
 
   it("accumulates entries in insertion order", async () => {

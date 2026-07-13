@@ -29,7 +29,12 @@ const originalEnv = { ...process.env };
 function handlerFor(name: string, getPool: () => unknown): ToolHandler {
   const handlers: Record<string, ToolHandler> = {};
   const fakeServer = {
-    tool(toolName: string, _desc: string, _schema: unknown, handler: ToolHandler) {
+    tool(
+      toolName: string,
+      _desc: string,
+      _schema: unknown,
+      handler: ToolHandler,
+    ) {
       handlers[toolName] = handler;
     },
   };
@@ -38,7 +43,10 @@ function handlerFor(name: string, getPool: () => unknown): ToolHandler {
 }
 
 function page(repos: unknown[], total: number) {
-  return { ok: true as const, body: JSON.stringify({ repos, total, limit: 100, offset: 0 }) };
+  return {
+    ok: true as const,
+    body: JSON.stringify({ repos, total, limit: 100, offset: 0 }),
+  };
 }
 
 afterEach(() => {
@@ -63,7 +71,10 @@ describe("lore_ingest_files", () => {
 
   it("returns a config-required message when LORE_API_URL / token are unset", async () => {
     const handler = handlerFor("lore_ingest_files", () => null);
-    const result = await handler({ files: ["CLAUDE.md"], repo: "re-cinq/lore" });
+    const result = await handler({
+      files: ["CLAUDE.md"],
+      repo: "re-cinq/lore",
+    });
     expect(result.content[0].text).toEqual(
       "Ingestion requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.",
     );
@@ -78,24 +89,37 @@ describe("lore_list_repos", () => {
       .mockResolvedValueOnce(page(first, 150))
       .mockResolvedValueOnce(page(second, 150));
     const result = await handlerFor("lore_list_repos", () => null)({});
-    expect(proxyGetApi).toHaveBeenNthCalledWith(1, "/api/repos?limit=100&offset=0");
-    expect(proxyGetApi).toHaveBeenNthCalledWith(2, "/api/repos?limit=100&offset=100");
+    expect(proxyGetApi).toHaveBeenNthCalledWith(
+      1,
+      "/api/repos?limit=100&offset=0",
+    );
+    expect(proxyGetApi).toHaveBeenNthCalledWith(
+      2,
+      "/api/repos?limit=100&offset=100",
+    );
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.total).toBe(150);
     expect(parsed.repos).toHaveLength(150);
   });
 
   it("makes a single call when all repos fit in one page", async () => {
-    vi.mocked(proxyGetApi).mockResolvedValueOnce(page([{ id: 1 }, { id: 2 }], 2));
+    vi.mocked(proxyGetApi).mockResolvedValueOnce(
+      page([{ id: 1 }, { id: 2 }], 2),
+    );
     const result = await handlerFor("lore_list_repos", () => null)({});
     expect(proxyGetApi).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(result.content[0].text)).toEqual({ repos: [{ id: 1 }, { id: 2 }], total: 2 });
+    expect(JSON.parse(result.content[0].text)).toEqual({
+      repos: [{ id: 1 }, { id: 2 }],
+      total: 2,
+    });
   });
 
   it("reports no repos when the first page is empty", async () => {
     vi.mocked(proxyGetApi).mockResolvedValueOnce(page([], 0));
     const result = await handlerFor("lore_list_repos", () => null)({});
     expect(proxyGetApi).toHaveBeenCalledTimes(1);
-    expect(result.content[0].text).toEqual("No repos onboarded yet. Use lore_onboard_repo to add one.");
+    expect(result.content[0].text).toEqual(
+      "No repos onboarded yet. Use lore_onboard_repo to add one.",
+    );
   });
 });

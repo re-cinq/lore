@@ -12,13 +12,19 @@
 
 export type ContentType = "doc" | "adr" | "spec" | "code";
 
-const BINARY_RE = /\.(png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|pdf|zip|tar|gz|lock)$/i;
-const CODE_RE = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|sh|rs|java|rb|kt|c|cpp|h|hpp|css|scss|sass|less)$/;
+const BINARY_RE =
+  /\.(png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|pdf|zip|tar|gz|lock)$/i;
+const CODE_RE =
+  /\.(ts|tsx|js|jsx|mjs|cjs|py|go|sh|rs|java|rb|kt|c|cpp|h|hpp|css|scss|sass|less)$/;
 
 export function classifyFile(path: string): ContentType | null {
   if (BINARY_RE.test(path)) return null;
 
-  if (path.endsWith("CLAUDE.md") || path.endsWith("AGENTS.md") || path.endsWith("CODEOWNERS")) {
+  if (
+    path.endsWith("CLAUDE.md") ||
+    path.endsWith("AGENTS.md") ||
+    path.endsWith("CODEOWNERS")
+  ) {
     return "doc";
   }
 
@@ -26,9 +32,11 @@ export function classifyFile(path: string): ContentType | null {
   if (CODE_RE.test(path)) return "code";
 
   if (/(?:^|\/)adrs\//.test(path)) return "adr";
-  if (/(?:^|\/)specs\//.test(path) || path.startsWith(".specify/")) return "spec";
+  if (/(?:^|\/)specs\//.test(path) || path.startsWith(".specify/"))
+    return "spec";
   if (/(?:^|\/)runbooks\//.test(path)) return "doc";
-  if (path.endsWith(".md") || path.endsWith(".yaml") || path.endsWith(".yml")) return "doc";
+  if (path.endsWith(".md") || path.endsWith(".yaml") || path.endsWith(".yml"))
+    return "doc";
 
   return null;
 }

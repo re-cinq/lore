@@ -20,7 +20,9 @@ export interface StationEnvSpec {
  * secrets (GitHub token, LLM key, API URL) itself. Secrets + LORE_API_URL are
  * intentionally NOT here — their source differs per backend.
  */
-export function stationPlainEnv(spec: StationEnvSpec): Array<{ name: string; value: string }> {
+export function stationPlainEnv(
+  spec: StationEnvSpec,
+): Array<{ name: string; value: string }> {
   return [
     { name: "TARGET_REPO", value: spec.targetRepo },
     { name: "BRANCH_NAME", value: spec.branch },
@@ -28,7 +30,10 @@ export function stationPlainEnv(spec: StationEnvSpec): Array<{ name: string; val
     { name: "MODEL", value: spec.model || "claude-sonnet-4-6" },
     { name: "TASK_TYPE", value: spec.taskType || "implementation" },
     { name: "PR_NUMBER", value: String(spec.prNumber || "") },
-    { name: "LORE_DARK_FACTORY_WORKFLOW", value: spec.darkFactory?.workflowName ?? "" },
+    {
+      name: "LORE_DARK_FACTORY_WORKFLOW",
+      value: spec.darkFactory?.workflowName ?? "",
+    },
     { name: "BASE_BRANCH", value: spec.darkFactory?.baseBranch ?? "" },
     { name: "LORE_TASK_ID", value: spec.taskId },
     { name: "TASK_DESCRIPTION", value: spec.description ?? spec.prompt },

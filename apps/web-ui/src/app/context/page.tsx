@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 
-import { queryAllChunks } from '@/lib/db';
-import { previewBlock } from '@/lib/preview-block';
-import ContextView, { type ContextChunk } from './ContextView';
+import { queryAllChunks } from "@/lib/db";
+import { previewBlock } from "@/lib/preview-block";
+import ContextView, { type ContextChunk } from "./ContextView";
 
 interface RankedChunk extends ContextChunk {
   rank: number;
@@ -21,7 +21,9 @@ export default async function ContextPage({
     sql: `SELECT DISTINCT content_type FROM ${schema}.chunks`,
     params: [],
   }));
-  const types = [...new Set(typeRows.map((r) => r.content_type).filter(Boolean))];
+  const types = [
+    ...new Set(typeRows.map((r) => r.content_type).filter(Boolean)),
+  ];
 
   const allChunks = await queryAllChunks<RankedChunk>((schema, offset) => ({
     sql: `SELECT id, file_path, content_type, repo, metadata,
@@ -36,7 +38,9 @@ export default async function ContextPage({
 
   const chunks = allChunks
     .sort((a, b) =>
-      q ? b.rank - a.rank : new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime(),
+      q
+        ? b.rank - a.rank
+        : new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime(),
     )
     .slice(0, 50)
     .map((c) => ({ ...c, content: previewBlock(c.content, c.content_type) }));

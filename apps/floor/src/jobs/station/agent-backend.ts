@@ -9,7 +9,11 @@
 // already exists → launched:false).
 
 import { isTerminal, type Agent as AgentCr } from "@re-cinq/agent-contracts";
-import type { LoreTaskSpec, StationBackend, StationLaunchResult } from "@re-cinq/lore-shared";
+import type {
+  LoreTaskSpec,
+  StationBackend,
+  StationLaunchResult,
+} from "@re-cinq/lore-shared";
 import { needsToken } from "./per-task-token.js";
 
 export const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
@@ -49,7 +53,11 @@ export interface TokenProvisioner {
 /** Map a LoreTaskSpec to an `Agent` CR body. The recipe (model/prompt/tools) lives
  *  on the Station the task type resolves to; per-run carries only parameters —
  *  including the assembled `context` the recipe's `{context}` placeholder fills (D5). */
-export function specToAgent(spec: LoreTaskSpec, context?: string, stationRef?: string): AgentCr {
+export function specToAgent(
+  spec: LoreTaskSpec,
+  context?: string,
+  stationRef?: string,
+): AgentCr {
   const parameters: Record<string, string> = {
     description: spec.description,
     prompt: spec.prompt,
@@ -89,8 +97,12 @@ export class AgentCrBackend implements StationBackend {
   async launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
     const context = await this.context?.assemble(spec);
     const stationRef =
-      this.tokens && needsToken(spec) ? await this.tokens.provision(spec) : undefined;
-    const { name, created } = await this.api.create(specToAgent(spec, context, stationRef));
+      this.tokens && needsToken(spec)
+        ? await this.tokens.provision(spec)
+        : undefined;
+    const { name, created } = await this.api.create(
+      specToAgent(spec, context, stationRef),
+    );
     return { ref: name, launched: created };
   }
 

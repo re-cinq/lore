@@ -1,13 +1,25 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const originalEnv = { ...process.env };
 
 const post = (body: unknown, pool: ReturnType<typeof makePool>) =>
-  buildServer(() => pool as any).inject({ method: "POST", url: "/api/repos/o/r/ingest-graph", headers: AUTH, payload: JSON.stringify(body) });
+  buildServer(() => pool as any).inject({
+    method: "POST",
+    url: "/api/repos/o/r/ingest-graph",
+    headers: AUTH,
+    payload: JSON.stringify(body),
+  });
 const insertCalls = (pool: ReturnType<typeof makePool>) =>
-  pool.query.mock.calls.filter((c) => String(c[0]).includes("INSERT INTO pipeline.events"));
+  pool.query.mock.calls.filter((c) =>
+    String(c[0]).includes("INSERT INTO pipeline.events"),
+  );
 
 /**
  * POST /api/repos/:owner/:repo/ingest-graph — the REST/curl/CI (re-)projection

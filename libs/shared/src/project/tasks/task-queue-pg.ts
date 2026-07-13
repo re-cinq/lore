@@ -18,8 +18,15 @@ import type {
 
 /** Columns setColumns may write (allow-listed to keep the dynamic SQL injection-safe). */
 const SETTABLE_TASK_COLUMNS = new Set([
-  "issue_number", "issue_url", "review_iteration", "pr_url", "pr_number",
-  "target_branch", "failure_reason", "log_url", "agent_id",
+  "issue_number",
+  "issue_url",
+  "review_iteration",
+  "pr_url",
+  "pr_number",
+  "target_branch",
+  "failure_reason",
+  "log_url",
+  "agent_id",
 ]);
 
 /**
@@ -111,7 +118,10 @@ export class PgTaskQueue implements TaskQueueRepository {
     return rows as SpecGroupCount[];
   }
 
-  async claimSpecTask(id: string, agentId = "spec-task-executor"): Promise<boolean> {
+  async claimSpecTask(
+    id: string,
+    agentId = "spec-task-executor",
+  ): Promise<boolean> {
     const { rows } = await this.pool.query(
       `UPDATE pipeline.tasks
           SET status = 'running', agent_id = $2, updated_at = now()
@@ -128,9 +138,14 @@ export class PgTaskQueue implements TaskQueueRepository {
       [id],
     );
     const task = rows[0] as
-      | { context_bundle: Record<string, unknown> | null; target_repo: string; status: string }
+      | {
+          context_bundle: Record<string, unknown> | null;
+          target_repo: string;
+          status: string;
+        }
       | undefined;
-    if (!task || task.status !== "running") return { completed: false, unblocked: [] };
+    if (!task || task.status !== "running")
+      return { completed: false, unblocked: [] };
 
     await this.pool.query(
       `UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`,
@@ -142,7 +157,10 @@ export class PgTaskQueue implements TaskQueueRepository {
     if (!specTaskId || !specSlug) return { completed: true, unblocked: [] };
 
     const ready = await this.findReadySpecTasks(task.target_repo);
-    return { completed: true, unblocked: unblockedBy(ready, specSlug, specTaskId) };
+    return {
+      completed: true,
+      unblocked: unblockedBy(ready, specSlug, specTaskId),
+    };
   }
 
   async awaitingApproval(): Promise<AwaitingApprovalTask[]> {
@@ -184,7 +202,10 @@ export class PgTaskQueue implements TaskQueueRepository {
     return rows as ReviewableTask[];
   }
 
-  async reviewableForPR(repo: string, prNumber: number): Promise<ReviewableTask | null> {
+  async reviewableForPR(
+    repo: string,
+    prNumber: number,
+  ): Promise<ReviewableTask | null> {
     const { rows } = await this.pool.query(
       `SELECT id, description, task_type, target_repo, pr_number, pr_url,
               issue_number, review_iteration, target_branch
@@ -244,11 +265,27 @@ export class PgTaskQueue implements TaskQueueRepository {
 
   async insertTask(input: InsertTaskInput): Promise<string | null> {
     const cols = ["description", "task_type", "target_repo"];
-    const vals: unknown[] = [input.description, input.taskType, input.targetRepo];
-    if (input.status !== undefined) { cols.push("status"); vals.push(input.status); }
-    if (input.contextBundle !== undefined) { cols.push("context_bundle"); vals.push(JSON.stringify(input.contextBundle)); }
-    if (input.createdBy !== undefined) { cols.push("created_by"); vals.push(input.createdBy); }
-    if (input.taskGroupId !== undefined) { cols.push("task_group_id"); vals.push(input.taskGroupId); }
+    const vals: unknown[] = [
+      input.description,
+      input.taskType,
+      input.targetRepo,
+    ];
+    if (input.status !== undefined) {
+      cols.push("status");
+      vals.push(input.status);
+    }
+    if (input.contextBundle !== undefined) {
+      cols.push("context_bundle");
+      vals.push(JSON.stringify(input.contextBundle));
+    }
+    if (input.createdBy !== undefined) {
+      cols.push("created_by");
+      vals.push(input.createdBy);
+    }
+    if (input.taskGroupId !== undefined) {
+      cols.push("task_group_id");
+      vals.push(input.taskGroupId);
+    }
     const placeholders = vals.map((_, i) => `$${i + 1}`).join(", ");
     const { rows } = await this.pool.query(
       `INSERT INTO pipeline.tasks (${cols.join(", ")}) VALUES (${placeholders}) ON CONFLICT DO NOTHING RETURNING id`,
@@ -257,7 +294,10 @@ export class PgTaskQueue implements TaskQueueRepository {
     return (rows[0]?.id as string) ?? null;
   }
 
-  async setColumns(taskId: string, columns: Record<string, unknown>): Promise<void> {
+  async setColumns(
+    taskId: string,
+    columns: Record<string, unknown>,
+  ): Promise<void> {
     const setClauses: string[] = [];
     const params: unknown[] = [];
     let idx = 1;
@@ -269,10 +309,16 @@ export class PgTaskQueue implements TaskQueueRepository {
     }
     if (setClauses.length === 0) return;
     params.push(taskId);
-    await this.pool.query(`UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${idx}`, params);
+    await this.pool.query(
+      `UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${idx}`,
+      params,
+    );
   }
 
-  async latestTaskByPr(repo: string, prNumber: number): Promise<{ id: string } | null> {
+  async latestTaskByPr(
+    repo: string,
+    prNumber: number,
+  ): Promise<{ id: string } | null> {
     const { rows } = await this.pool.query(
       `SELECT id FROM pipeline.tasks WHERE target_repo = $1 AND pr_number = $2 ORDER BY created_at DESC LIMIT 1`,
       [repo, prNumber],
@@ -280,7 +326,10 @@ export class PgTaskQueue implements TaskQueueRepository {
     return (rows[0] as { id: string }) ?? null;
   }
 
-  async activeTaskByIssue(repo: string, issueNumber: number): Promise<{ id: string } | null> {
+  async activeTaskByIssue(
+    repo: string,
+    issueNumber: number,
+  ): Promise<{ id: string } | null> {
     const { rows } = await this.pool.query(
       `SELECT id FROM pipeline.tasks WHERE issue_number = $1 AND target_repo = $2 AND status NOT IN ('failed', 'cancelled')`,
       [issueNumber, repo],
@@ -288,7 +337,10 @@ export class PgTaskQueue implements TaskQueueRepository {
     return (rows[0] as { id: string }) ?? null;
   }
 
-  async markFeatureRequestMergedOnBranch(repo: string, branch: string): Promise<void> {
+  async markFeatureRequestMergedOnBranch(
+    repo: string,
+    branch: string,
+  ): Promise<void> {
     await this.pool.query(
       `UPDATE pipeline.tasks SET status = 'merged', updated_at = now()
         WHERE task_type = 'feature-request' AND target_repo = $1 AND target_branch = $2

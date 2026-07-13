@@ -39,7 +39,11 @@ interface StmtRow {
   "Statement.violated"?: boolean;
   spec?: { "Spec.file_path"?: string; "Spec.title"?: string };
   section?: { "Section.heading"?: string };
-  vb?: Array<{ "TestChunk.file_path"?: string; "TestChunk.test_name"?: string; "TestChunk.start_line"?: number }>;
+  vb?: Array<{
+    "TestChunk.file_path"?: string;
+    "TestChunk.test_name"?: string;
+    "TestChunk.start_line"?: number;
+  }>;
   db?: Array<{ "ADR.file_path"?: string }>;
 }
 
@@ -47,14 +51,20 @@ export interface GraphContextResult {
   q?: StmtRow[];
 }
 
-const SIGNAL_RANK: Record<GraphSignal, number> = { violated: 0, drifted: 1, untested: 2, normal: 3 };
+const SIGNAL_RANK: Record<GraphSignal, number> = {
+  violated: 0,
+  drifted: 1,
+  untested: 2,
+  normal: 3,
+};
 
 /** The highest-priority condition a statement meets: violated > drifted > untested > normal. */
 function signalOf(row: StmtRow): GraphSignal {
   if (row["Statement.violated"]) return "violated";
   if (row["Statement.drifted"]) return "drifted";
   const tests = row.vb ?? [];
-  if (row["Statement.testability"] !== "untestable" && tests.length === 0) return "untested";
+  if (row["Statement.testability"] !== "untestable" && tests.length === 0)
+    return "untested";
   return "normal";
 }
 
@@ -99,7 +109,10 @@ function toStatement(row: StmtRow): GraphContextStatement {
 }
 
 /** Distinct values across statements in first-appearance order. */
-function distinct(statements: GraphContextStatement[], pick: (s: GraphContextStatement) => string[]): string[] {
+function distinct(
+  statements: GraphContextStatement[],
+  pick: (s: GraphContextStatement) => string[],
+): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const stmt of statements) {
@@ -125,7 +138,9 @@ export function assembleGraphContext(
     const stmt = toStatement(row);
     if (!byXid.has(stmt.xid)) byXid.set(stmt.xid, stmt);
   }
-  const ranked = [...byXid.values()].sort((a, b) => SIGNAL_RANK[a.signal] - SIGNAL_RANK[b.signal]);
+  const ranked = [...byXid.values()].sort(
+    (a, b) => SIGNAL_RANK[a.signal] - SIGNAL_RANK[b.signal],
+  );
   const statements = ranked.slice(0, limit);
   return {
     statements,
@@ -146,7 +161,10 @@ function flattenSpecRows(specs: SpecRow[]): StmtRow[] {
   return specs.flatMap((spec) =>
     (spec.stmts ?? []).map((stmt) => ({
       ...stmt,
-      spec: { "Spec.file_path": spec["Spec.file_path"], "Spec.title": spec["Spec.title"] },
+      spec: {
+        "Spec.file_path": spec["Spec.file_path"],
+        "Spec.title": spec["Spec.title"],
+      },
     })),
   );
 }
@@ -175,7 +193,8 @@ export async function fetchGraphContext(
   repo: string,
   opts: { limit?: number } = {},
 ): Promise<GraphContextBlock> {
-  if (!dgraph) return { statements: [], adrRefs: [], testSelectors: [], truncated: false };
+  if (!dgraph)
+    return { statements: [], adrRefs: [], testSelectors: [], truncated: false };
   const specs = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(GRAPH_CONTEXT_DQL, { $repo: repo });
     return (res.data?.q ?? []) as SpecRow[];

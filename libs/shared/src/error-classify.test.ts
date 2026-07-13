@@ -74,7 +74,10 @@ describe("summarizeFailures", () => {
 
   it("groups by category and counts each in the summary", () => {
     const { summary, details } = summarizeFailures([
-      { step: ".github/PULL_REQUEST_TEMPLATE.md", error: "credit balance is too low" },
+      {
+        step: ".github/PULL_REQUEST_TEMPLATE.md",
+        error: "credit balance is too low",
+      },
       { step: ".specify/spec.md", error: "credit balance is too low" },
       {
         step: ".github/workflows/lore-ingest.yml",

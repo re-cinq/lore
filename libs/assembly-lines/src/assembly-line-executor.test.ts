@@ -103,7 +103,9 @@ function makeCapturingExecuteOpts(opts: {
   outcomes?: Partial<Record<string, NodeResult>>;
 }): {
   capture: RunCapture;
-  run: () => Promise<ReturnType<typeof executeAssemblyLine> extends Promise<infer R> ? R : never>;
+  run: () => Promise<
+    ReturnType<typeof executeAssemblyLine> extends Promise<infer R> ? R : never
+  >;
 } {
   const capture: RunCapture = { visited: [], commits: [] };
   const run = () =>
@@ -177,7 +179,12 @@ describe("executeAssemblyLine assemblyLineId threading", () => {
       gitDir: "/dev/null",
       holder: "test",
       leaseBackend: noopBackend(),
-      handlers: { agent: dispatch, validate: dispatch, gate: dispatch, retrospective: dispatch },
+      handlers: {
+        agent: dispatch,
+        validate: dispatch,
+        gate: dispatch,
+        retrospective: dispatch,
+      },
       gitCommit: async (_dir, subject, body) => {
         capture.commits.push({ subject, body });
       },
@@ -224,12 +231,22 @@ describe("executeAssemblyLine assemblyLineId threading", () => {
       gitDir: "/dev/null",
       holder: "test",
       leaseBackend: noopBackend(),
-      handlers: { agent: dispatch, validate: dispatch, gate: dispatch, retrospective: dispatch },
+      handlers: {
+        agent: dispatch,
+        validate: dispatch,
+        gate: dispatch,
+        retrospective: dispatch,
+      },
       gitCommit: async () => {},
       trace,
     });
     expect(capture.visited).toEqual([
-      "implement", "validate", "review", "implement", "validate", "review",
+      "implement",
+      "validate",
+      "review",
+      "implement",
+      "validate",
+      "review",
     ]);
     expect(starts.map((s) => s.nodeId)).toEqual(capture.visited);
     expect(finishes).toEqual([
@@ -399,8 +416,18 @@ describe("executeAssemblyLine (lease)", () => {
     });
     // 2 nodes executed (a, b); c is exit.
     expect(refresh).toHaveBeenCalledTimes(2);
-    expect(refresh).toHaveBeenCalledWith("branch-x", "holder-1", undefined, "a");
-    expect(refresh).toHaveBeenCalledWith("branch-x", "holder-1", undefined, "b");
+    expect(refresh).toHaveBeenCalledWith(
+      "branch-x",
+      "holder-1",
+      undefined,
+      "a",
+    );
+    expect(refresh).toHaveBeenCalledWith(
+      "branch-x",
+      "holder-1",
+      undefined,
+      "b",
+    );
   });
 });
 

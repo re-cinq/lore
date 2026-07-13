@@ -1,20 +1,20 @@
-'use client';
+"use client";
 
-import { useMemo, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
-import type { Root, Text, Element, ElementContent, RootContent } from 'hast';
-import { type TestLinkRef } from '@/lib/spec-link-parser';
-import { resolveHref } from '@/lib/github-links';
-import readme from '../ReadmeBox.module.css';
-import styles from './SpecDetails.module.css';
+import { useMemo, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
+import type { Root, Text, Element, ElementContent, RootContent } from "hast";
+import { type TestLinkRef } from "@/lib/spec-link-parser";
+import { resolveHref } from "@/lib/github-links";
+import readme from "../ReadmeBox.module.css";
+import styles from "./SpecDetails.module.css";
 
 // Re-exported so existing importers (and tests) of SpecDetails keep working
 // after the helper moved to the shared github-links module.
 export { resolveHref };
 
-export type StatementState = 'tested' | 'untested' | 'narrative';
+export type StatementState = "tested" | "untested" | "narrative";
 
 export interface StatementInfo {
   ordinal: number;
@@ -50,7 +50,10 @@ export interface StatementInfo {
  * can still find the prefix as a plain text node. */
 function matcherText(statementText: string): string {
   return statementText
-    .replace(/\s*\(\s*\[[^\]]+\]\([^)]+\)(?:\s*,\s*\[[^\]]+\]\([^)]+\))*\s*\)\s*\.?\s*$/, '')
+    .replace(
+      /\s*\(\s*\[[^\]]+\]\([^)]+\)(?:\s*,\s*\[[^\]]+\]\([^)]+\))*\s*\)\s*\.?\s*$/,
+      "",
+    )
     .trim();
 }
 
@@ -64,26 +67,26 @@ function plainText(statementText: string): string {
   return matcherText(statementText)
     .split(/(`[^`]*`)/)
     .map((part) =>
-      part.startsWith('`') && part.endsWith('`')
+      part.startsWith("`") && part.endsWith("`")
         ? part.slice(1, -1)
         : part
-            .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-            .replace(/\*\*([^*]+)\*\*/g, '$1')
-            .replace(/\*([^*]+)\*/g, '$1'),
+            .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+            .replace(/\*\*([^*]+)\*\*/g, "$1")
+            .replace(/\*([^*]+)\*/g, "$1"),
     )
-    .join('')
-    .replace(/\s+/g, ' ')
+    .join("")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
 /** Concatenate the rendered text of a HAST node and its descendants,
  * whitespace-collapsed — the string a reader actually sees. */
 function renderedText(node: ElementContent | RootContent): string {
-  if (node.type === 'text') return node.value;
-  if (node.type === 'element' && node.children) {
-    return node.children.map(renderedText).join('');
+  if (node.type === "text") return node.value;
+  if (node.type === "element" && node.children) {
+    return node.children.map(renderedText).join("");
   }
-  return '';
+  return "";
 }
 
 /** The per-statement, graph-and-state facets that decide how a `<mark>` is
@@ -96,7 +99,12 @@ interface MarkMeta {
 }
 
 function buildHighlighter(
-  statements: { ordinal: number; text: string; state: StatementState; drifted?: boolean }[],
+  statements: {
+    ordinal: number;
+    text: string;
+    state: StatementState;
+    drifted?: boolean;
+  }[],
 ) {
   const enriched = statements.map((s) => ({
     ordinal: s.ordinal,
@@ -106,24 +114,30 @@ function buildHighlighter(
     state: s.state,
     drifted: s.drifted,
   }));
-  const ordered = [...enriched].sort((a, b) => b.matcher.length - a.matcher.length);
+  const ordered = [...enriched].sort(
+    (a, b) => b.matcher.length - a.matcher.length,
+  );
   const used = new Set<number>();
 
   function markProps(meta: MarkMeta) {
     return {
-      className: ['stmt', `stmt-${meta.state}`, ...(meta.drifted ? ['stmt-drifted'] : [])],
+      className: [
+        "stmt",
+        `stmt-${meta.state}`,
+        ...(meta.drifted ? ["stmt-drifted"] : []),
+      ],
       dataOrdinal: String(meta.ordinal),
       dataState: meta.state,
-      ...(meta.drifted ? { dataDrifted: 'true' } : {}),
+      ...(meta.drifted ? { dataDrifted: "true" } : {}),
     };
   }
 
   function makeMark(text: string, meta: MarkMeta): Element {
     return {
-      type: 'element',
-      tagName: 'mark',
+      type: "element",
+      tagName: "mark",
       properties: markProps(meta),
-      children: [{ type: 'text', value: text }],
+      children: [{ type: "text", value: text }],
     };
   }
 
@@ -132,17 +146,17 @@ function buildHighlighter(
    * text begins with a statement's plain text, wrap that element's children
    * in a single `<mark>`. Returns true when it claimed the element. */
   function tryBlockMatch(node: Element): boolean {
-    if (node.tagName !== 'p' && node.tagName !== 'li') return false;
+    if (node.tagName !== "p" && node.tagName !== "li") return false;
     if (!node.children || node.children.length === 0) return false;
-    const rendered = renderedText(node).replace(/\s+/g, ' ').trim();
+    const rendered = renderedText(node).replace(/\s+/g, " ").trim();
     for (const s of ordered) {
       if (used.has(s.ordinal) || !s.plain) continue;
       if (rendered.startsWith(s.plain)) {
         used.add(s.ordinal);
         node.children = [
           {
-            type: 'element',
-            tagName: 'mark',
+            type: "element",
+            tagName: "mark",
             properties: markProps(s),
             children: node.children,
           },
@@ -162,10 +176,10 @@ function buildHighlighter(
       const before = node.value.slice(0, idx);
       const after = node.value.slice(idx + s.matcher.length);
       const parts: ElementContent[] = [];
-      if (before) parts.push({ type: 'text', value: before });
+      if (before) parts.push({ type: "text", value: before });
       parts.push(makeMark(s.matcher, s));
       if (after) {
-        const tail = { type: 'text', value: after } as Text;
+        const tail = { type: "text", value: after } as Text;
         const recursed = processTextNode(tail);
         if (recursed) parts.push(...recursed);
         else parts.push(tail);
@@ -180,7 +194,7 @@ function buildHighlighter(
     const next: ElementContent[] = [];
     let changed = false;
     for (const child of node.children) {
-      if (child.type === 'text') {
+      if (child.type === "text") {
         const replaced = processTextNode(child);
         if (replaced) {
           next.push(...replaced);
@@ -190,7 +204,7 @@ function buildHighlighter(
         next.push(child);
         continue;
       }
-      if (child.type === 'element' && child.tagName !== 'mark') {
+      if (child.type === "element" && child.tagName !== "mark") {
         walkElement(child);
       }
       next.push(child);
@@ -210,7 +224,7 @@ function buildHighlighter(
       const rootChildren: RootContent[] = [];
       let rootChanged = false;
       for (const child of tree.children) {
-        if (child.type === 'text') {
+        if (child.type === "text") {
           const replaced = processTextNode(child);
           if (replaced) {
             rootChildren.push(...(replaced as RootContent[]));
@@ -220,7 +234,7 @@ function buildHighlighter(
           rootChildren.push(child);
           continue;
         }
-        if (child.type === 'element') walkElement(child);
+        if (child.type === "element") walkElement(child);
         rootChildren.push(child);
       }
       if (rootChanged) tree.children = rootChildren;
@@ -251,38 +265,48 @@ function StatementPopover({
           </div>
         </div>
       )}
-      {statement.state === 'narrative' ? (
+      {statement.state === "narrative" ? (
         <div className={styles.popoverNarrative}>
-          <strong>Narrative</strong>{statement.category ? ` · ${statement.category}` : ''}
+          <strong>Narrative</strong>
+          {statement.category ? ` · ${statement.category}` : ""}
           <div className={styles.popoverHint}>
-            Excluded from the coverage denominator — context, not a verifiable requirement.
+            Excluded from the coverage denominator — context, not a verifiable
+            requirement.
           </div>
         </div>
-      ) : statement.state === 'untested' ? (
+      ) : statement.state === "untested" ? (
         <div className={styles.popoverUntested}>
           <strong>Untested</strong>
           <div className={styles.popoverHint}>
-            Add an inline test link at end of this statement:{' '}
+            Add an inline test link at end of this statement:{" "}
             <code>([label](path/to/test.ts#L42))</code>
           </div>
         </div>
       ) : (
         <div className={styles.popoverTested}>
           <strong>
-            {statement.testLinks.length} test{statement.testLinks.length === 1 ? '' : 's'} validate this
+            {statement.testLinks.length} test
+            {statement.testLinks.length === 1 ? "" : "s"} validate this
           </strong>
           <ul className={styles.popoverTestList}>
             {statement.testLinks.map((t, i) => (
-              <li key={`${t.path}-${t.line ?? ''}-${i}`}>
+              <li key={`${t.path}-${t.line ?? ""}-${i}`}>
                 <a
-                  href={resolveHref(`${t.path}${t.line ? `#L${t.line}` : ''}`, repo, branch).href}
+                  href={
+                    resolveHref(
+                      `${t.path}${t.line ? `#L${t.line}` : ""}`,
+                      repo,
+                      branch,
+                    ).href
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                 >
                   {t.label}
                 </a>
                 <div className={styles.popoverRationale}>
-                  {t.path}{t.line ? `:${t.line}` : ''}
+                  {t.path}
+                  {t.line ? `:${t.line}` : ""}
                 </div>
               </li>
             ))}
@@ -297,7 +321,7 @@ export default function SpecDetails({
   content,
   statements = [],
   repo,
-  branch = 'main',
+  branch = "main",
 }: {
   content: string;
   statements?: StatementInfo[];
@@ -306,7 +330,11 @@ export default function SpecDetails({
   branch?: string;
 }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const [hover, setHover] = useState<{ ordinal: number; x: number; y: number } | null>(null);
+  const [hover, setHover] = useState<{
+    ordinal: number;
+    x: number;
+    y: number;
+  } | null>(null);
 
   const statementsByOrdinal = useMemo(() => {
     const m = new Map<number, StatementInfo>();
@@ -326,7 +354,9 @@ export default function SpecDetails({
   }, [statements]);
 
   function handleMouseOver(e: React.MouseEvent<HTMLDivElement>) {
-    const target = (e.target as HTMLElement).closest<HTMLElement>('mark[data-ordinal]');
+    const target = (e.target as HTMLElement).closest<HTMLElement>(
+      "mark[data-ordinal]",
+    );
     if (!target) {
       if (hover) setHover(null);
       return;
@@ -351,10 +381,16 @@ export default function SpecDetails({
   // so they resolve and open in a new tab instead of a dead in-app href.
   const mdComponents = useMemo(
     () => ({
-      a(props: React.ComponentPropsWithoutRef<'a'> & { node?: unknown }) {
+      a(props: React.ComponentPropsWithoutRef<"a"> & { node?: unknown }) {
         const { href, children, node: _node, ...rest } = props;
-        const { href: resolved, external } = resolveHref(href ?? '', repo, branch);
-        const ext = external ? { target: '_blank', rel: 'noopener noreferrer' } : {};
+        const { href: resolved, external } = resolveHref(
+          href ?? "",
+          repo,
+          branch,
+        );
+        const ext = external
+          ? { target: "_blank", rel: "noopener noreferrer" }
+          : {};
         return (
           <a href={resolved} {...ext} {...rest}>
             {children}
@@ -382,7 +418,11 @@ export default function SpecDetails({
           {content}
         </ReactMarkdown>
         {hover && hovered && (
-          <div className={styles.popover} style={{ left: hover.x, top: hover.y }} role="tooltip">
+          <div
+            className={styles.popover}
+            style={{ left: hover.x, top: hover.y }}
+            role="tooltip"
+          >
             <StatementPopover statement={hovered} repo={repo} branch={branch} />
           </div>
         )}

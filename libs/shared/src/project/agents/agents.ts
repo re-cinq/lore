@@ -1,4 +1,8 @@
-import type { AgentRunnerPort, AgentRunResult, AgentRunOpts } from "./agent-runner-port.js";
+import type {
+  AgentRunnerPort,
+  AgentRunResult,
+  AgentRunOpts,
+} from "./agent-runner-port.js";
 import { executionRefusal } from "../lib/trust.js";
 
 /**

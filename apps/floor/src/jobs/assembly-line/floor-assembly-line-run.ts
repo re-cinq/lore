@@ -20,7 +20,11 @@ import {
   type AgentNodeStatus,
   type CiConclusion,
 } from "@re-cinq/lore-assembly-lines";
-import type { LeaseBackend, LoreTaskSpec, StationBackend } from "@re-cinq/lore-shared";
+import type {
+  LeaseBackend,
+  LoreTaskSpec,
+  StationBackend,
+} from "@re-cinq/lore-shared";
 import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
 import { nodeAgentName } from "./floor-assembly-line.js";
 import {
@@ -30,9 +34,15 @@ import {
 } from "./floor-assembly-line.js";
 import { KubeAgentApi } from "../station/kube-agent-api.js";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
-import { gitAuthArgs, repoCloneUrl } from "@re-cinq/lore-shared/project/workspace/git-auth.js";
+import {
+  gitAuthArgs,
+  repoCloneUrl,
+} from "@re-cinq/lore-shared/project/workspace/git-auth.js";
 import { buildPrompt } from "../../kernel/config.js";
-import { writeEpisode, writeEpisodeWithCuration } from "../lib/episode-writer.js";
+import {
+  writeEpisode,
+  writeEpisodeWithCuration,
+} from "../lib/episode-writer.js";
 import { leaseBackendForEnv } from "../../main-loop/lease/lease-backend.js";
 import { assemblyLines } from "../../kernel/queues.js";
 
@@ -54,7 +64,9 @@ export interface RunFloorAssemblyLineOptions {
  *  (buildFloorAssemblyLineHandlers) into runSupervisor, which owns the lease + branch-as-state +
  *  resume. Everything cluster-shaped is in `ports`, so this runs unchanged in the local
  *  integration test (fake ports) and in production (real ports). */
-export function runFloorAssemblyLine(opts: RunFloorAssemblyLineOptions): Promise<SupervisorResult> {
+export function runFloorAssemblyLine(
+  opts: RunFloorAssemblyLineOptions,
+): Promise<SupervisorResult> {
   return runSupervisor({
     taskId: opts.task.taskId,
     assemblyLineId: opts.task.assemblyLineId,
@@ -73,7 +85,10 @@ export function runFloorAssemblyLine(opts: RunFloorAssemblyLineOptions): Promise
 export function portTrace(port: AssemblyLinesPort): AssemblyLineTrace {
   return {
     onNodeStart: (i) =>
-      port.recordNodeStart({ ...i, agentCrName: nodeAgentName(i.assemblyLineId, i.nodeId) }),
+      port.recordNodeStart({
+        ...i,
+        agentCrName: nodeAgentName(i.assemblyLineId, i.nodeId),
+      }),
     onNodeFinish: (nodeRef, outcome, commitSha) =>
       port.recordNodeFinish(nodeRef, outcome, commitSha),
   };
@@ -135,7 +150,9 @@ export async function checkoutBranch(
   url: string,
   authArgs: string[] = [],
 ): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), `lore-assembly-line-${repo.replace("/", "-")}-`));
+  const dir = await fs.mkdtemp(
+    path.join(os.tmpdir(), `lore-assembly-line-${repo.replace("/", "-")}-`),
+  );
   await execFile("git", [...authArgs, "clone", url, dir]);
   try {
     await execFile("git", ["-C", dir, "checkout", branch]);
@@ -155,18 +172,27 @@ export async function runFloorAssemblyLineForTask(
   const definitions = await loadBuiltinAssemblyLines();
   const assemblyLine = definitions.get(task.taskType);
   if (!assemblyLine) {
-    throw new Error(`No assembly line defined for task type "${task.taskType}"`);
+    throw new Error(
+      `No assembly line defined for task type "${task.taskType}"`,
+    );
   }
   const holder = os.hostname();
   const { url, authArgs } = await rt.cloneAuth(task.targetRepo);
-  const gitDir = await checkoutBranch(task.targetRepo, task.branch, url, authArgs);
+  const gitDir = await checkoutBranch(
+    task.targetRepo,
+    task.branch,
+    url,
+    authArgs,
+  );
   try {
     const ports: FloorAssemblyLinePorts = {
       dispatchAgent: async (spec) => {
         await rt.dispatcher.launch(spec);
       },
-      resolvePrompt: (node, t) => rt.resolvePrompt(node.prompt_ref ?? node.type, t.description),
-      agentStatus: (assemblyLineId, nodeId) => rt.status.read(nodeAgentName(assemblyLineId, nodeId)),
+      resolvePrompt: (node, t) =>
+        rt.resolvePrompt(node.prompt_ref ?? node.type, t.description),
+      agentStatus: (assemblyLineId, nodeId) =>
+        rt.status.read(nodeAgentName(assemblyLineId, nodeId)),
       ciConclusion: (branch) => rt.ciConclusion(task.targetRepo, branch),
       // Extra heartbeat during a long node poll, between executeAssemblyLine's per-node refreshes
       // — same (branch, holder, nodeId) the executor uses.
@@ -193,14 +219,17 @@ export async function runFloorAssemblyLineForTask(
 /** Assemble the real ports for a Floor-side assembly line run: dispatch via the agent-cr backend,
  *  per-node Agent-status reads, GitHub CI, prompt resolution, the DB lease, episode
  *  writers, and a token-bearing clone URL. IO shell — verified by the minikube smoke. */
-export function floorAssemblyLineRuntime(dispatcher: StationBackend): FloorAssemblyLineRuntime {
+export function floorAssemblyLineRuntime(
+  dispatcher: StationBackend,
+): FloorAssemblyLineRuntime {
   const kubeApi = new KubeAgentApi();
   const gh = new PlatformGitHub(process.env);
   return {
     dispatcher: { launch: (spec) => dispatcher.launch(spec) },
     status: { read: (name) => kubeApi.getStatus(name) },
     ciConclusion: (repo, ref) => gh.ciConclusion(repo, ref),
-    resolvePrompt: (promptRef, description) => buildPrompt(promptRef, description),
+    resolvePrompt: (promptRef, description) =>
+      buildPrompt(promptRef, description),
     leaseBackend: leaseBackendForEnv(),
     episodeDeps: { writeEpisode, writeEpisodeWithCuration, curate: true },
     assemblyLines: assemblyLines(),

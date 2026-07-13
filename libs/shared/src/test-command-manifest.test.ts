@@ -27,26 +27,47 @@ describe("parseTestCommandManifest", () => {
 
   it("throws when the run command is missing", () => {
     expect(() =>
-      parseTestCommandManifest({ list: "vitest list", coverage_format: "lcov" }),
+      parseTestCommandManifest({
+        list: "vitest list",
+        coverage_format: "lcov",
+      }),
     ).toThrow(/run/);
   });
 
   it("throws when the run command omits the {selector} placeholder", () => {
     expect(() =>
-      parseTestCommandManifest({ list: "vitest list", run: "vitest run", coverage_format: "lcov" }),
+      parseTestCommandManifest({
+        list: "vitest list",
+        run: "vitest run",
+        coverage_format: "lcov",
+      }),
     ).toThrow(/\{selector\}/);
   });
 
   it("throws on an unknown coverage_format", () => {
     expect(() =>
-      parseTestCommandManifest({ list: "vitest list", run: "vitest run {selector}", coverage_format: "html" }),
+      parseTestCommandManifest({
+        list: "vitest list",
+        run: "vitest run {selector}",
+        coverage_format: "html",
+      }),
     ).toThrow(/coverage_format/);
   });
 
   it("normalizes a polyglot array into one entry per manifest", () => {
     const result = parseTestCommandManifest([
-      { list: "vitest list", run: "vitest run {selector}", coverage_format: "lcov", cwd: "web" },
-      { list: "pytest --collect-only", run: "pytest {selector}", coverage_format: "cobertura", cwd: "api" },
+      {
+        list: "vitest list",
+        run: "vitest run {selector}",
+        coverage_format: "lcov",
+        cwd: "web",
+      },
+      {
+        list: "pytest --collect-only",
+        run: "pytest {selector}",
+        coverage_format: "cobertura",
+        cwd: "api",
+      },
     ]);
     expect(result.map((m) => m.cwd)).toEqual(["web", "api"]);
     expect(result).toHaveLength(2);
@@ -60,13 +81,24 @@ describe("parseTestCommandManifest", () => {
       cwd: "services/api",
       path_prefix_strip: "services/api/",
     });
-    expect(manifest).toMatchObject({ cwd: "services/api", path_prefix_strip: "services/api/" });
+    expect(manifest).toMatchObject({
+      cwd: "services/api",
+      path_prefix_strip: "services/api/",
+    });
   });
 });
 
 describe("resolveTestCommandManifest", () => {
-  const settings = { list: "from-settings", run: "from-settings {selector}", coverage_format: "json" };
-  const file = { list: "from-file", run: "from-file {selector}", coverage_format: "lcov" };
+  const settings = {
+    list: "from-settings",
+    run: "from-settings {selector}",
+    coverage_format: "json",
+  };
+  const file = {
+    list: "from-file",
+    run: "from-file {selector}",
+    coverage_format: "lcov",
+  };
 
   it("returns null when neither settings nor file declare a manifest", () => {
     expect(resolveTestCommandManifest({})).toBeNull();
@@ -86,7 +118,10 @@ describe("resolveTestCommandManifest", () => {
 describe("decideTestInterfaceCheck", () => {
   it("scaffolds both files when no manifest is declared", () => {
     expect(
-      decideTestInterfaceCheck({ manifestFileDeclared: false, settingsTestCommands: null }),
+      decideTestInterfaceCheck({
+        manifestFileDeclared: false,
+        settingsTestCommands: null,
+      }),
     ).toEqual({
       status: "scaffold",
       files: [".lore/test-commands.yml", ".github/workflows/lore-tests.yml"],
@@ -95,7 +130,10 @@ describe("decideTestInterfaceCheck", () => {
 
   it("reports configured when the .lore/test-commands.yml file is declared", () => {
     expect(
-      decideTestInterfaceCheck({ manifestFileDeclared: true, settingsTestCommands: null }),
+      decideTestInterfaceCheck({
+        manifestFileDeclared: true,
+        settingsTestCommands: null,
+      }),
     ).toEqual({ status: "configured" });
   });
 
@@ -103,7 +141,11 @@ describe("decideTestInterfaceCheck", () => {
     expect(
       decideTestInterfaceCheck({
         manifestFileDeclared: false,
-        settingsTestCommands: { list: "x", run: "y {selector}", coverage_format: "json" },
+        settingsTestCommands: {
+          list: "x",
+          run: "y {selector}",
+          coverage_format: "json",
+        },
       }),
     ).toEqual({ status: "configured" });
   });
@@ -117,8 +159,11 @@ describe("isManifestDeclared", () => {
 
 describe("substituteSelector", () => {
   it("replaces every {selector} placeholder with the runner-native id", () => {
-    expect(substituteSelector("vitest run {selector} --coverage", "a.test.ts::keeps {selector}")).toBe(
-      "vitest run a.test.ts::keeps {selector} --coverage",
-    );
+    expect(
+      substituteSelector(
+        "vitest run {selector} --coverage",
+        "a.test.ts::keeps {selector}",
+      ),
+    ).toBe("vitest run a.test.ts::keeps {selector} --coverage");
   });
 });

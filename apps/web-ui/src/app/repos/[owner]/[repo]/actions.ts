@@ -1,9 +1,9 @@
-'use server';
+"use server";
 
-import { createOnboardTask } from '@/lib/onboard';
-import { ensureWebhook } from '@/lib/webhook-api';
-import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
+import { createOnboardTask } from "@/lib/onboard";
+import { ensureWebhook } from "@/lib/webhook-api";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 
 /**
  * Re-run onboarding for a repo to regenerate missing scaffolding (e.g. the

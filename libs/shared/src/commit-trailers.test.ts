@@ -53,7 +53,11 @@ describe("formatTrailers with an assemblyLineId", () => {
   });
 
   it("omits the Lore-Assembly-Line trailer when assemblyLineId is unset", () => {
-    const out = formatTrailers({ stage: "implement", iteration: 1, taskId: "abc-123" });
+    const out = formatTrailers({
+      stage: "implement",
+      iteration: 1,
+      taskId: "abc-123",
+    });
     expect(out).not.toContain("Lore-Assembly-Line");
   });
 });
@@ -79,7 +83,11 @@ describe("parseTrailers", () => {
     const parsed = parseTrailers(
       "Lore-Stage: review\nLore-Iteration: 2\nLore-Task: abc-123",
     );
-    expect(parsed).toEqual({ stage: "review", iteration: 2, taskId: "abc-123" });
+    expect(parsed).toEqual({
+      stage: "review",
+      iteration: 2,
+      taskId: "abc-123",
+    });
     expect(parsed?.assemblyLineId).toBeUndefined();
   });
 
@@ -115,14 +123,14 @@ Lore-Task: abc-123`;
   });
 
   it("returns null when required key is missing", () => {
-    expect(parseTrailers("Lore-Stage: implement\nLore-Iteration: 1")).toBeNull();
+    expect(
+      parseTrailers("Lore-Stage: implement\nLore-Iteration: 1"),
+    ).toBeNull();
   });
 
   it("returns null when iteration is not a number", () => {
     expect(
-      parseTrailers(
-        "Lore-Stage: implement\nLore-Iteration: abc\nLore-Task: x",
-      ),
+      parseTrailers("Lore-Stage: implement\nLore-Iteration: abc\nLore-Task: x"),
     ).toBeNull();
   });
 

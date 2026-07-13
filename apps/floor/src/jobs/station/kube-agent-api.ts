@@ -3,7 +3,11 @@
 // lives in agent-backend.ts and is covered there. Creates/lists `Agent` CRs in the
 // ai-agents namespace (agents.re-cinq.com); a 409 maps to created:false.
 
-import { GROUP, VERSION, type Agent as AgentCr } from "@re-cinq/agent-contracts";
+import {
+  GROUP,
+  VERSION,
+  type Agent as AgentCr,
+} from "@re-cinq/agent-contracts";
 import type { AgentNodeStatus } from "@re-cinq/lore-assembly-lines";
 import type { AgentApi } from "./agent-backend.js";
 
@@ -15,7 +19,8 @@ export class KubeAgentApi implements AgentApi {
   }
 
   private async customObjects() {
-    const { KubeConfig, CustomObjectsApi } = await import("@kubernetes/client-node");
+    const { KubeConfig, CustomObjectsApi } =
+      await import("@kubernetes/client-node");
     const kc = new KubeConfig();
     kc.loadFromCluster();
     return kc.makeApiClient(CustomObjectsApi);
@@ -27,10 +32,20 @@ export class KubeAgentApi implements AgentApi {
     const name = agent.metadata?.name ?? "";
     const body = { apiVersion: `${GROUP}/${VERSION}`, kind: "Agent", ...agent };
     try {
-      await api.createNamespacedCustomObject({ group: GROUP, version: VERSION, namespace, plural: PLURAL, body });
+      await api.createNamespacedCustomObject({
+        group: GROUP,
+        version: VERSION,
+        namespace,
+        plural: PLURAL,
+        body,
+      });
       return { name, created: true };
     } catch (err) {
-      const e = err as { code?: number; response?: { statusCode?: number }; message?: string };
+      const e = err as {
+        code?: number;
+        response?: { statusCode?: number };
+        message?: string;
+      };
       const is409 =
         e?.code === 409 ||
         e?.response?.statusCode === 409 ||
@@ -54,7 +69,11 @@ export class KubeAgentApi implements AgentApi {
       })) as AgentCr;
       const status = obj.status;
       if (!status) return null;
-      return { phase: status.phase, output: status.output, failureReason: status.failureReason };
+      return {
+        phase: status.phase,
+        output: status.output,
+        failureReason: status.failureReason,
+      };
     } catch (err) {
       const e = err as { code?: number; response?: { statusCode?: number } };
       if (e?.code === 404 || e?.response?.statusCode === 404) return null;

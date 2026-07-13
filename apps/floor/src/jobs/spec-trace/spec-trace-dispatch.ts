@@ -45,12 +45,24 @@ export async function dispatchSpecTrace(
     const p = (payload ?? {}) as RepoReadPayload;
     const project = await deps.projectFor(repo);
     const summary = await projectRepoGraph(
-      { kind, repo, ref: p.commit || p.branch || undefined, glob: p.glob, force: p.force },
+      {
+        kind,
+        repo,
+        ref: p.commit || p.branch || undefined,
+        glob: p.glob,
+        force: p.force,
+      },
       { repo: project.repo, dgraph: deps.dgraph },
     );
-    return { logLine: graphIngestLogLine(repo, summary), audit: graphIngestAuditEntry(repo, summary) };
+    return {
+      logLine: graphIngestLogLine(repo, summary),
+      audit: graphIngestAuditEntry(repo, summary),
+    };
   }
 
   const outcome = await ingestSpecTrace(deps.dgraph, repo, kind, payload);
-  return { logLine: specTraceLogLine(repo, outcome), audit: specTraceAuditEntry(repo, outcome) };
+  return {
+    logLine: specTraceLogLine(repo, outcome),
+    audit: specTraceAuditEntry(repo, outcome),
+  };
 }

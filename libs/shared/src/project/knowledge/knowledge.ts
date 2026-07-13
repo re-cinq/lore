@@ -1,4 +1,8 @@
-import type { KnowledgePort, AssembledContext, DocRef } from "./knowledge-port.js";
+import type {
+  KnowledgePort,
+  AssembledContext,
+  DocRef,
+} from "./knowledge-port.js";
 import type { LiveGraphResult } from "./live-graph.js";
 
 /**

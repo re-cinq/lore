@@ -4,9 +4,10 @@ import { InMemoryAssemblyLines } from "./assembly-lines-memory.js";
 import { AssemblyLines } from "./assembly-lines.js";
 import type { PgPool } from "../../memory-store.js";
 
-function fakePool(
-  rowsByCall: unknown[][] = [],
-): { pool: PgPool; calls: Array<{ text: string; params?: unknown[] }> } {
+function fakePool(rowsByCall: unknown[][] = []): {
+  pool: PgPool;
+  calls: Array<{ text: string; params?: unknown[] }>;
+} {
   const calls: Array<{ text: string; params?: unknown[] }> = [];
   const pool: PgPool = {
     async query(text: string, params?: unknown[]) {
@@ -17,7 +18,8 @@ function fakePool(
   return { pool, calls };
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 describe("PgAssemblyLines adapter", () => {
   it("start inserts the assembly line row and the assembly_line.start event in one atomic statement", async () => {
@@ -56,9 +58,14 @@ describe("PgAssemblyLines adapter", () => {
       repo: "re-cinq/lore",
     });
 
-    expect(calls[0]?.params).toEqual(["gap-fill", null, "re-cinq/lore", null, "{}"]);
+    expect(calls[0]?.params).toEqual([
+      "gap-fill",
+      null,
+      "re-cinq/lore",
+      null,
+      "{}",
+    ]);
   });
-
 
   it("markRunning stamps status running and started_at", async () => {
     const { pool, calls } = fakePool();
@@ -75,7 +82,9 @@ describe("PgAssemblyLines adapter", () => {
 
     await new PgAssemblyLines(pool).finish("al-1", "pr_created");
 
-    expect(calls[0]?.text).toContain("CASE WHEN $1 = 'error' THEN 'failed' ELSE 'finished' END");
+    expect(calls[0]?.text).toContain(
+      "CASE WHEN $1 = 'error' THEN 'failed' ELSE 'finished' END",
+    );
     expect(calls[0]?.text).toContain("finished_at = now()");
     expect(calls[0]?.params).toEqual(["pr_created", null, "al-1"]);
   });
@@ -83,9 +92,17 @@ describe("PgAssemblyLines adapter", () => {
   it("finish with outcome error records the reason", async () => {
     const { pool, calls } = fakePool();
 
-    await new PgAssemblyLines(pool).finish("al-1", "error", "lease held by other pod");
+    await new PgAssemblyLines(pool).finish(
+      "al-1",
+      "error",
+      "lease held by other pod",
+    );
 
-    expect(calls[0]?.params).toEqual(["error", "lease held by other pod", "al-1"]);
+    expect(calls[0]?.params).toEqual([
+      "error",
+      "lease held by other pod",
+      "al-1",
+    ]);
   });
 
   it("recordNodeStart inserts the node row and returns its id", async () => {
@@ -99,8 +116,15 @@ describe("PgAssemblyLines adapter", () => {
     });
 
     expect(nodeRowId).toBe("42");
-    expect(calls[0]?.text).toContain("INSERT INTO pipeline.assembly_line_nodes");
-    expect(calls[0]?.params).toEqual(["al-1", "implement", 1, "al1abcde-implement"]);
+    expect(calls[0]?.text).toContain(
+      "INSERT INTO pipeline.assembly_line_nodes",
+    );
+    expect(calls[0]?.params).toEqual([
+      "al-1",
+      "implement",
+      1,
+      "al1abcde-implement",
+    ]);
   });
 
   it("recordNodeStart without an agent CR name binds null", async () => {
@@ -119,7 +143,11 @@ describe("PgAssemblyLines adapter", () => {
   it("recordNodeFinish stamps outcome, commit sha, and finished_at", async () => {
     const { pool, calls } = fakePool();
 
-    await new PgAssemblyLines(pool).recordNodeFinish("42", "success", "deadbeef");
+    await new PgAssemblyLines(pool).recordNodeFinish(
+      "42",
+      "success",
+      "deadbeef",
+    );
 
     expect(calls[0]?.text).toContain("UPDATE pipeline.assembly_line_nodes");
     expect(calls[0]?.text).toContain("finished_at = now()");
@@ -185,9 +213,18 @@ describe("PgAssemblyLines adapter", () => {
     const { pool } = fakePool([
       [
         {
-          id: "al-1", definition_name: "general", task_id: null, repo: "r/a", branch: null,
-          args: null, status: "queued", outcome: null, reason: null,
-          created_at: createdAt, started_at: null, finished_at: null,
+          id: "al-1",
+          definition_name: "general",
+          task_id: null,
+          repo: "r/a",
+          branch: null,
+          args: null,
+          status: "queued",
+          outcome: null,
+          reason: null,
+          created_at: createdAt,
+          started_at: null,
+          finished_at: null,
         },
       ],
     ]);
@@ -219,7 +256,11 @@ describe("PgAssemblyLines adapter", () => {
   it("finishOpenByPr closes matching open rows and returns the count", async () => {
     const { pool, calls } = fakePool([[{ id: "al-1" }, { id: "al-2" }]]);
 
-    const count = await new PgAssemblyLines(pool).finishOpenByPr("re-cinq/lore", 42, "pr_closed");
+    const count = await new PgAssemblyLines(pool).finishOpenByPr(
+      "re-cinq/lore",
+      42,
+      "pr_closed",
+    );
 
     expect(count).toBe(2);
     expect(calls[0]?.text).toContain("UPDATE pipeline.assembly_lines");
@@ -266,10 +307,12 @@ describe("InMemoryAssemblyLines double", () => {
     ]);
   });
 
-
   it("markRunning transitions the matching row to running with started_at", async () => {
     const assemblyLines = new InMemoryAssemblyLines();
-    const id = await assemblyLines.start({ definitionName: "general", repo: "re-cinq/lore" });
+    const id = await assemblyLines.start({
+      definitionName: "general",
+      repo: "re-cinq/lore",
+    });
 
     await assemblyLines.markRunning(id);
 
@@ -279,17 +322,27 @@ describe("InMemoryAssemblyLines double", () => {
 
   it("finish with outcome pr_created closes the row as finished", async () => {
     const assemblyLines = new InMemoryAssemblyLines();
-    const id = await assemblyLines.start({ definitionName: "general", repo: "re-cinq/lore" });
+    const id = await assemblyLines.start({
+      definitionName: "general",
+      repo: "re-cinq/lore",
+    });
 
     await assemblyLines.finish(id, "pr_created");
 
-    expect(assemblyLines.rows[0]).toMatchObject({ status: "finished", outcome: "pr_created", reason: null });
+    expect(assemblyLines.rows[0]).toMatchObject({
+      status: "finished",
+      outcome: "pr_created",
+      reason: null,
+    });
     expect(assemblyLines.rows[0]?.finishedAt).not.toBeNull();
   });
 
   it("finish with outcome error closes the row as failed with the reason", async () => {
     const assemblyLines = new InMemoryAssemblyLines();
-    const id = await assemblyLines.start({ definitionName: "general", repo: "re-cinq/lore" });
+    const id = await assemblyLines.start({
+      definitionName: "general",
+      repo: "re-cinq/lore",
+    });
 
     await assemblyLines.finish(id, "error", "iteration_max exceeded");
 
@@ -302,7 +355,10 @@ describe("InMemoryAssemblyLines double", () => {
 
   it("recordNodeStart and recordNodeFinish trace one node execution", async () => {
     const assemblyLines = new InMemoryAssemblyLines();
-    const id = await assemblyLines.start({ definitionName: "implementation", repo: "re-cinq/lore" });
+    const id = await assemblyLines.start({
+      definitionName: "implementation",
+      repo: "re-cinq/lore",
+    });
 
     const nodeRowId = await assemblyLines.recordNodeStart({
       assemblyLineId: id,
@@ -328,7 +384,10 @@ describe("InMemoryAssemblyLines double", () => {
 
   it("recordNodeStart without an agent CR name stores null", async () => {
     const assemblyLines = new InMemoryAssemblyLines();
-    const id = await assemblyLines.start({ definitionName: "general", repo: "re-cinq/lore" });
+    const id = await assemblyLines.start({
+      definitionName: "general",
+      repo: "re-cinq/lore",
+    });
 
     const nodeRowId = await assemblyLines.recordNodeStart({
       assemblyLineId: id,
@@ -337,33 +396,61 @@ describe("InMemoryAssemblyLines double", () => {
     });
     await assemblyLines.recordNodeFinish(nodeRowId, "failed");
 
-    expect(assemblyLines.nodes[0]).toMatchObject({ agentCrName: null, commitSha: null, outcome: "failed" });
+    expect(assemblyLines.nodes[0]).toMatchObject({
+      agentCrName: null,
+      commitSha: null,
+      outcome: "failed",
+    });
   });
 
   it("throws on unknown ids for markRunning, finish, and recordNodeFinish", async () => {
     const assemblyLines = new InMemoryAssemblyLines();
 
-    await expect(assemblyLines.markRunning("nope")).rejects.toThrow(new Error('no assembly line "nope"'));
-    await expect(assemblyLines.finish("nope", "error")).rejects.toThrow(new Error('no assembly line "nope"'));
-    await expect(assemblyLines.recordNodeFinish("nope", "success")).rejects.toThrow(
-      new Error('no assembly line node row "nope"'),
+    await expect(assemblyLines.markRunning("nope")).rejects.toThrow(
+      new Error('no assembly line "nope"'),
     );
+    await expect(assemblyLines.finish("nope", "error")).rejects.toThrow(
+      new Error('no assembly line "nope"'),
+    );
+    await expect(
+      assemblyLines.recordNodeFinish("nope", "success"),
+    ).rejects.toThrow(new Error('no assembly line node row "nope"'));
   });
 
   it("getById returns the record and null for unknown ids", async () => {
     const assemblyLines = new InMemoryAssemblyLines();
-    const id = await assemblyLines.start({ definitionName: "general", repo: "re-cinq/lore" });
+    const id = await assemblyLines.start({
+      definitionName: "general",
+      repo: "re-cinq/lore",
+    });
 
-    expect(await assemblyLines.getById(id)).toMatchObject({ id, definitionName: "general" });
+    expect(await assemblyLines.getById(id)).toMatchObject({
+      id,
+      definitionName: "general",
+    });
     expect(await assemblyLines.getById("nope")).toBeNull();
   });
 
   it("listForTask returns only that task's assembly lines, newest first", async () => {
-    const assemblyLines = new InMemoryAssemblyLines(() => new Date("2026-07-03T10:00:00Z"));
-    const first = await assemblyLines.start({ definitionName: "general", repo: "r/a", taskId: "task-1" });
+    const assemblyLines = new InMemoryAssemblyLines(
+      () => new Date("2026-07-03T10:00:00Z"),
+    );
+    const first = await assemblyLines.start({
+      definitionName: "general",
+      repo: "r/a",
+      taskId: "task-1",
+    });
     assemblyLines.clock = () => new Date("2026-07-03T11:00:00Z");
-    const second = await assemblyLines.start({ definitionName: "general", repo: "r/a", taskId: "task-1" });
-    await assemblyLines.start({ definitionName: "general", repo: "r/a", taskId: "task-2" });
+    const second = await assemblyLines.start({
+      definitionName: "general",
+      repo: "r/a",
+      taskId: "task-1",
+    });
+    await assemblyLines.start({
+      definitionName: "general",
+      repo: "r/a",
+      taskId: "task-2",
+    });
 
     const forTask = await assemblyLines.listForTask("task-1");
 
@@ -372,11 +459,27 @@ describe("InMemoryAssemblyLines double", () => {
 
   it("findOpenByPr returns open rows for the repo+PR, excluding finished and other PRs", async () => {
     const assemblyLines = new InMemoryAssemblyLines();
-    const open = await assemblyLines.start({ definitionName: "code-review", repo: "r/a", args: { pr_number: 42 } });
-    const done = await assemblyLines.start({ definitionName: "code-review", repo: "r/a", args: { pr_number: 42 } });
+    const open = await assemblyLines.start({
+      definitionName: "code-review",
+      repo: "r/a",
+      args: { pr_number: 42 },
+    });
+    const done = await assemblyLines.start({
+      definitionName: "code-review",
+      repo: "r/a",
+      args: { pr_number: 42 },
+    });
     await assemblyLines.finish(done, "success");
-    await assemblyLines.start({ definitionName: "code-review", repo: "r/a", args: { pr_number: 99 } });
-    await assemblyLines.start({ definitionName: "code-review", repo: "r/b", args: { pr_number: 42 } });
+    await assemblyLines.start({
+      definitionName: "code-review",
+      repo: "r/a",
+      args: { pr_number: 99 },
+    });
+    await assemblyLines.start({
+      definitionName: "code-review",
+      repo: "r/b",
+      args: { pr_number: 42 },
+    });
 
     const found = await assemblyLines.findOpenByPr("r/a", 42);
 
@@ -385,14 +488,27 @@ describe("InMemoryAssemblyLines double", () => {
 
   it("finishOpenByPr closes only the open matching rows and returns the count", async () => {
     const assemblyLines = new InMemoryAssemblyLines();
-    const a = await assemblyLines.start({ definitionName: "code-review", repo: "r/a", args: { pr_number: 42 } });
-    const other = await assemblyLines.start({ definitionName: "code-review", repo: "r/a", args: { pr_number: 99 } });
+    const a = await assemblyLines.start({
+      definitionName: "code-review",
+      repo: "r/a",
+      args: { pr_number: 42 },
+    });
+    const other = await assemblyLines.start({
+      definitionName: "code-review",
+      repo: "r/a",
+      args: { pr_number: 99 },
+    });
 
     const count = await assemblyLines.finishOpenByPr("r/a", 42, "pr_closed");
 
     expect(count).toBe(1);
-    expect(await assemblyLines.getById(a)).toMatchObject({ status: "finished", outcome: "pr_closed" });
-    expect(await assemblyLines.getById(other)).toMatchObject({ status: "queued" });
+    expect(await assemblyLines.getById(a)).toMatchObject({
+      status: "finished",
+      outcome: "pr_closed",
+    });
+    expect(await assemblyLines.getById(other)).toMatchObject({
+      status: "queued",
+    });
   });
 });
 
@@ -427,6 +543,9 @@ describe("AssemblyLines facade", () => {
 
     expect((await facade.findOpenByPr(7)).map((r) => r.id)).toEqual([id]);
     expect(await facade.finishOpenByPr(7, "pr_closed")).toBe(1);
-    expect(await facade.getById(id)).toMatchObject({ status: "finished", outcome: "pr_closed" });
+    expect(await facade.getById(id)).toMatchObject({
+      status: "finished",
+      outcome: "pr_closed",
+    });
   });
 });

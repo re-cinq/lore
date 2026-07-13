@@ -1,11 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const originalEnv = { ...process.env };
 
 function get(query = "", pool: unknown = makePool()) {
-  return buildServer(() => pool as any).inject({ method: "GET", url: "/api/repos" + query, headers: AUTH });
+  return buildServer(() => pool as any).inject({
+    method: "GET",
+    url: "/api/repos" + query,
+    headers: AUTH,
+  });
 }
 
 describe("GET /api/repos", () => {
@@ -26,7 +35,9 @@ describe("GET /api/repos", () => {
   it("returns repos with paging metadata, defaulting to limit 100 offset 0", async () => {
     const pool = makePool();
     pool.query
-      .mockResolvedValueOnce({ rows: [{ id: 1, full_name: "re-cinq/lore", task_count: 3 }] })
+      .mockResolvedValueOnce({
+        rows: [{ id: 1, full_name: "re-cinq/lore", task_count: 3 }],
+      })
       .mockResolvedValueOnce({ rows: [{ total: 1 }] });
     const res = await get("", pool);
     expect(res.result).toEqual({
@@ -40,7 +51,9 @@ describe("GET /api/repos", () => {
 
   it("clamps over-max limit and applies offset", async () => {
     const pool = makePool();
-    pool.query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ total: 250 }] });
+    pool.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ total: 250 }] });
     const res = await get("?limit=999&offset=100", pool);
     expect(pool.query.mock.calls[0][1]).toEqual([100, 100]);
     expect(res.result).toMatchObject({ total: 250, limit: 100, offset: 100 });

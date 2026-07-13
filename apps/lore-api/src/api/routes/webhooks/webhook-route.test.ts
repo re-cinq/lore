@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 vi.mock("../../../features/webhook/webhook-manage.js", () => ({
   listRepoWebhooks: vi.fn(),
@@ -18,7 +23,15 @@ const originalEnv = { ...process.env };
 const goodHook = {
   id: 7,
   active: true,
-  events: ["pull_request", "pull_request_review", "pull_request_review_comment", "check_run", "check_suite", "issue_comment", "issues"],
+  events: [
+    "pull_request",
+    "pull_request_review",
+    "pull_request_review_comment",
+    "check_run",
+    "check_suite",
+    "issue_comment",
+    "issues",
+  ],
   config: { url: URL },
   last_response: { code: 200, status: "ok" },
 };
@@ -40,7 +53,10 @@ describe("GET /api/repos/:o/:r/webhook", () => {
     delete process.env.LORE_WEBHOOK_URL;
     const res = await inject("GET", "/api/repos/o/r/webhook");
     expect(res.statusCode).toBe(200);
-    expect(res.result).toMatchObject({ state: "unknown", reason: "webhook_host_not_configured" });
+    expect(res.result).toMatchObject({
+      state: "unknown",
+      reason: "webhook_host_not_configured",
+    });
   });
 
   it("classifies the repo's hooks against the canonical URL", async () => {
@@ -48,14 +64,23 @@ describe("GET /api/repos/:o/:r/webhook", () => {
     vi.mocked(listRepoWebhooks).mockResolvedValue([goodHook] as any);
     const res = await inject("GET", "/api/repos/o/r/webhook");
     expect(res.statusCode).toBe(200);
-    expect(res.result).toMatchObject({ state: "configured", hookId: 7, canonicalUrl: URL });
+    expect(res.result).toMatchObject({
+      state: "configured",
+      hookId: 7,
+      canonicalUrl: URL,
+    });
   });
 
   it("degrades to unknown when the App lacks the webhook permission (403)", async () => {
     process.env.LORE_WEBHOOK_URL = URL;
-    vi.mocked(listRepoWebhooks).mockRejectedValue(Object.assign(new Error("Forbidden"), { status: 403 }));
+    vi.mocked(listRepoWebhooks).mockRejectedValue(
+      Object.assign(new Error("Forbidden"), { status: 403 }),
+    );
     const res = await inject("GET", "/api/repos/o/r/webhook");
-    expect(res.result).toMatchObject({ state: "unknown", reason: "app_no_webhook_permission" });
+    expect(res.result).toMatchObject({
+      state: "unknown",
+      reason: "app_no_webhook_permission",
+    });
   });
 });
 
@@ -71,21 +96,31 @@ describe("POST /api/repos/:o/:r/webhook/ensure", () => {
 
   it("maps a secret_not_configured skip to 503", async () => {
     process.env.LORE_WEBHOOK_URL = URL;
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({ ok: false, reason: "secret_not_configured" });
+    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+      ok: false,
+      reason: "secret_not_configured",
+    });
     const res = await inject("POST", "/api/repos/o/r/webhook/ensure");
     expect(res.statusCode).toBe(503);
   });
 
   it("maps an app_no_webhook_permission skip to 403", async () => {
     process.env.LORE_WEBHOOK_URL = URL;
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({ ok: false, reason: "app_no_webhook_permission" });
+    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+      ok: false,
+      reason: "app_no_webhook_permission",
+    });
     const res = await inject("POST", "/api/repos/o/r/webhook/ensure");
     expect(res.statusCode).toBe(403);
   });
 
   it("ensures the hook then returns the fresh status", async () => {
     process.env.LORE_WEBHOOK_URL = URL;
-    vi.mocked(ensureFloorWebhook).mockResolvedValue({ ok: true, hookId: 7, created: false });
+    vi.mocked(ensureFloorWebhook).mockResolvedValue({
+      ok: true,
+      hookId: 7,
+      created: false,
+    });
     vi.mocked(listRepoWebhooks).mockResolvedValue([goodHook] as any);
     const res = await inject("POST", "/api/repos/o/r/webhook/ensure");
     expect(ensureFloorWebhook).toHaveBeenCalledWith("o/r");

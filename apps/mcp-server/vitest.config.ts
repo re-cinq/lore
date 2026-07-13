@@ -11,7 +11,12 @@ export default defineConfig({
       // reorg — they matched nothing. Scope the gate to new pure logic, file by file, as
       // each is added (the IO route shells + k8s adapters stay out, like the floor's).
       include: ["src/features/agents/agent-crd.ts"],
-      thresholds: { lines: 100, branches: 100, functions: 100, statements: 100 },
+      thresholds: {
+        lines: 100,
+        branches: 100,
+        functions: 100,
+        statements: 100,
+      },
     },
   },
 });

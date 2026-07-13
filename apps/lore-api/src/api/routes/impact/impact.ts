@@ -27,27 +27,40 @@ import { zodValidate } from "../../../server/plugins/zod-validate.js";
 
 // Fail-soft: `files` stays unknown so a malformed value degrades to [] in the
 // handler (not a 400); an absent body coerces to {}.
-const ImpactBody = z.preprocess((v) => v ?? {}, z.object({
-  commit: z.string().optional(),
-  base: z.string().optional(),
-  files: z.unknown().optional(),
-}));
+const ImpactBody = z.preprocess(
+  (v) => v ?? {},
+  z.object({
+    commit: z.string().optional(),
+    base: z.string().optional(),
+    files: z.unknown().optional(),
+  }),
+);
 type ImpactBody = z.infer<typeof ImpactBody>;
 
-const UNAVAILABLE: ImpactReport = { status: "unavailable", statements: [], orphaned: [], testSelectors: [] };
+const UNAVAILABLE: ImpactReport = {
+  status: "unavailable",
+  statements: [],
+  orphaned: [],
+  testSelectors: [],
+};
 
 export function impactRoute(): ServerRoute {
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/impact",
-    options: { ...bearerScope("write"), payload: { maxBytes: 2 * 1_048_576 }, validate: { payload: zodValidate(ImpactBody) } },
+    options: {
+      ...bearerScope("write"),
+      payload: { maxBytes: 2 * 1_048_576 },
+      validate: { payload: zodValidate(ImpactBody) },
+    },
     handler: async (request, h) => {
       const repo = `${request.params.owner}/${request.params.repo}`;
       const body = request.payload as ImpactBody;
       const files = Array.isArray(body.files) ? body.files : [];
 
       const report = await safeComputeImpact(repo, files);
-      const annotations = report.status === "ok" ? buildImpactAnnotations(report, files) : [];
+      const annotations =
+        report.status === "ok" ? buildImpactAnnotations(report, files) : [];
       const comment = buildImpactComment(report);
       return h.response({ ...report, annotations, comment });
     },
@@ -60,14 +73,20 @@ export function impactRoute(): ServerRoute {
  * logged with context. The null-client case (LORE_DGRAPH_HTTP unset) is the
  * expected fail-soft and needs no log.
  */
-async function safeComputeImpact(repo: string, files: ChangedRange[]): Promise<ImpactReport> {
+async function safeComputeImpact(
+  repo: string,
+  files: ChangedRange[],
+): Promise<ImpactReport> {
   const dgraph = createDgraphClient(process.env);
   if (!dgraph) return UNAVAILABLE;
   try {
     return await computeImpact(dgraph, repo, files);
   } catch (err) {
-    const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
-    console.error(`[impact] query failed for ${repo} (Dgraph reachable but errored): ${reason}`);
+    const reason =
+      err instanceof Error ? (err.stack ?? err.message) : String(err);
+    console.error(
+      `[impact] query failed for ${repo} (Dgraph reachable but errored): ${reason}`,
+    );
     return UNAVAILABLE;
   }
 }

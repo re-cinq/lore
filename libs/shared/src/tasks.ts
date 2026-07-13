@@ -8,13 +8,13 @@
 // ── Types ───────────────────────────────────────────────────────────
 
 export interface ParsedTask {
-  specTaskId: string;   // e.g. "T001"
+  specTaskId: string; // e.g. "T001"
   description: string;
-  dependsOn: string[];  // e.g. ["T002", "T003"]
+  dependsOn: string[]; // e.g. ["T002", "T003"]
   parallelizable: boolean;
   completed: boolean;
-  phase: number;        // extracted from ## Phase N headers (0 if no phase)
-  filePath?: string;    // extracted from | file_path suffix
+  phase: number; // extracted from ## Phase N headers (0 if no phase)
+  filePath?: string; // extracted from | file_path suffix
 }
 
 // ── Parsing ─────────────────────────────────────────────────────────
@@ -31,7 +31,7 @@ export function parseTasks(markdown: string): ParsedTask[] {
   const tasks: ParsedTask[] = [];
   let currentPhase = 0;
 
-  for (const line of markdown.split('\n')) {
+  for (const line of markdown.split("\n")) {
     const trimmed = line.trim();
 
     // Check for phase headers
@@ -44,25 +44,25 @@ export function parseTasks(markdown: string): ParsedTask[] {
     const taskMatch = trimmed.match(TASK_RE);
     if (!taskMatch) continue;
 
-    const completed = taskMatch[1] === 'x';
+    const completed = taskMatch[1] === "x";
     const specTaskId = taskMatch[2];
     let rest = trimmed.slice(taskMatch[0].length);
 
     // Check for [P] marker
     const parallelizable = PARALLEL_RE.test(rest);
     if (parallelizable) {
-      rest = rest.replace(PARALLEL_RE, '');
+      rest = rest.replace(PARALLEL_RE, "");
     }
 
     // Check for [DEPENDS ON: ...] marker
     const depsMatch = rest.match(DEPENDS_RE);
     const dependsOn: string[] = [];
     if (depsMatch) {
-      for (const dep of depsMatch[1].split(',')) {
+      for (const dep of depsMatch[1].split(",")) {
         const d = dep.trim();
         if (d) dependsOn.push(d);
       }
-      rest = rest.replace(DEPENDS_RE, '').trim();
+      rest = rest.replace(DEPENDS_RE, "").trim();
     }
 
     // Check for | file_path suffix
@@ -70,7 +70,7 @@ export function parseTasks(markdown: string): ParsedTask[] {
     const fileMatch = rest.match(FILE_PATH_RE);
     if (fileMatch) {
       filePath = fileMatch[1];
-      rest = rest.replace(FILE_PATH_RE, '').trim();
+      rest = rest.replace(FILE_PATH_RE, "").trim();
     }
 
     tasks.push({
@@ -120,8 +120,9 @@ export function inferPhaseDependencies(tasks: ParsedTask[]): ParsedTask[] {
     const phaseNum = phaseNumbers[i];
     const phaseTasks = phases.get(phaseNum)!;
     const prevPhaseNum = i > 0 ? phaseNumbers[i - 1] : null;
-    const prevPhaseTasks = prevPhaseNum !== null ? phases.get(prevPhaseNum)! : [];
-    const prevPhaseIds = prevPhaseTasks.map(t => t.specTaskId);
+    const prevPhaseTasks =
+      prevPhaseNum !== null ? phases.get(prevPhaseNum)! : [];
+    const prevPhaseIds = prevPhaseTasks.map((t) => t.specTaskId);
 
     // Track last non-parallel task in this phase for sequential chaining
     let lastSequentialId: string | null = null;
@@ -174,7 +175,9 @@ const FEATURE_REQUEST_BRANCH_PREFIX = "lore/feature-request/";
  */
 export function specSlugFromBranch(branch: string): string | null {
   if (!branch.startsWith(FEATURE_REQUEST_BRANCH_PREFIX)) return null;
-  const slug = branch.slice(FEATURE_REQUEST_BRANCH_PREFIX.length).replace(/-[a-f0-9]{8}$/, "");
+  const slug = branch
+    .slice(FEATURE_REQUEST_BRANCH_PREFIX.length)
+    .replace(/-[a-f0-9]{8}$/, "");
   return slug || null;
 }
 

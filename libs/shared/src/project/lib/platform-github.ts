@@ -1,5 +1,11 @@
 import type { Octokit } from "octokit";
-import type { GitHubPort, IssueRef, IssueFilter, IssueState, CloseReason } from "./github-port.js";
+import type {
+  GitHubPort,
+  IssueRef,
+  IssueFilter,
+  IssueState,
+  CloseReason,
+} from "./github-port.js";
 import type {
   PullRequestsPort,
   PullRef,
@@ -27,8 +33,18 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   constructor(private readonly env: NodeJS.ProcessEnv = process.env) {}
 
   isConfigured(): boolean {
-    const { GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, GITHUB_APP_INSTALLATION_ID, GITHUB_TOKEN } = this.env;
-    return (!!GITHUB_APP_ID && !!GITHUB_APP_PRIVATE_KEY && !!GITHUB_APP_INSTALLATION_ID) || !!GITHUB_TOKEN;
+    const {
+      GITHUB_APP_ID,
+      GITHUB_APP_PRIVATE_KEY,
+      GITHUB_APP_INSTALLATION_ID,
+      GITHUB_TOKEN,
+    } = this.env;
+    return (
+      (!!GITHUB_APP_ID &&
+        !!GITHUB_APP_PRIVATE_KEY &&
+        !!GITHUB_APP_INSTALLATION_ID) ||
+      !!GITHUB_TOKEN
+    );
   }
 
   // ── GitHubPort ──────────────────────────────────────────────────────
@@ -50,15 +66,26 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
         number: i.number,
         title: i.title,
         state: i.state as IssueState,
-        labels: i.labels.map((l) => (typeof l === "string" ? l : l.name ?? "")).filter(Boolean),
+        labels: i.labels
+          .map((l) => (typeof l === "string" ? l : (l.name ?? "")))
+          .filter(Boolean),
       }));
   }
 
-  async getFileContent(repo: string, path: string, ref?: string): Promise<string | null> {
+  async getFileContent(
+    repo: string,
+    path: string,
+    ref?: string,
+  ): Promise<string | null> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
     try {
-      const { data } = await ok.rest.repos.getContent({ owner, repo: name, path, ...(ref ? { ref } : {}) });
+      const { data } = await ok.rest.repos.getContent({
+        owner,
+        repo: name,
+        path,
+        ...(ref ? { ref } : {}),
+      });
       if (!Array.isArray(data) && data.type === "file" && data.content) {
         return Buffer.from(data.content, "base64").toString("utf-8");
       }
@@ -72,7 +99,11 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const ok = await this.octo();
     const [owner, name] = split(repo);
     try {
-      const { data } = await ok.rest.repos.getContent({ owner, repo: name, path });
+      const { data } = await ok.rest.repos.getContent({
+        owner,
+        repo: name,
+        path,
+      });
       return Array.isArray(data) ? data.map((e) => e.name) : [];
     } catch {
       return [];
@@ -85,7 +116,12 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const branch = ref ?? (await this.defaultBranch(repo));
     // getTree is not a paginated endpoint (it returns the full recursive tree, truncated
     // only past ~100k entries) — leave it as a single call.
-    const { data } = await ok.rest.git.getTree({ owner, repo: name, tree_sha: branch, recursive: "true" });
+    const { data } = await ok.rest.git.getTree({
+      owner,
+      repo: name,
+      tree_sha: branch,
+      recursive: "true",
+    });
     return (data.tree ?? [])
       .filter((e) => e.type === "blob" && typeof e.path === "string")
       .map((e) => e.path as string);
@@ -95,15 +131,30 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return this.defaultBranch(repo);
   }
 
-  async listCommitsSince(repo: string, since: string): Promise<Array<{ sha: string; files: string[] }>> {
+  async listCommitsSince(
+    repo: string,
+    since: string,
+  ): Promise<Array<{ sha: string; files: string[] }>> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const commits = await ok.paginate(ok.rest.repos.listCommits, { owner, repo: name, since, per_page: 100 });
+    const commits = await ok.paginate(ok.rest.repos.listCommits, {
+      owner,
+      repo: name,
+      since,
+      per_page: 100,
+    });
     const result: Array<{ sha: string; files: string[] }> = [];
     for (const c of commits) {
       try {
-        const { data: detail } = await ok.rest.repos.getCommit({ owner, repo: name, ref: c.sha });
-        result.push({ sha: c.sha, files: (detail.files ?? []).map((f) => f.filename) });
+        const { data: detail } = await ok.rest.repos.getCommit({
+          owner,
+          repo: name,
+          ref: c.sha,
+        });
+        result.push({
+          sha: c.sha,
+          files: (detail.files ?? []).map((f) => f.filename),
+        });
       } catch {
         result.push({ sha: c.sha, files: [] });
       }
@@ -115,13 +166,19 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const ok = await this.octo();
     const [owner, name] = split(repo);
     try {
-      const { data } = await ok.rest.issues.get({ owner, repo: name, issue_number: number });
+      const { data } = await ok.rest.issues.get({
+        owner,
+        repo: name,
+        issue_number: number,
+      });
       return {
         repo,
         number: data.number,
         title: data.title,
         state: data.state as IssueState,
-        labels: data.labels.map((l) => (typeof l === "string" ? l : l.name ?? "")).filter(Boolean),
+        labels: data.labels
+          .map((l) => (typeof l === "string" ? l : (l.name ?? "")))
+          .filter(Boolean),
         url: data.html_url,
       };
     } catch {
@@ -132,15 +189,39 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async getIssueLabels(repo: string, number: number): Promise<string[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.issues.get({ owner, repo: name, issue_number: number });
-    return data.labels.map((l) => (typeof l === "string" ? l : l.name ?? "")).filter(Boolean);
+    const { data } = await ok.rest.issues.get({
+      owner,
+      repo: name,
+      issue_number: number,
+    });
+    return data.labels
+      .map((l) => (typeof l === "string" ? l : (l.name ?? "")))
+      .filter(Boolean);
   }
 
-  async createIssue(repo: string, title: string, body: string, labels: string[] = ["lore-managed"]): Promise<IssueRef> {
+  async createIssue(
+    repo: string,
+    title: string,
+    body: string,
+    labels: string[] = ["lore-managed"],
+  ): Promise<IssueRef> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.issues.create({ owner, repo: name, title, body, labels });
-    return { repo, number: data.number, title, state: "open", labels, url: data.html_url };
+    const { data } = await ok.rest.issues.create({
+      owner,
+      repo: name,
+      title,
+      body,
+      labels,
+    });
+    return {
+      repo,
+      number: data.number,
+      title,
+      state: "open",
+      labels,
+      url: data.html_url,
+    };
   }
 
   async createLabels(
@@ -151,64 +232,140 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
     for (const label of labels) {
       try {
-        await ok.rest.issues.createLabel({ owner, repo: name, name: label.name, color: label.color, description: label.description });
+        await ok.rest.issues.createLabel({
+          owner,
+          repo: name,
+          name: label.name,
+          color: label.color,
+          description: label.description,
+        });
       } catch (err) {
         if ((err as { status?: number }).status !== 422) throw err; // 422 = already exists
       }
     }
   }
 
-  async commentOnIssue(repo: string, number: number, body: string): Promise<void> {
+  async commentOnIssue(
+    repo: string,
+    number: number,
+    body: string,
+  ): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    await ok.rest.issues.createComment({ owner, repo: name, issue_number: number, body });
+    await ok.rest.issues.createComment({
+      owner,
+      repo: name,
+      issue_number: number,
+      body,
+    });
   }
 
-  async closeIssue(repo: string, number: number, reason: CloseReason = "completed"): Promise<void> {
+  async closeIssue(
+    repo: string,
+    number: number,
+    reason: CloseReason = "completed",
+  ): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    await ok.rest.issues.update({ owner, repo: name, issue_number: number, state: "closed", state_reason: reason });
+    await ok.rest.issues.update({
+      owner,
+      repo: name,
+      issue_number: number,
+      state: "closed",
+      state_reason: reason,
+    });
   }
 
-  async addIssueLabel(repo: string, number: number, label: string): Promise<void> {
+  async addIssueLabel(
+    repo: string,
+    number: number,
+    label: string,
+  ): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    await ok.rest.issues.addLabels({ owner, repo: name, issue_number: number, labels: [label] });
+    await ok.rest.issues.addLabels({
+      owner,
+      repo: name,
+      issue_number: number,
+      labels: [label],
+    });
   }
 
-  async removeIssueLabel(repo: string, number: number, label: string): Promise<void> {
+  async removeIssueLabel(
+    repo: string,
+    number: number,
+    label: string,
+  ): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
     try {
-      await ok.rest.issues.removeLabel({ owner, repo: name, issue_number: number, name: label });
+      await ok.rest.issues.removeLabel({
+        owner,
+        repo: name,
+        issue_number: number,
+        name: label,
+      });
     } catch {
       /* label might not exist */
     }
   }
 
-  async createBranch(repo: string, branch: string, base = "main"): Promise<void> {
+  async createBranch(
+    repo: string,
+    branch: string,
+    base = "main",
+  ): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data: ref } = await ok.rest.git.getRef({ owner, repo: name, ref: `heads/${base}` });
+    const { data: ref } = await ok.rest.git.getRef({
+      owner,
+      repo: name,
+      ref: `heads/${base}`,
+    });
     try {
-      await ok.rest.git.createRef({ owner, repo: name, ref: `refs/heads/${branch}`, sha: ref.object.sha });
+      await ok.rest.git.createRef({
+        owner,
+        repo: name,
+        ref: `refs/heads/${branch}`,
+        sha: ref.object.sha,
+      });
     } catch (err) {
       if ((err as { status?: number }).status === 422) {
-        await ok.rest.git.deleteRef({ owner, repo: name, ref: `heads/${branch}` });
-        await ok.rest.git.createRef({ owner, repo: name, ref: `refs/heads/${branch}`, sha: ref.object.sha });
+        await ok.rest.git.deleteRef({
+          owner,
+          repo: name,
+          ref: `heads/${branch}`,
+        });
+        await ok.rest.git.createRef({
+          owner,
+          repo: name,
+          ref: `refs/heads/${branch}`,
+          sha: ref.object.sha,
+        });
       } else {
         throw err;
       }
     }
   }
 
-  async commitFile(repo: string, branch: string, path: string, content: string, message: string): Promise<void> {
+  async commitFile(
+    repo: string,
+    branch: string,
+    path: string,
+    content: string,
+    message: string,
+  ): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
     let sha: string | undefined;
     for (const ref of [branch, "main"]) {
       try {
-        const { data } = await ok.rest.repos.getContent({ owner, repo: name, path, ref });
+        const { data } = await ok.rest.repos.getContent({
+          owner,
+          repo: name,
+          path,
+          ref,
+        });
         if (!Array.isArray(data) && "sha" in data) {
           sha = data.sha;
           break;
@@ -233,7 +390,12 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async list(repo: string): Promise<PullRef[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const data = await ok.paginate(ok.rest.pulls.list, { owner, repo: name, state: "open", per_page: 100 });
+    const data = await ok.paginate(ok.rest.pulls.list, {
+      owner,
+      repo: name,
+      state: "open",
+      per_page: 100,
+    });
     return data.map((pr) => toPullRef(repo, pr));
   }
 
@@ -241,7 +403,11 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const ok = await this.octo();
     const [owner, name] = split(repo);
     try {
-      const { data } = await ok.rest.pulls.get({ owner, repo: name, pull_number: number });
+      const { data } = await ok.rest.pulls.get({
+        owner,
+        repo: name,
+        pull_number: number,
+      });
       return toPullRef(repo, data);
     } catch {
       return null;
@@ -251,25 +417,55 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async comment(repo: string, number: number, body: string): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    await ok.rest.issues.createComment({ owner, repo: name, issue_number: number, body });
+    await ok.rest.issues.createComment({
+      owner,
+      repo: name,
+      issue_number: number,
+      body,
+    });
   }
 
-  async review(repo: string, number: number, body: string, event: PRReviewEvent): Promise<void> {
+  async review(
+    repo: string,
+    number: number,
+    body: string,
+    event: PRReviewEvent,
+  ): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    await ok.rest.pulls.createReview({ owner, repo: name, pull_number: number, body, event });
+    await ok.rest.pulls.createReview({
+      owner,
+      repo: name,
+      pull_number: number,
+      body,
+      event,
+    });
   }
 
   async addLabel(repo: string, number: number, label: string): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    await ok.rest.issues.addLabels({ owner, repo: name, issue_number: number, labels: [label] });
+    await ok.rest.issues.addLabels({
+      owner,
+      repo: name,
+      issue_number: number,
+      labels: [label],
+    });
   }
 
-  async merge(repo: string, number: number, method: MergeMethod = "squash"): Promise<void> {
+  async merge(
+    repo: string,
+    number: number,
+    method: MergeMethod = "squash",
+  ): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    await ok.rest.pulls.merge({ owner, repo: name, pull_number: number, merge_method: method });
+    await ok.rest.pulls.merge({
+      owner,
+      repo: name,
+      pull_number: number,
+      merge_method: method,
+    });
   }
 
   async open(
@@ -291,7 +487,12 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       base: base ?? "main",
     });
     if (labels.length > 0) {
-      await ok.rest.issues.addLabels({ owner, repo: name, issue_number: data.number, labels });
+      await ok.rest.issues.addLabels({
+        owner,
+        repo: name,
+        issue_number: data.number,
+        labels,
+      });
     }
     return toPullRef(repo, data);
   }
@@ -311,7 +512,11 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async listReviews(repo: string, number: number): Promise<PullReview[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const data = await ok.paginate(ok.rest.pulls.listReviews, { owner, repo: name, pull_number: number });
+    const data = await ok.paginate(ok.rest.pulls.listReviews, {
+      owner,
+      repo: name,
+      pull_number: number,
+    });
     return data.map((r) => ({
       id: r.id,
       state: r.state,
@@ -324,7 +529,11 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async listComments(repo: string, number: number): Promise<ReviewComment[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const data = await ok.paginate(ok.rest.pulls.listReviewComments, { owner, repo: name, pull_number: number });
+    const data = await ok.paginate(ok.rest.pulls.listReviewComments, {
+      owner,
+      repo: name,
+      pull_number: number,
+    });
     return data.map((c) => ({
       id: c.id,
       path: c.path,
@@ -335,40 +544,76 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     }));
   }
 
-  async listIssueComments(repo: string, number: number): Promise<IssueComment[]> {
+  async listIssueComments(
+    repo: string,
+    number: number,
+  ): Promise<IssueComment[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const data = await ok.paginate(ok.rest.issues.listComments, { owner, repo: name, issue_number: number });
+    const data = await ok.paginate(ok.rest.issues.listComments, {
+      owner,
+      repo: name,
+      issue_number: number,
+    });
     return data
-      .filter((c) => !c.body?.startsWith("PR created:") && !c.body?.startsWith("Agent ") && !c.body?.startsWith("Task "))
-      .map((c) => ({ body: c.body ?? "", user: c.user?.login ?? "unknown", created_at: c.created_at }));
+      .filter(
+        (c) =>
+          !c.body?.startsWith("PR created:") &&
+          !c.body?.startsWith("Agent ") &&
+          !c.body?.startsWith("Task "),
+      )
+      .map((c) => ({
+        body: c.body ?? "",
+        user: c.user?.login ?? "unknown",
+        created_at: c.created_at,
+      }));
   }
 
   async listCommits(repo: string, number: number): Promise<PullCommit[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const data = await ok.paginate(ok.rest.pulls.listCommits, { owner, repo: name, pull_number: number });
-    return data.map((c) => ({ sha: c.sha, message: c.commit.message, date: c.commit.committer?.date ?? "" }));
+    const data = await ok.paginate(ok.rest.pulls.listCommits, {
+      owner,
+      repo: name,
+      pull_number: number,
+    });
+    return data.map((c) => ({
+      sha: c.sha,
+      message: c.commit.message,
+      date: c.commit.committer?.date ?? "",
+    }));
   }
 
   async isMerged(repo: string, number: number): Promise<boolean> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.pulls.get({ owner, repo: name, pull_number: number });
+    const { data } = await ok.rest.pulls.get({
+      owner,
+      repo: name,
+      pull_number: number,
+    });
     return data.merged;
   }
 
   async isClosed(repo: string, number: number): Promise<boolean> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.pulls.get({ owner, repo: name, pull_number: number });
+    const { data } = await ok.rest.pulls.get({
+      owner,
+      repo: name,
+      pull_number: number,
+    });
     return data.state === "closed" && !data.merged;
   }
 
   async getStats(repo: string, number: number): Promise<PullStats> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.pulls.get({ owner, repo: name, pull_number: number });
+    const { data } = await ok.rest.pulls.get({
+      owner,
+      repo: name,
+      pull_number: number,
+    });
     return {
       files_changed: data.changed_files,
       additions: data.additions,
@@ -379,7 +624,11 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     };
   }
 
-  async changedFileCount(repo: string, base: string, head: string): Promise<number> {
+  async changedFileCount(
+    repo: string,
+    base: string,
+    head: string,
+  ): Promise<number> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
     const { data } = await ok.rest.repos.compareCommitsWithBasehead({
@@ -395,8 +644,17 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   private async checkRuns(repo: string, ref: string): Promise<CheckRun[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const runs = await ok.paginate(ok.rest.checks.listForRef, { owner, repo: name, ref, per_page: 100 });
-    return runs.map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion }));
+    const runs = await ok.paginate(ok.rest.checks.listForRef, {
+      owner,
+      repo: name,
+      ref,
+      per_page: 100,
+    });
+    return runs.map((r) => ({
+      name: r.name,
+      status: r.status,
+      conclusion: r.conclusion,
+    }));
   }
 
   listChecks(repo: string, ref: string): Promise<CheckRun[]> {
@@ -406,7 +664,12 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async listFiles(repo: string, number: number): Promise<string[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const files = await ok.paginate(ok.rest.pulls.listFiles, { owner, repo: name, pull_number: number, per_page: 100 });
+    const files = await ok.paginate(ok.rest.pulls.listFiles, {
+      owner,
+      repo: name,
+      pull_number: number,
+      per_page: 100,
+    });
     return files.map((f) => f.filename);
   }
 
@@ -414,33 +677,70 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const runs = await this.checkRuns(repo, ref);
     if (runs.length === 0) return "none";
     if (runs.some((r) => r.status !== "completed")) return "pending";
-    const failed = new Set(["failure", "cancelled", "timed_out", "action_required", "stale"]);
-    if (runs.some((r) => r.conclusion != null && failed.has(r.conclusion))) return "failure";
+    const failed = new Set([
+      "failure",
+      "cancelled",
+      "timed_out",
+      "action_required",
+      "stale",
+    ]);
+    if (runs.some((r) => r.conclusion != null && failed.has(r.conclusion)))
+      return "failure";
     return "success";
   }
 
   // ── repo config (consumed by the settings adapter) ──────────────────
 
-  async setRepoVariable(repo: string, name: string, value: string): Promise<void> {
+  async setRepoVariable(
+    repo: string,
+    name: string,
+    value: string,
+  ): Promise<void> {
     const ok = await this.octo();
     const [owner, repoName] = split(repo);
     try {
-      await ok.rest.actions.updateRepoVariable({ owner, repo: repoName, name, value });
+      await ok.rest.actions.updateRepoVariable({
+        owner,
+        repo: repoName,
+        name,
+        value,
+      });
     } catch {
-      await ok.rest.actions.createRepoVariable({ owner, repo: repoName, name, value });
+      await ok.rest.actions.createRepoVariable({
+        owner,
+        repo: repoName,
+        name,
+        value,
+      });
     }
   }
 
-  async setRepoSecret(repo: string, name: string, value: string): Promise<void> {
+  async setRepoSecret(
+    repo: string,
+    name: string,
+    value: string,
+  ): Promise<void> {
     const ok = await this.octo();
     const [owner, repoName] = split(repo);
-    const { data: pubKey } = await ok.rest.actions.getRepoPublicKey({ owner, repo: repoName });
+    const { data: pubKey } = await ok.rest.actions.getRepoPublicKey({
+      owner,
+      repo: repoName,
+    });
     const spec = "libsodium-wrappers";
     const sodium = ((await import(spec)) as { default: Sodium }).default;
     await sodium.ready;
-    const keyBytes = sodium.from_base64(pubKey.key, sodium.base64_variants.ORIGINAL);
-    const encrypted = sodium.crypto_box_seal(sodium.from_string(value), keyBytes);
-    const encryptedValue = sodium.to_base64(encrypted, sodium.base64_variants.ORIGINAL);
+    const keyBytes = sodium.from_base64(
+      pubKey.key,
+      sodium.base64_variants.ORIGINAL,
+    );
+    const encrypted = sodium.crypto_box_seal(
+      sodium.from_string(value),
+      keyBytes,
+    );
+    const encryptedValue = sodium.to_base64(
+      encrypted,
+      sodium.base64_variants.ORIGINAL,
+    );
     await ok.rest.actions.createOrUpdateRepoSecret({
       owner,
       repo: repoName,
@@ -476,7 +776,10 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const installationId = this.env.GITHUB_APP_INSTALLATION_ID;
     if (appId && privateKey && installationId) {
       const { createAppAuth } = await import("@octokit/auth-app");
-      return new Octokit({ authStrategy: createAppAuth, auth: { appId, privateKey, installationId } });
+      return new Octokit({
+        authStrategy: createAppAuth,
+        auth: { appId, privateKey, installationId },
+      });
     }
     const token = this.env.GITHUB_TOKEN;
     if (token) return new Octokit({ auth: token });
@@ -507,7 +810,20 @@ function split(repo: string): [string, string] {
   return [owner, name];
 }
 
-function toPullRef(repo: string, pr: { number: number; title: string; head: { ref: string }; state: string; merged_at?: string | null; html_url: string; labels?: Array<{ name: string }>; user?: { login?: string } | null; draft?: boolean }): PullRef {
+function toPullRef(
+  repo: string,
+  pr: {
+    number: number;
+    title: string;
+    head: { ref: string };
+    state: string;
+    merged_at?: string | null;
+    html_url: string;
+    labels?: Array<{ name: string }>;
+    user?: { login?: string } | null;
+    draft?: boolean;
+  },
+): PullRef {
   return {
     repo,
     number: pr.number,

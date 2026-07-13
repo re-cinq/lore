@@ -25,7 +25,12 @@ import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
 
 type StatementVerification = {
-  validated_by?: Array<{ uid: string; "TestChunk.coverage"?: { "Coverage.covers"?: Array<{ "File.path"?: string }> } }>;
+  validated_by?: Array<{
+    uid: string;
+    "TestChunk.coverage"?: {
+      "Coverage.covers"?: Array<{ "File.path"?: string }>;
+    };
+  }>;
   implemented?: Array<{ "CodeChunk.file_path"?: string }>;
 };
 
@@ -57,7 +62,9 @@ export async function verifyCoverageLink(
   }
 
   const implementsCovered = (statement.implemented ?? []).some(
-    (chunk) => chunk["CodeChunk.file_path"] !== undefined && coveredFiles.has(chunk["CodeChunk.file_path"]),
+    (chunk) =>
+      chunk["CodeChunk.file_path"] !== undefined &&
+      coveredFiles.has(chunk["CodeChunk.file_path"]),
   );
   if (implementsCovered) return "execution-verified";
 

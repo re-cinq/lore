@@ -27,13 +27,13 @@ export interface AssemblyLineTaskRow {
 }
 
 export type AssemblyLineStatus =
-  | 'running'
-  | 'failed'
-  | 'needs-human'
-  | 'merged'
-  | 'review'
-  | 'pr-created'
-  | 'pending';
+  | "running"
+  | "failed"
+  | "needs-human"
+  | "merged"
+  | "review"
+  | "pr-created"
+  | "pending";
 
 export interface AssemblyLine {
   /** Stable identity (the lead member's id) — React key + collapse state. */
@@ -48,7 +48,7 @@ export interface AssemblyLine {
   updatedAt: string;
 }
 
-const SHARED_TRUNKS = new Set(['', 'main', 'master', 'develop']);
+const SHARED_TRUNKS = new Set(["", "main", "master", "develop"]);
 
 export function isSharedTrunk(branch: string): boolean {
   return SHARED_TRUNKS.has(branch.trim().toLowerCase());
@@ -56,26 +56,46 @@ export function isSharedTrunk(branch: string): boolean {
 
 // First match wins. An in-flight member outranks a finished one (GitLab: a
 // pipeline with any running job reads as running).
-const STATUS_RULES: { match: (s: string) => boolean; result: AssemblyLineStatus }[] = [
-  { match: (s) => ['running', 'running-local', 'queued', 'pending', 'revision-requested'].includes(s), result: 'running' },
-  { match: (s) => ['failed', 'cancelled'].includes(s), result: 'failed' },
-  { match: (s) => s === 'needs-human-help', result: 'needs-human' },
-  { match: (s) => s === 'merged', result: 'merged' },
-  { match: (s) => s === 'review', result: 'review' },
-  { match: (s) => ['pr-created', 'completed'].includes(s), result: 'pr-created' },
+const STATUS_RULES: {
+  match: (s: string) => boolean;
+  result: AssemblyLineStatus;
+}[] = [
+  {
+    match: (s) =>
+      [
+        "running",
+        "running-local",
+        "queued",
+        "pending",
+        "revision-requested",
+      ].includes(s),
+    result: "running",
+  },
+  { match: (s) => ["failed", "cancelled"].includes(s), result: "failed" },
+  { match: (s) => s === "needs-human-help", result: "needs-human" },
+  { match: (s) => s === "merged", result: "merged" },
+  { match: (s) => s === "review", result: "review" },
+  {
+    match: (s) => ["pr-created", "completed"].includes(s),
+    result: "pr-created",
+  },
 ];
 
-export function deriveAssemblyLineStatus(members: AssemblyLineTaskRow[]): AssemblyLineStatus {
+export function deriveAssemblyLineStatus(
+  members: AssemblyLineTaskRow[],
+): AssemblyLineStatus {
   const all = members.map((m) => m.status);
   for (const rule of STATUS_RULES) {
     if (all.some(rule.match)) return rule.result;
   }
-  return 'pending';
+  return "pending";
 }
 
 const ms = (iso: string): number => new Date(iso).getTime();
 
-export function groupTasksIntoAssemblyLines(tasks: AssemblyLineTaskRow[]): AssemblyLine[] {
+export function groupTasksIntoAssemblyLines(
+  tasks: AssemblyLineTaskRow[],
+): AssemblyLine[] {
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const parent = new Map(tasks.map((t) => [t.id, t.id]));
 
@@ -96,12 +116,17 @@ export function groupTasksIntoAssemblyLines(tasks: AssemblyLineTaskRow[]): Assem
   };
 
   for (const t of tasks) {
-    if (t.parent_task_id && byId.has(t.parent_task_id)) union(t.id, t.parent_task_id);
+    if (t.parent_task_id && byId.has(t.parent_task_id))
+      union(t.id, t.parent_task_id);
     if (t.retry_of && byId.has(t.retry_of)) union(t.id, t.retry_of);
   }
-  unionByKey(tasks, union, (t) => (t.pr_number != null ? `${t.target_repo}#${t.pr_number}` : null));
   unionByKey(tasks, union, (t) =>
-    t.target_branch && !isSharedTrunk(t.target_branch) ? `${t.target_repo}::${t.target_branch}` : null,
+    t.pr_number != null ? `${t.target_repo}#${t.pr_number}` : null,
+  );
+  unionByKey(tasks, union, (t) =>
+    t.target_branch && !isSharedTrunk(t.target_branch)
+      ? `${t.target_repo}::${t.target_branch}`
+      : null,
   );
 
   const components = new Map<string, AssemblyLineTaskRow[]>();
@@ -114,9 +139,15 @@ export function groupTasksIntoAssemblyLines(tasks: AssemblyLineTaskRow[]): Assem
 
   return [...components.values()]
     .map((members) => {
-      const sorted = [...members].sort((a, b) => ms(a.created_at) - ms(b.created_at) || a.id.localeCompare(b.id));
+      const sorted = [...members].sort(
+        (a, b) =>
+          ms(a.created_at) - ms(b.created_at) || a.id.localeCompare(b.id),
+      );
       const lead = sorted[0];
-      const latest = sorted.reduce((acc, m) => (ms(m.updated_at) > ms(acc.updated_at) ? m : acc), sorted[0]);
+      const latest = sorted.reduce(
+        (acc, m) => (ms(m.updated_at) > ms(acc.updated_at) ? m : acc),
+        sorted[0],
+      );
       return {
         runKey: lead.id,
         members: sorted,
@@ -129,7 +160,11 @@ export function groupTasksIntoAssemblyLines(tasks: AssemblyLineTaskRow[]): Assem
         updatedAt: latest.updated_at,
       };
     })
-    .sort((a, b) => ms(b.lead.created_at) - ms(a.lead.created_at) || a.runKey.localeCompare(b.runKey));
+    .sort(
+      (a, b) =>
+        ms(b.lead.created_at) - ms(a.lead.created_at) ||
+        a.runKey.localeCompare(b.runKey),
+    );
 }
 
 function unionByKey(
@@ -147,23 +182,30 @@ function unionByKey(
   }
 }
 
-export type StatusTone = 'success' | 'danger' | 'warning' | 'info' | 'running' | 'muted';
+export type StatusTone =
+  "success" | "danger" | "warning" | "info" | "running" | "muted";
 
-const STATUS_VISUALS: Record<AssemblyLineStatus, { label: string; tone: StatusTone }> = {
-  merged: { label: 'Merged', tone: 'success' },
-  failed: { label: 'Failed', tone: 'danger' },
-  running: { label: 'Running', tone: 'running' },
-  'needs-human': { label: 'Needs human', tone: 'warning' },
-  review: { label: 'In review', tone: 'info' },
-  'pr-created': { label: 'PR created', tone: 'info' },
-  pending: { label: 'Pending', tone: 'muted' },
+const STATUS_VISUALS: Record<
+  AssemblyLineStatus,
+  { label: string; tone: StatusTone }
+> = {
+  merged: { label: "Merged", tone: "success" },
+  failed: { label: "Failed", tone: "danger" },
+  running: { label: "Running", tone: "running" },
+  "needs-human": { label: "Needs human", tone: "warning" },
+  review: { label: "In review", tone: "info" },
+  "pr-created": { label: "PR created", tone: "info" },
+  pending: { label: "Pending", tone: "muted" },
 };
 
-export function statusVisual(status: AssemblyLineStatus): { label: string; tone: StatusTone } {
+export function statusVisual(status: AssemblyLineStatus): {
+  label: string;
+  tone: StatusTone;
+} {
   return STATUS_VISUALS[status];
 }
 
-const pad = (n: number): string => String(n).padStart(2, '0');
+const pad = (n: number): string => String(n).padStart(2, "0");
 
 export function formatDuration(startIso: string, endIso: string): string {
   const secs = Math.max(0, Math.round((ms(endIso) - ms(startIso)) / 1000));
@@ -171,18 +213,21 @@ export function formatDuration(startIso: string, endIso: string): string {
 }
 
 const RELATIVE_UNITS: { secs: number; name: string }[] = [
-  { secs: 31_536_000, name: 'year' },
-  { secs: 2_592_000, name: 'month' },
-  { secs: 86_400, name: 'day' },
-  { secs: 3_600, name: 'hour' },
-  { secs: 60, name: 'minute' },
+  { secs: 31_536_000, name: "year" },
+  { secs: 2_592_000, name: "month" },
+  { secs: 86_400, name: "day" },
+  { secs: 3_600, name: "hour" },
+  { secs: 60, name: "minute" },
 ];
 
-export function formatRelativeTime(iso: string, nowMs: number = Date.now()): string {
+export function formatRelativeTime(
+  iso: string,
+  nowMs: number = Date.now(),
+): string {
   const secs = Math.floor((nowMs - ms(iso)) / 1000);
   for (const unit of RELATIVE_UNITS) {
     const value = Math.floor(secs / unit.secs);
-    if (value >= 1) return `${value} ${unit.name}${value === 1 ? '' : 's'} ago`;
+    if (value >= 1) return `${value} ${unit.name}${value === 1 ? "" : "s"} ago`;
   }
-  return 'just now';
+  return "just now";
 }

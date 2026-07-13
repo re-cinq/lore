@@ -20,7 +20,12 @@
  */
 
 import type { CoveredChunk, DgraphClientPort } from "./deps.js";
-import { upsertByXid, withTxn, replaceEdgeWithFacets, type FacetedTarget } from "./dgraph-upsert.js";
+import {
+  upsertByXid,
+  withTxn,
+  replaceEdgeWithFacets,
+  type FacetedTarget,
+} from "./dgraph-upsert.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
 
 /** Serializes a file's covered intervals (in covered order) to the `ranges` edge facet, e.g. "5-10,20-25". */
@@ -41,24 +46,35 @@ async function upsertCoveredFiles(
 ): Promise<FacetedTarget[]> {
   const rangesByFile = new Map<string, CoveredChunk[]>();
   for (const range of covered) {
-    (rangesByFile.get(range.file) ?? rangesByFile.set(range.file, []).get(range.file)!).push(range);
+    (
+      rangesByFile.get(range.file) ??
+      rangesByFile.set(range.file, []).get(range.file)!
+    ).push(range);
   }
   const targets: FacetedTarget[] = [];
   for (const [file, ranges] of rangesByFile) {
-    const uid = await upsertByXid(dgraph, "File", `${repo}|${file}`, { "File.repo": repo, "File.path": file });
+    const uid = await upsertByXid(dgraph, "File", `${repo}|${file}`, {
+      "File.repo": repo,
+      "File.path": file,
+    });
     targets.push({ uid, facets: { ranges: serializeRanges(ranges) } });
   }
   return targets;
 }
 
 /** Reads a Coverage node's current `Coverage.covers` target uids. */
-async function readCoversUids(dgraph: DgraphClientPort, coverageUid: string): Promise<string[]> {
+async function readCoversUids(
+  dgraph: DgraphClientPort,
+  coverageUid: string,
+): Promise<string[]> {
   return withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(
       `query q($uid: string) { cov(func: uid($uid)) { Coverage.covers { uid } } }`,
       { $uid: coverageUid },
     );
-    const covers = (res.data?.cov?.[0]?.["Coverage.covers"] ?? []) as { uid: string }[];
+    const covers = (res.data?.cov?.[0]?.["Coverage.covers"] ?? []) as {
+      uid: string;
+    }[];
     return covers.map((c) => c.uid);
   });
 }
@@ -85,7 +101,10 @@ async function linkTestChunkCoverage(
   if (!testChunkUid) return;
   await withTxn(dgraph, (txn) =>
     txn.mutate({
-      setJson: { uid: testChunkUid, "TestChunk.coverage": { uid: coverageUid } },
+      setJson: {
+        uid: testChunkUid,
+        "TestChunk.coverage": { uid: coverageUid },
+      },
       commitNow: true,
     }),
   );
@@ -94,7 +113,11 @@ async function linkTestChunkCoverage(
 export async function ingestCoverageReport(
   dgraph: DgraphClientPort,
   meta: { repo: string; tool: string; commit: string },
-  records: Array<{ testFile: string; testName: string; covered: CoveredChunk[] }>,
+  records: Array<{
+    testFile: string;
+    testName: string;
+    covered: CoveredChunk[];
+  }>,
 ): Promise<{ coverageNodes: number; coversEdges: number; unmatched: number }> {
   let coversEdges = 0;
   for (const record of records) {
@@ -105,9 +128,18 @@ export async function ingestCoverageReport(
       "Coverage.commit": meta.commit,
     });
     const previousCovers = await readCoversUids(dgraph, coverageUid);
-    const fileTargets = await upsertCoveredFiles(dgraph, meta.repo, record.covered);
+    const fileTargets = await upsertCoveredFiles(
+      dgraph,
+      meta.repo,
+      record.covered,
+    );
     const fileUids = fileTargets.map((t) => t.uid);
-    await replaceEdgeWithFacets(dgraph, coverageUid, "Coverage.covers", fileTargets);
+    await replaceEdgeWithFacets(
+      dgraph,
+      coverageUid,
+      "Coverage.covers",
+      fileTargets,
+    );
     // Delete the File nodes this coverage dropped that no other coverage still owns.
     await gcOrphanChunks(dgraph, "File", previousCovers, fileUids);
     coversEdges += fileUids.length;
@@ -116,7 +148,9 @@ export async function ingestCoverageReport(
     // is orphaned from the graph's entry point (set-union dedups on re-ingest).
     await upsertByXid(dgraph, "Repo", meta.repo, {
       "Repo.coverage": [{ uid: coverageUid }],
-      ...(fileUids.length ? { "Repo.files": fileUids.map((uid) => ({ uid })) } : {}),
+      ...(fileUids.length
+        ? { "Repo.files": fileUids.map((uid) => ({ uid })) }
+        : {}),
     });
 
     await linkTestChunkCoverage(dgraph, meta.repo, record, coverageUid);

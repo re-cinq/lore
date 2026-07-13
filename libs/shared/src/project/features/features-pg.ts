@@ -109,7 +109,8 @@ export class PgFeatures implements FeaturesPort {
         RETURNING current_iteration`,
       [id, repo],
     );
-    const iteration = (rows[0] as { current_iteration: number }).current_iteration;
+    const iteration = (rows[0] as { current_iteration: number })
+      .current_iteration;
     const { rows: inserted } = await this.pool.query(
       `INSERT INTO lore.feature_iterations
          (feature_id, iteration, status, user_answers)

@@ -32,7 +32,9 @@ async function main() {
     state.pool = dbPool;
     console.error(`[lore-api] Database mode: PostgreSQL at ${dbHost}`);
   } else {
-    console.error("[lore-api] Database mode: none (LORE_DB_HOST not set) — routes fail soft with 503");
+    console.error(
+      "[lore-api] Database mode: none (LORE_DB_HOST not set) — routes fail soft with 503",
+    );
   }
 
   loadTaskTypes();

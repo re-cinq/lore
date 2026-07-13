@@ -3,7 +3,10 @@ import { Llm } from "@re-cinq/lore-shared";
 import { initPool, getPool } from "./kernel/db.js";
 import { loadTaskTypes } from "./kernel/config.js";
 import { recoverStaleTasks, startWorker } from "./jobs/task/worker.js";
-import { startScheduler, getJobStatus } from "./main-loop/scheduling/scheduler.js";
+import {
+  startScheduler,
+  getJobStatus,
+} from "./main-loop/scheduling/scheduler.js";
 import { startHealthServer } from "./delivery/http/server.js";
 import { loadApprovalConfig } from "./jobs/dark-factory/approval.js";
 

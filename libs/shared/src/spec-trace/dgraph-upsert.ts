@@ -55,7 +55,8 @@ export async function withTxn<T>(
 
 /** Extracts the assigned uid of a blank node from a commitNow mutation result. */
 export function newUid(mutateResult: unknown, label: string): string {
-  return (mutateResult as { data?: { uids?: Record<string, string> } }).data?.uids?.[label] as string;
+  return (mutateResult as { data?: { uids?: Record<string, string> } }).data
+    ?.uids?.[label] as string;
 }
 
 /**
@@ -97,7 +98,9 @@ async function setEmptyStrings(
   if (!predicates.length) return;
   await withTxn(dgraph, async (txn) => {
     await txn.mutate({
-      setNquads: predicates.map((predicate) => `<${uid}> <${predicate}> "" .`).join("\n"),
+      setNquads: predicates
+        .map((predicate) => `<${uid}> <${predicate}> "" .`)
+        .join("\n"),
       commitNow: true,
     });
   });
@@ -140,12 +143,18 @@ export async function replaceEdge(
   targetUids: string[],
 ): Promise<void> {
   await withTxn(dgraph, (txn) =>
-    txn.mutate({ deleteNquads: `<${uid}> <${predicate}> * .`, commitNow: true }),
+    txn.mutate({
+      deleteNquads: `<${uid}> <${predicate}> * .`,
+      commitNow: true,
+    }),
   );
   if (!targetUids.length) return;
   await withTxn(dgraph, (txn) =>
     txn.mutate({
-      setJson: { uid, [predicate]: targetUids.map((target) => ({ uid: target })) },
+      setJson: {
+        uid,
+        [predicate]: targetUids.map((target) => ({ uid: target })),
+      },
       commitNow: true,
     }),
   );
@@ -170,7 +179,10 @@ export async function replaceEdgeWithFacets(
   targets: FacetedTarget[],
 ): Promise<void> {
   await withTxn(dgraph, (txn) =>
-    txn.mutate({ deleteNquads: `<${uid}> <${predicate}> * .`, commitNow: true }),
+    txn.mutate({
+      deleteNquads: `<${uid}> <${predicate}> * .`,
+      commitNow: true,
+    }),
   );
   if (!targets.length) return;
   await withTxn(dgraph, (txn) =>
@@ -179,7 +191,12 @@ export async function replaceEdgeWithFacets(
         uid,
         [predicate]: targets.map(({ uid: target, facets }) => ({
           uid: target,
-          ...Object.fromEntries(Object.entries(facets).map(([key, value]) => [`${predicate}|${key}`, value])),
+          ...Object.fromEntries(
+            Object.entries(facets).map(([key, value]) => [
+              `${predicate}|${key}`,
+              value,
+            ]),
+          ),
         })),
       },
       commitNow: true,
@@ -199,20 +216,29 @@ export async function upsertByXid(
   fields: Record<string, unknown>,
 ): Promise<string> {
   return withTxn(dgraph, async (txn) => {
-    const { jsonFields, emptyStringPredicates } = splitEmptyStringFields(fields);
+    const { jsonFields, emptyStringPredicates } =
+      splitEmptyStringFields(fields);
     const res = await txn.queryWithVars(
       `query find($xid: string) { found(func: eq(${nodeType}.xid, $xid), first: 1) { uid } }`,
       { $xid: xid },
     );
     const existing = res.data?.found?.[0]?.uid as string | undefined;
     if (existing) {
-      await txn.mutate({ setJson: { uid: existing, ...jsonFields }, commitNow: true });
+      await txn.mutate({
+        setJson: { uid: existing, ...jsonFields },
+        commitNow: true,
+      });
       await setEmptyStrings(dgraph, existing, emptyStringPredicates);
       return existing;
     }
     const label = nodeType.toLowerCase();
     const created = await txn.mutate({
-      setJson: { uid: `_:${label}`, "dgraph.type": nodeType, [`${nodeType}.xid`]: xid, ...jsonFields },
+      setJson: {
+        uid: `_:${label}`,
+        "dgraph.type": nodeType,
+        [`${nodeType}.xid`]: xid,
+        ...jsonFields,
+      },
       commitNow: true,
     });
     const uid = newUid(created, label);

@@ -3,7 +3,11 @@ import { isTransientInfraFailure } from "./infra-failure.js";
 
 describe("isTransientInfraFailure", () => {
   it("classifies BackoffLimitExceeded as transient infra", () => {
-    expect(isTransientInfraFailure("BackoffLimitExceeded: Job has reached the specified backoff limit")).toBe(true);
+    expect(
+      isTransientInfraFailure(
+        "BackoffLimitExceeded: Job has reached the specified backoff limit",
+      ),
+    ).toBe(true);
   });
 
   it("classifies CreateContainerConfigError as transient infra", () => {
@@ -11,7 +15,9 @@ describe("isTransientInfraFailure", () => {
   });
 
   it("does not classify a validation failure as transient infra", () => {
-    expect(isTransientInfraFailure("validation failed: tsc reported 3 errors")).toBe(false);
+    expect(
+      isTransientInfraFailure("validation failed: tsc reported 3 errors"),
+    ).toBe(false);
   });
 
   it("returns false for a missing reason", () => {

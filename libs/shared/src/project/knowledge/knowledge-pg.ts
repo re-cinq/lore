@@ -19,8 +19,17 @@ const SCHEMA_RE = /^[a-z_][a-z0-9_]*$/;
 export class PgKnowledge implements KnowledgePort {
   constructor(private readonly pool: PgPool) {}
 
-  async assembleContext(repo: string, query: string): Promise<AssembledContext> {
-    const result = await runAssembleContext(this.pool, query, "default", undefined, repo);
+  async assembleContext(
+    repo: string,
+    query: string,
+  ): Promise<AssembledContext> {
+    const result = await runAssembleContext(
+      this.pool,
+      query,
+      "default",
+      undefined,
+      repo,
+    );
     return { text: result.text };
   }
 
@@ -42,7 +51,10 @@ export class PgKnowledge implements KnowledgePort {
     return this.listDocs(repo, "adr");
   }
 
-  private async listDocs(repo: string, contentType: "spec" | "adr"): Promise<DocRef[]> {
+  private async listDocs(
+    repo: string,
+    contentType: "spec" | "adr",
+  ): Promise<DocRef[]> {
     const schema = await this.resolveSchema(repo);
     const { rows } = await this.pool.query(
       `SELECT DISTINCT file_path FROM ${schema}.chunks
@@ -54,7 +66,10 @@ export class PgKnowledge implements KnowledgePort {
   }
 
   private async resolveSchema(repo: string): Promise<string> {
-    const { rows } = await this.pool.query("SELECT team FROM lore.repos WHERE full_name = $1", [repo]);
+    const { rows } = await this.pool.query(
+      "SELECT team FROM lore.repos WHERE full_name = $1",
+      [repo],
+    );
     const team = (rows[0]?.team as string | null) ?? "";
     return SCHEMA_RE.test(team) ? team : "org_shared";
   }

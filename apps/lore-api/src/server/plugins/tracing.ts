@@ -36,10 +36,17 @@ export function registerRequestTracing(server: Server): void {
 
   server.ext("onPreResponse", (request, h) => {
     const res = request.response;
-    const statusCode = Boom.isBoom(res) ? res.output.statusCode : res.statusCode;
+    const statusCode = Boom.isBoom(res)
+      ? res.output.statusCode
+      : res.statusCode;
     // The request/latency metrics the old server recorded via traceHttp, for
     // every request. `request.info.received` is the epoch-ms request start.
-    traceHttp(request.method.toUpperCase(), request.path, statusCode, Date.now() - request.info.received);
+    traceHttp(
+      request.method.toUpperCase(),
+      request.path,
+      statusCode,
+      Date.now() - request.info.received,
+    );
 
     const span = request.app.span;
     if (!span) return h.continue;

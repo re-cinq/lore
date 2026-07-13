@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import type { SpecGraph } from "@re-cinq/lore-shared";
-import { buildLocalIndex, buildCoverageIndex, mergeIndexes } from "./spec-index.js";
+import {
+  buildLocalIndex,
+  buildCoverageIndex,
+  mergeIndexes,
+} from "./spec-index.js";
 
 const SPEC_PATH = "specs/auth/spec.md";
 const SPEC_CONTENT = `# Auth feature
@@ -24,7 +28,8 @@ describe("buildLocalIndex", () => {
         endLine: 42,
         layer: "implemented",
         evidence: "human-linked",
-        statementText: "The runner claims a pending task before GKE picks it up.",
+        statementText:
+          "The runner claims a pending task before GKE picks it up.",
         specPath: SPEC_PATH,
         specLine: 6,
         related: [
@@ -45,10 +50,13 @@ describe("buildLocalIndex", () => {
         endLine: 88,
         layer: "implemented",
         evidence: "human-linked",
-        statementText: "The runner claims a pending task before GKE picks it up.",
+        statementText:
+          "The runner claims a pending task before GKE picks it up.",
         specPath: SPEC_PATH,
         specLine: 6,
-        related: [{ label: "code", path: "mcp-server/src/local-runner.ts", line: 42 }],
+        related: [
+          { label: "code", path: "mcp-server/src/local-runner.ts", line: 42 },
+        ],
       },
     ]);
   });
@@ -72,27 +80,60 @@ describe("buildLocalIndex", () => {
 describe("buildCoverageIndex", () => {
   const graph: SpecGraph = {
     nodes: [
-      { id: "stmt1", type: "Statement", label: "", path: SPEC_PATH, detail: "The runner claims a pending task before GKE picks it up." },
-      { id: "test1", type: "TestChunk", label: "local-runner.test.ts", path: "mcp-server/src/local-runner.test.ts", line: 88, endLine: 95, detail: "claims a pending task" },
-      { id: "file|mcp-server/src/local-runner.ts", type: "File", label: "local-runner.ts", path: "mcp-server/src/local-runner.ts", detail: "40-50" },
+      {
+        id: "stmt1",
+        type: "Statement",
+        label: "",
+        path: SPEC_PATH,
+        detail: "The runner claims a pending task before GKE picks it up.",
+      },
+      {
+        id: "test1",
+        type: "TestChunk",
+        label: "local-runner.test.ts",
+        path: "mcp-server/src/local-runner.test.ts",
+        line: 88,
+        endLine: 95,
+        detail: "claims a pending task",
+      },
+      {
+        id: "file|mcp-server/src/local-runner.ts",
+        type: "File",
+        label: "local-runner.ts",
+        path: "mcp-server/src/local-runner.ts",
+        detail: "40-50",
+      },
     ],
     links: [
       { source: "stmt1", target: "test1", kind: "validated_by" },
-      { source: "test1", target: "file|mcp-server/src/local-runner.ts", kind: "covers" },
+      {
+        source: "test1",
+        target: "file|mcp-server/src/local-runner.ts",
+        kind: "covers",
+      },
     ],
   };
 
   it("attributes a coverage range to the statement whose test exercised it", () => {
-    expect(buildCoverageIndex(graph).get("mcp-server/src/local-runner.ts")).toEqual([
+    expect(
+      buildCoverageIndex(graph).get("mcp-server/src/local-runner.ts"),
+    ).toEqual([
       {
         startLine: 40,
         endLine: 50,
         layer: "covered",
         evidence: "execution-verified",
-        statementText: "The runner claims a pending task before GKE picks it up.",
+        statementText:
+          "The runner claims a pending task before GKE picks it up.",
         specPath: SPEC_PATH,
         specLine: 0,
-        related: [{ label: "local-runner.test.ts", path: "mcp-server/src/local-runner.test.ts", line: 88 }],
+        related: [
+          {
+            label: "local-runner.test.ts",
+            path: "mcp-server/src/local-runner.test.ts",
+            line: 88,
+          },
+        ],
       },
     ]);
   });
@@ -102,18 +143,62 @@ describe("mergeIndexes", () => {
   const local = buildLocalIndex([{ path: SPEC_PATH, content: SPEC_CONTENT }]);
   const graph: SpecGraph = {
     nodes: [
-      { id: "stmt1", type: "Statement", label: "", path: SPEC_PATH, detail: "The runner claims a pending task before GKE picks it up." },
-      { id: "test1", type: "TestChunk", label: "local-runner.test.ts", path: "mcp-server/src/local-runner.test.ts", line: 88 },
-      { id: "file|mcp-server/src/local-runner.ts", type: "File", label: "local-runner.ts", path: "mcp-server/src/local-runner.ts", detail: "40-50" },
-      { id: "stmt9", type: "Statement", label: "", path: SPEC_PATH, detail: "Leases expire after five minutes." },
-      { id: "test9", type: "TestChunk", label: "reaper.test.ts", path: "agent/src/jobs/lease-reaper.test.ts", line: 12 },
-      { id: "file|agent/src/jobs/lease-reaper.ts", type: "File", label: "lease-reaper.ts", path: "agent/src/jobs/lease-reaper.ts", detail: "5-9" },
+      {
+        id: "stmt1",
+        type: "Statement",
+        label: "",
+        path: SPEC_PATH,
+        detail: "The runner claims a pending task before GKE picks it up.",
+      },
+      {
+        id: "test1",
+        type: "TestChunk",
+        label: "local-runner.test.ts",
+        path: "mcp-server/src/local-runner.test.ts",
+        line: 88,
+      },
+      {
+        id: "file|mcp-server/src/local-runner.ts",
+        type: "File",
+        label: "local-runner.ts",
+        path: "mcp-server/src/local-runner.ts",
+        detail: "40-50",
+      },
+      {
+        id: "stmt9",
+        type: "Statement",
+        label: "",
+        path: SPEC_PATH,
+        detail: "Leases expire after five minutes.",
+      },
+      {
+        id: "test9",
+        type: "TestChunk",
+        label: "reaper.test.ts",
+        path: "agent/src/jobs/lease-reaper.test.ts",
+        line: 12,
+      },
+      {
+        id: "file|agent/src/jobs/lease-reaper.ts",
+        type: "File",
+        label: "lease-reaper.ts",
+        path: "agent/src/jobs/lease-reaper.ts",
+        detail: "5-9",
+      },
     ],
     links: [
       { source: "stmt1", target: "test1", kind: "validated_by" },
-      { source: "test1", target: "file|mcp-server/src/local-runner.ts", kind: "covers" },
+      {
+        source: "test1",
+        target: "file|mcp-server/src/local-runner.ts",
+        kind: "covers",
+      },
       { source: "stmt9", target: "test9", kind: "validated_by" },
-      { source: "test9", target: "file|agent/src/jobs/lease-reaper.ts", kind: "covers" },
+      {
+        source: "test9",
+        target: "file|agent/src/jobs/lease-reaper.ts",
+        kind: "covers",
+      },
     ],
   };
   const merged = mergeIndexes(local, buildCoverageIndex(graph));
@@ -125,11 +210,16 @@ describe("mergeIndexes", () => {
         endLine: 42,
         layer: "implemented",
         evidence: "human-linked",
-        statementText: "The runner claims a pending task before GKE picks it up.",
+        statementText:
+          "The runner claims a pending task before GKE picks it up.",
         specPath: SPEC_PATH,
         specLine: 6,
         related: [
-          { label: "validated by `runner.test.ts:88`", path: "mcp-server/src/local-runner.test.ts", line: 88 },
+          {
+            label: "validated by `runner.test.ts:88`",
+            path: "mcp-server/src/local-runner.test.ts",
+            line: 88,
+          },
         ],
       },
     ]);
@@ -145,7 +235,13 @@ describe("mergeIndexes", () => {
         statementText: "Leases expire after five minutes.",
         specPath: SPEC_PATH,
         specLine: 0,
-        related: [{ label: "reaper.test.ts", path: "agent/src/jobs/lease-reaper.test.ts", line: 12 }],
+        related: [
+          {
+            label: "reaper.test.ts",
+            path: "agent/src/jobs/lease-reaper.test.ts",
+            line: 12,
+          },
+        ],
       },
     ]);
   });

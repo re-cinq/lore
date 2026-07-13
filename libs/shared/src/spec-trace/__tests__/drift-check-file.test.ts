@@ -21,18 +21,26 @@ import type { DriftedStatement } from "../format-drift-report.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const REPO_ROOT = join(process.cwd(), "..");
-const APPLIER = join(REPO_ROOT, "scripts", "infra", "setup-spec-trace-schema.sh");
+const APPLIER = join(
+  REPO_ROOT,
+  "scripts",
+  "infra",
+  "setup-spec-trace-schema.sh",
+);
 
 // Embedding predicates carry a single global HNSW index per predicate across the
 // shared Dgraph container, so every test must use the same dimension (768 — the
 // real Vertex text-embedding-005 size) or inserts collide with sibling suites
 // ("can not compute dot product on vectors of different lengths"). Zero-padding
 // leaves dot products and norms — hence cosine severity — unchanged.
-const pad768 = (head: number[]): number[] => Object.assign(new Array(768).fill(0), head);
+const pad768 = (head: number[]): number[] =>
+  Object.assign(new Array(768).fill(0), head);
 
 async function dgraphReachable(): Promise<boolean> {
   try {
-    return (await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })).ok;
+    return (
+      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
+    ).ok;
   } catch {
     return false;
   }
@@ -41,13 +49,21 @@ async function dgraphReachable(): Promise<boolean> {
 const reachable = await dgraphReachable();
 
 describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
-  const dgraphClient = new dgraph.DgraphClient(new dgraph.DgraphClientStub(DGRAPH_HTTP));
+  const dgraphClient = new dgraph.DgraphClient(
+    new dgraph.DgraphClientStub(DGRAPH_HTTP),
+  );
 
   beforeAll(() => {
-    execFileSync("bash", [APPLIER], { env: { ...process.env, DGRAPH_HTTP }, stdio: "pipe" });
+    execFileSync("bash", [APPLIER], {
+      env: { ...process.env, DGRAPH_HTTP },
+      stdio: "pipe",
+    });
   });
 
-  async function readGraph(query: string, vars: Record<string, string>): Promise<Record<string, unknown>> {
+  async function readGraph(
+    query: string,
+    vars: Record<string, string>,
+  ): Promise<Record<string, unknown>> {
     const txn = dgraphClient.newTxn();
     try {
       const res = await txn.queryWithVars(query, vars);
@@ -189,7 +205,15 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
     await driftCheckFile(
       repo,
       "src/widget.ts",
-      [{ filePath: "src/widget.ts", startLine: 5, endLine: 10, contentHash: "NEWHASH", symbolName: "render" }],
+      [
+        {
+          filePath: "src/widget.ts",
+          startLine: 5,
+          endLine: 10,
+          contentHash: "NEWHASH",
+          symbolName: "render",
+        },
+      ],
       dgraphClient,
     );
 
@@ -255,7 +279,15 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
     const result = await driftCheckFile(
       repo,
       "src/widget.ts",
-      [{ filePath: "src/widget.ts", startLine: 5, endLine: 10, contentHash: "NEWHASH", symbolName: "render" }],
+      [
+        {
+          filePath: "src/widget.ts",
+          startLine: 5,
+          endLine: 10,
+          contentHash: "NEWHASH",
+          symbolName: "render",
+        },
+      ],
       dgraphClient,
     );
 
@@ -306,7 +338,15 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
     const result = await driftCheckFile(
       repo,
       "src/widget.ts",
-      [{ filePath: "src/widget.ts", startLine: 5, endLine: 10, contentHash: "NEWHASH", symbolName: "render" }],
+      [
+        {
+          filePath: "src/widget.ts",
+          startLine: 5,
+          endLine: 10,
+          contentHash: "NEWHASH",
+          symbolName: "render",
+        },
+      ],
       dgraphClient,
     );
 
@@ -367,7 +407,15 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
     const result = await driftCheckFile(
       repo,
       "src/widget.ts",
-      [{ filePath: "src/widget.ts", startLine: 5, endLine: 10, contentHash: "FIRSTHASH", symbolName: "render" }],
+      [
+        {
+          filePath: "src/widget.ts",
+          startLine: 5,
+          endLine: 10,
+          contentHash: "FIRSTHASH",
+          symbolName: "render",
+        },
+      ],
       dgraphClient,
     );
 
@@ -441,7 +489,9 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
     )) as { stmt?: Record<string, unknown>[] };
 
     expect(statementData.stmt?.[0]?.["Statement.drifted"]).toBe(true);
-    expect(statementData.stmt?.[0]?.["Statement.drift_reason"]).toBe("file-missing");
+    expect(statementData.stmt?.[0]?.["Statement.drift_reason"]).toBe(
+      "file-missing",
+    );
   });
 
   it("sets drift_severity to the cosine distance between the new chunk and statement embeddings", async () => {
@@ -481,7 +531,16 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
     await driftCheckFile(
       repo,
       "src/widget.ts",
-      [{ filePath: "src/widget.ts", startLine: 5, endLine: 10, contentHash: "NEWHASH", symbolName: "render", embedding: pad768([1, 0, 0]) }],
+      [
+        {
+          filePath: "src/widget.ts",
+          startLine: 5,
+          endLine: 10,
+          contentHash: "NEWHASH",
+          symbolName: "render",
+          embedding: pad768([1, 0, 0]),
+        },
+      ],
       dgraphClient,
     );
 
@@ -535,7 +594,15 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
     await driftCheckFile(
       repo,
       "src/widget.ts",
-      [{ filePath: "src/widget.ts", startLine: 1, endLine: 10, contentHash: "NEWHASH", symbolName: "other" }],
+      [
+        {
+          filePath: "src/widget.ts",
+          startLine: 1,
+          endLine: 10,
+          contentHash: "NEWHASH",
+          symbolName: "other",
+        },
+      ],
       dgraphClient,
     );
 
@@ -549,7 +616,9 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
     )) as { stmt?: Record<string, unknown>[] };
 
     expect(statementData.stmt?.[0]?.["Statement.drifted"]).toBe(true);
-    expect(statementData.stmt?.[0]?.["Statement.drift_reason"]).toBe("line-out-of-range");
+    expect(statementData.stmt?.[0]?.["Statement.drift_reason"]).toBe(
+      "line-out-of-range",
+    );
   });
 
   it("falls back to the file path in drift_reason when the changed chunk has no symbol_name", async () => {
@@ -588,7 +657,14 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
     await driftCheckFile(
       repo,
       "src/widget.rb",
-      [{ filePath: "src/widget.rb", startLine: 12, endLine: 18, contentHash: "NEWHASH" }],
+      [
+        {
+          filePath: "src/widget.rb",
+          startLine: 12,
+          endLine: 18,
+          contentHash: "NEWHASH",
+        },
+      ],
       dgraphClient,
     );
 
@@ -603,6 +679,8 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
 
     const stmt = statementData.stmt?.[0] ?? {};
     expect(stmt["Statement.drifted"]).toBe(true);
-    expect(stmt["Statement.drift_reason"]).toBe("code-content-changed (src/widget.rb)");
+    expect(stmt["Statement.drift_reason"]).toBe(
+      "code-content-changed (src/widget.rb)",
+    );
   });
 });

@@ -8,20 +8,32 @@ import type { GitHubPort } from "../lib/github-port.js";
  */
 
 function fakeGitHub(writes: string[] = []): GitHubPort {
-  const files: Record<string, string> = { "CLAUDE.md": "# Lore", "src/index.ts": "export {};" };
+  const files: Record<string, string> = {
+    "CLAUDE.md": "# Lore",
+    "src/index.ts": "export {};",
+  };
   return {
     name: "fake",
     isConfigured: () => true,
     listIssues: async () => [],
     getIssue: async () => null,
     getFileContent: async (repo, path, ref) =>
-      repo === "re-cinq/lore" && files[path] ? `${files[path]}@${ref ?? "HEAD"}` : null,
-    listDirectory: async (_repo, path) => (path === "src" ? ["src/index.ts"] : []),
+      repo === "re-cinq/lore" && files[path]
+        ? `${files[path]}@${ref ?? "HEAD"}`
+        : null,
+    listDirectory: async (_repo, path) =>
+      path === "src" ? ["src/index.ts"] : [],
     listTree: async () => ["CLAUDE.md", "src/index.ts"],
     getDefaultBranch: async () => "main",
     listCommitsSince: async () => [],
     getIssueLabels: async () => [],
-    createIssue: async () => ({ repo: "re-cinq/lore", number: 1, title: "", state: "open", labels: [] }),
+    createIssue: async () => ({
+      repo: "re-cinq/lore",
+      number: 1,
+      title: "",
+      state: "open",
+      labels: [],
+    }),
     createLabels: async () => {},
     commentOnIssue: async () => {},
     closeIssue: async () => {},

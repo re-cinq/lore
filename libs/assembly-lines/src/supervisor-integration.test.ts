@@ -75,7 +75,13 @@ describe("supervisor integration (T058 vertical slice)", () => {
     const repoDir = path.join(workDir, "repo");
     await fs.mkdir(repoDir);
     await execFile("git", ["-C", repoDir, "init", "-b", "main"]);
-    await execFile("git", ["-C", repoDir, "config", "user.email", "test@example.com"]);
+    await execFile("git", [
+      "-C",
+      repoDir,
+      "config",
+      "user.email",
+      "test@example.com",
+    ]);
     await execFile("git", ["-C", repoDir, "config", "user.name", "test"]);
     await fs.writeFile(path.join(repoDir, "README.md"), "initial\n");
     await execFile("git", ["-C", repoDir, "add", "."]);
@@ -180,7 +186,11 @@ describe("supervisor integration (T058 vertical slice)", () => {
 
     // Auto-merge engine was triggered (T021 + T023 wire-up).
     expect(evaluateAndMerge).toHaveBeenCalledTimes(1);
-    const call = (evaluateAndMerge.mock.calls as unknown as Array<[{ repo: string; prNumber: number }]>)[0][0];
+    const call = (
+      evaluateAndMerge.mock.calls as unknown as Array<
+        [{ repo: string; prNumber: number }]
+      >
+    )[0][0];
     expect(call.repo).toBe("owner/repo");
     expect(call.prNumber).toBe(42);
 

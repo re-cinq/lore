@@ -25,7 +25,13 @@ export interface RepoReader {
  * differs between runtime contexts.
  */
 export async function projectRepoGraph(
-  params: { kind: IngestKind; repo: string; ref?: string; glob?: string; force?: boolean },
+  params: {
+    kind: IngestKind;
+    repo: string;
+    ref?: string;
+    glob?: string;
+    force?: boolean;
+  },
   deps: { repo: RepoReader; dgraph: DgraphClientPort | null },
 ): Promise<IngestGraphSummary> {
   return runIngestGraph(params, {

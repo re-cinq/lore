@@ -140,7 +140,8 @@ export function createAgentHandler(
         extras: {
           ...costExtra,
           "Lore-Validation-Status": "parse-error",
-          "Lore-Validation-Summary": "LLM output did not contain a parseable {files: …} JSON object",
+          "Lore-Validation-Summary":
+            "LLM output did not contain a parseable {files: …} JSON object",
         },
       };
     }
@@ -176,9 +177,7 @@ export function createAgentHandler(
  * Tolerates code fences and trailing prose. Returns null when no
  * parseable object is found or `files` isn't a dict of strings.
  */
-export function extractJsonFiles(
-  text: string,
-): Record<string, string> | null {
+export function extractJsonFiles(text: string): Record<string, string> | null {
   // Try direct parse first.
   const direct = tryParse(text);
   if (direct) return direct;
@@ -240,7 +239,11 @@ function sanitizeRelativePath(p: string): string | null {
   // path.normalize collapses any embedded `..` segments; a remaining
   // leading `..` is the only escape case we need to reject.
   const normalized = path.normalize(p);
-  if (normalized === ".." || normalized.startsWith("../") || normalized.startsWith("..\\")) {
+  if (
+    normalized === ".." ||
+    normalized.startsWith("../") ||
+    normalized.startsWith("..\\")
+  ) {
     return null;
   }
   return normalized;

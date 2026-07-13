@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useState, useRef, useEffect } from 'react';
-import styles from './HelpPopover.module.css';
+import { useState, useRef, useEffect } from "react";
+import styles from "./HelpPopover.module.css";
 
 export default function HelpPopover({
-  label = 'Help',
+  label = "Help",
   children,
 }: {
   label?: string;
@@ -16,16 +16,17 @@ export default function HelpPopover({
   useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === "Escape") setOpen(false);
     };
-    document.addEventListener('mousedown', onClick);
-    document.addEventListener('keydown', onKey);
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener('mousedown', onClick);
-      document.removeEventListener('keydown', onKey);
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
     };
   }, [open]);
 
@@ -36,7 +37,7 @@ export default function HelpPopover({
         className={styles.trigger}
         aria-label={label}
         aria-expanded={open}
-        onClick={() => setOpen(o => !o)}
+        onClick={() => setOpen((o) => !o)}
       >
         ?
       </button>

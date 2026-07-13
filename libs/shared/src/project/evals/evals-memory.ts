@@ -13,7 +13,11 @@ export class InMemoryEvalRuns implements EvalRunsPort {
     this.runs.push(run);
   }
 
-  async recent(team: string, limit: number, offset = 0): Promise<EvalRunSample[]> {
+  async recent(
+    team: string,
+    limit: number,
+    offset = 0,
+  ): Promise<EvalRunSample[]> {
     return this.runs
       .filter((run) => run.team === team)
       .reverse()

@@ -1,12 +1,22 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 vi.mock("../../../platform/project-boot.js", () => ({ projectFor: vi.fn() }));
-vi.mock("@re-cinq/lore-server-core/features/pipeline/pipeline.js", () => ({ createTask: vi.fn(), getTask: vi.fn(), listTasks: vi.fn(), retryTask: vi.fn() }));
+vi.mock("@re-cinq/lore-server-core/features/pipeline/pipeline.js", () => ({
+  createTask: vi.fn(),
+  getTask: vi.fn(),
+  listTasks: vi.fn(),
+  retryTask: vi.fn(),
+}));
 
 import { buildServer } from "../../../server/build-server.js";
 import { projectFor } from "../../../platform/project-boot.js";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
-import { useRateLimitSafeClock, makePool, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  useRateLimitSafeClock,
+  makePool,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const base = "/api/repos/octo/repo/features";
 const originalEnv = { ...process.env };
@@ -44,12 +54,21 @@ const readyIteration = (gap: unknown) => ({
 });
 
 const req = (method: "GET" | "POST" | "DELETE", url: string, body?: unknown) =>
-  buildServer(() => null).inject({ method, url, headers: AUTH, payload: body === undefined ? undefined : JSON.stringify(body) });
+  buildServer(() => null).inject({
+    method,
+    url,
+    headers: AUTH,
+    payload: body === undefined ? undefined : JSON.stringify(body),
+  });
 
 const reqAs = (scopes: string[], method: "GET" | "DELETE", url: string) => {
   const pool = makePool();
   pool.query.mockResolvedValue({ rows: [{ scopes }] });
-  return buildServer(() => pool).inject({ method, url, headers: { authorization: "Bearer scoped-token" } });
+  return buildServer(() => pool).inject({
+    method,
+    url,
+    headers: { authorization: "Bearer scoped-token" },
+  });
 };
 
 describe("features routes", () => {
@@ -63,12 +82,21 @@ describe("features routes", () => {
   });
 
   it("creates a draft and kicks planning round 1", async () => {
-    const features = useProject(fakeFeatures({ create: vi.fn().mockResolvedValue({ id: "f1" }) }));
+    const features = useProject(
+      fakeFeatures({ create: vi.fn().mockResolvedValue({ id: "f1" }) }),
+    );
     vi.mocked(createTask).mockResolvedValue({ task_id: "t1" } as never);
-    const res = await req("POST", base, { title: "Smart Planning", prompt: "do it" });
+    const res = await req("POST", base, {
+      title: "Smart Planning",
+      prompt: "do it",
+    });
     expect(res.statusCode).toBe(201);
     expect(res.result).toEqual({ id: "f1", task_id: "t1" });
-    expect(features.create).toHaveBeenCalledWith({ title: "Smart Planning", prompt: "do it", parentFeatureId: undefined });
+    expect(features.create).toHaveBeenCalledWith({
+      title: "Smart Planning",
+      prompt: "do it",
+      parentFeatureId: undefined,
+    });
   });
 
   it("rejects a create with a blank title as a 400 before touching the project", async () => {
@@ -80,15 +108,35 @@ describe("features routes", () => {
   });
 
   it("refuses to finalize a feature that is not in a settled planning state", async () => {
-    useProject(fakeFeatures({ get: vi.fn().mockResolvedValue({ id: "f1", status: "draft", iterations: [] }) }));
+    useProject(
+      fakeFeatures({
+        get: vi
+          .fn()
+          .mockResolvedValue({ id: "f1", status: "draft", iterations: [] }),
+      }),
+    );
     const res = await req("POST", `${base}/f1/finalize`, {});
     expect(res.statusCode).toBe(409);
-    expect((res.result as { error: string }).error).toMatch(/cannot finalize a feature in 'draft'/);
+    expect((res.result as { error: string }).error).toMatch(
+      /cannot finalize a feature in 'draft'/,
+    );
     expect(createTask).not.toHaveBeenCalled();
   });
 
   it("kicks the finalize task from a spec-ready feature", async () => {
-    useProject(fakeFeatures({ get: vi.fn().mockResolvedValue({ id: "f1", status: "spec-ready", title: "X", slug: "x", iterations: [] }) }));
+    useProject(
+      fakeFeatures({
+        get: vi
+          .fn()
+          .mockResolvedValue({
+            id: "f1",
+            status: "spec-ready",
+            title: "X",
+            slug: "x",
+            iterations: [],
+          }),
+      }),
+    );
     vi.mocked(createTask).mockResolvedValue({ task_id: "fin" } as never);
     const res = await req("POST", `${base}/f1/finalize`, {});
     expect(res.statusCode).toBe(202);
@@ -96,22 +144,52 @@ describe("features routes", () => {
   });
 
   it("refuses to split when the latest ready round has no split suggestion", async () => {
-    useProject(fakeFeatures({ get: vi.fn().mockResolvedValue({ id: "f1", iterations: [readyIteration({ sections: [], draft_spec_markdown: "x" })] }) }));
-    const res = await req("POST", `${base}/f1/split`, { title: "Part A", prompt: "carve A" });
+    useProject(
+      fakeFeatures({
+        get: vi
+          .fn()
+          .mockResolvedValue({
+            id: "f1",
+            iterations: [
+              readyIteration({ sections: [], draft_spec_markdown: "x" }),
+            ],
+          }),
+      }),
+    );
+    const res = await req("POST", `${base}/f1/split`, {
+      title: "Part A",
+      prompt: "carve A",
+    });
     expect(res.statusCode).toBe(409);
-    expect((res.result as { error: string }).error).toMatch(/no split suggestion/);
+    expect((res.result as { error: string }).error).toMatch(
+      /no split suggestion/,
+    );
   });
 
   it("creates a split child when the latest ready round suggests one", async () => {
-    const gap = { sections: [], draft_spec_markdown: "x", split_suggestion: { rationale: "big", proposed_features: [] } };
-    const features = useProject(fakeFeatures({
-      get: vi.fn().mockResolvedValue({ id: "f1", iterations: [readyIteration(gap)] }),
-      createSplitChild: vi.fn().mockResolvedValue({ id: "child" }),
-    }));
-    const res = await req("POST", `${base}/f1/split`, { title: "Part A", prompt: "carve A" });
+    const gap = {
+      sections: [],
+      draft_spec_markdown: "x",
+      split_suggestion: { rationale: "big", proposed_features: [] },
+    };
+    const features = useProject(
+      fakeFeatures({
+        get: vi
+          .fn()
+          .mockResolvedValue({ id: "f1", iterations: [readyIteration(gap)] }),
+        createSplitChild: vi.fn().mockResolvedValue({ id: "child" }),
+      }),
+    );
+    const res = await req("POST", `${base}/f1/split`, {
+      title: "Part A",
+      prompt: "carve A",
+    });
     expect(res.statusCode).toBe(201);
     expect(res.result).toEqual({ id: "child" });
-    expect(features.createSplitChild).toHaveBeenCalledWith("f1", { title: "Part A", prompt: "carve A" });
+    expect(features.createSplitChild).toHaveBeenCalledWith("f1", {
+      title: "Part A",
+      prompt: "carve A",
+    });
   });
 
   it("returns 404 for a missing feature on GET", async () => {
@@ -147,9 +225,26 @@ describe("features routes", () => {
   });
 
   it("rejects a concurrent planning round with 409", async () => {
-    const recent = { ...readyIteration(null), status: "running", created_at: new Date().toISOString() };
-    useProject(fakeFeatures({ get: vi.fn().mockResolvedValue({ id: "f1", title: "X", original_prompt: "p", iterations: [recent] }) }));
-    const res = await req("POST", `${base}/f1/iterations`, { user_answers: {} });
+    const recent = {
+      ...readyIteration(null),
+      status: "running",
+      created_at: new Date().toISOString(),
+    };
+    useProject(
+      fakeFeatures({
+        get: vi
+          .fn()
+          .mockResolvedValue({
+            id: "f1",
+            title: "X",
+            original_prompt: "p",
+            iterations: [recent],
+          }),
+      }),
+    );
+    const res = await req("POST", `${base}/f1/iterations`, {
+      user_answers: {},
+    });
     expect(res.statusCode).toBe(409);
     expect(createTask).not.toHaveBeenCalled();
   });

@@ -103,7 +103,10 @@ export function buildImpactComment(report: ImpactReport): string {
     lines.push(
       "",
       `### ⚠ Coverage warnings (${report.orphaned.length})`,
-      ...report.orphaned.map((o) => `- **${o.specTitle}** lost its only coverage — was \`${o.wasCoveredBy}\`, now deleted.`),
+      ...report.orphaned.map(
+        (o) =>
+          `- **${o.specTitle}** lost its only coverage — was \`${o.wasCoveredBy}\`, now deleted.`,
+      ),
     );
   }
 
@@ -126,7 +129,10 @@ export function buildImpactComment(report: ImpactReport): string {
  * coupled statements anchor to their file's first changed range, orphans to the
  * deleted range parsed from `wasCoveredBy`.
  */
-export function buildImpactAnnotations(report: ImpactReport, changed: ChangedRange[]): ImpactAnnotation[] {
+export function buildImpactAnnotations(
+  report: ImpactReport,
+  changed: ChangedRange[],
+): ImpactAnnotation[] {
   const annotations: ImpactAnnotation[] = [];
   for (const stmt of report.statements) {
     const file = changed.find((c) => c.path === stmt.changedFile);
@@ -159,7 +165,12 @@ export function buildImpactAnnotations(report: ImpactReport, changed: ChangedRan
 }
 
 /** Two closed integer intervals overlap iff neither ends before the other begins. */
-function intervalsOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+function intervalsOverlap(
+  aStart: number,
+  aEnd: number,
+  bStart: number,
+  bEnd: number,
+): boolean {
   return aStart <= bEnd && bStart <= aEnd;
 }
 
@@ -199,7 +210,8 @@ function toImpactStatement(
 ): ImpactStatement & { xid: string } {
   const specPath = stmt.spec?.["Spec.file_path"] ?? "";
   return {
-    xid: stmt["Statement.xid"] ?? `${specPath}::${stmt["Statement.text"] ?? ""}`,
+    xid:
+      stmt["Statement.xid"] ?? `${specPath}::${stmt["Statement.text"] ?? ""}`,
     specPath,
     specTitle: stmt.spec?.["Spec.title"] ?? "",
     section: stmt.section?.["Section.heading"],
@@ -239,7 +251,8 @@ async function implementedByImpact(
     const start = chunk["CodeChunk.start_line"] ?? 0;
     const end = chunk["CodeChunk.end_line"] ?? 0;
     if (!ranges.some(([s, e]) => intervalsOverlap(start, end, s, e))) continue;
-    for (const stmt of chunk.stmts ?? []) out.push(toImpactStatement(stmt, file, []));
+    for (const stmt of chunk.stmts ?? [])
+      out.push(toImpactStatement(stmt, file, []));
   }
   return out;
 }
@@ -272,20 +285,29 @@ async function validatedByImpact(
   ranges: [number, number][],
 ): Promise<Array<ImpactStatement & { xid: string }>> {
   const covs = await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(COVERAGE_QUERY, { $repo: repo, $fp: file });
+    const res = await txn.queryWithVars(COVERAGE_QUERY, {
+      $repo: repo,
+      $fp: file,
+    });
     return (res.data?.covs ?? []) as GraphCoverage[];
   });
   const out: Array<ImpactStatement & { xid: string }> = [];
   for (const cov of covs) {
     const covered = parseRanges(cov.file?.[0]?.["file|ranges"] ?? "");
-    if (!covered.some(([cs, ce]) => ranges.some(([s, e]) => intervalsOverlap(cs, ce, s, e)))) continue;
+    if (
+      !covered.some(([cs, ce]) =>
+        ranges.some(([s, e]) => intervalsOverlap(cs, ce, s, e)),
+      )
+    )
+      continue;
     for (const tc of cov.tc ?? []) {
       const test = {
         file: tc["TestChunk.file_path"] ?? "",
         name: tc["TestChunk.test_name"] ?? "",
         line: tc["TestChunk.start_line"] ?? 0,
       };
-      for (const stmt of tc.stmts ?? []) out.push(toImpactStatement(stmt, file, [test]));
+      for (const stmt of tc.stmts ?? [])
+        out.push(toImpactStatement(stmt, file, [test]));
     }
   }
   return out;
@@ -328,7 +350,10 @@ async function orphanImpact(
   deleted: [number, number][],
 ): Promise<OrphanStatement[]> {
   const covs = await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(ORPHAN_QUERY, { $repo: repo, $fp: file });
+    const res = await txn.queryWithVars(ORPHAN_QUERY, {
+      $repo: repo,
+      $fp: file,
+    });
     return (res.data?.covs ?? []) as GraphOrphanCoverage[];
   });
   const byXid = new Map<string, OrphanStatement>();
@@ -338,15 +363,24 @@ async function orphanImpact(
       for (const stmt of tc.stmts ?? []) {
         const intervals = (stmt.footprint ?? []).flatMap((ft) =>
           (ft.cov?.covers ?? []).flatMap((f) =>
-            parseRanges(f["covers|ranges"] ?? "").map(([s, e]) => ({ file: f["File.path"] ?? "", start: s, end: e })),
+            parseRanges(f["covers|ranges"] ?? "").map(([s, e]) => ({
+              file: f["File.path"] ?? "",
+              start: s,
+              end: e,
+            })),
           ),
         );
         const isKilled = (iv: { file: string; start: number; end: number }) =>
-          iv.file === file && deleted.some(([ds, de]) => intervalsOverlap(iv.start, iv.end, ds, de));
+          iv.file === file &&
+          deleted.some(([ds, de]) =>
+            intervalsOverlap(iv.start, iv.end, ds, de),
+          );
         if (!intervals.length || !intervals.every(isKilled)) continue;
         const killed = intervals.find(isKilled)!;
         const specPath = stmt.spec?.["Spec.file_path"] ?? "";
-        const xid = stmt["Statement.xid"] ?? `${specPath}::${stmt["Statement.text"] ?? ""}`;
+        const xid =
+          stmt["Statement.xid"] ??
+          `${specPath}::${stmt["Statement.text"] ?? ""}`;
         byXid.set(xid, {
           specPath,
           specTitle: stmt.spec?.["Spec.title"] ?? "",
@@ -361,7 +395,9 @@ async function orphanImpact(
 }
 
 /** Unions statements from every coupling path by xid, merging their test selectors. */
-function mergeStatements(raw: Array<ImpactStatement & { xid: string }>): ImpactStatement[] {
+function mergeStatements(
+  raw: Array<ImpactStatement & { xid: string }>,
+): ImpactStatement[] {
   const byXid = new Map<string, ImpactStatement & { xid: string }>();
   for (const stmt of raw) {
     const existing = byXid.get(stmt.xid);
@@ -370,7 +406,11 @@ function mergeStatements(raw: Array<ImpactStatement & { xid: string }>): ImpactS
       continue;
     }
     for (const test of stmt.tests) {
-      if (!existing.tests.some((t) => t.file === test.file && t.name === test.name)) {
+      if (
+        !existing.tests.some(
+          (t) => t.file === test.file && t.name === test.name,
+        )
+      ) {
         existing.tests.push(test);
       }
     }
@@ -384,17 +424,25 @@ export async function computeImpact(
   changed: ChangedRange[],
 ): Promise<ImpactReport> {
   if (!dgraph) {
-    return { status: "unavailable", statements: [], orphaned: [], testSelectors: [] };
+    return {
+      status: "unavailable",
+      statements: [],
+      orphaned: [],
+      testSelectors: [],
+    };
   }
   const raw: Array<ImpactStatement & { xid: string }> = [];
   const orphaned: OrphanStatement[] = [];
   for (const { path, ranges, deleted } of changed) {
     raw.push(...(await implementedByImpact(dgraph, repo, path, ranges)));
     raw.push(...(await validatedByImpact(dgraph, repo, path, ranges)));
-    if (deleted?.length) orphaned.push(...(await orphanImpact(dgraph, repo, path, deleted)));
+    if (deleted?.length)
+      orphaned.push(...(await orphanImpact(dgraph, repo, path, deleted)));
   }
   const statements = mergeStatements(raw);
-  const testSelectors = [...new Set(statements.flatMap((s) => s.tests.map((t) => t.file)))];
+  const testSelectors = [
+    ...new Set(statements.flatMap((s) => s.tests.map((t) => t.file))),
+  ];
   return { status: "ok", statements, orphaned, testSelectors };
 }
 
@@ -406,7 +454,8 @@ export function parseRanges(facet: string): [number, number][] {
     if (rest.length || !rawStart || !rawEnd) continue;
     const start = Number(rawStart);
     const end = Number(rawEnd);
-    if (Number.isFinite(start) && Number.isFinite(end)) ranges.push([start, end]);
+    if (Number.isFinite(start) && Number.isFinite(end))
+      ranges.push([start, end]);
   }
   return ranges;
 }

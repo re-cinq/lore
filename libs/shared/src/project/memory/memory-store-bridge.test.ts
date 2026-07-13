@@ -8,7 +8,10 @@ import type { MemoryStore } from "../../memory-store.js";
  */
 
 function fakeStore(): MemoryStore {
-  const rows = new Map<string, { key: string; value: string; version: number; repo?: string }>();
+  const rows = new Map<
+    string,
+    { key: string; value: string; version: number; repo?: string }
+  >();
   return {
     backend: "postgres",
     writeMemory: async ({ key, value, agentId, repo }) => {
@@ -33,7 +36,10 @@ describe("MemoryStoreBridge", () => {
   it("writes through the seam and returns key + version", async () => {
     const bridge = new MemoryStoreBridge(fakeStore());
 
-    expect(await bridge.write("re-cinq/lore", "k", "v", "agent-1")).toEqual({ key: "k", version: 1 });
+    expect(await bridge.write("re-cinq/lore", "k", "v", "agent-1")).toEqual({
+      key: "k",
+      version: 1,
+    });
   });
 
   it("lists only the repo's memories from the seam", async () => {
@@ -41,6 +47,8 @@ describe("MemoryStoreBridge", () => {
 
     await bridge.write("re-cinq/lore", "k", "v", "agent-1");
 
-    expect(await bridge.list("re-cinq/lore", "agent-1")).toEqual([{ key: "k", value: "v", version: 1 }]);
+    expect(await bridge.list("re-cinq/lore", "agent-1")).toEqual([
+      { key: "k", value: "v", version: 1 },
+    ]);
   });
 });

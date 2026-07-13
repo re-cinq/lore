@@ -1,9 +1,17 @@
 export const dynamic = "force-dynamic";
-import { query } from '@/lib/db';
-import { EVENTS_PAGE_SIZE, repoEventsQuery, type RepoEvent } from './pagination';
-import EventsView from './EventsView';
+import { query } from "@/lib/db";
+import {
+  EVENTS_PAGE_SIZE,
+  repoEventsQuery,
+  type RepoEvent,
+} from "./pagination";
+import EventsView from "./EventsView";
 
-export default async function RepoEvents({ params }: { params: Promise<{ owner: string; repo: string }> }) {
+export default async function RepoEvents({
+  params,
+}: {
+  params: Promise<{ owner: string; repo: string }>;
+}) {
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
@@ -16,5 +24,7 @@ export default async function RepoEvents({ params }: { params: Promise<{ owner: 
   const hasMore = rows.length > EVENTS_PAGE_SIZE;
   const events = rows.slice(0, EVENTS_PAGE_SIZE);
 
-  return <EventsView owner={owner} repo={repo} events={events} hasMore={hasMore} />;
+  return (
+    <EventsView owner={owner} repo={repo} events={events} hasMore={hasMore} />
+  );
 }

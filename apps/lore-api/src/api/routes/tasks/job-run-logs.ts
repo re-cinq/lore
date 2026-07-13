@@ -13,12 +13,18 @@ export function jobRunLogsRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/job-run-logs",
-    options: { ...bearerScope("read"), validate: { query: zodValidate(JobRunLogsQuery) } },
+    options: {
+      ...bearerScope("read"),
+      validate: { query: zodValidate(JobRunLogsQuery) },
+    },
     handler: async (request, h) => {
-      const { job_name: jobName, run_id: runId } = request.query as JobRunLogsQuery;
+      const { job_name: jobName, run_id: runId } =
+        request.query as JobRunLogsQuery;
       try {
         const { Storage } = await import("@google-cloud/storage");
-        const bucket = new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs");
+        const bucket = new Storage().bucket(
+          process.env.LORE_LOG_BUCKET || "lore-task-logs",
+        );
         const file = bucket.file(`__job_runs__/${jobName}/${runId}/output.log`);
         const [exists] = await file.exists();
         if (!exists) return h.response({ logs: "", complete: false });

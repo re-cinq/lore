@@ -12,11 +12,16 @@ import { resolveDarkFactorySettings } from "../../dark-factory-settings.js";
 describe("Settings", () => {
   it("resolves the repo's settings via the real resolver", async () => {
     const port = new InMemorySettings([
-      { full_name: "re-cinq/lore", settings: { dark_factory: { enabled: true } } },
+      {
+        full_name: "re-cinq/lore",
+        settings: { dark_factory: { enabled: true } },
+      },
     ]);
     const facade = new Settings("re-cinq/lore", port);
 
-    expect(await facade.resolve()).toEqual(resolveDarkFactorySettings({ enabled: true }));
+    expect(await facade.resolve()).toEqual(
+      resolveDarkFactorySettings({ enabled: true }),
+    );
   });
 
   it("binds the repo when setting a GitHub variable", async () => {
@@ -25,18 +30,24 @@ describe("Settings", () => {
 
     await facade.setRepoVariable("LORE_INGEST_URL", "https://api");
 
-    expect(port.vars).toEqual([{ repo: "re-cinq/lore", name: "LORE_INGEST_URL", value: "https://api" }]);
+    expect(port.vars).toEqual([
+      { repo: "re-cinq/lore", name: "LORE_INGEST_URL", value: "https://api" },
+    ]);
   });
 
   it("reads and overwrites the raw settings JSONB, repo bound", async () => {
-    const port = new InMemorySettings([{ full_name: "re-cinq/lore", settings: { trust: { level: "tests" } } }]);
+    const port = new InMemorySettings([
+      { full_name: "re-cinq/lore", settings: { trust: { level: "tests" } } },
+    ]);
     const facade = new Settings("re-cinq/lore", port);
 
     expect(await facade.rawSettings()).toEqual({ trust: { level: "tests" } });
 
     await facade.updateSettings({ trust: { level: "implementation" } });
 
-    expect(await facade.rawSettings()).toEqual({ trust: { level: "implementation" } });
+    expect(await facade.rawSettings()).toEqual({
+      trust: { level: "implementation" },
+    });
   });
 });
 
@@ -48,6 +59,8 @@ describe("InMemorySettings.onboardedRepos", () => {
       { full_name: "c/d", onboarding_pr_merged: false },
     ]);
 
-    expect(await port.onboardedRepos()).toEqual([{ full_name: "a/b", last_ingested_at: stamp }]);
+    expect(await port.onboardedRepos()).toEqual([
+      { full_name: "a/b", last_ingested_at: stamp },
+    ]);
   });
 });

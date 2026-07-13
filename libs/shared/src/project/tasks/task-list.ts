@@ -40,8 +40,13 @@ export class TaskList {
   // ── task ops over the single source ──
 
   /** Create a task. The bound repo is the default targetRepo unless input overrides it. */
-  create(input: Omit<CreateTaskInput, "targetRepo"> & { targetRepo?: string }): Promise<any> {
-    return this.store.create({ ...input, targetRepo: input.targetRepo ?? this.repo });
+  create(
+    input: Omit<CreateTaskInput, "targetRepo"> & { targetRepo?: string },
+  ): Promise<any> {
+    return this.store.create({
+      ...input,
+      targetRepo: input.targetRepo ?? this.repo,
+    });
   }
 
   retry(id: string): Promise<any> {
@@ -49,12 +54,17 @@ export class TaskList {
   }
 
   /** Drift-dedup rows for a spec (keyed by context_bundle.spec_path). */
-  driftTasksForSpec(taskType: string, specPath: string): Promise<DriftTaskRow[]> {
+  driftTasksForSpec(
+    taskType: string,
+    specPath: string,
+  ): Promise<DriftTaskRow[]> {
     return this.store.driftTasksForSpec(this.repo, taskType, specPath);
   }
 
   /** Open (per statuses) tasks of one type whose description starts with the prefix — job dedup. */
-  findOpenLike(input: Omit<FindOpenLikeInput, "repo"> & { repo?: string }): Promise<PipelineTask[]> {
+  findOpenLike(
+    input: Omit<FindOpenLikeInput, "repo"> & { repo?: string },
+  ): Promise<PipelineTask[]> {
     return this.store.findOpenLike({ ...input, repo: input.repo ?? this.repo });
   }
 
@@ -66,11 +76,20 @@ export class TaskList {
     return this.store.getWithEvents(id);
   }
 
-  setStatus(id: string, status: string, extra?: Record<string, unknown>): Promise<void> {
+  setStatus(
+    id: string,
+    status: string,
+    extra?: Record<string, unknown>,
+  ): Promise<void> {
     return this.store.setStatus(id, status, extra);
   }
 
-  setStatusIf(id: string, expectedStatus: string, status: string, extra?: Record<string, unknown>): Promise<boolean> {
+  setStatusIf(
+    id: string,
+    expectedStatus: string,
+    status: string,
+    extra?: Record<string, unknown>,
+  ): Promise<boolean> {
     return this.store.setStatusIf(id, expectedStatus, status, extra);
   }
 
@@ -78,7 +97,12 @@ export class TaskList {
     return this.store.updateStatus(id, status, meta);
   }
 
-  recordEvent(id: string, fromStatus: string | null, toStatus: string | null, meta?: unknown): Promise<void> {
+  recordEvent(
+    id: string,
+    fromStatus: string | null,
+    toStatus: string | null,
+    meta?: unknown,
+  ): Promise<void> {
     return this.store.recordEvent(id, fromStatus, toStatus, meta);
   }
 

@@ -18,16 +18,28 @@ describe("triggerAgentSpecCoverageValidate", () => {
     await triggerAgentSpecCoverageValidate(pool as never, "re-cinq/lore");
     expect(pool.calls).toHaveLength(1);
     expect(pool.calls[0].text).toContain("INSERT INTO pipeline.events");
-    expect(pool.calls[0].params[0]).toBe("internal.ingest.spec_coverage_validate");
-    expect(JSON.parse(pool.calls[0].params[2] as string)).toEqual({ repo: "re-cinq/lore" });
+    expect(pool.calls[0].params[0]).toBe(
+      "internal.ingest.spec_coverage_validate",
+    );
+    expect(JSON.parse(pool.calls[0].params[2] as string)).toEqual({
+      repo: "re-cinq/lore",
+    });
   });
 
   it("is a no-op when there is no DB pool", async () => {
-    await expect(triggerAgentSpecCoverageValidate(null, "o/r")).resolves.toBeUndefined();
+    await expect(
+      triggerAgentSpecCoverageValidate(null, "o/r"),
+    ).resolves.toBeUndefined();
   });
 
   it("swallows insert errors so a flaky DB never breaks the ingest response", async () => {
-    const pool = { query: async () => { throw new Error("db down"); } };
-    await expect(triggerAgentSpecCoverageValidate(pool as never, "o/r")).resolves.toBeUndefined();
+    const pool = {
+      query: async () => {
+        throw new Error("db down");
+      },
+    };
+    await expect(
+      triggerAgentSpecCoverageValidate(pool as never, "o/r"),
+    ).resolves.toBeUndefined();
   });
 });

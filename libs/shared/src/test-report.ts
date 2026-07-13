@@ -42,12 +42,19 @@ export function parseTestDescriptors(raw: unknown): TestDescriptor[] {
       name: requireString(entry, "name", "test descriptor"),
       file: requireString(entry, "file", "test descriptor"),
     };
-    if (typeof entry.startLine === "number") descriptor.startLine = entry.startLine;
+    if (typeof entry.startLine === "number")
+      descriptor.startLine = entry.startLine;
     if (typeof entry.endLine === "number") descriptor.endLine = entry.endLine;
-    if (Array.isArray(entry.suite) && entry.suite.every((s) => typeof s === "string"))
+    if (
+      Array.isArray(entry.suite) &&
+      entry.suite.every((s) => typeof s === "string")
+    )
       descriptor.suite = entry.suite as string[];
     if (typeof entry.spec === "string") descriptor.spec = entry.spec;
-    else if (Array.isArray(entry.spec) && entry.spec.every((anchor) => typeof anchor === "string"))
+    else if (
+      Array.isArray(entry.spec) &&
+      entry.spec.every((anchor) => typeof anchor === "string")
+    )
       descriptor.spec = entry.spec as string[];
     if (typeof entry.passed === "boolean") descriptor.passed = entry.passed;
     return descriptor;
@@ -75,7 +82,11 @@ function asArray(raw: unknown, what: string): Record<string, unknown>[] {
   return raw as Record<string, unknown>[];
 }
 
-function requireString(entry: Record<string, unknown>, field: string, what: string): string {
+function requireString(
+  entry: Record<string, unknown>,
+  field: string,
+  what: string,
+): string {
   const value = entry[field];
   if (typeof value !== "string" || value === "") {
     throw new Error(`${what}: '${field}' is required`);
@@ -83,8 +94,13 @@ function requireString(entry: Record<string, unknown>, field: string, what: stri
   return value;
 }
 
-function requireNumber(entry: Record<string, unknown>, field: string, what: string): number {
+function requireNumber(
+  entry: Record<string, unknown>,
+  field: string,
+  what: string,
+): number {
   const value = entry[field];
-  if (typeof value !== "number") throw new Error(`${what}: '${field}' is required`);
+  if (typeof value !== "number")
+    throw new Error(`${what}: '${field}' is required`);
   return value;
 }

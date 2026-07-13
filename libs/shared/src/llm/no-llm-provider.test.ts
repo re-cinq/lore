@@ -15,7 +15,12 @@ describe("NoLlmProvider", () => {
 
   it("throws on completeWithTool", async () => {
     await expect(
-      provider.completeWithTool({ prompt: "x", toolName: "t", toolDescription: "d", toolSchema: {} }),
+      provider.completeWithTool({
+        prompt: "x",
+        toolName: "t",
+        toolDescription: "d",
+        toolSchema: {},
+      }),
     ).rejects.toThrow(/no-LLM/i);
   });
 });

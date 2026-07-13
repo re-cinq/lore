@@ -27,7 +27,10 @@ export interface ToolDeps {
 
 // --- Latency tracking helper (shared by tools that opt into it) ---
 export function makeTrackLatency(getPool: () => any) {
-  return async function trackLatency(tool: string, fn: () => Promise<any>): Promise<any> {
+  return async function trackLatency(
+    tool: string,
+    fn: () => Promise<any>,
+  ): Promise<any> {
     const start = Date.now();
     let success = true;
     try {
@@ -42,12 +45,13 @@ export function makeTrackLatency(getPool: () => any) {
       traceTool(tool, latencyMs, success);
       const pool = getPool();
       if (pool) {
-        pool.query(
-          `INSERT INTO memory.audit_log (agent_id, operation, metadata) VALUES ($1, $2, $3)`,
-          ['system', tool, JSON.stringify({ latency_ms: latencyMs })],
-        ).catch(() => {});
+        pool
+          .query(
+            `INSERT INTO memory.audit_log (agent_id, operation, metadata) VALUES ($1, $2, $3)`,
+            ["system", tool, JSON.stringify({ latency_ms: latencyMs })],
+          )
+          .catch(() => {});
       }
     }
   };
 }
-

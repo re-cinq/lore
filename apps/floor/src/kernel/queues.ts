@@ -70,15 +70,16 @@ export const assemblyLines = (): PgAssemblyLines =>
 /** The cluster lease backend (its reap side feeds the lease-reaper). */
 export const leaseBackend = (): DbLeaseBackend =>
   // The real pg pool returns rowCount; LeasePool's narrow type omits it.
-  (leaseBackendSingleton ??= new DbLeaseBackend(getPool() as unknown as LeasePool));
+  (leaseBackendSingleton ??= new DbLeaseBackend(
+    getPool() as unknown as LeasePool,
+  ));
 
 /** Append-only audit writer, repo-agnostic (used where no Project is in scope). */
 export const auditLog = (): PgAudit =>
   (auditLogSingleton ??= new PgAudit(getPool()));
 
 /** LLM-call accounting, repo-agnostic (the agent-events telemetry sink + health). */
-export const usage = (): PgUsage =>
-  (usageSingleton ??= new PgUsage(getPool()));
+export const usage = (): PgUsage => (usageSingleton ??= new PgUsage(getPool()));
 
 /** Scheduled-job run ledger (pipeline.job_runs), bound by the scheduler. */
 export const jobRuns = (): PgJobRuns =>
@@ -89,8 +90,7 @@ export const evalRuns = (): PgEvalRuns =>
   (evalRunsSingleton ??= new PgEvalRuns(getPool()));
 
 /** Daily Anthropic cost rollup (pipeline.anthropic_cost_daily). */
-export const cost = (): PgCost =>
-  (costSingleton ??= new PgCost(getPool()));
+export const cost = (): PgCost => (costSingleton ??= new PgCost(getPool()));
 
 /** Context-core promotion history (pipeline.context_core_history). */
 export const contextCore = (): PgContextCore =>

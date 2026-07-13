@@ -16,11 +16,18 @@ import { resolveSentenceLink } from "../resolve-sentence-link.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const REPO_ROOT = join(process.cwd(), "..");
-const APPLIER = join(REPO_ROOT, "scripts", "infra", "setup-spec-trace-schema.sh");
+const APPLIER = join(
+  REPO_ROOT,
+  "scripts",
+  "infra",
+  "setup-spec-trace-schema.sh",
+);
 
 async function dgraphReachable(): Promise<boolean> {
   try {
-    return (await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })).ok;
+    return (
+      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
+    ).ok;
   } catch {
     return false;
   }
@@ -29,10 +36,15 @@ async function dgraphReachable(): Promise<boolean> {
 const reachable = await dgraphReachable();
 
 describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
-  const dgraphClient = new dgraph.DgraphClient(new dgraph.DgraphClientStub(DGRAPH_HTTP));
+  const dgraphClient = new dgraph.DgraphClient(
+    new dgraph.DgraphClientStub(DGRAPH_HTTP),
+  );
 
   beforeAll(() => {
-    execFileSync("bash", [APPLIER], { env: { ...process.env, DGRAPH_HTTP }, stdio: "pipe" });
+    execFileSync("bash", [APPLIER], {
+      env: { ...process.env, DGRAPH_HTTP },
+      stdio: "pipe",
+    });
   });
 
   async function xidUid(xid: string): Promise<string | undefined> {
@@ -57,10 +69,18 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
         `query q($r: string) { specs(func: eq(Spec.repo, $r)) { uid } blocks(func: eq(Block.repo, $r)) { uid } }`,
         { $r: createdRepo },
       );
-      const data = res.data as { specs?: { uid: string }[]; blocks?: { uid: string }[] };
-      const uids = [...(data.specs ?? []), ...(data.blocks ?? [])].map((n) => n.uid);
+      const data = res.data as {
+        specs?: { uid: string }[];
+        blocks?: { uid: string }[];
+      };
+      const uids = [...(data.specs ?? []), ...(data.blocks ?? [])].map(
+        (n) => n.uid,
+      );
       if (uids.length) {
-        await txn.mutate({ deleteNquads: uids.map((u) => `<${u}> * * .`).join("\n"), commitNow: true });
+        await txn.mutate({
+          deleteNquads: uids.map((u) => `<${u}> * * .`).join("\n"),
+          commitNow: true,
+        });
       }
     } catch {
       // best-effort
@@ -75,7 +95,13 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
     const filePath = "specs/example/spec.md";
     const content =
       "# Feature Specification: Widget Service\n\n## Success Criteria\n\n1. Onboarding a new repo produces a\n   PR within 5 minutes\n";
-    await projectSpecFile(repo, filePath, content, dgraphClient, async () => null);
+    await projectSpecFile(
+      repo,
+      filePath,
+      content,
+      dgraphClient,
+      async () => null,
+    );
 
     const matched = await resolveSentenceLink(dgraphClient, repo, {
       spec: "Widget Service",

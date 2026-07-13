@@ -29,9 +29,15 @@ describe("resolveAgentConfig", () => {
   });
 
   it("lets an org row override the yaml default", () => {
-    const org: AgentDefinition = { ...yamlGeneral, model: "claude-opus-4-8", project_id: null };
+    const org: AgentDefinition = {
+      ...yamlGeneral,
+      model: "claude-opus-4-8",
+      project_id: null,
+    };
 
-    expect(resolveAgentConfig(null, org, yamlGeneral)?.model).toBe("claude-opus-4-8");
+    expect(resolveAgentConfig(null, org, yamlGeneral)?.model).toBe(
+      "claude-opus-4-8",
+    );
   });
 
   it("lets a project row's set fields beat the org row", () => {
@@ -66,6 +72,8 @@ describe("resolveAgentConfig", () => {
       project_id: "22222222-2222-2222-2222-222222222222",
     };
 
-    expect(resolveAgentConfig(project, org, yamlGeneral)?.image).toBe("golang:1.23");
+    expect(resolveAgentConfig(project, org, yamlGeneral)?.image).toBe(
+      "golang:1.23",
+    );
   });
 });

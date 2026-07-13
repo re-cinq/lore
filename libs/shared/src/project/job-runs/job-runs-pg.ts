@@ -19,7 +19,11 @@ export class PgJobRuns implements JobRunsPort {
     return rows[0].id;
   }
 
-  async complete(runId: string, resultSummary: string, logPath?: string): Promise<void> {
+  async complete(
+    runId: string,
+    resultSummary: string,
+    logPath?: string,
+  ): Promise<void> {
     await this.pool.query(
       `UPDATE pipeline.job_runs
      SET completed_at = now(),

@@ -32,23 +32,32 @@ export function ingestGraphRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/ingest-graph",
-    options: { ...bearerScope("write"), validate: { payload: zodValidate(IngestGraphBody) } },
+    options: {
+      ...bearerScope("write"),
+      validate: { payload: zodValidate(IngestGraphBody) },
+    },
     handler: async (request, h) => {
       const repo = `${request.params.owner}/${request.params.repo}`;
       const body = request.payload as IngestGraphBody;
 
-      const requested = body.kinds && body.kinds.length > 0 ? body.kinds : ["specs", "adrs"];
+      const requested =
+        body.kinds && body.kinds.length > 0 ? body.kinds : ["specs", "adrs"];
       const unsupported = requested.filter((k) => !DOC_KINDS.has(k));
       if (unsupported.length > 0) {
-        return h.response({
-          error: `unsupported kind(s): ${unsupported.join(", ")} — only specs/adrs project here; test projection is CI-only (the lore-code-trace binary posts to the Floor ci-tests ingress)`,
-        }).code(400);
+        return h
+          .response({
+            error: `unsupported kind(s): ${unsupported.join(", ")} — only specs/adrs project here; test projection is CI-only (the lore-code-trace binary posts to the Floor ci-tests ingress)`,
+          })
+          .code(400);
       }
 
       // Each doc kind → fire-and-forget projection trigger.
       const pool = getPool();
       for (const kind of requested) {
-        void triggerAgentSpecTrace(pool, repo, kind, { commit: body.commit, force: body.force });
+        void triggerAgentSpecTrace(pool, repo, kind, {
+          commit: body.commit,
+          force: body.force,
+        });
       }
 
       return h.response({ triggered: requested });

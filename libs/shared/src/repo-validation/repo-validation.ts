@@ -60,26 +60,42 @@ function detectNode(repoRoot: string): RepoTooling | null {
 
   // Lint
   if (scripts.lint) {
-    quick.push({ name: "lint", command: "npm run lint --silent", timeoutMs: 30_000 });
+    quick.push({
+      name: "lint",
+      command: "npm run lint --silent",
+      timeoutMs: 30_000,
+    });
   } else if (
     existsSync(join(repoRoot, "eslint.config.js")) ||
     existsSync(join(repoRoot, "eslint.config.mjs")) ||
     existsSync(join(repoRoot, ".eslintrc.json")) ||
     existsSync(join(repoRoot, ".eslintrc.js"))
   ) {
-    quick.push({ name: "eslint", command: "npx eslint --quiet .", timeoutMs: 30_000 });
+    quick.push({
+      name: "eslint",
+      command: "npx eslint --quiet .",
+      timeoutMs: 30_000,
+    });
   }
 
   // Typecheck
   if (scripts.typecheck) {
-    quick.push({ name: "typecheck", command: "npm run typecheck --silent", timeoutMs: 60_000 });
+    quick.push({
+      name: "typecheck",
+      command: "npm run typecheck --silent",
+      timeoutMs: 60_000,
+    });
   } else if (existsSync(join(repoRoot, "tsconfig.json"))) {
     quick.push({ name: "tsc", command: "npx tsc --noEmit", timeoutMs: 60_000 });
   }
 
   // Build (quick check — catches import errors)
   if (scripts.build) {
-    quick.push({ name: "build", command: "npm run build --silent", timeoutMs: 60_000 });
+    quick.push({
+      name: "build",
+      command: "npm run build --silent",
+      timeoutMs: 60_000,
+    });
   }
 
   // Test (full check only — too slow for pre-flight)
@@ -132,22 +148,39 @@ function detectPython(repoRoot: string): RepoTooling | null {
   // Read pyproject.toml as text to check for tool presence
   let pyproject = "";
   if (hasPyproject) {
-    try { pyproject = readFileSync(join(repoRoot, "pyproject.toml"), "utf-8"); } catch { /* */ }
+    try {
+      pyproject = readFileSync(join(repoRoot, "pyproject.toml"), "utf-8");
+    } catch {
+      /* */
+    }
   }
 
   // Ruff (fast linter)
-  if (pyproject.includes("[tool.ruff]") || existsSync(join(repoRoot, "ruff.toml"))) {
+  if (
+    pyproject.includes("[tool.ruff]") ||
+    existsSync(join(repoRoot, "ruff.toml"))
+  ) {
     quick.push({ name: "ruff", command: "ruff check .", timeoutMs: 15_000 });
   }
 
   // Mypy
-  if (pyproject.includes("[tool.mypy]") || existsSync(join(repoRoot, "mypy.ini"))) {
+  if (
+    pyproject.includes("[tool.mypy]") ||
+    existsSync(join(repoRoot, "mypy.ini"))
+  ) {
     quick.push({ name: "mypy", command: "mypy .", timeoutMs: 60_000 });
   }
 
   // Pytest (full only)
-  if (pyproject.includes("[tool.pytest]") || existsSync(join(repoRoot, "pytest.ini"))) {
-    full.push({ name: "pytest", command: "pytest --tb=short -q", timeoutMs: 120_000 });
+  if (
+    pyproject.includes("[tool.pytest]") ||
+    existsSync(join(repoRoot, "pytest.ini"))
+  ) {
+    full.push({
+      name: "pytest",
+      command: "pytest --tb=short -q",
+      timeoutMs: 120_000,
+    });
   }
 
   if (quick.length === 0 && full.length === 0) return null;
@@ -166,11 +199,19 @@ function detectRust(repoRoot: string): RepoTooling | null {
     language: "rust",
     quickChecks: [
       { name: "cargo-check", command: "cargo check", timeoutMs: 60_000 },
-      { name: "cargo-clippy", command: "cargo clippy -- -D warnings", timeoutMs: 60_000 },
+      {
+        name: "cargo-clippy",
+        command: "cargo clippy -- -D warnings",
+        timeoutMs: 60_000,
+      },
     ],
     fullChecks: [
       { name: "cargo-check", command: "cargo check", timeoutMs: 60_000 },
-      { name: "cargo-clippy", command: "cargo clippy -- -D warnings", timeoutMs: 60_000 },
+      {
+        name: "cargo-clippy",
+        command: "cargo clippy -- -D warnings",
+        timeoutMs: 60_000,
+      },
       { name: "cargo-test", command: "cargo test", timeoutMs: 120_000 },
     ],
   };
@@ -197,7 +238,9 @@ const MAX_OUTPUT_CHARS = 5000;
 
 function truncateOutput(output: string): string {
   if (output.length <= MAX_OUTPUT_CHARS) return output;
-  return output.substring(output.length - MAX_OUTPUT_CHARS) + "\n...(truncated)";
+  return (
+    output.substring(output.length - MAX_OUTPUT_CHARS) + "\n...(truncated)"
+  );
 }
 
 /**
@@ -254,7 +297,12 @@ export async function runValidation(
     if (changedFiles && changedFiles.length > 0) {
       const relevantFiles = filterFilesByStep(step.name, changedFiles);
       if (relevantFiles.length === 0) {
-        results.push({ name: step.name, passed: true, output: "skipped (no matching files)", durationMs: 0 });
+        results.push({
+          name: step.name,
+          passed: true,
+          output: "skipped (no matching files)",
+          durationMs: 0,
+        });
         continue;
       }
       command = scopeCommandToFiles(step.name, step.command, relevantFiles);

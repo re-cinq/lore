@@ -39,7 +39,8 @@ export interface SeedTask {
 
 const GRACE_MS = 30 * 1000;
 
-const ms = (ts: string | undefined): number => (ts ? new Date(ts).getTime() : 0);
+const ms = (ts: string | undefined): number =>
+  ts ? new Date(ts).getTime() : 0;
 const isRunningOrQueued = (status?: string): boolean =>
   status === "running" || status === "queued";
 
@@ -106,7 +107,8 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
       .filter((t) => {
         if (t.status !== "pending") return false;
         if (repo && t.target_repo !== repo) return false;
-        const deps = (t.context_bundle?.depends_on as string[] | undefined) ?? [];
+        const deps =
+          (t.context_bundle?.depends_on as string[] | undefined) ?? [];
         return deps.every((depId) => depSatisfied(t, depId));
       })
       .sort((a, b) =>
@@ -136,7 +138,10 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     }));
   }
 
-  async claimSpecTask(id: string, agentId = "spec-task-executor"): Promise<boolean> {
+  async claimSpecTask(
+    id: string,
+    agentId = "spec-task-executor",
+  ): Promise<boolean> {
     const task = this.tasks.find((t) => t.id === id);
     if (!task || task.status !== "pending") return false;
     task.status = "running";
@@ -146,7 +151,8 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
 
   async completeSpecTask(id: string): Promise<CompletedSpecTask> {
     const task = this.tasks.find((t) => t.id === id);
-    if (!task || task.status !== "running") return { completed: false, unblocked: [] };
+    if (!task || task.status !== "running")
+      return { completed: false, unblocked: [] };
     task.status = "completed";
 
     const specTaskId = task.context_bundle?.spec_task_id as string | undefined;
@@ -154,7 +160,10 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     if (!specTaskId || !specSlug) return { completed: true, unblocked: [] };
 
     const ready = await this.findReadySpecTasks(task.target_repo);
-    return { completed: true, unblocked: unblockedBy(ready, specSlug, specTaskId) };
+    return {
+      completed: true,
+      unblocked: unblockedBy(ready, specSlug, specTaskId),
+    };
   }
 
   async awaitingApproval(): Promise<AwaitingApprovalTask[]> {
@@ -184,12 +193,20 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
   }
 
   async reviewable(): Promise<ReviewableTask[]> {
-    return this.tasks.filter((t) => this.isReviewable(t)).map((t) => this.toReviewable(t));
+    return this.tasks
+      .filter((t) => this.isReviewable(t))
+      .map((t) => this.toReviewable(t));
   }
 
-  async reviewableForPR(repo: string, prNumber: number): Promise<ReviewableTask | null> {
+  async reviewableForPR(
+    repo: string,
+    prNumber: number,
+  ): Promise<ReviewableTask | null> {
     const task = this.tasks.find(
-      (t) => this.isReviewable(t) && t.target_repo === repo && t.pr_number === prNumber,
+      (t) =>
+        this.isReviewable(t) &&
+        t.target_repo === repo &&
+        t.pr_number === prNumber,
     );
     return task ? this.toReviewable(task) : null;
   }
@@ -197,7 +214,8 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
   async incrementReviewIteration(taskId: string): Promise<number> {
     const task = this.tasks.find((t) => t.id === taskId);
     if (!task) return 1;
-    const next = ((task.review_iteration as number | null | undefined) ?? 0) + 1;
+    const next =
+      ((task.review_iteration as number | null | undefined) ?? 0) + 1;
     task.review_iteration = next;
     return next;
   }
@@ -205,7 +223,9 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
   private isReviewable(t: SeedTask): boolean {
     const iteration = t.review_iteration as number | null | undefined;
     return (
-      (t.status === "pr-created" || t.status === "review" || t.status === "revision-requested") &&
+      (t.status === "pr-created" ||
+        t.status === "review" ||
+        t.status === "revision-requested") &&
       t.pr_number != null &&
       (iteration == null || iteration < 3)
     );
@@ -220,7 +240,8 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
       pr_number: t.pr_number as number,
       pr_url: (t.pr_url as string) ?? "",
       issue_number: t.issue_number ?? null,
-      review_iteration: (t.review_iteration as number | null | undefined) ?? null,
+      review_iteration:
+        (t.review_iteration as number | null | undefined) ?? null,
       target_branch: (t.target_branch as string) ?? "",
     };
   }
@@ -243,7 +264,9 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
         task_type: t.task_type ?? "",
         description: (t.description as string) ?? "",
         created_at: t.created_at ?? "",
-        context_bundle: (t.context_bundle as { feature_id?: string; slug?: string } | null) ?? null,
+        context_bundle:
+          (t.context_bundle as { feature_id?: string; slug?: string } | null) ??
+          null,
       }));
   }
 
@@ -269,26 +292,36 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
       task_type: input.taskType,
       target_repo: input.targetRepo,
       status: input.status ?? "pending",
-      context_bundle: (input.contextBundle as Record<string, unknown> | null) ?? null,
+      context_bundle:
+        (input.contextBundle as Record<string, unknown> | null) ?? null,
       task_group_id: input.taskGroupId ?? null,
     });
     return id;
   }
 
-  async setColumns(taskId: string, columns: Record<string, unknown>): Promise<void> {
+  async setColumns(
+    taskId: string,
+    columns: Record<string, unknown>,
+  ): Promise<void> {
     const task = this.tasks.find((t) => t.id === taskId);
     if (!task) return;
     Object.assign(task, columns);
   }
 
-  async latestTaskByPr(repo: string, prNumber: number): Promise<{ id: string } | null> {
+  async latestTaskByPr(
+    repo: string,
+    prNumber: number,
+  ): Promise<{ id: string } | null> {
     const matches = this.tasks
       .filter((t) => t.target_repo === repo && t.pr_number === prNumber)
       .sort((a, b) => ms(b.created_at) - ms(a.created_at));
     return matches[0] ? { id: matches[0].id } : null;
   }
 
-  async activeTaskByIssue(repo: string, issueNumber: number): Promise<{ id: string } | null> {
+  async activeTaskByIssue(
+    repo: string,
+    issueNumber: number,
+  ): Promise<{ id: string } | null> {
     const task = this.tasks.find(
       (t) =>
         t.issue_number === issueNumber &&
@@ -299,7 +332,10 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     return task ? { id: task.id } : null;
   }
 
-  async markFeatureRequestMergedOnBranch(repo: string, branch: string): Promise<void> {
+  async markFeatureRequestMergedOnBranch(
+    repo: string,
+    branch: string,
+  ): Promise<void> {
     for (const t of this.tasks) {
       if (
         t.task_type === "feature-request" &&
