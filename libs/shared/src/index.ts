@@ -314,6 +314,7 @@ export { LORE_TESTS_INSTRUCTION } from "./lore-tests-instruction.js";
 export { allPathsMatch, matchingPatterns } from "./path-match.js";
 export {
   classifyError,
+  errorMessage,
   summarizeFailures,
   TaskFailure,
   type FailureCategory,

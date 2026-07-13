@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * Agent CR (agents.re-cinq.com) processing (ADR-031). The decisions that differ
  * from a LoreTask (Agent.status carries no changedFiles / reviewResult / taskType,
@@ -280,7 +281,7 @@ async function patchAgentStatus(
       namespace,
       plural: PLURAL,
       name,
-    })) as any;
+    })) as { status?: Record<string, unknown>; [key: string]: unknown };
 
     await k8sApi.replaceNamespacedCustomObjectStatus({
       group: GROUP,
@@ -429,9 +430,9 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
     const base = await proj.repo.defaultBranch();
 
     changedFiles = await proj.pulls.changedFileCount(base, branch);
-  } catch (err: any) {
+  } catch (err) {
     console.warn(
-      `[agent-watcher] changed-file count failed for ${taskId}: ${err.message}`,
+      `[agent-watcher] changed-file count failed for ${taskId}: ${errorMessage(err)}`,
     );
   }
 
@@ -444,9 +445,9 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
           feature_planning: true,
         });
         await patchAgentStatus(k8sApi, name, { prUrl: "feature-planning" });
-      } catch (err: any) {
+      } catch (err) {
         console.error(
-          `[agent-watcher] feature-planning completion failed for ${taskId}: ${err.message}`,
+          `[agent-watcher] feature-planning completion failed for ${taskId}: ${errorMessage(err)}`,
         );
       }
 
@@ -519,9 +520,9 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       console.log(
         `[agent-watcher] Task ${taskId} completed → issue #${issue_number || "none"}`,
       );
-    } catch (err: any) {
+    } catch (err) {
       console.error(
-        `[agent-watcher] Failed to complete no-change task ${taskId}: ${err.message}`,
+        `[agent-watcher] Failed to complete no-change task ${taskId}: ${errorMessage(err)}`,
       );
     }
 
@@ -585,9 +586,9 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
             ...(slug ? { spec_path: `specs/${slug}/spec.md` } : {}),
           });
         }
-      } catch (err: any) {
+      } catch (err) {
         console.warn(
-          `[agent-watcher] feature-finalize link failed for ${taskId}: ${err.message}`,
+          `[agent-watcher] feature-finalize link failed for ${taskId}: ${errorMessage(err)}`,
         );
       }
     }
@@ -657,8 +658,8 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
         `[agent-watcher] Auto-review: created review task ${reviewTaskId} for PR #${pr.number}`,
       );
     }
-  } catch (err: any) {
-    const msg = String(err?.message || err);
+  } catch (err) {
+    const msg = String(errorMessage(err) || err);
 
     console.error(`[agent-watcher] Failed to create PR for ${taskId}: ${msg}`);
     const isNoCommits = /No commits between/i.test(msg);

@@ -22,18 +22,18 @@ export function getPool(): pg.Pool {
   return pool;
 }
 
-export async function query<T = any>(
+export async function query<T = Record<string, unknown>>(
   text: string,
-  params?: any[],
+  params?: unknown[],
 ): Promise<T[]> {
   const { rows } = await getPool().query(text, params);
 
   return rows as T[];
 }
 
-export async function queryOne<T = any>(
+export async function queryOne<T = Record<string, unknown>>(
   text: string,
-  params?: any[],
+  params?: unknown[],
 ): Promise<T | null> {
   const rows = await query<T>(text, params);
 

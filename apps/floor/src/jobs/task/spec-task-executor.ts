@@ -49,7 +49,8 @@ export async function specTaskExecutorJob(): Promise<string> {
 
   const implConfig = getTaskTypeConfig("implementation");
   const timeoutMinutes = implConfig?.timeout_minutes || 90;
-  const model = (implConfig as any)?.model || "claude-sonnet-4-6";
+  const model =
+    (implConfig as { model?: string })?.model || "claude-sonnet-4-6";
 
   let dispatched = 0;
 

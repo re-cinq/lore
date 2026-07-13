@@ -1,3 +1,4 @@
+import type { PipelineTask } from "@re-cinq/lore-shared";
 /**
  * Cluster task handler.
  *
@@ -18,12 +19,12 @@ import { agentPrompt } from "../../kernel/agent-invocation.js";
  * completes.
  */
 export async function handleClaudeCodeTask(
-  task: any,
+  task: PipelineTask,
   targetRepo: string,
   branchName: string,
   model: string | undefined,
   _issueNumber: number | null,
-  repoOverrides?: any,
+  repoOverrides?: Record<string, unknown>,
   darkFactoryAssemblyLine?: string,
   darkFactoryBaseBranch?: string,
   image?: string,
@@ -39,7 +40,7 @@ export async function handleClaudeCodeTask(
   );
   const timeoutMinutes =
     agentDef?.timeout_minutes ||
-    repoOverrides?.timeout_minutes ||
+    (repoOverrides?.timeout_minutes as number | undefined) ||
     getTaskTypeConfig(task.task_type)?.timeout_minutes ||
     30;
 

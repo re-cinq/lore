@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../composition/project-boot.js";
 import { chunks, settings } from "../../../kernel/queues.js";
 import {
@@ -207,9 +208,9 @@ export async function reindexJob(): Promise<string> {
           if (ingested) {
             repoFileCount++;
           }
-        } catch (err: any) {
+        } catch (err) {
           console.error(
-            `[job] Error processing ${repo.full_name}:${filePath}: ${err.message}`,
+            `[job] Error processing ${repo.full_name}:${filePath}: ${errorMessage(err)}`,
           );
         }
       }
@@ -222,8 +223,8 @@ export async function reindexJob(): Promise<string> {
       console.log(
         `[job] Finished ${repo.full_name}: ${repoFileCount} files reindexed`,
       );
-    } catch (err: any) {
-      console.error(`[job] Error reindexing ${repo.full_name}: ${err.message}`);
+    } catch (err) {
+      console.error(`[job] Error reindexing ${repo.full_name}: ${errorMessage(err)}`);
     }
   }
 

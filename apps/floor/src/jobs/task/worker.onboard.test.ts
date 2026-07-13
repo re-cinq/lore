@@ -1,3 +1,4 @@
+import type { PipelineTask } from "@re-cinq/lore-shared";
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
@@ -90,7 +91,7 @@ beforeEach(() => {
 describe("handleOnboard", () => {
   it("commits the ingest workflow even when the repo already has a .github directory", async () => {
     await handleOnboard(
-      { id: "task-1" },
+      { id: "task-1" } as unknown as PipelineTask,
       "re-cinq/app",
       "lore/onboard",
       undefined,
@@ -107,7 +108,7 @@ describe("handleOnboard", () => {
 
   it("opens the PR after creating the branch and committing the workflow", async () => {
     await handleOnboard(
-      { id: "task-1" },
+      { id: "task-1" } as unknown as PipelineTask,
       "re-cinq/app",
       "lore/onboard",
       undefined,

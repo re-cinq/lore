@@ -1,3 +1,4 @@
+import type { PipelineTask } from "@re-cinq/lore-shared";
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Llm, FakeLlm } from "@re-cinq/lore-shared";
@@ -79,7 +80,7 @@ describe("handleFeatureRequest", () => {
     );
 
     await handleFeatureRequest(
-      { id: "task-1", description: "Add health checks" },
+      { id: "task-1", description: "Add health checks" } as unknown as PipelineTask,
       "re-cinq/app",
       "lore/spec",
       undefined,
@@ -101,7 +102,7 @@ describe("handleFeatureRequest", () => {
 
     await expect(
       handleFeatureRequest(
-        { id: "task-1", description: "Add health checks" },
+        { id: "task-1", description: "Add health checks" } as unknown as PipelineTask,
         "re-cinq/app",
         "lore/spec",
         undefined,

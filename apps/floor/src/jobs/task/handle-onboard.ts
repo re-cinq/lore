@@ -1,3 +1,5 @@
+import type { PipelineTask } from "@re-cinq/lore-shared";
+import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Onboard handler (per-file LLM calls).
@@ -172,7 +174,7 @@ const ADR_TOPICS = [
 ];
 
 export async function handleOnboard(
-  task: any,
+  task: PipelineTask,
   targetRepo: string,
   branchName: string,
   model: string | undefined,
@@ -227,9 +229,9 @@ export async function handleOnboard(
 
     settingsTestCommands = (repoSettings as { test_commands?: unknown } | null)
       ?.test_commands;
-  } catch (err: any) {
+  } catch (err) {
     console.warn(
-      `[floor] Onboard: could not read repo settings for test-interface check: ${err.message}`,
+      `[floor] Onboard: could not read repo settings for test-interface check: ${errorMessage(err)}`,
     );
   }
   const interfaceCheck = decideTestInterfaceCheck({
@@ -304,11 +306,11 @@ export async function handleOnboard(
     console.log(
       `[floor] Onboard: committed ${LORE_INGEST_WORKFLOW_PATH} (workflow)`,
     );
-  } catch (err: any) {
+  } catch (err) {
     console.error(
-      `[floor] Onboard: failed ${LORE_INGEST_WORKFLOW_PATH}: ${err.message}`,
+      `[floor] Onboard: failed ${LORE_INGEST_WORKFLOW_PATH}: ${errorMessage(err)}`,
     );
-    failures.push({ step: LORE_INGEST_WORKFLOW_PATH, error: err.message });
+    failures.push({ step: LORE_INGEST_WORKFLOW_PATH, error: errorMessage(err) });
   }
 
   // Always (re)install the advisory spec-impact workflow alongside ingest. It is
@@ -325,11 +327,11 @@ export async function handleOnboard(
     console.log(
       `[floor] Onboard: committed ${TRACE_IMPACT_WORKFLOW_PATH} (workflow)`,
     );
-  } catch (err: any) {
+  } catch (err) {
     console.error(
-      `[floor] Onboard: failed ${TRACE_IMPACT_WORKFLOW_PATH}: ${err.message}`,
+      `[floor] Onboard: failed ${TRACE_IMPACT_WORKFLOW_PATH}: ${errorMessage(err)}`,
     );
-    failures.push({ step: TRACE_IMPACT_WORKFLOW_PATH, error: err.message });
+    failures.push({ step: TRACE_IMPACT_WORKFLOW_PATH, error: errorMessage(err) });
   }
 
   // 5. Commit static files first
@@ -347,9 +349,9 @@ export async function handleOnboard(
         );
         committed.push(sf.path);
         console.log(`[floor] Onboard: committed ${sf.path} (static)`);
-      } catch (err: any) {
-        console.error(`[floor] Onboard: failed ${sf.path}: ${err.message}`);
-        failures.push({ step: sf.path, error: err.message });
+      } catch (err) {
+        console.error(`[floor] Onboard: failed ${sf.path}: ${errorMessage(err)}`);
+        failures.push({ step: sf.path, error: errorMessage(err) });
       }
     }
   }
@@ -385,11 +387,11 @@ export async function handleOnboard(
       console.log(
         `[floor] Onboard: committed ${file.path} (${text.length} chars)`,
       );
-    } catch (err: any) {
+    } catch (err) {
       console.error(
-        `[floor] Onboard: failed to generate ${file.path}: ${err.message}`,
+        `[floor] Onboard: failed to generate ${file.path}: ${errorMessage(err)}`,
       );
-      failures.push({ step: file.path, error: err.message });
+      failures.push({ step: file.path, error: errorMessage(err) });
       // Continue with other files — don't fail the whole task
     }
   }
@@ -458,9 +460,9 @@ export async function handleOnboard(
       await project.settings.setRepoSecret("LORE_INGEST_TOKEN", ingestToken);
     }
     console.log(`[floor] Configured ingest secrets on ${targetRepo}`);
-  } catch (err: any) {
+  } catch (err) {
     console.error(
-      `[floor] Failed to set ingest secrets on ${targetRepo}: ${err.message}`,
+      `[floor] Failed to set ingest secrets on ${targetRepo}: ${errorMessage(err)}`,
     );
     // Non-fatal — PR still created, secrets can be set manually
   }

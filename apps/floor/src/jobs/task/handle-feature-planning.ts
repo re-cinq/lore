@@ -1,3 +1,5 @@
+import type { PipelineTask } from "@re-cinq/lore-shared";
+import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * In-process feature-planning handler (ADR-027, revised for local + cluster).
  *
@@ -23,11 +25,15 @@ import { fetchRepoContext } from "./repo-context.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 
 export async function handleFeaturePlanning(
-  task: any,
+  task: PipelineTask,
   targetRepo: string,
 ): Promise<void> {
-  const featureId: string | undefined = task.context_bundle?.feature_id;
-  const iteration: number | undefined = task.context_bundle?.iteration;
+  const featureId: string | undefined = task.context_bundle?.feature_id as
+    | string
+    | undefined;
+  const iteration: number | undefined = task.context_bundle?.iteration as
+    | number
+    | undefined;
 
   enforceTrue(
     featureId && iteration != null,
@@ -76,7 +82,7 @@ export async function handleFeaturePlanning(
     console.log(
       `[floor] feature-planning round ${iteration} ready for feature ${featureId}`,
     );
-  } catch (err: any) {
+  } catch (err) {
     // Surface the failure: mark the iteration failed; re-throw so the task is
     // recorded as failed too. Only drop the feature to 'draft' if no round ever
     // produced a result (else keep the prior status). Guard the move so a stale
@@ -93,10 +99,10 @@ export async function handleFeaturePlanning(
     ) {
       await features.transitionStatus(featureId, "draft").catch(() => {});
     }
-    await setStatus(task.id, "failed", { failure_reason: err.message });
-    await insertEvent(task.id, "running", "failed", { reason: err.message });
+    await setStatus(task.id, "failed", { failure_reason: errorMessage(err) });
+    await insertEvent(task.id, "running", "failed", { reason: errorMessage(err) });
     console.error(
-      `[floor] feature-planning round ${iteration} failed for feature ${featureId}: ${err.message}`,
+      `[floor] feature-planning round ${iteration} failed for feature ${featureId}: ${errorMessage(err)}`,
     );
     throw err;
   }

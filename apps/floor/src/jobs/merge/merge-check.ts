@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import {
   taskStore,
   taskQueue,
@@ -216,9 +217,9 @@ async function handleMergedTask(
   if (task.task_type === "feature-request") {
     try {
       await syncSpecTasksFromMerge(task);
-    } catch (err: any) {
+    } catch (err) {
       console.error(
-        `[job] merge-check: spec-task sync failed for ${task.id}: ${err.message}`,
+        `[job] merge-check: spec-task sync failed for ${task.id}: ${errorMessage(err)}`,
       );
     }
   }
@@ -242,9 +243,9 @@ async function handleMergedTask(
       console.log(
         `[job] merge-check: kicked feature-decompose for ${decompose.slug ?? decompose.featureId}`,
       );
-    } catch (err: any) {
+    } catch (err) {
       console.error(
-        `[job] merge-check: could not kick decompose for ${task.id}: ${err.message}`,
+        `[job] merge-check: could not kick decompose for ${task.id}: ${errorMessage(err)}`,
       );
     }
   }

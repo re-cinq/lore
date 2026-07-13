@@ -109,3 +109,11 @@ export class TaskFailure extends Error {
     this.details = details;
   }
 }
+
+/**
+ * Best-effort human message for an unknown caught value. Use in `catch (e)`
+ * blocks (where `e` is `unknown`) instead of typing the binding `any`.
+ */
+export function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}

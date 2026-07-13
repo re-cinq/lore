@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../composition/project-boot.js";
 
@@ -43,9 +44,9 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
 
   try {
     tree = await project.repo.list("");
-  } catch (err: any) {
+  } catch (err) {
     console.error(
-      `[floor] Failed to fetch tree for ${fullName}: ${err.message}`,
+      `[floor] Failed to fetch tree for ${fullName}: ${errorMessage(err)}`,
     );
   }
 
@@ -60,9 +61,9 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
         if (content !== null) {
           files[path] = content;
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error(
-          `[floor] Error fetching ${fullName}/${path}: ${err.message}`,
+          `[floor] Error fetching ${fullName}/${path}: ${errorMessage(err)}`,
         );
       }
     }),
@@ -80,8 +81,8 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
 
     try {
       entries = await project.repo.list(dir);
-    } catch (err: any) {
-      console.error(`[floor] Error listing ${fullName}/${dir}: ${err.message}`);
+    } catch (err) {
+      console.error(`[floor] Error listing ${fullName}/${dir}: ${errorMessage(err)}`);
       continue;
     }
 
@@ -99,9 +100,9 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
 
           samples[entryPath] = first200;
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error(
-          `[floor] Error fetching sample ${fullName}/${entryPath}: ${err.message}`,
+          `[floor] Error fetching sample ${fullName}/${entryPath}: ${errorMessage(err)}`,
         );
       }
     }

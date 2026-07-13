@@ -128,8 +128,13 @@ async function checkAndProcessPR(task: PendingTask): Promise<boolean> {
 
 async function processReviewFeedback(
   task: PendingTask,
-  reviews: any[],
-  comments: any[],
+  reviews: { user?: string | null; body?: string | null }[],
+  comments: {
+    user?: string | null;
+    body?: string | null;
+    path?: string | null;
+    line?: number | null;
+  }[],
 ): Promise<void> {
   const project = await projectFor(task.target_repo);
   // Get the PR diff

@@ -39,7 +39,11 @@ function labelNames(labels: unknown): string[] {
 }
 
 /** Comment identity the code-review reply handler needs — author drives the bot-loop guard. */
-function commentParams(comment: any): {
+function commentParams(comment: {
+  id: number;
+  user?: { login?: string };
+  body?: string;
+}): {
   comment_id: number;
   comment_author: string;
   comment_body: string;
@@ -53,6 +57,7 @@ function commentParams(comment: any): {
 
 export function mapGitHubEvent(
   eventType: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub webhook payload; shape varies by event type and is navigated defensively below
   payload: any,
   deliveryId: string,
 ): EventInput[] {

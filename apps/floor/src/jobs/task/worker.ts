@@ -1,3 +1,5 @@
+import type { PipelineTask } from "@re-cinq/lore-shared";
+import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Core task processing worker.
@@ -133,7 +135,7 @@ async function pollOnce(): Promise<void> {
 
 // ── Task processing ───────────────────────────────────────────────────
 
-async function processTask(task: any): Promise<void> {
+async function processTask(task: PipelineTask): Promise<void> {
   const agentId = `lore-agent-${task.id.substring(0, 8)}`;
   const targetRepo = task.target_repo || "re-cinq/lore";
   const project = await projectFor(targetRepo);
@@ -195,10 +197,19 @@ async function processTask(task: any): Promise<void> {
 
   try {
     // Fetch per-repo settings for prompt customization
-    let repoSettings: any = {};
+    let repoSettings: {
+      task_overrides?: Record<
+        string,
+        { model?: string; system_prompt_suffix?: string }
+      >;
+      dark_factory?: { enabled?: boolean };
+      [key: string]: unknown;
+    } = {};
 
     try {
-      repoSettings = (await settings().rawSettings(targetRepo)) ?? {};
+      repoSettings =
+        ((await settings().rawSettings(targetRepo)) as typeof repoSettings) ??
+        {};
     } catch {
       /* non-fatal */
     }
@@ -213,7 +224,10 @@ async function processTask(task: any): Promise<void> {
     const repoOverrides = repoSettings.task_overrides?.[task.task_type];
 
     // Determine branch — use existing branch for revision tasks
-    const contextBundle = task.context_bundle || {};
+    const contextBundle = (task.context_bundle || {}) as {
+      branch?: string;
+      feedback?: string;
+    };
     const slug = slugify(task.description);
     const branchName =
       contextBundle.branch ||
@@ -297,9 +311,9 @@ async function processTask(task: any): Promise<void> {
       if (darkFactoryAssemblyLine) {
         try {
           darkFactoryBaseBranch = await project.repo.defaultBranch();
-        } catch (err: any) {
+        } catch (err) {
           console.warn(
-            `[floor] default-branch lookup failed for ${targetRepo}: ${err.message}`,
+            `[floor] default-branch lookup failed for ${targetRepo}: ${errorMessage(err)}`,
           );
         }
       }
@@ -308,7 +322,7 @@ async function processTask(task: any): Promise<void> {
       // the platform default, which equals the controller's default, so
       // unconfigured repos see no change.
       const executionImage = resolveExecutionImage(
-        repoSettings,
+        repoSettings as Parameters<typeof resolveExecutionImage>[0],
         task.task_type,
       );
 
@@ -325,8 +339,8 @@ async function processTask(task: any): Promise<void> {
         agentDef,
       );
     }
-  } catch (err: any) {
-    const failureReason: string = err.message;
+  } catch (err) {
+    const failureReason: string = errorMessage(err);
     const meta =
       err instanceof TaskFailure
         ? { error: failureReason, details: err.details }
@@ -359,7 +373,7 @@ async function processTask(task: any): Promise<void> {
  * result). Returns the resolved issue number (or null).
  */
 async function ensureIssue(
-  task: any,
+  task: PipelineTask,
   targetRepo: string,
   project: Project,
   isFeaturePlanningType: boolean,
@@ -399,10 +413,10 @@ async function ensureIssue(
         issue_url: issue.url,
       });
       console.log(`[floor] Created issue #${issue.number} on ${targetRepo}`);
-    } catch (err: any) {
+    } catch (err) {
       // Non-fatal — proceed without issue if GitHub App lacks permission
       console.warn(
-        `[floor] Could not create issue on ${targetRepo}: ${err.message}`,
+        `[floor] Could not create issue on ${targetRepo}: ${errorMessage(err)}`,
       );
     }
   } else if (issueNumber) {
@@ -424,7 +438,7 @@ async function ensureIssue(
  * was parked (the caller must not proceed), false to continue processing.
  */
 async function awaitApprovalIfRequired(
-  task: any,
+  task: PipelineTask,
   targetRepo: string,
   project: Project,
   issueNumber: number | null,

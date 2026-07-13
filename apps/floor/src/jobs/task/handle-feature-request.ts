@@ -1,3 +1,5 @@
+import type { PipelineTask } from "@re-cinq/lore-shared";
+import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Feature request handler.
@@ -32,7 +34,7 @@ import {
  * 5. Opens a PR with all artifacts for engineer review
  */
 export async function handleFeatureRequest(
-  task: any,
+  task: PipelineTask,
   targetRepo: string,
   branchName: string,
   model: string | undefined,
@@ -54,7 +56,7 @@ export async function handleFeatureRequest(
     );
 
     if (specs.length > 0) {
-      existingSpecExample = `\n\n## Existing Spec Example (match this format)\n\n${(specs[0] as any).content.substring(0, 3000)}`;
+      existingSpecExample = `\n\n## Existing Spec Example (match this format)\n\n${(specs[0] as { content: string }).content.substring(0, 3000)}`;
     }
   } catch {
     /* no specs in DB yet, that's fine */
@@ -154,9 +156,9 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
       console.log(
         `[floor] Feature request: committed ${file.path} (${text.length} chars)`,
       );
-    } catch (err: any) {
+    } catch (err) {
       console.error(
-        `[floor] Feature request: failed ${file.path}: ${err.message}`,
+        `[floor] Feature request: failed ${file.path}: ${errorMessage(err)}`,
       );
     }
   }

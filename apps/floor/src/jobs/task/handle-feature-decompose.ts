@@ -1,3 +1,5 @@
+import type { PipelineTask } from "@re-cinq/lore-shared";
+import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * In-process feature-decompose handler (ADR-029).
  *
@@ -49,10 +51,12 @@ export function decideDecomposeKick(task: FinalizeTaskShape): {
 }
 
 export async function handleFeatureDecompose(
-  task: any,
+  task: PipelineTask,
   targetRepo: string,
 ): Promise<void> {
-  const featureId: string | undefined = task.context_bundle?.feature_id;
+  const featureId: string | undefined = task.context_bundle?.feature_id as
+    | string
+    | undefined;
 
   enforceTrue(
     featureId,
@@ -131,9 +135,9 @@ export async function handleFeatureDecompose(
 
           storyIssue = issue.number;
           storiesCreated++;
-        } catch (err: any) {
+        } catch (err) {
           console.warn(
-            `[floor] feature-decompose: could not create Issue for story "${story.title}": ${err.message}`,
+            `[floor] feature-decompose: could not create Issue for story "${story.title}": ${errorMessage(err)}`,
           );
         }
       }
@@ -169,11 +173,11 @@ export async function handleFeatureDecompose(
     console.log(
       `[floor] feature-decompose: ${specSlug} → ${storiesCreated} stories, ${tasksCreated} spec-tasks (group ${taskGroupId})`,
     );
-  } catch (err: any) {
-    await setStatus(task.id, "failed", { failure_reason: err.message });
-    await insertEvent(task.id, "running", "failed", { reason: err.message });
+  } catch (err) {
+    await setStatus(task.id, "failed", { failure_reason: errorMessage(err) });
+    await insertEvent(task.id, "running", "failed", { reason: errorMessage(err) });
     console.error(
-      `[floor] feature-decompose failed for feature ${featureId}: ${err.message}`,
+      `[floor] feature-decompose failed for feature ${featureId}: ${errorMessage(err)}`,
     );
     throw err;
   }

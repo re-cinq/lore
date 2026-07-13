@@ -1,3 +1,4 @@
+import type { PipelineTask } from "@re-cinq/lore-shared";
 import {
   prFooter,
   type Project,
@@ -65,7 +66,7 @@ export function stationLogTail(
  *    feature-finalize) flip the feature to pr-open.
  */
 export async function finalizeStationRun(opts: {
-  task: any;
+  task: PipelineTask;
   targetRepo: string;
   branch: string;
   completion: StationCompletion;
@@ -88,13 +89,16 @@ export async function finalizeStationRun(opts: {
     ) {
       await project.features
         .setIterationResult(
-          task.context_bundle.feature_id,
-          task.context_bundle.iteration,
+          task.context_bundle.feature_id as string,
+          task.context_bundle.iteration as number,
           null,
           "failed",
         )
         .catch(() => {});
-      await revertFeatureAfterFailure(project, task.context_bundle.feature_id);
+      await revertFeatureAfterFailure(
+        project,
+        task.context_bundle.feature_id as string,
+      );
     }
     await setStatus(task.id, "failed", { failure_reason: reason });
     await insertEvent(task.id, "running", "failed", {
@@ -189,7 +193,7 @@ export async function finalizeStationRun(opts: {
     const slug = task.context_bundle.slug as string | undefined;
 
     await project.features.transitionStatus(
-      task.context_bundle.feature_id,
+      task.context_bundle.feature_id as string,
       "pr-open",
       {
         spec_pr_url: pr.url,

@@ -1,3 +1,5 @@
+import type { PipelineTask } from "@re-cinq/lore-shared";
+import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * In-process feature-finalize handler (ADR-027, revised for local + cluster).
  *
@@ -13,10 +15,12 @@ import { projectFor } from "../../composition/project-boot.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 
 export async function handleFeatureFinalize(
-  task: any,
+  task: PipelineTask,
   targetRepo: string,
 ): Promise<void> {
-  const featureId: string | undefined = task.context_bundle?.feature_id;
+  const featureId: string | undefined = task.context_bundle?.feature_id as
+    | string
+    | undefined;
 
   enforceTrue(
     featureId,
@@ -62,9 +66,9 @@ export async function handleFeatureFinalize(
 
         issueNumber = issue.number;
         issueUrl = issue.url;
-      } catch (err: any) {
+      } catch (err) {
         console.warn(
-          `[floor] feature-finalize: could not create user-story Issue: ${err.message}`,
+          `[floor] feature-finalize: could not create user-story Issue: ${errorMessage(err)}`,
         );
       }
     }
@@ -97,11 +101,11 @@ export async function handleFeatureFinalize(
     console.log(
       `[floor] feature-finalize: feature ${featureId} → PR ${pr.url}`,
     );
-  } catch (err: any) {
-    await setStatus(task.id, "failed", { failure_reason: err.message });
-    await insertEvent(task.id, "running", "failed", { reason: err.message });
+  } catch (err) {
+    await setStatus(task.id, "failed", { failure_reason: errorMessage(err) });
+    await insertEvent(task.id, "running", "failed", { reason: errorMessage(err) });
     console.error(
-      `[floor] feature-finalize failed for feature ${featureId}: ${err.message}`,
+      `[floor] feature-finalize failed for feature ${featureId}: ${errorMessage(err)}`,
     );
     throw err;
   }
