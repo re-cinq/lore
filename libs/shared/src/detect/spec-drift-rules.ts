@@ -20,6 +20,7 @@ const NON_ASSERTION_BASENAMES = new Set([
 export function isAssertionSource(filePath: string): boolean {
   const file = filePath.split("/").pop() || filePath;
   const stem = file.replace(/\.[^.]+$/, "").toLowerCase();
+
   return !NON_ASSERTION_BASENAMES.has(stem);
 }
 
@@ -53,12 +54,15 @@ export function shouldSkipDrift(
   now: Date,
 ): boolean {
   return existing.some((t) => {
-    if (OPEN_STATES.has(t.status)) return true;
+    if (OPEN_STATES.has(t.status)) {
+      return true;
+    }
     const cooldownDays =
       t.status === "failed"
         ? DRIFT_FAILED_REFILE_COOLDOWN_DAYS
         : DRIFT_REFILE_COOLDOWN_DAYS;
     const age = now.getTime() - new Date(t.created_at).getTime();
+
     return age < cooldownDays * 86400_000;
   });
 }
@@ -104,6 +108,7 @@ export function decideGraphDrift(doc: TraceDocument): GraphDriftDecision {
         line: l.line,
       })),
     }));
+
   return {
     available: (doc.statements?.length ?? 0) > 0,
     drifted: statements.length > 0,
@@ -158,5 +163,6 @@ export function decideHeuristicDrift(
   const drifted =
     divergence > DIVERGENCE_THRESHOLD &&
     missing.length >= MIN_MISSING_ASSERTIONS;
+
   return { drifted, missing, divergence, scored: scorable.length };
 }

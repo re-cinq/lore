@@ -49,11 +49,13 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
 
   async function xidUid(xid: string): Promise<string | undefined> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query q($xid: string) { n(func: eq(Statement.xid, $xid)) { uid } }`,
         { $xid: xid },
       );
+
       return (res.data as { n?: { uid: string }[] }).n?.[0]?.uid;
     } finally {
       await txn.discard().catch(() => {});
@@ -61,9 +63,13 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
   }
 
   let createdRepo = "";
+
   afterEach(async () => {
-    if (!createdRepo) return;
+    if (!createdRepo) {
+      return;
+    }
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query q($r: string) { specs(func: eq(Spec.repo, $r)) { uid } blocks(func: eq(Block.repo, $r)) { uid } }`,
@@ -76,6 +82,7 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
       const uids = [...(data.specs ?? []), ...(data.blocks ?? [])].map(
         (n) => n.uid,
       );
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((u) => `<${u}> * * .`).join("\n"),
@@ -91,10 +98,12 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
 
   it("resolves a spec-title + statement-sentence test name to the statement uid", async () => {
     const repo = `test-sent/${randomUUID()}`;
+
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const content =
       "# Feature Specification: Widget Service\n\n## Success Criteria\n\n1. Onboarding a new repo produces a\n   PR within 5 minutes\n";
+
     await projectSpecFile(
       repo,
       filePath,
@@ -110,11 +119,13 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
     });
 
     const expectedUid = await xidUid(`${repo}|${filePath}|0`);
+
     expect(matched).toEqual([{ uid: expectedUid, nodeType: "Statement" }]);
   });
 
   it("returns an empty array when the sentence matches no statement", async () => {
     const repo = `test-sent/${randomUUID()}`;
+
     createdRepo = repo;
     await projectSpecFile(
       repo,

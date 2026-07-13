@@ -82,6 +82,7 @@ describe("buildBranchName", () => {
     });
     // Slug is between "lore/<type>/" and "-<id8>"; verify the length cap.
     const slug = branch.replace(/^lore\/[^/]+\//, "").replace(/-33333333$/, "");
+
     expect(slug.length).toBeLessThanOrEqual(30);
   });
 

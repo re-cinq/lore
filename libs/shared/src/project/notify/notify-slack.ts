@@ -39,9 +39,11 @@ export class NotifySlack implements NotifyPort {
 
     const token = this.env.LORE_SLACK_BOT_TOKEN;
     const channel = row?.settings?.slack_channel_id;
+
     if (decision.fire && token && channel) {
       await this.post(token, channel, message);
     }
+
     return decision;
   }
 

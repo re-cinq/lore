@@ -24,9 +24,16 @@ export default async function NewAgent({
   ): Promise<AgentFormState> {
     "use server";
     const { name, def, approvalPr } = parseAgentForm(formData);
-    if (!name) return { error: "name required" };
+
+    if (!name) {
+      return { error: "name required" };
+    }
     const r = await saveAgent(fullName, def, false, approvalPr);
-    if (r.status === "ok") redirect(`/repos/${fullName}/agents`);
+
+    if (r.status === "ok") {
+      redirect(`/repos/${fullName}/agents`);
+    }
+
     return saveResultToState(r);
   }
 

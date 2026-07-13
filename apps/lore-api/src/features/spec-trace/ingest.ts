@@ -1,3 +1,5 @@
+import type { Pool } from "pg";
+import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Incremental file ingestion module.
@@ -28,31 +30,36 @@ export interface IngestResult {
 
 const SCHEMA_RE = /^[a-z][a-z0-9_]{0,62}$/;
 
-async function resolveSchema(pool: any, repo: string): Promise<string> {
+async function resolveSchema(pool: Pool, repo: string): Promise<string> {
   try {
     const { rows } = await pool.query(
       `SELECT team FROM lore.repos WHERE full_name = $1`,
       [repo],
     );
     const team = rows[0]?.team;
+
     if (team && SCHEMA_RE.test(team)) {
       // Verify schema exists in DB
       const { rows: schemas } = await pool.query(
         `SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1`,
         [team],
       );
-      if (schemas.length > 0) return team;
+
+      if (schemas.length > 0) {
+        return team;
+      }
     }
   } catch (err) {
     console.error("[ingest] Schema resolution error:", err);
   }
+
   return "org_shared";
 }
 
 export type IngestFile = string | { path: string; content: string };
 
 export async function ingestFiles(
-  pool: any,
+  pool: Pool,
   files: IngestFile[],
   repo: string,
   commit: string,
@@ -72,9 +79,10 @@ export async function ingestFiles(
 
   // Determine if we need GitHub access (only for path-based files)
   const needsGitHub = files.some((f) => typeof f === "string");
-  let octokit: any;
+  let octokit: Awaited<ReturnType<typeof getOctokit>> | undefined;
   let owner = "";
   let repoName = "";
+
   if (needsGitHub) {
     enforceTrue(
       isConfigured(),
@@ -91,6 +99,7 @@ export async function ingestFiles(
 
   for (const fileEntry of files) {
     const filePath = typeof fileEntry === "string" ? fileEntry : fileEntry.path;
+
     try {
       let content: string | null = null;
 
@@ -101,22 +110,28 @@ export async function ingestFiles(
         // Fetch from GitHub — try the given ref, fall back to default branch
         for (const ref of [commit, "HEAD"]) {
           try {
-            const { data } = await octokit.rest.repos.getContent({
+            const { data } = await octokit!.rest.repos.getContent({
               owner,
               repo: repoName,
               path: filePath,
               ref,
             });
+
             if ("content" in data) {
               content = Buffer.from(data.content, "base64").toString("utf-8");
             }
             break; // success
-          } catch (err: any) {
-            if (err.status === 404 && ref === commit && commit !== "HEAD") {
+          } catch (err) {
+            if (
+              (err as { status?: number }).status === 404 &&
+              ref === commit &&
+              commit !== "HEAD"
+            ) {
               // Commit doesn't exist in this repo — retry with HEAD
               continue;
             }
-            if (err.status === 404) {
+
+            if ((err as { status?: number }).status === 404) {
               // File genuinely doesn't exist — remove from chunks
               await pool.query(
                 `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
@@ -129,8 +144,10 @@ export async function ingestFiles(
             throw err;
           }
         }
-        if (!content && results[results.length - 1]?.status === "deleted")
+
+        if (!content && results[results.length - 1]?.status === "deleted") {
           continue;
+        }
       }
 
       if (!content) {
@@ -143,6 +160,7 @@ export async function ingestFiles(
       }
 
       const contentType = classifyFile(filePath);
+
       if (!contentType) {
         results.push({
           file: filePath,
@@ -186,14 +204,19 @@ export async function ingestFiles(
         );
 
         const chunkId = rows[0]?.id;
-        if (!firstChunkId) firstChunkId = chunkId;
+
+        if (!firstChunkId) {
+          firstChunkId = chunkId;
+        }
 
         // Generate and store embedding per chunk (cap input at 8k chars as safety net)
         const embedding = await getQueryEmbedding(
           chunk.content.substring(0, 8000),
         );
+
         if (embedding && chunkId) {
           const embeddingStr = `[${embedding.join(",")}]`;
+
           await pool.query(
             `UPDATE ${schema}.chunks SET embedding = $1::vector WHERE id = $2`,
             [embeddingStr, chunkId],
@@ -209,9 +232,16 @@ export async function ingestFiles(
         embedded,
       });
       ingested++;
-    } catch (err: any) {
-      console.error(`[ingest] Error processing ${filePath}:`, err.message);
-      results.push({ file: filePath, status: "error", error: err.message });
+    } catch (err) {
+      console.error(
+        `[ingest] Error processing ${filePath}:`,
+        errorMessage(err),
+      );
+      results.push({
+        file: filePath,
+        status: "error",
+        error: errorMessage(err),
+      });
       errors++;
     }
   }
@@ -219,5 +249,6 @@ export async function ingestFiles(
   console.error(
     `[ingest] ${repo}@${commit.slice(0, 7)}: ${ingested} ingested, ${deleted} deleted, ${errors} errors (schema: ${schema})`,
   );
+
   return { ingested, deleted, errors, schema, results };
 }

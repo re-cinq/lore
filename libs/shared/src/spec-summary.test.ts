@@ -39,6 +39,7 @@ describe("extractSummary", () => {
   it("returns the first non-heading, non-table paragraph", () => {
     const content =
       "# Title\n\n| a | b |\n|---|---|\n\nThe real summary paragraph.\n\nSecond.";
+
     expect(extractSummary(content)).toBe("The real summary paragraph.");
   });
 
@@ -51,6 +52,7 @@ describe("extractSummary", () => {
   it("truncates to the max length with an ellipsis", () => {
     const long = "# T\n\n" + "x".repeat(400);
     const summary = extractSummary(long, 280);
+
     expect(summary.length).toBeLessThanOrEqual(281);
     expect(summary.endsWith("…")).toBe(true);
   });
@@ -62,6 +64,7 @@ describe("extractSummary", () => {
   it("skips a leading blockquote note and returns the first prose paragraph", () => {
     const content =
       "# Title\n\n> **Note:** This spec was updated after shipping.\n> Several features were not exposed.\n\nThe real summary paragraph.";
+
     expect(extractSummary(content)).toBe("The real summary paragraph.");
   });
 });
@@ -72,6 +75,7 @@ describe("reassembleSpec", () => {
       { content: "part two", ingested_at: "2026-01-02" },
       { content: "part one", ingested_at: "2026-01-01" },
     ];
+
     expect(reassembleSpec(chunks)).toBe("part one\n\npart two");
   });
 
@@ -80,6 +84,7 @@ describe("reassembleSpec", () => {
       { content: "same", ingested_at: "2026-01-01" },
       { content: "same", ingested_at: "2026-01-02" },
     ];
+
     expect(reassembleSpec(chunks)).toBe("same");
   });
 });

@@ -16,15 +16,24 @@ import { minimatch } from "minimatch";
 
 /** Parses the manifest object into `kind → glob[]`, dropping non-array values and non-string entries. */
 export function parseIngestPatterns(raw: unknown): Record<string, string[]> {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return {};
+  }
   const out: Record<string, string[]> = {};
+
   for (const [kind, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (!Array.isArray(value)) continue;
+    if (!Array.isArray(value)) {
+      continue;
+    }
     const globs = value.filter(
       (entry): entry is string => typeof entry === "string",
     );
-    if (globs.length) out[kind] = globs;
+
+    if (globs.length) {
+      out[kind] = globs;
+    }
   }
+
   return out;
 }
 

@@ -25,6 +25,7 @@ export interface WebhookStatus {
 function creds(): { api: string; token: string } | null {
   const api = process.env.LORE_API_URL;
   const token = process.env.LORE_INGEST_TOKEN;
+
   return api && token ? { api, token } : null;
 }
 
@@ -32,12 +33,19 @@ export async function getWebhookStatus(
   repo: string,
 ): Promise<WebhookStatus | null> {
   const c = creds();
-  if (!c) return null;
+
+  if (!c) {
+    return null;
+  }
   const res = await fetch(`${c.api}/api/repos/${repo}/webhook`, {
     headers: { Authorization: `Bearer ${c.token}` },
     cache: "no-store",
   });
-  if (!res.ok) return null;
+
+  if (!res.ok) {
+    return null;
+  }
+
   return (await res.json()) as WebhookStatus;
 }
 
@@ -47,13 +55,20 @@ export async function getWebhookStatus(
  */
 export async function getWebhookSecret(repo: string): Promise<string | null> {
   const c = creds();
-  if (!c) return null;
+
+  if (!c) {
+    return null;
+  }
   const res = await fetch(`${c.api}/api/repos/${repo}/webhook/secret`, {
     headers: { Authorization: `Bearer ${c.token}` },
     cache: "no-store",
   });
-  if (!res.ok) return null;
+
+  if (!res.ok) {
+    return null;
+  }
   const body = (await res.json()) as { secret?: string };
+
   return body.secret ?? null;
 }
 
@@ -61,15 +76,21 @@ export async function ensureWebhook(
   repo: string,
 ): Promise<WebhookStatus | { error: string }> {
   const c = creds();
-  if (!c) return { error: "web-ui is not configured to reach the Lore API" };
+
+  if (!c) {
+    return { error: "web-ui is not configured to reach the Lore API" };
+  }
   const res = await fetch(`${c.api}/api/repos/${repo}/webhook/ensure`, {
     method: "POST",
     headers: { Authorization: `Bearer ${c.token}` },
     cache: "no-store",
   });
+
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
+
     return { error: body?.error || `webhook setup failed (${res.status})` };
   }
+
   return (await res.json()) as WebhookStatus;
 }

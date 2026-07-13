@@ -31,9 +31,11 @@ export async function staleTaskCheckJob(): Promise<string> {
   }
 
   let escalated = 0;
+
   for (const task of rows) {
     try {
       const ageHoursRounded = Math.round(Number(task.age_hours) * 10) / 10;
+
       await taskStore().setStatusIf(task.id, "running", "needs-human-help", {
         failure_reason: `Stuck in 'running' for ${ageHoursRounded}h — safety-net timeout at ${STALE_THRESHOLD_HOURS}h`,
       });
@@ -48,6 +50,7 @@ export async function staleTaskCheckJob(): Promise<string> {
 
       if (task.issue_number) {
         const project = await projectFor(task.target_repo);
+
         await project.issues
           .comment(
             task.issue_number,

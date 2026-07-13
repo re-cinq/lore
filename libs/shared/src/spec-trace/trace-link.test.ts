@@ -52,8 +52,10 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
     vars: Record<string, string>,
   ): Promise<Record<string, unknown>> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(query, vars);
+
       return (res.data ?? {}) as Record<string, unknown>;
     } finally {
       await txn.discard().catch(() => {});
@@ -62,6 +64,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
 
   async function deleteRepoNodes(repo: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query nodes($repo: string) {
@@ -87,6 +90,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
         ...(data.coverages ?? []),
         ...(data.files ?? []),
       ].map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -102,6 +106,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
 
   async function deleteStatementNode(statementXid: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query stmt($sx: string) {
@@ -111,6 +116,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
       );
       const data = res.data as { stmts?: { uid: string }[] };
       const uids = (data.stmts ?? []).map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -126,16 +132,24 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
 
   let createdRepo = "";
   let createdStatementXid = "";
+
   afterEach(async () => {
-    if (createdRepo) await deleteRepoNodes(createdRepo);
-    if (createdStatementXid) await deleteStatementNode(createdStatementXid);
+    if (createdRepo) {
+      await deleteRepoNodes(createdRepo);
+    }
+
+    if (createdStatementXid) {
+      await deleteStatementNode(createdStatementXid);
+    }
     createdStatementXid = "";
   });
 
   it("links the Statement to a reified TraceLink carrying kind validated_by, evidence human-linked, and target TestChunk repo|t1", async () => {
     const repo = `tracelink/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
 
     const tcRes = await dgraphClient.newTxn().mutate({
@@ -192,8 +206,10 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
 
   it("reaches the TraceLink from its target via the ~TraceLink.target reverse edge", async () => {
     const repo = `tracelink/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|9`;
+
     createdStatementXid = statementXid;
 
     const tcRes = await dgraphClient.newTxn().mutate({
@@ -235,6 +251,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
       }`,
       { $x: `${repo}|t9` },
     )) as { target?: Array<{ links?: Array<{ "TraceLink.kind"?: string }> }> };
+
     expect(
       (data.target?.[0]?.links ?? []).map((l) => l["TraceLink.kind"]),
     ).toEqual(["validated_by"]);
@@ -242,8 +259,10 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
 
   it("derives one human-linked validated_by TraceLink from a Statement.validated_by edge to a TestChunk", async () => {
     const repo = `tracelink/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
 
     const tcRes = await dgraphClient.newTxn().mutate({
@@ -294,8 +313,10 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
 
   it("tags the validated_by TraceLink execution-verified when the coverage chain proves it", async () => {
     const repo = `tracelink/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
 
     const codeChunkRes = await dgraphClient.newTxn().mutate({
@@ -384,8 +405,10 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
 
   it("keeps a generated-provenance TraceLink and does not downgrade it to human-linked on re-derivation", async () => {
     const repo = `tracelink/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/foo/spec.md|7`;
+
     createdStatementXid = statementXid;
 
     const tcRes = await dgraphClient.newTxn().mutate({

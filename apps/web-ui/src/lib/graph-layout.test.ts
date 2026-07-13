@@ -28,8 +28,9 @@ describe("featureSeedPositions", () => {
       300,
     );
 
-    for (const id of ["a", "b", "c"])
+    for (const id of ["a", "b", "c"]) {
       expect(dist(pos.get(id)!)).toBeLessThanOrEqual(300);
+    }
     expect(pos.get("a")).not.toEqual(pos.get("b"));
   });
 
@@ -68,6 +69,7 @@ describe("connectedComponents", () => {
     const sorted = comps
       .map((c) => [...c].sort())
       .sort((x, y) => x[0].localeCompare(y[0]));
+
     expect(sorted).toEqual([
       ["a", "b"],
       ["c", "d"],
@@ -164,6 +166,7 @@ describe("containedVelocity", () => {
       center,
       100,
     );
+
     expect(speed(far)).toBeLessThan(speed(near));
   });
 });

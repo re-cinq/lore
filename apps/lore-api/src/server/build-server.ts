@@ -1,3 +1,4 @@
+import type { Pool } from "pg";
 /**
  * The lore-api HTTP server (hapi) — the single construction site (FR3), shared
  * by production boot (`http-server.ts`) and the tests (`inject` / `start`).
@@ -73,7 +74,7 @@ const MAX_BODY_BYTES = 1_048_576;
  * walks the same array — so the document describes exactly what the server runs,
  * with no parallel registry.
  */
-export function routeList(getPool: () => any): ServerRoute[] {
+export function routeList(getPool: () => Pool | null): ServerRoute[] {
   return [
     healthzRoute(getPool),
     distRoute(),
@@ -118,7 +119,7 @@ export function routeList(getPool: () => any): ServerRoute[] {
   ];
 }
 
-export function buildServer(getPool: () => any, port = 0): Hapi.Server {
+export function buildServer(getPool: () => Pool | null, port = 0): Hapi.Server {
   const server = Hapi.server({
     port,
     host: "0.0.0.0",
@@ -141,6 +142,7 @@ export function buildServer(getPool: () => any, port = 0): Hapi.Server {
   registerBearerScope(server, getPool);
 
   const routes = routeList(getPool);
+
   server.route(routes);
 
   // FR7: surface OpenAPI coverage once at boot so drops/uncovered routes are not
@@ -148,7 +150,9 @@ export function buildServer(getPool: () => any, port = 0): Hapi.Server {
   // the CI enforcement.
   if (!process.env.VITEST) {
     const { coverage } = generateOpenApi(routes);
+
     console.log(summarizeCoverage(coverage));
+
     if (coverage.uncovered.length) {
       console.warn(
         `[openapi] WARNING uncovered write routes: ${coverage.uncovered.join(", ")}`,

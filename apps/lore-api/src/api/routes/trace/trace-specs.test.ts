@@ -13,6 +13,7 @@ import {
 // faked so the success and error paths are reachable.
 vi.mock("@re-cinq/lore-shared", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@re-cinq/lore-shared")>();
+
   return {
     ...actual,
     createDgraphClient: vi.fn(),
@@ -46,8 +47,10 @@ describe("GET /api/trace/specs", () => {
       { repo: "o/r", filePath: "specs/a/spec.md" },
       { repo: "o/s", filePath: "specs/b/spec.md" },
     ];
+
     vi.mocked(listAllSpecDocuments).mockResolvedValue(specs);
     const res = await get();
+
     expect(res.statusCode).toBe(200);
     expect(res.result).toEqual({ specs });
   });
@@ -55,6 +58,7 @@ describe("GET /api/trace/specs", () => {
   it("returns 500 when the Dgraph read throws", async () => {
     vi.mocked(listAllSpecDocuments).mockRejectedValue(new Error("dgraph boom"));
     const res = await get();
+
     expect(res.statusCode).toBe(500);
     expect(res.result).toEqual({ error: "dgraph boom" });
   });

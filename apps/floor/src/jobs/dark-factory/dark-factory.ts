@@ -72,6 +72,7 @@ export function decideIssueCreate(args: {
   }
 
   const policy = args.settings.create_issue ?? "on_gate";
+
   switch (policy) {
     case "never":
       return { create: false, reason: "create_issue_never" };
@@ -104,9 +105,11 @@ export function decideReviewMode(args: {
   if (args.overrides?.human_review === "required") {
     return "always";
   }
+
   if (!args.settings?.enabled) {
     return "always";
   }
+
   return args.settings.review ?? "trust_based";
 }
 
@@ -127,10 +130,14 @@ export async function shouldCreateIssue(task: {
 }): Promise<IssueGateDecision> {
   const overrides = task.dark_factory_overrides ?? undefined;
   const targetRepo = task.target_repo;
-  if (!targetRepo) return { create: true, reason: "default_create" };
+
+  if (!targetRepo) {
+    return { create: true, reason: "default_create" };
+  }
 
   const approvalNeeded = requiresApproval(task.task_type, targetRepo);
   const settings = await loadRepoSettings(targetRepo);
+
   return decideIssueCreate({ approvalNeeded, overrides, settings });
 }
 
@@ -148,8 +155,12 @@ export async function resolveReviewMode(task: {
     return "always";
   }
   const targetRepo = task.target_repo;
-  if (!targetRepo) return "always";
+
+  if (!targetRepo) {
+    return "always";
+  }
   const settings = await loadRepoSettings(targetRepo);
+
   return decideReviewMode({
     overrides: task.dark_factory_overrides ?? undefined,
     settings,
@@ -161,6 +172,7 @@ async function loadRepoSettings(
 ): Promise<DarkFactoryRepoSettings | undefined> {
   try {
     const raw = await settingsRepo().rawSettings(targetRepo);
+
     return (raw as { dark_factory?: DarkFactoryRepoSettings } | null)
       ?.dark_factory;
   } catch (err) {
@@ -168,6 +180,7 @@ async function loadRepoSettings(
       `[dark-factory] settings read failed for ${targetRepo}:`,
       (err as Error).message,
     );
+
     return undefined;
   }
 }

@@ -25,6 +25,7 @@ describe("ReadmeBox", () => {
         htmlUrl={htmlUrl}
       />,
     );
+
     expect(container.querySelector("h1")?.textContent).toBe("Heading");
   });
 
@@ -122,6 +123,7 @@ describe("ReadmeBox", () => {
       <ReadmeBox markdown={md} rawBaseUrl={rawBaseUrl} htmlUrl={htmlUrl} />,
     );
     const img = container.querySelector("img");
+
     expect(img?.getAttribute("src")).toBe(
       "https://raw.githubusercontent.com/re-cinq/lore/main/docs/logo.png",
     );
@@ -133,6 +135,7 @@ describe("ReadmeBox", () => {
       <ReadmeBox markdown={md} rawBaseUrl={rawBaseUrl} htmlUrl={htmlUrl} />,
     );
     const link = container.querySelector("a");
+
     expect(link?.getAttribute("href")).toBe(
       "https://github.com/re-cinq/lore/blob/main/docs/CONTRIBUTING.md",
     );
@@ -144,6 +147,7 @@ describe("ReadmeBox", () => {
     const { container } = render(
       <ReadmeBox markdown={md} rawBaseUrl={rawBaseUrl} htmlUrl={htmlUrl} />,
     );
+
     expect(container.querySelector("a")?.getAttribute("href")).toBe(
       "https://example.com/page",
     );
@@ -155,6 +159,7 @@ describe("ReadmeBox", () => {
       <ReadmeBox markdown={md} rawBaseUrl={rawBaseUrl} htmlUrl={htmlUrl} />,
     );
     const table = container.querySelector("table");
+
     expect(table).not.toBeNull();
     expect(container.querySelectorAll("th")).toHaveLength(2);
     expect(container.querySelector("td")?.textContent).toBe("1");
@@ -165,6 +170,7 @@ describe("ReadmeBox", () => {
     const { container } = render(
       <ReadmeBox markdown={md} rawBaseUrl={rawBaseUrl} htmlUrl={htmlUrl} />,
     );
+
     expect(container.querySelector("mark")?.textContent).toBe("highlighted");
   });
 
@@ -173,6 +179,7 @@ describe("ReadmeBox", () => {
     const { container } = render(
       <ReadmeBox markdown={md} rawBaseUrl={rawBaseUrl} htmlUrl={htmlUrl} />,
     );
+
     expect(container.querySelector("pre code")?.textContent).toContain(
       "npm test",
     );
@@ -182,6 +189,7 @@ describe("ReadmeBox", () => {
     const { container } = render(
       <ReadmeBox markdown="" rawBaseUrl={rawBaseUrl} htmlUrl={htmlUrl} />,
     );
+
     // splitBlocks('') → [] so collapsible is false and visible is the empty string.
     expect(container.querySelector("button")).toBeNull();
     expect(container.querySelector("h1")).toBeNull();

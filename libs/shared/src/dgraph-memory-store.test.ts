@@ -34,6 +34,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
 
   async function deleteAgentNodes(agent: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query nodes($agent: string) { nodes(func: eq(Memory.agent_id, $agent)) { uid } }`,
@@ -42,6 +43,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
       const uids: string[] = (
         (res.data as { nodes?: { uid: string }[] }).nodes ?? []
       ).map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -57,6 +59,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
 
   async function deleteAgentFacts(agent: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query nodes($agent: string) { nodes(func: eq(Fact.agent_id, $agent)) { uid } }`,
@@ -65,6 +68,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
       const uids: string[] = (
         (res.data as { nodes?: { uid: string }[] }).nodes ?? []
       ).map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -89,6 +93,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
       });
 
       const txn = dgraphClient.newTxn();
+
       try {
         const res = await txn.queryWithVars(
           `query facts($agent: string) {
@@ -100,6 +105,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
         );
         const facts =
           (res.data as { facts?: Record<string, any>[] }).facts ?? [];
+
         expect(facts).toContainEqual(
           expect.objectContaining({
             "Fact.text": "the deploy pipeline runs on Mondays",
@@ -116,6 +122,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
 
   async function deleteAgentConflicts(agent: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query conflicts($agent: string) {
@@ -129,6 +136,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
       const uids: string[] = (
         (res.data as { conflicts?: { uid: string }[] }).conflicts ?? []
       ).map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -148,7 +156,9 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
 
     const basis = (index: number): number[] => {
       const vector = new Array(768).fill(0);
+
       vector[index] = 1;
+
       return vector;
     };
     const distinctiveVec = basis(517);
@@ -159,6 +169,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
         agentId: agent,
         embedding: distinctiveVec,
       });
+
       await store.persistFact({
         text: "CI runs on GitHub Actions runners",
         agentId: agent,
@@ -166,6 +177,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
       });
 
       const txn = dgraphClient.newTxn();
+
       try {
         const res = await txn.queryWithVars(
           `query check($agent: string, $xid: string) {
@@ -256,6 +268,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
       });
 
       const txn = dgraphClient.newTxn();
+
       try {
         const res = await txn.queryWithVars(
           `query node($agent: string) { node(func: eq(Memory.agent_id, $agent)) { uid } }`,
@@ -263,6 +276,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
         );
         const uid = (res.data as { node?: { uid: string }[] }).node?.[0]?.uid;
         const pastIso = new Date(Date.now() - 60_000).toISOString();
+
         await txn.mutate({
           setJson: { uid, "Memory.expires_at": pastIso },
           commitNow: true,
@@ -347,7 +361,9 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
 
     const basis = (index: number): number[] => {
       const vector = new Array(768).fill(0);
+
       vector[index] = 1;
+
       return vector;
     };
     const embeddingA = basis(0);
@@ -383,6 +399,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
 
   async function deleteAgentEpisodes(agent: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query nodes($agent: string) { nodes(func: eq(Episode.agent_id, $agent)) { uid } }`,
@@ -391,6 +408,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
       const uids: string[] = (
         (res.data as { nodes?: { uid: string }[] }).nodes ?? []
       ).map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -421,6 +439,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
       });
 
       const txn = dgraphClient.newTxn();
+
       try {
         const res = await txn.queryWithVars(
           `query q($agent: string) {
@@ -429,6 +448,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
           { $agent: agent },
         );
         const episodes = (res.data as { q?: Record<string, any>[] }).q ?? [];
+
         expect(episodes.length).toBe(1);
       } finally {
         await txn.discard().catch(() => {});
@@ -442,8 +462,10 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
 
   async function deleteGraphForEntities(names: string[]): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const uids = new Set<string>();
+
       for (const name of names) {
         const res = await txn.queryWithVars(
           `query q($name: string) {
@@ -455,13 +477,21 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
           }`,
           { $name: name },
         );
+
         for (const entity of (res.data as { q?: Record<string, any>[] }).q ??
           []) {
           uids.add(entity.uid);
-          for (const rel of entity["Entity.out_rels"] ?? []) uids.add(rel.uid);
-          for (const rel of entity["Entity.in_rels"] ?? []) uids.add(rel.uid);
+
+          for (const rel of entity["Entity.out_rels"] ?? []) {
+            uids.add(rel.uid);
+          }
+
+          for (const rel of entity["Entity.in_rels"] ?? []) {
+            uids.add(rel.uid);
+          }
         }
       }
+
       if (uids.size) {
         await txn.mutate({
           deleteNquads: [...uids].map((uid) => `<${uid}> * * .`).join("\n"),
@@ -484,6 +514,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
       await store.upsertEdge({ source, target, relationType: "uses" });
 
       const txn = dgraphClient.newTxn();
+
       try {
         const res = await txn.queryWithVars(
           `query g($a: string) {
@@ -501,6 +532,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
           (res.data as { ent?: Record<string, any>[] }).ent?.[0]?.[
             "Entity.out_rels"
           ] ?? [];
+
         expect(rels).toContainEqual(
           expect.objectContaining({
             "GraphRel.relation_type": "uses",
@@ -529,6 +561,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
       await store.upsertEdge({ source: a, target: c, relationType: "uses" });
 
       const txn = dgraphClient.newTxn();
+
       try {
         const res = await txn.queryWithVars(
           `query g($a: string) {

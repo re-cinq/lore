@@ -27,6 +27,7 @@ function iteration(
 describe("canFinalize", () => {
   it("allows finalizing only from a settled planning state", () => {
     const settled: FeatureStatus[] = ["awaiting-input", "spec-ready"];
+
     expect(settled.map(canFinalize)).toEqual([true, true]);
   });
 
@@ -38,6 +39,7 @@ describe("canFinalize", () => {
       "implemented",
       "split",
     ];
+
     expect(other.map(canFinalize)).toEqual([false, false, false, false, false]);
   });
 });
@@ -49,6 +51,7 @@ describe("latestReadyGap", () => {
       iteration({ iteration: 1, status: "ready", gap_result: gap("round1") }),
       iteration({ iteration: 2, status: "running" }),
     ];
+
     expect(latestReadyGap(iterations)?.sections[0].content).toBe("round1");
   });
 
@@ -58,6 +61,7 @@ describe("latestReadyGap", () => {
       iteration({ iteration: 1, status: "ready", gap_result: null }),
       iteration({ iteration: 2, status: "failed" }),
     ];
+
     expect(latestReadyGap(iterations)?.sections[0].content).toBe("round0");
   });
 

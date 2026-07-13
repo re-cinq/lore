@@ -49,6 +49,7 @@ describe("sourceFromBlockRows (pure)", () => {
         "Block.level": 1,
       },
     ];
+
     expect(sourceFromBlockRows(rows)).toBe("# Title\n\nBody.");
   });
 });
@@ -88,6 +89,7 @@ describe.skipIf(!reachable)("recomputeFile (live Dgraph)", () => {
 
   async function deleteRepoNodes(repo: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query nodes($repo: string) {
@@ -97,6 +99,7 @@ describe.skipIf(!reachable)("recomputeFile (live Dgraph)", () => {
       );
       const data = res.data as { blocks?: { uid: string }[] };
       const uids = (data.blocks ?? []).map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -111,12 +114,16 @@ describe.skipIf(!reachable)("recomputeFile (live Dgraph)", () => {
   }
 
   let createdRepo = "";
+
   afterEach(async () => {
-    if (createdRepo) await deleteRepoNodes(createdRepo);
+    if (createdRepo) {
+      await deleteRepoNodes(createdRepo);
+    }
   });
 
   it("returns null for a never-projected file with no Block nodes", async () => {
     const repo = `test-recompute/${randomUUID()}`;
+
     createdRepo = repo;
 
     const result = await recomputeFile(

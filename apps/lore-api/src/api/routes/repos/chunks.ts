@@ -36,14 +36,17 @@ export function chunksRoute(): ServerRoute {
     options: bearerScope("read"),
     handler: async (request, h) => {
       const kind = request.params.kind;
-      if (!CHUNK_KINDS.has(kind))
+
+      if (!CHUNK_KINDS.has(kind)) {
         return h.response({ error: "not found" }).code(404);
+      }
       const q = request.query as Record<string, string | undefined>;
 
       try {
         const chunks = (
           await projectFor(`${request.params.owner}/${request.params.repo}`)
         ).chunks;
+
         switch (kind) {
           case "spec":
             return h.response({ specs: await chunks.specChunks() });
@@ -59,8 +62,11 @@ export function chunksRoute(): ServerRoute {
             return h.response({ chunks: await chunks.codeChunksForBackfill() });
           case "has": {
             const contentType = q.content_type;
-            if (!contentType)
+
+            if (!contentType) {
               return h.response({ error: "content_type required" }).code(400);
+            }
+
             return h.response({
               has: await chunks.hasChunk(contentType, q.file_suffix),
             });
@@ -68,6 +74,7 @@ export function chunksRoute(): ServerRoute {
           default: {
             // stale
             const days = Number(q.days ?? "90");
+
             return h.response({ count: await chunks.staleChunkCount(days) });
           }
         }

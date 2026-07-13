@@ -38,6 +38,7 @@ export class PgChunks implements ChunksPort {
       `SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1`,
       [schema],
     );
+
     return rows.length > 0;
   }
 
@@ -47,6 +48,7 @@ export class PgChunks implements ChunksPort {
       `SELECT count(*)::text as c FROM ${schema}.chunks WHERE repo = $1`,
       [repo],
     );
+
     return Number(rows[0]?.c || 0);
   }
 
@@ -80,7 +82,8 @@ export class PgChunks implements ChunksPort {
         JSON.stringify(chunk.metadata),
       ],
     );
-    return rows[0]?.id ?? null;
+
+    return (rows[0]?.id as string) ?? null;
   }
 
   async setEmbedding(
@@ -99,6 +102,7 @@ export class PgChunks implements ChunksPort {
     const { rows } = await this.pool.query(
       `SELECT DISTINCT team FROM org_shared.chunks WHERE team IS NOT NULL`,
     );
+
     return rows.map((row) => row.team as string);
   }
 
@@ -107,7 +111,8 @@ export class PgChunks implements ChunksPort {
       `SELECT COUNT(*) AS count FROM org_shared.chunks WHERE team = $1`,
       [team],
     );
-    return parseInt(rows[0]?.count || "0", 10);
+
+    return parseInt((rows[0]?.count as string) || "0", 10);
   }
 
   async specChunks(repo: string): Promise<SpecChunkRow[]> {
@@ -118,6 +123,7 @@ export class PgChunks implements ChunksPort {
        ORDER BY file_path`,
       [repo],
     );
+
     return rows.map((r) => ({
       id: String(r.id),
       repo: r.repo as string,
@@ -137,6 +143,7 @@ export class PgChunks implements ChunksPort {
          AND metadata->>'symbol_name' IS NOT NULL`,
       [repo],
     );
+
     return rows.map((r) => ({
       symbolName: r.symbol_name as string,
       symbolType: (r.symbol_type as string | null) ?? null,
@@ -156,6 +163,7 @@ export class PgChunks implements ChunksPort {
        LIMIT 1`,
       fileSuffix ? [repo, contentType, `%${fileSuffix}`] : [repo, contentType],
     );
+
     return rows.length > 0;
   }
 
@@ -166,7 +174,8 @@ export class PgChunks implements ChunksPort {
          AND ingested_at < NOW() - ($2 || ' days')::interval`,
       [repo, String(olderThanDays)],
     );
-    return parseInt(rows[0]?.count || "0", 10);
+
+    return parseInt((rows[0]?.count as string) || "0", 10);
   }
 
   /** The schema reindex wrote this repo's chunks to: its team schema when one
@@ -177,8 +186,11 @@ export class PgChunks implements ChunksPort {
       [repo],
     );
     const team = rows[0]?.team as string | undefined;
-    if (team && SCHEMA_RE.test(team) && (await this.schemaExists(team)))
+
+    if (team && SCHEMA_RE.test(team) && (await this.schemaExists(team))) {
       return team;
+    }
+
     return "org_shared";
   }
 
@@ -191,6 +203,7 @@ export class PgChunks implements ChunksPort {
        ORDER BY file_path, ingested_at`,
       [repo],
     );
+
     return rows.map((r) => ({
       repo: r.repo as string,
       filePath: r.file_path as string,
@@ -209,6 +222,7 @@ export class PgChunks implements ChunksPort {
        WHERE repo = $1 AND content_type = 'code'`,
       [repo],
     );
+
     return rows.map((r) => ({
       filePath: r.file_path as string,
       startLine: (r.start_line as number | null) ?? null,
@@ -225,6 +239,7 @@ export class PgChunks implements ChunksPort {
        ORDER BY file_path, ingested_at`,
       [repo],
     );
+
     return rows.map((r) => ({
       repo: r.repo as string,
       filePath: r.file_path as string,
@@ -242,6 +257,7 @@ export class PgChunks implements ChunksPort {
        WHERE repo = $1 AND content_type = 'code'`,
       [repo],
     );
+
     return rows.map((r) => ({
       filePath: r.file_path as string,
       content: r.content as string,

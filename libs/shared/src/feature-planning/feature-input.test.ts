@@ -60,6 +60,7 @@ describe("parseSectionAnswers", () => {
         "Data model": { comment: "x", direction: "explode" },
       },
     });
+
     expect(parsed?.sections).toEqual({
       Overview: { comment: "tighten scope", direction: "refine" },
       "Data model": { comment: "x" },
@@ -70,6 +71,7 @@ describe("parseSectionAnswers", () => {
     const parsed = parseSectionAnswers({
       questions: { q1: "yes", q2: 42, q3: null },
     });
+
     expect(parsed?.questions).toEqual({ q1: "yes" });
   });
 

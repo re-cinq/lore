@@ -24,6 +24,7 @@ function parsed(overrides: Partial<ParsedTask>): ParsedTask {
 describe("syncTasksToDb", () => {
   it("inserts a new task and counts it as created", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({ rows: [] }) // existence check: none
       .mockResolvedValueOnce({ rows: [] }); // insert
@@ -34,12 +35,14 @@ describe("syncTasksToDb", () => {
 
     expect(result).toEqual({ synced: 1, created: 1 });
     const insertSql = pool.query.mock.calls[1][0];
+
     expect(insertSql).toContain("INSERT INTO pipeline.tasks");
     expect(pool.query.mock.calls[1][1]).toContain("T001: Do the thing");
   });
 
   it("updates an existing task without counting it as created", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({ rows: [{ id: "uuid-1", status: "pending" }] }) // exists
       .mockResolvedValueOnce({ rows: [] }); // update
@@ -55,6 +58,7 @@ describe("syncTasksToDb", () => {
 
   it("persists completed tasks with status completed", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
@@ -69,6 +73,7 @@ describe("syncTasksToDb", () => {
 
   it("threads task_group_id into the grouped insert", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
@@ -82,12 +87,14 @@ describe("syncTasksToDb", () => {
     );
 
     const insertSql = pool.query.mock.calls[1][0];
+
     expect(insertSql).toContain("task_group_id");
     expect(pool.query.mock.calls[1][1]).toContain("group-9");
   });
 
   it("counts only new tasks as created across a mixed batch", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({ rows: [{ id: "uuid-1", status: "pending" }] }) // T001 exists
       .mockResolvedValueOnce({ rows: [] }) // T001 update
@@ -119,6 +126,7 @@ describe("getReadyTasks", () => {
         task_group_id: null,
       },
     ];
+
     pool.query.mockResolvedValueOnce({ rows });
 
     const result = await getReadyTasks(pool, "re-cinq/lore");
@@ -130,6 +138,7 @@ describe("getReadyTasks", () => {
 
   it("returns an empty list when no tasks are ready", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValueOnce({ rows: [] });
     expect(await getReadyTasks(pool, "re-cinq/lore")).toEqual([]);
   });
@@ -138,6 +147,7 @@ describe("getReadyTasks", () => {
 describe("claimTask", () => {
   it("returns true and records the claim event when a pending task is claimed", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({ rows: [{ id: "uuid-1" }] }) // claim CAS wins
       .mockResolvedValueOnce({ rows: [] }); // recordEvent INSERT
@@ -153,6 +163,7 @@ describe("claimTask", () => {
 
   it("returns false and records no event when the row is already claimed", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValueOnce({ rows: [] }); // claim CAS loses
 
     const claimed = await claimTask(pool, "uuid-1", "agent-7");
@@ -163,6 +174,7 @@ describe("claimTask", () => {
 
   it("still returns true when the event-recording insert throws", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({ rows: [{ id: "uuid-1" }] }) // claim wins
       .mockRejectedValueOnce(new Error("task_events missing")); // event fails
@@ -174,6 +186,7 @@ describe("claimTask", () => {
 describe("completeTask", () => {
   it("returns completed false when the task does not exist", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValueOnce({ rows: [] });
 
     expect(await completeTask(pool, "missing")).toEqual({
@@ -185,6 +198,7 @@ describe("completeTask", () => {
 
   it("returns completed false when the task is not running", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValueOnce({
       rows: [
         { status: "pending", context_bundle: {}, target_repo: "re-cinq/lore" },
@@ -199,6 +213,7 @@ describe("completeTask", () => {
 
   it("marks a running task completed and records the transition, no slug scan", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({
         rows: [
@@ -221,6 +236,7 @@ describe("completeTask", () => {
 
   it("returns formatted descriptors for newly unblocked same-spec dependents", async () => {
     const pool = makePool();
+
     pool.query
       .mockResolvedValueOnce({
         rows: [

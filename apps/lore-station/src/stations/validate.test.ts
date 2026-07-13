@@ -25,6 +25,7 @@ describe("runValidateStation", () => {
   beforeEach(async () => {
     workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "lore-station-ws-"));
     const target = path.join(workspaceDir, "target");
+
     await fs.mkdir(target);
     await execFile("git", ["-C", target, "init", "-b", "main"]);
     await execFile("git", ["-C", target, "config", "user.email", "t@e.st"]);
@@ -37,6 +38,7 @@ describe("runValidateStation", () => {
 
   it("reports success with no-tooling extras for an empty repo", async () => {
     const result = await runValidateStation(input, { workspaceDir });
+
     expect(result).toMatchObject({
       outcome: "success",
       extras: { "Lore-Validation": "none" },

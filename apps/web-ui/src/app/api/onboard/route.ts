@@ -6,6 +6,7 @@ import { serverError } from "@/lib/api-error";
 export async function POST(request: Request) {
   try {
     const { full_name } = await request.json();
+
     if (!full_name?.includes("/")) {
       return NextResponse.json(
         { error: "Invalid repo format" },

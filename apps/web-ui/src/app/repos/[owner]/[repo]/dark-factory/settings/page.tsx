@@ -40,13 +40,16 @@ async function saveDarkFactory(
   const patch = parsePrivilegedChanges(formData, current, []);
 
   let privileged: PrivilegedSaveResult | null = null;
+
   if (!isEmptyPatch(patch)) {
     const approvalPr =
       ((formData.get("approval_pr") as string) || "").trim() || undefined;
+
     privileged = await putPrivilegedSettings(fullName, patch, approvalPr);
   }
 
   revalidatePath(`/repos/${fullName}/dark-factory/settings`);
+
   return { saved: true, privileged };
 }
 
@@ -61,7 +64,10 @@ export default async function RepoDarkFactory({
     `SELECT settings FROM lore.repos WHERE full_name = $1`,
     [fullName],
   );
-  if (!repoData) return <div>Repo not found</div>;
+
+  if (!repoData) {
+    return <div>Repo not found</div>;
+  }
   const settings = repoData.settings ?? {};
   const resolved = resolveDarkFactorySettings(settings.dark_factory ?? null);
 

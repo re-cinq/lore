@@ -30,16 +30,19 @@ export class Task {
 
   async claim(agentId: string): Promise<this> {
     this.row = await this.store.transition(this.id, "claim", { agentId });
+
     return this;
   }
 
   async cancel(): Promise<this> {
     this.row = await this.store.transition(this.id, "cancel");
+
     return this;
   }
 
   async retry(): Promise<this> {
     this.row = await this.store.transition(this.id, "retry");
+
     return this;
   }
 }

@@ -10,6 +10,7 @@ describe("LORE_TESTS_INSTRUCTION", () => {
   it("names no concrete language or test runner", () => {
     const languageOrRunner =
       /\b(python|pytest|ruby|rspec|golang|go test|cargo|rust|npm|yarn|pnpm|vitest|jest|mocha|junit|gradle|maven|phpunit|dotnet|java(script)?|typescript)\b/i;
+
     expect(LORE_TESTS_INSTRUCTION).not.toMatch(languageOrRunner);
   });
 

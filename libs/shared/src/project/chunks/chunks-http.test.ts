@@ -13,9 +13,14 @@ function fakeFetch(routes: Record<string, unknown>): {
     });
     const path = url.replace(/^https?:\/\/[^/]+/, "");
     const body = routes[path];
-    if (body === undefined) return { ok: false, status: 404 } as Response;
+
+    if (body === undefined) {
+      return { ok: false, status: 404 } as Response;
+    }
+
     return { ok: true, status: 200, json: async () => body } as Response;
   }) as unknown as typeof fetch;
+
   return { fetchImpl, calls };
 }
 

@@ -45,6 +45,7 @@ describe("EpisodesView", () => {
     );
 
     const table = within(screen.getByRole("table"));
+
     expect(table.getByText("abcdef01...")).toBeInTheDocument();
     expect(table.getByText("99887766...")).toBeInTheDocument();
     expect(table.getByText("manual")).toHaveClass("op-badge", "op-manual");
@@ -71,6 +72,7 @@ describe("EpisodesView", () => {
 
   it("appends an ellipsis when the content preview is at the 300-char cap", () => {
     const capped = "x".repeat(300);
+
     render(
       <EpisodesView
         offset={0}
@@ -160,6 +162,7 @@ describe("EpisodesView", () => {
     );
     const prev = screen.getByText("← Previous");
     const next = screen.getByText("Next →");
+
     expect(prev).toHaveClass("disabled");
     expect(prev).toHaveAttribute("href", "/episodes?source=manual");
     expect(next).not.toHaveClass("disabled");
@@ -179,6 +182,7 @@ describe("EpisodesView", () => {
     );
     const prev = screen.getByText("← Previous");
     const next = screen.getByText("Next →");
+
     expect(next).toHaveClass("disabled");
     expect(prev).not.toHaveClass("disabled");
     expect(prev).toHaveAttribute("href", "/episodes?offset=30");

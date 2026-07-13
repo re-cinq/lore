@@ -19,7 +19,10 @@ describe("RelayExecutor round-trip against the real sh relay", () => {
   afterEach(async () => {
     proc?.kill("SIGKILL");
     proc = undefined;
-    if (root) await rm(root, { recursive: true, force: true });
+
+    if (root) {
+      await rm(root, { recursive: true, force: true });
+    }
     root = undefined;
   });
 
@@ -27,8 +30,10 @@ describe("RelayExecutor round-trip against the real sh relay", () => {
     root = await mkdtemp(join(tmpdir(), "lore-relay-"));
     const relayDir = join(root, "relay");
     const workdir = join(root, "work");
+
     await mkdir(workdir, { recursive: true });
     const scriptPath = join(root, "relay.sh");
+
     await writeFile(scriptPath, RELAY_SCRIPT);
     proc = spawn("sh", [scriptPath], {
       env: {
@@ -38,11 +43,13 @@ describe("RelayExecutor round-trip against the real sh relay", () => {
       },
       stdio: "ignore",
     });
+
     return new RelayExecutor(relayDir);
   }
 
   it("runs a command and returns its stdout with exit 0", async () => {
     const exec = await startRelay();
+
     expect(await exec.run("echo hello-relay")).toEqual({
       exitCode: 0,
       stdout: "hello-relay\n",
@@ -53,6 +60,7 @@ describe("RelayExecutor round-trip against the real sh relay", () => {
   it("captures a non-zero exit code and stderr", async () => {
     const exec = await startRelay();
     const r = await exec.run("echo boom >&2; exit 3");
+
     expect(r.exitCode).toBe(3);
     expect(r.stderr).toContain("boom");
   });
@@ -61,12 +69,14 @@ describe("RelayExecutor round-trip against the real sh relay", () => {
     const exec = await startRelay();
     const a = await exec.run("echo one");
     const b = await exec.run("echo two");
+
     expect([a.stdout.trim(), b.stdout.trim()]).toEqual(["one", "two"]);
   });
 
   it("executes commands in the configured workdir", async () => {
     const exec = await startRelay();
     const r = await exec.run("pwd");
+
     expect(r.stdout.trim().endsWith("/work")).toBe(true);
   });
 });

@@ -63,6 +63,7 @@ export interface Coverage {
 /** A route with `payload.parse === false` self-handles its body (webhooks: HMAC/form). */
 function selfHandlesBody(route: ServerRoute): boolean {
   const payload = optionsOf(route).payload as { parse?: boolean } | undefined;
+
   return payload?.parse === false;
 }
 
@@ -94,6 +95,7 @@ const isPublic = (route: ServerRoute): boolean =>
 function scopeOf(route: ServerRoute): string | undefined {
   const plugins = optionsOf(route).plugins as
     Record<string, { scope?: string } | undefined> | undefined;
+
   return plugins?.["bearer-scope"]?.scope;
 }
 
@@ -101,13 +103,18 @@ function scopeOf(route: ServerRoute): string | undefined {
 function routeSchema(route: ServerRoute): ZodType | undefined {
   const validate = optionsOf(route).validate as
     { payload?: unknown } | undefined;
+
   return getZodSchema(validate?.payload);
 }
 
 /** Concrete verbs for a route — expanding `method: "*"` via the sidecar. */
 function methodsOf(route: ServerRoute): string[] {
   const method = Array.isArray(route.method) ? route.method : [route.method];
-  if (method.includes("*")) return WILDCARD_METHODS[route.path] ?? [];
+
+  if (method.includes("*")) {
+    return WILDCARD_METHODS[route.path] ?? [];
+  }
+
   return method.map((m) => m.toUpperCase());
 }
 
@@ -175,7 +182,12 @@ const TAG_RULES: Array<[RegExp, string]> = [
 
 /** The sidebar category for a normalized path. */
 export function tagFor(normPath: string): string {
-  for (const [re, tag] of TAG_RULES) if (re.test(normPath)) return tag;
+  for (const [re, tag] of TAG_RULES) {
+    if (re.test(normPath)) {
+      return tag;
+    }
+  }
+
   return UNCATEGORIZED;
 }
 
@@ -185,9 +197,13 @@ function pathParameters(hapiPath: string): {
 } {
   const params: JsonSchema[] = [];
   let hasOptional = false;
+
   for (const match of hapiPath.matchAll(/\{(\w+)([?*]?)\}/g)) {
     const [, name, marker] = match;
-    if (marker) hasOptional = true;
+
+    if (marker) {
+      hasOptional = true;
+    }
     params.push({
       name,
       in: "path",
@@ -195,6 +211,7 @@ function pathParameters(hapiPath: string): {
       schema: { type: "string" },
     });
   }
+
   return { params, hasOptional };
 }
 
@@ -204,7 +221,9 @@ export function toRequestSchema(schema: ZodType): JsonSchema {
     $refStrategy: "none",
     target: "jsonSchema7",
   }) as JsonSchema;
+
   delete out.$schema;
+
   return out;
 }
 
@@ -219,6 +238,7 @@ function operationId(method: string, normPath: string): string {
     .replace(/[/{}]/g, "_")
     .replace(/_+/g, "_")
     .replace(/_$/, "");
+
   return `${method.toLowerCase()}_${slug}`;
 }
 
@@ -232,15 +252,22 @@ function responsesFor(
         "Successful response (2xx; the response body is not described — see info.description)",
     },
   };
-  if (hasBody) responses["400"] = { $ref: "#/components/responses/BadRequest" };
+
+  if (hasBody) {
+    responses["400"] = { $ref: "#/components/responses/BadRequest" };
+  }
+
   if (!isPublicOp) {
     responses["401"] = { $ref: "#/components/responses/Unauthorized" };
     responses["403"] = { $ref: "#/components/responses/Forbidden" };
     responses["503"] = { $ref: "#/components/responses/ServiceUnavailable" };
   }
-  if (hasBody)
+
+  if (hasBody) {
     responses["413"] = { $ref: "#/components/responses/PayloadTooLarge" };
+  }
   responses["429"] = { $ref: "#/components/responses/RateLimited" };
+
   return responses;
 }
 
@@ -252,21 +279,28 @@ function resolveBody(
   coverage: Coverage,
 ): JsonSchema | undefined {
   const declared = routeSchema(route);
+
   if (declared) {
     coverage.covered.push(key);
+
     return jsonBody(toRequestSchema(declared));
   }
   const domain = domainBody(method, route.path);
+
   if (domain?.schema) {
     coverage.lifted.push(key);
+
     return jsonBody(toRequestSchema(domain.schema));
   }
+
   if (domain?.freeform) {
     coverage.freeform.push(key);
+
     return jsonBody(FREEFORM_BODY);
   }
   // No route schema and no sidecar entry: still emit a valid doc, but flag drift.
   coverage.uncovered.push(key);
+
   return jsonBody(FREEFORM_BODY);
 }
 
@@ -288,13 +322,23 @@ function buildOperation(
     "x-rate-limit-bucket": bucketFor(route.path),
     responses: responsesFor(publicOp, hasBody),
   };
-  if (scope) op["x-required-scope"] = scope;
-  if (params.length) op.parameters = params;
-  if (hasOptional)
+
+  if (scope) {
+    op["x-required-scope"] = scope;
+  }
+
+  if (params.length) {
+    op.parameters = params;
+  }
+
+  if (hasOptional) {
     op.description =
       "A trailing path parameter is optional; omit it for the collection form.";
+  }
+
   if (hasBody) {
     const key = `${method} ${route.path}`;
+
     if (selfHandlesBody(route)) {
       coverage.selfHandled.push(key);
       op.description =
@@ -305,6 +349,7 @@ function buildOperation(
       op.requestBody = resolveBody(route, method, key, coverage);
     }
   }
+
   return op;
 }
 
@@ -330,15 +375,21 @@ export function generateOpenApi(
       continue;
     }
     const normPath = normalizePath(route.path);
+
     for (const method of methodsOf(route)) {
       const operation = buildOperation(route, method, normPath, coverage);
+
       (paths[normPath] ??= {})[method.toLowerCase()] = operation;
     }
   }
 
   const usedTags = new Set<string>();
-  for (const item of Object.values(paths))
-    for (const op of Object.values(item)) usedTags.add(op.tags[0]);
+
+  for (const item of Object.values(paths)) {
+    for (const op of Object.values(item)) {
+      usedTags.add(op.tags[0]);
+    }
+  }
 
   const document: OpenApiDocument = {
     openapi: "3.1.0",
@@ -397,6 +448,7 @@ function errorResponses(): Record<string, JsonSchema> {
       "application/json": { schema: { $ref: "#/components/schemas/Error" } },
     },
   };
+
   return {
     BadRequest: { description: "Malformed or invalid request", ...body },
     Unauthorized: { description: "Missing bearer token", ...body },

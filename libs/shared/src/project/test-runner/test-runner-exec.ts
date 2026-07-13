@@ -32,6 +32,7 @@ export async function runTestsList(
   timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<TestDescriptor[]> {
   const { stdout } = await execShell(listCommand, { cwd, timeout: timeoutMs });
+
   return parseTestDescriptors(parseCommandJson(stdout, "tests.list"));
 }
 
@@ -46,6 +47,7 @@ export async function runTestsRun(
     cwd,
     timeout: timeoutMs,
   });
+
   return parseRunResult(parseCommandJson(stdout, "tests.run"));
 }
 
@@ -67,11 +69,13 @@ export function parseCommandJson(stdout: string, what: string): unknown {
 export class ExecTestRunner implements TestRunnerPort {
   listTests(cwd: string): Promise<TestDescriptor[]> {
     const manifest = loadManifest(cwd);
+
     return runTestsList(manifest.list, resolveCwd(manifest, cwd));
   }
 
   runTest(cwd: string, selector: string): Promise<RunResult> {
     const manifest = loadManifest(cwd);
+
     return runTestsRun(manifest.run, selector, resolveCwd(manifest, cwd));
   }
 
@@ -91,17 +95,23 @@ export class ExecTestRunner implements TestRunnerPort {
       files.map((file, index) => [file, fileResults[index]]),
     );
     const results: RunResult[] = [];
+
     for (const [file, ids] of byFile) {
       const run = resultByFile.get(file)!;
-      for (let i = 0; i < ids.length; i += 1) results.push(run);
+
+      for (let i = 0; i < ids.length; i += 1) {
+        results.push(run);
+      }
     }
     const passed = results.filter((r) => r.passed).length;
+
     return { passed, failed: results.length - passed, results };
   }
 }
 
 function loadManifest(cwd: string): TestCommandManifest {
   const file = join(cwd, ".lore", "test-commands.yml");
+
   enforceTrue(
     existsSync(file),
     new Error(`No test-command manifest at ${file}`),
@@ -109,10 +119,12 @@ function loadManifest(cwd: string): TestCommandManifest {
   const manifests = resolveTestCommandManifest({
     file: parse(readFileSync(file, "utf8")),
   });
+
   enforceTrue(
     !(!manifests || manifests.length === 0),
     new Error(`No usable test-command manifest in ${file}`),
   );
+
   return manifests[0];
 }
 

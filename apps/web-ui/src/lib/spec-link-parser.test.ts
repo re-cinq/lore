@@ -23,6 +23,7 @@ describe("parseTestLinksInStatement", () => {
     const out = parseTestLinksInStatement(
       "Claims a pending task. ([validated by `runner.test.ts:88`](mcp-server/src/local-runner.test.ts#L88))",
     );
+
     expect(out).toEqual([
       {
         label: "validated by `runner.test.ts:88`",
@@ -36,6 +37,7 @@ describe("parseTestLinksInStatement", () => {
     const out = parseTestLinksInStatement(
       "Survives rollout via lease backend. ([primary](agent/src/supervisor/lease.test.ts#L42), [takeover](agent/src/supervisor/lease.test.ts#L74))",
     );
+
     expect(out).toEqual([
       {
         label: "primary",
@@ -54,6 +56,7 @@ describe("parseTestLinksInStatement", () => {
     const out = parseTestLinksInStatement(
       "Uses the lease pattern. ([test](agent/src/supervisor/lease.test.ts#L42), [ADR-015](adrs/ADR-015.md))",
     );
+
     expect(out).toEqual([
       { label: "test", path: "agent/src/supervisor/lease.test.ts", line: 42 },
     ]);
@@ -71,6 +74,7 @@ describe("parseTestLinksInStatement", () => {
     const out = parseTestLinksInStatement(
       "Has a file-level test. ([test file](src/x.test.ts))",
     );
+
     expect(out).toEqual([
       { label: "test file", path: "src/x.test.ts", line: null },
     ]);
@@ -80,6 +84,7 @@ describe("parseTestLinksInStatement", () => {
     const out = parseTestLinksInStatement(
       "Absolute-style href. ([test](/src/x.test.ts#L1))",
     );
+
     expect(out[0].path).toBe("src/x.test.ts");
   });
 
@@ -87,6 +92,7 @@ describe("parseTestLinksInStatement", () => {
     const out = parseTestLinksInStatement(
       "Go service. ([test](pkg/store/store_test.go#L120))",
     );
+
     expect(out).toEqual([
       { label: "test", path: "pkg/store/store_test.go", line: 120 },
     ]);
@@ -96,6 +102,7 @@ describe("parseTestLinksInStatement", () => {
     const out = parseTestLinksInStatement(
       "Some [internal link](src/x.test.ts#L42) reference mid-text, with no trailing paren.",
     );
+
     expect(out).toEqual([]);
   });
 
@@ -103,6 +110,7 @@ describe("parseTestLinksInStatement", () => {
     const out = parseTestLinksInStatement(
       "Statement. ([test](src/x.test.ts#L42)).",
     );
+
     expect(out).toEqual([{ label: "test", path: "src/x.test.ts", line: 42 }]);
   });
 
@@ -110,6 +118,7 @@ describe("parseTestLinksInStatement", () => {
     const out = parseTestLinksInStatement(
       "Statement. ([validated by  the   runner test](src/x.test.ts#L42))",
     );
+
     expect(out[0].label).toBe("validated by the runner test");
   });
 });
@@ -119,6 +128,7 @@ describe("parseCodeLinksInStatement", () => {
     const out = parseCodeLinksInStatement(
       "Runs the task. ([impl](mcp-server/src/runner.ts#L88)).",
     );
+
     expect(out).toEqual([
       { label: "impl", path: "mcp-server/src/runner.ts", line: 88 },
     ]);
@@ -166,6 +176,7 @@ describe("findMisplacedCoverageLinks", () => {
     const out = findMisplacedCoverageLinks(
       "Returns ([validated by run](src/x.test.ts#L42)) the value.",
     );
+
     expect(out).toEqual([
       { label: "validated by run", path: "src/x.test.ts", line: 42 },
     ]);

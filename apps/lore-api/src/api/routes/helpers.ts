@@ -16,7 +16,10 @@ import { Llm, insertEvent } from "@re-cinq/lore-shared";
 export function makeGraphLlmCall(
   _pool: Pool | null,
 ): ((prompt: string) => Promise<string>) | undefined {
-  if (!process.env.ANTHROPIC_API_KEY) return undefined;
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return undefined;
+  }
+
   return (prompt: string) =>
     Llm.instance
       .complete({ prompt, jobName: "graph-extraction" })
@@ -38,7 +41,9 @@ export async function triggerAgentSpecTrace(
   kind: string,
   payload: unknown,
 ): Promise<void> {
-  if (!pool) return;
+  if (!pool) {
+    return;
+  }
   await insertEvent(pool, {
     eventName: "internal.ingest.spec_trace",
     source: "internal",
@@ -57,7 +62,9 @@ export async function triggerAgentSpecCoverageValidate(
   pool: Pool | null,
   repo: string,
 ): Promise<void> {
-  if (!pool) return;
+  if (!pool) {
+    return;
+  }
   await insertEvent(pool, {
     eventName: "internal.ingest.spec_coverage_validate",
     source: "internal",

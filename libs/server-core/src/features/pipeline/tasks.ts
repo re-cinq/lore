@@ -32,6 +32,7 @@ export async function claimTask(
   agentId: string,
 ): Promise<boolean> {
   const claimed = await new PgTaskQueue(pool).claimSpecTask(taskId, agentId);
+
   if (claimed) {
     try {
       await recordTaskEvent(pool, taskId, "pending", "running", {
@@ -42,12 +43,14 @@ export async function claimTask(
       /* event recording must not block */
     }
   }
+
   return claimed;
 }
 
 /** Mark a running spec-task completed and return newly unblocked dependents. */
 export async function completeTask(pool: PgPool, taskId: string) {
   const result = await new PgTaskQueue(pool).completeSpecTask(taskId);
+
   if (result.completed) {
     try {
       await recordTaskEvent(pool, taskId, "running", "completed", {});
@@ -55,5 +58,6 @@ export async function completeTask(pool: PgPool, taskId: string) {
       /* event recording must not block */
     }
   }
+
   return result;
 }

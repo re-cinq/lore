@@ -34,6 +34,7 @@ describe("PoolsView", () => {
   it("renders pool name as a link to the encoded pool page", () => {
     render(<PoolsView pools={[makePool({ name: "team alpha/beta" })]} />);
     const link = screen.getByRole("link", { name: "team alpha/beta" });
+
     expect(link).toHaveAttribute("href", "/pools/team%20alpha%2Fbeta");
   });
 
@@ -52,11 +53,13 @@ describe("PoolsView", () => {
       />,
     );
     const cell = screen.getByText("agent-ab...");
+
     expect(cell).toHaveAttribute("title", "agent-abcdef0123456789");
   });
 
   it("renders created_at as a localized date string", () => {
     const created_at = "2026-06-01T12:00:00.000Z";
+
     render(<PoolsView pools={[makePool({ created_at })]} />);
     expect(
       screen.getByText(new Date(created_at).toLocaleString()),

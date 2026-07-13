@@ -16,5 +16,6 @@ export default async function RepoFeatures({
     `SELECT * FROM lore.features WHERE repo = $1 ORDER BY updated_at DESC`,
     [fullName],
   );
+
   return <FeatureListView owner={owner} repo={repo} features={features} />;
 }

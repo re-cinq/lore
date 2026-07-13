@@ -29,10 +29,12 @@ describe("loadTaskTypes", () => {
       "scripts",
       "task-types.yaml",
     );
+
     process.env.TASK_TYPES_PATH = yamlPath;
     loadTaskTypes();
 
     const types = getTaskTypes();
+
     expect(types.length).toBeGreaterThan(0);
     expect(types).toContain("general");
     expect(types).toContain("implementation");
@@ -45,10 +47,13 @@ describe("loadTaskTypes", () => {
     process.env.TASK_TYPES_PATH = "/nonexistent/path/task-types.yaml";
     // Override cwd-based paths too
     const origCwd = process.cwd;
+
     process.cwd = () => "/nonexistent";
     const origHome = process.env.HOME;
+
     process.env.HOME = "/nonexistent";
     const origCtx = process.env.CONTEXT_PATH;
+
     process.env.CONTEXT_PATH = "/nonexistent";
 
     loadTaskTypes();
@@ -79,12 +84,14 @@ describe("getTaskTypeConfig", () => {
       "scripts",
       "task-types.yaml",
     );
+
     process.env.TASK_TYPES_PATH = yamlPath;
     loadTaskTypes();
   });
 
   it("returns config for a known task type", () => {
     const cfg = getTaskTypeConfig("general");
+
     expect(cfg).not.toBeNull();
     expect(cfg!.prompt_template).toBeTruthy();
     expect(cfg!.timeout_minutes).toBeGreaterThan(0);
@@ -97,12 +104,14 @@ describe("getTaskTypeConfig", () => {
 
   it("implementation type has claude-code execution mode", () => {
     const cfg = getTaskTypeConfig("implementation") as any;
+
     expect(cfg).not.toBeNull();
     expect(cfg.execution_mode).toBe("claude-code");
   });
 
   it("review type has timeout configured", () => {
     const cfg = getTaskTypeConfig("review");
+
     expect(cfg).not.toBeNull();
     expect(cfg!.timeout_minutes).toBeGreaterThan(0);
   });
@@ -110,9 +119,13 @@ describe("getTaskTypeConfig", () => {
   it("each claude-code task type has a prompt_template", () => {
     for (const type of getTaskTypes()) {
       const cfg = getTaskTypeConfig(type);
+
       expect(cfg, `${type} should have config`).not.toBeNull();
+
       // Deterministic graph-ingest tasks (zero-LLM) carry no prompt by design.
-      if (cfg!.execution_mode === "graph-ingest") continue;
+      if (cfg!.execution_mode === "graph-ingest") {
+        continue;
+      }
       expect(
         cfg!.prompt_template,
         `${type} should have prompt_template`,
@@ -137,18 +150,21 @@ describe("buildPrompt", () => {
       "scripts",
       "task-types.yaml",
     );
+
     process.env.TASK_TYPES_PATH = yamlPath;
     loadTaskTypes();
   });
 
   it("substitutes {description} in the template", () => {
     const result = buildPrompt("general", "Fix the login bug");
+
     expect(result).toContain("Fix the login bug");
     expect(result).not.toContain("{description}");
   });
 
   it("falls back to default template for unknown type", () => {
     const result = buildPrompt("unknown-type", "Do something");
+
     expect(result).toContain("Do something");
     // The fallback template is "Complete the following task: {description}"
     expect(result).toContain("Complete the following task:");
@@ -156,6 +172,7 @@ describe("buildPrompt", () => {
 
   it("preserves template structure around the description", () => {
     const result = buildPrompt("implementation", "Add caching layer");
+
     expect(result).toContain("Add caching layer");
     // Implementation template mentions specs and rules
     expect(result).toContain("specification");
@@ -163,6 +180,7 @@ describe("buildPrompt", () => {
 
   it("handles empty description", () => {
     const result = buildPrompt("general", "");
+
     // Should not throw, just produce the template with empty description
     expect(result).not.toContain("{description}");
   });
@@ -170,6 +188,7 @@ describe("buildPrompt", () => {
   it("handles description with special characters", () => {
     const desc = 'Fix the "quotes" & <brackets> issue $100';
     const result = buildPrompt("general", desc);
+
     expect(result).toContain(desc);
   });
 });
@@ -190,12 +209,14 @@ describe("getDefaultRepo", () => {
       "scripts",
       "task-types.yaml",
     );
+
     process.env.TASK_TYPES_PATH = yamlPath;
     loadTaskTypes();
   });
 
   it("returns configured default repo for types that have one", () => {
     const repo = getDefaultRepo("general");
+
     expect(repo).toBe("re-cinq/lore");
   });
 

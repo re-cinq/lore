@@ -22,7 +22,7 @@ import {
   fetchGraphContext,
   type GraphContextBlock,
 } from "../../spec-trace/graph-context.js";
-import type { DgraphClientPort } from "../../memory-store.js";
+import type { DgraphClientPort, PgPool } from "../../memory-store.js";
 import {
   dedupeItems,
   serializeContext,
@@ -107,20 +107,24 @@ const templates = new Map<string, Template>();
 export function loadTemplates(dir?: string): void {
   const templateDir =
     dir || join(import.meta.dirname || process.cwd(), "..", "templates");
+
   if (!existsSync(templateDir)) {
     console.warn(
       `[context-assembly] Templates directory not found: ${templateDir}`,
     );
+
     return;
   }
 
   const files = readdirSync(templateDir).filter(
     (f) => f.endsWith(".yaml") || f.endsWith(".yml"),
   );
+
   for (const file of files) {
     try {
       const raw = readFileSync(join(templateDir, file), "utf-8");
       const template = parseYaml(raw) as Template;
+
       if (template.name && template.sections) {
         templates.set(template.name, template);
       }
@@ -157,9 +161,13 @@ function estimateTokens(text: string): number {
  *  the `truncated="true"` document attribute carries that signal instead. */
 function truncateText(text: string, maxTokens: number): string {
   const maxChars = maxTokens * 4;
-  if (text.length <= maxChars) return text;
+
+  if (text.length <= maxChars) {
+    return text;
+  }
   const cut = text.substring(0, maxChars);
   const lastParagraph = cut.lastIndexOf("\n\n");
+
   return lastParagraph > maxChars * 0.5 ? cut.substring(0, lastParagraph) : cut;
 }
 
@@ -170,11 +178,15 @@ function mkItem(text: string, extra: Partial<SourceItem> = {}): SourceItem {
 function toScore(value: unknown): number | undefined {
   const n =
     typeof value === "number" ? value : value != null ? Number(value) : NaN;
+
   return Number.isFinite(n) ? n : undefined;
 }
 
 function toIso(value: unknown): string | undefined {
-  if (!value) return undefined;
+  if (!value) {
+    return undefined;
+  }
+
   try {
     return new Date(value as string | number | Date).toISOString();
   } catch {
@@ -195,27 +207,35 @@ export function fitItemsToBudget(
   const kept: SourceItem[] = [];
   let used = 0;
   let truncated = false;
+
   for (const it of items) {
     const remaining = budgetTokens - used;
+
     if (remaining <= 0) {
       truncated = true;
       break;
     }
     const limit = Math.min(remaining, maxPerDocTokens ?? Infinity);
+
     if (it.tokens <= limit) {
       kept.push(it);
       used += it.tokens;
     } else {
       const text = truncateText(it.text, limit);
       const tokens = estimateTokens(text);
+
       kept.push({ ...it, text, tokens });
       used += tokens;
       truncated = true;
+
       // Stop only when the BUDGET was the binding limit; a per-doc cap leaves
       // room, so keep packing more documents.
-      if (limit >= remaining) break;
+      if (limit >= remaining) {
+        break;
+      }
     }
   }
+
   return { items: kept, truncated };
 }
 
@@ -285,13 +305,21 @@ const STOPWORDS = new Set([
 export function extractKeyTerms(query: string, max = 12): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
+
   for (const raw of query.split(/[^A-Za-z0-9_.-]+/)) {
     const lower = raw.toLowerCase();
-    if (lower.length <= 2 || STOPWORDS.has(lower) || seen.has(lower)) continue;
+
+    if (lower.length <= 2 || STOPWORDS.has(lower) || seen.has(lower)) {
+      continue;
+    }
     seen.add(lower);
     out.push(raw);
-    if (out.length >= max) break;
+
+    if (out.length >= max) {
+      break;
+    }
   }
+
   return out;
 }
 
@@ -300,12 +328,17 @@ export function extractKeyTerms(query: string, max = 12): string[] {
  *  priority section only — no duplicate across sections. Exported for unit tests. */
 export function dropSeen(items: SourceItem[], seen: Set<string>): SourceItem[] {
   const kept: SourceItem[] = [];
+
   for (const it of items) {
     const key = it.source_path || it.text;
-    if (seen.has(key)) continue;
+
+    if (seen.has(key)) {
+      continue;
+    }
     seen.add(key);
     kept.push(it);
   }
+
   return kept;
 }
 
@@ -314,7 +347,11 @@ export function dropSeen(items: SourceItem[], seen: Set<string>): SourceItem[] {
  *  relevance signal. No-op when there is no positive score. */
 function normalizeScores(items: SourceItem[]): SourceItem[] {
   const max = Math.max(0, ...items.map((i) => i.score ?? 0));
-  if (max <= 0) return items;
+
+  if (max <= 0) {
+    return items;
+  }
+
   return items.map((i) =>
     i.score != null ? { ...i, score: i.score / max } : i,
   );
@@ -341,6 +378,7 @@ export function formatCouplingItems(block: GraphContextBlock): SourceItem[] {
     const tests = s.testSelectors.length
       ? `\n  tested by: ${s.testSelectors.join(", ")}`
       : "";
+
     return mkItem(head + gov + tests, {
       source_path: s.specPath,
       content_type: "coupling",
@@ -357,10 +395,14 @@ export async function fetchCouplingSource(
   dgraph: DgraphClientPort | null,
   repo?: string,
 ): Promise<FetchResult> {
-  if (!dgraph || !repo) return { items: [], status: "disabled" };
+  if (!dgraph || !repo) {
+    return { items: [], status: "disabled" };
+  }
+
   try {
     const block = await fetchGraphContext(dgraph, repo);
     const items = formatCouplingItems(block);
+
     return { items, status: items.length > 0 ? "ok" : "empty" };
   } catch {
     return { items: [], status: "error" };
@@ -373,8 +415,25 @@ export async function fetchCouplingSource(
  *  surfaces semantically-relevant chunks (incl. code), not just keyword overlap.
  *  Degrades to keyword-only when no query embedding is available. Exported for
  *  unit tests. */
+interface ChunkRow {
+  content: string;
+  file_path: string;
+  content_type?: string | null;
+  ingested_at?: string | Date | null;
+  score?: number | string | null;
+  repo?: string;
+}
+
+interface Incident {
+  date: string;
+  severity?: string;
+  title?: string;
+  resolved?: boolean;
+  url?: string;
+}
+
 export async function hybridChunkItems(
-  pool: any,
+  pool: PgPool,
   query: string,
   repo: string,
   contentTypes: string[],
@@ -384,7 +443,7 @@ export async function hybridChunkItems(
   // The keyword leg searches the query's distinctive terms (OR'd) rather than the
   // whole paragraph, which would AND every filler word and match almost nothing.
   const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
-  const mapRows = (rows: any[]): SourceItem[] =>
+  const mapRows = (rows: ChunkRow[]): SourceItem[] =>
     normalizeScores(
       rows.map((r) =>
         mkItem(r.content, {
@@ -398,7 +457,7 @@ export async function hybridChunkItems(
 
   if (embedding) {
     const embStr = `[${embedding.join(",")}]`;
-    const { rows } = await pool.query(
+    const { rows } = await pool.query<ChunkRow>(
       `WITH vec AS (
          SELECT id, content, file_path, content_type, ingested_at,
                 ROW_NUMBER() OVER (ORDER BY embedding <=> $2::vector) AS r
@@ -423,11 +482,12 @@ export async function hybridChunkItems(
        ORDER BY score DESC LIMIT $5`,
       [repo, embStr, contentTypes, keywordQuery, limit],
     );
+
     return mapRows(rows);
   }
 
   // Keyword-only fallback (no embedding available).
-  const { rows } = await pool.query(
+  const { rows } = await pool.query<ChunkRow>(
     `SELECT content, file_path, content_type, ingested_at,
             ts_rank(search_tsv, websearch_to_tsquery('english', $2)) AS score
      FROM org_shared.chunks
@@ -435,13 +495,14 @@ export async function hybridChunkItems(
      ORDER BY score DESC NULLS LAST, ingested_at DESC LIMIT $4`,
     [repo, keywordQuery, contentTypes, limit],
   );
+
   return mapRows(rows);
 }
 
 // ── Source fetchers ─────────────────────────────────────────────────
 
 type SourceFetcher = (
-  pool: any,
+  pool: PgPool,
   query: string,
   repo?: string,
   agentId?: string,
@@ -452,7 +513,10 @@ const fetchers: Record<string, SourceFetcher> = {
   // vector+keyword ranking so a natural-language query matches on meaning, not
   // just term overlap (which floated unrelated web-ui specs to the top).
   async repo(pool, query, repo) {
-    if (!repo) return { items: [], status: "empty" };
+    if (!repo) {
+      return { items: [], status: "empty" };
+    }
+
     try {
       const items = await hybridChunkItems(
         pool,
@@ -461,6 +525,7 @@ const fetchers: Record<string, SourceFetcher> = {
         ["doc", "spec"],
         5,
       );
+
       return { items, status: items.length > 0 ? "ok" : "empty" };
     } catch {
       return { items: [], status: "error" };
@@ -470,9 +535,13 @@ const fetchers: Record<string, SourceFetcher> = {
   // Source code the task touches — previously NEVER retrieved (the repo source
   // excluded code), so implementation tasks got zero of the files they edit.
   async code(pool, query, repo) {
-    if (!repo) return { items: [], status: "empty" };
+    if (!repo) {
+      return { items: [], status: "empty" };
+    }
+
     try {
       const items = await hybridChunkItems(pool, query, repo, ["code"], 6);
+
       return { items, status: items.length > 0 ? "ok" : "empty" };
     } catch {
       return { items: [], status: "error" };
@@ -481,9 +550,13 @@ const fetchers: Record<string, SourceFetcher> = {
 
   // ADRs ranked by relevance (hybrid vector+keyword) to the query.
   async adrs(pool, query, repo) {
-    if (!repo) return { items: [], status: "empty" };
+    if (!repo) {
+      return { items: [], status: "empty" };
+    }
+
     try {
       const items = await hybridChunkItems(pool, query, repo, ["adr"], 10);
+
       return { items, status: items.length > 0 ? "ok" : "empty" };
     } catch {
       return { items: [], status: "error" };
@@ -500,20 +573,29 @@ const fetchers: Record<string, SourceFetcher> = {
         10,
         false,
       );
-      if (results.length === 0) return { items: [], status: "empty" };
+
+      if (results.length === 0) {
+        return { items: [], status: "empty" };
+      }
 
       const factIds = results
         .filter((r) => r.id && (r.source === "fact" || r.source === "episode"))
         .map((r) => r.id!);
       const conflictSet = new Set<string>();
+
       if (factIds.length > 0) {
         try {
-          const { rows: conflicts } = await pool.query(
+          const { rows: conflicts } = await pool.query<{
+            new_fact_id: string;
+          }>(
             `SELECT new_fact_id FROM memory.fact_conflicts
              WHERE new_fact_id = ANY($1) AND created_at > now() - interval '7 days'`,
             [factIds],
           );
-          for (const c of conflicts) conflictSet.add(c.new_fact_id);
+
+          for (const c of conflicts) {
+            conflictSet.add(c.new_fact_id);
+          }
         } catch {
           /* non-fatal */
         }
@@ -522,6 +604,7 @@ const fetchers: Record<string, SourceFetcher> = {
       const items = results.map((r) => {
         const tag = r.confidence ? ` [${r.confidence}]` : "";
         const conflict = r.id && conflictSet.has(r.id) ? " [CONFLICT]" : "";
+
         return mkItem(
           `**${r.key}** (${r.source})${tag}${conflict}: ${r.value}`,
           {
@@ -530,6 +613,7 @@ const fetchers: Record<string, SourceFetcher> = {
           },
         );
       });
+
       return { items, status: "ok" };
     } catch {
       return { items: [], status: "error" };
@@ -544,6 +628,7 @@ const fetchers: Record<string, SourceFetcher> = {
         .filter((w) => w.length > 3);
       const seen = new Set<string>();
       const items: SourceItem[] = [];
+
       for (const word of words.slice(0, 3)) {
         const graphResults = await queryLiveGraph(
           pool,
@@ -552,13 +637,18 @@ const fetchers: Record<string, SourceFetcher> = {
           repo,
           false,
         );
+
         for (const r of graphResults) {
           const line = `${r.entity} (${r.entity_type}) --${r.relation}--> ${r.related_entity} (${r.related_type})`;
-          if (seen.has(line)) continue;
+
+          if (seen.has(line)) {
+            continue;
+          }
           seen.add(line);
           items.push(mkItem(line, { content_type: "graph" }));
         }
       }
+
       return { items, status: items.length > 0 ? "ok" : "empty" };
     } catch {
       return { items: [], status: "error" };
@@ -576,7 +666,11 @@ const fetchers: Record<string, SourceFetcher> = {
         false,
       );
       const episodeResults = results.filter((r) => r.source === "episode");
-      if (episodeResults.length === 0) return { items: [], status: "empty" };
+
+      if (episodeResults.length === 0) {
+        return { items: [], status: "empty" };
+      }
+
       return {
         items: episodeResults.map((r) =>
           mkItem(`**${r.key}**: ${r.value}`, {
@@ -593,34 +687,44 @@ const fetchers: Record<string, SourceFetcher> = {
 
   async rules(pool, query, repo) {
     // Load .claude/rules/*.md files whose filename keyword-matches the query.
-    if (!repo) return { items: [], status: "empty" };
+    if (!repo) {
+      return { items: [], status: "empty" };
+    }
+
     try {
-      const { rows } = await pool.query(
+      const { rows } = await pool.query<ChunkRow>(
         `SELECT content, file_path FROM org_shared.chunks
          WHERE repo = $1 AND content_type = 'rule'
          ORDER BY file_path`,
         [repo],
       );
-      if (rows.length === 0) return { items: [], status: "empty" };
+
+      if (rows.length === 0) {
+        return { items: [], status: "empty" };
+      }
 
       const queryWords = query
         .toLowerCase()
         .split(/\s+/)
         .filter((w: string) => w.length > 2);
-      const matched = rows.filter((r: any) => {
+      const matched = rows.filter((r) => {
         const ruleName = r.file_path
           .replace(/.*\//, "")
           .replace(/\.md$/, "")
           .toLowerCase();
+
         return queryWords.some(
           (w: string) => ruleName.includes(w) || w.includes(ruleName),
         );
       });
+
       // No keyword match is distinct from "no rules exist" — surface it in the trace.
-      if (matched.length === 0) return { items: [], status: "no-match" };
+      if (matched.length === 0) {
+        return { items: [], status: "no-match" };
+      }
 
       return {
-        items: matched.map((r: any) =>
+        items: matched.map((r) =>
           mkItem(r.content, { source_path: r.file_path, content_type: "rule" }),
         ),
         status: "ok",
@@ -631,46 +735,58 @@ const fetchers: Record<string, SourceFetcher> = {
   },
 
   async cross_repo(pool, query, repo) {
-    if (!repo) return { items: [], status: "empty" };
+    if (!repo) {
+      return { items: [], status: "empty" };
+    }
+
     try {
-      const { rows: repoRows } = await pool.query(
-        `SELECT settings FROM lore.repos WHERE full_name = $1`,
-        [repo],
-      );
+      const { rows: repoRows } = await pool.query<{
+        settings: { cross_repo_repos?: string[] } | null;
+      }>(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
       const linkedRepos: string[] =
         repoRows[0]?.settings?.cross_repo_repos || [];
 
-      let rows: any[];
+      let rows: ChunkRow[];
+
       if (linkedRepos.length > 0) {
-        const result = await pool.query(
+        const result = await pool.query<ChunkRow>(
           `SELECT content, repo, file_path, ts_rank(search_tsv, plainto_tsquery($2)) AS score
            FROM org_shared.chunks
            WHERE repo = ANY($1) AND search_tsv @@ plainto_tsquery($2)
            ORDER BY score DESC LIMIT 5`,
           [linkedRepos, query],
         );
+
         rows = result.rows;
       } else {
-        const result = await pool.query(
+        const result = await pool.query<ChunkRow>(
           `SELECT content, repo, file_path, ts_rank(search_tsv, plainto_tsquery($2)) AS score
            FROM org_shared.chunks
            WHERE repo != $1 AND search_tsv @@ plainto_tsquery($2)
            ORDER BY score DESC LIMIT 5`,
           [repo, query],
         );
+
         rows = result.rows;
       }
-      if (rows.length === 0) return { items: [], status: "empty" };
+
+      if (rows.length === 0) {
+        return { items: [], status: "empty" };
+      }
       // Only portable, high-transfer-score content from other repos passes through.
       const scored = rows
-        .map((r: any) => ({
+        .map((r) => ({
           ...r,
           transferScore: computeTransferScore(r.content),
         }))
-        .filter((r: any) => r.transferScore >= 0.5);
-      if (scored.length === 0) return { items: [], status: "empty" };
+        .filter((r) => r.transferScore >= 0.5);
+
+      if (scored.length === 0) {
+        return { items: [], status: "empty" };
+      }
+
       return {
-        items: scored.map((r: any) =>
+        items: scored.map((r) =>
           mkItem(r.content, {
             source_path: r.file_path,
             repo: r.repo,
@@ -686,13 +802,16 @@ const fetchers: Record<string, SourceFetcher> = {
   },
 
   async incidents(pool, _query, repo) {
-    if (!repo) return { items: [], status: "empty" };
+    if (!repo) {
+      return { items: [], status: "empty" };
+    }
+
     try {
-      const { rows } = await pool.query(
-        `SELECT settings FROM lore.repos WHERE full_name = $1`,
-        [repo],
-      );
+      const { rows } = await pool.query<{
+        settings: { incidents?: Incident[] } | null;
+      }>(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
       const settings = rows[0]?.settings;
+
       if (
         !settings?.incidents ||
         !Array.isArray(settings.incidents) ||
@@ -702,11 +821,15 @@ const fetchers: Record<string, SourceFetcher> = {
       }
       const cutoff = Date.now() - 30 * 86400000;
       const recent = settings.incidents.filter(
-        (i: any) => new Date(i.date).getTime() > cutoff,
+        (i) => new Date(i.date).getTime() > cutoff,
       );
-      if (recent.length === 0) return { items: [], status: "empty" };
+
+      if (recent.length === 0) {
+        return { items: [], status: "empty" };
+      }
+
       return {
-        items: recent.map((i: any) =>
+        items: recent.map((i) =>
           mkItem(
             `- **${i.severity || "unknown"}**: ${i.title}${i.resolved ? " (resolved)" : ""} — ${i.date}${i.url ? ` [link](${i.url})` : ""}`,
             { content_type: "incident" },
@@ -740,7 +863,7 @@ const STATUS_REASON: Record<FetchStatus, string> = {
 };
 
 export async function assembleContext(
-  pool: any,
+  pool: PgPool,
   query: string,
   templateName: string = "default",
   maxTokens?: number,
@@ -760,12 +883,15 @@ export async function assembleContext(
   // Check context freshness + first-run status
   let freshnessWarning = "";
   let freshnessState = "unknown";
+
   if (repo) {
     try {
-      const { rows } = await pool.query(
-        `SELECT last_ingested_at FROM lore.repos WHERE full_name = $1`,
-        [repo],
-      );
+      const { rows } = await pool.query<{
+        last_ingested_at: string | Date | null;
+      }>(`SELECT last_ingested_at FROM lore.repos WHERE full_name = $1`, [
+        repo,
+      ]);
+
       if (rows.length === 0) {
         freshnessState = "first-run";
         freshnessWarning = `> **Welcome to Lore!** This repo is not yet onboarded.\n> Suggested actions:\n> 1. Call \`lore_onboard_repo\` to generate CLAUDE.md and register the repo\n> 2. Call \`lore_ingest_files\` to manually add specific files\n> 3. Call \`lore_search_memory\` to check if others have left learnings\n\n`;
@@ -774,8 +900,10 @@ export async function assembleContext(
         freshnessWarning = `> ⚠ **Context may be stale** — this repo has never been ingested. Run \`lore_ingest_files\` or wait for the nightly reindex.\n\n`;
       } else {
         const age = Date.now() - new Date(rows[0].last_ingested_at).getTime();
+
         if (age > 7 * 86400000) {
           const days = Math.floor(age / 86400000);
+
           freshnessState = "stale";
           freshnessWarning = `> ⚠ **Context may be stale** — last ingested ${days} days ago.\n\n`;
         } else {
@@ -803,6 +931,7 @@ export async function assembleContext(
       const t0 = Date.now();
       const fetcher = fetchers[section.source];
       let res: FetchResult;
+
       try {
         // The coupling source reads the spec-traceability graph (Dgraph), not the
         // Postgres pool — fail-soft `disabled` when no graph client is wired.
@@ -816,6 +945,7 @@ export async function assembleContext(
         res = { items: [], status: "error" };
       }
       timings[section.source] = Date.now() - t0;
+
       return { section, res };
     }),
   );
@@ -854,11 +984,13 @@ export async function assembleContext(
       omitReason = "budget exhausted";
     } else {
       const weight = (6 - section.priority) / nonEmptyWeight;
+
       allocatedBudget = Math.min(
         section.max_tokens ?? Infinity,
         Math.floor(minTokens * weight * 1.5), // allow some per-section overflow
         remaining,
       );
+
       if (allocatedBudget <= 100) {
         omitReason = "budget exhausted";
       } else {
@@ -868,10 +1000,12 @@ export async function assembleContext(
         const perDocCap =
           deduped.length > 1 ? Math.floor(allocatedBudget * 0.5) : undefined;
         const fit = fitItemsToBudget(deduped, allocatedBudget, perDocCap);
+
         keptItems = fit.items;
         truncated = fit.truncated;
         finalTokens = keptItems.reduce((sum, i) => sum + i.tokens, 0);
         included = keptItems.length > 0;
+
         if (included) {
           remaining -= finalTokens;
           serialized.push({
@@ -913,10 +1047,17 @@ export async function assembleContext(
         20,
         false,
       );
+
       for (const r of results) {
-        if (!r.id) continue;
-        if (r.source === "memory") collectedMemoryIds.push(r.id);
-        else collectedFactIds.push(r.id);
+        if (!r.id) {
+          continue;
+        }
+
+        if (r.source === "memory") {
+          collectedMemoryIds.push(r.id);
+        } else {
+          collectedFactIds.push(r.id);
+        }
       }
     } catch {
       /* non-fatal */
@@ -941,6 +1082,7 @@ export async function assembleContext(
 
   if (debug) {
     const used = sections.reduce((sum, s) => sum + s.tokens, 0);
+
     result.trace = {
       query,
       template: templateName,
@@ -972,5 +1114,6 @@ export async function assembleContext(
       memory_ids: collectedMemoryIds,
     };
   }
+
   return result;
 }

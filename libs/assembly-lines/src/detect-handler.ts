@@ -33,13 +33,16 @@ export function createDetectHandler(
     _ctx: NodeContext,
   ): Promise<NodeResult> => {
     const detector = node.job_ref ? registry[node.job_ref] : undefined;
+
     enforceTrue(
       detector,
       `detect node "${node.id}": no detector registered for job_ref "${node.job_ref}"`,
     );
 
     const summary = await detector({ repo: run.repo });
+
     run.onSummary?.(summary);
+
     return {
       outcome: "success",
       extras: {

@@ -11,6 +11,10 @@ export function createDgraphClient(
   env: NodeJS.ProcessEnv = process.env,
 ): DgraphClientPort | null {
   const httpUrl = env.LORE_DGRAPH_HTTP;
-  if (!httpUrl) return null;
+
+  if (!httpUrl) {
+    return null;
+  }
+
   return new dgraph.DgraphClient(new dgraph.DgraphClientStub(httpUrl));
 }

@@ -33,8 +33,12 @@ describe("rate-limit ext", () => {
         method: "GET",
         url: "/dist/lore-code-trace/linux-amd64",
       });
-    for (let i = 0; i < 200; i++) await hit();
+
+    for (let i = 0; i < 200; i++) {
+      await hit();
+    }
     const last = await hit();
+
     expect(last.statusCode).toBe(429);
     expect(last.result).toEqual({ error: "rate limit exceeded" });
     expect(last.headers["retry-after"]).toBe("60");
@@ -49,8 +53,12 @@ describe("rate-limit ext", () => {
         headers: AUTH,
         payload: "{}",
       });
-    for (let i = 0; i < 60; i++) await hit();
+
+    for (let i = 0; i < 60; i++) {
+      await hit();
+    }
     const last = await hit();
+
     expect(last.statusCode).toBe(429);
   });
 
@@ -63,8 +71,12 @@ describe("rate-limit ext", () => {
         headers: AUTH,
       });
     let secondToLast;
-    for (let i = 0; i < 200; i++) secondToLast = await hit();
+
+    for (let i = 0; i < 200; i++) {
+      secondToLast = await hit();
+    }
     const last = await hit();
+
     expect(secondToLast!.statusCode).not.toBe(429);
     expect(last.statusCode).toBe(429);
   });
@@ -72,8 +84,12 @@ describe("rate-limit ext", () => {
   it("exempts /healthz from rate limiting", async () => {
     const server = buildServer(() => null);
     const hit = () => server.inject({ method: "GET", url: "/healthz" });
-    for (let i = 0; i < 249; i++) await hit();
+
+    for (let i = 0; i < 249; i++) {
+      await hit();
+    }
     const last = await hit();
+
     expect(last.statusCode).not.toBe(429);
   });
 });

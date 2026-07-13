@@ -30,6 +30,7 @@ async function loadKindPatterns(
 ): Promise<string[] | undefined> {
   try {
     const raw = await ports.readFile(INGEST_MANIFEST_PATH, ref);
+
     return parseIngestPatterns(parseYaml(raw))[kind];
   } catch {
     return undefined;
@@ -122,7 +123,11 @@ export function selectIngestFiles(
     );
   }
   const def = registry[kind];
-  if (!def) return [];
+
+  if (!def) {
+    return [];
+  }
+
   return tree.filter(
     (path) =>
       path.endsWith(".md") &&
@@ -148,6 +153,7 @@ export function summarizeIngest(
     status === "failed"
       ? `${kind}: all ${attempted} file(s) failed to project`
       : `${kind}: projected ${projected}, skipped ${skipped}, failed ${failed}`;
+
   return { kind, projected, skipped, failed, failedFiles, status, message };
 }
 
@@ -183,10 +189,12 @@ export async function runIngestGraph(
       );
     }
     const report = await ports.buildTestReport();
+
     await ingestSpecTrace(ports.dgraph, params.repo, "test-report", report);
     const count = Array.isArray((report as { tests?: unknown[] }).tests)
       ? (report as { tests: unknown[] }).tests.length
       : 0;
+
     return {
       kind: "tests",
       projected: count,
@@ -199,8 +207,10 @@ export async function runIngestGraph(
   }
 
   const def = registry[params.kind];
-  if (!def)
+
+  if (!def) {
     return skippedSummary(params.kind, `unknown ingest kind "${params.kind}"`);
+  }
 
   const patterns = await loadKindPatterns(ports, params.kind, params.ref);
   const files = selectIngestFiles(
@@ -217,6 +227,7 @@ export async function runIngestGraph(
   let projected = 0;
   let skipped = 0;
   const failedFiles: string[] = [];
+
   for (const filePath of files) {
     try {
       const content = await ports.readFile(filePath, params.ref);
@@ -228,20 +239,26 @@ export async function runIngestGraph(
         undefined,
         params.force,
       );
-      if (result.projected) projected += 1;
-      else skipped += 1;
+
+      if (result.projected) {
+        projected += 1;
+      } else {
+        skipped += 1;
+      }
     } catch (err) {
       // Per-file isolation must NOT mean a silent failure: log the actual reason
       // (file + kind + repo) so a failed projection is debuggable from pod /
       // runner logs. failedFiles keeps the names for the structured count.
       const reason =
         err instanceof Error ? (err.stack ?? err.message) : String(err);
+
       console.error(
         `[ingest-graph] ${params.kind} ${params.repo} :: ${filePath} failed to project: ${reason}`,
       );
       failedFiles.push(filePath);
     }
   }
+
   return summarizeIngest(
     params.kind,
     files.length,

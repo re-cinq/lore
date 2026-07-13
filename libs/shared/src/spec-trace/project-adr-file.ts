@@ -34,6 +34,7 @@ async function readAdrContentHash(
       `query find($xid: string) { found(func: eq(ADR.xid, $xid), first: 1) { ADR.content_hash } }`,
       { $xid: xid },
     );
+
     return res.data?.found?.[0]?.["ADR.content_hash"] as string | undefined;
   });
 }
@@ -50,6 +51,7 @@ export async function projectAdrFile(
 ): Promise<{ projected: boolean }> {
   const contentHash = sha256(content);
   const xid = `${repo}|${filePath}`;
+
   if (!force && (await readAdrContentHash(dgraph, xid)) === contentHash) {
     return { projected: false };
   }
@@ -61,6 +63,7 @@ export async function projectAdrFile(
     "ADR.content_hash": contentHash,
     ...(number != null ? { "ADR.number": number } : {}),
   });
+
   await upsertByXid(dgraph, "Repo", repo, { "Repo.adrs": [{ uid: adrUid }] });
   const validXids = await projectDocumentBlocks(
     dgraph,
@@ -68,6 +71,8 @@ export async function projectAdrFile(
     filePath,
     content,
   );
+
   await pruneOrphanBlocksByFile(dgraph, repo, filePath, validXids);
+
   return { projected: true };
 }

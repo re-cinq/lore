@@ -11,10 +11,14 @@ export interface DriftedStatement {
 }
 
 export function formatSpecDriftReport(drifted: DriftedStatement[]): string {
-  if (drifted.length === 0) return "";
+  if (drifted.length === 0) {
+    return "";
+  }
   const bySpec = new Map<string, DriftedStatement[]>();
+
   for (const finding of drifted) {
     const list = bySpec.get(finding.specPath) ?? [];
+
     list.push(finding);
     bySpec.set(finding.specPath, list);
   }
@@ -24,9 +28,11 @@ export function formatSpecDriftReport(drifted: DriftedStatement[]): string {
     `${drifted.length} statement${drifted.length === 1 ? "" : "s"} across ${bySpec.size} spec${bySpec.size === 1 ? "" : "s"} no longer hold against their tests.`,
     "",
   ];
+
   for (const [specPath, list] of bySpec) {
     lines.push(`### \`${specPath}\``);
     lines.push("");
+
     for (const finding of list) {
       lines.push(`- **${finding.reason}** — _${finding.statementText}_`);
     }
@@ -36,5 +42,6 @@ export function formatSpecDriftReport(drifted: DriftedStatement[]): string {
   lines.push(
     "Posted by Lore's `spec-trace` job. Re-align the implementation with the spec or update the test to silence this.",
   );
+
   return lines.join("\n");
 }

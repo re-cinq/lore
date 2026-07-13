@@ -25,6 +25,7 @@ describe("djb2Hash", () => {
 
   it("handles empty string", () => {
     const h = djb2Hash("");
+
     expect(typeof h).toBe("string");
     expect(h.length).toBeGreaterThan(0);
   });
@@ -37,11 +38,13 @@ describe("djb2Hash", () => {
 describe("computeCachePrefixHash", () => {
   it("returns empty strings when no system/tools", () => {
     const h = computeCachePrefixHash(undefined, undefined);
+
     expect(h).toEqual({ system: "", tools: "" });
   });
 
   it("hashes only system when tools are absent", () => {
     const h = computeCachePrefixHash("You are a helpful assistant.", undefined);
+
     expect(h.system).not.toBe("");
     expect(h.tools).toBe("");
   });
@@ -52,6 +55,7 @@ describe("computeCachePrefixHash", () => {
     ];
     const a = computeCachePrefixHash("sys", tools);
     const b = computeCachePrefixHash("sys", tools);
+
     expect(a).toEqual(b);
   });
 
@@ -62,6 +66,7 @@ describe("computeCachePrefixHash", () => {
     const b = computeCachePrefixHash("sys", [
       { name: "f", description: "v2", input_schema: {} },
     ]);
+
     expect(a.system).toBe(b.system);
     expect(a.tools).not.toBe(b.tools);
   });
@@ -117,6 +122,7 @@ describe("analyzeCacheBreak", () => {
 
   it("classifies the first call as first-call", () => {
     const r = analyzeCacheBreak(jobName, hashA, 100, 0);
+
     expect(r.status).toBe("first-call");
   });
 
@@ -125,12 +131,14 @@ describe("analyzeCacheBreak", () => {
     analyzeCacheBreak(jobName, hashA, 100, 0);
     // then a hit
     const r = analyzeCacheBreak(jobName, hashA, 0, 100);
+
     expect(r.status).toBe("hit");
   });
 
   it("classifies system-only prompt change", () => {
     analyzeCacheBreak(jobName, hashA, 100, 0);
     const r = analyzeCacheBreak(jobName, hashB, 100, 0);
+
     expect(r.status).toBe("prompt-changed");
     expect(r.reason).toBe("system");
   });
@@ -138,6 +146,7 @@ describe("analyzeCacheBreak", () => {
   it("classifies tools-only change", () => {
     analyzeCacheBreak(jobName, hashA, 100, 0);
     const r = analyzeCacheBreak(jobName, hashC, 100, 0);
+
     expect(r.status).toBe("prompt-changed");
     expect(r.reason).toBe("tools");
   });
@@ -146,6 +155,7 @@ describe("analyzeCacheBreak", () => {
     analyzeCacheBreak(jobName, hashA, 100, 0);
     // Second call: same hash, paid to write again → TTL expired
     const r = analyzeCacheBreak(jobName, hashA, 100, 0);
+
     expect(r.status).toBe("ttl-expired");
     expect(typeof r.ageMinutes).toBe("number");
   });
@@ -154,6 +164,7 @@ describe("analyzeCacheBreak", () => {
     analyzeCacheBreak("job-1", hashA, 100, 0);
     // Different job starts fresh
     const r = analyzeCacheBreak("job-2", hashA, 100, 0);
+
     expect(r.status).toBe("first-call");
   });
 });

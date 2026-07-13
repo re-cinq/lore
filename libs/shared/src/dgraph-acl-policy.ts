@@ -9,93 +9,148 @@
 const CRED_NAME = /password|secret|token|cred|acl/i;
 const GUARDIAN = /guardian|groot|superuser/i;
 
-function isBootstrapJob(doc: any): boolean {
+type Rec = Record<string, unknown>;
+
+const asRec = (v: unknown): Rec | undefined =>
+  v !== null && typeof v === "object" ? (v as Rec) : undefined;
+
+const str = (v: unknown): string => String(v ?? "");
+
+function isBootstrapJob(doc: unknown): boolean {
+  const d = asRec(doc);
+  const meta = asRec(d?.metadata);
+  const ann = asRec(meta?.annotations);
+
   return (
-    doc?.kind === "Job" &&
-    (/pre-install/.test(String(doc?.metadata?.annotations?.["helm.sh/hook"])) ||
-      /bootstrap/i.test(String(doc?.metadata?.name)))
+    d?.kind === "Job" &&
+    (/pre-install/.test(str(ann?.["helm.sh/hook"])) ||
+      /bootstrap/i.test(str(meta?.name)))
   );
 }
 
-function* findEnvEntries(node: any): Generator<any> {
+function* findEnvEntries(node: unknown): Generator<Rec> {
   if (Array.isArray(node)) {
-    for (const child of node) yield* findEnvEntries(child);
+    for (const child of node) {
+      yield* findEnvEntries(child);
+    }
+
     return;
   }
-  if (node && typeof node === "object") {
-    if (Array.isArray(node.env))
-      for (const envEntry of node.env) yield envEntry;
-    for (const value of Object.values(node)) yield* findEnvEntries(value);
+  const rec = asRec(node);
+
+  if (rec) {
+    if (Array.isArray(rec.env)) {
+      for (const envEntry of rec.env) {
+        const entry = asRec(envEntry);
+
+        if (entry) {
+          yield entry;
+        }
+      }
+    }
+
+    for (const value of Object.values(rec)) {
+      yield* findEnvEntries(value);
+    }
   }
 }
 
-function* findContainers(node: any): Generator<any> {
+function* findContainers(node: unknown): Generator<Rec> {
   if (Array.isArray(node)) {
-    for (const child of node) yield* findContainers(child);
+    for (const child of node) {
+      yield* findContainers(child);
+    }
+
     return;
   }
-  if (node && typeof node === "object") {
-    if (Array.isArray(node.command) || Array.isArray(node.args)) yield node;
-    for (const value of Object.values(node)) yield* findContainers(value);
+  const rec = asRec(node);
+
+  if (rec) {
+    if (Array.isArray(rec.command) || Array.isArray(rec.args)) {
+      yield rec;
+    }
+
+    for (const value of Object.values(rec)) {
+      yield* findContainers(value);
+    }
   }
 }
 
-function checkAclEnabled(doc: any): string[] {
+function checkAclEnabled(doc: unknown): string[] {
   const violations: string[] = [];
+  const name = str(asRec(asRec(doc)?.metadata)?.name) || "alpha";
+
   for (const container of findContainers(doc)) {
-    const argv = [...(container.command ?? []), ...(container.args ?? [])].map(
-      String,
-    );
+    const argv = [
+      ...((container.command as unknown[]) ?? []),
+      ...((container.args as unknown[]) ?? []),
+    ].map(String);
+
     if (argv.includes("alpha") && !argv.some((arg) => arg.includes("--acl"))) {
       violations.push(
-        `dgraph alpha (${doc?.metadata?.name ?? "alpha"}) does not enable ACL: missing --acl`,
+        `dgraph alpha (${name}) does not enable ACL: missing --acl`,
       );
     }
   }
+
   return violations;
 }
 
-function checkNoHardcodedCreds(doc: any): string[] {
+function checkNoHardcodedCreds(doc: unknown): string[] {
   const violations: string[] = [];
+  const meta = asRec(asRec(doc)?.metadata);
+  const where = str(meta?.name) || str(asRec(doc)?.kind) || "doc";
+
   for (const envEntry of findEnvEntries(doc)) {
     if (
-      envEntry &&
-      CRED_NAME.test(String(envEntry.name)) &&
+      CRED_NAME.test(str(envEntry.name)) &&
       typeof envEntry.value === "string" &&
       envEntry.value.length > 0
     ) {
-      const where = doc?.metadata?.name ?? doc?.kind ?? "doc";
       violations.push(
-        `hardcoded credential in env ${envEntry.name} (${where}): use valueFrom.secretKeyRef / ESO, not a literal value`,
+        `hardcoded credential in env ${str(envEntry.name)} (${where}): use valueFrom.secretKeyRef / ESO, not a literal value`,
       );
     }
   }
+
   return violations;
 }
 
-function checkWorkloadIdentity(doc: any): string[] {
-  if (doc?.kind !== "ServiceAccount") return [];
-  const gsa = doc?.metadata?.annotations?.["iam.gke.io/gcp-service-account"];
-  if (gsa) return [];
+function checkWorkloadIdentity(doc: unknown): string[] {
+  const meta = asRec(asRec(doc)?.metadata);
+
+  if (asRec(doc)?.kind !== "ServiceAccount") {
+    return [];
+  }
+  const gsa = asRec(meta?.annotations)?.["iam.gke.io/gcp-service-account"];
+
+  if (gsa) {
+    return [];
+  }
+
   return [
-    `ServiceAccount ${doc?.metadata?.name ?? "?"} is missing the Workload Identity annotation iam.gke.io/gcp-service-account`,
+    `ServiceAccount ${str(meta?.name) || "?"} is missing the Workload Identity annotation iam.gke.io/gcp-service-account`,
   ];
 }
 
-function checkGuardianIsolation(doc: any): string[] {
-  if (isBootstrapJob(doc)) return [];
+function checkGuardianIsolation(doc: unknown): string[] {
+  if (isBootstrapJob(doc)) {
+    return [];
+  }
   const violations: string[] = [];
+  const meta = asRec(asRec(doc)?.metadata);
+  const where = str(meta?.name) || str(asRec(doc)?.kind);
+
   for (const envEntry of findEnvEntries(doc)) {
-    if (
-      envEntry &&
-      (GUARDIAN.test(String(envEntry.name)) ||
-        GUARDIAN.test(String(envEntry?.valueFrom?.secretKeyRef?.name)))
-    ) {
+    const secretName = asRec(asRec(envEntry.valueFrom)?.secretKeyRef)?.name;
+
+    if (GUARDIAN.test(str(envEntry.name)) || GUARDIAN.test(str(secretName))) {
       violations.push(
-        `guardian credential referenced in runtime workload ${doc?.metadata?.name ?? doc?.kind}: the guardian credential must be used only by the pre-install bootstrap Job`,
+        `guardian credential referenced in runtime workload ${where}: the guardian credential must be used only by the pre-install bootstrap Job`,
       );
     }
   }
+
   return violations;
 }
 
@@ -106,6 +161,6 @@ const CHECKS = [
   checkGuardianIsolation,
 ];
 
-export function auditDgraphAcl(docs: Array<Record<string, any>>): string[] {
+export function auditDgraphAcl(docs: Array<Record<string, unknown>>): string[] {
   return docs.flatMap((doc) => CHECKS.flatMap((check) => check(doc)));
 }

@@ -35,6 +35,7 @@ export default async function FeatureDetail({
     [id, fullName],
   );
   const feature = features[0];
+
   if (!feature) {
     return (
       <div className="spec-card">
@@ -81,7 +82,10 @@ export default async function FeatureDetail({
   async function del() {
     "use server";
     const result = await deleteFeature(fullName, id);
-    if (result.status === "error") throw new Error(result.message);
+
+    if (result.status === "error") {
+      throw new Error(result.message);
+    }
     revalidatePath(`/repos/${owner}/${repo}/features`);
     redirect(`/repos/${owner}/${repo}/features`);
   }

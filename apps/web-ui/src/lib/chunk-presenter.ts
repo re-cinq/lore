@@ -16,7 +16,10 @@ export function chunkHeader(
   contentType: string,
   metadata?: ChunkMeta | null,
 ): string {
-  if (!metadata) return "";
+  if (!metadata) {
+    return "";
+  }
+
   if (contentType === "code") {
     const symbol = [metadata.symbol_type, metadata.symbol_name]
       .filter(Boolean)
@@ -27,7 +30,9 @@ export function chunkHeader(
         : metadata.start_line
           ? `L${metadata.start_line}`
           : "";
+
     return [symbol, lines].filter(Boolean).join(" · ");
   }
+
   return metadata.section_title ?? "";
 }

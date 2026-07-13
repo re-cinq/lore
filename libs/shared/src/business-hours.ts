@@ -11,17 +11,26 @@
 
 function parseHour(raw: string | undefined, fallback: number): number {
   const n = raw ? parseInt(raw, 10) : NaN;
-  if (Number.isNaN(n) || n < 0 || n > 23) return fallback;
+
+  if (Number.isNaN(n) || n < 0 || n > 23) {
+    return fallback;
+  }
+
   return n;
 }
 
 function parseDays(raw: string | undefined): Set<number> {
   const src = raw && raw.trim() ? raw : "1,2,3,4,5";
   const out = new Set<number>();
+
   for (const token of src.split(",")) {
     const n = parseInt(token.trim(), 10);
-    if (!Number.isNaN(n) && n >= 1 && n <= 7) out.add(n);
+
+    if (!Number.isNaN(n) && n >= 1 && n <= 7) {
+      out.add(n);
+    }
   }
+
   return out.size > 0 ? out : new Set([1, 2, 3, 4, 5]);
 }
 
@@ -45,7 +54,10 @@ export function isBusinessHours(now: Date = new Date()): boolean {
   const hour = parseInt(hourStr, 10);
   const weekday = weekdayToIso(weekdayStr);
 
-  if (!days.has(weekday)) return false;
+  if (!days.has(weekday)) {
+    return false;
+  }
+
   return hour >= start && hour < end;
 }
 

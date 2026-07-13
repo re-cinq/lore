@@ -27,8 +27,10 @@ describe("OpenAPI serving routes", () => {
   describe("GET /api/openapi.json", () => {
     it("returns the 3.1 document, self-describing its own read scope", async () => {
       const res = await inject("/api/openapi.json");
+
       expect(res.statusCode).toBe(200);
       const doc = JSON.parse(res.payload);
+
       expect(doc.openapi).toBe("3.1.0");
       expect(Object.keys(doc.paths).length).toBeGreaterThan(0);
       expect(doc.paths["/api/openapi.json"].get["x-required-scope"]).toBe(
@@ -38,6 +40,7 @@ describe("OpenAPI serving routes", () => {
 
     it("returns 401 without a bearer token", async () => {
       const res = await inject("/api/openapi.json", {});
+
       expect(res.statusCode).toBe(401);
       expect(JSON.parse(res.payload)).toEqual({ error: "unauthorized" });
     });
@@ -51,6 +54,7 @@ describe("OpenAPI serving routes", () => {
         { authorization: "Bearer scoped" },
         pool,
       );
+
       expect(res.statusCode).toBe(403);
     });
   });
@@ -58,6 +62,7 @@ describe("OpenAPI serving routes", () => {
   describe("GET /api/docs", () => {
     it("returns an HTML Redoc page with the document inlined", async () => {
       const res = await inject("/api/docs");
+
       expect(res.statusCode).toBe(200);
       expect(res.headers["content-type"]).toMatch(/text\/html/);
       expect(res.payload).toContain("redoc.standalone.js");

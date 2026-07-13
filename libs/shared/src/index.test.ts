@@ -15,8 +15,11 @@ const srcDir = dirname(fileURLToPath(import.meta.url));
 describe("public barrel (index.ts)", () => {
   it("re-exports every non-test module in src/", () => {
     const indexPath = join(srcDir, "index.ts");
+
     // The compiled dist/ glob run has no .ts sources — nothing to lint there.
-    if (!existsSync(indexPath)) return;
+    if (!existsSync(indexPath)) {
+      return;
+    }
     const index = readFileSync(indexPath, "utf8");
     const modules = readdirSync(srcDir)
       .filter(
@@ -29,6 +32,7 @@ describe("public barrel (index.ts)", () => {
       .map((f) => f.replace(/\.ts$/, ""));
 
     const missing = modules.filter((m) => !index.includes(`./${m}.js`));
+
     expect(missing).toEqual([]);
   });
 });

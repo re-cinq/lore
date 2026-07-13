@@ -1,3 +1,5 @@
+import type { PipelineTask } from "@re-cinq/lore-shared";
+import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * In-process feature-finalize handler (ADR-027, revised for local + cluster).
  *
@@ -13,10 +15,12 @@ import { projectFor } from "../../composition/project-boot.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 
 export async function handleFeatureFinalize(
-  task: any,
+  task: PipelineTask,
   targetRepo: string,
 ): Promise<void> {
-  const featureId: string | undefined = task.context_bundle?.feature_id;
+  const featureId: string | undefined = task.context_bundle?.feature_id as
+    string | undefined;
+
   enforceTrue(
     featureId,
     "feature-finalize task is missing feature_id in context_bundle",
@@ -24,11 +28,13 @@ export async function handleFeatureFinalize(
 
   const project = await projectFor(targetRepo);
   const features = project.features;
+
   await setStatus(task.id, "running");
   await insertEvent(task.id, "queued", "running");
 
   try {
     const feature = await features.get(featureId);
+
     enforceTrue(feature, `feature ${featureId} not found`);
     enforceTrue(feature.draft_spec_md, "feature has no draft spec to finalize");
 
@@ -48,6 +54,7 @@ export async function handleFeatureFinalize(
       await import("../dark-factory/dark-factory.js");
     let issueNumber: number | undefined;
     let issueUrl: string | undefined;
+
     if ((await shouldCreateIssue(task)).create) {
       try {
         const issue = await project.issues.create(
@@ -55,11 +62,12 @@ export async function handleFeatureFinalize(
           `${feature.original_prompt}\n\n---\nSpec: \`${specPath}\` (see the linked PR).`,
           ["lore-managed", "user-story"],
         );
+
         issueNumber = issue.number;
         issueUrl = issue.url;
-      } catch (err: any) {
+      } catch (err) {
         console.warn(
-          `[floor] feature-finalize: could not create user-story Issue: ${err.message}`,
+          `[floor] feature-finalize: could not create user-story Issue: ${errorMessage(err)}`,
         );
       }
     }
@@ -92,11 +100,13 @@ export async function handleFeatureFinalize(
     console.log(
       `[floor] feature-finalize: feature ${featureId} → PR ${pr.url}`,
     );
-  } catch (err: any) {
-    await setStatus(task.id, "failed", { failure_reason: err.message });
-    await insertEvent(task.id, "running", "failed", { reason: err.message });
+  } catch (err) {
+    await setStatus(task.id, "failed", { failure_reason: errorMessage(err) });
+    await insertEvent(task.id, "running", "failed", {
+      reason: errorMessage(err),
+    });
     console.error(
-      `[floor] feature-finalize failed for feature ${featureId}: ${err.message}`,
+      `[floor] feature-finalize failed for feature ${featureId}: ${errorMessage(err)}`,
     );
     throw err;
   }

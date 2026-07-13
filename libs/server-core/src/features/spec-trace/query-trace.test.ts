@@ -61,6 +61,7 @@ describe("formatTraceQuery", () => {
     const order = ["is violated", "is drifted", "is untested"].map((t) =>
       out.indexOf(t),
     );
+
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect(out).not.toContain("tested normal");
@@ -172,6 +173,7 @@ describe("runQueryTrace", () => {
       {
         proxyGet: async (p) => {
           requested = p;
+
           return okDoc;
         },
         detectRepo: () => "o/r",
@@ -189,6 +191,7 @@ describe("runQueryTrace", () => {
       { spec: "specs/auth/spec.md" },
       { proxyGet: async () => okDoc, detectRepo: () => null },
     );
+
     expect(noRepo).toMatch(/could not detect/i);
   });
 
@@ -200,6 +203,7 @@ describe("runQueryTrace", () => {
         detectRepo: () => null,
       },
     );
+
     expect(out).toMatch(/LORE_API_URL/);
   });
 
@@ -215,6 +219,7 @@ describe("runQueryTrace", () => {
         detectRepo: () => null,
       },
     );
+
     expect(out).toMatch(/scope/i);
     expect(out).toContain("403");
   });

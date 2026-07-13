@@ -24,6 +24,7 @@ function fakeDeps() {
       events.push({ taskId, from, to, meta });
     },
   };
+
   return { deps, statuses, events };
 }
 

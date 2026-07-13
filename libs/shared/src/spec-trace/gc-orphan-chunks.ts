@@ -38,6 +38,7 @@ export async function gcOrphanChunks(
   const current = new Set(currentUids);
   const dropped = previousUids.filter((uid) => !current.has(uid));
   const ownerEdges = CHUNK_OWNER_EDGES[nodeType];
+
   for (const uid of dropped) {
     const stillOwned = await withTxn(dgraph, async (txn) => {
       const blocks = ownerEdges
@@ -53,8 +54,10 @@ export async function gcOrphanChunks(
       const node = (res.data?.node?.[0] ?? {}) as Record<string, unknown>;
       const isOwned = (value: unknown): boolean =>
         Array.isArray(value) ? value.length > 0 : value != null;
+
       return ownerEdges.some((_, index) => isOwned(node[`owner${index}`]));
     });
+
     if (!stillOwned) {
       await withTxn(dgraph, (txn) =>
         txn.mutate({ deleteNquads: `<${uid}> * * .`, commitNow: true }),

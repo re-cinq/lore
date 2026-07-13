@@ -55,18 +55,31 @@ function findTrailingParenSpan(
   s: string,
 ): { open: number; innerStart: number; innerEnd: number } | null {
   let end = s.length;
-  while (end > 0 && /[\s.]/.test(s[end - 1])) end--;
-  if (end === 0 || s[end - 1] !== ")") return null;
+
+  while (end > 0 && /[\s.]/.test(s[end - 1])) {
+    end--;
+  }
+
+  if (end === 0 || s[end - 1] !== ")") {
+    return null;
+  }
 
   let depth = 1;
+
   for (let i = end - 2; i >= 0; i--) {
     const c = s[i];
-    if (c === ")") depth++;
-    else if (c === "(") {
+
+    if (c === ")") {
+      depth++;
+    } else if (c === "(") {
       depth--;
-      if (depth === 0) return { open: i, innerStart: i + 1, innerEnd: end - 1 };
+
+      if (depth === 0) {
+        return { open: i, innerStart: i + 1, innerEnd: end - 1 };
+      }
     }
   }
+
   return null;
 }
 
@@ -78,10 +91,13 @@ function linkRefFromMatch(match: RegExpMatchArray): SpecLinkRef {
   const rawPath = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
   const path = rawPath.replace(/^\/+/, "");
   let line: number | null = null;
+
   if (hashIdx >= 0) {
     const n = Number(href.slice(hashIdx + 2));
+
     line = Number.isFinite(n) ? n : null;
   }
+
   return { label, path, line };
 }
 
@@ -90,14 +106,22 @@ function parseLinksInStatement(
   keepPath: (path: string) => boolean,
 ): SpecLinkRef[] {
   const span = findTrailingParenSpan(statement);
-  if (span === null) return [];
+
+  if (span === null) {
+    return [];
+  }
   const inner = statement.slice(span.innerStart, span.innerEnd);
 
   const refs: SpecLinkRef[] = [];
+
   for (const match of inner.matchAll(LINK_INSIDE_PAREN_RE)) {
     const ref = linkRefFromMatch(match);
-    if (keepPath(ref.path)) refs.push(ref);
+
+    if (keepPath(ref.path)) {
+      refs.push(ref);
+    }
   }
+
   return refs;
 }
 
@@ -125,12 +149,19 @@ export function findMisplacedCoverageLinks(statement: string): SpecLinkRef[] {
   const trailingOpen = span ? span.open : statement.length;
 
   const refs: SpecLinkRef[] = [];
+
   for (const match of statement.matchAll(LINK_INSIDE_PAREN_RE)) {
-    if ((match.index ?? 0) >= trailingOpen) continue; // in/after the trailing paren — fine
+    if ((match.index ?? 0) >= trailingOpen) {
+      continue;
+    } // in/after the trailing paren — fine
     const ref = linkRefFromMatch(match);
-    if (isDocFile(ref.path)) continue; // prose doc link, not a coverage link
+
+    if (isDocFile(ref.path)) {
+      continue;
+    } // prose doc link, not a coverage link
     refs.push(ref);
   }
+
   return refs;
 }
 

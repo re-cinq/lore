@@ -10,11 +10,13 @@ function fakePool(): {
 } {
   const calls: Array<{ text: string; params?: unknown[] }> = [];
   const pool: PgPool = {
-    async query(text: string, params?: unknown[]) {
+    async query<T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> {
       calls.push({ text, params });
+
       return { rows: [] };
     },
   };
+
   return { pool, calls };
 }
 
@@ -65,6 +67,7 @@ describe("InMemoryCost double", () => {
 
   it("replaces the existing row sharing the same (bucketDate, model) key", async () => {
     const cost = new InMemoryCost();
+
     await cost.upsertDaily(sampleRow());
 
     await cost.upsertDaily({ ...sampleRow(), costUsd: 99, inputTokens: 4000 });
@@ -76,6 +79,7 @@ describe("InMemoryCost double", () => {
 
   it("keeps separate rows for the same date across different models", async () => {
     const cost = new InMemoryCost();
+
     await cost.upsertDaily(sampleRow());
 
     await cost.upsertDaily({ ...sampleRow(), model: "claude-haiku-4-8" });

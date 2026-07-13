@@ -18,7 +18,7 @@ export class PgEventQueue implements EventQueueRepository {
   }
 
   async claimBatch(limit: number): Promise<EventRow[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<EventRow>(
       `UPDATE pipeline.events e
           SET status = 'processing', attempts = attempts + 1, claimed_at = now()
         WHERE e.id IN (
@@ -30,6 +30,7 @@ export class PgEventQueue implements EventQueueRepository {
         RETURNING e.*`,
       [limit],
     );
+
     return rows as EventRow[];
   }
 
@@ -70,6 +71,7 @@ export class PgEventQueue implements EventQueueRepository {
         RETURNING id`,
       [timeoutSeconds],
     );
+
     return rows.length;
   }
 
@@ -81,6 +83,7 @@ export class PgEventQueue implements EventQueueRepository {
         RETURNING id`,
       [olderThanDays],
     );
+
     return rows.length;
   }
 }

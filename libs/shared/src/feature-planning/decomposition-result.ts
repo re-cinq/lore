@@ -25,19 +25,26 @@ export interface DecompositionResult {
 }
 
 function asStringList(v: unknown): string[] {
-  if (Array.isArray(v))
+  if (Array.isArray(v)) {
     return v.filter((s): s is string => typeof s === "string" && s.length > 0);
-  if (typeof v === "string" && v.length > 0) return [v];
+  }
+
+  if (typeof v === "string" && v.length > 0) {
+    return [v];
+  }
+
   return [];
 }
 
 function normalizeTask(raw: unknown, index: number): DecompTask {
   const id = `T${String(index + 1).padStart(3, "0")}`;
+
   if (typeof raw === "string") {
     enforceTrue(
       raw.trim(),
       new Error("decomposition: task description is required"),
     );
+
     return {
       id,
       description: raw,
@@ -54,6 +61,7 @@ function normalizeTask(raw: unknown, index: number): DecompTask {
   const description =
     (typeof t.description === "string" && t.description) ||
     (typeof t.text === "string" && t.text);
+
   enforceTrue(
     description,
     new Error("decomposition: task description is required"),
@@ -66,7 +74,11 @@ function normalizeTask(raw: unknown, index: number): DecompTask {
     phase: typeof t.phase === "number" ? t.phase : 0,
   };
   const filePath = t.file_path ?? t.filePath;
-  if (typeof filePath === "string" && filePath) task.file_path = filePath;
+
+  if (typeof filePath === "string" && filePath) {
+    task.file_path = filePath;
+  }
+
   return task;
 }
 
@@ -79,8 +91,10 @@ function normalizeStory(raw: unknown): UserStory {
   const title =
     (typeof s.title === "string" && s.title) ||
     (typeof s.name === "string" && s.name);
+
   enforceTrue(title, new Error("decomposition: each story needs a title"));
   const tasksRaw = Array.isArray(s.tasks) ? s.tasks : [];
+
   return {
     title,
     summary: typeof s.summary === "string" ? s.summary : "",
@@ -100,9 +114,11 @@ export function parseDecomposition(raw: unknown): DecompositionResult {
     new Error("decomposition: root must be an object"),
   );
   const stories = (raw as Record<string, unknown>).stories;
+
   enforceTrue(
     Array.isArray(stories),
     new Error("decomposition: stories must be an array"),
   );
+
   return { stories: stories.map(normalizeStory) };
 }

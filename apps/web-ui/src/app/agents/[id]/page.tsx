@@ -62,6 +62,7 @@ export default async function AgentPage({
             [m.id],
           )
         : [];
+
       return { ...m, versions, facts };
     }),
   );

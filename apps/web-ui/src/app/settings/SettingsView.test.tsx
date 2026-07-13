@@ -91,6 +91,7 @@ describe("SettingsView", () => {
 
   it("wires the platform-config form fields to current api_url and ingest_token values", () => {
     const { container } = renderView();
+
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
     expect(container.querySelector('input[name="api_url"]')).toHaveValue(
       "https://lore-api.example.com",
@@ -102,6 +103,7 @@ describe("SettingsView", () => {
 
   it("uses empty defaults in the platform-config form when values are blank", () => {
     const { container } = renderView({ apiUrl: "", ingestToken: "" });
+
     expect(container.querySelector('input[name="api_url"]')).toHaveValue("");
     expect(container.querySelector('input[name="ingest_token"]')).toHaveValue(
       "",
@@ -120,6 +122,7 @@ describe("SettingsView", () => {
 
   it("wires the approval form to the config values with the checkbox checked", () => {
     const { container } = renderView();
+
     expect(
       screen.getByRole("button", { name: "Save Approval Config" }),
     ).toBeInTheDocument();
@@ -147,6 +150,7 @@ describe("SettingsView", () => {
       },
       repoLines: "",
     });
+
     expect(
       container.querySelector('input[name="approval_required"]'),
     ).not.toBeChecked();
@@ -161,6 +165,7 @@ describe("SettingsView", () => {
   it("renders the install command with the supplied token and api url", () => {
     renderView();
     const pre = screen.getByText(/git clone git@github.com:re-cinq\/lore.git/);
+
     expect(pre.textContent).toContain(
       "git config --global lore.ingest-token deadbeef",
     );
@@ -172,6 +177,7 @@ describe("SettingsView", () => {
   it("renders the install command with placeholders when token and api url are blank", () => {
     renderView({ apiUrl: "", ingestToken: "" });
     const pre = screen.getByText(/git clone git@github.com:re-cinq\/lore.git/);
+
     expect(pre.textContent).toContain(
       "git config --global lore.ingest-token <token>",
     );

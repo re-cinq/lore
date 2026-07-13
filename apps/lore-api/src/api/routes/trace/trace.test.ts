@@ -29,17 +29,20 @@ describe("GET /api/repos/:owner/:repo/trace/:kind", () => {
 
   it("returns 404 for an unknown trace kind", async () => {
     const res = await get("/api/repos/o/r/trace/bogus", AUTH);
+
     expect(res.statusCode).toBe(404);
     expect(res.result).toEqual({ error: "not found" });
   });
 
   it("returns 401 without a bearer token", async () => {
     const res = await get("/api/repos/o/r/trace/specs");
+
     expect(res.statusCode).toBe(401);
   });
 
   it("passes read-scope auth for a matched kind (no 401/403 gate hit)", async () => {
     const res = await get("/api/repos/o/r/trace/bogus", AUTH);
+
     expect(res.statusCode).not.toBe(401);
     expect(res.statusCode).not.toBe(403);
   });
@@ -49,6 +52,7 @@ describe("GET /api/repos/:owner/:repo/trace/:kind", () => {
       `/api/repos/o/r/trace/document?path=${"x".repeat(1025)}`,
       AUTH,
     );
+
     expect(res.statusCode).toBe(400);
   });
 });
@@ -66,12 +70,14 @@ describe("GET /api/trace/specs", () => {
 
   it("returns 200 with an empty specs list when Dgraph is not configured", async () => {
     const res = await get("/api/trace/specs", AUTH);
+
     expect(res.statusCode).toBe(200);
     expect(res.result).toEqual({ specs: [] });
   });
 
   it("returns 401 without a bearer token", async () => {
     const res = await get("/api/trace/specs");
+
     expect(res.statusCode).toBe(401);
   });
 });

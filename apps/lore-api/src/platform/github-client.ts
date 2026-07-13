@@ -38,6 +38,7 @@ export async function getOctokit(): Promise<Octokit> {
     });
   }
   const token = process.env.GITHUB_TOKEN;
+
   if (token) {
     return new Octokit({ auth: token });
   }
@@ -59,11 +60,13 @@ export async function getGitHubToken(): Promise<string | null> {
         installationId: INSTALLATION_ID,
       });
       const { token } = await auth({ type: "installation" });
+
       return token;
     } catch {
       /* fall through */
     }
   }
+
   return process.env.GITHUB_TOKEN || null;
 }
 
@@ -81,6 +84,7 @@ export async function createBranch(
     repo: repoName,
     ref: `heads/${baseBranch}`,
   });
+
   await octokit.rest.git.createRef({
     owner,
     repo: repoName,
@@ -99,6 +103,7 @@ export async function commitFile(
   const octokit = await getOctokit();
   const [owner, repoName] = repo.split("/");
   let sha: string | undefined;
+
   try {
     const { data } = await octokit.rest.repos.getContent({
       owner,
@@ -106,7 +111,10 @@ export async function commitFile(
       path,
       ref: branch,
     });
-    if ("sha" in data) sha = data.sha;
+
+    if ("sha" in data) {
+      sha = data.sha;
+    }
   } catch {
     // file doesn't exist yet
   }
@@ -139,6 +147,7 @@ export async function createPR(
     head: branch,
     base: baseBranch,
   });
+
   if (labels.length > 0) {
     await octokit.rest.issues.addLabels({
       owner,
@@ -147,6 +156,7 @@ export async function createPR(
       labels,
     });
   }
+
   return { url: pr.html_url, number: pr.number };
 }
 
@@ -158,6 +168,7 @@ export async function postReviewComment(
 ): Promise<void> {
   const octokit = await getOctokit();
   const [owner, repoName] = repo.split("/");
+
   await octokit.rest.pulls.createReview({
     owner,
     repo: repoName,
@@ -175,11 +186,14 @@ export async function postReviewComment(
 export async function fetchPrStatus(
   repo: string,
   prNumber: number,
-): Promise<Record<string, any> | null> {
+): Promise<Record<string, unknown> | null> {
   const token = await getGitHubToken();
-  if (!token) return null;
 
-  async function ghFetch(path: string): Promise<any> {
+  if (!token) {
+    return null;
+  }
+
+  async function ghFetch(path: string): Promise<Record<string, unknown>> {
     const res = await fetch(`https://api.github.com${path}`, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -187,8 +201,11 @@ export async function fetchPrStatus(
         "X-GitHub-Api-Version": "2022-11-28",
       },
     });
-    if (!res.ok)
+
+    if (!res.ok) {
       throw new Error(`GitHub API ${path}: ${res.status} ${res.statusText}`);
+    }
+
     return res.json();
   }
 
@@ -197,27 +214,39 @@ export async function fetchPrStatus(
     ghFetch(`/repos/${repo}/pulls/${prNumber}/reviews`).catch(() => []),
   ]);
 
-  let checkRuns: any[] = [];
+  let checkRuns: Array<{
+    name: string;
+    status: string;
+    conclusion: string | null;
+  }> = [];
+
   try {
     const checksResp = await ghFetch(
-      `/repos/${repo}/commits/${pr.head.sha}/check-runs`,
+      `/repos/${repo}/commits/${(pr.head as { sha: string }).sha}/check-runs`,
     );
-    checkRuns = checksResp.check_runs || [];
+
+    checkRuns = (checksResp.check_runs as typeof checkRuns) || [];
   } catch {
     /* no checks */
   }
 
-  const checks = checkRuns.map((c: any) => ({
+  const checks = checkRuns.map((c) => ({
     name: c.name,
     status: c.status,
     conclusion: c.conclusion ?? null,
   }));
   const reviewList = Array.isArray(reviews)
-    ? reviews.map((r: any) => ({
-        user: r.user?.login || "unknown",
-        state: r.state,
-        submitted_at: r.submitted_at || "",
-      }))
+    ? reviews.map(
+        (r: {
+          user?: { login?: string };
+          state?: string;
+          submitted_at?: string;
+        }) => ({
+          user: r.user?.login || "unknown",
+          state: r.state ?? "",
+          submitted_at: r.submitted_at || "",
+        }),
+      )
     : [];
 
   const computed_status = deriveComputedStatus(pr, checks, reviewList);
@@ -258,17 +287,30 @@ export function deriveComputedStatus(
   checks: PrCheck[],
   reviews: PrReview[],
 ): string {
-  if (pr.merged) return "merged";
-  if (pr.state === "closed") return "closed";
-  if (pr.draft) return "draft";
+  if (pr.merged) {
+    return "merged";
+  }
+
+  if (pr.state === "closed") {
+    return "closed";
+  }
+
+  if (pr.draft) {
+    return "draft";
+  }
+
   if (
     checks.some(
       (c) => c.conclusion === "failure" || c.conclusion === "timed_out",
     )
-  )
+  ) {
     return "checks-failing";
-  if (reviews.some((r) => r.state === "CHANGES_REQUESTED"))
+  }
+
+  if (reviews.some((r) => r.state === "CHANGES_REQUESTED")) {
     return "changes-requested";
+  }
+
   if (
     reviews.some((r) => r.state === "APPROVED") &&
     checks.every(
@@ -277,5 +319,6 @@ export function deriveComputedStatus(
   ) {
     return "approved";
   }
+
   return "open";
 }

@@ -42,12 +42,18 @@ function insideInterval(
   const quadC = offsetX * offsetX + offsetY * offsetY - disc.r * disc.r;
 
   const discriminant = quadB * quadB - 4 * quadA * quadC;
-  if (discriminant <= 0) return null;
+
+  if (discriminant <= 0) {
+    return null;
+  }
 
   const root = Math.sqrt(discriminant);
   const enter = Math.max(0, (-quadB - root) / (2 * quadA));
   const exit = Math.min(1, (-quadB + root) / (2 * quadA));
-  if (enter >= exit) return null;
+
+  if (enter >= exit) {
+    return null;
+  }
 
   return [enter, exit];
 }
@@ -73,24 +79,35 @@ export function visibleSegments(
     .filter((interval): interval is [number, number] => interval !== null)
     .sort((left, right) => left[0] - right[0]);
 
-  if (intervals.length === 0) return [{ a, b }];
+  if (intervals.length === 0) {
+    return [{ a, b }];
+  }
 
   const merged: Array<[number, number]> = [intervals[0]];
+
   for (const [enter, exit] of intervals.slice(1)) {
     const last = merged[merged.length - 1];
-    if (enter <= last[1]) last[1] = Math.max(last[1], exit);
-    else merged.push([enter, exit]);
+
+    if (enter <= last[1]) {
+      last[1] = Math.max(last[1], exit);
+    } else {
+      merged.push([enter, exit]);
+    }
   }
 
   const pieces: Array<{ a: Point; b: Point }> = [];
   let cursor = 0;
+
   for (const [enter, exit] of merged) {
     if (cursor < enter) {
       pieces.push({ a: pointAt(a, b, cursor), b: pointAt(a, b, enter) });
     }
     cursor = exit;
   }
-  if (cursor < 1)
+
+  if (cursor < 1) {
     pieces.push({ a: pointAt(a, b, cursor), b: pointAt(a, b, 1) });
+  }
+
   return pieces;
 }

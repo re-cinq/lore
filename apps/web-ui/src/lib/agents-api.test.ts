@@ -53,10 +53,12 @@ describe("listAgents", () => {
       status: 200,
       json: async () => ({ agents: [def] }),
     }));
+
     global.fetch = spy as unknown as typeof fetch;
 
     expect(await listAgents("o/r")).toEqual([def]);
     const init = spy.mock.calls[0][1] as RequestInit;
+
     expect((init.headers as Record<string, string>).authorization).toBe(
       "Bearer ingest-tok",
     );
@@ -96,8 +98,10 @@ describe("saveAgent", () => {
       status: 200,
       json: async () => ({ agent: def }),
     }));
+
     global.fetch = spy as unknown as typeof fetch;
     const r = await saveAgent("o/r", { name: "general" }, false);
+
     expect(r).toEqual({ status: "ok", agent: def });
     expect(spy.mock.calls[0][0]).toBe(
       "https://lore-api.test/api/repos/o/r/agent-definitions",
@@ -111,6 +115,7 @@ describe("saveAgent", () => {
       status: 200,
       json: async () => ({ agent: def }),
     }));
+
     global.fetch = spy as unknown as typeof fetch;
     await saveAgent(
       "o/r",
@@ -122,6 +127,7 @@ describe("saveAgent", () => {
       "https://lore-api.test/api/repos/o/r/agent-definitions/general",
     );
     const init = spy.mock.calls[0][1] as RequestInit;
+
     expect(init.method).toBe("PUT");
     expect((init.headers as Record<string, string>)["x-lore-approval-pr"]).toBe(
       "o/r#5",

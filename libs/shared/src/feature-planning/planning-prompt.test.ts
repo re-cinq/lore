@@ -25,6 +25,7 @@ describe("composePlanningPrompt", () => {
       priorGap: null,
       answers: null,
     });
+
     expect(out).toContain("<Title>\nDark mode\n</Title>");
     expect(out).toContain("<UserPrompt>\nAdd a toggle\n</UserPrompt>");
     expect(out).not.toContain("<CurrentDraftSpec>");
@@ -43,6 +44,7 @@ describe("composePlanningPrompt", () => {
         free_form: "ship it",
       },
     });
+
     expect(out).toContain("<CurrentDraftSpec>");
     expect(out).toContain('<Section title="Overview">');
     expect(out).toContain("A planning Station.");
@@ -61,6 +63,7 @@ describe("composePlanningPrompt", () => {
       priorGap: gap,
       answers: { sections: {}, questions: { q1: "all repos" }, free_form: "" },
     });
+
     expect(out).toContain("<Asked>Which repos?</Asked>");
     expect(out).toContain("<Answer>all repos</Answer>");
   });
@@ -72,6 +75,7 @@ describe("composePlanningPrompt", () => {
       priorGap: gap,
       answers: { sections: {}, questions: {}, free_form: "" },
     });
+
     expect(out).toContain("<Answer>(unanswered)</Answer>");
   });
 });

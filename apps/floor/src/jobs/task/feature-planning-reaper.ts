@@ -46,7 +46,10 @@ export async function featurePlanningReaperJob(): Promise<string> {
       WHERE i.status = 'running'
          OR (i.status = 'ready' AND f.status = 'planning')`,
   );
-  if (rows.length === 0) return "No stuck planning features";
+
+  if (rows.length === 0) {
+    return "No stuck planning features";
+  }
 
   const now = Date.now();
   let orphaned = 0;
@@ -56,7 +59,10 @@ export async function featurePlanningReaperJob(): Promise<string> {
     try {
       const project = await projectFor(row.repo);
       const feature = await project.features.get(row.id);
-      if (!feature) continue;
+
+      if (!feature) {
+        continue;
+      }
 
       // isActive probes the agent-cr backend this repo's round ran on.
       const station = stationBackend();
@@ -81,6 +87,7 @@ export async function featurePlanningReaperJob(): Promise<string> {
         );
       } else if (action.kind === "transition") {
         const gap = latest!.gap_result!;
+
         await project.features.transitionStatus(
           feature.id,
           decideFeatureStatus(gap),
@@ -120,11 +127,15 @@ async function recoverOrphan(
     null,
     "failed",
   );
-  if (!isPlanningPhase(feature.status)) return;
+
+  if (!isPlanningPhase(feature.status)) {
+    return;
+  }
 
   // The orphan is `running`, so latestReadyGap naturally skips it and returns the
   // last round that produced a result — restore that; else fall back to `draft`.
   const lastGood = latestReadyGap(feature.iterations);
+
   if (lastGood) {
     await project.features.transitionStatus(
       feature.id,

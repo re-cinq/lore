@@ -1,3 +1,5 @@
+import type { PipelineTask } from "@re-cinq/lore-shared";
+import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * In-process feature-decompose handler (ADR-029).
  *
@@ -36,28 +38,38 @@ export function decideDecomposeKick(task: FinalizeTaskShape): {
   featureId?: string;
   slug?: string;
 } {
-  if (task.task_type !== "feature-finalize") return { kick: false };
+  if (task.task_type !== "feature-finalize") {
+    return { kick: false };
+  }
   const featureId = task.context_bundle?.feature_id;
-  if (!featureId) return { kick: false };
+
+  if (!featureId) {
+    return { kick: false };
+  }
+
   return { kick: true, featureId, slug: task.context_bundle?.slug };
 }
 
 export async function handleFeatureDecompose(
-  task: any,
+  task: PipelineTask,
   targetRepo: string,
 ): Promise<void> {
-  const featureId: string | undefined = task.context_bundle?.feature_id;
+  const featureId: string | undefined = task.context_bundle?.feature_id as
+    string | undefined;
+
   enforceTrue(
     featureId,
     "feature-decompose task is missing feature_id in context_bundle",
   );
 
   const project = await projectFor(targetRepo);
+
   await setStatus(task.id, "running");
   await insertEvent(task.id, "queued", "running");
 
   try {
     const feature = await project.features.get(featureId);
+
     enforceTrue(feature, `feature ${featureId} not found`);
     const specSlug = feature.slug;
 
@@ -67,6 +79,7 @@ export async function handleFeatureDecompose(
       targetRepo,
       specSlug,
     );
+
     if (alreadyDecomposed) {
       await setStatus(task.id, "completed");
       await insertEvent(task.id, "running", "completed", {
@@ -76,6 +89,7 @@ export async function handleFeatureDecompose(
       console.log(
         `[floor] feature-decompose: ${specSlug} already has spec-tasks — skipping`,
       );
+
       return;
     }
 
@@ -83,6 +97,7 @@ export async function handleFeatureDecompose(
     const specMd =
       (await project.repo.read(specPath).catch(() => null)) ??
       feature.draft_spec_md;
+
     enforceTrue(specMd, `no spec content at ${specPath} or in draft_spec_md`);
 
     const agentDef = await project.agentDefs
@@ -108,6 +123,7 @@ export async function handleFeatureDecompose(
 
     for (const story of decomposition.stories) {
       let storyIssue: number | undefined;
+
       if (createIssues) {
         try {
           const issue = await project.issues.create(
@@ -115,11 +131,12 @@ export async function handleFeatureDecompose(
             storyIssueBody(story, { specPath, featureTitle: feature.title }),
             ["lore-managed", "user-story"],
           );
+
           storyIssue = issue.number;
           storiesCreated++;
-        } catch (err: any) {
+        } catch (err) {
           console.warn(
-            `[floor] feature-decompose: could not create Issue for story "${story.title}": ${err.message}`,
+            `[floor] feature-decompose: could not create Issue for story "${story.title}": ${errorMessage(err)}`,
           );
         }
       }
@@ -138,7 +155,10 @@ export async function handleFeatureDecompose(
           createdBy: "feature-decompose",
           taskGroupId,
         });
-        if (insertedId) tasksCreated++;
+
+        if (insertedId) {
+          tasksCreated++;
+        }
       }
     }
 
@@ -152,11 +172,13 @@ export async function handleFeatureDecompose(
     console.log(
       `[floor] feature-decompose: ${specSlug} → ${storiesCreated} stories, ${tasksCreated} spec-tasks (group ${taskGroupId})`,
     );
-  } catch (err: any) {
-    await setStatus(task.id, "failed", { failure_reason: err.message });
-    await insertEvent(task.id, "running", "failed", { reason: err.message });
+  } catch (err) {
+    await setStatus(task.id, "failed", { failure_reason: errorMessage(err) });
+    await insertEvent(task.id, "running", "failed", {
+      reason: errorMessage(err),
+    });
     console.error(
-      `[floor] feature-decompose failed for feature ${featureId}: ${err.message}`,
+      `[floor] feature-decompose failed for feature ${featureId}: ${errorMessage(err)}`,
     );
     throw err;
   }

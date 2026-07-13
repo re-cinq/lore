@@ -52,6 +52,7 @@ describe("HomeView", () => {
     const card = screen
       .getByRole("heading", { level: 3, name: /re-cinq\/lore/ })
       .closest("a");
+
     expect(card).toHaveAttribute("href", "/repos/re-cinq/lore");
   });
 
@@ -120,8 +121,10 @@ describe("HomeView", () => {
       full_name: "re-cinq/lore",
       last_ingested_at: "2026-05-01T12:00:00Z",
     });
+
     renderHome([card]);
     const expected = `Last ingested ${new Date("2026-05-01T12:00:00Z").toLocaleDateString()}`;
+
     expect(screen.getByText(expected)).toBeInTheDocument();
   });
 
@@ -145,6 +148,7 @@ describe("HomeView", () => {
       }),
     ]);
     const dot = screen.getByTitle("Fresh (< 24h)");
+
     expect(dot).toHaveStyle({ backgroundColor: "var(--success)" });
   });
 
@@ -152,6 +156,7 @@ describe("HomeView", () => {
     const threeDaysAgo = new Date(
       Date.now() - 3 * 24 * 60 * 60 * 1000,
     ).toISOString();
+
     renderHome([
       repo({ full_name: "re-cinq/lore", last_ingested_at: threeDaysAgo }),
     ]);
@@ -164,6 +169,7 @@ describe("HomeView", () => {
     const tenDaysAgo = new Date(
       Date.now() - 10 * 24 * 60 * 60 * 1000,
     ).toISOString();
+
     renderHome([
       repo({ full_name: "re-cinq/lore", last_ingested_at: tenDaysAgo }),
     ]);
@@ -217,6 +223,7 @@ describe("HomeView", () => {
       .getByRole("heading", { level: 3, name: /re-cinq\/lore/ })
       .closest("a")!;
     const scope = within(card);
+
     expect(scope.getByText("platform")).toBeInTheDocument();
     expect(scope.getByText("5 tasks")).toBeInTheDocument();
     expect(scope.getByText("2 running")).toBeInTheDocument();

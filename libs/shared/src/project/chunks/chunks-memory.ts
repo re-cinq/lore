@@ -57,6 +57,7 @@ export class InMemoryChunks implements ChunksPort {
 
   async countChunks(schema: string, repo: string): Promise<number> {
     enforceSchema(schema);
+
     return this.rows.filter((row) => row.schema === schema && row.repo === repo)
       .length;
   }
@@ -83,6 +84,7 @@ export class InMemoryChunks implements ChunksPort {
   ): Promise<string | null> {
     enforceSchema(schema);
     const id = String(++this.seq);
+
     this.rows.push({
       id,
       schema,
@@ -95,6 +97,7 @@ export class InMemoryChunks implements ChunksPort {
       embedding: null,
       ingestedAt: new Date().toISOString(),
     });
+
     return id;
   }
 
@@ -107,14 +110,21 @@ export class InMemoryChunks implements ChunksPort {
     const row = this.rows.find(
       (candidate) => candidate.schema === schema && candidate.id === chunkId,
     );
-    if (row) row.embedding = embedding;
+
+    if (row) {
+      row.embedding = embedding;
+    }
   }
 
   async distinctTeams(): Promise<string[]> {
     const teams = new Set<string>();
+
     for (const row of this.rows) {
-      if (row.schema === "org_shared" && row.team != null) teams.add(row.team);
+      if (row.schema === "org_shared" && row.team != null) {
+        teams.add(row.team);
+      }
     }
+
     return Array.from(teams);
   }
 
@@ -170,6 +180,7 @@ export class InMemoryChunks implements ChunksPort {
 
   async staleChunkCount(repo: string, olderThanDays: number): Promise<number> {
     const cutoff = Date.now() - olderThanDays * 86_400_000;
+
     return this.orgSharedForRepo(repo).filter(
       (row) => new Date(row.ingestedAt).getTime() < cutoff,
     ).length;

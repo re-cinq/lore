@@ -23,6 +23,7 @@ describe("isNavActive", () => {
 
   it("treats a repo base as the exact-only root for its tab group", () => {
     const base = "/repos/re-cinq/lore";
+
     expect(isNavActive(base, base, base)).toBe(true);
     expect(isNavActive(`${base}/specs`, base, base)).toBe(false);
     expect(isNavActive(`${base}/specs`, `${base}/specs`, base)).toBe(true);

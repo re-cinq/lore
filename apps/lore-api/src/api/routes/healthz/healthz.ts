@@ -30,12 +30,17 @@ export function healthzRoute(getPool: () => Pool | null): ServerRoute {
       const isAuthed = bearer
         ? await validateClientToken(pool, bearer, "read")
         : false;
-      if (!isAuthed) return h.response({ status }).code(code);
+
+      if (!isAuthed) {
+        return h.response({ status }).code(code);
+      }
 
       let tasks = { processed_today: 0, pending: 0 };
+
       if (health.connected && pool) {
         try {
           const stats = await pool.query(TASK_STATS_SQL);
+
           tasks = {
             processed_today: stats.rows[0]?.today || 0,
             pending: stats.rows[0]?.pending || 0,
@@ -44,6 +49,7 @@ export function healthzRoute(getPool: () => Pool | null): ServerRoute {
           /* non-fatal — fall back to zeroed stats */
         }
       }
+
       return h.response({ status, database: health, tasks }).code(code);
     },
   };

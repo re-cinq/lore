@@ -14,9 +14,13 @@ function fakePool(
   rows: unknown[] = [],
 ): PgPool {
   return {
-    query: async (text: string, params?: unknown[]) => {
+    query: async <T>(
+      text: string,
+      params?: unknown[],
+    ): Promise<{ rows: T[] }> => {
       capture.push({ text, params });
-      return { rows };
+
+      return { rows: rows as T[] as T[] };
     },
   };
 }

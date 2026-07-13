@@ -25,6 +25,7 @@ function CheckRow({
   setupWebhookAction?: () => Promise<void>;
 }) {
   const s = STATUS[check.status];
+
   return (
     <div className="enroll-row">
       <span className={styles.statusIcon} style={{ color: s.color }}>

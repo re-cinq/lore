@@ -50,6 +50,7 @@ describe("deriveComputedStatus", () => {
       state: "CHANGES_REQUESTED",
       submitted_at: "",
     };
+
     expect(
       deriveComputedStatus({}, [check("success")], [approved, changes]),
     ).toBe("changes-requested");

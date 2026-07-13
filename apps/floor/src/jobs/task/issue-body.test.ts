@@ -33,6 +33,7 @@ describe("composeIssueBody", () => {
       driftTask,
       "https://lore.example.com",
     );
+
     expect(body).toMatch(/LLM summary\./);
     expect(body).toMatch(/What you should actually do/);
     expect(body).toMatch(/created by `spec-drift`/);
@@ -47,6 +48,7 @@ describe("composeIssueBody", () => {
       { id: "t2", created_by: "ui", task_type: "implementation" },
       undefined,
     );
+
     expect(body).not.toMatch(/What you should actually do/);
     expect(body).toMatch(/Lore-Task: t2/);
   });
@@ -62,6 +64,7 @@ describe("composeIssueBody", () => {
       },
     };
     const body = composeIssueBody("Summary.", t, undefined);
+
     expect(body).toMatch(/503 when DB down/);
   });
 
@@ -86,6 +89,7 @@ describe("composeIssueBody", () => {
       },
     };
     const body = composeIssueBody("Summary.", t, undefined);
+
     expect(body).toMatch(/src\/health\.test\.ts#L42/);
   });
 
@@ -104,6 +108,7 @@ describe("composeIssueBody", () => {
       },
     };
     const body = composeIssueBody("Summary.", t, undefined);
+
     expect(body).toMatch(/Missing symbols \(heuristic\)/);
     expect(body).toMatch(/`resolveSettings`/);
   });

@@ -32,15 +32,22 @@ export interface AssembledContextViewProps {
 
 /** Status → badge color, so an empty/error section reads at a glance. */
 function statusBadgeClass(section: TraceSection): string {
-  if (section.included)
+  if (section.included) {
     return section.truncated ? "badge badge-yellow" : "badge badge-green";
-  if (section.status === "error") return "badge badge-red";
+  }
+
+  if (section.status === "error") {
+    return "badge badge-red";
+  }
+
   return "badge badge-gray";
 }
 
 function statusLabel(section: TraceSection): string {
-  if (section.included)
+  if (section.included) {
     return section.truncated ? "included · truncated" : "included";
+  }
+
   return `omitted · ${section.omitReason ?? section.status}`;
 }
 
@@ -48,6 +55,7 @@ function statusLabel(section: TraceSection): string {
  *  The fill width is the one genuinely dynamic value, kept inline. */
 function Bar({ used, total }: { used: number; total: number }) {
   const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
+
   return (
     <div className={styles.bar}>
       <div
@@ -186,7 +194,10 @@ export default function AssembledContextView({
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (canSubmit) onSubmit();
+
+          if (canSubmit) {
+            onSubmit();
+          }
         }}
         className={styles.form}
       >

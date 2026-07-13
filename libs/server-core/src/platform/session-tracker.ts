@@ -58,7 +58,9 @@ export function getSessionStartTime(): string {
  * Pure formatting — no LLM needed.
  */
 export function formatSessionSummary(): string {
-  if (sessionLog.length === 0) return "";
+  if (sessionLog.length === 0) {
+    return "";
+  }
 
   const now = new Date();
   const start = new Date(sessionStartTime);
@@ -69,13 +71,17 @@ export function formatSessionSummary(): string {
     string,
     { calls: number; errors: number; totalMs: number }
   > = {};
+
   for (const entry of sessionLog) {
     if (!toolCounts[entry.tool]) {
       toolCounts[entry.tool] = { calls: 0, errors: 0, totalMs: 0 };
     }
     toolCounts[entry.tool].calls++;
     toolCounts[entry.tool].totalMs += entry.durationMs;
-    if (!entry.success) toolCounts[entry.tool].errors++;
+
+    if (!entry.success) {
+      toolCounts[entry.tool].errors++;
+    }
   }
 
   const totalCalls = sessionLog.length;
@@ -91,9 +97,11 @@ export function formatSessionSummary(): string {
   const sorted = Object.entries(toolCounts).sort(
     (a, b) => b[1].calls - a[1].calls,
   );
+
   for (const [tool, stats] of sorted) {
     const avgMs = Math.round(stats.totalMs / stats.calls);
     const errSuffix = stats.errors > 0 ? ` (${stats.errors} errors)` : "";
+
     lines.push(`  ${tool}: ${stats.calls}x, avg ${avgMs}ms${errSuffix}`);
   }
 
@@ -104,9 +112,12 @@ export function formatSessionSummary(): string {
  * Write the session log to a JSON file (called on process exit).
  */
 export function dumpSessionLog(filePath?: string): void {
-  if (sessionLog.length === 0) return;
+  if (sessionLog.length === 0) {
+    return;
+  }
 
   const targetPath = filePath || join(homedir(), ".lore", "last-session.json");
+
   try {
     mkdirSync(dirname(targetPath), { recursive: true });
     writeFileSync(

@@ -134,6 +134,7 @@ describe("AnalyticsView", () => {
 
   it("renders the four task-summary stat cards with locale-formatted numbers", () => {
     const { container } = render(<AnalyticsView {...fullProps} />);
+
     expect(screen.getByText("Total Tasks")).toBeInTheDocument();
     expect(screen.getByText("1,234")).toBeInTheDocument();
     expect(screen.getByText("Succeeded")).toBeInTheDocument();
@@ -154,11 +155,13 @@ describe("AnalyticsView", () => {
     render(<AnalyticsView {...fullProps} />);
     const table = screen.getAllByRole("table")[0];
     const slow = within(table).getByText("search_memory").closest("tr")!;
+
     expect(within(slow).getByText("5,000")).toBeInTheDocument();
     expect(within(slow).getByText("12ms")).toBeInTheDocument();
     expect(within(slow).getByText("351ms")).toBeInTheDocument();
     expect(within(slow).getByText("800ms")).toBeInTheDocument();
     const badge = within(slow).getByText(">200ms");
+
     expect(badge).toHaveClass("op-badge", "op-delete");
   });
 
@@ -167,6 +170,7 @@ describe("AnalyticsView", () => {
     const table = screen.getAllByRole("table")[0];
     const fast = within(table).getByText("assemble_context").closest("tr")!;
     const badge = within(fast).getByText("OK");
+
     expect(badge).toHaveClass("op-badge", "op-write");
   });
 
@@ -174,6 +178,7 @@ describe("AnalyticsView", () => {
     const { container } = render(
       <AnalyticsView {...fullProps} latencyStats={[]} />,
     );
+
     expect(screen.getByText(/No latency data yet/)).toBeInTheDocument();
     expect(container.querySelector('td[colspan="6"]')).toBeInTheDocument();
   });
@@ -182,6 +187,7 @@ describe("AnalyticsView", () => {
     render(<AnalyticsView {...fullProps} />);
     const table = screen.getAllByRole("table")[1];
     const impl = within(table).getByText("implementation").closest("tr")!;
+
     expect(within(impl).getByText("42")).toBeInTheDocument();
     expect(within(impl).getByText("1,500,000")).toBeInTheDocument();
     expect(within(impl).getByText("250,000")).toBeInTheDocument();
@@ -190,6 +196,7 @@ describe("AnalyticsView", () => {
   it("renders the empty-usage message when there are no task-type rows", () => {
     render(<AnalyticsView {...fullProps} usageByTaskType={[]} />);
     const table = screen.getAllByRole("table")[1];
+
     expect(within(table).getByText("No data")).toBeInTheDocument();
   });
 
@@ -197,6 +204,7 @@ describe("AnalyticsView", () => {
     render(<AnalyticsView {...fullProps} />);
     const table = screen.getAllByRole("table")[2];
     const repo = within(table).getByText("re-cinq/lore").closest("tr")!;
+
     expect(within(repo).getByText("88")).toBeInTheDocument();
   });
 
@@ -204,6 +212,7 @@ describe("AnalyticsView", () => {
     const { container } = render(
       <AnalyticsView {...fullProps} usageByRepo={[]} />,
     );
+
     expect(container.querySelector('td[colspan="2"]')).toBeInTheDocument();
   });
 
@@ -213,6 +222,7 @@ describe("AnalyticsView", () => {
     const day = within(table)
       .getByText(new Date("2026-06-03").toLocaleDateString())
       .closest("tr")!;
+
     expect(within(day).getByText("4,200")).toBeInTheDocument();
     expect(within(day).getByText("9,000,000")).toBeInTheDocument();
     expect(within(day).getByText("1,200,000")).toBeInTheDocument();
@@ -221,6 +231,7 @@ describe("AnalyticsView", () => {
   it("renders the empty-daily message when there is no daily usage", () => {
     render(<AnalyticsView {...fullProps} dailyUsage={[]} />);
     const table = screen.getAllByRole("table")[3];
+
     expect(within(table).getByText("No data")).toBeInTheDocument();
   });
 
@@ -228,11 +239,14 @@ describe("AnalyticsView", () => {
     render(<AnalyticsView {...fullProps} />);
     const table = screen.getAllByRole("table")[4];
     const row = within(table).getByText("auto-merge").closest("tr")!;
+
     expect(within(row).getByText("42s")).toBeInTheDocument();
     expect(within(row).getByText("merged 3 PRs")).toBeInTheDocument();
     const statusBadge = within(row).getByText("completed");
+
     expect(statusBadge).toHaveClass("op-badge", "op-completed");
     const link = within(row).getByRole("link", { name: "view" });
+
     expect(link).toHaveAttribute("href", "/job-runs/job-secs");
   });
 
@@ -240,6 +254,7 @@ describe("AnalyticsView", () => {
     render(<AnalyticsView {...fullProps} />);
     const table = screen.getAllByRole("table")[4];
     const row = within(table).getByText("lease-reaper").closest("tr")!;
+
     expect(within(row).getByText("5m")).toBeInTheDocument();
     expect(within(row).getByText("boom")).toBeInTheDocument();
     expect(within(row).queryByText("ignored")).not.toBeInTheDocument();
@@ -253,6 +268,7 @@ describe("AnalyticsView", () => {
     render(<AnalyticsView {...fullProps} />);
     const table = screen.getAllByRole("table")[4];
     const row = within(table).getByText("baseline").closest("tr")!;
+
     expect(within(row).queryByRole("link")).not.toBeInTheDocument();
     expect(within(row).getAllByText("—")).toHaveLength(3);
   });
@@ -260,6 +276,7 @@ describe("AnalyticsView", () => {
   it("renders the empty job-runs message when there are no job runs", () => {
     render(<AnalyticsView {...fullProps} jobRuns={[]} />);
     const table = screen.getAllByRole("table")[4];
+
     expect(within(table).getByText("No job runs")).toBeInTheDocument();
   });
 

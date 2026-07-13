@@ -10,19 +10,21 @@ const pool = new Pool({
   max: 10,
 });
 
-export async function query<T = any>(
+export async function query<T = Record<string, unknown>>(
   text: string,
-  params?: any[],
+  params?: unknown[],
 ): Promise<T[]> {
   const { rows } = await pool.query(text, params);
+
   return rows as T[];
 }
 
-export async function queryOne<T = any>(
+export async function queryOne<T = Record<string, unknown>>(
   text: string,
-  params?: any[],
+  params?: unknown[],
 ): Promise<T | null> {
   const rows = await query<T>(text, params);
+
   return rows[0] || null;
 }
 
@@ -33,9 +35,9 @@ export async function queryOne<T = any>(
  * brief window before a deploy's migration hook completes — an empty result is
  * the correct degraded state, not a 500.
  */
-export async function queryAllowMissing<T = any>(
+export async function queryAllowMissing<T = Record<string, unknown>>(
   text: string,
-  params?: any[],
+  params?: unknown[],
 ): Promise<T[]> {
   try {
     return await query<T>(text, params);
@@ -44,6 +46,7 @@ export async function queryAllowMissing<T = any>(
       console.warn(
         `[db] relation missing, returning empty: ${(err as Error).message}`,
       );
+
       return [];
     }
     throw err;
@@ -60,8 +63,9 @@ export async function listChunkSchemas(): Promise<string[]> {
     `SELECT table_schema FROM information_schema.tables
       WHERE table_name = 'chunks' AND table_schema ~ '^[a-z][a-z0-9_]{0,62}$'`,
   );
+
   return rows
-    .map((r: any) => r.table_schema as string)
+    .map((r) => r.table_schema as string)
     .filter((s: string) => SCHEMA_RE.test(s));
 }
 
@@ -72,9 +76,13 @@ export async function getChunkSchemas(): Promise<string[]> {
   );
   const existing = new Set(await listChunkSchemas());
   const schemas = rows
-    .map((r: any) => r.team as string)
+    .map((r) => r.team as string)
     .filter((s: string) => SCHEMA_RE.test(s) && existing.has(s));
-  if (!schemas.includes(ORG_SHARED_SCHEMA)) schemas.push(ORG_SHARED_SCHEMA);
+
+  if (!schemas.includes(ORG_SHARED_SCHEMA)) {
+    schemas.push(ORG_SHARED_SCHEMA);
+  }
+
   return schemas;
 }
 
@@ -84,6 +92,7 @@ export async function getRepoSchema(fullName: string): Promise<string> {
     `SELECT team FROM lore.repos WHERE full_name = $1`,
     [fullName],
   );
+
   return pickSchema(row?.team, await listChunkSchemas());
 }
 
@@ -98,9 +107,13 @@ export async function getRepoSchemaAndTeam(
     `SELECT team FROM lore.repos WHERE full_name = $1`,
     [fullName],
   );
-  if (row === null) return null;
+
+  if (row === null) {
+    return null;
+  }
   const team = row.team ?? "";
   const schema = pickSchema(team, await listChunkSchemas());
+
   return { schema, team };
 }
 
@@ -109,23 +122,29 @@ export async function getRepoSchemaAndTeam(
  * `selectFn` receives a schema name and returns the SELECT statement for that schema.
  * Caller is responsible for safe schema interpolation (schemas are validated against SCHEMA_RE).
  */
-export async function queryAllChunks<T = any>(
+export async function queryAllChunks<T = Record<string, unknown>>(
   selectFn: (
     schema: string,
     paramOffset: number,
-  ) => { sql: string; params: any[] },
-  baseParams: any[] = [],
+  ) => { sql: string; params: unknown[] },
+  baseParams: unknown[] = [],
 ): Promise<T[]> {
   const schemas = await getChunkSchemas();
   const parts: string[] = [];
-  const allParams: any[] = [...baseParams];
+  const allParams: unknown[] = [...baseParams];
+
   for (const schema of schemas) {
     const { sql, params } = selectFn(schema, allParams.length + 1);
+
     parts.push(sql);
     allParams.push(...params);
   }
-  if (parts.length === 0) return [];
+
+  if (parts.length === 0) {
+    return [];
+  }
   const unionSql = parts.join(" UNION ALL ");
   const { rows } = await pool.query(unionSql, allParams);
+
   return rows as T[];
 }

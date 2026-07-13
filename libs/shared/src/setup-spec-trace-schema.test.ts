@@ -47,6 +47,7 @@ async function querySchema(
     headers: { "Content-Type": "application/dql" },
     body: dql,
   });
+
   return (await res.json()).data;
 }
 
@@ -62,6 +63,7 @@ describe.skipIf(!reachable)(
         "schema(pred: [Statement.embedding, Statement.xid]) {type index tokenizer upsert}",
       );
       const byPred = Object.fromEntries(schema.map((s) => [s.predicate, s]));
+
       expect(byPred["Statement.embedding"]).toMatchObject({
         type: "float32vector",
       });
@@ -91,6 +93,7 @@ describe.skipIf(!reachable)(
         `schema(pred: [${xids.join(", ")}]) {index upsert tokenizer}`,
       );
       const byPred = Object.fromEntries(schema.map((s) => [s.predicate, s]));
+
       for (const pred of xids) {
         expect(byPred[pred], `${pred} should be declared`).toMatchObject({
           index: true,
@@ -112,6 +115,7 @@ describe.skipIf(!reachable)(
         `schema(pred: [${embeds.join(", ")}]) {type tokenizer}`,
       );
       const byPred = Object.fromEntries(schema.map((s) => [s.predicate, s]));
+
       for (const pred of embeds) {
         expect(byPred[pred], `${pred} should be a vector`).toMatchObject({
           type: "float32vector",
@@ -134,6 +138,7 @@ describe.skipIf(!reachable)(
         `schema(pred: [${edges.join(", ")}]) {type list}`,
       );
       const byPred = Object.fromEntries(schema.map((s) => [s.predicate, s]));
+
       for (const pred of edges) {
         expect(byPred[pred], `${pred} should be a uid list`).toMatchObject({
           type: "uid",
@@ -154,6 +159,7 @@ describe.skipIf(!reachable)(
       }>;
       const statement = types.find((t) => t.name === "Statement");
       const fields = (statement?.fields ?? []).map((f) => f.name);
+
       expect(fields).toContain("Statement.violated");
       expect(fields).toContain("Statement.violation_reason");
     });
@@ -170,6 +176,7 @@ describe.skipIf(!reachable)(
       }>;
       const ac = types.find((t) => t.name === "AcceptanceCriterion");
       const fields = (ac?.fields ?? []).map((f) => f.name);
+
       expect(fields).toContain("AcceptanceCriterion.violated");
       expect(fields).toContain("AcceptanceCriterion.violation_reason");
     });
@@ -180,8 +187,10 @@ describe.skipIf(!reachable)(
           String(a.predicate).localeCompare(String(b.predicate)),
         );
       const before = sortByPred((await querySchema("schema {}")).schema);
+
       applySchema();
       const after = sortByPred((await querySchema("schema {}")).schema);
+
       expect(after).toEqual(before);
     });
 
@@ -190,6 +199,7 @@ describe.skipIf(!reachable)(
         "schema(pred: [Memory.xid]) {index upsert}",
       );
       const byPred = Object.fromEntries(schema.map((s) => [s.predicate, s]));
+
       expect(byPred["Memory.xid"]).toMatchObject({ index: true, upsert: true });
     });
   },

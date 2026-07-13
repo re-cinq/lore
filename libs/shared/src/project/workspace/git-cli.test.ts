@@ -14,6 +14,7 @@ import { GitCli } from "./git-cli.js";
 function gitAvailable(): boolean {
   try {
     execFileSync("git", ["--version"]);
+
     return true;
   } catch {
     return false;
@@ -38,6 +39,7 @@ describe.skipIf(!hasGit)("GitCli (live git)", () => {
     bare = join(base, "origin.git");
     execFileSync("git", ["init", "--bare", "-b", "main", bare]);
     const seed = join(base, "seed");
+
     execFileSync("git", ["clone", bare, seed], { env });
     execFileSync("git", ["-C", seed, "checkout", "-b", "main"], { env });
     execFileSync("bash", ["-c", `echo '# Seed' > "${seed}/README.md"`]);
@@ -61,11 +63,13 @@ describe.skipIf(!hasGit)("GitCli (live git)", () => {
   it("writes, commits on a new branch, and pushes to the remote", async () => {
     const git = new GitCli(env);
     const dest = join(base, "clone-b");
+
     await git.clone(bare, dest);
 
     await git.switchBranch(dest, "feat", { create: true });
     await git.writeFile(dest, "docs/note.md", "hello");
     const result = await git.stageCommit(dest, "docs: note");
+
     await git.push(dest, "feat");
 
     expect(result).toEqual({ committed: true });
@@ -77,6 +81,7 @@ describe.skipIf(!hasGit)("GitCli (live git)", () => {
   it("commits with the Lore Agent identity when the environment provides none", async () => {
     const git = new GitCli({ PATH: process.env.PATH, HOME: process.env.HOME });
     const dest = join(base, "clone-id");
+
     await git.clone(bare, dest);
 
     await git.switchBranch(dest, "feat-id", { create: true });
@@ -88,6 +93,7 @@ describe.skipIf(!hasGit)("GitCli (live git)", () => {
       ["-C", dest, "log", "-1", "--format=%an <%ae>"],
       { encoding: "utf8" },
     ).trim();
+
     expect(author).toBe("Lore Agent <lore-agent@re-cinq.com>");
   });
 
@@ -106,6 +112,7 @@ describe.skipIf(!hasGit)("GitCli (live git)", () => {
   it("ensureCheckout pins the working tree to a branch", async () => {
     const git = new GitCli(env);
     const dest = join(base, "cache-co");
+
     await git.ensureClone(bare, dest);
     execFileSync("git", ["-C", dest, "branch", "pinned"], { env });
 
@@ -116,12 +123,14 @@ describe.skipIf(!hasGit)("GitCli (live git)", () => {
       ["-C", dest, "rev-parse", "--abbrev-ref", "HEAD"],
       { encoding: "utf8" },
     ).trim();
+
     expect(branch).toBe("pinned");
   });
 
   it("ensureCheckout refuses to switch a dirty working tree", async () => {
     const git = new GitCli(env);
     const dest = join(base, "cache-dirty");
+
     await git.ensureClone(bare, dest);
     execFileSync("git", ["-C", dest, "branch", "other"], { env });
     writeFileSync(join(dest, "README.md"), "uncommitted edit");

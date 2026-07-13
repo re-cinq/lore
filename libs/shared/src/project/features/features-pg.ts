@@ -36,7 +36,7 @@ export class PgFeatures implements FeaturesPort {
     parentFeatureId: string | null,
   ): Promise<Feature> {
     const slug = slugifyFeatureTitle(input.title);
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<Feature>(
       `INSERT INTO lore.features
          (repo, title, slug, path, original_prompt, status, parent_feature_id, created_by)
        VALUES ($1, $2, $3, $4, $5, 'draft', $6, $7)
@@ -51,6 +51,7 @@ export class PgFeatures implements FeaturesPort {
         input.createdBy ?? "ui",
       ],
     );
+
     return rows[0] as Feature;
   }
 
@@ -71,27 +72,36 @@ export class PgFeatures implements FeaturesPort {
       `SELECT * FROM lore.features WHERE id = $1 AND repo = $2`,
       [id, repo],
     );
-    const feature = rows[0] as Feature | undefined;
-    if (!feature) return null;
+    const feature = rows[0] as unknown as Feature | undefined;
+
+    if (!feature) {
+      return null;
+    }
     const { rows: iterations } = await this.pool.query(
       `SELECT * FROM lore.feature_iterations WHERE feature_id = $1 ORDER BY iteration ASC`,
       [id],
     );
-    return { ...feature, iterations: iterations as FeatureIteration[] };
+
+    return {
+      ...feature,
+      iterations: iterations as unknown as FeatureIteration[],
+    };
   }
 
   async list(repo: string, status?: FeatureStatus): Promise<Feature[]> {
     if (status) {
-      const { rows } = await this.pool.query(
+      const { rows } = await this.pool.query<Feature>(
         `SELECT * FROM lore.features WHERE repo = $1 AND status = $2 ORDER BY updated_at DESC`,
         [repo, status],
       );
+
       return rows as Feature[];
     }
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<Feature>(
       `SELECT * FROM lore.features WHERE repo = $1 ORDER BY updated_at DESC`,
       [repo],
     );
+
     return rows as Feature[];
   }
 
@@ -111,13 +121,14 @@ export class PgFeatures implements FeaturesPort {
     );
     const iteration = (rows[0] as { current_iteration: number })
       .current_iteration;
-    const { rows: inserted } = await this.pool.query(
+    const { rows: inserted } = await this.pool.query<FeatureIteration>(
       `INSERT INTO lore.feature_iterations
          (feature_id, iteration, status, user_answers)
        VALUES ($1, $2, 'running', $3)
        RETURNING *`,
       [id, iteration, userAnswers == null ? null : JSON.stringify(userAnswers)],
     );
+
     return inserted[0] as FeatureIteration;
   }
 
@@ -163,8 +174,10 @@ export class PgFeatures implements FeaturesPort {
   ): Promise<Feature> {
     const sets = ["status = $1"];
     const params: unknown[] = [status];
+
     for (const col of PATCH_COLUMNS) {
       const value = patch?.[col];
+
       if (value !== undefined) {
         params.push(value);
         sets.push(`${col} = $${params.length}`);
@@ -172,12 +185,13 @@ export class PgFeatures implements FeaturesPort {
     }
     sets.push("updated_at = now()");
     params.push(id, repo);
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<Feature>(
       `UPDATE lore.features SET ${sets.join(", ")}
         WHERE id = $${params.length - 1} AND repo = $${params.length}
         RETURNING *`,
       params,
     );
+
     return rows[0] as Feature;
   }
 
@@ -187,6 +201,7 @@ export class PgFeatures implements FeaturesPort {
       `DELETE FROM lore.features WHERE id = $1 AND repo = $2 RETURNING id`,
       [id, repo],
     );
+
     return rows.length > 0;
   }
 }

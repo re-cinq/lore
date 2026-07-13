@@ -39,15 +39,22 @@ export async function putPrivilegedSettings(
 ): Promise<PrivilegedSaveResult> {
   const apiUrl = process.env.LORE_API_URL;
   const token = process.env.LORE_ADMIN_TOKEN;
-  if (!apiUrl || !token) return { status: "unconfigured" };
+
+  if (!apiUrl || !token) {
+    return { status: "unconfigured" };
+  }
 
   const headers: Record<string, string> = {
     "content-type": "application/json",
     authorization: `Bearer ${token}`,
   };
-  if (approvalPr) headers["x-lore-approval-pr"] = approvalPr;
+
+  if (approvalPr) {
+    headers["x-lore-approval-pr"] = approvalPr;
+  }
 
   let res: Response;
+
   try {
     res = await fetch(`${apiUrl}/api/repos/${repo}/settings/dark-factory`, {
       method: "PUT",
@@ -60,9 +67,11 @@ export async function putPrivilegedSettings(
   }
 
   const data = await res.json().catch(() => ({}));
+
   if (res.ok) {
     return { status: "ok", applied: data.applied, ceremony: data.ceremony };
   }
+
   if (res.status === 403 && data.error === "two_key_required") {
     return {
       status: "two_key_required",
@@ -70,6 +79,7 @@ export async function putPrivilegedSettings(
       detail: data.detail ?? "",
     };
   }
+
   if (res.status === 403 && data.error === "codeowners_check_failed") {
     return {
       status: "codeowners_failed",
@@ -77,6 +87,7 @@ export async function putPrivilegedSettings(
       detail: data.detail ?? "",
     };
   }
+
   return {
     status: "error",
     message: data.error || data.detail || `HTTP ${res.status}`,

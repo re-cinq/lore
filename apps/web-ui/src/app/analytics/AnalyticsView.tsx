@@ -55,11 +55,17 @@ export interface AnalyticsViewProps {
 }
 
 function formatDuration(started: string, completed: string | null): string {
-  if (!completed) return "—";
+  if (!completed) {
+    return "—";
+  }
   const ms = new Date(completed).getTime() - new Date(started).getTime();
   const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
+
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
   const minutes = Math.floor(seconds / 60);
+
   return `${minutes}m`;
 }
 

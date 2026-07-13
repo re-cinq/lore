@@ -45,7 +45,8 @@ export class PgAssemblyLines implements AssemblyLinesPort {
         JSON.stringify(input.args ?? {}),
       ],
     );
-    return rows[0].id;
+
+    return rows[0].id as string;
   }
 
   async markRunning(id: string): Promise<void> {
@@ -80,6 +81,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
         input.agentCrName ?? null,
       ],
     );
+
     return String(rows[0].id);
   }
 
@@ -103,8 +105,12 @@ export class PgAssemblyLines implements AssemblyLinesPort {
          FROM pipeline.assembly_lines WHERE id = $1`,
       [id],
     );
-    if (rows.length === 0) return null;
-    return toRecord(rows[0]);
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    return toRecord(rows[0] as Parameters<typeof toRecord>[0]);
   }
 
   async listForTask(taskId: string): Promise<AssemblyLineRecord[]> {
@@ -116,7 +122,8 @@ export class PgAssemblyLines implements AssemblyLinesPort {
         ORDER BY created_at DESC`,
       [taskId],
     );
-    return rows.map(toRecord);
+
+    return rows.map((r) => toRecord(r as Parameters<typeof toRecord>[0]));
   }
 
   async findOpenByPr(
@@ -133,7 +140,8 @@ export class PgAssemblyLines implements AssemblyLinesPort {
         ORDER BY created_at DESC`,
       [repo, prNumber],
     );
-    return rows.map(toRecord);
+
+    return rows.map((r) => toRecord(r as Parameters<typeof toRecord>[0]));
   }
 
   async finishOpenByPr(
@@ -150,6 +158,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
       RETURNING id`,
       [outcome, repo, prNumber],
     );
+
     return rows.length;
   }
 }

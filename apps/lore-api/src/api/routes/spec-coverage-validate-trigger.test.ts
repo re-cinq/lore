@@ -3,10 +3,12 @@ import { triggerAgentSpecCoverageValidate } from "../routes.js";
 
 function recordingPool() {
   const calls: Array<{ text: string; params: unknown[] }> = [];
+
   return {
     calls,
     query: async (text: string, params: unknown[]) => {
       calls.push({ text, params });
+
       return { rows: [] };
     },
   };
@@ -15,6 +17,7 @@ function recordingPool() {
 describe("triggerAgentSpecCoverageValidate", () => {
   it("inserts an internal.ingest.spec_coverage_validate event for the repo", async () => {
     const pool = recordingPool();
+
     await triggerAgentSpecCoverageValidate(pool as never, "re-cinq/lore");
     expect(pool.calls).toHaveLength(1);
     expect(pool.calls[0].text).toContain("INSERT INTO pipeline.events");
@@ -38,6 +41,7 @@ describe("triggerAgentSpecCoverageValidate", () => {
         throw new Error("db down");
       },
     };
+
     await expect(
       triggerAgentSpecCoverageValidate(pool as never, "o/r"),
     ).resolves.toBeUndefined();

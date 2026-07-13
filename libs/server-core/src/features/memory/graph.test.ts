@@ -38,6 +38,7 @@ function parseGraphExtraction(raw: string): {
         relation: String(e.relation).toLowerCase().trim(),
       }))
       .slice(0, 10);
+
     return { entities, edges };
   } catch {
     return { entities: [], edges: [] };
@@ -57,6 +58,7 @@ describe("parseGraphExtraction", () => {
     });
 
     const result = parseGraphExtraction(input);
+
     expect(result.entities).toEqual([
       { name: "auth-service", type: "service" },
       { name: "postgresql", type: "technology" },
@@ -73,6 +75,7 @@ describe("parseGraphExtraction", () => {
     });
 
     const result = parseGraphExtraction(input);
+
     expect(result.entities[0].name).toBe("myservice");
     expect(result.entities[0].type).toBe("service");
   });
@@ -81,11 +84,13 @@ describe("parseGraphExtraction", () => {
     const input =
       '```json\n{"entities": [{"name": "test", "type": "concept"}], "edges": []}\n```';
     const result = parseGraphExtraction(input);
+
     expect(result.entities).toHaveLength(1);
   });
 
   it("returns empty on invalid JSON", () => {
     const result = parseGraphExtraction("this is not json");
+
     expect(result.entities).toEqual([]);
     expect(result.edges).toEqual([]);
   });
@@ -104,6 +109,7 @@ describe("parseGraphExtraction", () => {
     });
 
     const result = parseGraphExtraction(input);
+
     expect(result.entities).toHaveLength(10);
     expect(result.edges).toHaveLength(10);
   });
@@ -120,6 +126,7 @@ describe("parseGraphExtraction", () => {
     });
 
     const result = parseGraphExtraction(input);
+
     expect(result.entities).toHaveLength(1);
   });
 });
@@ -137,14 +144,19 @@ describe("edge temporal invalidation", () => {
           // No existing exact edge
           return { rows: [] };
         }
+
         if (sql.includes("UPDATE memory.edges")) {
           invalidated.push(`${params[0]}-${params[1]}-${params[2]}`);
+
           return { rows: [] };
         }
+
         if (sql.includes("INSERT INTO memory.edges")) {
           inserted.push(params);
+
           return { rows: [] };
         }
+
         return { rows: [] };
       }),
     };
@@ -160,7 +172,10 @@ describe("edge temporal invalidation", () => {
         "SELECT id FROM memory.edges WHERE source_id = $1 AND target_id = $2 AND relation_type = $3 AND valid_to IS NULL",
         [sourceId, targetId, relationType],
       );
-      if (existing.length > 0) return;
+
+      if (existing.length > 0) {
+        return;
+      }
 
       await pool.query(
         "UPDATE memory.edges SET valid_to = now() WHERE source_id = $1 AND relation_type = $2 AND target_id != $3 AND valid_to IS NULL",
@@ -186,6 +201,7 @@ describe("edge temporal invalidation", () => {
         if (sql.includes("SELECT id FROM memory.edges")) {
           return { rows: [{ id: "existing-edge" }] };
         }
+
         return { rows: [] };
       }),
     };
@@ -200,7 +216,10 @@ describe("edge temporal invalidation", () => {
         "SELECT id FROM memory.edges WHERE source_id = $1 AND target_id = $2 AND relation_type = $3 AND valid_to IS NULL",
         [sourceId, targetId, relationType],
       );
-      if (existing.length > 0) return;
+
+      if (existing.length > 0) {
+        return;
+      }
       // Should not reach here
       throw new Error("Should not insert");
     }

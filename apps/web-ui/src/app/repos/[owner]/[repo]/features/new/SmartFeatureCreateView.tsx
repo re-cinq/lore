@@ -13,6 +13,7 @@ export default function SmartFeatureCreateView({
   action: CreateAction;
 }) {
   const [state, formAction, pending] = useActionState(action, null);
+
   return (
     <form action={formAction} className="task-form" style={{ maxWidth: 720 }}>
       <h2>Plan a new feature</h2>

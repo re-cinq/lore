@@ -70,6 +70,7 @@ afterEach(() => {
 describe("Timeline", () => {
   it("renders the loading state before the first fetch resolves", async () => {
     let resolveFetch: (v: unknown) => void = () => {};
+
     vi.stubGlobal(
       "fetch",
       vi.fn(
@@ -114,6 +115,7 @@ describe("Timeline", () => {
 
   it("requests the timeline endpoint for the given task id", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(baseResponse()));
+
     vi.stubGlobal("fetch", fetchMock);
     render(<Timeline taskId="task-42" initialStatus="done" />);
     await flush();
@@ -191,6 +193,7 @@ describe("Timeline", () => {
     const stageIcon = screen
       .getAllByTestId("icon")
       .find((el) => el.getAttribute("data-size") === "18");
+
     expect(stageIcon).toHaveAttribute("data-icon", "review");
   });
 
@@ -211,6 +214,7 @@ describe("Timeline", () => {
     const stageIcon = screen
       .getAllByTestId("icon")
       .find((el) => el.getAttribute("data-size") === "18");
+
     expect(stageIcon).toHaveAttribute("data-icon", "bullet");
   });
 
@@ -231,6 +235,7 @@ describe("Timeline", () => {
       ),
     );
     const { container } = render(<Timeline taskId="t1" initialStatus="done" />);
+
     await flush();
 
     const pills = Array.from(
@@ -288,6 +293,7 @@ describe("Timeline", () => {
     await flush();
 
     const link = screen.getByRole("link");
+
     expect(link).toHaveAttribute(
       "href",
       "https://github.com/owner/name/commit/abc1234deadbeef",
@@ -376,11 +382,13 @@ describe("Timeline", () => {
       .mockResolvedValue(
         jsonResponse(baseResponse({ current_stage: "retrospective" })),
       );
+
     vi.stubGlobal("fetch", fetchMock);
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
 
     const settled = fetchMock.mock.calls.length;
+
     await act(async () => {
       vi.advanceTimersByTime(10_000 * 3);
     });
@@ -394,11 +402,13 @@ describe("Timeline", () => {
       .mockResolvedValue(
         jsonResponse(baseResponse({ current_stage: "implement" })),
       );
+
     vi.stubGlobal("fetch", fetchMock);
     render(<Timeline taskId="t1" initialStatus="running" />);
     await flush();
 
     const settled = fetchMock.mock.calls.length;
+
     await act(async () => {
       vi.advanceTimersByTime(10_000);
     });
@@ -417,6 +427,7 @@ describe("Timeline", () => {
       .mockResolvedValue(
         jsonResponse(baseResponse({ current_stage: "validate" })),
       );
+
     vi.stubGlobal("fetch", fetchMock);
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
@@ -436,13 +447,16 @@ describe("Timeline", () => {
       .mockResolvedValue(
         jsonResponse(baseResponse({ current_stage: "implement" })),
       );
+
     vi.stubGlobal("fetch", fetchMock);
     const { unmount } = render(
       <Timeline taskId="t1" initialStatus="running" />,
     );
+
     await flush();
 
     const callsAtUnmount = fetchMock.mock.calls.length;
+
     unmount();
     await act(async () => {
       vi.advanceTimersByTime(10_000 * 5);
@@ -459,6 +473,7 @@ describe("Timeline", () => {
           baseResponse({ current_stage: "implement", commits: [commit()] }),
         ),
       );
+
     vi.stubGlobal("fetch", fetchMock);
     render(<Timeline taskId="t1" initialStatus="running" />);
     await flush();

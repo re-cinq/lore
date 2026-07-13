@@ -7,6 +7,7 @@ export async function approvalCheckJob(): Promise<string> {
 
   if (tasks.length === 0) {
     console.log("[job] approval-check: no tasks awaiting approval");
+
     return "Checked 0 tasks, 0 approved";
   }
 

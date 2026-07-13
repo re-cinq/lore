@@ -64,8 +64,10 @@ export function selectStationBackend(
   env: NodeJS.ProcessEnv = process.env,
 ): StationBackendKind {
   const explicit = env.LORE_STATION_BACKEND;
+
   if (explicit === "k8s" || explicit === "docker" || explicit === "inprocess") {
     return explicit;
   }
+
   return env.KUBERNETES_SERVICE_HOST ? "k8s" : "docker";
 }

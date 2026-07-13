@@ -11,11 +11,13 @@ const VISIBILITY_TIMEOUT_SECONDS = 600; // a handler running >10min is presumed 
 
 export function startEventReaper(intervalMs = 60_000): NodeJS.Timeout {
   console.log("[events] reaper started");
+
   return setInterval(() => {
     reapStuck(VISIBILITY_TIMEOUT_SECONDS)
       .then((n) => {
-        if (n > 0)
+        if (n > 0) {
           console.log(`[events] reaped ${n} stuck processing event(s)`);
+        }
       })
       .catch((err) => console.error("[events] reaper failed:", err));
   }, intervalMs);

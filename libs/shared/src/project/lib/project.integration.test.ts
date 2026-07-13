@@ -22,8 +22,10 @@ const PG_CONFIG = {
 async function pgReachable(): Promise<boolean> {
   try {
     const probe = new Pool({ ...PG_CONFIG, connectionTimeoutMillis: 1000 });
+
     await probe.query("select 1");
     await probe.end();
+
     return true;
   } catch {
     return false;

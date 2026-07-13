@@ -28,7 +28,7 @@ export interface TaskDetailEvent {
   id: string;
   from_status: string | null;
   to_status: string;
-  metadata: any;
+  metadata: Record<string, unknown> | null;
   created_at: string;
 }
 

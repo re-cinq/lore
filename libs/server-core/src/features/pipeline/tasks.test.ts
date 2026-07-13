@@ -5,6 +5,7 @@ describe("parseTasks", () => {
   it("parses basic tasks", () => {
     const md = `- [ ] T001 Do something\n- [x] T002 Done thing`;
     const tasks = parseTasks(md);
+
     expect(tasks).toHaveLength(2);
     expect(tasks[0]).toMatchObject({
       specTaskId: "T001",
@@ -22,6 +23,7 @@ describe("parseTasks", () => {
   it("parses [P] marker", () => {
     const md = `- [ ] T001 [P] Parallel task`;
     const tasks = parseTasks(md);
+
     expect(tasks[0].parallelizable).toBe(true);
     expect(tasks[0].description).toBe("Parallel task");
   });
@@ -29,6 +31,7 @@ describe("parseTasks", () => {
   it("parses [DEPENDS ON:] markers", () => {
     const md = `- [ ] T003 Build thing [DEPENDS ON: T001, T002]`;
     const tasks = parseTasks(md);
+
     expect(tasks[0].dependsOn).toEqual(["T001", "T002"]);
     expect(tasks[0].description).toBe("Build thing");
   });
@@ -36,6 +39,7 @@ describe("parseTasks", () => {
   it("extracts file path from | suffix", () => {
     const md = `- [ ] T001 Create service | worker/src/services/zoho.ts`;
     const tasks = parseTasks(md);
+
     expect(tasks[0].filePath).toBe("worker/src/services/zoho.ts");
     expect(tasks[0].description).toBe("Create service");
   });
@@ -43,6 +47,7 @@ describe("parseTasks", () => {
   it("extracts backtick-wrapped file path", () => {
     const md = "- [ ] T001 Create service | `worker/src/services/zoho.ts`";
     const tasks = parseTasks(md);
+
     expect(tasks[0].filePath).toBe("worker/src/services/zoho.ts");
   });
 
@@ -57,6 +62,7 @@ describe("parseTasks", () => {
       "- [ ] T004 Polish thing",
     ].join("\n");
     const tasks = parseTasks(md);
+
     expect(tasks).toHaveLength(4);
     expect(tasks[0].phase).toBe(1);
     expect(tasks[1].phase).toBe(1);
@@ -79,12 +85,14 @@ describe("parseTasks", () => {
       "- [ ] T002 Another task",
     ].join("\n");
     const tasks = parseTasks(md);
+
     expect(tasks).toHaveLength(2);
   });
 
   it("handles combined markers", () => {
     const md = `- [ ] T005 [P] Do parallel work [DEPENDS ON: T001] | src/file.ts`;
     const tasks = parseTasks(md);
+
     expect(tasks[0]).toMatchObject({
       specTaskId: "T005",
       parallelizable: true,
@@ -100,6 +108,7 @@ describe("inferPhaseDependencies", () => {
       ["- [ ] T001 First", "- [ ] T002 Second"].join("\n"),
     );
     const result = inferPhaseDependencies(tasks);
+
     expect(result[0].dependsOn).toEqual([]);
     expect(result[1].dependsOn).toEqual([]);
   });
@@ -115,6 +124,7 @@ describe("inferPhaseDependencies", () => {
       ].join("\n"),
     );
     const result = inferPhaseDependencies(tasks);
+
     expect(result[0].dependsOn).toEqual([]); // Phase 1 first task, no deps
     expect(result[2].dependsOn).toContain("T001");
     expect(result[2].dependsOn).toContain("T002");
@@ -130,6 +140,7 @@ describe("inferPhaseDependencies", () => {
       ].join("\n"),
     );
     const result = inferPhaseDependencies(tasks);
+
     expect(result[0].dependsOn).toEqual([]);
     expect(result[1].dependsOn).toContain("T001");
     expect(result[2].dependsOn).toContain("T002");
@@ -145,6 +156,7 @@ describe("inferPhaseDependencies", () => {
       ].join("\n"),
     );
     const result = inferPhaseDependencies(tasks);
+
     expect(result[0].dependsOn).toEqual([]); // [P] no deps
     expect(result[1].dependsOn).toEqual([]); // [P] no deps
     // T003 is sequential but there's no previous sequential task, so no intra-phase dep
@@ -161,6 +173,7 @@ describe("inferPhaseDependencies", () => {
       ].join("\n"),
     );
     const result = inferPhaseDependencies(tasks);
+
     // T002 has explicit dep, should NOT be overwritten
     expect(result[1].dependsOn).toEqual(["T001"]);
   });

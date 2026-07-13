@@ -8,6 +8,10 @@ export function nodeMatchesQuery(
   query: string,
 ): boolean {
   const q = query.trim().toLowerCase();
-  if (!q) return true;
+
+  if (!q) {
+    return true;
+  }
+
   return `${node.label ?? ""} ${node.path ?? ""}`.toLowerCase().includes(q);
 }

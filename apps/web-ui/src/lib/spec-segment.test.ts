@@ -10,6 +10,7 @@ describe("segmentStatements", () => {
     const out = segmentStatements(
       "## A\n\nFirst sentence. Second sentence! Third?\n",
     );
+
     expect(out.map((s) => s.text)).toEqual([
       "First sentence.",
       "Second sentence!",
@@ -23,6 +24,7 @@ describe("segmentStatements", () => {
     const out = segmentStatements(
       "## A\n\n- First item.\n- Second item.\n- Third item.\n",
     );
+
     expect(out.map((s) => s.text)).toEqual([
       "First item.",
       "Second item.",
@@ -35,6 +37,7 @@ describe("segmentStatements", () => {
     const out = segmentStatements(
       "## A\n\n- First item that\n  wraps to a second line.\n- Second item.\n",
     );
+
     expect(out[0].text).toBe("First item that wraps to a second line.");
     expect(out).toHaveLength(2);
   });
@@ -62,6 +65,7 @@ describe("segmentStatements", () => {
         "",
       ].join("\n"),
     );
+
     expect(out.map((s) => s.text)).toEqual([
       "Intro sentence.",
       "Real prose.",
@@ -73,6 +77,7 @@ describe("segmentStatements", () => {
     const out = segmentStatements(
       "## A\n\nWe use tools like e.g. Helm and i.e. Terraform. Real boundary here.\n",
     );
+
     expect(out).toHaveLength(2);
     expect(out[1].text).toBe("Real boundary here.");
   });
@@ -87,6 +92,7 @@ describe("segmentStatements", () => {
     const content =
       "## A\n\n- Item one.\n- Item two.\n\nSome prose. More prose.\n";
     const first = segmentStatements(content);
+
     expect(first).toEqual(segmentStatements(content));
     expect(first.map((s) => s.ordinal)).toEqual([0, 1, 2, 3]);
   });
@@ -111,6 +117,7 @@ describe("buildIntroOrdinals", () => {
       ].join("\n"),
     );
     const intro = buildIntroOrdinals(statements);
+
     expect(intro.has(statements[0].ordinal)).toBe(true);
     expect(intro.has(statements[1].ordinal)).toBe(false);
   });
@@ -119,6 +126,7 @@ describe("buildIntroOrdinals", () => {
     const statements = segmentStatements(
       "Leading prose with no heading at all. Another one.\n",
     );
+
     expect([...buildIntroOrdinals(statements)]).toEqual([0, 1]);
   });
 });
@@ -134,6 +142,7 @@ describe("classifyByHeuristic", () => {
 
   it("marks intro-ordinal statements untestable as 'intro'", () => {
     const c = classifyByHeuristic(make("Anything", 7), new Set([7]));
+
     expect(c).toEqual({
       testability: "untestable",
       category: "intro",

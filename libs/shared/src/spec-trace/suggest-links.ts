@@ -28,8 +28,14 @@ function repoFromXid(xid: string): string {
 
 /** Normalizes a read-back embedding (array of numbers or `"[...]"` literal) to a `"[...]"` string. */
 function toVecLiteral(embedding: unknown): string | undefined {
-  if (Array.isArray(embedding)) return "[" + embedding.join(",") + "]";
-  if (typeof embedding === "string") return embedding;
+  if (Array.isArray(embedding)) {
+    return "[" + embedding.join(",") + "]";
+  }
+
+  if (typeof embedding === "string") {
+    return embedding;
+  }
+
   return undefined;
 }
 
@@ -51,6 +57,7 @@ async function nearestByVector(
   repo: string,
 ): Promise<string[]> {
   const repoPredicate = `${embeddingPredicate.split(".")[0]}.repo`;
+
   return withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(
       `query q($vec: string, $repo: string){ near(func: similar_to(${embeddingPredicate}, ${k}, $vec)) @filter(eq(${repoPredicate}, $repo)){ ${xidPredicate} } }`,
@@ -58,6 +65,7 @@ async function nearestByVector(
     );
     const rows =
       (res.data as { near?: Array<Record<string, string>> }).near ?? [];
+
     return rows.map((row) => row[xidPredicate]);
   });
 }
@@ -91,6 +99,7 @@ async function readStatementContext(
         ...(stmt?.validated ?? []).map((node) => node["TestChunk.xid"]),
       ].filter((xid): xid is string => xid !== undefined),
     );
+
     return {
       vecLiteral: toVecLiteral(stmt?.["Statement.embedding"]),
       linkedXids,
@@ -113,7 +122,9 @@ export async function suggestCandidates(
     statementXid,
   );
 
-  if (vecLiteral === undefined) return [];
+  if (vecLiteral === undefined) {
+    return [];
+  }
 
   const repo = repoFromXid(statementXid);
   const [codeXids, testXids] = await Promise.all([
@@ -134,6 +145,7 @@ export async function suggestCandidates(
       repo,
     ),
   ]);
+
   return [
     ...codeXids.map((xid) => ({ xid, kind: "code" as const })),
     ...testXids.map((xid) => ({ xid, kind: "test" as const })),

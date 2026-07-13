@@ -17,6 +17,8 @@ import {
   updateTaskStatus as sharedUpdateTaskStatus,
   cancelPipelineTask,
   markTaskMerged as sharedMarkTaskMerged,
+  type PipelineTaskRow,
+  type TaskListRow,
 } from "@re-cinq/lore-shared";
 
 // ── Pool management ──────────────────────────────────────────────────
@@ -27,6 +29,7 @@ let pool: Pool | null = null;
 
 function getPool(): Pool {
   enforceTrue(pool, new Error("Pipeline database not configured"));
+
   return pool;
 }
 
@@ -35,19 +38,26 @@ export function setPipelinePool(p: Pool): void {
 }
 
 // ── Relocated CRUD (single source in shared; thin pool-binding wrappers) ──
-export const getTask = (taskId: string) => getPipelineTask(getPool(), taskId);
-export const listTasks = (status?: string, limit = 50, offset = 0) =>
+export const getTask = (
+  taskId: string,
+): Promise<(PipelineTaskRow & { events: Record<string, unknown>[] }) | null> =>
+  getPipelineTask(getPool(), taskId);
+export const listTasks = (
+  status?: string,
+  limit = 50,
+  offset = 0,
+): Promise<{ tasks: TaskListRow[]; total: number }> =>
   listPipelineTasks(getPool(), status, limit, offset);
 export const recordEvent = (
   taskId: string,
   fromStatus: string | null,
   toStatus: string | null,
-  meta?: any,
+  meta?: Record<string, unknown>,
 ) => recordTaskEvent(getPool(), taskId, fromStatus, toStatus, meta);
 export const updateTaskStatus = (
   taskId: string,
   newStatus: string,
-  meta?: any,
+  meta?: Record<string, unknown>,
 ) => sharedUpdateTaskStatus(getPool(), taskId, newStatus, meta);
 export const cancelTask = (taskId: string) =>
   cancelPipelineTask(getPool(), taskId);
@@ -63,11 +73,17 @@ export function createTask(
   taskType: string = "general",
   targetRepo?: string,
   createdBy: string = "ui",
-  contextBundle?: any,
+  contextBundle?: Record<string, unknown>,
   priority: string = "normal",
   taskGroupId?: string,
   contextRefs?: { fact_ids: string[]; memory_ids: string[] },
-): Promise<any> {
+): Promise<{
+  task_id: string;
+  task_type: string;
+  status: string;
+  priority: string;
+  created_at: string;
+}> {
   return createPipelineTask(getPool(), {
     description,
     taskType,
@@ -88,7 +104,10 @@ export async function handleReviewResult(
   comments: string,
 ): Promise<void> {
   const task = await getTask(taskId);
-  if (!task) return;
+
+  if (!task) {
+    return;
+  }
 
   if (approved) {
     await updateTaskStatus(taskId, "review", {
@@ -98,7 +117,8 @@ export async function handleReviewResult(
     // Agent approval logged but human still needs to approve
   } else {
     // Check iteration count
-    const iteration = (task.review_iteration || 0) + 1;
+    const iteration = ((task.review_iteration as number) || 0) + 1;
+
     await getPool().query(
       `UPDATE pipeline.tasks SET review_iteration = $1 WHERE id = $2`,
       [iteration, taskId],
@@ -115,8 +135,8 @@ export async function handleReviewResult(
       // Re-trigger implementation agent with review feedback (immediate — active feedback loop)
       await createTask(
         `Address review feedback on PR: ${comments.substring(0, 200)}`,
-        task.task_type,
-        task.target_repo,
+        task.task_type as string,
+        task.target_repo ?? undefined,
         "review-agent",
         { branch: task.target_branch, review_comments: comments },
         "immediate",

@@ -28,8 +28,11 @@ function hrefFor(
   if (group === "file") {
     return `https://github.com/${ctx.repo}/blob/${ctx.branch || "main"}/${match.replace(/^\.\//, "")}`;
   }
-  if (group === "issue")
+
+  if (group === "issue") {
     return `https://github.com/${ctx.repo}/issues/${match.slice(1)}`;
+  }
+
   return `/assembly-lines/${match}`;
 }
 
@@ -38,16 +41,24 @@ export function parseReferences(text: string, ctx: RefContext): Segment[] {
   const re = new RegExp(SCAN_SRC, "gi");
   let last = 0;
   let m: RegExpExecArray | null;
+
   while ((m = re.exec(text)) !== null) {
-    if (m.index > last) out.push({ text: text.slice(last, m.index) });
+    if (m.index > last) {
+      out.push({ text: text.slice(last, m.index) });
+    }
     const group: "file" | "issue" | "uuid" = m.groups?.file
       ? "file"
       : m.groups?.issue
         ? "issue"
         : "uuid";
+
     out.push({ text: m[0], href: hrefFor(m[0], group, ctx) });
     last = m.index + m[0].length;
   }
-  if (last < text.length) out.push({ text: text.slice(last) });
+
+  if (last < text.length) {
+    out.push({ text: text.slice(last) });
+  }
+
   return out;
 }

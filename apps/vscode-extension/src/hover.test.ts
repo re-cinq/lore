@@ -49,11 +49,13 @@ describe("renderHoverMarkdown", () => {
       evidence: "execution-verified",
       related: [],
     };
+
     expect(renderHoverMarkdown(covered)).toContain("execution-verified");
   });
 
   it("opens the spec at line 1 when the statement line is unknown", () => {
     const noLine: RangeEntry = { ...implemented, specLine: 0, related: [] };
+
     expect(renderHoverMarkdown(noLine)).toContain(
       openLocalCommandUri({ path: "specs/auth/spec.md", line: 1 }),
     );

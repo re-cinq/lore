@@ -28,6 +28,7 @@ export default function AssemblyLineTable({
   showCost = false,
 }: AssemblyLineTableProps) {
   const columns = showCost ? 6 : 5;
+
   return (
     <table className={styles.table}>
       <thead>
@@ -64,6 +65,7 @@ function AssemblyLineRow({
   showCost: boolean;
 }) {
   const visual = statusVisual(run.status);
+
   return (
     <tr>
       <td>
@@ -155,6 +157,7 @@ function AssemblyLineRow({
 
 function StageDot({ member }: { member: AssemblyLineTaskRow }) {
   const tone = statusVisual(deriveAssemblyLineStatus([member])).tone;
+
   return (
     <details className={styles.stage} data-testid="al-stage">
       <summary

@@ -58,6 +58,7 @@ describe("SearchView", () => {
   it("shows the singular result count for exactly one match", () => {
     render(<SearchView q="env" repos={REPOS} results={[result({})]} />);
     const meta = screen.getByText(/1 result for/).closest("p") as HTMLElement;
+
     expect(meta.textContent).toContain("1 result for");
     expect(meta.textContent).toContain('"env"');
   });
@@ -65,6 +66,7 @@ describe("SearchView", () => {
   it("shows the plural result count and zero-match empty state", () => {
     render(<SearchView q="missing" repos={REPOS} results={[]} />);
     const meta = screen.getByText(/0 results for/).closest("p") as HTMLElement;
+
     expect(meta.textContent).toContain("0 results for");
     expect(meta.textContent).toContain('"missing"');
     expect(
@@ -82,6 +84,7 @@ describe("SearchView", () => {
       />,
     );
     const meta = screen.getByText(/result for/).closest("p") as HTMLElement;
+
     expect(within(meta).getByText("re-cinq/lore")).toBeInTheDocument();
     expect(meta.textContent).toContain("in");
   });
@@ -153,6 +156,7 @@ describe("SearchView", () => {
       .getByText("src/index.ts")
       .closest(".search-result") as HTMLElement;
     const scoped = within(card);
+
     expect(scoped.getByText("chunk")).toHaveClass("op-badge", "op-write");
     // repo appears twice in the card: the "· repo:" meta and the standalone badge
     expect(scoped.getAllByText("re-cinq/lore")).toHaveLength(2);
@@ -166,6 +170,7 @@ describe("SearchView", () => {
     const card = screen
       .getByText("deployment-gotchas-2026")
       .closest(".search-result") as HTMLElement;
+
     expect(card.querySelector(".badge")).toBeNull();
     expect(within(card).queryByText(/· repo:/)).not.toBeInTheDocument();
   });

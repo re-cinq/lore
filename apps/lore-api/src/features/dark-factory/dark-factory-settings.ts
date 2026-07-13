@@ -97,19 +97,32 @@ export function twoKeyFieldsTouched(
   taskOverrides?: TaskOverridesPatch,
 ): string[] {
   const touched: string[] = [];
-  if (patch.enabled !== undefined) touched.push("enabled");
-  if (patch.auto_merge?.paths !== undefined) touched.push("auto_merge.paths");
+
+  if (patch.enabled !== undefined) {
+    touched.push("enabled");
+  }
+
+  if (patch.auto_merge?.paths !== undefined) {
+    touched.push("auto_merge.paths");
+  }
+
   if (patch.auto_merge?.require_green_ci === false) {
     touched.push("auto_merge.require_green_ci");
   }
+
   if (patch.auto_merge?.require_bot_approval === false) {
     touched.push("auto_merge.require_bot_approval");
   }
-  if (patch.execution?.image !== undefined) touched.push("execution.image");
+
+  if (patch.execution?.image !== undefined) {
+    touched.push("execution.image");
+  }
+
   for (const [type, ov] of Object.entries(taskOverrides ?? {})) {
     if (ov?.execution?.image !== undefined) {
       touched.push(`task_overrides.${type}.execution.image`);
     }
   }
+
   return touched;
 }

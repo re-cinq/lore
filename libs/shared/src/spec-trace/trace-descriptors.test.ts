@@ -15,6 +15,7 @@ describe("descriptorsFromVitestList", () => {
       ],
       { pkg: "shared" },
     );
+
     expect(out).toEqual([
       {
         id: "shared/src/spec-trace/x.test.ts::Outer > Inner > does a thing",
@@ -30,6 +31,7 @@ describe("descriptorsFromVitestList", () => {
       [{ name: "bare test", file: "/r/shared/src/a.test.ts" }],
       { pkg: "shared" },
     );
+
     expect(d).toEqual({
       id: "shared/src/a.test.ts::bare test",
       name: "bare test",
@@ -54,6 +56,7 @@ describe("descriptorsFromVitestList", () => {
       ],
       { pkg: "shared" },
     );
+
     expect(out.map((d) => d.id)).toEqual([
       "shared/src/a.test.ts::Unit > a",
       "shared/src/a.test.ts::Unit > b",
@@ -68,6 +71,7 @@ describe("groupRunsByFile", () => {
       { id: "b.test.ts::y", name: "y", file: "b.test.ts" },
       { id: "a.test.ts::z", name: "z", file: "a.test.ts" },
     ]);
+
     expect([...grouped.entries()]).toEqual([
       ["a.test.ts", ["a.test.ts::x", "a.test.ts::z"]],
       ["b.test.ts", ["b.test.ts::y"]],

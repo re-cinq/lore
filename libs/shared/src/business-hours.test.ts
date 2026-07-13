@@ -19,14 +19,19 @@ describe("isBusinessHours", () => {
   const saved: Record<string, string | undefined> = {};
 
   beforeEach(() => {
-    for (const key of ENV_KEYS) saved[key] = process.env[key];
+    for (const key of ENV_KEYS) {
+      saved[key] = process.env[key];
+    }
     process.env.LORE_BUSINESS_HOURS_TZ = "UTC";
   });
 
   afterEach(() => {
     for (const key of ENV_KEYS) {
-      if (saved[key] === undefined) delete process.env[key];
-      else process.env[key] = saved[key];
+      if (saved[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = saved[key];
+      }
     }
   });
 

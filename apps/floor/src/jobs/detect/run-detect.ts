@@ -54,10 +54,12 @@ export function detectBranchName(definitionName: string, repo: string): string {
 /** The detect node's job_ref — the job-run name prefix and registry key. */
 function jobRefOf(assemblyLine: AssemblyLine): string {
   const detectNode = assemblyLine.nodes.find((n) => n.type === "detect");
+
   enforceTrue(
     typeof detectNode?.job_ref === "string" && detectNode.job_ref.length > 0,
     `assembly line "${assemblyLine.name}" has no detect node with job_ref`,
   );
+
   return detectNode.job_ref;
 }
 
@@ -81,6 +83,7 @@ export async function runDetect(
     opts.loadAssemblyLines ?? loadBuiltinAssemblyLines
   )();
   const assemblyLine = definitions.get(opts.definitionName);
+
   enforceTrue(
     !!assemblyLine,
     `no assembly line defined for "${opts.definitionName}"`,
@@ -178,6 +181,7 @@ async function defaultDispatch(): Promise<DetectStationDispatch> {
   ]);
   const backend = agentCrBackend();
   const kube = new KubeAgentApi();
+
   return {
     launch: (spec) => backend.launch(spec),
     status: (crName) => kube.getStatus(crName),

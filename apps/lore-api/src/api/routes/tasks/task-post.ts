@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -25,6 +26,7 @@ const TaskBody = z.object({
   group_id: z.string().optional(),
   context: z.unknown().optional(),
 });
+
 type TaskBody = z.infer<typeof TaskBody>;
 
 export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
@@ -37,7 +39,11 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
     },
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: DB_UNAVAILABLE }).code(503);
+
+      if (!pool) {
+        return h.response({ error: DB_UNAVAILABLE }).code(503);
+      }
+
       try {
         const parsed = request.payload as TaskBody;
 
@@ -45,6 +51,7 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
         if (parsed.action === "retry" && parsed.task_id) {
           const { retryTask } =
             await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
+
           return h.response(await retryTask(parsed.task_id));
         }
 
@@ -54,6 +61,7 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
             `UPDATE pipeline.tasks SET status = 'cancelled', updated_at = now() WHERE id = $1 AND status NOT IN ('completed', 'failed', 'cancelled', 'merged')`,
             [parsed.task_id],
           );
+
           return h.response({ ok: true, task_id: parsed.task_id });
         }
 
@@ -65,10 +73,12 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
         ) {
           const resolvedPriority =
             parsed.priority === "immediate" ? "immediate" : "normal";
+
           await pool.query(
             `UPDATE pipeline.tasks SET priority = $1, updated_at = now() WHERE id = $2 AND status = 'pending'`,
             [resolvedPriority, parsed.task_id],
           );
+
           return h.response({
             ok: true,
             task_id: parsed.task_id,
@@ -86,16 +96,20 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
             "needs-human-help",
             "cancelled",
           ];
-          if (!allowedStatuses.includes(parsed.status))
+
+          if (!allowedStatuses.includes(parsed.status)) {
             return h
               .response({ error: `invalid status: ${parsed.status}` })
               .code(400);
+          }
           const setClauses = ["status = $1", "updated_at = now()"];
           const values: unknown[] = [parsed.status];
+
           if (parsed.pr_url) {
             setClauses.push(`pr_url = $${values.length + 1}`);
             values.push(parsed.pr_url);
           }
+
           if (parsed.error) {
             setClauses.push(`error = $${values.length + 1}`);
             values.push(parsed.error);
@@ -105,6 +119,7 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
             `UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${values.length}`,
             values,
           );
+
           return h.response({
             ok: true,
             task_id: parsed.task_id,
@@ -121,8 +136,10 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
           group_id,
           context,
         } = parsed;
-        if (!description?.trim())
+
+        if (!description?.trim()) {
           return h.response({ error: "description is required" }).code(400);
+        }
         const validTypes = getTaskTypes();
         const resolvedType = validTypes.includes(task_type || "")
           ? task_type
@@ -132,14 +149,16 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
           resolvedType,
           target_repo,
           "remote-mcp",
-          context || undefined,
+          (context as Record<string, unknown>) || undefined,
           priority || "normal",
           group_id || undefined,
         );
+
         return h.response(result);
-      } catch (err: any) {
-        console.error("[api/task] error:", err.message);
-        return h.response({ error: err.message }).code(500);
+      } catch (err) {
+        console.error("[api/task] error:", errorMessage(err));
+
+        return h.response({ error: errorMessage(err) }).code(500);
       }
     },
   };

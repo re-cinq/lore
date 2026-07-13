@@ -29,6 +29,7 @@ describe("GET /api/pr-status", () => {
   it("returns the PR status for a valid repo and pr_number", async () => {
     vi.mocked(fetchPrStatus).mockResolvedValue({ state: "open" } as any);
     const res = await get("/api/pr-status?repo=o/r&pr_number=5");
+
     expect(vi.mocked(fetchPrStatus).mock.calls[0]).toEqual(["o/r", 5]);
     expect(res.result).toEqual({ state: "open" });
   });
@@ -36,27 +37,32 @@ describe("GET /api/pr-status", () => {
   it("returns 424 when GitHub is not configured", async () => {
     vi.mocked(fetchPrStatus).mockResolvedValue(null as any);
     const res = await get("/api/pr-status?repo=o/r&pr_number=5");
+
     expect(res.statusCode).toBe(424);
   });
 
   it("returns 400 when repo is not owner/name", async () => {
     const res = await get("/api/pr-status?repo=notarepo&pr_number=5");
+
     expect(res.statusCode).toBe(400);
   });
 
   it("returns 400 when pr_number is missing", async () => {
     const res = await get("/api/pr-status?repo=o/r");
+
     expect(res.statusCode).toBe(400);
   });
 
   it("returns 400 when pr_number is not an integer", async () => {
     const res = await get("/api/pr-status?repo=o/r&pr_number=abc");
+
     expect(res.statusCode).toBe(400);
   });
 
   it("returns 500 when fetchPrStatus throws", async () => {
     vi.mocked(fetchPrStatus).mockRejectedValue(new Error("gh boom"));
     const res = await get("/api/pr-status?repo=o/r&pr_number=5");
+
     expect(res.statusCode).toBe(500);
   });
 });

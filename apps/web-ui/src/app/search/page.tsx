@@ -61,6 +61,7 @@ export default async function SearchPage({
     const chunkResults = await queryAllChunks<SearchResult>(
       (schema, offset) => {
         const repoFilter = repo ? `AND c.repo = $${offset + 1}` : "";
+
         return {
           sql: `SELECT c.file_path as key, substring(c.content, 1, 300) as value,
                        'ingestion' as agent_id,
@@ -74,11 +75,13 @@ export default async function SearchPage({
         };
       },
     );
+
     chunkResults.sort((a, b) => b.score - a.score);
     chunkResults.splice(20);
 
     // Merge and sort by score descending, capped at 30
     const allResults = [...memoryResults, ...factResults, ...chunkResults];
+
     results = allResults.sort((a, b) => b.score - a.score).slice(0, 30);
   }
 

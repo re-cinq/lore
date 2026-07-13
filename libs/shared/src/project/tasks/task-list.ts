@@ -4,6 +4,8 @@ import type {
   TaskWithEvents,
   TaskListResult,
   CreateTaskInput,
+  CreatedTask,
+  RetriedTask,
   DriftTaskRow,
   FindOpenLikeInput,
 } from "./task-store-port.js";
@@ -34,6 +36,7 @@ export class TaskList {
 
   async getById(id: string): Promise<Task | null> {
     const row = await this.store.getById(id);
+
     return row ? new Task(row, this.store) : null;
   }
 
@@ -42,14 +45,14 @@ export class TaskList {
   /** Create a task. The bound repo is the default targetRepo unless input overrides it. */
   create(
     input: Omit<CreateTaskInput, "targetRepo"> & { targetRepo?: string },
-  ): Promise<any> {
+  ): Promise<CreatedTask> {
     return this.store.create({
       ...input,
       targetRepo: input.targetRepo ?? this.repo,
     });
   }
 
-  retry(id: string): Promise<any> {
+  retry(id: string): Promise<RetriedTask> {
     return this.store.retry(id);
   }
 
@@ -93,7 +96,11 @@ export class TaskList {
     return this.store.setStatusIf(id, expectedStatus, status, extra);
   }
 
-  updateStatus(id: string, status: string, meta?: unknown): Promise<void> {
+  updateStatus(
+    id: string,
+    status: string,
+    meta?: Record<string, unknown>,
+  ): Promise<void> {
     return this.store.updateStatus(id, status, meta);
   }
 
@@ -101,7 +108,7 @@ export class TaskList {
     id: string,
     fromStatus: string | null,
     toStatus: string | null,
-    meta?: unknown,
+    meta?: Record<string, unknown>,
   ): Promise<void> {
     return this.store.recordEvent(id, fromStatus, toStatus, meta);
   }

@@ -36,11 +36,21 @@ export function darkFactoryRoute(getPool: () => Pool | null): ServerRoute {
     options: bearerScope("admin"),
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: "database unavailable" }).code(503);
+
+      if (!pool) {
+        return h.response({ error: "database unavailable" }).code(503);
+      }
       const repo = repoOf(request.params);
       const method = request.method.toUpperCase();
-      if (method === "GET") return handleGet(repo, h);
-      if (method === "PUT") return handlePut(request, h, pool, repo);
+
+      if (method === "GET") {
+        return handleGet(repo, h);
+      }
+
+      if (method === "PUT") {
+        return handlePut(request, h, pool, repo);
+      }
+
       return h.response({ error: "method not allowed" }).code(405);
     },
   };
@@ -53,11 +63,15 @@ async function handleGet(
   try {
     const project = await projectFor(repo);
     const settings = await project.settings.resolveOrNull();
-    if (settings === null)
+
+    if (settings === null) {
       return h.response({ error: "repo not onboarded", repo }).code(404);
+    }
+
     return h.response(settings);
   } catch (err) {
     console.error("[dark-factory] GET settings failed:", err);
+
     return h.response({ error: "internal" }).code(500);
   }
 }
@@ -74,23 +88,27 @@ async function handlePut(
 
   let patch: DarkFactorySettings;
   let toPatch: TaskOverridesPatch | undefined;
+
   try {
     patch = parseDarkFactorySettings(body);
     // Optional sibling: per-task-type overrides. `execution.image` here is
     // two-key gated like dark_factory.execution.image (ADR-025).
     const rawTo = (body as { task_overrides?: unknown } | null)?.task_overrides;
+
     toPatch = rawTo !== undefined ? parseTaskOverrides(rawTo) : undefined;
   } catch (err) {
     const issues =
       typeof err === "object" && err !== null && "issues" in err
         ? (err as { issues: unknown }).issues
         : (err as Error).message;
+
     return h.response({ error: "invalid_settings", issues }).code(400);
   }
 
   // Two-key check (FR3.9): privileged fields require an approval-PR header.
   const twoKey = twoKeyFieldsTouched(patch, toPatch);
   let ceremony: Ceremony = { tier: "admin" };
+
   if (twoKey.length > 0) {
     const gate = await checkApproval(
       request,
@@ -99,7 +117,10 @@ async function handlePut(
       "Privileged fields require an X-Lore-Approval-PR header. " +
         "Reference an open PR labeled `dark-factory-approval` by a CODEOWNER.",
     );
-    if (!gate.ok) return h.response(gate.body).code(gate.code);
+
+    if (!gate.ok) {
+      return h.response(gate.body).code(gate.code);
+    }
     ceremony = {
       tier: "two_key",
       pr_ref: gate.evidence.prRef,
@@ -110,37 +131,48 @@ async function handlePut(
 
   // Read current, merge patch, write back. lore.repos.settings is JSONB.
   const client = await pool.connect();
+
   try {
     await client.query("BEGIN");
     const { rows } = await client.query(
       `SELECT settings FROM lore.repos WHERE full_name = $1 FOR UPDATE`,
       [repo],
     );
+
     if (rows.length === 0) {
       await client.query("ROLLBACK");
+
       return h.response({ error: "repo not onboarded", repo }).code(404);
     }
     const settings = rows[0].settings ?? {};
     const prev = settings.dark_factory ?? {};
     const next = { ...prev, ...patch };
-    if (patch.auto_merge)
+
+    if (patch.auto_merge) {
       next.auto_merge = { ...(prev.auto_merge ?? {}), ...patch.auto_merge };
-    if (patch.execution)
+    }
+
+    if (patch.execution) {
       next.execution = { ...(prev.execution ?? {}), ...patch.execution };
+    }
     settings.dark_factory = next;
 
     // Per-task-type overrides: deep-merge each touched type (and its nested
     // `execution`) over the existing entry, leaving untouched types intact.
     const prevTo = settings.task_overrides ?? {};
+
     if (toPatch) {
       const nextTo: Record<string, Record<string, unknown>> = { ...prevTo };
+
       for (const [type, ov] of Object.entries(toPatch)) {
         nextTo[type] = { ...(prevTo[type] ?? {}), ...ov };
-        if (ov.execution)
+
+        if (ov.execution) {
           nextTo[type].execution = {
             ...(prevTo[type]?.execution ?? {}),
             ...ov.execution,
           };
+        }
       }
       settings.task_overrides = nextTo;
     }
@@ -166,6 +198,7 @@ async function handlePut(
       },
       ceremony,
     };
+
     await client
       .query(
         `INSERT INTO pipeline.audit_log (event_type, repo, payload) VALUES ('dark_factory_setting_changed', $1, $2)`,
@@ -176,10 +209,12 @@ async function handlePut(
       });
 
     await client.query("COMMIT");
+
     return h.response({ ok: true, applied: next, ceremony });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("[dark-factory] PUT settings failed:", err);
+
     return h.response({ error: "internal" }).code(500);
   } finally {
     client.release();

@@ -46,6 +46,7 @@ describe("classifyWebhook", () => {
 
   it("returns wrong_url when a Floor-path hook still points at the old host", () => {
     const old = "https://lore-api.gcp.re-cinq.com/api/webhook/github";
+
     expect(
       classifyWebhook([hook({ config: { url: old } })], URL),
     ).toMatchObject({ state: "wrong_url", url: old });

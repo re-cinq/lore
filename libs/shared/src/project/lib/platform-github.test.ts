@@ -28,7 +28,9 @@ vi.mock("octokit", () => ({
       checks: { listForRef: async () => state.checkRuns },
       issues: {
         createLabel: async () => {
-          if (state.labelError) throw state.labelError;
+          if (state.labelError) {
+            throw state.labelError;
+          }
         },
       },
     };
@@ -65,6 +67,7 @@ describe("PlatformGitHub paginated reads + helpers", () => {
       filename: `src/f${i}.ts`,
     }));
     const files = await gh().listFiles("re-cinq/lore", 7);
+
     expect(files).toHaveLength(31);
     expect(files).toContain("src/f30.ts");
   });

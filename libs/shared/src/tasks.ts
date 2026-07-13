@@ -5,6 +5,8 @@
  * DB operations stay in mcp-server/src/tasks.ts.
  */
 
+import type { PgPool } from "./memory-store.js";
+
 // ── Types ───────────────────────────────────────────────────────────
 
 export interface ParsedTask {
@@ -36,13 +38,17 @@ export function parseTasks(markdown: string): ParsedTask[] {
 
     // Check for phase headers
     const phaseMatch = trimmed.match(PHASE_RE);
+
     if (phaseMatch) {
       currentPhase = parseInt(phaseMatch[1], 10);
       continue;
     }
 
     const taskMatch = trimmed.match(TASK_RE);
-    if (!taskMatch) continue;
+
+    if (!taskMatch) {
+      continue;
+    }
 
     const completed = taskMatch[1] === "x";
     const specTaskId = taskMatch[2];
@@ -50,6 +56,7 @@ export function parseTasks(markdown: string): ParsedTask[] {
 
     // Check for [P] marker
     const parallelizable = PARALLEL_RE.test(rest);
+
     if (parallelizable) {
       rest = rest.replace(PARALLEL_RE, "");
     }
@@ -57,10 +64,14 @@ export function parseTasks(markdown: string): ParsedTask[] {
     // Check for [DEPENDS ON: ...] marker
     const depsMatch = rest.match(DEPENDS_RE);
     const dependsOn: string[] = [];
+
     if (depsMatch) {
       for (const dep of depsMatch[1].split(",")) {
         const d = dep.trim();
-        if (d) dependsOn.push(d);
+
+        if (d) {
+          dependsOn.push(d);
+        }
       }
       rest = rest.replace(DEPENDS_RE, "").trim();
     }
@@ -68,6 +79,7 @@ export function parseTasks(markdown: string): ParsedTask[] {
     // Check for | file_path suffix
     let filePath: string | undefined;
     const fileMatch = rest.match(FILE_PATH_RE);
+
     if (fileMatch) {
       filePath = fileMatch[1];
       rest = rest.replace(FILE_PATH_RE, "").trim();
@@ -97,18 +109,23 @@ export function parseTasks(markdown: string): ParsedTask[] {
  * - Explicit [DEPENDS ON:] markers always take precedence (not overwritten)
  */
 export function inferPhaseDependencies(tasks: ParsedTask[]): ParsedTask[] {
-  if (tasks.length === 0) return tasks;
+  if (tasks.length === 0) {
+    return tasks;
+  }
 
   // Group tasks by phase
   const phases = new Map<number, ParsedTask[]>();
+
   for (const task of tasks) {
     const group = phases.get(task.phase) || [];
+
     group.push(task);
     phases.set(task.phase, group);
   }
 
   // If all tasks are phase 0 (no phase headers), return unchanged
   const phaseNumbers = [...phases.keys()].sort((a, b) => a - b);
+
   if (phaseNumbers.length === 1 && phaseNumbers[0] === 0) {
     return tasks;
   }
@@ -131,6 +148,7 @@ export function inferPhaseDependencies(tasks: ParsedTask[]): ParsedTask[] {
       // Skip tasks that already have explicit dependencies
       if (task.dependsOn.length > 0) {
         result.push(task);
+
         if (!task.parallelizable) {
           lastSequentialId = task.specTaskId;
         }
@@ -174,10 +192,13 @@ const FEATURE_REQUEST_BRANCH_PREFIX = "lore/feature-request/";
  * spec-PR-merge handler and the merge-check fallback both need.
  */
 export function specSlugFromBranch(branch: string): string | null {
-  if (!branch.startsWith(FEATURE_REQUEST_BRANCH_PREFIX)) return null;
+  if (!branch.startsWith(FEATURE_REQUEST_BRANCH_PREFIX)) {
+    return null;
+  }
   const slug = branch
     .slice(FEATURE_REQUEST_BRANCH_PREFIX.length)
     .replace(/-[a-f0-9]{8}$/, "");
+
   return slug || null;
 }
 
@@ -187,7 +208,7 @@ export function specSlugFromBranch(branch: string): string | null {
  * Floor spec-PR-merge event handler and the mcp pipeline tools share one writer.
  */
 export async function syncTasksToDb(
-  pool: any,
+  pool: PgPool,
   repo: string,
   specSlug: string,
   tasks: ParsedTask[],
@@ -207,7 +228,7 @@ export async function syncTasksToDb(
     };
     const status = task.completed ? "completed" : "pending";
 
-    const { rows: existing } = await pool.query(
+    const { rows: existing } = await pool.query<{ id: string; status: string }>(
       `SELECT id, status FROM pipeline.tasks
        WHERE target_repo = $1
          AND task_type = 'spec-task'

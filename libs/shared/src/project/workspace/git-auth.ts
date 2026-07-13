@@ -16,6 +16,7 @@ const DEFAULT_HOST = "github.com";
  */
 export function gitAuthArgs(token: string, host = DEFAULT_HOST): string[] {
   const header = `Authorization: Basic ${Buffer.from(`x-access-token:${token}`).toString("base64")}`;
+
   return ["-c", `http.https://${host}/.extraheader=${header}`];
 }
 

@@ -11,12 +11,18 @@ import type { StationInput } from "../input.js";
 
 async function postEpisode(input: StationInput): Promise<void> {
   const baseUrl = process.env.LORE_API_URL;
-  if (!baseUrl) return; // no API wired → nothing to write (local/dev)
+
+  if (!baseUrl) {
+    return;
+  } // no API wired → nothing to write (local/dev)
   const token = process.env.LORE_STATION_TOKEN ?? process.env.LORE_INGEST_TOKEN;
   const headers: Record<string, string> = {
     "content-type": "application/json",
   };
-  if (token) headers["authorization"] = `Bearer ${token}`;
+
+  if (token) {
+    headers["authorization"] = `Bearer ${token}`;
+  }
 
   const content =
     `Assembly line ${input.assembly_line_id} reached its retrospective node for ${input.repo}` +
@@ -30,7 +36,10 @@ async function postEpisode(input: StationInput): Promise<void> {
       ref: input.branch,
     }),
   });
-  if (!res.ok) throw new Error(`episode write failed: ${res.status}`);
+
+  if (!res.ok) {
+    throw new Error(`episode write failed: ${res.status}`);
+  }
 }
 
 export async function runRetrospectiveStation(
@@ -45,5 +54,6 @@ export async function runRetrospectiveStation(
       ),
     );
   }
+
   return { outcome: "success", extras: { "Lore-Retro": "episode" } };
 }

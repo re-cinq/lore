@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * `ensureFloorWebhook` — the one place that ensures a repo's GitHub webhook points
  * at the Floor ingress *with the HMAC secret*. Reads `LORE_WEBHOOK_URL` +
@@ -26,21 +27,30 @@ export async function ensureFloorWebhook(
 ): Promise<EnsureFloorWebhookResult> {
   const url = process.env.LORE_WEBHOOK_URL || "";
   const secret = process.env.LORE_WEBHOOK_SECRET || "";
-  if (!url) return { ok: false, reason: "webhook_host_not_configured" };
-  if (!secret) return { ok: false, reason: "secret_not_configured" };
+
+  if (!url) {
+    return { ok: false, reason: "webhook_host_not_configured" };
+  }
+
+  if (!secret) {
+    return { ok: false, reason: "secret_not_configured" };
+  }
 
   try {
     const { hookId, created } = await ensureRepoWebhook(repo, url, secret, [
       ...REQUIRED_EVENTS,
     ]);
+
     return { ok: true, hookId, created };
-  } catch (err: any) {
-    if (err?.status === 403)
+  } catch (err) {
+    if ((err as { status?: number })?.status === 403) {
       return { ok: false, reason: "app_no_webhook_permission" };
+    }
+
     return {
       ok: false,
       reason: "ensure_failed",
-      detail: err?.message || String(err),
+      detail: errorMessage(err) || String(err),
     };
   }
 }

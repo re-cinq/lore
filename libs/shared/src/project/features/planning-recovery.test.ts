@@ -34,6 +34,7 @@ describe("decidePlanningRecovery", () => {
       status: "running",
       created_at: new Date(now - 60_000).toISOString(),
     });
+
     expect(
       decidePlanningRecovery({
         iterations: [latest],
@@ -52,6 +53,7 @@ describe("decidePlanningRecovery", () => {
         now - (PLANNING_RECOVERY_STALE_MS + 60_000),
       ).toISOString(),
     });
+
     expect(
       decidePlanningRecovery({
         iterations: [latest],
@@ -68,6 +70,7 @@ describe("decidePlanningRecovery", () => {
       status: "running",
       created_at: new Date(now - 60_000).toISOString(),
     });
+
     expect(
       decidePlanningRecovery({
         iterations: [latest],
@@ -80,6 +83,7 @@ describe("decidePlanningRecovery", () => {
 
   it("transitions a feature stuck 'planning' whose latest round produced a result (missed transition)", () => {
     const latest = iter({ iteration: 1, status: "ready", gap_result: gap });
+
     expect(
       decidePlanningRecovery({
         iterations: [latest],
@@ -92,6 +96,7 @@ describe("decidePlanningRecovery", () => {
 
   it("does nothing when a ready round already moved the feature out of 'planning'", () => {
     const latest = iter({ iteration: 1, status: "ready", gap_result: gap });
+
     expect(
       decidePlanningRecovery({
         iterations: [latest],
@@ -111,6 +116,7 @@ describe("decidePlanningRecovery", () => {
       ).toISOString(),
     });
     const latest = iter({ iteration: 2, status: "ready", gap_result: gap });
+
     expect(
       decidePlanningRecovery({
         iterations: [stale, latest],

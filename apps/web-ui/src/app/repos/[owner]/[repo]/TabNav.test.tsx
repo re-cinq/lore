@@ -4,11 +4,13 @@ import { render, screen } from "@testing-library/react";
 import TabNav from "./TabNav";
 
 const pathnameMock = vi.fn();
+
 vi.mock("next/navigation", () => ({
   usePathname: () => pathnameMock(),
 }));
 vi.mock("next/link", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/link")>();
+
   return { ...actual, useLinkStatus: () => ({ pending: false }) };
 });
 

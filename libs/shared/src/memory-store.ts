@@ -14,7 +14,10 @@ import { enforceTrue } from "./lib/enforce.js";
  * module so the contract lives with the interface, not the implementation.
  */
 export type PgPool = {
-  query(text: string, params?: unknown[]): Promise<{ rows: any[] }>;
+  query<T = Record<string, unknown>>(
+    text: string,
+    params?: unknown[],
+  ): Promise<{ rows: T[] }>;
 };
 
 /**
@@ -26,7 +29,7 @@ export interface DgraphTxn {
   queryWithVars(
     query: string,
     vars: Record<string, string>,
-  ): Promise<{ data: any }>;
+  ): Promise<{ data: Record<string, Record<string, unknown>[]> }>;
   mutate(req: {
     setJson?: unknown;
     setNquads?: string;
@@ -47,6 +50,9 @@ export interface WriteResult {
   created_at: string;
 }
 
+/** A stored memory row (or version row). Columns vary by query, so keep it open. */
+export type MemoryRecord = Record<string, unknown>;
+
 // ── Interface ────────────────────────────────────────────────────────
 
 export interface MemoryStore {
@@ -65,7 +71,7 @@ export interface MemoryStore {
     key: string,
     agentId: string,
     version?: string | number,
-  ): Promise<any>;
+  ): Promise<MemoryRecord | MemoryRecord[] | null>;
 
   deleteMemory(
     key: string,
@@ -77,7 +83,7 @@ export interface MemoryStore {
     limit?: number;
     offset?: number;
     repo?: string;
-  }): Promise<{ memories: any[]; total: number }>;
+  }): Promise<{ memories: MemoryRecord[]; total: number }>;
 }
 
 // ── Selection ────────────────────────────────────────────────────────
@@ -90,13 +96,16 @@ export function selectMemoryStore(clients: {
   dgraph?: unknown;
 }): MemoryStore {
   const backend = process.env.LORE_MEMORY_BACKEND ?? "postgres";
+
   if (backend === "dgraph") {
     enforceTrue(
       clients.dgraph,
       new Error("LORE_MEMORY_BACKEND=dgraph but no dgraph client provided"),
     );
+
     return new DgraphMemoryStore(clients.dgraph as DgraphClientPort);
   }
+
   if (backend !== "postgres") {
     throw new Error(
       `Unknown LORE_MEMORY_BACKEND="${backend}" (valid: postgres, dgraph)`,
@@ -106,6 +115,7 @@ export function selectMemoryStore(clients: {
     clients.pgPool,
     new Error("LORE_MEMORY_BACKEND=postgres but no pgPool client provided"),
   );
+
   return new PostgresMemoryStore(clients.pgPool as PgPool);
 }
 
@@ -122,5 +132,6 @@ export function memoryStore(): MemoryStore {
     registeredStore,
     new Error("No memory store configured — call setMemoryStore() at startup"),
   );
+
   return registeredStore;
 }

@@ -55,6 +55,7 @@ describe("buildAgentDefinition", () => {
 describe("buildStation", () => {
   it("references the AgentDefinition, sets the deadline, and an agent container", () => {
     const station = buildStation("implementation", impl);
+
     expect(station.spec?.agentDefRef).toBe("implementation");
     expect(station.spec?.deadlineMinutes).toBe(90);
     expect(station.metadata?.name).toBe("implementation");
@@ -63,6 +64,7 @@ describe("buildStation", () => {
         spec: { containers: Array<{ name: string; image: string }> };
       }
     ).spec.containers;
+
     expect(containers[0]).toMatchObject({
       name: "agent",
       image: "node:22-bookworm",
@@ -82,6 +84,7 @@ describe("buildCatalog", () => {
       implementation: impl,
       runbook: { prompt_template: "r" },
     });
+
     expect(cat.map((c) => `${c.kind}/${c.metadata?.name}`)).toEqual([
       "AgentDefinition/implementation",
       "Station/implementation",
@@ -93,6 +96,7 @@ describe("buildCatalog", () => {
 
 describe("catalogChartYaml", () => {
   const out = catalogChartYaml({ implementation: impl });
+
   it("guards the seed behind .Values.seedCatalog and keeps it on uninstall", () => {
     expect(out).toContain("DO NOT EDIT.");
     expect(out).toContain("{{- if .Values.seedCatalog }}");
@@ -151,6 +155,7 @@ describe("station catalog (exec vendor recipes)", () => {
 
   it("buildStationStation pins the station image and the recipe's deadline (default 15)", () => {
     const station = buildStationStation("validate", validate);
+
     expect(station.metadata?.name).toBe("def-validate");
     expect(station.spec?.agentDefRef).toBe("def-validate");
     expect(station.spec?.deadlineMinutes).toBe(15);
@@ -159,6 +164,7 @@ describe("station catalog (exec vendor recipes)", () => {
         spec: { containers: Array<{ image: string }> };
       }
     ).spec.containers;
+
     expect(containers[0].image).toBe("__STATION_IMAGE__");
     expect(
       buildStationStation("gate", { command: ["lore-station", "gate"] }).spec
@@ -171,16 +177,19 @@ describe("station catalog (exec vendor recipes)", () => {
       command: ["lore-station", "github_action"],
       timeout_minutes: 60,
     };
+
     expect(
       buildStationDefinition("github_action", githubAction).metadata?.name,
     ).toBe("def-github-action");
     const station = buildStationStation("github_action", githubAction);
+
     expect(station.metadata?.name).toBe("def-github-action");
     expect(station.spec?.agentDefRef).toBe("def-github-action");
   });
 
   it("buildCatalog appends def-<name> pairs for stations and catalogChartYaml templates the image", () => {
     const cat = buildCatalog({ implementation: impl }, { validate });
+
     expect(cat.map((c) => `${c.kind}/${c.metadata?.name}`)).toEqual([
       "AgentDefinition/implementation",
       "Station/implementation",
@@ -188,6 +197,7 @@ describe("station catalog (exec vendor recipes)", () => {
       "Station/def-validate",
     ]);
     const out = catalogChartYaml({ implementation: impl }, { validate });
+
     expect(out).toContain("image: {{ .Values.stationImage }}");
     expect(out).not.toContain("__STATION_IMAGE__");
   });

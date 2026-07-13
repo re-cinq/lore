@@ -26,15 +26,18 @@ interface EvalResult {
 export async function evalRunnerJob(): Promise<string> {
   if (!(await isPromptfooAvailable())) {
     console.log("[job] eval-runner: promptfoo not available, skipping");
+
     return "Skipped: promptfoo not installed";
   }
 
   // Find team eval configs
   let teamDirs: string[];
+
   try {
     teamDirs = await readdir(EVALS_DIR);
   } catch {
     console.log(`[job] eval-runner: evals directory "${EVALS_DIR}" not found`);
+
     return "Skipped: no evals directory";
   }
 
@@ -44,6 +47,7 @@ export async function evalRunnerJob(): Promise<string> {
     const configPath = join(EVALS_DIR, team, "promptfooconfig.yaml");
 
     const evalResult = await runPromptfooEval({ configPath });
+
     if (!evalResult.ok) {
       if (evalResult.reason === "exec-failed") {
         console.error(
@@ -79,6 +83,7 @@ export async function evalRunnerJob(): Promise<string> {
 
   // Store results and check for regressions
   let regressions = 0;
+
   for (const result of results) {
     // Store result
     await evalRuns().record({
@@ -94,6 +99,7 @@ export async function evalRunnerJob(): Promise<string> {
 
     if (prev.length > 0) {
       const delta = result.passRate - prev[0].pass_rate;
+
       if (delta < -REGRESSION_THRESHOLD) {
         regressions++;
         console.log(
@@ -111,6 +117,8 @@ export async function evalRunnerJob(): Promise<string> {
   }
 
   const summary = `Evaluated ${results.length} teams, ${regressions} regressions detected`;
+
   console.log(`[job] eval-runner: ${summary}`);
+
   return summary;
 }

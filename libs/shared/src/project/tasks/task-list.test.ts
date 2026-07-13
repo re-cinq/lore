@@ -26,6 +26,7 @@ function row(id: string, status: string, repo = "re-cinq/lore"): PipelineTask {
 function fakeStore(rows: PipelineTask[]): TaskStorePort {
   const byStatus = (repo: string, status: string) =>
     rows.filter((r) => r.target_repo === repo && r.status === status);
+
   return {
     pending: async (repo) => byStatus(repo, "pending"),
     running: async (repo) => byStatus(repo, "running"),
@@ -43,39 +44,54 @@ function fakeStore(rows: PipelineTask[]): TaskStorePort {
       task_id: "new",
       task_type: input.taskType ?? "general",
       status: "pending",
+      priority: "normal",
+      created_at: "2026-01-01T00:00:00Z",
     }),
     retry: async (id) => ({ task_id: "new", status: "pending", retry_of: id }),
     list: async () => ({ tasks: rows, total: rows.length }),
     getById: async (id) => rows.find((r) => r.id === id) ?? null,
     getWithEvents: async (id) => {
       const r = rows.find((x) => x.id === id);
+
       return r ? { ...r, events: [] } : null;
     },
     setStatus: async (id, status) => {
       const r = rows.find((x) => x.id === id);
-      if (r) r.status = status;
+
+      if (r) {
+        r.status = status;
+      }
     },
     setStatusIf: async (id, expectedStatus, status) => {
       const r = rows.find((x) => x.id === id);
-      if (!r || r.status !== expectedStatus) return false;
+
+      if (!r || r.status !== expectedStatus) {
+        return false;
+      }
       r.status = status;
+
       return true;
     },
     updateStatus: async (id, status) => {
       const r = rows.find((x) => x.id === id);
-      if (r) r.status = status;
+
+      if (r) {
+        r.status = status;
+      }
     },
     recordEvent: async () => {},
     cancel: async (id) => ({ task_id: id, status: "cancelled" }),
     markMerged: async (id) => ({ task_id: id, status: "merged" }),
     transition: async (id, action: TaskAction) => {
       const r = rows.find((x) => x.id === id)!;
+
       r.status =
         action === "cancel"
           ? "cancelled"
           : action === "retry"
             ? "retried"
             : "running-local";
+
       return r;
     },
   };
@@ -106,6 +122,7 @@ describe("TaskList", () => {
     );
 
     const task = await facade.getById("a");
+
     await task!.cancel();
 
     expect(task!.status).toBe("cancelled");

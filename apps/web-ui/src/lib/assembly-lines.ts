@@ -85,9 +85,13 @@ export function deriveAssemblyLineStatus(
   members: AssemblyLineTaskRow[],
 ): AssemblyLineStatus {
   const all = members.map((m) => m.status);
+
   for (const rule of STATUS_RULES) {
-    if (all.some(rule.match)) return rule.result;
+    if (all.some(rule.match)) {
+      return rule.result;
+    }
   }
+
   return "pending";
 }
 
@@ -101,24 +105,37 @@ export function groupTasksIntoAssemblyLines(
 
   const find = (x: string): string => {
     let root = x;
-    while (parent.get(root) !== root) root = parent.get(root)!;
+
+    while (parent.get(root) !== root) {
+      root = parent.get(root)!;
+    }
+
     while (parent.get(x) !== root) {
       const next = parent.get(x)!;
+
       parent.set(x, root);
       x = next;
     }
+
     return root;
   };
   const union = (a: string, b: string): void => {
     const ra = find(a);
     const rb = find(b);
-    if (ra !== rb) parent.set(ra, rb);
+
+    if (ra !== rb) {
+      parent.set(ra, rb);
+    }
   };
 
   for (const t of tasks) {
-    if (t.parent_task_id && byId.has(t.parent_task_id))
+    if (t.parent_task_id && byId.has(t.parent_task_id)) {
       union(t.id, t.parent_task_id);
-    if (t.retry_of && byId.has(t.retry_of)) union(t.id, t.retry_of);
+    }
+
+    if (t.retry_of && byId.has(t.retry_of)) {
+      union(t.id, t.retry_of);
+    }
   }
   unionByKey(tasks, union, (t) =>
     t.pr_number != null ? `${t.target_repo}#${t.pr_number}` : null,
@@ -130,11 +147,16 @@ export function groupTasksIntoAssemblyLines(
   );
 
   const components = new Map<string, AssemblyLineTaskRow[]>();
+
   for (const t of tasks) {
     const root = find(t.id);
     const list = components.get(root);
-    if (list) list.push(t);
-    else components.set(root, [t]);
+
+    if (list) {
+      list.push(t);
+    } else {
+      components.set(root, [t]);
+    }
   }
 
   return [...components.values()]
@@ -148,6 +170,7 @@ export function groupTasksIntoAssemblyLines(
         (acc, m) => (ms(m.updated_at) > ms(acc.updated_at) ? m : acc),
         sorted[0],
       );
+
       return {
         runKey: lead.id,
         members: sorted,
@@ -173,12 +196,20 @@ function unionByKey(
   keyOf: (t: AssemblyLineTaskRow) => string | null,
 ): void {
   const groups = new Map<string, string>();
+
   for (const t of tasks) {
     const key = keyOf(t);
-    if (!key) continue;
+
+    if (!key) {
+      continue;
+    }
     const seed = groups.get(key);
-    if (seed) union(seed, t.id);
-    else groups.set(key, t.id);
+
+    if (seed) {
+      union(seed, t.id);
+    } else {
+      groups.set(key, t.id);
+    }
   }
 }
 
@@ -209,6 +240,7 @@ const pad = (n: number): string => String(n).padStart(2, "0");
 
 export function formatDuration(startIso: string, endIso: string): string {
   const secs = Math.max(0, Math.round((ms(endIso) - ms(startIso)) / 1000));
+
   return `${pad(Math.floor(secs / 3600))}:${pad(Math.floor((secs % 3600) / 60))}:${pad(secs % 60)}`;
 }
 
@@ -225,9 +257,14 @@ export function formatRelativeTime(
   nowMs: number = Date.now(),
 ): string {
   const secs = Math.floor((nowMs - ms(iso)) / 1000);
+
   for (const unit of RELATIVE_UNITS) {
     const value = Math.floor(secs / unit.secs);
-    if (value >= 1) return `${value} ${unit.name}${value === 1 ? "" : "s"} ago`;
+
+    if (value >= 1) {
+      return `${value} ${unit.name}${value === 1 ? "" : "s"} ago`;
+    }
   }
+
   return "just now";
 }

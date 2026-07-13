@@ -26,6 +26,7 @@ const IngestGraphBody = z.preprocess(
     force: z.boolean().optional(),
   }),
 );
+
 type IngestGraphBody = z.infer<typeof IngestGraphBody>;
 
 export function ingestGraphRoute(getPool: () => Pool | null): ServerRoute {
@@ -43,6 +44,7 @@ export function ingestGraphRoute(getPool: () => Pool | null): ServerRoute {
       const requested =
         body.kinds && body.kinds.length > 0 ? body.kinds : ["specs", "adrs"];
       const unsupported = requested.filter((k) => !DOC_KINDS.has(k));
+
       if (unsupported.length > 0) {
         return h
           .response({
@@ -53,6 +55,7 @@ export function ingestGraphRoute(getPool: () => Pool | null): ServerRoute {
 
       // Each doc kind → fire-and-forget projection trigger.
       const pool = getPool();
+
       for (const kind of requested) {
         void triggerAgentSpecTrace(pool, repo, kind, {
           commit: body.commit,

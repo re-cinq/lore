@@ -24,7 +24,11 @@ export class AgentDefsHttp implements AgentDefsPort {
 
   private headers(): Record<string, string> {
     const h: Record<string, string> = { "content-type": "application/json" };
-    if (this.token) h["authorization"] = `Bearer ${this.token}`;
+
+    if (this.token) {
+      h["authorization"] = `Bearer ${this.token}`;
+    }
+
     return h;
   }
 
@@ -33,8 +37,15 @@ export class AgentDefsHttp implements AgentDefsPort {
       `${this.baseUrl}/api/repos/${repo}/agent-definitions/${encodeURIComponent(name)}`,
       { headers: this.headers() },
     );
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`agentDefs.resolve failed: ${res.status}`);
+
+    if (res.status === 404) {
+      return null;
+    }
+
+    if (!res.ok) {
+      throw new Error(`agentDefs.resolve failed: ${res.status}`);
+    }
+
     return (await res.json()) as AgentDefinition;
   }
 
@@ -45,9 +56,13 @@ export class AgentDefsHttp implements AgentDefsPort {
         headers: this.headers(),
       },
     );
-    if (!res.ok) throw new Error(`agentDefs.list failed: ${res.status}`);
+
+    if (!res.ok) {
+      throw new Error(`agentDefs.list failed: ${res.status}`);
+    }
     const body = (await res.json()) as
       { agents?: AgentDefinition[] } | AgentDefinition[];
+
     return Array.isArray(body) ? body : (body.agents ?? []);
   }
 

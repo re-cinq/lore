@@ -13,15 +13,20 @@ export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
     options: bearerScope("read"),
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: "database unavailable" }).code(503);
+
+      if (!pool) {
+        return h.response({ error: "database unavailable" }).code(503);
+      }
 
       const owner = request.params.owner;
       const repoName = request.params.repo;
+
       // The legacy matcher constrained the PR segment to `[0-9]+`; hapi's `{number}`
       // does not, so reject a non-numeric segment here rather than let a `NaN`
       // reach the DB/GitHub lookup (which would surface as a confusing 404/500).
-      if (!/^[0-9]+$/.test(request.params.number))
+      if (!/^[0-9]+$/.test(request.params.number)) {
         return h.response({ error: "invalid pr number" }).code(400);
+      }
       const prNumber = Number.parseInt(request.params.number, 10);
       const repo = `${owner}/${repoName}`;
 
@@ -33,8 +38,10 @@ export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
              LIMIT 1`,
           [repo, prNumber],
         );
-        if (rows.length > 0)
+
+        if (rows.length > 0) {
           return h.response({ task_id: rows[0].id, trailer_source: "db" });
+        }
       } catch (err) {
         console.error("[by-pr] DB lookup failed:", err);
       }
@@ -50,11 +57,13 @@ export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
         });
 
         const fromBody = pr.data.body?.match(LORE_TASK_TRAILER_RE);
-        if (fromBody)
+
+        if (fromBody) {
           return h.response({
             task_id: fromBody[1],
             trailer_source: "pr_body",
           });
+        }
 
         // Final commit on the PR head branch.
         const commit = await octokit.rest.git.getCommit({
@@ -63,17 +72,21 @@ export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
           commit_sha: pr.data.head.sha,
         });
         const trailers = parseTrailers(commit.data.message);
-        if (trailers?.taskId)
+
+        if (trailers?.taskId) {
           return h.response({
             task_id: trailers.taskId,
             trailer_source: "final_commit",
           });
+        }
 
         return h.response({ error: "no_trailer_found" }).code(404);
       } catch (err) {
-        if ((err as { status?: number }).status === 404)
+        if ((err as { status?: number }).status === 404) {
           return h.response({ error: "pr_not_found" }).code(404);
+        }
         console.error("[by-pr] GitHub fallback failed:", err);
+
         return h.response({ error: "github_api" }).code(500);
       }
     },

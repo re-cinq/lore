@@ -9,6 +9,7 @@ describe("resultLine", () => {
       extras: { "Lore-Validation": "passed" },
     });
     const event = JSON.parse(line);
+
     expect(event).toMatchObject({ type: "result", is_error: false });
     expect(event.result).toMatch(/^LORE_NODE_RESULT: /);
   });
@@ -18,6 +19,7 @@ describe("resultLine", () => {
       outcome: "failed",
       extras: { "Lore-Validation-Failed": "lint" },
     });
+
     expect(parseNodeResult(JSON.parse(line).result)).toEqual({
       outcome: "failed",
       extras: { "Lore-Validation-Failed": "lint" },
@@ -26,6 +28,7 @@ describe("resultLine", () => {
 
   it("marks infrastructure errors is_error so the CR fails", () => {
     const line = resultLine(null, "clone exploded");
+
     expect(JSON.parse(line)).toEqual({
       type: "result",
       is_error: true,

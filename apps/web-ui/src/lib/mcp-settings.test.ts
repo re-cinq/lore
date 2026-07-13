@@ -38,6 +38,7 @@ describe("isEmptyPatch", () => {
 
 describe("putPrivilegedSettings", () => {
   const realFetch = global.fetch;
+
   beforeEach(() => {
     process.env.LORE_API_URL = "https://lore-api.test";
     process.env.LORE_ADMIN_TOKEN = "admin-tok";
@@ -85,6 +86,7 @@ describe("putPrivilegedSettings", () => {
     const spy = vi.fn((_url: string, _init: RequestInit) =>
       Promise.resolve({ ok: true, status: 200, json: async () => ({}) }),
     );
+
     global.fetch = spy as unknown as typeof fetch;
     await putPrivilegedSettings(
       "o/r",
@@ -92,6 +94,7 @@ describe("putPrivilegedSettings", () => {
       "o/r#5",
     );
     const headers = spy.mock.calls[0][1].headers as Record<string, string>;
+
     expect(headers["x-lore-approval-pr"]).toBe("o/r#5");
     expect(headers.authorization).toBe("Bearer admin-tok");
   });

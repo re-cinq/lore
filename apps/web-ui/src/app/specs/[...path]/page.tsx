@@ -28,6 +28,7 @@ export default async function SpecDetailPage({
           fetchTraceSource(repo, filePath),
           fetchTraceDocument(repo, filePath),
         ]);
+
         return {
           repo,
           source,

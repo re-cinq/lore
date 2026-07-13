@@ -19,6 +19,7 @@ const MIRROR = resolve(process.cwd(), "src/lib/test-command-setup-prompt.ts");
 const exportBlock = (file: string): string => {
   const text = readFileSync(file, "utf8");
   const at = text.indexOf("export const TEST_COMMAND_SETUP_PROMPT");
+
   return text.slice(at);
 };
 

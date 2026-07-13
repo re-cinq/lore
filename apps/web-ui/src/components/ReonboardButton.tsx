@@ -11,6 +11,7 @@ export default function ReonboardButton({
   text: string;
 }) {
   const [pending, startTransition] = useTransition();
+
   return (
     <button
       type="button"

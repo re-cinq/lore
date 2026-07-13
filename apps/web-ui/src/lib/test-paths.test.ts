@@ -31,6 +31,7 @@ describe("isTestFile", () => {
       "src/Service.cs",
       "src/Controller.php",
     ];
+
     expect({
       tests: testPaths.map(isTestFile),
       production: productionPaths.map(isTestFile),

@@ -61,6 +61,7 @@ describe("mcp-server proxy <-> lore-api round-trip", () => {
        RETURNING id`,
       [TEST_REPO],
     );
+
     taskId = rows[0].id;
   });
 
@@ -73,20 +74,30 @@ describe("mcp-server proxy <-> lore-api round-trip", () => {
     ]);
     await server.stop();
     await pool.end();
-    if (prevApiUrl === undefined) delete process.env.LORE_API_URL;
-    else process.env.LORE_API_URL = prevApiUrl;
-    if (prevToken === undefined) delete process.env.LORE_INGEST_TOKEN;
-    else process.env.LORE_INGEST_TOKEN = prevToken;
+
+    if (prevApiUrl === undefined) {
+      delete process.env.LORE_API_URL;
+    } else {
+      process.env.LORE_API_URL = prevApiUrl;
+    }
+
+    if (prevToken === undefined) {
+      delete process.env.LORE_INGEST_TOKEN;
+    } else {
+      process.env.LORE_INGEST_TOKEN = prevToken;
+    }
   });
 
   it("proxies a GET read to lore-api and parses the DB response", async () => {
     // Like mcp-server's repo-list tool: proxyGetApi("/api/repos") then read the
     // paged { repos, total } envelope.
     const result = await proxyGetApi("/api/repos");
+
     expect(result.ok).toBe(true);
     const body = JSON.parse((result as ProxyOk).body) as {
       repos: Array<{ full_name: string }>;
     };
+
     expect(body.repos.map((r) => r.full_name)).toContain(TEST_REPO);
   });
 
@@ -96,6 +107,7 @@ describe("mcp-server proxy <-> lore-api round-trip", () => {
       task_id: taskId,
       priority: "immediate",
     });
+
     expect(result.ok).toBe(true);
     expect(JSON.parse((result as ProxyOk).body)).toMatchObject({
       ok: true,
@@ -106,6 +118,7 @@ describe("mcp-server proxy <-> lore-api round-trip", () => {
       "SELECT priority FROM pipeline.tasks WHERE id = $1",
       [taskId],
     );
+
     expect(rows[0].priority).toBe("immediate");
   });
 
@@ -118,6 +131,7 @@ describe("mcp-server proxy <-> lore-api round-trip", () => {
 
   it("returns not_configured when no API URL is set", async () => {
     delete process.env.LORE_API_URL;
+
     try {
       expect(
         await proxyToApi("/api/task", {

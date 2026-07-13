@@ -9,6 +9,7 @@ describe("mapAgentToEvent", () => {
       metadata: { name: "agent-t1", labels: { [LABEL]: "t1" } },
       status: { phase: "Succeeded" },
     };
+
     expect(mapAgentToEvent(agent)).toEqual({
       eventName: "kubernetes.agent.succeeded",
       source: "kubernetes",
@@ -22,6 +23,7 @@ describe("mapAgentToEvent", () => {
       metadata: { name: "agent-t2", labels: { [LABEL]: "t2" } },
       status: { phase: "Failed" },
     };
+
     expect(mapAgentToEvent(agent)).toMatchObject({
       eventName: "kubernetes.agent.failed",
       dedupeKey: "k8s:t2:Failed",

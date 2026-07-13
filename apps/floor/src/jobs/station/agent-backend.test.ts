@@ -32,10 +32,14 @@ class FakeAgentApi implements AgentApi {
   ) {}
   async create(agent: Agent) {
     this.created.push(agent);
+
     return this.createResult;
   }
   async listByLabel(_selector: string): Promise<Agent[]> {
-    if (this.listResult instanceof Error) throw this.listResult;
+    if (this.listResult instanceof Error) {
+      throw this.listResult;
+    }
+
     return this.listResult;
   }
 }
@@ -57,16 +61,19 @@ describe("context hydration (D5)", () => {
   });
   it("launch injects the assembled context into the Agent parameters", async () => {
     const api = new FakeAgentApi();
+
     await new AgentCrBackend(api, ctx("assembled")).launch(baseSpec);
     expect(api.created[0].spec?.parameters?.context).toBe("assembled");
   });
   it("launch omits context when the source returns undefined", async () => {
     const api = new FakeAgentApi();
+
     await new AgentCrBackend(api, ctx(undefined)).launch(baseSpec);
     expect(api.created[0].spec?.parameters).not.toHaveProperty("context");
   });
   it("launch works with no context source (legacy)", async () => {
     const api = new FakeAgentApi();
+
     await new AgentCrBackend(api).launch(baseSpec);
     expect(api.created[0].spec?.parameters).not.toHaveProperty("context");
   });
@@ -99,6 +106,7 @@ describe("specToAgent", () => {
       prNumber: 7,
       extraLabels: { "lore.re-cinq.com/dark-factory": "true" },
     });
+
     expect(agent.metadata?.name).toBe("review-run-7");
     expect(agent.metadata?.labels?.["lore.re-cinq.com/dark-factory"]).toBe(
       "true",
@@ -111,6 +119,7 @@ describe("AgentCrBackend.launch", () => {
   it("creates the Agent and returns ref + launched, omitting completion", async () => {
     const api = new FakeAgentApi({ name: "agent-abcdef12", created: true });
     const result = await new AgentCrBackend(api).launch(baseSpec);
+
     expect(result).toEqual({ ref: "agent-abcdef12", launched: true });
     expect(api.created[0].metadata?.labels?.[TASK_ID_LABEL]).toBe(
       baseSpec.taskId,
@@ -119,6 +128,7 @@ describe("AgentCrBackend.launch", () => {
 
   it("maps an already-existing CR (409) to launched:false", async () => {
     const api = new FakeAgentApi({ name: "agent-abcdef12", created: false });
+
     expect(await new AgentCrBackend(api).launch(baseSpec)).toEqual({
       ref: "agent-abcdef12",
       launched: false,
@@ -133,6 +143,7 @@ describe("AgentCrBackend.launch — per-task token (#697)", () => {
     constructor(private readonly stationRef: string | undefined) {}
     async provision(spec: LoreTaskSpec) {
       this.seen.push(spec);
+
       return this.stationRef;
     }
   }
@@ -140,6 +151,7 @@ describe("AgentCrBackend.launch — per-task token (#697)", () => {
   it("runs the Agent on the per-task Station the provisioner returns", async () => {
     const api = new FakeAgentApi();
     const provisioner = new FakeProvisioner("pt-abcdef12");
+
     await new AgentCrBackend(api, undefined, provisioner).launch(baseSpec);
     expect(provisioner.seen).toEqual([baseSpec]);
     expect(api.created[0].spec?.stationRef).toBe("pt-abcdef12");
@@ -147,6 +159,7 @@ describe("AgentCrBackend.launch — per-task token (#697)", () => {
 
   it("falls back to the catalog Station when the provisioner returns undefined", async () => {
     const api = new FakeAgentApi();
+
     await new AgentCrBackend(
       api,
       undefined,
@@ -158,6 +171,7 @@ describe("AgentCrBackend.launch — per-task token (#697)", () => {
   it("skips provisioning for a task that targets no repo", async () => {
     const api = new FakeAgentApi();
     const provisioner = new FakeProvisioner("pt-abcdef12");
+
     await new AgentCrBackend(api, undefined, provisioner).launch({
       ...baseSpec,
       targetRepo: "",
@@ -179,16 +193,19 @@ describe("AgentCrBackend.isActive", () => {
 
   it("returns true when a matching Agent is not yet terminal", async () => {
     const api = new FakeAgentApi(undefined, [succeeded, running]);
+
     expect(await new AgentCrBackend(api).isActive("t1")).toBe(true);
   });
 
   it("returns false when every matching Agent is terminal", async () => {
     const api = new FakeAgentApi(undefined, [succeeded]);
+
     expect(await new AgentCrBackend(api).isActive("t1")).toBe(false);
   });
 
   it("returns true (conservative) when the probe fails", async () => {
     const api = new FakeAgentApi(undefined, new Error("kube unreachable"));
+
     expect(await new AgentCrBackend(api).isActive("t1")).toBe(true);
   });
 });

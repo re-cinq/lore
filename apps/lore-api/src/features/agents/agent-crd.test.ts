@@ -18,6 +18,7 @@ describe("agentDefToCrds", () => {
     const { agentDefinition, station } = agentDefToCrds(full, {
       eventsUrl: "http://floor/api/agent-events",
     });
+
     expect(agentDefinition).toEqual({
       apiVersion: "agents.re-cinq.com/v1alpha1",
       kind: "AgentDefinition",
@@ -50,6 +51,7 @@ describe("agentDefToCrds", () => {
         spec: { containers: Array<{ image: string }> };
       }
     ).spec.containers;
+
     expect(containers[0].image).toBe("ghcr.io/acme/runner:1");
   });
 
@@ -61,6 +63,7 @@ describe("agentDefToCrds", () => {
       timeout_minutes: null,
       image: null,
     });
+
     expect(agentDefinition.spec).not.toHaveProperty("model");
     expect(agentDefinition.spec).not.toHaveProperty("prompt");
     expect(agentDefinition.spec?.output?.sinks).toEqual([{ type: "stdout" }]);
@@ -70,6 +73,7 @@ describe("agentDefToCrds", () => {
         spec: { containers: Array<{ image: string }> };
       }
     ).spec.containers;
+
     expect(containers[0].image).toBe("node:22-bookworm");
   });
 });
@@ -86,6 +90,7 @@ describe("agentDefToCrds — station mode", () => {
       review_required: false,
       project_id: null,
     });
+
     expect(agentDefinition.spec).toMatchObject({
       model: "exec",
       prompt: "{station_input}",
@@ -98,6 +103,7 @@ describe("agentDefToCrds — station mode", () => {
         spec: { containers: Array<{ image: string }> };
       }
     ).spec.containers;
+
     expect(containers[0].image).toBe("ghcr.io/re-cinq/lore-station:latest");
   });
 });

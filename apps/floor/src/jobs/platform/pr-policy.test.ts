@@ -54,14 +54,17 @@ function pullsFor(stub: PullsStub): (repo: string) => Promise<PullRequests> {
   const facade = {
     listFiles: async () => {
       guard();
+
       return stub.files ?? [];
     },
     listChecks: async () => {
       guard();
+
       return stub.checkRuns ?? [];
     },
     listReviews: async () => {
       guard();
+
       return (stub.reviews ?? []).map((r, i) => ({
         id: i,
         state: r.state,
@@ -71,6 +74,7 @@ function pullsFor(stub: PullsStub): (repo: string) => Promise<PullRequests> {
       }));
     },
   } as unknown as PullRequests;
+
   return async () => facade;
 }
 
@@ -91,6 +95,7 @@ describe("resolvePrForTaskFromDb", () => {
       settings,
       deps(task({ pr_number: null }), {}),
     );
+
     expect(result).toBeNull();
   });
 
@@ -111,6 +116,7 @@ describe("resolvePrForTaskFromDb", () => {
         { "re-cinq/lore": "implementation" },
       ),
     );
+
     expect(result?.policy).toMatchObject({
       changedPaths: ["docs/readme.md"],
       ciSucceeded: true,
@@ -127,6 +133,7 @@ describe("resolvePrForTaskFromDb", () => {
       settings,
       deps(task({}), { files }),
     );
+
     expect(result?.policy.changedPaths).toHaveLength(31);
     expect(result?.policy.changedPaths).toContain("src/f30.ts");
   });
@@ -137,6 +144,7 @@ describe("resolvePrForTaskFromDb", () => {
       settings,
       deps(task({}), { checkRuns: [] }),
     );
+
     expect(result?.policy.ciSucceeded).toBe(false);
   });
 
@@ -151,6 +159,7 @@ describe("resolvePrForTaskFromDb", () => {
         ],
       }),
     );
+
     expect(result?.policy.ciSucceeded).toBe(false);
   });
 
@@ -162,6 +171,7 @@ describe("resolvePrForTaskFromDb", () => {
         reviews: [{ state: "APPROVED", user: "dependabot[bot]" }],
       }),
     );
+
     expect(result?.policy.botApproved).toBe(false);
   });
 
@@ -173,6 +183,7 @@ describe("resolvePrForTaskFromDb", () => {
         reviews: [{ state: "CHANGES_REQUESTED", user: "some-bot[bot]" }],
       }),
     );
+
     expect(result?.policy.humanChangesRequested).toBe(false);
   });
 
@@ -184,6 +195,7 @@ describe("resolvePrForTaskFromDb", () => {
         reviews: [{ state: "CHANGES_REQUESTED", user: "alice" }],
       }),
     );
+
     expect(result?.policy.humanChangesRequested).toBe(true);
   });
 
@@ -193,6 +205,7 @@ describe("resolvePrForTaskFromDb", () => {
       settings,
       deps(task({}), { throws: true }),
     );
+
     expect(result?.policy).toMatchObject({
       changedPaths: [],
       ciSucceeded: false,

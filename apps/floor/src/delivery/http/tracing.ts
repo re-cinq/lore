@@ -29,15 +29,20 @@ export function registerRequestTracing(server: Server): void {
         "http.target": request.path,
       },
     });
+
     return h.continue;
   });
 
   server.ext("onPreResponse", (request, h) => {
     const span = request.app.span;
-    if (!span) return h.continue;
+
+    if (!span) {
+      return h.continue;
+    }
 
     const res = request.response;
     const route = request.route?.path ?? request.path;
+
     span.updateName(`${request.method.toUpperCase()} ${route}`);
     span.setAttribute("http.route", route);
 
@@ -50,6 +55,7 @@ export function registerRequestTracing(server: Server): void {
     }
 
     span.end();
+
     return h.continue;
   });
 }

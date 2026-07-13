@@ -46,6 +46,7 @@ async function querySchema(
     headers: { "Content-Type": "application/dql" },
     body: dql,
   });
+
   return (await res.json()).data;
 }
 
@@ -61,6 +62,7 @@ describe.skipIf(!reachable)(
         "schema(pred: [Memory.embedding, Memory.xid]) {type index tokenizer upsert}",
       );
       const byPred = Object.fromEntries(schema.map((s) => [s.predicate, s]));
+
       expect(byPred["Memory.embedding"]).toMatchObject({
         type: "float32vector",
       });
@@ -77,6 +79,7 @@ describe.skipIf(!reachable)(
         );
 
       const before = sortByPred((await querySchema("schema {}")).schema);
+
       applySchema(); // second run — must be a no-op
       const after = sortByPred((await querySchema("schema {}")).schema);
 

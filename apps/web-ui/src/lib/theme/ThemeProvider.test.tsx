@@ -25,11 +25,13 @@ function installMatchMedia(dark: boolean) {
     dispatchEvent: vi.fn(() => true),
   };
   const matchMedia = vi.fn(() => mql);
+
   Object.defineProperty(window, "matchMedia", {
     value: matchMedia,
     configurable: true,
     writable: true,
   });
+
   return {
     matchMedia,
     mql,
@@ -47,6 +49,7 @@ function installMatchMedia(dark: boolean) {
 // invoke setFamily/setScheme through buttons (exercising the useCallback paths).
 function Consumer() {
   const theme = useTheme();
+
   return (
     <div>
       <span data-testid="family">{theme.family}</span>
@@ -250,6 +253,7 @@ describe("ThemeProvider setters", () => {
 describe("ThemeProvider OS-auto media listener", () => {
   it("does not subscribe to media changes when the scheme is not auto", () => {
     const media = installMatchMedia(false);
+
     localStorage.setItem(SCHEME_KEY, "light");
 
     render(
@@ -264,6 +268,7 @@ describe("ThemeProvider OS-auto media listener", () => {
 
   it("subscribes while auto and reapplies dark when the OS flips to dark", () => {
     const media = installMatchMedia(false);
+
     localStorage.setItem(SCHEME_KEY, "auto");
 
     render(
@@ -288,6 +293,7 @@ describe("ThemeProvider OS-auto media listener", () => {
 
   it("reapplies light through the listener when the OS flips back to light", () => {
     const media = installMatchMedia(true);
+
     localStorage.setItem(SCHEME_KEY, "auto");
 
     render(
@@ -308,6 +314,7 @@ describe("ThemeProvider OS-auto media listener", () => {
 
   it("removes the media change listener on unmount", () => {
     const media = installMatchMedia(false);
+
     localStorage.setItem(SCHEME_KEY, "auto");
 
     const { unmount } = render(
@@ -315,6 +322,7 @@ describe("ThemeProvider OS-auto media listener", () => {
         <Consumer />
       </ThemeProvider>,
     );
+
     expect(media.listenerCount()).toBe(1);
 
     unmount();
@@ -328,6 +336,7 @@ describe("ThemeProvider OS-auto media listener", () => {
 
   it("tears down the old listener and re-subscribes when switching away from then back to auto", () => {
     const media = installMatchMedia(false);
+
     localStorage.setItem(SCHEME_KEY, "auto");
 
     render(

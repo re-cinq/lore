@@ -20,7 +20,9 @@ const formatDurationSeconds = (seconds: number): string =>
 export default function AssemblyLineRunsSection({
   runs,
 }: AssemblyLineRunsSectionProps) {
-  if (runs.length === 0) return null;
+  if (runs.length === 0) {
+    return null;
+  }
 
   return (
     <section className={styles.section}>

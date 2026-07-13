@@ -27,7 +27,9 @@ export async function startScheduler(): Promise<void> {
 
 async function tick(): Promise<void> {
   for (const job of jobs.values()) {
-    if (running.has(job.name)) continue;
+    if (running.has(job.name)) {
+      continue;
+    }
 
     try {
       const interval = cronParser.parseExpression(job.cron);
@@ -54,14 +56,17 @@ async function runJob(job: JobDef): Promise<void> {
 
   try {
     const result = await job.handler();
+
     await completeJobRun(runId, result);
   } catch (err) {
     status = "failed";
     const message = err instanceof Error ? err.message : String(err);
+
     await failJobRun(runId, message);
   } finally {
     running.delete(job.name);
     const durationMs = Date.now() - start;
+
     console.log(`[scheduler] Job ${job.name}: ${status} (${durationMs}ms)`);
   }
 }
@@ -70,7 +75,9 @@ async function checkMissedRuns(): Promise<void> {
   console.log("[scheduler] Checking for missed runs");
 
   for (const job of jobs.values()) {
-    if (running.has(job.name)) continue;
+    if (running.has(job.name)) {
+      continue;
+    }
 
     try {
       const interval = cronParser.parseExpression(job.cron);

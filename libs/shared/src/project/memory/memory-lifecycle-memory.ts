@@ -51,7 +51,10 @@ export interface EpisodeRow {
 const DAY_MS = 86_400_000;
 
 function olderThanDays(iso: string | null, days: number): boolean {
-  if (!iso) return false;
+  if (!iso) {
+    return false;
+  }
+
   return Date.now() - new Date(iso).getTime() > days * DAY_MS;
 }
 
@@ -88,10 +91,14 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
 
   async countMemoriesByAgentOverCap(cap: number): Promise<AgentCount[]> {
     const counts = new Map<string, number>();
+
     for (const m of this.memories) {
-      if (m.is_deleted) continue;
+      if (m.is_deleted) {
+        continue;
+      }
       counts.set(m.agent_id, (counts.get(m.agent_id) ?? 0) + 1);
     }
+
     return [...counts.entries()]
       .filter(([, cnt]) => cnt > cap)
       .map(([agent_id, cnt]) => ({ agent_id, cnt }));
@@ -124,7 +131,9 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
 
   async softDeleteMemories(ids: string[]): Promise<void> {
     for (const m of this.memories) {
-      if (ids.includes(m.id)) m.is_deleted = true;
+      if (ids.includes(m.id)) {
+        m.is_deleted = true;
+      }
     }
   }
 
@@ -132,12 +141,16 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
     const exists = this.memories.some(
       (m) => m.agent_id === "consolidation" && m.key === key && m.version === 1,
     );
-    if (exists) return;
+
+    if (exists) {
+      return;
+    }
     this.memories.push(this.newMemoryRow("consolidation", key, value, 1));
   }
 
   async expireMemories(): Promise<number> {
     let count = 0;
+
     for (const m of this.memories) {
       if (
         m.expires_at !== null &&
@@ -148,6 +161,7 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
         count++;
       }
     }
+
     return count;
   }
 
@@ -158,8 +172,10 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
         m.key === memory.key &&
         m.version === 1,
     );
+
     if (existing) {
       existing.value = memory.value;
+
       return;
     }
     this.memories.push(
@@ -175,9 +191,11 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
     const existing = this.memories.find(
       (m) => m.agent_id === agentId && m.key === key,
     );
+
     if (existing) {
       existing.value = `${existing.value}\n${value}`;
       existing.version += 1;
+
       return;
     }
     this.memories.push(this.newMemoryRow(agentId, key, value, 1));
@@ -190,10 +208,14 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
     minAgeDays: number,
   ): Promise<AgentCount[]> {
     const counts = new Map<string, number>();
+
     for (const f of this.facts) {
-      if (!olderThanDays(f.valid_to, minAgeDays)) continue;
+      if (!olderThanDays(f.valid_to, minAgeDays)) {
+        continue;
+      }
       counts.set(f.agent_id, (counts.get(f.agent_id) ?? 0) + 1);
     }
+
     return [...counts.entries()]
       .filter(([, cnt]) => cnt > cap)
       .map(([agent_id, cnt]) => ({ agent_id, cnt }));
@@ -207,25 +229,30 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
       .filter((f) => olderThanDays(f.valid_to, minAgeDays))
       .sort((a, b) => (a.valid_to ?? "").localeCompare(b.valid_to ?? ""))
       .slice(0, limit);
+
     for (const v of victims) {
       this.facts.splice(this.facts.indexOf(v), 1);
     }
+
     return victims.length;
   }
 
   async transitionStaleFacts(): Promise<number> {
     let count = 0;
+
     for (const f of this.facts) {
       const eligible =
         f.valid_to === null &&
         f.confidence !== "stale" &&
         f.confidence !== "verified" &&
         olderThanDays(f.last_retrieved_at ?? f.created_at, 30);
+
       if (eligible) {
         f.confidence = "stale";
         count++;
       }
     }
+
     return count;
   }
 
@@ -250,14 +277,17 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
   ): Promise<void> {
     if (factIds.length > 0) {
       for (const f of this.facts) {
-        if (factIds.includes(f.id))
+        if (factIds.includes(f.id)) {
           f.half_life_days = Math.min((f.half_life_days ?? 30) + 5, 365);
+        }
       }
     }
+
     if (memoryIds.length > 0) {
       for (const m of this.memories) {
-        if (memoryIds.includes(m.id))
+        if (memoryIds.includes(m.id)) {
           m.half_life_days = Math.min((m.half_life_days ?? 60) + 5, 365);
+        }
       }
     }
   }
@@ -268,14 +298,17 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
   ): Promise<void> {
     if (factIds.length > 0) {
       for (const f of this.facts) {
-        if (factIds.includes(f.id))
+        if (factIds.includes(f.id)) {
           f.half_life_days = Math.max(7, (f.half_life_days ?? 30) - 3);
+        }
       }
     }
+
     if (memoryIds.length > 0) {
       for (const m of this.memories) {
-        if (memoryIds.includes(m.id))
+        if (memoryIds.includes(m.id)) {
           m.half_life_days = Math.max(7, (m.half_life_days ?? 60) - 3);
+        }
       }
     }
   }
@@ -294,8 +327,12 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
         e.agent_id === episode.agentId &&
         e.content_hash === episode.contentHash,
     );
-    if (dup) return null;
+
+    if (dup) {
+      return null;
+    }
     const id = `episode-${this.episodes.length + 1}`;
+
     this.episodes.push({
       id,
       agent_id: episode.agentId,
@@ -304,6 +341,7 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
       source: episode.source,
       ref: episode.ref,
     });
+
     return id;
   }
 

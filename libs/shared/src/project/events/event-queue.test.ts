@@ -11,6 +11,7 @@ function mockPool(responses: Array<{ rows?: unknown[] }>) {
   const pool = {
     query: vi.fn(async (sql: string, values: unknown[]) => {
       calls.push({ sql, values });
+
       return { rows: responses[i++]?.rows ?? [] };
     }),
   };
@@ -24,6 +25,7 @@ describe("PgEventQueue.claimBatch", () => {
   it("claims runnable rows with FOR UPDATE SKIP LOCKED, incrementing attempts", async () => {
     const { pool, calls } = mockPool([{ rows: [{ id: "1" }] }]);
     const rows = await new PgEventQueue(pool).claimBatch(20);
+
     expect(rows).toEqual([{ id: "1" }]);
     expect(calls[0].sql).toContain(
       "SET status = 'processing', attempts = attempts + 1",
@@ -39,6 +41,7 @@ describe("PgEventQueue.claimBatch", () => {
 describe("PgEventQueue terminal transitions", () => {
   it("markFailed truncates the error and applies the backoff interval", async () => {
     const { pool, calls } = mockPool([{ rows: [] }]);
+
     await new PgEventQueue(pool).markFailed("7", "x".repeat(5000), 30);
     expect(calls[0].sql).toContain("($3::int || ' seconds')::interval");
     expect((calls[0].values[1] as string).length).toBe(2000);
@@ -47,12 +50,14 @@ describe("PgEventQueue terminal transitions", () => {
 
   it("reapStuck returns the number of recovered rows", async () => {
     const { pool, calls } = mockPool([{ rows: [{ id: "1" }, { id: "2" }] }]);
+
     expect(await new PgEventQueue(pool).reapStuck(300)).toBe(2);
     expect(calls[0].sql).toContain("WHERE status = 'processing'");
   });
 
   it("pruneHandled returns the number of deleted rows", async () => {
     const { pool, calls } = mockPool([{ rows: [{ id: "1" }] }]);
+
     expect(await new PgEventQueue(pool).pruneHandled(7)).toBe(1);
     expect(calls[0].sql).toContain("DELETE FROM pipeline.events");
     expect(calls[0].sql).toContain("status IN ('done', 'dead')");
@@ -66,6 +71,7 @@ const NOW = Date.UTC(2026, 5, 30, 12, 0, 0);
 describe("InMemoryEventQueue insert + claim", () => {
   it("collapses a redelivery sharing a dedupe key", async () => {
     const q = new InMemoryEventQueue([], () => NOW);
+
     await q.insert({
       eventName: "github.pr",
       source: "github",
@@ -84,9 +90,11 @@ describe("InMemoryEventQueue insert + claim", () => {
 
   it("claims pending rows oldest-first and flips them to processing", async () => {
     const q = new InMemoryEventQueue([], () => NOW);
+
     await q.insert({ eventName: "e1", source: "cron" });
     await q.insert({ eventName: "e2", source: "cron" });
     const claimed = await q.claimBatch(1);
+
     expect(claimed.map((r) => r.event_name)).toEqual(["e1"]);
     expect(claimed[0]).toMatchObject({ status: "processing", attempts: 1 });
     // second claim picks up the next row
@@ -96,8 +104,10 @@ describe("InMemoryEventQueue insert + claim", () => {
   it("a failed row becomes claimable again only after its backoff elapses", async () => {
     let clock = NOW;
     const q = new InMemoryEventQueue([], () => clock);
+
     await q.insert({ eventName: "e1", source: "cron" });
     const [claimed] = await q.claimBatch(1);
+
     await q.markFailed(claimed.id, "boom", 60);
     expect(await q.claimBatch(10)).toEqual([]); // still backing off
     clock = NOW + 61_000;
@@ -123,6 +133,7 @@ describe("InMemoryEventQueue reaper", () => {
       handled_at: null,
     };
     const q = new InMemoryEventQueue([stuck], () => NOW);
+
     expect(await q.reapStuck(300)).toBe(1);
     expect(q.rows[0].status).toBe("failed");
   });
@@ -144,6 +155,7 @@ describe("InMemoryEventQueue reaper", () => {
       handled_at: new Date(NOW - 8 * 86_400_000).toISOString(),
     };
     const q = new InMemoryEventQueue([done], () => NOW);
+
     expect(await q.pruneHandled(7)).toBe(1);
     expect(q.rows).toHaveLength(0);
   });

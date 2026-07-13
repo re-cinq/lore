@@ -30,6 +30,7 @@ describe.skipIf(process.platform === "win32")(
         run: `: {selector}; printf '{"passed":true,"covered":[]}'`,
         coverage_format: "json",
       };
+
       writeFileSync(
         join(dir, ".lore", "test-commands.yml"),
         stringify(manifest),
@@ -62,6 +63,7 @@ describe.skipIf(process.platform === "win32")(
 
     it("report runs `run` once per file (selector = file) and fans the result to each descriptor", async () => {
       const d2 = mkdtempSync(join(tmpdir(), "exectest-fan-"));
+
       mkdirSync(join(d2, ".lore"), { recursive: true });
       const marker = join(d2, "runs.log");
       const manifest = {
@@ -69,12 +71,15 @@ describe.skipIf(process.platform === "win32")(
         run: `node -e "require('fs').appendFileSync('${marker}','{selector}\\n');process.stdout.write('{\\"passed\\":true,\\"covered\\":[]}')"`,
         coverage_format: "json",
       };
+
       writeFileSync(
         join(d2, ".lore", "test-commands.yml"),
         stringify(manifest),
       );
+
       try {
         const report = await new ExecTestRunner().report(d2);
+
         expect(readFileSync(marker, "utf-8").trim().split("\n")).toEqual([
           "f.ts",
         ]);

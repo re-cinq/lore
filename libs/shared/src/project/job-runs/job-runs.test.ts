@@ -9,11 +9,13 @@ function fakePool(rowsByCall: unknown[][] = []): {
 } {
   const calls: Array<{ text: string; params?: unknown[] }> = [];
   const pool: PgPool = {
-    async query(text: string, params?: unknown[]) {
+    async query<T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> {
       calls.push({ text, params });
-      return { rows: rowsByCall[calls.length - 1] ?? [] };
+
+      return { rows: (rowsByCall[calls.length - 1] ?? []) as T[] };
     },
   };
+
   return { pool, calls };
 }
 
@@ -130,6 +132,7 @@ describe("InMemoryJobRuns double", () => {
     const jobRuns = new InMemoryJobRuns();
     const older = new Date("2026-06-29T00:00:00Z");
     const newer = new Date("2026-06-30T00:00:00Z");
+
     jobRuns.rows.push(
       {
         id: "a",
@@ -168,6 +171,7 @@ describe("InMemoryJobRuns double", () => {
 
   it("returns null when no row matches the job name", async () => {
     const jobRuns = new InMemoryJobRuns();
+
     await jobRuns.start("reindex");
 
     expect(await jobRuns.lastRun("never-run")).toBeNull();

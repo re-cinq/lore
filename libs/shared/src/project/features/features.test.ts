@@ -13,6 +13,7 @@ function recordingPort(): { port: FeaturesPort; calls: RecordedCall[] } {
     (op: string) =>
     (...args: unknown[]) => {
       calls.push({ op, args });
+
       return Promise.resolve({} as Feature);
     };
   const port = {
@@ -26,12 +27,14 @@ function recordingPort(): { port: FeaturesPort; calls: RecordedCall[] } {
     createSplitChild: stub("createSplitChild"),
     delete: stub("delete"),
   } as unknown as FeaturesPort;
+
   return { port, calls };
 }
 
 describe("Features facade", () => {
   it("stamps the bound repo as the first argument on create", async () => {
     const { port, calls } = recordingPort();
+
     await new Features("octo/repo", port).create({ title: "T", prompt: "P" });
     expect(calls[0]).toEqual({
       op: "create",
@@ -41,12 +44,14 @@ describe("Features facade", () => {
 
   it("stamps the bound repo on list with a status filter", async () => {
     const { port, calls } = recordingPort();
+
     await new Features("octo/repo", port).list("draft");
     expect(calls[0]).toEqual({ op: "list", args: ["octo/repo", "draft"] });
   });
 
   it("stamps the bound repo on appendIteration", async () => {
     const { port, calls } = recordingPort();
+
     await new Features("octo/repo", port).appendIteration("f1", { a: 1 });
     expect(calls[0]).toEqual({
       op: "appendIteration",
@@ -56,6 +61,7 @@ describe("Features facade", () => {
 
   it("stamps the bound repo on attachIterationTask", async () => {
     const { port, calls } = recordingPort();
+
     await new Features("octo/repo", port).attachIterationTask("f1", 2, "t1");
     expect(calls[0]).toEqual({
       op: "attachIterationTask",
@@ -65,6 +71,7 @@ describe("Features facade", () => {
 
   it("stamps the bound repo on delete", async () => {
     const { port, calls } = recordingPort();
+
     await new Features("octo/repo", port).delete("f1");
     expect(calls[0]).toEqual({ op: "delete", args: ["octo/repo", "f1"] });
   });

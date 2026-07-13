@@ -25,6 +25,7 @@ export function normalizeForMatch(text: string): string {
 /** True when `needle` appears in `haystack` under {@link normalizeForMatch}. */
 export function matchesNormalized(haystack: string, needle: string): boolean {
   const key = normalizeForMatch(needle);
+
   return key !== "" && normalizeForMatch(haystack).includes(key);
 }
 
@@ -44,7 +45,11 @@ export interface SentenceLink {
  */
 export function parseSentenceLink(testName: string): SentenceLink | null {
   const parts = testName.split(" | ");
-  if (parts.length < 3) return null;
+
+  if (parts.length < 3) {
+    return null;
+  }
+
   return {
     spec: parts[0],
     sentence: parts[1],
@@ -64,6 +69,10 @@ export function sentenceLinkFromSuite(
   descriptor: TestDescriptor,
 ): SentenceLink | null {
   const suite = descriptor.suite ?? [];
-  if (suite.length < 2) return null;
+
+  if (suite.length < 2) {
+    return null;
+  }
+
   return { spec: suite[0], sentence: suite[1], label: descriptor.name };
 }

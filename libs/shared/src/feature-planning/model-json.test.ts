@@ -32,11 +32,13 @@ describe("parseModelJson", () => {
 
   it("truncates the snippet to the first 200 characters", () => {
     const long = `${"x".repeat(500)}`;
+
     try {
       parseModelJson(long);
       throw new Error("expected parseModelJson to throw");
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+
       expect(message).toContain("x".repeat(200));
       expect(message).not.toContain("x".repeat(201));
     }

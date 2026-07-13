@@ -26,6 +26,7 @@ describe("DECOMPOSITION_INSTRUCTIONS", () => {
 describe("DECOMPOSITION_EXAMPLE", () => {
   it("parses cleanly through parseDecomposition", () => {
     const parsed = parseDecomposition(JSON.parse(DECOMPOSITION_EXAMPLE));
+
     expect(parsed.stories.length).toBeGreaterThan(0);
     expect(parsed.stories[0].tasks.length).toBeGreaterThan(0);
   });
@@ -33,6 +34,7 @@ describe("DECOMPOSITION_EXAMPLE", () => {
   it("shows a cross-task dependency so the model learns to wire phases", () => {
     const parsed = parseDecomposition(JSON.parse(DECOMPOSITION_EXAMPLE));
     const everyTask = parsed.stories.flatMap((s) => s.tasks);
+
     expect(everyTask.some((t) => t.depends_on.length > 0)).toBe(true);
   });
 });

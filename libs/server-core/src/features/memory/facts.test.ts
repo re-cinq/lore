@@ -13,6 +13,7 @@ function parseFacts(raw: string): string[] {
       .replace(/```/g, "")
       .trim();
     const parsed = JSON.parse(cleaned);
+
     if (Array.isArray(parsed)) {
       return parsed
         .filter(
@@ -34,6 +35,7 @@ function parseFacts(raw: string): string[] {
 describe("parseFacts", () => {
   it("parses a JSON array of strings", () => {
     const input = '["The API uses REST", "The database is PostgreSQL"]';
+
     expect(parseFacts(input)).toEqual([
       "The API uses REST",
       "The database is PostgreSQL",
@@ -42,16 +44,19 @@ describe("parseFacts", () => {
 
   it("handles JSON wrapped in code fences", () => {
     const input = '```json\n["fact one", "fact two"]\n```';
+
     expect(parseFacts(input)).toEqual(["fact one", "fact two"]);
   });
 
   it("falls back to newline splitting for non-JSON", () => {
     const input = "- fact one\n- fact two\n- fact three";
+
     expect(parseFacts(input)).toEqual(["fact one", "fact two", "fact three"]);
   });
 
   it("handles numbered lists", () => {
     const input = "1. first fact\n2. second fact";
+
     expect(parseFacts(input)).toEqual(["first fact", "second fact"]);
   });
 
@@ -59,11 +64,13 @@ describe("parseFacts", () => {
     const input = JSON.stringify(
       Array.from({ length: 15 }, (_, i) => `fact ${i}`),
     );
+
     expect(parseFacts(input)).toHaveLength(10);
   });
 
   it("filters empty strings", () => {
     const input = '["valid fact", "", "  ", "another fact"]';
+
     expect(parseFacts(input)).toEqual(["valid fact", "another fact"]);
   });
 });
@@ -95,6 +102,7 @@ describe("LLM config", () => {
     const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
     const shouldUseApi = hasApiKey;
     const shouldUseCli = !hasApiKey;
+
     // In test environment, API key is typically not set
     expect(shouldUseCli || shouldUseApi).toBe(true);
   });
@@ -105,6 +113,7 @@ describe("LLM config", () => {
 
     // 1000 input tokens + 200 output tokens
     const cost = 1000 * INPUT_COST + 200 * OUTPUT_COST;
+
     expect(cost).toBeCloseTo(0.0016, 6); // $0.0008 + $0.0008
   });
 });
@@ -124,11 +133,15 @@ describe("invalidateContradictions", () => {
       newFactId,
       threshold,
     ]);
-    if (rows.length === 0) return 0;
+
+    if (rows.length === 0) {
+      return 0;
+    }
 
     for (const row of rows) {
       await pool.query("invalidate", [newFactId, row.id]);
     }
+
     return rows.length;
   }
 
@@ -137,6 +150,7 @@ describe("invalidateContradictions", () => {
     const mockPool = {
       query: vi.fn(async (sql: string, params: any[]) => {
         queries.push({ sql, params });
+
         if (sql === "find-similar") {
           return {
             rows: [
@@ -148,6 +162,7 @@ describe("invalidateContradictions", () => {
             ],
           };
         }
+
         return { rows: [] };
       }),
     };
@@ -158,6 +173,7 @@ describe("invalidateContradictions", () => {
       "[0.1,0.2]",
       0.92,
     );
+
     expect(count).toBe(1);
     expect(mockPool.query).toHaveBeenCalledTimes(2); // find + invalidate
   });
@@ -173,6 +189,7 @@ describe("invalidateContradictions", () => {
       "[0.1,0.2]",
       0.92,
     );
+
     expect(count).toBe(0);
     expect(mockPool.query).toHaveBeenCalledTimes(1); // only find
   });

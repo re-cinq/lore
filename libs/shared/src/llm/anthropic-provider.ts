@@ -112,7 +112,9 @@ export class AnthropicProvider implements LlmProvider {
     costUsd: number,
     durationMs: number,
   ): Promise<void> {
-    if (!this.opts.costPool) return;
+    if (!this.opts.costPool) {
+      return;
+    }
     await this.opts.costPool
       .query(
         `INSERT INTO pipeline.llm_calls (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
@@ -136,7 +138,9 @@ export class AnthropicProvider implements LlmProvider {
     durationMs: number,
     message: string,
   ): Promise<void> {
-    if (!this.opts.costPool) return;
+    if (!this.opts.costPool) {
+      return;
+    }
     await this.opts.costPool
       .query(
         `INSERT INTO pipeline.llm_calls (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms, status, error)
@@ -150,6 +154,7 @@ export class AnthropicProvider implements LlmProvider {
     const model = req.model || this.model;
     const maxTokens = req.maxTokens || DEFAULT_MAX_TOKENS;
     const start = Date.now();
+
     try {
       const client = new Anthropic();
       const prefixHash = computeCachePrefixHash(req.systemPrompt, undefined);
@@ -181,6 +186,7 @@ export class AnthropicProvider implements LlmProvider {
         cacheCreationTokens,
         cacheReadTokens,
       );
+
       await this.logCall(
         req,
         model,
@@ -192,6 +198,7 @@ export class AnthropicProvider implements LlmProvider {
       console.log(
         `[llm] call: ${model} ${inputTokens}+${outputTokens} tokens (cache ${formatBreakLogTag(breakAnalysis)} w/r ${cacheCreationTokens}/${cacheReadTokens}) $${costUsd.toFixed(4)} ${durationMs}ms`,
       );
+
       return {
         text,
         inputTokens,
@@ -218,6 +225,7 @@ export class AnthropicProvider implements LlmProvider {
     const model = req.model || this.model;
     const maxTokens = req.maxTokens || DEFAULT_MAX_TOKENS;
     const start = Date.now();
+
     try {
       const client = new Anthropic();
       const tools = buildCacheableTools(
@@ -248,6 +256,7 @@ export class AnthropicProvider implements LlmProvider {
       const toolUseBlock = response.content.find(
         (block) => block.type === "tool_use",
       );
+
       enforceTrue(
         !(!toolUseBlock || toolUseBlock.type !== "tool_use"),
         new Error(
@@ -272,6 +281,7 @@ export class AnthropicProvider implements LlmProvider {
         cacheCreationTokens,
         cacheReadTokens,
       );
+
       await this.logCall(
         req,
         model,
@@ -283,6 +293,7 @@ export class AnthropicProvider implements LlmProvider {
       console.log(
         `[llm] tool call: ${model} ${inputTokens}+${outputTokens} tokens (cache ${formatBreakLogTag(breakAnalysis)} w/r ${cacheCreationTokens}/${cacheReadTokens}) $${costUsd.toFixed(4)} ${durationMs}ms`,
       );
+
       return {
         data,
         inputTokens,

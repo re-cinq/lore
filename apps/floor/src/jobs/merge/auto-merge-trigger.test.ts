@@ -20,6 +20,7 @@ const evaluateAndMergeMock = vi.fn();
 
 vi.mock("./auto-merge.js", async (orig) => {
   const actual = await orig<typeof import("./auto-merge.js")>();
+
   return {
     ...actual,
     evaluateAndMerge: (...args: unknown[]) => evaluateAndMergeMock(...args),
@@ -49,6 +50,7 @@ describe("tryAutoMergeForCompletedTask", () => {
   it("returns null when the task has no target_repo (orphaned task)", async () => {
     seedTask(null, null);
     const result = await tryAutoMergeForCompletedTask({ taskId: "t1" });
+
     expect(result).toBeNull();
     expect(evaluateAndMergeMock).not.toHaveBeenCalled();
   });
@@ -56,6 +58,7 @@ describe("tryAutoMergeForCompletedTask", () => {
   it("returns null when dark_factory.enabled is false (no audit row written)", async () => {
     seedTask("owner/repo", { dark_factory: { enabled: false } });
     const result = await tryAutoMergeForCompletedTask({ taskId: "t1" });
+
     expect(result).toBeNull();
     expect(resolvePrForTaskFromDbMock).not.toHaveBeenCalled();
     expect(evaluateAndMergeMock).not.toHaveBeenCalled();
@@ -64,6 +67,7 @@ describe("tryAutoMergeForCompletedTask", () => {
   it("returns null when settings is null (legacy repo without dark mode)", async () => {
     seedTask("owner/repo", null);
     const result = await tryAutoMergeForCompletedTask({ taskId: "t1" });
+
     expect(result).toBeNull();
     expect(evaluateAndMergeMock).not.toHaveBeenCalled();
   });
@@ -74,6 +78,7 @@ describe("tryAutoMergeForCompletedTask", () => {
     resolvePrForTaskFromDbMock.mockResolvedValueOnce(null);
 
     const result = await tryAutoMergeForCompletedTask({ taskId: "t1" });
+
     expect(result).toBeNull();
     expect(evaluateAndMergeMock).not.toHaveBeenCalled();
   });
@@ -95,6 +100,7 @@ describe("tryAutoMergeForCompletedTask", () => {
       botApproved: true,
       humanChangesRequested: false,
     };
+
     resolvePrForTaskFromDbMock.mockResolvedValueOnce({
       repo: "owner/repo",
       prNumber: 42,
@@ -110,9 +116,11 @@ describe("tryAutoMergeForCompletedTask", () => {
         human_changes_requested: false,
       },
     };
+
     evaluateAndMergeMock.mockResolvedValueOnce(decision);
 
     const result = await tryAutoMergeForCompletedTask({ taskId: "t1" });
+
     expect(result).toEqual(decision);
     expect(evaluateAndMergeMock).toHaveBeenCalledWith({
       taskId: "t1",

@@ -20,7 +20,9 @@ export async function archiveAgentEvents(
   rawNdjson: string,
   key: string,
 ): Promise<void> {
-  if (!BUCKET) return;
+  if (!BUCKET) {
+    return;
+  }
   await getStorage().bucket(BUCKET).file(key).save(redactSecrets(rawNdjson), {
     resumable: false,
     contentType: "application/x-ndjson",

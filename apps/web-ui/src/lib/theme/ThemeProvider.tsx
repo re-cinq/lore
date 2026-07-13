@@ -42,6 +42,7 @@ function systemPrefersDark(): boolean {
 
 function applyToDom(family: ThemeFamily, resolved: ResolvedScheme): void {
   const el = document.documentElement;
+
   el.setAttribute("data-theme-family", family);
   el.setAttribute("data-color-scheme", resolved);
   window.__loreFamily = family;
@@ -77,10 +78,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [family, scheme]);
 
   useEffect(() => {
-    if (scheme !== "auto") return;
+    if (scheme !== "auto") {
+      return;
+    }
     const media = window.matchMedia(DARK_QUERY);
     const onChange = () => applyToDom(family, media.matches ? "dark" : "light");
+
     media.addEventListener("change", onChange);
+
     return () => media.removeEventListener("change", onChange);
   }, [scheme, family]);
 
@@ -97,6 +102,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error("useTheme must be used within a ThemeProvider");
+
+  if (!ctx) {
+    throw new Error("useTheme must be used within a ThemeProvider");
+  }
+
   return ctx;
 }

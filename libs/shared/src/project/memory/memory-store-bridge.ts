@@ -20,6 +20,7 @@ export class MemoryStoreBridge implements MemoryPort {
     agentId: string,
   ): Promise<MemoryWriteResult> {
     const res = await this.store.writeMemory({ key, value, agentId, repo });
+
     return { key: res.key, version: res.version };
   }
 
@@ -29,16 +30,25 @@ export class MemoryStoreBridge implements MemoryPort {
     agentId: string,
   ): Promise<MemoryRecord | null> {
     const found = await this.store.readMemory(key, agentId);
-    if (!found) return null;
-    return { key, value: found.value, version: found.version };
+
+    if (!found || Array.isArray(found)) {
+      return null;
+    }
+
+    return {
+      key,
+      value: String(found.value ?? ""),
+      version: Number(found.version ?? 0),
+    };
   }
 
   async list(repo: string, agentId: string): Promise<MemoryRecord[]> {
     const { memories } = await this.store.listMemories({ agentId, repo });
+
     return memories.map((m) => ({
-      key: m.key,
-      value: m.value,
-      version: m.version,
+      key: String(m.key ?? ""),
+      value: String(m.value ?? ""),
+      version: Number(m.version ?? 0),
     }));
   }
 }

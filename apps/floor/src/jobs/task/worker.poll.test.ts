@@ -4,6 +4,7 @@ import { pollWithGuard } from "./worker.js";
 describe("pollWithGuard (single-flight)", () => {
   it("claims and processes one task", async () => {
     const processed: string[] = [];
+
     await pollWithGuard({
       claim: async () => "t1",
       process: async (t) => {
@@ -15,6 +16,7 @@ describe("pollWithGuard (single-flight)", () => {
 
   it("does nothing when there is no runnable task", async () => {
     let processedCount = 0;
+
     await pollWithGuard({
       claim: async () => null,
       process: async () => {
@@ -33,6 +35,7 @@ describe("pollWithGuard (single-flight)", () => {
     const deps = {
       claim: async () => {
         claims += 1;
+
         return "t";
       },
       process: async () => {
@@ -42,6 +45,7 @@ describe("pollWithGuard (single-flight)", () => {
 
     const first = pollWithGuard(deps); // latches processing=true, claims, then awaits the gate
     const second = pollWithGuard(deps); // processing already true → returns without claiming
+
     await second;
     expect(claims).toBe(1);
 

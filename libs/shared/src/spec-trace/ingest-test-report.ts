@@ -54,15 +54,22 @@ function coverageRecordsFor(report: TestReport): CoverageRecord[] {
     report.tests.map((descriptor) => [descriptor.id, descriptor]),
   );
   const byFile = new Map<string, Map<string, CoveredChunk>>();
+
   for (const result of report.results) {
     const descriptor = descriptorById.get(result.id);
-    if (!descriptor) continue;
+
+    if (!descriptor) {
+      continue;
+    }
     const ranges =
       byFile.get(descriptor.file) ??
       byFile.set(descriptor.file, new Map()).get(descriptor.file)!;
-    for (const chunk of result.covered)
+
+    for (const chunk of result.covered) {
       ranges.set(`${chunk.file}:${chunk.startLine}:${chunk.endLine}`, chunk);
+    }
   }
+
   return [...byFile].map(([file, ranges]) => ({
     testFile: file,
     testName: file,
@@ -118,8 +125,10 @@ function groupStatementsByAnchor(
   resultById: Map<string, TaggedRunResult>,
 ): StatementGroup[] {
   const groups = new Map<string, StatementGroup>();
+
   for (const { descriptor, fileChunkUid } of entries) {
     const failed = resultById.get(descriptor.id)?.passed === false;
+
     // A descriptor may carry several anchors (one test validating several
     // statements) — contribute its TestChunk to every anchored statement.
     for (const anchor of parseSpecAnchors(descriptor.spec)) {
@@ -129,11 +138,16 @@ function groupStatementsByAnchor(
         validatingChunkUids: [],
         failingTestNames: [],
       };
+
       group.validatingChunkUids.push(fileChunkUid);
-      if (failed) group.failingTestNames.push(descriptor.name);
+
+      if (failed) {
+        group.failingTestNames.push(descriptor.name);
+      }
       groups.set(xid, group);
     }
   }
+
   return [...groups.values()];
 }
 
@@ -161,9 +175,11 @@ async function writeStatementGroup(
         }
       : {}),
   });
+
   if (!failed) {
     await deletePredicate(dgraph, statementUid, "Statement.violation_reason");
   }
+
   return failed;
 }
 
@@ -188,25 +204,36 @@ async function groupStatementsBySentence(
   resultById: Map<string, TaggedRunResult>,
 ): Promise<SentenceGroup[]> {
   const groups = new Map<string, SentenceGroup>();
+
   for (const { descriptor, fileChunkUid } of entries) {
-    if (parseSpecAnchors(descriptor.spec).length > 0) continue;
+    if (parseSpecAnchors(descriptor.spec).length > 0) {
+      continue;
+    }
     // Structural (describe-nesting) link is primary; fall back to a hand-written
     // `<spec> | <sentence> | <label>` name for backward compatibility.
     const link =
       sentenceLinkFromSuite(descriptor) ?? parseSentenceLink(descriptor.name);
-    if (!link) continue;
+
+    if (!link) {
+      continue;
+    }
+
     for (const match of await resolveSentenceLink(dgraph, repo, link)) {
       const group = groups.get(match.uid) ?? {
         ...match,
         validatingChunkUids: [],
         failingTestNames: [],
       };
+
       group.validatingChunkUids.push(fileChunkUid);
-      if (resultById.get(descriptor.id)?.passed === false)
+
+      if (resultById.get(descriptor.id)?.passed === false) {
         group.failingTestNames.push(descriptor.name);
+      }
       groups.set(match.uid, group);
     }
   }
+
   return [...groups.values()];
 }
 
@@ -221,6 +248,7 @@ async function writeSentenceGroup(
   group: SentenceGroup,
 ): Promise<boolean> {
   const failed = group.failingTestNames.length > 0;
+
   await withTxn(dgraph, (txn) =>
     txn.mutate({
       setJson: {
@@ -238,12 +266,15 @@ async function writeSentenceGroup(
       commitNow: true,
     }),
   );
-  if (!failed)
+
+  if (!failed) {
     await deletePredicate(
       dgraph,
       group.uid,
       `${group.nodeType}.violation_reason`,
     );
+  }
+
   return failed;
 }
 
@@ -258,10 +289,14 @@ async function projectSuiteChain(
   repo: string,
   descriptor: TestDescriptor,
 ): Promise<string | undefined> {
-  if (!descriptor.suite?.length) return undefined;
+  if (!descriptor.suite?.length) {
+    return undefined;
+  }
   let parentUid: string | undefined;
+
   for (let i = 0; i < descriptor.suite.length; i += 1) {
     const suiteChain = descriptor.suite.slice(0, i + 1).join(">");
+
     parentUid = await upsertByXid(
       dgraph,
       "TestSuite",
@@ -274,6 +309,7 @@ async function projectSuiteChain(
       },
     );
   }
+
   return parentUid;
 }
 
@@ -290,9 +326,13 @@ export async function ingestTestReport(
   const fileChunkUidByFile = new Map<string, string>();
   const repoTestChunkUids = new Set<string>();
   const repoSuiteUids = new Set<string>();
+
   for (const descriptor of report.tests) {
     const innermostSuiteUid = await projectSuiteChain(dgraph, repo, descriptor);
-    if (innermostSuiteUid) repoSuiteUids.add(innermostSuiteUid);
+
+    if (innermostSuiteUid) {
+      repoSuiteUids.add(innermostSuiteUid);
+    }
     const testChunkUid = await upsertByXid(
       dgraph,
       "TestChunk",
@@ -315,6 +355,7 @@ export async function ingestTestReport(
     // The file-scoped TestChunk that owns coverage — `validated_by` targets this
     // so the chain reconverges. Same xid coverage + the spec projector key on.
     let fileChunkUid = fileChunkUidByFile.get(descriptor.file);
+
     if (fileChunkUid === undefined) {
       fileChunkUid = await upsertByXid(
         dgraph,
@@ -347,8 +388,11 @@ export async function ingestTestReport(
   });
 
   const statementGroups = groupStatementsByAnchor(repo, entries, resultById);
+
   for (const group of statementGroups) {
-    if (await writeStatementGroup(dgraph, group)) violated += 1;
+    if (await writeStatementGroup(dgraph, group)) {
+      violated += 1;
+    }
   }
   const sentenceGroups = await groupStatementsBySentence(
     dgraph,
@@ -356,8 +400,11 @@ export async function ingestTestReport(
     entries,
     resultById,
   );
+
   for (const group of sentenceGroups) {
-    if (await writeSentenceGroup(dgraph, group)) violated += 1;
+    if (await writeSentenceGroup(dgraph, group)) {
+      violated += 1;
+    }
   }
   const validatedBy = statementGroups.length + sentenceGroups.length;
 

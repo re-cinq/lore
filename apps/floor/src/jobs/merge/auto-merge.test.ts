@@ -30,6 +30,7 @@ function inputs(
 describe("evaluateAutoMerge — happy path", () => {
   it("merges when all gates pass", () => {
     const d = evaluateAutoMerge(inputs());
+
     expect(d.outcome).toBe("merged");
     expect(d.rule.path_match_count).toBe(1);
   });
@@ -121,6 +122,7 @@ describe("evaluateAutoMerge — rule trace", () => {
         changedPaths: ["specs/a.md", "*.md", "agent/src/x.ts"],
       }),
     );
+
     expect(d.rule.path_match_count).toBe(2); // specs/a.md and *.md (literal); the .ts misses
     expect(d.rule.trust_level).toBe("docs");
     expect(d.rule.ci_status).toBe("success");
@@ -129,11 +131,13 @@ describe("evaluateAutoMerge — rule trace", () => {
 
   it("reports CI status as failed when CI red", () => {
     const d = evaluateAutoMerge(inputs({ ciSucceeded: false }));
+
     expect(d.rule.ci_status).toBe("failed");
   });
 
   it("reports bot review as CHANGES_REQUESTED when not approved", () => {
     const d = evaluateAutoMerge(inputs({ botApproved: false }));
+
     expect(d.rule.bot_review_state).toBe("CHANGES_REQUESTED");
   });
 });

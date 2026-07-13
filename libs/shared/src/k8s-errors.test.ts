@@ -29,6 +29,7 @@ describe("isAlreadyExistsError", () => {
       message:
         'HTTP-Code: 409 Message: Unknown API Status Code! Body: {"reason":"AlreadyExists","message":"jobs.batch \\"loretask-job-b7777726\\" already exists","code":409}',
     };
+
     expect(isAlreadyExistsError(err)).toBe(true);
   });
 

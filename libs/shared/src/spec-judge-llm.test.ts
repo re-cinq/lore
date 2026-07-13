@@ -23,6 +23,7 @@ describe("extractAssertions", () => {
     const out = await extractAssertions("spec body", "specs/x/spec.md", {
       jobName: "spec_drift",
     });
+
     expect(out).toEqual([
       { name: "parseTasks", kind: "function", description: "parses tasks.md" },
     ]);
@@ -30,6 +31,7 @@ describe("extractAssertions", () => {
 
   it("propagates the caller's jobName to the LLM call (cost accounting)", async () => {
     const fake = new FakeLlm({ data: { assertions: [] } });
+
     Llm.setInstance(fake);
     await extractAssertions("body", "specs/y/spec.md", {
       jobName: "spec_coverage_backfill",

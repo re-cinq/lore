@@ -60,6 +60,7 @@ describe("computeEnrollmentChecks", () => {
       computeEnrollmentChecks(input({ onboardingPrMerged: false })),
       "onboarding-pr",
     );
+
     expect(c).toMatchObject({
       status: "warn",
       link: { href: "https://github.com/re-cinq/x/pull/1" },
@@ -68,6 +69,7 @@ describe("computeEnrollmentChecks", () => {
 
   it("onboarding PR check is omitted when there is no PR url", () => {
     const checks = computeEnrollmentChecks(input({ onboardingPrUrl: null }));
+
     expect(checks.find((c) => c.id === "onboarding-pr")).toBeUndefined();
   });
 
@@ -132,6 +134,7 @@ describe("computeEnrollmentChecks", () => {
         },
       }),
     );
+
     expect(byId(checks, "gh:AGENTS.md").status).toBe("pass");
     expect(byId(checks, "gh:CLAUDE.md").status).toBe("fail");
     expect(byId(checks, "gh:.github/workflows/lore-ingest.yml")).toMatchObject({
@@ -145,6 +148,7 @@ describe("computeEnrollmentChecks", () => {
       computeEnrollmentChecks(input({ githubFiles: { "random.md": true } })),
       "gh:random.md",
     );
+
     expect(c.status).toBe("pass");
     expect(c.detail).toBeUndefined();
   });
@@ -269,6 +273,7 @@ describe("computeEnrollmentChecks", () => {
       ),
       "webhook",
     );
+
     expect(c).toMatchObject({
       status: "warn",
       action: { kind: "setup-webhook" },
@@ -362,6 +367,7 @@ describe("computeEnrollmentChecks", () => {
       ),
       "webhook",
     );
+
     expect(c.copy).toEqual({ value: HOOK_URL, label: "set this URL" });
     expect(c.secret).toEqual({ value: "whsec_x", label: "and this secret" });
   });

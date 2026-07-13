@@ -33,6 +33,7 @@ describe("Pod-death takeover (T028)", () => {
 
   it("a fresh supervisor exits cleanly when an existing lease is still valid", async () => {
     const backend = new FileLeaseBackend(leasesDir);
+
     // Pod A acquires and dies (lease still valid).
     await backend.acquire("lore/feature/x", "task-1", "pod-A", 600);
 
@@ -52,6 +53,7 @@ describe("Pod-death takeover (T028)", () => {
 
   it("a fresh supervisor takes over an expired lease and runs (T027)", async () => {
     const backend = new FileLeaseBackend(leasesDir);
+
     // Pod A acquires and dies; lease was set with negative TTL so it's
     // already expired by the time pod B looks.
     await backend.acquire("lore/feature/x", "task-1", "pod-A", -1);
@@ -73,6 +75,7 @@ describe("Pod-death takeover (T028)", () => {
     // Lease record should now be released by the supervisor's finally
     // block — file gone, ready for the next task.
     const files = await fs.readdir(leasesDir);
+
     expect(files).toHaveLength(0);
   });
 
@@ -89,11 +92,13 @@ describe("Pod-death takeover (T028)", () => {
         holder,
         leaseBackend: backend,
       });
+
       expect(r.ranWork).toBe(true);
     }
 
     // After all three: lease should be released cleanly.
     const files = await fs.readdir(leasesDir);
+
     expect(files).toHaveLength(0);
   });
 });

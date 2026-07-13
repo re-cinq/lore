@@ -36,6 +36,7 @@ export function parseValidatesAnnotations(
 
   for (const line of fileContent.split("\n")) {
     const match = VALIDATES_ANNOTATION_RE.exec(line);
+
     if (match) {
       refs.push({
         specPath: match[1],
@@ -118,6 +119,7 @@ export function resolveProvenance(sources: ProvenanceSources): ProvenanceRef[] {
     const key = pairKey(ref);
     const rank = SOURCE_RANK[source];
     const existing = winners.get(key);
+
     if (!existing || rank > existing.rank) {
       winners.set(key, { ref, rank });
     }
@@ -152,6 +154,7 @@ export function detectProvenanceConflicts(
   for (const { ref } of refsInReadOrder(sources)) {
     const key = pairKey(ref);
     const existing = pairs.get(key);
+
     if (!existing) {
       pairs.set(key, {
         specPath: ref.specPath,

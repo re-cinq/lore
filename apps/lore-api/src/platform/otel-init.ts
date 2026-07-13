@@ -40,5 +40,7 @@ export async function initOtel(): Promise<void> {
 }
 
 export async function shutdownOtel(): Promise<void> {
-  if (sdk) await sdk.shutdown();
+  if (sdk) {
+    await sdk.shutdown();
+  }
 }

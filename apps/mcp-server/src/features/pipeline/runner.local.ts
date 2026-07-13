@@ -1,3 +1,4 @@
+import type { PgPool } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Local Task Runner — manages local task execution via git worktrees
@@ -146,6 +147,7 @@ export function detectRepo(): string | null {
       timeout: 5000,
     }).trim();
     const match = remote.match(/[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
+
     return match ? match[1] : null;
   } catch {
     return null;
@@ -177,7 +179,10 @@ export function validateRepoMatch(
 
 function getApiUrl(): string {
   // Prefer env var, fall back to git config
-  if (process.env.LORE_API_URL) return process.env.LORE_API_URL;
+  if (process.env.LORE_API_URL) {
+    return process.env.LORE_API_URL;
+  }
+
   try {
     return execSync("git config --global lore.api-url", {
       encoding: "utf-8",
@@ -189,7 +194,10 @@ function getApiUrl(): string {
 }
 
 function getToken(): string {
-  if (process.env.LORE_INGEST_TOKEN) return process.env.LORE_INGEST_TOKEN;
+  if (process.env.LORE_INGEST_TOKEN) {
+    return process.env.LORE_INGEST_TOKEN;
+  }
+
   try {
     return execSync("git config --global lore.ingest-token", {
       encoding: "utf-8",
@@ -207,7 +215,10 @@ async function updateTaskViaAPI(
 ): Promise<void> {
   const apiUrl = getApiUrl();
   const token = getToken();
-  if (!apiUrl || !token) return;
+
+  if (!apiUrl || !token) {
+    return;
+  }
 
   try {
     await fetch(`${apiUrl}/api/task`, {
@@ -238,6 +249,7 @@ async function waitForExit(pid: number): Promise<void> {
         resolve(); // Process no longer exists
       }
     };
+
     check();
   });
 }
@@ -246,6 +258,7 @@ async function waitForExit(pid: number): Promise<void> {
 function isProcessAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
+
     return true;
   } catch {
     return false;
@@ -292,6 +305,7 @@ async function monitorTask(task: LocalTask): Promise<void> {
         if (!validation.passed) {
           // Attempt one retry: spawn Claude Code with fix prompt
           const fixOutput = formatValidationOutput(validation);
+
           console.log(
             `[lore] local-runner: validation failed, attempting fix retry for ${task.taskId}`,
           );
@@ -327,6 +341,7 @@ async function monitorTask(task: LocalTask): Promise<void> {
               env: { ...process.env, HOME: os.homedir() },
             },
           );
+
           fixChild.unref();
           fs.closeSync(fixLogFd);
 
@@ -339,12 +354,15 @@ async function monitorTask(task: LocalTask): Promise<void> {
               tooling.quickChecks,
               changedFiles,
             );
+
             if (!retryValidation.passed) {
               const retryOutput = formatValidationOutput(retryValidation);
+
               fs.appendFileSync(
                 task.logFile,
                 `\n\n--- RETRY VALIDATION FAILED ---\n${retryOutput}\n`,
               );
+
               if (idx >= 0) {
                 tasks[idx].status = "failed";
                 tasks[idx].error =
@@ -357,6 +375,7 @@ async function monitorTask(task: LocalTask): Promise<void> {
                 failure_reason: retryOutput.substring(0, 2000),
               });
               writeTasks(tasks);
+
               return;
             }
             console.log(
@@ -387,10 +406,14 @@ async function monitorTask(task: LocalTask): Promise<void> {
         console.log(
           `[lore] local-runner: ${task.taskId} produced no staged changes — skipping PR`,
         );
-        if (idx >= 0) tasks[idx].status = "completed";
+
+        if (idx >= 0) {
+          tasks[idx].status = "completed";
+        }
         await updateTaskViaAPI(task.taskId, "completed", { no_changes: true });
       } else {
         const branchTail = task.branch.split("/").pop() || task.taskId;
+
         execSync(`git commit -m "lore: local \u2014 ${branchTail}"`, {
           cwd: task.worktreePath,
           stdio: "pipe",
@@ -424,7 +447,9 @@ async function monitorTask(task: LocalTask): Promise<void> {
       }
     } else {
       // No changes — mark completed without PR
-      if (idx >= 0) tasks[idx].status = "completed";
+      if (idx >= 0) {
+        tasks[idx].status = "completed";
+      }
       await updateTaskViaAPI(task.taskId, "completed", { no_changes: true });
     }
 
@@ -436,6 +461,7 @@ async function monitorTask(task: LocalTask): Promise<void> {
         "utf-8",
       );
       const gitDirMatch = dotGit.match(/gitdir:\s*(.+)/);
+
       if (gitDirMatch) {
         // The gitdir points to .git/worktrees/<name> — go up 3 levels
         const mainGitDir = path.resolve(
@@ -444,6 +470,7 @@ async function monitorTask(task: LocalTask): Promise<void> {
           "..",
           "..",
         );
+
         execSync(`git worktree remove "${task.worktreePath}" --force`, {
           cwd: mainGitDir,
           stdio: "pipe",
@@ -458,6 +485,7 @@ async function monitorTask(task: LocalTask): Promise<void> {
     }
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
+
     if (idx >= 0) {
       tasks[idx].status = "failed";
       tasks[idx].error = errMsg;
@@ -475,6 +503,7 @@ async function monitorTask(task: LocalTask): Promise<void> {
     const redacted = redactLogs(rawLogs);
     const apiUrl = getApiUrl();
     const tkn = getToken();
+
     if (apiUrl && tkn) {
       await fetch(`${apiUrl}/api/task-logs`, {
         method: "POST",
@@ -522,6 +551,7 @@ export async function spawnLocalTask(opts: {
 
   const { taskId, prompt, repo, taskType, model } = opts;
   const repoRoot = opts.repoRoot || getRepoRoot();
+
   enforceTrue(
     repoRoot,
     new Error("Not in a git repository — cannot create worktree"),
@@ -557,6 +587,7 @@ export async function spawnLocalTask(opts: {
   let preContext = "";
   const apiUrl = getApiUrl();
   const token = getToken();
+
   if (apiUrl && token) {
     try {
       const template = taskType === "review" ? "review" : "implementation";
@@ -565,9 +596,13 @@ export async function spawnLocalTask(opts: {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(10_000),
       });
+
       if (resp.ok) {
         const data = (await resp.json()) as { text?: string };
-        if (data.text) preContext = data.text;
+
+        if (data.text) {
+          preContext = data.text;
+        }
       }
     } catch {
       // Proceed without pre-hydration — agent will call lore_assemble_context itself
@@ -576,6 +611,7 @@ export async function spawnLocalTask(opts: {
 
   // Build the full prompt with Lore workflow preamble
   const preambleParts: string[] = [];
+
   if (preContext) {
     preambleParts.push("## Pre-loaded Context\n\n" + preContext + "\n\n---\n");
     preambleParts.push(
@@ -622,6 +658,7 @@ export async function spawnLocalTask(opts: {
       env: { ...process.env, HOME: os.homedir() },
     },
   );
+
   child.unref();
   fs.closeSync(logFd);
 
@@ -656,6 +693,7 @@ export async function spawnLocalTask(opts: {
 
   // Add to the task registry
   const tasks = readTasks();
+
   tasks.push(taskMeta);
   writeTasks(tasks);
 
@@ -683,7 +721,10 @@ export function listLocalTasks(): LocalTask[] {
     }
   }
 
-  if (changed) writeTasks(tasks);
+  if (changed) {
+    writeTasks(tasks);
+  }
+
   return tasks;
 }
 
@@ -698,7 +739,10 @@ export function cancelLocalTask(taskId: string): {
   const tasks = readTasks();
   const task = tasks.find((t) => t.taskId === taskId);
 
-  if (!task) return { cancelled: false, error: "Task not found" };
+  if (!task) {
+    return { cancelled: false, error: "Task not found" };
+  }
+
   if (task.status !== "running") {
     return { cancelled: false, error: `Task is ${task.status}` };
   }
@@ -756,9 +800,13 @@ export async function cleanupStaleTasks(): Promise<void> {
   let changed = false;
 
   for (const task of tasks) {
-    if (task.status !== "running") continue;
+    if (task.status !== "running") {
+      continue;
+    }
 
-    if (isProcessAlive(task.pid)) continue;
+    if (isProcessAlive(task.pid)) {
+      continue;
+    }
 
     const ageMs = Date.now() - new Date(task.startedAt).getTime();
 
@@ -770,11 +818,13 @@ export async function cleanupStaleTasks(): Promise<void> {
     try {
       if (fs.existsSync(task.worktreePath)) {
         const gitFile = path.join(task.worktreePath, ".git");
+
         if (fs.existsSync(gitFile)) {
           const gitContent = fs.readFileSync(gitFile, "utf-8");
           const mainRepo = gitContent.match(
             /gitdir:\s*(.+)\/\.git\/worktrees/,
           )?.[1];
+
           if (mainRepo) {
             execSync(`git worktree remove "${task.worktreePath}" --force`, {
               cwd: mainRepo,
@@ -792,6 +842,7 @@ export async function cleanupStaleTasks(): Promise<void> {
     if (ageMs > STALE_THRESHOLD_MS) {
       const apiUrl = getApiUrl();
       const token = getToken();
+
       if (apiUrl && token) {
         try {
           await fetch(`${apiUrl}/api/task`, {
@@ -816,7 +867,9 @@ export async function cleanupStaleTasks(): Promise<void> {
     }
   }
 
-  if (changed) writeTasks(tasks);
+  if (changed) {
+    writeTasks(tasks);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -834,14 +887,23 @@ let notifierInterval: ReturnType<typeof setInterval> | null = null;
 export async function fetchPendingTasks(
   repos: string[],
   taskTypes: string[],
-  dbPool?: any,
+  dbPool?: PgPool,
 ): Promise<PendingTask[]> {
-  if (repos.length === 0 || taskTypes.length === 0) return [];
+  if (repos.length === 0 || taskTypes.length === 0) {
+    return [];
+  }
 
   // ── Direct DB path (MCP server process has a pool) ──
   if (dbPool) {
     try {
-      const { rows } = await dbPool.query(
+      const { rows } = await dbPool.query<{
+        id: string;
+        description: string | null;
+        task_type: string;
+        target_repo: string;
+        created_at: string;
+        issue_number: number | null;
+      }>(
         `SELECT id, description, task_type, target_repo, created_at, issue_number
          FROM pipeline.tasks
          WHERE status = 'pending'
@@ -851,7 +913,8 @@ export async function fetchPendingTasks(
          LIMIT 10`,
         [repos, taskTypes],
       );
-      return rows.map((r: any) => ({
+
+      return rows.map((r) => ({
         id: r.id,
         description: (r.description || "").substring(0, 200),
         task_type: r.task_type,
@@ -867,7 +930,10 @@ export async function fetchPendingTasks(
   // ── API fallback ──
   const apiUrl = getApiUrl();
   const token = getToken();
-  if (!apiUrl || !token) return [];
+
+  if (!apiUrl || !token) {
+    return [];
+  }
 
   try {
     const resp = await fetch(`${apiUrl}/api/task`, {
@@ -878,14 +944,25 @@ export async function fetchPendingTasks(
       },
       body: JSON.stringify({ action: "list", status: "pending" }),
     });
-    if (!resp.ok) return [];
-    const data = (await resp.json()) as any;
+
+    if (!resp.ok) {
+      return [];
+    }
+    const data = (await resp.json()) as {
+      tasks?: Array<{
+        id: string;
+        description?: string;
+        task_type: string;
+        target_repo: string;
+        created_at: string;
+        issue_number?: number;
+      }>;
+    };
     const tasks: PendingTask[] = (data.tasks || [])
       .filter(
-        (t: any) =>
-          repos.includes(t.target_repo) && taskTypes.includes(t.task_type),
+        (t) => repos.includes(t.target_repo) && taskTypes.includes(t.task_type),
       )
-      .map((t: any) => ({
+      .map((t) => ({
         id: t.id,
         description: (t.description || "").substring(0, 200),
         task_type: t.task_type,
@@ -893,6 +970,7 @@ export async function fetchPendingTasks(
         created_at: t.created_at,
         issue_number: t.issue_number ?? undefined,
       }));
+
     return tasks;
   } catch {
     return [];
@@ -910,15 +988,18 @@ export async function fetchPendingTasks(
 export function startNotifier(
   repos: string[],
   taskTypes: string[],
-  dbPool?: any,
+  dbPool?: PgPool,
 ): void {
-  if (notifierInterval) return; // Already running
+  if (notifierInterval) {
+    return;
+  } // Already running
 
   let pollCount = 0;
 
   const poll = async () => {
     try {
       const tasks = await fetchPendingTasks(repos, taskTypes, dbPool);
+
       fs.writeFileSync(PENDING_FILE, JSON.stringify(tasks, null, 2));
     } catch {
       // Best effort — never crash the MCP server
@@ -926,6 +1007,7 @@ export function startNotifier(
 
     // Run stale task cleanup every 5th cycle (~2.5 min at 30 s interval)
     pollCount++;
+
     if (pollCount % 5 === 0) {
       await cleanupStaleTasks().catch(() => {});
     }
@@ -942,6 +1024,7 @@ export function stopNotifier(): void {
     clearInterval(notifierInterval);
     notifierInterval = null;
   }
+
   try {
     fs.unlinkSync(PENDING_FILE);
   } catch {
@@ -974,5 +1057,6 @@ export function listPendingTasks(): PendingTask[] {
 export function skipTask(taskId: string): void {
   const tasks = listPendingTasks();
   const filtered = tasks.filter((t) => t.id !== taskId);
+
   fs.writeFileSync(PENDING_FILE, JSON.stringify(filtered, null, 2));
 }

@@ -94,6 +94,7 @@ export async function escalate(input: EscalateInput): Promise<EscalateResult> {
         issued_at: new Date().toISOString(),
       },
     });
+
     if (input.notify) {
       await Promise.resolve(
         input.notify(
@@ -102,6 +103,7 @@ export async function escalate(input: EscalateInput): Promise<EscalateResult> {
         ),
       );
     }
+
     return {
       outcome: "issue_created",
       issueNumber: issue.issueNumber,
@@ -123,6 +125,7 @@ export async function escalate(input: EscalateInput): Promise<EscalateResult> {
       issued_at: new Date().toISOString(),
     },
   });
+
   if (input.notify) {
     await Promise.resolve(
       input.notify(
@@ -131,6 +134,7 @@ export async function escalate(input: EscalateInput): Promise<EscalateResult> {
       ),
     );
   }
+
   return { outcome: "audit_only" };
 }
 
@@ -167,6 +171,7 @@ export function renderEscalationBody(input: EscalateInput): string {
 
   if (input.contributingRefs && input.contributingRefs.length > 0) {
     lines.push(``, `### Contributing context`, ``);
+
     for (const ref of input.contributingRefs) {
       lines.push(
         `- ${ref.type} \`${ref.id}\`${ref.text ? `: ${ref.text}` : ""}`,
@@ -203,6 +208,7 @@ async function createIssueWithBackoff(
       () => issues.create(title, body, ["needs-human-help", "lore-managed"]),
       { delaysMs: RETRY_DELAYS_MS },
     );
+
     return {
       success: true,
       issueNumber: issue.number,

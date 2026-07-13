@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * `GET /api/repos/:o/:r/webhook` — classify the repo's GitHub webhook against the
  * canonical Floor ingress URL (read scope). `POST .../webhook/ensure` — create or
@@ -27,21 +28,27 @@ export function webhookStatusRoute(): ServerRoute {
     options: bearerScope("read"),
     handler: async (request, h) => {
       const url = canonicalUrl();
-      if (!url)
+
+      if (!url) {
         return h.response({
           state: "unknown",
           canonicalUrl: "",
           reason: "webhook_host_not_configured",
         });
+      }
+
       try {
         return h.response(
           classifyWebhook(await listRepoWebhooks(repoOf(request)), url),
         );
-      } catch (err: any) {
+      } catch (err) {
         // 403 = the App lacks the Webhooks permission. Surface as unknown so the UI
         // degrades gracefully (like the githubFiles 'no access' state).
         const reason =
-          err?.status === 403 ? "app_no_webhook_permission" : "read_failed";
+          (err as { status?: number })?.status === 403
+            ? "app_no_webhook_permission"
+            : "read_failed";
+
         return h.response({ state: "unknown", canonicalUrl: url, reason });
       }
     },
@@ -57,10 +64,13 @@ export function webhookSecretRoute(): ServerRoute {
     options: bearerScope("admin"),
     handler: async (_request, h) => {
       const secret = process.env.LORE_WEBHOOK_SECRET || "";
-      if (!secret)
+
+      if (!secret) {
         return h
           .response({ error: "LORE_WEBHOOK_SECRET not configured" })
           .code(503);
+      }
+
       return h.response({ secret, canonicalUrl: canonicalUrl() });
     },
   };
@@ -76,6 +86,7 @@ export function webhookEnsureRoute(): ServerRoute {
       // Shared with onboarding: ensureFloorWebhook reads LORE_WEBHOOK_URL/SECRET +
       // the canonical events and repoints/creates the hook with the HMAC secret.
       const result = await ensureFloorWebhook(repo);
+
       if (!result.ok) {
         switch (result.reason) {
           case "webhook_host_not_configured":
@@ -99,12 +110,15 @@ export function webhookEnsureRoute(): ServerRoute {
               .code(500);
         }
       }
+
       try {
         return h.response(
           classifyWebhook(await listRepoWebhooks(repo), canonicalUrl()),
         );
-      } catch (err: any) {
-        return h.response({ error: err?.message || String(err) }).code(500);
+      } catch (err) {
+        return h
+          .response({ error: errorMessage(err) || String(err) })
+          .code(500);
       }
     },
   };

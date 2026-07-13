@@ -21,6 +21,7 @@ async function saveSettings(
   // Dark-factory (privileged) lives on the Dark Factory tab; agents on the Agents tab.
   const updates = parseSettingsForm(formData);
   const selectedRepos = updates.cross_repo_repos as string[];
+
   await query(
     `UPDATE lore.repos SET team = $1, settings = COALESCE(settings, '{}') || $2::jsonb WHERE full_name = $3`,
     [team || null, JSON.stringify(updates), fullName],
@@ -44,6 +45,7 @@ async function saveSettings(
   }
 
   revalidatePath(`/repos/${fullName}/settings`);
+
   return { saved: true, privileged: null };
 }
 
@@ -58,7 +60,10 @@ export default async function RepoSettings({
     team: string | null;
     settings: RepoSettingsShape | null;
   }>(`SELECT team, settings FROM lore.repos WHERE full_name = $1`, [fullName]);
-  if (!repoData) return <div>Repo not found</div>;
+
+  if (!repoData) {
+    return <div>Repo not found</div>;
+  }
 
   const allRepos = await query<Repo>(
     `SELECT full_name FROM lore.repos WHERE full_name != $1 ORDER BY full_name`,

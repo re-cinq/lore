@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { registerUsageTools } from "./usage-tools.js";
+import type { ToolDeps } from "./deps.js";
 
 /**
  * Drives the actual registered lore_my_usage / lore_get_analytics handlers via a fake
@@ -26,7 +27,11 @@ function registerWith(getPool: () => unknown) {
       handlers[name] = handler;
     },
   };
-  registerUsageTools(fakeServer as never, { getPool });
+
+  registerUsageTools(fakeServer as never, {
+    getPool: getPool as ToolDeps["getPool"],
+  });
+
   return handlers;
 }
 
@@ -50,6 +55,7 @@ describe("lore_my_usage", () => {
     const pool = {
       query: async (text: string, params?: unknown[]) => {
         queries.push({ text, params });
+
         return { rows: [rowsByCall[call++]] };
       },
     };
@@ -72,6 +78,7 @@ describe("lore_my_usage", () => {
     const pool = {
       query: async (text: string, params?: unknown[]) => {
         queries.push({ text, params });
+
         return { rows: [{ tasks: 0, input_tokens: "0", output_tokens: "0" }] };
       },
     };
@@ -89,6 +96,7 @@ describe("lore_my_usage", () => {
   it("returns a PostgreSQL-required message when the pool is null", async () => {
     const usage = registerWith(() => null)["lore_my_usage"];
     const result = await usage({});
+
     expect(result.content[0].text).toEqual(
       "Usage tracking requires PostgreSQL (LORE_DB_HOST not set).",
     );
@@ -102,6 +110,7 @@ describe("lore_my_usage", () => {
     };
     const usage = registerWith(() => pool)["lore_my_usage"];
     const result = await usage({ agent_id: "agent-12345678-abcd" });
+
     expect(result.content[0].text).toEqual("Error: connection refused");
   });
 });
@@ -116,6 +125,7 @@ describe("lore_get_analytics", () => {
     const pool = {
       query: async (text: string) => {
         queries.push({ text });
+
         if (/FROM pipeline\.llm_calls/.test(text)) {
           return {
             rows: [
@@ -123,9 +133,11 @@ describe("lore_get_analytics", () => {
             ],
           };
         }
+
         if (/FILTER \(WHERE status = 'failed'\)/.test(text)) {
           return { rows: [{ total: "10", succeeded: "7", failed: "3" }] };
         }
+
         return {
           rows: [
             { task_type: "implementation", tasks: "6" },
@@ -154,12 +166,17 @@ describe("lore_get_analytics", () => {
     const pool = {
       query: async (text: string) => {
         queries.push({ text });
-        if (/FROM pipeline\.llm_calls/.test(text))
+
+        if (/FROM pipeline\.llm_calls/.test(text)) {
           return {
             rows: [{ calls: "0", input_tokens: "0", output_tokens: "0" }],
           };
-        if (/FILTER \(WHERE status = 'failed'\)/.test(text))
+        }
+
+        if (/FILTER \(WHERE status = 'failed'\)/.test(text)) {
           return { rows: [{ total: "0", succeeded: "0", failed: "0" }] };
+        }
+
         return { rows: [] };
       },
     };
@@ -170,6 +187,7 @@ describe("lore_get_analytics", () => {
     const usageQuery = queries.find((q) =>
       /FROM pipeline\.llm_calls/.test(q.text),
     );
+
     expect(usageQuery?.text).toContain("created_at > current_date");
   });
 
@@ -178,12 +196,17 @@ describe("lore_get_analytics", () => {
     const pool = {
       query: async (text: string) => {
         queries.push({ text });
-        if (/FROM pipeline\.llm_calls/.test(text))
+
+        if (/FROM pipeline\.llm_calls/.test(text)) {
           return {
             rows: [{ calls: "0", input_tokens: "0", output_tokens: "0" }],
           };
-        if (/FILTER \(WHERE status = 'failed'\)/.test(text))
+        }
+
+        if (/FILTER \(WHERE status = 'failed'\)/.test(text)) {
           return { rows: [{ total: "0", succeeded: "0", failed: "0" }] };
+        }
+
         return { rows: [] };
       },
     };
@@ -194,6 +217,7 @@ describe("lore_get_analytics", () => {
     const byTypeQuery = queries.find((q) =>
       /GROUP BY t\.task_type/.test(q.text),
     );
+
     expect(byTypeQuery?.text).toContain("WHERE TRUE GROUP BY");
     expect(byTypeQuery?.text).not.toContain("t.TRUE");
   });
@@ -202,6 +226,7 @@ describe("lore_get_analytics", () => {
     delete process.env.LORE_DB_HOST;
     const analytics = registerWith(() => null)["lore_get_analytics"];
     const result = await analytics({ period: "month" });
+
     expect(result.content[0].text).toEqual(
       "Analytics requires PostgreSQL (LORE_DB_HOST not set).",
     );
@@ -215,6 +240,7 @@ describe("lore_get_analytics", () => {
     };
     const analytics = registerWith(() => pool)["lore_get_analytics"];
     const result = await analytics({ period: "month" });
+
     expect(result.content[0].text).toEqual(
       "Error fetching analytics: relation does not exist",
     );

@@ -38,6 +38,7 @@ function fakeFeatures(overrides: Record<string, unknown> = {}) {
 
 function useProject(features: ReturnType<typeof fakeFeatures>) {
   vi.mocked(projectFor).mockResolvedValue({ features } as never);
+
   return features;
 }
 
@@ -63,8 +64,10 @@ const req = (method: "GET" | "POST" | "DELETE", url: string, body?: unknown) =>
 
 const reqAs = (scopes: string[], method: "GET" | "DELETE", url: string) => {
   const pool = makePool();
+
   pool.query.mockResolvedValue({ rows: [{ scopes }] });
-  return buildServer(() => pool).inject({
+
+  return buildServer(() => pool as never).inject({
     method,
     url,
     headers: { authorization: "Bearer scoped-token" },
@@ -85,11 +88,13 @@ describe("features routes", () => {
     const features = useProject(
       fakeFeatures({ create: vi.fn().mockResolvedValue({ id: "f1" }) }),
     );
+
     vi.mocked(createTask).mockResolvedValue({ task_id: "t1" } as never);
     const res = await req("POST", base, {
       title: "Smart Planning",
       prompt: "do it",
     });
+
     expect(res.statusCode).toBe(201);
     expect(res.result).toEqual({ id: "f1", task_id: "t1" });
     expect(features.create).toHaveBeenCalledWith({
@@ -102,6 +107,7 @@ describe("features routes", () => {
   it("rejects a create with a blank title as a 400 before touching the project", async () => {
     useProject(fakeFeatures());
     const res = await req("POST", base, { title: "   ", prompt: "" });
+
     expect(res.statusCode).toBe(400);
     expect(res.result).toEqual({ error: "title and prompt are required" });
     expect(projectFor).not.toHaveBeenCalled();
@@ -116,6 +122,7 @@ describe("features routes", () => {
       }),
     );
     const res = await req("POST", `${base}/f1/finalize`, {});
+
     expect(res.statusCode).toBe(409);
     expect((res.result as { error: string }).error).toMatch(
       /cannot finalize a feature in 'draft'/,
@@ -137,6 +144,7 @@ describe("features routes", () => {
     );
     vi.mocked(createTask).mockResolvedValue({ task_id: "fin" } as never);
     const res = await req("POST", `${base}/f1/finalize`, {});
+
     expect(res.statusCode).toBe(202);
     expect(res.result).toEqual({ task_id: "fin" });
   });
@@ -156,6 +164,7 @@ describe("features routes", () => {
       title: "Part A",
       prompt: "carve A",
     });
+
     expect(res.statusCode).toBe(409);
     expect((res.result as { error: string }).error).toMatch(
       /no split suggestion/,
@@ -180,6 +189,7 @@ describe("features routes", () => {
       title: "Part A",
       prompt: "carve A",
     });
+
     expect(res.statusCode).toBe(201);
     expect(res.result).toEqual({ id: "child" });
     expect(features.createSplitChild).toHaveBeenCalledWith("f1", {
@@ -191,23 +201,27 @@ describe("features routes", () => {
   it("returns 404 for a missing feature on GET", async () => {
     useProject(fakeFeatures({ get: vi.fn().mockResolvedValue(null) }));
     const res = await req("GET", `${base}/missing`);
+
     expect(res.statusCode).toBe(404);
   });
 
   it("returns 200 on delete and 404 when nothing was removed", async () => {
     useProject(fakeFeatures({ delete: vi.fn().mockResolvedValue(true) }));
     const ok = await req("DELETE", `${base}/f1`);
+
     expect(ok.statusCode).toBe(200);
     expect(ok.result).toEqual({ ok: true });
 
     useProject(fakeFeatures({ delete: vi.fn().mockResolvedValue(false) }));
     const missing = await req("DELETE", `${base}/gone`);
+
     expect(missing.statusCode).toBe(404);
   });
 
   it("refuses DELETE with a read-scoped token and never touches the project", async () => {
     const features = useProject(fakeFeatures({ delete: vi.fn() }));
     const res = await reqAs(["read"], "DELETE", `${base}/f1`);
+
     expect(res.statusCode).toBe(403);
     expect(res.result).toEqual({ error: "insufficient scope" });
     expect(features.delete).not.toHaveBeenCalled();
@@ -216,6 +230,7 @@ describe("features routes", () => {
   it("allows DELETE with a write-scoped token", async () => {
     useProject(fakeFeatures({ delete: vi.fn().mockResolvedValue(true) }));
     const res = await reqAs(["write"], "DELETE", `${base}/f1`);
+
     expect(res.statusCode).toBe(200);
     expect(res.result).toEqual({ ok: true });
   });
@@ -226,6 +241,7 @@ describe("features routes", () => {
       status: "running",
       created_at: new Date().toISOString(),
     };
+
     useProject(
       fakeFeatures({
         get: vi.fn().mockResolvedValue({
@@ -239,6 +255,7 @@ describe("features routes", () => {
     const res = await req("POST", `${base}/f1/iterations`, {
       user_answers: {},
     });
+
     expect(res.statusCode).toBe(409);
     expect(createTask).not.toHaveBeenCalled();
   });

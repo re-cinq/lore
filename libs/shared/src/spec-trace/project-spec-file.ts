@@ -93,6 +93,7 @@ function sha256(text: string): string {
 /** The spec's first H1 heading text (the title a sentence-link's `<spec>` segment matches), or null. */
 function extractTitle(content: string): string | null {
   const match = content.match(/^#\s+(.+?)\s*$/m);
+
   return match ? match[1] : null;
 }
 
@@ -108,7 +109,11 @@ async function projectFeature(
   filePath: string,
 ): Promise<string | undefined> {
   const featureDir = featureDirOf(filePath);
-  if (featureDir === null) return undefined;
+
+  if (featureDir === null) {
+    return undefined;
+  }
+
   return upsertByXid(dgraph, "Feature", `${repo}|${featureDir}`, {
     "Feature.repo": repo,
     "Feature.path": featureDir,
@@ -124,12 +129,15 @@ async function projectFeature(
  * they all fall into the one AcceptanceCriterion category.
  */
 export function isAcceptanceCriteriaHeading(heading: string | null): boolean {
-  if (!heading) return false;
+  if (!heading) {
+    return false;
+  }
   const norm = heading
     .toLowerCase()
     .replace(/\*/g, "")
     .replace(/[:\s]+$/g, "")
     .trim();
+
   return (
     /acceptance criteria/.test(norm) ||
     norm === "success criteria" ||
@@ -147,6 +155,7 @@ async function readSpecContentHash(
       `query find($xid: string) { found(func: eq(Spec.xid, $xid), first: 1) { Spec.content_hash } }`,
       { $xid: specXid },
     );
+
     return res.data?.found?.[0]?.["Spec.content_hash"] as string | undefined;
   });
 }
@@ -173,6 +182,7 @@ async function projectSections(
     ),
   ];
   const sectionUidByHeading = new Map<string, string>();
+
   for (const [sectionOrdinal, heading] of uniqueHeadings.entries()) {
     const sectionUid = await upsertByXid(
       dgraph,
@@ -184,8 +194,10 @@ async function projectSections(
         "Section.spec": { uid: specUid },
       },
     );
+
     sectionUidByHeading.set(heading, sectionUid);
   }
+
   if (sectionUidByHeading.size) {
     await upsertByXid(dgraph, "Spec", `${repo}|${filePath}`, {
       "Spec.sections": [...sectionUidByHeading.values()].map((uid) => ({
@@ -193,6 +205,7 @@ async function projectSections(
       })),
     });
   }
+
   return sectionUidByHeading;
 }
 
@@ -232,11 +245,15 @@ async function projectLinkedChunks(
 ): Promise<Array<{ uid: string }>> {
   const { dgraph, repo, filePath } = context;
   const edgeRefs: Array<{ uid: string }> = [];
+
   for (const parsed of parse(text)) {
     // Resolve the authored target to a repo-relative path so xids/coverage joins
     // line up; skip anchors and repo-escaping paths that aren't real files.
     const path = repoRelativeLinkTarget(filePath, parsed.path);
-    if (path === null) continue;
+
+    if (path === null) {
+      continue;
+    }
     const link = { ...parsed, path };
     const chunkXid = buildXid(repo, link);
     const chunkFields: Record<string, unknown> = {
@@ -244,11 +261,15 @@ async function projectLinkedChunks(
       [`${nodeType}.file_path`]: link.path,
       ...extraFields(link),
     };
-    if (link.line != null) chunkFields[`${nodeType}.start_line`] = link.line;
+
+    if (link.line != null) {
+      chunkFields[`${nodeType}.start_line`] = link.line;
+    }
     edgeRefs.push({
       uid: await upsertByXid(dgraph, nodeType, chunkXid, chunkFields),
     });
   }
+
   return edgeRefs;
 }
 
@@ -299,6 +320,7 @@ async function projectLinkEdges(
   const previousLinks = await readLinkTargets(dgraph, ownerUid, predicates);
   const newValidated = validatedBy.map((ref) => ref.uid);
   const newImplemented = implementedBy.map((ref) => ref.uid);
+
   await replaceEdge(dgraph, ownerUid, predicates.validatedBy, newValidated);
   await replaceEdge(dgraph, ownerUid, predicates.implementedBy, newImplemented);
 
@@ -372,8 +394,10 @@ async function projectStatement(
   // (the next time that spec changes, or a force re-projection); in steady state
   // the ADR is already in the graph from a prior push and resolves immediately.
   const adrRefs = parseAdrRefs(segment.text);
+
   if (adrRefs.length > 0) {
     const adrUids = await resolveAdrUids(dgraph, repo, adrRefs);
+
     await replaceEdge(dgraph, statementUid, "Statement.decided_by", adrUids);
   }
 }
@@ -390,12 +414,16 @@ async function resolveAdrUids(
       { $repo: repo },
     );
     const byNumber = new Map<number, string>();
+
     for (const adr of (res.data?.adrs ?? []) as Array<{
       uid: string;
       "ADR.number"?: number;
     }>) {
-      if (adr["ADR.number"] != null) byNumber.set(adr["ADR.number"], adr.uid);
+      if (adr["ADR.number"] != null) {
+        byNumber.set(adr["ADR.number"], adr.uid);
+      }
     }
+
     return numbers
       .map((n) => byNumber.get(n))
       .filter((uid): uid is string => Boolean(uid));
@@ -422,6 +450,7 @@ async function readLinkTargets(
       validated?: { uid: string }[];
       implemented?: { uid: string }[];
     };
+
     return {
       validated: (node.validated ?? []).map((ref) => ref.uid),
       implemented: (node.implemented ?? []).map((ref) => ref.uid),
@@ -447,6 +476,7 @@ async function pruneOrphans(
 ): Promise<void> {
   const { dgraph, repo, filePath, specUid } = context;
   const xidPredicate = `${nodeType}.xid`;
+
   await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(
       `query q($xid: string) {
@@ -460,12 +490,14 @@ async function pruneOrphans(
     const orphanUids = children
       .filter((child) => !validXids.has(child[xidPredicate]))
       .map((child) => child.uid);
+
     if (orphanUids.length) {
       // `<uid> * * .` drops the orphan node's outgoing edges, but the Spec keeps a
       // forward `[uid]` edge (Spec.sections / Spec.acceptance_criteria) that Dgraph
       // set-unions on upsert, so a removed child lingers there as a dangling ref
       // unless its forward edge is deleted too.
       const deletes = orphanUids.map((uid) => `<${uid}> * * .`);
+
       if (forwardEdge) {
         deletes.push(
           ...orphanUids.map(
@@ -507,10 +539,12 @@ async function projectAcceptanceCriterion(
         : {}),
     },
   );
+
   await projectLinkEdges(context, criterionUid, segment.text, {
     validatedBy: "AcceptanceCriterion.validated_by",
     implementedBy: "AcceptanceCriterion.implemented_by",
   });
+
   return criterionUid;
 }
 
@@ -526,9 +560,11 @@ async function projectAcceptanceCriteria(
 ): Promise<void> {
   const { dgraph, repo, filePath } = context;
   const criterionUids: string[] = [];
+
   for (const segment of acSegments) {
     criterionUids.push(await projectAcceptanceCriterion(context, segment));
   }
+
   if (criterionUids.length) {
     await upsertByXid(dgraph, "Spec", `${repo}|${filePath}`, {
       "Spec.acceptance_criteria": criterionUids.map((uid) => ({ uid })),
@@ -558,6 +594,7 @@ async function projectBlocks(
     content,
     specUid,
   );
+
   await pruneOrphanBlocksByFile(dgraph, repo, filePath, validBlockXids);
 }
 
@@ -570,6 +607,7 @@ export async function projectSpecFile(
   force = false,
 ): Promise<{ projected: boolean }> {
   const contentHash = sha256(content);
+
   if (
     !force &&
     (await readSpecContentHash(dgraph, `${repo}|${filePath}`)) === contentHash
@@ -586,6 +624,7 @@ export async function projectSpecFile(
     ...(title !== null ? { "Spec.title": title } : {}),
     ...(featureUid ? { "Spec.feature": { uid: featureUid } } : {}),
   });
+
   await upsertByXid(dgraph, "Repo", repo, { "Repo.specs": [{ uid: specUid }] });
 
   const context: ProjectionContext = { dgraph, repo, filePath, specUid, embed };
@@ -599,8 +638,10 @@ export async function projectSpecFile(
   );
 
   const sectionUidByHeading = await projectSections(context, statementSegments);
+
   for (const segment of statementSegments) {
     const classification = classifyByHeuristic(segment, introOrdinals);
+
     await projectStatement(
       context,
       segment,
@@ -614,6 +655,7 @@ export async function projectSpecFile(
       (segment) => `${repo}|${filePath}|${segment.ordinal}`,
     ),
   );
+
   await pruneOrphans(context, "Statement", validStatementXids);
 
   const validSectionXids = new Set(
@@ -622,12 +664,14 @@ export async function projectSpecFile(
       (_, ordinal) => `${repo}|${filePath}|${ordinal}`,
     ),
   );
+
   await pruneOrphans(context, "Section", validSectionXids, "Spec.sections");
 
   await projectAcceptanceCriteria(context, acSegments);
   const validAcXids = new Set(
     acSegments.map((segment) => `${repo}|${filePath}|ac|${segment.ordinal}`),
   );
+
   await pruneOrphans(
     context,
     "AcceptanceCriterion",
@@ -636,5 +680,6 @@ export async function projectSpecFile(
   );
 
   await projectBlocks(context, content);
+
   return { projected: true };
 }

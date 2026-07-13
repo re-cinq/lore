@@ -21,6 +21,7 @@ export async function reviewReactorJob(): Promise<string> {
 
   if (tasks.length === 0) {
     console.log("[job] review-reactor: no PRs to check");
+
     return "Checked 0 PRs, 0 had pending feedback";
   }
 
@@ -29,7 +30,10 @@ export async function reviewReactorJob(): Promise<string> {
   for (const task of tasks) {
     try {
       const processed = await checkAndProcessPR(task);
-      if (processed) feedbackCount++;
+
+      if (processed) {
+        feedbackCount++;
+      }
     } catch (err) {
       console.error(
         `[job] review-reactor: error processing task ${task.id} (${task.target_repo}#${task.pr_number}):`,
@@ -58,12 +62,14 @@ export async function runReviewReactorForPR(
 
   try {
     const processed = await checkAndProcessPR(task);
+
     return { processed };
   } catch (err) {
     console.error(
       `[webhook] review-reactor: error processing ${repo}#${prNumber}:`,
       err,
     );
+
     return { processed: false, reason: (err as Error).message };
   }
 }
@@ -116,13 +122,19 @@ async function checkAndProcessPR(task: PendingTask): Promise<boolean> {
   ];
 
   await processReviewFeedback(task, pendingReviews, allComments);
+
   return true;
 }
 
 async function processReviewFeedback(
   task: PendingTask,
-  reviews: any[],
-  comments: any[],
+  reviews: { user?: string | null; body?: string | null }[],
+  comments: {
+    user?: string | null;
+    body?: string | null;
+    path?: string | null;
+    line?: number | null;
+  }[],
 ): Promise<void> {
   const project = await projectFor(task.target_repo);
   // Get the PR diff
@@ -143,6 +155,7 @@ async function processReviewFeedback(
 
   // Capture review feedback as an episode for org-wide learning
   const episodeContent = `PR #${task.pr_number} on ${task.target_repo}\n\n${formattedReviews}\n\n${formattedComments}`;
+
   writeEpisode(
     episodeContent,
     "pr-review",
@@ -181,6 +194,7 @@ For each file that needs changes, output:
     /=== FILE: (.+?) ===\n([\s\S]*?)(?:\n=== END FILE ===)/g;
   const files: { path: string; content: string }[] = [];
   let match;
+
   while ((match = fileBlockRegex.exec(result.text)) !== null) {
     files.push({ path: match[1].trim(), content: match[2] });
   }
@@ -200,6 +214,7 @@ For each file that needs changes, output:
 
   // Post summary comment on PR
   const fileList = files.map((f) => `- \`${f.path}\``).join("\n");
+
   await project.pulls.comment(
     task.pr_number,
     `## Review Feedback Addressed\n\nFixed ${files.length} files based on reviewer feedback.\n\n**Iteration:** ${iteration}/3\n\nChanges:\n${fileList}`,
@@ -227,6 +242,7 @@ For each file that needs changes, output:
     .map((r) => r.body)
     .filter(Boolean)
     .join("\n");
+
   if (corrections.length > 20) {
     await memoryLifecycle().appendMemory(
       "lore-agent",

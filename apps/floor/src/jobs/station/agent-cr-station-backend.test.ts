@@ -15,10 +15,12 @@ class FakeBackend implements StationBackend {
   constructor(private readonly ref: string) {}
   async launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
     this.launched.push(spec.taskType);
+
     return { ref: this.ref, launched: true };
   }
   async isActive(taskId: string): Promise<boolean> {
     this.probed.push(taskId);
+
     return true;
   }
 }
@@ -66,6 +68,7 @@ describe("AgentCrStationBackend", () => {
   it("probes isActive on the single-Agent backend (finds both paths' Agents)", async () => {
     const assemblyLine = new FakeBackend("assembly-line");
     const single = new FakeBackend("single");
+
     expect(
       await new AgentCrStationBackend(
         assemblyLine,

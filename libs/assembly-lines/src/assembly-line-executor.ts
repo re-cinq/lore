@@ -168,6 +168,7 @@ export async function executeAssemblyLine(
     }
 
     const node = assemblyLine.nodes.find((n) => n.id === currentId);
+
     enforceTrue(
       node,
       new Error(
@@ -178,6 +179,7 @@ export async function executeAssemblyLine(
     await leaseBackend.refresh(branchName, holder, undefined, currentId);
 
     const handler = handlers[node.type];
+
     enforceTrue(
       handler,
       new Error(
@@ -216,6 +218,7 @@ export async function executeAssemblyLine(
       (e) =>
         e.from === currentId && (e.on === result.outcome || e.on === "always"),
     );
+
     enforceTrue(
       candidates.length !== 0,
       new Error(
@@ -228,6 +231,7 @@ export async function executeAssemblyLine(
     if (chosen.iteration_max !== undefined) {
       const key = `${chosen.from}->${chosen.to}`;
       const count = (backEdgeCounts.get(key) ?? 0) + 1;
+
       if (count > chosen.iteration_max) {
         const info: IterationMaxExceededInfo = {
           assemblyLineName: assemblyLine.name,
@@ -237,6 +241,7 @@ export async function executeAssemblyLine(
           taskId: opts.taskId,
           branchName,
         };
+
         if (opts.onIterationMaxExceeded) {
           try {
             await opts.onIterationMaxExceeded(info);
@@ -272,7 +277,11 @@ async function resumeFromBranch(
   gitDir: string,
 ): Promise<ResumePoint | null> {
   const trailers = await lastStageOnBranch(branchName, gitDir);
-  if (!trailers) return null;
+
+  if (!trailers) {
+    return null;
+  }
+
   return resumeFromTrailers(assemblyLine, trailers);
 }
 
@@ -290,7 +299,10 @@ export function resumeFromTrailers(
   trailers: Trailers,
 ): ResumePoint | null {
   const stageNode = assemblyLine.nodes.find((n) => n.id === trailers.stage);
-  if (!stageNode) return null;
+
+  if (!stageNode) {
+    return null;
+  }
 
   const outcome =
     (trailers.extras?.["Lore-Outcome"] as StageOutcome | undefined) ??
@@ -299,7 +311,10 @@ export function resumeFromTrailers(
   const edge = assemblyLine.edges.find(
     (e) => e.from === trailers.stage && (e.on === outcome || e.on === "always"),
   );
-  if (!edge) return null;
+
+  if (!edge) {
+    return null;
+  }
 
   return { nextNode: edge.to, iteration: trailers.iteration };
 }
@@ -327,6 +342,7 @@ async function emitStageCommit(
   });
   const subject = `[stage:${args.stage}] iter=${args.iteration}`;
   const body = `\n\n${trailerBlock}`;
+
   await commit(gitDir, subject, body);
 }
 
@@ -334,7 +350,10 @@ async function traceNodeStart(
   trace: AssemblyLineTrace | undefined,
   input: { assemblyLineId: string; nodeId: string; iteration: number },
 ): Promise<string | null> {
-  if (!trace) return null;
+  if (!trace) {
+    return null;
+  }
+
   try {
     return await trace.onNodeStart(input);
   } catch (err) {
@@ -342,6 +361,7 @@ async function traceNodeStart(
       "[assembly-line-executor] trace.onNodeStart failed:",
       (err as Error).message,
     );
+
     return null;
   }
 }
@@ -352,9 +372,13 @@ async function traceNodeFinish(
   outcome: StageOutcome,
   gitDir: string,
 ): Promise<void> {
-  if (!trace || nodeRef === null) return;
+  if (!trace || nodeRef === null) {
+    return;
+  }
+
   try {
     const commitSha = await headSha(gitDir);
+
     await trace.onNodeFinish(nodeRef, outcome, commitSha);
   } catch (err) {
     console.warn(
@@ -373,6 +397,7 @@ async function headSha(gitDir: string): Promise<string | undefined> {
       "rev-parse",
       "HEAD",
     ]);
+
     return stdout.trim();
   } catch {
     return undefined;

@@ -32,17 +32,26 @@ interface HttpConfig {
 function makeHttp(cfg: HttpConfig) {
   const headers = (): Record<string, string> => {
     const h: Record<string, string> = { "content-type": "application/json" };
-    if (cfg.token) h["authorization"] = `Bearer ${cfg.token}`;
+
+    if (cfg.token) {
+      h["authorization"] = `Bearer ${cfg.token}`;
+    }
+
     return h;
   };
   const base = `${cfg.baseUrl}/api/repos/${cfg.repo}`;
+
   return {
     async get<T>(path: string, query: Record<string, string> = {}): Promise<T> {
       const qs = new URLSearchParams(query).toString();
       const res = await cfg.fetchImpl(`${base}${path}${qs ? `?${qs}` : ""}`, {
         headers: headers(),
       });
-      if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
+
+      if (!res.ok) {
+        throw new Error(`GET ${path} failed: ${res.status}`);
+      }
+
       return (await res.json()) as T;
     },
     async post<T>(path: string, body: unknown): Promise<T> {
@@ -51,7 +60,11 @@ function makeHttp(cfg: HttpConfig) {
         headers: headers(),
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
+
+      if (!res.ok) {
+        throw new Error(`POST ${path} failed: ${res.status}`);
+      }
+
       return (await res.json()) as T;
     },
   };
@@ -198,6 +211,7 @@ export function createStationProject(
   fetchImpl: typeof fetch = fetch,
 ): Project {
   const baseUrl = env.LORE_API_URL;
+
   enforceTrue(baseUrl, new Error("createStationProject requires LORE_API_URL"));
   const token = env.LORE_STATION_TOKEN ?? env.LORE_INGEST_TOKEN;
   const http = makeHttp({ baseUrl, repo, token, fetchImpl });
@@ -210,5 +224,6 @@ export function createStationProject(
     ["tasks", new TaskStoreHttp(http)],
     ["settings", new SettingsHttp(http)],
   ]);
+
   return new Project(repo, ports, env as NodeJS.ProcessEnv);
 }

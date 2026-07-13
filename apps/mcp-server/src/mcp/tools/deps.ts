@@ -1,3 +1,4 @@
+import type { PgPool } from "@re-cinq/lore-shared";
 /**
  * Shared dependency surface passed to every registerXTools(server, deps).
  *
@@ -22,28 +23,32 @@ export {
 
 export interface ToolDeps {
   /** Lazy accessor for the pg pool (null until main() initializes it). */
-  getPool: () => any;
+  getPool: () => PgPool | null;
 }
 
 // --- Latency tracking helper (shared by tools that opt into it) ---
-export function makeTrackLatency(getPool: () => any) {
-  return async function trackLatency(
+export function makeTrackLatency(getPool: () => PgPool | null) {
+  return async function trackLatency<T>(
     tool: string,
-    fn: () => Promise<any>,
-  ): Promise<any> {
+    fn: () => Promise<T>,
+  ): Promise<T> {
     const start = Date.now();
     let success = true;
+
     try {
       const result = await fn();
+
       return result;
     } catch (err) {
       success = false;
       throw err;
     } finally {
       const latencyMs = Date.now() - start;
+
       trackToolCall(tool, latencyMs, success);
       traceTool(tool, latencyMs, success);
       const pool = getPool();
+
       if (pool) {
         pool
           .query(

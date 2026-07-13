@@ -24,6 +24,7 @@ describe("AgentForm", () => {
     const nameInput = container.querySelector(
       'input[name="name_input"]',
     ) as HTMLInputElement;
+
     expect(nameInput).not.toBeNull();
     expect(nameInput.disabled).toBe(false);
   });
@@ -37,6 +38,7 @@ describe("AgentForm", () => {
         isNew={false}
       />,
     );
+
     expect(
       (container.querySelector('input[name="name"]') as HTMLInputElement).value,
     ).toBe("general");
@@ -58,6 +60,7 @@ describe("AgentForm", () => {
         isNew={false}
       />,
     );
+
     expect(container.querySelector('input[name="model_custom"]')).toBeNull();
     fireEvent.change(container.querySelector('select[name="model_select"]')!, {
       target: { value: "__custom__" },
@@ -76,6 +79,7 @@ describe("AgentForm", () => {
         isNew={false}
       />,
     );
+
     expect(
       (
         container.querySelector(
@@ -101,6 +105,7 @@ describe("AgentForm", () => {
         isNew={false}
       />,
     );
+
     expect(
       getByText(/inherited from the organisation default/),
     ).toBeInTheDocument();
@@ -115,6 +120,7 @@ describe("AgentForm", () => {
         isNew={false}
       />,
     );
+
     expect(
       getByText(/project agent for this repo, overriding/),
     ).toBeInTheDocument();
@@ -124,6 +130,7 @@ describe("AgentForm", () => {
     const { queryByText } = render(
       <AgentForm repo="re-cinq/lore" agent={null} action={noop} isNew />,
     );
+
     expect(queryByText(/inherited from the organisation default/)).toBeNull();
     expect(queryByText(/overriding the organisation default/)).toBeNull();
   });
@@ -138,6 +145,7 @@ describe("AgentForm", () => {
         isNew={false}
       />,
     );
+
     fireEvent.submit(container.querySelector("form")!);
     expect(await findByText("boom")).toBeInTheDocument();
   });
@@ -155,6 +163,7 @@ describe("AgentForm", () => {
     const img = container.querySelector(
       'input[name="image"]',
     ) as HTMLInputElement;
+
     expect(img.value).toBe(""); // not prefilled — avoids tripping the two-key gate on save
     expect(img.placeholder).toBe("ghcr.io/re-cinq/lore-claude-runner:latest");
   });

@@ -38,6 +38,7 @@ export function enforceFeatureInput(
 ): FeatureInput {
   const t = typeof title === "string" ? title.trim() : "";
   const p = typeof prompt === "string" ? prompt.trim() : "";
+
   enforceTrue(
     !(!t || !p),
     new ValidationError("title and prompt are required"),
@@ -50,6 +51,7 @@ export function enforceFeatureInput(
     p.length <= PROMPT_MAX,
     new ValidationError(`prompt must be ${PROMPT_MAX} characters or fewer`),
   );
+
   return { title: t, prompt: p };
 }
 
@@ -63,14 +65,23 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * direction outside the allowed set — a malformed payload weakens the round, never throws.
  */
 export function parseSectionAnswers(raw: unknown): SectionAnswers | null {
-  if (!isPlainObject(raw)) return null;
+  if (!isPlainObject(raw)) {
+    return null;
+  }
 
   const sections: SectionAnswers["sections"] = {};
+
   if (isPlainObject(raw.sections)) {
     for (const [key, val] of Object.entries(raw.sections)) {
-      if (!isPlainObject(val)) continue;
+      if (!isPlainObject(val)) {
+        continue;
+      }
       const entry: { comment?: string; direction?: SectionDirection } = {};
-      if (typeof val.comment === "string") entry.comment = val.comment;
+
+      if (typeof val.comment === "string") {
+        entry.comment = val.comment;
+      }
+
       if (typeof val.direction === "string" && DIRECTIONS.has(val.direction)) {
         entry.direction = val.direction as SectionDirection;
       }
@@ -79,9 +90,12 @@ export function parseSectionAnswers(raw: unknown): SectionAnswers | null {
   }
 
   const questions: Record<string, string> = {};
+
   if (isPlainObject(raw.questions)) {
     for (const [key, val] of Object.entries(raw.questions)) {
-      if (typeof val === "string") questions[key] = val;
+      if (typeof val === "string") {
+        questions[key] = val;
+      }
     }
   }
 
@@ -91,7 +105,9 @@ export function parseSectionAnswers(raw: unknown): SectionAnswers | null {
     !Object.keys(sections).length &&
     !Object.keys(questions).length &&
     !free_form
-  )
+  ) {
     return null;
+  }
+
   return { sections, questions, free_form };
 }

@@ -53,6 +53,7 @@ export function traceTool(
   success: boolean,
 ): void {
   const span = tracer.startSpan(`tool/${tool}`);
+
   span.setAttributes({
     "lore.tool": tool,
     "lore.duration_ms": durationMs,
@@ -62,7 +63,10 @@ export function traceTool(
 
   toolLatency.record(durationMs, { tool });
   toolCounter.add(1, { tool, success: String(success) });
-  if (!success) toolErrors.add(1, { tool });
+
+  if (!success) {
+    toolErrors.add(1, { tool });
+  }
 }
 
 export function traceHttp(
@@ -104,6 +108,7 @@ export function traceRetrieval(params: {
   resultCount: number;
 }): void {
   const span = tracer.startSpan("lore_search_context");
+
   span.setAttributes({
     "lore.query": params.query,
     "lore.namespace": params.namespace,

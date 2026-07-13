@@ -50,9 +50,16 @@ const EXT_LANG: Record<string, string> = {
 
 export function languageForPath(filePath: string): string {
   const base = (filePath.split("/").pop() ?? "").toLowerCase();
-  if (base === "dockerfile") return "dockerfile";
+
+  if (base === "dockerfile") {
+    return "dockerfile";
+  }
   const dot = base.lastIndexOf(".");
-  if (dot < 0) return "";
+
+  if (dot < 0) {
+    return "";
+  }
+
   return EXT_LANG[base.slice(dot + 1)] ?? "";
 }
 
@@ -61,7 +68,10 @@ export function languageForPath(filePath: string): string {
  * one, so we pick one backtick longer than the longest run in the content. */
 export function fenceFor(content: string): string {
   let longest = 0;
-  for (const m of content.matchAll(/`+/g))
+
+  for (const m of content.matchAll(/`+/g)) {
     longest = Math.max(longest, m[0].length);
+  }
+
   return "`".repeat(Math.max(3, longest + 1));
 }

@@ -32,12 +32,14 @@ describe("GET /api/graph", () => {
     const rows = [
       { entity: "auth-service", relation: "uses", related_entity: "postgres" },
     ];
+
     vi.mocked(queryLiveGraph).mockResolvedValue(rows as any);
     const pool = makePool();
     const res = await get(
       pool,
       "/api/graph?entity=auth-service&relation_type=uses&repo=o/r",
     );
+
     expect(vi.mocked(queryLiveGraph).mock.calls[0]).toEqual([
       pool,
       "auth-service",
@@ -51,6 +53,7 @@ describe("GET /api/graph", () => {
   it("parses include_invalidated=true", async () => {
     vi.mocked(queryLiveGraph).mockResolvedValue([] as any);
     const pool = makePool();
+
     await get(pool, "/api/graph?entity=x&include_invalidated=true");
     expect(vi.mocked(queryLiveGraph).mock.calls[0]).toEqual([
       pool,
@@ -63,17 +66,20 @@ describe("GET /api/graph", () => {
 
   it("returns 503 when no pool (graph needs Postgres)", async () => {
     const res = await get(null, "/api/graph?entity=x");
+
     expect(res.statusCode).toBe(503);
   });
 
   it("returns 500 when queryLiveGraph throws", async () => {
     vi.mocked(queryLiveGraph).mockRejectedValue(new Error("graph fail"));
     const res = await get(makePool(), "/api/graph?entity=x");
+
     expect(res.statusCode).toBe(500);
   });
 
   it("returns 400 when repo is not owner/name", async () => {
     const res = await get(makePool(), "/api/graph?entity=x&repo=bad");
+
     expect(res.statusCode).toBe(400);
   });
 });

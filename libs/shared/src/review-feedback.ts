@@ -9,6 +9,7 @@ export function buildReviewFixDescription(opts: {
   iteration: number;
 }): string {
   const round = opts.iteration > 0 ? ` (round ${opts.iteration})` : "";
+
   return opts.prNumber
     ? `Address review feedback on PR #${opts.prNumber}${round}`
     : `Address review feedback${round}`;
@@ -19,6 +20,7 @@ export function formatReviewFeedback(comments: ReviewComment[]): string {
   return comments
     .map((c) => {
       const location = c.line != null ? `${c.path}:${c.line}` : c.path;
+
       return `- ${location} — ${c.body.trim()}`;
     })
     .join("\n");

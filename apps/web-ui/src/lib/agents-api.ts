@@ -18,19 +18,28 @@ function cfg(): { apiUrl: string; token: string } | null {
   // which is what local dev (and the web-ui→mcp proxy) configures. The mcp route
   // enforces admin scope on writes — the legacy token satisfies it.
   const token = process.env.LORE_ADMIN_TOKEN || process.env.LORE_INGEST_TOKEN;
+
   return apiUrl && token ? { apiUrl, token } : null;
 }
 
 export async function listAgents(repo: string): Promise<AgentDefinition[]> {
   const c = cfg();
-  if (!c) return [];
+
+  if (!c) {
+    return [];
+  }
+
   try {
     const res = await fetch(`${c.apiUrl}/api/repos/${repo}/agent-definitions`, {
       headers: { authorization: `Bearer ${c.token}` },
       cache: "no-store",
     });
-    if (!res.ok) return [];
+
+    if (!res.ok) {
+      return [];
+    }
     const data = (await res.json()) as { agents?: AgentDefinition[] };
+
     return data.agents ?? [];
   } catch {
     return [];
@@ -44,19 +53,26 @@ export async function saveAgent(
   approvalPr?: string,
 ): Promise<AgentSaveResult> {
   const c = cfg();
-  if (!c) return { status: "unconfigured" };
+
+  if (!c) {
+    return { status: "unconfigured" };
+  }
 
   const headers: Record<string, string> = {
     "content-type": "application/json",
     authorization: `Bearer ${c.token}`,
   };
-  if (approvalPr) headers["x-lore-approval-pr"] = approvalPr;
+
+  if (approvalPr) {
+    headers["x-lore-approval-pr"] = approvalPr;
+  }
 
   const url = isUpdate
     ? `${c.apiUrl}/api/repos/${repo}/agent-definitions/${encodeURIComponent(def.name)}`
     : `${c.apiUrl}/api/repos/${repo}/agent-definitions`;
 
   let res: Response;
+
   try {
     res = await fetch(url, {
       method: isUpdate ? "PUT" : "POST",
@@ -69,10 +85,15 @@ export async function saveAgent(
   }
 
   const data = await res.json().catch(() => ({}) as Record<string, unknown>);
-  if (res.ok) return { status: "ok", agent: data.agent as AgentDefinition };
+
+  if (res.ok) {
+    return { status: "ok", agent: data.agent as AgentDefinition };
+  }
+
   if (res.status === 403 && data.error === "two_key_required") {
     return { status: "two_key_required", detail: String(data.detail ?? "") };
   }
+
   if (res.status === 403 && data.error === "codeowners_check_failed") {
     return {
       status: "codeowners_failed",
@@ -80,6 +101,7 @@ export async function saveAgent(
       detail: String(data.detail ?? ""),
     };
   }
+
   return {
     status: "error",
     message: String(data.error ?? `HTTP ${res.status}`),
@@ -91,8 +113,12 @@ export async function deleteAgent(
   name: string,
 ): Promise<AgentSaveResult> {
   const c = cfg();
-  if (!c) return { status: "unconfigured" };
+
+  if (!c) {
+    return { status: "unconfigured" };
+  }
   let res: Response;
+
   try {
     res = await fetch(
       `${c.apiUrl}/api/repos/${repo}/agent-definitions/${encodeURIComponent(name)}`,
@@ -105,8 +131,12 @@ export async function deleteAgent(
   } catch (err) {
     return { status: "error", message: (err as Error).message };
   }
-  if (res.ok) return { status: "ok", agent: { name } as AgentDefinition };
+
+  if (res.ok) {
+    return { status: "ok", agent: { name } as AgentDefinition };
+  }
   const data = await res.json().catch(() => ({}) as Record<string, unknown>);
+
   return {
     status: "error",
     message: String(data.error ?? `HTTP ${res.status}`),

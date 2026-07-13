@@ -13,7 +13,11 @@ function fakeNotify(
   return {
     notify: async (repo, level, message) => {
       const fire = level === "escalation";
-      if (fire) sent.push({ repo, level, message });
+
+      if (fire) {
+        sent.push({ repo, level, message });
+      }
+
       return { fire, matchedChannels: fire ? ["escalation"] : [] };
     },
   };

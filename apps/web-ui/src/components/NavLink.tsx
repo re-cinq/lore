@@ -30,6 +30,7 @@ export function NavLabel({
 /** Reads the pending state of its ancestor Link (Next's useLinkStatus). */
 function NavLabelLive({ label }: { label: string }) {
   const { pending } = useLinkStatus();
+
   return <NavLabel label={label} pending={pending} />;
 }
 
@@ -47,6 +48,7 @@ export default function NavLink({
   style?: CSSProperties;
 }) {
   const classes = [className, active ? "active" : ""].filter(Boolean).join(" ");
+
   return (
     <Link
       href={href}

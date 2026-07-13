@@ -5,6 +5,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 // Mutable pathname so we can drive the "close sidebar on navigation" effect
 // ([pathname] dependency) across rerenders.
 const pathname = vi.fn(() => "/some/path");
+
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname(),
 }));
@@ -132,6 +133,7 @@ describe("AppShell closing paths", () => {
 
   it("detaches the keydown listener after closing so a later Escape is a no-op", () => {
     const removeSpy = vi.spyOn(document, "removeEventListener");
+
     renderShell();
     fireEvent.click(hamburger());
     fireEvent.keyDown(document, { key: "Escape" }); // close → effect cleanup runs
@@ -143,6 +145,7 @@ describe("AppShell closing paths", () => {
 describe("AppShell close-on-navigation effect", () => {
   it("closes the sidebar when the pathname changes", () => {
     const { rerender } = renderShell();
+
     fireEvent.click(hamburger());
     expect(layout().className).toBe("app-layout sidebar-open");
 
@@ -159,6 +162,7 @@ describe("AppShell close-on-navigation effect", () => {
 
   it("leaves a closed sidebar closed when the pathname changes", () => {
     const { rerender } = renderShell();
+
     pathname.mockReturnValue("/another/path");
     rerender(
       <AppShell sidebar={<nav data-testid="sidebar-nav">SIDEBAR</nav>}>
@@ -173,6 +177,7 @@ describe("AppShell unmount cleanup", () => {
   it("removes the keydown listener on unmount while open", () => {
     const removeSpy = vi.spyOn(document, "removeEventListener");
     const { unmount } = renderShell();
+
     fireEvent.click(hamburger());
     unmount();
     expect(removeSpy).toHaveBeenCalledWith("keydown", expect.any(Function));

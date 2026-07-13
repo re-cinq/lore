@@ -34,6 +34,7 @@ describe("GET /api/context", () => {
       sections: [{ a: 1 }],
     } as any);
     const res = await get(makePool(), "/api/context?query=hi&repo=o/r");
+
     expect(res.result).toEqual({ text: "ctx", sections: [{ a: 1 }] });
   });
 
@@ -45,6 +46,7 @@ describe("GET /api/context", () => {
     } as any);
     const pool = makePool();
     const res = await get(pool, "/api/context?query=hi&debug=1");
+
     // Trailing null is the Dgraph port — createDgraphClient returns null when LORE_DGRAPH_HTTP is unset.
     expect(vi.mocked(assembleContext).mock.calls[0]).toEqual([
       pool,
@@ -75,6 +77,7 @@ describe("GET /api/context", () => {
       "/api/context?query=hi&repo=o/r&max_tokens=16000&agent_id=a-1&cross_repo=true",
     );
     const call = vi.mocked(assembleContext).mock.calls[0];
+
     expect(call[3]).toBe(16000);
     expect(call[5]).toBe("a-1");
     expect(call[6]).toBe(true);
@@ -95,6 +98,7 @@ describe("GET /api/context", () => {
       sections: [],
     } as any);
     const pool = makePool();
+
     pool.query.mockResolvedValue({
       rows: [{ settings: { cross_repo: true } }],
     });
@@ -108,38 +112,46 @@ describe("GET /api/context", () => {
       sections: [],
     } as any);
     const res = await get(makePool(), "/api/context?query=hi");
+
     expect(res.result).toEqual({ text: null, sections: [] });
   });
 
   it("joins repo chunks when no query but repo + pool present", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({
       rows: [{ content: "A" }, { content: "B" }],
     });
     const res = await get(pool, "/api/context?repo=o/r");
+
     expect(res.result).toEqual({ text: "A\n\n---\n\nB" });
   });
 
   it("nulls text when repo chunks are empty", async () => {
     const pool = makePool();
+
     pool.query.mockResolvedValue({ rows: [] });
     const res = await get(pool, "/api/context?repo=o/r");
+
     expect(res.result).toEqual({ text: null });
   });
 
   it("nulls text when neither query nor repo provided", async () => {
     const res = await get(null, "/api/context");
+
     expect(res.result).toEqual({ text: null });
   });
 
   it("returns 500 when assembleContext throws", async () => {
     vi.mocked(assembleContext).mockRejectedValue(new Error("ctx fail"));
     const res = await get(makePool(), "/api/context?query=hi");
+
     expect(res.statusCode).toBe(500);
   });
 
   it("returns 400 for an unknown template", async () => {
     const res = await get(makePool(), "/api/context?query=hi&template=bogus");
+
     expect(res.statusCode).toBe(400);
   });
 });

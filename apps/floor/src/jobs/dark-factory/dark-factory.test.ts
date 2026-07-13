@@ -110,6 +110,7 @@ describe("Opt-out posture matrix (US6 — T045)", () => {
 
   it("enabled:true switches all gates to dark posture", () => {
     const settings = { enabled: true };
+
     expect(
       decideIssueCreate({
         approvalNeeded: false,

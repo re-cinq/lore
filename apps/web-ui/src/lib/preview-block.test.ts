@@ -5,11 +5,13 @@ describe("previewBlock", () => {
   it("returns the first paragraph of prose, dropping later blocks", () => {
     const content =
       "First paragraph here.\n\nSecond paragraph that should be cut.";
+
     expect(previewBlock(content, "doc")).toEqual("First paragraph here.");
   });
 
   it("keeps a leading heading together with the first paragraph", () => {
     const content = "# Title\n\nLead paragraph.\n\nTrailing paragraph.";
+
     expect(previewBlock(content, "doc")).toEqual("# Title\n\nLead paragraph.");
   });
 
@@ -22,6 +24,7 @@ describe("previewBlock", () => {
       "\n",
     );
     const result = previewBlock(code, "code");
+
     expect(result.split("\n")).toHaveLength(12);
     expect(result.split("\n")[0]).toEqual("line 1");
     expect(result.split("\n")[11]).toEqual("line 12");

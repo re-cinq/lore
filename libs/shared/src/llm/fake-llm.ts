@@ -33,11 +33,13 @@ export class FakeLlm implements LlmProvider {
 
   async complete(req: LlmCompleteRequest): Promise<LlmCompletion> {
     this.calls.push(req);
+
     return { text: this.canned.text ?? "", ...ZERO_USAGE };
   }
 
   async completeWithTool<T>(req: LlmToolRequest): Promise<LlmToolResult<T>> {
     this.calls.push(req);
+
     return { data: this.canned.data as T, ...ZERO_USAGE };
   }
 }

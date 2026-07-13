@@ -32,6 +32,7 @@ function MockupFigure({ mockup, index }: { mockup: GapMockup; index: number }) {
   }, [mockup.markup]);
 
   const href = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(mockup.markup)}`;
+
   return (
     <figure style={{ margin: "0 0 12px" }}>
       <figcaption

@@ -25,6 +25,7 @@ export class InMemoryEventQueue implements EventQueueRepository {
       return;
     }
     const iso = at(this.now());
+
     this.rows.push({
       id: String(++this.seq),
       event_name: input.eventName,
@@ -53,15 +54,18 @@ export class InMemoryEventQueue implements EventQueueRepository {
       .sort((a, b) => {
         const an = new Date(a.next_attempt_at).getTime();
         const bn = new Date(b.next_attempt_at).getTime();
+
         return an !== bn ? an - bn : Number(a.id) - Number(b.id);
       })
       .slice(0, limit);
     const iso = at(now);
+
     for (const r of claimable) {
       r.status = "processing";
       r.attempts += 1;
       r.claimed_at = iso;
     }
+
     return claimable;
   }
 
@@ -100,16 +104,19 @@ export class InMemoryEventQueue implements EventQueueRepository {
         r.claimed_at != null &&
         new Date(r.claimed_at).getTime() < cutoff,
     );
+
     for (const r of stuck) {
       r.status = "failed";
       r.next_attempt_at = at(this.now());
     }
+
     return stuck.length;
   }
 
   async pruneHandled(olderThanDays: number): Promise<number> {
     const cutoff = this.now() - olderThanDays * 86_400_000;
     const before = this.rows.length;
+
     this.rows = this.rows.filter(
       (r) =>
         !(
@@ -118,11 +125,15 @@ export class InMemoryEventQueue implements EventQueueRepository {
           new Date(r.handled_at).getTime() < cutoff
         ),
     );
+
     return before - this.rows.length;
   }
 
   private mutate(id: string, fn: (row: EventRow) => void): void {
     const row = this.rows.find((r) => r.id === id);
-    if (row) fn(row);
+
+    if (row) {
+      fn(row);
+    }
   }
 }

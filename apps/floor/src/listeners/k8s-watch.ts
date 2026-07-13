@@ -28,7 +28,10 @@ function watchPath(): string {
 
 async function emitForAgent(agent: AgentCr): Promise<void> {
   const ev = mapAgentToEvent(agent as never);
-  if (!ev) return;
+
+  if (!ev) {
+    return;
+  }
   await insertEvent(ev).catch((err) =>
     console.error("[events] k8s emit failed:", (err as Error).message),
   );
@@ -43,15 +46,19 @@ export async function reconcileAgents(): Promise<void> {
     namespace,
     plural: PLURAL,
   })) as { items?: AgentCr[] };
+
   for (const agent of result.items ?? []) {
     const ev = mapAgentToEvent(agent as never);
+
     if (ev) {
       const taskId = String((ev.params ?? {}).taskId ?? "");
       const dbStatus = taskId
         ? (await taskStore().getById(taskId))?.status
         : undefined;
-      if (dbStatus && ["running", "queued"].includes(dbStatus))
+
+      if (dbStatus && ["running", "queued"].includes(dbStatus)) {
         await insertEvent(ev).catch(() => {});
+      }
     }
     await pruneIfOld(agent, k8sApi, namespace);
   }
@@ -63,12 +70,20 @@ async function pruneIfOld(
   namespace: string,
 ): Promise<void> {
   const status = agent.status ?? {};
-  if (status.phase !== "Succeeded" && status.phase !== "Failed") return;
-  const completedAt = status.completedAt ? new Date(status.completedAt) : null;
-  if (!completedAt || Date.now() - completedAt.getTime() <= PRUNE_AFTER_MS)
+
+  if (status.phase !== "Succeeded" && status.phase !== "Failed") {
     return;
+  }
+  const completedAt = status.completedAt ? new Date(status.completedAt) : null;
+
+  if (!completedAt || Date.now() - completedAt.getTime() <= PRUNE_AFTER_MS) {
+    return;
+  }
   const name = agent.metadata?.name;
-  if (!name) return;
+
+  if (!name) {
+    return;
+  }
   await k8sApi
     .deleteNamespacedCustomObject({
       group: GROUP,
@@ -86,6 +101,7 @@ let backoffMs = 1000;
 export function startK8sWatch(): void {
   if (!process.env.KUBERNETES_SERVICE_HOST) {
     console.log("[events] k8s watch disabled (not running in a cluster)");
+
     return;
   }
   console.log("[events] k8s Agent-CR watch started");
@@ -110,6 +126,7 @@ async function runWatchForever(): Promise<void> {
 
 async function watchOnce(): Promise<void> {
   const kc = new KubeConfig();
+
   kc.loadFromCluster();
   // Seed resourceVersion + catch up on terminal CRs we may have missed while down.
   const { k8sApi, namespace } = makeAgentsApi();
@@ -122,17 +139,23 @@ async function watchOnce(): Promise<void> {
     items?: AgentCr[];
     metadata?: { resourceVersion?: string };
   };
-  for (const agent of list.items ?? []) await emitForAgent(agent);
+
+  for (const agent of list.items ?? []) {
+    await emitForAgent(agent);
+  }
   const resourceVersion = list.metadata?.resourceVersion;
 
   const watch = new Watch(kc);
+
   await new Promise<void>((resolve, reject) => {
     watch
       .watch(
         watchPath(),
         { resourceVersion, allowWatchBookmarks: true },
         (type: string, obj: AgentCr) => {
-          if (type === "ADDED" || type === "MODIFIED") void emitForAgent(obj);
+          if (type === "ADDED" || type === "MODIFIED") {
+            void emitForAgent(obj);
+          }
         },
         (err: unknown) => (err ? reject(err) : resolve()),
       )

@@ -12,21 +12,30 @@ function fakeStore(): MemoryStore {
     string,
     { key: string; value: string; version: number; repo?: string }
   >();
+
   return {
     backend: "postgres",
     writeMemory: async ({ key, value, agentId, repo }) => {
       const prev = rows.get(`${repo}|${key}`);
       const version = (prev?.version ?? 0) + 1;
+
       rows.set(`${repo}|${key}`, { key, value, version, repo });
+
       return { key, version, agent_id: agentId, created_at: "now" };
     },
     readMemory: async (key, _agentId) => {
-      for (const r of rows.values()) if (r.key === key) return r;
+      for (const r of rows.values()) {
+        if (r.key === key) {
+          return r;
+        }
+      }
+
       return null;
     },
     deleteMemory: async (key) => ({ key, deleted: true }),
     listMemories: async ({ repo }) => {
       const memories = [...rows.values()].filter((r) => r.repo === repo);
+
       return { memories, total: memories.length };
     },
   };

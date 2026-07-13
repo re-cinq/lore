@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -6,6 +7,7 @@ import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { repoFullName } from "../common-schemas.js";
 
 const RepoStatusQuery = z.object({ repo: repoFullName.optional() });
+
 type RepoStatusQuery = z.infer<typeof RepoStatusQuery>;
 
 export function repoStatusRoute(getPool: () => Pool | null): ServerRoute {
@@ -19,15 +21,20 @@ export function repoStatusRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (request, h) => {
       const pool = getPool();
       const { repo } = request.query as RepoStatusQuery;
-      if (!repo || !pool) return h.response({ onboarded: false });
+
+      if (!repo || !pool) {
+        return h.response({ onboarded: false });
+      }
 
       try {
         const repoRow = await pool.query(
           `SELECT settings, last_ingested_at FROM lore.repos WHERE full_name = $1`,
           [repo],
         );
-        if (repoRow.rows.length === 0)
+
+        if (repoRow.rows.length === 0) {
           return h.response({ onboarded: false, repo });
+        }
 
         const settings = repoRow.rows[0].settings || {};
         const lastIngested = repoRow.rows[0].last_ingested_at || null;
@@ -45,6 +52,7 @@ export function repoStatusRoute(getPool: () => Pool | null): ServerRoute {
         const stale =
           !lastIngested ||
           Date.now() - new Date(lastIngested).getTime() > 7 * 86400000;
+
         return h.response({
           onboarded: true,
           repo,
@@ -55,9 +63,10 @@ export function repoStatusRoute(getPool: () => Pool | null): ServerRoute {
           last_ingested_at: lastIngested,
           stale,
         });
-      } catch (err: any) {
-        console.error("[repo-status] Error:", err.message);
-        return h.response({ onboarded: false, error: err.message });
+      } catch (err) {
+        console.error("[repo-status] Error:", errorMessage(err));
+
+        return h.response({ onboarded: false, error: errorMessage(err) });
       }
     },
   };

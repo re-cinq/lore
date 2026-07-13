@@ -73,7 +73,10 @@ const baseProps = (
 
 function submitForm(container: HTMLElement) {
   const form = container.querySelector("form");
-  if (!form) throw new Error("no form");
+
+  if (!form) {
+    throw new Error("no form");
+  }
   fireEvent.submit(form);
 }
 
@@ -91,6 +94,7 @@ describe("AssembledContextView — form + state", () => {
   it("renders one template option per templates entry, with the current one selected", () => {
     render(<AssembledContextView {...baseProps({ template: "review" })} />);
     const select = screen.getByLabelText("Template") as HTMLSelectElement;
+
     expect(select.value).toBe("review");
     expect(select.querySelectorAll("option")).toHaveLength(4);
   });
@@ -98,6 +102,7 @@ describe("AssembledContextView — form + state", () => {
   it("pushes query and template edits up via callbacks", () => {
     const onQueryChange = vi.fn();
     const onTemplateChange = vi.fn();
+
     render(
       <AssembledContextView
         {...baseProps({ query: "", onQueryChange, onTemplateChange })}
@@ -118,6 +123,7 @@ describe("AssembledContextView — form + state", () => {
     const { container, rerender } = render(
       <AssembledContextView {...baseProps({ query: "   " })} />,
     );
+
     expect(screen.getByRole("button", { name: "Assemble" })).toBeDisabled();
     rerender(<AssembledContextView {...baseProps({ loading: true })} />);
     expect(screen.getByRole("button", { name: "Assembling…" })).toBeDisabled();
@@ -130,6 +136,7 @@ describe("AssembledContextView — form + state", () => {
     const { rerender } = render(
       <AssembledContextView {...baseProps({ loading: true })} />,
     );
+
     expect(screen.getByText("Assembling context…")).toBeInTheDocument();
     rerender(<AssembledContextView {...baseProps({ error: "HTTP 500" })} />);
     expect(
@@ -174,6 +181,7 @@ describe("AssembledContextView — assembly trace", () => {
   it("links each contributing document to its context detail page", () => {
     render(<AssembledContextView {...withTrace()} />);
     const link = screen.getByRole("link", { name: "adrs/ADR-016.md" });
+
     expect(link).toHaveAttribute(
       "href",
       "/repos/re-cinq/lore/context/adrs%2FADR-016.md",

@@ -12,17 +12,25 @@ export type { TraceDocument };
 function creds(): { api: string; token: string } | null {
   const api = process.env.LORE_API_URL;
   const token = process.env.LORE_INGEST_TOKEN;
+
   return api && token ? { api, token } : null;
 }
 
 async function apiGet<T>(pathAndQuery: string): Promise<T | null> {
   const c = creds();
-  if (!c) return null;
+
+  if (!c) {
+    return null;
+  }
   const res = await fetch(`${c.api}${pathAndQuery}`, {
     headers: { Authorization: `Bearer ${c.token}` },
     cache: "no-store",
   });
-  if (!res.ok) return null;
+
+  if (!res.ok) {
+    return null;
+  }
+
   return (await res.json()) as T;
 }
 

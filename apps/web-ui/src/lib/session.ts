@@ -14,7 +14,8 @@ export async function getUserRepos(accessToken: string): Promise<string[]> {
       },
     );
     const repos = await res.json();
-    return repos.map((r: any) => r.full_name);
+
+    return repos.map((r: { full_name: string }) => r.full_name);
   } catch {
     return [];
   }

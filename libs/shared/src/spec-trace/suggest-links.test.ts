@@ -38,7 +38,9 @@ const reachable = await dgraphReachable();
 
 const unit = (i: number) => {
   const axis = new Array(768).fill(0);
+
   axis[i] = 1;
+
   return axis;
 };
 const lit = (vec: number[]) => "[" + vec.join(",") + "]";
@@ -57,6 +59,7 @@ describe.skipIf(!reachable)("suggestCandidates (live Dgraph)", () => {
 
   async function reapNodes(repo: string, statementXid: string): Promise<void> {
     const txn = dgraphClient.newTxn();
+
     try {
       const res = await txn.queryWithVars(
         `query nodes($repo: string, $sx: string) {
@@ -76,6 +79,7 @@ describe.skipIf(!reachable)("suggestCandidates (live Dgraph)", () => {
         ...(data.testChunks ?? []),
         ...(data.statements ?? []),
       ].map((node) => node.uid);
+
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -92,19 +96,28 @@ describe.skipIf(!reachable)("suggestCandidates (live Dgraph)", () => {
   let createdRepo = "";
   let createdStatementXid = "";
   let createdExtraRepos: string[] = [];
+
   afterEach(async () => {
-    if (createdRepo) await reapNodes(createdRepo, createdStatementXid);
-    for (const extraRepo of createdExtraRepos) await reapNodes(extraRepo, "");
+    if (createdRepo) {
+      await reapNodes(createdRepo, createdStatementXid);
+    }
+
+    for (const extraRepo of createdExtraRepos) {
+      await reapNodes(extraRepo, "");
+    }
     createdExtraRepos = [];
   });
 
   it("returns the same-embedding CodeChunk as the single nearest candidate", async () => {
     const repo = `test-suggest/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/x/spec.md|0`;
+
     createdStatementXid = statementXid;
 
     const txn = dgraphClient.newTxn();
+
     try {
       await txn.mutate({
         setJson: [
@@ -134,11 +147,14 @@ describe.skipIf(!reachable)("suggestCandidates (live Dgraph)", () => {
 
   it("returns the same-embedding TestChunk as a test candidate", async () => {
     const repo = `test-suggest/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/x/spec.md|0`;
+
     createdStatementXid = statementXid;
 
     const txn = dgraphClient.newTxn();
+
     try {
       await txn.mutate({
         setJson: [
@@ -170,11 +186,13 @@ describe.skipIf(!reachable)("suggestCandidates (live Dgraph)", () => {
     const repoA = `test-suggest/${randomUUID()}`;
     const repoB = `test-suggest/${randomUUID()}`;
     const statementXid = `${repoA}|specs/x/spec.md|0`;
+
     createdRepo = repoA;
     createdStatementXid = statementXid;
     createdExtraRepos = [repoB];
 
     const txn = dgraphClient.newTxn();
+
     try {
       await txn.mutate({
         setJson: [
@@ -211,12 +229,15 @@ describe.skipIf(!reachable)("suggestCandidates (live Dgraph)", () => {
 
   it("returns empty when the only matching CodeChunk is already implemented_by the statement", async () => {
     const repo = `test-suggest/${randomUUID()}`;
+
     createdRepo = repo;
     const statementXid = `${repo}|specs/x/spec.md|0`;
+
     createdStatementXid = statementXid;
 
     const linkTxn = dgraphClient.newTxn();
     let linkedUid: string;
+
     try {
       const res = await linkTxn.mutate({
         setJson: {
@@ -229,12 +250,14 @@ describe.skipIf(!reachable)("suggestCandidates (live Dgraph)", () => {
         },
         commitNow: true,
       });
+
       linkedUid = (res.data as { uids: Record<string, string> }).uids.cc;
     } finally {
       await linkTxn.discard().catch(() => {});
     }
 
     const stmtTxn = dgraphClient.newTxn();
+
     try {
       await stmtTxn.mutate({
         setJson: {

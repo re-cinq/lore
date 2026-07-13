@@ -1,3 +1,4 @@
+import type { PipelineTask } from "@re-cinq/lore-shared";
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Llm, FakeLlm } from "@re-cinq/lore-shared";
@@ -46,8 +47,9 @@ beforeEach(() => {
     ...Object.values(fakeRepo),
     ...Object.values(fakePulls),
     ...Object.values(fakeIssues),
-  ])
+  ]) {
     fn.mockReset();
+  }
   fetchRepoContext.mockReset();
   query.mockReset();
   writeEpisode.mockReset();
@@ -78,7 +80,10 @@ describe("handleFeatureRequest", () => {
     );
 
     await handleFeatureRequest(
-      { id: "task-1", description: "Add health checks" },
+      {
+        id: "task-1",
+        description: "Add health checks",
+      } as unknown as PipelineTask,
       "re-cinq/app",
       "lore/spec",
       undefined,
@@ -91,6 +96,7 @@ describe("handleFeatureRequest", () => {
     const lastCommit = Math.max(
       ...fakeRepo.commitFile.mock.invocationCallOrder,
     );
+
     expect(lastCommit).toBeLessThan(fakePulls.open.mock.invocationCallOrder[0]);
   });
 
@@ -99,7 +105,10 @@ describe("handleFeatureRequest", () => {
 
     await expect(
       handleFeatureRequest(
-        { id: "task-1", description: "Add health checks" },
+        {
+          id: "task-1",
+          description: "Add health checks",
+        } as unknown as PipelineTask,
         "re-cinq/app",
         "lore/spec",
         undefined,

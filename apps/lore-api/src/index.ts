@@ -1,3 +1,4 @@
+import type { Pool } from "pg";
 import { initOtel } from "./platform/otel-init.js";
 import pg from "pg";
 import { setPool } from "@re-cinq/lore-server-core/platform/db.js";
@@ -10,13 +11,14 @@ import { startHttpServer } from "./server/http-server.js";
 
 // Shared mutable state: the DB pool is created in main() and read lazily by the
 // route handlers via getPool() (they fail soft with 503 when it is null).
-const state: { pool: any } = { pool: null };
+const state: { pool: Pool | null } = { pool: null };
 const getPool = () => state.pool;
 
 async function main() {
   await initOtel();
 
   const dbHost = process.env.LORE_DB_HOST;
+
   if (dbHost) {
     const dbPool = new pg.Pool({
       host: dbHost,
@@ -25,6 +27,7 @@ async function main() {
       user: process.env.LORE_DB_USER || "postgres",
       password: process.env.LORE_DB_PASSWORD,
     });
+
     setPool(dbPool);
     setMemoryPool(dbPool);
     setPipelinePool(dbPool);

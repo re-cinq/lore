@@ -10,11 +10,13 @@ function fakePool(rowsByCall: unknown[][] = []): {
 } {
   const calls: Array<{ text: string; params?: unknown[] }> = [];
   const pool: PgPool = {
-    async query(text: string, params?: unknown[]) {
+    async query<T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> {
       calls.push({ text, params });
-      return { rows: rowsByCall[calls.length - 1] ?? [] };
+
+      return { rows: (rowsByCall[calls.length - 1] ?? []) as T[] };
     },
   };
+
   return { pool, calls };
 }
 
@@ -36,6 +38,7 @@ describe("PgAssemblyLines adapter", () => {
     expect(id).toBe("al-1");
     expect(calls).toHaveLength(1);
     const sql = calls[0]?.text ?? "";
+
     expect(sql).toContain("INSERT INTO pipeline.assembly_lines");
     expect(sql).toContain("INSERT INTO pipeline.events");
     expect(sql).toContain("'assembly_line.start'");
@@ -366,6 +369,7 @@ describe("InMemoryAssemblyLines double", () => {
       iteration: 1,
       agentCrName: "al1abcde-implement",
     });
+
     await assemblyLines.recordNodeFinish(nodeRowId, "success", "deadbeef");
 
     expect(assemblyLines.nodes).toMatchObject([
@@ -394,6 +398,7 @@ describe("InMemoryAssemblyLines double", () => {
       nodeId: "validate",
       iteration: 1,
     });
+
     await assemblyLines.recordNodeFinish(nodeRowId, "failed");
 
     expect(assemblyLines.nodes[0]).toMatchObject({
@@ -440,12 +445,14 @@ describe("InMemoryAssemblyLines double", () => {
       repo: "r/a",
       taskId: "task-1",
     });
+
     assemblyLines.clock = () => new Date("2026-07-03T11:00:00Z");
     const second = await assemblyLines.start({
       definitionName: "general",
       repo: "r/a",
       taskId: "task-1",
     });
+
     await assemblyLines.start({
       definitionName: "general",
       repo: "r/a",
@@ -469,6 +476,7 @@ describe("InMemoryAssemblyLines double", () => {
       repo: "r/a",
       args: { pr_number: 42 },
     });
+
     await assemblyLines.finish(done, "success");
     await assemblyLines.start({
       definitionName: "code-review",

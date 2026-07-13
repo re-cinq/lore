@@ -19,10 +19,15 @@ function fakePool(
   byCall: unknown[][],
 ): PgPool {
   let call = 0;
+
   return {
-    query: async (text: string, params?: unknown[]) => {
+    query: async <T>(
+      text: string,
+      params?: unknown[],
+    ): Promise<{ rows: T[] }> => {
       capture.push({ text, params });
-      return { rows: byCall[call++] ?? [] };
+
+      return { rows: (byCall[call++] ?? []) as T[] };
     },
   };
 }
@@ -92,7 +97,7 @@ describe("PgKnowledge", () => {
 
   it("assembles repo context through the relocated engine, bound to the repo", async () => {
     const sqlKeyedPool: PgPool = {
-      query: async (text: string) => {
+      query: async <T>(text: string): Promise<{ rows: T[] }> => {
         if (text.includes("content_type = ANY")) {
           return {
             rows: [
@@ -101,10 +106,11 @@ describe("PgKnowledge", () => {
                 file_path: "CLAUDE.md",
                 content_type: "doc",
               },
-            ],
+            ] as T[],
           };
         }
-        return { rows: [] };
+
+        return { rows: [] as T[] };
       },
     };
     const pg = new PgKnowledge(sqlKeyedPool);

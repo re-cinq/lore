@@ -33,6 +33,7 @@ describe("Pipeline Task Lifecycle", () => {
        VALUES ('test task', 'general', 're-cinq/lore', 'integration-test')
        RETURNING id, status`,
     );
+
     expect(rows[0].status).toBe("pending");
   });
 
@@ -51,6 +52,7 @@ describe("Pipeline Task Lifecycle", () => {
        RETURNING id, status, claimed_by`,
       [taskId],
     );
+
     expect(claimed[0].status).toBe("running");
     expect(claimed[0].claimed_by).toBe("test-agent");
 
@@ -62,6 +64,7 @@ describe("Pipeline Task Lifecycle", () => {
        RETURNING id`,
       [taskId],
     );
+
     expect(doubleClaim).toHaveLength(0);
   });
 
@@ -80,6 +83,7 @@ describe("Pipeline Task Lifecycle", () => {
          AND id = $1`,
       [created[0].id],
     );
+
     // Task was just created -- it must NOT be picked up yet
     expect(gkeResult).toHaveLength(0);
   });
@@ -100,6 +104,7 @@ describe("Pipeline Task Lifecycle", () => {
       `SELECT status FROM pipeline.tasks WHERE id = $1`,
       [id],
     );
+
     expect(running[0].status).toBe("running");
 
     await pool.query(
@@ -110,6 +115,7 @@ describe("Pipeline Task Lifecycle", () => {
       `SELECT status, pr_url FROM pipeline.tasks WHERE id = $1`,
       [id],
     );
+
     expect(completed[0].status).toBe("completed");
     expect(completed[0].pr_url).toBe("https://github.com/test/pr/1");
   });
@@ -138,6 +144,7 @@ describe("Pipeline Task Lifecycle", () => {
        WHERE task_id = $1 ORDER BY created_at`,
       [taskId],
     );
+
     expect(events).toHaveLength(2);
     expect(events[0].from_status).toBe("pending");
     expect(events[0].to_status).toBe("running");
@@ -161,6 +168,7 @@ describe("Pipeline Task Lifecycle", () => {
       `SELECT status, failure_reason FROM pipeline.tasks WHERE id = $1`,
       [id],
     );
+
     expect(failed[0].status).toBe("failed");
     expect(failed[0].failure_reason).toContain("exited with code 1");
   });
@@ -183,6 +191,7 @@ describe("Pipeline Task Lifecycle", () => {
       `SELECT review_iteration FROM pipeline.tasks WHERE id = $1`,
       [id],
     );
+
     expect(updated[0].review_iteration).toBe(1);
   });
 
@@ -192,6 +201,7 @@ describe("Pipeline Task Lifecycle", () => {
        VALUES ('priority default test', 'general', 're-cinq/lore', 'integration-test')
        RETURNING id, priority`,
     );
+
     expect(rows[0].priority).toBe("normal");
   });
 
@@ -201,6 +211,7 @@ describe("Pipeline Task Lifecycle", () => {
        VALUES ('priority immediate test', 'general', 're-cinq/lore', 'integration-test', 'immediate')
        RETURNING id, priority`,
     );
+
     expect(rows[0].priority).toBe("immediate");
   });
 
@@ -223,6 +234,7 @@ describe("Pipeline Task Lifecycle", () => {
          AND id = $1`,
       [created[0].id],
     );
+
     expect(picked).toHaveLength(1);
   });
 
@@ -243,6 +255,7 @@ describe("Pipeline Task Lifecycle", () => {
       `SELECT priority FROM pipeline.tasks WHERE id = $1`,
       [id],
     );
+
     expect(updated[0].priority).toBe("immediate");
   });
 });

@@ -25,15 +25,22 @@ export function rateLimit(bucket: RateBucket): boolean {
   const windowMs = 60_000;
   const key = bucket;
   let timestamps = windows.get(key);
+
   if (!timestamps) {
     timestamps = [];
     windows.set(key, timestamps);
   }
+
   // Evict old entries
-  while (timestamps.length > 0 && timestamps[0] <= now - windowMs)
+  while (timestamps.length > 0 && timestamps[0] <= now - windowMs) {
     timestamps.shift();
-  if (timestamps.length >= RATE_LIMITS[bucket]) return false;
+  }
+
+  if (timestamps.length >= RATE_LIMITS[bucket]) {
+    return false;
+  }
   timestamps.push(now);
+
   return true;
 }
 
@@ -54,10 +61,16 @@ export async function resolveTokenScopes(
   bearerToken: string,
 ): Promise<TokenScope[] | null> {
   const legacyToken = process.env.LORE_INGEST_TOKEN;
-  if (legacyToken && bearerToken === legacyToken) return ALL_SCOPES;
 
-  if (!pool) return null;
+  if (legacyToken && bearerToken === legacyToken) {
+    return ALL_SCOPES;
+  }
+
+  if (!pool) {
+    return null;
+  }
   const tokenHash = createHash("sha256").update(bearerToken).digest("hex");
+
   try {
     const { rows } = await pool.query(
       `UPDATE pipeline.api_tokens SET last_used = now()
@@ -66,7 +79,11 @@ export async function resolveTokenScopes(
        RETURNING scopes`,
       [tokenHash],
     );
-    if (rows.length === 0) return null;
+
+    if (rows.length === 0) {
+      return null;
+    }
+
     return rows[0].scopes as TokenScope[];
   } catch {
     return null;
@@ -84,6 +101,10 @@ export async function validateClientToken(
   requiredScope: TokenScope,
 ): Promise<boolean> {
   const scopes = await resolveTokenScopes(pool, bearerToken);
-  if (!scopes) return false;
+
+  if (!scopes) {
+    return false;
+  }
+
   return scopes.includes("admin") || scopes.includes(requiredScope);
 }

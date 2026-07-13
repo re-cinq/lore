@@ -69,6 +69,7 @@ describe("RepoContextView", () => {
         chunks={[chunk()]}
       />,
     );
+
     expect(screen.getByRole("link", { name: "doc" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "code" })).toBeInTheDocument();
     expect(container.querySelector("form.search-form")).not.toBeNull();

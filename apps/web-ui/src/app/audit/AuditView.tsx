@@ -7,7 +7,7 @@ export interface AuditEntryRow {
   operation: string;
   memory_key: string | null;
   pool_name: string | null;
-  metadata: any;
+  metadata: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -45,10 +45,20 @@ export default function AuditView({
 }: AuditViewProps) {
   function buildUrl(newOffset: number): string {
     const p = new URLSearchParams();
-    if (agent) p.set("agent", agent);
-    if (op) p.set("op", op);
-    if (newOffset > 0) p.set("offset", String(newOffset));
+
+    if (agent) {
+      p.set("agent", agent);
+    }
+
+    if (op) {
+      p.set("op", op);
+    }
+
+    if (newOffset > 0) {
+      p.set("offset", String(newOffset));
+    }
     const qs = p.toString();
+
     return `/audit${qs ? `?${qs}` : ""}`;
   }
 

@@ -67,9 +67,14 @@ function errorBodyDetail(
   body: string,
 ): string {
   const base = `HTTP ${status} ${statusText}`;
-  if (!body) return base;
+
+  if (!body) {
+    return base;
+  }
+
   try {
     const parsed = JSON.parse(body) as { error?: unknown };
+
     return typeof parsed.error === "string"
       ? `${base}: ${parsed.error}`
       : `${base}: ${body}`;
@@ -80,13 +85,17 @@ function errorBodyDetail(
 
 export async function proxyToApi(
   endpoint: string,
-  body: Record<string, any>,
+  body: Record<string, unknown>,
 ): Promise<ProxyResult> {
   const apiUrl = process.env.LORE_API_URL;
   const apiToken = process.env.LORE_INGEST_TOKEN;
-  if (!apiUrl || !apiToken) return { ok: false, reason: "not_configured" };
+
+  if (!apiUrl || !apiToken) {
+    return { ok: false, reason: "not_configured" };
+  }
 
   let lastDetail = "no attempts made";
+
   for (let attempt = 0; attempt <= PROXY_RETRY_DELAYS_MS.length; attempt++) {
     try {
       const res = await fetch(`${apiUrl}${endpoint}`, {
@@ -98,14 +107,18 @@ export async function proxyToApi(
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(15_000),
       });
+
       if (res.ok) {
         return { ok: true, body: JSON.stringify(await res.json()) };
       }
       lastDetail = `HTTP ${res.status} ${res.statusText}`;
+
       if (isAuthDenial(res.status)) {
         console.error(`[lore-mcp] proxy ${endpoint} denied (${lastDetail})`);
+
         return { ok: false, reason: "denied", detail: lastDetail };
       }
+
       if (!isRetriableStatus(res.status)) {
         // 4xx (validation / config gap) — retrying won't help. Surface the
         // server's message so the caller sees the cause, not just the status.
@@ -114,19 +127,23 @@ export async function proxyToApi(
           res.statusText,
           await readErrorBody(res),
         );
+
         console.error(
           `[lore-mcp] proxy ${endpoint} failed (${detail}); not retrying`,
         );
+
         return { ok: false, reason: "unreachable", detail };
       }
-    } catch (err: any) {
+    } catch (err) {
       lastDetail =
-        err?.name === "TimeoutError"
+        (err as { name?: string })?.name === "TimeoutError"
           ? "request timed out (15s)"
-          : err?.message || String(err);
+          : (err as { message?: string })?.message || String(err);
     }
+
     if (attempt < PROXY_RETRY_DELAYS_MS.length) {
       const delay = PROXY_RETRY_DELAYS_MS[attempt];
+
       console.error(
         `[lore-mcp] proxy ${endpoint} attempt ${attempt + 1} failed (${lastDetail}); retrying in ${delay}ms`,
       );
@@ -136,12 +153,13 @@ export async function proxyToApi(
   console.error(
     `[lore-mcp] proxy ${endpoint} exhausted ${PROXY_RETRY_DELAYS_MS.length + 1} attempts; last error: ${lastDetail}`,
   );
+
   return { ok: false, reason: "unreachable", detail: lastDetail };
 }
 
 export function proxyMemory(
   action: string,
-  params: Record<string, any>,
+  params: Record<string, unknown>,
 ): Promise<ProxyResult> {
   return proxyToApi("/api/memory", { action, ...params });
 }
@@ -156,29 +174,41 @@ export async function withReadCache(
   doProxy: () => Promise<ProxyResult>,
   opts: { label?: boolean; cacheIf?: (body: string) => boolean } = {},
 ): Promise<ProxyResult> {
-  if (!policy || !isCacheEnabled()) return doProxy();
+  if (!policy || !isCacheEnabled()) {
+    return doProxy();
+  }
   const label = opts.label ?? true;
 
   const fresh = readFresh(policy);
-  if (fresh)
+
+  if (fresh) {
     return {
       ok: true,
       body: label ? markFresh(fresh.body, fresh.ageSeconds) : fresh.body,
     };
+  }
 
   const result = await doProxy();
+
   if (result.ok) {
-    if (!opts.cacheIf || opts.cacheIf(result.body)) store(policy, result.body);
+    if (!opts.cacheIf || opts.cacheIf(result.body)) {
+      store(policy, result.body);
+    }
+
     return result;
   }
+
   if (result.reason === "unreachable") {
     const stale = readAny(policy);
-    if (stale)
+
+    if (stale) {
       return {
         ok: true,
         body: label ? markStale(stale.body, stale.ageSeconds) : stale.body,
       };
+    }
   }
+
   return result;
 }
 
@@ -187,9 +217,13 @@ export async function withReadCache(
 export async function proxyGetApi(path: string): Promise<ProxyResult> {
   const apiUrl = process.env.LORE_API_URL;
   const apiToken = process.env.LORE_INGEST_TOKEN;
-  if (!apiUrl || !apiToken) return { ok: false, reason: "not_configured" };
+
+  if (!apiUrl || !apiToken) {
+    return { ok: false, reason: "not_configured" };
+  }
 
   let lastDetail = "no attempts made";
+
   for (let attempt = 0; attempt <= PROXY_RETRY_DELAYS_MS.length; attempt++) {
     try {
       const res = await fetch(`${apiUrl}${path}`, {
@@ -197,14 +231,18 @@ export async function proxyGetApi(path: string): Promise<ProxyResult> {
         headers: { Authorization: `Bearer ${apiToken}` },
         signal: AbortSignal.timeout(15_000),
       });
+
       if (res.ok) {
         return { ok: true, body: JSON.stringify(await res.json()) };
       }
       lastDetail = `HTTP ${res.status} ${res.statusText}`;
+
       if (isAuthDenial(res.status)) {
         console.error(`[lore-mcp] proxy GET ${path} denied (${lastDetail})`);
+
         return { ok: false, reason: "denied", detail: lastDetail };
       }
+
       if (!isRetriableStatus(res.status)) {
         // 4xx (validation / config gap) — retrying won't help. Surface the
         // server's message so the caller sees the cause, not just the status.
@@ -213,19 +251,23 @@ export async function proxyGetApi(path: string): Promise<ProxyResult> {
           res.statusText,
           await readErrorBody(res),
         );
+
         console.error(
           `[lore-mcp] proxy GET ${path} failed (${detail}); not retrying`,
         );
+
         return { ok: false, reason: "unreachable", detail };
       }
-    } catch (err: any) {
+    } catch (err) {
       lastDetail =
-        err?.name === "TimeoutError"
+        (err as { name?: string })?.name === "TimeoutError"
           ? "request timed out (15s)"
-          : err?.message || String(err);
+          : (err as { message?: string })?.message || String(err);
     }
+
     if (attempt < PROXY_RETRY_DELAYS_MS.length) {
       const delay = PROXY_RETRY_DELAYS_MS[attempt];
+
       console.error(
         `[lore-mcp] proxy GET ${path} attempt ${attempt + 1} failed (${lastDetail}); retrying in ${delay}ms`,
       );
@@ -235,6 +277,7 @@ export async function proxyGetApi(path: string): Promise<ProxyResult> {
   console.error(
     `[lore-mcp] proxy GET ${path} exhausted ${PROXY_RETRY_DELAYS_MS.length + 1} attempts; last error: ${lastDetail}`,
   );
+
   return { ok: false, reason: "unreachable", detail: lastDetail };
 }
 

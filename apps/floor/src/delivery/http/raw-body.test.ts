@@ -9,6 +9,7 @@ describe("parseJsonBody", () => {
 
   it("throws a 400 Boom.badRequest on a malformed body", () => {
     let thrown: unknown;
+
     try {
       parseJsonBody("{ not json");
     } catch (err) {

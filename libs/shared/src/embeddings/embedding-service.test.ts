@@ -8,6 +8,7 @@ import {
 } from "./embedding-service.js";
 
 const SAVED = { ...process.env };
+
 beforeEach(() => {
   resetVertexProjectCache();
   delete process.env.GCP_PROJECT;
@@ -32,6 +33,7 @@ describe("resolveVertexProject", () => {
   it("returns GCP_PROJECT from the environment without hitting the metadata server", async () => {
     process.env.GCP_PROJECT = "proj-from-env";
     const fetchMock = vi.fn();
+
     vi.stubGlobal("fetch", fetchMock);
     expect(await resolveVertexProject()).toBe("proj-from-env");
     expect(fetchMock).not.toHaveBeenCalled();
@@ -58,15 +60,21 @@ describe("getQueryEmbedding project resolution", () => {
         !url.includes("service-accounts/default/token"),
         new Error("no metadata"),
       );
-      if (url.includes("/project/project-id")) return { ok: false } as Response; // …but no project
+
+      if (url.includes("/project/project-id")) {
+        return { ok: false } as Response;
+      } // …but no project
+
       return {
         ok: true,
         json: async () => ({ predictions: [{ embeddings: { values: [1] } }] }),
       } as Response;
     });
+
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await getQueryEmbedding("hello");
+
     expect(result).toBeNull();
     // The malformed-URL bug: a predict call with an empty project must never fire.
     expect(

@@ -5,6 +5,7 @@ import { InMemoryAudit } from "@re-cinq/lore-shared/project/audit/audit-memory.j
 describe("writeAuditLog", () => {
   it("inserts the entry into the injected repository", async () => {
     const repo = new InMemoryAudit();
+
     await writeAuditLog(
       {
         event_type: "auto_merge_decision",
@@ -28,6 +29,7 @@ describe("writeAuditLog", () => {
 
   it("accepts an entry that omits the optional fields", async () => {
     const repo = new InMemoryAudit();
+
     await writeAuditLog(
       { event_type: "lease_expired", payload: { n: 1 } },
       repo,
@@ -40,6 +42,7 @@ describe("writeAuditLog", () => {
 
   it("accumulates entries in insertion order", async () => {
     const repo = new InMemoryAudit();
+
     await writeAuditLog({ event_type: "a", payload: {} }, repo);
     await writeAuditLog({ event_type: "b", payload: {} }, repo);
     expect(repo.entries.map((r) => r.event_type)).toEqual(["a", "b"]);

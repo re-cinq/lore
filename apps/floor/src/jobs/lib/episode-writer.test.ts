@@ -11,6 +11,7 @@ import {
 describe("writeEpisode", () => {
   it("redacts secrets before storing the episode", async () => {
     const memory = new InMemoryMemoryLifecycle();
+
     await writeEpisode(
       `deploy token ghp_${"a".repeat(36)}`,
       "ci",
@@ -24,6 +25,7 @@ describe("writeEpisode", () => {
 
   it("returns the episode id then null on a duplicate", async () => {
     const deps: WriteEpisodeDeps = { memory: new InMemoryMemoryLifecycle() };
+
     expect(await writeEpisode("same body", "ci", "r", "agent", deps)).toBe(
       "episode-1",
     );
@@ -38,6 +40,7 @@ describe("writeEpisode", () => {
         throw new Error("db down");
       },
     } as unknown as MemoryLifecyclePort;
+
     expect(
       await writeEpisode("body", "ci", "r", "agent", { memory }),
     ).toBeNull();
@@ -52,15 +55,20 @@ describe("writeEpisodeWithCuration", () => {
   });
 
   afterEach(() => {
-    if (savedKey === undefined) delete process.env.ANTHROPIC_API_KEY;
-    else process.env.ANTHROPIC_API_KEY = savedKey;
+    if (savedKey === undefined) {
+      delete process.env.ANTHROPIC_API_KEY;
+    } else {
+      process.env.ANTHROPIC_API_KEY = savedKey;
+    }
     Llm.reset();
   });
 
   const deps = (text: string) => {
     const memory = new InMemoryMemoryLifecycle();
     const fake = new FakeLlm({ text });
+
     Llm.setInstance(fake);
+
     return { memory, fake, deps: { memory } };
   };
 
@@ -69,6 +77,7 @@ describe("writeEpisodeWithCuration", () => {
 
   it("upserts a sanitized auto-curation memory for a real lesson", async () => {
     const d = deps("Always rebuild shared before the agent build.");
+
     await writeEpisodeWithCuration(
       "outcome",
       "ci",
@@ -86,6 +95,7 @@ describe("writeEpisodeWithCuration", () => {
   it("skips curation when ANTHROPIC_API_KEY is unset", async () => {
     delete process.env.ANTHROPIC_API_KEY;
     const d = deps("A lesson.");
+
     await writeEpisodeWithCuration(
       "outcome",
       "ci",
@@ -101,6 +111,7 @@ describe("writeEpisodeWithCuration", () => {
 
   it("skips curation for a duplicate episode (no new id)", async () => {
     const d = deps("A real lesson learned.");
+
     await writeEpisodeWithCuration(
       "same",
       "ci",
@@ -122,6 +133,7 @@ describe("writeEpisodeWithCuration", () => {
 
   it("does not store a SKIP or too-short lesson", async () => {
     const skip = deps("SKIP");
+
     await writeEpisodeWithCuration(
       "outcome",
       "ci",
@@ -133,6 +145,7 @@ describe("writeEpisodeWithCuration", () => {
     expect(skip.memory.memories).toHaveLength(0);
 
     const short = deps("nope");
+
     await writeEpisodeWithCuration(
       "outcome",
       "ci",

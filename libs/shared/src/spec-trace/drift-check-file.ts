@@ -101,7 +101,10 @@ function collectAffectedNodes(chunk: GraphCodeChunk): AffectedNode[] {
       embedding: statement["Statement.embedding"],
     });
 
-  for (const statement of chunk.stmts ?? []) addStatement(statement);
+  for (const statement of chunk.stmts ?? []) {
+    addStatement(statement);
+  }
+
   for (const criterion of chunk.acStmts ?? []) {
     addNode({
       uid: criterion.uid,
@@ -111,6 +114,7 @@ function collectAffectedNodes(chunk: GraphCodeChunk): AffectedNode[] {
       embedding: criterion["AcceptanceCriterion.embedding"],
     });
   }
+
   return [...byUid.values()];
 }
 
@@ -122,7 +126,11 @@ function nodeRefFromXid(xid: string): { specPath: string; ordinal: number } {
   const parts = xid.split("|");
   const ordinal = Number(parts.at(-1));
   const pathParts = parts.slice(1, -1);
-  if (pathParts.at(-1) === "ac") pathParts.pop();
+
+  if (pathParts.at(-1) === "ac") {
+    pathParts.pop();
+  }
+
   return { specPath: pathParts.join("|"), ordinal };
 }
 
@@ -132,6 +140,7 @@ function rangesOverlap(
 ): boolean {
   const start = chunk["CodeChunk.start_line"] ?? 0;
   const end = chunk["CodeChunk.end_line"] ?? 0;
+
   return candidate.startLine <= end && candidate.endLine >= start;
 }
 
@@ -193,14 +202,18 @@ async function driftChunkStatements(
 ): Promise<void> {
   for (const node of collectAffectedNodes(chunk)) {
     await applyDrift(dgraph, node.uid, driftReason, node.nodeType);
+
     if (severitySource) {
       const nodeVector = parseEmbedding(node.embedding);
+
       if (nodeVector) {
         const severity = 1 - cosineSimilarity(severitySource, nodeVector);
+
         await applySeverity(dgraph, node.uid, node.nodeType, severity);
       }
     }
     const { specPath, ordinal } = nodeRefFromXid(node.xid);
+
     drifted.push({
       specPath,
       ordinal,
@@ -221,7 +234,8 @@ export async function driftCheckFile(
       $repo: repo,
       $fp: filePath,
     });
-    return (res.data?.chunks ?? []) as GraphCodeChunk[];
+
+    return (res.data?.chunks ?? []) as unknown as GraphCodeChunk[];
   });
 
   let baselined = 0;
@@ -233,15 +247,20 @@ export async function driftCheckFile(
     const replacement = newChunks.find((candidate) =>
       rangesOverlap(chunk, candidate),
     );
+
     if (!replacement) {
       await driftChunkStatements(dgraph, chunk, linkRotReason, drifted);
       continue;
     }
 
     const storedHash = chunk["CodeChunk.content_hash"];
-    if (storedHash === replacement.contentHash) continue;
+
+    if (storedHash === replacement.contentHash) {
+      continue;
+    }
 
     const isFirstSight = storedHash === undefined;
+
     await updateChunkHash(dgraph, chunk.uid, replacement.contentHash);
 
     if (isFirstSight) {
@@ -254,6 +273,7 @@ export async function driftCheckFile(
       replacement.symbolName ??
       replacement.filePath;
     const driftReason = `code-content-changed (${symbol})`;
+
     await driftChunkStatements(
       dgraph,
       chunk,

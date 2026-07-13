@@ -22,8 +22,11 @@ describe("insertEvent", () => {
   it("writes the derived repo into the repo column", async () => {
     const calls: { sql: string; params: unknown[] }[] = [];
     const pool = {
-      query: async (sql: string, params: unknown[]) =>
-        void calls.push({ sql, params }),
+      query: async (sql: string, params?: unknown[]) => {
+        calls.push({ sql, params: params ?? [] });
+
+        return { rows: [] };
+      },
     };
 
     await insertEvent(pool, {

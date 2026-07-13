@@ -21,6 +21,7 @@ export function selectProvider(
     env.LORE_FACT_LLM ||
     "claude"
   ).toLowerCase();
+
   switch (vendor) {
     case "openai":
       return new OpenAiProvider({
@@ -36,7 +37,10 @@ export function selectProvider(
       // No API key → fall back to the `claude` CLI (subscription, zero API
       // spend), preserving the old facts.ts / graph-extraction behavior across
       // every model call.
-      if (!env.ANTHROPIC_API_KEY) return new CliProvider();
+      if (!env.ANTHROPIC_API_KEY) {
+        return new CliProvider();
+      }
+
       return new AnthropicProvider({
         model: env.ANTHROPIC_MODEL,
         costPool: opts.costPool,

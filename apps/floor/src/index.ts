@@ -40,12 +40,14 @@ async function main(): Promise<void> {
   await loadApprovalConfig();
 
   const recovered = await recoverStaleTasks();
+
   if (recovered > 0) {
     console.log(`[floor] Recovered ${recovered} stale tasks`);
   }
 
   // ── Layer 2: the drain loop + reaper over pipeline.events ──
   const registry = buildRegistry();
+
   startEventLoop((name) => resolve(registry, name));
   startEventReaper();
 
@@ -64,6 +66,7 @@ async function main(): Promise<void> {
   void startWorker();
 
   const port = parseInt(process.env.PORT || "8080", 10);
+
   void startHealthServer(port, getJobStatus);
 
   console.log("[floor] Lore Floor Service ready");

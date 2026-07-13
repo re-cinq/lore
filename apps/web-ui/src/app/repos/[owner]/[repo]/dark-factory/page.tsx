@@ -47,7 +47,10 @@ export default async function DarkFactoryPage({
     `SELECT settings FROM lore.repos WHERE full_name = $1`,
     [fullName],
   );
-  if (!repoData) return <div>Repo not found</div>;
+
+  if (!repoData) {
+    return <div>Repo not found</div>;
+  }
 
   const settings = repoData.settings ?? {};
   const resolved = resolveDarkFactorySettings(
@@ -60,12 +63,14 @@ export default async function DarkFactoryPage({
   // never want the console to 500 over an empty operational history.
   let tasks: ConsoleTask[] = [];
   let decisions: ConsoleAuditEvent[] = [];
+
   try {
     const taskRows = await query<TaskRow>(
       `SELECT id, task_type, status, pr_url, created_at FROM pipeline.tasks
         WHERE target_repo = $1 ORDER BY created_at DESC LIMIT 15`,
       [fullName],
     );
+
     tasks = taskRows.map((row) => ({
       id: String(row.id),
       task_type: row.task_type,
@@ -76,6 +81,7 @@ export default async function DarkFactoryPage({
   } catch {
     // pipeline.tasks missing — leave tasks empty.
   }
+
   try {
     const auditRows = await query<AuditRow>(
       `SELECT event_type, payload, created_at FROM pipeline.audit_log
@@ -83,6 +89,7 @@ export default async function DarkFactoryPage({
         ORDER BY created_at DESC LIMIT 25`,
       [fullName, DF_EVENT_TYPES],
     );
+
     decisions = auditRows.map((row) => ({
       event_type: row.event_type,
       payload: row.payload ?? {},
