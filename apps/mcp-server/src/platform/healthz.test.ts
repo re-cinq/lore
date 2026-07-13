@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createServer } from "node:http";
 import {
   getHealthStatus,
   setPool,

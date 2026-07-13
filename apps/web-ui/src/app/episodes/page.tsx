@@ -18,12 +18,11 @@ export default async function EpisodesPage({
 
   const conditions: string[] = [];
   const params: any[] = [];
-  let paramIndex = 1;
+  const paramIndex = 1;
 
   if (source && source.trim()) {
     conditions.push(`e.source = $${paramIndex}`);
     params.push(source.trim());
-    paramIndex++;
   }
 
   const whereClause =

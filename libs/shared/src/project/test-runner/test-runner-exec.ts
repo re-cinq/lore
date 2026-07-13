@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { existsSync, readFileSync } from "node:fs";
@@ -101,15 +102,17 @@ export class ExecTestRunner implements TestRunnerPort {
 
 function loadManifest(cwd: string): TestCommandManifest {
   const file = join(cwd, ".lore", "test-commands.yml");
-  if (!existsSync(file)) {
-    throw new Error(`No test-command manifest at ${file}`);
-  }
+  enforceTrue(
+    existsSync(file),
+    new Error(`No test-command manifest at ${file}`),
+  );
   const manifests = resolveTestCommandManifest({
     file: parse(readFileSync(file, "utf8")),
   });
-  if (!manifests || manifests.length === 0) {
-    throw new Error(`No usable test-command manifest in ${file}`);
-  }
+  enforceTrue(
+    !(!manifests || manifests.length === 0),
+    new Error(`No usable test-command manifest in ${file}`),
+  );
   return manifests[0];
 }
 

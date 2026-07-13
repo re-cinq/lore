@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type {
   AgentRunnerPort,
   AgentRunResult,
@@ -44,10 +45,10 @@ export class AgentRunner implements AgentRunnerPort {
 
     if (mode === "cluster") {
       const station = this.providers.station;
-      if (!station)
-        throw new Error(
-          'agents.run mode "cluster" needs a StationBackend provider',
-        );
+      enforceTrue(
+        station,
+        new Error('agents.run mode "cluster" needs a StationBackend provider'),
+      );
       const res = await station.launch({
         taskId,
         taskType: opts?.taskType ?? "general",
@@ -74,8 +75,10 @@ export class AgentRunner implements AgentRunnerPort {
     }
 
     const llm = this.providers.llm;
-    if (!llm)
-      throw new Error('agents.run mode "direct" needs an LlmPort provider');
+    enforceTrue(
+      llm,
+      new Error('agents.run mode "direct" needs an LlmPort provider'),
+    );
     await llm.complete(prompt, { model: opts?.model });
     return { taskId, mode, started: true };
   }

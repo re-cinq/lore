@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { Project } from "./project.js";
 import { ChunksHttp } from "../chunks/chunks-http.js";
 import type { IssueRef, IssueFilter } from "./github-port.js";
@@ -197,7 +198,7 @@ export function createStationProject(
   fetchImpl: typeof fetch = fetch,
 ): Project {
   const baseUrl = env.LORE_API_URL;
-  if (!baseUrl) throw new Error("createStationProject requires LORE_API_URL");
+  enforceTrue(baseUrl, new Error("createStationProject requires LORE_API_URL"));
   const token = env.LORE_STATION_TOKEN ?? env.LORE_INGEST_TOKEN;
   const http = makeHttp({ baseUrl, repo, token, fetchImpl });
 

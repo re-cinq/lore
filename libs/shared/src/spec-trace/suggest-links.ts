@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * spec-traceability-graph — Phase 5 deterministic vector candidate suggestion.
  *
@@ -102,8 +103,10 @@ export async function suggestCandidates(
   statementXid: string,
   k: number,
 ): Promise<Array<{ xid: string; kind: "code" | "test" }>> {
-  if (!Number.isInteger(k))
-    throw new Error(`suggestCandidates: k must be an integer, got ${k}`);
+  enforceTrue(
+    Number.isInteger(k),
+    new Error(`suggestCandidates: k must be an integer, got ${k}`),
+  );
 
   const { vecLiteral, linkedXids } = await readStatementContext(
     dgraph,

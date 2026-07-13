@@ -93,7 +93,6 @@ export function startK8sWatch(): void {
 }
 
 async function runWatchForever(): Promise<void> {
-  // eslint-disable-next-line no-constant-condition
   for (;;) {
     try {
       await watchOnce();

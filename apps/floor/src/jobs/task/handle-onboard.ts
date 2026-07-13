@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Onboard handler (per-file LLM calls).
  *
@@ -195,7 +196,6 @@ export async function handleOnboard(
   // Check subdirectories
   const hasAdrs =
     context.tree.includes("adrs") || context.tree.includes("docs");
-  const hasGithub = context.tree.includes(".github");
 
   // 3. Build list of files to generate
   const toGenerate: { path: string; prompt: string }[] = [];
@@ -268,9 +268,10 @@ export async function handleOnboard(
     );
   }
 
-  if (toGenerate.length === 0) {
-    throw new Error("All onboarding files already exist — nothing to generate");
-  }
+  enforceTrue(
+    toGenerate.length !== 0,
+    new Error("All onboarding files already exist — nothing to generate"),
+  );
 
   console.log(`[floor] Onboard: generating ${toGenerate.length} files...`);
 

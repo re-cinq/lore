@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
@@ -63,7 +64,7 @@ function typeQuery(value: string) {
 
 function submit() {
   const form = document.querySelector("form");
-  if (!form) throw new Error("no form");
+  enforceTrue(form, new Error("no form"));
   fireEvent.submit(form);
 }
 

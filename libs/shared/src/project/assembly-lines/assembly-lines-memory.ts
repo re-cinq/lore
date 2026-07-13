@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { randomUUID } from "node:crypto";
 import type {
   AssemblyLinesPort,
@@ -92,7 +93,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     commitSha?: string,
   ): Promise<void> {
     const node = this.nodes.find((n) => n.id === nodeRowId);
-    if (!node) throw new Error(`no assembly line node row "${nodeRowId}"`);
+    enforceTrue(node, new Error(`no assembly line node row "${nodeRowId}"`));
     node.outcome = outcome;
     node.commitSha = commitSha ?? null;
     node.finishedAt = this.clock();
@@ -165,7 +166,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
 
   private mustFind(id: string): AssemblyLineRecord {
     const row = this.rows.find((r) => r.id === id);
-    if (!row) throw new Error(`no assembly line "${id}"`);
+    enforceTrue(row, new Error(`no assembly line "${id}"`));
     return row;
   }
 }

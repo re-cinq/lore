@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect } from "vitest";
 import {
   planTraceUnits,
@@ -31,8 +32,10 @@ describe("runTraceUnits (isolation)", () => {
   it("runs siblings and records the failure when one unit's projection throws", async () => {
     const projected: string[] = [];
     const project = async (unit: TraceUnit): Promise<void> => {
-      if (unit.filePath === "specs/bad/spec.md")
-        throw new Error("projection blew up");
+      enforceTrue(
+        unit.filePath !== "specs/bad/spec.md",
+        new Error("projection blew up"),
+      );
       projected.push(unit.filePath);
     };
 

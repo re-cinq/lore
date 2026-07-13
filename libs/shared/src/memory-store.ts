@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Memory store abstraction.
  *
@@ -90,10 +91,10 @@ export function selectMemoryStore(clients: {
 }): MemoryStore {
   const backend = process.env.LORE_MEMORY_BACKEND ?? "postgres";
   if (backend === "dgraph") {
-    if (!clients.dgraph)
-      throw new Error(
-        "LORE_MEMORY_BACKEND=dgraph but no dgraph client provided",
-      );
+    enforceTrue(
+      clients.dgraph,
+      new Error("LORE_MEMORY_BACKEND=dgraph but no dgraph client provided"),
+    );
     return new DgraphMemoryStore(clients.dgraph as DgraphClientPort);
   }
   if (backend !== "postgres") {
@@ -101,10 +102,10 @@ export function selectMemoryStore(clients: {
       `Unknown LORE_MEMORY_BACKEND="${backend}" (valid: postgres, dgraph)`,
     );
   }
-  if (!clients.pgPool)
-    throw new Error(
-      "LORE_MEMORY_BACKEND=postgres but no pgPool client provided",
-    );
+  enforceTrue(
+    clients.pgPool,
+    new Error("LORE_MEMORY_BACKEND=postgres but no pgPool client provided"),
+  );
   return new PostgresMemoryStore(clients.pgPool as PgPool);
 }
 
@@ -117,9 +118,9 @@ export function setMemoryStore(store: MemoryStore): void {
 }
 
 export function memoryStore(): MemoryStore {
-  if (!registeredStore)
-    throw new Error(
-      "No memory store configured — call setMemoryStore() at startup",
-    );
+  enforceTrue(
+    registeredStore,
+    new Error("No memory store configured — call setMemoryStore() at startup"),
+  );
   return registeredStore;
 }

@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Local Task Runner — manages local task execution via git worktrees
  * and background Claude Code processes.
@@ -161,12 +162,13 @@ export function validateRepoMatch(
   taskRepo: string,
   cwdRepo: string | null,
 ): void {
-  if (cwdRepo && cwdRepo !== taskRepo) {
-    throw new Error(
+  enforceTrue(
+    !(cwdRepo && cwdRepo !== taskRepo),
+    new Error(
       `target_repo mismatch: task expects '${taskRepo}' but current directory is a checkout of '${cwdRepo}'. ` +
         `cd to a checkout of ${taskRepo} before claiming this task.`,
-    );
-  }
+    ),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -520,9 +522,10 @@ export async function spawnLocalTask(opts: {
 
   const { taskId, prompt, repo, taskType, model } = opts;
   const repoRoot = opts.repoRoot || getRepoRoot();
-  if (!repoRoot) {
-    throw new Error("Not in a git repository — cannot create worktree");
-  }
+  enforceTrue(
+    repoRoot,
+    new Error("Not in a git repository — cannot create worktree"),
+  );
 
   // Refuse to run if the developer's cwd is a checkout of a different
   // repo than the task's target_repo — avoids pushing to the wrong remote.
@@ -536,9 +539,10 @@ export async function spawnLocalTask(opts: {
   const logFile = path.join(LOGS_DIR, `${taskId}.log`);
 
   // Bail if worktree already exists (idempotency)
-  if (fs.existsSync(worktreePath)) {
-    throw new Error(`Worktree already exists for task ${taskId}`);
-  }
+  enforceTrue(
+    !fs.existsSync(worktreePath),
+    new Error(`Worktree already exists for task ${taskId}`),
+  );
 
   // Create the worktree and branch
   execSync(`git worktree add "${worktreePath}" -b "${branch}"`, {
@@ -928,8 +932,8 @@ export function startNotifier(
   };
 
   // Run immediately, then on interval
-  poll();
-  notifierInterval = setInterval(poll, 30_000);
+  void poll();
+  notifierInterval = setInterval(() => void poll(), 30_000);
 }
 
 /** Stops the background notifier and removes the pending-tasks file. */

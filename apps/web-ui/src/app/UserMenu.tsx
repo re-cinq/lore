@@ -23,7 +23,7 @@ export default function UserMenu() {
         </span>
       </div>
       <button
-        onClick={() => signOut()}
+        onClick={() => void signOut()}
         className={`btn-secondary ${styles.signOut}`}
       >
         Sign out

@@ -85,7 +85,7 @@ describe("POST /api/memory", () => {
 
   it("writes via file fallback when memory DB unavailable", async () => {
     vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
-    vi.mocked(writeMemoryFile).mockResolvedValue({ id: "f" } as any);
+    vi.mocked(writeMemoryFile).mockReturnValue({ id: "f" } as any);
     const res = await post({ action: "write", key: "k", value: "v" });
     expect(res.result).toEqual({ id: "f" });
   });
@@ -133,21 +133,21 @@ describe("POST /api/memory", () => {
 
   it("reads a numeric version via file fallback", async () => {
     vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
-    vi.mocked(readMemoryFile).mockResolvedValue({ v: 2 } as any);
+    vi.mocked(readMemoryFile).mockReturnValue({ v: 2 } as any);
     await post({ action: "read", key: "k", version: "2" });
     expect(readMemoryFile).toHaveBeenCalledWith("k", undefined, 2);
   });
 
   it("reads full history via file with version=all", async () => {
     vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
-    vi.mocked(readMemoryFile).mockResolvedValue([{ v: 1 }] as any);
+    vi.mocked(readMemoryFile).mockReturnValue([{ v: 1 }] as any);
     await post({ action: "read", key: "k", version: "all" });
     expect(readMemoryFile).toHaveBeenCalledWith("k", undefined, "all");
   });
 
   it("reads latest via file fallback when no version given", async () => {
     vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
-    vi.mocked(readMemoryFile).mockResolvedValue({ v: 1 } as any);
+    vi.mocked(readMemoryFile).mockReturnValue({ v: 1 } as any);
     await post({ action: "read", key: "k" });
     expect(readMemoryFile).toHaveBeenCalledWith("k", undefined, undefined);
   });
@@ -182,7 +182,7 @@ describe("POST /api/memory", () => {
 
   it("searches via file fallback", async () => {
     vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
-    vi.mocked(searchMemoryFile).mockResolvedValue([] as any);
+    vi.mocked(searchMemoryFile).mockReturnValue([] as any);
     await post({ action: "search", query: "q" });
     expect(searchMemoryFile).toHaveBeenCalledWith("q", undefined, 10);
   });
@@ -201,7 +201,7 @@ describe("POST /api/memory", () => {
 
   it("deletes via file fallback", async () => {
     vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
-    vi.mocked(deleteMemoryFile).mockResolvedValue({ ok: 1 } as any);
+    vi.mocked(deleteMemoryFile).mockReturnValue({ ok: 1 } as any);
     await post({ action: "delete", key: "k" });
     expect(deleteMemoryFile).toHaveBeenCalled();
   });
@@ -249,7 +249,7 @@ describe("POST /api/memory", () => {
 
   it("lists via file fallback", async () => {
     vi.mocked(isMemoryDbAvailable).mockReturnValue(false);
-    vi.mocked(listMemoriesFile).mockResolvedValue({
+    vi.mocked(listMemoriesFile).mockReturnValue({
       memories: [],
       total: 0,
     } as any);

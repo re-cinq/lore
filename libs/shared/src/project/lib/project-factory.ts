@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { PgPool, DgraphClientPort } from "../../memory-store.js";
 import type { ProjectProviders } from "./providers.js";
 import type { LeasePool } from "../leases/lease-backends.js";
@@ -129,8 +130,9 @@ export function setProject(project: Project): void {
 }
 
 export function project(): Project {
-  if (!registeredProject) {
-    throw new Error("No Project registered — call setProject() during boot");
-  }
+  enforceTrue(
+    registeredProject,
+    new Error("No Project registered — call setProject() during boot"),
+  );
   return registeredProject;
 }

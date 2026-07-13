@@ -17,7 +17,9 @@ export function detectCurrentRepo(): string | null {
       cachedRepo = match[1];
       return cachedRepo;
     }
-  } catch {}
+  } catch {
+    // ignore; treat as not detected
+  }
   return null;
 }
 

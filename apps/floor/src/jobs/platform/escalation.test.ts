@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect, vi } from "vitest";
 import {
   escalate,
@@ -26,10 +27,11 @@ function mockIssues(
     async (title: string, body: string, labels?: string[]) => {
       createCalls.push({ title, body, labels });
       attempts++;
-      if (opts.alwaysFails) throw new Error("github 503");
-      if (opts.failures && attempts <= opts.failures) {
-        throw new Error("transient 502");
-      }
+      enforceTrue(!opts.alwaysFails, new Error("github 503"));
+      enforceTrue(
+        !(opts.failures && attempts <= opts.failures),
+        new Error("transient 502"),
+      );
       return { number: 42, url: "https://github.com/owner/repo/issues/42" };
     },
   );

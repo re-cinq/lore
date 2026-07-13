@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 // Floor-side assembly-line driver — IO entrypoint (ADR-031 D4, #686 Wave 2). Runs the
 // assembly line Floor-side: each agent-node dispatches its own Agent CR, github_action
 // nodes gate on CI, and the branch-as-state stage commits + resume happen via local git
@@ -171,11 +172,10 @@ export async function runFloorAssemblyLineForTask(
 ): Promise<SupervisorResult> {
   const definitions = await loadBuiltinAssemblyLines();
   const assemblyLine = definitions.get(task.taskType);
-  if (!assemblyLine) {
-    throw new Error(
-      `No assembly line defined for task type "${task.taskType}"`,
-    );
-  }
+  enforceTrue(
+    assemblyLine,
+    new Error(`No assembly line defined for task type "${task.taskType}"`),
+  );
   const holder = os.hostname();
   const { url, authArgs } = await rt.cloneAuth(task.targetRepo);
   const gitDir = await checkoutBranch(

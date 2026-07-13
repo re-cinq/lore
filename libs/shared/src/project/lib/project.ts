@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { ChunkStore } from "../chunks/chunks.js";
 import { IssueCollection } from "../issues/issues.js";
 import { RepoFiles } from "../repo/repo-files.js";
@@ -162,11 +163,12 @@ export class Project {
 
   private port<T>(name: string): T {
     const built = this.ports.get(name);
-    if (built === undefined) {
-      throw new Error(
+    enforceTrue(
+      built !== undefined,
+      new Error(
         `Project port "${name}" is not wired yet (pending its live adapter)`,
-      );
-    }
+      ),
+    );
     return built as T;
   }
 }

@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Incremental file ingestion module.
  *
@@ -64,9 +65,10 @@ export async function ingestFiles(
 }> {
   const schema = await resolveSchema(pool, repo);
 
-  if (!SCHEMA_RE.test(schema)) {
-    throw new Error(`Invalid schema name: ${schema}`);
-  }
+  enforceTrue(
+    SCHEMA_RE.test(schema),
+    new Error(`Invalid schema name: ${schema}`),
+  );
 
   // Determine if we need GitHub access (only for path-based files)
   const needsGitHub = files.some((f) => typeof f === "string");
@@ -74,9 +76,10 @@ export async function ingestFiles(
   let owner = "";
   let repoName = "";
   if (needsGitHub) {
-    if (!isConfigured()) {
-      throw new Error("GitHub App not configured — cannot fetch file content");
-    }
+    enforceTrue(
+      isConfigured(),
+      new Error("GitHub App not configured — cannot fetch file content"),
+    );
     octokit = await getOctokit();
     [owner, repoName] = repo.split("/");
   }

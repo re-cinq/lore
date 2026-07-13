@@ -178,7 +178,7 @@ export class PostgresMemoryStore implements MemoryStore {
     const offset = opts.offset ?? 0;
 
     // Scope by repo (preferred) or agent_id
-    let filter = "";
+    let filter: string;
     let params: any[];
     if (repo) {
       filter = "repo = $1 AND";

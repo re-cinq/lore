@@ -17,13 +17,17 @@ export function resolveAgentId(explicit?: string): string {
     if (existsSync(AGENT_ID_FILE)) {
       return readFileSync(AGENT_ID_FILE, "utf-8").trim();
     }
-  } catch {}
+  } catch {
+    // best-effort: ignore and fall through
+  }
 
   // 4. Generate and store
   const id = randomUUID();
   try {
     mkdirSync(AGENT_ID_DIR, { recursive: true });
     writeFileSync(AGENT_ID_FILE, id + "\n");
-  } catch {}
+  } catch {
+    // best-effort: ignore and fall through
+  }
   return id;
 }

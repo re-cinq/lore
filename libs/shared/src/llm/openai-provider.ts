@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * OpenAI (and OpenAI-compatible, e.g. Codex) chat-completions provider. Moved
  * from the facts.ts vendor switch and generalized: the request's systemPrompt +
@@ -62,7 +63,7 @@ export class OpenAiProvider implements LlmProvider {
     prompt: string,
   ): Promise<string> {
     const apiKey = this.opts.apiKey ?? process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error("OPENAI_API_KEY not set");
+    enforceTrue(apiKey, new Error("OPENAI_API_KEY not set"));
     const messages = [
       ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
       { role: "user", content: prompt },

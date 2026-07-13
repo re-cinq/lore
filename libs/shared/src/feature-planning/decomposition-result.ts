@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 // The decomposition of a finalized feature spec into an implementable tree:
 // user stories, each with its tasks. Produced by the `feature-decompose` agent
 // (ADR-029) and parsed leniently — the same drift tolerance as GapResult — so
@@ -33,8 +34,10 @@ function asStringList(v: unknown): string[] {
 function normalizeTask(raw: unknown, index: number): DecompTask {
   const id = `T${String(index + 1).padStart(3, "0")}`;
   if (typeof raw === "string") {
-    if (!raw.trim())
-      throw new Error("decomposition: task description is required");
+    enforceTrue(
+      raw.trim(),
+      new Error("decomposition: task description is required"),
+    );
     return {
       id,
       description: raw,
@@ -43,14 +46,18 @@ function normalizeTask(raw: unknown, index: number): DecompTask {
       phase: 0,
     };
   }
-  if (!raw || typeof raw !== "object")
-    throw new Error("decomposition: task must be an object or string");
+  enforceTrue(
+    !(!raw || typeof raw !== "object"),
+    new Error("decomposition: task must be an object or string"),
+  );
   const t = raw as Record<string, unknown>;
   const description =
     (typeof t.description === "string" && t.description) ||
     (typeof t.text === "string" && t.text);
-  if (!description)
-    throw new Error("decomposition: task description is required");
+  enforceTrue(
+    description,
+    new Error("decomposition: task description is required"),
+  );
   const task: DecompTask = {
     id: typeof t.id === "string" && t.id ? t.id : id,
     description,
@@ -64,14 +71,15 @@ function normalizeTask(raw: unknown, index: number): DecompTask {
 }
 
 function normalizeStory(raw: unknown): UserStory {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    throw new Error("decomposition: each story must be an object");
-  }
+  enforceTrue(
+    !(!raw || typeof raw !== "object" || Array.isArray(raw)),
+    new Error("decomposition: each story must be an object"),
+  );
   const s = raw as Record<string, unknown>;
   const title =
     (typeof s.title === "string" && s.title) ||
     (typeof s.name === "string" && s.name);
-  if (!title) throw new Error("decomposition: each story needs a title");
+  enforceTrue(title, new Error("decomposition: each story needs a title"));
   const tasksRaw = Array.isArray(s.tasks) ? s.tasks : [];
   return {
     title,
@@ -87,11 +95,14 @@ function normalizeStory(raw: unknown): UserStory {
  *  Throws on structural failure (no object root, no stories array, a titleless
  *  story, or a task with no description); tolerates field-name drift otherwise. */
 export function parseDecomposition(raw: unknown): DecompositionResult {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    throw new Error("decomposition: root must be an object");
-  }
+  enforceTrue(
+    !(!raw || typeof raw !== "object" || Array.isArray(raw)),
+    new Error("decomposition: root must be an object"),
+  );
   const stories = (raw as Record<string, unknown>).stories;
-  if (!Array.isArray(stories))
-    throw new Error("decomposition: stories must be an array");
+  enforceTrue(
+    Array.isArray(stories),
+    new Error("decomposition: stories must be an array"),
+  );
   return { stories: stories.map(normalizeStory) };
 }

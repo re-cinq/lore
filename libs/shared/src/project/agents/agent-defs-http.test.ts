@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createServer, type Server } from "node:http";
 import { AgentDefsHttp } from "./agent-defs-http.js";
@@ -38,8 +39,10 @@ beforeAll(async () => {
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const addr = server.address();
-  if (addr === null || typeof addr === "string")
-    throw new Error("no server address");
+  enforceTrue(
+    !(addr === null || typeof addr === "string"),
+    new Error("no server address"),
+  );
   baseUrl = `http://127.0.0.1:${addr.port}`;
 });
 

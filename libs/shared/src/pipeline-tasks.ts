@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { PgPool } from "./memory-store.js";
 
 /**
@@ -56,8 +57,10 @@ export async function createTask(
   const taskType = input.taskType ?? "general";
   const repo = input.targetRepo;
   const createdBy = input.createdBy ?? "ui";
-  if (input.description.length > 10000)
-    throw new Error("Description too long (max 10000 chars)");
+  enforceTrue(
+    input.description.length <= 10000,
+    new Error("Description too long (max 10000 chars)"),
+  );
 
   if (repo) {
     try {
@@ -70,11 +73,12 @@ export async function createTask(
         const trustLevel = settings.trust?.level;
         if (trustLevel && TRUST_LEVELS[trustLevel]) {
           const allowed = TRUST_LEVELS[trustLevel];
-          if (!allowed.includes(taskType)) {
-            throw new Error(
+          enforceTrue(
+            allowed.includes(taskType),
+            new Error(
               `Task type "${taskType}" not allowed at trust level "${trustLevel}" for ${repo}. Allowed: ${allowed.join(", ")}`,
-            );
-          }
+            ),
+          );
         }
       }
     } catch (err: any) {
@@ -149,12 +153,13 @@ export async function createTask(
 
 export async function retryTask(pool: PgPool, taskId: string): Promise<any> {
   const task = await getTask(pool, taskId);
-  if (!task) throw new Error("Task not found");
-  if (task.status !== "failed" && task.status !== "needs-human-help") {
-    throw new Error(
+  enforceTrue(task, new Error("Task not found"));
+  enforceTrue(
+    !(task.status !== "failed" && task.status !== "needs-human-help"),
+    new Error(
       `Cannot retry task in ${task.status} state (must be failed or needs-human-help)`,
-    );
-  }
+    ),
+  );
   const result = await createTask(pool, {
     description: task.description,
     taskType: task.task_type,
@@ -322,10 +327,11 @@ export async function updateTaskStatus(
 
 export async function cancelTask(pool: PgPool, taskId: string): Promise<any> {
   const task = await getTask(pool, taskId);
-  if (!task) throw new Error("Task not found");
-  if (["merged", "failed", "cancelled"].includes(task.status)) {
-    throw new Error(`Cannot cancel task in ${task.status} state`);
-  }
+  enforceTrue(task, new Error("Task not found"));
+  enforceTrue(
+    !["merged", "failed", "cancelled"].includes(task.status),
+    new Error(`Cannot cancel task in ${task.status} state`),
+  );
   await updateTaskStatus(pool, taskId, "cancelled", { cancelled_by: "user" });
   return { task_id: taskId, status: "cancelled" };
 }
@@ -335,12 +341,13 @@ export async function markTaskMerged(
   taskId: string,
 ): Promise<any> {
   const task = await getTask(pool, taskId);
-  if (!task) throw new Error("Task not found");
-  if (task.status !== "pr-created" && task.status !== "review") {
-    throw new Error(
+  enforceTrue(task, new Error("Task not found"));
+  enforceTrue(
+    !(task.status !== "pr-created" && task.status !== "review"),
+    new Error(
       `Cannot mark task as merged from ${task.status} state (expected pr-created or review)`,
-    );
-  }
+    ),
+  );
   await updateTaskStatus(pool, taskId, "merged", { merged_by: "manual" });
   return { task_id: taskId, status: "merged" };
 }

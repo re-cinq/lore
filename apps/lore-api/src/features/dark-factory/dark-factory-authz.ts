@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { Octokit } from "octokit";
 
 /**
@@ -50,12 +51,13 @@ export function parsePrRef(ref: string): {
   number: number;
 } {
   const m = ref.match(PR_REF_RE);
-  if (!m) {
-    throw new TwoKeyError(
+  enforceTrue(
+    m,
+    new TwoKeyError(
       `Invalid PR reference "${ref}" — expected owner/repo#N`,
       "invalid_pr_ref",
-    );
-  }
+    ),
+  );
   return { owner: m[1], repo: m[2], number: Number.parseInt(m[3], 10) };
 }
 
@@ -91,9 +93,10 @@ export async function verifyApproval(opts: {
       pull_number: number,
     });
   } catch (err) {
-    if ((err as { status?: number }).status === 404) {
-      throw new TwoKeyError(`Approval PR ${prRef} not found`, "pr_not_found");
-    }
+    enforceTrue(
+      (err as { status?: number }).status !== 404,
+      new TwoKeyError(`Approval PR ${prRef} not found`, "pr_not_found"),
+    );
     throw new TwoKeyError(
       `GitHub API error fetching ${prRef}: ${(err as Error).message}`,
       "github_api",
@@ -130,12 +133,13 @@ export async function verifyApproval(opts: {
     const labeled = e as unknown as { label?: { name?: string } };
     return labeled.label?.name === APPROVAL_LABEL;
   });
-  if (!labelEvent || !labelEvent.actor?.login) {
-    throw new TwoKeyError(
+  enforceTrue(
+    !(!labelEvent || !labelEvent.actor?.login),
+    new TwoKeyError(
       `Approval label "${APPROVAL_LABEL}" missing on PR ${prRef}`,
       "label_missing",
-    );
-  }
+    ),
+  );
 
   const approver = labelEvent.actor.login;
 
@@ -148,18 +152,19 @@ export async function verifyApproval(opts: {
     // glance whether they need to update CODEOWNERS to include direct
     // user handles for the approver, vs. the approver genuinely being
     // out of scope.
-    if (
-      codeowners.length > 0 &&
-      codeowners.every((row) => row.owners.every((o) => o.includes("/")))
-    ) {
-      throw new TwoKeyError(
+    enforceTrue(
+      !(
+        codeowners.length > 0 &&
+        codeowners.every((row) => row.owners.every((o) => o.includes("/")))
+      ),
+      new TwoKeyError(
         `${targetRepo}'s CODEOWNERS contains only team handles (e.g. @org/team); ` +
           `team-membership lookup is not implemented in v1. Add an explicit ` +
           `@user owner for the approver, or wait for the per-path team ` +
           `resolution follow-up.`,
         "team_membership_unresolved",
-      );
-    }
+      ),
+    );
     throw new TwoKeyError(
       `${approver} is not a CODEOWNERS member of ${targetRepo}`,
       "approver_not_codeowner",

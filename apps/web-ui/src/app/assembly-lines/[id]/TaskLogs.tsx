@@ -74,13 +74,13 @@ export default function TaskLogs({
 
   // Initial fetch
   useEffect(() => {
-    fetchLogs();
+    void fetchLogs();
   }, [fetchLogs]);
 
   // Poll while running
   useEffect(() => {
     if (!ACTIVE_STATES.has(status) || accessDenied) return;
-    const id = setInterval(fetchLogs, POLL_INTERVAL_MS);
+    const id = setInterval(() => void fetchLogs(), POLL_INTERVAL_MS);
     return () => clearInterval(id);
   }, [fetchLogs, status, accessDenied]);
 

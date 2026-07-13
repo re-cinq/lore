@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Parsers for the deterministic, zero-LLM output of the project's test
  * commands: `parseTestDescriptors` turns `tests.list` stdout into
@@ -78,7 +79,7 @@ function parseCoveredChunks(raw: unknown): CoveredChunk[] {
 }
 
 function asArray(raw: unknown, what: string): Record<string, unknown>[] {
-  if (!Array.isArray(raw)) throw new Error(`${what}: expected an array`);
+  enforceTrue(Array.isArray(raw), new Error(`${what}: expected an array`));
   return raw as Record<string, unknown>[];
 }
 
@@ -88,9 +89,10 @@ function requireString(
   what: string,
 ): string {
   const value = entry[field];
-  if (typeof value !== "string" || value === "") {
-    throw new Error(`${what}: '${field}' is required`);
-  }
+  enforceTrue(
+    !(typeof value !== "string" || value === ""),
+    new Error(`${what}: '${field}' is required`),
+  );
   return value;
 }
 
@@ -100,7 +102,9 @@ function requireNumber(
   what: string,
 ): number {
   const value = entry[field];
-  if (typeof value !== "number")
-    throw new Error(`${what}: '${field}' is required`);
+  enforceTrue(
+    typeof value === "number",
+    new Error(`${what}: '${field}' is required`),
+  );
   return value;
 }

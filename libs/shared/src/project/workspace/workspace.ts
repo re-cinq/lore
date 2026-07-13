@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { GitPort } from "./git-port.js";
 import type { PullRequestsPort, PullRef } from "../pulls/pull-requests-port.js";
 
@@ -45,8 +46,10 @@ export class Workspace {
     body: string,
     base?: string,
   ): Promise<PullRef> {
-    if (!this.pulls)
-      throw new Error("This Workspace has no pulls port to open a PR");
+    enforceTrue(
+      this.pulls,
+      new Error("This Workspace has no pulls port to open a PR"),
+    );
     await this.git.push(this.dir, branch);
     return this.pulls.open(this.repo, branch, title, body, base);
   }

@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Bearer-token scope auth as a hapi scheme + strategy (ADR-033) — the
  * framework-native replacement for the legacy dispatcher's inline
@@ -43,19 +44,20 @@ const scheme =
       const bearer = (
         Array.isArray(authHeader) ? authHeader[0] : authHeader
       )?.replace("Bearer ", "");
-      if (!bearer) throw denied(401, "unauthorized");
+      enforceTrue(bearer, denied(401, "unauthorized"));
 
       const scopes = await resolveTokenScopes(getPool(), bearer);
-      if (!scopes) throw denied(403, "insufficient scope");
+      enforceTrue(scopes, denied(403, "insufficient scope"));
 
       const routeConfig = request.route.settings.plugins as Record<
         string,
         { scope?: TokenScope } | undefined
       >;
       const required = routeConfig[STRATEGY]?.scope;
-      if (required && !scopes.includes("admin") && !scopes.includes(required)) {
-        throw denied(403, "insufficient scope");
-      }
+      enforceTrue(
+        !(required && !scopes.includes("admin") && !scopes.includes(required)),
+        denied(403, "insufficient scope"),
+      );
       return h.authenticated({ credentials: { scope: scopes } });
     },
   });

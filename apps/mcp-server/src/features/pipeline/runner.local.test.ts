@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -10,9 +10,7 @@ import * as os from "node:os";
 
 import {
   readConfig,
-  writeConfig,
   listPendingTasks,
-  skipTask,
   validateRepoMatch,
   cancelLocalTask,
   type LocalRunnerConfig,
@@ -145,11 +143,9 @@ describe("writeConfig + readConfig round-trip", () => {
 
 describe("pending task helpers", () => {
   let tmpDir: string;
-  let pendingFile: string;
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "lore-pending-test-"));
-    pendingFile = path.join(tmpDir, "pending-tasks.json");
   });
 
   afterEach(() => {

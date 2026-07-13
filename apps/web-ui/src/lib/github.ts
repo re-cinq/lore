@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * GitHub API client for the web-ui.
  * Uses GitHub App authentication (same credentials as MCP server).
@@ -38,9 +39,10 @@ async function octokit(): Promise<Octokit> {
   const appId = process.env.GITHUB_APP_ID || "";
   const privateKey = process.env.GITHUB_APP_PRIVATE_KEY || "";
   const installationId = process.env.GITHUB_APP_INSTALLATION_ID || "";
-  if (!appId || !privateKey || !installationId) {
-    throw new Error("GitHub App credentials not configured");
-  }
+  enforceTrue(
+    !(!appId || !privateKey || !installationId),
+    new Error("GitHub App credentials not configured"),
+  );
   return new Octokit({
     authStrategy: createAppAuth,
     auth: { appId, privateKey, installationId },

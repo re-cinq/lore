@@ -12,11 +12,11 @@
 const PATTERNS: Array<{ name: string; re: RegExp }> = [
   {
     name: "api-key",
-    re: /(?:sk-|ghp_|ghs_|AKIA|xoxb-|xoxp-|glpat-)[A-Za-z0-9_\-]{20,}/g,
+    re: /(?:sk-|ghp_|ghs_|AKIA|xoxb-|xoxp-|glpat-)[A-Za-z0-9_-]{20,}/g,
   },
   {
     name: "jwt",
-    re: /eyJ[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}/g,
+    re: /eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/g,
   },
   {
     name: "private-key",
@@ -27,8 +27,8 @@ const PATTERNS: Array<{ name: string; re: RegExp }> = [
     re: /(?:postgres|mysql|mongodb|redis|amqp):\/\/[^\s"'`]+/g,
   },
   { name: "bearer-token", re: /Bearer\s+[A-Za-z0-9_\-.]{20,}/g },
-  { name: "github-token", re: /x-access-token:[A-Za-z0-9_\-]{20,}/g },
-  { name: "base64-blob", re: /[A-Za-z0-9+\/]{100,}={0,2}/g },
+  { name: "github-token", re: /x-access-token:[A-Za-z0-9_-]{20,}/g },
+  { name: "base64-blob", re: /[A-Za-z0-9+/]{100,}={0,2}/g },
 ];
 
 export function redactSecrets(

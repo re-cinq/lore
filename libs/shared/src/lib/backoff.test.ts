@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect, vi } from "vitest";
 import { withBackoff } from "./backoff.js";
 
@@ -18,7 +19,7 @@ describe("withBackoff", () => {
     const result = await withBackoff(
       async () => {
         calls += 1;
-        if (calls < 3) throw new Error(`fail ${calls}`);
+        enforceTrue(calls >= 3, new Error(`fail ${calls}`));
         return "recovered";
       },
       { delaysMs: [1000, 4000], sleep },

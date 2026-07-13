@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import * as os from "node:os";
 import type { LeaseBackend } from "@re-cinq/lore-shared/project/leases/lease-backends.js";
 import {
@@ -176,11 +177,12 @@ export async function runSupervisor(
       );
       return { ranWork: true, reason: "executor_pending" };
     }
-    if (!opts.gitDir) {
-      throw new Error(
+    enforceTrue(
+      opts.gitDir,
+      new Error(
         "[supervisor] gitDir required when assemblyLine + handlers are provided",
-      );
-    }
+      ),
+    );
 
     console.log(
       `[supervisor] Walking assemblyLine ${opts.assemblyLine.name} on ${opts.branchName} as ${holder}`,
