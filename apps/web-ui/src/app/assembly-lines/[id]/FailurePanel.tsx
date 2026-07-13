@@ -24,11 +24,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   unknown: "Unknown",
 };
 
-function categoryLabel(category?: string): string {
-  if (!category) {
-    return "";
-  }
-
+function categoryLabel(category: string): string {
   return CATEGORY_LABELS[category] ?? category;
 }
 
