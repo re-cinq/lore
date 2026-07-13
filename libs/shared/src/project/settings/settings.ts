@@ -42,4 +42,8 @@ export class Settings {
   markIngested(): Promise<void> {
     return this.settings.markIngested(this.repo);
   }
+
+  isOnboarded(): Promise<boolean> {
+    return this.settings.isOnboarded(this.repo);
+  }
 }

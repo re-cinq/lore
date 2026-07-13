@@ -37,6 +37,13 @@ export interface FindOpenLikeInput {
   statuses: readonly string[];
 }
 
+/** A spec-drift dedup row — status + age + the issue it opened (if any). */
+export interface DriftTaskRow {
+  status: string;
+  created_at: string | Date;
+  issue_number: number | null;
+}
+
 export interface TaskTransitionMeta {
   agentId?: string;
 }
@@ -61,6 +68,8 @@ export interface TaskStorePort {
   getWithEvents(id: string): Promise<TaskWithEvents | null>;
   /** Open (per `statuses`) tasks of one type whose description starts with the prefix — job dedup. */
   findOpenLike(input: FindOpenLikeInput): Promise<PipelineTask[]>;
+  /** Drift dedup: tasks of one type for a repo keyed by `context_bundle->>'spec_path'`. */
+  driftTasksForSpec(repo: string, taskType: string, specPath: string): Promise<DriftTaskRow[]>;
   // writes
   create(input: CreateTaskInput): Promise<any>;
   retry(id: string): Promise<any>;

@@ -120,6 +120,46 @@ describe("PgChunks adapter", () => {
       new PgChunks(pool).countChunks("a; DROP TABLE", "octo/repo"),
     ).rejects.toThrow(new Error('Invalid schema name: "a; DROP TABLE"'));
   });
+
+  it("reads a repo's spec chunks from org_shared", async () => {
+    const { pool, calls } = fakePool({
+      rows: [{ id: "1", repo: "octo/repo", file_path: "specs/s.md", content: "x" }],
+    });
+
+    const specs = await new PgChunks(pool).specChunks("octo/repo");
+
+    expect(specs).toEqual([{ id: "1", repo: "octo/repo", filePath: "specs/s.md", content: "x" }]);
+    expect(calls[0]?.text).toContain("FROM org_shared.chunks");
+    expect(calls[0]?.text).toContain("content_type = 'spec'");
+    expect(calls[0]?.params).toEqual(["octo/repo"]);
+  });
+
+  it("reads a repo's code symbols from org_shared", async () => {
+    const { pool, calls } = fakePool({
+      rows: [{ symbol_name: "runDetect", symbol_type: "function", file_path: "a.ts" }],
+    });
+
+    const symbols = await new PgChunks(pool).codeSymbols("octo/repo");
+
+    expect(symbols).toEqual([{ symbolName: "runDetect", symbolType: "function", filePath: "a.ts" }]);
+    expect(calls[0]?.text).toContain("symbol_name");
+    expect(calls[0]?.params).toEqual(["octo/repo"]);
+  });
+
+  it("checks chunk existence by content type and optional file suffix", async () => {
+    const { pool, calls } = fakePool({ rows: [{ id: "1" }] });
+
+    expect(await new PgChunks(pool).hasChunk("octo/repo", "doc", "CLAUDE.md")).toBe(true);
+    expect(calls[0]?.text).toContain("file_path LIKE");
+    expect(calls[0]?.params).toEqual(["octo/repo", "doc", "%CLAUDE.md"]);
+  });
+
+  it("counts stale chunks older than N days", async () => {
+    const { pool, calls } = fakePool({ rows: [{ count: "13" }] });
+
+    expect(await new PgChunks(pool).staleChunkCount("octo/repo", 90)).toBe(13);
+    expect(calls[0]?.params).toEqual(["octo/repo", "90"]);
+  });
 });
 
 describe("InMemoryChunks double", () => {
@@ -179,5 +219,48 @@ describe("InMemoryChunks double", () => {
     await expect(
       chunks.insertChunk("a; DROP TABLE", sampleChunk),
     ).rejects.toThrow(new Error('Invalid schema name: "a; DROP TABLE"'));
+  });
+
+  it("reads spec chunks and code symbols for a repo from org_shared", async () => {
+    const chunks = new InMemoryChunks();
+    await chunks.insertChunk("org_shared", { ...sampleChunk, contentType: "spec", filePath: "specs/s.md" });
+    await chunks.insertChunk("org_shared", {
+      ...sampleChunk,
+      contentType: "code",
+      filePath: "a.ts",
+      metadata: { symbol_name: "runDetect", symbol_type: "function" },
+    });
+    await chunks.insertChunk("org_shared", {
+      ...sampleChunk,
+      contentType: "code",
+      filePath: "b.ts",
+      metadata: {}, // no symbol_name → excluded
+    });
+
+    expect(await chunks.specChunks("octo/repo")).toMatchObject([{ filePath: "specs/s.md", content: "hello world" }]);
+    expect(await chunks.codeSymbols("octo/repo")).toEqual([
+      { symbolName: "runDetect", symbolType: "function", filePath: "a.ts" },
+    ]);
+  });
+
+  it("reports chunk existence by content type and file suffix", async () => {
+    const chunks = new InMemoryChunks();
+    await chunks.insertChunk("org_shared", { ...sampleChunk, contentType: "doc", filePath: "docs/CLAUDE.md" });
+
+    expect(await chunks.hasChunk("octo/repo", "doc", "CLAUDE.md")).toBe(true);
+    expect(await chunks.hasChunk("octo/repo", "doc", "AGENTS.md")).toBe(false);
+    expect(await chunks.hasChunk("octo/repo", "adr")).toBe(false);
+  });
+
+  it("counts stale chunks by ingestedAt age", async () => {
+    const old = new Date(Date.now() - 100 * 86_400_000).toISOString();
+    const fresh = new Date().toISOString();
+    const chunks = new InMemoryChunks();
+    await chunks.insertChunk("org_shared", { ...sampleChunk, filePath: "a" });
+    await chunks.insertChunk("org_shared", { ...sampleChunk, filePath: "b" });
+    chunks.rows[0]!.ingestedAt = old;
+    chunks.rows[1]!.ingestedAt = fresh;
+
+    expect(await chunks.staleChunkCount("octo/repo", 90)).toBe(1);
   });
 });

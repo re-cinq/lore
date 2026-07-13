@@ -105,9 +105,12 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
     // `done` is the exit marker — reached, not executed.
     expect(result.summary?.visited.map((v) => v.nodeId)).toEqual(["implement", "ci", "wrap"]);
 
-    // The agent node dispatched exactly one per-node Agent CR with the node's prompt.
-    expect(dispatched).toHaveLength(1);
+    // Every node dispatches its own CR — the agent runs the LLM, github_action +
+    // retrospective are stations (ADR-031 amendment: no in-process node handlers).
+    expect(dispatched).toHaveLength(3);
     expect(dispatched[0]).toMatchObject({ name: "a1b2c3d4-implement", prompt: "prompt:implement" });
+    expect(dispatched[1]).toMatchObject({ name: "a1b2c3d4-ci", stationRef: "def-github_action" });
+    expect(dispatched[2]).toMatchObject({ name: "a1b2c3d4-wrap", stationRef: "def-retrospective" });
 
     // Branch-as-state: stage commits with trailers landed on the branch.
     const log = await execFile("git", ["-C", repoDir, "log", "--format=%B"]);
@@ -155,9 +158,19 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
     expect(supervisorOutcome({ ranWork: true, reason: "executor_error" })).toBe("error");
   });
 
-  it("loops back to the agent when CI is red, then proceeds once it goes green", async () => {
-    let ci = 0;
-    const { ports: p, dispatched } = ports({ ciConclusion: async () => (ci++ === 0 ? "failure" : "success") });
+  it("loops back to the agent when the CI station reports failed, then proceeds once it passes", async () => {
+    let ciAttempt = 0;
+    // The github_action station is a pod now; its outcome rides the LORE_NODE_RESULT
+    // line in Agent.status.output. Fail the first ci run, pass the second.
+    const { ports: p, dispatched } = ports({
+      agentStatus: async (_alId, nodeId) => {
+        if (nodeId === "ci") {
+          const outcome = ciAttempt++ === 0 ? "failed" : "success";
+          return { phase: "Succeeded", output: `LORE_NODE_RESULT: {"outcome":"${outcome}","extras":{}}` };
+        }
+        return { phase: "Succeeded" };
+      },
+    });
     const result = await runFloorAssemblyLine({
       task,
       assemblyLine,
@@ -168,11 +181,11 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
     });
 
     expect(result.reason).toBe("completed");
-    // implement → ci(red) → implement → ci(green) → wrap → [done exit]
+    // implement → ci(failed) → implement → ci(success) → wrap → [done exit]
     expect(result.summary?.visited.map((v) => v.nodeId)).toEqual([
       "implement", "ci", "implement", "ci", "wrap",
     ]);
-    expect(dispatched).toHaveLength(2); // the agent node ran twice
+    expect(dispatched.filter((d) => d.name === "a1b2c3d4-implement")).toHaveLength(2); // agent ran twice
   });
 });
 

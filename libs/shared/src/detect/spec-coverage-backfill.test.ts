@@ -4,7 +4,7 @@ import {
   pickStatementsForBackfill,
   type Suggestion,
 } from "./spec-coverage-backfill.js";
-import type { Statement, Classification } from "@re-cinq/lore-shared";
+import type { Statement, Classification } from "../index.js";
 
 const heuristic = (testability: "testable" | "untestable", category: Classification["category"] = null): Classification => ({
   testability, category, matchedBySection: testability === "untestable",

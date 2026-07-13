@@ -38,6 +38,7 @@ function fakeStore(rows: PipelineTask[]): TaskStorePort {
           r.description.startsWith(descriptionPrefix) &&
           statuses.includes(r.status),
       ),
+    driftTasksForSpec: async () => [],
     create: async (input) => ({ task_id: "new", task_type: input.taskType ?? "general", status: "pending" }),
     retry: async (id) => ({ task_id: "new", status: "pending", retry_of: id }),
     list: async () => ({ tasks: rows, total: rows.length }),
