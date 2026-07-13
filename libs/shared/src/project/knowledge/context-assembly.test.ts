@@ -208,7 +208,7 @@ describe("hybridChunkItems", () => {
               content_type: "code",
               score: 0.42,
             },
-          ],
+          ] as T[],
         };
       },
     };
@@ -245,7 +245,7 @@ describe("hybridChunkItems", () => {
               content_type: "code",
               score: 0.5,
             },
-          ],
+          ] as T[],
         };
       },
     };

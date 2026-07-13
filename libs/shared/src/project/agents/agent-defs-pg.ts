@@ -57,7 +57,7 @@ export class PgAgentDefs implements AgentDefsPort {
   ) {}
 
   async resolve(repo: string, name: string): Promise<AgentDefinition | null> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<AgentRow>(
       `SELECT ${JOIN_COLS} FROM lore.agent_definitions a
          LEFT JOIN lore.repos r ON r.id = a.project_id
         WHERE a.name = $1 AND (a.project_id IS NULL OR r.full_name = $2)`,
@@ -74,7 +74,7 @@ export class PgAgentDefs implements AgentDefsPort {
   }
 
   async list(repo: string): Promise<AgentDefinition[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<AgentRow>(
       `SELECT ${JOIN_COLS} FROM lore.agent_definitions a
          LEFT JOIN lore.repos r ON r.id = a.project_id
         WHERE a.project_id IS NULL OR r.full_name = $1`,

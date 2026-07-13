@@ -94,7 +94,7 @@ describe("PgKnowledge", () => {
 
   it("assembles repo context through the relocated engine, bound to the repo", async () => {
     const sqlKeyedPool: PgPool = {
-      query: async (text: string) => {
+      query: async <T>(text: string): Promise<{ rows: T[] }> => {
         if (text.includes("content_type = ANY")) {
           return {
             rows: [
@@ -103,7 +103,7 @@ describe("PgKnowledge", () => {
                 file_path: "CLAUDE.md",
                 content_type: "doc",
               },
-            ],
+            ] as T[],
           };
         }
 

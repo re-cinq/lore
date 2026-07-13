@@ -23,7 +23,7 @@ export class PgEvalRuns implements EvalRunsPort {
     limit: number,
     offset = 0,
   ): Promise<EvalRunSample[]> {
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<{ pass_rate: number }>(
       `SELECT pass_rate FROM pipeline.eval_runs
        WHERE team = $1
        ORDER BY run_at DESC

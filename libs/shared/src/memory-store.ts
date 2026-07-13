@@ -14,7 +14,10 @@ import { enforceTrue } from "./lib/enforce.js";
  * module so the contract lives with the interface, not the implementation.
  */
 export type PgPool = {
-  query(text: string, params?: unknown[]): Promise<{ rows: any[] }>;
+  query<T = Record<string, unknown>>(
+    text: string,
+    params?: unknown[],
+  ): Promise<{ rows: T[] }>;
 };
 
 /**
@@ -26,7 +29,7 @@ export interface DgraphTxn {
   queryWithVars(
     query: string,
     vars: Record<string, string>,
-  ): Promise<{ data: any }>;
+  ): Promise<{ data: Record<string, Record<string, unknown>[]> }>;
   mutate(req: {
     setJson?: unknown;
     setNquads?: string;

@@ -26,7 +26,7 @@ export async function queryLiveGraph(
   const validFilter = includeInvalidated ? "" : "AND e.valid_to IS NULL";
 
   if (entity) {
-    const { rows } = await pool.query(
+    const { rows } = await pool.query<LiveGraphResult>(
       `SELECT
          s.name as entity, s.entity_type,
          e.relation_type as relation,
@@ -62,7 +62,7 @@ export async function queryLiveGraph(
     return rows;
   }
 
-  const { rows } = await pool.query(
+  const { rows } = await pool.query<LiveGraphResult>(
     `SELECT
        s.name as entity, s.entity_type,
        e.relation_type as relation,

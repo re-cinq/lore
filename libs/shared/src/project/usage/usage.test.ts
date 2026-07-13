@@ -9,7 +9,7 @@ function fakePool(): {
 } {
   const calls: Array<{ text: string; params?: unknown[] }> = [];
   const pool: PgPool = {
-    async query(text: string, params?: unknown[]) {
+    async query<T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> {
       calls.push({ text, params });
 
       return { rows: [] };
@@ -45,12 +45,12 @@ describe("PgUsage adapter", () => {
 
   it("returns today and total llm_call counts", async () => {
     const pool: PgPool = {
-      async query(text: string) {
+      async query<T>(text: string): Promise<{ rows: T[] }> {
         if (text.includes("current_date")) {
-          return { rows: [{ today: 3 }] };
+          return { rows: [{ today: 3 }] as T[] };
         }
 
-        return { rows: [{ total: 42 }] };
+        return { rows: [{ total: 42 }] as T[] };
       },
     };
 

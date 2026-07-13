@@ -57,7 +57,7 @@ export class PgKnowledge implements KnowledgePort {
     contentType: "spec" | "adr",
   ): Promise<DocRef[]> {
     const schema = await this.resolveSchema(repo);
-    const { rows } = await this.pool.query(
+    const { rows } = await this.pool.query<{ file_path: string }>(
       `SELECT DISTINCT file_path FROM ${schema}.chunks
         WHERE content_type = $1 AND repo = $2 AND file_path LIKE '%.md'
         ORDER BY file_path`,

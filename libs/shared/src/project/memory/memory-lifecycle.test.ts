@@ -16,10 +16,10 @@ function fakePool(responses: Array<{ rows: unknown[] }> = []): {
   const calls: Array<{ text: string; params?: unknown[] }> = [];
   let i = 0;
   const pool: PgPool = {
-    async query(text: string, params?: unknown[]) {
+    async query<T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> {
       calls.push({ text, params });
 
-      return responses[i++] ?? { rows: [] };
+      return (responses[i++] ?? { rows: [] }) as { rows: T[] };
     },
   };
 
