@@ -48,7 +48,7 @@ export function PoolValueCell({ value }: { value: string }) {
           type="button"
           className="btn-secondary"
           style={btnStyle}
-          onClick={copy}
+          onClick={() => void copy()}
         >
           {copied ? "Copied" : "Copy"}
         </button>

@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import RouteError from '@/components/RouteError';
+import RouteError from "@/components/RouteError";
 
 export default function GlobalError({
   error,

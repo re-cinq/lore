@@ -1,6 +1,6 @@
-import { SubmitButton } from '@/components/SubmitButton';
-import { TaskTypeSelect } from '@/components/TaskTypeSelect';
-import styles from './RepoTaskCreateView.module.css';
+import { SubmitButton } from "@/components/SubmitButton";
+import { TaskTypeSelect } from "@/components/TaskTypeSelect";
+import styles from "./RepoTaskCreateView.module.css";
 
 export interface RepoTaskCreateViewProps {
   fullName: string;
@@ -14,7 +14,10 @@ export interface RepoTaskCreateViewProps {
  * hands in the create action which the form fires back up, keeping this
  * component free of data access.
  */
-export default function RepoTaskCreateView({ fullName, createTaskAction }: RepoTaskCreateViewProps) {
+export default function RepoTaskCreateView({
+  fullName,
+  createTaskAction,
+}: RepoTaskCreateViewProps) {
   return (
     <div>
       <h2>New Task for {fullName}</h2>
@@ -24,21 +27,28 @@ export default function RepoTaskCreateView({ fullName, createTaskAction }: RepoT
         <label>Task Type</label>
         <TaskTypeSelect
           options={[
-            { value: 'feature-request', label: 'Feature Request' },
-            { value: 'general', label: 'General' },
-            { value: 'runbook', label: 'Runbook' },
-            { value: 'implementation', label: 'Implementation' },
-            { value: 'gap-fill', label: 'Gap Fill' },
+            { value: "feature-request", label: "Feature Request" },
+            { value: "general", label: "General" },
+            { value: "runbook", label: "Runbook" },
+            { value: "implementation", label: "Implementation" },
+            { value: "gap-fill", label: "Gap Fill" },
           ]}
         />
 
         <label>Description</label>
-        <textarea name="description" rows={5} required placeholder="Describe what you want built. Plain language is fine — the agent will translate it into a proper spec following this repo's conventions." />
+        <textarea
+          name="description"
+          rows={5}
+          required
+          placeholder="Describe what you want built. Plain language is fine — the agent will translate it into a proper spec following this repo's conventions."
+        />
 
         <label className={styles.checkboxLabel}>
           <input type="checkbox" name="priority" value="immediate" />
           <span>Execute immediately</span>
-          <span className={`meta ${styles.hint}`}>— runs on GKE now instead of waiting for local pickup</span>
+          <span className={`meta ${styles.hint}`}>
+            — runs on GKE now instead of waiting for local pickup
+          </span>
         </label>
 
         <SubmitButton pendingLabel="Creating…">Create Task</SubmitButton>

@@ -1,13 +1,17 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 
 export function CancelTaskButton({ taskId }: { taskId: string }) {
   const [confirming, setConfirming] = useState(false);
 
   if (!confirming) {
     return (
-      <button type="button" className="danger" onClick={() => setConfirming(true)}>
+      <button
+        type="button"
+        className="danger"
+        onClick={() => setConfirming(true)}
+      >
         Cancel Task
       </button>
     );
@@ -17,7 +21,7 @@ export function CancelTaskButton({ taskId }: { taskId: string }) {
     <form
       action={`/api/assembly-lines/${taskId}/cancel`}
       method="POST"
-      style={{ display: 'flex', gap: 10, alignItems: 'center' }}
+      style={{ display: "flex", gap: 10, alignItems: "center" }}
     >
       <span>Cancel this task?</span>
       <button type="submit" className="danger">

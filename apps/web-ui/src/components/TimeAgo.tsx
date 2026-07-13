@@ -2,6 +2,7 @@ import { formatRelativeTime } from "@/lib/assembly-lines";
 
 export function TimeAgo({
   date,
+  // eslint-disable-next-line react-hooks/purity -- rendered once per request by server components; tests inject nowMs
   nowMs = Date.now(),
   inline = false,
 }: {
