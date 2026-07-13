@@ -12,7 +12,8 @@
  * the backend reports the graph is unavailable — it never red-Xes a PR.
  */
 
-export const TRACE_IMPACT_WORKFLOW_PATH = ".github/workflows/lore-trace-impact.yml";
+export const TRACE_IMPACT_WORKFLOW_PATH =
+  ".github/workflows/lore-trace-impact.yml";
 
 export const TRACE_IMPACT_WORKFLOW_VERSION = 1;
 
@@ -122,14 +123,20 @@ jobs:
 export type TraceImpactWorkflowStatus = "missing" | "stale" | "aligned";
 
 /** Read the `# lore-trace-impact-version: N` marker, or null when absent. */
-export function parseTraceImpactWorkflowVersion(content: string): number | null {
+export function parseTraceImpactWorkflowVersion(
+  content: string,
+): number | null {
   const match = content.match(/^#\s*lore-trace-impact-version:\s*(\d+)/m);
   return match ? parseInt(match[1], 10) : null;
 }
 
 /** Classify a repo's installed workflow against the canonical version. */
-export function traceImpactWorkflowStatus(content: string | null): TraceImpactWorkflowStatus {
+export function traceImpactWorkflowStatus(
+  content: string | null,
+): TraceImpactWorkflowStatus {
   if (content === null) return "missing";
   const version = parseTraceImpactWorkflowVersion(content);
-  return version !== null && version >= TRACE_IMPACT_WORKFLOW_VERSION ? "aligned" : "stale";
+  return version !== null && version >= TRACE_IMPACT_WORKFLOW_VERSION
+    ? "aligned"
+    : "stale";
 }

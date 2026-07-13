@@ -6,7 +6,7 @@
  * See web-ui/CLAUDE.md and `lib/test-paths.ts` for the mirror pattern.
  */
 
-export const LORE_INGEST_WORKFLOW_PATH = '.github/workflows/lore-ingest.yml';
+export const LORE_INGEST_WORKFLOW_PATH = ".github/workflows/lore-ingest.yml";
 
 export const LORE_INGEST_WORKFLOW_VERSION = 3;
 
@@ -77,7 +77,7 @@ jobs:
             || echo "::warning::Could not reach Lore ingest-graph endpoint for \${{ matrix.kind }}"
 `;
 
-export type IngestWorkflowStatus = 'missing' | 'stale' | 'aligned';
+export type IngestWorkflowStatus = "missing" | "stale" | "aligned";
 
 /** Read the `# lore-ingest-version: N` marker, or null when absent. */
 export function parseIngestWorkflowVersion(content: string): number | null {
@@ -90,8 +90,12 @@ export function parseIngestWorkflowVersion(content: string): number | null {
  * `null` content means the file is absent. A missing or older marker is
  * `stale` (legacy installs predate the marker and carry the broken body).
  */
-export function ingestWorkflowStatus(content: string | null): IngestWorkflowStatus {
-  if (content === null) return 'missing';
+export function ingestWorkflowStatus(
+  content: string | null,
+): IngestWorkflowStatus {
+  if (content === null) return "missing";
   const version = parseIngestWorkflowVersion(content);
-  return version !== null && version >= LORE_INGEST_WORKFLOW_VERSION ? 'aligned' : 'stale';
+  return version !== null && version >= LORE_INGEST_WORKFLOW_VERSION
+    ? "aligned"
+    : "stale";
 }

@@ -40,16 +40,20 @@ class FakeAgentApi implements AgentApi {
   }
 }
 
-const ctx = (value: string | undefined): ContextSource => ({ assemble: async () => value });
+const ctx = (value: string | undefined): ContextSource => ({
+  assemble: async () => value,
+});
 
 describe("context hydration (D5)", () => {
   it("specToAgent adds the context parameter when provided", () => {
-    expect(specToAgent(baseSpec, "conventions + ADRs").spec?.parameters?.context).toBe(
-      "conventions + ADRs",
-    );
+    expect(
+      specToAgent(baseSpec, "conventions + ADRs").spec?.parameters?.context,
+    ).toBe("conventions + ADRs");
   });
   it("specToAgent omits context when not provided", () => {
-    expect(specToAgent(baseSpec).spec?.parameters).not.toHaveProperty("context");
+    expect(specToAgent(baseSpec).spec?.parameters).not.toHaveProperty(
+      "context",
+    );
   });
   it("launch injects the assembled context into the Agent parameters", async () => {
     const api = new FakeAgentApi();
@@ -96,7 +100,9 @@ describe("specToAgent", () => {
       extraLabels: { "lore.re-cinq.com/dark-factory": "true" },
     });
     expect(agent.metadata?.name).toBe("review-run-7");
-    expect(agent.metadata?.labels?.["lore.re-cinq.com/dark-factory"]).toBe("true");
+    expect(agent.metadata?.labels?.["lore.re-cinq.com/dark-factory"]).toBe(
+      "true",
+    );
     expect(agent.spec?.parameters?.pr_number).toBe("7");
   });
 });
@@ -106,7 +112,9 @@ describe("AgentCrBackend.launch", () => {
     const api = new FakeAgentApi({ name: "agent-abcdef12", created: true });
     const result = await new AgentCrBackend(api).launch(baseSpec);
     expect(result).toEqual({ ref: "agent-abcdef12", launched: true });
-    expect(api.created[0].metadata?.labels?.[TASK_ID_LABEL]).toBe(baseSpec.taskId);
+    expect(api.created[0].metadata?.labels?.[TASK_ID_LABEL]).toBe(
+      baseSpec.taskId,
+    );
   });
 
   it("maps an already-existing CR (409) to launched:false", async () => {
@@ -139,14 +147,21 @@ describe("AgentCrBackend.launch — per-task token (#697)", () => {
 
   it("falls back to the catalog Station when the provisioner returns undefined", async () => {
     const api = new FakeAgentApi();
-    await new AgentCrBackend(api, undefined, new FakeProvisioner(undefined)).launch(baseSpec);
+    await new AgentCrBackend(
+      api,
+      undefined,
+      new FakeProvisioner(undefined),
+    ).launch(baseSpec);
     expect(api.created[0].spec?.stationRef).toBe("implementation");
   });
 
   it("skips provisioning for a task that targets no repo", async () => {
     const api = new FakeAgentApi();
     const provisioner = new FakeProvisioner("pt-abcdef12");
-    await new AgentCrBackend(api, undefined, provisioner).launch({ ...baseSpec, targetRepo: "" });
+    await new AgentCrBackend(api, undefined, provisioner).launch({
+      ...baseSpec,
+      targetRepo: "",
+    });
     expect(provisioner.seen).toEqual([]);
     expect(api.created[0].spec?.stationRef).toBe("implementation");
   });
@@ -157,7 +172,9 @@ describe("AgentCrBackend.isActive", () => {
   const succeeded: Agent = { status: { phase: "Succeeded" } };
 
   it("returns false when no Agent carries the task-id label (orphaned)", async () => {
-    expect(await new AgentCrBackend(new FakeAgentApi(undefined, [])).isActive("t1")).toBe(false);
+    expect(
+      await new AgentCrBackend(new FakeAgentApi(undefined, [])).isActive("t1"),
+    ).toBe(false);
   });
 
   it("returns true when a matching Agent is not yet terminal", async () => {

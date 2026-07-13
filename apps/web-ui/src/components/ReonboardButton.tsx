@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useTransition } from 'react';
-import styles from './ReonboardButton.module.css';
+import { useTransition } from "react";
+import styles from "./ReonboardButton.module.css";
 
 export default function ReonboardButton({
   action,
@@ -17,9 +17,9 @@ export default function ReonboardButton({
       disabled={pending}
       onClick={() => startTransition(() => action())}
       className={styles.button}
-      style={{ cursor: pending ? 'default' : 'pointer' }}
+      style={{ cursor: pending ? "default" : "pointer" }}
     >
-      {pending ? 'opening PR…' : text}
+      {pending ? "opening PR…" : text}
     </button>
   );
 }

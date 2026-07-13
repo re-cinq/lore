@@ -53,8 +53,11 @@ export function buildCopyPrompt(input: ArtifactCopyInput): string {
 /** Deterministic, non-templated copy used when the LLM is unavailable. */
 export function fallbackCopy(input: ArtifactCopyInput): ArtifactCopy {
   const firstLine = (input.description || input.taskType).split("\n")[0].trim();
-  const title = firstLine.length > 70 ? firstLine.slice(0, 69) + "…" : firstLine;
-  const filesNote = input.changedFiles ? `\n\nChanged files: ${input.changedFiles}` : "";
+  const title =
+    firstLine.length > 70 ? firstLine.slice(0, 69) + "…" : firstLine;
+  const filesNote = input.changedFiles
+    ? `\n\nChanged files: ${input.changedFiles}`
+    : "";
   const body = `${input.description || ""}${filesNote}`.trim();
   return { title, body, source: "fallback" };
 }
@@ -75,11 +78,15 @@ export async function generateArtifactCopy(
       prompt: buildCopyPrompt(input),
       systemPrompt: SYSTEM_PROMPT,
       toolName: "write_copy",
-      toolDescription: "Provide a title and description for the GitHub artifact",
+      toolDescription:
+        "Provide a title and description for the GitHub artifact",
       toolSchema: {
         type: "object",
         properties: {
-          title: { type: "string", description: "Imperative title, under 70 chars" },
+          title: {
+            type: "string",
+            description: "Imperative title, under 70 chars",
+          },
           body: { type: "string", description: "Short markdown description" },
         },
         required: ["title", "body"],

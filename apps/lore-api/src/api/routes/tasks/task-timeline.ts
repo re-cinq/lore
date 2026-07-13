@@ -26,7 +26,10 @@ interface RawCommit {
  * returns the timeline with per-stage durations. Only commits carrying
  * Lore stage trailers contribute.
  */
-export function buildTimeline(commitsApi: RawCommit[], createdAt: Date): TimelineCommit[] {
+export function buildTimeline(
+  commitsApi: RawCommit[],
+  createdAt: Date,
+): TimelineCommit[] {
   // Stage commits are most-recent-first from GitHub. Reverse for
   // chronological order so durations compute correctly.
   const ordered = [...commitsApi].reverse();
@@ -43,7 +46,9 @@ export function buildTimeline(commitsApi: RawCommit[], createdAt: Date): Timelin
       iteration: trailers.iteration,
       outcome: trailers.extras?.["Lore-Outcome"] ?? "success",
       committed_at: committedIso,
-      duration_ms: Number.isFinite(committedMs - prevTimeMs) ? committedMs - prevTimeMs : null,
+      duration_ms: Number.isFinite(committedMs - prevTimeMs)
+        ? committedMs - prevTimeMs
+        : null,
       summary: c.commit.message.split("\n")[0],
       ...(trailers.extras ? { extras: trailers.extras } : {}),
     });
@@ -62,14 +67,16 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
       if (!pool) return h.response({ error: "database unavailable" }).code(503);
       const taskId = request.params.id;
 
-      let task: {
-        target_repo: string | null;
-        target_branch: string | null;
-        pr_number: number | null;
-        pr_url: string | null;
-        status: string;
-        created_at: Date;
-      } | undefined;
+      let task:
+        | {
+            target_repo: string | null;
+            target_branch: string | null;
+            pr_number: number | null;
+            pr_url: string | null;
+            status: string;
+            created_at: Date;
+          }
+        | undefined;
       try {
         const { rows } = await pool.query(
           `SELECT target_repo, target_branch, pr_number, pr_url, status, created_at
@@ -106,12 +113,23 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
       try {
         const [owner, repoName] = repo.split("/");
         const octokit = await getOctokit();
-        const r = await octokit.rest.repos.listCommits({ owner, repo: repoName, sha: branch, per_page: 100 });
+        const r = await octokit.rest.repos.listCommits({
+          owner,
+          repo: repoName,
+          sha: branch,
+          per_page: 100,
+        });
         commitsApi = r.data as RawCommit[];
         if (task.pr_number) {
           try {
-            const prRes = await octokit.rest.pulls.get({ owner, repo: repoName, pull_number: task.pr_number });
-            prState = prRes.data.merged ? "merged" : (prRes.data.state as "open" | "closed");
+            const prRes = await octokit.rest.pulls.get({
+              owner,
+              repo: repoName,
+              pull_number: task.pr_number,
+            });
+            prState = prRes.data.merged
+              ? "merged"
+              : (prRes.data.state as "open" | "closed");
           } catch {
             // PR fetch is best-effort.
           }
@@ -134,10 +152,17 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
       }
 
       const stageCommits = buildTimeline(commitsApi, task.created_at);
-      const currentStage = stageCommits.length > 0 ? stageCommits[stageCommits.length - 1].stage : null;
+      const currentStage =
+        stageCommits.length > 0
+          ? stageCommits[stageCommits.length - 1].stage
+          : null;
 
       // Lease state — best-effort.
-      let lease: { held: boolean; holder?: string; expires_at?: string } | null = null;
+      let lease: {
+        held: boolean;
+        holder?: string;
+        expires_at?: string;
+      } | null = null;
       try {
         const { rows } = await pool.query(
           `SELECT holder, expires_at FROM pipeline.task_leases WHERE branch_name = $1`,
@@ -145,7 +170,11 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
         );
         if (rows.length > 0) {
           const expiresAt = new Date(rows[0].expires_at);
-          lease = { held: expiresAt.getTime() > Date.now(), holder: rows[0].holder, expires_at: expiresAt.toISOString() };
+          lease = {
+            held: expiresAt.getTime() > Date.now(),
+            holder: rows[0].holder,
+            expires_at: expiresAt.toISOString(),
+          };
         } else {
           lease = { held: false };
         }

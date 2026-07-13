@@ -30,7 +30,11 @@ export function parseSpecAnchor(spec: string | undefined): SpecAnchor | null {
  * none (undefined) — into a list of {@link SpecAnchor}, dropping any entry that
  * does not parse.
  */
-export function parseSpecAnchors(spec: string | string[] | undefined): SpecAnchor[] {
+export function parseSpecAnchors(
+  spec: string | string[] | undefined,
+): SpecAnchor[] {
   const raw = spec === undefined ? [] : Array.isArray(spec) ? spec : [spec];
-  return raw.map(parseSpecAnchor).filter((anchor): anchor is SpecAnchor => anchor !== null);
+  return raw
+    .map(parseSpecAnchor)
+    .filter((anchor): anchor is SpecAnchor => anchor !== null);
 }

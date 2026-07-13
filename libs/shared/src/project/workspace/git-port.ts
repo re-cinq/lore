@@ -15,7 +15,11 @@ export interface GitPort {
   /** Pin `dir` to `branch` (and `commit` when given). Refuses to switch a dirty working tree. */
   ensureCheckout(dir: string, branch?: string, commit?: string): Promise<void>;
   listBranches(dir: string): Promise<string[]>;
-  switchBranch(dir: string, branch: string, opts?: { create?: boolean }): Promise<void>;
+  switchBranch(
+    dir: string,
+    branch: string,
+    opts?: { create?: boolean },
+  ): Promise<void>;
   readFile(dir: string, path: string): Promise<string>;
   writeFile(dir: string, path: string, content: string): Promise<void>;
   stageCommit(dir: string, message: string): Promise<{ committed: boolean }>;

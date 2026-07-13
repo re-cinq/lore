@@ -144,14 +144,24 @@ async function processTask(task: any): Promise<void> {
   // LORE_STATION_BACKEND=inprocess escape hatch keeps the lightweight in-process
   // handlers for a dev without Docker/creds.
   const isFeaturePlanningType =
-    task.task_type === "feature-planning" || task.task_type === "feature-finalize";
-  if (isFeaturePlanningType && selectStationBackend(process.env) === "inprocess") {
-    if (task.task_type === "feature-planning") await handleFeaturePlanning(task, targetRepo);
+    task.task_type === "feature-planning" ||
+    task.task_type === "feature-finalize";
+  if (
+    isFeaturePlanningType &&
+    selectStationBackend(process.env) === "inprocess"
+  ) {
+    if (task.task_type === "feature-planning")
+      await handleFeaturePlanning(task, targetRepo);
     else await handleFeatureFinalize(task, targetRepo);
     return;
   }
 
-  const issueNumber = await ensureIssue(task, targetRepo, project, isFeaturePlanningType);
+  const issueNumber = await ensureIssue(
+    task,
+    targetRepo,
+    project,
+    isFeaturePlanningType,
+  );
 
   if (await awaitApprovalIfRequired(task, targetRepo, project, issueNumber)) {
     return; // Don't process yet — waiting on the approval label
@@ -165,7 +175,9 @@ async function processTask(task: any): Promise<void> {
   await setStatus(task.id, "running");
   await insertEvent(task.id, "queued", "running");
   if (issueNumber) {
-    await project.issues.comment(issueNumber, `Agent \`${agentId}\` picked up this task.`).catch(() => {});
+    await project.issues
+      .comment(issueNumber, `Agent \`${agentId}\` picked up this task.`)
+      .catch(() => {});
   }
 
   try {
@@ -173,11 +185,15 @@ async function processTask(task: any): Promise<void> {
     let repoSettings: any = {};
     try {
       repoSettings = (await settings().rawSettings(targetRepo)) ?? {};
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
 
     // Resolve the agent definition (project → org → yaml) through the single
     // project.agentDefs port seam; fall back to the yaml loader if unavailable.
-    const agentDef = await project.agentDefs.resolve(task.task_type).catch(() => null);
+    const agentDef = await project.agentDefs
+      .resolve(task.task_type)
+      .catch(() => null);
 
     // Build prompt from the resolved definition, with optional per-repo suffix.
     let fullPrompt = agentPrompt(
@@ -193,7 +209,9 @@ async function processTask(task: any): Promise<void> {
     // Determine branch — use existing branch for revision tasks
     const contextBundle = task.context_bundle || {};
     const slug = slugify(task.description);
-    const branchName = contextBundle.branch || `lore/${task.task_type}/${slug}-${task.id.substring(0, 8)}`;
+    const branchName =
+      contextBundle.branch ||
+      `lore/${task.task_type}/${slug}-${task.id.substring(0, 8)}`;
 
     // If this is a revision task, prepend feedback to the description
     if (contextBundle.feedback) {
@@ -206,7 +224,10 @@ async function processTask(task: any): Promise<void> {
 
     // Resolve model — the resolved agent definition wins, then legacy overrides.
     const model =
-      agentDef?.model || repoOverrides?.model || getTaskTypeConfig(task.task_type)?.model || undefined;
+      agentDef?.model ||
+      repoOverrides?.model ||
+      getTaskTypeConfig(task.task_type)?.model ||
+      undefined;
 
     // Dark-factory dispatch (T058 follow-up): when the repo has dark
     // mode enabled AND the task type has an assembly line definition, route
@@ -215,8 +236,7 @@ async function processTask(task: any): Promise<void> {
     // Code-driven types continue via the Job pod path until the
     // entrypoint.sh refactor lands.
     const { isDarkFactoryEligible } = await import("./orchestrator.js");
-    const darkFactoryEnabled =
-      repoSettings?.dark_factory?.enabled === true;
+    const darkFactoryEnabled = repoSettings?.dark_factory?.enabled === true;
     if (darkFactoryEnabled && isDarkFactoryEligible(task.task_type)) {
       // Fire-and-observe: start() persists the pipeline.assembly_lines row and
       // the assembly_line.start event atomically; the Floor event loop claims
@@ -238,7 +258,13 @@ async function processTask(task: any): Promise<void> {
     if (task.task_type === "onboard") {
       await handleOnboard(task, targetRepo, branchName, model, issueNumber);
     } else if (task.task_type === "feature-request") {
-      await handleFeatureRequest(task, targetRepo, branchName, model, issueNumber);
+      await handleFeatureRequest(
+        task,
+        targetRepo,
+        branchName,
+        model,
+        issueNumber,
+      );
     } else {
       // All other task types dispatch an Agent CR (agent-cr / ai-agent-subsystem).
       // For dark-mode repos with an assembly line defined for the task type, pass the
@@ -270,7 +296,10 @@ async function processTask(task: any): Promise<void> {
       // settings hierarchy (default → per-repo → per-task-type). Unset →
       // the platform default, which equals the controller's default, so
       // unconfigured repos see no change.
-      const executionImage = resolveExecutionImage(repoSettings, task.task_type);
+      const executionImage = resolveExecutionImage(
+        repoSettings,
+        task.task_type,
+      );
       await handleClaudeCodeTask(
         task,
         targetRepo,
@@ -297,7 +326,9 @@ async function processTask(task: any): Promise<void> {
     // Update issue with failure
     if (issueNumber) {
       const hint = "hint" in meta && meta.hint ? ` — ${meta.hint}` : "";
-      await project.issues.comment(issueNumber, `Task failed: \`${failureReason}\`${hint}`).catch(() => {});
+      await project.issues
+        .comment(issueNumber, `Task failed: \`${failureReason}\`${hint}`)
+        .catch(() => {});
       await project.issues.addLabel(issueNumber, "lore-failed").catch(() => {});
     }
     console.error(`[floor] Task ${task.id} failed: ${failureReason}`);
@@ -321,16 +352,25 @@ async function ensureIssue(
   let issueNumber: number | null = task.issue_number || null;
   const { shouldCreateIssue } = await import("../dark-factory/dark-factory.js");
   const issueGate = await shouldCreateIssue(task);
-  if (!issueNumber && task.task_type !== "general" && !isFeaturePlanningType && issueGate.create) {
+  if (
+    !issueNumber &&
+    task.task_type !== "general" &&
+    !isFeaturePlanningType &&
+    issueGate.create
+  ) {
     try {
-      const taskTypeLabel = task.task_type === "feature-request" ? "spec" : task.task_type;
+      const taskTypeLabel =
+        task.task_type === "feature-request" ? "spec" : task.task_type;
       const copy = await generateArtifactCopy({
         kind: "issue",
         taskType: task.task_type,
         description: task.description,
         repo: targetRepo,
       });
-      const issueBody = linkifyMarkdown(copy.body, { repo: targetRepo, uiUrl: process.env.LORE_UI_URL });
+      const issueBody = linkifyMarkdown(copy.body, {
+        repo: targetRepo,
+        uiUrl: process.env.LORE_UI_URL,
+      });
       const issue = await project.issues.create(
         copy.title,
         composeIssueBody(issueBody, task, process.env.LORE_UI_URL),
@@ -344,12 +384,18 @@ async function ensureIssue(
       console.log(`[floor] Created issue #${issue.number} on ${targetRepo}`);
     } catch (err: any) {
       // Non-fatal — proceed without issue if GitHub App lacks permission
-      console.warn(`[floor] Could not create issue on ${targetRepo}: ${err.message}`);
+      console.warn(
+        `[floor] Could not create issue on ${targetRepo}: ${err.message}`,
+      );
     }
   } else if (issueNumber) {
-    console.log(`[floor] Using existing issue #${issueNumber} on ${targetRepo} (webhook-dispatched)`);
+    console.log(
+      `[floor] Using existing issue #${issueNumber} on ${targetRepo} (webhook-dispatched)`,
+    );
   } else if (!issueGate.create && task.task_type !== "general") {
-    console.log(`[floor] Skipping issue for ${targetRepo} task ${task.id} (dark-factory: ${issueGate.reason})`);
+    console.log(
+      `[floor] Skipping issue for ${targetRepo} task ${task.id} (dark-factory: ${issueGate.reason})`,
+    );
   }
   return issueNumber;
 }
@@ -365,17 +411,23 @@ async function awaitApprovalIfRequired(
   project: Project,
   issueNumber: number | null,
 ): Promise<boolean> {
-  const { requiresApproval, getApprovalLabel } = await import("../dark-factory/approval.js");
+  const { requiresApproval, getApprovalLabel } =
+    await import("../dark-factory/approval.js");
   if (!requiresApproval(task.task_type, targetRepo)) return false;
 
   await setStatus(task.id, "awaiting_approval");
-  await insertEvent(task.id, "pending", "awaiting_approval", { reason: "approval-required" });
+  await insertEvent(task.id, "pending", "awaiting_approval", {
+    reason: "approval-required",
+  });
   if (issueNumber) {
-    await project.issues.comment(issueNumber,
-      `This task requires approval before the agent can proceed.\n\nAdd the \`${getApprovalLabel()}\` label to this issue to approve.`);
+    await project.issues.comment(
+      issueNumber,
+      `This task requires approval before the agent can proceed.\n\nAdd the \`${getApprovalLabel()}\` label to this issue to approve.`,
+    );
     await project.issues.addLabel(issueNumber, "awaiting-approval");
   }
-  console.log(`[floor] Task ${task.id} requires approval — waiting for label on issue #${issueNumber}`);
+  console.log(
+    `[floor] Task ${task.id} requires approval — waiting for label on issue #${issueNumber}`,
+  );
   return true;
 }
-

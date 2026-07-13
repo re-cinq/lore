@@ -29,13 +29,20 @@ function watchPath(): string {
 async function emitForAgent(agent: AgentCr): Promise<void> {
   const ev = mapAgentToEvent(agent as never);
   if (!ev) return;
-  await insertEvent(ev).catch((err) => console.error("[events] k8s emit failed:", (err as Error).message));
+  await insertEvent(ev).catch((err) =>
+    console.error("[events] k8s emit failed:", (err as Error).message),
+  );
 }
 
 /** Safety net: list CRs, emit for terminal ones whose task is still in flight, prune old. */
 export async function reconcileAgents(): Promise<void> {
   const { k8sApi, namespace } = makeAgentsApi();
-  const result = (await k8sApi.listNamespacedCustomObject({ group: GROUP, version: VERSION, namespace, plural: PLURAL })) as { items?: AgentCr[] };
+  const result = (await k8sApi.listNamespacedCustomObject({
+    group: GROUP,
+    version: VERSION,
+    namespace,
+    plural: PLURAL,
+  })) as { items?: AgentCr[] };
   for (const agent of result.items ?? []) {
     const ev = mapAgentToEvent(agent as never);
     if (ev) {
@@ -43,21 +50,33 @@ export async function reconcileAgents(): Promise<void> {
       const dbStatus = taskId
         ? (await taskStore().getById(taskId))?.status
         : undefined;
-      if (dbStatus && ["running", "queued"].includes(dbStatus)) await insertEvent(ev).catch(() => {});
+      if (dbStatus && ["running", "queued"].includes(dbStatus))
+        await insertEvent(ev).catch(() => {});
     }
     await pruneIfOld(agent, k8sApi, namespace);
   }
 }
 
-async function pruneIfOld(agent: AgentCr, k8sApi: CustomObjectsApi, namespace: string): Promise<void> {
+async function pruneIfOld(
+  agent: AgentCr,
+  k8sApi: CustomObjectsApi,
+  namespace: string,
+): Promise<void> {
   const status = agent.status ?? {};
   if (status.phase !== "Succeeded" && status.phase !== "Failed") return;
   const completedAt = status.completedAt ? new Date(status.completedAt) : null;
-  if (!completedAt || Date.now() - completedAt.getTime() <= PRUNE_AFTER_MS) return;
+  if (!completedAt || Date.now() - completedAt.getTime() <= PRUNE_AFTER_MS)
+    return;
   const name = agent.metadata?.name;
   if (!name) return;
   await k8sApi
-    .deleteNamespacedCustomObject({ group: GROUP, version: VERSION, namespace, plural: PLURAL, name })
+    .deleteNamespacedCustomObject({
+      group: GROUP,
+      version: VERSION,
+      namespace,
+      plural: PLURAL,
+      name,
+    })
     .catch(() => {});
 }
 
@@ -80,7 +99,10 @@ async function runWatchForever(): Promise<void> {
       await watchOnce();
       backoffMs = 1000; // clean end → reset backoff
     } catch (err) {
-      console.error(`[events] k8s watch dropped (reconnect in ${backoffMs}ms):`, (err as Error).message);
+      console.error(
+        `[events] k8s watch dropped (reconnect in ${backoffMs}ms):`,
+        (err as Error).message,
+      );
     }
     await new Promise((r) => setTimeout(r, backoffMs));
     backoffMs = Math.min(backoffMs * 2, 30_000);
@@ -92,7 +114,12 @@ async function watchOnce(): Promise<void> {
   kc.loadFromCluster();
   // Seed resourceVersion + catch up on terminal CRs we may have missed while down.
   const { k8sApi, namespace } = makeAgentsApi();
-  const list = (await k8sApi.listNamespacedCustomObject({ group: GROUP, version: VERSION, namespace, plural: PLURAL })) as {
+  const list = (await k8sApi.listNamespacedCustomObject({
+    group: GROUP,
+    version: VERSION,
+    namespace,
+    plural: PLURAL,
+  })) as {
     items?: AgentCr[];
     metadata?: { resourceVersion?: string };
   };

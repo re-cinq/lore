@@ -16,7 +16,13 @@ describe("isAcceptanceCriteriaHeading", () => {
   });
 
   it("does not match ordinary headings or null", () => {
-    for (const h of ["Problem Statement", "Solution", "Interface", "Out of Scope", null]) {
+    for (const h of [
+      "Problem Statement",
+      "Solution",
+      "Interface",
+      "Out of Scope",
+      null,
+    ]) {
       expect(isAcceptanceCriteriaHeading(h)).toBe(false);
     }
   });

@@ -8,13 +8,13 @@ import { Octokit } from "octokit";
 import { createAppAuth } from "@octokit/auth-app";
 
 export type PRStatus =
-  | 'draft'
-  | 'open'
-  | 'checks-failing'
-  | 'changes-requested'
-  | 'approved'
-  | 'merged'
-  | 'closed';
+  | "draft"
+  | "open"
+  | "checks-failing"
+  | "changes-requested"
+  | "approved"
+  | "merged"
+  | "closed";
 
 export interface PRDetails {
   number: number;
@@ -48,7 +48,11 @@ async function octokit(): Promise<Octokit> {
 }
 
 export function isGitHubConfigured(): boolean {
-  return !!(process.env.GITHUB_APP_ID && process.env.GITHUB_APP_PRIVATE_KEY && process.env.GITHUB_APP_INSTALLATION_ID);
+  return !!(
+    process.env.GITHUB_APP_ID &&
+    process.env.GITHUB_APP_PRIVATE_KEY &&
+    process.env.GITHUB_APP_INSTALLATION_ID
+  );
 }
 
 export function computeStatus(
@@ -56,16 +60,28 @@ export function computeStatus(
   checks: Array<{ conclusion: string | null }>,
   reviews: Array<{ state: string }>,
 ): PRStatus {
-  if (pr.merged) return 'merged';
-  if (pr.state === 'closed') return 'closed';
-  if (pr.draft) return 'draft';
-  if (checks.some(c => c.conclusion === 'failure' || c.conclusion === 'timed_out')) return 'checks-failing';
-  if (reviews.some(r => r.state === 'CHANGES_REQUESTED')) return 'changes-requested';
+  if (pr.merged) return "merged";
+  if (pr.state === "closed") return "closed";
+  if (pr.draft) return "draft";
   if (
-    reviews.some(r => r.state === 'APPROVED') &&
-    checks.every(c => c.conclusion === 'success' || c.conclusion === 'skipped' || c.conclusion === null)
-  ) return 'approved';
-  return 'open';
+    checks.some(
+      (c) => c.conclusion === "failure" || c.conclusion === "timed_out",
+    )
+  )
+    return "checks-failing";
+  if (reviews.some((r) => r.state === "CHANGES_REQUESTED"))
+    return "changes-requested";
+  if (
+    reviews.some((r) => r.state === "APPROVED") &&
+    checks.every(
+      (c) =>
+        c.conclusion === "success" ||
+        c.conclusion === "skipped" ||
+        c.conclusion === null,
+    )
+  )
+    return "approved";
+  return "open";
 }
 
 export interface RepoMeta {
@@ -91,7 +107,7 @@ export async function checkRepoFiles(
   const ok = await octokit();
   const [owner, name] = split(repo);
   await Promise.all(
-    paths.map(async path => {
+    paths.map(async (path) => {
       try {
         await ok.rest.repos.getContent({ owner, repo: name, path });
         result[path] = true;
@@ -112,21 +128,34 @@ export async function checkRepoFiles(
  * unknown). Returning null for, say, a secondary rate limit would falsely
  * flag every repo's lore-ingest workflow as missing.
  */
-export async function getRepoFileContent(repo: string, path: string): Promise<string | null> {
+export async function getRepoFileContent(
+  repo: string,
+  path: string,
+): Promise<string | null> {
   if (!isGitHubConfigured()) return null;
   const ok = await octokit();
   const [owner, name] = split(repo);
   try {
-    const { data } = await ok.rest.repos.getContent({ owner, repo: name, path });
-    if (Array.isArray(data) || data.type !== 'file' || typeof data.content !== 'string') return null;
-    return Buffer.from(data.content, 'base64').toString('utf-8');
+    const { data } = await ok.rest.repos.getContent({
+      owner,
+      repo: name,
+      path,
+    });
+    if (
+      Array.isArray(data) ||
+      data.type !== "file" ||
+      typeof data.content !== "string"
+    )
+      return null;
+    return Buffer.from(data.content, "base64").toString("utf-8");
   } catch (e) {
     if ((e as { status?: number }).status === 404) return null;
     throw e;
   }
 }
 
-const isAlreadyExists = (e: unknown): boolean => (e as { status?: number }).status === 422;
+const isAlreadyExists = (e: unknown): boolean =>
+  (e as { status?: number }).status === 422;
 
 /**
  * Open (or reuse) a PR that installs the canonical lore-ingest workflow on
@@ -142,22 +171,36 @@ export async function openIngestWorkflowPR(
   if (!isGitHubConfigured()) return null;
   const ok = await octokit();
   const [owner, name] = split(repo);
-  const branch = 'lore/fix-ingest-workflow';
+  const branch = "lore/fix-ingest-workflow";
 
   const { data: repoData } = await ok.rest.repos.get({ owner, repo: name });
   const base = repoData.default_branch;
 
-  const { data: baseRef } = await ok.rest.git.getRef({ owner, repo: name, ref: `heads/${base}` });
+  const { data: baseRef } = await ok.rest.git.getRef({
+    owner,
+    repo: name,
+    ref: `heads/${base}`,
+  });
   try {
-    await ok.rest.git.createRef({ owner, repo: name, ref: `refs/heads/${branch}`, sha: baseRef.object.sha });
+    await ok.rest.git.createRef({
+      owner,
+      repo: name,
+      ref: `refs/heads/${branch}`,
+      sha: baseRef.object.sha,
+    });
   } catch (e) {
     if (!isAlreadyExists(e)) throw e; // branch already exists — commit onto it
   }
 
   let sha: string | undefined;
   try {
-    const { data } = await ok.rest.repos.getContent({ owner, repo: name, path, ref: branch });
-    if (!Array.isArray(data) && 'sha' in data) sha = data.sha;
+    const { data } = await ok.rest.repos.getContent({
+      owner,
+      repo: name,
+      path,
+      ref: branch,
+    });
+    if (!Array.isArray(data) && "sha" in data) sha = data.sha;
   } catch {
     // file not on the branch yet — create it fresh
   }
@@ -168,7 +211,7 @@ export async function openIngestWorkflowPR(
     path,
     branch,
     message: `lore: install ${path}`,
-    content: Buffer.from(content).toString('base64'),
+    content: Buffer.from(content).toString("base64"),
     ...(sha ? { sha } : {}),
   });
 
@@ -178,14 +221,18 @@ export async function openIngestWorkflowPR(
       repo: name,
       head: branch,
       base,
-      title: 'lore: install context ingest workflow',
-      body:
-        'This PR installs (or repairs) `.github/workflows/lore-ingest.yml` so pushes to context files trigger Lore re-ingestion.\n\nOpened from the Lore dashboard.',
+      title: "lore: install context ingest workflow",
+      body: "This PR installs (or repairs) `.github/workflows/lore-ingest.yml` so pushes to context files trigger Lore re-ingestion.\n\nOpened from the Lore dashboard.",
     });
     return { url: pr.html_url, number: pr.number };
   } catch (e) {
     if (!isAlreadyExists(e)) throw e;
-    const { data: existing } = await ok.rest.pulls.list({ owner, repo: name, head: `${owner}:${branch}`, state: 'open' });
+    const { data: existing } = await ok.rest.pulls.list({
+      owner,
+      repo: name,
+      head: `${owner}:${branch}`,
+      state: "open",
+    });
     const pr = existing[0];
     return pr ? { url: pr.html_url, number: pr.number } : null;
   }
@@ -223,15 +270,26 @@ export async function getReadme(repo: string): Promise<RepoReadme | null> {
   }
 }
 
-export async function getPRDetails(repo: string, prNumber: number): Promise<PRDetails> {
+export async function getPRDetails(
+  repo: string,
+  prNumber: number,
+): Promise<PRDetails> {
   const ok = await octokit();
   const [owner, repoName] = split(repo);
 
-  const { data: pr } = await ok.rest.pulls.get({ owner, repo: repoName, pull_number: prNumber });
+  const { data: pr } = await ok.rest.pulls.get({
+    owner,
+    repo: repoName,
+    pull_number: prNumber,
+  });
 
   const [checksResult, reviewsResult] = await Promise.all([
-    ok.rest.checks.listForRef({ owner, repo: repoName, ref: pr.head.sha }).catch(() => ({ data: { check_runs: [] } })),
-    ok.rest.pulls.listReviews({ owner, repo: repoName, pull_number: prNumber }).catch(() => ({ data: [] })),
+    ok.rest.checks
+      .listForRef({ owner, repo: repoName, ref: pr.head.sha })
+      .catch(() => ({ data: { check_runs: [] } })),
+    ok.rest.pulls
+      .listReviews({ owner, repo: repoName, pull_number: prNumber })
+      .catch(() => ({ data: [] })),
   ]);
 
   const checks = checksResult.data.check_runs.map((c: any) => ({
@@ -241,9 +299,9 @@ export async function getPRDetails(repo: string, prNumber: number): Promise<PRDe
   }));
 
   const reviews = reviewsResult.data.map((r: any) => ({
-    user: r.user?.login || 'unknown',
+    user: r.user?.login || "unknown",
     state: r.state,
-    submitted_at: r.submitted_at || '',
+    submitted_at: r.submitted_at || "",
   }));
 
   return {

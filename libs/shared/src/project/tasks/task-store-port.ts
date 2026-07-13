@@ -69,16 +69,38 @@ export interface TaskStorePort {
   /** Open (per `statuses`) tasks of one type whose description starts with the prefix — job dedup. */
   findOpenLike(input: FindOpenLikeInput): Promise<PipelineTask[]>;
   /** Drift dedup: tasks of one type for a repo keyed by `context_bundle->>'spec_path'`. */
-  driftTasksForSpec(repo: string, taskType: string, specPath: string): Promise<DriftTaskRow[]>;
+  driftTasksForSpec(
+    repo: string,
+    taskType: string,
+    specPath: string,
+  ): Promise<DriftTaskRow[]>;
   // writes
   create(input: CreateTaskInput): Promise<any>;
   retry(id: string): Promise<any>;
-  setStatus(id: string, status: string, extra?: Record<string, unknown>): Promise<void>;
+  setStatus(
+    id: string,
+    status: string,
+    extra?: Record<string, unknown>,
+  ): Promise<void>;
   /** CAS status flip: updates only while the row is still `expectedStatus`; true iff this caller won. */
-  setStatusIf(id: string, expectedStatus: string, status: string, extra?: Record<string, unknown>): Promise<boolean>;
+  setStatusIf(
+    id: string,
+    expectedStatus: string,
+    status: string,
+    extra?: Record<string, unknown>,
+  ): Promise<boolean>;
   updateStatus(id: string, status: string, meta?: unknown): Promise<void>;
-  recordEvent(id: string, fromStatus: string | null, toStatus: string | null, meta?: unknown): Promise<void>;
+  recordEvent(
+    id: string,
+    fromStatus: string | null,
+    toStatus: string | null,
+    meta?: unknown,
+  ): Promise<void>;
   cancel(id: string): Promise<{ task_id: string; status: string }>;
   markMerged(id: string): Promise<{ task_id: string; status: string }>;
-  transition(id: string, action: TaskAction, meta?: TaskTransitionMeta): Promise<PipelineTask>;
+  transition(
+    id: string,
+    action: TaskAction,
+    meta?: TaskTransitionMeta,
+  ): Promise<PipelineTask>;
 }

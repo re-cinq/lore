@@ -4,7 +4,12 @@
 // it waits, and maps it to a node outcome. ciConclusion / heartbeat / sleep are injected
 // ports so the loop + mapping are deterministically testable.
 
-import type { NodeHandler, NodeResult, NodeContext, StageOutcome } from "./assembly-line-executor.js";
+import type {
+  NodeHandler,
+  NodeResult,
+  NodeContext,
+  StageOutcome,
+} from "./assembly-line-executor.js";
 import type { AssemblyLineNode } from "./loader.js";
 
 /** Mirrors @re-cinq/lore-shared's CiConclusion (kept local to avoid a heavy import). */
@@ -42,7 +47,10 @@ export function createGithubActionHandler(deps: GithubActionDeps): NodeHandler {
   const intervalMs = deps.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const maxPolls = deps.maxPolls ?? DEFAULT_MAX_POLLS;
 
-  return async (node: AssemblyLineNode, ctx: NodeContext): Promise<NodeResult> => {
+  return async (
+    node: AssemblyLineNode,
+    ctx: NodeContext,
+  ): Promise<NodeResult> => {
     for (let poll = 0; poll < maxPolls; poll++) {
       await deps.heartbeat(ctx.branchName, node.id);
       const conclusion = await deps.ciConclusion(ctx.branchName);
@@ -54,7 +62,10 @@ export function createGithubActionHandler(deps: GithubActionDeps): NodeHandler {
     }
     return {
       outcome: "failed",
-      extras: { "Lore-CI-Conclusion": "timeout", "Lore-Validation-Status": "ci-timeout" },
+      extras: {
+        "Lore-CI-Conclusion": "timeout",
+        "Lore-Validation-Status": "ci-timeout",
+      },
     };
   };
 }

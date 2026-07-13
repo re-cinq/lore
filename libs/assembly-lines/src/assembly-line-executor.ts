@@ -45,7 +45,11 @@ export interface AssemblyLineTrace {
     nodeId: string;
     iteration: number;
   }): Promise<string>;
-  onNodeFinish(nodeRef: string, outcome: StageOutcome, commitSha?: string): Promise<void>;
+  onNodeFinish(
+    nodeRef: string,
+    outcome: StageOutcome,
+    commitSha?: string,
+  ): Promise<void>;
 }
 
 export type NodeHandler = (
@@ -104,11 +108,7 @@ export interface ExecuteOptions {
    * Override the git committer for stage commits (used by tests). The
    * supervisor injects identity via env in production.
    */
-  gitCommit?: (
-    gitDir: string,
-    subject: string,
-    body: string,
-  ) => Promise<void>;
+  gitCommit?: (gitDir: string, subject: string, body: string) => Promise<void>;
   /**
    * Optional hook fired before {@link IterationMaxExceededError} is
    * thrown. The supervisor wires this to `escalate()` so a stuck task
@@ -211,8 +211,7 @@ export async function executeAssemblyLine(
 
     const candidates = assemblyLine.edges.filter(
       (e) =>
-        e.from === currentId &&
-        (e.on === result.outcome || e.on === "always"),
+        e.from === currentId && (e.on === result.outcome || e.on === "always"),
     );
     if (candidates.length === 0) {
       throw new Error(
@@ -294,8 +293,7 @@ export function resumeFromTrailers(
     "success";
 
   const edge = assemblyLine.edges.find(
-    (e) =>
-      e.from === trailers.stage && (e.on === outcome || e.on === "always"),
+    (e) => e.from === trailers.stage && (e.on === outcome || e.on === "always"),
   );
   if (!edge) return null;
 
@@ -365,7 +363,12 @@ async function traceNodeFinish(
 /** HEAD sha of the just-emitted stage commit; undefined when gitDir is not a repo (fake committers in tests). */
 async function headSha(gitDir: string): Promise<string | undefined> {
   try {
-    const { stdout } = await execFile("git", ["-C", gitDir, "rev-parse", "HEAD"]);
+    const { stdout } = await execFile("git", [
+      "-C",
+      gitDir,
+      "rev-parse",
+      "HEAD",
+    ]);
     return stdout.trim();
   } catch {
     return undefined;

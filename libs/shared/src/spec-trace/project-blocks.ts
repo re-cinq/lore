@@ -35,17 +35,24 @@ export async function projectDocumentBlocks(
 ): Promise<Set<string>> {
   const blocks = segmentBlocks(content);
   for (const block of blocks) {
-    await upsertByXid(dgraph, "Block", `${repo}|${filePath}|block|${block.ordinal}`, {
-      "Block.repo": repo,
-      "Block.file_path": filePath,
-      "Block.ordinal": block.ordinal,
-      "Block.kind": block.kind,
-      "Block.text": block.text,
-      ...(specUid !== undefined ? { "Block.spec": { uid: specUid } } : {}),
-      ...(block.level !== undefined ? { "Block.level": block.level } : {}),
-    });
+    await upsertByXid(
+      dgraph,
+      "Block",
+      `${repo}|${filePath}|block|${block.ordinal}`,
+      {
+        "Block.repo": repo,
+        "Block.file_path": filePath,
+        "Block.ordinal": block.ordinal,
+        "Block.kind": block.kind,
+        "Block.text": block.text,
+        ...(specUid !== undefined ? { "Block.spec": { uid: specUid } } : {}),
+        ...(block.level !== undefined ? { "Block.level": block.level } : {}),
+      },
+    );
   }
-  return new Set(blocks.map((block) => `${repo}|${filePath}|block|${block.ordinal}`));
+  return new Set(
+    blocks.map((block) => `${repo}|${filePath}|block|${block.ordinal}`),
+  );
 }
 
 /**
@@ -70,7 +77,10 @@ export async function pruneOrphanBlocksByFile(
       }`,
       { $fp: filePath, $repo: repo },
     );
-    const blocks = (res.data?.blocks ?? []) as Array<{ uid: string; "Block.xid": string }>;
+    const blocks = (res.data?.blocks ?? []) as Array<{
+      uid: string;
+      "Block.xid": string;
+    }>;
     const orphanUids = blocks
       .filter((block) => !validXids.has(block["Block.xid"]))
       .map((block) => block.uid);

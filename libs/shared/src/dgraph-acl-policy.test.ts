@@ -18,7 +18,10 @@ describe("auditDgraphAcl", () => {
               {
                 name: "alpha",
                 env: [
-                  { name: "DGRAPH_ACL_SECRET", value: "supersecret-guardian-pw" },
+                  {
+                    name: "DGRAPH_ACL_SECRET",
+                    value: "supersecret-guardian-pw",
+                  },
                 ],
               },
             ],
@@ -30,7 +33,9 @@ describe("auditDgraphAcl", () => {
     const violations = auditDgraphAcl([hardcodedDoc]);
 
     expect(violations.length).toBeGreaterThan(0);
-    expect(violations.join(" ")).toMatch(/hardcoded|literal|DGRAPH_ACL_SECRET/i);
+    expect(violations.join(" ")).toMatch(
+      /hardcoded|literal|DGRAPH_ACL_SECRET/i,
+    );
   });
 
   it("flags a dgraph alpha workload whose args do not enable --acl", () => {
@@ -75,7 +80,12 @@ describe("auditDgraphAcl", () => {
                 env: [
                   {
                     name: "DGRAPH_GUARDIAN_PASSWORD",
-                    valueFrom: { secretKeyRef: { name: "dgraph-guardian", key: "password" } },
+                    valueFrom: {
+                      secretKeyRef: {
+                        name: "dgraph-guardian",
+                        key: "password",
+                      },
+                    },
                   },
                 ],
               },
@@ -101,7 +111,9 @@ describe("auditDgraphAcl", () => {
     const violations = auditDgraphAcl([saNoWi]);
 
     expect(violations.length).toBeGreaterThan(0);
-    expect(violations.join(" ")).toMatch(/workload identity|iam\.gke\.io|gcp-service-account/i);
+    expect(violations.join(" ")).toMatch(
+      /workload identity|iam\.gke\.io|gcp-service-account/i,
+    );
   });
 
   it("returns no violations for a fully compliant Dgraph deployment set", () => {
@@ -112,30 +124,71 @@ describe("auditDgraphAcl", () => {
         metadata: {
           name: "lore-memory-app",
           namespace: "lore-memory",
-          annotations: { "iam.gke.io/gcp-service-account": "lore-memory-app@proj.iam.gserviceaccount.com" },
+          annotations: {
+            "iam.gke.io/gcp-service-account":
+              "lore-memory-app@proj.iam.gserviceaccount.com",
+          },
         },
       },
       {
         apiVersion: "apps/v1",
         kind: "StatefulSet",
         metadata: { name: "dgraph-alpha" },
-        spec: { template: { spec: { containers: [
-          { name: "alpha", command: ["dgraph", "alpha"], args: ["--acl", "secret-file=/acl/hmac"],
-            env: [
-              { name: "DGRAPH_APP_PASSWORD", valueFrom: { secretKeyRef: { name: "lore-memory-app", key: "password" } } },
-            ] },
-        ] } } },
+        spec: {
+          template: {
+            spec: {
+              containers: [
+                {
+                  name: "alpha",
+                  command: ["dgraph", "alpha"],
+                  args: ["--acl", "secret-file=/acl/hmac"],
+                  env: [
+                    {
+                      name: "DGRAPH_APP_PASSWORD",
+                      valueFrom: {
+                        secretKeyRef: {
+                          name: "lore-memory-app",
+                          key: "password",
+                        },
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
       },
       {
         apiVersion: "batch/v1",
         kind: "Job",
-        metadata: { name: "dgraph-acl-bootstrap", annotations: { "helm.sh/hook": "pre-install" } },
-        spec: { template: { spec: { containers: [
-          { name: "bootstrap", command: ["sh", "-c", "set-acl"],
-            env: [
-              { name: "DGRAPH_GUARDIAN_PASSWORD", valueFrom: { secretKeyRef: { name: "dgraph-guardian", key: "password" } } },
-            ] },
-        ] } } },
+        metadata: {
+          name: "dgraph-acl-bootstrap",
+          annotations: { "helm.sh/hook": "pre-install" },
+        },
+        spec: {
+          template: {
+            spec: {
+              containers: [
+                {
+                  name: "bootstrap",
+                  command: ["sh", "-c", "set-acl"],
+                  env: [
+                    {
+                      name: "DGRAPH_GUARDIAN_PASSWORD",
+                      valueFrom: {
+                        secretKeyRef: {
+                          name: "dgraph-guardian",
+                          key: "password",
+                        },
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
       },
     ];
 
@@ -147,10 +200,27 @@ describe("auditDgraphAcl", () => {
       apiVersion: "apps/v1",
       kind: "StatefulSet",
       metadata: { name: "dgraph-alpha" },
-      spec: { template: { spec: { containers: [
-        { name: "alpha", command: ["dgraph", "alpha"], args: ["--acl", "secret-file=/acl/hmac"],
-          env: [{ name: "DGRAPH_APP_SECRET", valueFrom: { secretKeyRef: { name: "lore-memory-app", key: "secret" } } }] },
-      ] } } },
+      spec: {
+        template: {
+          spec: {
+            containers: [
+              {
+                name: "alpha",
+                command: ["dgraph", "alpha"],
+                args: ["--acl", "secret-file=/acl/hmac"],
+                env: [
+                  {
+                    name: "DGRAPH_APP_SECRET",
+                    valueFrom: {
+                      secretKeyRef: { name: "lore-memory-app", key: "secret" },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
     };
 
     expect(auditDgraphAcl([usesSecretRef])).toEqual([]);
@@ -160,11 +230,32 @@ describe("auditDgraphAcl", () => {
     const bootstrap = {
       apiVersion: "batch/v1",
       kind: "Job",
-      metadata: { name: "dgraph-acl-bootstrap", annotations: { "helm.sh/hook": "pre-install" } },
-      spec: { template: { spec: { containers: [
-        { name: "bootstrap",
-          env: [{ name: "DGRAPH_GUARDIAN_PASSWORD", valueFrom: { secretKeyRef: { name: "dgraph-guardian", key: "password" } } }] },
-      ] } } },
+      metadata: {
+        name: "dgraph-acl-bootstrap",
+        annotations: { "helm.sh/hook": "pre-install" },
+      },
+      spec: {
+        template: {
+          spec: {
+            containers: [
+              {
+                name: "bootstrap",
+                env: [
+                  {
+                    name: "DGRAPH_GUARDIAN_PASSWORD",
+                    valueFrom: {
+                      secretKeyRef: {
+                        name: "dgraph-guardian",
+                        key: "password",
+                      },
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
     };
 
     expect(auditDgraphAcl([bootstrap])).toEqual([]);

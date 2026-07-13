@@ -6,7 +6,7 @@
  * itself is handled by the Floor service.
  */
 
-import { getDefaultRepo } from './pipeline-config.js';
+import { getDefaultRepo } from "./pipeline-config.js";
 import {
   createPipelineTask,
   retryPipelineTask,
@@ -16,7 +16,7 @@ import {
   updateTaskStatus as sharedUpdateTaskStatus,
   cancelPipelineTask,
   markTaskMerged as sharedMarkTaskMerged,
-} from '@re-cinq/lore-shared';
+} from "@re-cinq/lore-shared";
 
 // ── Pool management ──────────────────────────────────────────────────
 
@@ -29,17 +29,29 @@ function getPool(): Pool {
   return pool;
 }
 
-export function setPipelinePool(p: Pool): void { pool = p; }
+export function setPipelinePool(p: Pool): void {
+  pool = p;
+}
 
 // ── Relocated CRUD (single source in shared; thin pool-binding wrappers) ──
 export const getTask = (taskId: string) => getPipelineTask(getPool(), taskId);
-export const listTasks = (status?: string, limit = 50, offset = 0) => listPipelineTasks(getPool(), status, limit, offset);
-export const recordEvent = (taskId: string, fromStatus: string | null, toStatus: string | null, meta?: any) =>
-  recordTaskEvent(getPool(), taskId, fromStatus, toStatus, meta);
-export const updateTaskStatus = (taskId: string, newStatus: string, meta?: any) =>
-  sharedUpdateTaskStatus(getPool(), taskId, newStatus, meta);
-export const cancelTask = (taskId: string) => cancelPipelineTask(getPool(), taskId);
-export const markTaskMerged = (taskId: string) => sharedMarkTaskMerged(getPool(), taskId);
+export const listTasks = (status?: string, limit = 50, offset = 0) =>
+  listPipelineTasks(getPool(), status, limit, offset);
+export const recordEvent = (
+  taskId: string,
+  fromStatus: string | null,
+  toStatus: string | null,
+  meta?: any,
+) => recordTaskEvent(getPool(), taskId, fromStatus, toStatus, meta);
+export const updateTaskStatus = (
+  taskId: string,
+  newStatus: string,
+  meta?: any,
+) => sharedUpdateTaskStatus(getPool(), taskId, newStatus, meta);
+export const cancelTask = (taskId: string) =>
+  cancelPipelineTask(getPool(), taskId);
+export const markTaskMerged = (taskId: string) =>
+  sharedMarkTaskMerged(getPool(), taskId);
 
 // ── Task CRUD ────────────────────────────────────────────────────────
 
@@ -47,11 +59,11 @@ export const markTaskMerged = (taskId: string) => sharedMarkTaskMerged(getPool()
 // mcp keeps its positional signature and resolves the default repo via config.
 export function createTask(
   description: string,
-  taskType: string = 'general',
+  taskType: string = "general",
   targetRepo?: string,
-  createdBy: string = 'ui',
+  createdBy: string = "ui",
   contextBundle?: any,
-  priority: string = 'normal',
+  priority: string = "normal",
   taskGroupId?: string,
   contextRefs?: { fact_ids: string[]; memory_ids: string[] },
 ): Promise<any> {
@@ -69,12 +81,19 @@ export function createTask(
 
 // ── Review iteration (T025) ─────────────────────────────────────────
 
-export async function handleReviewResult(taskId: string, approved: boolean, comments: string): Promise<void> {
+export async function handleReviewResult(
+  taskId: string,
+  approved: boolean,
+  comments: string,
+): Promise<void> {
   const task = await getTask(taskId);
   if (!task) return;
 
   if (approved) {
-    await updateTaskStatus(taskId, 'review', { review_result: 'approved', comments });
+    await updateTaskStatus(taskId, "review", {
+      review_result: "approved",
+      comments,
+    });
     // Agent approval logged but human still needs to approve
   } else {
     // Check iteration count
@@ -86,8 +105,8 @@ export async function handleReviewResult(taskId: string, approved: boolean, comm
 
     if (iteration >= 2) {
       // Max iterations reached, escalate to human
-      await updateTaskStatus(taskId, 'review', {
-        review_result: 'needs-human-review',
+      await updateTaskStatus(taskId, "review", {
+        review_result: "needs-human-review",
         comments,
         iterations: iteration,
       });
@@ -97,16 +116,19 @@ export async function handleReviewResult(taskId: string, approved: boolean, comm
         `Address review feedback on PR: ${comments.substring(0, 200)}`,
         task.task_type,
         task.target_repo,
-        'review-agent',
+        "review-agent",
         { branch: task.target_branch, review_comments: comments },
-        'immediate',
+        "immediate",
       );
-      await updateTaskStatus(taskId, 'review', { review_result: 'changes-requested', iteration });
+      await updateTaskStatus(taskId, "review", {
+        review_result: "changes-requested",
+        iteration,
+      });
     }
   }
 }
 
 // ── Task retry (single source in shared) ────────────────────────────
 
-export const retryTask = (taskId: string) => retryPipelineTask(getPool(), taskId);
-
+export const retryTask = (taskId: string) =>
+  retryPipelineTask(getPool(), taskId);

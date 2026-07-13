@@ -35,9 +35,9 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const session = (await getServerSession(authOptions)) as
-      | { accessToken?: string }
-      | null;
+    const session = (await getServerSession(authOptions)) as {
+      accessToken?: string;
+    } | null;
     if (!session?.accessToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -50,7 +50,10 @@ export async function GET(
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
-    const hasAccess = await checkRepoAccess(session.accessToken, task.target_repo);
+    const hasAccess = await checkRepoAccess(
+      session.accessToken,
+      task.target_repo,
+    );
     if (!hasAccess) {
       return NextResponse.json(
         { error: "Access denied — you do not have access to this repo" },

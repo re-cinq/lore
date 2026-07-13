@@ -18,35 +18,65 @@ describe("context hydration URL", () => {
   }
 
   it("uses implementation template by default", () => {
-    const url = buildContextUrl("https://api.example.com", "re-cinq/lore", "add auth", "implementation");
+    const url = buildContextUrl(
+      "https://api.example.com",
+      "re-cinq/lore",
+      "add auth",
+      "implementation",
+    );
     expect(url).toContain("template=implementation");
   });
 
   it("uses review template for review tasks", () => {
-    const url = buildContextUrl("https://api.example.com", "re-cinq/lore", "review PR", "review");
+    const url = buildContextUrl(
+      "https://api.example.com",
+      "re-cinq/lore",
+      "review PR",
+      "review",
+    );
     expect(url).toContain("template=review");
   });
 
   it("uses implementation template for general tasks", () => {
-    const url = buildContextUrl("https://api.example.com", "re-cinq/lore", "analyze code", "general");
+    const url = buildContextUrl(
+      "https://api.example.com",
+      "re-cinq/lore",
+      "analyze code",
+      "general",
+    );
     expect(url).toContain("template=implementation");
   });
 
   it("truncates query to 200 chars", () => {
     const longPrompt = "x".repeat(500);
-    const url = buildContextUrl("https://api.example.com", "re-cinq/lore", longPrompt, "general");
+    const url = buildContextUrl(
+      "https://api.example.com",
+      "re-cinq/lore",
+      longPrompt,
+      "general",
+    );
     // URL-encoded 200 chars of "x" = 200 chars (no encoding needed for 'x')
     const queryParam = new URL(url).searchParams.get("query");
     expect(queryParam!.length).toBe(200);
   });
 
   it("encodes special characters in repo name", () => {
-    const url = buildContextUrl("https://api.example.com", "org/repo-name", "test", "general");
+    const url = buildContextUrl(
+      "https://api.example.com",
+      "org/repo-name",
+      "test",
+      "general",
+    );
     expect(url).toContain("repo=org%2Frepo-name");
   });
 
   it("encodes special characters in query", () => {
-    const url = buildContextUrl("https://api.example.com", "org/repo", "what's the auth pattern?", "general");
+    const url = buildContextUrl(
+      "https://api.example.com",
+      "org/repo",
+      "what's the auth pattern?",
+      "general",
+    );
     expect(url).toContain("query=what");
     expect(url).not.toContain("?&"); // no unencoded special chars breaking the URL
   });
@@ -62,10 +92,16 @@ describe("context hydration prompt", () => {
     const parts: string[] = [];
     if (preContext) {
       parts.push("## Pre-loaded Context\n\n" + preContext + "\n\n---\n");
-      parts.push("Context was pre-loaded above. You may call lore_assemble_context for fresh data during long tasks.");
+      parts.push(
+        "Context was pre-loaded above. You may call lore_assemble_context for fresh data during long tasks.",
+      );
     } else {
-      parts.push("IMPORTANT: You have the Lore MCP server. Follow this workflow:");
-      parts.push("1. FIRST: Call lore_assemble_context with a query describing this task.");
+      parts.push(
+        "IMPORTANT: You have the Lore MCP server. Follow this workflow:",
+      );
+      parts.push(
+        "1. FIRST: Call lore_assemble_context with a query describing this task.",
+      );
     }
 
     const prompt = parts.join("\n");
@@ -80,8 +116,12 @@ describe("context hydration prompt", () => {
     if (preContext) {
       parts.push("## Pre-loaded Context\n\n" + preContext);
     } else {
-      parts.push("IMPORTANT: You have the Lore MCP server. Follow this workflow:");
-      parts.push("1. FIRST: Call lore_assemble_context with a query describing this task.");
+      parts.push(
+        "IMPORTANT: You have the Lore MCP server. Follow this workflow:",
+      );
+      parts.push(
+        "1. FIRST: Call lore_assemble_context with a query describing this task.",
+      );
     }
 
     const prompt = parts.join("\n");
@@ -96,7 +136,9 @@ describe("context hydration prompt", () => {
 
 describe("/api/context endpoint behavior", () => {
   it("should use full assembly when query param is present", () => {
-    const url = new URL("http://localhost/api/context?repo=re-cinq/lore&query=auth&template=implementation");
+    const url = new URL(
+      "http://localhost/api/context?repo=re-cinq/lore&query=auth&template=implementation",
+    );
     const query = url.searchParams.get("query");
     const template = url.searchParams.get("template") || "default";
     const useAssembly = !!query;

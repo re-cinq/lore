@@ -16,8 +16,25 @@ const FEATURE_PLANNING = ["feature-planning", "feature-finalize"];
 const TRUST_LEVELS: Record<string, string[]> = {
   docs: ["gap-fill", "runbook", ...FEATURE_PLANNING],
   tests: ["gap-fill", "runbook", "review", ...FEATURE_PLANNING],
-  implementation: ["gap-fill", "runbook", "review", "implementation", "feature-request", "general", ...FEATURE_PLANNING],
-  full: ["gap-fill", "runbook", "review", "implementation", "feature-request", "general", "onboard", ...FEATURE_PLANNING],
+  implementation: [
+    "gap-fill",
+    "runbook",
+    "review",
+    "implementation",
+    "feature-request",
+    "general",
+    ...FEATURE_PLANNING,
+  ],
+  full: [
+    "gap-fill",
+    "runbook",
+    "review",
+    "implementation",
+    "feature-request",
+    "general",
+    "onboard",
+    ...FEATURE_PLANNING,
+  ],
 };
 
 export interface CreateTaskInput {
@@ -32,22 +49,31 @@ export interface CreateTaskInput {
   contextRefs?: { fact_ids: string[]; memory_ids: string[] };
 }
 
-export async function createTask(pool: PgPool, input: CreateTaskInput): Promise<any> {
+export async function createTask(
+  pool: PgPool,
+  input: CreateTaskInput,
+): Promise<any> {
   const taskType = input.taskType ?? "general";
   const repo = input.targetRepo;
   const createdBy = input.createdBy ?? "ui";
-  if (input.description.length > 10000) throw new Error("Description too long (max 10000 chars)");
+  if (input.description.length > 10000)
+    throw new Error("Description too long (max 10000 chars)");
 
   if (repo) {
     try {
-      const { rows: repoRows } = await pool.query(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
+      const { rows: repoRows } = await pool.query(
+        `SELECT settings FROM lore.repos WHERE full_name = $1`,
+        [repo],
+      );
       if (repoRows.length > 0) {
         const settings = repoRows[0].settings || {};
         const trustLevel = settings.trust?.level;
         if (trustLevel && TRUST_LEVELS[trustLevel]) {
           const allowed = TRUST_LEVELS[trustLevel];
           if (!allowed.includes(taskType)) {
-            throw new Error(`Task type "${taskType}" not allowed at trust level "${trustLevel}" for ${repo}. Allowed: ${allowed.join(", ")}`);
+            throw new Error(
+              `Task type "${taskType}" not allowed at trust level "${trustLevel}" for ${repo}. Allowed: ${allowed.join(", ")}`,
+            );
           }
         }
       }
@@ -57,15 +83,26 @@ export async function createTask(pool: PgPool, input: CreateTaskInput): Promise<
     }
   }
 
-  const resolvedPriority = input.priority === "immediate" ? "immediate" : "normal";
-  const contextJson = input.contextBundle ? JSON.stringify(input.contextBundle) : null;
+  const resolvedPriority =
+    input.priority === "immediate" ? "immediate" : "normal";
+  const contextJson = input.contextBundle
+    ? JSON.stringify(input.contextBundle)
+    : null;
   let rows: any[];
   if (input.taskGroupId) {
     const result = await pool.query(
       `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority, task_group_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, status, priority, created_at`,
-      [input.description, taskType, repo, createdBy, contextJson, resolvedPriority, input.taskGroupId],
+      [
+        input.description,
+        taskType,
+        repo,
+        createdBy,
+        contextJson,
+        resolvedPriority,
+        input.taskGroupId,
+      ],
     );
     rows = result.rows;
   } else {
@@ -73,25 +110,50 @@ export async function createTask(pool: PgPool, input: CreateTaskInput): Promise<
       `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, status, priority, created_at`,
-      [input.description, taskType, repo, createdBy, contextJson, resolvedPriority],
+      [
+        input.description,
+        taskType,
+        repo,
+        createdBy,
+        contextJson,
+        resolvedPriority,
+      ],
     );
     rows = result.rows;
   }
   const task = rows[0];
-  if (input.contextRefs && (input.contextRefs.fact_ids.length > 0 || input.contextRefs.memory_ids.length > 0)) {
+  if (
+    input.contextRefs &&
+    (input.contextRefs.fact_ids.length > 0 ||
+      input.contextRefs.memory_ids.length > 0)
+  ) {
     await pool
-      .query(`UPDATE pipeline.tasks SET context_refs = $1 WHERE id = $2`, [JSON.stringify(input.contextRefs), task.id])
+      .query(`UPDATE pipeline.tasks SET context_refs = $1 WHERE id = $2`, [
+        JSON.stringify(input.contextRefs),
+        task.id,
+      ])
       .catch(() => {});
   }
-  await recordEvent(pool, task.id, null, "pending", { created_by: createdBy, priority: resolvedPriority });
-  return { task_id: task.id, task_type: taskType, status: task.status, priority: task.priority, created_at: task.created_at };
+  await recordEvent(pool, task.id, null, "pending", {
+    created_by: createdBy,
+    priority: resolvedPriority,
+  });
+  return {
+    task_id: task.id,
+    task_type: taskType,
+    status: task.status,
+    priority: task.priority,
+    created_at: task.created_at,
+  };
 }
 
 export async function retryTask(pool: PgPool, taskId: string): Promise<any> {
   const task = await getTask(pool, taskId);
   if (!task) throw new Error("Task not found");
   if (task.status !== "failed" && task.status !== "needs-human-help") {
-    throw new Error(`Cannot retry task in ${task.status} state (must be failed or needs-human-help)`);
+    throw new Error(
+      `Cannot retry task in ${task.status} state (must be failed or needs-human-help)`,
+    );
   }
   const result = await createTask(pool, {
     description: task.description,
@@ -100,12 +162,17 @@ export async function retryTask(pool: PgPool, taskId: string): Promise<any> {
     createdBy: `retry:${task.created_by}`,
     contextBundle: { ...(task.context_bundle || {}), retry_of: taskId },
   });
-  await updateTaskStatus(pool, taskId, "retried", { retried_as: result.task_id });
+  await updateTaskStatus(pool, taskId, "retried", {
+    retried_as: result.task_id,
+  });
   return { task_id: result.task_id, status: result.status, retry_of: taskId };
 }
 
 export async function getTask(pool: PgPool, taskId: string): Promise<any> {
-  const { rows: tasks } = await pool.query(`SELECT * FROM pipeline.tasks WHERE id = $1`, [taskId]);
+  const { rows: tasks } = await pool.query(
+    `SELECT * FROM pipeline.tasks WHERE id = $1`,
+    [taskId],
+  );
   if (tasks.length === 0) return null;
   const { rows: events } = await pool.query(
     `SELECT * FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at`,
@@ -143,9 +210,19 @@ export async function listTasks(
  * injection via dynamic keys). Superset of what the agent's setStatus needed.
  */
 const ALLOWED_TASK_COLUMNS = new Set([
-  "pr_url", "pr_number", "target_branch", "failure_reason", "agent_id",
-  "log_url", "claimed_by", "claimed_at", "issue_number", "issue_url",
-  "review_iteration", "actor", "priority",
+  "pr_url",
+  "pr_number",
+  "target_branch",
+  "failure_reason",
+  "agent_id",
+  "log_url",
+  "claimed_by",
+  "claimed_at",
+  "issue_number",
+  "issue_url",
+  "review_iteration",
+  "actor",
+  "priority",
 ]);
 
 /**
@@ -169,7 +246,10 @@ export async function setTaskStatus(
     idx++;
   }
   params.push(taskId);
-  await pool.query(`UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${idx}`, params);
+  await pool.query(
+    `UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${idx}`,
+    params,
+  );
 }
 
 /**
@@ -224,8 +304,16 @@ export async function recordEvent(
 }
 
 /** Combined: read the old status, set the new one, and record the transition event. */
-export async function updateTaskStatus(pool: PgPool, taskId: string, newStatus: string, meta?: any): Promise<void> {
-  const { rows } = await pool.query(`SELECT status FROM pipeline.tasks WHERE id = $1`, [taskId]);
+export async function updateTaskStatus(
+  pool: PgPool,
+  taskId: string,
+  newStatus: string,
+  meta?: any,
+): Promise<void> {
+  const { rows } = await pool.query(
+    `SELECT status FROM pipeline.tasks WHERE id = $1`,
+    [taskId],
+  );
   if (rows.length === 0) return;
   const oldStatus = rows[0].status;
   await setTaskStatus(pool, taskId, newStatus);
@@ -242,11 +330,16 @@ export async function cancelTask(pool: PgPool, taskId: string): Promise<any> {
   return { task_id: taskId, status: "cancelled" };
 }
 
-export async function markTaskMerged(pool: PgPool, taskId: string): Promise<any> {
+export async function markTaskMerged(
+  pool: PgPool,
+  taskId: string,
+): Promise<any> {
   const task = await getTask(pool, taskId);
   if (!task) throw new Error("Task not found");
   if (task.status !== "pr-created" && task.status !== "review") {
-    throw new Error(`Cannot mark task as merged from ${task.status} state (expected pr-created or review)`);
+    throw new Error(
+      `Cannot mark task as merged from ${task.status} state (expected pr-created or review)`,
+    );
   }
   await updateTaskStatus(pool, taskId, "merged", { merged_by: "manual" });
   return { task_id: taskId, status: "merged" };

@@ -1,23 +1,23 @@
-import type { Metadata, Viewport } from 'next';
-import Link from 'next/link';
-import AppShell from './AppShell';
-import SidebarNav from './SidebarNav';
-import SessionWrapper from './SessionWrapper';
-import UserMenu from './UserMenu';
-import { ThemeProvider } from '@/lib/theme/ThemeProvider';
-import { inter, ibmPlexMono, gohu } from '@/lib/theme/fonts';
-import { THEME_SCRIPT } from '@/lib/theme/theme-script';
-import './theme.css';
-import 'highlight.js/styles/github.css';
-import './globals.css';
+import type { Metadata, Viewport } from "next";
+import Link from "next/link";
+import AppShell from "./AppShell";
+import SidebarNav from "./SidebarNav";
+import SessionWrapper from "./SessionWrapper";
+import UserMenu from "./UserMenu";
+import { ThemeProvider } from "@/lib/theme/ThemeProvider";
+import { inter, ibmPlexMono, gohu } from "@/lib/theme/fonts";
+import { THEME_SCRIPT } from "@/lib/theme/theme-script";
+import "./theme.css";
+import "highlight.js/styles/github.css";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: 'Lore',
-  description: 'Research coordination platform',
+  title: "Lore",
+  description: "Research coordination platform",
 };
 
 export const viewport: Viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
 };
 
@@ -27,7 +27,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${ibmPlexMono.variable} ${gohu.variable}`}>
+    <html
+      lang="en"
+      className={`${inter.variable} ${ibmPlexMono.variable} ${gohu.variable}`}
+    >
       <body>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <ThemeProvider>
@@ -40,8 +43,11 @@ export default function RootLayout({
                   </Link>
                   <SidebarNav />
                   <UserMenu />
-                  <div className="meta sidebar-version" title="Deployed build (git SHA)">
-                    {process.env.LORE_UI_VERSION ?? 'dev'}
+                  <div
+                    className="meta sidebar-version"
+                    title="Deployed build (git SHA)"
+                  >
+                    {process.env.LORE_UI_VERSION ?? "dev"}
                   </div>
                 </>
               }

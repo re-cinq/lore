@@ -1,31 +1,31 @@
 export const dynamic = "force-dynamic";
-import { NextRequest, NextResponse } from 'next/server';
-import { query, queryOne } from '@/lib/db';
-import { serverError } from '@/lib/api-error';
+import { NextRequest, NextResponse } from "next/server";
+import { query, queryOne } from "@/lib/db";
+import { serverError } from "@/lib/api-error";
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ owner: string; repo: string }> }
+  { params }: { params: Promise<{ owner: string; repo: string }> },
 ) {
   try {
     const { owner, repo } = await params;
     const fullName = `${owner}/${repo}`;
     const repoData = await queryOne(
       `SELECT full_name, team, settings FROM lore.repos WHERE full_name = $1`,
-      [fullName]
+      [fullName],
     );
     if (!repoData) {
-      return NextResponse.json({ error: 'Repo not found' }, { status: 404 });
+      return NextResponse.json({ error: "Repo not found" }, { status: 404 });
     }
     return NextResponse.json(repoData);
   } catch (err) {
-    return serverError('settings.GET', err);
+    return serverError("settings.GET", err);
   }
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ owner: string; repo: string }> }
+  { params }: { params: Promise<{ owner: string; repo: string }> },
 ) {
   try {
     const { owner, repo } = await params;
@@ -35,10 +35,10 @@ export async function POST(
     // Verify the repo exists
     const existing = await queryOne(
       `SELECT full_name FROM lore.repos WHERE full_name = $1`,
-      [fullName]
+      [fullName],
     );
     if (!existing) {
-      return NextResponse.json({ error: 'Repo not found' }, { status: 404 });
+      return NextResponse.json({ error: "Repo not found" }, { status: 404 });
     }
 
     // Build update fields
@@ -53,27 +53,32 @@ export async function POST(
 
     if (body.settings !== undefined) {
       // Merge into existing settings instead of overwriting
-      updates.push(`settings = COALESCE(settings, '{}') || $${paramIdx++}::jsonb`);
+      updates.push(
+        `settings = COALESCE(settings, '{}') || $${paramIdx++}::jsonb`,
+      );
       values.push(JSON.stringify(body.settings));
     }
 
     if (updates.length === 0) {
-      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+      return NextResponse.json(
+        { error: "No fields to update" },
+        { status: 400 },
+      );
     }
 
     values.push(fullName);
     await query(
-      `UPDATE lore.repos SET ${updates.join(', ')} WHERE full_name = $${paramIdx}`,
-      values
+      `UPDATE lore.repos SET ${updates.join(", ")} WHERE full_name = $${paramIdx}`,
+      values,
     );
 
     const updated = await queryOne(
       `SELECT full_name, team, settings FROM lore.repos WHERE full_name = $1`,
-      [fullName]
+      [fullName],
     );
 
     return NextResponse.json(updated);
   } catch (err) {
-    return serverError('settings.POST', err);
+    return serverError("settings.POST", err);
   }
 }

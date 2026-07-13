@@ -80,8 +80,7 @@ export function resolveDarkFactorySettings(
       paths: partial?.auto_merge?.paths ?? DEFAULT_AUTO_MERGE_PATHS,
       min_trust: partial?.auto_merge?.min_trust ?? "docs",
       require_green_ci: partial?.auto_merge?.require_green_ci ?? true,
-      require_bot_approval:
-        partial?.auto_merge?.require_bot_approval ?? true,
+      require_bot_approval: partial?.auto_merge?.require_bot_approval ?? true,
     },
     review: partial?.review ?? (enabled ? "trust_based" : "always"),
     notify: partial?.notify ?? (enabled ? [] : ["all"]),

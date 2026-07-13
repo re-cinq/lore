@@ -1,13 +1,15 @@
-import { formatRelativeTime } from '@/lib/assembly-lines';
-import type { AssemblyLineRun } from '@/lib/assembly-line-runs';
-import styles from './AssemblyLineRunsSection.module.css';
+import { formatRelativeTime } from "@/lib/assembly-lines";
+import type { AssemblyLineRun } from "@/lib/assembly-line-runs";
+import styles from "./AssemblyLineRunsSection.module.css";
 
 export interface AssemblyLineRunsSectionProps {
   runs: AssemblyLineRun[];
 }
 
 const formatDurationSeconds = (seconds: number): string =>
-  seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
+  seconds >= 60
+    ? `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+    : `${seconds}s`;
 
 /**
  * The per-attempt execution records from pipeline.assembly_lines (migration
@@ -15,7 +17,9 @@ const formatDurationSeconds = (seconds: number): string =>
  * render, no IO; renders nothing on pre-migration databases (empty runs). Sits
  * alongside the task-grouping table until the page re-keys onto run ids.
  */
-export default function AssemblyLineRunsSection({ runs }: AssemblyLineRunsSectionProps) {
+export default function AssemblyLineRunsSection({
+  runs,
+}: AssemblyLineRunsSectionProps) {
   if (runs.length === 0) return null;
 
   return (
@@ -39,14 +43,22 @@ export default function AssemblyLineRunsSection({ runs }: AssemblyLineRunsSectio
               <td>{run.definitionName}</td>
               <td>{run.repo}</td>
               <td>
-                <span className={styles[`status_${run.status}`] ?? undefined}>{run.status}</span>
+                <span className={styles[`status_${run.status}`] ?? undefined}>
+                  {run.status}
+                </span>
               </td>
               <td>
-                {run.outcome ?? '—'}
-                {run.reason ? <span className={styles.reason}>{run.reason}</span> : null}
+                {run.outcome ?? "—"}
+                {run.reason ? (
+                  <span className={styles.reason}>{run.reason}</span>
+                ) : null}
               </td>
               <td>{run.nodeCount} nodes</td>
-              <td>{run.durationSeconds !== null ? formatDurationSeconds(run.durationSeconds) : '—'}</td>
+              <td>
+                {run.durationSeconds !== null
+                  ? formatDurationSeconds(run.durationSeconds)
+                  : "—"}
+              </td>
               <td>{formatRelativeTime(run.createdAt)}</td>
             </tr>
           ))}

@@ -24,7 +24,10 @@ function generateCatalog(): void {
     task_types: Record<string, AgentCatalogConfig>;
     stations?: Record<string, StationCatalogConfig>;
   };
-  writeFileSync(dest, catalogChartYaml(parsed.task_types, parsed.stations ?? {}));
+  writeFileSync(
+    dest,
+    catalogChartYaml(parsed.task_types, parsed.stations ?? {}),
+  );
   console.log(`[gen-catalog] wrote ${dest}`);
 }
 

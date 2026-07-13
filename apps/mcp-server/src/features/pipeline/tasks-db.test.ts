@@ -111,7 +111,13 @@ describe("getReadyTasks", () => {
   it("returns the repo-scoped ready set the shared queue produces", async () => {
     const pool = makePool();
     const rows = [
-      { id: "uuid-1", description: "A", context_bundle: { spec_task_id: "T001" }, target_repo: "re-cinq/lore", task_group_id: null },
+      {
+        id: "uuid-1",
+        description: "A",
+        context_bundle: { spec_task_id: "T001" },
+        target_repo: "re-cinq/lore",
+        task_group_id: null,
+      },
     ];
     pool.query.mockResolvedValueOnce({ rows });
 
@@ -170,23 +176,39 @@ describe("completeTask", () => {
     const pool = makePool();
     pool.query.mockResolvedValueOnce({ rows: [] });
 
-    expect(await completeTask(pool, "missing")).toEqual({ completed: false, unblocked: [] });
+    expect(await completeTask(pool, "missing")).toEqual({
+      completed: false,
+      unblocked: [],
+    });
     expect(pool.query).toHaveBeenCalledTimes(1);
   });
 
   it("returns completed false when the task is not running", async () => {
     const pool = makePool();
     pool.query.mockResolvedValueOnce({
-      rows: [{ status: "pending", context_bundle: {}, target_repo: "re-cinq/lore" }],
+      rows: [
+        { status: "pending", context_bundle: {}, target_repo: "re-cinq/lore" },
+      ],
     });
 
-    expect(await completeTask(pool, "uuid-1")).toEqual({ completed: false, unblocked: [] });
+    expect(await completeTask(pool, "uuid-1")).toEqual({
+      completed: false,
+      unblocked: [],
+    });
   });
 
   it("marks a running task completed and records the transition, no slug scan", async () => {
     const pool = makePool();
     pool.query
-      .mockResolvedValueOnce({ rows: [{ status: "running", context_bundle: {}, target_repo: "re-cinq/lore" }] }) // load
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            status: "running",
+            context_bundle: {},
+            target_repo: "re-cinq/lore",
+          },
+        ],
+      }) // load
       .mockResolvedValueOnce({ rows: [] }) // UPDATE completed
       .mockResolvedValueOnce({ rows: [] }); // recordEvent INSERT
 
@@ -200,18 +222,45 @@ describe("completeTask", () => {
   it("returns formatted descriptors for newly unblocked same-spec dependents", async () => {
     const pool = makePool();
     pool.query
-      .mockResolvedValueOnce({ rows: [{ status: "running", context_bundle: { spec_task_id: "T001", spec_slug: "auth" }, target_repo: "re-cinq/lore" }] }) // load
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            status: "running",
+            context_bundle: { spec_task_id: "T001", spec_slug: "auth" },
+            target_repo: "re-cinq/lore",
+          },
+        ],
+      }) // load
       .mockResolvedValueOnce({ rows: [] }) // UPDATE
       .mockResolvedValueOnce({
         rows: [
-          { id: "uuid-2", description: "Build B", context_bundle: { spec_task_id: "T002", spec_slug: "auth", depends_on: ["T001"] } },
-          { id: "uuid-3", description: "Build C", context_bundle: { spec_task_id: "T003", spec_slug: "auth", depends_on: ["T001"] } },
+          {
+            id: "uuid-2",
+            description: "Build B",
+            context_bundle: {
+              spec_task_id: "T002",
+              spec_slug: "auth",
+              depends_on: ["T001"],
+            },
+          },
+          {
+            id: "uuid-3",
+            description: "Build C",
+            context_bundle: {
+              spec_task_id: "T003",
+              spec_slug: "auth",
+              depends_on: ["T001"],
+            },
+          },
         ],
       }) // findReadySpecTasks
       .mockResolvedValueOnce({ rows: [] }); // recordEvent INSERT
 
     const result = await completeTask(pool, "uuid-1");
 
-    expect(result).toEqual({ completed: true, unblocked: ["T002: Build B", "T003: Build C"] });
+    expect(result).toEqual({
+      completed: true,
+      unblocked: ["T002: Build B", "T003: Build C"],
+    });
   });
 });

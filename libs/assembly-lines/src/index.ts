@@ -96,10 +96,7 @@ export {
 
 export { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
 
-export {
-  RelayExecutor,
-  type RelayResult,
-} from "./relay/relay-executor.js";
+export { RelayExecutor, type RelayResult } from "./relay/relay-executor.js";
 export { RELAY_SCRIPT } from "./relay/relay-script.js";
 
 export {

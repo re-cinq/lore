@@ -2,10 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import {
-  createAgentHandler,
-  extractJsonFiles,
-} from "./agent-handler.js";
+import { createAgentHandler, extractJsonFiles } from "./agent-handler.js";
 import type { AssemblyLineNode } from "./loader.js";
 import type { NodeContext } from "./assembly-line-executor.js";
 import type { LlmCompletion } from "@re-cinq/lore-shared";
@@ -28,7 +25,10 @@ function makeCtx(gitDir: string): NodeContext {
   };
 }
 
-function llmResult(text: string, overrides: Partial<LlmCompletion> = {}): LlmCompletion {
+function llmResult(
+  text: string,
+  overrides: Partial<LlmCompletion> = {},
+): LlmCompletion {
   return {
     text,
     inputTokens: 100,
@@ -147,10 +147,7 @@ describe("createAgentHandler", () => {
     const r = await handler(node, makeCtx(tmpDir));
     expect(r.outcome).toBe("success");
     expect(
-      await fs.readFile(
-        path.join(tmpDir, "deep/nested/path/file.md"),
-        "utf-8",
-      ),
+      await fs.readFile(path.join(tmpDir, "deep/nested/path/file.md"), "utf-8"),
     ).toBe("content");
   });
 
@@ -172,9 +169,7 @@ describe("createAgentHandler", () => {
 
   it("rejects path-traversal attempts and fails", async () => {
     const callLLM = vi.fn(async () =>
-      llmResult(
-        JSON.stringify({ files: { "../../etc/passwd": "evil" } }),
-      ),
+      llmResult(JSON.stringify({ files: { "../../etc/passwd": "evil" } })),
     );
     const handler = createAgentHandler(
       {

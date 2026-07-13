@@ -5,4 +5,7 @@
  * tests import.
  */
 
-export { triggerAgentSpecCoverageValidate, triggerAgentSpecTrace } from "./routes/helpers.js";
+export {
+  triggerAgentSpecCoverageValidate,
+  triggerAgentSpecTrace,
+} from "./routes/helpers.js";

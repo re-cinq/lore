@@ -22,7 +22,9 @@ export function parseIngestPatterns(raw: unknown): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (const [kind, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!Array.isArray(value)) continue;
-    const globs = value.filter((entry): entry is string => typeof entry === "string");
+    const globs = value.filter(
+      (entry): entry is string => typeof entry === "string",
+    );
     if (globs.length) out[kind] = globs;
   }
   return out;

@@ -48,17 +48,32 @@ export async function gapDetectJob(opts: GapDetectOptions): Promise<string> {
   return summary;
 }
 
-async function detectGaps(repo: string, project: Project): Promise<GapReport[]> {
+async function detectGaps(
+  repo: string,
+  project: Project,
+): Promise<GapReport[]> {
   const gaps: GapReport[] = [];
   try {
     if (!(await project.chunks.hasChunk("doc", "CLAUDE.md"))) {
-      gaps.push({ repo, type: "missing-claude-md", detail: `${repo} has no CLAUDE.md in context` });
+      gaps.push({
+        repo,
+        type: "missing-claude-md",
+        detail: `${repo} has no CLAUDE.md in context`,
+      });
     }
     if (!(await project.chunks.hasChunk("adr"))) {
-      gaps.push({ repo, type: "missing-adrs", detail: `${repo} has no architecture decision records` });
+      gaps.push({
+        repo,
+        type: "missing-adrs",
+        detail: `${repo} has no architecture decision records`,
+      });
     }
     if (!(await project.chunks.hasChunk("spec"))) {
-      gaps.push({ repo, type: "missing-specs", detail: `${repo} has no spec files in context` });
+      gaps.push({
+        repo,
+        type: "missing-specs",
+        detail: `${repo} has no spec files in context`,
+      });
     }
     const staleCount = await project.chunks.staleChunkCount(STALE_DAYS);
     if (staleCount > STALE_CHUNK_FLOOR) {
@@ -100,7 +115,10 @@ async function fileGaps(gaps: GapReport[], project: Project): Promise<number> {
       });
       created++;
     } catch (err) {
-      console.error(`[job] gap-detect: error creating task for ${gap.repo}:`, err);
+      console.error(
+        `[job] gap-detect: error creating task for ${gap.repo}:`,
+        err,
+      );
     }
   }
   return created;

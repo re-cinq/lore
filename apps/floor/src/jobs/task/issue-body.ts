@@ -6,7 +6,11 @@
  * (which compresses the body and strips trailers).
  */
 
-import { isDriftTask, DRIFT_ISSUE_GUIDANCE, type DriftTaskLike } from "../spec-trace/spec-drift/drift-issue-guidance.js";
+import {
+  isDriftTask,
+  DRIFT_ISSUE_GUIDANCE,
+  type DriftTaskLike,
+} from "../spec-trace/spec-drift/drift-issue-guidance.js";
 
 export interface IssueComposeTask extends DriftTaskLike {
   id: string;
@@ -41,7 +45,7 @@ export function loreTaskRef(taskId: string, uiUrl?: string): string {
 function renderStatement(s: DriftStatementView): string {
   const where = s.section ? ` _(${s.section})_` : "";
   const links = s.links?.length
-    ? ` — ${s.links.map((l) => (l.path ? `${l.label} (${l.path}${l.line ? `#L${l.line}` : ""})` : l.label ?? "")).join(", ")}`
+    ? ` — ${s.links.map((l) => (l.path ? `${l.label} (${l.path}${l.line ? `#L${l.line}` : ""})` : (l.label ?? ""))).join(", ")}`
     : "";
   return `- [${s.reason ?? "drifted"}]${where} ${s.text ?? ""}${links}`.trimEnd();
 }
@@ -54,20 +58,28 @@ function renderStatement(s: DriftStatementView): string {
 function driftDetailBlock(task: IssueComposeTask): string {
   const statements = task.context_bundle?.drifted_statements;
   if (Array.isArray(statements) && statements.length > 0) {
-    const list = (statements as DriftStatementView[]).map(renderStatement).join("\n");
+    const list = (statements as DriftStatementView[])
+      .map(renderStatement)
+      .join("\n");
     return `**Drifted statements (spec-trace graph)**\n\n${list}`;
   }
   const symbols = task.context_bundle?.missing_symbols;
   if (Array.isArray(symbols) && symbols.length > 0) {
     const list = (symbols as MissingSymbolView[])
-      .map((s) => `- ${s.kind ?? "symbol"}: \`${s.name ?? ""}\` — ${s.description ?? ""}`.trimEnd())
+      .map((s) =>
+        `- ${s.kind ?? "symbol"}: \`${s.name ?? ""}\` — ${s.description ?? ""}`.trimEnd(),
+      )
       .join("\n");
     return `**Missing symbols (heuristic)**\n\n${list}`;
   }
   return "";
 }
 
-export function composeIssueBody(issueBody: string, task: IssueComposeTask, uiUrl?: string): string {
+export function composeIssueBody(
+  issueBody: string,
+  task: IssueComposeTask,
+  uiUrl?: string,
+): string {
   const sections = [issueBody];
   if (isDriftTask(task)) {
     const detail = driftDetailBlock(task);

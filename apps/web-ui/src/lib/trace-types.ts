@@ -3,10 +3,10 @@
 // the single web-ui source of truth for the graph document/statement/link
 // shapes, imported by the API client and the presentational adapters.
 
-export type TraceStatementState = 'tested' | 'untested' | 'narrative';
+export type TraceStatementState = "tested" | "untested" | "narrative";
 
 export interface TraceLinkRef {
-  kind: 'test' | 'code' | 'adr';
+  kind: "test" | "code" | "adr";
   label: string;
   path?: string;
   line?: number;

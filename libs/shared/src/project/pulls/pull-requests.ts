@@ -46,7 +46,13 @@ export class PullRequests {
     return this.pulls.merge(this.repo, number, method);
   }
 
-  open(branch: string, title: string, body: string, base?: string, labels?: string[]): Promise<PullRef> {
+  open(
+    branch: string,
+    title: string,
+    body: string,
+    base?: string,
+    labels?: string[],
+  ): Promise<PullRef> {
     return this.pulls.open(this.repo, branch, title, body, base, labels);
   }
 

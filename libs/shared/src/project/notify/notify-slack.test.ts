@@ -14,17 +14,28 @@ function fakePool(rows: unknown[]): PgPool {
 
 describe("NotifySlack", () => {
   it("fires an escalation using the repo's resolved channels", async () => {
-    const slack = new NotifySlack(fakePool([{ settings: { dark_factory: { notify: ["watched"] } } }]), {});
+    const slack = new NotifySlack(
+      fakePool([{ settings: { dark_factory: { notify: ["watched"] } } }]),
+      {},
+    );
 
-    expect(await slack.notify("re-cinq/lore", "escalation", "pod died")).toEqual({
+    expect(
+      await slack.notify("re-cinq/lore", "escalation", "pod died"),
+    ).toEqual({
       fire: true,
       matchedChannels: ["escalation"],
     });
   });
 
   it("suppresses a pr_open when the repo's channels do not include all", async () => {
-    const slack = new NotifySlack(fakePool([{ settings: { dark_factory: { notify: ["watched"] } } }]), {});
+    const slack = new NotifySlack(
+      fakePool([{ settings: { dark_factory: { notify: ["watched"] } } }]),
+      {},
+    );
 
-    expect(await slack.notify("re-cinq/lore", "pr_open", "PR #1")).toEqual({ fire: false, matchedChannels: [] });
+    expect(await slack.notify("re-cinq/lore", "pr_open", "PR #1")).toEqual({
+      fire: false,
+      matchedChannels: [],
+    });
   });
 });

@@ -35,5 +35,9 @@ export interface AgentRunOpts {
 }
 
 export interface AgentRunnerPort {
-  run(repo: string, taskId: string, opts?: AgentRunOpts): Promise<AgentRunResult>;
+  run(
+    repo: string,
+    taskId: string,
+    opts?: AgentRunOpts,
+  ): Promise<AgentRunResult>;
 }

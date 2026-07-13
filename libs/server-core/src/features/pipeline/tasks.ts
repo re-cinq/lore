@@ -13,7 +13,12 @@ import { PgTaskQueue } from "@re-cinq/lore-shared/project/tasks/task-queue-pg.js
 
 // Re-export parsing + spec-task syncing from the shared package (syncTasksToDb
 // now lives in @re-cinq/lore-shared so the Floor event handler shares it).
-export { parseTasks, inferPhaseDependencies, syncTasksToDb, type ParsedTask } from "@re-cinq/lore-shared";
+export {
+  parseTasks,
+  inferPhaseDependencies,
+  syncTasksToDb,
+  type ParsedTask,
+} from "@re-cinq/lore-shared";
 
 /** Spec-tasks in `repo` whose every dependency is completed/merged. */
 export function getReadyTasks(pool: PgPool, repo: string) {
@@ -21,12 +26,21 @@ export function getReadyTasks(pool: PgPool, repo: string) {
 }
 
 /** Atomically claim a pending spec-task; records the mcp claim audit event. */
-export async function claimTask(pool: PgPool, taskId: string, agentId: string): Promise<boolean> {
+export async function claimTask(
+  pool: PgPool,
+  taskId: string,
+  agentId: string,
+): Promise<boolean> {
   const claimed = await new PgTaskQueue(pool).claimSpecTask(taskId, agentId);
   if (claimed) {
     try {
-      await recordTaskEvent(pool, taskId, "pending", "running", { agent_id: agentId, claimed_by: "lore_claim_task" });
-    } catch { /* event recording must not block */ }
+      await recordTaskEvent(pool, taskId, "pending", "running", {
+        agent_id: agentId,
+        claimed_by: "lore_claim_task",
+      });
+    } catch {
+      /* event recording must not block */
+    }
   }
   return claimed;
 }
@@ -37,7 +51,9 @@ export async function completeTask(pool: PgPool, taskId: string) {
   if (result.completed) {
     try {
       await recordTaskEvent(pool, taskId, "running", "completed", {});
-    } catch { /* event recording must not block */ }
+    } catch {
+      /* event recording must not block */
+    }
   }
   return result;
 }

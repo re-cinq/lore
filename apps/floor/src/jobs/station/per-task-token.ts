@@ -40,7 +40,10 @@ export function injectRepoToken(
     ...catalog,
     metadata: {
       name,
-      labels: { ...(catalog.metadata?.labels ?? {}), [TASK_ID_LABEL]: spec.taskId },
+      labels: {
+        ...(catalog.metadata?.labels ?? {}),
+        [TASK_ID_LABEL]: spec.taskId,
+      },
     },
     spec: {
       ...catalog.spec,

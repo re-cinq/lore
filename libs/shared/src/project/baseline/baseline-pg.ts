@@ -1,5 +1,9 @@
 import type { PgPool } from "../../memory-store.js";
-import type { BaselinePort, BaselineRow, TaskBaselineStats } from "./baseline-port.js";
+import type {
+  BaselinePort,
+  BaselineRow,
+  TaskBaselineStats,
+} from "./baseline-port.js";
 
 interface BaselineStatsRow {
   issues_count: string | null;
@@ -20,7 +24,12 @@ export class PgBaseline implements BaselinePort {
       `INSERT INTO pipeline.dark_factory_baseline
          (repo, window_start, window_end, counters)
        VALUES ($1, $2, $3, $4)`,
-      [row.repo, row.window_start, row.window_end, JSON.stringify(row.counters)],
+      [
+        row.repo,
+        row.window_start,
+        row.window_end,
+        JSON.stringify(row.counters),
+      ],
     );
   }
 

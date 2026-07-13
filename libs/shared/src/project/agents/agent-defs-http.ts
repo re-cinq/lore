@@ -12,7 +12,8 @@ import {
  * mutate config).
  */
 
-const READ_ONLY = "agent definitions are read-only from a runner — edit them via the API or UI";
+const READ_ONLY =
+  "agent definitions are read-only from a runner — edit them via the API or UI";
 
 export class AgentDefsHttp implements AgentDefsPort {
   constructor(
@@ -38,15 +39,22 @@ export class AgentDefsHttp implements AgentDefsPort {
   }
 
   async list(repo: string): Promise<AgentDefinition[]> {
-    const res = await this.fetchImpl(`${this.baseUrl}/api/repos/${repo}/agent-definitions`, {
-      headers: this.headers(),
-    });
+    const res = await this.fetchImpl(
+      `${this.baseUrl}/api/repos/${repo}/agent-definitions`,
+      {
+        headers: this.headers(),
+      },
+    );
     if (!res.ok) throw new Error(`agentDefs.list failed: ${res.status}`);
-    const body = (await res.json()) as { agents?: AgentDefinition[] } | AgentDefinition[];
+    const body = (await res.json()) as
+      { agents?: AgentDefinition[] } | AgentDefinition[];
     return Array.isArray(body) ? body : (body.agents ?? []);
   }
 
-  async create(_repo: string, _def: AgentDefinitionInput): Promise<AgentDefinition> {
+  async create(
+    _repo: string,
+    _def: AgentDefinitionInput,
+  ): Promise<AgentDefinition> {
     throw new Error(READ_ONLY);
   }
 

@@ -6,7 +6,10 @@
 
 export { Project } from "./lib/project.js";
 export { createProject, setProject, project } from "./lib/project-factory.js";
-export { createStationProject, type StationProjectEnv } from "./lib/station-http.js";
+export {
+  createStationProject,
+  type StationProjectEnv,
+} from "./lib/station-http.js";
 export type {
   ChunksPort,
   ChunkInsert,
@@ -19,7 +22,12 @@ export type {
 } from "./chunks/chunks-port.js";
 export { executionRefusal, assertCanClone } from "./lib/trust.js";
 
-export type { GitHubPort, IssueRef, IssueFilter, IssueState } from "./lib/github-port.js";
+export type {
+  GitHubPort,
+  IssueRef,
+  IssueFilter,
+  IssueState,
+} from "./lib/github-port.js";
 export { IssueCollection } from "./issues/issues.js";
 export { RepoFiles } from "./repo/repo-files.js";
 
@@ -34,7 +42,11 @@ export { PullRequests } from "./pulls/pull-requests.js";
 export type { SettingsPort } from "./settings/settings-port.js";
 export { Settings } from "./settings/settings.js";
 
-export type { MemoryPort, MemoryRecord, MemoryWriteResult } from "./memory/memory-port.js";
+export type {
+  MemoryPort,
+  MemoryRecord,
+  MemoryWriteResult,
+} from "./memory/memory-port.js";
 export { Memory } from "./memory/memory.js";
 
 export type {
@@ -53,15 +65,29 @@ export type {
 } from "./assembly-lines/assembly-lines-port.js";
 export { AssemblyLines } from "./assembly-lines/assembly-lines.js";
 
-export type { NotifyPort, NotifyLevel, NotifyResult } from "./notify/notify-port.js";
+export type {
+  NotifyPort,
+  NotifyLevel,
+  NotifyResult,
+} from "./notify/notify-port.js";
 export { Notify } from "./notify/notify.js";
 export { decideNotify, type NotifySettings } from "./notify/notify-decision.js";
 
-export type { KnowledgePort, AssembledContext, DocRef } from "./knowledge/knowledge-port.js";
+export type {
+  KnowledgePort,
+  AssembledContext,
+  DocRef,
+} from "./knowledge/knowledge-port.js";
 export { KnowledgeView } from "./knowledge/knowledge.js";
-export { queryLiveGraph, type LiveGraphResult } from "./knowledge/live-graph.js";
+export {
+  queryLiveGraph,
+  type LiveGraphResult,
+} from "./knowledge/live-graph.js";
 
-export type { TestRunnerPort, TestRunReport } from "./test-runner/test-runner-port.js";
+export type {
+  TestRunnerPort,
+  TestRunReport,
+} from "./test-runner/test-runner-port.js";
 export { TestSuite } from "./test-runner/test-suite.js";
 
 export type {
@@ -86,7 +112,10 @@ export type {
   StationCompletion,
   StationBackendKind,
 } from "./agents/station-port.js";
-export { selectStationBackend, defaultStationName } from "./agents/station-port.js";
+export {
+  selectStationBackend,
+  defaultStationName,
+} from "./agents/station-port.js";
 export { stationPlainEnv } from "./agents/station-env.js";
 export type {
   StationCredentials,

@@ -1,11 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { makePool, useRateLimitSafeClock } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 import { rateLimit, resolveTokenScopes, validateClientToken } from "./auth.js";
 
 const originalEnv = { ...process.env };
 const ALL_SCOPES = ["read", "write", "task", "webhook", "admin"];
-const sha256 = (token: string) => createHash("sha256").update(token).digest("hex");
+const sha256 = (token: string) =>
+  createHash("sha256").update(token).digest("hex");
 
 describe("rateLimit", () => {
   // The sliding window is module state; the safe clock jumps 120s between tests
@@ -36,7 +40,9 @@ describe("resolveTokenScopes", () => {
 
   it("resolves the legacy ingest token to all scopes without a DB hit", async () => {
     const pool = makePool();
-    expect(await resolveTokenScopes(pool as never, "legacy-full-access")).toEqual(ALL_SCOPES);
+    expect(
+      await resolveTokenScopes(pool as never, "legacy-full-access"),
+    ).toEqual(ALL_SCOPES);
     expect(pool.query).not.toHaveBeenCalled();
   });
 
@@ -47,8 +53,14 @@ describe("resolveTokenScopes", () => {
   it("returns the token's scopes on a DB hit, looked up by sha256 hash", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [{ scopes: ["read", "write"] }] });
-    expect(await resolveTokenScopes(pool as never, "client-token")).toEqual(["read", "write"]);
-    expect(pool.query).toHaveBeenCalledWith(expect.stringContaining("pipeline.api_tokens"), [sha256("client-token")]);
+    expect(await resolveTokenScopes(pool as never, "client-token")).toEqual([
+      "read",
+      "write",
+    ]);
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("pipeline.api_tokens"),
+      [sha256("client-token")],
+    );
   });
 
   it("returns null when the token matches no active row", async () => {
@@ -94,6 +106,8 @@ describe("validateClientToken", () => {
   it("denies access when the token resolves to no scopes", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [] });
-    expect(await validateClientToken(pool as never, "unknown", "read")).toBe(false);
+    expect(await validateClientToken(pool as never, "unknown", "read")).toBe(
+      false,
+    );
   });
 });

@@ -43,9 +43,29 @@ export interface Classification {
 }
 
 const ABBREVIATIONS = new Set([
-  "e.g", "i.e", "etc", "vs", "Mr", "Mrs", "Ms", "Dr", "Sr", "Jr",
-  "St", "Prof", "Inc", "Co", "Ltd", "approx", "cf", "viz", "no",
-  "v1", "v2", "v3", "v4",
+  "e.g",
+  "i.e",
+  "etc",
+  "vs",
+  "Mr",
+  "Mrs",
+  "Ms",
+  "Dr",
+  "Sr",
+  "Jr",
+  "St",
+  "Prof",
+  "Inc",
+  "Co",
+  "Ltd",
+  "approx",
+  "cf",
+  "viz",
+  "no",
+  "v1",
+  "v2",
+  "v3",
+  "v4",
 ]);
 
 /** A trailing `([label](target))` markdown-link parenthetical belongs to the
@@ -201,11 +221,20 @@ const SECTION_RULES: { match: RegExp; category: UntestableCategory }[] = [
   { match: /personas?/i, category: "background" },
   { match: /implementation\s*phases?/i, category: "background" },
   { match: /vision/i, category: "vision" },
-  { match: /goals?\s*[&/]\s*non[-\s]?goals?|non[-\s]?goals?/i, category: "vision" },
+  {
+    match: /goals?\s*[&/]\s*non[-\s]?goals?|non[-\s]?goals?/i,
+    category: "vision",
+  },
   { match: /clarif/i, category: "clarification" },
   { match: /open\s*questions?/i, category: "open-question" },
-  { match: /limitations?|known\s*gotchas?|out[-\s]?of[-\s]?scope/i, category: "limitation" },
-  { match: /rationale|why\b|alternatives?\s*(considered)?|consequences/i, category: "rationale" },
+  {
+    match: /limitations?|known\s*gotchas?|out[-\s]?of[-\s]?scope/i,
+    category: "limitation",
+  },
+  {
+    match: /rationale|why\b|alternatives?\s*(considered)?|consequences/i,
+    category: "rationale",
+  },
 ];
 
 /**
@@ -218,7 +247,10 @@ const SECTION_RULES: { match: RegExp; category: UntestableCategory }[] = [
  */
 const CONTENT_RULES: { match: RegExp; category: UntestableCategory }[] = [
   { match: /^\s*\*{0,2}\s*decision\s*\*{0,2}\s*[:—-]/i, category: "rationale" },
-  { match: /^\s*\(?see\b[^.!?]*\b(adr|spec|section|fr|§)\b/i, category: "rationale" },
+  {
+    match: /^\s*\(?see\b[^.!?]*\b(adr|spec|section|fr|§)\b/i,
+    category: "rationale",
+  },
 ];
 
 /** Build the set of statement ordinals considered "intro" — anything with no
@@ -257,7 +289,11 @@ export function classifyByHeuristic(
   introOrdinals: Set<number>,
 ): Classification {
   if (introOrdinals.has(statement.ordinal)) {
-    return { testability: "untestable", category: "intro", matchedBySection: true };
+    return {
+      testability: "untestable",
+      category: "intro",
+      matchedBySection: true,
+    };
   }
   for (const { match, category } of CONTENT_RULES) {
     if (match.test(statement.text)) {

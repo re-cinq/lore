@@ -1,5 +1,5 @@
-import Linkified from '@/components/Linkified';
-import styles from './FailurePanel.module.css';
+import Linkified from "@/components/Linkified";
+import styles from "./FailurePanel.module.css";
 
 interface FailureDetail {
   step: string;
@@ -16,16 +16,16 @@ interface FailureMetadata {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  'anthropic-credit': 'Anthropic credit',
-  'anthropic-rate-limit': 'Rate limit',
-  'github-workflows-permission': 'Workflows permission',
-  'github-permission': 'GitHub permission',
-  auth: 'Auth',
-  unknown: 'Unknown',
+  "anthropic-credit": "Anthropic credit",
+  "anthropic-rate-limit": "Rate limit",
+  "github-workflows-permission": "Workflows permission",
+  "github-permission": "GitHub permission",
+  auth: "Auth",
+  unknown: "Unknown",
 };
 
 function categoryLabel(category?: string): string {
-  if (!category) return '';
+  if (!category) return "";
   return CATEGORY_LABELS[category] ?? category;
 }
 
@@ -47,7 +47,11 @@ export default function FailurePanel({
     <div className={`spec-card ${styles.card}`}>
       <h3 className={styles.heading}>
         <span className={styles.headingLabel}>Failure</span>
-        {metadata.category && <span className="badge badge-red">{categoryLabel(metadata.category)}</span>}
+        {metadata.category && (
+          <span className="badge badge-red">
+            {categoryLabel(metadata.category)}
+          </span>
+        )}
       </h3>
 
       {metadata.error && (
@@ -58,7 +62,8 @@ export default function FailurePanel({
 
       {metadata.hint && (
         <p className={`meta ${styles.hint}`}>
-          <strong>How to fix:</strong> <Linkified text={metadata.hint} repo={repo} />
+          <strong>How to fix:</strong>{" "}
+          <Linkified text={metadata.hint} repo={repo} />
         </p>
       )}
 
@@ -76,9 +81,7 @@ export default function FailurePanel({
                 <Linkified text={d.error} repo={repo} />
               </p>
               {d.hint && (
-                <p className={`meta ${styles.detailHint}`}>
-                  {d.hint}
-                </p>
+                <p className={`meta ${styles.detailHint}`}>{d.hint}</p>
               )}
             </div>
           ))}

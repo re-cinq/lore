@@ -16,11 +16,18 @@ import { upsertTraceLink, projectTraceLinks } from "../trace-link.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const REPO_ROOT = join(process.cwd(), "..");
-const APPLIER = join(REPO_ROOT, "scripts", "infra", "setup-spec-trace-schema.sh");
+const APPLIER = join(
+  REPO_ROOT,
+  "scripts",
+  "infra",
+  "setup-spec-trace-schema.sh",
+);
 
 async function dgraphReachable(): Promise<boolean> {
   try {
-    return (await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })).ok;
+    return (
+      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
+    ).ok;
   } catch {
     return false;
   }
@@ -29,13 +36,21 @@ async function dgraphReachable(): Promise<boolean> {
 const reachable = await dgraphReachable();
 
 describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
-  const dgraphClient = new dgraph.DgraphClient(new dgraph.DgraphClientStub(DGRAPH_HTTP));
+  const dgraphClient = new dgraph.DgraphClient(
+    new dgraph.DgraphClientStub(DGRAPH_HTTP),
+  );
 
   beforeAll(() => {
-    execFileSync("bash", [APPLIER], { env: { ...process.env, DGRAPH_HTTP }, stdio: "pipe" });
+    execFileSync("bash", [APPLIER], {
+      env: { ...process.env, DGRAPH_HTTP },
+      stdio: "pipe",
+    });
   });
 
-  async function readGraph(query: string, vars: Record<string, string>): Promise<Record<string, unknown>> {
+  async function readGraph(
+    query: string,
+    vars: Record<string, string>,
+  ): Promise<Record<string, unknown>> {
     const txn = dgraphClient.newTxn();
     try {
       const res = await txn.queryWithVars(query, vars);
@@ -182,12 +197,22 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
     createdStatementXid = statementXid;
 
     const tcRes = await dgraphClient.newTxn().mutate({
-      setJson: { uid: "_:tc", "dgraph.type": "TestChunk", "TestChunk.xid": `${repo}|t9`, "TestChunk.repo": repo },
+      setJson: {
+        uid: "_:tc",
+        "dgraph.type": "TestChunk",
+        "TestChunk.xid": `${repo}|t9`,
+        "TestChunk.repo": repo,
+      },
       commitNow: true,
     });
     const tcUid = tcRes.data.uids.tc;
     const stmtRes = await dgraphClient.newTxn().mutate({
-      setJson: { uid: "_:s", "dgraph.type": "Statement", "Statement.xid": statementXid, "Statement.ordinal": 9 },
+      setJson: {
+        uid: "_:s",
+        "dgraph.type": "Statement",
+        "Statement.xid": statementXid,
+        "Statement.ordinal": 9,
+      },
       commitNow: true,
     });
     const stmtUid = stmtRes.data.uids.s;
@@ -210,7 +235,9 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
       }`,
       { $x: `${repo}|t9` },
     )) as { target?: Array<{ links?: Array<{ "TraceLink.kind"?: string }> }> };
-    expect((data.target?.[0]?.links ?? []).map((l) => l["TraceLink.kind"])).toEqual(["validated_by"]);
+    expect(
+      (data.target?.[0]?.links ?? []).map((l) => l["TraceLink.kind"]),
+    ).toEqual(["validated_by"]);
   });
 
   it("derives one human-linked validated_by TraceLink from a Statement.validated_by edge to a TestChunk", async () => {

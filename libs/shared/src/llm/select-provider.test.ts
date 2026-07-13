@@ -15,11 +15,15 @@ describe("selectProvider", () => {
   });
 
   it("picks openai for LORE_LLM_PROVIDER=openai", () => {
-    expect(selectProvider({ LORE_LLM_PROVIDER: "openai" }).vendor).toBe("openai");
+    expect(selectProvider({ LORE_LLM_PROVIDER: "openai" }).vendor).toBe(
+      "openai",
+    );
   });
 
   it("picks ollama for LORE_LLM_PROVIDER=ollama", () => {
-    expect(selectProvider({ LORE_LLM_PROVIDER: "ollama" }).vendor).toBe("ollama");
+    expect(selectProvider({ LORE_LLM_PROVIDER: "ollama" }).vendor).toBe(
+      "ollama",
+    );
   });
 
   it("honors LORE_FACT_LLM when LORE_LLM_PROVIDER is unset", () => {
@@ -27,6 +31,9 @@ describe("selectProvider", () => {
   });
 
   it("lets LORE_LLM_PROVIDER win over LORE_FACT_LLM", () => {
-    expect(selectProvider({ LORE_LLM_PROVIDER: "openai", LORE_FACT_LLM: "ollama" }).vendor).toBe("openai");
+    expect(
+      selectProvider({ LORE_LLM_PROVIDER: "openai", LORE_FACT_LLM: "ollama" })
+        .vendor,
+    ).toBe("openai");
   });
 });

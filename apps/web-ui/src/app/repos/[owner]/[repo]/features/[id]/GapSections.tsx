@@ -1,9 +1,14 @@
-'use client';
+"use client";
 
-import MockupSection from './MockupSection';
-import Markdown from '@/components/Markdown';
-import { sectionsOf } from '@/lib/feature-types';
-import type { GapResult, GapQuestion, SectionAnswers, SectionDirection } from '@/lib/feature-types';
+import MockupSection from "./MockupSection";
+import Markdown from "@/components/Markdown";
+import { sectionsOf } from "@/lib/feature-types";
+import type {
+  GapResult,
+  GapQuestion,
+  SectionAnswers,
+  SectionDirection,
+} from "@/lib/feature-types";
 
 const FREE_FORM_MAX = 5000;
 
@@ -14,11 +19,15 @@ export interface FeedbackState {
 }
 
 export function emptyFeedback(): FeedbackState {
-  return { sections: {}, questions: {}, free_form: '' };
+  return { sections: {}, questions: {}, free_form: "" };
 }
 
 export function toUserAnswers(f: FeedbackState): SectionAnswers {
-  return { sections: f.sections, questions: f.questions, free_form: f.free_form };
+  return {
+    sections: f.sections,
+    questions: f.questions,
+    free_form: f.free_form,
+  };
 }
 
 function SectionFeedback({
@@ -34,14 +43,19 @@ function SectionFeedback({
   const set = (patch: { comment?: string; direction?: SectionDirection }) =>
     onChange({
       ...feedback,
-      sections: { ...feedback.sections, [sectionKey]: { ...current, ...patch } },
+      sections: {
+        ...feedback.sections,
+        [sectionKey]: { ...current, ...patch },
+      },
     });
   return (
     <div style={{ marginTop: 10 }}>
       <div style={{ marginBottom: 6 }}>
         <select
-          value={current.direction ?? 'keep'}
-          onChange={(e) => set({ direction: e.target.value as SectionDirection })}
+          value={current.direction ?? "keep"}
+          onChange={(e) =>
+            set({ direction: e.target.value as SectionDirection })
+          }
           aria-label={`${sectionKey} direction`}
         >
           <option value="keep">Keep</option>
@@ -52,7 +66,7 @@ function SectionFeedback({
       <textarea
         style={{ minHeight: 250 }}
         placeholder="Comment / direction for this section"
-        value={current.comment ?? ''}
+        value={current.comment ?? ""}
         onChange={(e) => set({ comment: e.target.value })}
       />
     </div>
@@ -70,28 +84,59 @@ function QuestionInput({
   onChange: (next: FeedbackState) => void;
 }) {
   const set = (value: string) =>
-    onChange({ ...feedback, questions: { ...feedback.questions, [q.id]: value } });
+    onChange({
+      ...feedback,
+      questions: { ...feedback.questions, [q.id]: value },
+    });
   return (
     <div style={{ marginBottom: 10 }}>
-      <label htmlFor={q.id} style={{ display: 'block', fontWeight: 600 }}>{q.question}</label>
-      {q.why && <p className="meta" style={{ margin: '2px 0' }}>{q.why}</p>}
-      {q.kind === 'choice' && q.options ? (
-        <select id={q.id} value={feedback.questions[q.id] ?? ''} onChange={(e) => set(e.target.value)}>
+      <label htmlFor={q.id} style={{ display: "block", fontWeight: 600 }}>
+        {q.question}
+      </label>
+      {q.why && (
+        <p className="meta" style={{ margin: "2px 0" }}>
+          {q.why}
+        </p>
+      )}
+      {q.kind === "choice" && q.options ? (
+        <select
+          id={q.id}
+          value={feedback.questions[q.id] ?? ""}
+          onChange={(e) => set(e.target.value)}
+        >
           <option value="">—</option>
           {q.options.map((o) => (
-            <option key={o} value={o}>{o}</option>
+            <option key={o} value={o}>
+              {o}
+            </option>
           ))}
         </select>
       ) : (
-        <input id={q.id} style={{ width: '100%' }} value={feedback.questions[q.id] ?? ''} onChange={(e) => set(e.target.value)} />
+        <input
+          id={q.id}
+          style={{ width: "100%" }}
+          value={feedback.questions[q.id] ?? ""}
+          onChange={(e) => set(e.target.value)}
+        />
       )}
     </div>
   );
 }
 
-function SectionCard({ title, highlight, children }: { title: string; highlight?: boolean; children: React.ReactNode }) {
+function SectionCard({
+  title,
+  highlight,
+  children,
+}: {
+  title: string;
+  highlight?: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <div className={highlight ? 'spec-card overview' : 'spec-card'} style={{ marginBottom: 12 }}>
+    <div
+      className={highlight ? "spec-card overview" : "spec-card"}
+      style={{ marginBottom: 12 }}
+    >
       <h3 style={{ marginTop: 0 }}>{title}</h3>
       {children}
     </div>
@@ -113,13 +158,28 @@ export default function GapSections({
   return (
     <div>
       {sections.map((section, i) => (
-        <SectionCard key={`${section.title}-${i}`} title={section.title} highlight={i === 0}>
+        <SectionCard
+          key={`${section.title}-${i}`}
+          title={section.title}
+          highlight={i === 0}
+        >
           {section.content && <Markdown markdown={section.content} />}
-          {section.mockups && section.mockups.length > 0 && <MockupSection mockups={section.mockups} />}
+          {section.mockups && section.mockups.length > 0 && (
+            <MockupSection mockups={section.mockups} />
+          )}
           {section.questions?.map((q) => (
-            <QuestionInput key={q.id} q={q} feedback={feedback} onChange={onChange} />
+            <QuestionInput
+              key={q.id}
+              q={q}
+              feedback={feedback}
+              onChange={onChange}
+            />
           ))}
-          <SectionFeedback sectionKey={section.title} feedback={feedback} onChange={onChange} />
+          <SectionFeedback
+            sectionKey={section.title}
+            feedback={feedback}
+            onChange={onChange}
+          />
         </SectionCard>
       ))}
 
@@ -127,9 +187,24 @@ export default function GapSections({
         <SectionCard title="This feature looks large — consider splitting">
           <p>{gap.split_suggestion.rationale}</p>
           {(gap.split_suggestion.proposed_features ?? []).map((p, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <span><strong>{p.title}</strong> — <span className="meta">{p.scope}</span></span>
-              <button type="button" onClick={() => onCreateDraft(p.title, p.scope)}>
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 6,
+              }}
+            >
+              <span>
+                <strong>{p.title}</strong> —{" "}
+                <span className="meta">{p.scope}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => onCreateDraft(p.title, p.scope)}
+              >
                 Create draft
               </button>
             </div>
@@ -139,14 +214,14 @@ export default function GapSections({
 
       <SectionCard title="Anything else?">
         <textarea
-          style={{ width: '100%' }}
+          style={{ width: "100%" }}
           rows={3}
           maxLength={FREE_FORM_MAX}
           placeholder="Free-form direction for the next round"
           value={feedback.free_form}
           onChange={(e) => onChange({ ...feedback, free_form: e.target.value })}
         />
-        <p className="meta" style={{ margin: '2px 0 0', textAlign: 'right' }}>
+        <p className="meta" style={{ margin: "2px 0 0", textAlign: "right" }}>
           {feedback.free_form.length}/{FREE_FORM_MAX}
         </p>
       </SectionCard>

@@ -18,7 +18,10 @@ beforeEach(() => {
 
 describe("GitCli auth (token off disk)", () => {
   it("clone carries the token in http.extraheader, never in the URL or .git/config", async () => {
-    await new GitCli({ GITHUB_TOKEN: "ghs_secret" }).clone("re-cinq/lore", "/tmp/dest");
+    await new GitCli({ GITHUB_TOKEN: "ghs_secret" }).clone(
+      "re-cinq/lore",
+      "/tmp/dest",
+    );
     const argv = calls[0].join(" ");
     expect(argv).toContain("http.https://github.com/.extraheader=");
     expect(calls[0]).toContain("https://github.com/re-cinq/lore.git");
@@ -27,8 +30,13 @@ describe("GitCli auth (token off disk)", () => {
   });
 
   it("push forwards the same auth args", async () => {
-    await new GitCli({ GITHUB_TOKEN: "ghs_secret" }).push("/tmp/dest", "lore/x");
-    expect(calls[0].join(" ")).toContain("http.https://github.com/.extraheader=");
+    await new GitCli({ GITHUB_TOKEN: "ghs_secret" }).push(
+      "/tmp/dest",
+      "lore/x",
+    );
+    expect(calls[0].join(" ")).toContain(
+      "http.https://github.com/.extraheader=",
+    );
     expect(calls[0].slice(-3)).toEqual(["push", "origin", "lore/x"]);
   });
 

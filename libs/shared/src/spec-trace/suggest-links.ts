@@ -55,7 +55,8 @@ async function nearestByVector(
       `query q($vec: string, $repo: string){ near(func: similar_to(${embeddingPredicate}, ${k}, $vec)) @filter(eq(${repoPredicate}, $repo)){ ${xidPredicate} } }`,
       { $vec: vecLiteral, $repo: repo },
     );
-    const rows = (res.data as { near?: Array<Record<string, string>> }).near ?? [];
+    const rows =
+      (res.data as { near?: Array<Record<string, string>> }).near ?? [];
     return rows.map((row) => row[xidPredicate]);
   });
 }
@@ -89,7 +90,10 @@ async function readStatementContext(
         ...(stmt?.validated ?? []).map((node) => node["TestChunk.xid"]),
       ].filter((xid): xid is string => xid !== undefined),
     );
-    return { vecLiteral: toVecLiteral(stmt?.["Statement.embedding"]), linkedXids };
+    return {
+      vecLiteral: toVecLiteral(stmt?.["Statement.embedding"]),
+      linkedXids,
+    };
   });
 }
 
@@ -98,16 +102,34 @@ export async function suggestCandidates(
   statementXid: string,
   k: number,
 ): Promise<Array<{ xid: string; kind: "code" | "test" }>> {
-  if (!Number.isInteger(k)) throw new Error(`suggestCandidates: k must be an integer, got ${k}`);
+  if (!Number.isInteger(k))
+    throw new Error(`suggestCandidates: k must be an integer, got ${k}`);
 
-  const { vecLiteral, linkedXids } = await readStatementContext(dgraph, statementXid);
+  const { vecLiteral, linkedXids } = await readStatementContext(
+    dgraph,
+    statementXid,
+  );
 
   if (vecLiteral === undefined) return [];
 
   const repo = repoFromXid(statementXid);
   const [codeXids, testXids] = await Promise.all([
-    nearestByVector(dgraph, "CodeChunk.embedding", "CodeChunk.xid", vecLiteral, k, repo),
-    nearestByVector(dgraph, "TestChunk.embedding", "TestChunk.xid", vecLiteral, k, repo),
+    nearestByVector(
+      dgraph,
+      "CodeChunk.embedding",
+      "CodeChunk.xid",
+      vecLiteral,
+      k,
+      repo,
+    ),
+    nearestByVector(
+      dgraph,
+      "TestChunk.embedding",
+      "TestChunk.xid",
+      vecLiteral,
+      k,
+      repo,
+    ),
   ]);
   return [
     ...codeXids.map((xid) => ({ xid, kind: "code" as const })),

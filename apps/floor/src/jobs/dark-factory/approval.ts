@@ -1,9 +1,9 @@
 import { query } from "../../kernel/db.js";
 
 export interface ApprovalConfig {
-  required: boolean;           // org-level default
-  label: string;               // label name to look for (default: "approved")
-  auto_approve: string[];      // task types that skip approval
+  required: boolean; // org-level default
+  label: string; // label name to look for (default: "approved")
+  auto_approve: string[]; // task types that skip approval
   repos: Record<string, { required: boolean }>; // per-repo overrides
 }
 
@@ -21,7 +21,7 @@ let config: ApprovalConfig = {
 export async function loadApprovalConfig(): Promise<void> {
   try {
     const rows = await query<{ value: string }>(
-      `SELECT value FROM lore.settings WHERE key = 'approval_config'`
+      `SELECT value FROM lore.settings WHERE key = 'approval_config'`,
     );
     if (rows.length > 0) {
       const parsed = JSON.parse(rows[0].value);
@@ -30,13 +30,18 @@ export async function loadApprovalConfig(): Promise<void> {
   } catch {
     // Use defaults
   }
-  console.log(`[floor] Approval config: required=${config.required}, auto_approve=[${config.auto_approve.join(",")}], ${Object.keys(config.repos).length} repo overrides`);
+  console.log(
+    `[floor] Approval config: required=${config.required}, auto_approve=[${config.auto_approve.join(",")}], ${Object.keys(config.repos).length} repo overrides`,
+  );
 }
 
 /**
  * Check if a task requires approval before processing.
  */
-export function requiresApproval(taskType: string, targetRepo: string): boolean {
+export function requiresApproval(
+  taskType: string,
+  targetRepo: string,
+): boolean {
   // Auto-approve task types skip the gate everywhere
   if (config.auto_approve.includes(taskType)) return false;
 

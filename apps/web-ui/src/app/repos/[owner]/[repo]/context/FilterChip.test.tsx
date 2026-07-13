@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen } from "@testing-library/react";
 
 let pending = false;
-vi.mock('next/link', () => ({
+vi.mock("next/link", () => ({
   __esModule: true,
   default: ({
     href,
@@ -21,49 +21,49 @@ vi.mock('next/link', () => ({
   useLinkStatus: () => ({ pending }),
 }));
 
-import FilterChip from './FilterChip';
+import FilterChip from "./FilterChip";
 
 afterEach(() => {
   pending = false;
 });
 
-describe('FilterChip', () => {
-  it('renders a link with its href and label, marking active', () => {
+describe("FilterChip", () => {
+  it("renders a link with its href and label, marking active", () => {
     render(
       <FilterChip href="/context?type=doc" active>
         doc
       </FilterChip>,
     );
-    const link = screen.getByRole('link', { name: 'doc' });
-    expect(link).toHaveAttribute('href', '/context?type=doc');
-    expect(link).toHaveClass('active');
+    const link = screen.getByRole("link", { name: "doc" });
+    expect(link).toHaveAttribute("href", "/context?type=doc");
+    expect(link).toHaveClass("active");
   });
 
-  it('omits the active class when not selected', () => {
+  it("omits the active class when not selected", () => {
     render(
       <FilterChip href="/context" active={false}>
         All
       </FilterChip>,
     );
-    expect(screen.getByRole('link', { name: 'All' })).not.toHaveClass('active');
+    expect(screen.getByRole("link", { name: "All" })).not.toHaveClass("active");
   });
 
-  it('shows a spinner while its navigation is in flight', () => {
+  it("shows a spinner while its navigation is in flight", () => {
     pending = true;
     const { container } = render(
       <FilterChip href="/context" active={false}>
         All
       </FilterChip>,
     );
-    expect(container.querySelector('.chip-spinner')).not.toBeNull();
+    expect(container.querySelector(".chip-spinner")).not.toBeNull();
   });
 
-  it('shows no spinner when idle', () => {
+  it("shows no spinner when idle", () => {
     const { container } = render(
       <FilterChip href="/context" active={false}>
         All
       </FilterChip>,
     );
-    expect(container.querySelector('.chip-spinner')).toBeNull();
+    expect(container.querySelector(".chip-spinner")).toBeNull();
   });
 });

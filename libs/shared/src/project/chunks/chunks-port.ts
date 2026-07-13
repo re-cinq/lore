@@ -72,7 +72,11 @@ export interface ChunksPort {
   countChunks(schema: string, repo: string): Promise<number>;
 
   /** `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2` */
-  deleteChunksForFile(schema: string, filePath: string, repo: string): Promise<void>;
+  deleteChunksForFile(
+    schema: string,
+    filePath: string,
+    repo: string,
+  ): Promise<void>;
 
   /**
    * `INSERT INTO ${schema}.chunks (...) VALUES (...) RETURNING id`. Returns the
@@ -85,7 +89,11 @@ export interface ChunksPort {
    * caller passes the already-formatted `"[0.1,0.2,...]"` string — the port
    * does not format the vector.
    */
-  setEmbedding(schema: string, chunkId: string, embedding: string): Promise<void>;
+  setEmbedding(
+    schema: string,
+    chunkId: string,
+    embedding: string,
+  ): Promise<void>;
 
   /** `SELECT DISTINCT team FROM org_shared.chunks WHERE team IS NOT NULL` */
   distinctTeams(): Promise<string[]>;
@@ -108,7 +116,11 @@ export interface ChunksPort {
    * `file_path LIKE '%<fileSuffix>'`. Backs gap-detect's missing-CLAUDE.md / ADR /
    * spec existence checks.
    */
-  hasChunk(repo: string, contentType: string, fileSuffix?: string): Promise<boolean>;
+  hasChunk(
+    repo: string,
+    contentType: string,
+    fileSuffix?: string,
+  ): Promise<boolean>;
 
   /** Count of the repo's chunks last ingested more than `olderThanDays` ago (stale-content gap). */
   staleChunkCount(repo: string, olderThanDays: number): Promise<number>;

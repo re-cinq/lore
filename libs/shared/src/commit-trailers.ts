@@ -82,7 +82,10 @@ export function parseTrailers(message: string): Trailers | null {
 
   const extras: Record<string, string> = {};
   for (const [k, v] of map.entries()) {
-    if (!(REQUIRED_KEYS as readonly string[]).includes(k) && k !== ASSEMBLY_LINE_KEY) {
+    if (
+      !(REQUIRED_KEYS as readonly string[]).includes(k) &&
+      k !== ASSEMBLY_LINE_KEY
+    ) {
       extras[k] = v;
     }
   }

@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../build-server.js";
-import { useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 vi.mock("@re-cinq/lore-server-core/platform/db.js", () => ({
   getHealthStatus: vi.fn().mockResolvedValue({ connected: true }),
@@ -24,7 +28,11 @@ describe("rate-limit ext", () => {
 
   it("trips the default bucket at the 201st request on a native route (/dist)", async () => {
     const server = buildServer(() => null);
-    const hit = () => server.inject({ method: "GET", url: "/dist/lore-code-trace/linux-amd64" });
+    const hit = () =>
+      server.inject({
+        method: "GET",
+        url: "/dist/lore-code-trace/linux-amd64",
+      });
     for (let i = 0; i < 200; i++) await hit();
     const last = await hit();
     expect(last.statusCode).toBe(429);
@@ -34,7 +42,13 @@ describe("rate-limit ext", () => {
 
   it("trips the task bucket at the 61st POST to a native route (/api/task)", async () => {
     const server = buildServer(() => null);
-    const hit = () => server.inject({ method: "POST", url: "/api/task", headers: AUTH, payload: "{}" });
+    const hit = () =>
+      server.inject({
+        method: "POST",
+        url: "/api/task",
+        headers: AUTH,
+        payload: "{}",
+      });
     for (let i = 0; i < 60; i++) await hit();
     const last = await hit();
     expect(last.statusCode).toBe(429);
@@ -42,7 +56,12 @@ describe("rate-limit ext", () => {
 
   it("counts each request once — the 200th passes and the 201st trips", async () => {
     const server = buildServer(() => null);
-    const hit = () => server.inject({ method: "GET", url: "/api/repo-status?repo=o/r", headers: AUTH });
+    const hit = () =>
+      server.inject({
+        method: "GET",
+        url: "/api/repo-status?repo=o/r",
+        headers: AUTH,
+      });
     let secondToLast;
     for (let i = 0; i < 200; i++) secondToLast = await hit();
     const last = await hit();

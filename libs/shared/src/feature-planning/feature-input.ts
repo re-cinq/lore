@@ -11,7 +11,11 @@ import type { SectionDirection } from "./gap-result.js";
 
 const TITLE_MAX = 256;
 const PROMPT_MAX = 8000;
-const DIRECTIONS: ReadonlySet<string> = new Set<SectionDirection>(["keep", "refine", "redirect"]);
+const DIRECTIONS: ReadonlySet<string> = new Set<SectionDirection>([
+  "keep",
+  "refine",
+  "redirect",
+]);
 
 /** A client-input rejection the route maps to 400 (not the 500 catch-all). */
 export class ValidationError extends Error {
@@ -27,12 +31,19 @@ export interface FeatureInput {
 }
 
 /** Enforce a non-empty, length-bounded title + prompt, trimming both. Throws ValidationError. */
-export function enforceFeatureInput(title: unknown, prompt: unknown): FeatureInput {
+export function enforceFeatureInput(
+  title: unknown,
+  prompt: unknown,
+): FeatureInput {
   const t = typeof title === "string" ? title.trim() : "";
   const p = typeof prompt === "string" ? prompt.trim() : "";
   if (!t || !p) throw new ValidationError("title and prompt are required");
-  if (t.length > TITLE_MAX) throw new ValidationError(`title must be ${TITLE_MAX} characters or fewer`);
-  if (p.length > PROMPT_MAX) throw new ValidationError(`prompt must be ${PROMPT_MAX} characters or fewer`);
+  if (t.length > TITLE_MAX)
+    throw new ValidationError(`title must be ${TITLE_MAX} characters or fewer`);
+  if (p.length > PROMPT_MAX)
+    throw new ValidationError(
+      `prompt must be ${PROMPT_MAX} characters or fewer`,
+    );
   return { title: t, prompt: p };
 }
 
@@ -70,6 +81,11 @@ export function parseSectionAnswers(raw: unknown): SectionAnswers | null {
 
   const free_form = typeof raw.free_form === "string" ? raw.free_form : "";
 
-  if (!Object.keys(sections).length && !Object.keys(questions).length && !free_form) return null;
+  if (
+    !Object.keys(sections).length &&
+    !Object.keys(questions).length &&
+    !free_form
+  )
+    return null;
   return { sections, questions, free_form };
 }

@@ -113,7 +113,10 @@ describe("getTaskTypeConfig", () => {
       expect(cfg, `${type} should have config`).not.toBeNull();
       // Deterministic graph-ingest tasks (zero-LLM) carry no prompt by design.
       if (cfg!.execution_mode === "graph-ingest") continue;
-      expect(cfg!.prompt_template, `${type} should have prompt_template`).toBeTruthy();
+      expect(
+        cfg!.prompt_template,
+        `${type} should have prompt_template`,
+      ).toBeTruthy();
     }
   });
 });

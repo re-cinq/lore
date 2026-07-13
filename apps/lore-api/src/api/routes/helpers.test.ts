@@ -27,6 +27,9 @@ describe("makeGraphLlmCall", () => {
     expect(call).toBeDefined();
     const text = await call!("extract entities from this");
     expect(text).toBe("graph json");
-    expect(fake.calls[0]).toMatchObject({ prompt: "extract entities from this", jobName: "graph-extraction" });
+    expect(fake.calls[0]).toMatchObject({
+      prompt: "extract entities from this",
+      jobName: "graph-extraction",
+    });
   });
 });

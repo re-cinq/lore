@@ -152,7 +152,9 @@ describe("DbLeaseBackend.reapExpired", () => {
   it("returns an empty array when nothing is past the cutoff", async () => {
     const { pool } = mockPool([{ rowCount: 0, rows: [] }]);
     expect(
-      await new DbLeaseBackend(pool).reapExpired(new Date("2026-06-03T10:00:00Z")),
+      await new DbLeaseBackend(pool).reapExpired(
+        new Date("2026-06-03T10:00:00Z"),
+      ),
     ).toEqual([]);
   });
 });
@@ -281,7 +283,9 @@ describe("InMemoryLeaseReaper.reapExpired", () => {
     const reaper = new InMemoryLeaseReaper([
       lease({ expires_at: new Date("2026-06-03T11:00:00Z") }),
     ]);
-    expect(await reaper.reapExpired(new Date("2026-06-03T10:00:00Z"))).toEqual([]);
+    expect(await reaper.reapExpired(new Date("2026-06-03T10:00:00Z"))).toEqual(
+      [],
+    );
     expect(reaper.leases).toHaveLength(1);
   });
 });

@@ -1,9 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { parseTasks, inferPhaseDependencies, specSlugFromBranch } from "./tasks.js";
+import {
+  parseTasks,
+  inferPhaseDependencies,
+  specSlugFromBranch,
+} from "./tasks.js";
 
 describe("specSlugFromBranch", () => {
   it("extracts the slug from a feature-request branch, dropping the 8-hex task suffix", () => {
-    expect(specSlugFromBranch("lore/feature-request/dark-factory-a1b2c3d4")).toBe("dark-factory");
+    expect(
+      specSlugFromBranch("lore/feature-request/dark-factory-a1b2c3d4"),
+    ).toBe("dark-factory");
   });
 
   it("returns null for a non-feature-request branch", () => {
@@ -52,14 +58,18 @@ describe("parseTasks", () => {
   });
 
   it("splits a [DEPENDS ON: ...] marker into a dependsOn list", () => {
-    expect(parseTasks("- [ ] T005 Wire it [DEPENDS ON: T001, T002]")[0]).toMatchObject({
+    expect(
+      parseTasks("- [ ] T005 Wire it [DEPENDS ON: T001, T002]")[0],
+    ).toMatchObject({
       description: "Wire it",
       dependsOn: ["T001", "T002"],
     });
   });
 
   it("parses a line combining checkbox, [P], deps, and file path", () => {
-    const [task] = parseTasks("- [x] T006 [P] Do all [DEPENDS ON: T001] | src/b.ts");
+    const [task] = parseTasks(
+      "- [x] T006 [P] Do all [DEPENDS ON: T001] | src/b.ts",
+    );
 
     expect(task).toEqual({
       specTaskId: "T006",
@@ -89,7 +99,8 @@ describe("parseTasks", () => {
   });
 
   it("ignores lines that are not task or phase lines", () => {
-    const markdown = "# Title\n\nSome prose.\n- [ ] T001 Real task\n- not a task";
+    const markdown =
+      "# Title\n\nSome prose.\n- [ ] T001 Real task\n- not a task";
 
     expect(parseTasks(markdown)).toHaveLength(1);
   });
@@ -108,18 +119,30 @@ describe("inferPhaseDependencies", () => {
 
   it("makes a later-phase task depend on every task of the previous phase", () => {
     const tasks = parseTasks(
-      ["## Phase 1", "- [ ] T001 A", "- [ ] T002 B", "## Phase 2", "- [ ] T003 C"].join("\n"),
+      [
+        "## Phase 1",
+        "- [ ] T001 A",
+        "- [ ] T002 B",
+        "## Phase 2",
+        "- [ ] T003 C",
+      ].join("\n"),
     );
 
-    const t003 = inferPhaseDependencies(tasks).find((t) => t.specTaskId === "T003");
+    const t003 = inferPhaseDependencies(tasks).find(
+      (t) => t.specTaskId === "T003",
+    );
 
     expect(t003?.dependsOn).toEqual(["T001", "T002"]);
   });
 
   it("chains sequential (non-[P]) tasks within a phase", () => {
-    const tasks = parseTasks(["## Phase 1", "- [ ] T001 A", "- [ ] T002 B"].join("\n"));
+    const tasks = parseTasks(
+      ["## Phase 1", "- [ ] T001 A", "- [ ] T002 B"].join("\n"),
+    );
 
-    const t002 = inferPhaseDependencies(tasks).find((t) => t.specTaskId === "T002");
+    const t002 = inferPhaseDependencies(tasks).find(
+      (t) => t.specTaskId === "T002",
+    );
 
     expect(t002?.dependsOn).toEqual(["T001"]);
   });
@@ -136,10 +159,17 @@ describe("inferPhaseDependencies", () => {
 
   it("preserves explicit dependencies instead of overwriting them with inferred ones", () => {
     const tasks = parseTasks(
-      ["## Phase 1", "- [ ] T001 A", "## Phase 2", "- [ ] T002 B [DEPENDS ON: T009]"].join("\n"),
+      [
+        "## Phase 1",
+        "- [ ] T001 A",
+        "## Phase 2",
+        "- [ ] T002 B [DEPENDS ON: T009]",
+      ].join("\n"),
     );
 
-    const t002 = inferPhaseDependencies(tasks).find((t) => t.specTaskId === "T002");
+    const t002 = inferPhaseDependencies(tasks).find(
+      (t) => t.specTaskId === "T002",
+    );
 
     expect(t002?.dependsOn).toEqual(["T009"]);
   });

@@ -13,7 +13,10 @@
 
 import { createHash } from "node:crypto";
 import type { DgraphClientPort } from "./deps.js";
-import { projectDocumentBlocks, pruneOrphanBlocksByFile } from "./project-blocks.js";
+import {
+  projectDocumentBlocks,
+  pruneOrphanBlocksByFile,
+} from "./project-blocks.js";
 import { withTxn, upsertByXid } from "./dgraph-upsert.js";
 import { adrNumberFromPath } from "./adr-refs.js";
 
@@ -22,7 +25,10 @@ function sha256(text: string): string {
 }
 
 /** Reads the persisted ADR.content_hash for an xid, or undefined when no ADR exists yet. */
-async function readAdrContentHash(dgraph: DgraphClientPort, xid: string): Promise<string | undefined> {
+async function readAdrContentHash(
+  dgraph: DgraphClientPort,
+  xid: string,
+): Promise<string | undefined> {
   return withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(
       `query find($xid: string) { found(func: eq(ADR.xid, $xid), first: 1) { ADR.content_hash } }`,
@@ -56,7 +62,12 @@ export async function projectAdrFile(
     ...(number != null ? { "ADR.number": number } : {}),
   });
   await upsertByXid(dgraph, "Repo", repo, { "Repo.adrs": [{ uid: adrUid }] });
-  const validXids = await projectDocumentBlocks(dgraph, repo, filePath, content);
+  const validXids = await projectDocumentBlocks(
+    dgraph,
+    repo,
+    filePath,
+    content,
+  );
   await pruneOrphanBlocksByFile(dgraph, repo, filePath, validXids);
   return { projected: true };
 }

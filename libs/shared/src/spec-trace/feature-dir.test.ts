@@ -9,11 +9,15 @@ import { featureDirOf } from "./feature-dir.js";
  */
 describe("featureDirOf", () => {
   it("returns specs/1-lore-platform for a spec.md inside that feature folder", () => {
-    expect(featureDirOf("specs/1-lore-platform/spec.md")).toBe("specs/1-lore-platform");
+    expect(featureDirOf("specs/1-lore-platform/spec.md")).toBe(
+      "specs/1-lore-platform",
+    );
   });
 
   it("collapses a nested contracts/ doc to its feature folder", () => {
-    expect(featureDirOf("specs/1-lore-platform/contracts/mcp-tools.md")).toBe("specs/1-lore-platform");
+    expect(featureDirOf("specs/1-lore-platform/contracts/mcp-tools.md")).toBe(
+      "specs/1-lore-platform",
+    );
   });
 
   it("returns .specify for a .specify/spec.md", () => {

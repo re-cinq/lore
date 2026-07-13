@@ -9,8 +9,8 @@
  * shell decides when to apply it via `shouldAggregate`.
  */
 
-import { nodeDegrees, type DegreeLink } from './graph-crowding';
-import type { SpecGraphNodeType } from './spec-graph';
+import { nodeDegrees, type DegreeLink } from "./graph-crowding";
+import type { SpecGraphNodeType } from "./spec-graph";
 
 export interface AggNode {
   id: string;

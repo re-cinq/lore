@@ -39,7 +39,10 @@ export interface PlanningPromptInput {
  * surfaces the free-form note as <OtherUserComments>.
  */
 export function composePlanningPrompt(input: PlanningPromptInput): string {
-  const blocks = [tag("Title", input.title), tag("UserPrompt", input.originalPrompt)];
+  const blocks = [
+    tag("Title", input.title),
+    tag("UserPrompt", input.originalPrompt),
+  ];
   const draftSpec = currentDraftSpec(input.priorGap, input.answers);
   if (draftSpec) blocks.push(draftSpec);
   return blocks.join("\n\n");
@@ -49,7 +52,10 @@ function tag(name: string, body: string): string {
   return `<${name}>\n${body}\n</${name}>`;
 }
 
-function currentDraftSpec(gap: GapResult | null, answers: SectionAnswers | null): string | null {
+function currentDraftSpec(
+  gap: GapResult | null,
+  answers: SectionAnswers | null,
+): string | null {
   const sections = sectionsOf(gap);
   if (!sections.length) {
     const note = answers?.free_form?.trim();
@@ -61,13 +67,19 @@ function currentDraftSpec(gap: GapResult | null, answers: SectionAnswers | null)
   return tag("CurrentDraftSpec", inner.join("\n\n"));
 }
 
-function sectionBlock(section: GapSection, answers: SectionAnswers | null): string {
+function sectionBlock(
+  section: GapSection,
+  answers: SectionAnswers | null,
+): string {
   const parts = [tag("Generated", generatedContent(section))];
-  if (section.questions?.length) parts.push(questionsBlock(section.questions, answers));
+  if (section.questions?.length)
+    parts.push(questionsBlock(section.questions, answers));
   const feedback = answers?.sections?.[section.title];
   if (feedback?.comment?.trim() || feedback?.direction) {
     const direction = feedback.direction ?? "keep";
-    parts.push(`<UserComment direction="${direction}">\n${feedback.comment?.trim() ?? ""}\n</UserComment>`);
+    parts.push(
+      `<UserComment direction="${direction}">\n${feedback.comment?.trim() ?? ""}\n</UserComment>`,
+    );
   }
   return `<Section title="${section.title.replace(/"/g, "'")}">\n${parts.join("\n")}\n</Section>`;
 }
@@ -76,12 +88,17 @@ function generatedContent(section: GapSection): string {
   const parts: string[] = [];
   if (section.content?.trim()) parts.push(section.content.trim());
   if (section.mockups?.length) {
-    parts.push(`Diagrams: ${section.mockups.map((m, i) => m.title || `Mockup ${i + 1}`).join(", ")}`);
+    parts.push(
+      `Diagrams: ${section.mockups.map((m, i) => m.title || `Mockup ${i + 1}`).join(", ")}`,
+    );
   }
   return parts.join("\n\n") || "(no content)";
 }
 
-function questionsBlock(questions: GapQuestion[], answers: SectionAnswers | null): string {
+function questionsBlock(
+  questions: GapQuestion[],
+  answers: SectionAnswers | null,
+): string {
   const body = questions
     .map((q) => {
       const answer = answers?.questions?.[q.id]?.trim() || "(unanswered)";

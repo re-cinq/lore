@@ -5,7 +5,11 @@
 // deterministic. The k8s apply/delete is the IO shell (agent-crd-k8s.ts).
 
 import type { AgentDefinition as RecipeDef } from "@re-cinq/lore-shared";
-import type { AgentDefinition, Station, OutputSink } from "@re-cinq/agent-contracts";
+import type {
+  AgentDefinition,
+  Station,
+  OutputSink,
+} from "@re-cinq/agent-contracts";
 
 const API_VERSION = "agents.re-cinq.com/v1alpha1";
 const BASE_IMAGE = "node:22-bookworm";
@@ -25,7 +29,11 @@ export interface CrdOptions {
 export function agentDefToCrds(def: RecipeDef, opts: CrdOptions = {}): CrdPair {
   const sinks: OutputSink[] = [{ type: "stdout" }];
   if (opts.eventsUrl) {
-    sinks.push({ type: "http", url: opts.eventsUrl, headers_secret: "agent-events-auth" });
+    sinks.push({
+      type: "http",
+      url: opts.eventsUrl,
+      headers_secret: "agent-events-auth",
+    });
   }
   const isStation = def.execution_mode === "station";
   return {
@@ -45,7 +53,9 @@ export function agentDefToCrds(def: RecipeDef, opts: CrdOptions = {}): CrdPair {
             prompt: "{station_input}",
             permission_mode: "bypass",
             max_turns: 1,
-            tool_config: { command: ["lore-station", def.name.replace(/^def-/, "")] },
+            tool_config: {
+              command: ["lore-station", def.name.replace(/^def-/, "")],
+            },
             output: { sinks },
           }
         : {

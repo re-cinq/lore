@@ -1,10 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 const originalEnv = { ...process.env };
-const inject = (url: string, headers: Record<string, string> = AUTH, pool: unknown = null) =>
-  buildServer(() => pool as never).inject({ method: "GET", url, headers });
+const inject = (
+  url: string,
+  headers: Record<string, string> = AUTH,
+  pool: unknown = null,
+) => buildServer(() => pool as never).inject({ method: "GET", url, headers });
 
 describe("OpenAPI serving routes", () => {
   useRateLimitSafeClock();
@@ -24,7 +31,9 @@ describe("OpenAPI serving routes", () => {
       const doc = JSON.parse(res.payload);
       expect(doc.openapi).toBe("3.1.0");
       expect(Object.keys(doc.paths).length).toBeGreaterThan(0);
-      expect(doc.paths["/api/openapi.json"].get["x-required-scope"]).toBe("read");
+      expect(doc.paths["/api/openapi.json"].get["x-required-scope"]).toBe(
+        "read",
+      );
     });
 
     it("returns 401 without a bearer token", async () => {
@@ -34,8 +43,14 @@ describe("OpenAPI serving routes", () => {
     });
 
     it("returns 403 for a token lacking read scope, before the handler runs", async () => {
-      const pool = { query: vi.fn().mockResolvedValue({ rows: [{ scopes: ["write"] }] }) };
-      const res = await inject("/api/openapi.json", { authorization: "Bearer scoped" }, pool);
+      const pool = {
+        query: vi.fn().mockResolvedValue({ rows: [{ scopes: ["write"] }] }),
+      };
+      const res = await inject(
+        "/api/openapi.json",
+        { authorization: "Bearer scoped" },
+        pool,
+      );
       expect(res.statusCode).toBe(403);
     });
   });

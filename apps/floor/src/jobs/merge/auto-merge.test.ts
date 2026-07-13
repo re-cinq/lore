@@ -37,14 +37,15 @@ describe("evaluateAutoMerge — happy path", () => {
 
 describe("evaluateAutoMerge — deferral reasons (priority)", () => {
   it("deferred:dark_mode_off when not enabled (overrides everything)", () => {
-    expect(evaluateAutoMerge(inputs({ darkFactoryEnabled: false })).outcome)
-      .toBe("deferred:dark_mode_off");
+    expect(
+      evaluateAutoMerge(inputs({ darkFactoryEnabled: false })).outcome,
+    ).toBe("deferred:dark_mode_off");
   });
 
   it("deferred:no_changes for an empty PR before path-allowlist check", () => {
-    expect(
-      evaluateAutoMerge(inputs({ changedPaths: [] })).outcome,
-    ).toBe("deferred:no_changes");
+    expect(evaluateAutoMerge(inputs({ changedPaths: [] })).outcome).toBe(
+      "deferred:no_changes",
+    );
   });
 
   it("deferred:human_review when human changes requested", () => {
@@ -54,9 +55,9 @@ describe("evaluateAutoMerge — deferral reasons (priority)", () => {
   });
 
   it("deferred:ci_failed when require_green_ci and CI red", () => {
-    expect(
-      evaluateAutoMerge(inputs({ ciSucceeded: false })).outcome,
-    ).toBe("deferred:ci_failed");
+    expect(evaluateAutoMerge(inputs({ ciSucceeded: false })).outcome).toBe(
+      "deferred:ci_failed",
+    );
   });
 
   it("ci_failed gate skipped when require_green_ci is false", () => {
@@ -71,9 +72,9 @@ describe("evaluateAutoMerge — deferral reasons (priority)", () => {
   });
 
   it("deferred:bot_changes_requested when bot did not APPROVE", () => {
-    expect(
-      evaluateAutoMerge(inputs({ botApproved: false })).outcome,
-    ).toBe("deferred:bot_changes_requested");
+    expect(evaluateAutoMerge(inputs({ botApproved: false })).outcome).toBe(
+      "deferred:bot_changes_requested",
+    );
   });
 
   it("deferred:path_outside_allowlist on mixed PR", () => {
@@ -96,9 +97,9 @@ describe("evaluateAutoMerge — deferral reasons (priority)", () => {
   });
 
   it("deferred:trust_too_low when repo has no trust set", () => {
-    expect(
-      evaluateAutoMerge(inputs({ trustLevel: undefined })).outcome,
-    ).toBe("deferred:trust_too_low");
+    expect(evaluateAutoMerge(inputs({ trustLevel: undefined })).outcome).toBe(
+      "deferred:trust_too_low",
+    );
   });
 
   it("merges when trust exceeds the min", () => {

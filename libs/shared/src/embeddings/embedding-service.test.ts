@@ -53,15 +53,23 @@ describe("getQueryEmbedding project resolution", () => {
   it("returns null (never builds a projects// URL) when no project can be resolved", async () => {
     process.env.GOOGLE_ACCESS_TOKEN = "tok"; // token available…
     const fetchMock = vi.fn(async (url: string) => {
-      if (url.includes("service-accounts/default/token")) throw new Error("no metadata");
+      if (url.includes("service-accounts/default/token"))
+        throw new Error("no metadata");
       if (url.includes("/project/project-id")) return { ok: false } as Response; // …but no project
-      return { ok: true, json: async () => ({ predictions: [{ embeddings: { values: [1] } }] }) } as Response;
+      return {
+        ok: true,
+        json: async () => ({ predictions: [{ embeddings: { values: [1] } }] }),
+      } as Response;
     });
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await getQueryEmbedding("hello");
     expect(result).toBeNull();
     // The malformed-URL bug: a predict call with an empty project must never fire.
-    expect(fetchMock.mock.calls.some(([u]) => String(u).includes("projects//locations"))).toBe(false);
+    expect(
+      fetchMock.mock.calls.some(([u]) =>
+        String(u).includes("projects//locations"),
+      ),
+    ).toBe(false);
   });
 });

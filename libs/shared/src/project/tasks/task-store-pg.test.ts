@@ -9,7 +9,10 @@ import type { PgPool } from "../../memory-store.js";
  * reach the right query without a live database.
  */
 
-function fakePool(capture: Array<{ text: string; params?: unknown[] }>, rows: unknown[] = []): PgPool {
+function fakePool(
+  capture: Array<{ text: string; params?: unknown[] }>,
+  rows: unknown[] = [],
+): PgPool {
   return {
     query: async (text: string, params?: unknown[]) => {
       capture.push({ text, params });
@@ -25,13 +28,20 @@ describe("PgTaskStore", () => {
 
     await store.pending("re-cinq/lore");
 
-    expect(capture[0].text).toContain("WHERE target_repo = $1 AND status = ANY($2)");
-    expect(capture[0].params).toEqual(["re-cinq/lore", ["pending", "queued", "awaiting_approval"]]);
+    expect(capture[0].text).toContain(
+      "WHERE target_repo = $1 AND status = ANY($2)",
+    );
+    expect(capture[0].params).toEqual([
+      "re-cinq/lore",
+      ["pending", "queued", "awaiting_approval"],
+    ]);
   });
 
   it("transitions a cancel to the cancelled status", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
-    const store = new PgTaskStore(fakePool(capture, [{ id: "a", status: "cancelled" }]));
+    const store = new PgTaskStore(
+      fakePool(capture, [{ id: "a", status: "cancelled" }]),
+    );
 
     const updated = await store.transition("a", "cancel");
 
@@ -44,7 +54,11 @@ describe("PgTaskStore", () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
     const store = new PgTaskStore(fakePool(capture));
 
-    await store.setStatus("a", "running-local", { agent_id: "agent-1", evil_column: "drop", pr_url: "u" });
+    await store.setStatus("a", "running-local", {
+      agent_id: "agent-1",
+      evil_column: "drop",
+      pr_url: "u",
+    });
 
     expect(capture[0].text).toContain("status = $1, updated_at = now()");
     expect(capture[0].text).toContain("agent_id = $2");
@@ -60,7 +74,9 @@ describe("PgTaskStore", () => {
     await store.updateStatus("a", "queued", { agent_id: "x" });
 
     expect(capture[0].text).toContain("SELECT status FROM pipeline.tasks");
-    expect(capture[1].text).toContain("UPDATE pipeline.tasks SET status = $1, updated_at = now()");
+    expect(capture[1].text).toContain(
+      "UPDATE pipeline.tasks SET status = $1, updated_at = now()",
+    );
     expect(capture[2].text).toContain("INSERT INTO pipeline.task_events");
     expect(capture[2].params?.slice(1, 3)).toEqual(["pending", "queued"]);
   });
@@ -77,7 +93,9 @@ describe("PgTaskStore", () => {
       statuses,
     });
 
-    expect(capture[0].text).toContain("description LIKE $3 AND status = ANY($4)");
+    expect(capture[0].text).toContain(
+      "description LIKE $3 AND status = ANY($4)",
+    );
     expect(capture[0].params).toEqual([
       "re-cinq/lore",
       "gap-fill",

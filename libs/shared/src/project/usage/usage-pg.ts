@@ -1,5 +1,9 @@
 import type { PgPool } from "../../memory-store.js";
-import type { UsagePort, LlmCallRecord, ProcessedCounts } from "./usage-port.js";
+import type {
+  UsagePort,
+  LlmCallRecord,
+  ProcessedCounts,
+} from "./usage-port.js";
 
 /**
  * Postgres-backed {@link UsagePort}: a single INSERT into

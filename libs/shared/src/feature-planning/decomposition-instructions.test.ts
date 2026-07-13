@@ -1,10 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { DECOMPOSITION_INSTRUCTIONS, DECOMPOSITION_EXAMPLE } from "./decomposition-instructions.js";
+import {
+  DECOMPOSITION_INSTRUCTIONS,
+  DECOMPOSITION_EXAMPLE,
+} from "./decomposition-instructions.js";
 import { parseDecomposition } from "./decomposition-result.js";
 
 describe("DECOMPOSITION_INSTRUCTIONS", () => {
   it("documents the output contract — stories, acceptance criteria, and task dependencies", () => {
-    for (const token of ["stories", "acceptance_criteria", "depends_on", "tasks"]) {
+    for (const token of [
+      "stories",
+      "acceptance_criteria",
+      "depends_on",
+      "tasks",
+    ]) {
       expect(DECOMPOSITION_INSTRUCTIONS).toContain(token);
     }
   });

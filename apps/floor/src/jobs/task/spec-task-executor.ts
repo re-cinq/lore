@@ -18,7 +18,6 @@ import { setStatus, insertEvent } from "./task-helpers.js";
 const MAX_CONCURRENT_PER_GROUP = 3;
 
 export async function specTaskExecutorJob(): Promise<string> {
-
   // Find all ready spec-tasks (dependencies satisfied)
   const readyTasks = await taskQueue().findReadySpecTasks();
 
@@ -40,7 +39,9 @@ export async function specTaskExecutorJob(): Promise<string> {
   // Pre-flight billing check: skip the whole batch when the account is out of
   // credits (heuristic + model choice single-sourced in the shared llm module).
   if (await anthropicCreditsExhausted()) {
-    console.warn("[spec-task-executor] API credits exhausted, skipping dispatch");
+    console.warn(
+      "[spec-task-executor] API credits exhausted, skipping dispatch",
+    );
     return "Skipped: API credits exhausted";
   }
 
@@ -78,7 +79,9 @@ export async function specTaskExecutorJob(): Promise<string> {
     const specTaskId = cb.spec_task_id;
     const filePath = cb.file_path;
 
-    const specRef = specSlug ? `\n\nREAD the spec at specs/${specSlug}/spec.md and specs/${specSlug}/data-model.md first for full context.` : "";
+    const specRef = specSlug
+      ? `\n\nREAD the spec at specs/${specSlug}/spec.md and specs/${specSlug}/data-model.md first for full context.`
+      : "";
     const fileRef = filePath ? `\nTarget file: ${filePath}` : "";
 
     const description = `Implement spec-task ${specTaskId}: ${task.description}${specRef}${fileRef}`;
@@ -103,7 +106,13 @@ export async function specTaskExecutorJob(): Promise<string> {
         extraLabels: {
           "lore.re-cinq.com/task-type": "spec-task",
           ...(specSlug
-            ? { "lore.re-cinq.com/spec-slug": specSlug.replace(/[^a-zA-Z0-9._-]/g, "").replace(/^-+|-+$/g, "").substring(0, 63) || "unknown" }
+            ? {
+                "lore.re-cinq.com/spec-slug":
+                  specSlug
+                    .replace(/[^a-zA-Z0-9._-]/g, "")
+                    .replace(/^-+|-+$/g, "")
+                    .substring(0, 63) || "unknown",
+              }
             : {}),
         },
       });
@@ -117,14 +126,20 @@ export async function specTaskExecutorJob(): Promise<string> {
             (runningByGroup.get(task.task_group_id) || 0) + 1,
           );
         }
-        console.log(`[spec-task-executor] Dispatched ${specTaskId} (${task.id}) → Agent CR`);
+        console.log(
+          `[spec-task-executor] Dispatched ${specTaskId} (${task.id}) → Agent CR`,
+        );
       } else {
-        console.log(`[spec-task-executor] Agent CR for ${task.id} already exists, skipping`);
+        console.log(
+          `[spec-task-executor] Agent CR for ${task.id} already exists, skipping`,
+        );
       }
     } catch (err) {
       // Revert to pending on dispatch failure
       await setStatus(task.id, "pending");
-      console.error(`[spec-task-executor] Failed to dispatch Agent for ${task.id}: ${(err as Error).message}`);
+      console.error(
+        `[spec-task-executor] Failed to dispatch Agent for ${task.id}: ${(err as Error).message}`,
+      );
     }
   }
 

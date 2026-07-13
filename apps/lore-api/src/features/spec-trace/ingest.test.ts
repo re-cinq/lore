@@ -27,7 +27,9 @@ describe("classifyFile", () => {
 
   it("classifies source files under a nested specs/ dir as code, not spec", () => {
     expect(classifyFile("web-ui/src/app/specs/page.tsx")).toBe("code");
-    expect(classifyFile("web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.tsx")).toBe("code");
+    expect(
+      classifyFile("web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.tsx"),
+    ).toBe("code");
   });
 
   it("skips binary files", () => {

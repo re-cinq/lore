@@ -10,19 +10,24 @@ export function incidentWebhookRoute(getPool: () => Pool | null): ServerRoute {
     options: { auth: false, payload: { parse: false } },
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: "database not available" }).code(503);
+      if (!pool)
+        return h.response({ error: "database not available" }).code(503);
       try {
         const payload = JSON.parse(rawBody(request));
         // Accept both direct format and PagerDuty/Opsgenie envelope
         const incident = payload.incident || payload;
         const repoName = incident.repo || incident.service?.name;
-        if (!repoName) return h.response({ error: "required: repo (or incident.repo)" }).code(400);
+        if (!repoName)
+          return h
+            .response({ error: "required: repo (or incident.repo)" })
+            .code(400);
 
         const entry = {
           title: incident.title || incident.summary || "Unknown incident",
           severity: incident.severity || incident.urgency || "unknown",
           date: incident.date || new Date().toISOString(),
-          resolved: incident.resolved || incident.status === "resolved" || false,
+          resolved:
+            incident.resolved || incident.status === "resolved" || false,
           url: incident.url || incident.html_url || null,
         };
 

@@ -44,9 +44,11 @@ export class TwoKeyError extends Error {
 
 const PR_REF_RE = /^([\w.-]+)\/([\w.-]+)#(\d+)$/;
 
-export function parsePrRef(
-  ref: string,
-): { owner: string; repo: string; number: number } {
+export function parsePrRef(ref: string): {
+  owner: string;
+  repo: string;
+  number: number;
+} {
   const m = ref.match(PR_REF_RE);
   if (!m) {
     throw new TwoKeyError(
@@ -148,9 +150,7 @@ export async function verifyApproval(opts: {
     // out of scope.
     if (
       codeowners.length > 0 &&
-      codeowners.every((row) =>
-        row.owners.every((o) => o.includes("/")),
-      )
+      codeowners.every((row) => row.owners.every((o) => o.includes("/")))
     ) {
       throw new TwoKeyError(
         `${targetRepo}'s CODEOWNERS contains only team handles (e.g. @org/team); ` +
@@ -183,11 +183,7 @@ async function fetchCodeowners(opts: {
   owner: string;
   repo: string;
 }): Promise<Array<{ pattern: string; owners: string[] }>> {
-  const candidates = [
-    ".github/CODEOWNERS",
-    "CODEOWNERS",
-    "docs/CODEOWNERS",
-  ];
+  const candidates = [".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"];
   for (const filepath of candidates) {
     try {
       const r = await opts.octokit.rest.repos.getContent({

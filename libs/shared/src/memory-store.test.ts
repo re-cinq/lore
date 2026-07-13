@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { memoryStore, setMemoryStore, selectMemoryStore, type MemoryStore } from "./memory-store.js";
+import {
+  memoryStore,
+  setMemoryStore,
+  selectMemoryStore,
+  type MemoryStore,
+} from "./memory-store.js";
 
 describe("memoryStore", () => {
   // Ordered: the unset-throw assertion must run before any setMemoryStore call,
@@ -45,7 +50,11 @@ describe("selectMemoryStore", () => {
   });
 
   it("returns a dgraph store when dgraph backend is selected with a client", () => {
-    const dgraph = { newTxn: () => { throw new Error("unused"); } };
+    const dgraph = {
+      newTxn: () => {
+        throw new Error("unused");
+      },
+    };
     process.env.LORE_MEMORY_BACKEND = "dgraph";
     const store = selectMemoryStore({ dgraph });
     expect(store.backend).toBe("dgraph");
@@ -58,7 +67,11 @@ describe("selectMemoryStore", () => {
   });
 
   it("flips the served backend with only the LORE_MEMORY_BACKEND value (cutover and rollback)", () => {
-    const dgraph = { newTxn: () => { throw new Error("unused"); } };
+    const dgraph = {
+      newTxn: () => {
+        throw new Error("unused");
+      },
+    };
 
     process.env.LORE_MEMORY_BACKEND = "dgraph";
     expect(selectMemoryStore({ pgPool: {}, dgraph }).backend).toBe("dgraph");

@@ -61,7 +61,9 @@ async function evaluateNamespace(
     // logged every failure (including real regressions the eval surfaced) as
     // "no eval config, skipping".
     if (evalResult.reason === "config-missing") {
-      console.log(`[job] context-core: no eval config for ${namespace}, skipping`);
+      console.log(
+        `[job] context-core: no eval config for ${namespace}, skipping`,
+      );
     } else {
       console.error(
         `[job] context-core: eval did not produce a score for ${namespace} (${evalResult.reason})`,
@@ -84,7 +86,12 @@ async function evaluateNamespace(
 
   if (delta >= IMPROVEMENT_THRESHOLD) {
     // Promote: mark as new production baseline
-    await contextCore().insert({ version, namespace, evalScore: currentScore, status: "production" });
+    await contextCore().insert({
+      version,
+      namespace,
+      evalScore: currentScore,
+      status: "production",
+    });
 
     console.log(
       `[job] context-core: PROMOTED ${namespace} ${version} (${(prevScore * 100).toFixed(1)}% → ${(currentScore * 100).toFixed(1)}%)`,
@@ -94,7 +101,12 @@ async function evaluateNamespace(
 
   if (delta < -REGRESSION_THRESHOLD) {
     // Reject: log regression and create alert task
-    await contextCore().insert({ version, namespace, evalScore: currentScore, status: "rejected-regression" });
+    await contextCore().insert({
+      version,
+      namespace,
+      evalScore: currentScore,
+      status: "rejected-regression",
+    });
 
     await taskStore().create({
       description: `Context quality regression: ${namespace} dropped from ${(prevScore * 100).toFixed(1)}% to ${(currentScore * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}%)`,
@@ -110,7 +122,12 @@ async function evaluateNamespace(
   }
 
   // No significant change
-  await contextCore().insert({ version, namespace, evalScore: currentScore, status: "no-change" });
+  await contextCore().insert({
+    version,
+    namespace,
+    evalScore: currentScore,
+    status: "no-change",
+  });
 
   return "unchanged";
 }

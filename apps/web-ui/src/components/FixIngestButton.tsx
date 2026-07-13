@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition } from "react";
 
 /**
  * Overview-level action: opens a fix-PR installing the ingest workflow on
@@ -32,9 +32,9 @@ export default function FixIngestButton({
       title="Open a PR installing the latest .github/workflows/lore-ingest.yml on each flagged repo"
     >
       {pending
-        ? 'opening PRs…'
+        ? "opening PRs…"
         : done !== null
-          ? `opened ${done} PR${done === 1 ? '' : 's'}`
+          ? `opened ${done} PR${done === 1 ? "" : "s"}`
           : `⚠ Fix ingest workflow (${repos.length})`}
     </button>
   );

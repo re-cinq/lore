@@ -37,16 +37,26 @@ const STATION_IMAGE_SENTINEL = "__STATION_IMAGE__";
  *  nodeStationSpec resolves when a node has no explicit station_ref. Underscores in
  *  a node type (e.g. `github_action`) are not valid in an RFC-1123 k8s resource name,
  *  so they become dashes; the Floor's resolver applies the same transform. */
-export const stationName = (name: string): string => `def-${name.replaceAll("_", "-")}`;
+export const stationName = (name: string): string =>
+  `def-${name.replaceAll("_", "-")}`;
 
-const OUTPUT_SINKS: NonNullable<NonNullable<AgentDefinition["spec"]>["output"]> = {
+const OUTPUT_SINKS: NonNullable<
+  NonNullable<AgentDefinition["spec"]>["output"]
+> = {
   sinks: [
     { type: "stdout" },
-    { type: "http", url: EVENTS_URL_SENTINEL, headers_secret: "agent-events-auth" },
+    {
+      type: "http",
+      url: EVENTS_URL_SENTINEL,
+      headers_secret: "agent-events-auth",
+    },
   ],
 };
 
-export function buildAgentDefinition(taskType: string, cfg: AgentCatalogConfig): AgentDefinition {
+export function buildAgentDefinition(
+  taskType: string,
+  cfg: AgentCatalogConfig,
+): AgentDefinition {
   return {
     apiVersion: API_VERSION,
     kind: "AgentDefinition",
@@ -64,14 +74,21 @@ export function buildAgentDefinition(taskType: string, cfg: AgentCatalogConfig):
       output: {
         sinks: [
           { type: "stdout" },
-          { type: "http", url: EVENTS_URL_SENTINEL, headers_secret: "agent-events-auth" },
+          {
+            type: "http",
+            url: EVENTS_URL_SENTINEL,
+            headers_secret: "agent-events-auth",
+          },
         ],
       },
     },
   };
 }
 
-export function buildStation(taskType: string, cfg: AgentCatalogConfig): Station {
+export function buildStation(
+  taskType: string,
+  cfg: AgentCatalogConfig,
+): Station {
   return {
     apiVersion: API_VERSION,
     kind: "Station",
@@ -99,7 +116,10 @@ export function buildStation(taskType: string, cfg: AgentCatalogConfig): Station
 
 /** An exec-vendor recipe for one builtin station: the prompt template is exactly
  *  the station_input parameter, so the pod's argv ends with the node's JSON. */
-export function buildStationDefinition(name: string, cfg: StationCatalogConfig): AgentDefinition {
+export function buildStationDefinition(
+  name: string,
+  cfg: StationCatalogConfig,
+): AgentDefinition {
   return {
     apiVersion: API_VERSION,
     kind: "AgentDefinition",
@@ -118,7 +138,10 @@ export function buildStationDefinition(name: string, cfg: StationCatalogConfig):
 
 /** The Station a builtin station node runs on: the lore-station image (helm-pinned
  *  tag) with a short deadline — stations are deterministic, not hour-long LLM runs. */
-export function buildStationStation(name: string, cfg: StationCatalogConfig): Station {
+export function buildStationStation(
+  name: string,
+  cfg: StationCatalogConfig,
+): Station {
   return {
     apiVersion: API_VERSION,
     kind: "Station",

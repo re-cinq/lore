@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useRef } from 'react';
-import DOMPurify from 'dompurify';
-import type { GapMockup } from '@/lib/feature-types';
+import { useEffect, useRef } from "react";
+import DOMPurify from "dompurify";
+import type { GapMockup } from "@/lib/feature-types";
 
 // LLM-generated mockup markup is UNTRUSTED. We render it inline (responsive,
 // theme-aware) but sanitize every SVG with DOMPurify (SVG profile) on the client
@@ -12,12 +12,12 @@ import type { GapMockup } from '@/lib/feature-types';
 // running it through cleanSvg() first.
 const PURIFY_CONFIG = {
   USE_PROFILES: { svg: true, svgFilters: true },
-  FORBID_TAGS: ['script', 'foreignObject'],
-  FORBID_ATTR: ['onload', 'onclick', 'onmouseover', 'onmouseenter', 'onfocus'],
+  FORBID_TAGS: ["script", "foreignObject"],
+  FORBID_ATTR: ["onload", "onclick", "onmouseover", "onmouseenter", "onfocus"],
 };
 
 function downloadName(title: string | undefined, index: number): string {
-  return `${(title || `mockup-${index + 1}`).replace(/[^\w.-]+/g, '-')}.svg`;
+  return `${(title || `mockup-${index + 1}`).replace(/[^\w.-]+/g, "-")}.svg`;
 }
 
 function MockupFigure({ mockup, index }: { mockup: GapMockup; index: number }) {
@@ -33,13 +33,23 @@ function MockupFigure({ mockup, index }: { mockup: GapMockup; index: number }) {
 
   const href = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(mockup.markup)}`;
   return (
-    <figure style={{ margin: '0 0 12px' }}>
+    <figure style={{ margin: "0 0 12px" }}>
       <figcaption
         className="meta"
-        style={{ marginBottom: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
+        style={{
+          marginBottom: 4,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 8,
+        }}
       >
         <span>{mockup.title || `Mockup ${index + 1}`}</span>
-        <a href={href} download={downloadName(mockup.title, index)} className="meta">
+        <a
+          href={href}
+          download={downloadName(mockup.title, index)}
+          className="meta"
+        >
           download ↓
         </a>
       </figcaption>

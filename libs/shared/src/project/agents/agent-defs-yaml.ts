@@ -49,8 +49,12 @@ export class AgentDefsYaml implements AgentDefsPort {
       resolve("../scripts/task-types.yaml"),
       "/config/task-types.yaml",
     );
-    if (this.env.CONTEXT_PATH) paths.push(resolve(this.env.CONTEXT_PATH, "scripts/task-types.yaml"));
-    if (this.env.HOME) paths.push(resolve(this.env.HOME, ".re-cinq/lore/scripts/task-types.yaml"));
+    if (this.env.CONTEXT_PATH)
+      paths.push(resolve(this.env.CONTEXT_PATH, "scripts/task-types.yaml"));
+    if (this.env.HOME)
+      paths.push(
+        resolve(this.env.HOME, ".re-cinq/lore/scripts/task-types.yaml"),
+      );
 
     for (const p of paths) {
       try {
@@ -75,11 +79,16 @@ export class AgentDefsYaml implements AgentDefsPort {
         // (which carries only the container's {description}+result.json wrapper).
         // Override it so the code/offline layer matches the DB-seeded org default.
         const fp = map.get("feature-planning");
-        if (fp) map.set("feature-planning", { ...fp, prompt: PLANNING_INSTRUCTIONS });
+        if (fp)
+          map.set("feature-planning", { ...fp, prompt: PLANNING_INSTRUCTIONS });
         // Same for feature-decompose: its canonical prompt is DECOMPOSITION_INSTRUCTIONS,
         // matching the DB-seeded org default (migration 0020).
         const fd = map.get("feature-decompose");
-        if (fd) map.set("feature-decompose", { ...fd, prompt: DECOMPOSITION_INSTRUCTIONS });
+        if (fd)
+          map.set("feature-decompose", {
+            ...fd,
+            prompt: DECOMPOSITION_INSTRUCTIONS,
+          });
         this.cache = map;
         return map;
       } catch {
@@ -95,10 +104,15 @@ export class AgentDefsYaml implements AgentDefsPort {
   }
 
   async list(_repo: string): Promise<AgentDefinition[]> {
-    return [...this.load().values()].sort((a, b) => a.name.localeCompare(b.name));
+    return [...this.load().values()].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
   }
 
-  async create(_repo: string, _def: AgentDefinitionInput): Promise<AgentDefinition> {
+  async create(
+    _repo: string,
+    _def: AgentDefinitionInput,
+  ): Promise<AgentDefinition> {
     throw new Error(READ_ONLY);
   }
 

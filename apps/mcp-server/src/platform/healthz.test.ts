@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createServer } from "node:http";
-import { getHealthStatus, setPool } from "@re-cinq/lore-server-core/platform/db.js";
+import {
+  getHealthStatus,
+  setPool,
+} from "@re-cinq/lore-server-core/platform/db.js";
 
 // ── Unit tests for getHealthStatus ─────────────────────────────────────────
 
@@ -53,7 +56,8 @@ describe("/healthz endpoint", () => {
     setPool(null as any);
 
     const health = await getHealthStatus();
-    const status = health.connected || !process.env.LORE_DB_HOST ? "ok" : "error";
+    const status =
+      health.connected || !process.env.LORE_DB_HOST ? "ok" : "error";
     const code = status === "error" ? 503 : 200;
 
     expect(code).toBe(200);
@@ -71,7 +75,8 @@ describe("/healthz endpoint", () => {
     setPool(mockPool as any);
 
     const health = await getHealthStatus();
-    const status = health.connected || !process.env.LORE_DB_HOST ? "ok" : "error";
+    const status =
+      health.connected || !process.env.LORE_DB_HOST ? "ok" : "error";
     const code = status === "error" ? 503 : 200;
 
     expect(code).toBe(200);
@@ -86,7 +91,8 @@ describe("/healthz endpoint", () => {
     setPool(mockPool as any);
 
     const health = await getHealthStatus();
-    const status = health.connected || !process.env.LORE_DB_HOST ? "ok" : "error";
+    const status =
+      health.connected || !process.env.LORE_DB_HOST ? "ok" : "error";
     const code = status === "error" ? 503 : 200;
 
     expect(code).toBe(503);

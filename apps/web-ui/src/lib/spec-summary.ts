@@ -6,7 +6,8 @@
  * matching how lib/db.ts and lib/github.ts mirror server libs. Keep both in step.
  */
 
-const TITLE_PREFIX_RE = /^(?:feature\s+specification|spec(?:ification)?)\s*:\s*/i;
+const TITLE_PREFIX_RE =
+  /^(?:feature\s+specification|spec(?:ification)?)\s*:\s*/i;
 
 export function parseSpecTitle(content: string, filePath: string): string {
   const h1 = content.split("\n").find((line) => /^#\s+\S/.test(line));
@@ -33,12 +34,20 @@ export function extractSummary(content: string, maxLength = 280): string {
       .filter(Boolean);
     if (lines.length === 0) continue;
     const first = lines[0];
-    if (first.startsWith("#") || first.startsWith("|") || first.startsWith(">") || first.startsWith("```") || /^[-*]\s/.test(first)) {
+    if (
+      first.startsWith("#") ||
+      first.startsWith("|") ||
+      first.startsWith(">") ||
+      first.startsWith("```") ||
+      /^[-*]\s/.test(first)
+    ) {
       continue;
     }
     const text = lines.join(" ").replace(/\s+/g, " ").trim();
     if (text.length === 0) continue;
-    return text.length > maxLength ? text.slice(0, maxLength).trimEnd() + "…" : text;
+    return text.length > maxLength
+      ? text.slice(0, maxLength).trimEnd() + "…"
+      : text;
   }
   return "";
 }
@@ -50,7 +59,8 @@ interface SpecChunk {
 
 export function reassembleSpec(chunks: SpecChunk[]): string {
   const ordered = [...chunks].sort(
-    (a, b) => new Date(a.ingested_at).getTime() - new Date(b.ingested_at).getTime(),
+    (a, b) =>
+      new Date(a.ingested_at).getTime() - new Date(b.ingested_at).getTime(),
   );
   const seen = new Set<string>();
   const parts: string[] = [];

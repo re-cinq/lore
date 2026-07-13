@@ -1,4 +1,8 @@
-import { createProject, createDgraphClient, type Project } from "@re-cinq/lore-shared";
+import {
+  createProject,
+  createDgraphClient,
+  type Project,
+} from "@re-cinq/lore-shared";
 import { getPool } from "@re-cinq/lore-server-core/platform/db.js";
 
 /**

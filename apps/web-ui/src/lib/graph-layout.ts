@@ -29,7 +29,10 @@ export interface LayoutLink {
  * Partition the node set into connected components (union-find over the links).
  * Nodes that appear in no link come back as their own singleton component.
  */
-export function connectedComponents(nodeIds: string[], links: LayoutLink[]): string[][] {
+export function connectedComponents(
+  nodeIds: string[],
+  links: LayoutLink[],
+): string[][] {
   const parent = new Map<string, string>();
   const find = (x: string): string => {
     let root = x;
@@ -67,12 +70,19 @@ export function connectedComponents(nodeIds: string[], links: LayoutLink[]): str
  * clumping on one ring. Every node of a component maps to that component's spot;
  * charge then spreads the component's own members locally around it.
  */
-export function rimTargets(components: string[][], center: Point, rimRadius: number): Map<string, Point> {
+export function rimTargets(
+  components: string[][],
+  center: Point,
+  rimRadius: number,
+): Map<string, Point> {
   const out = new Map<string, Point>();
   const n = Math.max(1, components.length);
   components.forEach((comp, i) => {
     const angle = (2 * Math.PI * i) / n;
-    const target = { x: center.x + rimRadius * Math.cos(angle), y: center.y + rimRadius * Math.sin(angle) };
+    const target = {
+      x: center.x + rimRadius * Math.cos(angle),
+      y: center.y + rimRadius * Math.sin(angle),
+    };
     for (const id of comp) out.set(id, target);
   });
   return out;
@@ -98,14 +108,20 @@ export function featureSeedPositions(
     running += weights[i];
     const radius = maxRadius * Math.sqrt(frac);
     const angle = i * GOLDEN_ANGLE;
-    out.set(f.id, { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) });
+    out.set(f.id, {
+      x: center.x + radius * Math.cos(angle),
+      y: center.y + radius * Math.sin(angle),
+    });
   });
   return out;
 }
 
 /** Headless pre-warm tick budget: ~3 per node, floored at 120 and capped at 400. */
 export function settleTicks(nodeCount: number): number {
-  return Math.min(SETTLE_CAP, Math.max(SETTLE_FLOOR, nodeCount * SETTLE_PER_NODE));
+  return Math.min(
+    SETTLE_CAP,
+    Math.max(SETTLE_FLOOR, nodeCount * SETTLE_PER_NODE),
+  );
 }
 
 export interface BoundingRadiusOptions {
@@ -155,7 +171,12 @@ export function containedVelocity(
   velocity: { vx: number; vy: number },
   center: Point,
   radius: number,
-  { returnPull = 0.1, maxReturn = 6, dampScale = 300, epsilon = 1e-3 }: ContainmentOptions = {},
+  {
+    returnPull = 0.1,
+    maxReturn = 6,
+    dampScale = 300,
+    epsilon = 1e-3,
+  }: ContainmentOptions = {},
 ): { vx: number; vy: number } {
   let vx = velocity.vx;
   let vy = velocity.vy;
@@ -201,7 +222,11 @@ export interface RadialTreeOptions {
  * its children. Pure value-in/value-out — the D3 setup lays out one tree per
  * feature with its own centre, then a forceX/forceY holds the shape during relax.
  */
-export function radialTree(root: string, childrenOf: Map<string, string[]>, opts: RadialTreeOptions): Map<string, Point> {
+export function radialTree(
+  root: string,
+  childrenOf: Map<string, string[]>,
+  opts: RadialTreeOptions,
+): Map<string, Point> {
   const { center, ringGap } = opts;
   const angleStart = opts.angleStart ?? 0;
   const angleEnd = opts.angleEnd ?? Math.PI * 2;
@@ -214,7 +239,9 @@ export function radialTree(root: string, childrenOf: Map<string, string[]>, opts
     if (visited.has(id)) return;
     visited.add(id);
     depth.set(id, d);
-    const children = (childrenOf.get(id) ?? []).filter((child) => !visited.has(child));
+    const children = (childrenOf.get(id) ?? []).filter(
+      (child) => !visited.has(child),
+    );
     if (children.length === 0) leaves.push(id);
     else for (const child of children) visit(child, d + 1);
     postOrder.push(id);
@@ -224,12 +251,17 @@ export function radialTree(root: string, childrenOf: Map<string, string[]>, opts
   const span = angleEnd - angleStart;
   const leafCount = Math.max(leaves.length, 1);
   const angle = new Map<string, number>();
-  leaves.forEach((id, i) => angle.set(id, angleStart + (span * (i + 0.5)) / leafCount));
+  leaves.forEach((id, i) =>
+    angle.set(id, angleStart + (span * (i + 0.5)) / leafCount),
+  );
   // Children precede parents in post-order, so a parent's children angles are set.
   for (const id of postOrder) {
     if (angle.has(id)) continue;
     const children = childrenOf.get(id) ?? [];
-    const sum = children.reduce((acc, child) => acc + (angle.get(child) ?? 0), 0);
+    const sum = children.reduce(
+      (acc, child) => acc + (angle.get(child) ?? 0),
+      0,
+    );
     angle.set(id, children.length ? sum / children.length : angleStart);
   }
 
@@ -237,7 +269,10 @@ export function radialTree(root: string, childrenOf: Map<string, string[]>, opts
   for (const [id, d] of depth) {
     const a = angle.get(id) ?? angleStart;
     const r = d * ringGap;
-    positions.set(id, { x: center.x + r * Math.cos(a), y: center.y + r * Math.sin(a) });
+    positions.set(id, {
+      x: center.x + r * Math.cos(a),
+      y: center.y + r * Math.sin(a),
+    });
   }
   return positions;
 }
@@ -264,7 +299,11 @@ export interface PlacedNode {
  * Eliminating tree overlap is the dominant edge-crossing reduction (≈-62% on a
  * 43-feature graph).
  */
-export function featureRingRadius(featureCount: number, treeRadius: number, minRadius: number): number {
+export function featureRingRadius(
+  featureCount: number,
+  treeRadius: number,
+  minRadius: number,
+): number {
   return Math.max(minRadius, (featureCount * 2.2 * treeRadius) / (2 * Math.PI));
 }
 
@@ -273,7 +312,8 @@ export interface CrossingEdge {
   target: string;
 }
 
-const orient = (a: Point, b: Point, c: Point): number => (c.y - a.y) * (b.x - a.x) - (b.y - a.y) * (c.x - a.x);
+const orient = (a: Point, b: Point, c: Point): number =>
+  (c.y - a.y) * (b.x - a.x) - (b.y - a.y) * (c.x - a.x);
 
 /**
  * Counts pairs of edges whose straight segments properly cross — a layout-quality
@@ -282,10 +322,20 @@ const orient = (a: Point, b: Point, c: Point): number => (c.y - a.y) * (b.x - a.
  * with a missing endpoint are ignored. O(E²): intended for one-off measurement,
  * not a per-tick call.
  */
-export function countCrossings(edges: CrossingEdge[], pos: Map<string, Point>): number {
+export function countCrossings(
+  edges: CrossingEdge[],
+  pos: Map<string, Point>,
+): number {
   const segs = edges
-    .map((e) => ({ s: e.source, t: e.target, a: pos.get(e.source), b: pos.get(e.target) }))
-    .filter((x): x is { s: string; t: string; a: Point; b: Point } => !!x.a && !!x.b);
+    .map((e) => ({
+      s: e.source,
+      t: e.target,
+      a: pos.get(e.source),
+      b: pos.get(e.target),
+    }))
+    .filter(
+      (x): x is { s: string; t: string; a: Point; b: Point } => !!x.a && !!x.b,
+    );
   let crossings = 0;
   for (let i = 0; i < segs.length; i += 1) {
     for (let j = i + 1; j < segs.length; j += 1) {
@@ -296,7 +346,11 @@ export function countCrossings(edges: CrossingEdge[], pos: Map<string, Point>): 
       const d2 = orient(B.a, B.b, A.b);
       const d3 = orient(A.a, A.b, B.a);
       const d4 = orient(A.a, A.b, B.b);
-      if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) crossings += 1;
+      if (
+        ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+        ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+      )
+        crossings += 1;
     }
   }
   return crossings;
@@ -311,7 +365,10 @@ export function separateSmallComponents(
   let mainRadius = 0;
   for (const node of nodes) {
     if (smallIds.has(node.id)) continue;
-    mainRadius = Math.max(mainRadius, Math.hypot(node.x - center.x, node.y - center.y));
+    mainRadius = Math.max(
+      mainRadius,
+      Math.hypot(node.x - center.x, node.y - center.y),
+    );
   }
   const barrier = mainRadius + margin;
   const moved = new Map<string, Point>();
@@ -321,7 +378,10 @@ export function separateSmallComponents(
     const dy = node.y - center.y;
     const dist = Math.hypot(dx, dy) || 1;
     if (dist >= barrier) continue;
-    moved.set(node.id, { x: center.x + (barrier * dx) / dist, y: center.y + (barrier * dy) / dist });
+    moved.set(node.id, {
+      x: center.x + (barrier * dx) / dist,
+      y: center.y + (barrier * dy) / dist,
+    });
   }
   return moved;
 }

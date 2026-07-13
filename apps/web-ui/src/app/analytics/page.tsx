@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { query, queryOne } from '@/lib/db';
+import { query, queryOne } from "@/lib/db";
 import AnalyticsView, {
   type TaskSummary,
   type LatencyStats,
@@ -7,7 +7,7 @@ import AnalyticsView, {
   type UsageByRepo,
   type DailyUsage,
   type JobRun,
-} from './AnalyticsView';
+} from "./AnalyticsView";
 
 export default async function AnalyticsPage() {
   const taskSummary = await queryOne<TaskSummary>(
@@ -16,7 +16,7 @@ export default async function AnalyticsPage() {
       count(*) FILTER (WHERE status = 'pr-created' OR status = 'merged') as succeeded,
       count(*) FILTER (WHERE status = 'failed') as failed,
       count(*) FILTER (WHERE status = 'pending' OR status = 'queued' OR status = 'running') as active
-    FROM pipeline.tasks`
+    FROM pipeline.tasks`,
   );
 
   const usageByTaskType = await query<UsageByTaskType>(
@@ -28,7 +28,7 @@ export default async function AnalyticsPage() {
     FROM pipeline.tasks t
     LEFT JOIN pipeline.llm_calls lc ON lc.task_id = t.id
     GROUP BY t.task_type
-    ORDER BY task_count DESC`
+    ORDER BY task_count DESC`,
   );
 
   const usageByRepo = await query<UsageByRepo>(
@@ -38,7 +38,7 @@ export default async function AnalyticsPage() {
     FROM pipeline.tasks t
     WHERE t.target_repo IS NOT NULL
     GROUP BY t.target_repo
-    ORDER BY task_count DESC`
+    ORDER BY task_count DESC`,
   );
 
   const dailyUsage = await query<DailyUsage>(
@@ -50,7 +50,7 @@ export default async function AnalyticsPage() {
     FROM pipeline.llm_calls lc
     WHERE lc.created_at > current_date - interval '14 days'
     GROUP BY 1
-    ORDER BY 1 DESC`
+    ORDER BY 1 DESC`,
   );
 
   const latencyStats = await query<LatencyStats>(
@@ -64,14 +64,14 @@ export default async function AnalyticsPage() {
     WHERE metadata->>'latency_ms' IS NOT NULL
       AND created_at > now() - interval '7 days'
     GROUP BY operation
-    ORDER BY call_count DESC`
+    ORDER BY call_count DESC`,
   );
 
   const jobRuns = await query<JobRun>(
     `SELECT id, job_name, started_at, completed_at, status, result_summary, error, log_path
     FROM pipeline.job_runs
     ORDER BY started_at DESC
-    LIMIT 20`
+    LIMIT 20`,
   );
 
   return (

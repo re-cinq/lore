@@ -32,7 +32,9 @@ export type PromptfooEvalResult =
 export function parsePromptfooStats(stdout: string): PromptfooStats | null {
   let output: {
     stats?: { passRate?: number; passes?: number; total?: number };
-    results?: { stats?: { passRate?: number; passes?: number; total?: number } };
+    results?: {
+      stats?: { passRate?: number; passes?: number; total?: number };
+    };
   };
   try {
     output = JSON.parse(stdout);
@@ -41,7 +43,11 @@ export function parsePromptfooStats(stdout: string): PromptfooStats | null {
   }
   const stats = output.stats ?? output.results?.stats;
   if (!stats || typeof stats.passRate !== "number") return null;
-  return { passRate: stats.passRate, passes: stats.passes ?? null, total: stats.total ?? null };
+  return {
+    passRate: stats.passRate,
+    passes: stats.passes ?? null,
+    total: stats.total ?? null,
+  };
 }
 
 /** Is the promptfoo CLI runnable? (`npx promptfoo --version`). */
@@ -70,7 +76,16 @@ export async function runPromptfooEval(opts: {
   try {
     const { stdout } = await execFileAsync(
       "npx",
-      ["promptfoo", "eval", "--config", opts.configPath, "--output", "json", "--no-progress-bar", ...(opts.extraArgs ?? [])],
+      [
+        "promptfoo",
+        "eval",
+        "--config",
+        opts.configPath,
+        "--output",
+        "json",
+        "--no-progress-bar",
+        ...(opts.extraArgs ?? []),
+      ],
       { timeout: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS, maxBuffer: MAX_BUFFER },
     );
     const stats = parsePromptfooStats(stdout);

@@ -27,7 +27,9 @@ export const WILDCARD_METHODS: Record<string, string[]> = {
 };
 
 /** How a domain-validated write route's request body is documented. */
-export type DomainBody = { schema: ZodType; freeform?: false } | { schema?: undefined; freeform: true };
+export type DomainBody =
+  | { schema: ZodType; freeform?: false }
+  | { schema?: undefined; freeform: true };
 
 /**
  * Request body for a write route that carries no `zodValidate` schema, keyed by
@@ -37,11 +39,17 @@ export type DomainBody = { schema: ZodType; freeform?: false } | { schema?: unde
  */
 export const DOMAIN_BODIES: Record<string, DomainBody> = {
   // agents — the domain validator IS a zod schema (agents-schema.ts).
-  "POST /api/repos/{owner}/{repo}/agent-definitions": { schema: AgentInputSchema },
-  "PUT /api/repos/{owner}/{repo}/agent-definitions/{name}": { schema: AgentInputSchema },
+  "POST /api/repos/{owner}/{repo}/agent-definitions": {
+    schema: AgentInputSchema,
+  },
+  "PUT /api/repos/{owner}/{repo}/agent-definitions/{name}": {
+    schema: AgentInputSchema,
+  },
 
   // dark-factory — likewise (dark-factory-settings.ts).
-  "PUT /api/repos/{owner}/{repo}/settings/dark-factory": { schema: DarkFactorySettingsSchema },
+  "PUT /api/repos/{owner}/{repo}/settings/dark-factory": {
+    schema: DarkFactorySettingsSchema,
+  },
 
   // tokens — a plain TS interface + residual checks; no single zod schema.
   "POST /api/tokens": { freeform: true },
@@ -49,7 +57,9 @@ export const DOMAIN_BODIES: Record<string, DomainBody> = {
   // features — hand-rolled (enforceFeatureInput / parseSectionAnswers / parseGapResult).
   "POST /api/repos/{owner}/{repo}/features": { freeform: true },
   "POST /api/repos/{owner}/{repo}/features/{id}/iterations": { freeform: true },
-  "POST /api/repos/{owner}/{repo}/features/{id}/iterations/{n}/result": { freeform: true },
+  "POST /api/repos/{owner}/{repo}/features/{id}/iterations/{n}/result": {
+    freeform: true,
+  },
   "POST /api/repos/{owner}/{repo}/features/{id}/split": { freeform: true },
 };
 
@@ -65,6 +75,9 @@ export const BODYLESS_WRITES = new Set<string>([
 ]);
 
 /** Look up the documented body for a write route with no `zodValidate` schema. */
-export function domainBody(method: string, hapiPath: string): DomainBody | undefined {
+export function domainBody(
+  method: string,
+  hapiPath: string,
+): DomainBody | undefined {
   return DOMAIN_BODIES[`${method.toUpperCase()} ${hapiPath}`];
 }

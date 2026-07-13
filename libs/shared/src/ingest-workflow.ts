@@ -94,8 +94,12 @@ export function parseIngestWorkflowVersion(content: string): number | null {
  * `null` content means the file is absent. A missing or older marker is
  * `stale` (legacy installs predate the marker and carry the broken body).
  */
-export function ingestWorkflowStatus(content: string | null): IngestWorkflowStatus {
+export function ingestWorkflowStatus(
+  content: string | null,
+): IngestWorkflowStatus {
   if (content === null) return "missing";
   const version = parseIngestWorkflowVersion(content);
-  return version !== null && version >= LORE_INGEST_WORKFLOW_VERSION ? "aligned" : "stale";
+  return version !== null && version >= LORE_INGEST_WORKFLOW_VERSION
+    ? "aligned"
+    : "stale";
 }

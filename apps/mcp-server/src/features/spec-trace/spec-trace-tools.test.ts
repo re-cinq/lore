@@ -36,7 +36,13 @@ describe("runTestsList", () => {
       process.cwd(),
     );
     expect(descriptors).toEqual([
-      { id: "t1", name: "first test", file: "src/a.test.ts", startLine: 1, endLine: 5 },
+      {
+        id: "t1",
+        name: "first test",
+        file: "src/a.test.ts",
+        startLine: 1,
+        endLine: 5,
+      },
     ]);
   });
 
@@ -62,7 +68,11 @@ describe("listTestsTool", () => {
       cwd: ".",
       path_prefix_strip: "",
     };
-    const text = await listTestsTool({ LORE_DB_HOST: "10.0.0.5" }, manifest, process.cwd());
+    const text = await listTestsTool(
+      { LORE_DB_HOST: "10.0.0.5" },
+      manifest,
+      process.cwd(),
+    );
     expect(text).toMatch(/CI|local/i);
   });
 
@@ -81,7 +91,13 @@ describe("listTestsTool", () => {
     };
     const text = await listTestsTool({}, manifest, process.cwd());
     expect(JSON.parse(text)).toEqual([
-      { id: "t1", name: "first test", file: "src/a.test.ts", startLine: 1, endLine: 5 },
+      {
+        id: "t1",
+        name: "first test",
+        file: "src/a.test.ts",
+        startLine: 1,
+        endLine: 5,
+      },
     ]);
   });
 });

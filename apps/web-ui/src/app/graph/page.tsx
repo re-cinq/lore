@@ -1,10 +1,23 @@
 export const dynamic = "force-dynamic";
-import { query } from '@/lib/db';
-import GraphView, { type Entity, type Edge, type Stats, type EntityTypeCount } from './GraphView';
+import { query } from "@/lib/db";
+import GraphView, {
+  type Entity,
+  type Edge,
+  type Stats,
+  type EntityTypeCount,
+} from "./GraphView";
 
-export default async function GraphPage({ searchParams }: { searchParams: Promise<{ entity?: string; type?: string; show_invalid?: string }> }) {
+export default async function GraphPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    entity?: string;
+    type?: string;
+    show_invalid?: string;
+  }>;
+}) {
   const { entity, type, show_invalid } = await searchParams;
-  const showInvalid = show_invalid === '1';
+  const showInvalid = show_invalid === "1";
 
   const [stats] = await query<Stats>(`
     SELECT
@@ -23,8 +36,9 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
   // If an entity is selected, show its edges
   let edges: Edge[] = [];
   if (entity) {
-    const validFilter = showInvalid ? '' : 'AND e.valid_to IS NULL';
-    edges = await query<Edge>(`
+    const validFilter = showInvalid ? "" : "AND e.valid_to IS NULL";
+    edges = await query<Edge>(
+      `
       SELECT s.name as source_name, s.entity_type as source_type,
              e.relation_type, t.name as target_name, t.entity_type as target_type,
              e.valid_from, e.valid_to,
@@ -37,7 +51,9 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
         ${validFilter}
       ORDER BY e.valid_from DESC
       LIMIT 50
-    `, [entity]);
+    `,
+      [entity],
+    );
   }
 
   // List entities (filtered by type if specified)
@@ -49,9 +65,13 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
     entityParams.push(type);
     pi++;
   }
-  const entityWhere = entityConditions.length > 0 ? `WHERE ${entityConditions.join(' AND ')}` : '';
+  const entityWhere =
+    entityConditions.length > 0
+      ? `WHERE ${entityConditions.join(" AND ")}`
+      : "";
 
-  const entities = await query<Entity>(`
+  const entities = await query<Entity>(
+    `
     SELECT en.id, en.name, en.entity_type, en.repo, en.updated_at,
            (SELECT count(*)::int FROM memory.edges e
             WHERE (e.source_id = en.id OR e.target_id = en.id) AND e.valid_to IS NULL) as edge_count
@@ -59,7 +79,9 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
     ${entityWhere}
     ORDER BY en.updated_at DESC
     LIMIT 50
-  `, entityParams);
+  `,
+    entityParams,
+  );
 
   return (
     <GraphView

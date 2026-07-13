@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { evaluateParityGates, jaccard, meanTopkJaccard } from "./backfill-parity.js";
+import {
+  evaluateParityGates,
+  jaccard,
+  meanTopkJaccard,
+} from "./backfill-parity.js";
 
 describe("jaccard", () => {
   it("returns 1 for two identical result sets", () => {
@@ -43,7 +47,11 @@ describe("evaluateParityGates", () => {
       meanTopkJaccard: 0.87,
     };
 
-    expect(evaluateParityGates(allParity)).toEqual({ passed: true, exitCode: 0, failures: [] });
+    expect(evaluateParityGates(allParity)).toEqual({
+      passed: true,
+      exitCode: 0,
+      failures: [],
+    });
   });
 
   it("fails with non-zero exit naming the table when facts count mismatches", () => {
@@ -83,12 +91,19 @@ describe("evaluateParityGates", () => {
       meanTopkJaccard: 0.8,
     };
 
-    expect(evaluateParityGates(atThreshold)).toEqual({ passed: true, exitCode: 0, failures: [] });
+    expect(evaluateParityGates(atThreshold)).toEqual({
+      passed: true,
+      exitCode: 0,
+      failures: [],
+    });
   });
 
   it("accumulates both a table-mismatch and a jaccard failure when both gates fail", () => {
     const bothFail = {
-      tables: { memories: { pg: 412, dgraph: 410 }, facts: { pg: 3120, dgraph: 3120 } },
+      tables: {
+        memories: { pg: 412, dgraph: 410 },
+        facts: { pg: 3120, dgraph: 3120 },
+      },
       meanTopkJaccard: 0.4,
     };
 
@@ -102,7 +117,10 @@ describe("evaluateParityGates", () => {
   });
 
   it("fails a jaccard of 0.9 against a stricter custom threshold of 0.95", () => {
-    const summary = { tables: { memories: { pg: 1, dgraph: 1 } }, meanTopkJaccard: 0.9 };
+    const summary = {
+      tables: { memories: { pg: 1, dgraph: 1 } },
+      meanTopkJaccard: 0.9,
+    };
 
     const result = evaluateParityGates(summary, 0.95);
 

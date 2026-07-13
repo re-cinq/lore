@@ -22,9 +22,26 @@ const EXTRACT_ASSERTIONS_TOOL_SCHEMA = {
       items: {
         type: "object",
         properties: {
-          name: { type: "string", description: "The exact name of the function, class, type, or endpoint" },
-          kind: { type: "string", enum: ["function", "class", "interface", "type", "endpoint", "other"] },
-          description: { type: "string", description: "What this assertion checks for" },
+          name: {
+            type: "string",
+            description:
+              "The exact name of the function, class, type, or endpoint",
+          },
+          kind: {
+            type: "string",
+            enum: [
+              "function",
+              "class",
+              "interface",
+              "type",
+              "endpoint",
+              "other",
+            ],
+          },
+          description: {
+            type: "string",
+            description: "What this assertion checks for",
+          },
         },
         required: ["name", "kind", "description"],
       },
@@ -44,7 +61,9 @@ export async function extractAssertions(
   filePath: string,
   ctx: LlmJobContext,
 ): Promise<Assertion[]> {
-  const result = await Llm.instance.completeWithTool<{ assertions: Assertion[] }>({
+  const result = await Llm.instance.completeWithTool<{
+    assertions: Assertion[];
+  }>({
     prompt: `Analyze this specification and extract testable assertions — concrete names of functions, classes, interfaces, types, or API endpoints that SHOULD exist in the codebase based on this spec.
 
 Only extract items that are explicitly named in the spec. Do not infer or guess.
@@ -56,7 +75,10 @@ ${specContent.substring(0, ASSERTION_CONTENT_LIMIT)}`,
       "You extract testable code assertions from specifications. Return only explicitly named items.",
     toolName: "extract_assertions",
     toolDescription: "Extract testable assertions from a spec",
-    toolSchema: EXTRACT_ASSERTIONS_TOOL_SCHEMA as unknown as Record<string, unknown>,
+    toolSchema: EXTRACT_ASSERTIONS_TOOL_SCHEMA as unknown as Record<
+      string,
+      unknown
+    >,
     jobName: ctx.jobName,
   });
   return result.data.assertions || [];

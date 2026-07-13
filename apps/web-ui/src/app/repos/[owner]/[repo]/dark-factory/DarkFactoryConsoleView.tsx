@@ -1,6 +1,6 @@
-import Link from 'next/link';
-import type { DarkFactoryConsoleModel } from './derive-console';
-import styles from './DarkFactoryConsoleView.module.css';
+import Link from "next/link";
+import type { DarkFactoryConsoleModel } from "./derive-console";
+import styles from "./DarkFactoryConsoleView.module.css";
 
 const BADGE_CLASS: Record<string, string> = {
   active: styles.active,
@@ -26,16 +26,24 @@ export default function DarkFactoryConsoleView({
 
       <div className="spec-card">
         <div className={styles.stateRow}>
-          <span className={`${styles.badge} ${BADGE_CLASS[activation.state]}`}>{cap(activation.state)}</span>
+          <span className={`${styles.badge} ${BADGE_CLASS[activation.state]}`}>
+            {cap(activation.state)}
+          </span>
           <span className="meta">{activation.reason}</span>
         </div>
         <div className={styles.gates}>
-          <span>Repo gate: {activation.repoEnabled ? '✓ enabled' : '✗ disabled'}</span>
+          <span>
+            Repo gate: {activation.repoEnabled ? "✓ enabled" : "✗ disabled"}
+          </span>
           <span>Trust: {trustLevel}</span>
         </div>
         <p className="meta">
-          Enabling/disabling and editing this policy needs the two-key approval ceremony —{' '}
-          <Link href={`/repos/${owner}/${repo}/dark-factory/settings`}>Dark Factory settings</Link>.
+          Enabling/disabling and editing this policy needs the two-key approval
+          ceremony —{" "}
+          <Link href={`/repos/${owner}/${repo}/dark-factory/settings`}>
+            Dark Factory settings
+          </Link>
+          .
         </p>
       </div>
 
@@ -44,7 +52,7 @@ export default function DarkFactoryConsoleView({
         <dl className={styles.config}>
           <div>
             <dt className="meta">Allowlist paths</dt>
-            <dd>{config.auto_merge.paths.join(', ')}</dd>
+            <dd>{config.auto_merge.paths.join(", ")}</dd>
           </div>
           <div>
             <dt className="meta">Min trust</dt>
@@ -68,7 +76,11 @@ export default function DarkFactoryConsoleView({
           </div>
           <div>
             <dt className="meta">Notify</dt>
-            <dd>{config.notify.length ? config.notify.join(', ') : 'escalation (implicit)'}</dd>
+            <dd>
+              {config.notify.length
+                ? config.notify.join(", ")
+                : "escalation (implicit)"}
+            </dd>
           </div>
         </dl>
       </div>
@@ -89,7 +101,13 @@ export default function DarkFactoryConsoleView({
               <tr key={item.id}>
                 <td>{item.type}</td>
                 <td>{item.status}</td>
-                <td>{item.prUrl ? <a href={item.prUrl}>PR</a> : <span className="meta">—</span>}</td>
+                <td>
+                  {item.prUrl ? (
+                    <a href={item.prUrl}>PR</a>
+                  ) : (
+                    <span className="meta">—</span>
+                  )}
+                </td>
                 <td className="meta">{item.createdAt}</td>
               </tr>
             ))}
@@ -104,7 +122,8 @@ export default function DarkFactoryConsoleView({
         <ul className={styles.feed}>
           {decisions.map((decision, index) => (
             <li key={`${decision.kind}-${index}`}>
-              <span>{decision.summary}</span> <span className="meta">{decision.createdAt}</span>
+              <span>{decision.summary}</span>{" "}
+              <span className="meta">{decision.createdAt}</span>
             </li>
           ))}
         </ul>

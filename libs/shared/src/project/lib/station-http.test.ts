@@ -10,7 +10,11 @@ function fakeFetch(routes: Record<string, unknown>): {
   const fetchImpl = (async (url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     const path = url.replace(/^https?:\/\/[^/]+/, "");
-    calls.push({ method, path, body: init?.body ? JSON.parse(init.body as string) : undefined });
+    calls.push({
+      method,
+      path,
+      body: init?.body ? JSON.parse(init.body as string) : undefined,
+    });
     const key = `${method} ${path}`;
     const body = routes[key];
     if (body === undefined) return { ok: false, status: 404 } as Response;
@@ -28,9 +32,15 @@ describe("createStationProject", () => {
 
   it("routes project.chunks / issues / settings through the HTTP endpoints with the token", async () => {
     const { fetchImpl, calls } = fakeFetch({
-      "GET /api/repos/o/r/chunks/spec": { specs: [{ id: "1", repo: "o/r", filePath: "s.md", content: "x" }] },
+      "GET /api/repos/o/r/chunks/spec": {
+        specs: [{ id: "1", repo: "o/r", filePath: "s.md", content: "x" }],
+      },
       "GET /api/repos/o/r/onboarded": { onboarded: true },
-      "GET /api/repos/o/r/issues?state=open": { issues: [{ repo: "o/r", number: 3, title: "t", state: "open", labels: [] }] },
+      "GET /api/repos/o/r/issues?state=open": {
+        issues: [
+          { repo: "o/r", number: 3, title: "t", state: "open", labels: [] },
+        ],
+      },
     });
     const project = createStationProject("o/r", env, fetchImpl);
 
@@ -47,11 +57,20 @@ describe("createStationProject", () => {
     });
     const project = createStationProject("o/r", env, fetchImpl);
 
-    await project.tasks.create({ description: "d", taskType: "gap-fill", targetRepo: "o/r", createdBy: "spec-drift" });
-    const pr = await project.pulls.open("br", "title", "body", undefined, ["lore-managed"]);
+    await project.tasks.create({
+      description: "d",
+      taskType: "gap-fill",
+      targetRepo: "o/r",
+      createdBy: "spec-drift",
+    });
+    const pr = await project.pulls.open("br", "title", "body", undefined, [
+      "lore-managed",
+    ]);
 
     expect(pr.url).toBe("https://pr/1");
-    expect(calls.find((c) => c.path === "/api/repos/o/r/tasks")?.body).toMatchObject({
+    expect(
+      calls.find((c) => c.path === "/api/repos/o/r/tasks")?.body,
+    ).toMatchObject({
       taskType: "gap-fill",
       createdBy: "spec-drift",
     });

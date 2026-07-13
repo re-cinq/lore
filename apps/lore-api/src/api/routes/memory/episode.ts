@@ -21,14 +21,20 @@ export function episodeRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/episode",
-    options: { ...bearerScope("write"), validate: { payload: zodValidate(EpisodeBody) } },
+    options: {
+      ...bearerScope("write"),
+      validate: { payload: zodValidate(EpisodeBody) },
+    },
     handler: async (request, h) => {
       const pool = getPool();
       try {
-        const { content, source, ref, agent_id } = request.payload as EpisodeBody;
+        const { content, source, ref, agent_id } =
+          request.payload as EpisodeBody;
         const agent = agent_id || "unknown";
         const safeContent = sanitizeContent(content);
-        const contentHash = createHash("sha256").update(safeContent).digest("hex");
+        const contentHash = createHash("sha256")
+          .update(safeContent)
+          .digest("hex");
         const { rows } = await pool!.query(
           `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
            VALUES ($1, $2, $3, $4, $5)
@@ -38,9 +44,19 @@ export function episodeRoute(getPool: () => Pool | null): ServerRoute {
         );
         if (rows.length === 0) return h.response({ status: "duplicate" });
 
-        extractFactsFromEpisode(rows[0].id, safeContent, agent, pool!).catch(() => {});
+        extractFactsFromEpisode(rows[0].id, safeContent, agent, pool!).catch(
+          () => {},
+        );
         const gLlm = makeGraphLlmCall(pool);
-        if (gLlm) extractAndUpdateGraph(pool!, safeContent, ref || null, rows[0].id, null, gLlm).catch(() => {});
+        if (gLlm)
+          extractAndUpdateGraph(
+            pool!,
+            safeContent,
+            ref || null,
+            rows[0].id,
+            null,
+            gLlm,
+          ).catch(() => {});
         return h.response({ status: "ok", episode_id: rows[0].id });
       } catch (err: any) {
         return h.response({ error: err.message }).code(500);

@@ -21,7 +21,9 @@ export class PostgresMemoryStore implements MemoryStore {
     repo?: string;
   }): Promise<WriteResult> {
     const agent = input.agentId;
-    const expiresAt = input.ttl ? `now() + interval '${input.ttl} seconds'` : null;
+    const expiresAt = input.ttl
+      ? `now() + interval '${input.ttl} seconds'`
+      : null;
 
     // Check if key already exists for this repo (or agent if no repo)
     const lookupField = input.repo ? "repo" : "agent_id";
@@ -44,13 +46,13 @@ export class PostgresMemoryStore implements MemoryStore {
       await this.pool.query(
         `UPDATE memory.memories
          SET value = $1, version = $2, embedding = $3,
-             ttl_seconds = $4, expires_at = ${expiresAt ? expiresAt : 'NULL'},
+             ttl_seconds = $4, expires_at = ${expiresAt ? expiresAt : "NULL"},
              created_at = now()
          WHERE id = $5`,
         [
           input.value,
           version,
-          input.embedding ? `[${input.embedding.join(',')}]` : null,
+          input.embedding ? `[${input.embedding.join(",")}]` : null,
           input.ttl || null,
           memoryId,
         ],
@@ -60,13 +62,13 @@ export class PostgresMemoryStore implements MemoryStore {
       version = 1;
       const result = await this.pool.query(
         `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
-         VALUES ($1, $2, $3, $4, 1, $5, ${expiresAt ? expiresAt : 'NULL'}, $6)
+         VALUES ($1, $2, $3, $4, 1, $5, ${expiresAt ? expiresAt : "NULL"}, $6)
          RETURNING id, created_at`,
         [
           agent,
           input.key,
           input.value,
-          input.embedding ? `[${input.embedding.join(',')}]` : null,
+          input.embedding ? `[${input.embedding.join(",")}]` : null,
           input.ttl || null,
           input.repo || null,
         ],
@@ -78,18 +80,28 @@ export class PostgresMemoryStore implements MemoryStore {
     await this.pool.query(
       `INSERT INTO memory.memory_versions (memory_id, version, value, embedding)
        VALUES ($1, $2, $3, $4)`,
-      [memoryId, version, input.value, input.embedding ? `[${input.embedding.join(',')}]` : null],
+      [
+        memoryId,
+        version,
+        input.value,
+        input.embedding ? `[${input.embedding.join(",")}]` : null,
+      ],
     );
 
     // Audit log
-    await this.auditLog(agent, 'write', input.key);
+    await this.auditLog(agent, "write", input.key);
 
     const row = await this.pool.query(
       `SELECT created_at FROM memory.memories WHERE id = $1`,
       [memoryId],
     );
 
-    return { key: input.key, version, agent_id: agent, created_at: row.rows[0].created_at };
+    return {
+      key: input.key,
+      version,
+      agent_id: agent,
+      created_at: row.rows[0].created_at,
+    };
   }
 
   async readMemory(
@@ -99,7 +111,7 @@ export class PostgresMemoryStore implements MemoryStore {
   ): Promise<any> {
     const agent = agentId;
 
-    if (version === 'all') {
+    if (version === "all") {
       // Return all versions
       const { rows } = await this.pool.query(
         `SELECT mv.version, mv.value, mv.created_at
@@ -109,13 +121,13 @@ export class PostgresMemoryStore implements MemoryStore {
          ORDER BY mv.version DESC`,
         [agent, key],
       );
-      await this.auditLog(agent, 'read', key);
+      await this.auditLog(agent, "read", key);
       return rows;
     }
 
     if (
-      typeof version === 'number' ||
-      (typeof version === 'string' && !isNaN(Number(version)))
+      typeof version === "number" ||
+      (typeof version === "string" && !isNaN(Number(version)))
     ) {
       // Specific version
       const { rows } = await this.pool.query(
@@ -125,7 +137,7 @@ export class PostgresMemoryStore implements MemoryStore {
          WHERE m.agent_id = $1 AND m.key = $2 AND mv.version = $3`,
         [agent, key, Number(version)],
       );
-      await this.auditLog(agent, 'read', key);
+      await this.auditLog(agent, "read", key);
       return rows[0] || null;
     }
 
@@ -138,7 +150,7 @@ export class PostgresMemoryStore implements MemoryStore {
        ORDER BY version DESC LIMIT 1`,
       [agent, key],
     );
-    await this.auditLog(agent, 'read', key);
+    await this.auditLog(agent, "read", key);
     return rows[0] || null;
   }
 
@@ -151,7 +163,7 @@ export class PostgresMemoryStore implements MemoryStore {
       `UPDATE memory.memories SET is_deleted = TRUE WHERE agent_id = $1 AND key = $2`,
       [agent, key],
     );
-    await this.auditLog(agent, 'delete', key);
+    await this.auditLog(agent, "delete", key);
     return { key, deleted: true };
   }
 
@@ -198,7 +210,7 @@ export class PostgresMemoryStore implements MemoryStore {
       countParams,
     );
 
-    await this.auditLog(agentId || 'org', 'list', null);
+    await this.auditLog(agentId || "org", "list", null);
     return { memories: rows, total: countResult.rows[0].total };
   }
 

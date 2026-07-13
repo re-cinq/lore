@@ -78,7 +78,11 @@ export interface MemoryLifecyclePort {
 
   /** memory-lifecycle.ts importanceDecayJob — old (> `minAgeDays`) live
    * memories for one agent, oldest-first, capped at `limit`, scored upstream. */
-  findDecayCandidates(agentId: string, limit: number, minAgeDays: number): Promise<DecayCandidate[]>;
+  findDecayCandidates(
+    agentId: string,
+    limit: number,
+    minAgeDays: number,
+  ): Promise<DecayCandidate[]>;
 
   /** memory-lifecycle.ts importanceDecayJob — soft-delete (is_deleted=TRUE)
    * the evicted memory ids. */
@@ -105,11 +109,17 @@ export interface MemoryLifecyclePort {
 
   /** memory-lifecycle.ts importanceDecayJob — count invalidated (valid_to past
    * `minAgeDays`) facts by agent, agents over `cap`. */
-  countInvalidatedFactsByAgentOverCap(cap: number, minAgeDays: number): Promise<AgentCount[]>;
+  countInvalidatedFactsByAgentOverCap(
+    cap: number,
+    minAgeDays: number,
+  ): Promise<AgentCount[]>;
 
   /** memory-lifecycle.ts importanceDecayJob — DELETE the `limit` oldest
    * invalidated facts (CTE on valid_to); returns how many were deleted. */
-  deleteOldestInvalidatedFacts(limit: number, minAgeDays: number): Promise<number>;
+  deleteOldestInvalidatedFacts(
+    limit: number,
+    minAgeDays: number,
+  ): Promise<number>;
 
   /** memory-lifecycle.ts importanceDecayJob — transition unretrieved live facts
    * to confidence='stale' after 30 days; returns how many transitioned. */
@@ -117,7 +127,10 @@ export interface MemoryLifecyclePort {
 
   /** memory-lifecycle.ts consolidationJob — recent (< `lookbackDays`) live facts
    * with their episode repo, newest-first, capped at `limit`. */
-  findRecentValidFacts(lookbackDays: number, limit: number): Promise<RecentFact[]>;
+  findRecentValidFacts(
+    lookbackDays: number,
+    limit: number,
+  ): Promise<RecentFact[]>;
 
   // PR-outcome feedback (merge-check.ts) ─────────────────────────────
 

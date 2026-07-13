@@ -13,7 +13,14 @@ export class PgResearch implements ResearchPort {
     await this.pool.query(
       `INSERT INTO pipeline.research_attempts (cluster_id, namespace, approach, content, eval_score, delta)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-      [row.clusterId, row.namespace, row.approach, row.content, row.evalScore, row.delta],
+      [
+        row.clusterId,
+        row.namespace,
+        row.approach,
+        row.content,
+        row.evalScore,
+        row.delta,
+      ],
     );
   }
 }

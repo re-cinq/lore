@@ -50,14 +50,22 @@ function recorder(): Recorder {
 describe("handleOne", () => {
   it("marks done when the handler succeeds", async () => {
     const rec = recorder();
-    await handleOne(row(), deps(async () => {}, rec));
+    await handleOne(
+      row(),
+      deps(async () => {}, rec),
+    );
     expect(rec).toMatchObject({ done: ["1"], failed: [], dead: [] });
   });
 
   it("dead-letters immediately when no handler is registered", async () => {
     const rec = recorder();
-    await handleOne(row({ event_name: "github.unknown.thing" }), deps(undefined, rec));
-    expect(rec.dead).toEqual([{ id: "1", error: "no handler for github.unknown.thing" }]);
+    await handleOne(
+      row({ event_name: "github.unknown.thing" }),
+      deps(undefined, rec),
+    );
+    expect(rec.dead).toEqual([
+      { id: "1", error: "no handler for github.unknown.thing" },
+    ]);
     expect(rec.done).toEqual([]);
   });
 
@@ -87,7 +95,10 @@ describe("handleOne", () => {
     const capture: EventHandler = async (params) => {
       seen = params;
     };
-    await handleOne(row({ params: { repo: "re-cinq/lore", pr_number: 7 } }), deps(capture, rec));
+    await handleOne(
+      row({ params: { repo: "re-cinq/lore", pr_number: 7 } }),
+      deps(capture, rec),
+    );
     expect(seen).toEqual({ repo: "re-cinq/lore", pr_number: 7 });
   });
 });

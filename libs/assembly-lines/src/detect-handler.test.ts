@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { createDetectHandler, DETECT_SUMMARY_MAX_CHARS } from "./detect-handler.js";
+import {
+  createDetectHandler,
+  DETECT_SUMMARY_MAX_CHARS,
+} from "./detect-handler.js";
 import type { NodeContext } from "./assembly-line-executor.js";
 import type { AssemblyLineNode } from "./loader.js";
 
@@ -51,13 +54,17 @@ describe("createDetectHandler", () => {
     const result = await handler(detectNode("spec_drift"), ctx);
 
     expect(captured).toBe(long);
-    expect(result.extras?.["Lore-Detect-Summary"]).toHaveLength(DETECT_SUMMARY_MAX_CHARS);
+    expect(result.extras?.["Lore-Detect-Summary"]).toHaveLength(
+      DETECT_SUMMARY_MAX_CHARS,
+    );
   });
 
   it("throws on a job_ref missing from the registry", async () => {
     const handler = createDetectHandler({}, { repo: "re-cinq/lore" });
     await expect(handler(detectNode("ghost_job"), ctx)).rejects.toThrow(
-      new Error('detect node "detect": no detector registered for job_ref "ghost_job"'),
+      new Error(
+        'detect node "detect": no detector registered for job_ref "ghost_job"',
+      ),
     );
   });
 
@@ -67,7 +74,9 @@ describe("createDetectHandler", () => {
       { repo: "re-cinq/lore" },
     );
     await expect(handler(detectNode(undefined), ctx)).rejects.toThrow(
-      new Error('detect node "detect": no detector registered for job_ref "undefined"'),
+      new Error(
+        'detect node "detect": no detector registered for job_ref "undefined"',
+      ),
     );
   });
 

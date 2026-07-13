@@ -1,11 +1,11 @@
 export const dynamic = "force-dynamic";
-import Link from 'next/link';
-import { query } from '@/lib/db';
-import { classifyAgent } from '@/lib/agent-classify';
-import { listAgents } from '@/lib/agents-api';
-import AgentsTable, { type AgentRow } from '@/components/AgentsTable';
-import AgentList from './AgentList';
-import styles from './agents.module.css';
+import Link from "next/link";
+import { query } from "@/lib/db";
+import { classifyAgent } from "@/lib/agent-classify";
+import { listAgents } from "@/lib/agents-api";
+import AgentsTable, { type AgentRow } from "@/components/AgentsTable";
+import AgentList from "./AgentList";
+import styles from "./agents.module.css";
 
 interface RepoAgentQueryRow {
   agent_id: string;
@@ -18,7 +18,11 @@ interface RepoAgentQueryRow {
   last_active: string | null;
 }
 
-export default async function RepoAgents({ params }: { params: Promise<{ owner: string; repo: string }> }) {
+export default async function RepoAgents({
+  params,
+}: {
+  params: Promise<{ owner: string; repo: string }>;
+}) {
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
@@ -57,10 +61,13 @@ export default async function RepoAgents({ params }: { params: Promise<{ owner: 
      FROM task_agents ta
      FULL OUTER JOIN mem_agents ma ON ta.agent_id = ma.agent_id
      ORDER BY last_active DESC NULLS LAST`,
-    [fullName]
+    [fullName],
   );
 
-  const activity: AgentRow[] = rows.map((r) => ({ ...r, kind: classifyAgent(r) }));
+  const activity: AgentRow[] = rows.map((r) => ({
+    ...r,
+    kind: classifyAgent(r),
+  }));
 
   return (
     <div>
@@ -70,11 +77,14 @@ export default async function RepoAgents({ params }: { params: Promise<{ owner: 
             <h2 className={styles.sectionTitle}>Agent definitions</h2>
             <span className="count-pill">{agents.length}</span>
           </div>
-          <Link href={`/repos/${owner}/${repo}/agents/new`}><button>+ New definition</button></Link>
+          <Link href={`/repos/${owner}/${repo}/agents/new`}>
+            <button>+ New definition</button>
+          </Link>
         </div>
         <p className={styles.sectionDesc}>
-          The model, timeout, prompt and execution image each task type runs from — config, not a
-          run. Org defaults overlaid with this repo&apos;s overrides.
+          The model, timeout, prompt and execution image each task type runs
+          from — config, not a run. Org defaults overlaid with this repo&apos;s
+          overrides.
         </p>
         <AgentList base={`/repos/${owner}/${repo}`} agents={agents} />
       </section>
@@ -87,8 +97,9 @@ export default async function RepoAgents({ params }: { params: Promise<{ owner: 
           </div>
         </div>
         <p className={styles.sectionDesc}>
-          Developer Claude Code sessions and task runs that touched this repo, grouped by agent id.
-          Local sessions show by default; ephemeral task runs stay behind the audit toggle.
+          Developer Claude Code sessions and task runs that touched this repo,
+          grouped by agent id. Local sessions show by default; ephemeral task
+          runs stay behind the audit toggle.
         </p>
         <AgentsTable embedded agents={activity} />
       </section>

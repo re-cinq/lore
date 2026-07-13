@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
-import { query } from '@/lib/db';
-import { classifyAgent } from '@/lib/agent-classify';
-import AgentsTable, { type AgentRow } from '@/components/AgentsTable';
+import { query } from "@/lib/db";
+import { classifyAgent } from "@/lib/agent-classify";
+import AgentsTable, { type AgentRow } from "@/components/AgentsTable";
 
 interface AgentQueryRow {
   agent_id: string;
@@ -45,7 +45,10 @@ export default async function AgentsPage() {
     LIMIT 200
   `);
 
-  const agents: AgentRow[] = rows.map((r) => ({ ...r, kind: classifyAgent(r) }));
+  const agents: AgentRow[] = rows.map((r) => ({
+    ...r,
+    kind: classifyAgent(r),
+  }));
 
   return (
     <AgentsTable

@@ -86,7 +86,10 @@ export class PgAgentDefs implements AgentDefsPort {
       byName.set(r.name, list);
     }
     const baseDefs = await this.base.list(repo);
-    const names = new Set<string>([...baseDefs.map((d) => d.name), ...byName.keys()]);
+    const names = new Set<string>([
+      ...baseDefs.map((d) => d.name),
+      ...byName.keys(),
+    ]);
     const out: AgentDefinition[] = [];
     for (const name of names) {
       const group = byName.get(name) ?? [];
@@ -101,7 +104,10 @@ export class PgAgentDefs implements AgentDefsPort {
     return out.sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  async create(repo: string, def: AgentDefinitionInput): Promise<AgentDefinition> {
+  async create(
+    repo: string,
+    def: AgentDefinitionInput,
+  ): Promise<AgentDefinition> {
     const { rows } = await this.pool.query(
       `INSERT INTO lore.agent_definitions
          (name, model, timeout_minutes, prompt, image, execution_mode, review_required, project_id)

@@ -1,18 +1,26 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import AssembledContextView, { type AssembledResult } from './AssembledContextView';
+import { useState } from "react";
+import AssembledContextView, {
+  type AssembledResult,
+} from "./AssembledContextView";
 
-const TEMPLATES = ['default', 'implementation', 'review', 'research'];
+const TEMPLATES = ["default", "implementation", "review", "research"];
 
 /**
  * Container for the assembled-context preview. Owns query/template/fetch state
  * and recomputes the live context block via the repo-scoped proxy route, then
  * hands the data down to the pure `AssembledContextView`.
  */
-export default function AssembledContextPanel({ owner, repo }: { owner: string; repo: string }) {
-  const [query, setQuery] = useState('');
-  const [template, setTemplate] = useState('implementation');
+export default function AssembledContextPanel({
+  owner,
+  repo,
+}: {
+  owner: string;
+  repo: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [template, setTemplate] = useState("implementation");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AssembledResult | null>(null);

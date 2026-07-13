@@ -9,7 +9,8 @@ import { setStatus, insertEvent } from "./task-helpers.js";
 import type { ProcessTaskViaSupervisorResult } from "./orchestrator.js";
 
 /** The agent identity recorded on requeue — same derivation the worker uses at claim. */
-const agentIdFor = (taskId: string): string => `lore-agent-${taskId.substring(0, 8)}`;
+const agentIdFor = (taskId: string): string =>
+  `lore-agent-${taskId.substring(0, 8)}`;
 
 /** Injectable side-effects (the RecoverStaleDeps pattern) so the policy tests with plain fakes. */
 export interface ApplyOutcomeDeps {
@@ -33,7 +34,9 @@ export async function applySupervisorOutcome(
       break;
     case "no_changes":
       await deps.setStatus(taskId, "completed");
-      await deps.insertEvent(taskId, "running", "completed", { reason: "no_changes" });
+      await deps.insertEvent(taskId, "running", "completed", {
+        reason: "no_changes",
+      });
       break;
     case "pr_created":
       // pushAndOpenPr already wrote pr-created status; record the event for completeness.
@@ -47,7 +50,9 @@ export async function applySupervisorOutcome(
       // Another supervisor (likely a parallel pod) has the branch; back off to
       // queued so the next worker tick retries.
       await deps.setStatus(taskId, "queued", { agent_id: agentIdFor(taskId) });
-      await deps.insertEvent(taskId, "running", "queued", { reason: "lease_held" });
+      await deps.insertEvent(taskId, "running", "queued", {
+        reason: "lease_held",
+      });
       break;
     case "iteration_max":
       // Escalation Issue + Slack already fired via onIterationMaxExceeded inside
@@ -55,7 +60,9 @@ export async function applySupervisorOutcome(
       await deps.setStatus(taskId, "failed", {
         failure_reason: result.errorMessage ?? "iteration_max",
       });
-      await deps.insertEvent(taskId, "running", "failed", { reason: "iteration_max_exceeded" });
+      await deps.insertEvent(taskId, "running", "failed", {
+        reason: "iteration_max_exceeded",
+      });
       break;
   }
 }

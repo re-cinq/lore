@@ -32,5 +32,11 @@ export async function runGithubActionStation(
     }
     await wait(POLL_INTERVAL_MS);
   }
-  return { outcome: "failed", extras: { "Lore-CI-Conclusion": "timeout", "Lore-Validation-Status": "ci-timeout" } };
+  return {
+    outcome: "failed",
+    extras: {
+      "Lore-CI-Conclusion": "timeout",
+      "Lore-Validation-Status": "ci-timeout",
+    },
+  };
 }

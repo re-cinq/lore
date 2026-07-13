@@ -1,6 +1,11 @@
 import { projectFor } from "../../../composition/project-boot.js";
 import { chunks, settings } from "../../../kernel/queues.js";
-import { chunkFile, classifyFile, buildIngestedChunkMetadata, getQueryEmbedding } from "@re-cinq/lore-shared";
+import {
+  chunkFile,
+  classifyFile,
+  buildIngestedChunkMetadata,
+  getQueryEmbedding,
+} from "@re-cinq/lore-shared";
 
 const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
 
@@ -17,7 +22,8 @@ export function selectSeedFiles(treePaths: string[]): string[] {
   return treePaths.filter(
     (path) =>
       classifyFile(path) !== null &&
-      (SEED_EXACT.has(path) || SEED_PREFIXES.some((prefix) => path.startsWith(prefix))),
+      (SEED_EXACT.has(path) ||
+        SEED_PREFIXES.some((prefix) => path.startsWith(prefix))),
   );
 }
 
@@ -36,14 +42,15 @@ async function resolveSchema(repo: string): Promise<string> {
   return "org_shared";
 }
 
-
 // ── Collect changed files from commits ──────────────────────────────
 
 async function getChangedFiles(
   fullName: string,
   since: Date,
 ): Promise<string[]> {
-  const commits = await projectFor(fullName).then((p) => p.repo.listCommitsSince(since.toISOString()));
+  const commits = await projectFor(fullName).then((p) =>
+    p.repo.listCommitsSince(since.toISOString()),
+  );
 
   const paths = new Set<string>();
   for (const commit of commits) {
@@ -97,7 +104,10 @@ async function ingestFile(
       team: schema,
       repo: fullName,
       filePath,
-      metadata: buildIngestedChunkMetadata(chunk, { filePath, ingestedBy: "reindex-job" }),
+      metadata: buildIngestedChunkMetadata(chunk, {
+        filePath,
+        ingestedBy: "reindex-job",
+      }),
     });
 
     // Generate and store embedding per chunk (input already capped at 8k in the service)
@@ -105,9 +115,13 @@ async function ingestFile(
     if (embedding && chunkId) {
       const embeddingStr = `[${embedding.join(",")}]`;
       await chunks().setEmbedding(schema, chunkId, embeddingStr);
-      console.log(`[job] Embedded ${filePath} chunk ${chunk.metadata.chunk_index} (id ${chunkId})`);
+      console.log(
+        `[job] Embedded ${filePath} chunk ${chunk.metadata.chunk_index} (id ${chunkId})`,
+      );
     } else if (chunkId) {
-      console.log(`[job] Ingested ${filePath} chunk ${chunk.metadata.chunk_index} without embedding (id ${chunkId})`);
+      console.log(
+        `[job] Ingested ${filePath} chunk ${chunk.metadata.chunk_index} without embedding (id ${chunkId})`,
+      );
     }
   }
 
@@ -136,17 +150,23 @@ export async function reindexJob(): Promise<string> {
       // Resolve target schema
       const schema = await resolveSchema(repo.full_name);
       if (!SCHEMA_RE.test(schema)) {
-        console.error(`[job] Invalid schema "${schema}" for ${repo.full_name}, skipping`);
+        console.error(
+          `[job] Invalid schema "${schema}" for ${repo.full_name}, skipping`,
+        );
         continue;
       }
 
       // Determine which files to process
       // If repo has zero chunks, always do a full seed (handles failed first ingestion)
-      const hasChunks = (await chunks().countChunks(schema, repo.full_name)) > 0;
+      const hasChunks =
+        (await chunks().countChunks(schema, repo.full_name)) > 0;
 
       let filePaths: string[];
       if (repo.last_ingested_at && hasChunks) {
-        filePaths = await getChangedFiles(repo.full_name, repo.last_ingested_at);
+        filePaths = await getChangedFiles(
+          repo.full_name,
+          repo.last_ingested_at,
+        );
       } else {
         filePaths = await getSeedFiles(repo.full_name);
       }
@@ -158,7 +178,9 @@ export async function reindexJob(): Promise<string> {
         continue;
       }
 
-      console.log(`[job] Processing ${filePaths.length} files for ${repo.full_name}`);
+      console.log(
+        `[job] Processing ${filePaths.length} files for ${repo.full_name}`,
+      );
 
       let repoFileCount = 0;
       for (const filePath of filePaths) {
@@ -166,7 +188,9 @@ export async function reindexJob(): Promise<string> {
           const ingested = await ingestFile(filePath, repo.full_name, schema);
           if (ingested) repoFileCount++;
         } catch (err: any) {
-          console.error(`[job] Error processing ${repo.full_name}:${filePath}: ${err.message}`);
+          console.error(
+            `[job] Error processing ${repo.full_name}:${filePath}: ${err.message}`,
+          );
         }
       }
 
@@ -175,7 +199,9 @@ export async function reindexJob(): Promise<string> {
 
       totalFiles += repoFileCount;
       totalRepos++;
-      console.log(`[job] Finished ${repo.full_name}: ${repoFileCount} files reindexed`);
+      console.log(
+        `[job] Finished ${repo.full_name}: ${repoFileCount} files reindexed`,
+      );
     } catch (err: any) {
       console.error(`[job] Error reindexing ${repo.full_name}: ${err.message}`);
     }

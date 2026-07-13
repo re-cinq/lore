@@ -1,4 +1,8 @@
-import type { LeaseBackend, AcquireResult, ExpiredLease } from "./lease-backends.js";
+import type {
+  LeaseBackend,
+  AcquireResult,
+  ExpiredLease,
+} from "./lease-backends.js";
 
 /**
  * project.leases — the branch-lease surface. Thin pass-through over the wired

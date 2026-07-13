@@ -8,7 +8,10 @@ const gap = (tag: string): GapResult => ({
   draft_spec_markdown: `# ${tag}`,
 });
 
-function iteration(partial: Partial<FeatureIteration> & Pick<FeatureIteration, "iteration" | "status">): FeatureIteration {
+function iteration(
+  partial: Partial<FeatureIteration> &
+    Pick<FeatureIteration, "iteration" | "status">,
+): FeatureIteration {
   return {
     id: `it-${partial.iteration}`,
     feature_id: "f1",
@@ -28,7 +31,13 @@ describe("canFinalize", () => {
   });
 
   it("rejects finalizing from any other status", () => {
-    const other: FeatureStatus[] = ["draft", "planning", "pr-open", "implemented", "split"];
+    const other: FeatureStatus[] = [
+      "draft",
+      "planning",
+      "pr-open",
+      "implemented",
+      "split",
+    ];
     expect(other.map(canFinalize)).toEqual([false, false, false, false, false]);
   });
 });
@@ -53,6 +62,8 @@ describe("latestReadyGap", () => {
   });
 
   it("returns null when no iteration is ready with a gap", () => {
-    expect(latestReadyGap([iteration({ iteration: 0, status: "running" })])).toBeNull();
+    expect(
+      latestReadyGap([iteration({ iteration: 0, status: "running" })]),
+    ).toBeNull();
   });
 });

@@ -122,11 +122,7 @@ export async function runSupervisor(
   const holder = opts.holder ?? defaultHolder();
   const backend = opts.leaseBackend;
 
-  const lease = await backend.acquire(
-    opts.branchName,
-    opts.taskId,
-    holder,
-  );
+  const lease = await backend.acquire(opts.branchName, opts.taskId, holder);
   if (!lease.acquired) {
     console.log(
       `[supervisor] Lease for ${opts.branchName} held by ${

@@ -22,7 +22,10 @@ export function insertEvent(input: EventInput): Promise<void> {
  * surface makes the route return 5xx so the sender retries; every insert is idempotent
  * (dedupe_key where present, content-hash otherwise), so redelivery is safe.
  */
-export async function insertEventList(events: EventInput[], source: string): Promise<void> {
+export async function insertEventList(
+  events: EventInput[],
+  source: string,
+): Promise<void> {
   try {
     await Promise.all(events.map((ev) => insertEvent(ev)));
   } catch (err) {
@@ -40,7 +43,11 @@ export function markDone(id: string): Promise<void> {
   return eventQueue().markDone(id);
 }
 
-export function markFailed(id: string, error: string, backoffSeconds: number): Promise<void> {
+export function markFailed(
+  id: string,
+  error: string,
+  backoffSeconds: number,
+): Promise<void> {
   return eventQueue().markFailed(id, error, backoffSeconds);
 }
 

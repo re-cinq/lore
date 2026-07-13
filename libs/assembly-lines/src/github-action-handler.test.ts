@@ -32,8 +32,12 @@ function fakeDeps(queue: CiConclusion[], over: Partial<GithubActionDeps> = {}) {
   const q = [...queue];
   const deps: GithubActionDeps = {
     ciConclusion: async () => (q.length ? q.shift()! : "pending"),
-    heartbeat: async (_b, nodeId) => { calls.heartbeat.push(nodeId); },
-    sleep: async () => { calls.sleep++; },
+    heartbeat: async (_b, nodeId) => {
+      calls.heartbeat.push(nodeId);
+    },
+    sleep: async () => {
+      calls.sleep++;
+    },
     ...over,
   };
   return { deps, calls };
@@ -52,13 +56,18 @@ describe("createGithubActionHandler", () => {
 
   it("maps a red build to failed", async () => {
     const { deps } = fakeDeps(["failure"]);
-    expect((await createGithubActionHandler(deps)(node, ctx)).outcome).toBe("failed");
+    expect((await createGithubActionHandler(deps)(node, ctx)).outcome).toBe(
+      "failed",
+    );
   });
 
   it("times out to failed when CI never concludes", async () => {
     const { deps, calls } = fakeDeps([], { maxPolls: 2, pollIntervalMs: 1 });
     const result = await createGithubActionHandler(deps)(node, ctx);
-    expect(result).toMatchObject({ outcome: "failed", extras: { "Lore-CI-Conclusion": "timeout" } });
+    expect(result).toMatchObject({
+      outcome: "failed",
+      extras: { "Lore-CI-Conclusion": "timeout" },
+    });
     expect(calls.heartbeat).toHaveLength(2);
   });
 });

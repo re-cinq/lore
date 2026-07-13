@@ -7,7 +7,11 @@
  * fetches; this projects the result.
  */
 
-import type { TraceDocument, TraceStatement, TraceLinkRef } from "@re-cinq/lore-shared";
+import type {
+  TraceDocument,
+  TraceStatement,
+  TraceLinkRef,
+} from "@re-cinq/lore-shared";
 import type { ProxyResult } from "../../proxy.js";
 
 /** Signal priority for the summary — the collisions worth surfacing first. */
@@ -44,13 +48,21 @@ function summary(doc: TraceDocument): string {
 
 /** Renders one link as `path:line — detail`, omitting the parts it lacks. */
 function linkLine(link: TraceLinkRef): string {
-  const loc = link.path ? `${link.path}${link.line ? `:${link.line}` : ""}` : link.label;
+  const loc = link.path
+    ? `${link.path}${link.line ? `:${link.line}` : ""}`
+    : link.label;
   return link.detail ? `${loc} — ${link.detail}` : loc;
 }
 
 function detail(statement: TraceStatement): string {
-  const flags = [statement.violated && "⚠ violated", statement.drifted && "⚠ drifted"].filter(Boolean);
-  const lines = [`#${statement.ordinal} (${statement.state}${flags.length ? `, ${flags.join(", ")}` : ""})`, statement.text];
+  const flags = [
+    statement.violated && "⚠ violated",
+    statement.drifted && "⚠ drifted",
+  ].filter(Boolean);
+  const lines = [
+    `#${statement.ordinal} (${statement.state}${flags.length ? `, ${flags.join(", ")}` : ""})`,
+    statement.text,
+  ];
   const groups: Array<[TraceLinkRef["kind"], string]> = [
     ["test", "validated by"],
     ["code", "implemented by"],
@@ -66,17 +78,26 @@ function detail(statement: TraceStatement): string {
 }
 
 /** A statement matches when the selector equals its ordinal, else case-insensitive substring of its text. */
-function selectStatements(doc: TraceDocument, selector: string): TraceStatement[] {
-  const byOrdinal = doc.statements.filter((s) => String(s.ordinal) === selector.trim());
+function selectStatements(
+  doc: TraceDocument,
+  selector: string,
+): TraceStatement[] {
+  const byOrdinal = doc.statements.filter(
+    (s) => String(s.ordinal) === selector.trim(),
+  );
   if (byOrdinal.length) return byOrdinal;
   const needle = selector.trim().toLowerCase();
   return doc.statements.filter((s) => s.text.toLowerCase().includes(needle));
 }
 
-export function formatTraceQuery(doc: TraceDocument, selector?: string): string {
+export function formatTraceQuery(
+  doc: TraceDocument,
+  selector?: string,
+): string {
   if (!selector?.trim()) return summary(doc);
   const matches = selectStatements(doc, selector);
-  if (matches.length === 0) return `No statement in ${doc.filePath} matches "${selector}".`;
+  if (matches.length === 0)
+    return `No statement in ${doc.filePath} matches "${selector}".`;
   return matches.map(detail).join("\n\n");
 }
 
@@ -97,12 +118,17 @@ export interface QueryTraceDeps {
  * path (never throws) — the proxy seam is injected so this is testable without
  * a network.
  */
-export async function runQueryTrace(args: QueryTraceArgs, deps: QueryTraceDeps): Promise<string> {
+export async function runQueryTrace(
+  args: QueryTraceArgs,
+  deps: QueryTraceDeps,
+): Promise<string> {
   const repo = args.repo || deps.detectRepo();
   if (!repo) {
     return "Could not detect the current repo — run inside a git repo or pass `repo` (owner/repo).";
   }
-  const result = await deps.proxyGet(`/api/repos/${repo}/trace/document?path=${encodeURIComponent(args.spec)}`);
+  const result = await deps.proxyGet(
+    `/api/repos/${repo}/trace/document?path=${encodeURIComponent(args.spec)}`,
+  );
   if (!result.ok && result.reason === "not_configured") {
     return "lore-query-trace needs LORE_API_URL + a read-scoped LORE_INGEST_TOKEN to reach the graph; neither is configured.";
   }
@@ -112,5 +138,8 @@ export async function runQueryTrace(args: QueryTraceArgs, deps: QueryTraceDeps):
       : "";
     return `Lore API unreachable for lore-query-trace: ${result.detail}.${scopeHint}`;
   }
-  return formatTraceQuery(JSON.parse(result.body) as TraceDocument, args.statement);
+  return formatTraceQuery(
+    JSON.parse(result.body) as TraceDocument,
+    args.statement,
+  );
 }

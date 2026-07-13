@@ -24,15 +24,22 @@ export function meanTopkJaccard(scores: number[]): number {
   return scores.reduce((sum, s) => sum + s, 0) / scores.length;
 }
 
-export function evaluateParityGates(summary: ParitySummary, threshold = 0.8): GateResult {
+export function evaluateParityGates(
+  summary: ParitySummary,
+  threshold = 0.8,
+): GateResult {
   const failures: string[] = [];
   for (const [table, { pg, dgraph }] of Object.entries(summary.tables)) {
     if (pg !== dgraph) {
-      failures.push(`row-count mismatch for ${table}: pg=${pg} dgraph=${dgraph}`);
+      failures.push(
+        `row-count mismatch for ${table}: pg=${pg} dgraph=${dgraph}`,
+      );
     }
   }
   if (summary.meanTopkJaccard < threshold) {
-    failures.push(`retrieval top-K Jaccard ${summary.meanTopkJaccard} below threshold ${threshold}`);
+    failures.push(
+      `retrieval top-K Jaccard ${summary.meanTopkJaccard} below threshold ${threshold}`,
+    );
   }
   const passed = failures.length === 0;
   return { passed, exitCode: passed ? 0 : 1, failures };

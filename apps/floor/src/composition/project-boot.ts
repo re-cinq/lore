@@ -69,7 +69,9 @@ export function stationBackend(
 /** The builtin assembly line names (task types with an assembly line), loaded + cached once. */
 let assemblyLineNamesCache: Promise<ReadonlySet<string>> | undefined;
 function assemblyLineNames(): Promise<ReadonlySet<string>> {
-  return (assemblyLineNamesCache ??= loadBuiltinAssemblyLines().then((m) => new Set(m.keys())));
+  return (assemblyLineNamesCache ??= loadBuiltinAssemblyLines().then(
+    (m) => new Set(m.keys()),
+  ));
 }
 
 export async function projectFor(repo: string): Promise<Project> {

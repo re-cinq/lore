@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { makePool, makeOctokit, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  makeOctokit,
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
 // The agent-definitions routes delegate to project.agentDefs and reuse the
 // dark-factory two-key ceremony for the `image` field. parseAgentInput /
@@ -8,13 +14,19 @@ import { makePool, makeOctokit, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from
 
 vi.mock("../../../features/dark-factory/dark-factory-authz.js", () => {
   class TwoKeyError extends Error {
-    constructor(message: string, public readonly code: string) {
+    constructor(
+      message: string,
+      public readonly code: string,
+    ) {
       super(message);
     }
   }
   return { verifyApproval: vi.fn(), TwoKeyError };
 });
-vi.mock("../../../platform/github-client.js", () => ({ getOctokit: vi.fn(), getGitHubToken: vi.fn() }));
+vi.mock("../../../platform/github-client.js", () => ({
+  getOctokit: vi.fn(),
+  getGitHubToken: vi.fn(),
+}));
 
 const fakeAgents = {
   resolve: vi.fn(),
@@ -23,9 +35,14 @@ const fakeAgents = {
   update: vi.fn(),
   delete: vi.fn(),
 };
-vi.mock("../../../platform/project-boot.js", () => ({ projectFor: vi.fn(async () => ({ agentDefs: fakeAgents })) }));
+vi.mock("../../../platform/project-boot.js", () => ({
+  projectFor: vi.fn(async () => ({ agentDefs: fakeAgents })),
+}));
 
-import { verifyApproval, TwoKeyError } from "../../../features/dark-factory/dark-factory-authz.js";
+import {
+  verifyApproval,
+  TwoKeyError,
+} from "../../../features/dark-factory/dark-factory-authz.js";
 import { getOctokit } from "../../../platform/github-client.js";
 
 const BASE = "/api/repos/o/r/agent-definitions";
@@ -52,7 +69,13 @@ describe("routes — agents", () => {
     vi.clearAllMocks();
   });
 
-  function call(url: string, method: "GET" | "POST" | "PUT" | "DELETE", body?: unknown, headers: Record<string, string> = {}, pool = makePool()) {
+  function call(
+    url: string,
+    method: "GET" | "POST" | "PUT" | "DELETE",
+    body?: unknown,
+    headers: Record<string, string> = {},
+    pool = makePool(),
+  ) {
     pool.query.mockResolvedValue({}); // audit insert (real pg returns a Promise)
     const payload = body === undefined ? undefined : JSON.stringify(body);
     return buildServer(() => pool as any)
@@ -61,7 +84,11 @@ describe("routes — agents", () => {
   }
 
   it("returns 503 when the pool is null", async () => {
-    const res = await buildServer(() => null).inject({ method: "GET", url: BASE, headers: AUTH });
+    const res = await buildServer(() => null).inject({
+      method: "GET",
+      url: BASE,
+      headers: AUTH,
+    });
     expect(res.statusCode).toBe(503);
   });
 
@@ -83,15 +110,25 @@ describe("routes — agents", () => {
       fakeAgents.resolve.mockResolvedValue(null);
       const { res } = await call(`${BASE}/nope`, "GET");
       expect(res.statusCode).toBe(404);
-      expect(res.result).toEqual({ error: "agent definition not found", name: "nope" });
+      expect(res.result).toEqual({
+        error: "agent definition not found",
+        name: "nope",
+      });
     });
   });
 
   describe("writes", () => {
     it("creates an agent (admin tier) and audits it", async () => {
       fakeAgents.create.mockResolvedValue(def);
-      const { res, pool } = await call(BASE, "POST", { name: "general", model: "claude-opus-4-8" });
-      expect(res.result).toMatchObject({ ok: true, agent: def, ceremony: { tier: "admin" } });
+      const { res, pool } = await call(BASE, "POST", {
+        name: "general",
+        model: "claude-opus-4-8",
+      });
+      expect(res.result).toMatchObject({
+        ok: true,
+        agent: def,
+        ceremony: { tier: "admin" },
+      });
       expect(fakeAgents.create).toHaveBeenCalled();
       expect(pool.query).toHaveBeenCalledWith(
         expect.stringContaining("pipeline.audit_log"),
@@ -106,38 +143,75 @@ describe("routes — agents", () => {
     });
 
     it("two-key gates a create that sets an image (no approval header)", async () => {
-      const { res } = await call(BASE, "POST", { name: "custom", image: "golang:1.23" });
+      const { res } = await call(BASE, "POST", {
+        name: "custom",
+        image: "golang:1.23",
+      });
       expect(res.statusCode).toBe(403);
       expect((res.result as { error: string }).error).toBe("two_key_required");
       expect(fakeAgents.create).not.toHaveBeenCalled();
     });
 
     it("applies an image create after CODEOWNERS approval", async () => {
-      fakeAgents.create.mockResolvedValue({ ...def, name: "custom", image: "golang:1.23" });
+      fakeAgents.create.mockResolvedValue({
+        ...def,
+        name: "custom",
+        image: "golang:1.23",
+      });
       vi.mocked(getOctokit).mockResolvedValue(makeOctokit() as any);
-      vi.mocked(verifyApproval).mockResolvedValue({ prRef: "#5", approver: "alice", prUrl: "https://gh/5" } as any);
-      const { res } = await call(BASE, "POST", { name: "custom", image: "golang:1.23" }, { "x-lore-approval-pr": "#5" });
-      expect(res.result).toMatchObject({ ok: true, ceremony: { tier: "two_key", approver: "alice" } });
+      vi.mocked(verifyApproval).mockResolvedValue({
+        prRef: "#5",
+        approver: "alice",
+        prUrl: "https://gh/5",
+      } as any);
+      const { res } = await call(
+        BASE,
+        "POST",
+        { name: "custom", image: "golang:1.23" },
+        { "x-lore-approval-pr": "#5" },
+      );
+      expect(res.result).toMatchObject({
+        ok: true,
+        ceremony: { tier: "two_key", approver: "alice" },
+      });
     });
 
     it("returns 403 on a CODEOWNERS failure for an image change", async () => {
       vi.mocked(getOctokit).mockResolvedValue(makeOctokit() as any);
-      vi.mocked(verifyApproval).mockRejectedValue(new TwoKeyError("nope", "approver_not_codeowner"));
-      const { res } = await call(BASE, "POST", { name: "custom", image: "golang:1.23" }, { "x-lore-approval-pr": "#5" });
-      expect(res.result).toMatchObject({ error: "codeowners_check_failed", code: "approver_not_codeowner" });
+      vi.mocked(verifyApproval).mockRejectedValue(
+        new TwoKeyError("nope", "approver_not_codeowner"),
+      );
+      const { res } = await call(
+        BASE,
+        "POST",
+        { name: "custom", image: "golang:1.23" },
+        { "x-lore-approval-pr": "#5" },
+      );
+      expect(res.result).toMatchObject({
+        error: "codeowners_check_failed",
+        code: "approver_not_codeowner",
+      });
     });
 
     it("updates an agent by name", async () => {
       fakeAgents.update.mockResolvedValue(def);
-      const { res } = await call(`${BASE}/general`, "PUT", { model: "claude-haiku-4-5-20251001" });
+      const { res } = await call(`${BASE}/general`, "PUT", {
+        model: "claude-haiku-4-5-20251001",
+      });
       expect(res.result).toMatchObject({ ok: true, agent: def });
-      expect(fakeAgents.update).toHaveBeenCalledWith("general", { model: "claude-haiku-4-5-20251001" });
+      expect(fakeAgents.update).toHaveBeenCalledWith("general", {
+        model: "claude-haiku-4-5-20251001",
+      });
     });
 
     it("deletes an agent by name", async () => {
       fakeAgents.delete.mockResolvedValue(undefined);
       const { res } = await call(`${BASE}/general`, "DELETE");
-      expect(res.result).toEqual({ ok: true, deleted: "general", crd_deleted: false });
+      expect(res.result).toEqual({
+        ok: true,
+        deleted: "general",
+        crd_deleted: false,
+      });
       expect(fakeAgents.delete).toHaveBeenCalledWith("general");
     });
   });

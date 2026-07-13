@@ -10,7 +10,8 @@ const VERSION = "v1alpha1";
 const DEF_PLURAL = "agentdefinitions";
 const STATION_PLURAL = "stations";
 
-const namespace = (): string => process.env.LORE_AGENTS_NAMESPACE ?? "ai-agents";
+const namespace = (): string =>
+  process.env.LORE_AGENTS_NAMESPACE ?? "ai-agents";
 
 const statusOf = (err: unknown): number | undefined => {
   const e = err as { code?: number; response?: { statusCode?: number } };
@@ -20,26 +21,52 @@ const isNotFound = (err: unknown): boolean => statusOf(err) === 404;
 const isConflict = (err: unknown): boolean => statusOf(err) === 409;
 
 async function api() {
-  const { KubeConfig, CustomObjectsApi } = await import("@kubernetes/client-node");
+  const { KubeConfig, CustomObjectsApi } =
+    await import("@kubernetes/client-node");
   const kc = new KubeConfig();
   kc.loadFromCluster();
   return kc.makeApiClient(CustomObjectsApi);
 }
 
-async function applyOne(plural: string, name: string, body: object): Promise<void> {
+async function applyOne(
+  plural: string,
+  name: string,
+  body: object,
+): Promise<void> {
   const client = await api();
   const ns = namespace();
   try {
-    await client.createNamespacedCustomObject({ group: GROUP, version: VERSION, namespace: ns, plural, body });
+    await client.createNamespacedCustomObject({
+      group: GROUP,
+      version: VERSION,
+      namespace: ns,
+      plural,
+      body,
+    });
   } catch (err) {
     if (!isConflict(err)) throw err;
     const current = (await client.getNamespacedCustomObject({
-      group: GROUP, version: VERSION, namespace: ns, plural, name,
+      group: GROUP,
+      version: VERSION,
+      namespace: ns,
+      plural,
+      name,
     })) as { metadata?: { resourceVersion?: string } };
-    const meta = (body as { metadata?: Record<string, unknown> }).metadata ?? {};
+    const meta =
+      (body as { metadata?: Record<string, unknown> }).metadata ?? {};
     await client.replaceNamespacedCustomObject({
-      group: GROUP, version: VERSION, namespace: ns, plural, name,
-      body: { ...body, metadata: { ...meta, resourceVersion: current.metadata?.resourceVersion } },
+      group: GROUP,
+      version: VERSION,
+      namespace: ns,
+      plural,
+      name,
+      body: {
+        ...body,
+        metadata: {
+          ...meta,
+          resourceVersion: current.metadata?.resourceVersion,
+        },
+      },
     });
   }
 }
@@ -47,15 +74,29 @@ async function applyOne(plural: string, name: string, body: object): Promise<voi
 async function deleteOne(plural: string, name: string): Promise<void> {
   const client = await api();
   try {
-    await client.deleteNamespacedCustomObject({ group: GROUP, version: VERSION, namespace: namespace(), plural, name });
+    await client.deleteNamespacedCustomObject({
+      group: GROUP,
+      version: VERSION,
+      namespace: namespace(),
+      plural,
+      name,
+    });
   } catch (err) {
     if (!isNotFound(err)) throw err;
   }
 }
 
 export async function applyAgentCrds(pair: CrdPair): Promise<void> {
-  await applyOne(DEF_PLURAL, pair.agentDefinition.metadata?.name ?? "", pair.agentDefinition);
-  await applyOne(STATION_PLURAL, pair.station.metadata?.name ?? "", pair.station);
+  await applyOne(
+    DEF_PLURAL,
+    pair.agentDefinition.metadata?.name ?? "",
+    pair.agentDefinition,
+  );
+  await applyOne(
+    STATION_PLURAL,
+    pair.station.metadata?.name ?? "",
+    pair.station,
+  );
 }
 
 export async function deleteAgentCrds(name: string): Promise<void> {

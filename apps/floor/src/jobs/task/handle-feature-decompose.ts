@@ -13,7 +13,10 @@ import { randomUUID } from "node:crypto";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { parseDecomposition } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
-import { specTaskRows, storyIssueBody } from "@re-cinq/lore-shared/feature-planning/decomposition-plan.js";
+import {
+  specTaskRows,
+  storyIssueBody,
+} from "@re-cinq/lore-shared/feature-planning/decomposition-plan.js";
 import { DECOMPOSITION_INSTRUCTIONS } from "@re-cinq/lore-shared/feature-planning/decomposition-instructions.js";
 import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json.js";
 import { taskQueue } from "../../kernel/queues.js";
@@ -28,16 +31,26 @@ interface FinalizeTaskShape {
 
 /** Pure: should a just-merged task kick decomposition, and for which feature?
  *  Fires only for a `feature-finalize` task that carries a feature id. */
-export function decideDecomposeKick(task: FinalizeTaskShape): { kick: boolean; featureId?: string; slug?: string } {
+export function decideDecomposeKick(task: FinalizeTaskShape): {
+  kick: boolean;
+  featureId?: string;
+  slug?: string;
+} {
   if (task.task_type !== "feature-finalize") return { kick: false };
   const featureId = task.context_bundle?.feature_id;
   if (!featureId) return { kick: false };
   return { kick: true, featureId, slug: task.context_bundle?.slug };
 }
 
-export async function handleFeatureDecompose(task: any, targetRepo: string): Promise<void> {
+export async function handleFeatureDecompose(
+  task: any,
+  targetRepo: string,
+): Promise<void> {
   const featureId: string | undefined = task.context_bundle?.feature_id;
-  enforceTrue(featureId, "feature-decompose task is missing feature_id in context_bundle");
+  enforceTrue(
+    featureId,
+    "feature-decompose task is missing feature_id in context_bundle",
+  );
 
   const project = await projectFor(targetRepo);
   await setStatus(task.id, "running");
@@ -50,19 +63,31 @@ export async function handleFeatureDecompose(task: any, targetRepo: string): Pro
 
     // Idempotency: a feature already broken into spec-tasks is left untouched
     // (a re-merge, replay, or the cron + webhook both firing must not duplicate).
-    const alreadyDecomposed = await taskQueue().hasSpecTasksForSlug(targetRepo, specSlug);
+    const alreadyDecomposed = await taskQueue().hasSpecTasksForSlug(
+      targetRepo,
+      specSlug,
+    );
     if (alreadyDecomposed) {
       await setStatus(task.id, "completed");
-      await insertEvent(task.id, "running", "completed", { feature_id: featureId, skipped: "already-decomposed" });
-      console.log(`[floor] feature-decompose: ${specSlug} already has spec-tasks — skipping`);
+      await insertEvent(task.id, "running", "completed", {
+        feature_id: featureId,
+        skipped: "already-decomposed",
+      });
+      console.log(
+        `[floor] feature-decompose: ${specSlug} already has spec-tasks — skipping`,
+      );
       return;
     }
 
     const specPath = `specs/${specSlug}/spec.md`;
-    const specMd = (await project.repo.read(specPath).catch(() => null)) ?? feature.draft_spec_md;
+    const specMd =
+      (await project.repo.read(specPath).catch(() => null)) ??
+      feature.draft_spec_md;
     enforceTrue(specMd, `no spec content at ${specPath} or in draft_spec_md`);
 
-    const agentDef = await project.agentDefs.resolve("feature-decompose").catch(() => null);
+    const agentDef = await project.agentDefs
+      .resolve("feature-decompose")
+      .catch(() => null);
     const context = await fetchRepoContext(targetRepo);
     const result = await Llm.instance.complete({
       prompt: `# Feature spec to decompose\n\n${specMd}\n\n## Repository Context\n\n${JSON.stringify(context, null, 2)}`,
@@ -74,7 +99,8 @@ export async function handleFeatureDecompose(task: any, targetRepo: string): Pro
 
     const decomposition = parseDecomposition(parseModelJson(result.text));
 
-    const { shouldCreateIssue } = await import("../dark-factory/dark-factory.js");
+    const { shouldCreateIssue } =
+      await import("../dark-factory/dark-factory.js");
     const createIssues = (await shouldCreateIssue(task)).create;
     const taskGroupId = randomUUID();
     let storiesCreated = 0;
@@ -92,11 +118,17 @@ export async function handleFeatureDecompose(task: any, targetRepo: string): Pro
           storyIssue = issue.number;
           storiesCreated++;
         } catch (err: any) {
-          console.warn(`[floor] feature-decompose: could not create Issue for story "${story.title}": ${err.message}`);
+          console.warn(
+            `[floor] feature-decompose: could not create Issue for story "${story.title}": ${err.message}`,
+          );
         }
       }
 
-      for (const row of specTaskRows(story, { specSlug, featureId, storyIssue })) {
+      for (const row of specTaskRows(story, {
+        specSlug,
+        featureId,
+        storyIssue,
+      })) {
         const insertedId = await taskQueue().insertTask({
           description: row.title,
           taskType: "spec-task",
@@ -123,7 +155,9 @@ export async function handleFeatureDecompose(task: any, targetRepo: string): Pro
   } catch (err: any) {
     await setStatus(task.id, "failed", { failure_reason: err.message });
     await insertEvent(task.id, "running", "failed", { reason: err.message });
-    console.error(`[floor] feature-decompose failed for feature ${featureId}: ${err.message}`);
+    console.error(
+      `[floor] feature-decompose failed for feature ${featureId}: ${err.message}`,
+    );
     throw err;
   }
 }

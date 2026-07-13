@@ -53,20 +53,12 @@ describe("allPathsMatch", () => {
 
   it("does not match nested paths against a top-level *.md", () => {
     // *.md should match top-level only, not nested.
-    expect(
-      allPathsMatch(
-        ["nested/subdir/file.md"],
-        ["*.md"],
-      ),
-    ).toBe(false);
+    expect(allPathsMatch(["nested/subdir/file.md"], ["*.md"])).toBe(false);
   });
 
   it("matches deeply nested paths under specs/**", () => {
     expect(
-      allPathsMatch(
-        ["specs/6-dark-factory/contracts/x.md"],
-        ["specs/**"],
-      ),
+      allPathsMatch(["specs/6-dark-factory/contracts/x.md"], ["specs/**"]),
     ).toBe(true);
   });
 });

@@ -45,7 +45,11 @@ export interface AgentDefsPort {
   /** Every effective definition for a repo (org defaults overlaid with project rows). */
   list(repo: string): Promise<AgentDefinition[]>;
   create(repo: string, def: AgentDefinitionInput): Promise<AgentDefinition>;
-  update(repo: string, name: string, patch: Partial<AgentDefinitionInput>): Promise<AgentDefinition>;
+  update(
+    repo: string,
+    name: string,
+    patch: Partial<AgentDefinitionInput>,
+  ): Promise<AgentDefinition>;
   delete(repo: string, name: string): Promise<void>;
 }
 
@@ -71,13 +75,25 @@ export function resolveAgentConfig(
   return {
     name: top.name,
     model: pick(project?.model, org?.model, yamlDefault?.model),
-    timeout_minutes: pick(project?.timeout_minutes, org?.timeout_minutes, yamlDefault?.timeout_minutes),
+    timeout_minutes: pick(
+      project?.timeout_minutes,
+      org?.timeout_minutes,
+      yamlDefault?.timeout_minutes,
+    ),
     prompt: pick(project?.prompt, org?.prompt, yamlDefault?.prompt),
     image: pick(project?.image, org?.image, yamlDefault?.image),
     execution_mode:
-      pick(project?.execution_mode, org?.execution_mode, yamlDefault?.execution_mode) ?? "claude-code",
+      pick(
+        project?.execution_mode,
+        org?.execution_mode,
+        yamlDefault?.execution_mode,
+      ) ?? "claude-code",
     review_required:
-      pick(project?.review_required, org?.review_required, yamlDefault?.review_required) ?? false,
+      pick(
+        project?.review_required,
+        org?.review_required,
+        yamlDefault?.review_required,
+      ) ?? false,
     project_id: project?.project_id ?? null,
   };
 }

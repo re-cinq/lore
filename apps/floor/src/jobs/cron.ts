@@ -17,9 +17,11 @@ import { reconcileAgents } from "../listeners/k8s-watch.js";
 import type { EventHandler } from "../main-loop/types.js";
 
 /** Adapt an existing `() => Promise<string>` job into an event handler (drop the summary). */
-const fromJob = (job: () => Promise<string>): EventHandler => async () => {
-  await job();
-};
+const fromJob =
+  (job: () => Promise<string>): EventHandler =>
+  async () => {
+    await job();
+  };
 
 export const mergeCheck = fromJob(mergeCheckJob);
 export const approvalCheck = fromJob(approvalCheckJob);

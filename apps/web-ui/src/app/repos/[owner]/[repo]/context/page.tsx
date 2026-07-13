@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
-import { query, getRepoSchema } from '@/lib/db';
-import { previewBlock } from '@/lib/preview-block';
-import { CONTEXT_PAGE_SIZE, contextChunkQuery } from './pagination';
-import RepoContextView, { type RepoContextChunk } from './RepoContextView';
+import { query, getRepoSchema } from "@/lib/db";
+import { previewBlock } from "@/lib/preview-block";
+import { CONTEXT_PAGE_SIZE, contextChunkQuery } from "./pagination";
+import RepoContextView, { type RepoContextChunk } from "./RepoContextView";
 
 export default async function RepoContext({
   params,
@@ -28,7 +28,13 @@ export default async function RepoContext({
   // Fetch one extra row past the page size to detect whether more pages exist
   // without a separate COUNT. The first page is rendered server-side; the rest
   // is paged in client-side via LoadMore against the context API route.
-  const { sql, params: sqlParams } = contextChunkQuery(schema, fullName, type, q, 0);
+  const { sql, params: sqlParams } = contextChunkQuery(
+    schema,
+    fullName,
+    type,
+    q,
+    0,
+  );
   const rows = await query<RepoContextChunk>(sql, sqlParams);
 
   const hasMore = rows.length > CONTEXT_PAGE_SIZE;

@@ -10,7 +10,13 @@ import { Llm } from "@re-cinq/lore-shared";
 import { projectFor } from "../../composition/project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { writeEpisode } from "../lib/episode-writer.js";
-import { slugify, setStatus, insertEvent, issueRef, linkPrToIssue } from "./task-helpers.js";
+import {
+  slugify,
+  setStatus,
+  insertEvent,
+  issueRef,
+  linkPrToIssue,
+} from "./task-helpers.js";
 
 // ── Feature request handler ───────────────────────────────────────────
 
@@ -46,7 +52,9 @@ export async function handleFeatureRequest(
     if (specs.length > 0) {
       existingSpecExample = `\n\n## Existing Spec Example (match this format)\n\n${(specs[0] as any).content.substring(0, 3000)}`;
     }
-  } catch { /* no specs in DB yet, that's fine */ }
+  } catch {
+    /* no specs in DB yet, that's fine */
+  }
 
   const pmIntent = task.description;
   const featureSlug = slugify(pmIntent);
@@ -105,7 +113,9 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
     },
   ];
 
-  console.log(`[floor] Feature request: generating ${SPEC_FILES.length} artifacts for "${featureSlug}"...`);
+  console.log(
+    `[floor] Feature request: generating ${SPEC_FILES.length} artifacts for "${featureSlug}"...`,
+  );
 
   await project.repo.createBranch(branchName);
 
@@ -122,15 +132,26 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
 
       const text = result.text.trim();
       if (text === "SKIP" || text.length < 20) {
-        console.log(`[floor] Feature request: skipping ${file.path} (not needed)`);
+        console.log(
+          `[floor] Feature request: skipping ${file.path} (not needed)`,
+        );
         continue;
       }
 
-      await project.repo.commitFile(branchName, file.path, text, `lore: add ${file.path}`);
+      await project.repo.commitFile(
+        branchName,
+        file.path,
+        text,
+        `lore: add ${file.path}`,
+      );
       committed.push(file.path);
-      console.log(`[floor] Feature request: committed ${file.path} (${text.length} chars)`);
+      console.log(
+        `[floor] Feature request: committed ${file.path} (${text.length} chars)`,
+      );
     } catch (err: any) {
-      console.error(`[floor] Feature request: failed ${file.path}: ${err.message}`);
+      console.error(
+        `[floor] Feature request: failed ${file.path}: ${err.message}`,
+      );
     }
   }
 
@@ -162,5 +183,7 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
     `${targetRepo}/${task.id}`,
   ).catch(() => {});
 
-  console.log(`[floor] Task ${task.id} → PR ${pr.url} (${committed.length} spec artifacts)`);
+  console.log(
+    `[floor] Task ${task.id} → PR ${pr.url} (${committed.length} spec artifacts)`,
+  );
 }

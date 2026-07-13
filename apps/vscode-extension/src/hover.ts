@@ -9,7 +9,8 @@ import type { RangeEntry } from "./spec-index.js";
 import { openLocalCommandUri } from "./command-links.js";
 
 export function renderHoverMarkdown(entry: RangeEntry): string {
-  const verb = entry.layer === "implemented" ? "Implements" : "Covered by a test for";
+  const verb =
+    entry.layer === "implemented" ? "Implements" : "Covered by a test for";
   const out: string[] = [
     `**Lore** · ${verb} a spec statement _(${entry.evidence})_`,
     "",
@@ -19,7 +20,9 @@ export function renderHoverMarkdown(entry: RangeEntry): string {
   ];
   for (const target of entry.related) {
     if (target.line === null) continue;
-    out.push(`[Open ${target.label}](${openLocalCommandUri({ path: target.path, line: target.line })})`);
+    out.push(
+      `[Open ${target.label}](${openLocalCommandUri({ path: target.path, line: target.line })})`,
+    );
   }
   return out.join("\n");
 }

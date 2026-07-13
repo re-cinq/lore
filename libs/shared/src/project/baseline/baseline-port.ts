@@ -26,5 +26,9 @@ export interface BaselinePort {
   /** Append a baseline snapshot row to `pipeline.dark_factory_baseline`. */
   insert(row: BaselineRow): Promise<void>;
   /** Compute the pre-feature counters for a repo over a window from `pipeline.tasks`. */
-  baselineStats(repo: string, windowStart: Date, windowEnd: Date): Promise<TaskBaselineStats>;
+  baselineStats(
+    repo: string,
+    windowStart: Date,
+    windowEnd: Date,
+  ): Promise<TaskBaselineStats>;
 }

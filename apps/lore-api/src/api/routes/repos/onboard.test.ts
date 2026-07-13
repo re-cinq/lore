@@ -1,14 +1,26 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-vi.mock("../../../features/repo/repo-onboard.js", () => ({ onboardRepo: vi.fn() }));
+vi.mock("../../../features/repo/repo-onboard.js", () => ({
+  onboardRepo: vi.fn(),
+}));
 
 import { onboardRepo } from "../../../features/repo/repo-onboard.js";
 
 const originalEnv = { ...process.env };
 const post = (body: unknown, pool: unknown) =>
-  buildServer(() => pool as any).inject({ method: "POST", url: "/api/onboard", headers: AUTH, payload: JSON.stringify(body) });
+  buildServer(() => pool as any).inject({
+    method: "POST",
+    url: "/api/onboard",
+    headers: AUTH,
+    payload: JSON.stringify(body),
+  });
 
 describe("POST /api/onboard", () => {
   useRateLimitSafeClock();

@@ -1,8 +1,8 @@
-export type ThemeFamily = 'elegant' | 'retro';
+export type ThemeFamily = "elegant" | "retro";
 
-export type ColorSchemePref = 'light' | 'dark' | 'auto';
+export type ColorSchemePref = "light" | "dark" | "auto";
 
-export type ResolvedScheme = 'light' | 'dark';
+export type ResolvedScheme = "light" | "dark";
 
 export interface ThemeState {
   family: ThemeFamily;

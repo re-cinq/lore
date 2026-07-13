@@ -1,13 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-vi.mock("../../../platform/github-client.js", () => ({ fetchPrStatus: vi.fn() }));
+vi.mock("../../../platform/github-client.js", () => ({
+  fetchPrStatus: vi.fn(),
+}));
 
 import { fetchPrStatus } from "../../../platform/github-client.js";
 
 const originalEnv = { ...process.env };
-const get = (url: string) => buildServer(() => null).inject({ method: "GET", url, headers: AUTH });
+const get = (url: string) =>
+  buildServer(() => null).inject({ method: "GET", url, headers: AUTH });
 
 describe("GET /api/pr-status", () => {
   useRateLimitSafeClock();

@@ -34,19 +34,38 @@ describe("ui-helm migrations — hippo-memory + audit_log backfill", () => {
   const sql = allMigrationSql();
 
   it("adds the hippo columns to memory.facts idempotently", () => {
-    for (const col of ["confidence", "retrieval_count", "last_retrieved_at", "half_life_days"]) {
-      expect(sql).toMatch(new RegExp(`alter table memory\\.facts\\s+add column if not exists ${col}`));
+    for (const col of [
+      "confidence",
+      "retrieval_count",
+      "last_retrieved_at",
+      "half_life_days",
+    ]) {
+      expect(sql).toMatch(
+        new RegExp(
+          `alter table memory\\.facts\\s+add column if not exists ${col}`,
+        ),
+      );
     }
   });
 
   it("adds the decay columns to memory.memories idempotently", () => {
-    for (const col of ["retrieval_count", "last_retrieved_at", "half_life_days"]) {
-      expect(sql).toMatch(new RegExp(`alter table memory\\.memories\\s+add column if not exists ${col}`));
+    for (const col of [
+      "retrieval_count",
+      "last_retrieved_at",
+      "half_life_days",
+    ]) {
+      expect(sql).toMatch(
+        new RegExp(
+          `alter table memory\\.memories\\s+add column if not exists ${col}`,
+        ),
+      );
     }
   });
 
   it("guards the confidence CHECK constraint with the four tiers", () => {
-    expect(sql).toContain("confidence in ('verified', 'observed', 'inferred', 'stale')");
+    expect(sql).toContain(
+      "confidence in ('verified', 'observed', 'inferred', 'stale')",
+    );
   });
 
   it("creates memory.fact_conflicts if not exists", () => {

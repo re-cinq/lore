@@ -1,4 +1,8 @@
-import type { AgentDefinition, AgentDefinitionInput, AgentDefsPort } from "./agent-defs-port.js";
+import type {
+  AgentDefinition,
+  AgentDefinitionInput,
+  AgentDefsPort,
+} from "./agent-defs-port.js";
 
 /**
  * project.agentDefs — repo-bound Agent *definitions* (config), the CRUD side
@@ -28,7 +32,10 @@ export class AgentDefs {
     return this.defs.create(this.repo, def);
   }
 
-  update(name: string, patch: Partial<AgentDefinitionInput>): Promise<AgentDefinition> {
+  update(
+    name: string,
+    patch: Partial<AgentDefinitionInput>,
+  ): Promise<AgentDefinition> {
     return this.defs.update(this.repo, name, patch);
   }
 

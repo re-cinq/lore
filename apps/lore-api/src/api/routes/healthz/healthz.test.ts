@@ -1,14 +1,27 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { makePool, useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  makePool,
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-vi.mock("@re-cinq/lore-server-core/platform/db.js", () => ({ getHealthStatus: vi.fn(), isDbAvailable: vi.fn(), getQueryEmbedding: vi.fn() }));
+vi.mock("@re-cinq/lore-server-core/platform/db.js", () => ({
+  getHealthStatus: vi.fn(),
+  isDbAvailable: vi.fn(),
+  getQueryEmbedding: vi.fn(),
+}));
 
 import { getHealthStatus } from "@re-cinq/lore-server-core/platform/db.js";
 
 const originalEnv = { ...process.env };
 const inject = (pool: unknown, headers?: Record<string, string>) =>
-  buildServer(() => pool as any).inject({ method: "GET", url: "/healthz", headers });
+  buildServer(() => pool as any).inject({
+    method: "GET",
+    url: "/healthz",
+    headers,
+  });
 
 // /healthz is a native hapi route (Phase 2), driven through buildServer. The
 // handler keeps its own bearer check so authenticated callers get db + task
@@ -60,18 +73,26 @@ describe("GET /healthz", () => {
     const pool = makePool();
     pool.query.mockRejectedValue(new Error("boom"));
     const res = await inject(pool, AUTH);
-    expect((res.result as any).tasks).toEqual({ processed_today: 0, pending: 0 });
+    expect((res.result as any).tasks).toEqual({
+      processed_today: 0,
+      pending: 0,
+    });
   });
 
   it("skips the stats query when authed but pool is null", async () => {
     const res = await inject(null, AUTH);
-    expect(res.result).toMatchObject({ tasks: { processed_today: 0, pending: 0 } });
+    expect(res.result).toMatchObject({
+      tasks: { processed_today: 0, pending: 0 },
+    });
   });
 
   it("zeroes task stats when the stats query returns no rows", async () => {
     const pool = makePool();
     pool.query.mockResolvedValue({ rows: [] });
     const res = await inject(pool, AUTH);
-    expect((res.result as any).tasks).toEqual({ processed_today: 0, pending: 0 });
+    expect((res.result as any).tasks).toEqual({
+      processed_today: 0,
+      pending: 0,
+    });
   });
 });

@@ -46,7 +46,11 @@ export async function ingestSpecTrace(
 ): Promise<SpecTraceOutcome> {
   switch (kind) {
     case "test-report": {
-      const result = await ingestTestReport(dgraph, repo, payload as TestReport);
+      const result = await ingestTestReport(
+        dgraph,
+        repo,
+        payload as TestReport,
+      );
       return { kind, ...result };
     }
     case "coverage": {
@@ -56,7 +60,14 @@ export async function ingestSpecTrace(
         { repo, tool: "coverage-report", commit: report.commit ?? "" },
         coverageRecordsFromGroups(report),
       );
-      return { kind, testChunks: 0, validatedBy: 0, violated: 0, coverageNodes: result.coverageNodes, coversEdges: result.coversEdges };
+      return {
+        kind,
+        testChunks: 0,
+        validatedBy: 0,
+        violated: 0,
+        coverageNodes: result.coverageNodes,
+        coversEdges: result.coversEdges,
+      };
     }
     default:
       throw new Error(`ingestSpecTrace: unrecognized kind "${kind}"`);

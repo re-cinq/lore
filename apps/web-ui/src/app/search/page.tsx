@@ -1,17 +1,27 @@
 export const dynamic = "force-dynamic";
-import { query, queryAllChunks } from '@/lib/db';
-import SearchView, { type SearchResult, type SearchRepoOption } from './SearchView';
+import { query, queryAllChunks } from "@/lib/db";
+import SearchView, {
+  type SearchResult,
+  type SearchRepoOption,
+} from "./SearchView";
 
-export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string; repo?: string }> }) {
+export default async function SearchPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; repo?: string }>;
+}) {
   const { q, repo } = await searchParams;
   let results: SearchResult[] = [];
 
   // Populate repo filter dropdown
-  const repos = await query<SearchRepoOption>(`SELECT full_name FROM lore.repos ORDER BY full_name`);
+  const repos = await query<SearchRepoOption>(
+    `SELECT full_name FROM lore.repos ORDER BY full_name`,
+  );
 
   if (q) {
     // Search memories using inline to_tsvector (no generated column on memory.memories)
-    const memoryResults = await query<SearchResult>(`
+    const memoryResults = await query<SearchResult>(
+      `
       SELECT key, substring(value, 1, 300) as value, agent_id,
              ts_rank(to_tsvector('english', value), plainto_tsquery($1)) as score,
              'memory' as source,
@@ -22,10 +32,13 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         AND to_tsvector('english', value) @@ plainto_tsquery($1)
       ORDER BY score DESC
       LIMIT 20
-    `, [q]);
+    `,
+      [q],
+    );
 
     // Search facts table (includes episode-derived facts, excludes invalidated by default)
-    const factResults = await query<SearchResult>(`
+    const factResults = await query<SearchResult>(
+      `
       SELECT COALESCE(m.key, e.source || ':' || COALESCE(e.ref, e.id::text)) as key,
              substring(f.fact_text, 1, 300) as value,
              COALESCE(m.agent_id, e.agent_id) as agent_id,
@@ -40,12 +53,14 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         AND to_tsvector('english', f.fact_text) @@ plainto_tsquery($1)
       ORDER BY score DESC
       LIMIT 20
-    `, [q]);
+    `,
+      [q],
+    );
 
     // Search repo chunks across all schemas (scoped by repo if filtered)
     const chunkResults = await queryAllChunks<SearchResult>(
       (schema, offset) => {
-        const repoFilter = repo ? `AND c.repo = $${offset + 1}` : '';
+        const repoFilter = repo ? `AND c.repo = $${offset + 1}` : "";
         return {
           sql: `SELECT c.file_path as key, substring(c.content, 1, 300) as value,
                        'ingestion' as agent_id,
@@ -64,9 +79,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
     // Merge and sort by score descending, capped at 30
     const allResults = [...memoryResults, ...factResults, ...chunkResults];
-    results = allResults
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 30);
+    results = allResults.sort((a, b) => b.score - a.score).slice(0, 30);
   }
 
   return <SearchView q={q} repo={repo} repos={repos} results={results} />;

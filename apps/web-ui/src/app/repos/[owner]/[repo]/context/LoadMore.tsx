@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import ContextCard, { type ContextCardChunk } from './ContextCard';
-import { CONTEXT_PAGE_SIZE } from './pagination';
+import { useState } from "react";
+import ContextCard, { type ContextCardChunk } from "./ContextCard";
+import { CONTEXT_PAGE_SIZE } from "./pagination";
 
 export interface LoadMoreProps {
   owner: string;
@@ -27,7 +27,14 @@ interface ContextPage {
  * server-side; this appends subsequent pages on demand from the context API
  * route so the initial load stays small.
  */
-export default function LoadMore({ owner, repo, q, type, initialOffset, hasMore }: LoadMoreProps) {
+export default function LoadMore({
+  owner,
+  repo,
+  q,
+  type,
+  initialOffset,
+  hasMore,
+}: LoadMoreProps) {
   const [chunks, setChunks] = useState<ContextCardChunk[]>([]);
   const [offset, setOffset] = useState(initialOffset);
   const [more, setMore] = useState(hasMore);
@@ -39,8 +46,8 @@ export default function LoadMore({ owner, repo, q, type, initialOffset, hasMore 
     setLoading(true);
     try {
       const params = new URLSearchParams({ offset: String(offset) });
-      if (q) params.set('q', q);
-      if (type) params.set('type', type);
+      if (q) params.set("q", q);
+      if (type) params.set("type", type);
       const res = await fetch(`/api/repos/${owner}/${repo}/context?${params}`);
       if (!res.ok) return;
       const data = (await res.json()) as ContextPage;
@@ -63,8 +70,13 @@ export default function LoadMore({ owner, repo, q, type, initialOffset, hasMore 
         />
       ))}
       {more && (
-        <button type="button" className="load-more" onClick={loadMore} disabled={loading}>
-          {loading ? 'Loading…' : 'Load more'}
+        <button
+          type="button"
+          className="load-more"
+          onClick={loadMore}
+          disabled={loading}
+        >
+          {loading ? "Loading…" : "Load more"}
         </button>
       )}
     </>

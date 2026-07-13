@@ -12,5 +12,9 @@ export interface NotifyResult {
 }
 
 export interface NotifyPort {
-  notify(repo: string, level: NotifyLevel, message: string): Promise<NotifyResult>;
+  notify(
+    repo: string,
+    level: NotifyLevel,
+    message: string,
+  ): Promise<NotifyResult>;
 }

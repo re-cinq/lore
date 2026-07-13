@@ -13,7 +13,8 @@ function scoreImportance(memory: {
 }): number {
   const halfLife = memory.half_life_days || 60;
   const effectiveDate = memory.last_retrieved_at || memory.created_at;
-  const effectiveAgeDays = (Date.now() - new Date(effectiveDate).getTime()) / 86400000;
+  const effectiveAgeDays =
+    (Date.now() - new Date(effectiveDate).getTime()) / 86400000;
 
   // Half-life decay: strength decays from 1.0 to 0.0
   const strength = Math.pow(0.5, effectiveAgeDays / halfLife);
@@ -28,8 +29,10 @@ function scoreImportance(memory: {
   // Key-based importance
   if (memory.key.startsWith("auto-curation/")) score -= 1;
   if (memory.key.startsWith("session-summary/")) score -= 1;
-  if (memory.key.includes("gotcha") || memory.key.includes("decision")) score += 2;
-  if (memory.key.includes("convention") || memory.key.includes("pattern")) score += 2;
+  if (memory.key.includes("gotcha") || memory.key.includes("decision"))
+    score += 2;
+  if (memory.key.includes("convention") || memory.key.includes("pattern"))
+    score += 2;
 
   // Retrieval frequency boost
   const retrievals = memory.retrieval_count || 0;
@@ -37,7 +40,7 @@ function scoreImportance(memory: {
   else if (retrievals >= 5) score += 1;
 
   // Stale confidence penalty
-  if (memory.confidence === 'stale') score -= 1;
+  if (memory.confidence === "stale") score -= 1;
 
   return Math.max(0, Math.min(10, score));
 }
@@ -59,7 +62,8 @@ describe("importance scoring (half-life model)", () => {
     const sixtyDaysAgo = new Date(Date.now() - 60 * 86400000).toISOString();
     const score = scoreImportance({
       key: "normal-memory",
-      value: "Some content that is moderately long enough to avoid short penalty.",
+      value:
+        "Some content that is moderately long enough to avoid short penalty.",
       created_at: sixtyDaysAgo,
     });
     // strength = 0.5^(60/60) = 0.5 → round(5) = 5
@@ -119,13 +123,13 @@ describe("importance scoring (half-life model)", () => {
       key: "stale-fact",
       value: "A fact that has gone stale over time without being retrieved.",
       created_at: now,
-      confidence: 'stale',
+      confidence: "stale",
     });
     const normal = scoreImportance({
       key: "normal-fact",
       value: "A fact that has gone stale over time without being retrieved.",
       created_at: now,
-      confidence: 'observed',
+      confidence: "observed",
     });
     expect(score).toBe(normal - 1);
   });
@@ -143,7 +147,8 @@ describe("importance scoring (half-life model)", () => {
   it("boosts decision/gotcha memories", () => {
     const score = scoreImportance({
       key: "deployment-gotchas/controller",
-      value: "The controller deployment is separate from the agent Helm chart and envs dont propagate.",
+      value:
+        "The controller deployment is separate from the agent Helm chart and envs dont propagate.",
       created_at: now,
     });
     // 10 (recent) + 2 (gotcha) = 12, clamped to 10
@@ -156,7 +161,7 @@ describe("importance scoring (half-life model)", () => {
       key: "auto-curation/old",
       value: "x",
       created_at: veryOld,
-      confidence: 'stale',
+      confidence: "stale",
     });
     expect(score).toBe(0);
   });
@@ -174,12 +179,30 @@ describe("importance scoring (half-life model)", () => {
 
   it("sorts least important first for eviction", () => {
     const memories = [
-      { key: "important-decision", value: "Critical architecture choice explained in detail here and great depth.", created_at: now, retrieval_count: 10 },
-      { key: "auto-curation/task1", value: "meh", created_at: new Date(Date.now() - 150 * 86400000).toISOString(), confidence: 'stale' as const },
-      { key: "session-summary/recent", value: "Session with 10 tool calls and 2 errors in the deployment.", created_at: now },
+      {
+        key: "important-decision",
+        value:
+          "Critical architecture choice explained in detail here and great depth.",
+        created_at: now,
+        retrieval_count: 10,
+      },
+      {
+        key: "auto-curation/task1",
+        value: "meh",
+        created_at: new Date(Date.now() - 150 * 86400000).toISOString(),
+        confidence: "stale" as const,
+      },
+      {
+        key: "session-summary/recent",
+        value: "Session with 10 tool calls and 2 errors in the deployment.",
+        created_at: now,
+      },
     ];
 
-    const scored = memories.map((m) => ({ ...m, importance: scoreImportance(m) }));
+    const scored = memories.map((m) => ({
+      ...m,
+      importance: scoreImportance(m),
+    }));
     scored.sort((a, b) => a.importance - b.importance);
 
     expect(scored[0].key).toBe("auto-curation/task1"); // lowest
@@ -221,7 +244,8 @@ These patterns suggest a preference for resilient, stateless execution.`;
   });
 
   it("filters short patterns", () => {
-    const response = "PATTERN: ok\nPATTERN: This is a real pattern with enough content.";
+    const response =
+      "PATTERN: ok\nPATTERN: This is a real pattern with enough content.";
     const patterns = response
       .split("\n")
       .filter((line) => line.startsWith("PATTERN: "))

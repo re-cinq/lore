@@ -12,14 +12,23 @@ import { validateSpecCoverageJob } from "@re-cinq/lore-shared/detect/index.js";
 import type { EventHandler } from "../main-loop/types.js";
 
 export const specTrace: EventHandler = async (params) => {
-  const { repo, kind, payload } = params as { repo: string; kind: string; payload: unknown };
+  const { repo, kind, payload } = params as {
+    repo: string;
+    kind: string;
+    payload: unknown;
+  };
   const dgraph = createDgraphClient();
   if (!dgraph) {
     // Projection is opt-in until Dgraph is provisioned — success no-op, not a retry.
-    console.log(`[events] spec-trace skipped for ${repo} (${kind}): LORE_DGRAPH_HTTP not configured`);
+    console.log(
+      `[events] spec-trace skipped for ${repo} (${kind}): LORE_DGRAPH_HTTP not configured`,
+    );
     return;
   }
-  const { logLine, audit } = await dispatchSpecTrace(repo, kind, payload, { dgraph, projectFor });
+  const { logLine, audit } = await dispatchSpecTrace(repo, kind, payload, {
+    dgraph,
+    projectFor,
+  });
   console.log(logLine);
   await writeAuditLog(audit).catch((err) =>
     console.error(`[events] spec-trace audit write failed for ${repo}:`, err),
@@ -28,5 +37,8 @@ export const specTrace: EventHandler = async (params) => {
 
 export const specCoverageValidate: EventHandler = async (params) => {
   const { repo } = params as { repo: string };
-  await validateSpecCoverageJob({ repoFilter: repo, project: await projectFor(repo) });
+  await validateSpecCoverageJob({
+    repoFilter: repo,
+    project: await projectFor(repo),
+  });
 };

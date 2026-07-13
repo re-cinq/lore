@@ -21,17 +21,34 @@ export function isBotActor(login: string): boolean {
   return login.endsWith("[bot]");
 }
 
-export function decideReviewOnOpen(input: { autoReview: boolean; pr: PullRef | null }): { start: boolean } {
+export function decideReviewOnOpen(input: {
+  autoReview: boolean;
+  pr: PullRef | null;
+}): { start: boolean } {
   const { autoReview, pr } = input;
   return {
-    start: autoReview && !!pr && pr.state === "open" && pr.draft !== true && !isBotActor(pr.author ?? ""),
+    start:
+      autoReview &&
+      !!pr &&
+      pr.state === "open" &&
+      pr.draft !== true &&
+      !isBotActor(pr.author ?? ""),
   };
 }
 
-export function decideReviewOnReply(input: { autoReview: boolean; pr: PullRef | null; commentAuthor: string }): { start: boolean } {
+export function decideReviewOnReply(input: {
+  autoReview: boolean;
+  pr: PullRef | null;
+  commentAuthor: string;
+}): { start: boolean } {
   const { autoReview, pr, commentAuthor } = input;
   return {
-    start: autoReview && !!pr && pr.state === "open" && pr.draft !== true && !isBotActor(commentAuthor),
+    start:
+      autoReview &&
+      !!pr &&
+      pr.state === "open" &&
+      pr.draft !== true &&
+      !isBotActor(commentAuthor),
   };
 }
 
@@ -42,7 +59,10 @@ export interface CodeReviewProject {
     comment(number: number, body: string): Promise<void>;
   };
   assemblyLines: {
-    start(definitionName: string, opts: { branch?: string; args?: Record<string, unknown> }): Promise<string>;
+    start(
+      definitionName: string,
+      opts: { branch?: string; args?: Record<string, unknown> },
+    ): Promise<string>;
     finishOpenByPr(prNumber: number, outcome: string): Promise<number>;
   };
 }
@@ -53,8 +73,15 @@ export interface CodeReviewDeps {
   uiUrl(): string | undefined;
 }
 
-interface OpenParams { repo: string; pr_number: number }
-interface ReplyParams extends OpenParams { comment_id: number; comment_author: string; comment_body: string }
+interface OpenParams {
+  repo: string;
+  pr_number: number;
+}
+interface ReplyParams extends OpenParams {
+  comment_id: number;
+  comment_author: string;
+  comment_body: string;
+}
 
 export function createCodeReviewHandlers(deps: CodeReviewDeps): {
   onOpen: EventHandler;
@@ -76,16 +103,24 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
         description: `Review pull request #${pr_number} in ${repo} (branch ${pr!.branch}).`,
       },
     });
-    await project.pulls.comment(pr_number, `Lore review has started — ${loreTaskRef(id, deps.uiUrl())}`);
+    await project.pulls.comment(
+      pr_number,
+      `Lore review has started — ${loreTaskRef(id, deps.uiUrl())}`,
+    );
   };
 
   const onReply: EventHandler = async (params) => {
-    const { repo, pr_number, comment_id, comment_author, comment_body } = params as unknown as ReplyParams;
+    const { repo, pr_number, comment_id, comment_author, comment_body } =
+      params as unknown as ReplyParams;
     const autoReview = await deps.autoReview(repo);
     if (!autoReview || isBotActor(comment_author)) return; // loop guard before any API call
     const project = await deps.project(repo);
     const pr = await project.pulls.get(pr_number);
-    if (!decideReviewOnReply({ autoReview, pr, commentAuthor: comment_author }).start) return;
+    if (
+      !decideReviewOnReply({ autoReview, pr, commentAuthor: comment_author })
+        .start
+    )
+      return;
     await project.assemblyLines.start("code-review", {
       branch: pr!.branch,
       args: {

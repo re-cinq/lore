@@ -15,7 +15,10 @@ export async function resolveCrossRepo(
   if (explicit) return true;
   if (!repo || !pool) return false;
   try {
-    const { rows } = await pool.query(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
+    const { rows } = await pool.query(
+      `SELECT settings FROM lore.repos WHERE full_name = $1`,
+      [repo],
+    );
     return rows[0]?.settings?.cross_repo === true;
   } catch {
     return false;

@@ -16,11 +16,15 @@ describe("verifyGitHubSignature", () => {
   });
 
   it("rejects a signature computed with a different secret", () => {
-    expect(verifyGitHubSignature(SECRET, sign("wrong-secret", BODY), BODY)).toBe(false);
+    expect(
+      verifyGitHubSignature(SECRET, sign("wrong-secret", BODY), BODY),
+    ).toBe(false);
   });
 
   it("rejects when the body was tampered after signing", () => {
-    expect(verifyGitHubSignature(SECRET, sign(SECRET, BODY), BODY + " ")).toBe(false);
+    expect(verifyGitHubSignature(SECRET, sign(SECRET, BODY), BODY + " ")).toBe(
+      false,
+    );
   });
 
   it("rejects a malformed signature without length-mismatch crash", () => {
@@ -40,7 +44,10 @@ describe("POST /api/webhook/github", () => {
     const res = await buildServer({ getJobStatus: () => ({}) }).inject({
       method: "POST",
       url: "/api/webhook/github",
-      headers: { "x-github-event": "ping", "x-hub-signature-256": "sha256=deadbeef" },
+      headers: {
+        "x-github-event": "ping",
+        "x-hub-signature-256": "sha256=deadbeef",
+      },
       payload: "{}",
     });
     expect(res.statusCode).toBe(503);
