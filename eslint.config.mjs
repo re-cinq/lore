@@ -41,8 +41,7 @@ export default tseslint.config(
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/no-misused-promises": "error",
       "@typescript-eslint/await-thenable": "error",
-      // TODO: burn down to "error" — tracked no-explicit-any debt (see follow-up).
-      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
         {
@@ -93,8 +92,7 @@ export default tseslint.config(
     plugins: { "react-hooks": reactHooks },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      // TODO: fix these effects properly — deferred with the no-explicit-any burn-down.
-      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/set-state-in-effect": "error",
     },
   },
 

@@ -107,14 +107,16 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
                 const p = getMemoryPool();
 
                 if (p) {
-                  p.query<{ id: string }>(
-                    `SELECT id FROM memory.memories WHERE key = $1 AND (repo = $2 OR agent_id = $3) ORDER BY version DESC LIMIT 1`,
-                    [key, repo || "", resolveAgentId(agent_id)],
-                  ).then((r) => {
-                    if (r.rows[0]?.id) {
-                      extractFacts(r.rows[0].id, value, p).catch(() => {});
-                    }
-                  });
+                  void p
+                    .query<{ id: string }>(
+                      `SELECT id FROM memory.memories WHERE key = $1 AND (repo = $2 OR agent_id = $3) ORDER BY version DESC LIMIT 1`,
+                      [key, repo || "", resolveAgentId(agent_id)],
+                    )
+                    .then((r) => {
+                      if (r.rows[0]?.id) {
+                        extractFacts(r.rows[0].id, value, p).catch(() => {});
+                      }
+                    });
                 }
               },
             );
