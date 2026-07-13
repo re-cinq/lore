@@ -10,18 +10,18 @@ const pool = new Pool({
   max: 10,
 });
 
-export async function query<T = any>(
+export async function query<T = Record<string, unknown>>(
   text: string,
-  params?: any[],
+  params?: unknown[],
 ): Promise<T[]> {
   const { rows } = await pool.query(text, params);
 
   return rows as T[];
 }
 
-export async function queryOne<T = any>(
+export async function queryOne<T = Record<string, unknown>>(
   text: string,
-  params?: any[],
+  params?: unknown[],
 ): Promise<T | null> {
   const rows = await query<T>(text, params);
 
@@ -35,9 +35,9 @@ export async function queryOne<T = any>(
  * brief window before a deploy's migration hook completes — an empty result is
  * the correct degraded state, not a 500.
  */
-export async function queryAllowMissing<T = any>(
+export async function queryAllowMissing<T = Record<string, unknown>>(
   text: string,
-  params?: any[],
+  params?: unknown[],
 ): Promise<T[]> {
   try {
     return await query<T>(text, params);
@@ -65,7 +65,7 @@ export async function listChunkSchemas(): Promise<string[]> {
   );
 
   return rows
-    .map((r: any) => r.table_schema as string)
+    .map((r) => r.table_schema as string)
     .filter((s: string) => SCHEMA_RE.test(s));
 }
 
@@ -76,7 +76,7 @@ export async function getChunkSchemas(): Promise<string[]> {
   );
   const existing = new Set(await listChunkSchemas());
   const schemas = rows
-    .map((r: any) => r.team as string)
+    .map((r) => r.team as string)
     .filter((s: string) => SCHEMA_RE.test(s) && existing.has(s));
 
   if (!schemas.includes(ORG_SHARED_SCHEMA)) {
@@ -122,16 +122,16 @@ export async function getRepoSchemaAndTeam(
  * `selectFn` receives a schema name and returns the SELECT statement for that schema.
  * Caller is responsible for safe schema interpolation (schemas are validated against SCHEMA_RE).
  */
-export async function queryAllChunks<T = any>(
+export async function queryAllChunks<T = Record<string, unknown>>(
   selectFn: (
     schema: string,
     paramOffset: number,
-  ) => { sql: string; params: any[] },
-  baseParams: any[] = [],
+  ) => { sql: string; params: unknown[] },
+  baseParams: unknown[] = [],
 ): Promise<T[]> {
   const schemas = await getChunkSchemas();
   const parts: string[] = [];
-  const allParams: any[] = [...baseParams];
+  const allParams: unknown[] = [...baseParams];
 
   for (const schema of schemas) {
     const { sql, params } = selectFn(schema, allParams.length + 1);

@@ -18,6 +18,7 @@ export default function AppShell({
 
   // Close sidebar on navigation
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: collapse the sidebar in response to a route change
     setSidebarOpen(false);
   }, [pathname]);
 

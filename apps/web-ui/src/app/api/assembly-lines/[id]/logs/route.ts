@@ -42,7 +42,9 @@ export async function GET(
 
   try {
     // Auth check
-    const session = (await getServerSession(authOptions)) as any;
+    const session = (await getServerSession(authOptions)) as {
+      accessToken?: string;
+    } | null;
 
     if (!session?.accessToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

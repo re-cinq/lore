@@ -100,6 +100,7 @@ export default function PlanningWizard({
 
       return;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount; state is set inside the async fetch
     void fetchLatest();
     timer.current = setInterval(() => void fetchLatest(), POLL_MS);
 

@@ -931,6 +931,7 @@ export default function SpecGraphD3({
     svg.call(zoom.transform, d3.zoomIdentity);
     transform = d3.zoomIdentity;
     selectedIdRef.current = null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset selection when the graph is (re)laid out
     setSelected(null);
 
     const leafHitNodes = () =>

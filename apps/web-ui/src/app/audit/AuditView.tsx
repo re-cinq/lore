@@ -7,7 +7,7 @@ export interface AuditEntryRow {
   operation: string;
   memory_key: string | null;
   pool_name: string | null;
-  metadata: any;
+  metadata: Record<string, unknown> | null;
   created_at: string;
 }
 

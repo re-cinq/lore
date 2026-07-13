@@ -100,6 +100,7 @@ export default function Timeline({
   }, [taskId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount; state is set inside the async fetch
     void fetchTimeline();
     const stillActive =
       ACTIVE_STATES.has(initialStatus) ||

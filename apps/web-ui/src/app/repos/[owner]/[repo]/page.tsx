@@ -153,7 +153,7 @@ export default async function RepoOverview({
       darkTasksWeek={darkTasksWeek}
       autoMergedWeek={autoMergedWeek}
       escalationsWeek={escalationsWeek}
-      recentTasks={recentTasks as RecentTask[]}
+      recentTasks={recentTasks as unknown as RecentTask[]}
       latestEvents={latestEvents}
       reonboardAction={reonboard.bind(null, fullName)}
       setupWebhookAction={setupWebhook.bind(null, fullName)}

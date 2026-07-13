@@ -22,7 +22,7 @@ export const authOptions: NextAuthOptions = {
       if (!allowedOrg) {
         return true;
       }
-      const login = (profile as any)?.login ?? "unknown";
+      const login = (profile as { login?: string })?.login ?? "unknown";
 
       try {
         const res = await fetch(`https://api.github.com/user/orgs`, {
@@ -38,11 +38,12 @@ export const authOptions: NextAuthOptions = {
         }
         const orgs = await res.json();
         const isMember =
-          Array.isArray(orgs) && orgs.some((o: any) => o.login === allowedOrg);
+          Array.isArray(orgs) &&
+          orgs.some((o: { login?: string }) => o.login === allowedOrg);
 
         if (!isMember) {
           const orgLogins = Array.isArray(orgs)
-            ? orgs.map((o: any) => o.login)
+            ? orgs.map((o: { login?: string }) => o.login)
             : [];
 
           console.error(
@@ -65,7 +66,7 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      (session as any).accessToken = token.accessToken;
+      (session as { accessToken?: unknown }).accessToken = token.accessToken;
 
       return session;
     },

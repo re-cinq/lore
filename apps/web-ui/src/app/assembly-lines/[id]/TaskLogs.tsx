@@ -73,13 +73,14 @@ export default function TaskLogs({
       setStatus(data.status);
       setTotalSize(data.totalSize);
       setError(null);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     }
   }, [taskId, status, totalSize, accessDenied]);
 
   // Initial fetch
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount; state is set inside the async fetch
     void fetchLogs();
   }, [fetchLogs]);
 

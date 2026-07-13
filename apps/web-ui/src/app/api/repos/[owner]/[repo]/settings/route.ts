@@ -46,7 +46,7 @@ export async function POST(
 
     // Build update fields
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramIdx = 1;
 
     if (body.team !== undefined) {

@@ -344,13 +344,13 @@ export async function getPRDetails(
       .catch(() => ({ data: [] })),
   ]);
 
-  const checks = checksResult.data.check_runs.map((c: any) => ({
+  const checks = checksResult.data.check_runs.map((c) => ({
     name: c.name,
     status: c.status,
     conclusion: c.conclusion ?? null,
   }));
 
-  const reviews = reviewsResult.data.map((r: any) => ({
+  const reviews = reviewsResult.data.map((r) => ({
     user: r.user?.login || "unknown",
     state: r.state,
     submitted_at: r.submitted_at || "",
