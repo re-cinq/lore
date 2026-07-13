@@ -8,7 +8,10 @@
 
 import Boom from "@hapi/boom";
 import type { ServerRoute } from "@hapi/hapi";
-import { mapCiIngest, type CiIngestBody } from "../../../listeners/ci-ingest-map.js";
+import {
+  mapCiIngest,
+  type CiIngestBody,
+} from "../../../listeners/ci-ingest-map.js";
 import { insertEventList } from "../../../main-loop/store.js";
 import { rawBody, parseJsonBody } from "../raw-body.js";
 
@@ -27,6 +30,9 @@ export const ciIngestRoute: ServerRoute = {
     // Each insert is idempotent only via dedupe_key, which doc projection omits on
     // purpose (force must re-run); the loop does the work — return 202 fast.
     await insertEventList(mapped.events, "ci-ingest");
-    return h.response({ triggered: mapped.events.map((e) => e.params?.kind) }).code(202);
+
+    return h
+      .response({ triggered: mapped.events.map((e) => e.params?.kind) })
+      .code(202);
   },
 };

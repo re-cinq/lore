@@ -1,6 +1,37 @@
 import type { ServerRoute } from "@hapi/hapi";
+import { z } from "zod";
 import { projectFor } from "../../../platform/project-boot.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { zodValidate } from "../../../server/plugins/zod-validate.js";
+
+const IssueBody = z.object({
+  title: z.string(),
+  body: z.string(),
+  labels: z.array(z.string()).optional(),
+});
+const BranchBody = z.object({
+  branch: z.string(),
+  base: z.string().optional(),
+});
+const CommitBody = z.object({
+  branch: z.string(),
+  path: z.string(),
+  content: z.string(),
+  message: z.string(),
+});
+const PullBody = z.object({
+  branch: z.string(),
+  title: z.string(),
+  body: z.string(),
+  base: z.string().optional(),
+  labels: z.array(z.string()).optional(),
+});
+const TaskBody = z.object({
+  description: z.string(),
+  taskType: z.string(),
+  createdBy: z.string().optional(),
+  contextBundle: z.record(z.unknown()).optional(),
+});
 
 /**
  * The data + write endpoints a detection station pod reaches over HTTP, so it
@@ -54,10 +85,10 @@ export function stationDataRoutes(): ServerRoute[] {
     {
       method: "POST",
       path: "/api/repos/{owner}/{repo}/issues",
-      options: bearerScope("write"),
+      options: { ...bearerScope("write"), validate: { payload: zodValidate(IssueBody) } },
       handler: async (request, h) => {
         try {
-          const { title, body, labels } = request.payload as { title: string; body: string; labels?: string[] };
+          const { title, body, labels } = request.payload as z.infer<typeof IssueBody>;
           const p = await projectFor(repoOf(request.params));
           return h.response(await p.issues.create(title, body, labels));
         } catch (err) {
@@ -68,10 +99,10 @@ export function stationDataRoutes(): ServerRoute[] {
     {
       method: "POST",
       path: "/api/repos/{owner}/{repo}/branches",
-      options: bearerScope("write"),
+      options: { ...bearerScope("write"), validate: { payload: zodValidate(BranchBody) } },
       handler: async (request, h) => {
         try {
-          const { branch, base } = request.payload as { branch: string; base?: string };
+          const { branch, base } = request.payload as z.infer<typeof BranchBody>;
           const p = await projectFor(repoOf(request.params));
           await p.repo.createBranch(branch, base);
           return h.response({ ok: true });
@@ -83,15 +114,10 @@ export function stationDataRoutes(): ServerRoute[] {
     {
       method: "POST",
       path: "/api/repos/{owner}/{repo}/commit",
-      options: bearerScope("write"),
+      options: { ...bearerScope("write"), validate: { payload: zodValidate(CommitBody) } },
       handler: async (request, h) => {
         try {
-          const { branch, path, content, message } = request.payload as {
-            branch: string;
-            path: string;
-            content: string;
-            message: string;
-          };
+          const { branch, path, content, message } = request.payload as z.infer<typeof CommitBody>;
           const p = await projectFor(repoOf(request.params));
           await p.repo.commitFile(branch, path, content, message);
           return h.response({ ok: true });
@@ -103,16 +129,10 @@ export function stationDataRoutes(): ServerRoute[] {
     {
       method: "POST",
       path: "/api/repos/{owner}/{repo}/pulls",
-      options: bearerScope("write"),
+      options: { ...bearerScope("write"), validate: { payload: zodValidate(PullBody) } },
       handler: async (request, h) => {
         try {
-          const { branch, title, body, base, labels } = request.payload as {
-            branch: string;
-            title: string;
-            body: string;
-            base?: string;
-            labels?: string[];
-          };
+          const { branch, title, body, base, labels } = request.payload as z.infer<typeof PullBody>;
           const p = await projectFor(repoOf(request.params));
           return h.response(await p.pulls.open(branch, title, body, base, labels));
         } catch (err) {
@@ -173,15 +193,10 @@ export function stationDataRoutes(): ServerRoute[] {
     {
       method: "POST",
       path: "/api/repos/{owner}/{repo}/tasks",
-      options: bearerScope("task"),
+      options: { ...bearerScope("task"), validate: { payload: zodValidate(TaskBody) } },
       handler: async (request, h) => {
         try {
-          const body = request.payload as {
-            description: string;
-            taskType: string;
-            createdBy?: string;
-            contextBundle?: Record<string, unknown>;
-          };
+          const body = request.payload as z.infer<typeof TaskBody>;
           const p = await projectFor(repoOf(request.params));
           const created = await p.tasks.create({
             description: body.description,
