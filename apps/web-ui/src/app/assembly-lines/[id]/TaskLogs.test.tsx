@@ -94,15 +94,13 @@ describe("TaskLogs", () => {
   });
 
   it("renders fetched logs in the terminal block after the first resolved fetch", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        jsonResponse({
-          logs: "hello world output",
-          status: "succeeded",
-          totalSize: 18,
-        }),
-      );
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        logs: "hello world output",
+        status: "succeeded",
+        totalSize: 18,
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TaskLogs taskId="t1" initialStatus="queued" />);
@@ -327,15 +325,13 @@ describe("TaskLogs", () => {
   });
 
   it("replaces logs on the full (non-offset) fetch path", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        jsonResponse({
-          logs: "replaced-entirely",
-          status: "succeeded",
-          totalSize: 17,
-        }),
-      );
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        logs: "replaced-entirely",
+        status: "succeeded",
+        totalSize: 17,
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
