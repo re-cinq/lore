@@ -251,34 +251,9 @@ async function processTask(task: PipelineTask): Promise<void> {
       getTaskTypeConfig(task.task_type)?.model ||
       undefined;
 
-    // Dark-factory dispatch (T058 follow-up): when the repo has dark
-    // mode enabled AND the task type has an assembly line definition, route
-    // through the in-agent supervisor instead of the legacy code paths.
-    // Limited to JSON-output assembly lines (gap-fill, runbook); Claude
-    // Code-driven types continue via the Job pod path until the
-    // entrypoint.sh refactor lands.
-    const { isDarkFactoryEligible } = await import("./orchestrator.js");
+    // Read downstream to forward the repo's assembly line name to the Agent CR
+    // dispatch (dark-mode repos run the Floor-side graph, one Agent CR per node).
     const darkFactoryEnabled = repoSettings?.dark_factory?.enabled === true;
-
-    if (darkFactoryEnabled && isDarkFactoryEligible(task.task_type)) {
-      // Fire-and-observe: start() persists the pipeline.assembly_lines row and
-      // the assembly_line.start event atomically; the Floor event loop claims
-      // it and runs the in-process supervisor. The handler's continuation
-      // applies the terminal task status (applySupervisorOutcome) — the task
-      // stays `running` here. The branch rides along so revision tasks (where
-      // contextBundle.branch is preserved) resume from prior stage commits.
-      const assemblyLineId = await project.assemblyLines.start(task.task_type, {
-        taskId: task.id,
-        branch: branchName,
-        args: { description: task.description },
-      });
-
-      console.log(
-        `[floor] Task ${task.id} started assembly line ${assemblyLineId} (${task.task_type} on ${targetRepo})`,
-      );
-
-      return;
-    }
 
     if (task.task_type === "onboard") {
       await handleOnboard(task, targetRepo, branchName, model, issueNumber);

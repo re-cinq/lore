@@ -206,6 +206,6 @@ Add a step at the end of each build workflow (after deploy):
 3. Smoke tests run after every deploy
 4. Smoke test failure creates a GitHub Issue
 5. Redaction patterns have 100% coverage ([validated by `redact.test.ts:7`](libs/shared/src/redact.test.ts#L7))
-6. Task routing logic has tests for every task type ([validated by `orchestrator.test.ts:8`](apps/floor/src/application/orchestrator.test.ts#L8), [`worker.test.ts:57`](apps/floor/src/application/task-processing/worker.test.ts#L57))
+6. Task routing logic has tests for every task type ([validated by `worker.test.ts:63`](apps/floor/src/jobs/task/worker.test.ts#L63))
 7. Watcher re-entry guard has a test
 8. 409 CR handling has a test ([validated by `k8s-errors.test.ts:5`](libs/shared/src/k8s-errors.test.ts#L5))

@@ -2,9 +2,9 @@
 // lines. `project.assemblyLines.start()` inserted the row (queued) + this event
 // atomically; the loop claims it here. The run itself is minutes-to-hours, so the
 // handler validates, marks the row running, fire-and-backgrounds the walk, and
-// resolves immediately — terminal row status (and, on the in-process path, task
-// status) is written by the background continuation. The branch lease + the
-// agent-watcher remain the liveness signal, exactly as the pre-event inline paths.
+// resolves immediately — terminal row status is written by the background
+// continuation. The branch lease + the agent-watcher remain the liveness signal,
+// exactly as the pre-event inline paths.
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
@@ -15,17 +15,6 @@ import type {
 import type { EventHandler } from "../../main-loop/types.js";
 import type { FloorAssemblyLineTask } from "./floor-assembly-line.js";
 import { supervisorOutcome } from "./floor-assembly-line-run.js";
-import type { ProcessTaskViaSupervisorResult } from "../task/orchestrator.js";
-
-/** The in-process (JSON-output supervisor) run input — orchestrator path. */
-export interface InProcessRunInput {
-  assemblyLineId: string;
-  taskId: string | null;
-  description: string;
-  taskType: string;
-  repo: string;
-  branch: string | null;
-}
 
 /** The repo-less detection run input — jobs/detect path. */
 export interface DetectRunInput {
@@ -40,24 +29,12 @@ export interface StartEventHandlerDeps {
   definitions: () => Promise<ReadonlyMap<string, AssemblyLine>>;
   /** Definitions with a `detect` node: the repo-less detection runner. */
   runDetect: (input: DetectRunInput) => Promise<SupervisorResult>;
-  /** gap-fill / runbook: the in-process JSON supervisor (orchestrator path). */
-  runInProcess: (
-    input: InProcessRunInput,
-  ) => Promise<ProcessTaskViaSupervisorResult>;
-  /** Everything else: the Floor AssemblyLine, one Agent CR per node. */
+  /** Every other definition: the Floor AssemblyLine, one Agent CR per node. */
   runOnStation: (task: FloorAssemblyLineTask) => Promise<SupervisorResult>;
-  /** Task-status application for the in-process path (extracted from the worker). */
-  applyTaskOutcome: (
-    taskId: string,
-    result: ProcessTaskViaSupervisorResult,
-  ) => Promise<void>;
   /** Reclaim the run's per-task token triple once the station line is fully done — the
    *  only safe point, since the line's node CRs share one `pt-<id>` token. */
   cleanupToken: (taskId: string) => Promise<void>;
 }
-
-/** Task types whose assembly line runs in-process (JSON-output; no per-node Agent CRs). */
-const IN_PROCESS_DEFINITIONS = new Set(["gap-fill", "runbook"]);
 
 export function createStartEventHandler(
   deps: StartEventHandlerDeps,
@@ -118,46 +95,6 @@ export function createStartEventHandler(
       return;
     }
 
-    if (IN_PROCESS_DEFINITIONS.has(definitionName)) {
-      void deps
-        .runInProcess({
-          assemblyLineId,
-          taskId,
-          description,
-          taskType: definitionName,
-          repo,
-          branch,
-        })
-        .then(async (result) => {
-          await finishRow(result.outcome, result.errorMessage);
-
-          if (taskId) {
-            await deps.applyTaskOutcome(taskId, result);
-          }
-        })
-        .catch(async (err) => {
-          const result: ProcessTaskViaSupervisorResult = {
-            outcome: "error",
-            errorMessage: (err as Error).message,
-          };
-
-          await finishRow("error", result.errorMessage);
-
-          if (taskId) {
-            await deps
-              .applyTaskOutcome(taskId, result)
-              .catch((applyErr) =>
-                console.error(
-                  `[assembly-line-start] task-outcome apply failed for ${taskId}:`,
-                  (applyErr as Error).message,
-                ),
-              );
-          }
-        });
-
-      return;
-    }
-
     // A task-less line (e.g. code-review) has no pipeline task; fall back to the
     // per-attempt assemblyLineId so the per-task token + `task-id` label are unique
     // per run. An empty taskId would key the token on "" → a single shared `pt-`
@@ -191,10 +128,6 @@ export const assemblyLineStart: EventHandler = async (params) => {
   const [
     { assemblyLines },
     { loadBuiltinAssemblyLines },
-    { processTaskViaSupervisor },
-    { applySupervisorOutcome },
-    { resolveDarkFactorySettings },
-    { settings },
     { runFloorAssemblyLineForTask, floorAssemblyLineRuntime },
     { agentCrBackend },
     { runDetect },
@@ -202,10 +135,6 @@ export const assemblyLineStart: EventHandler = async (params) => {
   ] = await Promise.all([
     import("../../kernel/queues.js"),
     import("@re-cinq/lore-assembly-lines"),
-    import("../task/orchestrator.js"),
-    import("../task/apply-supervisor-outcome.js"),
-    import("../dark-factory/dark-factory.js"),
-    import("../../kernel/queues.js"),
     import("./floor-assembly-line-run.js"),
     import("../../composition/project-boot.js"),
     import("../detect/run-detect.js"),
@@ -216,35 +145,11 @@ export const assemblyLineStart: EventHandler = async (params) => {
     assemblyLines: assemblyLines(),
     definitions: loadBuiltinAssemblyLines,
     runDetect,
-    runInProcess: async (input) => {
-      const repoSettings = await settings()
-        .rawSettings(input.repo)
-        .catch(() => null);
-
-      return processTaskViaSupervisor({
-        task: {
-          id: input.taskId ?? "",
-          description: input.description,
-          task_type: input.taskType,
-          target_repo: input.repo,
-        },
-        settings: resolveDarkFactorySettings(
-          (
-            repoSettings as {
-              dark_factory?: Parameters<typeof resolveDarkFactorySettings>[0];
-            } | null
-          )?.dark_factory,
-        ),
-        branchName: input.branch ?? undefined,
-        assemblyLineId: input.assemblyLineId,
-      });
-    },
     runOnStation: (task) =>
       runFloorAssemblyLineForTask(
         task,
         floorAssemblyLineRuntime(agentCrBackend()),
       ),
-    applyTaskOutcome: applySupervisorOutcome,
     cleanupToken: cleanupPerTaskToken,
   });
 
