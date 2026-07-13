@@ -10,6 +10,7 @@
 import { getQueryEmbedding } from "../../embeddings/embedding-service.js";
 import { resolveAgentId } from "../../agent-id.js";
 import { diversify, rrfMerge } from "../../memory-ranking.js";
+import type { PgPool } from "../../memory-store.js";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -26,7 +27,7 @@ export interface MemorySearchResult {
 // ── Main entry point ────────────────────────────────────────────────
 
 export async function searchMemories(
-  pool: any,
+  pool: PgPool,
   query: string,
   agentId?: string,
   poolName?: string,
@@ -41,7 +42,7 @@ export async function searchMemories(
   let poolId: string | null = null;
 
   if (poolName) {
-    const { rows } = await pool.query(
+    const { rows } = await pool.query<{ id: string }>(
       `SELECT id FROM memory.shared_pools WHERE name = $1`,
       [poolName],
     );
@@ -134,10 +135,22 @@ interface RankedRow {
   confidence?: string;
 }
 
+/** Raw row shape shared by the four memory/fact search SQL queries. */
+interface SearchSqlRow {
+  id: string;
+  key: string;
+  value: string;
+  agent_id: string;
+  source: string;
+  confidence?: string;
+  vec_rank?: string;
+  kw_rank?: string;
+}
+
 // ── Vector searches ─────────────────────────────────────────────────
 
 async function vectorSearchMemories(
-  pool: any,
+  pool: PgPool,
   embeddingStr: string,
   agentId: string | null,
   poolId: string | null,
@@ -151,9 +164,13 @@ async function vectorSearchMemories(
       AND ($2::text IS NULL OR m.agent_id = $2)
       AND ($3::uuid IS NULL OR m.pool_id = $3)
     LIMIT 20`;
-  const { rows } = await pool.query(sql, [embeddingStr, agentId, poolId]);
+  const { rows } = await pool.query<SearchSqlRow>(sql, [
+    embeddingStr,
+    agentId,
+    poolId,
+  ]);
 
-  return rows.map((r: any) => ({
+  return rows.map((r) => ({
     id: r.id,
     key: r.key,
     value: r.value,
@@ -164,7 +181,7 @@ async function vectorSearchMemories(
 }
 
 async function vectorSearchFacts(
-  pool: any,
+  pool: PgPool,
   embeddingStr: string,
   agentId: string | null,
   includeInvalidated: boolean = false,
@@ -183,13 +200,13 @@ async function vectorSearchFacts(
       AND ($2::text IS NULL OR COALESCE(m.agent_id, e.agent_id) = $2)
       AND ($3::boolean OR f.valid_to IS NULL)
     LIMIT 20`;
-  const { rows } = await pool.query(sql, [
+  const { rows } = await pool.query<SearchSqlRow>(sql, [
     embeddingStr,
     agentId,
     includeInvalidated,
   ]);
 
-  return rows.map((r: any) => ({
+  return rows.map((r) => ({
     id: r.id,
     key: r.key,
     value: r.value,
@@ -203,7 +220,7 @@ async function vectorSearchFacts(
 // ── Keyword searches ────────────────────────────────────────────────
 
 async function keywordSearchMemories(
-  pool: any,
+  pool: PgPool,
   query: string,
   agentId: string | null,
   poolId: string | null,
@@ -219,9 +236,9 @@ async function keywordSearchMemories(
       AND ($2::text IS NULL OR m.agent_id = $2)
       AND ($3::uuid IS NULL OR m.pool_id = $3)
     LIMIT 20`;
-  const { rows } = await pool.query(sql, [pattern, agentId, poolId]);
+  const { rows } = await pool.query<SearchSqlRow>(sql, [pattern, agentId, poolId]);
 
-  return rows.map((r: any) => ({
+  return rows.map((r) => ({
     id: r.id,
     key: r.key,
     value: r.value,
@@ -232,7 +249,7 @@ async function keywordSearchMemories(
 }
 
 async function keywordSearchFacts(
-  pool: any,
+  pool: PgPool,
   query: string,
   agentId: string | null,
   includeInvalidated: boolean = false,
@@ -253,13 +270,13 @@ async function keywordSearchFacts(
       AND ($2::text IS NULL OR COALESCE(m.agent_id, e.agent_id) = $2)
       AND ($3::boolean OR f.valid_to IS NULL)
     LIMIT 20`;
-  const { rows } = await pool.query(sql, [
+  const { rows } = await pool.query<SearchSqlRow>(sql, [
     pattern,
     agentId,
     includeInvalidated,
   ]);
 
-  return rows.map((r: any) => ({
+  return rows.map((r) => ({
     id: r.id,
     key: r.key,
     value: r.value,
@@ -273,7 +290,7 @@ async function keywordSearchFacts(
 // ── Retrieval strengthening ─────────────────────────────────────────
 
 async function strengthenRetrievals(
-  pool: any,
+  pool: PgPool,
   results: MemorySearchResult[],
 ): Promise<void> {
   const factIds = results
@@ -283,7 +300,7 @@ async function strengthenRetrievals(
     .filter((r) => r.source === "memory" && r.id)
     .map((r) => r.id!);
 
-  const ops: Promise<void>[] = [];
+  const ops: Promise<unknown>[] = [];
 
   if (factIds.length > 0) {
     ops.push(
@@ -321,7 +338,7 @@ let entityNameCache: Set<string> = new Set();
 let entityCacheUpdatedAt = 0;
 const ENTITY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-async function refreshEntityCache(pool: any): Promise<void> {
+async function refreshEntityCache(pool: PgPool): Promise<void> {
   if (
     Date.now() - entityCacheUpdatedAt < ENTITY_CACHE_TTL_MS &&
     entityNameCache.size > 0
@@ -330,11 +347,11 @@ async function refreshEntityCache(pool: any): Promise<void> {
   }
 
   try {
-    const { rows } = await pool.query(
+    const { rows } = await pool.query<{ name: string }>(
       `SELECT LOWER(name) as name FROM memory.entities`,
     );
 
-    entityNameCache = new Set(rows.map((r: any) => r.name));
+    entityNameCache = new Set(rows.map((r) => r.name));
     entityCacheUpdatedAt = Date.now();
   } catch {
     // Keep stale cache on error
@@ -358,7 +375,7 @@ function detectEntities(results: MemorySearchResult[]): string[] {
 }
 
 async function graphAugment(
-  pool: any,
+  pool: PgPool,
   entities: string[],
 ): Promise<MemorySearchResult[]> {
   if (entities.length === 0) {
@@ -370,7 +387,13 @@ async function graphAugment(
 
   for (const entity of entities) {
     try {
-      const { rows } = await pool.query(
+      const { rows } = await pool.query<{
+        source_name: string;
+        source_type: string;
+        relation_type: string;
+        target_name: string;
+        target_type: string;
+      }>(
         `SELECT s.name as source_name, s.entity_type as source_type,
                 e.relation_type, t.name as target_name, t.entity_type as target_type
          FROM memory.edges e
@@ -408,7 +431,7 @@ async function graphAugment(
 // ── Audit helper ────────────────────────────────────────────────────
 
 async function auditLog(
-  pool: any,
+  pool: PgPool,
   agentId: string | null,
   query: string,
   resultCount: number,

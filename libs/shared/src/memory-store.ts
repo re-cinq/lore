@@ -50,6 +50,9 @@ export interface WriteResult {
   created_at: string;
 }
 
+/** A stored memory row (or version row). Columns vary by query, so keep it open. */
+export type MemoryRecord = Record<string, unknown>;
+
 // ── Interface ────────────────────────────────────────────────────────
 
 export interface MemoryStore {
@@ -68,7 +71,7 @@ export interface MemoryStore {
     key: string,
     agentId: string,
     version?: string | number,
-  ): Promise<any>;
+  ): Promise<MemoryRecord | MemoryRecord[] | null>;
 
   deleteMemory(
     key: string,
@@ -80,7 +83,7 @@ export interface MemoryStore {
     limit?: number;
     offset?: number;
     repo?: string;
-  }): Promise<{ memories: any[]; total: number }>;
+  }): Promise<{ memories: MemoryRecord[]; total: number }>;
 }
 
 // ── Selection ────────────────────────────────────────────────────────

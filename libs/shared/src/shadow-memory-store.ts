@@ -8,7 +8,11 @@
  * the live one before cutover.
  */
 
-import type { MemoryStore, WriteResult } from "./memory-store.js";
+import type {
+  MemoryRecord,
+  MemoryStore,
+  WriteResult,
+} from "./memory-store.js";
 
 // ── Contract ─────────────────────────────────────────────────────────
 
@@ -59,7 +63,7 @@ export class ShadowMemoryStore implements MemoryStore {
     key: string,
     agentId: string,
     version?: string | number,
-  ): Promise<any> {
+  ): Promise<MemoryRecord | MemoryRecord[] | null> {
     const primaryResult = await this.primary.readMemory(key, agentId, version);
 
     try {
@@ -87,7 +91,7 @@ export class ShadowMemoryStore implements MemoryStore {
     limit?: number;
     offset?: number;
     repo?: string;
-  }): Promise<{ memories: any[]; total: number }> {
+  }): Promise<{ memories: MemoryRecord[]; total: number }> {
     return this.primary.listMemories(opts);
   }
 }

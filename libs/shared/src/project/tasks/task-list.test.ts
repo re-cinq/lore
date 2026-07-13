@@ -44,6 +44,8 @@ function fakeStore(rows: PipelineTask[]): TaskStorePort {
       task_id: "new",
       task_type: input.taskType ?? "general",
       status: "pending",
+      priority: "normal",
+      created_at: "2026-01-01T00:00:00Z",
     }),
     retry: async (id) => ({ task_id: "new", status: "pending", retry_of: id }),
     list: async () => ({ tasks: rows, total: rows.length }),

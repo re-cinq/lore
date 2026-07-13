@@ -5,7 +5,12 @@
  * as a sibling implementation without touching callers.
  */
 
-import type { MemoryStore, PgPool, WriteResult } from "./memory-store.js";
+import type {
+  MemoryRecord,
+  MemoryStore,
+  PgPool,
+  WriteResult,
+} from "./memory-store.js";
 
 export class PostgresMemoryStore implements MemoryStore {
   readonly backend = "postgres" as const;
@@ -109,7 +114,7 @@ export class PostgresMemoryStore implements MemoryStore {
     key: string,
     agentId: string,
     version?: string | number,
-  ): Promise<any> {
+  ): Promise<MemoryRecord | MemoryRecord[] | null> {
     const agent = agentId;
 
     if (version === "all") {
@@ -181,14 +186,14 @@ export class PostgresMemoryStore implements MemoryStore {
     limit?: number;
     offset?: number;
     repo?: string;
-  }): Promise<{ memories: any[]; total: number }> {
+  }): Promise<{ memories: MemoryRecord[]; total: number }> {
     const { agentId, repo } = opts;
     const limit = opts.limit ?? 50;
     const offset = opts.offset ?? 0;
 
     // Scope by repo (preferred) or agent_id
     let filter: string;
-    let params: any[];
+    let params: unknown[];
 
     if (repo) {
       filter = "repo = $1 AND";
@@ -229,7 +234,7 @@ export class PostgresMemoryStore implements MemoryStore {
     agentId: string,
     operation: string,
     key: string | null,
-    meta?: any,
+    meta?: Record<string, unknown>,
   ): Promise<void> {
     try {
       await this.pool.query(

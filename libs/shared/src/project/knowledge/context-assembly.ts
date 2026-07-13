@@ -22,7 +22,7 @@ import {
   fetchGraphContext,
   type GraphContextBlock,
 } from "../../spec-trace/graph-context.js";
-import type { DgraphClientPort } from "../../memory-store.js";
+import type { DgraphClientPort, PgPool } from "../../memory-store.js";
 import {
   dedupeItems,
   serializeContext,
@@ -415,8 +415,25 @@ export async function fetchCouplingSource(
  *  surfaces semantically-relevant chunks (incl. code), not just keyword overlap.
  *  Degrades to keyword-only when no query embedding is available. Exported for
  *  unit tests. */
+interface ChunkRow {
+  content: string;
+  file_path: string;
+  content_type?: string | null;
+  ingested_at?: string | Date | null;
+  score?: number | string | null;
+  repo?: string;
+}
+
+interface Incident {
+  date: string;
+  severity?: string;
+  title?: string;
+  resolved?: boolean;
+  url?: string;
+}
+
 export async function hybridChunkItems(
-  pool: any,
+  pool: PgPool,
   query: string,
   repo: string,
   contentTypes: string[],
@@ -426,7 +443,7 @@ export async function hybridChunkItems(
   // The keyword leg searches the query's distinctive terms (OR'd) rather than the
   // whole paragraph, which would AND every filler word and match almost nothing.
   const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
-  const mapRows = (rows: any[]): SourceItem[] =>
+  const mapRows = (rows: ChunkRow[]): SourceItem[] =>
     normalizeScores(
       rows.map((r) =>
         mkItem(r.content, {
@@ -440,7 +457,7 @@ export async function hybridChunkItems(
 
   if (embedding) {
     const embStr = `[${embedding.join(",")}]`;
-    const { rows } = await pool.query(
+    const { rows } = await pool.query<ChunkRow>(
       `WITH vec AS (
          SELECT id, content, file_path, content_type, ingested_at,
                 ROW_NUMBER() OVER (ORDER BY embedding <=> $2::vector) AS r
@@ -470,7 +487,7 @@ export async function hybridChunkItems(
   }
 
   // Keyword-only fallback (no embedding available).
-  const { rows } = await pool.query(
+  const { rows } = await pool.query<ChunkRow>(
     `SELECT content, file_path, content_type, ingested_at,
             ts_rank(search_tsv, websearch_to_tsquery('english', $2)) AS score
      FROM org_shared.chunks
@@ -485,7 +502,7 @@ export async function hybridChunkItems(
 // ── Source fetchers ─────────────────────────────────────────────────
 
 type SourceFetcher = (
-  pool: any,
+  pool: PgPool,
   query: string,
   repo?: string,
   agentId?: string,
@@ -568,7 +585,9 @@ const fetchers: Record<string, SourceFetcher> = {
 
       if (factIds.length > 0) {
         try {
-          const { rows: conflicts } = await pool.query(
+          const { rows: conflicts } = await pool.query<{
+            new_fact_id: string;
+          }>(
             `SELECT new_fact_id FROM memory.fact_conflicts
              WHERE new_fact_id = ANY($1) AND created_at > now() - interval '7 days'`,
             [factIds],
@@ -673,7 +692,7 @@ const fetchers: Record<string, SourceFetcher> = {
     }
 
     try {
-      const { rows } = await pool.query(
+      const { rows } = await pool.query<ChunkRow>(
         `SELECT content, file_path FROM org_shared.chunks
          WHERE repo = $1 AND content_type = 'rule'
          ORDER BY file_path`,
@@ -688,7 +707,7 @@ const fetchers: Record<string, SourceFetcher> = {
         .toLowerCase()
         .split(/\s+/)
         .filter((w: string) => w.length > 2);
-      const matched = rows.filter((r: any) => {
+      const matched = rows.filter((r) => {
         const ruleName = r.file_path
           .replace(/.*\//, "")
           .replace(/\.md$/, "")
@@ -705,7 +724,7 @@ const fetchers: Record<string, SourceFetcher> = {
       }
 
       return {
-        items: matched.map((r: any) =>
+        items: matched.map((r) =>
           mkItem(r.content, { source_path: r.file_path, content_type: "rule" }),
         ),
         status: "ok",
@@ -721,17 +740,19 @@ const fetchers: Record<string, SourceFetcher> = {
     }
 
     try {
-      const { rows: repoRows } = await pool.query(
+      const { rows: repoRows } = await pool.query<{
+        settings: { cross_repo_repos?: string[] } | null;
+      }>(
         `SELECT settings FROM lore.repos WHERE full_name = $1`,
         [repo],
       );
       const linkedRepos: string[] =
         repoRows[0]?.settings?.cross_repo_repos || [];
 
-      let rows: any[];
+      let rows: ChunkRow[];
 
       if (linkedRepos.length > 0) {
-        const result = await pool.query(
+        const result = await pool.query<ChunkRow>(
           `SELECT content, repo, file_path, ts_rank(search_tsv, plainto_tsquery($2)) AS score
            FROM org_shared.chunks
            WHERE repo = ANY($1) AND search_tsv @@ plainto_tsquery($2)
@@ -741,7 +762,7 @@ const fetchers: Record<string, SourceFetcher> = {
 
         rows = result.rows;
       } else {
-        const result = await pool.query(
+        const result = await pool.query<ChunkRow>(
           `SELECT content, repo, file_path, ts_rank(search_tsv, plainto_tsquery($2)) AS score
            FROM org_shared.chunks
            WHERE repo != $1 AND search_tsv @@ plainto_tsquery($2)
@@ -757,18 +778,18 @@ const fetchers: Record<string, SourceFetcher> = {
       }
       // Only portable, high-transfer-score content from other repos passes through.
       const scored = rows
-        .map((r: any) => ({
+        .map((r) => ({
           ...r,
           transferScore: computeTransferScore(r.content),
         }))
-        .filter((r: any) => r.transferScore >= 0.5);
+        .filter((r) => r.transferScore >= 0.5);
 
       if (scored.length === 0) {
         return { items: [], status: "empty" };
       }
 
       return {
-        items: scored.map((r: any) =>
+        items: scored.map((r) =>
           mkItem(r.content, {
             source_path: r.file_path,
             repo: r.repo,
@@ -789,7 +810,9 @@ const fetchers: Record<string, SourceFetcher> = {
     }
 
     try {
-      const { rows } = await pool.query(
+      const { rows } = await pool.query<{
+        settings: { incidents?: Incident[] } | null;
+      }>(
         `SELECT settings FROM lore.repos WHERE full_name = $1`,
         [repo],
       );
@@ -804,7 +827,7 @@ const fetchers: Record<string, SourceFetcher> = {
       }
       const cutoff = Date.now() - 30 * 86400000;
       const recent = settings.incidents.filter(
-        (i: any) => new Date(i.date).getTime() > cutoff,
+        (i) => new Date(i.date).getTime() > cutoff,
       );
 
       if (recent.length === 0) {
@@ -812,7 +835,7 @@ const fetchers: Record<string, SourceFetcher> = {
       }
 
       return {
-        items: recent.map((i: any) =>
+        items: recent.map((i) =>
           mkItem(
             `- **${i.severity || "unknown"}**: ${i.title}${i.resolved ? " (resolved)" : ""} — ${i.date}${i.url ? ` [link](${i.url})` : ""}`,
             { content_type: "incident" },
@@ -846,7 +869,7 @@ const STATUS_REASON: Record<FetchStatus, string> = {
 };
 
 export async function assembleContext(
-  pool: any,
+  pool: PgPool,
   query: string,
   templateName: string = "default",
   maxTokens?: number,
@@ -869,7 +892,9 @@ export async function assembleContext(
 
   if (repo) {
     try {
-      const { rows } = await pool.query(
+      const { rows } = await pool.query<{
+        last_ingested_at: string | Date | null;
+      }>(
         `SELECT last_ingested_at FROM lore.repos WHERE full_name = $1`,
         [repo],
       );

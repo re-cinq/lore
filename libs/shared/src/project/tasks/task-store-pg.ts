@@ -12,6 +12,8 @@ import {
   cancelTask,
   markTaskMerged,
   type CreateTaskInput,
+  type CreatedTask,
+  type RetriedTask,
 } from "../../pipeline-tasks.js";
 import type {
   TaskStorePort,
@@ -66,11 +68,11 @@ export class PgTaskStore implements TaskStorePort {
 
   // ── ops delegating to the single-source pipeline-tasks functions ──
 
-  create(input: CreateTaskInput): Promise<any> {
+  create(input: CreateTaskInput): Promise<CreatedTask> {
     return createTask(this.pool, input);
   }
 
-  retry(id: string): Promise<any> {
+  retry(id: string): Promise<RetriedTask> {
     return retryTask(this.pool, id);
   }
 
@@ -99,7 +101,11 @@ export class PgTaskStore implements TaskStorePort {
     return setTaskStatusIf(this.pool, id, expectedStatus, status, extra);
   }
 
-  updateStatus(id: string, status: string, meta?: unknown): Promise<void> {
+  updateStatus(
+    id: string,
+    status: string,
+    meta?: Record<string, unknown>,
+  ): Promise<void> {
     return updateTaskStatus(this.pool, id, status, meta);
   }
 
@@ -107,7 +113,7 @@ export class PgTaskStore implements TaskStorePort {
     id: string,
     fromStatus: string | null,
     toStatus: string | null,
-    meta?: unknown,
+    meta?: Record<string, unknown>,
   ): Promise<void> {
     return recordEvent(this.pool, id, fromStatus, toStatus, meta);
   }

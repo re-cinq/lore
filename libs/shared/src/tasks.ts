@@ -5,6 +5,8 @@
  * DB operations stay in mcp-server/src/tasks.ts.
  */
 
+import type { PgPool } from "./memory-store.js";
+
 // ── Types ───────────────────────────────────────────────────────────
 
 export interface ParsedTask {
@@ -206,7 +208,7 @@ export function specSlugFromBranch(branch: string): string | null {
  * Floor spec-PR-merge event handler and the mcp pipeline tools share one writer.
  */
 export async function syncTasksToDb(
-  pool: any,
+  pool: PgPool,
   repo: string,
   specSlug: string,
   tasks: ParsedTask[],
@@ -226,7 +228,7 @@ export async function syncTasksToDb(
     };
     const status = task.completed ? "completed" : "pending";
 
-    const { rows: existing } = await pool.query(
+    const { rows: existing } = await pool.query<{ id: string; status: string }>(
       `SELECT id, status FROM pipeline.tasks
        WHERE target_repo = $1
          AND task_type = 'spec-task'

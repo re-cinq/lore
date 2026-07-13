@@ -10,6 +10,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type {
   DgraphClientPort,
   DgraphTxn,
+  MemoryRecord,
   MemoryStore,
   WriteResult,
 } from "./memory-store.js";
@@ -429,7 +430,10 @@ export class DgraphMemoryStore implements MemoryStore {
     });
   }
 
-  async readMemory(key: string, agentId: string): Promise<any> {
+  async readMemory(
+    key: string,
+    agentId: string,
+  ): Promise<MemoryRecord | MemoryRecord[] | null> {
     return this.withTxn(async (txn) => {
       const row = await this.findLatestLive(
         txn,
@@ -474,7 +478,7 @@ export class DgraphMemoryStore implements MemoryStore {
     limit?: number;
     offset?: number;
     repo?: string;
-  }): Promise<{ memories: any[]; total: number }> {
+  }): Promise<{ memories: MemoryRecord[]; total: number }> {
     return this.withTxn(async (txn) => {
       const res = await txn.queryWithVars(
         `query list($agent: string, $now: string, $first: int, $offset: int) {

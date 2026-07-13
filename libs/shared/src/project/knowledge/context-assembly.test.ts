@@ -278,7 +278,7 @@ describe("hybridChunkItems", () => {
     };
 
     const items = (await hybridChunkItems(
-      pool,
+      pool as unknown as Parameters<typeof hybridChunkItems>[0],
       "q",
       "re-cinq/lore",
       ["code"],
