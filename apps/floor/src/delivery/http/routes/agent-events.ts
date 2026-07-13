@@ -28,7 +28,9 @@ async function recordAgentCosts(rows: readonly LlmCallRow[]): Promise<number> {
       await usage().logLlmCall({ ...row, jobName: "agent" });
       recorded++;
     } catch (err: any) {
-      console.warn(`[floor] llm_calls insert skipped for ${row.taskId}: ${err.message}`);
+      console.warn(
+        `[floor] llm_calls insert skipped for ${row.taskId}: ${err.message}`,
+      );
     }
   }
   return recorded;
@@ -39,7 +41,12 @@ async function recordAgentCosts(rows: readonly LlmCallRow[]): Promise<number> {
  * Fire-and-forget: a failed archive must never fail cost-row ingestion.
  */
 function archiveRaw(body: string, rows: readonly LlmCallRow[]): void {
-  const key = agentEventsArchiveKey(new Date().toISOString(), rows.map((r) => r.taskId));
+  const key = agentEventsArchiveKey(
+    new Date().toISOString(),
+    rows.map((r) => r.taskId),
+  );
+
+  // todo: we must update the infra to drop the logs after 30 days. (this should be a variable.)
   void archiveAgentEvents(body, key).catch((err: any) =>
     console.warn(`[floor] events archive skipped: ${err.message}`),
   );
@@ -56,9 +63,14 @@ export const agentEventsRoute: ServerRoute = {
     const rows = parseAgentEvents(rawNdjson);
     const recorded = await recordAgentCosts(rows);
 
-    request.app.span?.setAttributes({ "agent_events.count": rows.length, "agent_events.recorded": recorded });
+    request.app.span?.setAttributes({
+      "agent_events.count": rows.length,
+      "agent_events.recorded": recorded,
+    });
     archiveRaw(rawNdjson, rows);
 
-    return h.response({ status: "ok", events: rows.length, recorded }).code(200);
+    return h
+      .response({ status: "ok", events: rows.length, recorded })
+      .code(200);
   },
 };
