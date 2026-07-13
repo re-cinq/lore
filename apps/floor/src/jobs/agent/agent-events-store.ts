@@ -21,11 +21,8 @@ export async function archiveAgentEvents(
   key: string,
 ): Promise<void> {
   if (!BUCKET) return;
-  await getStorage()
-    .bucket(BUCKET)
-    .file(key)
-    .save(redactSecrets(rawNdjson), {
-      resumable: false,
-      contentType: "application/x-ndjson",
-    });
+  await getStorage().bucket(BUCKET).file(key).save(redactSecrets(rawNdjson), {
+    resumable: false,
+    contentType: "application/x-ndjson",
+  });
 }
