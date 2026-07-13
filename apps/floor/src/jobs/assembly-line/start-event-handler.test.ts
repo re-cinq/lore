@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
-import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
+import type {
+  AssemblyLine,
+  SupervisorResult,
+} from "@re-cinq/lore-assembly-lines";
 import {
   createStartEventHandler,
   type StartEventHandlerDeps,
@@ -67,10 +70,8 @@ function makeDeps(
   over: Partial<StartEventHandlerDeps> = {},
 ) {
   const calls = {
-    inProcess: [] as Array<Record<string, unknown>>,
     station: [] as Array<Record<string, unknown>>,
     detect: [] as Array<Record<string, unknown>>,
-    taskOutcomes: [] as Array<{ taskId: string; outcome: string }>,
     cleanedTokens: [] as string[],
   };
   const deps: StartEventHandlerDeps = {
@@ -84,18 +85,10 @@ function makeDeps(
 
       return { ranWork: true, reason: "completed" };
     },
-    runInProcess: async (input) => {
-      calls.inProcess.push({ ...input });
-
-      return { outcome: "pr_created", prUrl: "https://pr", prNumber: 7 };
-    },
     runOnStation: async (task) => {
       calls.station.push({ ...task });
 
       return { ranWork: true, reason: "completed" };
-    },
-    applyTaskOutcome: async (taskId, result) => {
-      calls.taskOutcomes.push({ taskId, outcome: result.outcome });
     },
     ...over,
   };
@@ -119,31 +112,27 @@ function params(
 }
 
 describe("createStartEventHandler", () => {
-  it("routes gap-fill in-process with the threaded assemblyLineId and closes row + task on completion", async () => {
+  it("routes gap-fill to the station path like every other agent line (no in-process path)", async () => {
     const { port, assemblyLineId } = await seededPort("gap-fill");
     const { deps, calls } = makeDeps(port);
 
     await createStartEventHandler(deps)(params(assemblyLineId, "gap-fill"));
     await flush();
 
-    expect(calls.inProcess).toEqual([
+    expect(calls.station).toEqual([
       {
         assemblyLineId,
         taskId: "task-9",
-        description: "do the thing",
         taskType: "gap-fill",
-        repo: "re-cinq/lore",
+        description: "do the thing",
+        targetRepo: "re-cinq/lore",
         branch: "lore/x",
       },
     ]);
-    expect(calls.station).toEqual([]);
     expect(port.rows[0]).toMatchObject({
       status: "finished",
-      outcome: "pr_created",
+      outcome: "completed",
     });
-    expect(calls.taskOutcomes).toEqual([
-      { taskId: "task-9", outcome: "pr_created" },
-    ]);
   });
 
   it("routes implementation to the station path and closes the row from the supervisor reason", async () => {
@@ -155,7 +144,6 @@ describe("createStartEventHandler", () => {
     );
     await flush();
 
-    expect(calls.inProcess).toEqual([]);
     expect(calls.station).toEqual([
       {
         assemblyLineId,
@@ -170,8 +158,6 @@ describe("createStartEventHandler", () => {
       status: "finished",
       outcome: "completed",
     });
-    // Task status on the station path belongs to the agent-watcher, not the handler.
-    expect(calls.taskOutcomes).toEqual([]);
   });
 
   it("uses the assemblyLineId as the synthetic taskId for a task-less station line", async () => {
@@ -202,17 +188,17 @@ describe("createStartEventHandler", () => {
 
   it("returns before the run completes and marks the row running meanwhile", async () => {
     const { port, assemblyLineId } = await seededPort("gap-fill");
-    const gate = deferred<{ outcome: "no_changes" }>();
-    const { deps } = makeDeps(port, { runInProcess: () => gate.promise });
+    const gate = deferred<SupervisorResult>();
+    const { deps } = makeDeps(port, { runOnStation: () => gate.promise });
 
     await createStartEventHandler(deps)(params(assemblyLineId, "gap-fill"));
 
     expect(port.rows[0]).toMatchObject({ status: "running" });
-    gate.resolve({ outcome: "no_changes" });
+    gate.resolve({ ranWork: true, reason: "completed" });
     await flush();
     expect(port.rows[0]).toMatchObject({
       status: "finished",
-      outcome: "no_changes",
+      outcome: "completed",
     });
   });
 
@@ -228,13 +214,11 @@ describe("createStartEventHandler", () => {
     expect(calls.detect).toEqual([
       { assemblyLineId, definitionName: "spec-drift", repo: "re-cinq/lore" },
     ]);
-    expect(calls.inProcess).toEqual([]);
     expect(calls.station).toEqual([]);
     expect(port.rows[0]).toMatchObject({
       status: "finished",
       outcome: "completed",
     });
-    expect(calls.taskOutcomes).toEqual([]);
   });
 
   it("closes the row as error when runDetect throws", async () => {
@@ -272,15 +256,14 @@ describe("createStartEventHandler", () => {
       outcome: "error",
       reason: 'no assembly line defined for task type "no-such-definition"',
     });
-    expect(calls.inProcess).toEqual([]);
     expect(calls.station).toEqual([]);
   });
 
-  it("closes the row as error and fails the task when the in-process run throws", async () => {
+  it("closes the row as error when the station run throws", async () => {
     const { port, assemblyLineId } = await seededPort("gap-fill");
-    const { deps, calls } = makeDeps(port, {
-      runInProcess: async () => {
-        throw new Error("clone exploded");
+    const { deps } = makeDeps(port, {
+      runOnStation: async () => {
+        throw new Error("dispatch exploded");
       },
     });
 
@@ -290,11 +273,8 @@ describe("createStartEventHandler", () => {
     expect(port.rows[0]).toMatchObject({
       status: "failed",
       outcome: "error",
-      reason: "clone exploded",
+      reason: "dispatch exploded",
     });
-    expect(calls.taskOutcomes).toEqual([
-      { taskId: "task-9", outcome: "error" },
-    ]);
   });
 
   it("rejects malformed params (missing assemblyLineId) so the loop retries or dead-letters", async () => {
