@@ -1,20 +1,53 @@
-name: Unit Tests
+name: PR Checks
+
+# Runs prettier FIRST (auto-formatting the PR branch and committing back), then the
+# unit-test matrix on the formatted commit. `test` jobs `needs: format` so they run in
+# the same workflow run, after `format` pushes — each re-checks-out the head ref, which
+# now includes the format commit. GITHUB_TOKEN's anti-loop rule only blocks *new* runs,
+# not needs-ordered jobs in the current run, so no App token is required. `[skip ci]` on
+# the format commit prevents a redundant second run; the current run's test jobs are
+# unaffected by it. Replaces the standalone test.yml (its matrix moved here verbatim).
 
 on:
   pull_request:
     branches: [main]
-  # No `push: main` trigger — branch protection requires PRs, so the PR run
-  # is the gate (same rationale as test-integration.yml). Integration tests
-  # (Postgres-backed) live in test-integration.yml, not here.
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 concurrency:
-  group: test-${{ github.ref }}
+  group: pr-checks-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+permissions:
+  contents: write # the format job pushes the reformat back to the PR branch
+
 jobs:
+  format:
+    name: format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }} # default GITHUB_TOKEN is sufficient here
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Prettier
+        run: npm run format
+
+      - name: Commit formatting
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "style: prettier [skip ci]"
+
   test:
     name: ${{ matrix.name }}
+    needs: format # run after formatting, on the formatted head
     runs-on: ubuntu-latest
     strategy:
       # One independent run per subproject — a red suite must not mask the others.
@@ -68,6 +101,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref }} # re-checkout head so tests see the format commit
 
       - uses: actions/setup-node@v4
         with:
