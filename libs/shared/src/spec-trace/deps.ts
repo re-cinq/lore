@@ -5,11 +5,24 @@
  * through here — one funnel keeps each moved file's change to a single
  * `@re-cinq/lore-shared` → `./deps.js` swap.
  */
-export { segmentStatements, classifyByHeuristic, buildIntroOrdinals, type Classification } from "../spec-segment.js";
-export { parseTestLinksInStatement, parseCodeLinksInStatement, type SpecLinkRef } from "../spec-link-parser.js";
+export {
+  segmentStatements,
+  classifyByHeuristic,
+  buildIntroOrdinals,
+  type Classification,
+} from "../spec-segment.js";
+export {
+  parseTestLinksInStatement,
+  parseCodeLinksInStatement,
+  type SpecLinkRef,
+} from "../spec-link-parser.js";
 export { segmentBlocks, reassembleBlocks, type Block } from "../spec-blocks.js";
 export type { DgraphClientPort, DgraphTxn } from "../memory-store.js";
 export { cosineSimilarity, parseEmbedding } from "../spec-judge.js";
 export { getQueryEmbedding } from "../embeddings/embedding-service.js";
 export type { ProvenanceRef } from "../commit-trailers.js";
-export type { CoveredChunk, TaggedRunResult, TestDescriptor } from "../test-report.js";
+export type {
+  CoveredChunk,
+  TaggedRunResult,
+  TestDescriptor,
+} from "../test-report.js";

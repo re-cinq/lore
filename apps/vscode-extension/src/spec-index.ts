@@ -15,7 +15,11 @@
  */
 
 import type { SpecGraph, SpecGraphNode } from "@re-cinq/lore-shared";
-import { parseCodeLinksInStatement, parseTestLinksInStatement, type SpecLinkRef } from "@re-cinq/lore-shared/spec-link-parser.js";
+import {
+  parseCodeLinksInStatement,
+  parseTestLinksInStatement,
+  type SpecLinkRef,
+} from "@re-cinq/lore-shared/spec-link-parser.js";
 import { segmentStatements } from "@re-cinq/lore-shared/spec-segment.js";
 import { parseRangesFacet } from "./coverage-ranges.js";
 
@@ -98,17 +102,27 @@ export function buildLocalIndex(specs: SpecSource[]): SpecCodeIndex {
       for (const link of codeLinks) {
         if (link.line === null) continue;
         addEntry(index, link.path, {
-          startLine: link.line, endLine: link.line,
-          layer: "implemented", evidence: "human-linked",
-          statementText, specPath: spec.path, specLine, related: testTargets,
+          startLine: link.line,
+          endLine: link.line,
+          layer: "implemented",
+          evidence: "human-linked",
+          statementText,
+          specPath: spec.path,
+          specLine,
+          related: testTargets,
         });
       }
       for (const link of testLinks) {
         if (link.line === null) continue;
         addEntry(index, link.path, {
-          startLine: link.line, endLine: link.line,
-          layer: "implemented", evidence: "human-linked",
-          statementText, specPath: spec.path, specLine, related: codeTargets,
+          startLine: link.line,
+          endLine: link.line,
+          layer: "implemented",
+          evidence: "human-linked",
+          statementText,
+          specPath: spec.path,
+          specLine,
+          related: codeTargets,
         });
       }
     }
@@ -121,7 +135,9 @@ export function buildLocalIndex(specs: SpecSource[]): SpecCodeIndex {
  * covered intervals back to the statement. */
 export function buildCoverageIndex(graph: SpecGraph): SpecCodeIndex {
   const index: SpecCodeIndex = new Map();
-  const nodeById = new Map<string, SpecGraphNode>(graph.nodes.map((n) => [n.id, n]));
+  const nodeById = new Map<string, SpecGraphNode>(
+    graph.nodes.map((n) => [n.id, n]),
+  );
 
   const statementByTest = new Map<string, SpecGraphNode>();
   for (const link of graph.links) {
@@ -142,10 +158,14 @@ export function buildCoverageIndex(graph: SpecGraph): SpecCodeIndex {
       : [];
     for (const interval of parseRangesFacet(file.detail)) {
       addEntry(index, file.path, {
-        startLine: interval.startLine, endLine: interval.endLine,
-        layer: "covered", evidence: "execution-verified",
+        startLine: interval.startLine,
+        endLine: interval.endLine,
+        layer: "covered",
+        evidence: "execution-verified",
         statementText: (stmt.detail ?? "").trim(),
-        specPath: stmt.path ?? "", specLine: 0, related,
+        specPath: stmt.path ?? "",
+        specLine: 0,
+        related,
       });
     }
   }
@@ -154,14 +174,18 @@ export function buildCoverageIndex(graph: SpecGraph): SpecCodeIndex {
 
 /** Merge with local precedence: a coverage entry is dropped when an inline
  * entry already exists for the same (statement, target file). */
-export function mergeIndexes(local: SpecCodeIndex, coverage: SpecCodeIndex): SpecCodeIndex {
+export function mergeIndexes(
+  local: SpecCodeIndex,
+  coverage: SpecCodeIndex,
+): SpecCodeIndex {
   const merged: SpecCodeIndex = new Map();
   for (const [path, entries] of local) merged.set(path, [...entries]);
 
   for (const [path, entries] of coverage) {
     const localEntries = local.get(path);
     for (const entry of entries) {
-      if (localEntries?.some((e) => e.statementText === entry.statementText)) continue;
+      if (localEntries?.some((e) => e.statementText === entry.statementText))
+        continue;
       addEntry(merged, path, entry);
     }
   }

@@ -30,5 +30,8 @@ export interface LoreTaskSpec {
 }
 
 export interface K8sPort {
-  createLoreTask(spec: LoreTaskSpec, opts?: { namespace?: string }): Promise<{ name: string; created: boolean }>;
+  createLoreTask(
+    spec: LoreTaskSpec,
+    opts?: { namespace?: string },
+  ): Promise<{ name: string; created: boolean }>;
 }

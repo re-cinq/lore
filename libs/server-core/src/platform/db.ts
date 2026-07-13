@@ -17,7 +17,13 @@ export { getQueryEmbedding };
 let pool: Pool | null = null;
 
 // Schema allow-list to prevent SQL injection
-const VALID_SCHEMAS = new Set(["org_shared", "payments", "platform", "mobile", "data"]);
+const VALID_SCHEMAS = new Set([
+  "org_shared",
+  "payments",
+  "platform",
+  "mobile",
+  "data",
+]);
 
 export function getPool(): Pool {
   if (!pool) throw new Error("Database not configured");
@@ -46,11 +52,17 @@ export async function getHealthStatus(): Promise<{
   reason?: string;
 }> {
   if (!pool) {
-    return { connected: false, chunk_count: null, reason: "no database configured (file-backed mode)" };
+    return {
+      connected: false,
+      chunk_count: null,
+      reason: "no database configured (file-backed mode)",
+    };
   }
   try {
     await pool.query("SELECT 1");
-    const { rows } = await pool.query("SELECT count(*)::int AS cnt FROM org_shared.chunks");
+    const { rows } = await pool.query(
+      "SELECT count(*)::int AS cnt FROM org_shared.chunks",
+    );
     return { connected: true, chunk_count: rows[0].cnt };
   } catch {
     return { connected: false, chunk_count: null, reason: "connection failed" };

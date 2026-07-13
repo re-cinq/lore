@@ -196,7 +196,9 @@ edges:
     to: c
     on: success
 `);
-    expect(wf.edges.find((e) => e.from === "b" && e.to === "a")?.iteration_max).toBe(2);
+    expect(
+      wf.edges.find((e) => e.from === "b" && e.to === "a")?.iteration_max,
+    ).toBe(2);
   });
 
   it("accepts a detect node carrying job_ref", () => {
@@ -337,9 +339,15 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
     expect(wf?.exit).toBe("done");
     expect(wf?.nodes.find((n) => n.id === "review")?.type).toBe("agent");
     expect(wf?.nodes.find((n) => n.id === "refine")?.type).toBe("agent");
-    expect(wf?.edges.find((e) => e.from === "review" && e.to === "refine")?.on).toBe("changes_requested");
-    expect(wf?.edges.find((e) => e.from === "review" && e.to === "done")?.on).toBe("success");
-    expect(wf?.edges.find((e) => e.from === "refine" && e.to === "done")?.on).toBe("always");
+    expect(
+      wf?.edges.find((e) => e.from === "review" && e.to === "refine")?.on,
+    ).toBe("changes_requested");
+    expect(
+      wf?.edges.find((e) => e.from === "review" && e.to === "done")?.on,
+    ).toBe("success");
+    expect(
+      wf?.edges.find((e) => e.from === "refine" && e.to === "done")?.on,
+    ).toBe("always");
   });
 
   it("detection lines are two-node detect → done graphs keyed to their historic job names", async () => {

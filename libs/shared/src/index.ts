@@ -1,4 +1,4 @@
-export * from './project/index.js';
+export * from "./project/index.js";
 export {
   createTask as createPipelineTask,
   retryTask as retryPipelineTask,
@@ -10,19 +10,40 @@ export {
   cancelTask as cancelPipelineTask,
   markTaskMerged,
   type CreateTaskInput,
-} from './pipeline-tasks.js';
-export { chunkFile, buildIngestedChunkMetadata, type Chunk } from './chunker.js';
-export { redactSecrets } from './redact.js';
-export { getQueryEmbedding, buildVertexUrl } from './embeddings/embedding-service.js';
-export { resolveAgentId } from './agent-id.js';
-export { projectSpecFile } from './spec-trace/project-spec-file.js';
-export { projectAdrFile } from './spec-trace/project-adr-file.js';
-export { descriptorsFromVitestList, groupRunsByFile, type VitestListEntry } from './spec-trace/trace-descriptors.js';
-export { bindDescriptorsToSpecLinks, type SpecSource } from './spec-trace/bind-descriptors-to-spec-links.js';
-export { resolveTestLines } from './spec-trace/resolve-test-lines.js';
-export { parseSpecAnchor, parseSpecAnchors, type SpecAnchor } from './spec-trace/spec-anchor.js';
-export { mapWithLimit } from './concurrency/map-with-limit.js';
-export { ingestSpecTrace, type SpecTraceOutcome } from './spec-trace/ingest-spec-trace.js';
+} from "./pipeline-tasks.js";
+export {
+  chunkFile,
+  buildIngestedChunkMetadata,
+  type Chunk,
+} from "./chunker.js";
+export { redactSecrets } from "./redact.js";
+export {
+  getQueryEmbedding,
+  buildVertexUrl,
+} from "./embeddings/embedding-service.js";
+export { resolveAgentId } from "./agent-id.js";
+export { projectSpecFile } from "./spec-trace/project-spec-file.js";
+export { projectAdrFile } from "./spec-trace/project-adr-file.js";
+export {
+  descriptorsFromVitestList,
+  groupRunsByFile,
+  type VitestListEntry,
+} from "./spec-trace/trace-descriptors.js";
+export {
+  bindDescriptorsToSpecLinks,
+  type SpecSource,
+} from "./spec-trace/bind-descriptors-to-spec-links.js";
+export { resolveTestLines } from "./spec-trace/resolve-test-lines.js";
+export {
+  parseSpecAnchor,
+  parseSpecAnchors,
+  type SpecAnchor,
+} from "./spec-trace/spec-anchor.js";
+export { mapWithLimit } from "./concurrency/map-with-limit.js";
+export {
+  ingestSpecTrace,
+  type SpecTraceOutcome,
+} from "./spec-trace/ingest-spec-trace.js";
 export {
   assembleTraceDocument,
   fetchTraceDocument,
@@ -39,7 +60,7 @@ export {
   type TraceLinkRef,
   type TraceCoverage,
   type StatementState as TraceStatementState,
-} from './spec-trace/assemble-trace-document.js';
+} from "./spec-trace/assemble-trace-document.js";
 export {
   fetchSpecGraph,
   fetchSpecRing,
@@ -56,16 +77,20 @@ export {
   type SpecRing,
   type RingSection,
   type RingStatement,
-} from './spec-trace/spec-graph.js';
-export { planTraceUnits, runTraceUnits, type TraceUnit } from './spec-trace/trace-units.js';
-export { Llm } from './llm/llm.js';
-export { selectProvider } from './llm/select-provider.js';
-export { NoLlmProvider } from './llm/no-llm-provider.js';
-export { FakeLlm } from './llm/fake-llm.js';
-export { AnthropicProvider } from './llm/anthropic-provider.js';
-export { OpenAiProvider } from './llm/openai-provider.js';
-export { OllamaProvider } from './llm/ollama-provider.js';
-export { CliProvider } from './llm/cli-provider.js';
+} from "./spec-trace/spec-graph.js";
+export {
+  planTraceUnits,
+  runTraceUnits,
+  type TraceUnit,
+} from "./spec-trace/trace-units.js";
+export { Llm } from "./llm/llm.js";
+export { selectProvider } from "./llm/select-provider.js";
+export { NoLlmProvider } from "./llm/no-llm-provider.js";
+export { FakeLlm } from "./llm/fake-llm.js";
+export { AnthropicProvider } from "./llm/anthropic-provider.js";
+export { OpenAiProvider } from "./llm/openai-provider.js";
+export { OllamaProvider } from "./llm/ollama-provider.js";
+export { CliProvider } from "./llm/cli-provider.js";
 export type {
   LlmProvider,
   LlmCompleteRequest,
@@ -73,7 +98,7 @@ export type {
   LlmToolRequest,
   LlmToolResult,
   LlmUsage,
-} from './llm/llm-provider.js';
+} from "./llm/llm-provider.js";
 export {
   computeImpact,
   buildImpactAnnotations,
@@ -85,7 +110,7 @@ export {
   type ImpactStatement,
   type OrphanStatement,
   type ImpactAnnotation,
-} from './spec-trace/trace-impact.js';
+} from "./spec-trace/trace-impact.js";
 export {
   assembleGraphContext,
   fetchGraphContext,
@@ -94,7 +119,7 @@ export {
   type GraphContextStatement,
   type GraphContextResult,
   type GraphSignal,
-} from './spec-trace/graph-context.js';
+} from "./spec-trace/graph-context.js";
 export {
   runIngestGraph,
   selectIngestFiles,
@@ -105,9 +130,15 @@ export {
   type IngestGraphSummary,
   type IngestGraphPorts,
   type IngestKindDef,
-} from './spec-trace/ingest-graph-task.js';
-export { parseTasks, inferPhaseDependencies, syncTasksToDb, specSlugFromBranch, type ParsedTask } from './tasks.js';
-export { insertEvent, eventRepo, type EventInsert } from './events.js';
+} from "./spec-trace/ingest-graph-task.js";
+export {
+  parseTasks,
+  inferPhaseDependencies,
+  syncTasksToDb,
+  specSlugFromBranch,
+  type ParsedTask,
+} from "./tasks.js";
+export { insertEvent, eventRepo, type EventInsert } from "./events.js";
 export {
   formatTrailers,
   formatValidatesTrailer,
@@ -116,7 +147,7 @@ export {
   lastStageOnBranch,
   type Trailers,
   type ProvenanceRef,
-} from './commit-trailers.js';
+} from "./commit-trailers.js";
 export {
   resolveDarkFactorySettings,
   resolveExecutionImage,
@@ -132,31 +163,31 @@ export {
   type ReviewMode,
   type CreateIssueMode,
   type NotifyChannel,
-} from './dark-factory-settings.js';
+} from "./dark-factory-settings.js";
 export type {
   PipelineTask,
   TaskStatus,
   TaskType,
   PRDetails,
   PRStatus,
-} from './types.js';
+} from "./types.js";
 export {
   parseReferences,
   linkifyMarkdown,
   type RefContext,
   type Segment,
-} from './references.js';
+} from "./references.js";
 export {
   parseSpecTitle,
   extractSummary,
   reassembleSpec,
-} from './spec-summary.js';
+} from "./spec-summary.js";
 export {
   segmentBlocks,
   reassembleBlocks,
   type Block,
   type BlockKind,
-} from './spec-blocks.js';
+} from "./spec-blocks.js";
 export {
   segmentStatements,
   classifyByHeuristic,
@@ -166,12 +197,8 @@ export {
   type Testability,
   type UntestableCategory,
   type Classification,
-} from './spec-segment.js';
-export {
-  isTestFile,
-  isDocFile,
-  normalizeTestName,
-} from './test-paths.js';
+} from "./spec-segment.js";
+export { isTestFile, isDocFile, normalizeTestName } from "./test-paths.js";
 export {
   parseTestCommandManifest,
   resolveTestCommandManifest,
@@ -180,7 +207,7 @@ export {
   type TestCommandManifest,
   type CoverageFormat,
   type TestInterfaceCheck,
-} from './test-command-manifest.js';
+} from "./test-command-manifest.js";
 export {
   parseTestDescriptors,
   parseRunResult,
@@ -188,7 +215,7 @@ export {
   type CoveredChunk,
   type RunResult,
   type TaggedRunResult,
-} from './test-report.js';
+} from "./test-report.js";
 export {
   LORE_INGEST_WORKFLOW_PATH,
   LORE_INGEST_WORKFLOW_VERSION,
@@ -196,7 +223,7 @@ export {
   ingestWorkflowStatus,
   parseIngestWorkflowVersion,
   type IngestWorkflowStatus,
-} from './ingest-workflow.js';
+} from "./ingest-workflow.js";
 export {
   TRACE_IMPACT_WORKFLOW_PATH,
   TRACE_IMPACT_WORKFLOW_VERSION,
@@ -204,7 +231,7 @@ export {
   traceImpactWorkflowStatus,
   parseTraceImpactWorkflowVersion,
   type TraceImpactWorkflowStatus,
-} from './trace-impact-workflow.js';
+} from "./trace-impact-workflow.js";
 export {
   parseTestLinksInStatement,
   parseCodeLinksInStatement,
@@ -213,7 +240,7 @@ export {
   type SpecLinkRef,
   type TestLinkRef,
   type CodeLinkRef,
-} from './spec-link-parser.js';
+} from "./spec-link-parser.js";
 export {
   specFeatureSlug,
   hasDirectoryAffinity,
@@ -237,9 +264,9 @@ export {
   type SpecInput,
   type CandidateSelection,
   type Judgment,
-} from './spec-judge.js';
+} from "./spec-judge.js";
 
-export { extractAssertions, type LlmJobContext } from './spec-judge-llm.js';
+export { extractAssertions, type LlmJobContext } from "./spec-judge-llm.js";
 
 export {
   memoryStore,
@@ -250,10 +277,10 @@ export {
   type PgPool,
   type DgraphClientPort,
   type DgraphTxn,
-} from './memory-store.js';
-export { PostgresMemoryStore } from './postgres-memory-store.js';
-export { ShadowMemoryStore } from './shadow-memory-store.js';
-export { DgraphMemoryStore } from './dgraph-memory-store.js';
+} from "./memory-store.js";
+export { PostgresMemoryStore } from "./postgres-memory-store.js";
+export { ShadowMemoryStore } from "./shadow-memory-store.js";
+export { DgraphMemoryStore } from "./dgraph-memory-store.js";
 export {
   rrfMerge,
   RRF_K,
@@ -262,12 +289,12 @@ export {
   scoreImportance,
   type MemorySearchResult,
   type RankedItem,
-} from './memory-ranking.js';
+} from "./memory-ranking.js";
 
 export {
   backfillMemoryToDgraph,
   type BackfillReport,
-} from './backfill-memory.js';
+} from "./backfill-memory.js";
 
 export {
   evaluateParityGates,
@@ -275,16 +302,16 @@ export {
   meanTopkJaccard,
   type ParitySummary,
   type GateResult,
-} from './backfill-parity.js';
+} from "./backfill-parity.js";
 
-export { auditDgraphAcl } from './dgraph-acl-policy.js';
-export { createDgraphClient } from './dgraph-client.js';
-export { classifyFile, type ContentType } from './content-classify.js';
-export { TEST_COMMAND_SETUP_PROMPT } from './test-command-setup-prompt.js';
-export { LORE_TESTS_INSTRUCTION } from './lore-tests-instruction.js';
+export { auditDgraphAcl } from "./dgraph-acl-policy.js";
+export { createDgraphClient } from "./dgraph-client.js";
+export { classifyFile, type ContentType } from "./content-classify.js";
+export { TEST_COMMAND_SETUP_PROMPT } from "./test-command-setup-prompt.js";
+export { LORE_TESTS_INSTRUCTION } from "./lore-tests-instruction.js";
 
 // Pure-domain helpers relocated from agent/src/lib (Slice 2).
-export { allPathsMatch, matchingPatterns } from './path-match.js';
+export { allPathsMatch, matchingPatterns } from "./path-match.js";
 export {
   classifyError,
   summarizeFailures,
@@ -292,10 +319,10 @@ export {
   type FailureCategory,
   type StepFailure,
   type ClassifiedFailure,
-} from './error-classify.js';
-export { isBusinessHours } from './business-hours.js';
-export { isAlreadyExistsError } from './k8s-errors.js';
-export { prFooter } from './pr-body.js';
+} from "./error-classify.js";
+export { isBusinessHours } from "./business-hours.js";
+export { isAlreadyExistsError } from "./k8s-errors.js";
+export { prFooter } from "./pr-body.js";
 // Branch-lease backends (Slice 3) — the agent supervisor imports these until
 // it moves to the runner package and switches to project.leases (Slice 4).
 export {
@@ -304,11 +331,11 @@ export {
   type LeaseBackend,
   type LeasePool,
   type AcquireResult,
-} from './project/leases/lease-backends.js';
+} from "./project/leases/lease-backends.js";
 export {
   buildReviewFixDescription,
   formatReviewFeedback,
-} from './review-feedback.js';
+} from "./review-feedback.js";
 // Deterministic repo validation (lint/typecheck), relocated from mcp-server so
 // the runner kernel can drive it in a BYO toolchain sidecar (ADR-025).
 export {
@@ -321,4 +348,4 @@ export {
   type StepResult,
   type ValidationResult,
   type ValidationExec,
-} from './repo-validation/repo-validation.js';
+} from "./repo-validation/repo-validation.js";

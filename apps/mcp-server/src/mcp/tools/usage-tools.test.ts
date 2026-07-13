@@ -117,12 +117,21 @@ describe("lore_get_analytics", () => {
       query: async (text: string) => {
         queries.push({ text });
         if (/FROM pipeline\.llm_calls/.test(text)) {
-          return { rows: [{ calls: "12", input_tokens: "5000", output_tokens: "2500" }] };
+          return {
+            rows: [
+              { calls: "12", input_tokens: "5000", output_tokens: "2500" },
+            ],
+          };
         }
         if (/FILTER \(WHERE status = 'failed'\)/.test(text)) {
           return { rows: [{ total: "10", succeeded: "7", failed: "3" }] };
         }
-        return { rows: [{ task_type: "implementation", tasks: "6" }, { task_type: "review", tasks: "4" }] };
+        return {
+          rows: [
+            { task_type: "implementation", tasks: "6" },
+            { task_type: "review", tasks: "4" },
+          ],
+        };
       },
     };
     const analytics = registerWith(() => pool)["lore_get_analytics"];
@@ -145,8 +154,12 @@ describe("lore_get_analytics", () => {
     const pool = {
       query: async (text: string) => {
         queries.push({ text });
-        if (/FROM pipeline\.llm_calls/.test(text)) return { rows: [{ calls: "0", input_tokens: "0", output_tokens: "0" }] };
-        if (/FILTER \(WHERE status = 'failed'\)/.test(text)) return { rows: [{ total: "0", succeeded: "0", failed: "0" }] };
+        if (/FROM pipeline\.llm_calls/.test(text))
+          return {
+            rows: [{ calls: "0", input_tokens: "0", output_tokens: "0" }],
+          };
+        if (/FILTER \(WHERE status = 'failed'\)/.test(text))
+          return { rows: [{ total: "0", succeeded: "0", failed: "0" }] };
         return { rows: [] };
       },
     };
@@ -154,7 +167,9 @@ describe("lore_get_analytics", () => {
 
     await analytics({ period: "today" });
 
-    const usageQuery = queries.find((q) => /FROM pipeline\.llm_calls/.test(q.text));
+    const usageQuery = queries.find((q) =>
+      /FROM pipeline\.llm_calls/.test(q.text),
+    );
     expect(usageQuery?.text).toContain("created_at > current_date");
   });
 
@@ -163,8 +178,12 @@ describe("lore_get_analytics", () => {
     const pool = {
       query: async (text: string) => {
         queries.push({ text });
-        if (/FROM pipeline\.llm_calls/.test(text)) return { rows: [{ calls: "0", input_tokens: "0", output_tokens: "0" }] };
-        if (/FILTER \(WHERE status = 'failed'\)/.test(text)) return { rows: [{ total: "0", succeeded: "0", failed: "0" }] };
+        if (/FROM pipeline\.llm_calls/.test(text))
+          return {
+            rows: [{ calls: "0", input_tokens: "0", output_tokens: "0" }],
+          };
+        if (/FILTER \(WHERE status = 'failed'\)/.test(text))
+          return { rows: [{ total: "0", succeeded: "0", failed: "0" }] };
         return { rows: [] };
       },
     };
@@ -172,7 +191,9 @@ describe("lore_get_analytics", () => {
 
     await analytics({ period: "all" });
 
-    const byTypeQuery = queries.find((q) => /GROUP BY t\.task_type/.test(q.text));
+    const byTypeQuery = queries.find((q) =>
+      /GROUP BY t\.task_type/.test(q.text),
+    );
     expect(byTypeQuery?.text).toContain("WHERE TRUE GROUP BY");
     expect(byTypeQuery?.text).not.toContain("t.TRUE");
   });

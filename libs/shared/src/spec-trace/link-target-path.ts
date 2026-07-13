@@ -15,12 +15,17 @@ import { posix } from "node:path";
  * A leading `./`/`../` resolves against the spec's directory; anything else is
  * already repo-relative. Any `#fragment` is stripped first.
  */
-export function repoRelativeLinkTarget(specFilePath: string, target: string): string | null {
+export function repoRelativeLinkTarget(
+  specFilePath: string,
+  target: string,
+): string | null {
   const path = target.split("#")[0];
   if (path === "") return null;
-  const resolved = path.startsWith("./") || path.startsWith("../")
-    ? posix.normalize(posix.join(posix.dirname(specFilePath), path))
-    : path;
-  if (resolved === "" || resolved === "." || resolved.startsWith("..")) return null;
+  const resolved =
+    path.startsWith("./") || path.startsWith("../")
+      ? posix.normalize(posix.join(posix.dirname(specFilePath), path))
+      : path;
+  if (resolved === "" || resolved === "." || resolved.startsWith(".."))
+    return null;
   return resolved;
 }

@@ -5,7 +5,11 @@ import type { PullRef } from "../pulls/pull-requests-port.js";
 import type { CiConclusion } from "../pulls/pull-requests-port.js";
 import type { TraceDocument } from "../../spec-trace/assemble-trace-document.js";
 import type { PipelineTask } from "../../types.js";
-import type { DriftTaskRow, FindOpenLikeInput, CreateTaskInput } from "../tasks/task-store-port.js";
+import type {
+  DriftTaskRow,
+  FindOpenLikeInput,
+  CreateTaskInput,
+} from "../tasks/task-store-port.js";
 
 /**
  * The HTTP-backed Project a detection **station pod** runs on. A pod can't reach
@@ -34,7 +38,9 @@ function makeHttp(cfg: HttpConfig) {
   return {
     async get<T>(path: string, query: Record<string, string> = {}): Promise<T> {
       const qs = new URLSearchParams(query).toString();
-      const res = await cfg.fetchImpl(`${base}${path}${qs ? `?${qs}` : ""}`, { headers: headers() });
+      const res = await cfg.fetchImpl(`${base}${path}${qs ? `?${qs}` : ""}`, {
+        headers: headers(),
+      });
       if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
       return (await res.json()) as T;
     },
@@ -54,21 +60,43 @@ type Http = ReturnType<typeof makeHttp>;
 
 /** GitHubPort subset: issue list/create + branch/commit (backfill). */
 class GitHubHttp {
-  constructor(private readonly repo: string, private readonly http: Http) {}
+  constructor(
+    private readonly repo: string,
+    private readonly http: Http,
+  ) {}
   readonly name = "github-http";
   isConfigured(): boolean {
     return true;
   }
   async listIssues(_repo: string, filter?: IssueFilter): Promise<IssueRef[]> {
-    return (await this.http.get<{ issues: IssueRef[] }>("/issues", { state: filter?.state ?? "open" })).issues;
+    return (
+      await this.http.get<{ issues: IssueRef[] }>("/issues", {
+        state: filter?.state ?? "open",
+      })
+    ).issues;
   }
-  async createIssue(_repo: string, title: string, body: string, labels?: string[]): Promise<IssueRef> {
+  async createIssue(
+    _repo: string,
+    title: string,
+    body: string,
+    labels?: string[],
+  ): Promise<IssueRef> {
     return this.http.post<IssueRef>("/issues", { title, body, labels });
   }
-  async createBranch(_repo: string, branch: string, base?: string): Promise<void> {
+  async createBranch(
+    _repo: string,
+    branch: string,
+    base?: string,
+  ): Promise<void> {
     await this.http.post("/branches", { branch, base });
   }
-  async commitFile(_repo: string, branch: string, path: string, content: string, message: string): Promise<void> {
+  async commitFile(
+    _repo: string,
+    branch: string,
+    path: string,
+    content: string,
+    message: string,
+  ): Promise<void> {
     await this.http.post("/commit", { branch, path, content, message });
   }
 }
@@ -76,11 +104,28 @@ class GitHubHttp {
 /** PullRequestsPort subset: open + ciConclusion. */
 class PullsHttp {
   constructor(private readonly http: Http) {}
-  async open(_repo: string, branch: string, title: string, body: string, base?: string, labels?: string[]): Promise<PullRef> {
-    return this.http.post<PullRef>("/pulls", { branch, title, body, base, labels });
+  async open(
+    _repo: string,
+    branch: string,
+    title: string,
+    body: string,
+    base?: string,
+    labels?: string[],
+  ): Promise<PullRef> {
+    return this.http.post<PullRef>("/pulls", {
+      branch,
+      title,
+      body,
+      base,
+      labels,
+    });
   }
   async ciConclusion(_repo: string, ref: string): Promise<CiConclusion> {
-    return (await this.http.get<{ conclusion: CiConclusion }>("/ci-conclusion", { ref })).conclusion;
+    return (
+      await this.http.get<{ conclusion: CiConclusion }>("/ci-conclusion", {
+        ref,
+      })
+    ).conclusion;
   }
 }
 
@@ -95,8 +140,17 @@ class TraceHttp {
 /** TaskStorePort subset: driftTasksForSpec + findOpenLike + create. */
 class TaskStoreHttp {
   constructor(private readonly http: Http) {}
-  async driftTasksForSpec(_repo: string, taskType: string, specPath: string): Promise<DriftTaskRow[]> {
-    return (await this.http.get<{ tasks: DriftTaskRow[] }>("/tasks/drift", { task_type: taskType, spec_path: specPath })).tasks;
+  async driftTasksForSpec(
+    _repo: string,
+    taskType: string,
+    specPath: string,
+  ): Promise<DriftTaskRow[]> {
+    return (
+      await this.http.get<{ tasks: DriftTaskRow[] }>("/tasks/drift", {
+        task_type: taskType,
+        spec_path: specPath,
+      })
+    ).tasks;
   }
   async findOpenLike(input: FindOpenLikeInput): Promise<PipelineTask[]> {
     return (
@@ -121,7 +175,8 @@ class TaskStoreHttp {
 class SettingsHttp {
   constructor(private readonly http: Http) {}
   async isOnboarded(_repo: string): Promise<boolean> {
-    return (await this.http.get<{ onboarded: boolean }>("/onboarded")).onboarded;
+    return (await this.http.get<{ onboarded: boolean }>("/onboarded"))
+      .onboarded;
   }
 }
 

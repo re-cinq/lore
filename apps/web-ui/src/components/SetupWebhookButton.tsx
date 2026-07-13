@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useTransition } from 'react';
-import styles from './ReonboardButton.module.css';
+import { useTransition } from "react";
+import styles from "./ReonboardButton.module.css";
 
 export default function SetupWebhookButton({
   action,
@@ -17,9 +17,9 @@ export default function SetupWebhookButton({
       disabled={pending}
       onClick={() => startTransition(() => action())}
       className={styles.button}
-      style={{ cursor: pending ? 'default' : 'pointer' }}
+      style={{ cursor: pending ? "default" : "pointer" }}
     >
-      {pending ? 'setting up…' : text}
+      {pending ? "setting up…" : text}
     </button>
   );
 }

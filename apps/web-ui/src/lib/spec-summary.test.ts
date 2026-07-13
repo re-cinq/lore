@@ -3,13 +3,18 @@ import { parseSpecTitle, extractSummary, reassembleSpec } from "./spec-summary";
 
 describe("parseSpecTitle", () => {
   it("returns the first H1 without a Feature Specification prefix", () => {
-    expect(parseSpecTitle("# Feature Specification: Spec → Test Coverage\n", "x/spec.md")).toBe(
-      "Spec → Test Coverage",
-    );
+    expect(
+      parseSpecTitle(
+        "# Feature Specification: Spec → Test Coverage\n",
+        "x/spec.md",
+      ),
+    ).toBe("Spec → Test Coverage");
   });
 
   it("falls back to the feature directory when no H1 exists", () => {
-    expect(parseSpecTitle("body only", "specs/local-task-runner/spec.md")).toBe("local-task-runner");
+    expect(parseSpecTitle("body only", "specs/local-task-runner/spec.md")).toBe(
+      "local-task-runner",
+    );
   });
 });
 
@@ -20,7 +25,9 @@ describe("extractSummary", () => {
   });
 
   it("truncates with an ellipsis past the limit", () => {
-    expect(extractSummary("# T\n\n" + "x".repeat(400), 280).endsWith("…")).toBe(true);
+    expect(extractSummary("# T\n\n" + "x".repeat(400), 280).endsWith("…")).toBe(
+      true,
+    );
   });
 
   it("skips a leading blockquote note and returns the first prose paragraph", () => {

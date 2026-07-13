@@ -3,14 +3,19 @@ import { formatTrailers } from "@re-cinq/lore-shared";
 import { buildTimeline } from "./task-timeline.js";
 
 function commit(sha: string, message: string, date: string | null) {
-  return { sha, commit: { message, committer: date === null ? null : { date } } };
+  return {
+    sha,
+    commit: { message, committer: date === null ? null : { date } },
+  };
 }
 
 const T0 = "2026-01-01T00:00:00.000Z";
 
 describe("buildTimeline", () => {
   it("returns empty array when no commits carry trailers", () => {
-    const commits = [commit("a", "no trailers here", "2026-01-01T00:01:00.000Z")];
+    const commits = [
+      commit("a", "no trailers here", "2026-01-01T00:01:00.000Z"),
+    ];
     expect(buildTimeline(commits, new Date(T0))).toEqual([]);
   });
 

@@ -65,8 +65,12 @@ describe("mcp-server proxy <-> lore-api round-trip", () => {
   });
 
   afterAll(async () => {
-    await pool.query("DELETE FROM pipeline.tasks WHERE created_by = 'integration-test-proxy'");
-    await pool.query("DELETE FROM lore.repos WHERE full_name = $1", [TEST_REPO]);
+    await pool.query(
+      "DELETE FROM pipeline.tasks WHERE created_by = 'integration-test-proxy'",
+    );
+    await pool.query("DELETE FROM lore.repos WHERE full_name = $1", [
+      TEST_REPO,
+    ]);
     await server.stop();
     await pool.end();
     if (prevApiUrl === undefined) delete process.env.LORE_API_URL;
@@ -80,8 +84,10 @@ describe("mcp-server proxy <-> lore-api round-trip", () => {
     // paged { repos, total } envelope.
     const result = await proxyGetApi("/api/repos");
     expect(result.ok).toBe(true);
-    const body = JSON.parse((result as ProxyOk).body) as { repos: Array<{ full_name: string }> };
-    expect(body.repos.map(r => r.full_name)).toContain(TEST_REPO);
+    const body = JSON.parse((result as ProxyOk).body) as {
+      repos: Array<{ full_name: string }>;
+    };
+    expect(body.repos.map((r) => r.full_name)).toContain(TEST_REPO);
   });
 
   it("proxies a POST write to lore-api and the change persists in the DB", async () => {
@@ -96,7 +102,10 @@ describe("mcp-server proxy <-> lore-api round-trip", () => {
       task_id: taskId,
       priority: "immediate",
     });
-    const { rows } = await pool.query("SELECT priority FROM pipeline.tasks WHERE id = $1", [taskId]);
+    const { rows } = await pool.query(
+      "SELECT priority FROM pipeline.tasks WHERE id = $1",
+      [taskId],
+    );
     expect(rows[0].priority).toBe("immediate");
   });
 
@@ -111,7 +120,11 @@ describe("mcp-server proxy <-> lore-api round-trip", () => {
     delete process.env.LORE_API_URL;
     try {
       expect(
-        await proxyToApi("/api/task", { action: "set-priority", task_id: taskId, priority: "normal" }),
+        await proxyToApi("/api/task", {
+          action: "set-priority",
+          task_id: taskId,
+          priority: "normal",
+        }),
       ).toMatchObject({ ok: false, reason: "not_configured" });
     } finally {
       process.env.LORE_API_URL = `http://127.0.0.1:${port}`;

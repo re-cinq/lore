@@ -55,17 +55,30 @@ export class InMemoryChunks implements ChunksPort {
 
   async countChunks(schema: string, repo: string): Promise<number> {
     enforceSchema(schema);
-    return this.rows.filter((row) => row.schema === schema && row.repo === repo).length;
+    return this.rows.filter((row) => row.schema === schema && row.repo === repo)
+      .length;
   }
 
-  async deleteChunksForFile(schema: string, filePath: string, repo: string): Promise<void> {
+  async deleteChunksForFile(
+    schema: string,
+    filePath: string,
+    repo: string,
+  ): Promise<void> {
     enforceSchema(schema);
     this.rows = this.rows.filter(
-      (row) => !(row.schema === schema && row.filePath === filePath && row.repo === repo),
+      (row) =>
+        !(
+          row.schema === schema &&
+          row.filePath === filePath &&
+          row.repo === repo
+        ),
     );
   }
 
-  async insertChunk(schema: string, chunk: ChunkInsert): Promise<string | null> {
+  async insertChunk(
+    schema: string,
+    chunk: ChunkInsert,
+  ): Promise<string | null> {
     enforceSchema(schema);
     const id = String(++this.seq);
     this.rows.push({
@@ -83,9 +96,15 @@ export class InMemoryChunks implements ChunksPort {
     return id;
   }
 
-  async setEmbedding(schema: string, chunkId: string, embedding: string): Promise<void> {
+  async setEmbedding(
+    schema: string,
+    chunkId: string,
+    embedding: string,
+  ): Promise<void> {
     enforceSchema(schema);
-    const row = this.rows.find((candidate) => candidate.schema === schema && candidate.id === chunkId);
+    const row = this.rows.find(
+      (candidate) => candidate.schema === schema && candidate.id === chunkId,
+    );
     if (row) row.embedding = embedding;
   }
 
@@ -98,23 +117,36 @@ export class InMemoryChunks implements ChunksPort {
   }
 
   async countChunksByTeam(team: string): Promise<number> {
-    return this.rows.filter((row) => row.schema === "org_shared" && row.team === team).length;
+    return this.rows.filter(
+      (row) => row.schema === "org_shared" && row.team === team,
+    ).length;
   }
 
   private orgSharedForRepo(repo: string): ChunkRow[] {
-    return this.rows.filter((row) => row.schema === "org_shared" && row.repo === repo);
+    return this.rows.filter(
+      (row) => row.schema === "org_shared" && row.repo === repo,
+    );
   }
 
   async specChunks(repo: string): Promise<SpecChunkRow[]> {
     return this.orgSharedForRepo(repo)
       .filter((row) => row.contentType === "spec")
       .sort((a, b) => a.filePath.localeCompare(b.filePath))
-      .map((row) => ({ id: row.id, repo: row.repo, filePath: row.filePath, content: row.content }));
+      .map((row) => ({
+        id: row.id,
+        repo: row.repo,
+        filePath: row.filePath,
+        content: row.content,
+      }));
   }
 
   async codeSymbols(repo: string): Promise<CodeSymbolRow[]> {
     return this.orgSharedForRepo(repo)
-      .filter((row) => row.contentType === "code" && typeof row.metadata.symbol_name === "string")
+      .filter(
+        (row) =>
+          row.contentType === "code" &&
+          typeof row.metadata.symbol_name === "string",
+      )
       .map((row) => ({
         symbolName: row.metadata.symbol_name as string,
         symbolType: (row.metadata.symbol_type as string | undefined) ?? null,
@@ -122,16 +154,23 @@ export class InMemoryChunks implements ChunksPort {
       }));
   }
 
-  async hasChunk(repo: string, contentType: string, fileSuffix?: string): Promise<boolean> {
+  async hasChunk(
+    repo: string,
+    contentType: string,
+    fileSuffix?: string,
+  ): Promise<boolean> {
     return this.orgSharedForRepo(repo).some(
-      (row) => row.contentType === contentType && (!fileSuffix || row.filePath.endsWith(fileSuffix)),
+      (row) =>
+        row.contentType === contentType &&
+        (!fileSuffix || row.filePath.endsWith(fileSuffix)),
     );
   }
 
   async staleChunkCount(repo: string, olderThanDays: number): Promise<number> {
     const cutoff = Date.now() - olderThanDays * 86_400_000;
-    return this.orgSharedForRepo(repo).filter((row) => new Date(row.ingestedAt).getTime() < cutoff)
-      .length;
+    return this.orgSharedForRepo(repo).filter(
+      (row) => new Date(row.ingestedAt).getTime() < cutoff,
+    ).length;
   }
 
   // The double stores a repo's chunks in one schema, so "resolved schema" reads

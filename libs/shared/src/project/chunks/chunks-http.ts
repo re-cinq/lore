@@ -18,7 +18,8 @@ import type {
  * Floor-side, never in a station.
  */
 
-const WRITE_ONLY_FLOOR = "chunk writes are Floor-only — a station reads chunks over HTTP, never mutates";
+const WRITE_ONLY_FLOOR =
+  "chunk writes are Floor-only — a station reads chunks over HTTP, never mutates";
 
 export class ChunksHttp implements ChunksPort {
   constructor(
@@ -34,7 +35,10 @@ export class ChunksHttp implements ChunksPort {
     return h;
   }
 
-  private async get<T>(kind: string, query: Record<string, string> = {}): Promise<T> {
+  private async get<T>(
+    kind: string,
+    query: Record<string, string> = {},
+  ): Promise<T> {
     const qs = new URLSearchParams(query).toString();
     const url = `${this.baseUrl}/api/repos/${this.repo}/chunks/${kind}${qs ? `?${qs}` : ""}`;
     const res = await this.fetchImpl(url, { headers: this.headers() });
@@ -47,33 +51,48 @@ export class ChunksHttp implements ChunksPort {
   }
 
   async codeSymbols(_repo: string): Promise<CodeSymbolRow[]> {
-    return (await this.get<{ symbols: CodeSymbolRow[] }>("code-symbols")).symbols;
+    return (await this.get<{ symbols: CodeSymbolRow[] }>("code-symbols"))
+      .symbols;
   }
 
   async specChunksWithIngest(_repo: string): Promise<SpecChunkWithIngest[]> {
-    return (await this.get<{ specs: SpecChunkWithIngest[] }>("spec-ingest")).specs;
+    return (await this.get<{ specs: SpecChunkWithIngest[] }>("spec-ingest"))
+      .specs;
   }
 
   async testChunkRanges(_repo: string): Promise<TestChunkRange[]> {
     return (await this.get<{ ranges: TestChunkRange[] }>("test-ranges")).ranges;
   }
 
-  async specChunksForBackfill(_repo: string): Promise<SpecChunkWithEmbedding[]> {
-    return (await this.get<{ specs: SpecChunkWithEmbedding[] }>("spec-backfill")).specs;
+  async specChunksForBackfill(
+    _repo: string,
+  ): Promise<SpecChunkWithEmbedding[]> {
+    return (
+      await this.get<{ specs: SpecChunkWithEmbedding[] }>("spec-backfill")
+    ).specs;
   }
 
   async codeChunksForBackfill(_repo: string): Promise<CodeChunkFull[]> {
-    return (await this.get<{ chunks: CodeChunkFull[] }>("code-backfill")).chunks;
+    return (await this.get<{ chunks: CodeChunkFull[] }>("code-backfill"))
+      .chunks;
   }
 
-  async hasChunk(_repo: string, contentType: string, fileSuffix?: string): Promise<boolean> {
+  async hasChunk(
+    _repo: string,
+    contentType: string,
+    fileSuffix?: string,
+  ): Promise<boolean> {
     const q: Record<string, string> = { content_type: contentType };
     if (fileSuffix) q.file_suffix = fileSuffix;
     return (await this.get<{ has: boolean }>("has", q)).has;
   }
 
   async staleChunkCount(_repo: string, olderThanDays: number): Promise<number> {
-    return (await this.get<{ count: number }>("stale", { days: String(olderThanDays) })).count;
+    return (
+      await this.get<{ count: number }>("stale", {
+        days: String(olderThanDays),
+      })
+    ).count;
   }
 
   // ── Floor-only write surface (unused in a station) ──
@@ -83,13 +102,24 @@ export class ChunksHttp implements ChunksPort {
   async countChunks(_schema: string, _repo: string): Promise<number> {
     throw new Error(WRITE_ONLY_FLOOR);
   }
-  async deleteChunksForFile(_schema: string, _filePath: string, _repo: string): Promise<void> {
+  async deleteChunksForFile(
+    _schema: string,
+    _filePath: string,
+    _repo: string,
+  ): Promise<void> {
     throw new Error(WRITE_ONLY_FLOOR);
   }
-  async insertChunk(_schema: string, _chunk: ChunkInsert): Promise<string | null> {
+  async insertChunk(
+    _schema: string,
+    _chunk: ChunkInsert,
+  ): Promise<string | null> {
     throw new Error(WRITE_ONLY_FLOOR);
   }
-  async setEmbedding(_schema: string, _chunkId: string, _embedding: string): Promise<void> {
+  async setEmbedding(
+    _schema: string,
+    _chunkId: string,
+    _embedding: string,
+  ): Promise<void> {
     throw new Error(WRITE_ONLY_FLOOR);
   }
   async distinctTeams(): Promise<string[]> {

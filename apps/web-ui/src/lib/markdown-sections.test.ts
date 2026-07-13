@@ -12,7 +12,8 @@ describe("splitMarkdownSections", () => {
   });
 
   it("returns the content before the first ## heading as a leading section with heading null", () => {
-    const source = "# Spec Title\n\nIntro paragraph.\n\n## Goals\n\nGoal text.\n";
+    const source =
+      "# Spec Title\n\nIntro paragraph.\n\n## Goals\n\nGoal text.\n";
 
     expect(splitMarkdownSections(source)).toEqual([
       { heading: null, body: "# Spec Title\n\nIntro paragraph.\n" },

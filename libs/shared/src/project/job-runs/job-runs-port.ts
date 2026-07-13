@@ -16,7 +16,11 @@ export interface JobRunRecord {
  */
 export interface JobRunsPort {
   start(jobName: string): Promise<string>;
-  complete(runId: string, resultSummary: string, logPath?: string): Promise<void>;
+  complete(
+    runId: string,
+    resultSummary: string,
+    logPath?: string,
+  ): Promise<void>;
   fail(runId: string, error: string, logPath?: string): Promise<void>;
   lastRun(jobName: string): Promise<JobRunRecord | null>;
 }

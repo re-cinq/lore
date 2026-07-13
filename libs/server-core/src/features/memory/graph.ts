@@ -29,20 +29,26 @@ interface GraphExtractionResult {
 // ── LLM entity extraction ──────────────────────────────────────────
 
 const GRAPH_EXTRACTION_PROMPT =
-  'Extract entities and relationships from the following text about a software project. ' +
-  'Return a JSON object with two arrays:\n' +
+  "Extract entities and relationships from the following text about a software project. " +
+  "Return a JSON object with two arrays:\n" +
   '- "entities": [{name: string, type: "service"|"team"|"technology"|"concept"|"person"}]\n' +
   '- "edges": [{source: string, target: string, relation: "uses"|"owns"|"depends-on"|"replaced-by"|"part-of"|"implements"}]\n' +
-  'Only include clearly stated relationships. Maximum 10 entities and 10 edges. ' +
-  'Normalize entity names to lowercase. Return only the JSON object.';
+  "Only include clearly stated relationships. Maximum 10 entities and 10 edges. " +
+  "Normalize entity names to lowercase. Return only the JSON object.";
 
 function parseGraphExtraction(raw: string): GraphExtractionResult {
   try {
-    const cleaned = raw.replace(/```json?\s*/g, '').replace(/```/g, '').trim();
+    const cleaned = raw
+      .replace(/```json?\s*/g, "")
+      .replace(/```/g, "")
+      .trim();
     const parsed = JSON.parse(cleaned);
     const entities: ExtractedGraphEntity[] = (parsed.entities || [])
       .filter((e: any) => e.name && e.type)
-      .map((e: any) => ({ name: String(e.name).toLowerCase().trim(), type: String(e.type).toLowerCase().trim() }))
+      .map((e: any) => ({
+        name: String(e.name).toLowerCase().trim(),
+        type: String(e.type).toLowerCase().trim(),
+      }))
       .slice(0, 10);
     const edges: ExtractedGraphEdge[] = (parsed.edges || [])
       .filter((e: any) => e.source && e.target && e.relation)
@@ -147,16 +153,28 @@ export async function extractAndUpdateGraph(
       if (!sourceId || !targetId) continue;
 
       try {
-        await upsertEdge(pool, sourceId, targetId, edge.relation, sourceEpisodeId, sourceMemoryId);
+        await upsertEdge(
+          pool,
+          sourceId,
+          targetId,
+          edge.relation,
+          sourceEpisodeId,
+          sourceMemoryId,
+        );
         edgeCount++;
       } catch (err) {
-        console.warn(`[graph] Failed to upsert edge "${edge.source}" -${edge.relation}-> "${edge.target}":`, err);
+        console.warn(
+          `[graph] Failed to upsert edge "${edge.source}" -${edge.relation}-> "${edge.target}":`,
+          err,
+        );
       }
     }
 
-    console.log(`[graph] Updated graph: ${entities.length} entities, ${edgeCount} edges`);
+    console.log(
+      `[graph] Updated graph: ${entities.length} entities, ${edgeCount} edges`,
+    );
   } catch (err) {
-    console.warn('[graph] Entity extraction failed (non-fatal):', err);
+    console.warn("[graph] Entity extraction failed (non-fatal):", err);
   }
 }
 
@@ -240,12 +258,19 @@ function traverseGraph(
   }
 
   // Adjacency: entityId -> list of { relType, neighborId }
-  const adjacency = new Map<string, { relType: string; neighborId: string }[]>();
+  const adjacency = new Map<
+    string,
+    { relType: string; neighborId: string }[]
+  >();
   for (const rel of graph.relationships) {
     if (!adjacency.has(rel.source)) adjacency.set(rel.source, []);
     if (!adjacency.has(rel.target)) adjacency.set(rel.target, []);
-    adjacency.get(rel.source)!.push({ relType: rel.type, neighborId: rel.target });
-    adjacency.get(rel.target)!.push({ relType: rel.type, neighborId: rel.source });
+    adjacency
+      .get(rel.source)!
+      .push({ relType: rel.type, neighborId: rel.target });
+    adjacency
+      .get(rel.target)!
+      .push({ relType: rel.type, neighborId: rel.source });
   }
 
   // BFS up to `depth` hops, collecting chains
@@ -284,7 +309,11 @@ function traverseGraph(
 
       const newChain = `${item.chain} \u2192 ${relType}:${formatEntity(neighbor)}`;
       chains.push(newChain);
-      queue.push({ entityId: neighborId, chain: newChain, hops: item.hops + 1 });
+      queue.push({
+        entityId: neighborId,
+        chain: newChain,
+        hops: item.hops + 1,
+      });
     }
   }
 
@@ -294,7 +323,11 @@ function traverseGraph(
 // ---------- Tool input schemas ----------
 
 export const graphSearchInputSchema = {
-  query: z.string().describe("Search query to match against entity names, types, and aliases."),
+  query: z
+    .string()
+    .describe(
+      "Search query to match against entity names, types, and aliases.",
+    ),
   depth: z
     .number()
     .min(1)
@@ -304,7 +337,9 @@ export const graphSearchInputSchema = {
 };
 
 export const getDomainSummaryInputSchema = {
-  domain: z.string().describe('Domain name to look up (e.g., "payments", "auth").'),
+  domain: z
+    .string()
+    .describe('Domain name to look up (e.g., "payments", "auth").'),
 };
 
 // ---------- Tool handlers ----------
@@ -329,7 +364,9 @@ export async function graphSearchHandler({
     const graph = readJsonSafe<Graph>(graphPath);
     if (!graph) {
       return {
-        content: [{ type: "text" as const, text: "Error: failed to parse graph.json." }],
+        content: [
+          { type: "text" as const, text: "Error: failed to parse graph.json." },
+        ],
       };
     }
 
@@ -379,7 +416,12 @@ export async function graphSearchHandler({
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return {
-      content: [{ type: "text" as const, text: `Error during graph search: ${message}` }],
+      content: [
+        {
+          type: "text" as const,
+          text: `Error during graph search: ${message}`,
+        },
+      ],
     };
   }
 }
@@ -403,7 +445,10 @@ export async function getDomainSummaryHandler({
     if (!communities) {
       return {
         content: [
-          { type: "text" as const, text: "Error: failed to parse communities.json." },
+          {
+            type: "text" as const,
+            text: "Error: failed to parse communities.json.",
+          },
         ],
       };
     }

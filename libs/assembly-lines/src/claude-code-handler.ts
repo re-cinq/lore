@@ -38,10 +38,7 @@ export interface ClaudeCodeHandlerDeps {
    * shape as the JSON-handler resolver minus systemPrompt — Claude
    * Code carries its own system prompt via its tool affordances.
    */
-  resolvePrompt: (
-    promptRef: string,
-    taskDescription: string,
-  ) => string | null;
+  resolvePrompt: (promptRef: string, taskDescription: string) => string | null;
 }
 
 export interface ClaudeCodeHandlerTaskMeta {
@@ -104,8 +101,7 @@ export function createClaudeCodeAgentHandler(
         outcome: "failed",
         extras: {
           "Lore-Validation-Status": "cli-nonzero",
-          "Lore-Validation-Summary":
-            `claude exited ${result.exitCode}: ${result.output.slice(-300)}`,
+          "Lore-Validation-Summary": `claude exited ${result.exitCode}: ${result.output.slice(-300)}`,
         },
       };
     }

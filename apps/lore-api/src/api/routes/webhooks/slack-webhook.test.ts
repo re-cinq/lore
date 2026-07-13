@@ -17,7 +17,8 @@ describe("Slack HMAC verification", () => {
     secret: string,
   ): boolean {
     const sigBase = `v0:${timestamp}:${body}`;
-    const expected = "v0=" + createHmac("sha256", secret).update(sigBase).digest("hex");
+    const expected =
+      "v0=" + createHmac("sha256", secret).update(sigBase).digest("hex");
     const sigBuf = Buffer.from(signature);
     const expBuf = Buffer.from(expected);
     if (sigBuf.length !== expBuf.length) return false;
@@ -28,25 +29,38 @@ describe("Slack HMAC verification", () => {
     const body = "token=test&text=hello+world&channel_id=C123";
     const timestamp = String(Math.floor(Date.now() / 1000));
     const sigBase = `v0:${timestamp}:${body}`;
-    const signature = "v0=" + createHmac("sha256", signingSecret).update(sigBase).digest("hex");
+    const signature =
+      "v0=" + createHmac("sha256", signingSecret).update(sigBase).digest("hex");
 
-    expect(verifySlackSignature(body, timestamp, signature, signingSecret)).toBe(true);
+    expect(
+      verifySlackSignature(body, timestamp, signature, signingSecret),
+    ).toBe(true);
   });
 
   it("rejects invalid signature", () => {
     const body = "token=test&text=hello";
     const timestamp = String(Math.floor(Date.now() / 1000));
-    expect(verifySlackSignature(body, timestamp, "v0=invalid", signingSecret)).toBe(false);
+    expect(
+      verifySlackSignature(body, timestamp, "v0=invalid", signingSecret),
+    ).toBe(false);
   });
 
   it("rejects tampered body", () => {
     const body = "token=test&text=hello";
     const timestamp = String(Math.floor(Date.now() / 1000));
     const sigBase = `v0:${timestamp}:${body}`;
-    const signature = "v0=" + createHmac("sha256", signingSecret).update(sigBase).digest("hex");
+    const signature =
+      "v0=" + createHmac("sha256", signingSecret).update(sigBase).digest("hex");
 
     // Tamper with the body
-    expect(verifySlackSignature(body + "&extra=bad", timestamp, signature, signingSecret)).toBe(false);
+    expect(
+      verifySlackSignature(
+        body + "&extra=bad",
+        timestamp,
+        signature,
+        signingSecret,
+      ),
+    ).toBe(false);
   });
 
   it("rejects old timestamps (replay protection)", () => {
@@ -67,9 +81,20 @@ describe("Slack HMAC verification", () => {
 // If first word matches a known type, it's extracted. Otherwise defaults to "general".
 
 describe("Slack command parsing", () => {
-  const knownTypes = ["general", "implementation", "runbook", "gap-fill", "review", "feature-request"];
+  const knownTypes = [
+    "general",
+    "implementation",
+    "runbook",
+    "gap-fill",
+    "review",
+    "feature-request",
+  ];
 
-  function parseCommand(text: string): { taskType: string; description: string; priority: string } {
+  function parseCommand(text: string): {
+    taskType: string;
+    description: string;
+    priority: string;
+  } {
     let words = text.trim().split(/\s+/);
     let priority = "normal";
     if (words[0] === "!") {
@@ -98,7 +123,9 @@ describe("Slack command parsing", () => {
   });
 
   it("handles gap-fill type", () => {
-    const { taskType, description } = parseCommand("gap-fill missing runbook for DB failover");
+    const { taskType, description } = parseCommand(
+      "gap-fill missing runbook for DB failover",
+    );
     expect(taskType).toBe("gap-fill");
     expect(description).toBe("missing runbook for DB failover");
   });
@@ -127,7 +154,9 @@ describe("Slack command parsing", () => {
   });
 
   it("parses ! prefix as immediate priority", () => {
-    const { taskType, description, priority } = parseCommand("! implementation add caching");
+    const { taskType, description, priority } = parseCommand(
+      "! implementation add caching",
+    );
     expect(priority).toBe("immediate");
     expect(taskType).toBe("implementation");
     expect(description).toBe("add caching");
@@ -139,7 +168,9 @@ describe("Slack command parsing", () => {
   });
 
   it("handles ! with general task (no explicit type)", () => {
-    const { taskType, description, priority } = parseCommand("! fix the login bug");
+    const { taskType, description, priority } = parseCommand(
+      "! fix the login bug",
+    );
     expect(priority).toBe("immediate");
     expect(taskType).toBe("general");
     expect(description).toBe("fix the login bug");

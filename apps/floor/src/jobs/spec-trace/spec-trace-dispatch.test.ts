@@ -23,13 +23,21 @@ describe("dispatchSpecTrace", () => {
   it("projects from the repo and returns a graph-ingest audit/log for the specs kind", async () => {
     const f = fakeProjectFor();
 
-    const result = await dispatchSpecTrace("re-cinq/lore", "specs", { commit: "abc123" }, {
-      dgraph: stubDgraph,
-      projectFor: f.projectFor,
-    });
+    const result = await dispatchSpecTrace(
+      "re-cinq/lore",
+      "specs",
+      { commit: "abc123" },
+      {
+        dgraph: stubDgraph,
+        projectFor: f.projectFor,
+      },
+    );
 
     expect(f.reposAskedFor).toEqual(["re-cinq/lore"]);
-    expect(result.audit).toMatchObject({ event_type: "spec_trace_ingest", repo: "re-cinq/lore" });
+    expect(result.audit).toMatchObject({
+      event_type: "spec_trace_ingest",
+      repo: "re-cinq/lore",
+    });
     expect((result.audit.payload as { kind: string }).kind).toBe("specs");
     expect(result.logLine).toContain("[floor] spec-trace specs re-cinq/lore");
   });
@@ -38,7 +46,12 @@ describe("dispatchSpecTrace", () => {
     const f = fakeProjectFor();
 
     await expect(
-      dispatchSpecTrace("re-cinq/lore", "bogus", {}, { dgraph: stubDgraph, projectFor: f.projectFor }),
+      dispatchSpecTrace(
+        "re-cinq/lore",
+        "bogus",
+        {},
+        { dgraph: stubDgraph, projectFor: f.projectFor },
+      ),
     ).rejects.toThrow(new Error('ingestSpecTrace: unrecognized kind "bogus"'));
     expect(f.reposAskedFor).toEqual([]);
   });

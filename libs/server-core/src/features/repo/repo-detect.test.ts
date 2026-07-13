@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const execSync = vi.fn();
-vi.mock("node:child_process", () => ({ execSync: (...args: unknown[]) => execSync(...args) }));
+vi.mock("node:child_process", () => ({
+  execSync: (...args: unknown[]) => execSync(...args),
+}));
 
 import { detectCurrentRepo, resetRepoCache } from "./repo-detect.js";
 

@@ -1,4 +1,4 @@
-import styles from './SpendView.module.css';
+import styles from "./SpendView.module.css";
 
 export interface OrgMtdRow {
   billed_usd: number;
@@ -42,7 +42,7 @@ export interface SpendViewProps {
 }
 
 const usd = (n: number) =>
-  Number(n).toLocaleString(undefined, { style: 'currency', currency: 'USD' });
+  Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
 
 export default function SpendView({
   orgMtd,
@@ -63,31 +63,31 @@ export default function SpendView({
         <div className={`spec-card ${styles.card}`}>
           <div className="meta">Billed cost (Anthropic)</div>
           <div className={styles.figure}>
-            {orgAvailable ? usd(orgMtd.billed_usd) : '—'}
+            {orgAvailable ? usd(orgMtd.billed_usd) : "—"}
           </div>
           <div className={`meta ${styles.subnote}`}>
             {orgAvailable
               ? `as of ${new Date(orgMtd.as_of as string).toLocaleString()}`
-              : 'admin key not configured'}
+              : "admin key not configured"}
           </div>
         </div>
         <div className={`spec-card ${styles.card}`}>
           <div className="meta">Lore-computed cost</div>
-          <div className={styles.figureInfo}>
-            {usd(loreComputedUsd)}
+          <div className={styles.figureInfo}>{usd(loreComputedUsd)}</div>
+          <div className={`meta ${styles.subnote}`}>
+            estimate from token counts
           </div>
-          <div className={`meta ${styles.subnote}`}>estimate from token counts</div>
         </div>
         <div className={`spec-card ${styles.card}`}>
           <div className="meta">Input Tokens</div>
           <div className={styles.figure}>
-            {orgAvailable ? Number(orgMtd.input_tokens).toLocaleString() : '—'}
+            {orgAvailable ? Number(orgMtd.input_tokens).toLocaleString() : "—"}
           </div>
         </div>
         <div className={`spec-card ${styles.card}`}>
           <div className="meta">Output Tokens</div>
           <div className={styles.figure}>
-            {orgAvailable ? Number(orgMtd.output_tokens).toLocaleString() : '—'}
+            {orgAvailable ? Number(orgMtd.output_tokens).toLocaleString() : "—"}
           </div>
         </div>
       </div>
@@ -96,9 +96,10 @@ export default function SpendView({
         <div className={`spec-card ${styles.warningCard}`}>
           <strong>Org-wide billed cost unavailable.</strong>
           <div className={`meta ${styles.warningNote}`}>
-            Set <code>ANTHROPIC_ADMIN_KEY</code> (an <code>sk-ant-admin…</code> key) on the
-            agent so the daily <code>anthropic-cost-sync</code> cron can pull Anthropic&apos;s
-            authoritative Cost report. Showing Lore-computed estimates only.
+            Set <code>ANTHROPIC_ADMIN_KEY</code> (an <code>sk-ant-admin…</code>{" "}
+            key) on the agent so the daily <code>anthropic-cost-sync</code> cron
+            can pull Anthropic&apos;s authoritative Cost report. Showing
+            Lore-computed estimates only.
           </div>
         </div>
       )}
@@ -107,63 +108,117 @@ export default function SpendView({
       <h2>Billed Cost by Model (MTD)</h2>
       <table>
         <thead>
-          <tr><th>Model</th><th>Billed Cost</th><th>Input Tokens</th><th>Output Tokens</th></tr>
+          <tr>
+            <th>Model</th>
+            <th>Billed Cost</th>
+            <th>Input Tokens</th>
+            <th>Output Tokens</th>
+          </tr>
         </thead>
         <tbody>
-          {orgByModel.map(r => (
-            <tr key={r.model || '(non-token)'}>
-              <td><span className="badge">{r.model || '(non-token)'}</span></td>
+          {orgByModel.map((r) => (
+            <tr key={r.model || "(non-token)"}>
+              <td>
+                <span className="badge">{r.model || "(non-token)"}</span>
+              </td>
               <td>{usd(r.cost_usd)}</td>
-              <td className={styles.mono}>{Number(r.input_tokens).toLocaleString()}</td>
-              <td className={styles.mono}>{Number(r.output_tokens).toLocaleString()}</td>
+              <td className={styles.mono}>
+                {Number(r.input_tokens).toLocaleString()}
+              </td>
+              <td className={styles.mono}>
+                {Number(r.output_tokens).toLocaleString()}
+              </td>
             </tr>
           ))}
-          {orgByModel.length === 0 && <tr><td colSpan={4} className={`meta ${styles.center}`}>No billed data yet</td></tr>}
+          {orgByModel.length === 0 && (
+            <tr>
+              <td colSpan={4} className={`meta ${styles.center}`}>
+                No billed data yet
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 
       <h2>Daily Billed Cost (This Month)</h2>
       <table>
-        <thead><tr><th>Date</th><th>Billed Cost</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Billed Cost</th>
+          </tr>
+        </thead>
         <tbody>
-          {orgDaily.map(r => (
+          {orgDaily.map((r) => (
             <tr key={r.bucket_date}>
               <td>{new Date(r.bucket_date).toLocaleDateString()}</td>
               <td>{usd(r.cost_usd)}</td>
             </tr>
           ))}
-          {orgDaily.length === 0 && <tr><td colSpan={2} className={`meta ${styles.center}`}>No billed data yet</td></tr>}
+          {orgDaily.length === 0 && (
+            <tr>
+              <td colSpan={2} className={`meta ${styles.center}`}>
+                No billed data yet
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 
       {/* Lore-attributed breakdowns */}
       <h2>Lore-Computed Cost by Repo (MTD)</h2>
       <table>
-        <thead><tr><th>Repo</th><th>Tasks</th><th>Cost</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Repo</th>
+            <th>Tasks</th>
+            <th>Cost</th>
+          </tr>
+        </thead>
         <tbody>
-          {loreByRepo.map(r => (
+          {loreByRepo.map((r) => (
             <tr key={r.target_repo}>
               <td className={styles.mono}>{r.target_repo}</td>
               <td>{Number(r.tasks).toLocaleString()}</td>
               <td>{usd(r.cost_usd)}</td>
             </tr>
           ))}
-          {loreByRepo.length === 0 && <tr><td colSpan={3} className={`meta ${styles.center}`}>No data</td></tr>}
+          {loreByRepo.length === 0 && (
+            <tr>
+              <td colSpan={3} className={`meta ${styles.center}`}>
+                No data
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 
       <h2>Lore-Computed Cost by Task Type (MTD)</h2>
       <table>
-        <thead><tr><th>Task Type</th><th>Tasks</th><th>Cost</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Task Type</th>
+            <th>Tasks</th>
+            <th>Cost</th>
+          </tr>
+        </thead>
         <tbody>
-          {loreByTaskType.map(r => (
+          {loreByTaskType.map((r) => (
             <tr key={r.task_type}>
-              <td><span className="badge">{r.task_type}</span></td>
+              <td>
+                <span className="badge">{r.task_type}</span>
+              </td>
               <td>{Number(r.tasks).toLocaleString()}</td>
               <td>{usd(r.cost_usd)}</td>
             </tr>
           ))}
-          {loreByTaskType.length === 0 && <tr><td colSpan={3} className={`meta ${styles.center}`}>No data</td></tr>}
+          {loreByTaskType.length === 0 && (
+            <tr>
+              <td colSpan={3} className={`meta ${styles.center}`}>
+                No data
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>

@@ -19,7 +19,10 @@ export async function GET(
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
   const { searchParams } = new URL(req.url);
-  const offset = Math.max(0, parseInt(searchParams.get("offset") ?? "0", 10) || 0);
+  const offset = Math.max(
+    0,
+    parseInt(searchParams.get("offset") ?? "0", 10) || 0,
+  );
 
   try {
     const { sql, params: sqlParams } = repoEventsQuery(fullName, offset);

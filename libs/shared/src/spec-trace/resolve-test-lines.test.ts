@@ -20,11 +20,18 @@ describe("greeter", () => {
 });
 `;
 
-const desc = (leaf: string): TestDescriptor => ({ id: `f::${leaf}`, name: `greeter > ${leaf}`, file: "f.test.ts" });
+const desc = (leaf: string): TestDescriptor => ({
+  id: `f::${leaf}`,
+  name: `greeter > ${leaf}`,
+  file: "f.test.ts",
+});
 
 describe("resolveTestLines", () => {
   it("attaches each it-declaration line as startLine and the next declaration minus one as endLine", () => {
-    const [greets, farewells] = resolveTestLines(FILE, [desc("greets the user"), desc("farewells the user")]);
+    const [greets, farewells] = resolveTestLines(FILE, [
+      desc("greets the user"),
+      desc("farewells the user"),
+    ]);
 
     expect(greets).toMatchObject({ startLine: 4, endLine: 7 });
     expect(farewells).toMatchObject({ startLine: 8, endLine: 11 });

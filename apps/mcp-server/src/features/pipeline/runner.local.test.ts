@@ -48,7 +48,8 @@ describe("slugify", () => {
   });
 
   it("truncates to 40 characters", () => {
-    const long = "this is a very long description that should be truncated to forty characters";
+    const long =
+      "this is a very long description that should be truncated to forty characters";
     const result = slugify(long);
     expect(result.length).toBeLessThanOrEqual(40);
   });
@@ -225,9 +226,9 @@ describe("validateRepoMatch", () => {
   });
 
   it("throws when cwd repo differs from task repo", () => {
-    expect(() =>
-      validateRepoMatch("re-cinq/re-plan", "re-cinq/lore"),
-    ).toThrow(/target_repo mismatch/);
+    expect(() => validateRepoMatch("re-cinq/re-plan", "re-cinq/lore")).toThrow(
+      /target_repo mismatch/,
+    );
   });
 
   it("error message names both repos and suggests a cd", () => {
@@ -246,9 +247,7 @@ describe("validateRepoMatch", () => {
     // Note: the null-cwd path still means spawnLocalTask will fail later
     // on "Not in a git repository — cannot create worktree", so letting
     // this validator pass keeps error messages focused.
-    expect(() =>
-      validateRepoMatch("re-cinq/lore", null),
-    ).not.toThrow();
+    expect(() => validateRepoMatch("re-cinq/lore", null)).not.toThrow();
   });
 });
 
@@ -276,10 +275,13 @@ describe("cancelLocalTask", () => {
 
 function applyConfigUpdate(
   config: LocalRunnerConfig,
-  args: Partial<Pick<LocalRunnerConfig, "max_concurrent" | "repos" | "task_types" | "model">>,
+  args: Partial<
+    Pick<LocalRunnerConfig, "max_concurrent" | "repos" | "task_types" | "model">
+  >,
 ): LocalRunnerConfig {
   const next = { ...config };
-  if (args.max_concurrent !== undefined) next.max_concurrent = args.max_concurrent;
+  if (args.max_concurrent !== undefined)
+    next.max_concurrent = args.max_concurrent;
   if (args.repos) next.repos = args.repos;
   if (args.task_types) next.task_types = args.task_types;
   if (args.model) next.model = args.model;
@@ -296,7 +298,9 @@ describe("lore_configure_local_runner update merge", () => {
       model: "claude-sonnet-4-6",
     };
 
-    expect(applyConfigUpdate(base, { max_concurrent: 5, model: "claude-opus-4-6" })).toEqual({
+    expect(
+      applyConfigUpdate(base, { max_concurrent: 5, model: "claude-opus-4-6" }),
+    ).toEqual({
       enabled: true,
       max_concurrent: 5,
       repos: ["re-cinq/lore"],

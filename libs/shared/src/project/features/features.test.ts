@@ -9,7 +9,8 @@ interface RecordedCall {
 
 function recordingPort(): { port: FeaturesPort; calls: RecordedCall[] } {
   const calls: RecordedCall[] = [];
-  const stub = (op: string) =>
+  const stub =
+    (op: string) =>
     (...args: unknown[]) => {
       calls.push({ op, args });
       return Promise.resolve({} as Feature);

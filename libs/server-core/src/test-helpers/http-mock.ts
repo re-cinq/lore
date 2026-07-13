@@ -26,8 +26,13 @@ export function makeReq(init: MockReqInit): IncomingMessage {
       : typeof init.body === "string"
         ? init.body
         : JSON.stringify(init.body);
-  const stream = Readable.from([Buffer.from(raw, "utf-8")]) as unknown as
-    IncomingMessage & { url: string; method: string; headers: Record<string, string> };
+  const stream = Readable.from([
+    Buffer.from(raw, "utf-8"),
+  ]) as unknown as IncomingMessage & {
+    url: string;
+    method: string;
+    headers: Record<string, string>;
+  };
   stream.url = init.url;
   stream.method = init.method ?? "GET";
   stream.headers = init.headers ?? {};

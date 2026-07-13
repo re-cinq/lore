@@ -3,7 +3,10 @@ import { Audit } from "./audit.js";
 import { PgAudit } from "./audit-pg.js";
 import type { PgPool } from "../../memory-store.js";
 
-function fakePool(): { pool: PgPool; calls: Array<{ text: string; params?: unknown[] }> } {
+function fakePool(): {
+  pool: PgPool;
+  calls: Array<{ text: string; params?: unknown[] }>;
+} {
   const calls: Array<{ text: string; params?: unknown[] }> = [];
   const pool: PgPool = {
     async query(text: string, params?: unknown[]) {
@@ -19,7 +22,11 @@ describe("Audit sub-facade", () => {
     const { pool, calls } = fakePool();
     const audit = new Audit("octo/repo", new PgAudit(pool));
 
-    await audit.write({ event_type: "lease_expired", task_id: "t1", payload: { holder: "pod-a" } });
+    await audit.write({
+      event_type: "lease_expired",
+      task_id: "t1",
+      payload: { holder: "pod-a" },
+    });
 
     expect(calls[0]?.params).toEqual([
       "lease_expired",
@@ -35,7 +42,10 @@ describe("PgAudit adapter", () => {
   it("inserts into pipeline.audit_log with null defaults for optional columns", async () => {
     const { pool, calls } = fakePool();
 
-    await new PgAudit(pool).write({ event_type: "auto_merge_decision", payload: { outcome: "merged" } });
+    await new PgAudit(pool).write({
+      event_type: "auto_merge_decision",
+      payload: { outcome: "merged" },
+    });
 
     expect(calls[0]?.text).toContain("INSERT INTO pipeline.audit_log");
     expect(calls[0]?.params).toEqual([

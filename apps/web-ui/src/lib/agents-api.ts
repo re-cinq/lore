@@ -74,25 +74,41 @@ export async function saveAgent(
     return { status: "two_key_required", detail: String(data.detail ?? "") };
   }
   if (res.status === 403 && data.error === "codeowners_check_failed") {
-    return { status: "codeowners_failed", code: String(data.code ?? "unknown"), detail: String(data.detail ?? "") };
+    return {
+      status: "codeowners_failed",
+      code: String(data.code ?? "unknown"),
+      detail: String(data.detail ?? ""),
+    };
   }
-  return { status: "error", message: String(data.error ?? `HTTP ${res.status}`) };
+  return {
+    status: "error",
+    message: String(data.error ?? `HTTP ${res.status}`),
+  };
 }
 
-export async function deleteAgent(repo: string, name: string): Promise<AgentSaveResult> {
+export async function deleteAgent(
+  repo: string,
+  name: string,
+): Promise<AgentSaveResult> {
   const c = cfg();
   if (!c) return { status: "unconfigured" };
   let res: Response;
   try {
-    res = await fetch(`${c.apiUrl}/api/repos/${repo}/agent-definitions/${encodeURIComponent(name)}`, {
-      method: "DELETE",
-      headers: { authorization: `Bearer ${c.token}` },
-      cache: "no-store",
-    });
+    res = await fetch(
+      `${c.apiUrl}/api/repos/${repo}/agent-definitions/${encodeURIComponent(name)}`,
+      {
+        method: "DELETE",
+        headers: { authorization: `Bearer ${c.token}` },
+        cache: "no-store",
+      },
+    );
   } catch (err) {
     return { status: "error", message: (err as Error).message };
   }
   if (res.ok) return { status: "ok", agent: { name } as AgentDefinition };
   const data = await res.json().catch(() => ({}) as Record<string, unknown>);
-  return { status: "error", message: String(data.error ?? `HTTP ${res.status}`) };
+  return {
+    status: "error",
+    message: String(data.error ?? `HTTP ${res.status}`),
+  };
 }

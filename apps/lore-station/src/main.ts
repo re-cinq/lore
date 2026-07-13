@@ -15,7 +15,10 @@ import { runRetrospectiveStation } from "./stations/retrospective.js";
 import { runDetectStation } from "./stations/detect.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 
-type StationRunner = (input: StationInput, env: StationEnv) => Promise<NodeResult>;
+type StationRunner = (
+  input: StationInput,
+  env: StationEnv,
+) => Promise<NodeResult>;
 
 export const stations: Record<string, StationRunner> = {
   validate: runValidateStation,
@@ -34,7 +37,10 @@ export async function runStation(
     const runner = stations[type];
 
     if (!runner) {
-      return { line: resultLine(null, `unknown station type "${type}"`), exitCode: 1 };
+      return {
+        line: resultLine(null, `unknown station type "${type}"`),
+        exitCode: 1,
+      };
     }
 
     const result = await runner(parseStationInput(inputJson), env);
@@ -60,7 +66,9 @@ async function main() {
 const invokedDirectly = process.argv[1]?.endsWith("main.js");
 if (invokedDirectly) {
   main().catch((err) => {
-    console.error(eventLine(`lore-station main() failed: ${(err as Error).message}`));
+    console.error(
+      eventLine(`lore-station main() failed: ${(err as Error).message}`),
+    );
     console.error(err);
     process.exit(1);
   });

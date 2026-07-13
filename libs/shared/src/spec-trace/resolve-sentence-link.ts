@@ -54,7 +54,9 @@ export async function resolveSentenceLink(
       }
     }
     for (const ac of spec.acs ?? []) {
-      if (matchesNormalized(ac["AcceptanceCriterion.text"] ?? "", link.sentence)) {
+      if (
+        matchesNormalized(ac["AcceptanceCriterion.text"] ?? "", link.sentence)
+      ) {
         matched.push({ uid: ac.uid, nodeType: "AcceptanceCriterion" });
       }
     }

@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { AgentDefs } from "./agent-defs.js";
-import type { AgentDefinition, AgentDefinitionInput, AgentDefsPort } from "./agent-defs-port.js";
+import type {
+  AgentDefinition,
+  AgentDefinitionInput,
+  AgentDefsPort,
+} from "./agent-defs-port.js";
 
 /**
  * project.agentDefs — the Agent *definition* methods, which delegate to the
@@ -8,7 +12,9 @@ import type { AgentDefinition, AgentDefinitionInput, AgentDefsPort } from "./age
  * project.agents / Agents — see agents.test.ts.
  */
 
-function recordingDefs(calls: Array<{ method: string; args: unknown[] }> = []): AgentDefsPort {
+function recordingDefs(
+  calls: Array<{ method: string; args: unknown[] }> = [],
+): AgentDefsPort {
   const def: AgentDefinition = {
     name: "general",
     model: "claude-sonnet-4-6",
@@ -20,11 +26,21 @@ function recordingDefs(calls: Array<{ method: string; args: unknown[] }> = []): 
     project_id: null,
   };
   return {
-    resolve: async (repo, name) => (calls.push({ method: "resolve", args: [repo, name] }), def),
+    resolve: async (repo, name) => (
+      calls.push({ method: "resolve", args: [repo, name] }),
+      def
+    ),
     list: async (repo) => (calls.push({ method: "list", args: [repo] }), [def]),
-    create: async (repo, d: AgentDefinitionInput) => (calls.push({ method: "create", args: [repo, d] }), { ...def, ...d, project_id: "p" }),
-    update: async (repo, name, patch) => (calls.push({ method: "update", args: [repo, name, patch] }), def),
-    delete: async (repo, name) => void calls.push({ method: "delete", args: [repo, name] }),
+    create: async (repo, d: AgentDefinitionInput) => (
+      calls.push({ method: "create", args: [repo, d] }),
+      { ...def, ...d, project_id: "p" }
+    ),
+    update: async (repo, name, patch) => (
+      calls.push({ method: "update", args: [repo, name, patch] }),
+      def
+    ),
+    delete: async (repo, name) =>
+      void calls.push({ method: "delete", args: [repo, name] }),
   };
 }
 
@@ -34,7 +50,10 @@ describe("AgentDefs", () => {
     const agentDefs = new AgentDefs("re-cinq/re-plan", recordingDefs(calls));
 
     expect((await agentDefs.resolve("general"))?.name).toBe("general");
-    expect(calls).toContainEqual({ method: "resolve", args: ["re-cinq/re-plan", "general"] });
+    expect(calls).toContainEqual({
+      method: "resolve",
+      args: ["re-cinq/re-plan", "general"],
+    });
   });
 
   it("lists definitions for the repo", async () => {

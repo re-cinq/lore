@@ -4,10 +4,17 @@
 // does the whole task — onboard / review / runbook have no assembly line). Pure routing; both
 // backends are injected.
 
-import type { LoreTaskSpec, StationBackend, StationLaunchResult } from "@re-cinq/lore-shared";
+import type {
+  LoreTaskSpec,
+  StationBackend,
+  StationLaunchResult,
+} from "@re-cinq/lore-shared";
 
 /** A task type runs on the assembly line when a builtin assembly line is defined for it. */
-export function shouldUseAssemblyLine(taskType: string, assemblyLineNames: ReadonlySet<string>): boolean {
+export function shouldUseAssemblyLine(
+  taskType: string,
+  assemblyLineNames: ReadonlySet<string>,
+): boolean {
   return assemblyLineNames.has(taskType);
 }
 
@@ -19,7 +26,7 @@ export class AgentCrStationBackend implements StationBackend {
   ) {}
 
   launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
-    if(shouldUseAssemblyLine(spec.taskType, this.assemblyLineNames)) {
+    if (shouldUseAssemblyLine(spec.taskType, this.assemblyLineNames)) {
       return this.assemblyLine.launch(spec);
     }
 

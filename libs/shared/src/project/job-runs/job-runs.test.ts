@@ -3,9 +3,10 @@ import { PgJobRuns } from "./job-runs-pg.js";
 import { InMemoryJobRuns } from "./job-runs-memory.js";
 import type { PgPool } from "../../memory-store.js";
 
-function fakePool(
-  rowsByCall: unknown[][] = [],
-): { pool: PgPool; calls: Array<{ text: string; params?: unknown[] }> } {
+function fakePool(rowsByCall: unknown[][] = []): {
+  pool: PgPool;
+  calls: Array<{ text: string; params?: unknown[] }>;
+} {
   const calls: Array<{ text: string; params?: unknown[] }> = [];
   const pool: PgPool = {
     async query(text: string, params?: unknown[]) {
@@ -23,7 +24,9 @@ describe("PgJobRuns adapter", () => {
     const id = await new PgJobRuns(pool).start("nightly-reindex");
 
     expect(id).toBe("run-7");
-    expect(calls[0]?.text).toContain("INSERT INTO pipeline.job_runs (job_name, status)");
+    expect(calls[0]?.text).toContain(
+      "INSERT INTO pipeline.job_runs (job_name, status)",
+    );
     expect(calls[0]?.text).toContain("VALUES ($1, 'running') RETURNING id");
     expect(calls[0]?.params).toEqual(["nightly-reindex"]);
   });
@@ -31,11 +34,19 @@ describe("PgJobRuns adapter", () => {
   it("marks a run completed with summary and log path", async () => {
     const { pool, calls } = fakePool();
 
-    await new PgJobRuns(pool).complete("run-7", "indexed 12 repos", "gs://logs/run-7");
+    await new PgJobRuns(pool).complete(
+      "run-7",
+      "indexed 12 repos",
+      "gs://logs/run-7",
+    );
 
     expect(calls[0]?.text).toContain("status = 'completed'");
     expect(calls[0]?.text).toContain("result_summary = $1");
-    expect(calls[0]?.params).toEqual(["indexed 12 repos", "gs://logs/run-7", "run-7"]);
+    expect(calls[0]?.params).toEqual([
+      "indexed 12 repos",
+      "gs://logs/run-7",
+      "run-7",
+    ]);
   });
 
   it("defaults the log path to null on complete", async () => {
@@ -62,7 +73,9 @@ describe("PgJobRuns adapter", () => {
 
     const last = await new PgJobRuns(pool).lastRun("nightly-reindex");
 
-    expect(calls[0]?.text).toContain("SELECT started_at FROM pipeline.job_runs");
+    expect(calls[0]?.text).toContain(
+      "SELECT started_at FROM pipeline.job_runs",
+    );
     expect(calls[0]?.text).toContain("ORDER BY started_at DESC LIMIT 1");
     expect(calls[0]?.params).toEqual(["nightly-reindex"]);
     expect(last).toEqual({ startedAt: started });
@@ -81,7 +94,9 @@ describe("InMemoryJobRuns double", () => {
 
     const id = await jobRuns.start("reindex");
 
-    expect(jobRuns.rows).toMatchObject([{ id, jobName: "reindex", status: "running", completedAt: null }]);
+    expect(jobRuns.rows).toMatchObject([
+      { id, jobName: "reindex", status: "running", completedAt: null },
+    ]);
   });
 
   it("closes the matching row on complete", async () => {
@@ -104,7 +119,11 @@ describe("InMemoryJobRuns double", () => {
 
     await jobRuns.fail(id, "boom");
 
-    expect(jobRuns.rows[0]).toMatchObject({ status: "failed", error: "boom", logPath: null });
+    expect(jobRuns.rows[0]).toMatchObject({
+      status: "failed",
+      error: "boom",
+      logPath: null,
+    });
   });
 
   it("returns the most-recent started_at across seeded rows for a job", async () => {
@@ -112,9 +131,36 @@ describe("InMemoryJobRuns double", () => {
     const older = new Date("2026-06-29T00:00:00Z");
     const newer = new Date("2026-06-30T00:00:00Z");
     jobRuns.rows.push(
-      { id: "a", jobName: "reindex", status: "completed", startedAt: older, completedAt: older, resultSummary: "ok", error: null, logPath: null },
-      { id: "b", jobName: "reindex", status: "completed", startedAt: newer, completedAt: newer, resultSummary: "ok", error: null, logPath: null },
-      { id: "c", jobName: "other", status: "completed", startedAt: newer, completedAt: newer, resultSummary: "ok", error: null, logPath: null },
+      {
+        id: "a",
+        jobName: "reindex",
+        status: "completed",
+        startedAt: older,
+        completedAt: older,
+        resultSummary: "ok",
+        error: null,
+        logPath: null,
+      },
+      {
+        id: "b",
+        jobName: "reindex",
+        status: "completed",
+        startedAt: newer,
+        completedAt: newer,
+        resultSummary: "ok",
+        error: null,
+        logPath: null,
+      },
+      {
+        id: "c",
+        jobName: "other",
+        status: "completed",
+        startedAt: newer,
+        completedAt: newer,
+        resultSummary: "ok",
+        error: null,
+        logPath: null,
+      },
     );
 
     expect(await jobRuns.lastRun("reindex")).toEqual({ startedAt: newer });

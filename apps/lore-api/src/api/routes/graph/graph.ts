@@ -23,14 +23,31 @@ export function graphRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/graph",
-    options: { ...bearerScope("read"), validate: { query: zodValidate(GraphQuery) } },
+    options: {
+      ...bearerScope("read"),
+      validate: { query: zodValidate(GraphQuery) },
+    },
     handler: async (request, h) => {
       const pool = getPool();
-      if (!pool) return h.response({ error: "knowledge graph requires PostgreSQL" }).code(503);
+      if (!pool)
+        return h
+          .response({ error: "knowledge graph requires PostgreSQL" })
+          .code(503);
 
-      const { entity, relation_type: relationType, repo, include_invalidated: includeInvalidated } = request.query as unknown as GraphQuery;
+      const {
+        entity,
+        relation_type: relationType,
+        repo,
+        include_invalidated: includeInvalidated,
+      } = request.query as unknown as GraphQuery;
       try {
-        const results = await queryLiveGraph(pool, entity, relationType, repo, includeInvalidated);
+        const results = await queryLiveGraph(
+          pool,
+          entity,
+          relationType,
+          repo,
+          includeInvalidated,
+        );
         return h.response(results);
       } catch (err: any) {
         return h.response({ error: err.message }).code(500);

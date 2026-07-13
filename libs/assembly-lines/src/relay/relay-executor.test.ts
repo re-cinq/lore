@@ -31,7 +31,11 @@ describe("RelayExecutor round-trip against the real sh relay", () => {
     const scriptPath = join(root, "relay.sh");
     await writeFile(scriptPath, RELAY_SCRIPT);
     proc = spawn("sh", [scriptPath], {
-      env: { ...process.env, LORE_RELAY_DIR: relayDir, LORE_RELAY_WORKDIR: workdir },
+      env: {
+        ...process.env,
+        LORE_RELAY_DIR: relayDir,
+        LORE_RELAY_WORKDIR: workdir,
+      },
       stdio: "ignore",
     });
     return new RelayExecutor(relayDir);

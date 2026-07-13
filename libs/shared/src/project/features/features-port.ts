@@ -135,7 +135,9 @@ export function canFinalize(status: FeatureStatus): boolean {
  * so this scans from the end — the round-to-round context carry and the split source
  * are always the LATEST analysis, not the first one produced.
  */
-export function latestReadyGap(iterations: FeatureIteration[]): GapResult | null {
+export function latestReadyGap(
+  iterations: FeatureIteration[],
+): GapResult | null {
   for (let i = iterations.length - 1; i >= 0; i--) {
     const it = iterations[i];
     if (it.status === "ready" && it.gap_result) return it.gap_result;
@@ -160,7 +162,10 @@ export function roundInFlight(
   windowMs: number = ROUND_IN_FLIGHT_MS,
 ): FeatureIteration | null {
   return (
-    iterations.find((it) => it.status === "running" && Date.parse(it.created_at) > nowMs - windowMs) ?? null
+    iterations.find(
+      (it) =>
+        it.status === "running" && Date.parse(it.created_at) > nowMs - windowMs,
+    ) ?? null
   );
 }
 
@@ -195,14 +200,26 @@ export function decidePlanningRecovery(args: {
   nowMs: number;
   windowMs?: number;
 }): PlanningRecovery {
-  const { iterations, featureStatus, isActive, nowMs, windowMs = PLANNING_RECOVERY_STALE_MS } = args;
+  const {
+    iterations,
+    featureStatus,
+    isActive,
+    nowMs,
+    windowMs = PLANNING_RECOVERY_STALE_MS,
+  } = args;
   const latest = iterations[iterations.length - 1];
   if (!latest) return { kind: "none" };
   if (latest.status === "running") {
     const stale = nowMs - Date.parse(latest.created_at) > windowMs;
-    return !isActive || stale ? { kind: "orphan", iteration: latest.iteration } : { kind: "none" };
+    return !isActive || stale
+      ? { kind: "orphan", iteration: latest.iteration }
+      : { kind: "none" };
   }
-  if (latest.status === "ready" && latest.gap_result && featureStatus === "planning") {
+  if (
+    latest.status === "ready" &&
+    latest.gap_result &&
+    featureStatus === "planning"
+  ) {
     return { kind: "transition", iteration: latest.iteration };
   }
   return { kind: "none" };

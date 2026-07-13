@@ -10,7 +10,10 @@ import type { NodeResult } from "@re-cinq/lore-assembly-lines";
  * result that routes the failed edge) emits `is_error:false`; pass `null` +
  * an error message for infrastructure failures, which fail the CR itself.
  */
-export function resultLine(result: NodeResult | null, errorMessage?: string): string {
+export function resultLine(
+  result: NodeResult | null,
+  errorMessage?: string,
+): string {
   if (!result) {
     return JSON.stringify({
       type: "result",

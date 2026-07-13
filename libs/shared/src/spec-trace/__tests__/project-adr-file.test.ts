@@ -17,11 +17,18 @@ import { recomputeFile } from "../recompute-spec-file.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const REPO_ROOT = join(process.cwd(), "..");
-const APPLIER = join(REPO_ROOT, "scripts", "infra", "setup-spec-trace-schema.sh");
+const APPLIER = join(
+  REPO_ROOT,
+  "scripts",
+  "infra",
+  "setup-spec-trace-schema.sh",
+);
 
 async function dgraphReachable(): Promise<boolean> {
   try {
-    return (await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })).ok;
+    return (
+      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
+    ).ok;
   } catch {
     return false;
   }
@@ -30,10 +37,15 @@ async function dgraphReachable(): Promise<boolean> {
 const reachable = await dgraphReachable();
 
 describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
-  const dgraphClient = new dgraph.DgraphClient(new dgraph.DgraphClientStub(DGRAPH_HTTP));
+  const dgraphClient = new dgraph.DgraphClient(
+    new dgraph.DgraphClientStub(DGRAPH_HTTP),
+  );
 
   beforeAll(() => {
-    execFileSync("bash", [APPLIER], { env: { ...process.env, DGRAPH_HTTP }, stdio: "pipe" });
+    execFileSync("bash", [APPLIER], {
+      env: { ...process.env, DGRAPH_HTTP },
+      stdio: "pipe",
+    });
   });
 
   async function deleteRepoNodes(repo: string): Promise<void> {
@@ -47,8 +59,16 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
         }`,
         { $repo: repo },
       );
-      const data = res.data as { blocks?: { uid: string }[]; adrs?: { uid: string }[]; root?: { uid: string }[] };
-      const uids = [...(data.blocks ?? []), ...(data.adrs ?? []), ...(data.root ?? [])].map((node) => node.uid);
+      const data = res.data as {
+        blocks?: { uid: string }[];
+        adrs?: { uid: string }[];
+        root?: { uid: string }[];
+      };
+      const uids = [
+        ...(data.blocks ?? []),
+        ...(data.adrs ?? []),
+        ...(data.root ?? []),
+      ].map((node) => node.uid);
       if (uids.length) {
         await txn.mutate({
           deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
@@ -108,8 +128,12 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
       { $repo: repo },
     );
     await txn.discard().catch(() => {});
-    const data = res.data as { root?: Array<{ adrs?: Array<{ "ADR.file_path"?: string }> }> };
-    expect((data.root?.[0]?.adrs ?? []).map((a) => a["ADR.file_path"])).toEqual([filePath]);
+    const data = res.data as {
+      root?: Array<{ adrs?: Array<{ "ADR.file_path"?: string }> }>;
+    };
+    expect((data.root?.[0]?.adrs ?? []).map((a) => a["ADR.file_path"])).toEqual(
+      [filePath],
+    );
   });
 
   it("returns projected true then false on an unchanged re-projection (content_hash gate)", async () => {
@@ -129,8 +153,20 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
     const repo = `test-adr/${randomUUID()}`;
     createdRepo = repo;
     const filePath = "adrs/0016.md";
-    const longContent = ["# ADR-016", "", "## Status", "", "Accepted", "", "## Context", "", "Old context."].join("\n");
-    const shortContent = ["# ADR-016", "", "## Status", "", "Accepted"].join("\n");
+    const longContent = [
+      "# ADR-016",
+      "",
+      "## Status",
+      "",
+      "Accepted",
+      "",
+      "## Context",
+      "",
+      "Old context.",
+    ].join("\n");
+    const shortContent = ["# ADR-016", "", "## Status", "", "Accepted"].join(
+      "\n",
+    );
 
     await projectAdrFile(repo, filePath, longContent, dgraphClient);
     await projectAdrFile(repo, filePath, shortContent, dgraphClient);

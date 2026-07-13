@@ -29,6 +29,12 @@ export async function insertEvent(pool: any, ev: EventInsert): Promise<void> {
     `INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
      VALUES ($1, $2, $3::jsonb, $4, $5)
      ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`,
-    [ev.eventName, ev.source, JSON.stringify(ev.params ?? {}), eventRepo(ev.params), ev.dedupeKey ?? null],
+    [
+      ev.eventName,
+      ev.source,
+      JSON.stringify(ev.params ?? {}),
+      eventRepo(ev.params),
+      ev.dedupeKey ?? null,
+    ],
   );
 }

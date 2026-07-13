@@ -30,7 +30,10 @@ async function fetchAllBuckets(
     if (page) url.searchParams.set("page", page);
 
     const res = await fetch(url, {
-      headers: { "x-api-key": adminKey, "anthropic-version": ANTHROPIC_VERSION },
+      headers: {
+        "x-api-key": adminKey,
+        "anthropic-version": ANTHROPIC_VERSION,
+      },
     });
     if (!res.ok) {
       throw new Error(
@@ -44,7 +47,7 @@ async function fetchAllBuckets(
       next_page?: string | null;
     };
     if (Array.isArray(body.data)) buckets.push(...body.data);
-    page = body.has_more ? body.next_page ?? null : null;
+    page = body.has_more ? (body.next_page ?? null) : null;
   } while (page);
 
   return buckets;

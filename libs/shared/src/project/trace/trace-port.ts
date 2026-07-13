@@ -1,4 +1,8 @@
-import type { TraceDocument, SpecSummary, AdrSummary } from "../../spec-trace/assemble-trace-document.js";
+import type {
+  TraceDocument,
+  SpecSummary,
+  AdrSummary,
+} from "../../spec-trace/assemble-trace-document.js";
 import type { SpecGraph, SpecRing } from "../../spec-trace/spec-graph.js";
 
 /**

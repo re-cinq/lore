@@ -1,12 +1,12 @@
 // Pure presentation helpers for the agents and tasks tables. No DB or React
 // here so the formatting rules stay unit-testable in isolation.
 
-const ELLIPSIS = '…';
-const EM_DASH = '—';
+const ELLIPSIS = "…";
+const EM_DASH = "—";
 
 /** Format a USD cost to four decimals; non-finite input renders as $0.0000. */
 export function formatCost(usd: number | null | undefined): string {
-  const value = typeof usd === 'number' && Number.isFinite(usd) ? usd : 0;
+  const value = typeof usd === "number" && Number.isFinite(usd) ? usd : 0;
   return `$${value.toFixed(4)}`;
 }
 
@@ -24,5 +24,5 @@ export function truncate(text: string | null | undefined, max: number): string {
 
 /** Render the task/agent creator, falling back to "unknown" when absent. */
 export function displayCreatedBy(value: string | null | undefined): string {
-  return value ? value : 'unknown';
+  return value ? value : "unknown";
 }

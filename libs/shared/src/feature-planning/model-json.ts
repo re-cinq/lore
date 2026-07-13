@@ -18,6 +18,8 @@ export function parseModelJson(text: string): unknown {
   try {
     return JSON.parse(body);
   } catch {
-    throw new Error(`feature-planning: model returned non-JSON — ${body.slice(0, SNIPPET_MAX)}`);
+    throw new Error(
+      `feature-planning: model returned non-JSON — ${body.slice(0, SNIPPET_MAX)}`,
+    );
   }
 }

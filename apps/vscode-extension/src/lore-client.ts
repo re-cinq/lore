@@ -31,7 +31,9 @@ export class LoreClient {
   }
 
   document(repo: string, path: string): Promise<TraceDocument> {
-    return this.get<TraceDocument>(`/api/repos/${repo}/trace/document?path=${encodeURIComponent(path)}`);
+    return this.get<TraceDocument>(
+      `/api/repos/${repo}/trace/document?path=${encodeURIComponent(path)}`,
+    );
   }
 
   private async get<T>(path: string): Promise<T> {
@@ -48,7 +50,8 @@ export class LoreClient {
       } catch (err) {
         lastError = err instanceof Error ? err.message : String(err);
       }
-      if (attempt < RETRY_DELAYS_MS.length) await delay(RETRY_DELAYS_MS[attempt]);
+      if (attempt < RETRY_DELAYS_MS.length)
+        await delay(RETRY_DELAYS_MS[attempt]);
     }
     throw new Error(`Lore API GET ${path} failed: ${lastError}`);
   }

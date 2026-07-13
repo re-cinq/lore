@@ -17,11 +17,15 @@ export const AgentInputSchema = z.object({
   timeout_minutes: z.number().int().positive().max(1440).nullish(),
   prompt: z.string().max(20000).nullish(),
   image: z.string().max(512).nullish(),
-  execution_mode: z.enum(["claude-code", "graph-ingest", "station"]).default("claude-code"),
+  execution_mode: z
+    .enum(["claude-code", "graph-ingest", "station"])
+    .default("claude-code"),
   review_required: z.boolean().default(false),
 });
 
-const normalize = (p: z.infer<typeof AgentInputSchema>): AgentDefinitionInput => ({
+const normalize = (
+  p: z.infer<typeof AgentInputSchema>,
+): AgentDefinitionInput => ({
   name: p.name,
   model: p.model ?? null,
   timeout_minutes: p.timeout_minutes ?? null,
@@ -42,11 +46,14 @@ export function parseAgentPatch(body: unknown): Partial<AgentDefinitionInput> {
   const patch: Partial<AgentDefinitionInput> = {};
   if (parsed.name !== undefined) patch.name = parsed.name;
   if (parsed.model !== undefined) patch.model = parsed.model ?? null;
-  if (parsed.timeout_minutes !== undefined) patch.timeout_minutes = parsed.timeout_minutes ?? null;
+  if (parsed.timeout_minutes !== undefined)
+    patch.timeout_minutes = parsed.timeout_minutes ?? null;
   if (parsed.prompt !== undefined) patch.prompt = parsed.prompt ?? null;
   if (parsed.image !== undefined) patch.image = parsed.image ?? null;
-  if (parsed.execution_mode !== undefined) patch.execution_mode = parsed.execution_mode;
-  if (parsed.review_required !== undefined) patch.review_required = parsed.review_required;
+  if (parsed.execution_mode !== undefined)
+    patch.execution_mode = parsed.execution_mode;
+  if (parsed.review_required !== undefined)
+    patch.review_required = parsed.review_required;
   return patch;
 }
 

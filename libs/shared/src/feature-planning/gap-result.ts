@@ -143,7 +143,11 @@ function parseQuestion(raw: unknown, i: number): GapQuestion {
   };
   if (kind === "choice") {
     const options = asStringArray(o.options, `questions[${i}].options`);
-    if (options.length === 0) fail(`questions[${i}].options`, "must be non-empty for a choice question");
+    if (options.length === 0)
+      fail(
+        `questions[${i}].options`,
+        "must be non-empty for a choice question",
+      );
     question.options = options;
   } else if (o.options !== undefined) {
     question.options = lenientStringArray(o.options);
@@ -155,11 +159,20 @@ function parseSplit(raw: unknown): GapSplitSuggestion {
   const o = asObject(raw, "split_suggestion");
   return {
     rationale: asString(o.rationale, "split_suggestion.rationale"),
-    proposed_features: asArray(o.proposed_features, "split_suggestion.proposed_features").map((p, i) => {
+    proposed_features: asArray(
+      o.proposed_features,
+      "split_suggestion.proposed_features",
+    ).map((p, i) => {
       const po = asObject(p, `split_suggestion.proposed_features[${i}]`);
       return {
-        title: asString(po.title, `split_suggestion.proposed_features[${i}].title`),
-        scope: asString(po.scope, `split_suggestion.proposed_features[${i}].scope`),
+        title: asString(
+          po.title,
+          `split_suggestion.proposed_features[${i}].title`,
+        ),
+        scope: asString(
+          po.scope,
+          `split_suggestion.proposed_features[${i}].scope`,
+        ),
       };
     }),
   };
@@ -168,15 +181,21 @@ function parseSplit(raw: unknown): GapSplitSuggestion {
 /** Parse one adaptive section — title + optional content/mockups/questions. */
 function parseSection(raw: unknown, i: number): GapSection {
   const o = asObject(raw, `sections[${i}]`);
-  const section: GapSection = { title: firstString(o.title, o.name) || `Section ${i + 1}` };
+  const section: GapSection = {
+    title: firstString(o.title, o.name) || `Section ${i + 1}`,
+  };
   const content = firstString(o.content, o.body, o.markdown, o.summary);
   if (content) section.content = content;
   if (o.mockups !== undefined && o.mockups !== null) {
-    const mockups = asArray(o.mockups, `sections[${i}].mockups`).map(parseMockup);
+    const mockups = asArray(o.mockups, `sections[${i}].mockups`).map(
+      parseMockup,
+    );
     if (mockups.length) section.mockups = mockups;
   }
   if (o.questions !== undefined && o.questions !== null) {
-    const questions = asArray(o.questions, `sections[${i}].questions`).map(parseQuestion);
+    const questions = asArray(o.questions, `sections[${i}].questions`).map(
+      parseQuestion,
+    );
     if (questions.length) section.questions = questions;
   }
   return section;
@@ -190,7 +209,11 @@ function parseArchitecture(raw: unknown): GapArchitecture {
       const co = asObject(c, `architecture.components[${i}]`);
       return {
         name: asString(co.name, `architecture.components[${i}].name`),
-        responsibility: firstString(co.responsibility, co.description, co.summary),
+        responsibility: firstString(
+          co.responsibility,
+          co.description,
+          co.summary,
+        ),
         touchpoints: lenientStringArray(co.touchpoints),
       };
     }),
@@ -213,12 +236,17 @@ function deriveSectionsFromLegacy(o: Record<string, unknown>): GapSection[] {
       lines.push(
         "",
         ...arch.components.map(
-          (c) => `- **${c.name}**: ${c.responsibility}${c.touchpoints.length ? ` _(${c.touchpoints.join(", ")})_` : ""}`,
+          (c) =>
+            `- **${c.name}**: ${c.responsibility}${c.touchpoints.length ? ` _(${c.touchpoints.join(", ")})_` : ""}`,
         ),
       );
     }
     const m = mockupsTagged("architecture");
-    sections.push({ title: "Architecture", content: lines.join("\n"), ...(m ? { mockups: m } : {}) });
+    sections.push({
+      title: "Architecture",
+      content: lines.join("\n"),
+      ...(m ? { mockups: m } : {}),
+    });
   }
 
   if (Array.isArray(o.user_flows) && o.user_flows.length) {
@@ -227,18 +255,31 @@ function deriveSectionsFromLegacy(o: Record<string, unknown>): GapSection[] {
         const fo = asObject(f, `user_flows[${i}]`);
         const name = asString(fo.name, `user_flows[${i}].name`);
         const steps = asStringArray(fo.steps, `user_flows[${i}].steps`);
-        return [`**${name}**`, ...steps.map((s, j) => `${j + 1}. ${s}`)].join("\n");
+        return [`**${name}**`, ...steps.map((s, j) => `${j + 1}. ${s}`)].join(
+          "\n",
+        );
       })
       .join("\n\n");
     const m = mockupsTagged("user_flows");
-    sections.push({ title: "User flows", content, ...(m ? { mockups: m } : {}) });
+    sections.push({
+      title: "User flows",
+      content,
+      ...(m ? { mockups: m } : {}),
+    });
   }
 
-  const orphanMockups = mockups.filter((mk) => !["architecture", "user_flows"].includes(mk.section ?? "architecture"));
-  if (orphanMockups.length) sections.push({ title: "Diagrams", mockups: orphanMockups });
+  const orphanMockups = mockups.filter(
+    (mk) =>
+      !["architecture", "user_flows"].includes(mk.section ?? "architecture"),
+  );
+  if (orphanMockups.length)
+    sections.push({ title: "Diagrams", mockups: orphanMockups });
 
   if (Array.isArray(o.questions) && o.questions.length) {
-    sections.push({ title: "Open questions", questions: o.questions.map(parseQuestion) });
+    sections.push({
+      title: "Open questions",
+      questions: o.questions.map(parseQuestion),
+    });
   }
 
   return sections;
@@ -294,7 +335,15 @@ export function sanitizeGapResult(gap: GapResult): GapResult {
   return {
     ...gap,
     sections: gap.sections.map((s) =>
-      s.mockups ? { ...s, mockups: s.mockups.map((m) => ({ ...m, markup: sanitizeSvg(m.markup) })) } : s,
+      s.mockups
+        ? {
+            ...s,
+            mockups: s.mockups.map((m) => ({
+              ...m,
+              markup: sanitizeSvg(m.markup),
+            })),
+          }
+        : s,
     ),
   };
 }
@@ -319,7 +368,9 @@ export function isPlanningPhase(status: string): boolean {
  * A uniform sections list from a gap that may be the new shape OR a raw, stored
  * legacy payload (architecture/user_flows/…). Never throws — [] on garbage.
  */
-export function sectionsOf(gap: GapResult | Record<string, unknown> | null | undefined): GapSection[] {
+export function sectionsOf(
+  gap: GapResult | Record<string, unknown> | null | undefined,
+): GapSection[] {
   if (!gap) return [];
   const g = gap as Record<string, unknown>;
   if (Array.isArray(g.sections)) return g.sections as GapSection[];

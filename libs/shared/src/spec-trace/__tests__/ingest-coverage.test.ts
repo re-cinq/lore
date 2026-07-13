@@ -18,11 +18,18 @@ import { ingestCoverageReport } from "../ingest-coverage.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const REPO_ROOT = join(process.cwd(), "..");
-const APPLIER = join(REPO_ROOT, "scripts", "infra", "setup-spec-trace-schema.sh");
+const APPLIER = join(
+  REPO_ROOT,
+  "scripts",
+  "infra",
+  "setup-spec-trace-schema.sh",
+);
 
 async function dgraphReachable(): Promise<boolean> {
   try {
-    return (await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })).ok;
+    return (
+      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
+    ).ok;
   } catch {
     return false;
   }
@@ -31,13 +38,21 @@ async function dgraphReachable(): Promise<boolean> {
 const reachable = await dgraphReachable();
 
 describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
-  const dgraphClient = new dgraph.DgraphClient(new dgraph.DgraphClientStub(DGRAPH_HTTP));
+  const dgraphClient = new dgraph.DgraphClient(
+    new dgraph.DgraphClientStub(DGRAPH_HTTP),
+  );
 
   beforeAll(() => {
-    execFileSync("bash", [APPLIER], { env: { ...process.env, DGRAPH_HTTP }, stdio: "pipe" });
+    execFileSync("bash", [APPLIER], {
+      env: { ...process.env, DGRAPH_HTTP },
+      stdio: "pipe",
+    });
   });
 
-  async function readGraph(query: string, vars: Record<string, string>): Promise<Record<string, unknown>> {
+  async function readGraph(
+    query: string,
+    vars: Record<string, string>,
+  ): Promise<Record<string, unknown>> {
     const txn = dgraphClient.newTxn();
     try {
       const res = await txn.queryWithVars(query, vars);
@@ -99,7 +114,13 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
     await ingestCoverageReport(
       dgraphClient,
       { repo, tool: "v8", commit: "abc" },
-      [{ testFile: "a.test.ts", testName: "t", covered: [{ file: "src/a.ts", startLine: 1, endLine: 5 }] }],
+      [
+        {
+          testFile: "a.test.ts",
+          testName: "t",
+          covered: [{ file: "src/a.ts", startLine: 1, endLine: 5 }],
+        },
+      ],
     );
 
     const data = (await readGraph(
@@ -110,9 +131,16 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
         }
       }`,
       { $repo: repo },
-    )) as { root?: Array<{ cov?: unknown[]; files?: Array<{ "File.path"?: string }> }> };
+    )) as {
+      root?: Array<{
+        cov?: unknown[];
+        files?: Array<{ "File.path"?: string }>;
+      }>;
+    };
     expect(data.root?.[0]?.cov).toHaveLength(1);
-    expect((data.root?.[0]?.files ?? []).map((f) => f["File.path"])).toEqual(["src/a.ts"]);
+    expect((data.root?.[0]?.files ?? []).map((f) => f["File.path"])).toEqual([
+      "src/a.ts",
+    ]);
   });
 
   it("writes one Coverage node keyed by repo|testFile|testName with repo/tool/commit for a record with no covered ranges", async () => {
@@ -172,7 +200,11 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
     )) as { cov?: { "Coverage.covers"?: Record<string, unknown>[] }[] };
 
     expect(data.cov?.[0]?.["Coverage.covers"]).toEqual([
-      { "File.xid": `${repo}|src/widget.ts`, "File.path": "src/widget.ts", "Coverage.covers|ranges": "5-10,20-25" },
+      {
+        "File.xid": `${repo}|src/widget.ts`,
+        "File.path": "src/widget.ts",
+        "Coverage.covers|ranges": "5-10,20-25",
+      },
     ]);
   });
 
@@ -183,20 +215,39 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
     await ingestCoverageReport(
       dgraphClient,
       { repo, tool: "lcov", commit: "c1" },
-      [{ testFile: "t.test.ts", testName: "renders", covered: [{ file: "a.ts", startLine: 1, endLine: 10 }] }],
+      [
+        {
+          testFile: "t.test.ts",
+          testName: "renders",
+          covered: [{ file: "a.ts", startLine: 1, endLine: 10 }],
+        },
+      ],
     );
     await ingestCoverageReport(
       dgraphClient,
       { repo, tool: "lcov", commit: "c2" },
-      [{ testFile: "t.test.ts", testName: "renders", covered: [{ file: "b.ts", startLine: 1, endLine: 10 }] }],
+      [
+        {
+          testFile: "t.test.ts",
+          testName: "renders",
+          covered: [{ file: "b.ts", startLine: 1, endLine: 10 }],
+        },
+      ],
     );
 
     const cov = (await readGraph(
       `query q($xid: string) { cov(func: eq(Coverage.xid, $xid)) { Coverage.commit Coverage.covers { File.xid } } }`,
       { $xid: `${repo}|t.test.ts|renders` },
-    )) as { cov?: { "Coverage.commit"?: string; "Coverage.covers"?: { "File.xid": string }[] }[] };
+    )) as {
+      cov?: {
+        "Coverage.commit"?: string;
+        "Coverage.covers"?: { "File.xid": string }[];
+      }[];
+    };
     expect(cov.cov?.[0]?.["Coverage.commit"]).toEqual("c2");
-    expect((cov.cov?.[0]?.["Coverage.covers"] ?? []).map((c) => c["File.xid"])).toEqual([`${repo}|b.ts`]);
+    expect(
+      (cov.cov?.[0]?.["Coverage.covers"] ?? []).map((c) => c["File.xid"]),
+    ).toEqual([`${repo}|b.ts`]);
 
     // The dropped a.ts File is GC'd (no other owner).
     const orphan = (await readGraph(
@@ -211,14 +262,20 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
     createdRepo = repo;
     const shared = { file: "shared.ts", startLine: 1, endLine: 10 };
 
-    await ingestCoverageReport(dgraphClient, { repo, tool: "lcov", commit: "c1" }, [
-      { testFile: "a.test.ts", testName: "a", covered: [shared] },
-      { testFile: "b.test.ts", testName: "b", covered: [shared] },
-    ]);
+    await ingestCoverageReport(
+      dgraphClient,
+      { repo, tool: "lcov", commit: "c1" },
+      [
+        { testFile: "a.test.ts", testName: "a", covered: [shared] },
+        { testFile: "b.test.ts", testName: "b", covered: [shared] },
+      ],
+    );
     // a.test.ts re-ingests with NO coverage; b.test.ts still covers the shared range.
-    await ingestCoverageReport(dgraphClient, { repo, tool: "lcov", commit: "c2" }, [
-      { testFile: "a.test.ts", testName: "a", covered: [] },
-    ]);
+    await ingestCoverageReport(
+      dgraphClient,
+      { repo, tool: "lcov", commit: "c2" },
+      [{ testFile: "a.test.ts", testName: "a", covered: [] }],
+    );
 
     const data = (await readGraph(
       `query q($xid: string) { f(func: eq(File.xid, $xid)) { File.xid } }`,
@@ -263,6 +320,8 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
       { $xid: `${repo}|tc1` },
     )) as { tc?: { "TestChunk.coverage"?: { "Coverage.xid": string } }[] };
 
-    expect(data.tc?.[0]?.["TestChunk.coverage"]).toEqual({ "Coverage.xid": `${repo}|t.test.ts|renders` });
+    expect(data.tc?.[0]?.["TestChunk.coverage"]).toEqual({
+      "Coverage.xid": `${repo}|t.test.ts|renders`,
+    });
   });
 });

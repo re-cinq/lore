@@ -1,19 +1,26 @@
 export const dynamic = "force-dynamic";
-import { query, queryOne, getRepoSchema } from '@/lib/db';
-import { getReadme, checkRepoFiles } from '@/lib/github';
-import { getWebhookStatus, getWebhookSecret } from '@/lib/webhook-api';
-import { computeEnrollmentChecks } from '@/lib/enrollment';
-import { reonboard, setupWebhook } from './actions';
-import RepoOverviewView, { type RecentTask } from './RepoOverviewView';
-import { type RepoEvent } from './events/pagination';
+import { query, queryOne, getRepoSchema } from "@/lib/db";
+import { getReadme, checkRepoFiles } from "@/lib/github";
+import { getWebhookStatus, getWebhookSecret } from "@/lib/webhook-api";
+import { computeEnrollmentChecks } from "@/lib/enrollment";
+import { reonboard, setupWebhook } from "./actions";
+import RepoOverviewView, { type RecentTask } from "./RepoOverviewView";
+import { type RepoEvent } from "./events/pagination";
 
-export default async function RepoOverview({ params }: { params: Promise<{ owner: string; repo: string }> }) {
+export default async function RepoOverview({
+  params,
+}: {
+  params: Promise<{ owner: string; repo: string }>;
+}) {
   const { owner, repo: repoName } = await params;
   const fullName = `${owner}/${repoName}`;
   const readme = await getReadme(fullName).catch(() => null);
 
   const repoInfo = await queryOne<{
-    settings?: { dark_factory?: { enabled?: boolean }; trust?: { level?: string } };
+    settings?: {
+      dark_factory?: { enabled?: boolean };
+      trust?: { level?: string };
+    };
     onboarded_at: string;
     last_ingested_at?: string;
     team?: string;
@@ -23,7 +30,7 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
   const recentTasks = await query(
     `SELECT id, description, status, agent_id, pr_url, created_at
      FROM pipeline.tasks WHERE target_repo = $1 ORDER BY created_at DESC LIMIT 5`,
-    [fullName]
+    [fullName],
   );
   // Latest event-bus activity for this repo (fail-soft — repo is a first-class
   // column since migration 0024, so only github.* / internal.* events match; the
@@ -32,12 +39,12 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
     `SELECT id, event_name, source, params, status, captured_at
      FROM pipeline.events WHERE repo = $1
      ORDER BY captured_at DESC LIMIT 10`,
-    [fullName]
+    [fullName],
   ).catch(() => []);
   const schema = await getRepoSchema(fullName);
-  const contextCount = await queryOne<{count: number}>(
+  const contextCount = await queryOne<{ count: number }>(
     `SELECT count(*)::int as count FROM ${schema}.chunks WHERE repo = $1`,
-    [fullName]
+    [fullName],
   ).catch(() => null);
 
   // Enrollment / integration signals (all fail-soft).
@@ -46,7 +53,8 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
     [fullName],
   ).catch(() => []);
   // pg returns TIMESTAMPTZ columns as Date objects — normalize to ISO strings.
-  const iso = (d: unknown): string | null => (d ? new Date(d as string | Date).toISOString() : null);
+  const iso = (d: unknown): string | null =>
+    d ? new Date(d as string | Date).toISOString() : null;
   let localMcp = { developerCount: 0, lastActivity: null as string | null };
   try {
     const row = await queryOne<{ devs: number; last: string | Date | null }>(
@@ -58,16 +66,24 @@ export default async function RepoOverview({ params }: { params: Promise<{ owner
   } catch {
     // memory.episodes may not exist on legacy clusters.
   }
-  const githubFiles = await checkRepoFiles(fullName, ['AGENTS.md', '.github/workflows/lore-ingest.yml']).catch(
-    () => ({ 'AGENTS.md': null, '.github/workflows/lore-ingest.yml': null }),
-  );
+  const githubFiles = await checkRepoFiles(fullName, [
+    "AGENTS.md",
+    ".github/workflows/lore-ingest.yml",
+  ]).catch(() => ({
+    "AGENTS.md": null,
+    ".github/workflows/lore-ingest.yml": null,
+  }));
   const webhook = await getWebhookStatus(fullName).catch(() => null);
   // The hook needs setting up by hand → reveal the signing secret so it can be
   // pasted into GitHub alongside the URL. Fetched (admin-scoped) only in this
   // case, so the secret never reaches the client for an already-wired repo.
   const webhookWithSecret =
-    webhook && webhook.state !== 'configured'
-      ? { ...webhook, secret: (await getWebhookSecret(fullName).catch(() => null)) ?? undefined }
+    webhook && webhook.state !== "configured"
+      ? {
+          ...webhook,
+          secret:
+            (await getWebhookSecret(fullName).catch(() => null)) ?? undefined,
+        }
       : webhook;
 
   const enrollmentChecks = computeEnrollmentChecks({

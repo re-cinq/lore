@@ -10,7 +10,11 @@ describe("InMemoryAudit", () => {
       payload: { branch_name: "b" },
     });
     expect(audit.entries).toEqual([
-      { event_type: "lease_expired", task_id: "t1", payload: { branch_name: "b" } },
+      {
+        event_type: "lease_expired",
+        task_id: "t1",
+        payload: { branch_name: "b" },
+      },
     ]);
   });
 });

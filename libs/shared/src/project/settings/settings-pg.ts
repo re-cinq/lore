@@ -4,7 +4,11 @@ import {
   type DarkFactorySettings,
   type ResolvedDarkFactorySettings,
 } from "../../dark-factory-settings.js";
-import type { SettingsPort, OnboardedRepo, PendingOnboardingRepo } from "./settings-port.js";
+import type {
+  SettingsPort,
+  OnboardedRepo,
+  PendingOnboardingRepo,
+} from "./settings-port.js";
 
 /** The repo-config writes the settings adapter delegates to (the GitHub adapter). */
 export interface RepoConfigWriter {
@@ -26,21 +30,33 @@ export class PgSettings implements SettingsPort {
 
   private writer(): RepoConfigWriter {
     if (!this.repoConfig) {
-      throw new Error("PgSettings: repo-config writer not provided (read-only binding)");
+      throw new Error(
+        "PgSettings: repo-config writer not provided (read-only binding)",
+      );
     }
     return this.repoConfig;
   }
 
   async resolve(repo: string): Promise<ResolvedDarkFactorySettings> {
-    const { rows } = await this.pool.query("SELECT settings FROM lore.repos WHERE full_name = $1", [repo]);
-    const settings = rows[0]?.settings as { dark_factory?: DarkFactorySettings } | undefined;
+    const { rows } = await this.pool.query(
+      "SELECT settings FROM lore.repos WHERE full_name = $1",
+      [repo],
+    );
+    const settings = rows[0]?.settings as
+      { dark_factory?: DarkFactorySettings } | undefined;
     return resolveDarkFactorySettings(settings?.dark_factory);
   }
 
-  async resolveOrNull(repo: string): Promise<ResolvedDarkFactorySettings | null> {
-    const { rows } = await this.pool.query("SELECT settings FROM lore.repos WHERE full_name = $1", [repo]);
+  async resolveOrNull(
+    repo: string,
+  ): Promise<ResolvedDarkFactorySettings | null> {
+    const { rows } = await this.pool.query(
+      "SELECT settings FROM lore.repos WHERE full_name = $1",
+      [repo],
+    );
     if (rows.length === 0) return null;
-    const settings = rows[0]?.settings as { dark_factory?: DarkFactorySettings } | undefined;
+    const settings = rows[0]?.settings as
+      { dark_factory?: DarkFactorySettings } | undefined;
     return resolveDarkFactorySettings(settings?.dark_factory);
   }
 
@@ -53,25 +69,37 @@ export class PgSettings implements SettingsPort {
   }
 
   async rawSettings(repo: string): Promise<Record<string, unknown> | null> {
-    const { rows } = await this.pool.query("SELECT settings FROM lore.repos WHERE full_name = $1", [repo]);
+    const { rows } = await this.pool.query(
+      "SELECT settings FROM lore.repos WHERE full_name = $1",
+      [repo],
+    );
     if (rows.length === 0) return null;
     return (rows[0]?.settings as Record<string, unknown> | null) ?? null;
   }
 
-  async updateSettings(repo: string, settings: Record<string, unknown>): Promise<void> {
-    await this.pool.query("UPDATE lore.repos SET settings = $1 WHERE full_name = $2", [
-      JSON.stringify(settings),
-      repo,
-    ]);
+  async updateSettings(
+    repo: string,
+    settings: Record<string, unknown>,
+  ): Promise<void> {
+    await this.pool.query(
+      "UPDATE lore.repos SET settings = $1 WHERE full_name = $2",
+      [JSON.stringify(settings), repo],
+    );
   }
 
   async team(repo: string): Promise<string | null> {
-    const { rows } = await this.pool.query("SELECT team FROM lore.repos WHERE full_name = $1", [repo]);
+    const { rows } = await this.pool.query(
+      "SELECT team FROM lore.repos WHERE full_name = $1",
+      [repo],
+    );
     return (rows[0]?.team as string | undefined) ?? null;
   }
 
   async repoForTeam(team: string): Promise<string | null> {
-    const { rows } = await this.pool.query("SELECT full_name FROM lore.repos WHERE team = $1 LIMIT 1", [team]);
+    const { rows } = await this.pool.query(
+      "SELECT full_name FROM lore.repos WHERE team = $1 LIMIT 1",
+      [team],
+    );
     return (rows[0]?.full_name as string | undefined) ?? null;
   }
 
@@ -91,7 +119,10 @@ export class PgSettings implements SettingsPort {
   }
 
   async markIngested(repo: string): Promise<void> {
-    await this.pool.query("UPDATE lore.repos SET last_ingested_at = now() WHERE full_name = $1", [repo]);
+    await this.pool.query(
+      "UPDATE lore.repos SET last_ingested_at = now() WHERE full_name = $1",
+      [repo],
+    );
   }
 
   async pendingOnboardingRepos(): Promise<PendingOnboardingRepo[]> {
@@ -114,10 +145,17 @@ export class PgSettings implements SettingsPort {
   }
 
   async setOnboardingPrUrl(repo: string, url: string): Promise<void> {
-    await this.pool.query("UPDATE lore.repos SET onboarding_pr_url = $1 WHERE full_name = $2", [url, repo]);
+    await this.pool.query(
+      "UPDATE lore.repos SET onboarding_pr_url = $1 WHERE full_name = $2",
+      [url, repo],
+    );
   }
 
-  async bumpOutcomeStats(repo: string, filesChanged: number, hoursToMerge: number): Promise<void> {
+  async bumpOutcomeStats(
+    repo: string,
+    filesChanged: number,
+    hoursToMerge: number,
+  ): Promise<void> {
     await this.pool.query(
       `UPDATE lore.repos SET outcome_stats = jsonb_set(
          jsonb_set(

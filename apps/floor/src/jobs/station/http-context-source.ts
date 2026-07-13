@@ -18,7 +18,9 @@ export class HttpContextSource implements ContextSource {
       `${base}/api/context?repo=${encodeURIComponent(spec.targetRepo)}` +
       `&template=${template}&query=${encodeURIComponent(query)}&max_tokens=8000`;
     try {
-      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const res = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!res.ok) return undefined;
       const data = (await res.json()) as { text?: string };
       return data.text || undefined;

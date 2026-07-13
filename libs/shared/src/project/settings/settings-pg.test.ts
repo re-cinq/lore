@@ -9,7 +9,10 @@ import type { PgPool } from "../../memory-store.js";
  * writer. Proves SQL/binding and delegation without a live database or GitHub.
  */
 
-function fakePool(capture: Array<{ text: string; params?: unknown[] }>, rows: unknown[]): PgPool {
+function fakePool(
+  capture: Array<{ text: string; params?: unknown[] }>,
+  rows: unknown[],
+): PgPool {
   return {
     query: async (text: string, params?: unknown[]) => {
       capture.push({ text, params });
@@ -18,7 +21,9 @@ function fakePool(capture: Array<{ text: string; params?: unknown[] }>, rows: un
   };
 }
 
-function fakeWriter(calls: Array<{ kind: string; args: string[] }>): RepoConfigWriter {
+function fakeWriter(
+  calls: Array<{ kind: string; args: string[] }>,
+): RepoConfigWriter {
   return {
     setRepoVariable: async (repo, name, value) => {
       calls.push({ kind: "var", args: [repo, name, value] });
@@ -46,7 +51,9 @@ describe("PgSettings", () => {
   it("falls back to defaults when the repo has no settings row", async () => {
     const store = new PgSettings(fakePool([], []), fakeWriter([]));
 
-    expect(await store.resolve("missing/repo")).toEqual(resolveDarkFactorySettings(undefined));
+    expect(await store.resolve("missing/repo")).toEqual(
+      resolveDarkFactorySettings(undefined),
+    );
   });
 
   it("resolveOrNull returns null when the repo is not onboarded", async () => {
@@ -56,17 +63,28 @@ describe("PgSettings", () => {
   });
 
   it("resolveOrNull resolves the settings when the repo row exists", async () => {
-    const store = new PgSettings(fakePool([], [{ settings: { dark_factory: { enabled: true } } }]), fakeWriter([]));
+    const store = new PgSettings(
+      fakePool([], [{ settings: { dark_factory: { enabled: true } } }]),
+      fakeWriter([]),
+    );
 
-    expect(await store.resolveOrNull("re-cinq/lore")).toEqual(resolveDarkFactorySettings({ enabled: true }));
+    expect(await store.resolveOrNull("re-cinq/lore")).toEqual(
+      resolveDarkFactorySettings({ enabled: true }),
+    );
   });
 
   it("delegates a variable write to the repo-config writer", async () => {
     const calls: Array<{ kind: string; args: string[] }> = [];
     const store = new PgSettings(fakePool([], []), fakeWriter(calls));
 
-    await store.setRepoVariable("re-cinq/lore", "LORE_INGEST_URL", "https://api");
+    await store.setRepoVariable(
+      "re-cinq/lore",
+      "LORE_INGEST_URL",
+      "https://api",
+    );
 
-    expect(calls).toEqual([{ kind: "var", args: ["re-cinq/lore", "LORE_INGEST_URL", "https://api"] }]);
+    expect(calls).toEqual([
+      { kind: "var", args: ["re-cinq/lore", "LORE_INGEST_URL", "https://api"] },
+    ]);
   });
 });

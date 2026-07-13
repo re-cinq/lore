@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
+import {
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  readdirSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -17,7 +24,13 @@ import {
 let dir: string;
 
 function policy(over: Partial<ReadCachePolicy> = {}): ReadCachePolicy {
-  return { tool: "lore_search_memory", args: { query: "auth" }, repo: "re-cinq/lore", ttlSeconds: 60, ...over };
+  return {
+    tool: "lore_search_memory",
+    args: { query: "auth" },
+    repo: "re-cinq/lore",
+    ttlSeconds: 60,
+    ...over,
+  };
 }
 
 beforeEach(() => {
@@ -38,16 +51,18 @@ describe("buildKey", () => {
   });
 
   it("differs by repo", () => {
-    expect(buildKey("t", { a: 1 }, "owner/a")).not.toBe(buildKey("t", { a: 1 }, "owner/b"));
+    expect(buildKey("t", { a: 1 }, "owner/a")).not.toBe(
+      buildKey("t", { a: 1 }, "owner/b"),
+    );
   });
 
   it("is delimiter-pinned to a stable golden hash", () => {
     // If the \x00 field delimiter is ever dropped or mangled (e.g. an editor
     // strips the escape), this hash changes and silently invalidates every
     // cached key. Pin it.
-    expect(buildKey("lore_search_memory", { query: "auth" }, "re-cinq/lore")).toBe(
-      "7bcca6e763dc41f1c1986cb9c7eb9dad032ed342d024a4b300c5e1845b858fd5",
-    );
+    expect(
+      buildKey("lore_search_memory", { query: "auth" }, "re-cinq/lore"),
+    ).toBe("7bcca6e763dc41f1c1986cb9c7eb9dad032ed342d024a4b300c5e1845b858fd5");
   });
 
   it("differs when an arg value differs", () => {
@@ -58,7 +73,10 @@ describe("buildKey", () => {
 describe("read-through cache", () => {
   it("returns a fresh hit within ttl", () => {
     store(policy(), "results");
-    expect(readFresh(policy())).toEqual({ body: "results", ageSeconds: expect.any(Number) });
+    expect(readFresh(policy())).toEqual({
+      body: "results",
+      ageSeconds: expect.any(Number),
+    });
   });
 
   it("returns null on a miss", () => {
@@ -107,7 +125,9 @@ describe("eviction", () => {
     vi.setSystemTime(new Date("2026-06-17T00:02:00Z"));
     store(policy({ args: { query: "three" } }), "3");
     vi.useRealTimers();
-    expect(readdirSync(join(dir, "entries")).filter(f => f.endsWith(".json"))).toHaveLength(2);
+    expect(
+      readdirSync(join(dir, "entries")).filter((f) => f.endsWith(".json")),
+    ).toHaveLength(2);
     expect(readAny(policy({ args: { query: "one" } }))).toBeNull();
     expect(readAny(policy({ args: { query: "three" } }))?.body).toBe("3");
   });

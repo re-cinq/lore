@@ -9,7 +9,9 @@ import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lin
 import { InMemoryJobRuns } from "@re-cinq/lore-shared/project/job-runs/job-runs-memory.js";
 import { runDetect, type DetectStationDispatch } from "./run-detect.js";
 
-async function withLeasesDir<T>(fn: (leasesDir: string) => Promise<T>): Promise<T> {
+async function withLeasesDir<T>(
+  fn: (leasesDir: string) => Promise<T>,
+): Promise<T> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "lore-detect-leases-"));
   try {
     return await fn(dir);
@@ -19,7 +21,10 @@ async function withLeasesDir<T>(fn: (leasesDir: string) => Promise<T>): Promise<
 }
 
 /** A dispatch that records launches and returns a fixed terminal status on poll. */
-function fakeDispatch(status: AgentNodeStatus): { dispatch: DetectStationDispatch; launched: LoreTaskSpec[] } {
+function fakeDispatch(status: AgentNodeStatus): {
+  dispatch: DetectStationDispatch;
+  launched: LoreTaskSpec[];
+} {
   const launched: LoreTaskSpec[] = [];
   return {
     launched,
@@ -40,8 +45,13 @@ describe("runDetect", () => {
     await withLeasesDir(async (leasesDir) => {
       const assemblyLines = new InMemoryAssemblyLines();
       const jobRuns = new InMemoryJobRuns();
-      const { dispatch, launched } = fakeDispatch(succeeded("Checked 4 specs (1 drifted)"));
-      const assemblyLineId = await assemblyLines.start({ definitionName: "spec-drift", repo: "re-cinq/lore" });
+      const { dispatch, launched } = fakeDispatch(
+        succeeded("Checked 4 specs (1 drifted)"),
+      );
+      const assemblyLineId = await assemblyLines.start({
+        definitionName: "spec-drift",
+        repo: "re-cinq/lore",
+      });
 
       const result = await runDetect({
         assemblyLineId,
@@ -55,17 +65,27 @@ describe("runDetect", () => {
 
       expect(result.reason).toBe("completed");
       // The station CR carries def-detect + the node's job_ref in station_input.
-      expect(launched[0]).toMatchObject({ stationRef: "def-detect", targetRepo: "re-cinq/lore" });
+      expect(launched[0]).toMatchObject({
+        stationRef: "def-detect",
+        targetRepo: "re-cinq/lore",
+      });
       expect(JSON.parse(launched[0].parameters!.station_input)).toMatchObject({
         node_type: "detect",
         repo: "re-cinq/lore",
         params: { job_ref: "spec_drift" },
       });
       expect(jobRuns.rows).toEqual([
-        expect.objectContaining({ jobName: "spec_drift:re-cinq/lore", status: "completed" }),
+        expect.objectContaining({
+          jobName: "spec_drift:re-cinq/lore",
+          status: "completed",
+        }),
       ]);
       expect(assemblyLines.nodes).toEqual([
-        expect.objectContaining({ assemblyLineId, nodeId: "detect", outcome: "success" }),
+        expect.objectContaining({
+          assemblyLineId,
+          nodeId: "detect",
+          outcome: "success",
+        }),
       ]);
       expect(await fs.readdir(leasesDir)).toHaveLength(0);
     });
@@ -81,13 +101,21 @@ describe("runDetect", () => {
         Object.create(Object.getPrototypeOf(backend)) as typeof backend,
         backend,
         {
-          acquire: (branchName: string, taskId: string | null, holder: string, ttlSec?: number) => {
+          acquire: (
+            branchName: string,
+            taskId: string | null,
+            holder: string,
+            ttlSec?: number,
+          ) => {
             acquires.push({ branchName, taskId });
             return backend.acquire(branchName, taskId, holder, ttlSec);
           },
         },
       );
-      const assemblyLineId = await assemblyLines.start({ definitionName: "spec-drift", repo: "re-cinq/lore" });
+      const assemblyLineId = await assemblyLines.start({
+        definitionName: "spec-drift",
+        repo: "re-cinq/lore",
+      });
 
       await runDetect({
         assemblyLineId,
@@ -99,7 +127,9 @@ describe("runDetect", () => {
         leaseBackend: recordingBackend,
       });
 
-      expect(acquires).toEqual([{ branchName: "detect/spec-drift/re-cinq/lore", taskId: null }]);
+      expect(acquires).toEqual([
+        { branchName: "detect/spec-drift/re-cinq/lore", taskId: null },
+      ]);
     });
   });
 
@@ -107,13 +137,19 @@ describe("runDetect", () => {
     await withLeasesDir(async (leasesDir) => {
       const assemblyLines = new InMemoryAssemblyLines();
       const jobRuns = new InMemoryJobRuns();
-      const assemblyLineId = await assemblyLines.start({ definitionName: "gap-detect", repo: "re-cinq/lore" });
+      const assemblyLineId = await assemblyLines.start({
+        definitionName: "gap-detect",
+        repo: "re-cinq/lore",
+      });
 
       const result = await runDetect({
         assemblyLineId,
         definitionName: "gap-detect",
         repo: "re-cinq/lore",
-        dispatch: fakeDispatch({ phase: "Failed", failureReason: "pod OOMKilled" }).dispatch,
+        dispatch: fakeDispatch({
+          phase: "Failed",
+          failureReason: "pod OOMKilled",
+        }).dispatch,
         assemblyLinesPort: assemblyLines,
         jobRunsPort: jobRuns,
         leaseBackend: new FileLeaseBackend(leasesDir),
@@ -122,7 +158,10 @@ describe("runDetect", () => {
       // A Failed CR → node outcome "failed"; the detect→done edge is on:success only,
       // so the walk aborts with executor_error and the job_runs row fails.
       expect(result.reason).toBe("executor_error");
-      expect(jobRuns.rows[0]).toMatchObject({ jobName: "gap_detection:re-cinq/lore", status: "failed" });
+      expect(jobRuns.rows[0]).toMatchObject({
+        jobName: "gap_detection:re-cinq/lore",
+        status: "failed",
+      });
     });
   });
 
@@ -131,8 +170,15 @@ describe("runDetect", () => {
       const assemblyLines = new InMemoryAssemblyLines();
       const jobRuns = new InMemoryJobRuns();
       const backend = new FileLeaseBackend(leasesDir);
-      await backend.acquire("detect/spec-drift/re-cinq/lore", "other-run", "other-pod");
-      const assemblyLineId = await assemblyLines.start({ definitionName: "spec-drift", repo: "re-cinq/lore" });
+      await backend.acquire(
+        "detect/spec-drift/re-cinq/lore",
+        "other-run",
+        "other-pod",
+      );
+      const assemblyLineId = await assemblyLines.start({
+        definitionName: "spec-drift",
+        repo: "re-cinq/lore",
+      });
 
       const result = await runDetect({
         assemblyLineId,

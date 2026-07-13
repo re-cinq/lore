@@ -16,15 +16,12 @@ let sdk: NodeSDK | null = null;
 
 export async function initOtel(): Promise<void> {
   try {
-    const { TraceExporter } = await import(
-      "@google-cloud/opentelemetry-cloud-trace-exporter"
-    );
-    const { MetricExporter } = await import(
-      "@google-cloud/opentelemetry-cloud-monitoring-exporter"
-    );
-    const { PeriodicExportingMetricReader } = await import(
-      "@opentelemetry/sdk-metrics"
-    );
+    const { TraceExporter } =
+      await import("@google-cloud/opentelemetry-cloud-trace-exporter");
+    const { MetricExporter } =
+      await import("@google-cloud/opentelemetry-cloud-monitoring-exporter");
+    const { PeriodicExportingMetricReader } =
+      await import("@opentelemetry/sdk-metrics");
 
     sdk = new NodeSDK({
       traceExporter: new TraceExporter(),
@@ -44,5 +41,10 @@ export async function initOtel(): Promise<void> {
 export async function shutdownOtel(): Promise<void> {
   // A failed export flush (e.g. no GCP project ID in an unauthed env) must never
   // crash the process — telemetry is best-effort.
-  if (sdk) await sdk.shutdown().catch((err) => console.warn(`[otel] shutdown flush failed: ${(err as Error).message}`));
+  if (sdk)
+    await sdk
+      .shutdown()
+      .catch((err) =>
+        console.warn(`[otel] shutdown flush failed: ${(err as Error).message}`),
+      );
 }

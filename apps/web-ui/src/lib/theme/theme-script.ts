@@ -1,4 +1,4 @@
-import { FAMILY_KEY, SCHEME_KEY } from './theme-core';
+import { FAMILY_KEY, SCHEME_KEY } from "./theme-core";
 
 // Runs synchronously before first paint to set theme attributes from
 // localStorage, so there is no flash of the wrong theme and no icon swap on

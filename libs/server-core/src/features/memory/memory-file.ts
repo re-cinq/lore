@@ -15,26 +15,32 @@
  *     audit.jsonl        – append-only, one JSON per line
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, appendFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { randomUUID } from 'node:crypto';
-import { resolveAgentId } from '../../platform/agent-id.js';
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  appendFileSync,
+} from "node:fs";
+import { join, dirname } from "node:path";
+import { randomUUID } from "node:crypto";
+import { resolveAgentId } from "../../platform/agent-id.js";
 
 // ── Paths ────────────────────────────────────────────────────────────
 
-const BASE_DIR = join(process.env.HOME || '/tmp', '.lore', 'memory');
-const AUDIT_FILE = join(BASE_DIR, 'audit.jsonl');
+const BASE_DIR = join(process.env.HOME || "/tmp", ".lore", "memory");
+const AUDIT_FILE = join(BASE_DIR, "audit.jsonl");
 
 function agentDir(agentId: string): string {
   return join(BASE_DIR, agentId);
 }
 
 function memoriesPath(agentId: string): string {
-  return join(agentDir(agentId), 'memories.json');
+  return join(agentDir(agentId), "memories.json");
 }
 
 function versionsPath(agentId: string): string {
-  return join(agentDir(agentId), 'versions.json');
+  return join(agentDir(agentId), "versions.json");
 }
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -91,7 +97,7 @@ function ensureDir(dir: string): void {
 function readJson<T>(filePath: string, fallback: T): T {
   try {
     if (!existsSync(filePath)) return fallback;
-    const raw = readFileSync(filePath, 'utf-8');
+    const raw = readFileSync(filePath, "utf-8");
     return JSON.parse(raw) as T;
   } catch {
     // Corrupted JSON — reset to fallback
@@ -101,7 +107,7 @@ function readJson<T>(filePath: string, fallback: T): T {
 
 function writeJson(filePath: string, data: unknown): void {
   ensureDir(dirname(filePath));
-  writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n', 'utf-8');
+  writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n", "utf-8");
 }
 
 // ── Audit log ────────────────────────────────────────────────────────
@@ -116,7 +122,7 @@ interface AuditEntry {
   created_at: string;
 }
 
-function appendAudit(entry: Omit<AuditEntry, 'id' | 'created_at'>): void {
+function appendAudit(entry: Omit<AuditEntry, "id" | "created_at">): void {
   ensureDir(BASE_DIR);
   const full: AuditEntry = {
     id: randomUUID(),
@@ -124,7 +130,7 @@ function appendAudit(entry: Omit<AuditEntry, 'id' | 'created_at'>): void {
     ...entry,
   };
   try {
-    appendFileSync(AUDIT_FILE, JSON.stringify(full) + '\n', 'utf-8');
+    appendFileSync(AUDIT_FILE, JSON.stringify(full) + "\n", "utf-8");
   } catch {
     // Best-effort — don't fail the operation if audit write fails
   }
@@ -147,15 +153,21 @@ export function writeMemoryFile(
 ): WriteResult {
   const id = resolveAgentId(agentId);
   const now = new Date().toISOString();
-  const expiresAt = ttlSeconds ? new Date(Date.now() + ttlSeconds * 1000).toISOString() : null;
+  const expiresAt = ttlSeconds
+    ? new Date(Date.now() + ttlSeconds * 1000).toISOString()
+    : null;
 
   // Read current state
   const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
-  const versions = readJson<Record<string, VersionRecord[]>>(versionsPath(id), {});
+  const versions = readJson<Record<string, VersionRecord[]>>(
+    versionsPath(id),
+    {},
+  );
 
   // Determine version
   const existing = memories[key];
-  const nextVersion = existing && !existing.is_deleted ? existing.version + 1 : 1;
+  const nextVersion =
+    existing && !existing.is_deleted ? existing.version + 1 : 1;
 
   // Update memory record (last-write-wins)
   memories[key] = {
@@ -182,7 +194,7 @@ export function writeMemoryFile(
   // Audit
   appendAudit({
     agent_id: id,
-    operation: 'write',
+    operation: "write",
     memory_key: key,
     pool_name: null,
     metadata: { version: nextVersion, ttl_seconds: ttlSeconds ?? null },
@@ -196,22 +208,25 @@ export function writeMemoryFile(
 export function readMemoryFile(
   key: string,
   agentId?: string,
-  version?: number | 'all',
+  version?: number | "all",
 ): MemoryEntry | VersionRecord[] | null {
   const id = resolveAgentId(agentId);
 
   // Audit
   appendAudit({
     agent_id: id,
-    operation: 'read',
+    operation: "read",
     memory_key: key,
     pool_name: null,
-    metadata: { version: version ?? 'latest' },
+    metadata: { version: version ?? "latest" },
   });
 
   // Return full version history
-  if (version === 'all') {
-    const versions = readJson<Record<string, VersionRecord[]>>(versionsPath(id), {});
+  if (version === "all") {
+    const versions = readJson<Record<string, VersionRecord[]>>(
+      versionsPath(id),
+      {},
+    );
     const history = versions[key];
     if (!history || history.length === 0) return null;
     // Return sorted by version descending (newest first)
@@ -219,11 +234,14 @@ export function readMemoryFile(
   }
 
   // Return a specific version
-  if (typeof version === 'number') {
-    const versions = readJson<Record<string, VersionRecord[]>>(versionsPath(id), {});
+  if (typeof version === "number") {
+    const versions = readJson<Record<string, VersionRecord[]>>(
+      versionsPath(id),
+      {},
+    );
     const history = versions[key];
     if (!history) return null;
-    const match = history.find(v => v.version === version);
+    const match = history.find((v) => v.version === version);
     if (!match) return null;
     return {
       key,
@@ -271,7 +289,7 @@ export function deleteMemoryFile(
 
   appendAudit({
     agent_id: id,
-    operation: 'delete',
+    operation: "delete",
     memory_key: key,
     pool_name: null,
     metadata: null,
@@ -313,7 +331,7 @@ export function listMemoriesFile(
 
   appendAudit({
     agent_id: id,
-    operation: 'list',
+    operation: "list",
     memory_key: null,
     pool_name: null,
     metadata: { limit, offset, total },
@@ -325,11 +343,11 @@ export function listMemoriesFile(
 // ── Shared Pools (T025) ──────────────────────────────────────────────
 
 function sharedPoolDir(pool: string): string {
-  return join(BASE_DIR, 'shared', pool);
+  return join(BASE_DIR, "shared", pool);
 }
 
 function sharedMemoriesPath(pool: string): string {
-  return join(sharedPoolDir(pool), 'memories.json');
+  return join(sharedPoolDir(pool), "memories.json");
 }
 
 export interface SharedWriteResult {
@@ -353,7 +371,8 @@ export function sharedWriteFile(
   const memories = readJson<Record<string, MemoryRecord>>(filePath, {});
 
   const existing = memories[key];
-  const nextVersion = existing && !existing.is_deleted ? existing.version + 1 : 1;
+  const nextVersion =
+    existing && !existing.is_deleted ? existing.version + 1 : 1;
 
   memories[key] = {
     value,
@@ -368,7 +387,7 @@ export function sharedWriteFile(
 
   appendAudit({
     agent_id: id,
-    operation: 'shared_write',
+    operation: "shared_write",
     memory_key: key,
     pool_name: pool,
     metadata: { version: nextVersion },
@@ -427,15 +446,17 @@ export interface SnapshotRecord {
 }
 
 function snapshotsDir(agentId: string): string {
-  return join(agentDir(agentId), 'snapshots');
+  return join(agentDir(agentId), "snapshots");
 }
 
-export function createSnapshotFile(
-  agentId?: string,
-): { snapshot_path: string; memory_count: number; created_at: string } {
+export function createSnapshotFile(agentId?: string): {
+  snapshot_path: string;
+  memory_count: number;
+  created_at: string;
+} {
   const id = resolveAgentId(agentId);
   const now = new Date().toISOString();
-  const timestamp = now.replace(/[:.]/g, '-');
+  const timestamp = now.replace(/[:.]/g, "-");
   const snapshotPath = join(snapshotsDir(id), `${timestamp}.json`);
 
   const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
@@ -458,10 +479,13 @@ export function createSnapshotFile(
 
   appendAudit({
     agent_id: id,
-    operation: 'create_snapshot',
+    operation: "create_snapshot",
     memory_key: null,
     pool_name: null,
-    metadata: { snapshot_path: snapshotPath, memory_count: Object.keys(memoryRefs).length },
+    metadata: {
+      snapshot_path: snapshotPath,
+      memory_count: Object.keys(memoryRefs).length,
+    },
   });
 
   return {
@@ -471,9 +495,10 @@ export function createSnapshotFile(
   };
 }
 
-export function restoreSnapshotFile(
-  snapshotPath: string,
-): { restored: boolean; memory_count: number } {
+export function restoreSnapshotFile(snapshotPath: string): {
+  restored: boolean;
+  memory_count: number;
+} {
   const snapshot = readJson<SnapshotRecord | null>(snapshotPath, null);
   if (!snapshot) {
     return { restored: false, memory_count: 0 };
@@ -499,10 +524,13 @@ export function restoreSnapshotFile(
 
   appendAudit({
     agent_id: id,
-    operation: 'restore_snapshot',
+    operation: "restore_snapshot",
     memory_key: null,
     pool_name: null,
-    metadata: { snapshot_path: snapshotPath, memory_count: Object.keys(restoredMemories).length },
+    metadata: {
+      snapshot_path: snapshotPath,
+      memory_count: Object.keys(restoredMemories).length,
+    },
   });
 
   return { restored: true, memory_count: Object.keys(restoredMemories).length };
@@ -540,7 +568,7 @@ export function searchMemoryFile(
 
   appendAudit({
     agent_id: id,
-    operation: 'search',
+    operation: "search",
     memory_key: null,
     pool_name: null,
     metadata: { query, result_count: results.length },

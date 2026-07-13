@@ -1,10 +1,10 @@
-import HelpPopover from '@/components/HelpPopover';
-import ContextFilters from './ContextFilters';
-import ContextCard from './ContextCard';
-import LoadMore from './LoadMore';
-import { CONTEXT_PAGE_SIZE } from './pagination';
-import { type ChunkMeta } from '@/lib/chunk-presenter';
-import styles from './RepoContextView.module.css';
+import HelpPopover from "@/components/HelpPopover";
+import ContextFilters from "./ContextFilters";
+import ContextCard from "./ContextCard";
+import LoadMore from "./LoadMore";
+import { CONTEXT_PAGE_SIZE } from "./pagination";
+import { type ChunkMeta } from "@/lib/chunk-presenter";
+import styles from "./RepoContextView.module.css";
 
 export interface RepoContextChunk {
   id: string;
@@ -30,9 +30,9 @@ export interface RepoContextViewProps {
 }
 
 function emptyMessage(q?: string, type?: string): string {
-  if (q) return `No context matches “${q}”${type ? ` in ${type}` : ''}.`;
+  if (q) return `No context matches “${q}”${type ? ` in ${type}` : ""}.`;
   if (type) return `No ${type} context ingested yet.`;
-  return 'No context ingested yet. Context will appear after the nightly ingestion runs.';
+  return "No context ingested yet. Context will appear after the nightly ingestion runs.";
 }
 
 /**
@@ -57,24 +57,38 @@ export default function RepoContextView({
       <div className={styles.header}>
         <h2 className={styles.title}>Context</h2>
         <HelpPopover label="How context is used">
-          <p>Context is everything Lore has ingested about this repo — conventions, ADRs, specs, and code — stored as embedded chunks.</p>
+          <p>
+            Context is everything Lore has ingested about this repo —
+            conventions, ADRs, specs, and code — stored as embedded chunks.
+          </p>
           <ul>
-            <li>Agents load it on turn 1 of every task via <code>assemble_context</code>, and search it with <code>search_context</code>.</li>
-            <li>It is refreshed by nightly ingestion; a repo not ingested in over 7 days is flagged <strong>stale</strong>.</li>
-            <li>Higher-signal chunks (incidents, conflicts, recent facts) are surfaced first within the token budget.</li>
+            <li>
+              Agents load it on turn 1 of every task via{" "}
+              <code>assemble_context</code>, and search it with{" "}
+              <code>search_context</code>.
+            </li>
+            <li>
+              It is refreshed by nightly ingestion; a repo not ingested in over
+              7 days is flagged <strong>stale</strong>.
+            </li>
+            <li>
+              Higher-signal chunks (incidents, conflicts, recent facts) are
+              surfaced first within the token budget.
+            </li>
           </ul>
         </HelpPopover>
       </div>
       <p className={`meta ${styles.intro}`}>
-        Conventions, ADRs, specs, and code ingested from this repo that agents use as context.
+        Conventions, ADRs, specs, and code ingested from this repo that agents
+        use as context.
       </p>
 
       <ContextFilters basePath={base} types={types} activeType={type} q={q} />
 
       <p className="meta">
         {hasMore ? `showing first ${chunks.length}` : `${chunks.length}`} chunk
-        {chunks.length === 1 ? '' : 's'}
-        {q ? ` matching “${q}”` : ''}
+        {chunks.length === 1 ? "" : "s"}
+        {q ? ` matching “${q}”` : ""}
       </p>
 
       {chunks.length === 0 ? (

@@ -7,8 +7,17 @@
  */
 
 import { createHash, randomUUID } from "node:crypto";
-import type { DgraphClientPort, DgraphTxn, MemoryStore, WriteResult } from "./memory-store.js";
-import { rrfMerge, type MemorySearchResult, type RankedItem } from "./memory-ranking.js";
+import type {
+  DgraphClientPort,
+  DgraphTxn,
+  MemoryStore,
+  WriteResult,
+} from "./memory-store.js";
+import {
+  rrfMerge,
+  type MemorySearchResult,
+  type RankedItem,
+} from "./memory-ranking.js";
 import { cosineSimilarity, parseEmbedding } from "./spec-judge.js";
 
 /** Cosine at/above which a new fact is treated as contradicting an older one. */
@@ -34,7 +43,10 @@ function toVectorLiteral(embedding: number[]): string {
  * vector-literal rule lives here regardless of node type. The predicate defaults
  * to `Memory.embedding`; persistFact passes `Fact.embedding`.
  */
-function embeddingField(embedding?: number[], predicate = "Memory.embedding"): Record<string, string> {
+function embeddingField(
+  embedding?: number[],
+  predicate = "Memory.embedding",
+): Record<string, string> {
   return embedding ? { [predicate]: toVectorLiteral(embedding) } : {};
 }
 
@@ -77,7 +89,11 @@ interface MemoryRow {
 function stripMemoryPrefix(row: Record<string, any>): Record<string, any> {
   const fields: Record<string, any> = {};
   for (const [predicate, value] of Object.entries(row)) {
-    fields[predicate.startsWith("Memory.") ? predicate.slice("Memory.".length) : predicate] = value;
+    fields[
+      predicate.startsWith("Memory.")
+        ? predicate.slice("Memory.".length)
+        : predicate
+    ] = value;
   }
   return fields;
 }
@@ -95,7 +111,8 @@ function toMemoryRow(row: Record<string, any>): MemoryRow {
  * node name without the `_:` prefix (e.g. `"ent"` for `_:ent`).
  */
 function newUid(mutateResult: unknown, label: string): string | undefined {
-  return (mutateResult as { data?: { uids?: Record<string, string> } }).data?.uids?.[label];
+  return (mutateResult as { data?: { uids?: Record<string, string> } }).data
+    ?.uids?.[label];
 }
 
 // ── Graph hop ────────────────────────────────────────────────────────
@@ -118,7 +135,11 @@ export interface GraphHop {
  * arrives as an object under `@recurse` (and the non-recurse path too); the
  * array form is normalized defensively.
  */
-function flattenHops(entity: Record<string, any>, maxDepth: number, depth = 1): GraphHop[] {
+function flattenHops(
+  entity: Record<string, any>,
+  maxDepth: number,
+  depth = 1,
+): GraphHop[] {
   if (depth > maxDepth) return [];
   const rels = (entity["Entity.out_rels"] ?? []) as Record<string, any>[];
   const hops: GraphHop[] = [];
@@ -180,7 +201,12 @@ export class DgraphMemoryStore implements MemoryStore {
     const createdAt = new Date().toISOString();
 
     return this.withTxn(async (txn) => {
-      const existing = await this.findLatestLive(txn, EXISTENCE_PROJECTION, input.agentId, input.key);
+      const existing = await this.findLatestLive(
+        txn,
+        EXISTENCE_PROJECTION,
+        input.agentId,
+        input.key,
+      );
 
       if (existing) {
         const nextVersion = existing.version + 1;
@@ -193,7 +219,12 @@ export class DgraphMemoryStore implements MemoryStore {
           },
           commitNow: true,
         });
-        return { key: input.key, version: nextVersion, agent_id: input.agentId, created_at: createdAt };
+        return {
+          key: input.key,
+          version: nextVersion,
+          agent_id: input.agentId,
+          created_at: createdAt,
+        };
       }
 
       await txn.mutate({
@@ -211,7 +242,12 @@ export class DgraphMemoryStore implements MemoryStore {
         commitNow: true,
       });
 
-      return { key: input.key, version: 1, agent_id: input.agentId, created_at: createdAt };
+      return {
+        key: input.key,
+        version: 1,
+        agent_id: input.agentId,
+        created_at: createdAt,
+      };
     });
   }
 
@@ -243,7 +279,13 @@ export class DgraphMemoryStore implements MemoryStore {
 
       if (input.embedding) {
         const factUid = newUid(created, "newfact");
-        await this.invalidateContradictions(input.agentId, input.embedding, xid, factUid, now);
+        await this.invalidateContradictions(
+          input.agentId,
+          input.embedding,
+          xid,
+          factUid,
+          now,
+        );
       }
 
       return { id: xid };
@@ -302,7 +344,9 @@ export class DgraphMemoryStore implements MemoryStore {
 
     if (nodes.length === 0) return;
 
-    await this.withTxn((txn) => txn.mutate({ setJson: nodes, commitNow: true }));
+    await this.withTxn((txn) =>
+      txn.mutate({ setJson: nodes, commitNow: true }),
+    );
   }
 
   async writeEpisode(input: {
@@ -312,7 +356,9 @@ export class DgraphMemoryStore implements MemoryStore {
     ref?: string;
     embedding?: number[];
   }): Promise<{ id: string }> {
-    const contentHash = createHash("sha256").update(input.content).digest("hex");
+    const contentHash = createHash("sha256")
+      .update(input.content)
+      .digest("hex");
 
     return this.withTxn(async (txn) => {
       const res = await txn.queryWithVars(
@@ -345,15 +391,28 @@ export class DgraphMemoryStore implements MemoryStore {
 
   async readMemory(key: string, agentId: string): Promise<any> {
     return this.withTxn(async (txn) => {
-      const row = await this.findLatestLive(txn, FULL_MEMORY_PROJECTION, agentId, key);
+      const row = await this.findLatestLive(
+        txn,
+        FULL_MEMORY_PROJECTION,
+        agentId,
+        key,
+      );
       if (!row) return null;
       return { key: row.key, value: row.value, version: row.version };
     });
   }
 
-  async deleteMemory(key: string, agentId: string): Promise<{ key: string; deleted: boolean }> {
+  async deleteMemory(
+    key: string,
+    agentId: string,
+  ): Promise<{ key: string; deleted: boolean }> {
     return this.withTxn(async (txn) => {
-      const existing = await this.findLatestLive(txn, EXISTENCE_PROJECTION, agentId, key);
+      const existing = await this.findLatestLive(
+        txn,
+        EXISTENCE_PROJECTION,
+        agentId,
+        key,
+      );
       if (existing) {
         await txn.mutate({
           setJson: { uid: existing.uid, "Memory.is_deleted": true },
@@ -388,15 +447,21 @@ export class DgraphMemoryStore implements MemoryStore {
           $offset: String(opts.offset ?? 0),
         },
       );
-      const memories = (res.data?.memories ?? []).map((row: Record<string, any>) => {
-        const { key, agent_id, version } = stripMemoryPrefix(row);
-        return { key, agent_id, version };
-      });
+      const memories = (res.data?.memories ?? []).map(
+        (row: Record<string, any>) => {
+          const { key, agent_id, version } = stripMemoryPrefix(row);
+          return { key, agent_id, version };
+        },
+      );
       return { memories, total: res.data?.total?.[0]?.count ?? 0 };
     });
   }
 
-  private async upsertEntity(name: string, entityType: string, repo: string): Promise<string> {
+  private async upsertEntity(
+    name: string,
+    entityType: string,
+    repo: string,
+  ): Promise<string> {
     const dedupKey = `${name}|${entityType}|${repo}`;
     return this.withTxn(async (txn) => {
       const res = await txn.queryWithVars(
@@ -438,7 +503,11 @@ export class DgraphMemoryStore implements MemoryStore {
     const targetUid = await this.upsertEntity(input.target, entityType, repo);
     const now = new Date().toISOString();
 
-    const contradictedUids = await this.findContradictedRels(sourceUid, input.relationType, targetUid);
+    const contradictedUids = await this.findContradictedRels(
+      sourceUid,
+      input.relationType,
+      targetUid,
+    );
 
     const invalidations = contradictedUids.map((relUid) => ({
       uid: relUid,
@@ -494,14 +563,19 @@ export class DgraphMemoryStore implements MemoryStore {
         }`,
         { $src: sourceUid, $rel: relationType },
       );
-      const rels = (res.data?.contradictions?.[0]?.["Entity.out_rels"] ?? []) as Record<string, any>[];
+      const rels = (res.data?.contradictions?.[0]?.["Entity.out_rels"] ??
+        []) as Record<string, any>[];
       return rels
         .filter((rel) => rel["GraphRel.target"]?.uid !== targetUid)
         .map((rel) => rel.uid as string);
     });
   }
 
-  async queryGraph(entityName: string, depth: number, _relationType?: string): Promise<GraphHop[]> {
+  async queryGraph(
+    entityName: string,
+    depth: number,
+    _relationType?: string,
+  ): Promise<GraphHop[]> {
     if (!Number.isInteger(depth) || depth < 1) return [];
 
     // `@recurse(depth: N)` counts PREDICATE levels, and one graph hop spans
@@ -524,7 +598,8 @@ export class DgraphMemoryStore implements MemoryStore {
         }`,
         { $name: entityName },
       );
-      const root = (res.data?.result ?? [])[0] as Record<string, any> | undefined;
+      const root = (res.data?.result ?? [])[0] as
+        Record<string, any> | undefined;
       if (!root) return [];
       return flattenHops(root, depth);
     });
@@ -562,7 +637,9 @@ export class DgraphMemoryStore implements MemoryStore {
 
       const res = await txn.queryWithVars(queryText, vars);
       const kmemItems = toItems(res.data?.kmem ?? []);
-      const lists = opts.embedding ? [toItems(res.data?.vmem ?? []), kmemItems] : [kmemItems];
+      const lists = opts.embedding
+        ? [toItems(res.data?.vmem ?? []), kmemItems]
+        : [kmemItems];
       const fused = rrfMerge(lists);
       return opts.limit ? fused.slice(0, opts.limit) : fused;
     });

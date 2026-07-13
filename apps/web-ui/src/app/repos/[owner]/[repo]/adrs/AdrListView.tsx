@@ -2,7 +2,7 @@
 // /trace API. Renders one SpecCard per summary (no coverage figure — ADRs have
 // none); each card links to the byte-exact ADR detail (reassembled from the
 // graph's Block layer). No Postgres reads — the graph is the source of truth.
-import SpecCard from '../specs/SpecCard';
+import SpecCard from "../specs/SpecCard";
 
 interface AdrSummary {
   filePath: string;
@@ -21,9 +21,11 @@ export default function AdrListView({
 }) {
   if (adrs.length === 0) {
     return (
-      <p style={{ color: 'var(--text-muted)' }}>
-        No ADRs in the graph yet. ADRs are projected automatically by CI on every push to <code>main</code> — push an
-        <code>adrs/</code> change (or re-run the <strong>lore-ingest</strong> workflow), then refresh.
+      <p style={{ color: "var(--text-muted)" }}>
+        No ADRs in the graph yet. ADRs are projected automatically by CI on
+        every push to <code>main</code> — push an
+        <code>adrs/</code> change (or re-run the <strong>lore-ingest</strong>{" "}
+        workflow), then refresh.
       </p>
     );
   }

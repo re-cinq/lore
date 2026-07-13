@@ -5,7 +5,10 @@ import {
   graphIngestAuditEntry,
   graphIngestLogLine,
 } from "./spec-trace-audit.js";
-import type { SpecTraceOutcome, IngestGraphSummary } from "@re-cinq/lore-shared";
+import type {
+  SpecTraceOutcome,
+  IngestGraphSummary,
+} from "@re-cinq/lore-shared";
 
 const outcome: SpecTraceOutcome = {
   kind: "test-report",
@@ -31,7 +34,14 @@ describe("specTraceAuditEntry", () => {
     expect(specTraceAuditEntry("re-cinq/lore", outcome)).toEqual({
       event_type: "spec_trace_ingest",
       repo: "re-cinq/lore",
-      payload: { kind: "test-report", test_chunks: 196, validated_by: 102, violated: 3, coverage_nodes: 50, covers_edges: 80 },
+      payload: {
+        kind: "test-report",
+        test_chunks: 196,
+        validated_by: 102,
+        violated: 3,
+        coverage_nodes: 50,
+        covers_edges: 80,
+      },
     });
   });
 });
@@ -49,7 +59,13 @@ describe("graphIngestAuditEntry", () => {
     expect(graphIngestAuditEntry("re-cinq/lore", summary)).toEqual({
       event_type: "spec_trace_ingest",
       repo: "re-cinq/lore",
-      payload: { kind: "adrs", projected: 4, skipped: 2, failed: 1, status: "completed" },
+      payload: {
+        kind: "adrs",
+        projected: 4,
+        skipped: 2,
+        failed: 1,
+        status: "completed",
+      },
     });
   });
 });

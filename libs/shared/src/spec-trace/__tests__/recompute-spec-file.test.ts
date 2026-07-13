@@ -21,18 +21,33 @@ describe("sourceFromBlockRows (pure)", () => {
   });
 
   it("returns empty string for a single blank block (a genuinely empty document)", () => {
-    expect(sourceFromBlockRows([{ "Block.ordinal": 0, "Block.kind": "blank", "Block.text": "" }])).toBe("");
+    expect(
+      sourceFromBlockRows([
+        { "Block.ordinal": 0, "Block.kind": "blank", "Block.text": "" },
+      ]),
+    ).toBe("");
   });
 
   it("defaults an omitted Block.text to empty string (Dgraph omits stored empty scalars)", () => {
-    expect(sourceFromBlockRows([{ "Block.ordinal": 0, "Block.kind": "blank" }])).toBe("");
+    expect(
+      sourceFromBlockRows([{ "Block.ordinal": 0, "Block.kind": "blank" }]),
+    ).toBe("");
   });
 
   it("reassembles rows in ordinal order regardless of query order", () => {
     const rows = [
-      { "Block.ordinal": 2, "Block.kind": "paragraph" as const, "Block.text": "Body." },
+      {
+        "Block.ordinal": 2,
+        "Block.kind": "paragraph" as const,
+        "Block.text": "Body.",
+      },
       { "Block.ordinal": 1, "Block.kind": "blank" as const, "Block.text": "" },
-      { "Block.ordinal": 0, "Block.kind": "heading" as const, "Block.text": "# Title", "Block.level": 1 },
+      {
+        "Block.ordinal": 0,
+        "Block.kind": "heading" as const,
+        "Block.text": "# Title",
+        "Block.level": 1,
+      },
     ];
     expect(sourceFromBlockRows(rows)).toBe("# Title\n\nBody.");
   });
@@ -40,11 +55,18 @@ describe("sourceFromBlockRows (pure)", () => {
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const REPO_ROOT = join(process.cwd(), "..");
-const APPLIER = join(REPO_ROOT, "scripts", "infra", "setup-spec-trace-schema.sh");
+const APPLIER = join(
+  REPO_ROOT,
+  "scripts",
+  "infra",
+  "setup-spec-trace-schema.sh",
+);
 
 async function dgraphReachable(): Promise<boolean> {
   try {
-    return (await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })).ok;
+    return (
+      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
+    ).ok;
   } catch {
     return false;
   }
@@ -53,10 +75,15 @@ async function dgraphReachable(): Promise<boolean> {
 const reachable = await dgraphReachable();
 
 describe.skipIf(!reachable)("recomputeFile (live Dgraph)", () => {
-  const dgraphClient = new dgraph.DgraphClient(new dgraph.DgraphClientStub(DGRAPH_HTTP));
+  const dgraphClient = new dgraph.DgraphClient(
+    new dgraph.DgraphClientStub(DGRAPH_HTTP),
+  );
 
   beforeAll(() => {
-    execFileSync("bash", [APPLIER], { env: { ...process.env, DGRAPH_HTTP }, stdio: "pipe" });
+    execFileSync("bash", [APPLIER], {
+      env: { ...process.env, DGRAPH_HTTP },
+      stdio: "pipe",
+    });
   });
 
   async function deleteRepoNodes(repo: string): Promise<void> {
@@ -92,7 +119,11 @@ describe.skipIf(!reachable)("recomputeFile (live Dgraph)", () => {
     const repo = `test-recompute/${randomUUID()}`;
     createdRepo = repo;
 
-    const result = await recomputeFile(repo, "specs/never/spec.md", dgraphClient);
+    const result = await recomputeFile(
+      repo,
+      "specs/never/spec.md",
+      dgraphClient,
+    );
 
     expect(result).toBeNull();
   });

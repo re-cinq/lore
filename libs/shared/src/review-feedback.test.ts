@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { buildReviewFixDescription, formatReviewFeedback } from "./review-feedback.js";
+import {
+  buildReviewFixDescription,
+  formatReviewFeedback,
+} from "./review-feedback.js";
 import type { ReviewComment } from "./project/pulls/pull-requests-port.js";
 
 const comment = (over: Partial<ReviewComment>): ReviewComment => ({
@@ -44,9 +47,9 @@ describe("formatReviewFeedback", () => {
   });
 
   it("renders a file-only bullet when the line is null", () => {
-    expect(formatReviewFeedback([comment({ line: null, body: "Rename file" })])).toBe(
-      "- src/index.ts — Rename file",
-    );
+    expect(
+      formatReviewFeedback([comment({ line: null, body: "Rename file" })]),
+    ).toBe("- src/index.ts — Rename file");
   });
 
   it("trims comment bodies and joins multiple comments by newline", () => {

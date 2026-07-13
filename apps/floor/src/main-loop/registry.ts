@@ -12,7 +12,11 @@ import * as cron from "../jobs/cron.js";
 import * as detect from "../jobs/detect/fan-out.js";
 import * as kubernetes from "../jobs/kubernetes.js";
 import { assemblyLineStart } from "../jobs/assembly-line/start-event-handler.js";
-import { codeReviewOnOpen, codeReviewOnReply, codeReviewOnClose } from "../jobs/review/code-review.js";
+import {
+  codeReviewOnOpen,
+  codeReviewOnReply,
+  codeReviewOnClose,
+} from "../jobs/review/code-review.js";
 
 /**
  * Compose one primary handler with best-effort secondaries under a single event
@@ -20,12 +24,18 @@ import { codeReviewOnOpen, codeReviewOnReply, codeReviewOnClose } from "../jobs/
  * its retry/dead-letter semantics are unchanged; a secondary throw is logged and
  * swallowed so an added reaction can never break the existing handler.
  */
-export function withExtra(primary: EventHandler, ...extra: EventHandler[]): EventHandler {
+export function withExtra(
+  primary: EventHandler,
+  ...extra: EventHandler[]
+): EventHandler {
   return async (params) => {
     await primary(params);
     for (const handler of extra) {
       await handler(params).catch((err) =>
-        console.warn("[code-review] secondary handler failed:", (err as Error).message),
+        console.warn(
+          "[code-review] secondary handler failed:",
+          (err as Error).message,
+        ),
       );
     }
   };
@@ -34,16 +44,31 @@ export function withExtra(primary: EventHandler, ...extra: EventHandler[]): Even
 export function buildRegistry(): Map<string, EventHandler> {
   return new Map<string, EventHandler>([
     // ── GitHub (layer 1: floor webhook ingress) ──
-    ["github.pull_request.opened", withExtra(github.reviewReactor, codeReviewOnOpen)],
+    [
+      "github.pull_request.opened",
+      withExtra(github.reviewReactor, codeReviewOnOpen),
+    ],
     ["github.pull_request.synchronize", github.reviewReactor],
-    ["github.pull_request.reopened", withExtra(github.reviewReactor, codeReviewOnOpen)],
-    ["github.pull_request.ready_for_review", withExtra(github.reviewReactor, codeReviewOnOpen)],
-    ["github.pull_request.closed", withExtra(github.specPrMerge, codeReviewOnClose)],
+    [
+      "github.pull_request.reopened",
+      withExtra(github.reviewReactor, codeReviewOnOpen),
+    ],
+    [
+      "github.pull_request.ready_for_review",
+      withExtra(github.reviewReactor, codeReviewOnOpen),
+    ],
+    [
+      "github.pull_request.closed",
+      withExtra(github.specPrMerge, codeReviewOnClose),
+    ],
     ["github.pull_request_review.submitted", github.onReviewSubmitted],
     ["github.pull_request_review_comment.created", codeReviewOnReply],
     ["github.check_run.completed", github.autoMerge],
     ["github.check_suite.completed", github.autoMerge],
-    ["github.issue_comment.created", withExtra(github.reviewReactor, codeReviewOnReply)],
+    [
+      "github.issue_comment.created",
+      withExtra(github.reviewReactor, codeReviewOnReply),
+    ],
     ["github.issues.labeled", github.issuesLabeled],
 
     // ── Internal (mcp-server post-ingest) ──
@@ -78,6 +103,9 @@ export function buildRegistry(): Map<string, EventHandler> {
   ]);
 }
 
-export function resolve(registry: Map<string, EventHandler>, eventName: string): EventHandler | undefined {
+export function resolve(
+  registry: Map<string, EventHandler>,
+  eventName: string,
+): EventHandler | undefined {
   return registry.get(eventName);
 }

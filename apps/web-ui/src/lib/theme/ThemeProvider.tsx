@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   createContext,
@@ -6,12 +6,8 @@ import {
   useContext,
   useEffect,
   useState,
-} from 'react';
-import type {
-  ColorSchemePref,
-  ResolvedScheme,
-  ThemeFamily,
-} from './types';
+} from "react";
+import type { ColorSchemePref, ResolvedScheme, ThemeFamily } from "./types";
 import {
   DEFAULT_FAMILY,
   DEFAULT_SCHEME,
@@ -20,7 +16,7 @@ import {
   parseFamily,
   parseSchemePref,
   resolveColorScheme,
-} from './theme-core';
+} from "./theme-core";
 
 declare global {
   interface Window {
@@ -38,18 +34,16 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-const DARK_QUERY = '(prefers-color-scheme: dark)';
+const DARK_QUERY = "(prefers-color-scheme: dark)";
 
 function systemPrefersDark(): boolean {
-  return (
-    typeof window !== 'undefined' && window.matchMedia(DARK_QUERY).matches
-  );
+  return typeof window !== "undefined" && window.matchMedia(DARK_QUERY).matches;
 }
 
 function applyToDom(family: ThemeFamily, resolved: ResolvedScheme): void {
   const el = document.documentElement;
-  el.setAttribute('data-theme-family', family);
-  el.setAttribute('data-color-scheme', resolved);
+  el.setAttribute("data-theme-family", family);
+  el.setAttribute("data-color-scheme", resolved);
   window.__loreFamily = family;
 }
 
@@ -57,13 +51,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Seed from what the inline script already wrote, so the first client render
   // matches the DOM (no flash, no icon swap, no hydration mismatch).
   const [family, setFamilyState] = useState<ThemeFamily>(() =>
-    typeof window !== 'undefined'
+    typeof window !== "undefined"
       ? (window.__loreFamily ??
-          parseFamily(document.documentElement.getAttribute('data-theme-family')))
+        parseFamily(document.documentElement.getAttribute("data-theme-family")))
       : DEFAULT_FAMILY,
   );
   const [scheme, setSchemeState] = useState<ColorSchemePref>(() =>
-    typeof window !== 'undefined'
+    typeof window !== "undefined"
       ? parseSchemePref(window.localStorage.getItem(SCHEME_KEY))
       : DEFAULT_SCHEME,
   );
@@ -83,12 +77,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [family, scheme]);
 
   useEffect(() => {
-    if (scheme !== 'auto') return;
+    if (scheme !== "auto") return;
     const media = window.matchMedia(DARK_QUERY);
-    const onChange = () =>
-      applyToDom(family, media.matches ? 'dark' : 'light');
-    media.addEventListener('change', onChange);
-    return () => media.removeEventListener('change', onChange);
+    const onChange = () => applyToDom(family, media.matches ? "dark" : "light");
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
   }, [scheme, family]);
 
   const resolvedScheme = resolveColorScheme(scheme, systemPrefersDark());
@@ -104,6 +97,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error('useTheme must be used within a ThemeProvider');
+  if (!ctx) throw new Error("useTheme must be used within a ThemeProvider");
   return ctx;
 }

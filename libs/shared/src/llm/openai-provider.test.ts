@@ -7,11 +7,21 @@ describe("OpenAiProvider", () => {
     let captured: { url: string; body: any } | null = null;
     const fetchFn = async (url: any, init: any) => {
       captured = { url: String(url), body: JSON.parse(init.body) };
-      return new Response(JSON.stringify({ choices: [{ message: { content: "answer" } }] }), { status: 200 });
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: "answer" } }] }),
+        { status: 200 },
+      );
     };
-    const provider = new OpenAiProvider({ model: "gpt-4o-mini", apiKey: "k", fetchFn: fetchFn as typeof fetch });
+    const provider = new OpenAiProvider({
+      model: "gpt-4o-mini",
+      apiKey: "k",
+      fetchFn: fetchFn as typeof fetch,
+    });
 
-    const result = await provider.complete({ prompt: "user-text", systemPrompt: "sys" });
+    const result = await provider.complete({
+      prompt: "user-text",
+      systemPrompt: "sys",
+    });
 
     expect(captured!.url).toBe("https://api.openai.com/v1/chat/completions");
     expect(captured!.body).toMatchObject({

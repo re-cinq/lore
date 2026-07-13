@@ -10,7 +10,10 @@ import type { PgPool, DgraphClientPort } from "../../memory-store.js";
  * live database.
  */
 
-function fakePool(capture: Array<{ text: string; params?: unknown[] }>, rows: unknown[] = []): PgPool {
+function fakePool(
+  capture: Array<{ text: string; params?: unknown[] }>,
+  rows: unknown[] = [],
+): PgPool {
   return {
     query: async (text: string, params?: unknown[]) => {
       capture.push({ text, params });
@@ -24,16 +27,29 @@ const noDgraph = {} as DgraphClientPort;
 describe("Project wiring", () => {
   it("builds the tasks port from the pg connection and queries bound to the repo", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
-    const project = await createProject("re-cinq/lore", fakePool(capture), noDgraph, {});
+    const project = await createProject(
+      "re-cinq/lore",
+      fakePool(capture),
+      noDgraph,
+      {},
+    );
 
     await project.tasks.pendingTasks();
 
-    expect(capture[0].params).toEqual(["re-cinq/lore", ["pending", "queued", "awaiting_approval"]]);
+    expect(capture[0].params).toEqual([
+      "re-cinq/lore",
+      ["pending", "queued", "awaiting_approval"],
+    ]);
   });
 
   it("resolves settings through the wired pg settings port", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
-    const project = await createProject("re-cinq/lore", fakePool(capture, [{ settings: {} }]), noDgraph, {});
+    const project = await createProject(
+      "re-cinq/lore",
+      fakePool(capture, [{ settings: {} }]),
+      noDgraph,
+      {},
+    );
 
     await project.settings.resolve();
 
@@ -44,19 +60,34 @@ describe("Project wiring", () => {
     const project = new Project("re-cinq/lore", new Map(), {});
 
     expect(() => project.tasks).toThrow(
-      new Error('Project port "tasks" is not wired yet (pending its live adapter)'),
+      new Error(
+        'Project port "tasks" is not wired yet (pending its live adapter)',
+      ),
     );
   });
 
   it("starts an assembly line through the wired pg port with the repo filled in", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
-    const project = await createProject("re-cinq/lore", fakePool(capture, [{ id: "al-1" }]), noDgraph, {});
+    const project = await createProject(
+      "re-cinq/lore",
+      fakePool(capture, [{ id: "al-1" }]),
+      noDgraph,
+      {},
+    );
 
-    const assemblyLineId = await project.assemblyLines.start("implementation", { taskId: "task-9" });
+    const assemblyLineId = await project.assemblyLines.start("implementation", {
+      taskId: "task-9",
+    });
 
     expect(assemblyLineId).toBe("al-1");
     expect(capture[0].text).toContain("INSERT INTO pipeline.assembly_lines");
     expect(capture[0].text).toContain("'assembly_line.start'");
-    expect(capture[0].params).toEqual(["implementation", "task-9", "re-cinq/lore", null, "{}"]);
+    expect(capture[0].params).toEqual([
+      "implementation",
+      "task-9",
+      "re-cinq/lore",
+      null,
+      "{}",
+    ]);
   });
 });

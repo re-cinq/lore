@@ -15,7 +15,9 @@ describe("isAlreadyExistsError", () => {
   });
 
   it("returns true when err.body.reason is AlreadyExists", () => {
-    expect(isAlreadyExistsError({ body: { reason: "AlreadyExists" } })).toBe(true);
+    expect(isAlreadyExistsError({ body: { reason: "AlreadyExists" } })).toBe(
+      true,
+    );
   });
 
   it("returns true when err.body.code is 409", () => {
@@ -31,19 +33,30 @@ describe("isAlreadyExistsError", () => {
   });
 
   it("returns true when the message contains already exists", () => {
-    expect(isAlreadyExistsError(new Error('jobs.batch "x" already exists'))).toBe(true);
+    expect(
+      isAlreadyExistsError(new Error('jobs.batch "x" already exists')),
+    ).toBe(true);
   });
 
   it("returns true when the message names the AlreadyExists reason without the spaced phrase", () => {
-    expect(isAlreadyExistsError({ message: "Conflict, reason=AlreadyExists" })).toBe(true);
+    expect(
+      isAlreadyExistsError({ message: "Conflict, reason=AlreadyExists" }),
+    ).toBe(true);
   });
 
   it("returns false for a 500 error", () => {
-    expect(isAlreadyExistsError({ code: 500, message: "internal error" })).toBe(false);
+    expect(isAlreadyExistsError({ code: 500, message: "internal error" })).toBe(
+      false,
+    );
   });
 
   it("returns false when a body is present but is a different conflict", () => {
-    expect(isAlreadyExistsError({ body: { reason: "Invalid", code: 422 }, message: "bad" })).toBe(false);
+    expect(
+      isAlreadyExistsError({
+        body: { reason: "Invalid", code: 422 },
+        message: "bad",
+      }),
+    ).toBe(false);
   });
 
   it("returns false for an object with no recognizable fields", () => {

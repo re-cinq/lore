@@ -28,15 +28,25 @@ describe("composeIssueBody", () => {
   };
 
   it("appends the guidance and a linkified footer for a drift task", () => {
-    const body = composeIssueBody("LLM summary.", driftTask, "https://lore.example.com");
+    const body = composeIssueBody(
+      "LLM summary.",
+      driftTask,
+      "https://lore.example.com",
+    );
     expect(body).toMatch(/LLM summary\./);
     expect(body).toMatch(/What you should actually do/);
     expect(body).toMatch(/created by `spec-drift`/);
-    expect(body).toMatch(/Lore-Task: \[t1\]\(https:\/\/lore\.example\.com\/assembly-lines\/t1\)/);
+    expect(body).toMatch(
+      /Lore-Task: \[t1\]\(https:\/\/lore\.example\.com\/assembly-lines\/t1\)/,
+    );
   });
 
   it("omits the guidance for a non-drift task but still writes the footer", () => {
-    const body = composeIssueBody("Body.", { id: "t2", created_by: "ui", task_type: "implementation" }, undefined);
+    const body = composeIssueBody(
+      "Body.",
+      { id: "t2", created_by: "ui", task_type: "implementation" },
+      undefined,
+    );
     expect(body).not.toMatch(/What you should actually do/);
     expect(body).toMatch(/Lore-Task: t2/);
   });
@@ -46,7 +56,9 @@ describe("composeIssueBody", () => {
       ...driftTask,
       context_bundle: {
         spec_path: "specs/x/spec.md",
-        drifted_statements: [{ text: "503 when DB down", reason: "violated", section: "Behavior" }],
+        drifted_statements: [
+          { text: "503 when DB down", reason: "violated", section: "Behavior" },
+        ],
       },
     };
     const body = composeIssueBody("Summary.", t, undefined);
@@ -62,7 +74,13 @@ describe("composeIssueBody", () => {
           {
             text: "503 when DB down",
             reason: "violated",
-            links: [{ label: "validated by health.test.ts", path: "src/health.test.ts", line: 42 }],
+            links: [
+              {
+                label: "validated by health.test.ts",
+                path: "src/health.test.ts",
+                line: 42,
+              },
+            ],
           },
         ],
       },
@@ -76,7 +94,13 @@ describe("composeIssueBody", () => {
       ...driftTask,
       context_bundle: {
         spec_path: "specs/x/spec.md",
-        missing_symbols: [{ name: "resolveSettings", kind: "function", description: "settings resolver" }],
+        missing_symbols: [
+          {
+            name: "resolveSettings",
+            kind: "function",
+            description: "settings resolver",
+          },
+        ],
       },
     };
     const body = composeIssueBody("Summary.", t, undefined);

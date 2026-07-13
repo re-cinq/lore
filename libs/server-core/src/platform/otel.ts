@@ -47,7 +47,11 @@ const episodeCounter = meter.createCounter("lore.episodes.written", {
   description: "Episodes written",
 });
 
-export function traceTool(tool: string, durationMs: number, success: boolean): void {
+export function traceTool(
+  tool: string,
+  durationMs: number,
+  success: boolean,
+): void {
   const span = tracer.startSpan(`tool/${tool}`);
   span.setAttributes({
     "lore.tool": tool,
@@ -61,9 +65,18 @@ export function traceTool(tool: string, durationMs: number, success: boolean): v
   if (!success) toolErrors.add(1, { tool });
 }
 
-export function traceHttp(method: string, path: string, statusCode: number, durationMs: number): void {
+export function traceHttp(
+  method: string,
+  path: string,
+  statusCode: number,
+  durationMs: number,
+): void {
   httpLatency.record(durationMs, { method, path: normalizePath(path) });
-  httpCounter.add(1, { method, path: normalizePath(path), status: String(statusCode) });
+  httpCounter.add(1, {
+    method,
+    path: normalizePath(path),
+    status: String(statusCode),
+  });
 }
 
 export function traceTaskCreated(taskType: string, repo: string): void {
@@ -76,7 +89,12 @@ export function traceEpisodeWritten(source: string): void {
 
 function normalizePath(path: string): string {
   // Collapse UUIDs and IDs to keep cardinality low
-  return path.replace(/\/[0-9a-f-]{36}/g, "/:id").replace(/\?.*/, "").split("/").slice(0, 3).join("/");
+  return path
+    .replace(/\/[0-9a-f-]{36}/g, "/:id")
+    .replace(/\?.*/, "")
+    .split("/")
+    .slice(0, 3)
+    .join("/");
 }
 
 export function traceRetrieval(params: {

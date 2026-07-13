@@ -29,11 +29,12 @@ const SAMPLE_DIRS = ["src", "lib", "cmd", "internal", "app", "pkg"];
  * Fetches contextual information about a repo: top-level tree, key config
  * files, and a sample of source files from well-known directories.
  */
-export async function fetchRepoContext(
-  fullName: string,
-): Promise<RepoContext> {
+export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
   const [owner, repo] = fullName.split("/");
-  enforceTrue(owner && repo, `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`);
+  enforceTrue(
+    owner && repo,
+    `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
+  );
   const project = await projectFor(fullName);
 
   // 1. Fetch top-level tree
@@ -72,9 +73,7 @@ export async function fetchRepoContext(
     try {
       entries = await project.repo.list(dir);
     } catch (err: any) {
-      console.error(
-        `[floor] Error listing ${fullName}/${dir}: ${err.message}`,
-      );
+      console.error(`[floor] Error listing ${fullName}/${dir}: ${err.message}`);
       continue;
     }
 

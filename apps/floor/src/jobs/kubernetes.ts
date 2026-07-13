@@ -26,7 +26,13 @@ const handleAgent: EventHandler = async (params) => {
   if (!agentName) return;
   const { k8sApi, namespace } = makeAgentsApi();
   const cr = (await k8sApi
-    .getNamespacedCustomObject({ group: GROUP, version: VERSION, namespace, plural: PLURAL, name: agentName })
+    .getNamespacedCustomObject({
+      group: GROUP,
+      version: VERSION,
+      namespace,
+      plural: PLURAL,
+      name: agentName,
+    })
     .catch((err: unknown) => {
       if (isNotFound(err)) return null; // CR already pruned — nothing to do
       throw err;

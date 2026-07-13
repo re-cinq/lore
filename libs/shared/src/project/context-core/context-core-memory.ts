@@ -1,4 +1,7 @@
-import type { ContextCorePort, ContextCoreRecord } from "./context-core-port.js";
+import type {
+  ContextCorePort,
+  ContextCoreRecord,
+} from "./context-core-port.js";
 
 /**
  * In-memory {@link ContextCorePort}: keeps every inserted record so tests can
@@ -11,7 +14,8 @@ export class InMemoryContextCore implements ContextCorePort {
 
   async latest(namespace: string): Promise<number | null> {
     const production = this.records.filter(
-      (record) => record.namespace === namespace && record.status === "production",
+      (record) =>
+        record.namespace === namespace && record.status === "production",
     );
     const newest = production[production.length - 1];
     return newest?.evalScore ?? null;

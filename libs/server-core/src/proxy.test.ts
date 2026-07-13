@@ -7,7 +7,13 @@ import { proxyToApi, proxyGetApi } from "./proxy.js";
 // server share LORE_INGEST_TOKEN there — so the 401/403 -> "denied" and the
 // 4xx -> "unreachable" mappings are pinned here with a mocked fetch instead.
 
-function fetchReturning(response: { ok: boolean; status?: number; statusText?: string; json?: () => Promise<unknown>; text?: () => Promise<string> }) {
+function fetchReturning(response: {
+  ok: boolean;
+  status?: number;
+  statusText?: string;
+  json?: () => Promise<unknown>;
+  text?: () => Promise<string>;
+}) {
   return vi.fn().mockResolvedValue(response);
 }
 
@@ -25,17 +31,29 @@ describe("proxy client result mapping", () => {
 
   it("returns not_configured when LORE_API_URL is unset", async () => {
     delete process.env.LORE_API_URL;
-    expect(await proxyToApi("/api/task", {})).toEqual({ ok: false, reason: "not_configured" });
+    expect(await proxyToApi("/api/task", {})).toEqual({
+      ok: false,
+      reason: "not_configured",
+    });
   });
 
   it("returns not_configured when LORE_INGEST_TOKEN is unset", async () => {
     delete process.env.LORE_INGEST_TOKEN;
-    expect(await proxyGetApi("/api/repos")).toEqual({ ok: false, reason: "not_configured" });
+    expect(await proxyGetApi("/api/repos")).toEqual({
+      ok: false,
+      reason: "not_configured",
+    });
   });
 
   it("returns ok with the serialized body on 200", async () => {
-    global.fetch = fetchReturning({ ok: true, json: async () => ({ hello: "world" }) }) as typeof fetch;
-    expect(await proxyToApi("/api/task", { a: 1 })).toEqual({ ok: true, body: JSON.stringify({ hello: "world" }) });
+    global.fetch = fetchReturning({
+      ok: true,
+      json: async () => ({ hello: "world" }),
+    }) as typeof fetch;
+    expect(await proxyToApi("/api/task", { a: 1 })).toEqual({
+      ok: true,
+      body: JSON.stringify({ hello: "world" }),
+    });
   });
 
   it("forwards the bearer token and endpoint on a POST", async () => {
@@ -45,32 +63,60 @@ describe("proxy client result mapping", () => {
     const [url, init] = spy.mock.calls[0];
     expect(url).toBe("https://lore-api.test/api/task");
     expect((init as RequestInit).method).toBe("POST");
-    expect((init as RequestInit).headers).toMatchObject({ Authorization: "Bearer token" });
+    expect((init as RequestInit).headers).toMatchObject({
+      Authorization: "Bearer token",
+    });
   });
 
   it("maps 403 to denied without retrying", async () => {
-    const spy = fetchReturning({ ok: false, status: 403, statusText: "Forbidden" });
+    const spy = fetchReturning({
+      ok: false,
+      status: 403,
+      statusText: "Forbidden",
+    });
     global.fetch = spy as typeof fetch;
-    expect(await proxyGetApi("/api/repos")).toMatchObject({ ok: false, reason: "denied" });
+    expect(await proxyGetApi("/api/repos")).toMatchObject({
+      ok: false,
+      reason: "denied",
+    });
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it("maps 401 to denied without retrying", async () => {
-    const spy = fetchReturning({ ok: false, status: 401, statusText: "Unauthorized" });
+    const spy = fetchReturning({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+    });
     global.fetch = spy as typeof fetch;
-    expect(await proxyToApi("/api/task", {})).toMatchObject({ ok: false, reason: "denied" });
+    expect(await proxyToApi("/api/task", {})).toMatchObject({
+      ok: false,
+      reason: "denied",
+    });
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it("maps a non-retriable 4xx to unreachable without retrying", async () => {
-    const spy = fetchReturning({ ok: false, status: 400, statusText: "Bad Request" });
+    const spy = fetchReturning({
+      ok: false,
+      status: 400,
+      statusText: "Bad Request",
+    });
     global.fetch = spy as typeof fetch;
-    expect(await proxyToApi("/api/task", {})).toMatchObject({ ok: false, reason: "unreachable" });
+    expect(await proxyToApi("/api/task", {})).toMatchObject({
+      ok: false,
+      reason: "unreachable",
+    });
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it("folds the server error body into the detail on a non-retriable 4xx", async () => {
-    const spy = fetchReturning({ ok: false, status: 424, statusText: "Failed Dependency", text: async () => JSON.stringify({ error: "GitHub not configured" }) });
+    const spy = fetchReturning({
+      ok: false,
+      status: 424,
+      statusText: "Failed Dependency",
+      text: async () => JSON.stringify({ error: "GitHub not configured" }),
+    });
     global.fetch = spy as typeof fetch;
     expect(await proxyGetApi("/api/pr-status")).toMatchObject({
       ok: false,

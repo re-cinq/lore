@@ -1,13 +1,23 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { buildServer } from "../../../server/build-server.js";
-import { useRateLimitSafeClock, AUTH, LEGACY_TOKEN } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import {
+  useRateLimitSafeClock,
+  AUTH,
+  LEGACY_TOKEN,
+} from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-vi.mock("@re-cinq/lore-server-core/features/pipeline/pipeline.js", () => ({ createTask: vi.fn(), getTask: vi.fn(), listTasks: vi.fn(), retryTask: vi.fn() }));
+vi.mock("@re-cinq/lore-server-core/features/pipeline/pipeline.js", () => ({
+  createTask: vi.fn(),
+  getTask: vi.fn(),
+  listTasks: vi.fn(),
+  retryTask: vi.fn(),
+}));
 
 import { listTasks } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 
 const originalEnv = { ...process.env };
-const get = (url: string) => buildServer(() => null).inject({ method: "GET", url, headers: AUTH });
+const get = (url: string) =>
+  buildServer(() => null).inject({ method: "GET", url, headers: AUTH });
 
 describe("GET /api/tasks", () => {
   useRateLimitSafeClock();
@@ -42,7 +52,12 @@ describe("GET /api/tasks", () => {
     vi.mocked(listTasks).mockResolvedValue({ tasks: [{ id: 2 }], total: 7 });
     const res = await get("/api/tasks?limit=5&offset=10");
     expect(listTasks).toHaveBeenCalledWith(undefined, 5, 10);
-    expect(res.result).toEqual({ tasks: [{ id: 2 }], total: 7, limit: 5, offset: 10 });
+    expect(res.result).toEqual({
+      tasks: [{ id: 2 }],
+      total: 7,
+      limit: 5,
+      offset: 10,
+    });
   });
 
   it("returns 400 for a negative offset", async () => {

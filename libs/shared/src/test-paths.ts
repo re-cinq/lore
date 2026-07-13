@@ -49,7 +49,8 @@ export function isDocFile(filePath: string): boolean {
  * that keeps re-runs from inserting duplicate rows for the same test.
  */
 export function normalizeTestName(describe: string, it: string): string {
-  const collapse = (segment: string) => segment.trim().replace(/\s+/g, " ").toLowerCase();
+  const collapse = (segment: string) =>
+    segment.trim().replace(/\s+/g, " ").toLowerCase();
   return [describe, it]
     .map(collapse)
     .filter((segment) => segment.length > 0)

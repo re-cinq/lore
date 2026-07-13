@@ -3,9 +3,9 @@ import { agentPrompt } from "./agent-invocation.js";
 
 describe("agentPrompt", () => {
   it("substitutes {description} into the resolved agent's prompt", () => {
-    expect(agentPrompt("Implement: {description}", "add health check", "FB")).toBe(
-      "Implement: add health check",
-    );
+    expect(
+      agentPrompt("Implement: {description}", "add health check", "FB"),
+    ).toBe("Implement: add health check");
   });
 
   it("falls back to the yaml task-type template when the definition has no prompt", () => {

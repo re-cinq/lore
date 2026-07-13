@@ -13,7 +13,13 @@ interface LogsResponse {
 const ACTIVE_STATES = new Set(["running"]);
 const POLL_INTERVAL_MS = 5_000;
 
-export default function TaskLogs({ taskId, initialStatus }: { taskId: string; initialStatus: string }) {
+export default function TaskLogs({
+  taskId,
+  initialStatus,
+}: {
+  taskId: string;
+  initialStatus: string;
+}) {
   const [logs, setLogs] = useState<string | null>(null);
   const [status, setStatus] = useState(initialStatus);
   const [totalSize, setTotalSize] = useState(0);
@@ -85,7 +91,8 @@ export default function TaskLogs({ taskId, initialStatus }: { taskId: string; in
 
   const isRunning = ACTIVE_STATES.has(status);
   const isInReview = status === "review";
-  const isDone = status === "succeeded" || status === "pr-created" || status === "merged";
+  const isDone =
+    status === "succeeded" || status === "pr-created" || status === "merged";
   const isFailed = status === "failed" || status === "cancelled";
 
   return (
@@ -93,9 +100,21 @@ export default function TaskLogs({ taskId, initialStatus }: { taskId: string; in
       <h2 className={styles.heading}>
         Agent Output
         {isRunning && <span className={styles.pulse} />}
-        {isDone && <span className={`op-badge op-pr-created ${styles.statusBadge}`}>Completed</span>}
-        {isInReview && <span className={`op-badge op-running ${styles.statusBadge}`}>In Review</span>}
-        {isFailed && <span className={`op-badge op-failed ${styles.statusBadge}`}>Failed</span>}
+        {isDone && (
+          <span className={`op-badge op-pr-created ${styles.statusBadge}`}>
+            Completed
+          </span>
+        )}
+        {isInReview && (
+          <span className={`op-badge op-running ${styles.statusBadge}`}>
+            In Review
+          </span>
+        )}
+        {isFailed && (
+          <span className={`op-badge op-failed ${styles.statusBadge}`}>
+            Failed
+          </span>
+        )}
       </h2>
 
       {accessDenied && (
@@ -121,7 +140,10 @@ export default function TaskLogs({ taskId, initialStatus }: { taskId: string; in
 
       {isRunning && !accessDenied && (
         <p className={`meta ${styles.polling}`}>
-          Polling every 5s{totalSize > 0 ? ` — ${(totalSize / 1024).toFixed(1)} KB received` : ""}
+          Polling every 5s
+          {totalSize > 0
+            ? ` — ${(totalSize / 1024).toFixed(1)} KB received`
+            : ""}
         </p>
       )}
     </div>

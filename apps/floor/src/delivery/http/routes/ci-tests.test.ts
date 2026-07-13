@@ -58,7 +58,9 @@ describe("POST /api/webhook/ci-tests", () => {
   it("returns 500 when the event insert fails (so the sender redelivers)", async () => {
     process.env.LORE_INGEST_TOKEN = "right-token";
     vi.mocked(insertEventList).mockRejectedValueOnce(new Error("db down"));
-    const res = await authed(JSON.stringify({ repo: "re-cinq/lore", commit: "abc123" }));
+    const res = await authed(
+      JSON.stringify({ repo: "re-cinq/lore", commit: "abc123" }),
+    );
     expect(res.statusCode).toBe(500);
   });
 });

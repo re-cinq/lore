@@ -1,4 +1,8 @@
-import type { UsagePort, LlmCallRecord, ProcessedCounts } from "./usage-port.js";
+import type {
+  UsagePort,
+  LlmCallRecord,
+  ProcessedCounts,
+} from "./usage-port.js";
 
 /**
  * project.usage — LLM-call accounting. The runner logs each completion here

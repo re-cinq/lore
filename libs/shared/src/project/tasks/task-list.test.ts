@@ -39,7 +39,11 @@ function fakeStore(rows: PipelineTask[]): TaskStorePort {
           statuses.includes(r.status),
       ),
     driftTasksForSpec: async () => [],
-    create: async (input) => ({ task_id: "new", task_type: input.taskType ?? "general", status: "pending" }),
+    create: async (input) => ({
+      task_id: "new",
+      task_type: input.taskType ?? "general",
+      status: "pending",
+    }),
     retry: async (id) => ({ task_id: "new", status: "pending", retry_of: id }),
     list: async () => ({ tasks: rows, total: rows.length }),
     getById: async (id) => rows.find((r) => r.id === id) ?? null,
@@ -66,7 +70,12 @@ function fakeStore(rows: PipelineTask[]): TaskStorePort {
     markMerged: async (id) => ({ task_id: id, status: "merged" }),
     transition: async (id, action: TaskAction) => {
       const r = rows.find((x) => x.id === id)!;
-      r.status = action === "cancel" ? "cancelled" : action === "retry" ? "retried" : "running-local";
+      r.status =
+        action === "cancel"
+          ? "cancelled"
+          : action === "retry"
+            ? "retried"
+            : "running-local";
       return r;
     },
   };
@@ -76,18 +85,25 @@ describe("TaskList", () => {
   it("returns pending Tasks for the repo as typed wrappers", async () => {
     const facade = new TaskList(
       "re-cinq/lore",
-      fakeStore([row("a", "pending"), row("b", "running"), row("c", "pending", "other/repo")]),
+      fakeStore([
+        row("a", "pending"),
+        row("b", "running"),
+        row("c", "pending", "other/repo"),
+      ]),
     );
 
     const pending = await facade.pendingTasks();
 
-    expect(pending.map((t) => ({ id: t.id, status: t.status, type: t.type }))).toEqual([
-      { id: "a", status: "pending", type: "implementation" },
-    ]);
+    expect(
+      pending.map((t) => ({ id: t.id, status: t.status, type: t.type })),
+    ).toEqual([{ id: "a", status: "pending", type: "implementation" }]);
   });
 
   it("reflects the new status after cancel()", async () => {
-    const facade = new TaskList("re-cinq/lore", fakeStore([row("a", "pending")]));
+    const facade = new TaskList(
+      "re-cinq/lore",
+      fakeStore([row("a", "pending")]),
+    );
 
     const task = await facade.getById("a");
     await task!.cancel();

@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
 import type { Request, ResponseToolkit } from "@hapi/hapi";
 import { z } from "zod";
-import { zodValidate, getZodSchema, zodFailAction, formatZodError } from "./zod-validate.js";
+import {
+  zodValidate,
+  getZodSchema,
+  zodFailAction,
+  formatZodError,
+} from "./zod-validate.js";
 
 const stubRequest = {} as Request;
 const stubToolkit = {} as ResponseToolkit;
@@ -15,7 +20,9 @@ describe("zodValidate", () => {
   });
 
   it("throws with the offending field named for an invalid value", async () => {
-    await expect(zodValidate(schema)({ count: "3" })).rejects.toThrow("name: Required");
+    await expect(zodValidate(schema)({ count: "3" })).rejects.toThrow(
+      "name: Required",
+    );
   });
 
   it("stamps the source schema onto the returned fn for getZodSchema to recover", () => {
@@ -33,13 +40,17 @@ describe("getZodSchema", () => {
 
 describe("formatZodError", () => {
   it("names the first offending field with a dotted path", () => {
-    const err = z.object({ a: z.object({ b: z.string() }) }).safeParse({ a: {} });
+    const err = z
+      .object({ a: z.object({ b: z.string() }) })
+      .safeParse({ a: {} });
     expect(err.success).toBe(false);
     if (!err.success) expect(formatZodError(err.error)).toBe("a.b: Required");
   });
 
   it("falls back to invalid request with no issues", () => {
-    expect(formatZodError({ issues: [] } as unknown as z.ZodError)).toBe("invalid request");
+    expect(formatZodError({ issues: [] } as unknown as z.ZodError)).toBe(
+      "invalid request",
+    );
   });
 });
 
@@ -49,9 +60,15 @@ describe("zodFailAction", () => {
       zodFailAction(stubRequest, stubToolkit, new Error("name: Required"));
       throw new Error("did not throw");
     } catch (err) {
-      const boom = err as { isBoom?: boolean; output?: { statusCode: number; payload: unknown } };
+      const boom = err as {
+        isBoom?: boolean;
+        output?: { statusCode: number; payload: unknown };
+      };
       expect(boom.isBoom).toBe(true);
-      expect(boom.output).toMatchObject({ statusCode: 400, payload: { error: "name: Required" } });
+      expect(boom.output).toMatchObject({
+        statusCode: 400,
+        payload: { error: "name: Required" },
+      });
     }
   });
 });

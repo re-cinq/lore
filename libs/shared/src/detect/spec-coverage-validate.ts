@@ -40,9 +40,7 @@ export interface ChunkLineRange {
 }
 
 export type BrokenLinkReason =
-  | "file-missing"
-  | "line-out-of-range"
-  | "non-trailing-link";
+  "file-missing" | "line-out-of-range" | "non-trailing-link";
 
 export interface BrokenLink {
   spec_path: string;
@@ -80,7 +78,12 @@ export function collectBrokenLinks(
     for (const link of testLinks) {
       const r = resolveTestLink(link, chunks);
       if (!r.ok) {
-        out.push({ spec_path: specPath, statement_text: statement.text, link, reason: r.reason });
+        out.push({
+          spec_path: specPath,
+          statement_text: statement.text,
+          link,
+          reason: r.reason,
+        });
       }
     }
     for (const link of findMisplacedCoverageLinks(statement.text)) {
@@ -114,12 +117,16 @@ export function formatBrokenLinksReport(broken: BrokenLink[]): string {
     lines.push("");
     for (const b of list) {
       const where = `\`${b.link.path}${b.link.line ? `:${b.link.line}` : ""}\``;
-      lines.push(`- **${b.reason}** ${where} — referenced by: _${truncate(b.statement_text, 80)}_`);
+      lines.push(
+        `- **${b.reason}** ${where} — referenced by: _${truncate(b.statement_text, 80)}_`,
+      );
     }
     lines.push("");
   }
   lines.push("---");
-  lines.push("Posted by Lore's `spec-coverage-validate` job. Fix or remove the broken links to silence this.");
+  lines.push(
+    "Posted by Lore's `spec-coverage-validate` job. Fix or remove the broken links to silence this.",
+  );
   return lines.join("\n");
 }
 
@@ -131,7 +138,9 @@ const LINK_ROT_LABEL = "spec-link-rot";
 
 /** True when the repo already has an open spec-link-rot issue, so we don't file a
  *  duplicate on every daily + per-ingest run. */
-export function hasOpenLinkRotIssue(openIssues: { labels: string[] }[]): boolean {
+export function hasOpenLinkRotIssue(
+  openIssues: { labels: string[] }[],
+): boolean {
   return openIssues.some((i) => i.labels.includes(LINK_ROT_LABEL));
 }
 
@@ -147,7 +156,9 @@ export interface ValidateOptions {
 }
 
 /** Group a repo's spec chunks by file path so multi-chunk specs reassemble. */
-function specsByPath(specs: SpecChunkWithIngest[]): Map<string, SpecChunkWithIngest[]> {
+function specsByPath(
+  specs: SpecChunkWithIngest[],
+): Map<string, SpecChunkWithIngest[]> {
   const byPath = new Map<string, SpecChunkWithIngest[]>();
   for (const s of specs) {
     const list = byPath.get(s.filePath) ?? [];
@@ -157,7 +168,9 @@ function specsByPath(specs: SpecChunkWithIngest[]): Map<string, SpecChunkWithIng
   return byPath;
 }
 
-export async function validateSpecCoverageJob(opts: ValidateOptions): Promise<string> {
+export async function validateSpecCoverageJob(
+  opts: ValidateOptions,
+): Promise<string> {
   const repo = opts.repoFilter;
   const project = opts.project;
 
@@ -167,7 +180,9 @@ export async function validateSpecCoverageJob(opts: ValidateOptions): Promise<st
     return "No specs found";
   }
 
-  const testChunks: ChunkLineRange[] = (await project.chunks.testChunkRanges()).map((c) => ({
+  const testChunks: ChunkLineRange[] = (
+    await project.chunks.testChunkRanges()
+  ).map((c) => ({
     file_path: c.filePath,
     start_line: c.startLine,
     end_line: c.endLine,
@@ -177,7 +192,9 @@ export async function validateSpecCoverageJob(opts: ValidateOptions): Promise<st
   let totalSpecs = 0;
   for (const [specPath, chunks] of specsByPath(specs)) {
     totalSpecs++;
-    const content = reassembleSpec(chunks.map((c) => ({ content: c.content, ingested_at: c.ingestedAt })));
+    const content = reassembleSpec(
+      chunks.map((c) => ({ content: c.content, ingested_at: c.ingestedAt })),
+    );
     broken.push(...collectBrokenLinks(specPath, content, testChunks));
   }
 
@@ -187,24 +204,35 @@ export async function validateSpecCoverageJob(opts: ValidateOptions): Promise<st
     // job runs daily AND on every ingest). A read failure leaves openIssues empty
     // and we fall through to file — surfacing the rot beats silence.
     try {
-      const openIssues = await project.issues.list({ state: "open" }).catch((err) => {
-        console.error(`[job] spec-coverage-validate: open-issue read failed for ${repo}:`, err);
-        return [] as Awaited<ReturnType<typeof project.issues.list>>;
-      });
+      const openIssues = await project.issues
+        .list({ state: "open" })
+        .catch((err) => {
+          console.error(
+            `[job] spec-coverage-validate: open-issue read failed for ${repo}:`,
+            err,
+          );
+          return [] as Awaited<ReturnType<typeof project.issues.list>>;
+        });
       if (hasOpenLinkRotIssue(openIssues)) {
         console.log(
           `[job] spec-coverage-validate: ${repo} — ${broken.length} broken links, open spec-link-rot issue exists, skipping`,
         );
       } else {
-        const issue = await project.issues.create("Broken test links in spec.md", formatBrokenLinksReport(broken), [
-          LINK_ROT_LABEL,
-          "lore-managed",
-        ]);
+        const issue = await project.issues.create(
+          "Broken test links in spec.md",
+          formatBrokenLinksReport(broken),
+          [LINK_ROT_LABEL, "lore-managed"],
+        );
         reportsOpened++;
-        console.log(`[job] spec-coverage-validate: ${repo} — ${broken.length} broken links → issue ${issue.url}`);
+        console.log(
+          `[job] spec-coverage-validate: ${repo} — ${broken.length} broken links → issue ${issue.url}`,
+        );
       }
     } catch (err) {
-      console.error(`[job] spec-coverage-validate: failed to file report for ${repo}:`, err);
+      console.error(
+        `[job] spec-coverage-validate: failed to file report for ${repo}:`,
+        err,
+      );
     }
   }
 

@@ -5,7 +5,8 @@
  * web-ui keeps its own mirror (it is not a workspace member), kept in sync.
  */
 
-const TITLE_PREFIX_RE = /^(?:feature\s+specification|spec(?:ification)?)\s*:\s*/i;
+const TITLE_PREFIX_RE =
+  /^(?:feature\s+specification|spec(?:ification)?)\s*:\s*/i;
 
 /** First H1, with a leading "Feature Specification:" prefix stripped. Falls
  * back to the spec's feature directory, then the raw file path. */
@@ -36,12 +37,20 @@ export function extractSummary(content: string, maxLength = 280): string {
       .filter(Boolean);
     if (lines.length === 0) continue;
     const first = lines[0];
-    if (first.startsWith("#") || first.startsWith("|") || first.startsWith(">") || first.startsWith("```") || /^[-*]\s/.test(first)) {
+    if (
+      first.startsWith("#") ||
+      first.startsWith("|") ||
+      first.startsWith(">") ||
+      first.startsWith("```") ||
+      /^[-*]\s/.test(first)
+    ) {
       continue;
     }
     const text = lines.join(" ").replace(/\s+/g, " ").trim();
     if (text.length === 0) continue;
-    return text.length > maxLength ? text.slice(0, maxLength).trimEnd() + "…" : text;
+    return text.length > maxLength
+      ? text.slice(0, maxLength).trimEnd() + "…"
+      : text;
   }
   return "";
 }
@@ -55,7 +64,8 @@ interface SpecChunk {
  * (re-ingests create new rows rather than upserting). */
 export function reassembleSpec(chunks: SpecChunk[]): string {
   const ordered = [...chunks].sort(
-    (a, b) => new Date(a.ingested_at).getTime() - new Date(b.ingested_at).getTime(),
+    (a, b) =>
+      new Date(a.ingested_at).getTime() - new Date(b.ingested_at).getTime(),
   );
   const seen = new Set<string>();
   const parts: string[] = [];

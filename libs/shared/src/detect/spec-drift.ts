@@ -48,7 +48,9 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
 
   // All code chunks for the repo with symbol metadata, for fast membership checks.
   const codeChunks = await project.chunks.codeSymbols();
-  const knownSymbols = new Set(codeChunks.map((c) => c.symbolName.toLowerCase()));
+  const knownSymbols = new Set(
+    codeChunks.map((c) => c.symbolName.toLowerCase()),
+  );
 
   const activeIssues = await fetchActiveIssues(project);
 
@@ -114,9 +116,13 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
 
       // Heuristic fallback (spec not projected / no graph): de-noised symbol
       // membership — only top-level symbol kinds, with an absolute miss floor.
-      const assertions = await extractAssertions(spec.content, spec.filePath, { jobName: "spec_drift" });
+      const assertions = await extractAssertions(spec.content, spec.filePath, {
+        jobName: "spec_drift",
+      });
       if (assertions.length === 0) {
-        console.log(`[job] spec-drift: ${repo}:${spec.filePath} — no assertions extracted`);
+        console.log(
+          `[job] spec-drift: ${repo}:${spec.filePath} — no assertions extracted`,
+        );
         continue;
       }
       const decision = decideHeuristicDrift(assertions, knownSymbols);
@@ -134,7 +140,10 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
     }
   }
 
-  const deferredNote = deferred > 0 ? `; deferred ${deferred} over the ${MAX_DRIFT_TASKS_PER_REPO_RUN}/run cap` : "";
+  const deferredNote =
+    deferred > 0
+      ? `; deferred ${deferred} over the ${MAX_DRIFT_TASKS_PER_REPO_RUN}/run cap`
+      : "";
   const summary = `Checked ${totalChecked} specs in ${repo} (${totalDrift} drifted${deferredNote}); skipped ${filteredDocs} prose docs`;
   console.log(`[job] spec-drift: ${summary}`);
   return summary;
@@ -162,10 +171,16 @@ async function detectGraphDrift(project: Project, specPath: string) {
  * per repo so the dedup check doesn't re-list every issue per spec. Null when
  * the platform read fails — callers fall back to the DB dedup only.
  */
-async function fetchActiveIssues(project: Project): Promise<Set<number> | null> {
+async function fetchActiveIssues(
+  project: Project,
+): Promise<Set<number> | null> {
   try {
     const open = await project.issues.list({ state: "open" });
-    return new Set(open.filter((i) => !i.labels.includes("lore-failed")).map((i) => i.number));
+    return new Set(
+      open
+        .filter((i) => !i.labels.includes("lore-failed"))
+        .map((i) => i.number),
+    );
   } catch {
     return null;
   }
@@ -176,7 +191,10 @@ async function fetchActiveIssues(project: Project): Promise<Set<number> | null> 
  * drifted statements (with their links) ride in the bundle; the issue body is
  * rendered from them by issue-body.ts after the LLM copy pass.
  */
-function graphTaskCopy(specPath: string, statements: DriftedStatement[]): DriftTaskCopy {
+function graphTaskCopy(
+  specPath: string,
+  statements: DriftedStatement[],
+): DriftTaskCopy {
   const shown = statements.slice(0, 20);
   return {
     title: `Spec drift: ${specPath} (${statements.length} statement${statements.length === 1 ? "" : "s"})`,
@@ -191,7 +209,10 @@ function graphTaskCopy(specPath: string, statements: DriftedStatement[]): DriftT
 }
 
 /** Issue copy + context bundle for a heuristic-detected drift (symbol membership). */
-function heuristicTaskCopy(specPath: string, decision: HeuristicDriftDecision): DriftTaskCopy {
+function heuristicTaskCopy(
+  specPath: string,
+  decision: HeuristicDriftDecision,
+): DriftTaskCopy {
   const pct = (decision.divergence * 100).toFixed(0);
   return {
     title: `Spec drift: ${specPath} (${pct}% divergence)`,
@@ -227,15 +248,24 @@ async function createDriftTask(
     return "skipped";
   }
 
-  if (activeIssues && existing.some((e) => e.issue_number !== null && activeIssues.has(e.issue_number))) {
-    console.log(`[job] spec-drift: skipping ${repo}:${specPath} — an open issue already tracks it`);
+  if (
+    activeIssues &&
+    existing.some(
+      (e) => e.issue_number !== null && activeIssues.has(e.issue_number),
+    )
+  ) {
+    console.log(
+      `[job] spec-drift: skipping ${repo}:${specPath} — an open issue already tracks it`,
+    );
     return "skipped";
   }
 
   // Cap is the last gate, after dedup: only specs that would genuinely be filed
   // count against the per-run budget, so a deduped spec never burns it.
   if (atCap) {
-    console.log(`[job] spec-drift: deferring ${repo}:${specPath} — ${MAX_DRIFT_TASKS_PER_REPO_RUN}/run cap reached`);
+    console.log(
+      `[job] spec-drift: deferring ${repo}:${specPath} — ${MAX_DRIFT_TASKS_PER_REPO_RUN}/run cap reached`,
+    );
     return "deferred";
   }
 
@@ -247,6 +277,8 @@ async function createDriftTask(
     contextBundle: copy.bundle,
   });
 
-  console.log(`[job] spec-drift: created gap-fill task for ${repo}:${specPath} (${copy.bundle.source})`);
+  console.log(
+    `[job] spec-drift: created gap-fill task for ${repo}:${specPath} (${copy.bundle.source})`,
+  );
   return "filed";
 }

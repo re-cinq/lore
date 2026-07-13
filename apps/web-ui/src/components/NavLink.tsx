@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import Link, { useLinkStatus } from 'next/link';
-import type { CSSProperties } from 'react';
+import Link, { useLinkStatus } from "next/link";
+import type { CSSProperties } from "react";
 
 /**
  * Label for a nav link with a pending state. While the link's navigation is in
@@ -10,11 +10,19 @@ import type { CSSProperties } from 'react';
  * the seconds the page takes to load. Presentational + pure on `pending` so it
  * is unit-testable without the Link runtime.
  */
-export function NavLabel({ label, pending }: { label: string; pending: boolean }) {
+export function NavLabel({
+  label,
+  pending,
+}: {
+  label: string;
+  pending: boolean;
+}) {
   return (
-    <span className={pending ? 'nav-label pending' : 'nav-label'}>
+    <span className={pending ? "nav-label pending" : "nav-label"}>
       {label}
-      {pending && <span className="nav-spinner" role="status" aria-label="loading" />}
+      {pending && (
+        <span className="nav-spinner" role="status" aria-label="loading" />
+      )}
     </span>
   );
 }
@@ -38,9 +46,14 @@ export default function NavLink({
   className?: string;
   style?: CSSProperties;
 }) {
-  const classes = [className, active ? 'active' : ''].filter(Boolean).join(' ');
+  const classes = [className, active ? "active" : ""].filter(Boolean).join(" ");
   return (
-    <Link href={href} className={classes} style={style} aria-current={active ? 'page' : undefined}>
+    <Link
+      href={href}
+      className={classes}
+      style={style}
+      aria-current={active ? "page" : undefined}
+    >
       <NavLabelLive label={label} />
     </Link>
   );

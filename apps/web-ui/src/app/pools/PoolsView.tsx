@@ -1,5 +1,5 @@
-import Link from 'next/link';
-import styles from './PoolsView.module.css';
+import Link from "next/link";
+import styles from "./PoolsView.module.css";
 
 export interface PoolRow {
   id: string;
@@ -20,10 +20,16 @@ export default function PoolsView({ pools }: PoolsViewProps) {
       <h1>Shared Memory Pools</h1>
       <table>
         <thead>
-          <tr><th>Pool Name</th><th>Entries</th><th>Contributing Agents</th><th>Created By</th><th>Created</th></tr>
+          <tr>
+            <th>Pool Name</th>
+            <th>Entries</th>
+            <th>Contributing Agents</th>
+            <th>Created By</th>
+            <th>Created</th>
+          </tr>
         </thead>
         <tbody>
-          {pools.map(p => (
+          {pools.map((p) => (
             <tr key={p.id}>
               <td>
                 <Link href={`/pools/${encodeURIComponent(p.name)}`}>
@@ -37,7 +43,11 @@ export default function PoolsView({ pools }: PoolsViewProps) {
             </tr>
           ))}
           {pools.length === 0 && (
-            <tr><td colSpan={5} className={styles.emptyCell}>No shared pools yet</td></tr>
+            <tr>
+              <td colSpan={5} className={styles.emptyCell}>
+                No shared pools yet
+              </td>
+            </tr>
           )}
         </tbody>
       </table>

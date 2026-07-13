@@ -45,7 +45,11 @@ export interface AssemblyLinesPort {
   finish(id: string, outcome: string, reason?: string): Promise<void>;
   /** Returns the node row id used by {@link recordNodeFinish}. */
   recordNodeStart(input: AssemblyLineNodeStartInput): Promise<string>;
-  recordNodeFinish(nodeRowId: string, outcome: string, commitSha?: string): Promise<void>;
+  recordNodeFinish(
+    nodeRowId: string,
+    outcome: string,
+    commitSha?: string,
+  ): Promise<void>;
   getById(id: string): Promise<AssemblyLineRecord | null>;
   listForTask(taskId: string): Promise<AssemblyLineRecord[]>;
   /**
@@ -55,5 +59,9 @@ export interface AssemblyLinesPort {
    */
   findOpenByPr(repo: string, prNumber: number): Promise<AssemblyLineRecord[]>;
   /** Close every open line for the repo+PR with `outcome`; returns the count closed. */
-  finishOpenByPr(repo: string, prNumber: number, outcome: string): Promise<number>;
+  finishOpenByPr(
+    repo: string,
+    prNumber: number,
+    outcome: string,
+  ): Promise<number>;
 }

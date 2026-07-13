@@ -29,11 +29,15 @@ describe("constants", () => {
 
 describe("parseIngestWorkflowVersion", () => {
   it("reads the version from a leading marker line", () => {
-    expect(parseIngestWorkflowVersion("# lore-ingest-version: 2\nname: x")).toBe(2);
+    expect(
+      parseIngestWorkflowVersion("# lore-ingest-version: 2\nname: x"),
+    ).toBe(2);
   });
 
   it("returns null when no marker is present", () => {
-    expect(parseIngestWorkflowVersion("name: Lore Context Ingest\non: push")).toBe(null);
+    expect(
+      parseIngestWorkflowVersion("name: Lore Context Ingest\non: push"),
+    ).toBe(null);
   });
 
   it("returns null for empty content", () => {
@@ -41,7 +45,9 @@ describe("parseIngestWorkflowVersion", () => {
   });
 
   it("matches a marker on a non-first line via the multiline flag", () => {
-    expect(parseIngestWorkflowVersion("name: x\n# lore-ingest-version: 5\nmore")).toBe(5);
+    expect(
+      parseIngestWorkflowVersion("name: x\n# lore-ingest-version: 5\nmore"),
+    ).toBe(5);
   });
 
   it("tolerates no space after the hash", () => {
@@ -87,7 +93,9 @@ describe("ingestWorkflowStatus", () => {
   });
 
   it("returns stale when the version is below the canonical version", () => {
-    expect(ingestWorkflowStatus("# lore-ingest-version: 1\nname: x")).toBe("stale");
+    expect(ingestWorkflowStatus("# lore-ingest-version: 1\nname: x")).toBe(
+      "stale",
+    );
   });
 
   it("returns stale at the zero boundary below the canonical version", () => {
@@ -95,12 +103,16 @@ describe("ingestWorkflowStatus", () => {
   });
 
   it("returns aligned exactly at the canonical version boundary", () => {
-    expect(ingestWorkflowStatus(`# lore-ingest-version: ${LORE_INGEST_WORKFLOW_VERSION}`)).toBe(
-      "aligned",
-    );
+    expect(
+      ingestWorkflowStatus(
+        `# lore-ingest-version: ${LORE_INGEST_WORKFLOW_VERSION}`,
+      ),
+    ).toBe("aligned");
   });
 
   it("returns aligned when the version is above the canonical version", () => {
-    expect(ingestWorkflowStatus("# lore-ingest-version: 99\nname: x")).toBe("aligned");
+    expect(ingestWorkflowStatus("# lore-ingest-version: 99\nname: x")).toBe(
+      "aligned",
+    );
   });
 });

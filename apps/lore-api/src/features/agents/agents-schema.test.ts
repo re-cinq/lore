@@ -1,10 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { parseAgentInput, parseAgentPatch, imageFieldTouched } from "./agents-schema.js";
+import {
+  parseAgentInput,
+  parseAgentPatch,
+  imageFieldTouched,
+} from "./agents-schema.js";
 
 describe("parseAgentInput", () => {
   it("normalizes a full body onto AgentDefinitionInput with null for absent fields", () => {
     expect(
-      parseAgentInput({ name: "general", model: "claude-opus-4-8", timeout_minutes: 45 }),
+      parseAgentInput({
+        name: "general",
+        model: "claude-opus-4-8",
+        timeout_minutes: 45,
+      }),
     ).toEqual({
       name: "general",
       model: "claude-opus-4-8",
@@ -21,7 +29,9 @@ describe("parseAgentInput", () => {
   });
 
   it("rejects a timeout above the 1440-minute ceiling", () => {
-    expect(() => parseAgentInput({ name: "general", timeout_minutes: 5000 })).toThrow();
+    expect(() =>
+      parseAgentInput({ name: "general", timeout_minutes: 5000 }),
+    ).toThrow();
   });
 });
 

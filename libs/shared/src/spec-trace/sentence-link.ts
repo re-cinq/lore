@@ -45,7 +45,11 @@ export interface SentenceLink {
 export function parseSentenceLink(testName: string): SentenceLink | null {
   const parts = testName.split(" | ");
   if (parts.length < 3) return null;
-  return { spec: parts[0], sentence: parts[1], label: parts.slice(2).join(" | ") };
+  return {
+    spec: parts[0],
+    sentence: parts[1],
+    label: parts.slice(2).join(" | "),
+  };
 }
 
 /**
@@ -56,7 +60,9 @@ export function parseSentenceLink(testName: string): SentenceLink | null {
  * the primary path: it's structural, so it never depends on a ` | ` vs ` > `
  * separator and a unit test can't accidentally parse as a link.
  */
-export function sentenceLinkFromSuite(descriptor: TestDescriptor): SentenceLink | null {
+export function sentenceLinkFromSuite(
+  descriptor: TestDescriptor,
+): SentenceLink | null {
   const suite = descriptor.suite ?? [];
   if (suite.length < 2) return null;
   return { spec: suite[0], sentence: suite[1], label: descriptor.name };

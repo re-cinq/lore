@@ -31,7 +31,10 @@ export interface SettingsPort {
   /** The raw settings JSONB for a repo, or null when there is no row / no settings. */
   rawSettings(repo: string): Promise<Record<string, unknown> | null>;
   /** Overwrite the settings JSONB for a repo. */
-  updateSettings(repo: string, settings: Record<string, unknown>): Promise<void>;
+  updateSettings(
+    repo: string,
+    settings: Record<string, unknown>,
+  ): Promise<void>;
   /** The repo's team (schema) name, or null. */
   team(repo: string): Promise<string | null>;
   /** The first repo full_name mapped to a team (schema), or null. */
@@ -49,5 +52,9 @@ export interface SettingsPort {
   /** Set the onboarding PR url for a repo. */
   setOnboardingPrUrl(repo: string, url: string): Promise<void>;
   /** Increment the repo's outcome_stats (merged_count, total_files_changed, total_hours_to_merge). */
-  bumpOutcomeStats(repo: string, filesChanged: number, hoursToMerge: number): Promise<void>;
+  bumpOutcomeStats(
+    repo: string,
+    filesChanged: number,
+    hoursToMerge: number,
+  ): Promise<void>;
 }

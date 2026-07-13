@@ -103,8 +103,6 @@ describe("Webhook Dispatch", () => {
       [id],
     );
     expect(rows[0].issue_number).toBe(123);
-    expect(rows[0].issue_url).toBe(
-      "https://github.com/test/repo/issues/123",
-    );
+    expect(rows[0].issue_url).toBe("https://github.com/test/repo/issues/123");
   });
 });

@@ -11,7 +11,8 @@ const input: ArtifactCopyInput = {
   kind: "pr",
   taskType: "gap-fill",
   description: "Spec drift: specs/6-dark-factory/research.md (100% divergence)",
-  agentOutput: "Updated research.md to match the shipped dark-factory settings resolver.",
+  agentOutput:
+    "Updated research.md to match the shipped dark-factory settings resolver.",
   changedFiles: 2,
   repo: "re-cinq/lore",
 };
@@ -30,7 +31,11 @@ describe("buildCopyPrompt", () => {
   });
 
   it("omits the files and output lines when neither is provided", () => {
-    const prompt = buildCopyPrompt({ ...input, changedFiles: 0, agentOutput: undefined });
+    const prompt = buildCopyPrompt({
+      ...input,
+      changedFiles: 0,
+      agentOutput: undefined,
+    });
     expect(prompt).not.toContain("Files changed");
     expect(prompt).not.toContain("What the agent reported");
   });
@@ -62,14 +67,19 @@ describe("fallbackCopy", () => {
   });
 
   it("omits the changed-files note when there are no changed files", () => {
-    expect(fallbackCopy({ ...input, changedFiles: 0 }).body).not.toContain("Changed files");
+    expect(fallbackCopy({ ...input, changedFiles: 0 }).body).not.toContain(
+      "Changed files",
+    );
   });
 });
 
 describe("generateArtifactCopy", () => {
   it("returns model-written copy when the LLM succeeds", async () => {
     const llm = vi.fn().mockResolvedValue({
-      data: { title: "Reconcile dark-factory research doc with the settings resolver", body: "## What changed\n..." },
+      data: {
+        title: "Reconcile dark-factory research doc with the settings resolver",
+        body: "## What changed\n...",
+      },
     });
     const copy = await generateArtifactCopy(input, llm);
     expect(copy).toMatchObject({
@@ -80,7 +90,9 @@ describe("generateArtifactCopy", () => {
   });
 
   it("trims whitespace from the model title", async () => {
-    const llm = vi.fn().mockResolvedValue({ data: { title: "  Tidy title  ", body: "b" } });
+    const llm = vi
+      .fn()
+      .mockResolvedValue({ data: { title: "  Tidy title  ", body: "b" } });
     expect((await generateArtifactCopy(input, llm)).title).toBe("Tidy title");
   });
 
@@ -92,7 +104,9 @@ describe("generateArtifactCopy", () => {
   });
 
   it("falls back when the model returns an empty title", async () => {
-    const llm = vi.fn().mockResolvedValue({ data: { title: "   ", body: "b" } });
+    const llm = vi
+      .fn()
+      .mockResolvedValue({ data: { title: "   ", body: "b" } });
     expect((await generateArtifactCopy(input, llm)).source).toBe("fallback");
   });
 
@@ -102,12 +116,16 @@ describe("generateArtifactCopy", () => {
   });
 
   it("falls back when the model returns an empty body", async () => {
-    const llm = vi.fn().mockResolvedValue({ data: { title: "Good title", body: "" } });
+    const llm = vi
+      .fn()
+      .mockResolvedValue({ data: { title: "Good title", body: "" } });
     expect((await generateArtifactCopy(input, llm)).source).toBe("fallback");
   });
 
   it("uses Llm.instance by default when no llm is injected", async () => {
-    const fake = new FakeLlm({ data: { title: "Default-path title", body: "Body" } });
+    const fake = new FakeLlm({
+      data: { title: "Default-path title", body: "Body" },
+    });
     Llm.setInstance(fake);
     const copy = await generateArtifactCopy(input);
     expect(copy).toMatchObject({ title: "Default-path title", source: "llm" });

@@ -8,11 +8,15 @@ import {
 
 describe("parseTestLinksInStatement", () => {
   it("returns an empty array when the statement has no trailing parenthetical", () => {
-    expect(parseTestLinksInStatement("Returns the expected value.")).toEqual([]);
+    expect(parseTestLinksInStatement("Returns the expected value.")).toEqual(
+      [],
+    );
   });
 
   it("returns an empty array when the trailing paren contains no markdown links", () => {
-    expect(parseTestLinksInStatement("Returns. (a plain note in parens)")).toEqual([]);
+    expect(
+      parseTestLinksInStatement("Returns. (a plain note in parens)"),
+    ).toEqual([]);
   });
 
   it("parses a single test-link parenthetical at end of statement", () => {
@@ -33,8 +37,16 @@ describe("parseTestLinksInStatement", () => {
       "Survives rollout via lease backend. ([primary](agent/src/supervisor/lease.test.ts#L42), [takeover](agent/src/supervisor/lease.test.ts#L74))",
     );
     expect(out).toEqual([
-      { label: "primary", path: "agent/src/supervisor/lease.test.ts", line: 42 },
-      { label: "takeover", path: "agent/src/supervisor/lease.test.ts", line: 74 },
+      {
+        label: "primary",
+        path: "agent/src/supervisor/lease.test.ts",
+        line: 42,
+      },
+      {
+        label: "takeover",
+        path: "agent/src/supervisor/lease.test.ts",
+        line: 74,
+      },
     ]);
   });
 
@@ -49,7 +61,9 @@ describe("parseTestLinksInStatement", () => {
 
   it("returns an empty array when the trailing paren contains ONLY non-test links", () => {
     expect(
-      parseTestLinksInStatement("Per the ADR. ([see ADR-015](adrs/ADR-015.md))"),
+      parseTestLinksInStatement(
+        "Per the ADR. ([see ADR-015](adrs/ADR-015.md))",
+      ),
     ).toEqual([]);
   });
 
@@ -57,7 +71,9 @@ describe("parseTestLinksInStatement", () => {
     const out = parseTestLinksInStatement(
       "Has a file-level test. ([test file](src/x.test.ts))",
     );
-    expect(out).toEqual([{ label: "test file", path: "src/x.test.ts", line: null }]);
+    expect(out).toEqual([
+      { label: "test file", path: "src/x.test.ts", line: null },
+    ]);
   });
 
   it("strips a leading slash on the href so paths normalize repo-relative", () => {
@@ -71,7 +87,9 @@ describe("parseTestLinksInStatement", () => {
     const out = parseTestLinksInStatement(
       "Go service. ([test](pkg/store/store_test.go#L120))",
     );
-    expect(out).toEqual([{ label: "test", path: "pkg/store/store_test.go", line: 120 }]);
+    expect(out).toEqual([
+      { label: "test", path: "pkg/store/store_test.go", line: 120 },
+    ]);
   });
 
   it("ignores links inside the body of the statement (only trailing paren matters)", () => {
@@ -139,7 +157,9 @@ describe("linksForStatements", () => {
         statement: expect.objectContaining({
           text: "Returns the value ([validated by run](src/x.test.ts#L42))",
         }),
-        testLinks: [{ label: "validated by run", path: "src/x.test.ts", line: 42 }],
+        testLinks: [
+          { label: "validated by run", path: "src/x.test.ts", line: 42 },
+        ],
       },
       {
         statement: expect.objectContaining({ text: "Has no link at all" }),

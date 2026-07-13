@@ -21,16 +21,25 @@ export function prStatusRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/pr-status",
-    options: { ...bearerScope("read"), validate: { query: zodValidate(PrStatusQuery) } },
+    options: {
+      ...bearerScope("read"),
+      validate: { query: zodValidate(PrStatusQuery) },
+    },
     handler: async (request, h) => {
-      const { repo, pr_number: prNumber } = request.query as unknown as PrStatusQuery;
+      const { repo, pr_number: prNumber } =
+        request.query as unknown as PrStatusQuery;
       try {
         const result = await fetchPrStatus(repo, prNumber);
         if (!result) {
           // 424 (not 502): a missing-GitHub-credentials config gap is deterministic,
           // so the proxy must classify it non-retriable and not burn its retry budget
           // or report it as a transient Lore-API outage.
-          return h.response({ error: "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN." }).code(424);
+          return h
+            .response({
+              error:
+                "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN.",
+            })
+            .code(424);
         }
         return h.response(result);
       } catch (err: any) {

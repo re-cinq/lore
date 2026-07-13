@@ -29,7 +29,10 @@ export interface SpecTaskContext {
 
 /** Build the spec-task rows for one story's tasks, linked to the story Issue
  *  (when created) and the owning feature. */
-export function specTaskRows(story: UserStory, ctx: SpecTaskContext): SpecTaskRow[] {
+export function specTaskRows(
+  story: UserStory,
+  ctx: SpecTaskContext,
+): SpecTaskRow[] {
   return story.tasks.map((task) => {
     const metadata: SpecTaskRow["metadata"] = {
       spec_task_id: task.id,
@@ -46,14 +49,28 @@ export function specTaskRows(story: UserStory, ctx: SpecTaskContext): SpecTaskRo
 }
 
 /** Build the GitHub Issue body for a user story. */
-export function storyIssueBody(story: UserStory, opts: { specPath: string; featureTitle: string }): string {
+export function storyIssueBody(
+  story: UserStory,
+  opts: { specPath: string; featureTitle: string },
+): string {
   const parts = [story.summary, ""];
   if (story.acceptance_criteria.length) {
-    parts.push("## Acceptance criteria", ...story.acceptance_criteria.map((c) => `- [ ] ${c}`), "");
+    parts.push(
+      "## Acceptance criteria",
+      ...story.acceptance_criteria.map((c) => `- [ ] ${c}`),
+      "",
+    );
   }
   if (story.tasks.length) {
-    parts.push("## Tasks", ...story.tasks.map((t) => `- ${t.id}: ${t.description}`), "");
+    parts.push(
+      "## Tasks",
+      ...story.tasks.map((t) => `- ${t.id}: ${t.description}`),
+      "",
+    );
   }
-  parts.push("---", `Decomposed from **${opts.featureTitle}** — spec: \`${opts.specPath}\`.`);
+  parts.push(
+    "---",
+    `Decomposed from **${opts.featureTitle}** — spec: \`${opts.specPath}\`.`,
+  );
   return parts.join("\n");
 }

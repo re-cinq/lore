@@ -33,7 +33,10 @@ export interface BaselineDeps {
   repoScan: BaselineRepoScan;
 }
 
-const defaultDeps = (): BaselineDeps => ({ baseline: baseline(), repoScan: taskQueue() });
+const defaultDeps = (): BaselineDeps => ({
+  baseline: baseline(),
+  repoScan: taskQueue(),
+});
 
 /**
  * Capture a `windowDays` baseline of pre-feature counters for one repo.

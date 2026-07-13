@@ -8,5 +8,8 @@ export interface LlmCompletion {
 }
 
 export interface LlmPort {
-  complete(prompt: string, opts?: { model?: string; maxTokens?: number }): Promise<LlmCompletion>;
+  complete(
+    prompt: string,
+    opts?: { model?: string; maxTokens?: number },
+  ): Promise<LlmCompletion>;
 }

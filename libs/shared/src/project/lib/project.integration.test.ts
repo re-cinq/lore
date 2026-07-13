@@ -11,7 +11,13 @@ import type { DgraphClientPort } from "../../memory-store.js";
  * unreachable so `npm test` passes without a DB. Bring one up with `npm run db:up`.
  */
 
-const PG_CONFIG = { host: "localhost", port: 5432, database: "lore", user: "postgres", password: "lore" };
+const PG_CONFIG = {
+  host: "localhost",
+  port: 5432,
+  database: "lore",
+  user: "postgres",
+  password: "lore",
+};
 
 async function pgReachable(): Promise<boolean> {
   try {
@@ -40,7 +46,12 @@ describe.skipIf(!reachable)("Project (live Postgres)", () => {
     await pool.query(
       `INSERT INTO lore.repos (owner, name, full_name, settings)
        VALUES ($1, $2, $3, $4::jsonb)`,
-      ["lore-smoke", fullName.split("/")[1], fullName, JSON.stringify({ dark_factory: { enabled: true } })],
+      [
+        "lore-smoke",
+        fullName.split("/")[1],
+        fullName,
+        JSON.stringify({ dark_factory: { enabled: true } }),
+      ],
     );
     const project = await createProject(fullName, pool, noDgraph, {});
 

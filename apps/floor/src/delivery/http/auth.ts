@@ -30,13 +30,25 @@ interface BearerOptions {
 }
 
 const bearerScheme: ServerAuthScheme = (_server, options) => {
-  const { token, unconfiguredStatusCode, unconfiguredMessage } = options as BearerOptions;
+  const { token, unconfiguredStatusCode, unconfiguredMessage } =
+    options as BearerOptions;
   return {
     authenticate(request, h) {
-      enforceTrue(token, () => new Boom.Boom(unconfiguredMessage, { statusCode: unconfiguredStatusCode }));
+      enforceTrue(
+        token,
+        () =>
+          new Boom.Boom(unconfiguredMessage, {
+            statusCode: unconfiguredStatusCode,
+          }),
+      );
       const header = request.headers.authorization;
-      const provided = (Array.isArray(header) ? header[0] : header)?.replace("Bearer ", "");
-      enforceTrue(provided !== undefined && tokensMatch(provided, token), () => Boom.unauthorized("unauthorized"));
+      const provided = (Array.isArray(header) ? header[0] : header)?.replace(
+        "Bearer ",
+        "",
+      );
+      enforceTrue(provided !== undefined && tokensMatch(provided, token), () =>
+        Boom.unauthorized("unauthorized"),
+      );
       return h.authenticated({ credentials: {} });
     },
   };

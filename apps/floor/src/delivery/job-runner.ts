@@ -24,7 +24,10 @@ import {
   completeJobRun,
   failJobRun,
 } from "../main-loop/scheduling/job-run.js";
-import { jobRunLogKey, writeJobRunLogs } from "../main-loop/scheduling/log-storage.js";
+import {
+  jobRunLogKey,
+  writeJobRunLogs,
+} from "../main-loop/scheduling/log-storage.js";
 
 type JobHandler = () => Promise<string>;
 
@@ -51,7 +54,8 @@ interface ConsoleSink {
 
 function teeConsole(buffer: string[]): ConsoleSink {
   const original: ConsoleSink = { log: console.log, error: console.error };
-  const capture = (label: string) =>
+  const capture =
+    (label: string) =>
     (...args: unknown[]): void => {
       buffer.push(
         `${label} ${args

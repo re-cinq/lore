@@ -55,13 +55,22 @@ export function nodeAgentSpec(
 
 /** Node knobs a station receives as its `params` (everything execution-relevant
  *  the YAML can say about the node, minus the routing fields). */
-const STATION_PARAM_FIELDS = ["validator", "job_ref", "condition_ref", "prompt_ref", "model"] as const;
+const STATION_PARAM_FIELDS = [
+  "validator",
+  "job_ref",
+  "condition_ref",
+  "prompt_ref",
+  "model",
+] as const;
 
 /** Pure: the Agent dispatch spec for one STATION node (validate/detect/…). The
  *  recipe's prompt template is literally `{station_input}`, so the whole node
  *  input rides one JSON parameter; the Station defaults to `def-<type>` unless
  *  the node names a custom one via `station_ref`. */
-export function nodeStationSpec(node: AssemblyLineNode, task: FloorAssemblyLineTask): LoreTaskSpec {
+export function nodeStationSpec(
+  node: AssemblyLineNode,
+  task: FloorAssemblyLineTask,
+): LoreTaskSpec {
   const params: Record<string, string> = {};
 
   for (const field of STATION_PARAM_FIELDS) {
@@ -99,9 +108,15 @@ export interface FloorAssemblyLinePorts {
   /** Dispatch one node's Agent CR (e.g. AgentCrBackend.launch). */
   dispatchAgent: (spec: LoreTaskSpec) => Promise<void>;
   /** Resolve a node's prompt template for the task. */
-  resolvePrompt: (node: AssemblyLineNode, task: FloorAssemblyLineTask) => string;
+  resolvePrompt: (
+    node: AssemblyLineNode,
+    task: FloorAssemblyLineTask,
+  ) => string;
   /** Read this node's Agent status (keyed by assemblyLineId + node id). */
-  agentStatus: (assemblyLineId: string, nodeId: string) => Promise<AgentNodeStatus | null>;
+  agentStatus: (
+    assemblyLineId: string,
+    nodeId: string,
+  ) => Promise<AgentNodeStatus | null>;
   /** Aggregate CI conclusion for the branch's head. */
   ciConclusion: (branch: string) => Promise<CiConclusion>;
   heartbeat: (branchName: string, nodeId: string) => Promise<void>;
@@ -129,7 +144,9 @@ export function buildFloorAssemblyLineHandlers(
       episodeDeps: ports.episodeDeps,
       agent: createStationNodeHandler({
         launch: (node) =>
-          ports.dispatchAgent(nodeAgentSpec(node, task, ports.resolvePrompt(node, task))),
+          ports.dispatchAgent(
+            nodeAgentSpec(node, task, ports.resolvePrompt(node, task)),
+          ),
         poll: ports.agentStatus,
         heartbeat: ports.heartbeat,
         sleep: ports.sleep,

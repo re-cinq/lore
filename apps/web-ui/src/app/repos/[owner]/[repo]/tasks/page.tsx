@@ -1,9 +1,16 @@
 export const dynamic = "force-dynamic";
-import { query } from '@/lib/db';
-import RepoTasksView from './RepoTasksView';
-import { groupTasksIntoAssemblyLines, type AssemblyLineTaskRow } from '@/lib/assembly-lines';
+import { query } from "@/lib/db";
+import RepoTasksView from "./RepoTasksView";
+import {
+  groupTasksIntoAssemblyLines,
+  type AssemblyLineTaskRow,
+} from "@/lib/assembly-lines";
 
-export default async function RepoTasks({ params }: { params: Promise<{ owner: string; repo: string }> }) {
+export default async function RepoTasks({
+  params,
+}: {
+  params: Promise<{ owner: string; repo: string }>;
+}) {
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
@@ -21,7 +28,7 @@ export default async function RepoTasks({ params }: { params: Promise<{ owner: s
      WHERE t.target_repo = $1
      GROUP BY t.id
      ORDER BY t.created_at DESC LIMIT 100`,
-    [fullName]
+    [fullName],
   );
 
   const runs = groupTasksIntoAssemblyLines(tasks);

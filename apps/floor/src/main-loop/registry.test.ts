@@ -23,7 +23,9 @@ function producibleEventNames(): string[] {
 describe("buildRegistry", () => {
   it("registers a handler for every event name a Floor producer can emit", () => {
     const registry = buildRegistry();
-    const missing = producibleEventNames().filter((name) => !registry.has(name));
+    const missing = producibleEventNames().filter(
+      (name) => !registry.has(name),
+    );
     expect(missing).toEqual([]);
   });
 
@@ -38,9 +40,15 @@ describe("withExtra", () => {
   it("runs the primary then every secondary in order", async () => {
     const seen: string[] = [];
     const composed = withExtra(
-      async () => { seen.push("primary"); },
-      async () => { seen.push("extra-1"); },
-      async () => { seen.push("extra-2"); },
+      async () => {
+        seen.push("primary");
+      },
+      async () => {
+        seen.push("extra-1");
+      },
+      async () => {
+        seen.push("extra-2");
+      },
     );
 
     await composed({});
@@ -49,15 +57,24 @@ describe("withExtra", () => {
   });
 
   it("propagates a primary throw (keeps its retry semantics)", async () => {
-    const composed = withExtra(async () => { throw new Error("primary boom"); }, async () => {});
+    const composed = withExtra(
+      async () => {
+        throw new Error("primary boom");
+      },
+      async () => {},
+    );
     await expect(composed({})).rejects.toThrow("primary boom");
   });
 
   it("swallows a secondary throw so it never breaks the primary", async () => {
     let primaryRan = false;
     const composed = withExtra(
-      async () => { primaryRan = true; },
-      async () => { throw new Error("secondary boom"); },
+      async () => {
+        primaryRan = true;
+      },
+      async () => {
+        throw new Error("secondary boom");
+      },
     );
 
     await expect(composed({})).resolves.toBeUndefined();

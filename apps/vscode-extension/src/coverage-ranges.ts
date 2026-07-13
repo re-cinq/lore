@@ -10,7 +10,9 @@ export interface LineInterval {
   endLine: number;
 }
 
-export function parseRangesFacet(facet: string | undefined | null): LineInterval[] {
+export function parseRangesFacet(
+  facet: string | undefined | null,
+): LineInterval[] {
   if (!facet) return [];
   const intervals: LineInterval[] = [];
   for (const segment of facet.split(",")) {
@@ -18,7 +20,10 @@ export function parseRangesFacet(facet: string | undefined | null): LineInterval
     const startLine = Number(rawStart?.trim());
     if (!Number.isFinite(startLine)) continue;
     const endLine = rawEnd === undefined ? startLine : Number(rawEnd.trim());
-    intervals.push({ startLine, endLine: Number.isFinite(endLine) ? endLine : startLine });
+    intervals.push({
+      startLine,
+      endLine: Number.isFinite(endLine) ? endLine : startLine,
+    });
   }
   return intervals;
 }

@@ -3,7 +3,11 @@ import { parsePromptfooStats } from "./promptfoo.js";
 
 describe("parsePromptfooStats", () => {
   it("reads stats at the document root", () => {
-    expect(parsePromptfooStats(JSON.stringify({ stats: { passRate: 0.8, passes: 4, total: 5 } }))).toEqual({
+    expect(
+      parsePromptfooStats(
+        JSON.stringify({ stats: { passRate: 0.8, passes: 4, total: 5 } }),
+      ),
+    ).toEqual({
       passRate: 0.8,
       passes: 4,
       total: 5,
@@ -11,7 +15,11 @@ describe("parsePromptfooStats", () => {
   });
 
   it("reads stats nested under results", () => {
-    expect(parsePromptfooStats(JSON.stringify({ results: { stats: { passRate: 0.5 } } }))).toEqual({
+    expect(
+      parsePromptfooStats(
+        JSON.stringify({ results: { stats: { passRate: 0.5 } } }),
+      ),
+    ).toEqual({
       passRate: 0.5,
       passes: null,
       total: null,
@@ -27,7 +35,11 @@ describe("parsePromptfooStats", () => {
   });
 
   it("preserves a 0 passRate (all failed) rather than treating it as missing", () => {
-    expect(parsePromptfooStats(JSON.stringify({ stats: { passRate: 0, passes: 0, total: 3 } }))).toEqual({
+    expect(
+      parsePromptfooStats(
+        JSON.stringify({ stats: { passRate: 0, passes: 0, total: 3 } }),
+      ),
+    ).toEqual({
       passRate: 0,
       passes: 0,
       total: 3,

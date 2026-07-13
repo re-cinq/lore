@@ -5,7 +5,11 @@
 export interface DecompTaskRow {
   description: string;
   status: string;
-  context_bundle: { spec_task_id?: string; story_issue?: number; phase?: number } | null;
+  context_bundle: {
+    spec_task_id?: string;
+    story_issue?: number;
+    phase?: number;
+  } | null;
 }
 
 export interface DecompTask {
@@ -23,12 +27,15 @@ export interface DecompStoryGroup {
 
 /** Group spec-task rows by their story Issue (issue order, null last); tasks
  *  within a story keep spec-task-id order. */
-export function groupDecomposition(rows: DecompTaskRow[]): { stories: DecompStoryGroup[]; total: number } {
+export function groupDecomposition(rows: DecompTaskRow[]): {
+  stories: DecompStoryGroup[];
+  total: number;
+} {
   const byStory = new Map<number | null, DecompTask[]>();
   for (const r of rows) {
     const key = r.context_bundle?.story_issue ?? null;
     const task: DecompTask = {
-      specTaskId: r.context_bundle?.spec_task_id ?? '',
+      specTaskId: r.context_bundle?.spec_task_id ?? "",
       description: r.description,
       status: r.status,
       phase: r.context_bundle?.phase ?? 0,

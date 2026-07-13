@@ -5,7 +5,9 @@ import { InMemoryTaskQueue } from "@re-cinq/lore-shared/project/tasks/task-queue
 
 describe("slugify", () => {
   it("lowercases and replaces spaces with hyphens", () => {
-    expect(slugify("Add Health Check Endpoint")).toBe("add-health-check-endpoint");
+    expect(slugify("Add Health Check Endpoint")).toBe(
+      "add-health-check-endpoint",
+    );
   });
 
   it("removes special characters", () => {
@@ -17,7 +19,8 @@ describe("slugify", () => {
   });
 
   it("truncates to 30 characters", () => {
-    const long = "this is a very long description that exceeds thirty characters";
+    const long =
+      "this is a very long description that exceeds thirty characters";
     expect(slugify(long).length).toBeLessThanOrEqual(30);
   });
 
@@ -43,7 +46,9 @@ describe("slugify", () => {
  * Pure function that mirrors the routing decision in worker.ts processTask().
  * Returns which handler would be called for a given task type.
  */
-function routeTask(taskType: string): "handleOnboard" | "handleFeatureRequest" | "handleClaudeCodeTask" {
+function routeTask(
+  taskType: string,
+): "handleOnboard" | "handleFeatureRequest" | "handleClaudeCodeTask" {
   if (taskType === "onboard") {
     return "handleOnboard";
   } else if (taskType === "feature-request") {
@@ -167,17 +172,41 @@ describe("recoverStaleTasks", () => {
   it("recovers stale non-implementation tasks and skips CRD-managed implementation tasks", async () => {
     const queue = new InMemoryTaskQueue(
       [
-        { id: "task-1", status: "running", task_type: "implementation", updated_at: OLD },
-        { id: "task-2", status: "running", task_type: "general", updated_at: OLD },
-        { id: "task-3", status: "queued", task_type: "implementation", updated_at: OLD },
-        { id: "task-4", status: "running", task_type: "onboard", updated_at: OLD },
+        {
+          id: "task-1",
+          status: "running",
+          task_type: "implementation",
+          updated_at: OLD,
+        },
+        {
+          id: "task-2",
+          status: "running",
+          task_type: "general",
+          updated_at: OLD,
+        },
+        {
+          id: "task-3",
+          status: "queued",
+          task_type: "implementation",
+          updated_at: OLD,
+        },
+        {
+          id: "task-4",
+          status: "running",
+          task_type: "onboard",
+          updated_at: OLD,
+        },
       ],
       () => NOW,
     );
     const setStatus = vi.fn();
     const insertEvent = vi.fn();
 
-    const recovered = await recoverStaleTasks({ queue, setStatus, insertEvent });
+    const recovered = await recoverStaleTasks({
+      queue,
+      setStatus,
+      insertEvent,
+    });
 
     expect(recovered).toBe(2);
     expect(setStatus.mock.calls.map((c) => c[0])).toEqual(["task-2", "task-4"]);

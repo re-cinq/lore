@@ -4,7 +4,10 @@ import { InMemoryCost } from "./cost-memory.js";
 import type { AnthropicCostDailyRow } from "./cost-port.js";
 import type { PgPool } from "../../memory-store.js";
 
-function fakePool(): { pool: PgPool; calls: Array<{ text: string; params?: unknown[] }> } {
+function fakePool(): {
+  pool: PgPool;
+  calls: Array<{ text: string; params?: unknown[] }>;
+} {
   const calls: Array<{ text: string; params?: unknown[] }> = [];
   const pool: PgPool = {
     async query(text: string, params?: unknown[]) {
@@ -33,8 +36,12 @@ describe("PgCost adapter", () => {
 
     await new PgCost(pool).upsertDaily(sampleRow());
 
-    expect(calls[0]?.text).toContain("INSERT INTO pipeline.anthropic_cost_daily");
-    expect(calls[0]?.text).toContain("ON CONFLICT (bucket_date, model) DO UPDATE SET");
+    expect(calls[0]?.text).toContain(
+      "INSERT INTO pipeline.anthropic_cost_daily",
+    );
+    expect(calls[0]?.text).toContain(
+      "ON CONFLICT (bucket_date, model) DO UPDATE SET",
+    );
     expect(calls[0]?.params).toEqual([
       "2026-06-30",
       "claude-opus-4-8",

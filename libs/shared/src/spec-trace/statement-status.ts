@@ -22,7 +22,8 @@ export async function deriveStatementStatus(
       `query q($sx: string){ stmt(func: eq(Statement.xid, $sx)){ Statement.trace_links { TraceLink.evidence } } }`,
       { $sx: statementXid },
     );
-    const links = (res.data?.stmt?.[0]?.["Statement.trace_links"] ?? []) as Array<{
+    const links = (res.data?.stmt?.[0]?.["Statement.trace_links"] ??
+      []) as Array<{
       "TraceLink.evidence"?: EvidenceTier;
     }>;
     return links
@@ -32,7 +33,8 @@ export async function deriveStatementStatus(
 
   const top = highestTier(tiers);
   if (top === undefined) return "untested";
-  if (top === "execution-verified" || top === "generated-provenance") return "verified-implemented";
+  if (top === "execution-verified" || top === "generated-provenance")
+    return "verified-implemented";
   if (top === "human-linked" || top === "coverage-bridged") return "claimed";
   return "untested";
 }

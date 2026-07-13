@@ -22,7 +22,8 @@ function fakeKnowledge(): KnowledgePort {
       },
     ],
     queryTrace: async () => "trace not yet available",
-    listSpecs: async (repo) => (repo === "re-cinq/lore" ? [{ path: "specs/x/spec.md", title: "X" }] : []),
+    listSpecs: async (repo) =>
+      repo === "re-cinq/lore" ? [{ path: "specs/x/spec.md", title: "X" }] : [],
     listAdrs: async () => [],
   };
 }
@@ -39,6 +40,8 @@ describe("KnowledgeView", () => {
   it("lists the repo's specs", async () => {
     const facade = new KnowledgeView("re-cinq/lore", fakeKnowledge());
 
-    expect(await facade.listSpecs()).toEqual([{ path: "specs/x/spec.md", title: "X" }]);
+    expect(await facade.listSpecs()).toEqual([
+      { path: "specs/x/spec.md", title: "X" },
+    ]);
   });
 });

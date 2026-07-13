@@ -3,15 +3,28 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
-import { parseRanges, computeImpact, buildImpactAnnotations, buildImpactComment, IMPACT_COMMENT_MARKER } from "../trace-impact.js";
+import {
+  parseRanges,
+  computeImpact,
+  buildImpactAnnotations,
+  buildImpactComment,
+  IMPACT_COMMENT_MARKER,
+} from "../trace-impact.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const REPO_ROOT = join(process.cwd(), "..");
-const APPLIER = join(REPO_ROOT, "scripts", "infra", "setup-spec-trace-schema.sh");
+const APPLIER = join(
+  REPO_ROOT,
+  "scripts",
+  "infra",
+  "setup-spec-trace-schema.sh",
+);
 
 async function dgraphReachable(): Promise<boolean> {
   try {
-    return (await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })).ok;
+    return (
+      await fetch(`${DGRAPH_HTTP}/health`, { signal: AbortSignal.timeout(800) })
+    ).ok;
   } catch {
     return false;
   }
@@ -85,7 +98,9 @@ describe("buildImpactAnnotations", () => {
       },
     ]);
     expect(annotations[0].message).toContain("Widget Spec");
-    expect(annotations[0].message).toContain("The widget MUST render on mount.");
+    expect(annotations[0].message).toContain(
+      "The widget MUST render on mount.",
+    );
     expect(annotations[0].message).toContain("test/widget.test.ts");
   });
 
@@ -108,7 +123,12 @@ describe("buildImpactAnnotations", () => {
       [{ path: "src/legacy.ts", ranges: [], deleted: [[10, 20]] }],
     );
     expect(annotations).toMatchObject([
-      { path: "src/legacy.ts", start_line: 10, end_line: 20, annotation_level: "notice" },
+      {
+        path: "src/legacy.ts",
+        start_line: 10,
+        end_line: 20,
+        annotation_level: "notice",
+      },
     ]);
     expect(annotations[0].message).toContain("only coverage");
   });
@@ -172,10 +192,15 @@ describe("buildImpactComment", () => {
 });
 
 describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
-  const dgraphClient = new dgraph.DgraphClient(new dgraph.DgraphClientStub(DGRAPH_HTTP));
+  const dgraphClient = new dgraph.DgraphClient(
+    new dgraph.DgraphClientStub(DGRAPH_HTTP),
+  );
 
   beforeAll(() => {
-    execFileSync("bash", [APPLIER], { env: { ...process.env, DGRAPH_HTTP }, stdio: "pipe" });
+    execFileSync("bash", [APPLIER], {
+      env: { ...process.env, DGRAPH_HTTP },
+      stdio: "pipe",
+    });
   });
 
   async function deleteRepoNodes(repo: string): Promise<void> {
@@ -190,9 +215,14 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
         { $repo: repo },
       );
       const data = res.data as Record<string, { uid: string }[]>;
-      const uids = Object.values(data).flat().map((n) => n.uid);
+      const uids = Object.values(data)
+        .flat()
+        .map((n) => n.uid);
       if (uids.length) {
-        await txn.mutate({ deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"), commitNow: true });
+        await txn.mutate({
+          deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
+          commitNow: true,
+        });
       }
     } catch {
       /* best-effort cleanup */
@@ -361,7 +391,8 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
               "dgraph.type": "Statement",
               "Statement.xid": `${repo}|${specPath}|7`,
               "Statement.repo": repo,
-              "Statement.text": "Coverage reports MUST attribute ranges per test.",
+              "Statement.text":
+                "Coverage reports MUST attribute ranges per test.",
               "Statement.spec": { uid: "_:spec" },
               "Statement.validated_by": {
                 uid: "_:tc",

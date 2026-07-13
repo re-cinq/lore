@@ -97,7 +97,11 @@ export function unblockedBy(
     .filter((t) => {
       const cb = t.context_bundle ?? {};
       const deps = cb.depends_on;
-      return cb.spec_slug === specSlug && Array.isArray(deps) && deps.includes(specTaskId);
+      return (
+        cb.spec_slug === specSlug &&
+        Array.isArray(deps) &&
+        deps.includes(specTaskId)
+      );
     })
     .map((t) => `${(t.context_bundle ?? {}).spec_task_id}: ${t.description}`);
 }
@@ -172,7 +176,10 @@ export interface TaskQueueRepository {
   reviewable(): Promise<ReviewableTask[]>;
 
   /** The single reviewable task for a repo + PR number, or null. */
-  reviewableForPR(repo: string, prNumber: number): Promise<ReviewableTask | null>;
+  reviewableForPR(
+    repo: string,
+    prNumber: number,
+  ): Promise<ReviewableTask | null>;
 
   /** Bump a task's `review_iteration` (COALESCE(_,0)+1); returns the new value. */
   incrementReviewIteration(taskId: string): Promise<number>;
@@ -193,10 +200,16 @@ export interface TaskQueueRepository {
   setColumns(taskId: string, columns: Record<string, unknown>): Promise<void>;
 
   /** The most recent task id for a repo + PR number (newest first), or null. */
-  latestTaskByPr(repo: string, prNumber: number): Promise<{ id: string } | null>;
+  latestTaskByPr(
+    repo: string,
+    prNumber: number,
+  ): Promise<{ id: string } | null>;
 
   /** The active task id for a repo + issue (status NOT IN failed/cancelled), or null. */
-  activeTaskByIssue(repo: string, issueNumber: number): Promise<{ id: string } | null>;
+  activeTaskByIssue(
+    repo: string,
+    issueNumber: number,
+  ): Promise<{ id: string } | null>;
 
   /** Flip merged: feature-request tasks on a branch still in pr-created/review → merged. */
   markFeatureRequestMergedOnBranch(repo: string, branch: string): Promise<void>;

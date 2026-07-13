@@ -27,7 +27,9 @@ export class FakeLlm implements LlmProvider {
   readonly vendor = "fake";
   readonly calls: Array<LlmCompleteRequest | LlmToolRequest> = [];
 
-  constructor(private readonly canned: { text?: string; data?: unknown } = {}) {}
+  constructor(
+    private readonly canned: { text?: string; data?: unknown } = {},
+  ) {}
 
   async complete(req: LlmCompleteRequest): Promise<LlmCompletion> {
     this.calls.push(req);

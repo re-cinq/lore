@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import styles from './CopyButton.module.css';
+import { useState } from "react";
+import styles from "./CopyButton.module.css";
 
 export default function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -17,8 +17,12 @@ export default function CopyButton({ text }: { text: string }) {
   };
 
   return (
-    <button type="button" className={`btn-secondary ${styles.button}`} onClick={copy}>
-      {copied ? 'Copied' : 'Copy'}
+    <button
+      type="button"
+      className={`btn-secondary ${styles.button}`}
+      onClick={copy}
+    >
+      {copied ? "Copied" : "Copy"}
     </button>
   );
 }

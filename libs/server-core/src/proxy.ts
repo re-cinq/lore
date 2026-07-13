@@ -48,7 +48,9 @@ function isAuthDenial(status: number): boolean {
 // Read an error response body without ever throwing: a missing/throwing
 // `text()` (or a rejected read) must NOT escape and flip a non-retriable 4xx
 // into the retry path. `try` (not `.catch`) so a synchronous throw is caught too.
-async function readErrorBody(res: { text?: () => Promise<string> }): Promise<string> {
+async function readErrorBody(res: {
+  text?: () => Promise<string>;
+}): Promise<string> {
   try {
     return res.text ? await res.text() : "";
   } catch {
@@ -59,18 +61,27 @@ async function readErrorBody(res: { text?: () => Promise<string> }): Promise<str
 // Fold the server's error message into the detail for non-retriable (4xx)
 // responses so callers surface the cause (e.g. "GitHub not configured")
 // instead of a bare status line. Best-effort: tolerates non-JSON bodies.
-function errorBodyDetail(status: number, statusText: string, body: string): string {
+function errorBodyDetail(
+  status: number,
+  statusText: string,
+  body: string,
+): string {
   const base = `HTTP ${status} ${statusText}`;
   if (!body) return base;
   try {
     const parsed = JSON.parse(body) as { error?: unknown };
-    return typeof parsed.error === "string" ? `${base}: ${parsed.error}` : `${base}: ${body}`;
+    return typeof parsed.error === "string"
+      ? `${base}: ${parsed.error}`
+      : `${base}: ${body}`;
   } catch {
     return `${base}: ${body}`;
   }
 }
 
-export async function proxyToApi(endpoint: string, body: Record<string, any>): Promise<ProxyResult> {
+export async function proxyToApi(
+  endpoint: string,
+  body: Record<string, any>,
+): Promise<ProxyResult> {
   const apiUrl = process.env.LORE_API_URL;
   const apiToken = process.env.LORE_INGEST_TOKEN;
   if (!apiUrl || !apiToken) return { ok: false, reason: "not_configured" };
@@ -80,7 +91,10 @@ export async function proxyToApi(endpoint: string, body: Record<string, any>): P
     try {
       const res = await fetch(`${apiUrl}${endpoint}`, {
         method: "POST",
-        headers: { "Authorization": `Bearer ${apiToken}`, "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(15_000),
       });
@@ -95,24 +109,40 @@ export async function proxyToApi(endpoint: string, body: Record<string, any>): P
       if (!isRetriableStatus(res.status)) {
         // 4xx (validation / config gap) — retrying won't help. Surface the
         // server's message so the caller sees the cause, not just the status.
-        const detail = errorBodyDetail(res.status, res.statusText, await readErrorBody(res));
-        console.error(`[lore-mcp] proxy ${endpoint} failed (${detail}); not retrying`);
+        const detail = errorBodyDetail(
+          res.status,
+          res.statusText,
+          await readErrorBody(res),
+        );
+        console.error(
+          `[lore-mcp] proxy ${endpoint} failed (${detail}); not retrying`,
+        );
         return { ok: false, reason: "unreachable", detail };
       }
     } catch (err: any) {
-      lastDetail = err?.name === "TimeoutError" ? "request timed out (15s)" : (err?.message || String(err));
+      lastDetail =
+        err?.name === "TimeoutError"
+          ? "request timed out (15s)"
+          : err?.message || String(err);
     }
     if (attempt < PROXY_RETRY_DELAYS_MS.length) {
       const delay = PROXY_RETRY_DELAYS_MS[attempt];
-      console.error(`[lore-mcp] proxy ${endpoint} attempt ${attempt + 1} failed (${lastDetail}); retrying in ${delay}ms`);
-      await new Promise(r => setTimeout(r, delay));
+      console.error(
+        `[lore-mcp] proxy ${endpoint} attempt ${attempt + 1} failed (${lastDetail}); retrying in ${delay}ms`,
+      );
+      await new Promise((r) => setTimeout(r, delay));
     }
   }
-  console.error(`[lore-mcp] proxy ${endpoint} exhausted ${PROXY_RETRY_DELAYS_MS.length + 1} attempts; last error: ${lastDetail}`);
+  console.error(
+    `[lore-mcp] proxy ${endpoint} exhausted ${PROXY_RETRY_DELAYS_MS.length + 1} attempts; last error: ${lastDetail}`,
+  );
   return { ok: false, reason: "unreachable", detail: lastDetail };
 }
 
-export function proxyMemory(action: string, params: Record<string, any>): Promise<ProxyResult> {
+export function proxyMemory(
+  action: string,
+  params: Record<string, any>,
+): Promise<ProxyResult> {
   return proxyToApi("/api/memory", { action, ...params });
 }
 
@@ -130,7 +160,11 @@ export async function withReadCache(
   const label = opts.label ?? true;
 
   const fresh = readFresh(policy);
-  if (fresh) return { ok: true, body: label ? markFresh(fresh.body, fresh.ageSeconds) : fresh.body };
+  if (fresh)
+    return {
+      ok: true,
+      body: label ? markFresh(fresh.body, fresh.ageSeconds) : fresh.body,
+    };
 
   const result = await doProxy();
   if (result.ok) {
@@ -139,7 +173,11 @@ export async function withReadCache(
   }
   if (result.reason === "unreachable") {
     const stale = readAny(policy);
-    if (stale) return { ok: true, body: label ? markStale(stale.body, stale.ageSeconds) : stale.body };
+    if (stale)
+      return {
+        ok: true,
+        body: label ? markStale(stale.body, stale.ageSeconds) : stale.body,
+      };
   }
   return result;
 }
@@ -156,7 +194,7 @@ export async function proxyGetApi(path: string): Promise<ProxyResult> {
     try {
       const res = await fetch(`${apiUrl}${path}`, {
         method: "GET",
-        headers: { "Authorization": `Bearer ${apiToken}` },
+        headers: { Authorization: `Bearer ${apiToken}` },
         signal: AbortSignal.timeout(15_000),
       });
       if (res.ok) {
@@ -170,47 +208,72 @@ export async function proxyGetApi(path: string): Promise<ProxyResult> {
       if (!isRetriableStatus(res.status)) {
         // 4xx (validation / config gap) — retrying won't help. Surface the
         // server's message so the caller sees the cause, not just the status.
-        const detail = errorBodyDetail(res.status, res.statusText, await readErrorBody(res));
-        console.error(`[lore-mcp] proxy GET ${path} failed (${detail}); not retrying`);
+        const detail = errorBodyDetail(
+          res.status,
+          res.statusText,
+          await readErrorBody(res),
+        );
+        console.error(
+          `[lore-mcp] proxy GET ${path} failed (${detail}); not retrying`,
+        );
         return { ok: false, reason: "unreachable", detail };
       }
     } catch (err: any) {
-      lastDetail = err?.name === "TimeoutError" ? "request timed out (15s)" : (err?.message || String(err));
+      lastDetail =
+        err?.name === "TimeoutError"
+          ? "request timed out (15s)"
+          : err?.message || String(err);
     }
     if (attempt < PROXY_RETRY_DELAYS_MS.length) {
       const delay = PROXY_RETRY_DELAYS_MS[attempt];
-      console.error(`[lore-mcp] proxy GET ${path} attempt ${attempt + 1} failed (${lastDetail}); retrying in ${delay}ms`);
-      await new Promise(r => setTimeout(r, delay));
+      console.error(
+        `[lore-mcp] proxy GET ${path} attempt ${attempt + 1} failed (${lastDetail}); retrying in ${delay}ms`,
+      );
+      await new Promise((r) => setTimeout(r, delay));
     }
   }
-  console.error(`[lore-mcp] proxy GET ${path} exhausted ${PROXY_RETRY_DELAYS_MS.length + 1} attempts; last error: ${lastDetail}`);
+  console.error(
+    `[lore-mcp] proxy GET ${path} exhausted ${PROXY_RETRY_DELAYS_MS.length + 1} attempts; last error: ${lastDetail}`,
+  );
   return { ok: false, reason: "unreachable", detail: lastDetail };
 }
 
 // Format an MCP error for an unreachable proxy. Surfaces the failure
 // to the caller instead of silently writing to a local file (which
 // would never sync to the org-wide DB).
-export function unreachableError(op: string, detail: string): { content: [{ type: "text"; text: string }] } {
+export function unreachableError(
+  op: string,
+  detail: string,
+): { content: [{ type: "text"; text: string }] } {
   return {
-    content: [{
-      type: "text" as const,
-      text: `Lore API unreachable for ${op} after ${PROXY_RETRY_DELAYS_MS.length + 1} attempts: ${detail}. ` +
-        `Refusing local-file fallback to prevent silent divergence from the org-wide DB. ` +
-        `Check the GKE service (lore-api pods) and retry.`,
-    }],
+    content: [
+      {
+        type: "text" as const,
+        text:
+          `Lore API unreachable for ${op} after ${PROXY_RETRY_DELAYS_MS.length + 1} attempts: ${detail}. ` +
+          `Refusing local-file fallback to prevent silent divergence from the org-wide DB. ` +
+          `Check the GKE service (lore-api pods) and retry.`,
+      },
+    ],
   };
 }
 
 // Format an MCP error for a proxy access denial (401/403). Surfaces the
 // denial instead of serving a stale cached copy or falling back to local
 // state — the backend has authoritatively refused this read.
-export function deniedError(op: string, detail: string): { content: [{ type: "text"; text: string }] } {
+export function deniedError(
+  op: string,
+  detail: string,
+): { content: [{ type: "text"; text: string }] } {
   return {
-    content: [{
-      type: "text" as const,
-      text: `Lore API denied access for ${op}: ${detail}. ` +
-        `Your token may be revoked, expired, or lack the required scope. ` +
-        `Not serving a cached copy for a denied request. Re-authenticate and retry.`,
-    }],
+    content: [
+      {
+        type: "text" as const,
+        text:
+          `Lore API denied access for ${op}: ${detail}. ` +
+          `Your token may be revoked, expired, or lack the required scope. ` +
+          `Not serving a cached copy for a denied request. Re-authenticate and retry.`,
+      },
+    ],
   };
 }

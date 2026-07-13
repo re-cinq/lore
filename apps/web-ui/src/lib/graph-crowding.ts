@@ -37,7 +37,10 @@ export function nodeDegrees(links: DegreeLink[]): Map<string, number> {
  * wired to 30 files no longer yanks all 30 into a knot. Isolated leaf-to-leaf
  * links stay strong; hub links sink to a floor so they never vanish entirely.
  */
-export function crowdedLinkStrength(degreeSource: number, degreeTarget: number): number {
+export function crowdedLinkStrength(
+  degreeSource: number,
+  degreeTarget: number,
+): number {
   const busier = Math.max(degreeSource, degreeTarget);
   return Math.max(LINK_STRENGTH_FLOOR, LINK_STRENGTH_NUMERATOR / busier);
 }
@@ -55,6 +58,9 @@ export function crowdedCharge(baseCharge: number, degree: number): number {
  * base padding plus padding that grows with degree (capped), so busy nodes and
  * their labels physically cannot pile on top of each other.
  */
-export function crowdedCollideRadius(baseRadius: number, degree: number): number {
+export function crowdedCollideRadius(
+  baseRadius: number,
+  degree: number,
+): number {
   return baseRadius + COLLIDE_BASE_PADDING + Math.min(degree, DEGREE_CAP);
 }

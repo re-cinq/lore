@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import EventRow from './EventRow';
-import { EVENTS_PAGE_SIZE, type RepoEvent } from './pagination';
+import { useEffect, useRef, useState } from "react";
+import EventRow from "./EventRow";
+import { EVENTS_PAGE_SIZE, type RepoEvent } from "./pagination";
 
 export interface InfiniteEventsProps {
   owner: string;
@@ -25,7 +25,12 @@ interface EventsPage {
  * every offset change, so a sentinel still in view after a fetch pulls the next
  * page automatically until the stream is exhausted.
  */
-export default function InfiniteEvents({ owner, repo, initialOffset, hasMore }: InfiniteEventsProps) {
+export default function InfiniteEvents({
+  owner,
+  repo,
+  initialOffset,
+  hasMore,
+}: InfiniteEventsProps) {
   const [events, setEvents] = useState<RepoEvent[]>([]);
   const [offset, setOffset] = useState(initialOffset);
   const [more, setMore] = useState(hasMore);
@@ -40,7 +45,9 @@ export default function InfiniteEvents({ owner, repo, initialOffset, hasMore }: 
       if (!entries[0]?.isIntersecting) return;
       setLoading(true);
       try {
-        const res = await fetch(`/api/repos/${owner}/${repo}/events?offset=${offset}`);
+        const res = await fetch(
+          `/api/repos/${owner}/${repo}/events?offset=${offset}`,
+        );
         if (!res.ok) return;
         const data = (await res.json()) as EventsPage;
         setEvents((prev) => [...prev, ...data.events]);
@@ -61,7 +68,9 @@ export default function InfiniteEvents({ owner, repo, initialOffset, hasMore }: 
       ))}
       {more && (
         <tr ref={sentinel}>
-          <td colSpan={4} className="meta">{loading ? 'Loading…' : ''}</td>
+          <td colSpan={4} className="meta">
+            {loading ? "Loading…" : ""}
+          </td>
         </tr>
       )}
     </>

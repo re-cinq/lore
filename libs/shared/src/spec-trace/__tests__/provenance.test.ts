@@ -129,6 +129,8 @@ describe("detectProvenanceConflicts", () => {
       target: "test/x.test.ts",
     };
 
-    expect(detectProvenanceConflicts({ inline: [ref], annotation: [ref] })).toEqual([]);
+    expect(
+      detectProvenanceConflicts({ inline: [ref], annotation: [ref] }),
+    ).toEqual([]);
   });
 });

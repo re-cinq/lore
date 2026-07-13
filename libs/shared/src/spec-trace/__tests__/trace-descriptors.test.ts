@@ -1,10 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { descriptorsFromVitestList, groupRunsByFile } from "../trace-descriptors.js";
+import {
+  descriptorsFromVitestList,
+  groupRunsByFile,
+} from "../trace-descriptors.js";
 
 describe("descriptorsFromVitestList", () => {
   it("turns one vitest entry into a per-it descriptor with id, name, file, and suite chain", () => {
     const out = descriptorsFromVitestList(
-      [{ name: "Outer > Inner > does a thing", file: "/home/u/repo/shared/src/spec-trace/x.test.ts" }],
+      [
+        {
+          name: "Outer > Inner > does a thing",
+          file: "/home/u/repo/shared/src/spec-trace/x.test.ts",
+        },
+      ],
       { pkg: "shared" },
     );
     expect(out).toEqual([
@@ -22,12 +30,19 @@ describe("descriptorsFromVitestList", () => {
       [{ name: "bare test", file: "/r/shared/src/a.test.ts" }],
       { pkg: "shared" },
     );
-    expect(d).toEqual({ id: "shared/src/a.test.ts::bare test", name: "bare test", file: "shared/src/a.test.ts" });
+    expect(d).toEqual({
+      id: "shared/src/a.test.ts::bare test",
+      name: "bare test",
+      file: "shared/src/a.test.ts",
+    });
   });
 
   it("drops a stale dist/ path that is not under <pkg>/src/", () => {
     expect(
-      descriptorsFromVitestList([{ name: "X > y", file: "/r/shared/dist/a.test.js" }], { pkg: "shared" }),
+      descriptorsFromVitestList(
+        [{ name: "X > y", file: "/r/shared/dist/a.test.js" }],
+        { pkg: "shared" },
+      ),
     ).toEqual([]);
   });
 

@@ -1,5 +1,8 @@
 import type { PgPool } from "../../memory-store.js";
-import type { ContextCorePort, ContextCoreRecord } from "./context-core-port.js";
+import type {
+  ContextCorePort,
+  ContextCoreRecord,
+} from "./context-core-port.js";
 
 /**
  * Postgres-backed {@link ContextCorePort}: the latest-production read and the

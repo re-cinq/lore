@@ -3,13 +3,17 @@ import { redactSecrets } from "./redact.js";
 
 describe("redactSecrets", () => {
   it("redacts ghp_ tokens", () => {
-    const result = redactSecrets(`token: ${"ghp_"}1234567890abcdefghij1234567890abcdefghij`);
+    const result = redactSecrets(
+      `token: ${"ghp_"}1234567890abcdefghij1234567890abcdefghij`,
+    );
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("ghp_");
   });
 
   it("redacts sk- tokens", () => {
-    const result = redactSecrets(`key: ${"sk-proj"}-abcdefghijklmnopqrstuvwxyz`);
+    const result = redactSecrets(
+      `key: ${"sk-proj"}-abcdefghijklmnopqrstuvwxyz`,
+    );
     expect(result).toContain("[REDACTED:api-key]");
     expect(result).not.toContain("sk-proj");
   });
@@ -43,7 +47,9 @@ describe("redactSecrets", () => {
   });
 
   it("redacts Bearer tokens", () => {
-    const result = redactSecrets("Authorization: Bearer ya29.a0AfH6SMBx12345678901234567890");
+    const result = redactSecrets(
+      "Authorization: Bearer ya29.a0AfH6SMBx12345678901234567890",
+    );
     expect(result).toContain("[REDACTED:bearer-token]");
     expect(result).not.toContain("ya29");
   });

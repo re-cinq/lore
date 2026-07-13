@@ -3,7 +3,7 @@
 // in ./assembly-lines.ts (which chains related task rows). Named AssemblyLineRun
 // to keep the two apart until the page re-keys onto run ids.
 
-import { queryAllowMissing } from './db';
+import { queryAllowMissing } from "./db";
 
 /** Raw row shape from pipeline.assembly_lines joined with a node count. */
 export interface AssemblyLineRunRow {
@@ -38,7 +38,11 @@ export interface AssemblyLineRun {
 export function toAssemblyLineRun(row: AssemblyLineRunRow): AssemblyLineRun {
   const durationSeconds =
     row.started_at && row.finished_at
-      ? Math.round((new Date(row.finished_at).getTime() - new Date(row.started_at).getTime()) / 1000)
+      ? Math.round(
+          (new Date(row.finished_at).getTime() -
+            new Date(row.started_at).getTime()) /
+            1000,
+        )
       : null;
   return {
     id: row.id,
@@ -56,7 +60,9 @@ export function toAssemblyLineRun(row: AssemblyLineRunRow): AssemblyLineRun {
 }
 
 /** Most-recent runs with their node counts; empty on pre-0025 databases (queryAllowMissing). */
-export async function fetchRecentAssemblyLineRuns(limit = 20): Promise<AssemblyLineRun[]> {
+export async function fetchRecentAssemblyLineRuns(
+  limit = 20,
+): Promise<AssemblyLineRun[]> {
   const rows = await queryAllowMissing<AssemblyLineRunRow>(
     `SELECT al.id, al.definition_name, al.task_id, al.repo, al.branch,
             al.status, al.outcome, al.reason, al.created_at, al.started_at, al.finished_at,

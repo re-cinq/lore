@@ -1,10 +1,10 @@
 export const dynamic = "force-dynamic";
 
-import { queryAllChunks } from '@/lib/db';
+import { queryAllChunks } from "@/lib/db";
 import ContextFileView, {
   type ContextFileGroup,
   type ContextFileChunk,
-} from '@/app/repos/[owner]/[repo]/context/ContextFileView';
+} from "@/app/repos/[owner]/[repo]/context/ContextFileView";
 
 interface ContextFileRow extends ContextFileChunk {
   repo: string | null;
@@ -19,7 +19,7 @@ export default async function GlobalContextFile({
   params: Promise<{ path: string[] }>;
 }) {
   const { path } = await params;
-  const filePath = path.map(decodeURIComponent).join('/');
+  const filePath = path.map(decodeURIComponent).join("/");
 
   const rows = await queryAllChunks<ContextFileRow>((schema, offset) => ({
     sql: `SELECT id, content_type, content, metadata, repo
@@ -32,16 +32,26 @@ export default async function GlobalContextFile({
   // team schema — group by repo so each repo's chunks render independently.
   const byRepo = new Map<string, ContextFileRow[]>();
   for (const row of rows) {
-    const key = row.repo ?? 'unknown';
+    const key = row.repo ?? "unknown";
     const group = byRepo.get(key) ?? byRepo.set(key, []).get(key)!;
     group.push(row);
   }
 
-  const groups: ContextFileGroup[] = [...byRepo.entries()].map(([repo, chunks]) => ({
-    repo,
-    repoHref: repo.includes('/') ? `/repos/${repo}/context/${encodeURIComponent(filePath)}` : null,
-    chunks: [...chunks].sort((a, b) => chunkOrder(a) - chunkOrder(b)),
-  }));
+  const groups: ContextFileGroup[] = [...byRepo.entries()].map(
+    ([repo, chunks]) => ({
+      repo,
+      repoHref: repo.includes("/")
+        ? `/repos/${repo}/context/${encodeURIComponent(filePath)}`
+        : null,
+      chunks: [...chunks].sort((a, b) => chunkOrder(a) - chunkOrder(b)),
+    }),
+  );
 
-  return <ContextFileView filePath={filePath} contextLink="/context" groups={groups} />;
+  return (
+    <ContextFileView
+      filePath={filePath}
+      contextLink="/context"
+      groups={groups}
+    />
+  );
 }

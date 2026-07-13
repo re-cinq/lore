@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
 import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
-import { createStartEventHandler, type StartEventHandlerDeps } from "./start-event-handler.js";
+import {
+  createStartEventHandler,
+  type StartEventHandlerDeps,
+} from "./start-event-handler.js";
 
 function deferred<T>() {
   let resolve!: (v: T) => void;
@@ -15,7 +18,10 @@ function deferred<T>() {
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-async function seededPort(definitionName: string, taskId: string | null = "task-9") {
+async function seededPort(
+  definitionName: string,
+  taskId: string | null = "task-9",
+) {
   const port = new InMemoryAssemblyLines();
   const assemblyLineId = await port.start({
     definitionName,
@@ -53,7 +59,10 @@ const TEST_DEFINITIONS = new Map<string, AssemblyLine>([
   ["spec-drift", definition("spec-drift", ["detect", "retrospective"])],
 ]);
 
-function makeDeps(port: InMemoryAssemblyLines, over: Partial<StartEventHandlerDeps> = {}) {
+function makeDeps(
+  port: InMemoryAssemblyLines,
+  over: Partial<StartEventHandlerDeps> = {},
+) {
   const calls = {
     inProcess: [] as Array<Record<string, unknown>>,
     station: [] as Array<Record<string, unknown>>,
@@ -87,7 +96,11 @@ function makeDeps(port: InMemoryAssemblyLines, over: Partial<StartEventHandlerDe
   return { deps, calls };
 }
 
-function params(assemblyLineId: string, definitionName: string, taskId: string | null = "task-9") {
+function params(
+  assemblyLineId: string,
+  definitionName: string,
+  taskId: string | null = "task-9",
+) {
   return {
     assemblyLineId,
     definitionName,
@@ -117,15 +130,22 @@ describe("createStartEventHandler", () => {
       },
     ]);
     expect(calls.station).toEqual([]);
-    expect(port.rows[0]).toMatchObject({ status: "finished", outcome: "pr_created" });
-    expect(calls.taskOutcomes).toEqual([{ taskId: "task-9", outcome: "pr_created" }]);
+    expect(port.rows[0]).toMatchObject({
+      status: "finished",
+      outcome: "pr_created",
+    });
+    expect(calls.taskOutcomes).toEqual([
+      { taskId: "task-9", outcome: "pr_created" },
+    ]);
   });
 
   it("routes implementation to the station path and closes the row from the supervisor reason", async () => {
     const { port, assemblyLineId } = await seededPort("implementation");
     const { deps, calls } = makeDeps(port);
 
-    await createStartEventHandler(deps)(params(assemblyLineId, "implementation"));
+    await createStartEventHandler(deps)(
+      params(assemblyLineId, "implementation"),
+    );
     await flush();
 
     expect(calls.inProcess).toEqual([]);
@@ -139,7 +159,10 @@ describe("createStartEventHandler", () => {
         branch: "lore/x",
       },
     ]);
-    expect(port.rows[0]).toMatchObject({ status: "finished", outcome: "completed" });
+    expect(port.rows[0]).toMatchObject({
+      status: "finished",
+      outcome: "completed",
+    });
     // Task status on the station path belongs to the agent-watcher, not the handler.
     expect(calls.taskOutcomes).toEqual([]);
   });
@@ -148,7 +171,9 @@ describe("createStartEventHandler", () => {
     const { port, assemblyLineId } = await seededPort("implementation", null);
     const { deps, calls } = makeDeps(port);
 
-    await createStartEventHandler(deps)(params(assemblyLineId, "implementation", null));
+    await createStartEventHandler(deps)(
+      params(assemblyLineId, "implementation", null),
+    );
     await flush();
 
     // A task-less line (e.g. code-review) must not collapse to the empty-string taskId —
@@ -160,7 +185,9 @@ describe("createStartEventHandler", () => {
     const { port, assemblyLineId } = await seededPort("implementation", null);
     const { deps, calls } = makeDeps(port);
 
-    await createStartEventHandler(deps)(params(assemblyLineId, "implementation", null));
+    await createStartEventHandler(deps)(
+      params(assemblyLineId, "implementation", null),
+    );
     await flush();
 
     expect(calls.cleanedTokens).toEqual([assemblyLineId]);
@@ -176,14 +203,19 @@ describe("createStartEventHandler", () => {
     expect(port.rows[0]).toMatchObject({ status: "running" });
     gate.resolve({ outcome: "no_changes" });
     await flush();
-    expect(port.rows[0]).toMatchObject({ status: "finished", outcome: "no_changes" });
+    expect(port.rows[0]).toMatchObject({
+      status: "finished",
+      outcome: "no_changes",
+    });
   });
 
   it("routes a definition containing a detect node to runDetect and closes the row from the supervisor reason", async () => {
     const { port, assemblyLineId } = await seededPort("spec-drift", null);
     const { deps, calls } = makeDeps(port);
 
-    await createStartEventHandler(deps)(params(assemblyLineId, "spec-drift", null));
+    await createStartEventHandler(deps)(
+      params(assemblyLineId, "spec-drift", null),
+    );
     await flush();
 
     expect(calls.detect).toEqual([
@@ -191,7 +223,10 @@ describe("createStartEventHandler", () => {
     ]);
     expect(calls.inProcess).toEqual([]);
     expect(calls.station).toEqual([]);
-    expect(port.rows[0]).toMatchObject({ status: "finished", outcome: "completed" });
+    expect(port.rows[0]).toMatchObject({
+      status: "finished",
+      outcome: "completed",
+    });
     expect(calls.taskOutcomes).toEqual([]);
   });
 
@@ -203,10 +238,16 @@ describe("createStartEventHandler", () => {
       },
     });
 
-    await createStartEventHandler(deps)(params(assemblyLineId, "spec-drift", null));
+    await createStartEventHandler(deps)(
+      params(assemblyLineId, "spec-drift", null),
+    );
     await flush();
 
-    expect(port.rows[0]).toMatchObject({ status: "failed", outcome: "error", reason: "detector exploded" });
+    expect(port.rows[0]).toMatchObject({
+      status: "failed",
+      outcome: "error",
+      reason: "detector exploded",
+    });
   });
 
   it("marks the row failed and resolves on an unknown definition (no retry, nothing run)", async () => {
@@ -214,7 +255,9 @@ describe("createStartEventHandler", () => {
     const { deps, calls } = makeDeps(port);
 
     await expect(
-      createStartEventHandler(deps)(params(assemblyLineId, "no-such-definition")),
+      createStartEventHandler(deps)(
+        params(assemblyLineId, "no-such-definition"),
+      ),
     ).resolves.toBeUndefined();
 
     expect(port.rows[0]).toMatchObject({
@@ -237,8 +280,14 @@ describe("createStartEventHandler", () => {
     await createStartEventHandler(deps)(params(assemblyLineId, "gap-fill"));
     await flush();
 
-    expect(port.rows[0]).toMatchObject({ status: "failed", outcome: "error", reason: "clone exploded" });
-    expect(calls.taskOutcomes).toEqual([{ taskId: "task-9", outcome: "error" }]);
+    expect(port.rows[0]).toMatchObject({
+      status: "failed",
+      outcome: "error",
+      reason: "clone exploded",
+    });
+    expect(calls.taskOutcomes).toEqual([
+      { taskId: "task-9", outcome: "error" },
+    ]);
   });
 
   it("rejects malformed params (missing assemblyLineId) so the loop retries or dead-letters", async () => {
@@ -246,7 +295,10 @@ describe("createStartEventHandler", () => {
     const { deps } = makeDeps(port);
 
     await expect(
-      createStartEventHandler(deps)({ definitionName: "gap-fill", repo: "re-cinq/lore" }),
+      createStartEventHandler(deps)({
+        definitionName: "gap-fill",
+        repo: "re-cinq/lore",
+      }),
     ).rejects.toThrow(/assemblyLineId/);
   });
 });

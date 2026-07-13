@@ -11,7 +11,9 @@ describe("gitAuthArgs", () => {
   });
 
   it("honours a non-default host", () => {
-    expect(gitAuthArgs("t", "ghe.example.com")[1]).toContain("http.https://ghe.example.com/.extraheader=");
+    expect(gitAuthArgs("t", "ghe.example.com")[1]).toContain(
+      "http.https://ghe.example.com/.extraheader=",
+    );
   });
 
   it("never embeds the raw token in the args (only the base64 header)", () => {

@@ -126,7 +126,10 @@ function nodeRefFromXid(xid: string): { specPath: string; ordinal: number } {
   return { specPath: pathParts.join("|"), ordinal };
 }
 
-function rangesOverlap(chunk: GraphCodeChunk, candidate: NewCodeChunk): boolean {
+function rangesOverlap(
+  chunk: GraphCodeChunk,
+  candidate: NewCodeChunk,
+): boolean {
   const start = chunk["CodeChunk.start_line"] ?? 0;
   const end = chunk["CodeChunk.end_line"] ?? 0;
   return candidate.startLine <= end && candidate.endLine >= start;
@@ -198,7 +201,12 @@ async function driftChunkStatements(
       }
     }
     const { specPath, ordinal } = nodeRefFromXid(node.xid);
-    drifted.push({ specPath, ordinal, statementText: node.text, reason: driftReason });
+    drifted.push({
+      specPath,
+      ordinal,
+      statementText: node.text,
+      reason: driftReason,
+    });
   }
 }
 
@@ -209,16 +217,22 @@ export async function driftCheckFile(
   dgraph: DgraphClientPort,
 ): Promise<DriftCheckResult> {
   const graphChunks = await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(FILE_CHUNKS_QUERY, { $repo: repo, $fp: filePath });
+    const res = await txn.queryWithVars(FILE_CHUNKS_QUERY, {
+      $repo: repo,
+      $fp: filePath,
+    });
     return (res.data?.chunks ?? []) as GraphCodeChunk[];
   });
 
   let baselined = 0;
   const drifted: DriftedStatement[] = [];
-  const linkRotReason = newChunks.length === 0 ? "file-missing" : "line-out-of-range";
+  const linkRotReason =
+    newChunks.length === 0 ? "file-missing" : "line-out-of-range";
 
   for (const chunk of graphChunks) {
-    const replacement = newChunks.find((candidate) => rangesOverlap(chunk, candidate));
+    const replacement = newChunks.find((candidate) =>
+      rangesOverlap(chunk, candidate),
+    );
     if (!replacement) {
       await driftChunkStatements(dgraph, chunk, linkRotReason, drifted);
       continue;
@@ -235,9 +249,18 @@ export async function driftCheckFile(
       continue;
     }
 
-    const symbol = chunk["CodeChunk.symbol_name"] ?? replacement.symbolName ?? replacement.filePath;
+    const symbol =
+      chunk["CodeChunk.symbol_name"] ??
+      replacement.symbolName ??
+      replacement.filePath;
     const driftReason = `code-content-changed (${symbol})`;
-    await driftChunkStatements(dgraph, chunk, driftReason, drifted, replacement.embedding);
+    await driftChunkStatements(
+      dgraph,
+      chunk,
+      driftReason,
+      drifted,
+      replacement.embedding,
+    );
   }
 
   return { drifted, baselined };

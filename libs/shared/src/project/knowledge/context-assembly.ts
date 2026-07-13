@@ -11,27 +11,40 @@
  * Templates are YAML files loaded at startup from mcp-server/templates/.
  */
 
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { parse as parseYaml } from 'yaml';
-import { searchMemories } from './memory-search.js';
-import { computeTransferScore } from '../../memory-ranking.js';
-import { queryLiveGraph } from './live-graph.js';
-import { getQueryEmbedding } from '../../embeddings/embedding-service.js';
-import { fetchGraphContext, type GraphContextBlock } from '../../spec-trace/graph-context.js';
-import type { DgraphClientPort } from '../../memory-store.js';
+import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { parse as parseYaml } from "yaml";
+import { searchMemories } from "./memory-search.js";
+import { computeTransferScore } from "../../memory-ranking.js";
+import { queryLiveGraph } from "./live-graph.js";
+import { getQueryEmbedding } from "../../embeddings/embedding-service.js";
+import {
+  fetchGraphContext,
+  type GraphContextBlock,
+} from "../../spec-trace/graph-context.js";
+import type { DgraphClientPort } from "../../memory-store.js";
 import {
   dedupeItems,
   serializeContext,
   type SourceItem,
   type SerializedSection,
-} from './context-assembly-format.js';
+} from "./context-assembly-format.js";
 
 // ── Types ───────────────────────────────────────────────────────────
 
 interface TemplateSection {
   header: string;
-  source: 'repo' | 'code' | 'adrs' | 'memories' | 'graph' | 'coupling' | 'episodes' | 'rules' | 'cross_repo' | 'incidents';
+  source:
+    | "repo"
+    | "code"
+    | "adrs"
+    | "memories"
+    | "graph"
+    | "coupling"
+    | "episodes"
+    | "rules"
+    | "cross_repo"
+    | "incidents";
   priority: number;
   max_tokens?: number;
 }
@@ -42,7 +55,7 @@ interface Template {
   sections: TemplateSection[];
 }
 
-export type FetchStatus = 'ok' | 'empty' | 'error' | 'no-match' | 'disabled';
+export type FetchStatus = "ok" | "empty" | "error" | "no-match" | "disabled";
 
 export interface FetchResult {
   items: SourceItem[];
@@ -68,7 +81,12 @@ export interface AssemblyTrace {
   template: string;
   effectiveBudget: number;
   crossRepo: boolean;
-  templateSections: { header: string; source: string; priority: number; max_tokens?: number }[];
+  templateSections: {
+    header: string;
+    source: string;
+    priority: number;
+    max_tokens?: number;
+  }[];
   sections: TraceSection[];
   budget: { total: number; used: number; leftover: number };
   freshness: { state: string; message: string };
@@ -87,16 +105,21 @@ export interface AssembledResult {
 const templates = new Map<string, Template>();
 
 export function loadTemplates(dir?: string): void {
-  const templateDir = dir || join(import.meta.dirname || process.cwd(), '..', 'templates');
+  const templateDir =
+    dir || join(import.meta.dirname || process.cwd(), "..", "templates");
   if (!existsSync(templateDir)) {
-    console.warn(`[context-assembly] Templates directory not found: ${templateDir}`);
+    console.warn(
+      `[context-assembly] Templates directory not found: ${templateDir}`,
+    );
     return;
   }
 
-  const files = readdirSync(templateDir).filter(f => f.endsWith('.yaml') || f.endsWith('.yml'));
+  const files = readdirSync(templateDir).filter(
+    (f) => f.endsWith(".yaml") || f.endsWith(".yml"),
+  );
   for (const file of files) {
     try {
-      const raw = readFileSync(join(templateDir, file), 'utf-8');
+      const raw = readFileSync(join(templateDir, file), "utf-8");
       const template = parseYaml(raw) as Template;
       if (template.name && template.sections) {
         templates.set(template.name, template);
@@ -105,18 +128,23 @@ export function loadTemplates(dir?: string): void {
       console.warn(`[context-assembly] Failed to load template ${file}:`, err);
     }
   }
-  console.log(`[context-assembly] Loaded ${templates.size} templates: ${[...templates.keys()].join(', ')}`);
+  console.log(
+    `[context-assembly] Loaded ${templates.size} templates: ${[...templates.keys()].join(", ")}`,
+  );
 }
 
 function getTemplate(name: string): Template {
-  return templates.get(name) || templates.get('default') || {
-    name: 'default',
-    description: 'Fallback template',
-    sections: [
-      { header: 'Conventions', source: 'repo' as const, priority: 1 },
-      { header: 'Agent Memory', source: 'memories' as const, priority: 2 },
-    ],
-  };
+  return (
+    templates.get(name) ||
+    templates.get("default") || {
+      name: "default",
+      description: "Fallback template",
+      sections: [
+        { header: "Conventions", source: "repo" as const, priority: 1 },
+        { header: "Agent Memory", source: "memories" as const, priority: 2 },
+      ],
+    }
+  );
 }
 
 // ── Token estimation + item helpers ─────────────────────────────────
@@ -131,7 +159,7 @@ function truncateText(text: string, maxTokens: number): string {
   const maxChars = maxTokens * 4;
   if (text.length <= maxChars) return text;
   const cut = text.substring(0, maxChars);
-  const lastParagraph = cut.lastIndexOf('\n\n');
+  const lastParagraph = cut.lastIndexOf("\n\n");
   return lastParagraph > maxChars * 0.5 ? cut.substring(0, lastParagraph) : cut;
 }
 
@@ -140,7 +168,8 @@ function mkItem(text: string, extra: Partial<SourceItem> = {}): SourceItem {
 }
 
 function toScore(value: unknown): number | undefined {
-  const n = typeof value === 'number' ? value : value != null ? Number(value) : NaN;
+  const n =
+    typeof value === "number" ? value : value != null ? Number(value) : NaN;
   return Number.isFinite(n) ? n : undefined;
 }
 
@@ -193,11 +222,61 @@ export function fitItemsToBudget(
 // Common words that add no retrieval signal — dropped from the keyword leg so a
 // paragraph-length query matches on its distinctive terms, not its filler.
 const STOPWORDS = new Set([
-  'the', 'a', 'an', 'and', 'or', 'to', 'for', 'of', 'in', 'on', 'at', 'by', 'with', 'from',
-  'that', 'this', 'these', 'those', 'is', 'are', 'be', 'as', 'it', 'its', 'into', 'via', 'per',
-  'add', 'use', 'using', 'new', 'update', 'edit', 'change', 'make', 'set', 'get', 'also', 'should',
-  'would', 'can', 'will', 'not', 'but', 'so', 'if', 'when', 'then', 'than', 'they', 'their',
-  'you', 'your', 'we', 'our',
+  "the",
+  "a",
+  "an",
+  "and",
+  "or",
+  "to",
+  "for",
+  "of",
+  "in",
+  "on",
+  "at",
+  "by",
+  "with",
+  "from",
+  "that",
+  "this",
+  "these",
+  "those",
+  "is",
+  "are",
+  "be",
+  "as",
+  "it",
+  "its",
+  "into",
+  "via",
+  "per",
+  "add",
+  "use",
+  "using",
+  "new",
+  "update",
+  "edit",
+  "change",
+  "make",
+  "set",
+  "get",
+  "also",
+  "should",
+  "would",
+  "can",
+  "will",
+  "not",
+  "but",
+  "so",
+  "if",
+  "when",
+  "then",
+  "than",
+  "they",
+  "their",
+  "you",
+  "your",
+  "we",
+  "our",
 ]);
 
 /** Distinctive terms from a (possibly paragraph-length) query: drop stopwords and
@@ -236,11 +315,18 @@ export function dropSeen(items: SourceItem[], seen: Set<string>): SourceItem[] {
 function normalizeScores(items: SourceItem[]): SourceItem[] {
   const max = Math.max(0, ...items.map((i) => i.score ?? 0));
   if (max <= 0) return items;
-  return items.map((i) => (i.score != null ? { ...i, score: i.score / max } : i));
+  return items.map((i) =>
+    i.score != null ? { ...i, score: i.score / max } : i,
+  );
 }
 
 // Coupled-statement signal → relevance score, so violations/drift sort to the top.
-const COUPLING_SIGNAL_SCORE: Record<string, number> = { violated: 1.0, drifted: 0.66, untested: 0.33, normal: 0.1 };
+const COUPLING_SIGNAL_SCORE: Record<string, number> = {
+  violated: 1.0,
+  drifted: 0.66,
+  untested: 0.33,
+  normal: 0.1,
+};
 
 /** Project a spec-traceability `GraphContextBlock` (statements coupled to the
  *  repo's code/tests, ranked by collision signal) into context items — the
@@ -248,12 +334,16 @@ const COUPLING_SIGNAL_SCORE: Record<string, number> = { violated: 1.0, drifted: 
  *  can't produce. Exported for unit tests. */
 export function formatCouplingItems(block: GraphContextBlock): SourceItem[] {
   return block.statements.map((s) => {
-    const head = `[${s.signal}] ${s.specPath}${s.section ? ` › ${s.section}` : ''} — ${s.statementText}`;
-    const gov = s.adrs.length ? `\n  governed by: ${s.adrs.map((a) => a.label).join(', ')}` : '';
-    const tests = s.testSelectors.length ? `\n  tested by: ${s.testSelectors.join(', ')}` : '';
+    const head = `[${s.signal}] ${s.specPath}${s.section ? ` › ${s.section}` : ""} — ${s.statementText}`;
+    const gov = s.adrs.length
+      ? `\n  governed by: ${s.adrs.map((a) => a.label).join(", ")}`
+      : "";
+    const tests = s.testSelectors.length
+      ? `\n  tested by: ${s.testSelectors.join(", ")}`
+      : "";
     return mkItem(head + gov + tests, {
       source_path: s.specPath,
-      content_type: 'coupling',
+      content_type: "coupling",
       score: COUPLING_SIGNAL_SCORE[s.signal] ?? 0,
     });
   });
@@ -263,14 +353,17 @@ export function formatCouplingItems(block: GraphContextBlock): SourceItem[] {
  *  spec-traceability graph and formats them. Fail-soft — `disabled` when no graph
  *  client is wired (`LORE_DGRAPH_HTTP` unset), so the rest of assembly is
  *  unaffected. Exported for unit tests. */
-export async function fetchCouplingSource(dgraph: DgraphClientPort | null, repo?: string): Promise<FetchResult> {
-  if (!dgraph || !repo) return { items: [], status: 'disabled' };
+export async function fetchCouplingSource(
+  dgraph: DgraphClientPort | null,
+  repo?: string,
+): Promise<FetchResult> {
+  if (!dgraph || !repo) return { items: [], status: "disabled" };
   try {
     const block = await fetchGraphContext(dgraph, repo);
     const items = formatCouplingItems(block);
-    return { items, status: items.length > 0 ? 'ok' : 'empty' };
+    return { items, status: items.length > 0 ? "ok" : "empty" };
   } catch {
-    return { items: [], status: 'error' };
+    return { items: [], status: "error" };
   }
 }
 
@@ -290,7 +383,7 @@ export async function hybridChunkItems(
   const embedding = await getQueryEmbedding(query);
   // The keyword leg searches the query's distinctive terms (OR'd) rather than the
   // whole paragraph, which would AND every filler word and match almost nothing.
-  const keywordQuery = extractKeyTerms(query).join(' OR ') || query;
+  const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
   const mapRows = (rows: any[]): SourceItem[] =>
     normalizeScores(
       rows.map((r) =>
@@ -304,7 +397,7 @@ export async function hybridChunkItems(
     );
 
   if (embedding) {
-    const embStr = `[${embedding.join(',')}]`;
+    const embStr = `[${embedding.join(",")}]`;
     const { rows } = await pool.query(
       `WITH vec AS (
          SELECT id, content, file_path, content_type, ingested_at,
@@ -347,53 +440,71 @@ export async function hybridChunkItems(
 
 // ── Source fetchers ─────────────────────────────────────────────────
 
-type SourceFetcher = (pool: any, query: string, repo?: string, agentId?: string) => Promise<FetchResult>;
+type SourceFetcher = (
+  pool: any,
+  query: string,
+  repo?: string,
+  agentId?: string,
+) => Promise<FetchResult>;
 
 const fetchers: Record<string, SourceFetcher> = {
   // Repo conventions: docs + specs (ADRs are their own section). Hybrid
   // vector+keyword ranking so a natural-language query matches on meaning, not
   // just term overlap (which floated unrelated web-ui specs to the top).
   async repo(pool, query, repo) {
-    if (!repo) return { items: [], status: 'empty' };
+    if (!repo) return { items: [], status: "empty" };
     try {
-      const items = await hybridChunkItems(pool, query, repo, ['doc', 'spec'], 5);
-      return { items, status: items.length > 0 ? 'ok' : 'empty' };
+      const items = await hybridChunkItems(
+        pool,
+        query,
+        repo,
+        ["doc", "spec"],
+        5,
+      );
+      return { items, status: items.length > 0 ? "ok" : "empty" };
     } catch {
-      return { items: [], status: 'error' };
+      return { items: [], status: "error" };
     }
   },
 
   // Source code the task touches — previously NEVER retrieved (the repo source
   // excluded code), so implementation tasks got zero of the files they edit.
   async code(pool, query, repo) {
-    if (!repo) return { items: [], status: 'empty' };
+    if (!repo) return { items: [], status: "empty" };
     try {
-      const items = await hybridChunkItems(pool, query, repo, ['code'], 6);
-      return { items, status: items.length > 0 ? 'ok' : 'empty' };
+      const items = await hybridChunkItems(pool, query, repo, ["code"], 6);
+      return { items, status: items.length > 0 ? "ok" : "empty" };
     } catch {
-      return { items: [], status: 'error' };
+      return { items: [], status: "error" };
     }
   },
 
   // ADRs ranked by relevance (hybrid vector+keyword) to the query.
   async adrs(pool, query, repo) {
-    if (!repo) return { items: [], status: 'empty' };
+    if (!repo) return { items: [], status: "empty" };
     try {
-      const items = await hybridChunkItems(pool, query, repo, ['adr'], 10);
-      return { items, status: items.length > 0 ? 'ok' : 'empty' };
+      const items = await hybridChunkItems(pool, query, repo, ["adr"], 10);
+      return { items, status: items.length > 0 ? "ok" : "empty" };
     } catch {
-      return { items: [], status: 'error' };
+      return { items: [], status: "error" };
     }
   },
 
   async memories(pool, query, _repo, agentId) {
     try {
-      const results = await searchMemories(pool, query, agentId, undefined, 10, false);
-      if (results.length === 0) return { items: [], status: 'empty' };
+      const results = await searchMemories(
+        pool,
+        query,
+        agentId,
+        undefined,
+        10,
+        false,
+      );
+      if (results.length === 0) return { items: [], status: "empty" };
 
       const factIds = results
-        .filter(r => r.id && (r.source === 'fact' || r.source === 'episode'))
-        .map(r => r.id!);
+        .filter((r) => r.id && (r.source === "fact" || r.source === "episode"))
+        .map((r) => r.id!);
       const conflictSet = new Set<string>();
       if (factIds.length > 0) {
         try {
@@ -403,62 +514,86 @@ const fetchers: Record<string, SourceFetcher> = {
             [factIds],
           );
           for (const c of conflicts) conflictSet.add(c.new_fact_id);
-        } catch { /* non-fatal */ }
+        } catch {
+          /* non-fatal */
+        }
       }
 
-      const items = results.map(r => {
-        const tag = r.confidence ? ` [${r.confidence}]` : '';
-        const conflict = r.id && conflictSet.has(r.id) ? ' [CONFLICT]' : '';
-        return mkItem(`**${r.key}** (${r.source})${tag}${conflict}: ${r.value}`, {
-          source_path: r.key,
-          content_type: r.source,
-        });
+      const items = results.map((r) => {
+        const tag = r.confidence ? ` [${r.confidence}]` : "";
+        const conflict = r.id && conflictSet.has(r.id) ? " [CONFLICT]" : "";
+        return mkItem(
+          `**${r.key}** (${r.source})${tag}${conflict}: ${r.value}`,
+          {
+            source_path: r.key,
+            content_type: r.source,
+          },
+        );
       });
-      return { items, status: 'ok' };
+      return { items, status: "ok" };
     } catch {
-      return { items: [], status: 'error' };
+      return { items: [], status: "error" };
     }
   },
 
   async graph(pool, query, repo) {
     try {
-      const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+      const words = query
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length > 3);
       const seen = new Set<string>();
       const items: SourceItem[] = [];
       for (const word of words.slice(0, 3)) {
-        const graphResults = await queryLiveGraph(pool, word, undefined, repo, false);
+        const graphResults = await queryLiveGraph(
+          pool,
+          word,
+          undefined,
+          repo,
+          false,
+        );
         for (const r of graphResults) {
           const line = `${r.entity} (${r.entity_type}) --${r.relation}--> ${r.related_entity} (${r.related_type})`;
           if (seen.has(line)) continue;
           seen.add(line);
-          items.push(mkItem(line, { content_type: 'graph' }));
+          items.push(mkItem(line, { content_type: "graph" }));
         }
       }
-      return { items, status: items.length > 0 ? 'ok' : 'empty' };
+      return { items, status: items.length > 0 ? "ok" : "empty" };
     } catch {
-      return { items: [], status: 'error' };
+      return { items: [], status: "error" };
     }
   },
 
   async episodes(pool, query, _repo, agentId) {
     try {
-      const results = await searchMemories(pool, query, agentId, undefined, 5, false);
-      const episodeResults = results.filter(r => r.source === 'episode');
-      if (episodeResults.length === 0) return { items: [], status: 'empty' };
+      const results = await searchMemories(
+        pool,
+        query,
+        agentId,
+        undefined,
+        5,
+        false,
+      );
+      const episodeResults = results.filter((r) => r.source === "episode");
+      if (episodeResults.length === 0) return { items: [], status: "empty" };
       return {
-        items: episodeResults.map(r =>
-          mkItem(`**${r.key}**: ${r.value}`, { source_path: r.key, content_type: 'episode' }),
+        items: episodeResults.map((r) =>
+          mkItem(`**${r.key}**: ${r.value}`, {
+            source_path: r.key,
+            content_type: "episode",
+          }),
         ),
-        status: 'ok',
+        status: "ok",
       };
     } catch {
-      return { items: [], status: 'error' };
+      return { items: [], status: "error" };
     }
   },
 
   async rules(pool, query, repo) {
     // Load .claude/rules/*.md files whose filename keyword-matches the query.
-    if (!repo) return { items: [], status: 'empty' };
+    if (!repo) return { items: [], status: "empty" };
     try {
       const { rows } = await pool.query(
         `SELECT content, file_path FROM org_shared.chunks
@@ -466,32 +601,44 @@ const fetchers: Record<string, SourceFetcher> = {
          ORDER BY file_path`,
         [repo],
       );
-      if (rows.length === 0) return { items: [], status: 'empty' };
+      if (rows.length === 0) return { items: [], status: "empty" };
 
-      const queryWords = query.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
+      const queryWords = query
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w: string) => w.length > 2);
       const matched = rows.filter((r: any) => {
-        const ruleName = r.file_path.replace(/.*\//, '').replace(/\.md$/, '').toLowerCase();
-        return queryWords.some((w: string) => ruleName.includes(w) || w.includes(ruleName));
+        const ruleName = r.file_path
+          .replace(/.*\//, "")
+          .replace(/\.md$/, "")
+          .toLowerCase();
+        return queryWords.some(
+          (w: string) => ruleName.includes(w) || w.includes(ruleName),
+        );
       });
       // No keyword match is distinct from "no rules exist" — surface it in the trace.
-      if (matched.length === 0) return { items: [], status: 'no-match' };
+      if (matched.length === 0) return { items: [], status: "no-match" };
 
       return {
-        items: matched.map((r: any) => mkItem(r.content, { source_path: r.file_path, content_type: 'rule' })),
-        status: 'ok',
+        items: matched.map((r: any) =>
+          mkItem(r.content, { source_path: r.file_path, content_type: "rule" }),
+        ),
+        status: "ok",
       };
     } catch {
-      return { items: [], status: 'error' };
+      return { items: [], status: "error" };
     }
   },
 
   async cross_repo(pool, query, repo) {
-    if (!repo) return { items: [], status: 'empty' };
+    if (!repo) return { items: [], status: "empty" };
     try {
       const { rows: repoRows } = await pool.query(
-        `SELECT settings FROM lore.repos WHERE full_name = $1`, [repo],
+        `SELECT settings FROM lore.repos WHERE full_name = $1`,
+        [repo],
       );
-      const linkedRepos: string[] = repoRows[0]?.settings?.cross_repo_repos || [];
+      const linkedRepos: string[] =
+        repoRows[0]?.settings?.cross_repo_repos || [];
 
       let rows: any[];
       if (linkedRepos.length > 0) {
@@ -513,52 +660,62 @@ const fetchers: Record<string, SourceFetcher> = {
         );
         rows = result.rows;
       }
-      if (rows.length === 0) return { items: [], status: 'empty' };
+      if (rows.length === 0) return { items: [], status: "empty" };
       // Only portable, high-transfer-score content from other repos passes through.
       const scored = rows
-        .map((r: any) => ({ ...r, transferScore: computeTransferScore(r.content) }))
+        .map((r: any) => ({
+          ...r,
+          transferScore: computeTransferScore(r.content),
+        }))
         .filter((r: any) => r.transferScore >= 0.5);
-      if (scored.length === 0) return { items: [], status: 'empty' };
+      if (scored.length === 0) return { items: [], status: "empty" };
       return {
         items: scored.map((r: any) =>
           mkItem(r.content, {
             source_path: r.file_path,
             repo: r.repo,
-            content_type: 'cross_repo',
+            content_type: "cross_repo",
             score: toScore(r.score),
           }),
         ),
-        status: 'ok',
+        status: "ok",
       };
     } catch {
-      return { items: [], status: 'error' };
+      return { items: [], status: "error" };
     }
   },
 
   async incidents(pool, _query, repo) {
-    if (!repo) return { items: [], status: 'empty' };
+    if (!repo) return { items: [], status: "empty" };
     try {
       const { rows } = await pool.query(
-        `SELECT settings FROM lore.repos WHERE full_name = $1`, [repo],
+        `SELECT settings FROM lore.repos WHERE full_name = $1`,
+        [repo],
       );
       const settings = rows[0]?.settings;
-      if (!settings?.incidents || !Array.isArray(settings.incidents) || settings.incidents.length === 0) {
-        return { items: [], status: 'empty' };
+      if (
+        !settings?.incidents ||
+        !Array.isArray(settings.incidents) ||
+        settings.incidents.length === 0
+      ) {
+        return { items: [], status: "empty" };
       }
       const cutoff = Date.now() - 30 * 86400000;
-      const recent = settings.incidents.filter((i: any) => new Date(i.date).getTime() > cutoff);
-      if (recent.length === 0) return { items: [], status: 'empty' };
+      const recent = settings.incidents.filter(
+        (i: any) => new Date(i.date).getTime() > cutoff,
+      );
+      if (recent.length === 0) return { items: [], status: "empty" };
       return {
         items: recent.map((i: any) =>
           mkItem(
-            `- **${i.severity || 'unknown'}**: ${i.title}${i.resolved ? ' (resolved)' : ''} — ${i.date}${i.url ? ` [link](${i.url})` : ''}`,
-            { content_type: 'incident' },
+            `- **${i.severity || "unknown"}**: ${i.title}${i.resolved ? " (resolved)" : ""} — ${i.date}${i.url ? ` [link](${i.url})` : ""}`,
+            { content_type: "incident" },
           ),
         ),
-        status: 'ok',
+        status: "ok",
       };
     } catch {
-      return { items: [], status: 'error' };
+      return { items: [], status: "error" };
     }
   },
 };
@@ -575,17 +732,17 @@ const TEMPLATE_DEFAULT_BUDGETS: Record<string, number> = {
 };
 
 const STATUS_REASON: Record<FetchStatus, string> = {
-  ok: '',
-  empty: 'no results',
-  error: 'source error',
-  'no-match': 'no rule matched the query',
-  disabled: 'source disabled',
+  ok: "",
+  empty: "no results",
+  error: "source error",
+  "no-match": "no rule matched the query",
+  disabled: "source disabled",
 };
 
 export async function assembleContext(
   pool: any,
   query: string,
-  templateName: string = 'default',
+  templateName: string = "default",
   maxTokens?: number,
   repo?: string,
   agentId?: string,
@@ -596,34 +753,38 @@ export async function assembleContext(
 ): Promise<AssembledResult> {
   const startedAt = Date.now();
   const template = getTemplate(templateName);
-  const effectiveMax = maxTokens ?? TEMPLATE_DEFAULT_BUDGETS[templateName] ?? 8000;
+  const effectiveMax =
+    maxTokens ?? TEMPLATE_DEFAULT_BUDGETS[templateName] ?? 8000;
   const minTokens = Math.max(effectiveMax, 2000);
 
   // Check context freshness + first-run status
-  let freshnessWarning = '';
-  let freshnessState = 'unknown';
+  let freshnessWarning = "";
+  let freshnessState = "unknown";
   if (repo) {
     try {
       const { rows } = await pool.query(
-        `SELECT last_ingested_at FROM lore.repos WHERE full_name = $1`, [repo],
+        `SELECT last_ingested_at FROM lore.repos WHERE full_name = $1`,
+        [repo],
       );
       if (rows.length === 0) {
-        freshnessState = 'first-run';
+        freshnessState = "first-run";
         freshnessWarning = `> **Welcome to Lore!** This repo is not yet onboarded.\n> Suggested actions:\n> 1. Call \`lore_onboard_repo\` to generate CLAUDE.md and register the repo\n> 2. Call \`lore_ingest_files\` to manually add specific files\n> 3. Call \`lore_search_memory\` to check if others have left learnings\n\n`;
       } else if (!rows[0].last_ingested_at) {
-        freshnessState = 'never-ingested';
+        freshnessState = "never-ingested";
         freshnessWarning = `> ⚠ **Context may be stale** — this repo has never been ingested. Run \`lore_ingest_files\` or wait for the nightly reindex.\n\n`;
       } else {
         const age = Date.now() - new Date(rows[0].last_ingested_at).getTime();
         if (age > 7 * 86400000) {
           const days = Math.floor(age / 86400000);
-          freshnessState = 'stale';
+          freshnessState = "stale";
           freshnessWarning = `> ⚠ **Context may be stale** — last ingested ${days} days ago.\n\n`;
         } else {
-          freshnessState = 'fresh';
+          freshnessState = "fresh";
         }
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
   }
 
   // Track assembled IDs for outcome feedback
@@ -631,7 +792,9 @@ export async function assembleContext(
   const collectedMemoryIds: string[] = [];
 
   // cross_repo is only consulted when explicitly requested.
-  const activeSections = template.sections.filter(s => s.source !== 'cross_repo' || crossRepo);
+  const activeSections = template.sections.filter(
+    (s) => s.source !== "cross_repo" || crossRepo,
+  );
 
   // Fetch all sources in parallel, timing each.
   const timings: Record<string, number> = {};
@@ -643,11 +806,14 @@ export async function assembleContext(
       try {
         // The coupling source reads the spec-traceability graph (Dgraph), not the
         // Postgres pool — fail-soft `disabled` when no graph client is wired.
-        res = section.source === 'coupling'
-          ? await fetchCouplingSource(dgraph ?? null, repo)
-          : fetcher ? await fetcher(pool, query, repo, agentId) : { items: [], status: 'error' };
+        res =
+          section.source === "coupling"
+            ? await fetchCouplingSource(dgraph ?? null, repo)
+            : fetcher
+              ? await fetcher(pool, query, repo, agentId)
+              : { items: [], status: "error" };
       } catch {
-        res = { items: [], status: 'error' };
+        res = { items: [], status: "error" };
       }
       timings[section.source] = Date.now() - t0;
       return { section, res };
@@ -656,10 +822,13 @@ export async function assembleContext(
 
   // Allocate the token budget by priority (higher priority = lower number =
   // larger share), highest-priority first, deducting as we go.
-  const nonEmptyWeight = fetched
-    .filter(f => f.res.items.length > 0)
-    .reduce((sum, f) => sum + (6 - f.section.priority), 0) || 1;
-  const ordered = [...fetched].sort((a, b) => a.section.priority - b.section.priority);
+  const nonEmptyWeight =
+    fetched
+      .filter((f) => f.res.items.length > 0)
+      .reduce((sum, f) => sum + (6 - f.section.priority), 0) || 1;
+  const ordered = [...fetched].sort(
+    (a, b) => a.section.priority - b.section.priority,
+  );
 
   let remaining = minTokens;
   const serialized: SerializedSection[] = [];
@@ -680,9 +849,9 @@ export async function assembleContext(
     let keptItems: SourceItem[] = [];
 
     if (deduped.length === 0) {
-      omitReason = STATUS_REASON[res.status] || 'empty';
+      omitReason = STATUS_REASON[res.status] || "empty";
     } else if (remaining <= 0) {
-      omitReason = 'budget exhausted';
+      omitReason = "budget exhausted";
     } else {
       const weight = (6 - section.priority) / nonEmptyWeight;
       allocatedBudget = Math.min(
@@ -691,12 +860,13 @@ export async function assembleContext(
         remaining,
       );
       if (allocatedBudget <= 100) {
-        omitReason = 'budget exhausted';
+        omitReason = "budget exhausted";
       } else {
         // When documents compete for a section, cap any single one to half the
         // budget so a mega-doc (e.g. CLAUDE.md) can't crowd out smaller, more-
         // relevant chunks. A lone document keeps the whole budget.
-        const perDocCap = deduped.length > 1 ? Math.floor(allocatedBudget * 0.5) : undefined;
+        const perDocCap =
+          deduped.length > 1 ? Math.floor(allocatedBudget * 0.5) : undefined;
         const fit = fitItemsToBudget(deduped, allocatedBudget, perDocCap);
         keptItems = fit.items;
         truncated = fit.truncated;
@@ -720,7 +890,9 @@ export async function assembleContext(
       source: section.source,
       priority: section.priority,
       status: res.status,
-      allocatedBudget: Number.isFinite(allocatedBudget) ? allocatedBudget : (section.max_tokens ?? 0),
+      allocatedBudget: Number.isFinite(allocatedBudget)
+        ? allocatedBudget
+        : (section.max_tokens ?? 0),
       rawTokens,
       finalTokens,
       truncated,
@@ -733,20 +905,33 @@ export async function assembleContext(
   // Collect context refs for outcome feedback
   if (includeIds) {
     try {
-      const results = await searchMemories(pool, query, agentId, undefined, 20, false);
+      const results = await searchMemories(
+        pool,
+        query,
+        agentId,
+        undefined,
+        20,
+        false,
+      );
       for (const r of results) {
         if (!r.id) continue;
-        if (r.source === 'memory') collectedMemoryIds.push(r.id);
+        if (r.source === "memory") collectedMemoryIds.push(r.id);
         else collectedFactIds.push(r.id);
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
   }
 
   // Build the final XML-tagged text.
-  const body = serializeContext({ query, template: templateName, budget: minTokens }, serialized);
-  const text = serialized.length > 0 ? freshnessWarning + body : freshnessWarning;
+  const body = serializeContext(
+    { query, template: templateName, budget: minTokens },
+    serialized,
+  );
+  const text =
+    serialized.length > 0 ? freshnessWarning + body : freshnessWarning;
 
-  const sections = serialized.map(s => ({
+  const sections = serialized.map((s) => ({
     header: s.header,
     tokens: s.items.reduce((sum, i) => sum + i.tokens, 0),
     truncated: s.truncated,
@@ -761,21 +946,31 @@ export async function assembleContext(
       template: templateName,
       effectiveBudget: minTokens,
       crossRepo: !!crossRepo,
-      templateSections: template.sections.map(s => ({
+      templateSections: template.sections.map((s) => ({
         header: s.header,
         source: s.source,
         priority: s.priority,
         max_tokens: s.max_tokens,
       })),
       sections: traceSections,
-      budget: { total: minTokens, used, leftover: Math.max(0, minTokens - used) },
+      budget: {
+        total: minTokens,
+        used,
+        leftover: Math.max(0, minTokens - used),
+      },
       freshness: { state: freshnessState, message: freshnessWarning.trim() },
       timingsMs: { total: Date.now() - startedAt, perSource: timings },
     };
   }
 
-  if (includeIds && (collectedFactIds.length > 0 || collectedMemoryIds.length > 0)) {
-    result.context_refs = { fact_ids: collectedFactIds, memory_ids: collectedMemoryIds };
+  if (
+    includeIds &&
+    (collectedFactIds.length > 0 || collectedMemoryIds.length > 0)
+  ) {
+    result.context_refs = {
+      fact_ids: collectedFactIds,
+      memory_ids: collectedMemoryIds,
+    };
   }
   return result;
 }

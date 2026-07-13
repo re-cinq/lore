@@ -5,9 +5,9 @@
  * helpers for prompt building, default repos, and type enumeration.
  */
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { parse } from 'yaml';
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { parse } from "yaml";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -29,21 +29,29 @@ let config: Record<string, TaskTypeConfig> = {};
 export function loadTaskTypes(): void {
   // Look for task-types.yaml in several locations
   const paths = [
-    process.env.TASK_TYPES_PATH || '',
-    join(process.cwd(), 'scripts', 'task-types.yaml'),
-    join(process.env.CONTEXT_PATH || '', 'scripts', 'task-types.yaml'),
-    join(process.env.HOME || '', '.re-cinq', 'lore', 'scripts', 'task-types.yaml'),
+    process.env.TASK_TYPES_PATH || "",
+    join(process.cwd(), "scripts", "task-types.yaml"),
+    join(process.env.CONTEXT_PATH || "", "scripts", "task-types.yaml"),
+    join(
+      process.env.HOME || "",
+      ".re-cinq",
+      "lore",
+      "scripts",
+      "task-types.yaml",
+    ),
   ].filter(Boolean);
   for (const p of paths) {
     try {
-      const raw = readFileSync(p, 'utf-8');
+      const raw = readFileSync(p, "utf-8");
       const parsed = parse(raw);
       config = parsed.task_types || {};
-      console.log(`[pipeline] Loaded ${Object.keys(config).length} task types from ${p}`);
+      console.log(
+        `[pipeline] Loaded ${Object.keys(config).length} task types from ${p}`,
+      );
       return;
     } catch {}
   }
-  console.warn('[pipeline] No task-types.yaml found, using empty config');
+  console.warn("[pipeline] No task-types.yaml found, using empty config");
 }
 
 export function getTaskTypeConfig(type: string): TaskTypeConfig | null {
@@ -55,20 +63,29 @@ export function getTaskTypes(): string[] {
 }
 
 export function getDefaultRepo(type: string): string {
-  return config[type]?.target_repo || 're-cinq/lore';
+  return config[type]?.target_repo || "re-cinq/lore";
 }
 
 export function buildPrompt(type: string, description: string): string {
-  const tmpl = config[type]?.prompt_template || 'Complete the following task: {description}';
-  return tmpl.replace('{description}', description);
+  const tmpl =
+    config[type]?.prompt_template ||
+    "Complete the following task: {description}";
+  return tmpl.replace("{description}", description);
 }
 
 /**
  * Merge global task type config with per-repo overrides from lore.repos.settings.task_overrides.
  * Repo overrides win for any field they specify.
  */
-export function getTaskTypeConfigForRepo(type: string, repoSettings: any): TaskTypeConfig & { model?: string; system_prompt_suffix?: string } {
-  const base = config[type] || { prompt_template: 'Complete the following task: {description}', timeout_minutes: 30, review_required: false };
+export function getTaskTypeConfigForRepo(
+  type: string,
+  repoSettings: any,
+): TaskTypeConfig & { model?: string; system_prompt_suffix?: string } {
+  const base = config[type] || {
+    prompt_template: "Complete the following task: {description}",
+    timeout_minutes: 30,
+    review_required: false,
+  };
   const overrides = repoSettings?.task_overrides?.[type] || {};
   return {
     ...base,

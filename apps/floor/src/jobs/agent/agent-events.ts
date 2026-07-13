@@ -33,7 +33,8 @@ function resultModel(ev: Record<string, unknown>): string {
 function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
   if (!isObject(envelope)) return null;
   const source = envelope.source;
-  const taskId = isObject(source) && typeof source.task === "string" ? source.task : "";
+  const taskId =
+    isObject(source) && typeof source.task === "string" ? source.task : "";
   if (!taskId) return null;
   const ev = envelope.event;
   if (!isObject(ev) || ev.type !== "result" || !isObject(ev.usage)) return null;
@@ -68,7 +69,10 @@ export function parseAgentEvents(ndjson: string): LlmCallRow[] {
 /** GCS object key for an archived raw NDJSON sink batch (#687). Partitioned by UTC
  *  date for lifecycle rules; the full received instant keeps same-second batches
  *  distinct, and the first task id tags the object for eyeballing. */
-export function agentEventsArchiveKey(receivedAtIso: string, taskIds: readonly string[]): string {
+export function agentEventsArchiveKey(
+  receivedAtIso: string,
+  taskIds: readonly string[],
+): string {
   const date = receivedAtIso.slice(0, 10);
   const instant = receivedAtIso.replace(/[:.]/g, "-");
   const tag = taskIds.length > 0 ? taskIds[0] : "unknown";

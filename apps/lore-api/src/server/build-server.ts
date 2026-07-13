@@ -14,7 +14,10 @@ import { registerRequestTracing } from "./plugins/tracing.js";
 import { registerRateLimit } from "./plugins/rate-limit.js";
 import { registerBearerScope } from "./plugins/bearer-scope.js";
 import { zodFailAction } from "./plugins/zod-validate.js";
-import { generateOpenApi, summarizeCoverage } from "../openapi/build-document.js";
+import {
+  generateOpenApi,
+  summarizeCoverage,
+} from "../openapi/build-document.js";
 import { healthzRoute } from "../api/routes/healthz/healthz.js";
 import { distRoute } from "../api/routes/dist/dist.js";
 import { repoStatusRoute } from "../api/routes/repos/repo-status.js";
@@ -26,7 +29,10 @@ import { getTaskRoute } from "../api/routes/tasks/get-task.js";
 import { listTasksRoute } from "../api/routes/tasks/list-tasks.js";
 import { timelineRoute } from "../api/routes/tasks/task-timeline.js";
 import { taskByPrRoute } from "../api/routes/tasks/task-by-pr.js";
-import { taskLogsGetRoute, taskLogsPostRoute } from "../api/routes/tasks/task-logs.js";
+import {
+  taskLogsGetRoute,
+  taskLogsPostRoute,
+} from "../api/routes/tasks/task-logs.js";
 import { jobRunLogsRoute } from "../api/routes/tasks/job-run-logs.js";
 import { taskPostRoute } from "../api/routes/tasks/task-post.js";
 import { memoryRoute } from "../api/routes/memory/memory.js";
@@ -37,10 +43,19 @@ import { ingestGraphRoute } from "../api/routes/ingest/ingest-graph.js";
 import { onboardRoute } from "../api/routes/repos/onboard.js";
 import { slackWebhookRoute } from "../api/routes/webhooks/webhook-slack.js";
 import { incidentWebhookRoute } from "../api/routes/webhooks/webhook-incident.js";
-import { webhookStatusRoute, webhookSecretRoute, webhookEnsureRoute } from "../api/routes/webhooks/webhook.js";
+import {
+  webhookStatusRoute,
+  webhookSecretRoute,
+  webhookEnsureRoute,
+} from "../api/routes/webhooks/webhook.js";
 import { tokensRoute } from "../api/routes/tokens/tokens.js";
 import { darkFactoryRoute } from "../api/routes/dark-factory/dark-factory.js";
-import { agentsGetRoute, agentsPostRoute, agentsPutRoute, agentsDeleteRoute } from "../api/routes/agent-definitions/agents.js";
+import {
+  agentsGetRoute,
+  agentsPostRoute,
+  agentsPutRoute,
+  agentsDeleteRoute,
+} from "../api/routes/agent-definitions/agents.js";
 import { impactRoute } from "../api/routes/impact/impact.js";
 import { traceRoute } from "../api/routes/trace/trace.js";
 import { chunksRoute } from "../api/routes/repos/chunks.js";
@@ -135,7 +150,9 @@ export function buildServer(getPool: () => any, port = 0): Hapi.Server {
     const { coverage } = generateOpenApi(routes);
     console.log(summarizeCoverage(coverage));
     if (coverage.uncovered.length) {
-      console.warn(`[openapi] WARNING uncovered write routes: ${coverage.uncovered.join(", ")}`);
+      console.warn(
+        `[openapi] WARNING uncovered write routes: ${coverage.uncovered.join(", ")}`,
+      );
     }
   }
 

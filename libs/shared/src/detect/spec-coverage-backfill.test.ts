@@ -6,8 +6,13 @@ import {
 } from "./spec-coverage-backfill.js";
 import type { Statement, Classification } from "../index.js";
 
-const heuristic = (testability: "testable" | "untestable", category: Classification["category"] = null): Classification => ({
-  testability, category, matchedBySection: testability === "untestable",
+const heuristic = (
+  testability: "testable" | "untestable",
+  category: Classification["category"] = null,
+): Classification => ({
+  testability,
+  category,
+  matchedBySection: testability === "untestable",
 });
 
 const suggest = (overrides: Partial<Suggestion> = {}): Suggestion => ({
@@ -41,13 +46,18 @@ describe("proposeLinkInsertions", () => {
     expect(out.diffPreview).toContain("---");
     expect(out.diffPreview).toContain("+++");
     expect(out.diffPreview).toContain("-1. Returns the expected value.");
-    expect(out.diffPreview).toContain("+1. Returns the expected value. ([validated by");
+    expect(out.diffPreview).toContain(
+      "+1. Returns the expected value. ([validated by",
+    );
   });
 
   it("skips a statement that already carries any test link", () => {
-    const content = "## A\n\n1. Returns the expected value. ([t](src/x.test.ts#L99))\n";
+    const content =
+      "## A\n\n1. Returns the expected value. ([t](src/x.test.ts#L99))\n";
     const out = proposeLinkInsertions(content, [
-      suggest({ statement_text: "Returns the expected value. ([t](src/x.test.ts#L99))" }),
+      suggest({
+        statement_text: "Returns the expected value. ([t](src/x.test.ts#L99))",
+      }),
     ]);
     expect(out.applied).toBe(0);
     expect(out.skipped).toEqual([
@@ -110,8 +120,15 @@ describe("proposeLinkInsertions", () => {
 });
 
 describe("pickStatementsForBackfill", () => {
-  const stmt = (ordinal: number, text: string, kind: "sentence" | "list-item" = "list-item"): Statement => ({
-    ordinal, text, kind, enclosingHeading: "Acceptance Criteria",
+  const stmt = (
+    ordinal: number,
+    text: string,
+    kind: "sentence" | "list-item" = "list-item",
+  ): Statement => ({
+    ordinal,
+    text,
+    kind,
+    enclosingHeading: "Acceptance Criteria",
   });
 
   it("returns testable statements with no inline test link", () => {
@@ -169,10 +186,7 @@ describe("pickStatementsForBackfill", () => {
   });
 
   it("returns an empty array when there are no testable statements at all", () => {
-    const statements = [
-      stmt(0, "Narrative one."),
-      stmt(1, "Narrative two."),
-    ];
+    const statements = [stmt(0, "Narrative one."), stmt(1, "Narrative two.")];
     const classifications = new Map<number, Classification>([
       [0, heuristic("untestable", "intro")],
       [1, heuristic("untestable", "rationale")],

@@ -1,17 +1,17 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, act } from "@testing-library/react";
 
 // Isolate Timeline from the real Icon, which pulls in ThemeProvider/iconify.
 // Render the icon name as data-* so we can assert which icon each stage maps to.
-vi.mock('@/components/Icon', () => ({
+vi.mock("@/components/Icon", () => ({
   __esModule: true,
   default: ({ name, size }: { name: string; size?: number }) => (
     <span data-testid="icon" data-icon={name} data-size={size} />
   ),
 }));
 
-import Timeline from './Timeline';
+import Timeline from "./Timeline";
 
 function jsonResponse(payload: unknown, status = 200) {
   return {
@@ -24,9 +24,9 @@ function jsonResponse(payload: unknown, status = 200) {
 
 function baseResponse(overrides: Record<string, unknown> = {}) {
   return {
-    task_id: 't1',
-    branch_name: 'lore/feature',
-    repo: 're-cinq/lore',
+    task_id: "t1",
+    branch_name: "lore/feature",
+    repo: "re-cinq/lore",
     pr_number: null,
     pr_url: null,
     pr_state: null,
@@ -38,13 +38,13 @@ function baseResponse(overrides: Record<string, unknown> = {}) {
 
 function commit(overrides: Record<string, unknown> = {}) {
   return {
-    sha: 'abcdef1234567890',
-    stage: 'implement',
+    sha: "abcdef1234567890",
+    stage: "implement",
     iteration: 0,
-    outcome: 'success',
-    committed_at: '2026-06-04T10:00:00Z',
+    outcome: "success",
+    committed_at: "2026-06-04T10:00:00Z",
     duration_ms: 1500,
-    summary: 'did the thing',
+    summary: "did the thing",
     ...overrides,
   };
 }
@@ -67,16 +67,21 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('Timeline', () => {
-  it('renders the loading state before the first fetch resolves', async () => {
+describe("Timeline", () => {
+  it("renders the loading state before the first fetch resolves", async () => {
     let resolveFetch: (v: unknown) => void = () => {};
     vi.stubGlobal(
-      'fetch',
-      vi.fn(() => new Promise((res) => { resolveFetch = res; })),
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise((res) => {
+            resolveFetch = res;
+          }),
+      ),
     );
     render(<Timeline taskId="t1" initialStatus="done" />);
 
-    expect(screen.getByText('Loading timeline…')).toBeInTheDocument();
+    expect(screen.getByText("Loading timeline…")).toBeInTheDocument();
 
     // Resolve so afterEach has no dangling promise.
     await act(async () => {
@@ -84,44 +89,60 @@ describe('Timeline', () => {
     });
   });
 
-  it('renders the error state when the response is not ok', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 503)));
+  it("renders the error state when the response is not ok", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({}, 503)));
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
 
-    expect(screen.getByText('Timeline unavailable: HTTP 503')).toBeInTheDocument();
+    expect(
+      screen.getByText("Timeline unavailable: HTTP 503"),
+    ).toBeInTheDocument();
   });
 
-  it('renders the error state when fetch rejects', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
+  it("renders the error state when fetch rejects", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("network down")),
+    );
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
 
-    expect(screen.getByText('Timeline unavailable: network down')).toBeInTheDocument();
+    expect(
+      screen.getByText("Timeline unavailable: network down"),
+    ).toBeInTheDocument();
   });
 
-  it('requests the timeline endpoint for the given task id', async () => {
+  it("requests the timeline endpoint for the given task id", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(baseResponse()));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal("fetch", fetchMock);
     render(<Timeline taskId="task-42" initialStatus="done" />);
     await flush();
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/assembly-lines/task-42/timeline');
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/assembly-lines/task-42/timeline",
+    );
   });
 
-  it('renders the empty commits message when no commits and branch not deleted', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(baseResponse())));
+  it("renders the empty commits message when no commits and branch not deleted", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(baseResponse())),
+    );
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
 
-    expect(screen.getByText('Stage Timeline')).toBeInTheDocument();
-    expect(screen.getByText('No stage commits yet.')).toBeInTheDocument();
+    expect(screen.getByText("Stage Timeline")).toBeInTheDocument();
+    expect(screen.getByText("No stage commits yet.")).toBeInTheDocument();
   });
 
-  it('renders the no_branch pending notice', async () => {
+  it("renders the no_branch pending notice", async () => {
     vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(jsonResponse(baseResponse({ pending: 'no_branch' }))),
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(baseResponse({ pending: "no_branch" })),
+        ),
     );
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
@@ -131,63 +152,81 @@ describe('Timeline', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the branch-deleted banner and suppresses the empty-commits message', async () => {
+  it("renders the branch-deleted banner and suppresses the empty-commits message", async () => {
     vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        jsonResponse(baseResponse({ branch_deleted: true, branch_name: 'gone/branch' })),
-      ),
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            baseResponse({ branch_deleted: true, branch_name: "gone/branch" }),
+          ),
+        ),
     );
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
 
     expect(screen.getByText(/has been deleted on the/)).toBeInTheDocument();
-    expect(screen.getByText('gone/branch')).toBeInTheDocument();
-    expect(screen.queryByText('No stage commits yet.')).not.toBeInTheDocument();
+    expect(screen.getByText("gone/branch")).toBeInTheDocument();
+    expect(screen.queryByText("No stage commits yet.")).not.toBeInTheDocument();
   });
 
-  it('maps a known stage to its node icon and shows the success outcome pill', async () => {
+  it("maps a known stage to its node icon and shows the success outcome pill", async () => {
     vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        jsonResponse(baseResponse({ commits: [commit({ stage: 'review', outcome: 'success' })] })),
-      ),
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            baseResponse({
+              commits: [commit({ stage: "review", outcome: "success" })],
+            }),
+          ),
+        ),
     );
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
 
-    expect(screen.getByText('review')).toBeInTheDocument();
-    expect(screen.getByText('iter 0')).toBeInTheDocument();
-    expect(screen.getByText('success')).toBeInTheDocument();
-    const stageIcon = screen.getAllByTestId('icon').find((el) => el.getAttribute('data-size') === '18');
-    expect(stageIcon).toHaveAttribute('data-icon', 'review');
+    expect(screen.getByText("review")).toBeInTheDocument();
+    expect(screen.getByText("iter 0")).toBeInTheDocument();
+    expect(screen.getByText("success")).toBeInTheDocument();
+    const stageIcon = screen
+      .getAllByTestId("icon")
+      .find((el) => el.getAttribute("data-size") === "18");
+    expect(stageIcon).toHaveAttribute("data-icon", "review");
   });
 
-  it('falls back to the bullet icon for an unknown stage', async () => {
+  it("falls back to the bullet icon for an unknown stage", async () => {
     vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        jsonResponse(baseResponse({ commits: [commit({ stage: 'mystery' })] })),
-      ),
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            baseResponse({ commits: [commit({ stage: "mystery" })] }),
+          ),
+        ),
     );
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
 
-    const stageIcon = screen.getAllByTestId('icon').find((el) => el.getAttribute('data-size') === '18');
-    expect(stageIcon).toHaveAttribute('data-icon', 'bullet');
+    const stageIcon = screen
+      .getAllByTestId("icon")
+      .find((el) => el.getAttribute("data-size") === "18");
+    expect(stageIcon).toHaveAttribute("data-icon", "bullet");
   });
 
-  it('colours each outcome pill: success, changes_requested, failed, and unknown fallback', async () => {
+  it("colours each outcome pill: success, changes_requested, failed, and unknown fallback", async () => {
     vi.stubGlobal(
-      'fetch',
+      "fetch",
       vi.fn().mockResolvedValue(
         jsonResponse(
           baseResponse({
             commits: [
-              commit({ sha: 'a000000000', outcome: 'success' }),
-              commit({ sha: 'b000000000', outcome: 'changes_requested' }),
-              commit({ sha: 'c000000000', outcome: 'failed' }),
-              commit({ sha: 'd000000000', outcome: 'weird' }),
+              commit({ sha: "a000000000", outcome: "success" }),
+              commit({ sha: "b000000000", outcome: "changes_requested" }),
+              commit({ sha: "c000000000", outcome: "failed" }),
+              commit({ sha: "d000000000", outcome: "weird" }),
             ],
           }),
         ),
@@ -196,27 +235,31 @@ describe('Timeline', () => {
     const { container } = render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
 
-    const pills = Array.from(container.querySelectorAll<HTMLElement>('.status-pill'));
+    const pills = Array.from(
+      container.querySelectorAll<HTMLElement>(".status-pill"),
+    );
     const colorOf = (text: string) =>
-      pills.find((p) => p.textContent === text)?.style.getPropertyValue('--pill-color');
+      pills
+        .find((p) => p.textContent === text)
+        ?.style.getPropertyValue("--pill-color");
 
-    expect(colorOf('success')).toBe('var(--success)');
-    expect(colorOf('changes_requested')).toBe('var(--warning)');
-    expect(colorOf('failed')).toBe('var(--danger)');
-    expect(colorOf('weird')).toBe('var(--text-muted)');
+    expect(colorOf("success")).toBe("var(--success)");
+    expect(colorOf("changes_requested")).toBe("var(--warning)");
+    expect(colorOf("failed")).toBe("var(--danger)");
+    expect(colorOf("weird")).toBe("var(--text-muted)");
   });
 
-  it('formats every duration bucket: null, sub-second, seconds, minutes', async () => {
+  it("formats every duration bucket: null, sub-second, seconds, minutes", async () => {
     vi.stubGlobal(
-      'fetch',
+      "fetch",
       vi.fn().mockResolvedValue(
         jsonResponse(
           baseResponse({
             commits: [
-              commit({ sha: 'a000000000', duration_ms: null }),
-              commit({ sha: 'b000000000', duration_ms: 250 }),
-              commit({ sha: 'c000000000', duration_ms: 4200 }),
-              commit({ sha: 'd000000000', duration_ms: 65_000 }),
+              commit({ sha: "a000000000", duration_ms: null }),
+              commit({ sha: "b000000000", duration_ms: 250 }),
+              commit({ sha: "c000000000", duration_ms: 4200 }),
+              commit({ sha: "d000000000", duration_ms: 65_000 }),
             ],
           }),
         ),
@@ -225,20 +268,20 @@ describe('Timeline', () => {
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
 
-    expect(screen.getByText('—')).toBeInTheDocument();
-    expect(screen.getByText('250ms')).toBeInTheDocument();
-    expect(screen.getByText('4.2s')).toBeInTheDocument();
-    expect(screen.getByText('1m 5s')).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("250ms")).toBeInTheDocument();
+    expect(screen.getByText("4.2s")).toBeInTheDocument();
+    expect(screen.getByText("1m 5s")).toBeInTheDocument();
   });
 
-  it('renders a commit link to GitHub when repo is present', async () => {
+  it("renders a commit link to GitHub when repo is present", async () => {
     vi.stubGlobal(
-      'fetch',
+      "fetch",
       vi.fn().mockResolvedValue(
         jsonResponse(
           baseResponse({
-            repo: 'owner/name',
-            commits: [commit({ sha: 'abc1234deadbeef' })],
+            repo: "owner/name",
+            commits: [commit({ sha: "abc1234deadbeef" })],
           }),
         ),
       ),
@@ -246,31 +289,40 @@ describe('Timeline', () => {
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
 
-    const link = screen.getByRole('link');
-    expect(link).toHaveAttribute('href', 'https://github.com/owner/name/commit/abc1234deadbeef');
-    expect(link).toHaveTextContent('abc1234');
+    const link = screen.getByRole("link");
+    expect(link).toHaveAttribute(
+      "href",
+      "https://github.com/owner/name/commit/abc1234deadbeef",
+    );
+    expect(link).toHaveTextContent("abc1234");
   });
 
-  it('omits the commit link when repo is null', async () => {
+  it("omits the commit link when repo is null", async () => {
     vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        jsonResponse(baseResponse({ repo: null, commits: [commit()] })),
-      ),
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(baseResponse({ repo: null, commits: [commit()] })),
+        ),
     );
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
 
-    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
-  it('renders the held-lease indicator with holder and expiry', async () => {
+  it("renders the held-lease indicator with holder and expiry", async () => {
     vi.stubGlobal(
-      'fetch',
+      "fetch",
       vi.fn().mockResolvedValue(
         jsonResponse(
           baseResponse({
-            lease: { held: true, holder: 'pod-7', expires_at: '2026-06-04T10:05:00Z' },
+            lease: {
+              held: true,
+              holder: "pod-7",
+              expires_at: "2026-06-04T10:05:00Z",
+            },
           }),
         ),
       ),
@@ -278,31 +330,39 @@ describe('Timeline', () => {
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
 
-    expect(screen.getByText('pod-7')).toBeInTheDocument();
+    expect(screen.getByText("pod-7")).toBeInTheDocument();
     expect(screen.getByText(/Lease held by/)).toBeInTheDocument();
     expect(screen.getByText(/expires/)).toBeInTheDocument();
   });
 
-  it('renders the held-lease indicator without an expiry when expires_at is absent', async () => {
+  it("renders the held-lease indicator without an expiry when expires_at is absent", async () => {
     vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        jsonResponse(baseResponse({ lease: { held: true, holder: 'pod-9' } })),
-      ),
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            baseResponse({ lease: { held: true, holder: "pod-9" } }),
+          ),
+        ),
     );
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
 
-    expect(screen.getByText('pod-9')).toBeInTheDocument();
+    expect(screen.getByText("pod-9")).toBeInTheDocument();
     expect(screen.queryByText(/expires/)).not.toBeInTheDocument();
   });
 
-  it('hides the lease indicator when the lease is not held', async () => {
+  it("hides the lease indicator when the lease is not held", async () => {
     vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        jsonResponse(baseResponse({ lease: { held: false, holder: 'pod-x' } })),
-      ),
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            baseResponse({ lease: { held: false, holder: "pod-x" } }),
+          ),
+        ),
     );
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
@@ -310,13 +370,15 @@ describe('Timeline', () => {
     expect(screen.queryByText(/Lease held by/)).not.toBeInTheDocument();
   });
 
-  it('does not install a poll interval for a terminal status with a retrospective stage', async () => {
+  it("does not install a poll interval for a terminal status with a retrospective stage", async () => {
     // current_stage 'retrospective' keeps stillActive false even on re-run, so no
     // interval is ever installed; advancing the clock yields no further fetches.
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(jsonResponse(baseResponse({ current_stage: 'retrospective' })));
-    vi.stubGlobal('fetch', fetchMock);
+      .mockResolvedValue(
+        jsonResponse(baseResponse({ current_stage: "retrospective" })),
+      );
+    vi.stubGlobal("fetch", fetchMock);
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
 
@@ -328,9 +390,13 @@ describe('Timeline', () => {
     expect(fetchMock.mock.calls.length).toBe(settled);
   });
 
-  it('polls on the 10s interval while initialStatus is active', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(baseResponse({ current_stage: 'implement' })));
-    vi.stubGlobal('fetch', fetchMock);
+  it("polls on the 10s interval while initialStatus is active", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(baseResponse({ current_stage: "implement" })),
+      );
+    vi.stubGlobal("fetch", fetchMock);
     render(<Timeline taskId="t1" initialStatus="running" />);
     await flush();
 
@@ -347,9 +413,13 @@ describe('Timeline', () => {
     expect(fetchMock.mock.calls.length).toBe(settled + 2);
   });
 
-  it('starts polling when the current stage is active even if initialStatus is terminal', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(baseResponse({ current_stage: 'validate' })));
-    vi.stubGlobal('fetch', fetchMock);
+  it("starts polling when the current stage is active even if initialStatus is terminal", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(baseResponse({ current_stage: "validate" })),
+      );
+    vi.stubGlobal("fetch", fetchMock);
     render(<Timeline taskId="t1" initialStatus="done" />);
     await flush();
 
@@ -362,10 +432,16 @@ describe('Timeline', () => {
     expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('stops fetching after unmount (interval cleared)', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(baseResponse({ current_stage: 'implement' })));
-    vi.stubGlobal('fetch', fetchMock);
-    const { unmount } = render(<Timeline taskId="t1" initialStatus="running" />);
+  it("stops fetching after unmount (interval cleared)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(baseResponse({ current_stage: "implement" })),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const { unmount } = render(
+      <Timeline taskId="t1" initialStatus="running" />,
+    );
     await flush();
 
     const callsAtUnmount = fetchMock.mock.calls.length;
@@ -376,22 +452,28 @@ describe('Timeline', () => {
     expect(fetchMock.mock.calls.length).toBe(callsAtUnmount);
   });
 
-  it('clears a prior error after a subsequent successful poll', async () => {
+  it("clears a prior error after a subsequent successful poll", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({}, 500))
-      .mockResolvedValue(jsonResponse(baseResponse({ current_stage: 'implement', commits: [commit()] })));
-    vi.stubGlobal('fetch', fetchMock);
+      .mockResolvedValue(
+        jsonResponse(
+          baseResponse({ current_stage: "implement", commits: [commit()] }),
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
     render(<Timeline taskId="t1" initialStatus="running" />);
     await flush();
 
-    expect(screen.getByText('Timeline unavailable: HTTP 500')).toBeInTheDocument();
+    expect(
+      screen.getByText("Timeline unavailable: HTTP 500"),
+    ).toBeInTheDocument();
 
     await act(async () => {
       vi.advanceTimersByTime(10_000);
     });
     await flush();
-    expect(screen.getByText('Stage Timeline')).toBeInTheDocument();
+    expect(screen.getByText("Stage Timeline")).toBeInTheDocument();
     expect(screen.queryByText(/Timeline unavailable/)).not.toBeInTheDocument();
   });
 });

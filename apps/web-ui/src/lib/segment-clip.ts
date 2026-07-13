@@ -90,6 +90,7 @@ export function visibleSegments(
     }
     cursor = exit;
   }
-  if (cursor < 1) pieces.push({ a: pointAt(a, b, cursor), b: pointAt(a, b, 1) });
+  if (cursor < 1)
+    pieces.push({ a: pointAt(a, b, cursor), b: pointAt(a, b, 1) });
   return pieces;
 }

@@ -1,7 +1,13 @@
 import * as path from "node:path";
 import { readFile } from "node:fs/promises";
 import * as vscode from "vscode";
-import { buildLocalIndex, buildCoverageIndex, mergeIndexes, type SpecCodeIndex, type SpecSource } from "./spec-index.js";
+import {
+  buildLocalIndex,
+  buildCoverageIndex,
+  mergeIndexes,
+  type SpecCodeIndex,
+  type SpecSource,
+} from "./spec-index.js";
 import { specLenses } from "./spec-lenses.js";
 import { renderHoverMarkdown } from "./hover.js";
 import { LoreClient } from "./lore-client.js";
@@ -13,7 +19,10 @@ interface State {
   show: { implemented: boolean; covered: boolean };
 }
 
-const state: State = { index: new Map(), show: { implemented: true, covered: true } };
+const state: State = {
+  index: new Map(),
+  show: { implemented: true, covered: true },
+};
 
 const decImplemented = vscode.window.createTextEditorDecorationType({
   isWholeLine: true,
@@ -43,13 +52,18 @@ function toRepoRelative(root: string, fsPath: string): string | null {
 
 function resolveCredentials(): { apiUrl: string; token: string } | null {
   const config = vscode.workspace.getConfiguration("lore");
-  const apiUrl = config.get<string>("apiUrl")?.trim() || gitConfigGlobal("lore.api-url");
-  const token = config.get<string>("token")?.trim() || gitConfigGlobal("lore.ingest-token");
+  const apiUrl =
+    config.get<string>("apiUrl")?.trim() || gitConfigGlobal("lore.api-url");
+  const token =
+    config.get<string>("token")?.trim() || gitConfigGlobal("lore.ingest-token");
   return apiUrl && token ? { apiUrl, token } : null;
 }
 
 async function readSpecSources(root: string): Promise<SpecSource[]> {
-  const files = await vscode.workspace.findFiles("**/spec.md", "**/node_modules/**");
+  const files = await vscode.workspace.findFiles(
+    "**/spec.md",
+    "**/node_modules/**",
+  );
   const sources = await Promise.all(
     files.map(async (uri): Promise<SpecSource | null> => {
       const rel = toRepoRelative(root, uri.fsPath);
@@ -75,9 +89,13 @@ async function rebuildIndex(): Promise<void> {
   const repo = detectRepo(root);
   if (creds && repo) {
     try {
-      coverage = buildCoverageIndex(await new LoreClient(creds.apiUrl, creds.token).graph(repo));
+      coverage = buildCoverageIndex(
+        await new LoreClient(creds.apiUrl, creds.token).graph(repo),
+      );
     } catch (err) {
-      console.error(`[lore] coverage graph fetch failed: ${err instanceof Error ? err.message : err}`);
+      console.error(
+        `[lore] coverage graph fetch failed: ${err instanceof Error ? err.message : err}`,
+      );
     }
   }
 
@@ -89,7 +107,7 @@ function applyToEditor(editor: vscode.TextEditor): void {
   const root = workspaceRoot();
   if (!root) return;
   const rel = toRepoRelative(root, editor.document.uri.fsPath);
-  const entries = rel ? state.index.get(rel) ?? [] : [];
+  const entries = rel ? (state.index.get(rel) ?? []) : [];
 
   const implemented: vscode.DecorationOptions[] = [];
   const covered: vscode.DecorationOptions[] = [];
@@ -99,10 +117,16 @@ function applyToEditor(editor: vscode.TextEditor): void {
     const end = Math.min(Math.max(entry.endLine - 1, start), lastLine);
     const hover = new vscode.MarkdownString(renderHoverMarkdown(entry));
     hover.isTrusted = true;
-    const option: vscode.DecorationOptions = { range: new vscode.Range(start, 0, end, 0), hoverMessage: hover };
+    const option: vscode.DecorationOptions = {
+      range: new vscode.Range(start, 0, end, 0),
+      hoverMessage: hover,
+    };
     (entry.layer === "implemented" ? implemented : covered).push(option);
   }
-  editor.setDecorations(decImplemented, state.show.implemented ? implemented : []);
+  editor.setDecorations(
+    decImplemented,
+    state.show.implemented ? implemented : [],
+  );
   editor.setDecorations(decCovered, state.show.covered ? covered : []);
 }
 
@@ -122,7 +146,12 @@ const lensProvider: vscode.CodeLensProvider = {
           new vscode.CodeLens(range, {
             title: `$(link) ${target.label}`,
             command: "lore.openLocal",
-            arguments: [{ path: target.path, line: target.line ?? 1 } satisfies OpenLocalArgs],
+            arguments: [
+              {
+                path: target.path,
+                line: target.line ?? 1,
+              } satisfies OpenLocalArgs,
+            ],
           }),
         );
       }
@@ -135,8 +164,13 @@ async function openLocal(args: OpenLocalArgs): Promise<void> {
   const root = workspaceRoot();
   if (!root) return;
   const uri = vscode.Uri.file(path.join(root, args.path));
-  const editor = await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(uri));
-  const line = Math.min(Math.max(args.line - 1, 0), editor.document.lineCount - 1);
+  const editor = await vscode.window.showTextDocument(
+    await vscode.workspace.openTextDocument(uri),
+  );
+  const line = Math.min(
+    Math.max(args.line - 1, 0),
+    editor.document.lineCount - 1,
+  );
   const target = new vscode.Range(line, 0, line, 0);
   editor.selection = new vscode.Selection(target.start, target.start);
   editor.revealRange(target, vscode.TextEditorRevealType.InCenter);
@@ -154,8 +188,13 @@ export function activate(context: vscode.ExtensionContext): void {
       state.show = { implemented: !on, covered: !on };
       applyToVisibleEditors();
     }),
-    vscode.languages.registerCodeLensProvider({ scheme: "file", language: "markdown" }, lensProvider),
-    vscode.window.onDidChangeActiveTextEditor((editor) => editor && applyToEditor(editor)),
+    vscode.languages.registerCodeLensProvider(
+      { scheme: "file", language: "markdown" },
+      lensProvider,
+    ),
+    vscode.window.onDidChangeActiveTextEditor(
+      (editor) => editor && applyToEditor(editor),
+    ),
     vscode.window.onDidChangeVisibleTextEditors(() => applyToVisibleEditors()),
     vscode.workspace.onDidSaveTextDocument((doc) => {
       if (doc.fileName.endsWith("spec.md")) {

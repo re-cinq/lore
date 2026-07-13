@@ -6,20 +6,26 @@
  * Called by the /api/ingest HTTP endpoint when GitHub Actions pushes.
  */
 
-import { getOctokit, isAppConfigured as isConfigured } from '../../platform/github-client.js';
-import { getQueryEmbedding } from '@re-cinq/lore-server-core/platform/db.js';
-import { chunkFile, classifyFile, buildIngestedChunkMetadata } from '@re-cinq/lore-shared';
+import {
+  getOctokit,
+  isAppConfigured as isConfigured,
+} from "../../platform/github-client.js";
+import { getQueryEmbedding } from "@re-cinq/lore-server-core/platform/db.js";
+import {
+  chunkFile,
+  classifyFile,
+  buildIngestedChunkMetadata,
+} from "@re-cinq/lore-shared";
 
 export interface IngestResult {
   file: string;
-  status: 'ingested' | 'deleted' | 'skipped' | 'error';
+  status: "ingested" | "deleted" | "skipped" | "error";
   chunk_id?: string;
   embedded?: boolean;
   error?: string;
 }
 
 const SCHEMA_RE = /^[a-z][a-z0-9_]{0,62}$/;
-
 
 async function resolveSchema(pool: any, repo: string): Promise<string> {
   try {
@@ -37,9 +43,9 @@ async function resolveSchema(pool: any, repo: string): Promise<string> {
       if (schemas.length > 0) return team;
     }
   } catch (err) {
-    console.error('[ingest] Schema resolution error:', err);
+    console.error("[ingest] Schema resolution error:", err);
   }
-  return 'org_shared';
+  return "org_shared";
 }
 
 export type IngestFile = string | { path: string; content: string };
@@ -49,7 +55,13 @@ export async function ingestFiles(
   files: IngestFile[],
   repo: string,
   commit: string,
-): Promise<{ ingested: number; deleted: number; errors: number; schema: string; results: IngestResult[] }> {
+): Promise<{
+  ingested: number;
+  deleted: number;
+  errors: number;
+  schema: string;
+  results: IngestResult[];
+}> {
   const schema = await resolveSchema(pool, repo);
 
   if (!SCHEMA_RE.test(schema)) {
@@ -57,16 +69,16 @@ export async function ingestFiles(
   }
 
   // Determine if we need GitHub access (only for path-based files)
-  const needsGitHub = files.some((f) => typeof f === 'string');
+  const needsGitHub = files.some((f) => typeof f === "string");
   let octokit: any;
-  let owner = '';
-  let repoName = '';
+  let owner = "";
+  let repoName = "";
   if (needsGitHub) {
     if (!isConfigured()) {
-      throw new Error('GitHub App not configured — cannot fetch file content');
+      throw new Error("GitHub App not configured — cannot fetch file content");
     }
     octokit = await getOctokit();
-    [owner, repoName] = repo.split('/');
+    [owner, repoName] = repo.split("/");
   }
 
   const results: IngestResult[] = [];
@@ -75,16 +87,16 @@ export async function ingestFiles(
   let errors = 0;
 
   for (const fileEntry of files) {
-    const filePath = typeof fileEntry === 'string' ? fileEntry : fileEntry.path;
+    const filePath = typeof fileEntry === "string" ? fileEntry : fileEntry.path;
     try {
       let content: string | null = null;
 
-      if (typeof fileEntry !== 'string' && fileEntry.content) {
+      if (typeof fileEntry !== "string" && fileEntry.content) {
         // Content provided directly — no GitHub fetch needed
         content = fileEntry.content;
       } else {
         // Fetch from GitHub — try the given ref, fall back to default branch
-        for (const ref of [commit, 'HEAD']) {
+        for (const ref of [commit, "HEAD"]) {
           try {
             const { data } = await octokit.rest.repos.getContent({
               owner,
@@ -92,12 +104,12 @@ export async function ingestFiles(
               path: filePath,
               ref,
             });
-            if ('content' in data) {
-              content = Buffer.from(data.content, 'base64').toString('utf-8');
+            if ("content" in data) {
+              content = Buffer.from(data.content, "base64").toString("utf-8");
             }
             break; // success
           } catch (err: any) {
-            if (err.status === 404 && ref === commit && commit !== 'HEAD') {
+            if (err.status === 404 && ref === commit && commit !== "HEAD") {
               // Commit doesn't exist in this repo — retry with HEAD
               continue;
             }
@@ -107,24 +119,33 @@ export async function ingestFiles(
                 `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
                 [filePath, repo],
               );
-              results.push({ file: filePath, status: 'deleted' });
+              results.push({ file: filePath, status: "deleted" });
               deleted++;
               break;
             }
             throw err;
           }
         }
-        if (!content && results[results.length - 1]?.status === 'deleted') continue;
+        if (!content && results[results.length - 1]?.status === "deleted")
+          continue;
       }
 
       if (!content) {
-        results.push({ file: filePath, status: 'skipped', error: 'not a file (directory?)' });
+        results.push({
+          file: filePath,
+          status: "skipped",
+          error: "not a file (directory?)",
+        });
         continue;
       }
 
       const contentType = classifyFile(filePath);
       if (!contentType) {
-        results.push({ file: filePath, status: 'skipped', error: 'unsupported file type' });
+        results.push({
+          file: filePath,
+          status: "skipped",
+          error: "unsupported file type",
+        });
         continue;
       }
 
@@ -151,7 +172,13 @@ export async function ingestFiles(
             schema,
             repo,
             filePath,
-            JSON.stringify(buildIngestedChunkMetadata(chunk, { filePath, ingestedBy: 'api', commit })),
+            JSON.stringify(
+              buildIngestedChunkMetadata(chunk, {
+                filePath,
+                ingestedBy: "api",
+                commit,
+              }),
+            ),
           ],
         );
 
@@ -159,9 +186,11 @@ export async function ingestFiles(
         if (!firstChunkId) firstChunkId = chunkId;
 
         // Generate and store embedding per chunk (cap input at 8k chars as safety net)
-        const embedding = await getQueryEmbedding(chunk.content.substring(0, 8000));
+        const embedding = await getQueryEmbedding(
+          chunk.content.substring(0, 8000),
+        );
         if (embedding && chunkId) {
-          const embeddingStr = `[${embedding.join(',')}]`;
+          const embeddingStr = `[${embedding.join(",")}]`;
           await pool.query(
             `UPDATE ${schema}.chunks SET embedding = $1::vector WHERE id = $2`,
             [embeddingStr, chunkId],
@@ -170,15 +199,22 @@ export async function ingestFiles(
         }
       }
 
-      results.push({ file: filePath, status: 'ingested', chunk_id: firstChunkId, embedded });
+      results.push({
+        file: filePath,
+        status: "ingested",
+        chunk_id: firstChunkId,
+        embedded,
+      });
       ingested++;
     } catch (err: any) {
       console.error(`[ingest] Error processing ${filePath}:`, err.message);
-      results.push({ file: filePath, status: 'error', error: err.message });
+      results.push({ file: filePath, status: "error", error: err.message });
       errors++;
     }
   }
 
-  console.error(`[ingest] ${repo}@${commit.slice(0, 7)}: ${ingested} ingested, ${deleted} deleted, ${errors} errors (schema: ${schema})`);
+  console.error(
+    `[ingest] ${repo}@${commit.slice(0, 7)}: ${ingested} ingested, ${deleted} deleted, ${errors} errors (schema: ${schema})`,
+  );
   return { ingested, deleted, errors, schema, results };
 }

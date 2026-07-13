@@ -1,11 +1,18 @@
 export const dynamic = "force-dynamic";
-import { query } from '@/lib/db';
-import AssemblyLineListView from './AssemblyLineListView';
-import AssemblyLineRunsSection from './AssemblyLineRunsSection';
-import { groupTasksIntoAssemblyLines, type AssemblyLineTaskRow } from '@/lib/assembly-lines';
-import { fetchRecentAssemblyLineRuns } from '@/lib/assembly-line-runs';
+import { query } from "@/lib/db";
+import AssemblyLineListView from "./AssemblyLineListView";
+import AssemblyLineRunsSection from "./AssemblyLineRunsSection";
+import {
+  groupTasksIntoAssemblyLines,
+  type AssemblyLineTaskRow,
+} from "@/lib/assembly-lines";
+import { fetchRecentAssemblyLineRuns } from "@/lib/assembly-line-runs";
 
-export default async function AssemblyLinesPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+export default async function AssemblyLinesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
   const { status } = await searchParams;
 
   // No SQL status filter: a chain's members carry different statuses, so filtering
@@ -20,11 +27,11 @@ export default async function AssemblyLinesPage({ searchParams }: { searchParams
             t.context_bundle->>'retry_of' as retry_of,
             t.created_by, t.created_at, t.updated_at
      FROM pipeline.tasks t
-     ORDER BY t.created_at DESC LIMIT 100`
+     ORDER BY t.created_at DESC LIMIT 100`,
   );
 
   const allRuns = groupTasksIntoAssemblyLines(tasks);
-  const runs = status ? allRuns.filter(r => r.status === status) : allRuns;
+  const runs = status ? allRuns.filter((r) => r.status === status) : allRuns;
 
   // Per-attempt execution records (pipeline.assembly_lines, migration 0025);
   // empty (section hidden) on databases that predate the migration.

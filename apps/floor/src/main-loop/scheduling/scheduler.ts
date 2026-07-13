@@ -62,9 +62,7 @@ async function runJob(job: JobDef): Promise<void> {
   } finally {
     running.delete(job.name);
     const durationMs = Date.now() - start;
-    console.log(
-      `[scheduler] Job ${job.name}: ${status} (${durationMs}ms)`,
-    );
+    console.log(`[scheduler] Job ${job.name}: ${status} (${durationMs}ms)`);
   }
 }
 

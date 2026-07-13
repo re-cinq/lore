@@ -19,7 +19,10 @@ const state: {
 vi.mock("octokit", () => ({
   Octokit: class {
     auth = async () => ({ token: state.token });
-    paginate = async (fn: (p: unknown) => Promise<unknown[]>, params: unknown) => fn(params);
+    paginate = async (
+      fn: (p: unknown) => Promise<unknown[]>,
+      params: unknown,
+    ) => fn(params);
     rest = {
       pulls: { listFiles: async () => state.files },
       checks: { listForRef: async () => state.checkRuns },
@@ -58,14 +61,18 @@ describe("PlatformGitHub paginated reads + helpers", () => {
   afterEach(() => vi.clearAllMocks());
 
   it("listFiles returns every changed filename (paginated past one page)", async () => {
-    state.files = Array.from({ length: 31 }, (_, i) => ({ filename: `src/f${i}.ts` }));
+    state.files = Array.from({ length: 31 }, (_, i) => ({
+      filename: `src/f${i}.ts`,
+    }));
     const files = await gh().listFiles("re-cinq/lore", 7);
     expect(files).toHaveLength(31);
     expect(files).toContain("src/f30.ts");
   });
 
   it("listChecks maps each run to name/status/conclusion", async () => {
-    state.checkRuns = [{ name: "build", status: "completed", conclusion: "success" }];
+    state.checkRuns = [
+      { name: "build", status: "completed", conclusion: "success" },
+    ];
     expect(await gh().listChecks("re-cinq/lore", "abc")).toEqual([
       { name: "build", status: "completed", conclusion: "success" },
     ]);
@@ -91,11 +98,15 @@ describe("PlatformGitHub paginated reads + helpers", () => {
 
   it("createLabels swallows a 422 (already exists) and continues", async () => {
     state.labelError = { status: 422 };
-    await expect(gh().createLabels("re-cinq/lore", [{ name: "x", color: "fff" }])).resolves.toBeUndefined();
+    await expect(
+      gh().createLabels("re-cinq/lore", [{ name: "x", color: "fff" }]),
+    ).resolves.toBeUndefined();
   });
 
   it("createLabels rethrows a non-422 error", async () => {
     state.labelError = { status: 500 };
-    await expect(gh().createLabels("re-cinq/lore", [{ name: "x", color: "fff" }])).rejects.toMatchObject({ status: 500 });
+    await expect(
+      gh().createLabels("re-cinq/lore", [{ name: "x", color: "fff" }]),
+    ).rejects.toMatchObject({ status: 500 });
   });
 });

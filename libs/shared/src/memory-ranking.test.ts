@@ -1,14 +1,27 @@
 import { describe, it, expect } from "vitest";
-import { computeTransferScore, diversify, rrfMerge, scoreImportance } from "./memory-ranking.js";
+import {
+  computeTransferScore,
+  diversify,
+  rrfMerge,
+  scoreImportance,
+} from "./memory-ranking.js";
 import type { MemorySearchResult, RankedItem } from "./memory-ranking.js";
 
 describe("rrfMerge", () => {
   it("carries confidence from the candidate onto the fused result", () => {
-    const verifiedFact: RankedItem = { key: "k", value: "v", agent_id: "a", source: "fact", confidence: "verified" };
+    const verifiedFact: RankedItem = {
+      key: "k",
+      value: "v",
+      agent_id: "a",
+      source: "fact",
+      confidence: "verified",
+    };
 
     const fused = rrfMerge([[verifiedFact]]);
 
-    expect(fused).toContainEqual(expect.objectContaining({ key: "k", confidence: "verified" }));
+    expect(fused).toContainEqual(
+      expect.objectContaining({ key: "k", confidence: "verified" }),
+    );
   });
 });
 
@@ -26,7 +39,9 @@ describe("computeTransferScore", () => {
   });
 
   it("clamps to 1 when many portable keywords stack", () => {
-    expect(computeTransferScore("error pattern gotcha rule convention")).toBe(1);
+    expect(computeTransferScore("error pattern gotcha rule convention")).toBe(
+      1,
+    );
   });
 
   it("clamps to 0 when many local keywords stack", () => {
@@ -60,7 +75,12 @@ describe("diversify", () => {
 
     const kept = diversify(mixed, 10, 3);
 
-    expect(kept.map((result) => result.key).sort()).toEqual(["a1", "a2", "a3", "b1"]);
+    expect(kept.map((result) => result.key).sort()).toEqual([
+      "a1",
+      "a2",
+      "a3",
+      "b1",
+    ]);
   });
 
   it("slices the total output to limit across all sources", () => {
@@ -70,7 +90,10 @@ describe("diversify", () => {
       { key: "c1", value: "v", score: 0.7, agent_id: "c", source: "episode" },
     ];
 
-    expect(diversify(items, 2, 3).map((result) => result.key)).toEqual(["a1", "b1"]);
+    expect(diversify(items, 2, 3).map((result) => result.key)).toEqual([
+      "a1",
+      "b1",
+    ]);
   });
 
   it("keeps all items when each source is under the cap", () => {
@@ -79,7 +102,10 @@ describe("diversify", () => {
       { key: "a2", value: "v", score: 0.8, agent_id: "a", source: "memory" },
     ];
 
-    expect(diversify(items, 10, 3).map((result) => result.key)).toEqual(["a1", "a2"]);
+    expect(diversify(items, 10, 3).map((result) => result.key)).toEqual([
+      "a1",
+      "a2",
+    ]);
   });
 });
 
@@ -88,7 +114,8 @@ describe("scoreImportance", () => {
     const createdAt = "2026-01-01T00:00:00.000Z";
     const freshMemory = {
       key: "deployment-gotchas-2026-01-01".replace("gotchas", "notes"),
-      value: "A neutral observation about the staging server that sits between fifty and five hundred chars",
+      value:
+        "A neutral observation about the staging server that sits between fifty and five hundred chars",
       created_at: createdAt,
       last_retrieved_at: null,
       half_life_days: 60,
@@ -102,7 +129,8 @@ describe("scoreImportance", () => {
 
   const baseMemory = {
     key: "a-plain-key",
-    value: "A neutral observation about the staging server that sits between fifty and five hundred chars",
+    value:
+      "A neutral observation about the staging server that sits between fifty and five hundred chars",
     created_at: "2026-01-01T00:00:00.000Z",
     last_retrieved_at: null as string | null,
     half_life_days: 60,
@@ -117,24 +145,44 @@ describe("scoreImportance", () => {
   });
 
   it("subtracts 2 for a value shorter than 50 chars", () => {
-    expect(scoreImportance({ ...baseMemory, value: "short" }, Date.parse(baseMemory.created_at))).toBe(8);
+    expect(
+      scoreImportance(
+        { ...baseMemory, value: "short" },
+        Date.parse(baseMemory.created_at),
+      ),
+    ).toBe(8);
   });
 
   it("adds 2 for a key containing gotcha", () => {
-    expect(scoreImportance({ ...baseMemory, key: "deploy-gotcha" }, atHalfLife)).toBe(7);
+    expect(
+      scoreImportance({ ...baseMemory, key: "deploy-gotcha" }, atHalfLife),
+    ).toBe(7);
   });
 
   it("subtracts 1 for stale confidence", () => {
-    expect(scoreImportance({ ...baseMemory, confidence: "stale" }, atHalfLife)).toBe(4);
+    expect(
+      scoreImportance({ ...baseMemory, confidence: "stale" }, atHalfLife),
+    ).toBe(4);
   });
 
   it("uses last_retrieved_at over created_at for effective age", () => {
-    const old = { ...baseMemory, created_at: "2020-01-01T00:00:00.000Z", last_retrieved_at: "2026-01-01T00:00:00.000Z" };
-    expect(scoreImportance(old, Date.parse("2026-01-01T00:00:00.000Z"))).toBe(10);
+    const old = {
+      ...baseMemory,
+      created_at: "2020-01-01T00:00:00.000Z",
+      last_retrieved_at: "2026-01-01T00:00:00.000Z",
+    };
+    expect(scoreImportance(old, Date.parse("2026-01-01T00:00:00.000Z"))).toBe(
+      10,
+    );
   });
 
   it("clamps to 0 when decay and penalties push below zero", () => {
     const ancient = Date.parse(baseMemory.created_at) + 10 * HALF_LIFE_MS;
-    expect(scoreImportance({ ...baseMemory, value: "short", confidence: "stale" }, ancient)).toBe(0);
+    expect(
+      scoreImportance(
+        { ...baseMemory, value: "short", confidence: "stale" },
+        ancient,
+      ),
+    ).toBe(0);
   });
 });

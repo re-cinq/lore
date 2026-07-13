@@ -9,7 +9,9 @@ const gap: GapResult = {
       title: "Data model",
       content: "Persist features + iterations.",
       mockups: [{ title: "schema", format: "svg", markup: "<svg/>" }],
-      questions: [{ id: "q1", question: "Which repos?", why: "scope", kind: "text" }],
+      questions: [
+        { id: "q1", question: "Which repos?", why: "scope", kind: "text" },
+      ],
     },
   ],
   draft_spec_markdown: "# Spec",
@@ -34,7 +36,9 @@ describe("composePlanningPrompt", () => {
       originalPrompt: "P",
       priorGap: gap,
       answers: {
-        sections: { "Data model": { direction: "refine", comment: "add a join table" } },
+        sections: {
+          "Data model": { direction: "refine", comment: "add a join table" },
+        },
         questions: { q1: "all repos" },
         free_form: "ship it",
       },
@@ -44,7 +48,9 @@ describe("composePlanningPrompt", () => {
     expect(out).toContain("A planning Station.");
     expect(out).toContain('<Section title="Data model">');
     expect(out).toContain("Diagrams: schema");
-    expect(out).toContain('<UserComment direction="refine">\nadd a join table\n</UserComment>');
+    expect(out).toContain(
+      '<UserComment direction="refine">\nadd a join table\n</UserComment>',
+    );
     expect(out).toContain("<OtherUserComments>\nship it\n</OtherUserComments>");
   });
 

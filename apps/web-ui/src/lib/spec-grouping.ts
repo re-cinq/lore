@@ -22,7 +22,12 @@ export interface SpecSummaryInput {
   filePath: string;
   title: string;
   description: string;
-  coverage?: { testable: number; covered: number; untestable?: number; ratio: number };
+  coverage?: {
+    testable: number;
+    covered: number;
+    untestable?: number;
+    ratio: number;
+  };
 }
 
 /** One card: a spec folder, its document title, summed coverage, and every file. */
@@ -60,7 +65,12 @@ function sumCoverage(items: SpecSummaryInput[]): SpecGroupCoverage {
     covered += coverage.covered;
     untestable += coverage.untestable ?? 0;
   }
-  return { testable, covered, untestable, ratio: testable > 0 ? covered / testable : 0 };
+  return {
+    testable,
+    covered,
+    untestable,
+    ratio: testable > 0 ? covered / testable : 0,
+  };
 }
 
 /** Collapse per-file summaries into one card per spec folder, titled from spec.md. */

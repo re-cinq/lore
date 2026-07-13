@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { captureBaselineForRepo, captureBaselineAllRepos, type BaselineRepoScan } from "./dark-factory-baseline.js";
+import {
+  captureBaselineForRepo,
+  captureBaselineAllRepos,
+  type BaselineRepoScan,
+} from "./dark-factory-baseline.js";
 import {
   InMemoryBaseline,
   type TaskRecord,
@@ -75,7 +79,10 @@ describe("captureBaselineAllRepos", () => {
     };
 
     const result = await captureBaselineAllRepos(
-      { baseline: failing, repoScan: repoScan(["re-cinq/good", "re-cinq/bad"]) },
+      {
+        baseline: failing,
+        repoScan: repoScan(["re-cinq/good", "re-cinq/bad"]),
+      },
       NOW,
     );
 

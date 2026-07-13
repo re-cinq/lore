@@ -10,7 +10,10 @@ import { makeGraphLlmCall } from "../helpers.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 const SessionSummaryBody = z.object({
-  session_log: z.union([z.string().min(1), z.object({ summary: z.string().optional() }).passthrough()]),
+  session_log: z.union([
+    z.string().min(1),
+    z.object({ summary: z.string().optional() }).passthrough(),
+  ]),
   repo: z.string().optional(),
   agent_id: z.string().optional(),
 });
@@ -20,17 +23,23 @@ export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/session-summary",
-    options: { ...bearerScope("write"), validate: { payload: zodValidate(SessionSummaryBody) } },
+    options: {
+      ...bearerScope("write"),
+      validate: { payload: zodValidate(SessionSummaryBody) },
+    },
     handler: async (request, h) => {
       const pool = getPool();
       try {
-        const { session_log, repo, agent_id } = request.payload as SessionSummaryBody;
+        const { session_log, repo, agent_id } =
+          request.payload as SessionSummaryBody;
 
-        const summary = typeof session_log === "string"
-          ? session_log
-          : (session_log.summary || JSON.stringify(session_log));
+        const summary =
+          typeof session_log === "string"
+            ? session_log
+            : session_log.summary || JSON.stringify(session_log);
 
-        if (!summary || summary.length < 10) return h.response({ status: "skipped", reason: "empty session" });
+        if (!summary || summary.length < 10)
+          return h.response({ status: "skipped", reason: "empty session" });
 
         const content = `Session in ${repo || "unknown"}\n\n${summary}`;
         const agent = agent_id || "session-hook";
@@ -48,9 +57,19 @@ export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
 
         if (rows.length === 0) return h.response({ status: "duplicate" });
 
-        extractFactsFromEpisode(rows[0].id, content, agent, pool).catch(() => {});
+        extractFactsFromEpisode(rows[0].id, content, agent, pool).catch(
+          () => {},
+        );
         const gLlm = makeGraphLlmCall(pool);
-        if (gLlm) extractAndUpdateGraph(pool, content, repo || null, rows[0].id, null, gLlm).catch(() => {});
+        if (gLlm)
+          extractAndUpdateGraph(
+            pool,
+            content,
+            repo || null,
+            rows[0].id,
+            null,
+            gLlm,
+          ).catch(() => {});
         return h.response({ status: "ok", episode_id: rows[0].id });
       } catch (err: any) {
         return h.response({ error: err.message }).code(500);

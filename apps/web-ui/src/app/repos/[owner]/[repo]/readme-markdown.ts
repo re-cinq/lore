@@ -13,6 +13,6 @@ export function resolveUrl(url: string, base: string): string {
 export function splitBlocks(markdown: string): string[] {
   return markdown
     .split(/\n\s*\n/)
-    .map(b => b.trim())
+    .map((b) => b.trim())
     .filter(Boolean);
 }

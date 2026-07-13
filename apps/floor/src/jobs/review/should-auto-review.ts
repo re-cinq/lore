@@ -6,7 +6,8 @@ import { settings } from "../../kernel/queues.js";
  * testable without the DB; {@link shouldAutoReview} is the DB-backed wrapper.
  */
 export function autoReviewEnabled(rawSettings: unknown): boolean {
-  const parsed = typeof rawSettings === "string" ? safeParse(rawSettings) : rawSettings;
+  const parsed =
+    typeof rawSettings === "string" ? safeParse(rawSettings) : rawSettings;
   return (parsed as { auto_review?: boolean } | null)?.auto_review === true;
 }
 

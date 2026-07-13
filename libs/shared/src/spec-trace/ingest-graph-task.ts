@@ -23,7 +23,11 @@ const INGEST_MANIFEST_PATH = ".lore/ingest.yml";
  * patterns, or undefined when the file is absent/unreadable or the kind isn't
  * declared (→ caller falls back to the built-in prefix defaults).
  */
-async function loadKindPatterns(ports: IngestGraphPorts, kind: IngestKind, ref?: string): Promise<string[] | undefined> {
+async function loadKindPatterns(
+  ports: IngestGraphPorts,
+  kind: IngestKind,
+  ref?: string,
+): Promise<string[] | undefined> {
   try {
     const raw = await ports.readFile(INGEST_MANIFEST_PATH, ref);
     return parseIngestPatterns(parseYaml(raw))[kind];
@@ -66,7 +70,14 @@ export interface IngestGraphPorts {
 /** One file-projectable kind: how to discover its files + how to project one. */
 export interface IngestKindDef {
   prefixes: string[];
-  project(repo: string, filePath: string, content: string, dgraph: DgraphClientPort, embed?: (text: string) => Promise<number[] | null>, force?: boolean): Promise<{ projected: boolean }>;
+  project(
+    repo: string,
+    filePath: string,
+    content: string,
+    dgraph: DgraphClientPort,
+    embed?: (text: string) => Promise<number[] | null>,
+    force?: boolean,
+  ): Promise<{ projected: boolean }>;
   runsOn: "runner+local" | "local-only";
 }
 
@@ -78,8 +89,16 @@ export interface IngestKindDef {
  * ingest kind.
  */
 export const INGEST_KINDS: Record<string, IngestKindDef> = {
-  specs: { prefixes: ["specs/", ".specify/"], project: projectSpecFile, runsOn: "runner+local" },
-  adrs: { prefixes: ["adrs/"], project: projectAdrFile, runsOn: "runner+local" },
+  specs: {
+    prefixes: ["specs/", ".specify/"],
+    project: projectSpecFile,
+    runsOn: "runner+local",
+  },
+  adrs: {
+    prefixes: ["adrs/"],
+    project: projectAdrFile,
+    runsOn: "runner+local",
+  },
 };
 
 /**
@@ -97,7 +116,10 @@ export function selectIngestFiles(
   patterns?: string[],
 ): string[] {
   if (patterns && patterns.length > 0) {
-    return tree.filter((path) => matchesAnyGlob(path, patterns) && (!glob || path.includes(glob)));
+    return tree.filter(
+      (path) =>
+        matchesAnyGlob(path, patterns) && (!glob || path.includes(glob)),
+    );
   }
   const def = registry[kind];
   if (!def) return [];
@@ -119,7 +141,9 @@ export function summarizeIngest(
 ): IngestGraphSummary {
   const failed = failedFiles.length;
   const status: IngestGraphSummary["status"] =
-    attempted > 0 && projected === 0 && skipped === 0 && failed > 0 ? "failed" : "completed";
+    attempted > 0 && projected === 0 && skipped === 0 && failed > 0
+      ? "failed"
+      : "completed";
   const message =
     status === "failed"
       ? `${kind}: all ${attempted} file(s) failed to project`
@@ -128,7 +152,15 @@ export function summarizeIngest(
 }
 
 function skippedSummary(kind: IngestKind, message: string): IngestGraphSummary {
-  return { kind, projected: 0, skipped: 0, failed: 0, failedFiles: [], status: "skipped", message };
+  return {
+    kind,
+    projected: 0,
+    skipped: 0,
+    failed: 0,
+    failedFiles: [],
+    status: "skipped",
+    message,
+  };
 }
 
 export async function runIngestGraph(
@@ -137,24 +169,47 @@ export async function runIngestGraph(
   registry: Record<string, IngestKindDef> = INGEST_KINDS,
 ): Promise<IngestGraphSummary> {
   if (!ports.dgraph) {
-    return skippedSummary(params.kind, "Dgraph not configured (LORE_DGRAPH_HTTP unset)");
+    return skippedSummary(
+      params.kind,
+      "Dgraph not configured (LORE_DGRAPH_HTTP unset)",
+    );
   }
 
   if (params.kind === "tests") {
     if (!ports.buildTestReport) {
-      return skippedSummary("tests", "test ingest runs locally / in CI only (trusted sandbox)");
+      return skippedSummary(
+        "tests",
+        "test ingest runs locally / in CI only (trusted sandbox)",
+      );
     }
     const report = await ports.buildTestReport();
     await ingestSpecTrace(ports.dgraph, params.repo, "test-report", report);
-    const count = Array.isArray((report as { tests?: unknown[] }).tests) ? (report as { tests: unknown[] }).tests.length : 0;
-    return { kind: "tests", projected: count, skipped: 0, failed: 0, failedFiles: [], status: "completed", message: `tests: ingested ${count} test(s)` };
+    const count = Array.isArray((report as { tests?: unknown[] }).tests)
+      ? (report as { tests: unknown[] }).tests.length
+      : 0;
+    return {
+      kind: "tests",
+      projected: count,
+      skipped: 0,
+      failed: 0,
+      failedFiles: [],
+      status: "completed",
+      message: `tests: ingested ${count} test(s)`,
+    };
   }
 
   const def = registry[params.kind];
-  if (!def) return skippedSummary(params.kind, `unknown ingest kind "${params.kind}"`);
+  if (!def)
+    return skippedSummary(params.kind, `unknown ingest kind "${params.kind}"`);
 
   const patterns = await loadKindPatterns(ports, params.kind, params.ref);
-  const files = selectIngestFiles(await ports.listTree(params.ref), params.kind, params.glob, registry, patterns);
+  const files = selectIngestFiles(
+    await ports.listTree(params.ref),
+    params.kind,
+    params.glob,
+    registry,
+    patterns,
+  );
   // SEQUENTIAL on purpose: every file's projection upserts the shared Repo node,
   // so running them through one unbounded Promise.all causes Dgraph transaction
   // conflicts at scale (a 100+-spec repo failed most files on the first pass).
@@ -165,17 +220,33 @@ export async function runIngestGraph(
   for (const filePath of files) {
     try {
       const content = await ports.readFile(filePath, params.ref);
-      const result = await def.project(params.repo, filePath, content, ports.dgraph, undefined, params.force);
+      const result = await def.project(
+        params.repo,
+        filePath,
+        content,
+        ports.dgraph,
+        undefined,
+        params.force,
+      );
       if (result.projected) projected += 1;
       else skipped += 1;
     } catch (err) {
       // Per-file isolation must NOT mean a silent failure: log the actual reason
       // (file + kind + repo) so a failed projection is debuggable from pod /
       // runner logs. failedFiles keeps the names for the structured count.
-      const reason = err instanceof Error ? (err.stack ?? err.message) : String(err);
-      console.error(`[ingest-graph] ${params.kind} ${params.repo} :: ${filePath} failed to project: ${reason}`);
+      const reason =
+        err instanceof Error ? (err.stack ?? err.message) : String(err);
+      console.error(
+        `[ingest-graph] ${params.kind} ${params.repo} :: ${filePath} failed to project: ${reason}`,
+      );
       failedFiles.push(filePath);
     }
   }
-  return summarizeIngest(params.kind, files.length, projected, skipped, failedFiles);
+  return summarizeIngest(
+    params.kind,
+    files.length,
+    projected,
+    skipped,
+    failedFiles,
+  );
 }

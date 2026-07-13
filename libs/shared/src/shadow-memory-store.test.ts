@@ -53,7 +53,10 @@ describe("ShadowMemoryStore", () => {
     const primary = new FakeStore("from-primary");
     const shadow = new FakeStore("from-shadow");
 
-    const result = await new ShadowMemoryStore(primary, shadow).readMemory("k", "agent-1");
+    const result = await new ShadowMemoryStore(primary, shadow).readMemory(
+      "k",
+      "agent-1",
+    );
 
     expect(result).toBe("from-primary");
   });
@@ -62,9 +65,16 @@ describe("ShadowMemoryStore", () => {
     const primary = new FakeStore("primary-value");
     const shadow = new FakeStore("shadow-value");
     const recorded: string[] = [];
-    const metrics = { increment: (name: string) => { recorded.push(name); } };
+    const metrics = {
+      increment: (name: string) => {
+        recorded.push(name);
+      },
+    };
 
-    await new ShadowMemoryStore(primary, shadow, { metrics }).readMemory("k", "agent-1");
+    await new ShadowMemoryStore(primary, shadow, { metrics }).readMemory(
+      "k",
+      "agent-1",
+    );
 
     expect(recorded).toContain("lore.memory.shadow_divergence");
   });
@@ -73,7 +83,10 @@ describe("ShadowMemoryStore", () => {
     const primary = new FakeStore("primary-value");
     const shadowThatThrows = new ThrowingStore();
 
-    const result = await new ShadowMemoryStore(primary, shadowThatThrows).readMemory("k", "agent-1");
+    const result = await new ShadowMemoryStore(
+      primary,
+      shadowThatThrows,
+    ).readMemory("k", "agent-1");
 
     expect(result).toBe("primary-value");
   });
@@ -82,22 +95,37 @@ describe("ShadowMemoryStore", () => {
     const primary = new FakeStore("primary-value");
     const shadow = new ThrowingStore();
     const logged: unknown[] = [];
-    const logger = { error: (...args: unknown[]) => { logged.push(args); } };
+    const logger = {
+      error: (...args: unknown[]) => {
+        logged.push(args);
+      },
+    };
 
-    const result = await new ShadowMemoryStore(primary, shadow, { logger }).readMemory("k", "agent-1");
+    const result = await new ShadowMemoryStore(primary, shadow, {
+      logger,
+    }).readMemory("k", "agent-1");
 
     expect(result).toBe("primary-value");
     expect(logged.length).toBeGreaterThan(0);
-    expect(JSON.stringify(logged) + String(logged)).toMatch(/shadow|shadow down/i);
+    expect(JSON.stringify(logged) + String(logged)).toMatch(
+      /shadow|shadow down/i,
+    );
   });
 
   it("emits no divergence metric when primary and shadow agree", async () => {
     const primary = new FakeStore("same-value");
     const shadow = new FakeStore("same-value");
     const recorded: string[] = [];
-    const metrics = { increment: (name: string) => { recorded.push(name); } };
+    const metrics = {
+      increment: (name: string) => {
+        recorded.push(name);
+      },
+    };
 
-    await new ShadowMemoryStore(primary, shadow, { metrics }).readMemory("k", "agent-1");
+    await new ShadowMemoryStore(primary, shadow, { metrics }).readMemory(
+      "k",
+      "agent-1",
+    );
 
     expect(recorded).toEqual([]);
   });
@@ -106,10 +134,17 @@ describe("ShadowMemoryStore", () => {
     const primary = new FakeStore("primary-value");
     const shadow = new ThrowingStore();
     const recorded: string[] = [];
-    const metrics = { increment: (name: string) => { recorded.push(name); } };
+    const metrics = {
+      increment: (name: string) => {
+        recorded.push(name);
+      },
+    };
     const logger = { error: () => {} };
 
-    await new ShadowMemoryStore(primary, shadow, { metrics, logger }).readMemory("k", "agent-1");
+    await new ShadowMemoryStore(primary, shadow, {
+      metrics,
+      logger,
+    }).readMemory("k", "agent-1");
 
     expect(recorded).toEqual([]);
   });

@@ -121,8 +121,8 @@ export default function Timeline({
 
       {data.branch_deleted && (
         <div className={styles.deletedBanner}>
-          Branch <code>{data.branch_name}</code> has been deleted on the
-          remote. Showing last cached state.
+          Branch <code>{data.branch_name}</code> has been deleted on the remote.
+          Showing last cached state.
         </div>
       )}
 
@@ -156,13 +156,9 @@ export default function Timeline({
                 >
                   {c.outcome}
                 </span>
-                <span className="meta">
-                  {formatDuration(c.duration_ms)}
-                </span>
+                <span className="meta">{formatDuration(c.duration_ms)}</span>
               </div>
-              <div className={styles.summary}>
-                {c.summary}
-              </div>
+              <div className={styles.summary}>{c.summary}</div>
               {data.repo && (
                 <a
                   href={`https://github.com/${data.repo}/commit/${c.sha}`}
@@ -180,7 +176,8 @@ export default function Timeline({
 
       {data.lease?.held && (
         <div className={`meta ${styles.lease}`}>
-          <Icon name="lock" size={12} /> Lease held by <code>{data.lease.holder}</code>
+          <Icon name="lock" size={12} /> Lease held by{" "}
+          <code>{data.lease.holder}</code>
           {data.lease.expires_at &&
             ` (expires ${new Date(data.lease.expires_at).toLocaleTimeString()})`}
         </div>

@@ -22,7 +22,10 @@ import { projectFor } from "../../composition/project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 
-export async function handleFeaturePlanning(task: any, targetRepo: string): Promise<void> {
+export async function handleFeaturePlanning(
+  task: any,
+  targetRepo: string,
+): Promise<void> {
   const featureId: string | undefined = task.context_bundle?.feature_id;
   const iteration: number | undefined = task.context_bundle?.iteration;
   enforceTrue(
@@ -34,7 +37,9 @@ export async function handleFeaturePlanning(task: any, targetRepo: string): Prom
   const features = project.features;
   // Resolve the feature-planning agent definition (project → org → yaml/code) so
   // the prompt + model come from lore.agent_definitions; fall back to the constant.
-  const agentDef = await project.agentDefs.resolve("feature-planning").catch(() => null);
+  const agentDef = await project.agentDefs
+    .resolve("feature-planning")
+    .catch(() => null);
   await setStatus(task.id, "running");
   await insertEvent(task.id, "queued", "running");
 
@@ -61,21 +66,34 @@ export async function handleFeaturePlanning(task: any, targetRepo: string): Prom
     }
 
     await setStatus(task.id, "completed");
-    await insertEvent(task.id, "running", "completed", { feature_id: featureId, iteration });
-    console.log(`[floor] feature-planning round ${iteration} ready for feature ${featureId}`);
+    await insertEvent(task.id, "running", "completed", {
+      feature_id: featureId,
+      iteration,
+    });
+    console.log(
+      `[floor] feature-planning round ${iteration} ready for feature ${featureId}`,
+    );
   } catch (err: any) {
     // Surface the failure: mark the iteration failed; re-throw so the task is
     // recorded as failed too. Only drop the feature to 'draft' if no round ever
     // produced a result (else keep the prior status). Guard the move so a stale
     // failure can't drag an already-finalized feature back into the wizard.
-    await features.setIterationResult(featureId, iteration, null, "failed").catch(() => {});
+    await features
+      .setIterationResult(featureId, iteration, null, "failed")
+      .catch(() => {});
     const failedFeature = await features.get(featureId).catch(() => null);
-    if (failedFeature && isPlanningPhase(failedFeature.status) && !failedFeature.iterations.some((i) => i.gap_result)) {
+    if (
+      failedFeature &&
+      isPlanningPhase(failedFeature.status) &&
+      !failedFeature.iterations.some((i) => i.gap_result)
+    ) {
       await features.transitionStatus(featureId, "draft").catch(() => {});
     }
     await setStatus(task.id, "failed", { failure_reason: err.message });
     await insertEvent(task.id, "running", "failed", { reason: err.message });
-    console.error(`[floor] feature-planning round ${iteration} failed for feature ${featureId}: ${err.message}`);
+    console.error(
+      `[floor] feature-planning round ${iteration} failed for feature ${featureId}: ${err.message}`,
+    );
     throw err;
   }
 }

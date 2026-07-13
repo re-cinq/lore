@@ -12,9 +12,15 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 
-export async function handleFeatureFinalize(task: any, targetRepo: string): Promise<void> {
+export async function handleFeatureFinalize(
+  task: any,
+  targetRepo: string,
+): Promise<void> {
   const featureId: string | undefined = task.context_bundle?.feature_id;
-  enforceTrue(featureId, "feature-finalize task is missing feature_id in context_bundle");
+  enforceTrue(
+    featureId,
+    "feature-finalize task is missing feature_id in context_bundle",
+  );
 
   const project = await projectFor(targetRepo);
   const features = project.features;
@@ -30,10 +36,16 @@ export async function handleFeatureFinalize(task: any, targetRepo: string): Prom
     const branch = `lore/feature-planning/${feature.slug}-${task.id.substring(0, 8)}`;
 
     await project.repo.createBranch(branch);
-    await project.repo.commitFile(branch, specPath, feature.draft_spec_md, `lore: add ${specPath}`);
+    await project.repo.commitFile(
+      branch,
+      specPath,
+      feature.draft_spec_md,
+      `lore: add ${specPath}`,
+    );
 
     // Conditional user-story Issue (reuses the existing dark-factory decision).
-    const { shouldCreateIssue } = await import("../dark-factory/dark-factory.js");
+    const { shouldCreateIssue } =
+      await import("../dark-factory/dark-factory.js");
     let issueNumber: number | undefined;
     let issueUrl: string | undefined;
     if ((await shouldCreateIssue(task)).create) {
@@ -46,7 +58,9 @@ export async function handleFeatureFinalize(task: any, targetRepo: string): Prom
         issueNumber = issue.number;
         issueUrl = issue.url;
       } catch (err: any) {
-        console.warn(`[floor] feature-finalize: could not create user-story Issue: ${err.message}`);
+        console.warn(
+          `[floor] feature-finalize: could not create user-story Issue: ${err.message}`,
+        );
       }
     }
 
@@ -66,13 +80,24 @@ export async function handleFeatureFinalize(task: any, targetRepo: string): Prom
       ...(issueUrl ? { issue_url: issueUrl } : {}),
     });
 
-    await setStatus(task.id, "pr-created", { pr_url: pr.url, pr_number: pr.number, target_branch: branch });
-    await insertEvent(task.id, "running", "pr-created", { pr_url: pr.url, feature_id: featureId });
-    console.log(`[floor] feature-finalize: feature ${featureId} → PR ${pr.url}`);
+    await setStatus(task.id, "pr-created", {
+      pr_url: pr.url,
+      pr_number: pr.number,
+      target_branch: branch,
+    });
+    await insertEvent(task.id, "running", "pr-created", {
+      pr_url: pr.url,
+      feature_id: featureId,
+    });
+    console.log(
+      `[floor] feature-finalize: feature ${featureId} → PR ${pr.url}`,
+    );
   } catch (err: any) {
     await setStatus(task.id, "failed", { failure_reason: err.message });
     await insertEvent(task.id, "running", "failed", { reason: err.message });
-    console.error(`[floor] feature-finalize failed for feature ${featureId}: ${err.message}`);
+    console.error(
+      `[floor] feature-finalize failed for feature ${featureId}: ${err.message}`,
+    );
     throw err;
   }
 }

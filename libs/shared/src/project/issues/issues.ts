@@ -1,4 +1,9 @@
-import type { GitHubPort, IssueRef, IssueFilter, CloseReason } from "../lib/github-port.js";
+import type {
+  GitHubPort,
+  IssueRef,
+  IssueFilter,
+  CloseReason,
+} from "../lib/github-port.js";
 
 /**
  * project.issues — a value-object sub-facade over the GitHubPort, repo bound.
@@ -22,7 +27,9 @@ export class IssueCollection {
     return this.github.createIssue(this.repo, title, body, labels);
   }
 
-  createLabels(labels: Array<{ name: string; color?: string; description?: string }>): Promise<void> {
+  createLabels(
+    labels: Array<{ name: string; color?: string; description?: string }>,
+  ): Promise<void> {
     return this.github.createLabels(this.repo, labels);
   }
 

@@ -38,7 +38,11 @@ export function runClaudeCli(params: {
 
   return new Promise<ClaudeCliResult>((resolve, reject) => {
     let stdout = "";
-    const proc = spawn(bin, args, { cwd: workDir, env: { ...env }, stdio: ["ignore", "pipe", "pipe"] });
+    const proc = spawn(bin, args, {
+      cwd: workDir,
+      env: { ...env },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     proc.stdout.on("data", (chunk: Buffer) => {
       stdout += chunk.toString();
     });

@@ -16,7 +16,16 @@ export interface MemoryRecord {
 }
 
 export interface MemoryPort {
-  write(repo: string, key: string, value: string, agentId: string): Promise<MemoryWriteResult>;
-  read(repo: string, key: string, agentId: string): Promise<MemoryRecord | null>;
+  write(
+    repo: string,
+    key: string,
+    value: string,
+    agentId: string,
+  ): Promise<MemoryWriteResult>;
+  read(
+    repo: string,
+    key: string,
+    agentId: string,
+  ): Promise<MemoryRecord | null>;
   list(repo: string, agentId: string): Promise<MemoryRecord[]>;
 }

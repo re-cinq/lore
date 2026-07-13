@@ -55,10 +55,15 @@ export function descriptorsFromVitestList(
  * orchestrators run `run` ONCE per file (coverage is file-level) and fan the
  * result back to every descriptor sharing that file.
  */
-export function groupRunsByFile(descriptors: TestDescriptor[]): Map<string, string[]> {
+export function groupRunsByFile(
+  descriptors: TestDescriptor[],
+): Map<string, string[]> {
   const byFile = new Map<string, string[]>();
   for (const descriptor of descriptors) {
-    (byFile.get(descriptor.file) ?? byFile.set(descriptor.file, []).get(descriptor.file)!).push(descriptor.id);
+    (
+      byFile.get(descriptor.file) ??
+      byFile.set(descriptor.file, []).get(descriptor.file)!
+    ).push(descriptor.id);
   }
   return byFile;
 }

@@ -12,14 +12,16 @@ import { prFooter, setTaskStatus, recordTaskEvent } from "@re-cinq/lore-shared";
 // ── Helpers ───────────────────────────────────────────────────────────
 
 export function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 30)
-    // The 30-char cut can land on a `-`; trim it so a slug (and the branch name
-    // built from it) never ends in a dash.
-    .replace(/-+$/, "");
+  return (
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 30)
+      // The 30-char cut can land on a `-`; trim it so a slug (and the branch name
+      // built from it) never ends in a dash.
+      .replace(/-+$/, "")
+  );
 }
 
 // ── Status transition helpers ─────────────────────────────────────────
@@ -27,7 +29,11 @@ export function slugify(text: string): string {
 // setStatus + insertEvent are single-sourced in @re-cinq/lore-shared
 // (pipeline-tasks: setTaskStatus + recordEvent). These thin wrappers keep the
 // agent's call sites and bind the agent's pg pool.
-export function setStatus(taskId: string, status: string, extra: Record<string, unknown> = {}): Promise<void> {
+export function setStatus(
+  taskId: string,
+  status: string,
+  extra: Record<string, unknown> = {},
+): Promise<void> {
   return setTaskStatus(getPool(), taskId, status, extra);
 }
 
@@ -52,7 +58,9 @@ export async function linkPrToIssue(
   try {
     const project = await projectFor(repo);
     await project.issues.comment(issueNumber, `PR created: ${prUrl}`);
-  } catch { /* best effort */ }
+  } catch {
+    /* best effort */
+  }
 }
 
 /**

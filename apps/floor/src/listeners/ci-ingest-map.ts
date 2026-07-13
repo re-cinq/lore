@@ -27,7 +27,8 @@ export type CiIngestResult =
 export function mapCiIngest(body: CiIngestBody): CiIngestResult {
   if (!body.repo) return { ok: false, status: 400, error: "missing repo" };
 
-  const requested = body.kinds && body.kinds.length > 0 ? body.kinds : [...DOC_KINDS];
+  const requested =
+    body.kinds && body.kinds.length > 0 ? body.kinds : [...DOC_KINDS];
   const unsupported = requested.filter((k) => !DOC_KIND_SET.has(k));
   if (unsupported.length > 0) {
     return {
@@ -40,7 +41,11 @@ export function mapCiIngest(body: CiIngestBody): CiIngestResult {
   const events: EventInput[] = requested.map((kind) => ({
     eventName: "internal.ingest.spec_trace",
     source: "internal",
-    params: { repo: body.repo, kind, payload: { commit: body.commit, force: body.force } },
+    params: {
+      repo: body.repo,
+      kind,
+      payload: { commit: body.commit, force: body.force },
+    },
   }));
   return { ok: true, events };
 }

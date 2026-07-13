@@ -4,9 +4,10 @@ import { InMemoryChunks } from "./chunks-memory.js";
 import type { ChunkInsert } from "./chunks-port.js";
 import type { PgPool } from "../../memory-store.js";
 
-function fakePool(
-  result: { rows: any[] } = { rows: [] },
-): { pool: PgPool; calls: Array<{ text: string; params?: unknown[] }> } {
+function fakePool(result: { rows: any[] } = { rows: [] }): {
+  pool: PgPool;
+  calls: Array<{ text: string; params?: unknown[] }>;
+} {
   const calls: Array<{ text: string; params?: unknown[] }> = [];
   const pool: PgPool = {
     async query(text: string, params?: unknown[]) {
@@ -54,9 +55,15 @@ describe("PgChunks adapter", () => {
   it("deletes chunks for a file by path and repo", async () => {
     const { pool, calls } = fakePool();
 
-    await new PgChunks(pool).deleteChunksForFile("platform", "specs/spec.md", "octo/repo");
+    await new PgChunks(pool).deleteChunksForFile(
+      "platform",
+      "specs/spec.md",
+      "octo/repo",
+    );
 
-    expect(calls[0]?.text).toContain("DELETE FROM platform.chunks WHERE file_path = $1 AND repo = $2");
+    expect(calls[0]?.text).toContain(
+      "DELETE FROM platform.chunks WHERE file_path = $1 AND repo = $2",
+    );
     expect(calls[0]?.params).toEqual(["specs/spec.md", "octo/repo"]);
   });
 
@@ -80,7 +87,9 @@ describe("PgChunks adapter", () => {
   it("returns null when the insert yields no row", async () => {
     const { pool } = fakePool({ rows: [] });
 
-    expect(await new PgChunks(pool).insertChunk("platform", sampleChunk)).toBeNull();
+    expect(
+      await new PgChunks(pool).insertChunk("platform", sampleChunk),
+    ).toBeNull();
   });
 
   it("sets the embedding via the caller-formatted vector string", async () => {
@@ -88,15 +97,24 @@ describe("PgChunks adapter", () => {
 
     await new PgChunks(pool).setEmbedding("platform", "42", "[0.1,0.2,0.3]");
 
-    expect(calls[0]?.text).toContain("UPDATE platform.chunks SET embedding = $1::vector WHERE id = $2");
+    expect(calls[0]?.text).toContain(
+      "UPDATE platform.chunks SET embedding = $1::vector WHERE id = $2",
+    );
     expect(calls[0]?.params).toEqual(["[0.1,0.2,0.3]", "42"]);
   });
 
   it("returns distinct non-null teams from org_shared.chunks", async () => {
-    const { pool, calls } = fakePool({ rows: [{ team: "platform" }, { team: "growth" }] });
+    const { pool, calls } = fakePool({
+      rows: [{ team: "platform" }, { team: "growth" }],
+    });
 
-    expect(await new PgChunks(pool).distinctTeams()).toEqual(["platform", "growth"]);
-    expect(calls[0]?.text).toContain("FROM org_shared.chunks WHERE team IS NOT NULL");
+    expect(await new PgChunks(pool).distinctTeams()).toEqual([
+      "platform",
+      "growth",
+    ]);
+    expect(calls[0]?.text).toContain(
+      "FROM org_shared.chunks WHERE team IS NOT NULL",
+    );
   });
 
   it("parses the org_shared count for a team to a number", async () => {
@@ -123,12 +141,16 @@ describe("PgChunks adapter", () => {
 
   it("reads a repo's spec chunks from org_shared", async () => {
     const { pool, calls } = fakePool({
-      rows: [{ id: "1", repo: "octo/repo", file_path: "specs/s.md", content: "x" }],
+      rows: [
+        { id: "1", repo: "octo/repo", file_path: "specs/s.md", content: "x" },
+      ],
     });
 
     const specs = await new PgChunks(pool).specChunks("octo/repo");
 
-    expect(specs).toEqual([{ id: "1", repo: "octo/repo", filePath: "specs/s.md", content: "x" }]);
+    expect(specs).toEqual([
+      { id: "1", repo: "octo/repo", filePath: "specs/s.md", content: "x" },
+    ]);
     expect(calls[0]?.text).toContain("FROM org_shared.chunks");
     expect(calls[0]?.text).toContain("content_type = 'spec'");
     expect(calls[0]?.params).toEqual(["octo/repo"]);
@@ -136,12 +158,20 @@ describe("PgChunks adapter", () => {
 
   it("reads a repo's code symbols from org_shared", async () => {
     const { pool, calls } = fakePool({
-      rows: [{ symbol_name: "runDetect", symbol_type: "function", file_path: "a.ts" }],
+      rows: [
+        {
+          symbol_name: "runDetect",
+          symbol_type: "function",
+          file_path: "a.ts",
+        },
+      ],
     });
 
     const symbols = await new PgChunks(pool).codeSymbols("octo/repo");
 
-    expect(symbols).toEqual([{ symbolName: "runDetect", symbolType: "function", filePath: "a.ts" }]);
+    expect(symbols).toEqual([
+      { symbolName: "runDetect", symbolType: "function", filePath: "a.ts" },
+    ]);
     expect(calls[0]?.text).toContain("symbol_name");
     expect(calls[0]?.params).toEqual(["octo/repo"]);
   });
@@ -149,7 +179,9 @@ describe("PgChunks adapter", () => {
   it("checks chunk existence by content type and optional file suffix", async () => {
     const { pool, calls } = fakePool({ rows: [{ id: "1" }] });
 
-    expect(await new PgChunks(pool).hasChunk("octo/repo", "doc", "CLAUDE.md")).toBe(true);
+    expect(
+      await new PgChunks(pool).hasChunk("octo/repo", "doc", "CLAUDE.md"),
+    ).toBe(true);
     expect(calls[0]?.text).toContain("file_path LIKE");
     expect(calls[0]?.params).toEqual(["octo/repo", "doc", "%CLAUDE.md"]);
   });
@@ -177,7 +209,10 @@ describe("InMemoryChunks double", () => {
   it("scopes deletes to schema, file_path and repo", async () => {
     const chunks = new InMemoryChunks();
     await chunks.insertChunk("platform", sampleChunk);
-    await chunks.insertChunk("platform", { ...sampleChunk, filePath: "specs/other.md" });
+    await chunks.insertChunk("platform", {
+      ...sampleChunk,
+      filePath: "specs/other.md",
+    });
 
     await chunks.deleteChunksForFile("platform", "specs/spec.md", "octo/repo");
 
@@ -203,12 +238,21 @@ describe("InMemoryChunks double", () => {
 
   it("returns distinct teams and per-team counts from org_shared rows only", async () => {
     const chunks = new InMemoryChunks();
-    await chunks.insertChunk("org_shared", { ...sampleChunk, team: "platform" });
-    await chunks.insertChunk("org_shared", { ...sampleChunk, team: "platform" });
+    await chunks.insertChunk("org_shared", {
+      ...sampleChunk,
+      team: "platform",
+    });
+    await chunks.insertChunk("org_shared", {
+      ...sampleChunk,
+      team: "platform",
+    });
     await chunks.insertChunk("org_shared", { ...sampleChunk, team: "growth" });
     await chunks.insertChunk("platform", { ...sampleChunk, team: "platform" });
 
-    expect((await chunks.distinctTeams()).sort()).toEqual(["growth", "platform"]);
+    expect((await chunks.distinctTeams()).sort()).toEqual([
+      "growth",
+      "platform",
+    ]);
     expect(await chunks.countChunksByTeam("platform")).toBe(2);
     expect(await chunks.countChunksByTeam("growth")).toBe(1);
   });
@@ -223,7 +267,11 @@ describe("InMemoryChunks double", () => {
 
   it("reads spec chunks and code symbols for a repo from org_shared", async () => {
     const chunks = new InMemoryChunks();
-    await chunks.insertChunk("org_shared", { ...sampleChunk, contentType: "spec", filePath: "specs/s.md" });
+    await chunks.insertChunk("org_shared", {
+      ...sampleChunk,
+      contentType: "spec",
+      filePath: "specs/s.md",
+    });
     await chunks.insertChunk("org_shared", {
       ...sampleChunk,
       contentType: "code",
@@ -237,7 +285,9 @@ describe("InMemoryChunks double", () => {
       metadata: {}, // no symbol_name → excluded
     });
 
-    expect(await chunks.specChunks("octo/repo")).toMatchObject([{ filePath: "specs/s.md", content: "hello world" }]);
+    expect(await chunks.specChunks("octo/repo")).toMatchObject([
+      { filePath: "specs/s.md", content: "hello world" },
+    ]);
     expect(await chunks.codeSymbols("octo/repo")).toEqual([
       { symbolName: "runDetect", symbolType: "function", filePath: "a.ts" },
     ]);
@@ -245,7 +295,11 @@ describe("InMemoryChunks double", () => {
 
   it("reports chunk existence by content type and file suffix", async () => {
     const chunks = new InMemoryChunks();
-    await chunks.insertChunk("org_shared", { ...sampleChunk, contentType: "doc", filePath: "docs/CLAUDE.md" });
+    await chunks.insertChunk("org_shared", {
+      ...sampleChunk,
+      contentType: "doc",
+      filePath: "docs/CLAUDE.md",
+    });
 
     expect(await chunks.hasChunk("octo/repo", "doc", "CLAUDE.md")).toBe(true);
     expect(await chunks.hasChunk("octo/repo", "doc", "AGENTS.md")).toBe(false);

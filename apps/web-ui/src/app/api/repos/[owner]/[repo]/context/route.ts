@@ -2,7 +2,10 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { query, getRepoSchema } from "@/lib/db";
 import { previewBlock } from "@/lib/preview-block";
-import { CONTEXT_PAGE_SIZE, contextChunkQuery } from "@/app/repos/[owner]/[repo]/context/pagination";
+import {
+  CONTEXT_PAGE_SIZE,
+  contextChunkQuery,
+} from "@/app/repos/[owner]/[repo]/context/pagination";
 import { serverError } from "@/lib/api-error";
 import type { RepoContextChunk } from "@/app/repos/[owner]/[repo]/context/RepoContextView";
 
@@ -18,11 +21,20 @@ export async function GET(
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || undefined;
   const type = searchParams.get("type") || undefined;
-  const offset = Math.max(0, parseInt(searchParams.get("offset") ?? "0", 10) || 0);
+  const offset = Math.max(
+    0,
+    parseInt(searchParams.get("offset") ?? "0", 10) || 0,
+  );
 
   try {
     const schema = await getRepoSchema(fullName);
-    const { sql, params: sqlParams } = contextChunkQuery(schema, fullName, type, q, offset);
+    const { sql, params: sqlParams } = contextChunkQuery(
+      schema,
+      fullName,
+      type,
+      q,
+      offset,
+    );
     const rows = await query<RepoContextChunk>(sql, sqlParams);
 
     const hasMore = rows.length > CONTEXT_PAGE_SIZE;

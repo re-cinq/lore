@@ -7,9 +7,9 @@
  * unavailable.
  */
 
-import { getQueryEmbedding } from '../../embeddings/embedding-service.js';
-import { resolveAgentId } from '../../agent-id.js';
-import { diversify, rrfMerge } from '../../memory-ranking.js';
+import { getQueryEmbedding } from "../../embeddings/embedding-service.js";
+import { resolveAgentId } from "../../agent-id.js";
+import { diversify, rrfMerge } from "../../memory-ranking.js";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -18,7 +18,7 @@ export interface MemorySearchResult {
   value: string;
   score: number;
   agent_id: string;
-  source: 'memory' | 'fact' | 'episode' | 'graph';
+  source: "memory" | "fact" | "episode" | "graph";
   id?: string;
   confidence?: string;
 }
@@ -62,7 +62,7 @@ export async function searchMemories(
   let keywordFacts: RankedRow[] = [];
 
   if (embedding) {
-    const embeddingStr = `[${embedding.join(',')}]`;
+    const embeddingStr = `[${embedding.join(",")}]`;
     [vectorMemories, vectorFacts] = await Promise.all([
       vectorSearchMemories(pool, embeddingStr, agent, poolId),
       vectorSearchFacts(pool, embeddingStr, agent, includeInvalidated),
@@ -79,7 +79,12 @@ export async function searchMemories(
   // Merge via RRF. Each list arrives in contiguous rank order (SQL
   // ROW_NUMBER + LIMIT 20), so the shared rrfMerge's index-based rank
   // equals each row's rank — identical fusion scores.
-  const merged = rrfMerge([vectorMemories, vectorFacts, keywordMemories, keywordFacts]);
+  const merged = rrfMerge([
+    vectorMemories,
+    vectorFacts,
+    keywordMemories,
+    keywordFacts,
+  ]);
 
   // Sort descending by score, cap per agent_id::source, then limit.
   // Prevents one verbose session from dominating search results.
@@ -92,7 +97,8 @@ export async function searchMemories(
     if (entities.length > 0) {
       const graphResults = await graphAugment(pool, entities);
       // Give graph results a lower score than the worst direct result
-      const minScore = results.length > 0 ? results[results.length - 1].score * 0.5 : 0.001;
+      const minScore =
+        results.length > 0 ? results[results.length - 1].score * 0.5 : 0.001;
       const graphWithScores = graphResults.map((r, i) => ({
         ...r,
         score: minScore * (1 - i * 0.05), // Decreasing scores
@@ -117,7 +123,7 @@ interface RankedRow {
   key: string;
   value: string;
   agent_id: string;
-  source: 'memory' | 'fact' | 'episode' | 'graph';
+  source: "memory" | "fact" | "episode" | "graph";
   rank: number;
   id?: string;
   confidence?: string;
@@ -146,7 +152,7 @@ async function vectorSearchMemories(
     key: r.key,
     value: r.value,
     agent_id: r.agent_id,
-    source: r.source as 'memory',
+    source: r.source as "memory",
     rank: Number(r.vec_rank),
   }));
 }
@@ -171,13 +177,17 @@ async function vectorSearchFacts(
       AND ($2::text IS NULL OR COALESCE(m.agent_id, e.agent_id) = $2)
       AND ($3::boolean OR f.valid_to IS NULL)
     LIMIT 20`;
-  const { rows } = await pool.query(sql, [embeddingStr, agentId, includeInvalidated]);
+  const { rows } = await pool.query(sql, [
+    embeddingStr,
+    agentId,
+    includeInvalidated,
+  ]);
   return rows.map((r: any) => ({
     id: r.id,
     key: r.key,
     value: r.value,
     agent_id: r.agent_id,
-    source: r.source as 'fact',
+    source: r.source as "fact",
     confidence: r.confidence,
     rank: Number(r.vec_rank),
   }));
@@ -208,7 +218,7 @@ async function keywordSearchMemories(
     key: r.key,
     value: r.value,
     agent_id: r.agent_id,
-    source: r.source as 'memory',
+    source: r.source as "memory",
     rank: Number(r.kw_rank),
   }));
 }
@@ -235,13 +245,17 @@ async function keywordSearchFacts(
       AND ($2::text IS NULL OR COALESCE(m.agent_id, e.agent_id) = $2)
       AND ($3::boolean OR f.valid_to IS NULL)
     LIMIT 20`;
-  const { rows } = await pool.query(sql, [pattern, agentId, includeInvalidated]);
+  const { rows } = await pool.query(sql, [
+    pattern,
+    agentId,
+    includeInvalidated,
+  ]);
   return rows.map((r: any) => ({
     id: r.id,
     key: r.key,
     value: r.value,
     agent_id: r.agent_id,
-    source: r.source as 'fact',
+    source: r.source as "fact",
     confidence: r.confidence,
     rank: Number(r.kw_rank),
   }));
@@ -249,33 +263,44 @@ async function keywordSearchFacts(
 
 // ── Retrieval strengthening ─────────────────────────────────────────
 
-async function strengthenRetrievals(pool: any, results: MemorySearchResult[]): Promise<void> {
-  const factIds = results.filter(r => (r.source === 'fact' || r.source === 'episode') && r.id).map(r => r.id!);
-  const memoryIds = results.filter(r => r.source === 'memory' && r.id).map(r => r.id!);
+async function strengthenRetrievals(
+  pool: any,
+  results: MemorySearchResult[],
+): Promise<void> {
+  const factIds = results
+    .filter((r) => (r.source === "fact" || r.source === "episode") && r.id)
+    .map((r) => r.id!);
+  const memoryIds = results
+    .filter((r) => r.source === "memory" && r.id)
+    .map((r) => r.id!);
 
   const ops: Promise<void>[] = [];
 
   if (factIds.length > 0) {
-    ops.push(pool.query(
-      `UPDATE memory.facts
+    ops.push(
+      pool.query(
+        `UPDATE memory.facts
        SET retrieval_count = retrieval_count + 1,
            last_retrieved_at = now(),
            half_life_days = LEAST(COALESCE(half_life_days, 30) + 2, 365),
            confidence = CASE WHEN confidence = 'stale' THEN 'observed' ELSE confidence END
        WHERE id = ANY($1)`,
-      [factIds],
-    ));
+        [factIds],
+      ),
+    );
   }
 
   if (memoryIds.length > 0) {
-    ops.push(pool.query(
-      `UPDATE memory.memories
+    ops.push(
+      pool.query(
+        `UPDATE memory.memories
        SET retrieval_count = retrieval_count + 1,
            last_retrieved_at = now(),
            half_life_days = LEAST(COALESCE(half_life_days, 60) + 2, 365)
        WHERE id = ANY($1)`,
-      [memoryIds],
-    ));
+        [memoryIds],
+      ),
+    );
   }
 
   await Promise.all(ops);
@@ -288,9 +313,15 @@ let entityCacheUpdatedAt = 0;
 const ENTITY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 async function refreshEntityCache(pool: any): Promise<void> {
-  if (Date.now() - entityCacheUpdatedAt < ENTITY_CACHE_TTL_MS && entityNameCache.size > 0) return;
+  if (
+    Date.now() - entityCacheUpdatedAt < ENTITY_CACHE_TTL_MS &&
+    entityNameCache.size > 0
+  )
+    return;
   try {
-    const { rows } = await pool.query(`SELECT LOWER(name) as name FROM memory.entities`);
+    const { rows } = await pool.query(
+      `SELECT LOWER(name) as name FROM memory.entities`,
+    );
     entityNameCache = new Set(rows.map((r: any) => r.name));
     entityCacheUpdatedAt = Date.now();
   } catch {
@@ -342,8 +373,8 @@ async function graphAugment(
           key: entity,
           value: desc,
           score: 0, // Will be set by caller
-          agent_id: 'graph',
-          source: 'graph',
+          agent_id: "graph",
+          source: "graph",
         });
       }
     } catch {
@@ -368,9 +399,13 @@ async function auditLog(
       `INSERT INTO memory.audit_log (agent_id, operation, memory_key, metadata)
        VALUES ($1, $2, NULL, $3)`,
       [
-        agentId || 'anonymous',
-        'search',
-        JSON.stringify({ query, result_count: resultCount, latency_ms: latencyMs }),
+        agentId || "anonymous",
+        "search",
+        JSON.stringify({
+          query,
+          result_count: resultCount,
+          latency_ms: latencyMs,
+        }),
       ],
     );
   } catch {

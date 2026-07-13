@@ -14,7 +14,8 @@ export function startEventReaper(intervalMs = 60_000): NodeJS.Timeout {
   return setInterval(() => {
     reapStuck(VISIBILITY_TIMEOUT_SECONDS)
       .then((n) => {
-        if (n > 0) console.log(`[events] reaped ${n} stuck processing event(s)`);
+        if (n > 0)
+          console.log(`[events] reaped ${n} stuck processing event(s)`);
       })
       .catch((err) => console.error("[events] reaper failed:", err));
   }, intervalMs);

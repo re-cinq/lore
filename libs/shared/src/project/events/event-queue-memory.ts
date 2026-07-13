@@ -18,7 +18,10 @@ export class InMemoryEventQueue implements EventQueueRepository {
   ) {}
 
   async insert(input: EventInsert): Promise<void> {
-    if (input.dedupeKey && this.rows.some((r) => r.dedupe_key === input.dedupeKey)) {
+    if (
+      input.dedupeKey &&
+      this.rows.some((r) => r.dedupe_key === input.dedupeKey)
+    ) {
       return;
     }
     const iso = at(this.now());
@@ -69,7 +72,11 @@ export class InMemoryEventQueue implements EventQueueRepository {
     });
   }
 
-  async markFailed(id: string, error: string, backoffSeconds: number): Promise<void> {
+  async markFailed(
+    id: string,
+    error: string,
+    backoffSeconds: number,
+  ): Promise<void> {
     this.mutate(id, (r) => {
       r.status = "failed";
       r.error = error.slice(0, MAX_ERROR_LEN);

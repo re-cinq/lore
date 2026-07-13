@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { PLANNING_INSTRUCTIONS, PLANNING_EXAMPLE } from "./planning-instructions.js";
+import {
+  PLANNING_INSTRUCTIONS,
+  PLANNING_EXAMPLE,
+} from "./planning-instructions.js";
 import { parseGapResult } from "./gap-result.js";
 
 describe("PLANNING_INSTRUCTIONS", () => {
@@ -13,7 +16,14 @@ describe("PLANNING_INSTRUCTIONS", () => {
   });
 
   it("pins the dynamic-sections schema field names", () => {
-    for (const field of ["sections", "content", "questions", "why", "mockups", "split_suggestion"]) {
+    for (const field of [
+      "sections",
+      "content",
+      "questions",
+      "why",
+      "mockups",
+      "split_suggestion",
+    ]) {
       expect(PLANNING_INSTRUCTIONS).toContain(field);
     }
   });

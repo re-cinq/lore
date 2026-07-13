@@ -7,10 +7,22 @@ import { describe, it, expect } from "vitest";
 // graph.test.ts.
 
 const PATTERNS: Array<{ name: string; re: RegExp }> = [
-  { name: "api-key", re: /(?:sk-|ghp_|ghs_|AKIA|xoxb-|xoxp-|glpat-)[A-Za-z0-9_\-]{20,}/g },
-  { name: "jwt", re: /eyJ[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}/g },
-  { name: "private-key", re: /-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----/g },
-  { name: "connection-string", re: /(?:postgres|mysql|mongodb|redis|amqp):\/\/[^\s"'`]+/g },
+  {
+    name: "api-key",
+    re: /(?:sk-|ghp_|ghs_|AKIA|xoxb-|xoxp-|glpat-)[A-Za-z0-9_\-]{20,}/g,
+  },
+  {
+    name: "jwt",
+    re: /eyJ[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}/g,
+  },
+  {
+    name: "private-key",
+    re: /-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----/g,
+  },
+  {
+    name: "connection-string",
+    re: /(?:postgres|mysql|mongodb|redis|amqp):\/\/[^\s"'`]+/g,
+  },
   { name: "bearer-token", re: /Bearer\s+[A-Za-z0-9_\-.]{20,}/g },
   { name: "base64-blob", re: /[A-Za-z0-9+\/]{100,}={0,2}/g },
 ];
@@ -168,7 +180,8 @@ describe("redactSecrets", () => {
   });
 
   it("preserves normal text", () => {
-    const input = "This is a normal log line with no secrets. Status: OK. Count: 42.";
+    const input =
+      "This is a normal log line with no secrets. Status: OK. Count: 42.";
     expect(redactSecrets(input)).toBe(input);
   });
 

@@ -5,15 +5,15 @@
 // directly. web-ui is not a workspace member, so these mirror the API JSON.
 
 export type SpecGraphNodeType =
-  | 'Feature'
-  | 'Spec'
-  | 'Section'
-  | 'Statement'
-  | 'AcceptanceCriterion'
-  | 'TestChunk'
-  | 'CodeChunk'
-  | 'File'
-  | 'ADR';
+  | "Feature"
+  | "Spec"
+  | "Section"
+  | "Statement"
+  | "AcceptanceCriterion"
+  | "TestChunk"
+  | "CodeChunk"
+  | "File"
+  | "ADR";
 
 export type SpecGraphNode = {
   id: string;
@@ -32,7 +32,15 @@ export type SpecGraphNode = {
 export type SpecGraphLink = {
   source: string;
   target: string;
-  kind: 'in_feature' | 'in_spec' | 'in_section' | 'has_statement' | 'validated_by' | 'implemented_by' | 'covers' | 'decided_by';
+  kind:
+    | "in_feature"
+    | "in_spec"
+    | "in_section"
+    | "has_statement"
+    | "validated_by"
+    | "implemented_by"
+    | "covers"
+    | "decided_by";
 };
 
 export interface SpecGraph {
@@ -59,4 +67,4 @@ export interface SpecRing {
   statements: RingStatement[];
 }
 
-export const UNGROUPED_SECTION = '__ungrouped__';
+export const UNGROUPED_SECTION = "__ungrouped__";

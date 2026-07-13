@@ -23,8 +23,10 @@ type Detector = (repo: string, project: Project) => Promise<string>;
 const detectors: Record<string, Detector> = {
   spec_drift: (repo, project) => specDriftJob({ repoFilter: repo, project }),
   gap_detection: (repo, project) => gapDetectJob({ repoFilter: repo, project }),
-  spec_coverage_validate: (repo, project) => validateSpecCoverageJob({ repoFilter: repo, project }),
-  spec_coverage_backfill: (repo, project) => specCoverageBackfillJob({ repoFilter: repo, project }),
+  spec_coverage_validate: (repo, project) =>
+    validateSpecCoverageJob({ repoFilter: repo, project }),
+  spec_coverage_backfill: (repo, project) =>
+    specCoverageBackfillJob({ repoFilter: repo, project }),
 };
 
 export async function runDetectStation(
@@ -38,5 +40,8 @@ export async function runDetectStation(
     throw new Error(`detect station: no detector for job_ref "${jobRef}"`);
   }
   const summary = await detector(input.repo, makeProject(input.repo));
-  return { outcome: "success", extras: { "Lore-Detect-Summary": summary.slice(0, DETECT_SUMMARY_MAX) } };
+  return {
+    outcome: "success",
+    extras: { "Lore-Detect-Summary": summary.slice(0, DETECT_SUMMARY_MAX) },
+  };
 }

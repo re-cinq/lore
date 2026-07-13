@@ -27,8 +27,12 @@ const yamlBase: AgentDefsPort = {
         }
       : null,
   list: async () => [],
-  create: async () => { throw new Error("ro"); },
-  update: async () => { throw new Error("ro"); },
+  create: async () => {
+    throw new Error("ro");
+  },
+  update: async () => {
+    throw new Error("ro");
+  },
   delete: async () => {},
 };
 
@@ -58,7 +62,10 @@ const orgRow: Row = {
 
 describe("PgAgentDefs", () => {
   it("resolves the org row and inherits the prompt from the yaml base", async () => {
-    const store = new PgAgentDefs(fakePool(() => [orgRow]), yamlBase);
+    const store = new PgAgentDefs(
+      fakePool(() => [orgRow]),
+      yamlBase,
+    );
 
     expect(await store.resolve("re-cinq/lore", "general")).toMatchObject({
       name: "general",
@@ -74,7 +81,10 @@ describe("PgAgentDefs", () => {
       model: "claude-haiku-4-5-20251001",
       project_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     };
-    const store = new PgAgentDefs(fakePool(() => [orgRow, projectRow]), yamlBase);
+    const store = new PgAgentDefs(
+      fakePool(() => [orgRow, projectRow]),
+      yamlBase,
+    );
 
     expect(await store.resolve("re-cinq/re-plan", "general")).toMatchObject({
       model: "claude-haiku-4-5-20251001", // project wins
@@ -85,14 +95,20 @@ describe("PgAgentDefs", () => {
   });
 
   it("returns null when no agent of that name exists in db or yaml", async () => {
-    const store = new PgAgentDefs(fakePool(() => []), yamlBase);
+    const store = new PgAgentDefs(
+      fakePool(() => []),
+      yamlBase,
+    );
 
     expect(await store.resolve("re-cinq/lore", "nope")).toBeNull();
   });
 
   it("binds the agent name and repo on resolve", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
-    const store = new PgAgentDefs(fakePool(() => [orgRow], capture), yamlBase);
+    const store = new PgAgentDefs(
+      fakePool(() => [orgRow], capture),
+      yamlBase,
+    );
 
     await store.resolve("re-cinq/lore", "general");
 
@@ -103,7 +119,10 @@ describe("PgAgentDefs", () => {
     // lore.repos also has a `name` column — an unqualified SELECT throws
     // "column reference name is ambiguous" against a real database.
     const capture: Array<{ text: string; params?: unknown[] }> = [];
-    const store = new PgAgentDefs(fakePool(() => [orgRow], capture), yamlBase);
+    const store = new PgAgentDefs(
+      fakePool(() => [orgRow], capture),
+      yamlBase,
+    );
 
     await store.list("re-cinq/lore");
 
@@ -119,7 +138,10 @@ describe("PgAgentDefs", () => {
       model: "claude-opus-4-8",
       project_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     };
-    const store = new PgAgentDefs(fakePool(() => [created], capture), yamlBase);
+    const store = new PgAgentDefs(
+      fakePool(() => [created], capture),
+      yamlBase,
+    );
 
     const def = await store.create("re-cinq/re-plan", {
       name: "general",
@@ -138,7 +160,10 @@ describe("PgAgentDefs", () => {
 
   it("deletes the repo's project row for a name, scoped to the repo", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
-    const store = new PgAgentDefs(fakePool(() => [], capture), yamlBase);
+    const store = new PgAgentDefs(
+      fakePool(() => [], capture),
+      yamlBase,
+    );
 
     await store.delete("re-cinq/re-plan", "general");
 
