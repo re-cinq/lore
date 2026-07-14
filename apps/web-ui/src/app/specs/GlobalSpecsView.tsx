@@ -32,7 +32,7 @@ export default function GlobalSpecsView({
     <div>
       {[...byRepo.entries()].map(([repo, paths]) => (
         <section key={repo} style={{ marginBottom: 20 }}>
-          <h2 style={{ fontSize: 16 }}>{repo}</h2>
+          <h2 style={{ fontSize: "var(--fs-base)" }}>{repo}</h2>
           <ul style={{ listStyle: "none", padding: 0 }}>
             {paths.map((filePath) => (
               <li key={filePath} style={{ marginBottom: 4 }}>

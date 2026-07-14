@@ -8,33 +8,37 @@
 .badge {
   display: inline-block;
   padding: 0.15rem 0.6rem;
-  border-radius: 999px;
-  font-size: 0.8rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
 .active {
-  background: var(--success-bg, #1f6f43);
-  color: #fff;
+  background: var(--success-bg);
+  color: var(--success);
+  border-color: var(--success);
 }
 
 .inactive {
-  background: var(--warn-bg, #8a6d1a);
-  color: #fff;
+  background: var(--warning-bg);
+  color: var(--warning);
+  border-color: var(--warning);
 }
 
 .disabled {
-  background: var(--muted-bg, #444);
-  color: #ccc;
+  background: var(--bg-hover);
+  color: var(--text);
+  border-color: var(--text-muted);
 }
 
 .gates {
   display: flex;
   flex-wrap: wrap;
   gap: 1.25rem;
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
   margin-bottom: 0.5rem;
 }
 
@@ -51,8 +55,8 @@
 
 .config dd {
   margin: 0;
-  font-family: var(--mono, monospace);
-  font-size: 0.9rem;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
   word-break: break-word;
 }
 
@@ -67,5 +71,5 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 0.4rem 0;
-  border-bottom: 1px solid var(--border, #2a2a2a);
+  border-bottom: 1px solid var(--border);
 }

@@ -1,5 +1,6 @@
 import { type IngestWorkflowStatus } from "@/lib/ingest-workflow";
 import FixIngestButton from "@/components/FixIngestButton";
+import Icon from "@/components/Icon";
 import Link from "next/link";
 import styles from "./HomeView.module.css";
 
@@ -117,7 +118,7 @@ export default function HomeView({
                     title={`${badge.label} — fixable from the dashboard`}
                     style={{ backgroundColor: badge.color }}
                   >
-                    ⚠ {badge.label}
+                    <Icon name="warning" size={12} /> {badge.label}
                   </span>
                 ) : null;
               })()}

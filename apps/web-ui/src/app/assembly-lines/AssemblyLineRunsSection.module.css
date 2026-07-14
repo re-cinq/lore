@@ -3,37 +3,37 @@
 }
 
 .heading {
-  font-size: 1rem;
+  font-size: var(--fs-base);
   margin-bottom: 0.75rem;
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
 }
 
 .table th,
 .table td {
   text-align: left;
   padding: 0.4rem 0.75rem;
-  border-bottom: 1px solid var(--border, #e2e4e8);
+  border-bottom: 1px solid var(--border);
 }
 
 .status_running {
-  color: var(--color-info, #1f6feb);
+  color: var(--info);
 }
 
 .status_finished {
-  color: var(--color-success, #1a7f37);
+  color: var(--success);
 }
 
 .status_failed {
-  color: var(--color-danger, #cf222e);
+  color: var(--danger);
 }
 
 .reason {
   display: block;
-  color: var(--color-muted, #656d76);
-  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
 }

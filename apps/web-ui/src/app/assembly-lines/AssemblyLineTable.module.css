@@ -126,7 +126,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 8px 10px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-lg);
 }
 .stagePanelHead {
   font-weight: 700;

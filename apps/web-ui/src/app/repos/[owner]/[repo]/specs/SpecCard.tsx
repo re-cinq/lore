@@ -19,7 +19,7 @@ const chip: React.CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: 4,
   padding: "2px 8px",
-  fontSize: 12,
+  fontSize: "var(--fs-xs)",
   fontFamily: "monospace",
   color: "var(--text)",
   textDecoration: "none",

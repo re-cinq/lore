@@ -94,9 +94,8 @@ type SimLink = d3.SimulationLinkDatum<SimNode> & {
   controlIds?: string[];
 };
 
-const TESTED_FILL = "#16a34a";
-const UNTESTED_FILL = "#dc2626";
-const coverageTint = d3.interpolateRgb(UNTESTED_FILL, TESTED_FILL);
+const TESTED_FILL = "var(--success)";
+const UNTESTED_FILL = "var(--danger)";
 
 // A spec's expansion: two concentric rings drawn around it — the inner ring is
 // its Sections (sized by statement count, tinted by coverage), the outer ring is
@@ -207,15 +206,15 @@ function computeRing(specPath: string, ring: SpecRing): ExpandData {
 }
 
 const COLORS: Record<SpecGraphNode["type"], string> = {
-  Feature: "#db2777",
-  Spec: "#7c3aed",
-  Section: "#0891b2",
-  Statement: "#2563eb",
-  AcceptanceCriterion: "#4f46e5",
-  TestChunk: "#16a34a",
-  CodeChunk: "#ea580c",
-  File: "#ea580c",
-  ADR: "#d97706",
+  Feature: "var(--chart-feature)",
+  Spec: "var(--chart-spec)",
+  Section: "var(--chart-section)",
+  Statement: "var(--chart-statement)",
+  AcceptanceCriterion: "var(--chart-criterion)",
+  TestChunk: "var(--chart-test)",
+  CodeChunk: "var(--chart-code)",
+  File: "var(--chart-code)",
+  ADR: "var(--chart-adr)",
 };
 const RADIUS: Record<SpecGraphNode["type"], number> = {
   Feature: 20,
@@ -238,7 +237,7 @@ const RADIUS: Record<SpecGraphNode["type"], number> = {
 // than index to undefined (which would NaN a radius or blank a fill).
 const radiusOf = (type: SpecGraphNode["type"]): number => RADIUS[type] ?? 11;
 const colorOf = (type: SpecGraphNode["type"]): string =>
-  COLORS[type] ?? "#94a3b8";
+  COLORS[type] ?? "var(--chart-neutral)";
 // Node fill: status-colored when a Feature carries a persistent lifecycle status.
 const nodeColor = (node: SpecGraphNode): string =>
   node.type === "Feature" && node.status
@@ -389,8 +388,23 @@ export default function SpecGraphD3({
     // Canvas draws with CSS-pixel coordinates; the backing store is scaled up by
     // the device pixel ratio so edges/dots stay crisp on HiDPI screens.
     const dpr = window.devicePixelRatio || 1;
-    const surfaceColor =
-      getComputedStyle(el).getPropertyValue("--bg-surface").trim() || "#ffffff";
+    // Canvas fillStyle/strokeStyle and d3.interpolateRgb need literal colors
+    // (they cannot resolve var() strings), so theme tokens are resolved once
+    // per render here; SVG attributes keep the raw var() references.
+    const tokenStyles = getComputedStyle(el);
+    const cssToken = (name: string, fallback: string) =>
+      tokenStyles.getPropertyValue(name).trim() || fallback;
+    const resolveColor = (value: string) =>
+      value.startsWith("var(") ? cssToken(value.slice(4, -1), "#94a3b8") : value;
+    const surfaceColor = cssToken("--bg-surface", "#ffffff");
+    const edgeColor = cssToken("--chart-neutral", "#94a3b8");
+    const badgeTextColor = cssToken("--text-on-accent", "#ffffff");
+    const canvasColorOf = (type: SpecGraphNode["type"]) =>
+      resolveColor(colorOf(type));
+    const coverageTint = d3.interpolateRgb(
+      cssToken("--danger", "#dc2626"),
+      cssToken("--success", "#16a34a"),
+    );
     const sizeCanvas = () => {
       canvas.width = Math.max(1, Math.round(width * dpr));
       canvas.height = Math.max(1, Math.round(height * dpr));
@@ -826,7 +840,7 @@ export default function SpecGraphD3({
           continue;
         }
         ctx!.globalAlpha = op;
-        ctx!.strokeStyle = "#94a3b8";
+        ctx!.strokeStyle = edgeColor;
 
         if (l.controlIds && l.controlIds.length > 2) {
           const pts = l.controlIds
@@ -873,7 +887,7 @@ export default function SpecGraphD3({
           continue;
         }
         ctx!.globalAlpha = op;
-        ctx!.fillStyle = colorOf(n.type);
+        ctx!.fillStyle = canvasColorOf(n.type);
         ctx!.beginPath();
         ctx!.arc(n.x ?? 0, n.y ?? 0, radiusOf(n.type), 0, Math.PI * 2);
         ctx!.fill();
@@ -905,11 +919,11 @@ export default function SpecGraphD3({
           const px = screen.x + radiusOf(parent.type) + 8;
           const py = screen.y - radiusOf(parent.type);
 
-          ctx!.fillStyle = colorOf(badge.type);
+          ctx!.fillStyle = canvasColorOf(badge.type);
           ctx!.beginPath();
           ctx!.arc(px, py, 8, 0, Math.PI * 2);
           ctx!.fill();
-          ctx!.fillStyle = "#ffffff";
+          ctx!.fillStyle = badgeTextColor;
           ctx!.fillText(String(badge.count), px, py + 0.5);
         }
         ctx!.restore();
@@ -1049,7 +1063,9 @@ export default function SpecGraphD3({
             .attr("class", "sec")
             .attr("d", (s) => s.d)
             .attr("fill", (s) =>
-              s.total > 0 ? coverageTint(s.tested / s.total) : "#9ca3af",
+              s.total > 0
+                ? coverageTint(s.tested / s.total)
+                : "var(--chart-neutral)",
             )
             .attr("fill-opacity", 0.5)
             .attr("stroke", "var(--bg-surface)")
@@ -1416,7 +1432,7 @@ export default function SpecGraphD3({
           display: "flex",
           gap: 16,
           margin: "8px 0",
-          fontSize: 12,
+          fontSize: "var(--fs-xs)",
           color: "var(--text-muted)",
           flexWrap: "wrap",
           alignItems: "center",
@@ -1497,8 +1513,8 @@ export default function SpecGraphD3({
               border: "1px solid var(--border)",
               background: "var(--bg-surface)",
               color: "var(--text)",
-              boxShadow: "0 4px 14px rgba(0,0,0,0.2)",
-              fontSize: 12,
+              boxShadow: "var(--shadow-lg)",
+              fontSize: "var(--fs-xs)",
               lineHeight: 1.4,
               maxHeight: 240,
               overflow: "hidden",
@@ -1523,8 +1539,8 @@ export default function SpecGraphD3({
               border: "1px solid var(--border)",
               background: "var(--bg-surface)",
               color: "var(--text)",
-              boxShadow: "0 6px 24px rgba(0,0,0,0.25)",
-              fontSize: 13,
+              boxShadow: "var(--shadow-lg)",
+              fontSize: "var(--fs-sm)",
             }}
           >
             <div
@@ -1546,7 +1562,7 @@ export default function SpecGraphD3({
               />
               <strong>{selected.type}</strong>
               {selected.type === "Spec" && (
-                <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
+                <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>
                   · double-click to expand
                 </span>
               )}
@@ -1561,7 +1577,7 @@ export default function SpecGraphD3({
                   background: "transparent",
                   color: "var(--text-muted)",
                   cursor: "pointer",
-                  fontSize: 16,
+                  fontSize: "var(--fs-base)",
                   lineHeight: 1,
                 }}
                 aria-label="Close"
@@ -1592,7 +1608,7 @@ export default function SpecGraphD3({
                 style={{
                   color: "var(--text-muted)",
                   fontFamily: "monospace",
-                  fontSize: 12,
+                  fontSize: "var(--fs-xs)",
                   marginBottom: 8,
                   wordBreak: "break-all",
                 }}
@@ -1620,7 +1636,7 @@ export default function SpecGraphD3({
                   href={l.href}
                   target={l.external ? "_blank" : undefined}
                   rel={l.external ? "noreferrer" : undefined}
-                  style={{ color: "#3b82f6" }}
+                  style={{ color: "var(--accent)" }}
                 >
                   {l.label} →
                 </a>

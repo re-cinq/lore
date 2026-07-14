@@ -28,10 +28,11 @@ icon set. The current dark-only look is replaced.
   subtle frosted-glass feel (translucent + `backdrop-filter` blur) on elevated
   surfaces. Palette modeled on apple.com/mac (light `#f5f5f7`/`#1d1d1f`/`#0071e3`,
   dark `#000`/`#f5f5f7`/`#2997ff`). Icons: **Lucide**. ([validated by `Icon.test.tsx:41`](apps/web-ui/src/components/Icon.test.tsx#L41))
-- **Retro** — Amber CRT terminal, after `watkinslabs/vscode-theme-generator`
-  "amber_monitor". `VT323` font, sharp corners (radius 0), pale-amber text
-  (`#fdffb6`) on warm near-black (`#141413`), amber accent (`#ff8000`),
-  phosphor-glow shadows. Icons: **Pixelarticons**.
+- **Retro** — Tokyo Night terminal (redesigned post-ship; originally an amber
+  CRT). `GohuFont` bitmap body text + `IBM Plex Mono` headings/code, sharp
+  corners, soft blue-grey text (`#c0caf5`) on `#1a1b26`, blue accent
+  (`#7aa2f7`), accent-glow shadows; the light scheme is Tokyo Night Day.
+  Icons: **Pixelarticons**.
 
 ### Architecture
 
@@ -56,7 +57,8 @@ resolved scheme is what reaches the DOM, so CSS never matches `auto`. ([validate
 - `types.ts`, `theme-core.ts` — pure, unit-tested: `resolveColorScheme()`,
   `parseFamily()`, `parseSchemePref()`, storage-key + default constants.
 - `theme-core.test.ts` — resolver/parser cases + icon-map key-parity test.
-- `fonts.ts` — `next/font/google` Inter + VT323 as CSS variables.
+- `fonts.ts` — Inter + IBM Plex Mono (`next/font/google`) and self-hosted
+  GohuFont (`next/font/local`) as CSS variables.
 - `theme-script.ts` — `THEME_SCRIPT` blocking IIFE (FOUC prevention; also seeds
   `window.__loreFamily` so client icon render matches first paint).
 - `ThemeProvider.tsx` — context + `useTheme()`; reflects state→DOM; subscribes
@@ -84,9 +86,9 @@ swapped to tokens.
 
 ### Type Scale
 
-`--fs-xs … --fs-xl` defined per family. Retro is bumped (xs 15 / base 19 / xl 30)
-because VT323 has a small x-height; Elegant is xs 12 / base 16 / xl 25. No
-font-size literal remains in `src/`.
+`--fs-xs … --fs-xl` defined per family. Retro pins every body size to 14px
+because GohuFont is a bitmap crisp only at its native 14px grid; Elegant is
+xs 12 / base 16 / xl 25. No font-size literal remains in `src/`.
 
 ## Out of Scope
 
@@ -104,3 +106,17 @@ font-size literal remains in `src/`.
 - Manual matrix: all {elegant,retro} × {light,dark,auto} — no FOUC on reload,
   live OS dark-mode flip while `auto`, family switch changes font + corners +
   icon set, glass on elegant only.
+
+## Amendments
+
+- **2026-07-14 — drift fix + chart tokens.** Pages added after ship (the
+  repo-centric nav and feature-planning UI, PR #798 era) reintroduced ~60
+  hardcoded colors, ~20 px font sizes, phantom tokens whose fallbacks always
+  won (`--warn-fg`, `--ok-fg`, `--color-*`, `--mono`), and three status
+  glyphs (`✓ ✗ ⚠`). All re-tokenized / migrated to `<Icon>`. New
+  `--chart-*` token group (spec-graph node types + neutral) — defined once at
+  family level for Elegant, per scheme for Retro (Tokyo Night vs Day ANSI
+  hues). `SpecGraphD3` resolves tokens to literals per render for canvas and
+  `d3.interpolateRgb` (which cannot consume `var()`); SVG keeps raw `var()`
+  references. The lifecycle palette in `feature-status.ts` now returns token
+  strings.

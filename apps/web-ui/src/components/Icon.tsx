@@ -34,6 +34,9 @@ export default function Icon({
       width={size}
       height={size}
       className={className}
+      // Inline SVG sits on the text baseline and reads as "floating" next to
+      // text; -0.125em optically centers it. Flex containers ignore it.
+      style={{ verticalAlign: "-0.125em" }}
       aria-hidden={aria ? undefined : true}
       aria-label={aria}
     />

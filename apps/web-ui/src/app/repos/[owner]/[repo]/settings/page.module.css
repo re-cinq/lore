@@ -27,24 +27,24 @@
 .section {
   margin-top: 24px;
   margin-bottom: 4px;
-  border-top: 1px solid var(--border, #e3e3e3);
+  border-top: 1px solid var(--border);
   padding-top: 16px;
 }
 
 .gated {
   font-size: var(--fs-xs);
   font-weight: normal;
-  color: var(--warn-fg, #9a6700);
-  border: 1px solid var(--warn-border, #d4b106);
-  border-radius: 4px;
+  color: var(--warning);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
   padding: 1px 6px;
   margin-left: 8px;
   vertical-align: middle;
 }
 
 .override {
-  border: 1px solid var(--border, #e3e3e3);
-  border-radius: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   padding: 8px 12px;
   margin-bottom: 10px;
 }
@@ -60,15 +60,15 @@
 }
 
 .savedOk {
-  color: var(--ok-fg, #1a7f37);
+  color: var(--success);
   margin: 4px 0;
 }
 
 .warn {
-  color: var(--warn-fg, #9a6700);
-  background: var(--warn-bg, #fff8c5);
-  border: 1px solid var(--warn-border, #d4b106);
-  border-radius: 6px;
+  color: var(--warning);
+  background: var(--warning-bg);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
   padding: 8px 12px;
   margin: 6px 0;
 }
