@@ -146,9 +146,13 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
   }
 
   async listNodes(assemblyLineId: string): Promise<AssemblyLineNodeRecord[]> {
+    // Numeric-string ids (this double mints "1","2",…; Pg's BIGINT identity is
+    // likewise numeric) — compare with numeric collation so the double stays
+    // honest as the behavioral spec (a plain Number() diff would NaN on any
+    // non-numeric id and silently no-op the sort).
     return this.nodes
       .filter((n) => n.assemblyLineId === assemblyLineId)
-      .sort((a, b) => Number(a.id) - Number(b.id));
+      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
   }
 
   async listOpen(): Promise<AssemblyLineRecord[]> {

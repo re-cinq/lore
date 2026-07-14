@@ -667,7 +667,7 @@ describe("InMemoryAssemblyLines node-transition primitives", () => {
 });
 
 describe("PgAssemblyLines node-transition primitives", () => {
-  it("ensureNodeStart inserts with ON CONFLICT DO NOTHING on the (line, node, iteration) key and reports created", async () => {
+  it("ensureNodeStart upserts with ON CONFLICT DO UPDATE (locks + returns in the concurrent case) and reports created via xmax", async () => {
     const { pool, calls } = fakePool([[{ id: 42, created: true }]]);
 
     const result = await new PgAssemblyLines(pool).ensureNodeStart({
@@ -680,10 +680,36 @@ describe("PgAssemblyLines node-transition primitives", () => {
     expect(result).toEqual({ nodeRowId: "42", created: true });
     const sql = calls[0]?.text ?? "";
 
-    expect(sql).toContain(
-      "ON CONFLICT (assembly_line_id, node_id, iteration) DO NOTHING",
-    );
+    // DO UPDATE (not DO NOTHING) so the row is returned even when a concurrent
+    // insert won the conflict; xmax=0 distinguishes create from converged dup.
+    expect(sql).toContain("ON CONFLICT (assembly_line_id, node_id, iteration)");
+    expect(sql).toContain("DO UPDATE");
+    expect(sql).toContain("(xmax = 0) AS created");
     expect(calls[0]?.params).toEqual(["al-1", "review", 1, "abcd1234-review"]);
+  });
+
+  it("ensureNodeStart reports created:false for a converged duplicate (xmax != 0)", async () => {
+    const { pool } = fakePool([[{ id: 42, created: false }]]);
+
+    expect(
+      await new PgAssemblyLines(pool).ensureNodeStart({
+        assemblyLineId: "al-1",
+        nodeId: "review",
+        iteration: 1,
+      }),
+    ).toEqual({ nodeRowId: "42", created: false });
+  });
+
+  it("ensureNodeStart enforces exactly one returned row (invariant names itself)", async () => {
+    const { pool } = fakePool([[]]);
+
+    await expect(
+      new PgAssemblyLines(pool).ensureNodeStart({
+        assemblyLineId: "al-1",
+        nodeId: "review",
+        iteration: 1,
+      }),
+    ).rejects.toThrow(/expected exactly one row/);
   });
 
   it("finishNodeOnce CASes on a null outcome and reports whether it won", async () => {

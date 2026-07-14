@@ -1,3 +1,4 @@
+import { enforceTrue } from "../../lib/enforce.js";
 import type { PgPool } from "../../memory-store.js";
 import type {
   AssemblyLinesPort,
@@ -106,24 +107,29 @@ export class PgAssemblyLines implements AssemblyLinesPort {
   async ensureNodeStart(
     input: AssemblyLineNodeStartInput,
   ): Promise<{ nodeRowId: string; created: boolean }> {
+    // DO UPDATE (not DO NOTHING) so the statement locks and RETURNS the row in
+    // EVERY case, including the concurrent-duplicate race the primitive exists to
+    // absorb: a DO NOTHING + fallback SELECT sees the winner's not-yet-committed
+    // row as absent under its snapshot and returns zero rows. `xmax = 0` is true
+    // only for a fresh insert, so it distinguishes create from converged duplicate.
     const { rows } = await this.pool.query(
-      `WITH ins AS (
-         INSERT INTO pipeline.assembly_line_nodes (assembly_line_id, node_id, iteration, agent_cr_name)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (assembly_line_id, node_id, iteration) DO NOTHING
-         RETURNING id
-       )
-       SELECT id, true AS created FROM ins
-       UNION ALL
-       SELECT id, false AS created FROM pipeline.assembly_line_nodes
-        WHERE assembly_line_id = $1 AND node_id = $2 AND iteration = $3
-          AND NOT EXISTS (SELECT 1 FROM ins)`,
+      `INSERT INTO pipeline.assembly_line_nodes (assembly_line_id, node_id, iteration, agent_cr_name)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (assembly_line_id, node_id, iteration)
+         DO UPDATE SET node_id = EXCLUDED.node_id
+       RETURNING id, (xmax = 0) AS created`,
       [
         input.assemblyLineId,
         input.nodeId,
         input.iteration,
         input.agentCrName ?? null,
       ],
+    );
+
+    enforceTrue(
+      rows.length === 1,
+      Error,
+      `ensureNodeStart: expected exactly one row for (${input.assemblyLineId}, ${input.nodeId}, ${input.iteration}), got ${rows.length}`,
     );
     const row = rows[0] as { id: number | string; created: boolean };
 

@@ -174,6 +174,19 @@ describe("nextTransition", () => {
 
     expect(t).toMatchObject({ kind: "fail", outcome: "error" });
   });
+
+  it("fails when a recorded node's iteration diverges from the recomputed walk", () => {
+    // implement@1 succeeded, but the next row was persisted as validate@2 (wrong
+    // iteration) — must fail loudly, not replay a split-brain iteration.
+    const visits = [
+      visit("implement", 1, "success"),
+      visit("validate", 2, "success"),
+    ];
+    const t = nextTransition(reviewLoop, visits);
+
+    expect(t).toMatchObject({ kind: "fail", outcome: "error" });
+    expect((t as { reason: string }).reason).toContain("diverge");
+  });
 });
 
 // ── Parity: the replay must route exactly as executeAssemblyLine does ──────

@@ -64,11 +64,14 @@ export function nextTransition(
   const backEdgeCounts = new Map<string, number>();
 
   for (const visit of visits) {
-    if (visit.nodeId !== currentId) {
+    if (visit.nodeId !== currentId || visit.iteration !== iteration) {
+      // Both node id AND iteration must match the recomputed walk — a row
+      // persisted with a wrong iteration would otherwise replay cleanly while B2
+      // CASes against a different iteration's rows (silent split-brain).
       return {
         kind: "fail",
         outcome: "error",
-        reason: `AssemblyLine ${assemblyLine.name}: node rows diverge from the definition (recorded "${visit.nodeId}", expected "${currentId}")`,
+        reason: `AssemblyLine ${assemblyLine.name}: node rows diverge from the definition (recorded "${visit.nodeId}" iter ${visit.iteration}, expected "${currentId}" iter ${iteration})`,
       };
     }
 
