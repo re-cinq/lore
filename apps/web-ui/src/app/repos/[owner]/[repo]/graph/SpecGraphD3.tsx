@@ -47,6 +47,7 @@ import {
   type ZoomTransform,
 } from "@/lib/graph-viewport";
 import { featureStatusColor } from "../features/feature-status";
+import { cssToken, resolveColor } from "@/lib/theme-token-resolve";
 
 const RING_CLEARANCE = 24; // keep non-ring nodes this far outside every open ring
 const ANCHOR_SEPARATION = 80; // min center distance between Spec/ADR nodes (and off rings)
@@ -392,20 +393,15 @@ export default function SpecGraphD3({
     // (they cannot resolve var() strings), so theme tokens are resolved once
     // per render here; SVG attributes keep the raw var() references.
     const tokenStyles = getComputedStyle(el);
-    const cssToken = (name: string, fallback: string) =>
-      tokenStyles.getPropertyValue(name).trim() || fallback;
-    const resolveColor = (value: string) =>
-      value.startsWith("var(")
-        ? cssToken(value.slice(4, -1), "#94a3b8")
-        : value;
-    const surfaceColor = cssToken("--bg-surface", "#ffffff");
-    const edgeColor = cssToken("--chart-neutral", "#94a3b8");
-    const badgeTextColor = cssToken("--text-on-accent", "#ffffff");
+    const lookup = (name: string) => tokenStyles.getPropertyValue(name);
+    const surfaceColor = cssToken(lookup, "--bg-surface", "#ffffff");
+    const edgeColor = cssToken(lookup, "--chart-neutral", "#94a3b8");
+    const badgeTextColor = cssToken(lookup, "--text-on-accent", "#ffffff");
     const canvasColorOf = (type: SpecGraphNode["type"]) =>
-      resolveColor(colorOf(type));
+      resolveColor(lookup, colorOf(type));
     const coverageTint = d3.interpolateRgb(
-      cssToken("--danger", "#dc2626"),
-      cssToken("--success", "#16a34a"),
+      cssToken(lookup, "--danger", "#dc2626"),
+      cssToken(lookup, "--success", "#16a34a"),
     );
     const sizeCanvas = () => {
       canvas.width = Math.max(1, Math.round(width * dpr));
