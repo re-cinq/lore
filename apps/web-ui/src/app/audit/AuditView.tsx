@@ -137,7 +137,7 @@ export default function AuditView({
                     <pre
                       style={{
                         margin: "4px 0 0",
-                        fontSize: 11,
+                        fontSize: "var(--fs-xs)",
                         whiteSpace: "pre-wrap",
                         maxWidth: 420,
                         overflowX: "auto",

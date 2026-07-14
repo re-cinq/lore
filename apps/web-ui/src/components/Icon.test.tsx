@@ -122,3 +122,19 @@ describe("Icon aria handling", () => {
     expect(screen.queryByLabelText("lock")).toBeNull();
   });
 });
+
+describe("Icon inline prop", () => {
+  it("applies the -0.125em baseline alignment when inline is set", () => {
+    family.mockReturnValue("elegant");
+    const { container } = render(<Icon name="warning" inline />);
+    const svg = container.querySelector("svg")!;
+
+    expect(svg.style.verticalAlign).toBe("-0.125em");
+  });
+
+  it("sets no inline style when inline is omitted, leaving alignment to the caller", () => {
+    const svg = svgOf("warning", "elegant");
+
+    expect(svg.style.verticalAlign).toBe("");
+  });
+});

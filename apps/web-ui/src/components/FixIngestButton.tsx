@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Icon from "@/components/Icon";
 
 /**
  * Overview-level action: opens a fix-PR installing the ingest workflow on
@@ -34,11 +35,16 @@ export default function FixIngestButton({
       }
       title="Open a PR installing the latest .github/workflows/lore-ingest.yml on each flagged repo"
     >
-      {pending
-        ? "opening PRs…"
-        : done !== null
-          ? `opened ${done} PR${done === 1 ? "" : "s"}`
-          : `⚠ Fix ingest workflow (${repos.length})`}
+      {pending ? (
+        "opening PRs…"
+      ) : done !== null ? (
+        `opened ${done} PR${done === 1 ? "" : "s"}`
+      ) : (
+        <>
+          <Icon name="warning" size={13} inline /> Fix ingest workflow (
+          {repos.length})
+        </>
+      )}
     </button>
   );
 }

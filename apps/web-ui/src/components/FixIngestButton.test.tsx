@@ -3,6 +3,12 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import FixIngestButton from "./FixIngestButton";
 
+// Icon pulls in ThemeProvider via useTheme(); render its name so we can assert
+// which status icons appear without standing up the theme context.
+vi.mock("@/components/Icon", () => ({
+  default: ({ name }: { name: string }) => <i data-testid={`icon-${name}`} />,
+}));
+
 describe("FixIngestButton", () => {
   it("renders nothing when no repos are misaligned", () => {
     const { container } = render(
@@ -20,7 +26,7 @@ describe("FixIngestButton", () => {
     );
 
     const button = screen.getByRole("button", {
-      name: "⚠ Fix ingest workflow (2)",
+      name: "Fix ingest workflow (2)",
     });
 
     fireEvent.click(button);
@@ -37,7 +43,7 @@ describe("FixIngestButton", () => {
     render(<FixIngestButton repos={["re-cinq/a"]} action={action} />);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "⚠ Fix ingest workflow (1)" }),
+      screen.getByRole("button", { name: "Fix ingest workflow (1)" }),
     );
 
     await screen.findByRole("button", { name: "opened 1 PR" });

@@ -9,18 +9,18 @@ describe("statusBadge", () => {
   it("maps pr-open to a labelled violet pill", () => {
     expect(statusBadge("pr-open")).toEqual({
       label: "PR open",
-      color: "#8b5cf6",
+      color: "var(--chart-spec)",
     });
   });
 
   it("maps implemented to a green pill", () => {
-    expect(statusBadge("implemented").color).toBe("#16a34a");
+    expect(statusBadge("implemented").color).toBe("var(--chart-test)");
   });
 });
 
 describe("featureStatusColor", () => {
   it("returns the palette color for a known lifecycle status", () => {
-    expect(featureStatusColor("pr-open")).toBe("#8b5cf6");
+    expect(featureStatusColor("pr-open")).toBe("var(--chart-spec)");
   });
 
   it("returns undefined for an unknown status so callers fall back", () => {

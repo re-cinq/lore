@@ -3,7 +3,7 @@
 | Field          | Value                                                                 |
 |----------------|-----------------------------------------------------------------------|
 | Feature        | Floor → ai-agent-subsystem cutover (retire LoreTask)                  |
-| Status         | **Draft**                                                             |
+| Status         | **Shipped**                                                             |
 | Created        | 2026-06-25                                                            |
 | Owner          | Platform Engineering                                                  |
 | ADR            | [`ADR-031`](../../adrs/ADR-031-agent-station-crds.md) (supersedes ADR-011 + ADR-030 storage) |

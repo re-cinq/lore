@@ -5,11 +5,11 @@ const PRE_STYLE: React.CSSProperties = {
   wordBreak: "break-word",
   maxHeight: 260,
   overflow: "auto",
-  background: "var(--bg-elevated, #f6f8fa)",
-  border: "1px solid var(--border, #e5e7eb)",
+  background: "var(--bg-elevated)",
+  border: "1px solid var(--border)",
   borderRadius: 6,
   padding: 10,
-  fontSize: 12,
+  fontSize: "var(--fs-xs)",
   margin: "8px 0",
 };
 
@@ -25,8 +25,12 @@ export default function FailureBlock({
   onRetry: () => void;
 }) {
   return (
-    <div className="spec-card" style={{ borderColor: "#dc2626" }} role="alert">
-      <p style={{ color: "#dc2626", fontWeight: 600, margin: 0 }}>
+    <div
+      className="spec-card"
+      style={{ borderColor: "var(--danger)" }}
+      role="alert"
+    >
+      <p style={{ color: "var(--danger)", fontWeight: 600, margin: 0 }}>
         Planning round {iteration} failed.
       </p>
       {!failureReason && (

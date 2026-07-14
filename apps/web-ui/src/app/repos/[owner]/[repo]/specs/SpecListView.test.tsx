@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import SpecListView from "./SpecListView";
 
 describe("SpecListView", () => {
@@ -50,5 +50,46 @@ describe("SpecListView", () => {
   it("shows an empty-state hint when the graph holds no specs", () => {
     render(<SpecListView owner="re-cinq" repo="lore" specs={[]} />);
     expect(screen.getByText(/no specs in the graph/i)).toBeTruthy();
+  });
+
+  it("counts folder statuses into chips and filters the cards when a chip is clicked", () => {
+    const specs = [
+      {
+        filePath: "specs/auth/spec.md",
+        title: "Auth spec",
+        description: "login",
+        coverage: { testable: 2, covered: 2, ratio: 1 },
+      },
+      {
+        filePath: "specs/pay/spec.md",
+        title: "Pay spec",
+        description: "billing",
+        coverage: { testable: 2, covered: 0, ratio: 0 },
+      },
+    ];
+
+    render(
+      <SpecListView
+        owner="re-cinq"
+        repo="lore"
+        specs={specs}
+        statuses={{
+          "specs/auth/spec.md": { status: "shipped", label: "Shipped" },
+          "specs/pay/spec.md": { status: "draft", label: "Draft" },
+        }}
+      />,
+    );
+
+    const shippedChip = screen.getByRole("button", { name: /Shipped \(1\)/ });
+
+    expect(shippedChip).toBeInTheDocument();
+    fireEvent.click(shippedChip);
+
+    expect(
+      screen.getByRole("heading", { name: /Auth spec/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: /Pay spec/ }),
+    ).not.toBeInTheDocument();
   });
 });
