@@ -297,15 +297,15 @@ function chunkCodeAST(
     for (let row = decl.startRow - 1; row >= prevEnd; row--) {
       const line = lines[row].trim();
 
-      if (
-        line.startsWith("//") ||
-        line.startsWith("/*") ||
-        line.startsWith("*") ||
+      const isSlashComment =
+        line.startsWith("//") || line.startsWith("/*") || line.startsWith("*");
+      const isDocstring =
         line.startsWith("#") ||
         line.startsWith('"""') ||
-        line.startsWith("'''") ||
-        line === ""
-      ) {
+        line.startsWith("'''");
+      const isCommentOrBlank = isSlashComment || isDocstring || line === "";
+
+      if (isCommentOrBlank) {
         startLine = row;
       } else {
         break;

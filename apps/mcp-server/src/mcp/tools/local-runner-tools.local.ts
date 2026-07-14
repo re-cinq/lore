@@ -350,12 +350,10 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
         const config = readConfig();
 
         // If no args provided, return current config
-        if (
-          !args.max_concurrent &&
-          !args.repos &&
-          !args.task_types &&
-          !args.model
-        ) {
+        const noRepoOrTypeArgs = !args.repos && !args.task_types;
+        const noArgsProvided =
+          !args.max_concurrent && noRepoOrTypeArgs && !args.model;
+        if (noArgsProvided) {
           return {
             content: [
               { type: "text" as const, text: JSON.stringify(config, null, 2) },

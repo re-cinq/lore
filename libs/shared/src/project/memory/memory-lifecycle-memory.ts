@@ -241,10 +241,11 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
     let count = 0;
 
     for (const f of this.facts) {
+      const isDecayableConfidence =
+        f.confidence !== "stale" && f.confidence !== "verified";
       const eligible =
         f.valid_to === null &&
-        f.confidence !== "stale" &&
-        f.confidence !== "verified" &&
+        isDecayableConfidence &&
         olderThanDays(f.last_retrieved_at ?? f.created_at, 30);
 
       if (eligible) {

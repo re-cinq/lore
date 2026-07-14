@@ -51,13 +51,11 @@ export function extractSummary(content: string, maxLength = 280): string {
     }
     const first = lines[0];
 
-    if (
-      first.startsWith("#") ||
-      first.startsWith("|") ||
-      first.startsWith(">") ||
-      first.startsWith("```") ||
-      /^[-*]\s/.test(first)
-    ) {
+    const isMarkdownStructure =
+      first.startsWith("#") || first.startsWith("|") || first.startsWith(">");
+    const isCodeOrListMarker = first.startsWith("```") || /^[-*]\s/.test(first);
+
+    if (isMarkdownStructure || isCodeOrListMarker) {
       continue;
     }
     const text = lines.join(" ").replace(/\s+/g, " ").trim();

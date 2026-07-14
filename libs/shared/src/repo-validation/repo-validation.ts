@@ -49,6 +49,17 @@ function readJsonFile(filePath: string): Record<string, unknown> | null {
   }
 }
 
+function hasEslintConfig(repoRoot: string): boolean {
+  const isFlatConfig =
+    existsSync(join(repoRoot, "eslint.config.js")) ||
+    existsSync(join(repoRoot, "eslint.config.mjs"));
+  const isLegacyConfig =
+    existsSync(join(repoRoot, ".eslintrc.json")) ||
+    existsSync(join(repoRoot, ".eslintrc.js"));
+
+  return isFlatConfig || isLegacyConfig;
+}
+
 function detectNode(repoRoot: string): RepoTooling | null {
   const pkgPath = join(repoRoot, "package.json");
   const pkg = readJsonFile(pkgPath);
@@ -68,12 +79,7 @@ function detectNode(repoRoot: string): RepoTooling | null {
       command: "npm run lint --silent",
       timeoutMs: 30_000,
     });
-  } else if (
-    existsSync(join(repoRoot, "eslint.config.js")) ||
-    existsSync(join(repoRoot, "eslint.config.mjs")) ||
-    existsSync(join(repoRoot, ".eslintrc.json")) ||
-    existsSync(join(repoRoot, ".eslintrc.js"))
-  ) {
+  } else if (hasEslintConfig(repoRoot)) {
     quick.push({
       name: "eslint",
       command: "npx eslint --quiet .",
@@ -238,9 +244,9 @@ function detectRust(repoRoot: string): RepoTooling | null {
 export function detectTooling(repoRoot: string): RepoTooling {
   // Try detectors in order of likelihood (Node is most common in Lore repos)
   const result =
-    detectNode(repoRoot) ||
-    detectGo(repoRoot) ||
-    detectPython(repoRoot) ||
+    detectNode(repoRoot) ??
+    detectGo(repoRoot) ??
+    detectPython(repoRoot) ??
     detectRust(repoRoot);
 
   return result || { language: "unknown", quickChecks: [], fullChecks: [] };

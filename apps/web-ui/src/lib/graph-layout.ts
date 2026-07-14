@@ -398,7 +398,11 @@ export function countCrossings(
       const A = segs[i];
       const B = segs[j];
 
-      if (A.s === B.s || A.s === B.t || A.t === B.s || A.t === B.t) {
+      const aTouchesB = A.s === B.s || A.s === B.t;
+      const tTouchesB = A.t === B.s || A.t === B.t;
+      const sharesEndpoint = aTouchesB || tTouchesB;
+
+      if (sharesEndpoint) {
         continue;
       }
       const d1 = orient(B.a, B.b, A.a);
@@ -406,10 +410,10 @@ export function countCrossings(
       const d3 = orient(A.a, A.b, B.a);
       const d4 = orient(A.a, A.b, B.b);
 
-      if (
-        ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
-        ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
-      ) {
+      const aStraddlesB = d1 * d2 < 0;
+      const bStraddlesA = d3 * d4 < 0;
+
+      if (aStraddlesB && bStraddlesA) {
         crossings += 1;
       }
     }

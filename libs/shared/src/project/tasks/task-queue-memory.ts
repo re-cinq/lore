@@ -390,12 +390,11 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     branch: string,
   ): Promise<void> {
     for (const t of this.tasks) {
-      if (
-        t.task_type === "feature-request" &&
-        t.target_repo === repo &&
-        t.target_branch === branch &&
-        (t.status === "pr-created" || t.status === "review")
-      ) {
+      const isOnBranch = t.target_repo === repo && t.target_branch === branch;
+      const isMergeable = t.status === "pr-created" || t.status === "review";
+      const isFeatureRequest = t.task_type === "feature-request";
+
+      if (isFeatureRequest && isOnBranch && isMergeable) {
         t.status = "merged";
       }
     }

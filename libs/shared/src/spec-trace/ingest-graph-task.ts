@@ -145,10 +145,9 @@ export function summarizeIngest(
   failedFiles: string[],
 ): IngestGraphSummary {
   const failed = failedFiles.length;
+  const allAttemptedFailed = projected === 0 && skipped === 0 && failed > 0;
   const status: IngestGraphSummary["status"] =
-    attempted > 0 && projected === 0 && skipped === 0 && failed > 0
-      ? "failed"
-      : "completed";
+    attempted > 0 && allAttemptedFailed ? "failed" : "completed";
   const message =
     status === "failed"
       ? `${kind}: all ${attempted} file(s) failed to project`
