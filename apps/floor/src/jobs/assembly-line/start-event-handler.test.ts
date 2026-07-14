@@ -6,8 +6,6 @@ import {
   type StartEventHandlerDeps,
 } from "./start-event-handler.js";
 
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
-
 async function seededPort(
   definitionName: string,
   taskId: string | null = "task-9",
@@ -57,16 +55,10 @@ function makeDeps(
 ) {
   const calls = {
     advanced: [] as string[],
-    detect: [] as Array<Record<string, unknown>>,
   };
   const deps: StartEventHandlerDeps = {
     assemblyLines: port,
     definitions: async () => TEST_DEFINITIONS,
-    runDetect: async (input) => {
-      calls.detect.push({ ...input });
-
-      return { ranWork: true, reason: "completed" };
-    },
     advance: async (assemblyLineId) => {
       calls.advanced.push(assemblyLineId);
     },
@@ -102,7 +94,6 @@ describe("createStartEventHandler", () => {
 
     expect(port.rows[0]).toMatchObject({ status: "running" });
     expect(calls.advanced).toEqual([assemblyLineId]);
-    expect(calls.detect).toEqual([]);
   });
 
   it("advances a task-less station line the same way (code-review shape)", async () => {
@@ -133,47 +124,18 @@ describe("createStartEventHandler", () => {
     expect(port.rows[0]).toMatchObject({ status: "running" });
   });
 
-  it("routes a definition containing a detect node to runDetect and closes the row from the supervisor reason", async () => {
+  it("routes a detect-shaped definition through the same event-driven walk", async () => {
+    // Detection lines migrated onto the standard machinery: their detect node is
+    // a station CR like any other; job_runs bookkeeping rides args.job_run_id.
     const { port, assemblyLineId } = await seededPort("spec-drift", null);
     const { deps, calls } = makeDeps(port);
 
     await createStartEventHandler(deps)(
       params(assemblyLineId, "spec-drift", null),
     );
-    await flush();
 
-    expect(calls.detect).toEqual([
-      {
-        assemblyLineId,
-        definitionName: "spec-drift",
-        repo: "re-cinq/lore",
-      },
-    ]);
-    expect(calls.advanced).toEqual([]);
-    expect(port.rows[0]).toMatchObject({
-      status: "finished",
-      outcome: "completed",
-    });
-  });
-
-  it("closes the row as error when runDetect throws", async () => {
-    const { port, assemblyLineId } = await seededPort("spec-drift", null);
-    const { deps } = makeDeps(port, {
-      runDetect: async () => {
-        throw new Error("detect exploded");
-      },
-    });
-
-    await createStartEventHandler(deps)(
-      params(assemblyLineId, "spec-drift", null),
-    );
-    await flush();
-
-    expect(port.rows[0]).toMatchObject({
-      status: "failed",
-      outcome: "error",
-      reason: "detect exploded",
-    });
+    expect(port.rows[0]).toMatchObject({ status: "running" });
+    expect(calls.advanced).toEqual([assemblyLineId]);
   });
 
   it("marks a task-less row failed and resolves on an unknown definition (no retry, nothing run)", async () => {
@@ -208,7 +170,6 @@ describe("createStartEventHandler", () => {
 
     expect(port.rows[0]).toMatchObject({ status: "running", outcome: null });
     expect(calls.advanced).toEqual([]);
-    expect(calls.detect).toEqual([]);
   });
 
   it("rejects malformed params (missing assemblyLineId) so the loop retries or dead-letters", async () => {
