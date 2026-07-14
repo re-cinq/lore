@@ -1,19 +1,19 @@
 import Link from "next/link";
 import HelpPopover from "@/components/HelpPopover";
-import AssemblyLineTable from "@/app/assembly-lines/AssemblyLineTable";
-import { type AssemblyLine } from "@/lib/assembly-lines";
+import AssemblyLineRunsTable from "@/app/assembly-lines/AssemblyLineRunsTable";
+import { type AssemblyLineRun } from "@/lib/assembly-line-runs";
 import styles from "./RepoTasksView.module.css";
 
 export interface RepoTasksViewProps {
   owner: string;
   repo: string;
-  runs: AssemblyLine[];
+  runs: AssemblyLineRun[];
 }
 
 /**
- * Per-repo assembly-lines tab — GitLab-pipelines-style, scoped to one repo.
- * Pure render: the container (`page.tsx`) groups the rows into runs and this
- * component renders them through the shared <AssemblyLineTable>.
+ * Per-repo assembly-lines tab, scoped to one repo. Pure render: the container
+ * (`page.tsx`) fetches the per-attempt runs and this component renders them
+ * through the shared <AssemblyLineRunsTable>.
  */
 export default function RepoTasksView({
   owner,
@@ -27,9 +27,8 @@ export default function RepoTasksView({
           <h2 className={styles.title}>Assembly Lines</h2>
           <HelpPopover label="How assembly lines work">
             <p>
-              An assembly line is a chain of related tasks that produce one PR —
-              the implementation task, its review, and any revisions — grouped
-              into a single run.
+              An assembly line is one execution attempt: a graph of nodes (agent
+              and station steps) that produces one PR, tracked per attempt.
             </p>
             <ul>
               <li>
@@ -56,11 +55,7 @@ export default function RepoTasksView({
         Assembly lines targeting this repo. Delegate work to agents and track
         their status, stages, PRs, and cost.
       </p>
-      <AssemblyLineTable
-        runs={runs}
-        showCost
-        createHref={`/repos/${owner}/${repo}/tasks/create`}
-      />
+      <AssemblyLineRunsTable runs={runs} />
     </div>
   );
 }

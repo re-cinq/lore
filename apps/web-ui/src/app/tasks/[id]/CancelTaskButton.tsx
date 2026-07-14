@@ -19,7 +19,7 @@ export function CancelTaskButton({ taskId }: { taskId: string }) {
 
   return (
     <form
-      action={`/api/assembly-lines/${taskId}/cancel`}
+      action={`/api/tasks/${taskId}/cancel`}
       method="POST"
       style={{ display: "flex", gap: 10, alignItems: "center" }}
     >

@@ -102,9 +102,7 @@ describe("PRStatusCard", () => {
     const fetchMock = stubFetchJson(details());
 
     await renderSettled({ taskId: "abc-123", prUrl: "https://gh/pr/1" });
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/assembly-lines/abc-123/pr-status",
-    );
+    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/abc-123/pr-status");
   });
 
   it("renders the computed status pill and a PR link after a resolved fetch", async () => {
@@ -334,10 +332,7 @@ describe("PRStatusCard", () => {
       prUrl: "https://gh/pr/1",
     });
 
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
-      "/api/assembly-lines/first/pr-status",
-    );
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/tasks/first/pr-status");
 
     await act(async () => {
       rerender(<PRStatusCard taskId="second" prUrl="https://gh/pr/1" />);
@@ -345,10 +340,7 @@ describe("PRStatusCard", () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      "/api/assembly-lines/second/pr-status",
-    );
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/tasks/second/pr-status");
   });
 
   it("keeps the loaded details on screen when a later poll fails", async () => {

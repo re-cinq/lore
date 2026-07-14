@@ -44,6 +44,9 @@ resource "helm_release" "lore_platform" {
         PORT             = "8080"
         LORE_INGEST_URL  = var.lore_api_url
         LORE_LOG_BUCKET  = "lore-task-logs-${var.project_id}"
+        # Web-UI base: the "Lore review has started — <id>" comment (loreTaskRef)
+        # links the run id to /assembly-lines/<id>, which the resolver renders.
+        LORE_UI_URL = var.lore_ui_url
       }
       dbPasswordSecret        = { name = "lore-db-password", key = "password" }
       anthropicKeySecret      = { name = "lore-anthropic-key", key = "anthropic-api-key" }

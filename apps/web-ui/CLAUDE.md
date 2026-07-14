@@ -7,7 +7,11 @@ Next.js 14 App Router frontend for the Lore platform.
 ```
 src/app/
   repos/[owner]/[repo]/   — repo-centric view (overview, tasks, specs, context, settings)
-  pipeline/               — global pipeline task list and detail
+  assembly-lines/         — run-keyed list (pipeline.assembly_lines) + [id] resolver:
+                            a run id renders run detail (header + node timeline),
+                            a task id redirects to /tasks/[id]
+  tasks/[id]/             — task detail (facts, Timeline, TaskLogs, PR status,
+                            revision/cancel/run-now); api/tasks/[id]/* backs it
   specs/                  — global cross-repo spec viewer
   gaps/                   — gap detection (zero-result searches + agent findings)
   search/                 — semantic search across context

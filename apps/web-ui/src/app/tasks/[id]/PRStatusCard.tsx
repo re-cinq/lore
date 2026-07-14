@@ -49,7 +49,7 @@ export default function PRStatusCard({
   const [error, setError] = useState<string | null>(null);
 
   const fetchStatus = useCallback(() => {
-    fetch(`/api/assembly-lines/${taskId}/pr-status`)
+    fetch(`/api/tasks/${taskId}/pr-status`)
       .then((r) => r.json())
       .then((data) => {
         if (data.error) {
