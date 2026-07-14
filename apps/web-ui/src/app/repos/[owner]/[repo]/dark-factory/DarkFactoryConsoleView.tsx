@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Icon from "@/components/Icon";
 import type { DarkFactoryConsoleModel } from "./derive-console";
 import styles from "./DarkFactoryConsoleView.module.css";
 
@@ -33,7 +34,16 @@ export default function DarkFactoryConsoleView({
         </div>
         <div className={styles.gates}>
           <span>
-            Repo gate: {activation.repoEnabled ? "✓ enabled" : "✗ disabled"}
+            Repo gate:{" "}
+            {activation.repoEnabled ? (
+              <>
+                <Icon name="check" size={13} inline /> enabled
+              </>
+            ) : (
+              <>
+                <Icon name="error" size={13} inline /> disabled
+              </>
+            )}
           </span>
           <span>Trust: {trustLevel}</span>
         </div>

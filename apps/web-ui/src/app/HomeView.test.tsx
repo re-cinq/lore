@@ -4,6 +4,12 @@ import { render, screen, within } from "@testing-library/react";
 import HomeView, { type Repo } from "./HomeView";
 import { type IngestWorkflowStatus } from "@/lib/ingest-workflow";
 
+// Icon pulls in ThemeProvider via useTheme(); render its name so we can assert
+// which status icons appear without standing up the theme context.
+vi.mock("@/components/Icon", () => ({
+  default: ({ name }: { name: string }) => <i data-testid={`icon-${name}`} />,
+}));
+
 const repo = (over: Partial<Repo>): Repo => ({
   full_name: "re-cinq/lore",
   owner: "re-cinq",
@@ -99,14 +105,14 @@ describe("HomeView", () => {
     renderHome([repo({ full_name: "re-cinq/lore" })], {
       "re-cinq/lore": "missing",
     });
-    expect(screen.getByText("⚠ no ingest workflow")).toBeInTheDocument();
+    expect(screen.getByText("no ingest workflow")).toBeInTheDocument();
   });
 
   it("renders the stale-workflow badge for a repo with stale ingest status", () => {
     renderHome([repo({ full_name: "re-cinq/lore" })], {
       "re-cinq/lore": "stale",
     });
-    expect(screen.getByText("⚠ ingest workflow outdated")).toBeInTheDocument();
+    expect(screen.getByText("ingest workflow outdated")).toBeInTheDocument();
   });
 
   it("renders no workflow badge for aligned or unknown ingest status", () => {
@@ -192,7 +198,7 @@ describe("HomeView", () => {
       ["re-cinq/lore"],
     );
     expect(
-      screen.getByRole("button", { name: "⚠ Fix ingest workflow (1)" }),
+      screen.getByRole("button", { name: "Fix ingest workflow (1)" }),
     ).toBeInTheDocument();
   });
 
@@ -227,6 +233,6 @@ describe("HomeView", () => {
     expect(scope.getByText("platform")).toBeInTheDocument();
     expect(scope.getByText("5 tasks")).toBeInTheDocument();
     expect(scope.getByText("2 running")).toBeInTheDocument();
-    expect(scope.getByText("⚠ ingest workflow outdated")).toBeInTheDocument();
+    expect(scope.getByText("ingest workflow outdated")).toBeInTheDocument();
   });
 });

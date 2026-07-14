@@ -10,7 +10,7 @@ const SEARCH_INPUT: React.CSSProperties = {
   borderRadius: 6,
   background: "var(--bg-surface)",
   color: "var(--text)",
-  fontSize: 13,
+  fontSize: "var(--fs-sm)",
   minWidth: 200,
 };
 
@@ -21,7 +21,7 @@ const BTN: React.CSSProperties = {
   background: "var(--bg-surface)",
   color: "var(--text)",
   cursor: "pointer",
-  fontSize: 13,
+  fontSize: "var(--fs-sm)",
 };
 
 /**

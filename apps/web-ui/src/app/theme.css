@@ -30,6 +30,7 @@
   --font-heading: var(--font-ui);
 
   /* Type scale — referenced by globals.css; never hardcode font-size elsewhere. */
+  --fs-2xs: 10px;
   --fs-xs: 12px;
   --fs-sm: 14px;
   --fs-base: 16px;
@@ -43,6 +44,18 @@
   --radius-pill: 9999px;
 
   --glass-blur: blur(20px) saturate(180%);
+
+  /* Categorical chart palette — spec-graph node types + neutral fallback.
+     Scheme-independent for this family, hence defined once here. */
+  --chart-feature: #db2777;
+  --chart-spec: #7c3aed;
+  --chart-section: #0891b2;
+  --chart-statement: #2563eb;
+  --chart-criterion: #4f46e5;
+  --chart-test: #16a34a;
+  --chart-code: #ea580c;
+  --chart-adr: #d97706;
+  --chart-neutral: #94a3b8;
 }
 
 [data-theme-family='elegant'][data-color-scheme='light'] {
@@ -130,6 +143,7 @@
      it is pixel-crisp ONLY at 14px and integer multiples (28/42). So every
      body/regular size is pinned to 14px — there is no crisp size below it.
      Headings use IBM Plex Mono (a real outline) and keep a normal larger scale. */
+  --fs-2xs: 14px;
   --fs-xs: 14px;
   --fs-sm: 14px;
   --fs-base: 14px;
@@ -178,6 +192,17 @@
 
   --glass-bg: rgba(26, 27, 38, 0.72);
   --glass-border: var(--border);
+
+  /* Tokyo Night ANSI hues for the chart palette. */
+  --chart-feature: #f7768e;
+  --chart-spec: #bb9af7;
+  --chart-section: #7dcfff;
+  --chart-statement: #7aa2f7;
+  --chart-criterion: #2ac3de;
+  --chart-test: #9ece6a;
+  --chart-code: #ff9e64;
+  --chart-adr: #e0af68;
+  --chart-neutral: #565f89;
 }
 
 [data-theme-family='retro'][data-color-scheme='light'] {
@@ -214,6 +239,17 @@
 
   --glass-bg: rgba(255, 255, 255, 0.8);
   --glass-border: var(--border);
+
+  /* Tokyo Night Day ANSI hues for the chart palette. */
+  --chart-feature: #f52a65;
+  --chart-spec: #7847bd;
+  --chart-section: #007197;
+  --chart-statement: #2e7de9;
+  --chart-criterion: #118c74;
+  --chart-test: #587539;
+  --chart-code: #b15c00;
+  --chart-adr: #8c6c3e;
+  --chart-neutral: #848cb5;
 }
 
 /* When the user or OS asks for less transparency (or backdrop-filter is

@@ -2,6 +2,8 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { fetchTraceDocument, fetchTraceSource } from "@/lib/trace-api";
 import { toStatementInfo } from "@/lib/trace-statement-info";
+import { parseSpecStatus } from "@/lib/spec-status";
+import SpecStatusPill from "@/components/SpecStatusPill";
 import SpecDocument from "./SpecDocument";
 
 export default async function RepoSpecDetail({
@@ -22,11 +24,21 @@ export default async function RepoSpecDetail({
     fetchTraceDocument(fullName, filePath),
   ]);
   const statements = doc ? toStatementInfo(doc.statements) : [];
+  const status = source ? parseSpecStatus(source) : null;
 
   return (
     <div>
-      <p className="meta" style={{ marginBottom: 12 }}>
+      <p
+        className="meta"
+        style={{
+          marginBottom: 12,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+        }}
+      >
         <Link href={specsLink}>← Specs</Link>
+        {status && <SpecStatusPill info={status} />}
       </p>
       {source ? (
         <SpecDocument

@@ -1,5 +1,12 @@
 # Feature Specification: Lore Agent Service
 
+> **Execution substrate moved (ADR-031, `specs/floor-on-ai-subsystem/`).** This spec
+> describes the agent service as it shipped on the `LoreTask` CRD + headless Claude Code
+> execution model. That mechanism is retired: the service's features (task processing,
+> feature-request planning, review reactor, issue sync, observability) live on in
+> `apps/floor` + the ai-agent-subsystem's `Agent` CRs; scheduling split per ADR-019.
+> Read the `LoreTask`-specific mechanics in the past tense.
+
 | Field          | Value                                       |
 |----------------|---------------------------------------------|
 | Feature        | Lore Agent Service                          |
