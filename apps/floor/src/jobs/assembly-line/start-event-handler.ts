@@ -59,8 +59,17 @@ export function createStartEventHandler(
     const definition = definitions.get(definitionName);
 
     if (!definition) {
-      // Config error, not a transient failure — close the row and resolve so the
-      // loop never retries an assembly line that can't exist.
+      // A task-backed row without a builtin definition is a single-CR run record
+      // (onboard / review / runbook — total coverage): mark it running and return;
+      // the agent-watcher finishes it when the task's one CR goes terminal.
+      if (taskId) {
+        await deps.assemblyLines.markRunning(assemblyLineId);
+
+        return;
+      }
+
+      // Task-less + unknown definition is a config error, not a transient failure —
+      // close the row and resolve so the loop never retries a line that can't exist.
       await deps.assemblyLines.finish(
         assemblyLineId,
         "error",

@@ -269,13 +269,16 @@ describe("createStartEventHandler", () => {
     });
   });
 
-  it("marks the row failed and resolves on an unknown definition (no retry, nothing run)", async () => {
-    const { port, assemblyLineId } = await seededPort("no-such-definition");
+  it("marks a task-less row failed and resolves on an unknown definition (no retry, nothing run)", async () => {
+    const { port, assemblyLineId } = await seededPort(
+      "no-such-definition",
+      null,
+    );
     const { deps, calls } = makeDeps(port);
 
     await expect(
       createStartEventHandler(deps)(
-        params(assemblyLineId, "no-such-definition"),
+        params(assemblyLineId, "no-such-definition", null),
       ),
     ).resolves.toBeUndefined();
 
@@ -285,6 +288,22 @@ describe("createStartEventHandler", () => {
       reason: 'no assembly line defined for task type "no-such-definition"',
     });
     expect(calls.station).toEqual([]);
+  });
+
+  it("marks a task-backed single-CR row running without walking (watcher owns its lifecycle)", async () => {
+    // Total coverage: single-CR task types (onboard, review, runbook-without-yaml)
+    // get an assembly_lines row but no builtin definition. The row is a run record,
+    // not a walk — the agent-watcher finishes it when the task's one CR is terminal.
+    const { port, assemblyLineId } = await seededPort("onboard");
+    const { deps, calls } = makeDeps(port);
+
+    await createStartEventHandler(deps)(params(assemblyLineId, "onboard"));
+    await flush();
+
+    expect(port.rows[0]).toMatchObject({ status: "running" });
+    expect(port.rows[0]?.outcome ?? null).toBeNull();
+    expect(calls.station).toEqual([]);
+    expect(calls.detect).toEqual([]);
   });
 
   it("closes the row as error when the station run throws", async () => {

@@ -17,7 +17,10 @@ import { errorMessage } from "@re-cinq/lore-shared";
 
 import { KubeConfig, CustomObjectsApi } from "@kubernetes/client-node";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
-import { projectFor } from "../../composition/project-boot.js";
+import {
+  projectFor,
+  assemblyLineNames,
+} from "../../composition/project-boot.js";
 import {
   taskStore,
   settings,
@@ -47,6 +50,7 @@ import {
   parseReviewResult,
   decideCiGate,
   decideTokenReclaim,
+  runOutcomeFromTaskStatus,
   type ReviewResult,
 } from "./agent-watcher-logic.js";
 import {
@@ -331,6 +335,28 @@ interface AgentContext {
  * matching handler; the Slack flush runs in `finally` so an early return still
  * delivers notifications.
  */
+/** Close a single-CR task's open run rows with an outcome derived from the task's
+ *  post-handler status (total coverage — no walk finishes these rows). */
+async function finishSingleCrRunRows(
+  taskId: string,
+  failureReason?: string,
+): Promise<void> {
+  const open = (await assemblyLines().listForTask(taskId)).filter((row) =>
+    ["queued", "running"].includes(row.status),
+  );
+
+  if (open.length === 0) {
+    return;
+  }
+
+  const task = await taskStore().getById(taskId);
+  const outcome = runOutcomeFromTaskStatus(task?.status ?? "completed");
+
+  for (const row of open) {
+    await assemblyLines().finish(row.id, outcome, failureReason);
+  }
+}
+
 export async function processAgentCr(
   agent: AgentCr,
   k8sApi: CustomObjectsApi,
@@ -390,15 +416,18 @@ export async function processAgentCr(
       await handleReviewVerdict(ctx, reviewResult);
     }
 
-    // Reclaim the per-task token once a single-agent task's CR is terminal (#784).
-    // Multi-node station lines share one token across node CRs and reclaim it at line
-    // completion, so skip them here (an assembly-line row is the tell) to avoid mid-line
-    // deletion; task-less lines already returned above (no backing task).
+    // Terminal single-CR task: close its run row (the watcher owns the single-CR
+    // lifecycle — no walk finishes these) and reclaim the per-task token (#784).
+    // Multi-node station lines do both at line completion, so the tell is the
+    // routing (builtin assembly line for the task type), not row existence.
     if (phase === "Succeeded" || phase === "Failed") {
-      const hasAssemblyLine =
-        (await assemblyLines().listForTask(taskId)).length > 0;
+      const isAssemblyLineTask = (await assemblyLineNames()).has(ctx.taskType);
 
-      if (decideTokenReclaim({ phase, hasAssemblyLine })) {
+      if (!isAssemblyLineTask) {
+        await finishSingleCrRunRows(taskId, status.failureReason);
+      }
+
+      if (decideTokenReclaim({ phase, isAssemblyLineTask })) {
         await cleanupPerTaskToken(taskId);
       }
     }
