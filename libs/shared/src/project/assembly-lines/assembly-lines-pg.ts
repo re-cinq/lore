@@ -79,34 +79,6 @@ export class PgAssemblyLines implements AssemblyLinesPort {
     );
   }
 
-  async recordNodeStart(input: AssemblyLineNodeStartInput): Promise<string> {
-    const { rows } = await this.pool.query(
-      `INSERT INTO pipeline.assembly_line_nodes (assembly_line_id, node_id, iteration, agent_cr_name)
-       VALUES ($1, $2, $3, $4) RETURNING id`,
-      [
-        input.assemblyLineId,
-        input.nodeId,
-        input.iteration,
-        input.agentCrName ?? null,
-      ],
-    );
-
-    return String(rows[0].id);
-  }
-
-  async recordNodeFinish(
-    nodeRowId: string,
-    outcome: string,
-    commitSha?: string,
-  ): Promise<void> {
-    await this.pool.query(
-      `UPDATE pipeline.assembly_line_nodes
-         SET outcome = $1, commit_sha = $2, finished_at = now()
-       WHERE id = $3`,
-      [outcome, commitSha ?? null, nodeRowId],
-    );
-  }
-
   async ensureNodeStart(
     input: AssemblyLineNodeStartInput,
   ): Promise<{ nodeRowId: string; created: boolean }> {

@@ -1,8 +1,3 @@
-import { execFile as execFileCb } from "node:child_process";
-import { promisify } from "node:util";
-
-const execFile = promisify(execFileCb);
-
 export interface Trailers {
   stage: string;
   iteration: number;
@@ -126,31 +121,6 @@ export function parseTrailers(message: string): Trailers | null {
     ...(assemblyLineId ? { assemblyLineId } : {}),
     ...(Object.keys(extras).length > 0 ? { extras } : {}),
   };
-}
-
-/**
- * Read the most recent commit on `branchName` and parse its trailers.
- * Returns null on any failure (no commits, no trailers, git error) so the
- * caller treats it uniformly as "no recoverable stage information".
- */
-export async function lastStageOnBranch(
-  branchName: string,
-  gitDir?: string,
-): Promise<Trailers | null> {
-  const args: string[] = [];
-
-  if (gitDir) {
-    args.push("-C", gitDir);
-  }
-  args.push("log", "-1", "--format=%B", branchName);
-
-  try {
-    const { stdout } = await execFile("git", args);
-
-    return parseTrailers(stdout);
-  } catch {
-    return null;
-  }
 }
 
 /**

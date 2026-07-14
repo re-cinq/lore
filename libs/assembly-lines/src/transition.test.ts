@@ -1,14 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { selectEdge, nextTransition, type NodeVisit } from "./transition.js";
 import { parseAssemblyLine, type AssemblyLine } from "./loader.js";
 import { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
-import {
-  executeAssemblyLine,
-  type NodeHandlers,
-  type NodeResult,
-  type StageOutcome,
-} from "./assembly-line-executor.js";
-import type { LeaseBackend } from "@re-cinq/lore-shared";
+import type { StageOutcome } from "./node-types.js";
 
 const reviewLoop: AssemblyLine = parseAssemblyLine(`
 name: review-loop
@@ -189,105 +183,37 @@ describe("nextTransition", () => {
   });
 });
 
-// ── Parity: the replay must route exactly as executeAssemblyLine does ──────
-function noopBackend(): LeaseBackend {
-  return {
-    acquire: vi.fn(async () => ({ acquired: true })),
-    refresh: vi.fn(async () => true),
-    release: vi.fn(async () => true),
-    reapExpired: vi.fn(async () => []),
-  };
-}
-
-async function executorVisits(
-  line: AssemblyLine,
-  outcomes: Partial<Record<string, NodeResult>> = {},
-) {
-  const dispatch = async (node: { id: string }) =>
-    outcomes[node.id] ?? { outcome: "success" as const };
-  const handlers: NodeHandlers = {
-    agent: dispatch,
-    validate: dispatch,
-    gate: dispatch,
-    retrospective: dispatch,
-    github_action: dispatch,
-    detect: dispatch,
-  };
-
-  const summary = await executeAssemblyLine({
-    assemblyLine: line,
-    assemblyLineId: "al-parity",
-    taskId: "task-parity",
-    branchName: "branch-parity",
-    gitDir: "/dev/null",
-    holder: "test",
-    leaseBackend: noopBackend(),
-    handlers,
-    gitCommit: async () => {},
-  });
-
-  return summary.visited;
-}
-
-function expectReplayParity(line: AssemblyLine, visited: NodeVisit[]) {
-  for (let i = 0; i <= visited.length; i++) {
-    const t = nextTransition(line, visited.slice(0, i));
-
-    if (i < visited.length) {
-      expect(t, `${line.name} step ${i}`).toEqual({
-        kind: "launch",
-        nodeId: visited[i].nodeId,
-        iteration: visited[i].iteration,
-      });
-    } else {
-      expect(t, `${line.name} terminal`).toEqual({ kind: "finish" });
-    }
-  }
-}
-
-describe("nextTransition replays the executor's routing exactly", () => {
-  it("matches the all-success walk of every builtin assembly line", async () => {
+// The executor parity oracle retired with the in-process walk (its extraction-time
+// parity run covered every builtin YAML). This keeps a live guarantee: an
+// all-success walk of every builtin definition routes node-by-node to finish.
+describe("nextTransition walks every builtin assembly line to finish on success", () => {
+  it("routes each builtin definition's success path to the exit", async () => {
     const builtins = await loadBuiltinAssemblyLines();
 
     expect(builtins.size).toBeGreaterThan(0);
 
     for (const line of builtins.values()) {
-      const visited = await executorVisits(line);
+      const visits: NodeVisit[] = [];
 
-      expectReplayParity(line, visited);
+      for (let step = 0; step < 50; step++) {
+        const t = nextTransition(line, visits);
+
+        if (t.kind === "finish") {
+          break;
+        }
+        expect(t.kind, `${line.name} step ${step}`).toBe("launch");
+
+        if (t.kind === "launch") {
+          visits.push({
+            nodeId: t.nodeId,
+            iteration: t.iteration,
+            outcome: "success",
+          });
+        }
+      }
+      expect(nextTransition(line, visits), line.name).toEqual({
+        kind: "finish",
+      });
     }
-  });
-
-  it("matches a changes_requested review loop walk", async () => {
-    // First review requests changes, second approves.
-    let reviews = 0;
-    const dispatchOutcomes: Partial<Record<string, () => NodeResult>> = {
-      review: () =>
-        reviews++ === 0
-          ? { outcome: "changes_requested" }
-          : { outcome: "success" },
-    };
-    const dispatch = async (node: { id: string }) =>
-      dispatchOutcomes[node.id]?.() ?? { outcome: "success" as const };
-    const handlers: NodeHandlers = {
-      agent: dispatch,
-      validate: dispatch,
-      gate: dispatch,
-      retrospective: dispatch,
-    };
-    const summary = await executeAssemblyLine({
-      assemblyLine: reviewLoop,
-      assemblyLineId: "al-parity-2",
-      taskId: "task-parity-2",
-      branchName: "branch-parity-2",
-      gitDir: "/dev/null",
-      holder: "test",
-      leaseBackend: noopBackend(),
-      handlers,
-      gitCommit: async () => {},
-    });
-
-    expect(summary.visited.length).toBeGreaterThan(4);
-    expectReplayParity(reviewLoop, summary.visited);
   });
 });

@@ -148,7 +148,6 @@ export {
   formatValidatesTrailer,
   parseTrailers,
   parseValidatesTrailers,
-  lastStageOnBranch,
   type Trailers,
   type ProvenanceRef,
 } from "./commit-trailers.js";

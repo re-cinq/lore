@@ -1,20 +1,8 @@
-// Floor-side assembly-line driver — core (ADR-031 D4, #686 Wave 2). When the assembly line runs
-// Floor-side, each agent-node dispatches its OWN Agent CR (the assembly line has several), and
-// the github_action nodes gate on CI. This module is the pure/assembly core: the per-node
-// dispatch spec + wiring the runner kernel's agent-node + github_action handlers to the
-// Floor's ports. The IO shell (clone the branch for stage-commit state, run the
-// supervisor, back the ports with real dispatch/poll/CI) lives in the driver entrypoint.
+// Floor-side assembly-line node specs (ADR-031 D4). Each node dispatches its OWN
+// Agent CR — this module is the pure spec-building core the event-driven walk
+// (advance.ts) uses: names, identity labels, and the agent/station dispatch specs.
 
-import {
-  createStationNodeHandler,
-  createProductionHandlers,
-  type NodeHandler,
-  type NodeHandlers,
-  type AssemblyLineNode,
-  type AgentNodeStatus,
-  type CiConclusion,
-  type ProductionHandlersDeps,
-} from "@re-cinq/lore-assembly-lines";
+import type { AssemblyLineNode } from "@re-cinq/lore-assembly-lines";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { stationName } from "../agent/agent-catalog.js";
 
@@ -136,61 +124,5 @@ export function nodeStationSpec(
         params,
       }),
     },
-  };
-}
-
-export interface FloorAssemblyLinePorts {
-  /** Dispatch one node's Agent CR (e.g. AgentCrBackend.launch). */
-  dispatchAgent: (spec: LoreTaskSpec) => Promise<void>;
-  /** Resolve a node's prompt template for the task. */
-  resolvePrompt: (
-    node: AssemblyLineNode,
-    task: FloorAssemblyLineTask,
-  ) => string;
-  /** Read this node's Agent status (keyed by assemblyLineId + node id). */
-  agentStatus: (
-    assemblyLineId: string,
-    nodeId: string,
-  ) => Promise<AgentNodeStatus | null>;
-  /** Aggregate CI conclusion for the branch's head. */
-  ciConclusion: (branch: string) => Promise<CiConclusion>;
-  heartbeat: (branchName: string, nodeId: string) => Promise<void>;
-  sleep: (ms: number) => Promise<void>;
-  episodeDeps: ProductionHandlersDeps;
-}
-
-/** Assemble the NodeHandlers for a Floor-side run: EVERY node dispatches one Agent CR
- *  and polls it — agent nodes run an LLM, non-agent nodes ("stations": validate / gate /
- *  retrospective / github_action / detect) run the deterministic lore-station image via
- *  the exec vendor (ADR-031 amendment). No in-process node handlers remain on this path. */
-export function buildFloorAssemblyLineHandlers(
-  task: FloorAssemblyLineTask,
-  ports: FloorAssemblyLinePorts,
-): NodeHandlers {
-  const station: NodeHandler = createStationNodeHandler({
-    launch: (node) => ports.dispatchAgent(nodeStationSpec(node, task)),
-    poll: ports.agentStatus,
-    heartbeat: ports.heartbeat,
-    sleep: ports.sleep,
-  });
-
-  return {
-    ...createProductionHandlers({
-      episodeDeps: ports.episodeDeps,
-      agent: createStationNodeHandler({
-        launch: (node) =>
-          ports.dispatchAgent(
-            nodeAgentSpec(node, task, ports.resolvePrompt(node, task)),
-          ),
-        poll: ports.agentStatus,
-        heartbeat: ports.heartbeat,
-        sleep: ports.sleep,
-      }),
-      validate: station,
-      gate: station,
-      retrospective: station,
-      github_action: station,
-    }),
-    detect: station,
   };
 }
