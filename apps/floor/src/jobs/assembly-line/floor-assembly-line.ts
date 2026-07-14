@@ -38,6 +38,21 @@ export function nodeAgentName(assemblyLineId: string, nodeId: string): string {
   return `${assemblyLineId.substring(0, 8)}-${nodeId}`;
 }
 
+/** The CR name only carries an 8-char prefix; these labels carry the full identity
+ *  so the k8s watch maps a terminal node CR back to its (line, node) directly. */
+export const ASSEMBLY_LINE_ID_LABEL = "lore.re-cinq.com/assembly-line-id";
+export const NODE_ID_LABEL = "lore.re-cinq.com/node-id";
+
+function nodeLabels(
+  node: AssemblyLineNode,
+  task: FloorAssemblyLineTask,
+): Record<string, string> {
+  return {
+    [ASSEMBLY_LINE_ID_LABEL]: task.assemblyLineId,
+    [NODE_ID_LABEL]: node.id,
+  };
+}
+
 /** Pure: the Agent dispatch spec for one agent-node. Prompt is resolved per node; model
  *  from the node (else inherited); repo/branch/description from the task. */
 export function nodeAgentSpec(
@@ -54,6 +69,7 @@ export function nodeAgentSpec(
     branch: task.branch,
     ...(node.model ? { model: node.model } : {}),
     name: nodeAgentName(task.assemblyLineId, node.id),
+    extraLabels: nodeLabels(node, task),
   };
 }
 
@@ -93,6 +109,7 @@ export function nodeStationSpec(
     targetRepo: task.targetRepo,
     branch: task.branch,
     name: nodeAgentName(task.assemblyLineId, node.id),
+    extraLabels: nodeLabels(node, task),
     stationRef: node.station_ref ?? stationName(node.type),
     parameters: {
       station_input: JSON.stringify({

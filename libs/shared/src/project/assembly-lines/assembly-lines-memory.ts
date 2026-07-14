@@ -5,6 +5,7 @@ import type {
   AssemblyLineStartInput,
   AssemblyLineNodeStartInput,
   AssemblyLineRecord,
+  AssemblyLineNodeRecord,
 } from "./assembly-lines-port.js";
 
 export interface SeedAssemblyLineEvent {
@@ -109,6 +110,55 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     node.outcome = outcome;
     node.commitSha = commitSha ?? null;
     node.finishedAt = this.clock();
+  }
+
+  async ensureNodeStart(
+    input: AssemblyLineNodeStartInput,
+  ): Promise<{ nodeRowId: string; created: boolean }> {
+    const existing = this.nodes.find(
+      (n) =>
+        n.assemblyLineId === input.assemblyLineId &&
+        n.nodeId === input.nodeId &&
+        n.iteration === input.iteration,
+    );
+
+    if (existing) {
+      return { nodeRowId: existing.id, created: false };
+    }
+
+    return { nodeRowId: await this.recordNodeStart(input), created: true };
+  }
+
+  async finishNodeOnce(
+    nodeRowId: string,
+    outcome: string,
+    commitSha?: string,
+  ): Promise<boolean> {
+    const node = this.nodes.find((n) => n.id === nodeRowId);
+
+    if (!node || node.outcome !== null) {
+      return false;
+    }
+
+    await this.recordNodeFinish(nodeRowId, outcome, commitSha);
+
+    return true;
+  }
+
+  async listNodes(assemblyLineId: string): Promise<AssemblyLineNodeRecord[]> {
+    // Numeric-string ids (this double mints "1","2",…; Pg's BIGINT identity is
+    // likewise numeric) — compare with numeric collation so the double stays
+    // honest as the behavioral spec (a plain Number() diff would NaN on any
+    // non-numeric id and silently no-op the sort).
+    return this.nodes
+      .filter((n) => n.assemblyLineId === assemblyLineId)
+      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+  }
+
+  async listOpen(): Promise<AssemblyLineRecord[]> {
+    return this.rows
+      .filter((r) => r.status === "queued" || r.status === "running")
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }
 
   async getById(id: string): Promise<AssemblyLineRecord | null> {

@@ -55,6 +55,10 @@ describe("nodeAgentSpec", () => {
       branch: "lore/impl-abcdef12",
       model: "claude-sonnet-4-6",
       name: "a1b2c3d4-implement",
+      extraLabels: {
+        "lore.re-cinq.com/assembly-line-id": "a1b2c3d4e5f6a7b8",
+        "lore.re-cinq.com/node-id": "implement",
+      },
     });
     expect(nodeAgentName(task.assemblyLineId, "review")).toBe(
       "a1b2c3d4-review",
@@ -65,6 +69,23 @@ describe("nodeAgentSpec", () => {
     expect(
       nodeAgentSpec({ id: "push", type: "agent" }, task, "p"),
     ).not.toHaveProperty("model");
+  });
+
+  it("labels the CR with the full assembly-line id and node id (event-driven transitions)", () => {
+    // The CR name only carries an 8-char prefix; the labels carry the full uuid so
+    // the k8s watch can map a terminal node CR back to its line without a lookup.
+    expect(
+      nodeAgentSpec({ id: "implement", type: "agent" }, task, "p").extraLabels,
+    ).toEqual({
+      "lore.re-cinq.com/assembly-line-id": "a1b2c3d4e5f6a7b8",
+      "lore.re-cinq.com/node-id": "implement",
+    });
+    expect(
+      nodeStationSpec({ id: "wrap", type: "retrospective" }, task).extraLabels,
+    ).toEqual({
+      "lore.re-cinq.com/assembly-line-id": "a1b2c3d4e5f6a7b8",
+      "lore.re-cinq.com/node-id": "wrap",
+    });
   });
 });
 

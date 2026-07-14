@@ -103,3 +103,10 @@ export {
   createValidateHandler,
   type ValidateHandlerDeps,
 } from "./validate-handler.js";
+
+export {
+  selectEdge,
+  nextTransition,
+  type NodeVisit,
+  type Transition,
+} from "./transition.js";
