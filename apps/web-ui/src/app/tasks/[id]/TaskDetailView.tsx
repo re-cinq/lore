@@ -129,10 +129,7 @@ export default function TaskDetailView({
         <div className={styles.actions}>
           {task.status === "pending" &&
             (task.priority || "normal") === "normal" && (
-              <form
-                action={`/api/assembly-lines/${task.id}/run-now`}
-                method="POST"
-              >
+              <form action={`/api/tasks/${task.id}/run-now`} method="POST">
                 <button type="submit" className={styles.runNowBtn}>
                   Run Now
                 </button>

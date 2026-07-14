@@ -1,11 +1,13 @@
 // First-class assembly line runs (pipeline.assembly_lines, migration 0025) — the
-// per-attempt execution records, distinct from the task-grouping `AssemblyLine`
-// in ./assembly-lines.ts (which chains related task rows). Named AssemblyLineRun
-// to keep the two apart until the page re-keys onto run ids.
+// per-attempt execution records that are THE "assembly line" in the UI. The old
+// task-chain grouping (the retired lib/assembly-lines.ts) is gone; the list, the
+// per-repo tab, and the run detail page all read through here. PR link / creator /
+// cost live on pipeline.tasks, joined via task_id (code-review runs have no task,
+// so they fall back to args.pr_number for the PR link).
 
 import { queryAllowMissing } from "./db";
 
-/** Raw row shape from pipeline.assembly_lines joined with a node count. */
+/** Raw run row: pipeline.assembly_lines LEFT JOIN pipeline.tasks + a cost lateral. */
 export interface AssemblyLineRunRow {
   id: string;
   definition_name: string;
@@ -18,7 +20,11 @@ export interface AssemblyLineRunRow {
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
-  node_count: string;
+  args_pr_number: number | null;
+  pr_url: string | null;
+  task_pr_number: number | null;
+  created_by: string | null;
+  cost_usd: number | null;
 }
 
 export interface AssemblyLineRun {
@@ -31,19 +37,55 @@ export interface AssemblyLineRun {
   outcome: string | null;
   reason: string | null;
   createdAt: string;
-  nodeCount: number;
+  startedAt: string | null;
+  durationSeconds: number | null;
+  prUrl: string | null;
+  prNumber: number | null;
+  createdBy: string | null;
+  costUsd: number | null;
+}
+
+export interface AssemblyLineRunNodeRow {
+  node_id: string;
+  iteration: number;
+  outcome: string | null;
+  agent_cr_name: string | null;
+  commit_sha: string | null;
+  started_at: string;
+  finished_at: string | null;
+}
+
+export interface AssemblyLineRunNode {
+  nodeId: string;
+  iteration: number;
+  outcome: string | null;
+  agentCrName: string | null;
+  commitSha: string | null;
   durationSeconds: number | null;
 }
 
+function durationSeconds(
+  startIso: string | null,
+  endIso: string | null,
+): number | null {
+  if (!startIso || !endIso) {
+    return null;
+  }
+
+  return Math.round(
+    (new Date(endIso).getTime() - new Date(startIso).getTime()) / 1000,
+  );
+}
+
 export function toAssemblyLineRun(row: AssemblyLineRunRow): AssemblyLineRun {
-  const durationSeconds =
-    row.started_at && row.finished_at
-      ? Math.round(
-          (new Date(row.finished_at).getTime() -
-            new Date(row.started_at).getTime()) /
-            1000,
-        )
-      : null;
+  // PR link precedence: the backing task's PR, else a code-review run's
+  // args.pr_number reconstructed against the repo.
+  const prNumber = row.task_pr_number ?? row.args_pr_number;
+  const prUrl =
+    row.pr_url ??
+    (row.args_pr_number !== null
+      ? `https://github.com/${row.repo}/pull/${row.args_pr_number}`
+      : null);
 
   return {
     id: row.id,
@@ -55,26 +97,87 @@ export function toAssemblyLineRun(row: AssemblyLineRunRow): AssemblyLineRun {
     outcome: row.outcome,
     reason: row.reason,
     createdAt: row.created_at,
-    nodeCount: Number(row.node_count),
-    durationSeconds,
+    startedAt: row.started_at,
+    durationSeconds: durationSeconds(row.started_at, row.finished_at),
+    prUrl,
+    prNumber: prNumber ?? null,
+    createdBy: row.created_by,
+    costUsd: row.cost_usd,
   };
 }
 
-/** Most-recent runs with their node counts; empty on pre-0025 databases (queryAllowMissing). */
-export async function fetchRecentAssemblyLineRuns(
-  limit = 20,
+export function toAssemblyLineRunNode(
+  row: AssemblyLineRunNodeRow,
+): AssemblyLineRunNode {
+  return {
+    nodeId: row.node_id,
+    iteration: row.iteration,
+    outcome: row.outcome,
+    agentCrName: row.agent_cr_name,
+    commitSha: row.commit_sha,
+    durationSeconds: durationSeconds(row.started_at, row.finished_at),
+  };
+}
+
+const RUN_SELECT = `
+  SELECT al.id, al.definition_name, al.task_id, al.repo, al.branch,
+         al.status, al.outcome, al.reason,
+         al.created_at, al.started_at, al.finished_at,
+         (al.args->>'pr_number')::int AS args_pr_number,
+         t.pr_url, t.pr_number AS task_pr_number, t.created_by,
+         cost.cost_usd
+    FROM pipeline.assembly_lines al
+    LEFT JOIN pipeline.tasks t ON t.id = al.task_id
+    LEFT JOIN LATERAL (
+      SELECT SUM(lc.cost_usd)::float AS cost_usd
+        FROM pipeline.llm_calls lc
+       WHERE lc.task_id = al.task_id
+    ) cost ON true`;
+
+/** The run list, filterable by status and repo (both SQL-side). Empty on pre-0025 DBs. */
+export async function fetchAssemblyLineRuns(
+  opts: {
+    status?: string;
+    repo?: string;
+    limit?: number;
+  } = {},
 ): Promise<AssemblyLineRun[]> {
   const rows = await queryAllowMissing<AssemblyLineRunRow>(
-    `SELECT al.id, al.definition_name, al.task_id, al.repo, al.branch,
-            al.status, al.outcome, al.reason, al.created_at, al.started_at, al.finished_at,
-            COUNT(n.id)::text AS node_count
-       FROM pipeline.assembly_lines al
-       LEFT JOIN pipeline.assembly_line_nodes n ON n.assembly_line_id = al.id
-      GROUP BY al.id
-      ORDER BY al.created_at DESC
-      LIMIT $1`,
-    [limit],
+    `${RUN_SELECT}
+     WHERE ($1::text IS NULL OR al.status = $1)
+       AND ($2::text IS NULL OR al.repo = $2)
+     ORDER BY al.created_at DESC
+     LIMIT $3`,
+    [opts.status ?? null, opts.repo ?? null, opts.limit ?? 50],
   );
 
   return rows.map(toAssemblyLineRun);
+}
+
+/** One run by id, or null (also null on pre-0025 DBs so the resolver falls through). */
+export async function fetchAssemblyLineRun(
+  id: string,
+): Promise<AssemblyLineRun | null> {
+  const rows = await queryAllowMissing<AssemblyLineRunRow>(
+    `${RUN_SELECT} WHERE al.id = $1`,
+    [id],
+  );
+
+  return rows.length > 0 ? toAssemblyLineRun(rows[0]) : null;
+}
+
+/** The run's node executions in visit order. */
+export async function fetchAssemblyLineRunNodes(
+  id: string,
+): Promise<AssemblyLineRunNode[]> {
+  const rows = await queryAllowMissing<AssemblyLineRunNodeRow>(
+    `SELECT node_id, iteration, outcome, agent_cr_name, commit_sha,
+            started_at, finished_at
+       FROM pipeline.assembly_line_nodes
+      WHERE assembly_line_id = $1
+      ORDER BY id`,
+    [id],
+  );
+
+  return rows.map(toAssemblyLineRunNode);
 }

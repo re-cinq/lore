@@ -23,7 +23,7 @@ describe("CancelTaskButton", () => {
     ).toBeInTheDocument();
     expect(container.querySelector("form")).toHaveAttribute(
       "action",
-      "/api/assembly-lines/t1/cancel",
+      "/api/tasks/t1/cancel",
     );
   });
 

@@ -56,9 +56,7 @@ describe("PRStatusBadge", () => {
     render(<PRStatusBadge taskId="abc-123" />);
     await flushFetch();
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/assembly-lines/abc-123/pr-status",
-    );
+    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/abc-123/pr-status");
   });
 
   it("renders the status pill with the computed status text after resolve", async () => {
@@ -156,8 +154,8 @@ describe("PRStatusBadge", () => {
 
   it("re-fetches and updates when the taskId prop changes", async () => {
     const byTask: Record<string, string> = {
-      "/api/assembly-lines/first/pr-status": "open",
-      "/api/assembly-lines/second/pr-status": "merged",
+      "/api/tasks/first/pr-status": "open",
+      "/api/tasks/second/pr-status": "merged",
     };
     const fetchMock = stubFetch((url) =>
       jsonResponse({ computed_status: byTask[url] }),
@@ -173,14 +171,8 @@ describe("PRStatusBadge", () => {
     // Effect dependency [taskId] fires a second fetch for the new id.
     expect(await screen.findByText("merged")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
-      "/api/assembly-lines/first/pr-status",
-    );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      "/api/assembly-lines/second/pr-status",
-    );
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/tasks/first/pr-status");
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/tasks/second/pr-status");
   });
 
   it("does not throw when the fetch resolves after unmount", async () => {

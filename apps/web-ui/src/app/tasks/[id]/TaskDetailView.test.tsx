@@ -123,9 +123,7 @@ describe("TaskDetailView", () => {
 
     expect(screen.getByRole("button", { name: "Run Now" })).toBeInTheDocument();
     expect(
-      container.querySelector(
-        'form[action="/api/assembly-lines/task-1/run-now"]',
-      ),
+      container.querySelector('form[action="/api/tasks/task-1/run-now"]'),
     ).toBeTruthy();
   });
 

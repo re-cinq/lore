@@ -35,8 +35,8 @@ export default function TaskLogs({
 
     const useOffset = totalSize > 0 && ACTIVE_STATES.has(status);
     const url = useOffset
-      ? `/api/assembly-lines/${taskId}/logs?offset=${totalSize}`
-      : `/api/assembly-lines/${taskId}/logs`;
+      ? `/api/tasks/${taskId}/logs?offset=${totalSize}`
+      : `/api/tasks/${taskId}/logs`;
 
     try {
       const res = await fetch(url);

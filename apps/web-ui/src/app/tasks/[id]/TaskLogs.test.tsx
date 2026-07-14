@@ -84,7 +84,7 @@ describe("TaskLogs", () => {
     render(<TaskLogs taskId="abc" initialStatus="succeeded" />);
     await settle();
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/assembly-lines/abc/logs");
+    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/abc/logs");
     // succeeded is not an ACTIVE_STATE → the offset branch is never taken.
     expect(offsetCalls(fetchMock)).toHaveLength(0);
   });
@@ -267,9 +267,7 @@ describe("TaskLogs", () => {
     await settle();
 
     // The settled effect chain fires the offset fetch (totalSize 11 + running), which appends.
-    expect(offsetCalls(fetchMock)).toContain(
-      "/api/assembly-lines/job9/logs?offset=11",
-    );
+    expect(offsetCalls(fetchMock)).toContain("/api/tasks/job9/logs?offset=11");
     expect(screen.getByText("first-chunk-second")).toBeInTheDocument();
   });
 

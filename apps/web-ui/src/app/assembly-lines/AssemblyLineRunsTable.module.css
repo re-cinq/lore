@@ -167,3 +167,35 @@
   cursor: pointer;
   font-size: var(--fs-xs);
 }
+
+.emptyCell {
+  text-align: center;
+}
+
+/* run-keyed additions */
+.empty {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  padding: var(--space-4, 1rem) 0;
+}
+.subId {
+  margin-left: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.reason {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--danger);
+}
+.pr {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.branch {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
