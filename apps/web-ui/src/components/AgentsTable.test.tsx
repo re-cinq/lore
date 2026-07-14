@@ -41,6 +41,7 @@ describe("AgentsTable rendering", () => {
 
   it("omits the intro line when no intro is given", () => {
     const { container } = render(<AgentsTable agents={[local()]} />);
+
     expect(container.querySelector("p.meta")).toBeNull();
   });
 
@@ -64,6 +65,7 @@ describe("AgentsTable rendering", () => {
   it("renders the base column headers without a Why column when no reason is present", () => {
     render(<AgentsTable agents={[local()]} />);
     const table = screen.getByRole("table");
+
     for (const header of [
       "Agent",
       "Type",
@@ -96,6 +98,7 @@ describe("AgentsTable rendering", () => {
       />,
     );
     const table = screen.getByRole("table");
+
     expect(
       within(table).getByRole("columnheader", { name: "Why" }),
     ).toBeInTheDocument();
@@ -133,6 +136,7 @@ describe("AgentsTable local-vs-task visibility", () => {
   it("reveals task agents and flips the label when the toggle is clicked", () => {
     render(<AgentsTable agents={[local(), task()]} />);
     const toggle = screen.getByRole("button", { name: /Show task agents/ });
+
     expect(toggle).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.click(toggle);
@@ -141,6 +145,7 @@ describe("AgentsTable local-vs-task visibility", () => {
       screen.getByRole("link", { name: "lore-agent-abc123" }),
     ).toBeInTheDocument();
     const hide = screen.getByRole("button", { name: "Hide task agents" });
+
     expect(hide).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(hide);
@@ -165,10 +170,12 @@ describe("AgentsTable rows", () => {
       />,
     );
     const link = screen.getByRole("link", { name: "agent x/1" });
+
     expect(link).toHaveAttribute("href", "/agents/agent%20x%2F1");
     expect(screen.getByText("Local MCP")).toHaveClass("badge");
 
     const table = screen.getByRole("table");
+
     expect(within(table).getByText("99")).toBeInTheDocument();
     expect(within(table).getByText("$0.0000")).toBeInTheDocument();
   });

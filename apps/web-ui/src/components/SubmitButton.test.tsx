@@ -5,8 +5,10 @@ import { render, screen } from "@testing-library/react";
 const formStatus = vi.fn<() => { pending: boolean }>(() => ({
   pending: false,
 }));
+
 vi.mock("react-dom", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-dom")>();
+
   return { ...actual, useFormStatus: () => formStatus() };
 });
 
@@ -17,6 +19,7 @@ describe("SubmitButton", () => {
     formStatus.mockReturnValue({ pending: false });
     render(<SubmitButton pendingLabel="Saving…">Save</SubmitButton>);
     const button = screen.getByRole("button", { name: "Save" });
+
     expect(button).not.toBeDisabled();
     expect(button).toHaveAttribute("aria-busy", "false");
   });
@@ -25,6 +28,7 @@ describe("SubmitButton", () => {
     formStatus.mockReturnValue({ pending: true });
     render(<SubmitButton pendingLabel="Saving…">Save</SubmitButton>);
     const button = screen.getByRole("button", { name: "Saving…" });
+
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute("aria-busy", "true");
   });

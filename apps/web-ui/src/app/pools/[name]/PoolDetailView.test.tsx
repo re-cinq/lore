@@ -80,6 +80,7 @@ describe("PoolDetailView", () => {
       />,
     );
     const table = screen.getByRole("table");
+
     expect(
       within(table).getByText("always set the env var"),
     ).toBeInTheDocument();
@@ -98,6 +99,7 @@ describe("PoolDetailView", () => {
       />,
     );
     const table = screen.getByRole("table");
+
     expect(within(table).getByText("deployment-gotchas")).toBeInTheDocument();
     expect(within(table).getByText("big-blob")).toBeInTheDocument();
     expect(

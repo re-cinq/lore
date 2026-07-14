@@ -118,6 +118,7 @@ describe("RepoOverviewView", () => {
     const card = screen
       .getByRole("heading", { level: 3, name: "Dark Factory" })
       .closest(".spec-card") as HTMLElement;
+
     expect(within(card).getByText("Off (legacy)")).toBeInTheDocument();
     expect(within(card).getByText("docs")).toBeInTheDocument();
     expect(
@@ -139,6 +140,7 @@ describe("RepoOverviewView", () => {
     const card = screen
       .getByRole("heading", { level: 3, name: "Dark Factory" })
       .closest(".spec-card") as HTMLElement;
+
     expect(within(card).getByText("Enabled")).toBeInTheDocument();
     expect(within(card).getByText("full")).toBeInTheDocument();
     expect(within(card).getByText("12")).toBeInTheDocument();
@@ -167,6 +169,7 @@ describe("RepoOverviewView", () => {
     );
     expect(screen.getByText("Implement the widget...")).toBeInTheDocument();
     const completed = screen.getByText("Completed");
+
     expect(completed).toHaveClass("op-badge", "op-completed");
     expect(
       screen.getByRole("link", { name: "Implement the widget..." }),
@@ -181,6 +184,7 @@ describe("RepoOverviewView", () => {
 
   it("truncates long task descriptions to 60 chars with an ellipsis", () => {
     const long = "x".repeat(80);
+
     render(
       <RepoOverviewView
         {...baseProps}

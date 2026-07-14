@@ -61,6 +61,7 @@ export default function TasksView({
         ) : (
           tasks.map((task) => {
             const status = task.metadata?.status || "unknown";
+
             return (
               <div key={task.id} className="spec-card">
                 <div className={styles.cardHead}>

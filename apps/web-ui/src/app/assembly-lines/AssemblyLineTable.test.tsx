@@ -76,6 +76,7 @@ describe("AssemblyLineTable", () => {
         pr_number: 3,
       }),
     );
+
     render(<AssemblyLineTable runs={runs} />);
 
     expect(screen.getAllByTestId("al-stage")).toHaveLength(1);
@@ -109,6 +110,7 @@ describe("AssemblyLineTable", () => {
       target_branch: "lore/y",
       created_at: "2026-06-01T11:00:00.000Z",
     });
+
     render(<AssemblyLineTable runs={group(review, impl)} />);
     // The member's stage badge also reads "Running" now — scope to the roll-up.
     expect(
@@ -155,6 +157,7 @@ describe("AssemblyLineTable", () => {
     const form = screen
       .getByRole("button", { name: "Run Now" })
       .closest("form");
+
     expect(form).toHaveAttribute("action", "/api/assembly-lines/p1/run-now");
     expect(form).toHaveAttribute("method", "POST");
   });
@@ -177,6 +180,7 @@ describe("AssemblyLineTable", () => {
         runs={group(taskRow({ pr_url: "https://gh/pr/x", pr_number: null }))}
       />,
     );
+
     expect(screen.getByRole("link", { name: "PR" })).toHaveAttribute(
       "href",
       "https://gh/pr/x",
@@ -223,6 +227,7 @@ describe("AssemblyLineTable", () => {
       cost_usd: 0.2,
       created_at: "2026-06-01T11:00:00.000Z",
     });
+
     render(<AssemblyLineTable runs={group(review, impl)} showCost />);
     expect(screen.getByText("Cost")).toBeInTheDocument();
     expect(screen.getByText("$0.3000")).toBeInTheDocument();

@@ -14,7 +14,9 @@ export function PoolValueCell({ value }: { value: string }) {
 
   useEffect(
     () => () => {
-      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+      if (copiedTimer.current) {
+        clearTimeout(copiedTimer.current);
+      }
     },
     [],
   );
@@ -23,7 +25,10 @@ export function PoolValueCell({ value }: { value: string }) {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
-      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+
+      if (copiedTimer.current) {
+        clearTimeout(copiedTimer.current);
+      }
       copiedTimer.current = setTimeout(() => setCopied(false), 1500);
     } catch {
       /* clipboard unavailable — no-op */

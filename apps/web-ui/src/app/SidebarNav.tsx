@@ -66,6 +66,7 @@ export default function SidebarNav() {
             );
           }
           const isCollapsed = collapsed[group.label] ?? false;
+
           return (
             <div key={group.label} className={styles.group}>
               <button

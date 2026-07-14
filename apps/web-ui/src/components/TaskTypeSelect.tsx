@@ -20,6 +20,7 @@ export function TaskTypeSelect({
 }) {
   const [selected, setSelected] = useState(options[0]?.value ?? "");
   const description = DESCRIPTIONS[selected];
+
   return (
     <>
       <select

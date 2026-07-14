@@ -18,11 +18,19 @@ const ACRONYMS = new Set([
 
 export function formatEnumLabel(value: string): string {
   const words = value.split(/[_-]+/).filter(Boolean);
-  if (words.length === 0) return value;
+
+  if (words.length === 0) {
+    return value;
+  }
+
   return words
     .map((word, index) => {
       const lower = word.toLowerCase();
-      if (ACRONYMS.has(lower)) return word.toUpperCase();
+
+      if (ACRONYMS.has(lower)) {
+        return word.toUpperCase();
+      }
+
       return index === 0
         ? word.charAt(0).toUpperCase() + lower.slice(1)
         : lower;

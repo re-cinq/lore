@@ -84,6 +84,7 @@ describe("TaskDetailView", () => {
 
   it("sentence-cases the header status badge", () => {
     const { container } = renderView({ task: task({ status: "running" }) });
+
     expect(container.querySelector(".op-badge.op-running")).toHaveTextContent(
       "Running",
     );
@@ -91,6 +92,7 @@ describe("TaskDetailView", () => {
 
   it("truncates a description longer than 80 characters in the heading", () => {
     const long = "x".repeat(120);
+
     renderView({ task: task({ description: long }) });
     expect(
       screen.getByRole("heading", {
@@ -103,12 +105,14 @@ describe("TaskDetailView", () => {
   it("shows priority as a red badge when immediate", () => {
     renderView({ task: task({ priority: "immediate" }) });
     const badge = screen.getByText("immediate");
+
     expect(badge).toHaveClass("badge", "badge-red");
   });
 
   it("falls back to normal priority label and meta class when priority is empty", () => {
     renderView({ task: task({ priority: "" }) });
     const badge = screen.getByText("normal");
+
     expect(badge).toHaveClass("meta");
   });
 
@@ -116,6 +120,7 @@ describe("TaskDetailView", () => {
     const { container } = renderView({
       task: task({ status: "pending", priority: "normal" }),
     });
+
     expect(screen.getByRole("button", { name: "Run Now" })).toBeInTheDocument();
     expect(
       container.querySelector(
@@ -181,6 +186,7 @@ describe("TaskDetailView", () => {
     const link = screen.getByRole("link", {
       name: "https://github.com/re-cinq/lore/pull/7",
     });
+
     expect(link).toHaveAttribute(
       "href",
       "https://github.com/re-cinq/lore/pull/7",
@@ -209,6 +215,7 @@ describe("TaskDetailView", () => {
       to_status: "failed",
       metadata: { error: "agent crashed mid-run" },
     });
+
     renderView({
       task: task({ status: "failed" }),
       events: [failed],
@@ -235,6 +242,7 @@ describe("TaskDetailView", () => {
         status: "running",
       }),
     });
+
     expect(
       screen.getByRole("heading", { level: 3, name: "Give Feedback" }),
     ).toBeInTheDocument();
@@ -288,6 +296,7 @@ describe("TaskDetailView", () => {
       level: 2,
       name: "Event Timeline",
     }).nextElementSibling as HTMLElement;
+
     expect(within(list).getByText("Running")).toBeInTheDocument();
     expect(within(list).getByText("Queued")).toBeInTheDocument();
     expect(within(list).getByText("← Pending")).toBeInTheDocument();
@@ -320,6 +329,7 @@ describe("TaskDetailView", () => {
       ],
     });
     const failedBadge = screen.getByText("failed");
+
     expect(failedBadge).toHaveClass("badge", "badge-red");
     expect(screen.getByText("rate limited")).toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();

@@ -12,8 +12,12 @@ export function TimeAgo({
   inline?: boolean;
 }) {
   const parsed = date instanceof Date ? date : new Date(date);
-  if (Number.isNaN(parsed.getTime())) return <time>{String(date)}</time>;
+
+  if (Number.isNaN(parsed.getTime())) {
+    return <time>{String(date)}</time>;
+  }
   const iso = parsed.toISOString();
+
   return (
     <time dateTime={iso} suppressHydrationWarning>
       {parsed.toLocaleString()}

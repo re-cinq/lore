@@ -24,6 +24,7 @@ const entry = (over: Record<string, unknown> = {}) => ({
 describe("TasksView", () => {
   it("renders the heading and global-view notice", () => {
     const action = vi.fn();
+
     render(<TasksView tasks={[]} recentActivity={[]} createTask={action} />);
     expect(
       screen.getByRole("heading", { level: 1, name: "Tasks" }),
@@ -42,16 +43,19 @@ describe("TasksView", () => {
     const { container } = render(
       <TasksView tasks={[]} recentActivity={[]} createTask={action} />,
     );
+
     expect(
       screen.getByRole("button", { name: "Create Task" }),
     ).toBeInTheDocument();
     const textarea = container.querySelector('textarea[name="description"]');
+
     expect(textarea).toBeInTheDocument();
     expect(textarea).toBeRequired();
   });
 
   it("shows both task empty state and activity empty state when nothing is populated", () => {
     const action = vi.fn();
+
     render(<TasksView tasks={[]} recentActivity={[]} createTask={action} />);
     expect(
       screen.getByText("No tasks found. Create one above."),
@@ -64,6 +68,7 @@ describe("TasksView", () => {
 
   it("renders one card per task with the badge-open class on open status", () => {
     const action = vi.fn();
+
     render(
       <TasksView
         tasks={[
@@ -74,12 +79,14 @@ describe("TasksView", () => {
       />,
     );
     const badge = screen.getByText("Open");
+
     expect(badge).toHaveClass("badge", "badge-open");
     expect(screen.getByText("Open task")).toBeInTheDocument();
   });
 
   it("renders unknown status without badge-open when metadata has no status", () => {
     const action = vi.fn();
+
     render(
       <TasksView
         tasks={[task({ id: "b", content: "Stateless task", metadata: {} })]}
@@ -88,6 +95,7 @@ describe("TasksView", () => {
       />,
     );
     const badge = screen.getByText("Unknown");
+
     expect(badge).toHaveClass("badge");
     expect(badge).not.toHaveClass("badge-open");
     expect(screen.getByText("Stateless task")).toBeInTheDocument();
@@ -95,6 +103,7 @@ describe("TasksView", () => {
 
   it("renders the activity table with one row per audit entry", () => {
     const action = vi.fn();
+
     render(
       <TasksView
         tasks={[]}
@@ -114,6 +123,7 @@ describe("TasksView", () => {
       />,
     );
     const table = screen.getByRole("table");
+
     expect(within(table).getByText("agent-1")).toBeInTheDocument();
     expect(within(table).getByText("agent-2")).toBeInTheDocument();
     expect(within(table).getByText("Read memory")).toBeInTheDocument();

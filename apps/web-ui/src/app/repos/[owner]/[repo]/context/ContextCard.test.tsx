@@ -23,6 +23,7 @@ describe("ContextCard", () => {
       />,
     );
     const link = screen.getByRole("link", { name: "specs/a/spec.md" });
+
     expect(link).toHaveAttribute(
       "href",
       "/repos/o/r/context/specs%2Fa%2Fspec.md",
@@ -38,6 +39,7 @@ describe("ContextCard", () => {
       />,
     );
     const badge = screen.getByText("Code", { selector: "span.badge" });
+
     expect(badge.className).toContain("badge-gray");
   });
 
@@ -64,6 +66,7 @@ describe("ContextCard", () => {
     const { rerender } = render(
       <ContextCard chunk={chunk()} detailHref="/x" repo="o/r" />,
     );
+
     expect(screen.queryByText("o/r")).toBeNull();
     rerender(
       <ContextCard

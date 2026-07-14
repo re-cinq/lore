@@ -13,15 +13,18 @@ const renderCell = (value: string) => {
       </tbody>
     </table>,
   );
+
   return within(container.querySelector("td")!);
 };
 
 const stubClipboard = () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
+
   Object.defineProperty(navigator, "clipboard", {
     value: { writeText },
     configurable: true,
   });
+
   return writeText;
 };
 
@@ -33,6 +36,7 @@ afterEach(() => {
 describe("PoolValueCell", () => {
   it("shows the full value and only a Copy button when short", () => {
     const cell = renderCell("short value");
+
     expect(cell.getByText("short value")).toBeInTheDocument();
     expect(cell.getByRole("button", { name: "Copy" })).toBeInTheDocument();
     expect(cell.queryByRole("button", { name: "Show more" })).toBeNull();
@@ -41,6 +45,7 @@ describe("PoolValueCell", () => {
   it("truncates a long value and toggles expand/collapse", () => {
     const long = "x".repeat(250);
     const cell = renderCell(long);
+
     expect(cell.getByText(`${"x".repeat(200)}…`)).toBeInTheDocument();
 
     fireEvent.click(cell.getByRole("button", { name: "Show more" }));

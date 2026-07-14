@@ -52,8 +52,9 @@ export default function PRStatusCard({
     fetch(`/api/assembly-lines/${taskId}/pr-status`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.error) setError(data.error);
-        else {
+        if (data.error) {
+          setError(data.error);
+        } else {
           setDetails(data);
           setError(null);
         }
@@ -71,9 +72,13 @@ export default function PRStatusCard({
   const isTerminal = details
     ? TERMINAL_STATES.has(details.computed_status)
     : false;
+
   useEffect(() => {
-    if (isTerminal || error) return;
+    if (isTerminal || error) {
+      return;
+    }
     const handle = setInterval(fetchStatus, POLL_INTERVAL_MS);
+
     return () => clearInterval(handle);
   }, [fetchStatus, isTerminal, error]);
 

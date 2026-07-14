@@ -6,6 +6,7 @@ import { CancelTaskButton } from "./CancelTaskButton";
 describe("CancelTaskButton", () => {
   it("shows only the trigger and no submit form before confirming", () => {
     const { container } = render(<CancelTaskButton taskId="t1" />);
+
     expect(
       screen.getByRole("button", { name: "Cancel Task" }),
     ).toBeInTheDocument();
@@ -15,6 +16,7 @@ describe("CancelTaskButton", () => {
 
   it("reveals a confirm form posting to the cancel endpoint after the trigger is clicked", () => {
     const { container } = render(<CancelTaskButton taskId="t1" />);
+
     fireEvent.click(screen.getByRole("button", { name: "Cancel Task" }));
     expect(
       screen.getByRole("button", { name: "Confirm cancel" }),

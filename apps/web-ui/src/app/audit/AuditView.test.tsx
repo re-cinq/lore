@@ -48,12 +48,14 @@ describe("AuditView", () => {
         hasNext={false}
       />,
     );
+
     expect(screen.getByText("abcdef01…")).toBeInTheDocument();
     expect(screen.getByText("99887766…")).toBeInTheDocument();
     expect(
       container.querySelector('td[title="abcdef0123456789"]'),
     ).toBeInTheDocument();
     const writeBadge = container.querySelector(".op-badge.op-write");
+
     expect(writeBadge).toBeInTheDocument();
     expect(writeBadge).toHaveTextContent("Write");
     expect(container.querySelector(".op-badge.op-read")).toBeInTheDocument();
@@ -78,6 +80,7 @@ describe("AuditView", () => {
         hasNext={false}
       />,
     );
+
     expect(screen.getByText("deploy-notes")).toBeInTheDocument();
     expect(screen.getByText("team-pool")).toBeInTheDocument();
     expect(screen.getByText("view")).toBeInTheDocument();
@@ -114,8 +117,10 @@ describe("AuditView", () => {
         hasNext={false}
       />,
     );
+
     expect(screen.getByText("view")).toBeInTheDocument();
     const pre = container.querySelector("details pre");
+
     expect(pre?.textContent).toContain('"description"');
     expect(pre?.textContent).toContain("x".repeat(200));
   });
@@ -132,6 +137,7 @@ describe("AuditView", () => {
         hasNext={false}
       />,
     );
+
     expect(screen.getByText("No activity recorded yet")).toBeInTheDocument();
     expect(container.querySelector('td[colspan="6"]')).toBeInTheDocument();
   });
@@ -194,6 +200,7 @@ describe("AuditView", () => {
         hasNext={false}
       />,
     );
+
     expect(container.querySelector('input[name="agent"]')).toHaveValue(
       "abcdef0123456789",
     );
@@ -213,6 +220,7 @@ describe("AuditView", () => {
       />,
     );
     const links = container.querySelectorAll(".pagination a");
+
     expect(links).toHaveLength(2);
     links.forEach((a) => expect(a).toHaveClass("disabled"));
     expect(screen.getByText("1 of 1", { exact: false })).toBeInTheDocument();
@@ -234,6 +242,7 @@ describe("AuditView", () => {
     );
     const prev = screen.getByRole("link", { name: /Previous/ });
     const next = screen.getByRole("link", { name: /Next/ });
+
     expect(prev).not.toHaveClass("disabled");
     expect(next).not.toHaveClass("disabled");
     // offset 0 omits the offset param; filters preserved

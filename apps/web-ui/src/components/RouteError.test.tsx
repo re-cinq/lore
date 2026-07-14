@@ -18,6 +18,7 @@ describe("RouteError", () => {
 
   it("calls reset when the retry button is clicked", () => {
     const reset = vi.fn();
+
     render(<RouteError error={new Error("boom")} reset={reset} />);
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(reset).toHaveBeenCalledOnce();

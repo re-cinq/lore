@@ -42,9 +42,16 @@ export default function EpisodesView({
 }: EpisodesViewProps) {
   function buildUrl(newOffset: number): string {
     const p = new URLSearchParams();
-    if (source) p.set("source", source);
-    if (newOffset > 0) p.set("offset", String(newOffset));
+
+    if (source) {
+      p.set("source", source);
+    }
+
+    if (newOffset > 0) {
+      p.set("offset", String(newOffset));
+    }
     const qs = p.toString();
+
     return `/episodes${qs ? `?${qs}` : ""}`;
   }
 

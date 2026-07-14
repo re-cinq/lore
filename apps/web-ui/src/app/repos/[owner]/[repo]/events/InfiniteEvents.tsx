@@ -42,22 +42,31 @@ export default function InfiniteEvents({
 
   useEffect(() => {
     const node = sentinel.current;
-    if (!node || !more || loading || failed) return;
+
+    if (!node || !more || loading || failed) {
+      return;
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-misused-promises -- async observer callback; state updates handled inside
     const observer = new IntersectionObserver(async (entries) => {
-      if (!entries[0]?.isIntersecting) return;
+      if (!entries[0]?.isIntersecting) {
+        return;
+      }
       observer.disconnect();
       setLoading(true);
+
       try {
         const res = await fetch(
           `/api/repos/${owner}/${repo}/events?offset=${offset}`,
         );
+
         if (!res.ok) {
           setFailed(true);
+
           return;
         }
         const data = (await res.json()) as EventsPage;
+
         setEvents((prev) => [...prev, ...data.events]);
         setOffset((prev) => prev + EVENTS_PAGE_SIZE);
         setMore(data.hasMore);
@@ -67,7 +76,9 @@ export default function InfiniteEvents({
         setLoading(false);
       }
     });
+
     observer.observe(node);
+
     return () => observer.disconnect();
   }, [owner, repo, offset, more, loading, failed]);
 

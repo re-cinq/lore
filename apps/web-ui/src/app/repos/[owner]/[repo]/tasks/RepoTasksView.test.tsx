@@ -65,6 +65,7 @@ describe("RepoTasksView", () => {
       cost_usd: 0.2,
       created_at: "2026-06-01T11:00:00.000Z",
     });
+
     render(
       <RepoTasksView owner="re-cinq" repo="lore" runs={group(review, impl)} />,
     );

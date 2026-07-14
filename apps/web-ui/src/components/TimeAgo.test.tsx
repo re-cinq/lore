@@ -12,12 +12,14 @@ const DAY = 24 * HOUR;
 
 function renderTime(iso: string): string {
   const { container } = render(<TimeAgo date={iso} nowMs={NOW} />);
+
   return container.querySelector("time")?.textContent ?? "";
 }
 
 describe("TimeAgo", () => {
   it("keeps the absolute date and time visible", () => {
     const iso = ago(3 * HOUR);
+
     expect(renderTime(iso)).toContain(new Date(iso).toLocaleString());
   });
 
@@ -36,6 +38,7 @@ describe("TimeAgo", () => {
   it("keeps the full timestamp and relative label for old dates", () => {
     const iso = ago(10 * DAY);
     const text = renderTime(iso);
+
     expect(text).toContain(new Date(iso).toLocaleString());
     expect(text).toContain("(10 days ago)");
   });
@@ -47,8 +50,10 @@ describe("TimeAgo", () => {
   it("renders absolute and relative on one line without a break when inline", () => {
     const iso = ago(3 * HOUR);
     const { container } = render(<TimeAgo date={iso} nowMs={NOW} inline />);
+
     expect(container.querySelector("br")).toBeNull();
     const text = container.querySelector("time")?.textContent ?? "";
+
     expect(text).toContain(new Date(iso).toLocaleString());
     expect(text).toContain("(3 hours ago)");
   });

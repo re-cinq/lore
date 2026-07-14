@@ -360,6 +360,7 @@ describe("PRStatusCard", () => {
         ok: true,
         json: async () => ({ error: "rate limited" }),
       });
+
     vi.stubGlobal("fetch", fetchMock);
 
     await renderSettled({ taskId: "task-1", prUrl: "https://gh/pr/1" });
@@ -381,6 +382,7 @@ describe("PRStatusCard", () => {
       .fn()
       .mockResolvedValueOnce({ ok: true, json: async () => details() })
       .mockResolvedValue({ ok: true, json: async () => ({ error: "gone" }) });
+
     vi.stubGlobal("fetch", fetchMock);
 
     await renderSettled({ taskId: "task-1", prUrl: "https://gh/pr/1" });
