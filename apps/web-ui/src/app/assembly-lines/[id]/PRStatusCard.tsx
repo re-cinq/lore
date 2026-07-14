@@ -1,7 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import styles from "./PRStatusCard.module.css";
+
+const TERMINAL_STATES = new Set<PRStatus>(["merged", "closed"]);
+const POLL_INTERVAL_MS = 15_000;
 
 type PRStatus =
   | "draft"
@@ -45,7 +48,7 @@ export default function PRStatusCard({
   const [details, setDetails] = useState<PRDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchStatus = useCallback(() => {
     fetch(`/api/assembly-lines/${taskId}/pr-status`)
       .then((r) => r.json())
       .then((data) => {
@@ -53,12 +56,34 @@ export default function PRStatusCard({
           setError(data.error);
         } else {
           setDetails(data);
+          setError(null);
         }
       })
       .catch(() => setError("Status unavailable"));
   }, [taskId]);
 
-  if (error) {
+  useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
+
+  // Poll while the PR is live. Merged/closed and error are both terminal:
+  // without the error stop, a persistently failing endpoint (deleted PR,
+  // rate limit) would be re-fetched every 15s for the tab's lifetime.
+  const isTerminal = details
+    ? TERMINAL_STATES.has(details.computed_status)
+    : false;
+
+  useEffect(() => {
+    if (isTerminal || error) {
+      return;
+    }
+    const handle = setInterval(fetchStatus, POLL_INTERVAL_MS);
+
+    return () => clearInterval(handle);
+  }, [fetchStatus, isTerminal, error]);
+
+  // A failed poll must not wipe already-loaded details off the screen.
+  if (error && !details) {
     return (
       <div className={`spec-card ${styles.card}`}>
         <strong>PR Status:</strong>{" "}

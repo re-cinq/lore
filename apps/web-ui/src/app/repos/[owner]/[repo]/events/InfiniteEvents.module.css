@@ -1,0 +1,12 @@
+.pagerCell {
+  text-align: center;
+}
+
+.pagerCell .spinner {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+}

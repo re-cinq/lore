@@ -46,10 +46,10 @@ describe("EpisodesView", () => {
 
     const table = within(screen.getByRole("table"));
 
-    expect(table.getByText("abcdef01...")).toBeInTheDocument();
-    expect(table.getByText("99887766...")).toBeInTheDocument();
-    expect(table.getByText("manual")).toHaveClass("op-badge", "op-manual");
-    expect(table.getByText("session")).toHaveClass("op-badge", "op-session");
+    expect(table.getByText("abcdef01…")).toBeInTheDocument();
+    expect(table.getByText("99887766…")).toBeInTheDocument();
+    expect(table.getByText("Manual")).toHaveClass("op-badge", "op-manual");
+    expect(table.getByText("Session")).toHaveClass("op-badge", "op-session");
     expect(table.getByText("pr-42")).toBeInTheDocument();
     expect(table.getByText("sess-7")).toBeInTheDocument();
     expect(table.getByText("3")).toBeInTheDocument();
@@ -114,7 +114,7 @@ describe("EpisodesView", () => {
       screen.getByRole("option", { name: "All sources" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("option", { name: "pr-review" }),
+      screen.getByRole("option", { name: "PR review" }),
     ).toBeInTheDocument();
     expect((screen.getByRole("combobox") as HTMLSelectElement).value).toEqual(
       "session",

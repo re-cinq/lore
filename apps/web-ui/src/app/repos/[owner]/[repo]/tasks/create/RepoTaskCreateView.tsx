@@ -1,3 +1,5 @@
+import { SubmitButton } from "@/components/SubmitButton";
+import { TaskTypeSelect } from "@/components/TaskTypeSelect";
 import styles from "./RepoTaskCreateView.module.css";
 
 export interface RepoTaskCreateViewProps {
@@ -23,15 +25,15 @@ export default function RepoTaskCreateView({
         <input type="hidden" name="target_repo" value={fullName} />
 
         <label>Task Type</label>
-        <select name="task_type" id="task_type">
-          <option value="feature-request">
-            Feature Request (PM intent → spec)
-          </option>
-          <option value="general">General</option>
-          <option value="runbook">Runbook</option>
-          <option value="implementation">Implementation</option>
-          <option value="gap-fill">Gap Fill</option>
-        </select>
+        <TaskTypeSelect
+          options={[
+            { value: "feature-request", label: "Feature Request" },
+            { value: "general", label: "General" },
+            { value: "runbook", label: "Runbook" },
+            { value: "implementation", label: "Implementation" },
+            { value: "gap-fill", label: "Gap Fill" },
+          ]}
+        />
 
         <label>Description</label>
         <textarea
@@ -49,7 +51,7 @@ export default function RepoTaskCreateView({
           </span>
         </label>
 
-        <button type="submit">Create Task</button>
+        <SubmitButton pendingLabel="Creating…">Create Task</SubmitButton>
       </form>
     </div>
   );

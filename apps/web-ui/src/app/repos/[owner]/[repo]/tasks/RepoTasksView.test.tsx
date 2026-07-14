@@ -47,7 +47,7 @@ describe("RepoTasksView", () => {
 
   it("renders the empty-state row when there are no runs", () => {
     render(<RepoTasksView owner="re-cinq" repo="lore" runs={[]} />);
-    expect(screen.getByText("No assembly lines")).toBeInTheDocument();
+    expect(screen.getByText("No assembly lines yet")).toBeInTheDocument();
   });
 
   it("renders a run with its stage mini-graph and a summed cost column", () => {

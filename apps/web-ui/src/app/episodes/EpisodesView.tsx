@@ -1,3 +1,6 @@
+import { TimeAgo } from "@/components/TimeAgo";
+import { displayAgentId } from "@/lib/agent-id";
+import { formatEnumLabel } from "@/lib/enum-label";
 import styles from "./EpisodesView.module.css";
 
 export interface EpisodeRow {
@@ -64,7 +67,7 @@ export default function EpisodesView({
           <option value="">All sources</option>
           {sources.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {formatEnumLabel(s)}
             </option>
           ))}
         </select>
@@ -85,10 +88,14 @@ export default function EpisodesView({
         <tbody>
           {episodes.map((e) => (
             <tr key={e.id}>
-              <td>{new Date(e.created_at).toLocaleString()}</td>
-              <td title={e.agent_id}>{e.agent_id.substring(0, 8)}...</td>
               <td>
-                <span className={`op-badge op-${e.source}`}>{e.source}</span>
+                <TimeAgo date={e.created_at} />
+              </td>
+              <td title={e.agent_id}>{displayAgentId(e.agent_id)}</td>
+              <td>
+                <span className={`op-badge op-${e.source}`}>
+                  {formatEnumLabel(e.source)}
+                </span>
               </td>
               <td>{e.ref || "—"}</td>
               <td>{e.fact_count}</td>

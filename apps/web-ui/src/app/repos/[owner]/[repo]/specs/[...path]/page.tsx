@@ -26,7 +26,7 @@ export default async function RepoSpecDetail({
   return (
     <div>
       <p className="meta" style={{ marginBottom: 12 }}>
-        <Link href={specsLink}>← Specifications</Link>
+        <Link href={specsLink}>← Specs</Link>
       </p>
       {source ? (
         <SpecDocument

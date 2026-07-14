@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { PoolValueCell } from "./PoolValueCell";
+import { TimeAgo } from "@/components/TimeAgo";
+import { displayAgentId } from "@/lib/agent-id";
 import styles from "./PoolDetailView.module.css";
 
 export interface PoolEntryRow {
@@ -46,8 +49,8 @@ export default function PoolDetailView({
       </div>
       <h1>{poolName}</h1>
       <p className={`meta ${styles.summary}`}>
-        Created by {createdBy.substring(0, 12)}... on{" "}
-        {new Date(createdAt).toLocaleString()} · {entries.length} entr
+        Created by {displayAgentId(createdBy)} on{" "}
+        <TimeAgo date={createdAt} inline /> · {entries.length} entr
         {entries.length !== 1 ? "ies" : "y"}
       </p>
       <table>
@@ -66,16 +69,12 @@ export default function PoolDetailView({
               <td>
                 <strong>{e.key}</strong>
               </td>
-              <td className={styles.valueCell}>
-                <pre className={styles.valuePre}>
-                  {e.value.length > 200
-                    ? e.value.substring(0, 200) + "..."
-                    : e.value}
-                </pre>
-              </td>
-              <td title={e.agent_id}>{e.agent_id.substring(0, 8)}...</td>
+              <PoolValueCell value={e.value} />
+              <td title={e.agent_id}>{displayAgentId(e.agent_id)}</td>
               <td>v{e.version}</td>
-              <td>{new Date(e.created_at).toLocaleString()}</td>
+              <td>
+                <TimeAgo date={e.created_at} />
+              </td>
             </tr>
           ))}
           {entries.length === 0 && (

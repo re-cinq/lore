@@ -64,7 +64,7 @@ describe("PoolDetailView", () => {
       "/pools",
     );
     expect(
-      screen.getByText(/Created by creator-id-v\.\.\. on/),
+      screen.getByText(/Created by creator-id-very-long-value on/),
     ).toBeInTheDocument();
     expect(screen.getByText(/· 2 entries$/)).toBeInTheDocument();
   });
@@ -84,13 +84,11 @@ describe("PoolDetailView", () => {
     expect(
       within(table).getByText("always set the env var"),
     ).toBeInTheDocument();
-    expect(
-      within(table).getByText("x".repeat(200) + "..."),
-    ).toBeInTheDocument();
+    expect(within(table).getByText("x".repeat(200) + "…")).toBeInTheDocument();
     expect(within(table).queryByText(longValue)).not.toBeInTheDocument();
   });
 
-  it("renders key, truncated agent id with title, version prefix and short untruncated agent id", () => {
+  it("renders key, readable agent id with title and version prefix", () => {
     render(
       <PoolDetailView
         poolName="team-pool"
@@ -104,12 +102,14 @@ describe("PoolDetailView", () => {
 
     expect(within(table).getByText("deployment-gotchas")).toBeInTheDocument();
     expect(within(table).getByText("big-blob")).toBeInTheDocument();
-    expect(within(table).getByText("agent-ab...")).toBeInTheDocument();
-    expect(within(table).getByText("agent-ab...")).toHaveAttribute(
+    expect(
+      within(table).getByText("agent-abcdef-1234567890"),
+    ).toBeInTheDocument();
+    expect(within(table).getByText("agent-abcdef-1234567890")).toHaveAttribute(
       "title",
       "agent-abcdef-1234567890",
     );
-    expect(within(table).getByText("short...")).toBeInTheDocument();
+    expect(within(table).getByText("short")).toBeInTheDocument();
     expect(within(table).getByText("v2")).toBeInTheDocument();
     expect(within(table).getByText("v1")).toBeInTheDocument();
   });

@@ -1,25 +1,31 @@
 .menu {
-  margin-top: auto;
   padding: 16px;
   border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.row {
+.identity {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 8px;
 }
 
 .avatar {
+  flex-shrink: 0;
   width: 32px;
   height: 32px;
   border-radius: var(--radius-pill);
 }
 
 .name {
+  min-width: 0;
   color: var(--text);
   font-size: var(--fs-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .signOut {

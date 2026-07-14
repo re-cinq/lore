@@ -4,6 +4,8 @@ import EnrollmentSection from "@/components/EnrollmentSection";
 import EventRow from "./events/EventRow";
 import { type RepoEvent } from "./events/pagination";
 import { type Check } from "@/lib/enrollment";
+import { TimeAgo } from "@/components/TimeAgo";
+import { formatEnumLabel } from "@/lib/enum-label";
 import styles from "./RepoOverviewView.module.css";
 
 export interface RepoReadme {
@@ -142,7 +144,9 @@ export default function RepoOverviewView({
                   </Link>
                 </td>
                 <td>
-                  <span className={`op-badge op-${t.status}`}>{t.status}</span>
+                  <span className={`op-badge op-${t.status}`}>
+                    {formatEnumLabel(t.status)}
+                  </span>
                 </td>
                 <td>
                   {t.pr_url ? (
@@ -154,7 +158,7 @@ export default function RepoOverviewView({
                   )}
                 </td>
                 <td className="meta">
-                  {new Date(t.created_at).toLocaleString()}
+                  <TimeAgo date={t.created_at} />
                 </td>
               </tr>
             ))}

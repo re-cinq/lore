@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import EventRow from "./EventRow";
 import { EVENTS_PAGE_SIZE, type RepoEvent } from "./pagination";
+import styles from "./InfiniteEvents.module.css";
 
 export interface InfiniteEventsProps {
   owner: string;
@@ -23,7 +24,8 @@ interface EventsPage {
  * rendered server-side; this appends subsequent pages as a sentinel row scrolls
  * into view, so the initial load stays at one page. The observer re-binds on
  * every offset change, so a sentinel still in view after a fetch pulls the next
- * page automatically until the stream is exhausted.
+ * page automatically until the stream is exhausted. A failed fetch pauses
+ * paging until the user retries — never an automatic refetch loop.
  */
 export default function InfiniteEvents({
   owner,
@@ -35,12 +37,13 @@ export default function InfiniteEvents({
   const [offset, setOffset] = useState(initialOffset);
   const [more, setMore] = useState(hasMore);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
   const sentinel = useRef<HTMLTableRowElement>(null);
 
   useEffect(() => {
     const node = sentinel.current;
 
-    if (!node || !more || loading) {
+    if (!node || !more || loading || failed) {
       return;
     }
 
@@ -49,6 +52,7 @@ export default function InfiniteEvents({
       if (!entries[0]?.isIntersecting) {
         return;
       }
+      observer.disconnect();
       setLoading(true);
 
       try {
@@ -57,6 +61,8 @@ export default function InfiniteEvents({
         );
 
         if (!res.ok) {
+          setFailed(true);
+
           return;
         }
         const data = (await res.json()) as EventsPage;
@@ -64,6 +70,8 @@ export default function InfiniteEvents({
         setEvents((prev) => [...prev, ...data.events]);
         setOffset((prev) => prev + EVENTS_PAGE_SIZE);
         setMore(data.hasMore);
+      } catch {
+        setFailed(true);
       } finally {
         setLoading(false);
       }
@@ -72,7 +80,7 @@ export default function InfiniteEvents({
     observer.observe(node);
 
     return () => observer.disconnect();
-  }, [owner, repo, offset, more, loading]);
+  }, [owner, repo, offset, more, loading, failed]);
 
   return (
     <>
@@ -81,8 +89,30 @@ export default function InfiniteEvents({
       ))}
       {more && (
         <tr ref={sentinel}>
-          <td colSpan={4} className="meta">
-            {loading ? "Loading…" : ""}
+          <td colSpan={4} className={`meta ${styles.pagerCell}`}>
+            {loading && (
+              <span className={`route-loading-spinner ${styles.spinner}`} />
+            )}
+            {loading && "Loading more…"}
+            {failed && (
+              <>
+                Couldn&apos;t load more events.{" "}
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setFailed(false)}
+                >
+                  Retry
+                </button>
+              </>
+            )}
+          </td>
+        </tr>
+      )}
+      {!more && events.length > 0 && (
+        <tr>
+          <td colSpan={4} className={`meta ${styles.pagerCell}`}>
+            You&apos;ve reached the end.
           </td>
         </tr>
       )}

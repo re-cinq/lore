@@ -5,6 +5,7 @@ import SaveResultBanner, {
   INITIAL_SAVE_STATE,
   type SaveState,
 } from "./SaveResultBanner";
+import { SubmitButton } from "@/components/SubmitButton";
 import styles from "./page.module.css";
 
 export interface RepoSettingsShape {
@@ -145,7 +146,7 @@ export default function SettingsView({
           repo added to their cross-repo list.
         </span>
 
-        <button type="submit">Save Settings</button>
+        <SubmitButton pendingLabel="Saving…">Save Settings</SubmitButton>
       </form>
     </div>
   );

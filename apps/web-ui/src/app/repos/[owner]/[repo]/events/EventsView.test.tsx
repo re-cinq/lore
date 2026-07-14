@@ -40,7 +40,7 @@ describe("EventsView", () => {
     expect(screen.getByRole("table")).toBeInTheDocument();
     expect(screen.getByText("github.pull_request.opened")).toBeInTheDocument();
     expect(screen.getByText("internal.ingest.spec_trace")).toBeInTheDocument();
-    expect(screen.getByText("done")).toHaveClass("op-badge", "op-done");
+    expect(screen.getByText("Done")).toHaveClass("op-badge", "op-done");
   });
 
   it("shows the empty state and no table when there are no events", () => {

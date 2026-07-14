@@ -1,6 +1,7 @@
 import ContextFilters from "@/app/repos/[owner]/[repo]/context/ContextFilters";
 import ContextCard from "@/app/repos/[owner]/[repo]/context/ContextCard";
 import { type ChunkMeta } from "@/lib/chunk-presenter";
+import { EmptyState } from "@/components/EmptyState";
 import styles from "./ContextView.module.css";
 
 export interface ContextChunk {
@@ -35,9 +36,28 @@ export default function ContextView({
   types,
   chunks,
 }: ContextViewProps) {
+  const emptyState =
+    q || type ? (
+      <EmptyState
+        title="No matches for this filter"
+        description="No ingested context matches the current search or type filter."
+        action={{ href: "/context", label: "Clear filters" }}
+      />
+    ) : (
+      <EmptyState
+        title="Nothing ingested yet"
+        description={
+          <>
+            Context is ingested nightly after a repo is onboarded, or on demand
+            via <code>lore_ingest_files</code>.
+          </>
+        }
+      />
+    );
+
   return (
     <div>
-      <h1>Organization Context</h1>
+      <h1>Context</h1>
       <div className={styles.notice}>
         <p className={`meta ${styles.noticeText}`}>
           This is the global view across all repos. For repo-specific context,
@@ -52,23 +72,17 @@ export default function ContextView({
         q={q}
       />
 
-      {chunks.length === 0 ? (
-        <p className="meta">
-          No context chunks found
-          {q ? ` matching “${q}”` : ""}
-          {type ? ` for type "${type}"` : ""}.
-        </p>
-      ) : (
-        chunks.map((c) => (
-          <ContextCard
-            key={c.id}
-            chunk={c}
-            repo={c.repo ?? ""}
-            repoLabel={c.repo ?? undefined}
-            detailHref={`/context/${encodeURIComponent(c.file_path)}`}
-          />
-        ))
-      )}
+      {chunks.length === 0
+        ? emptyState
+        : chunks.map((c) => (
+            <ContextCard
+              key={c.id}
+              chunk={c}
+              repo={c.repo ?? ""}
+              repoLabel={c.repo ?? undefined}
+              detailHref={`/context/${encodeURIComponent(c.file_path)}`}
+            />
+          ))}
     </div>
   );
 }

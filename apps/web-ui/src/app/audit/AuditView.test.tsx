@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import AuditView, { type AuditEntryRow } from "./AuditView";
+import { formatEnumLabel } from "@/lib/enum-label";
 
 const OPERATIONS = [
   "write",
@@ -48,21 +49,21 @@ describe("AuditView", () => {
       />,
     );
 
-    expect(screen.getByText("abcdef01...")).toBeInTheDocument();
-    expect(screen.getByText("99887766...")).toBeInTheDocument();
+    expect(screen.getByText("abcdef01…")).toBeInTheDocument();
+    expect(screen.getByText("99887766…")).toBeInTheDocument();
     expect(
       container.querySelector('td[title="abcdef0123456789"]'),
     ).toBeInTheDocument();
     const writeBadge = container.querySelector(".op-badge.op-write");
 
     expect(writeBadge).toBeInTheDocument();
-    expect(writeBadge).toHaveTextContent("write");
+    expect(writeBadge).toHaveTextContent("Write");
     expect(container.querySelector(".op-badge.op-read")).toBeInTheDocument();
     expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
   });
 
   it("renders the key, pool and stringified metadata cells when present", () => {
-    render(
+    const { container } = render(
       <AuditView
         entries={[
           row({
@@ -79,9 +80,13 @@ describe("AuditView", () => {
         hasNext={false}
       />,
     );
+
     expect(screen.getByText("deploy-notes")).toBeInTheDocument();
     expect(screen.getByText("team-pool")).toBeInTheDocument();
-    expect(screen.getByText(JSON.stringify({ ttl: 3600 }))).toBeInTheDocument();
+    expect(screen.getByText("view")).toBeInTheDocument();
+    expect(container.querySelector("details pre")?.textContent).toContain(
+      '"ttl": 3600',
+    );
   });
 
   it("falls back to an em-dash for null key, null pool and null metadata", () => {
@@ -99,10 +104,9 @@ describe("AuditView", () => {
     expect(screen.getAllByText("—")).toHaveLength(3);
   });
 
-  it("truncates metadata longer than 50 characters", () => {
+  it("renders full metadata as collapsible pretty-printed JSON", () => {
     const big = { description: "x".repeat(200) };
-
-    render(
+    const { container } = render(
       <AuditView
         entries={[row({ metadata: big })]}
         totalCount={1}
@@ -113,10 +117,12 @@ describe("AuditView", () => {
         hasNext={false}
       />,
     );
-    const expected = JSON.stringify(big).substring(0, 50);
 
-    expect(screen.getByText(expected)).toBeInTheDocument();
-    expect(expected).toHaveLength(50);
+    expect(screen.getByText("view")).toBeInTheDocument();
+    const pre = container.querySelector("details pre");
+
+    expect(pre?.textContent).toContain('"description"');
+    expect(pre?.textContent).toContain("x".repeat(200));
   });
 
   it("shows the empty state when there are no entries", () => {
@@ -132,8 +138,30 @@ describe("AuditView", () => {
       />,
     );
 
-    expect(screen.getByText("No audit entries found")).toBeInTheDocument();
+    expect(screen.getByText("No activity recorded yet")).toBeInTheDocument();
     expect(container.querySelector('td[colspan="6"]')).toBeInTheDocument();
+  });
+
+  it("shows the no-matches state, not first-run, on an out-of-range page of a populated log", () => {
+    render(
+      <AuditView
+        entries={[]}
+        totalCount={60}
+        operations={OPERATIONS}
+        offset={100}
+        pageSize={50}
+        hasPrev={true}
+        hasNext={false}
+      />,
+    );
+    expect(screen.queryByText("No activity recorded yet")).toBeNull();
+    expect(
+      screen.getByText("No entries match these filters"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute(
+      "href",
+      "/audit",
+    );
   });
 
   it("renders the operations filter dropdown with all options plus the all-operations default", () => {
@@ -152,7 +180,9 @@ describe("AuditView", () => {
       screen.getByRole("option", { name: "All operations" }),
     ).toBeInTheDocument();
     OPERATIONS.forEach((o) => {
-      expect(screen.getByRole("option", { name: o })).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: formatEnumLabel(o) }),
+      ).toBeInTheDocument();
     });
   });
 

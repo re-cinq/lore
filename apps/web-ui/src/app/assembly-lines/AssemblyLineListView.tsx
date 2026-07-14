@@ -56,7 +56,7 @@ export default function AssemblyLineListView({
         ))}
       </div>
 
-      <AssemblyLineTable runs={runs} />
+      <AssemblyLineTable runs={runs} filtered={!!activeStatus} />
     </div>
   );
 }

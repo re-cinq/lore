@@ -19,7 +19,7 @@ export default async function RepoSpecs({
   return (
     <div>
       <p className="meta" style={{ marginBottom: 12 }}>
-        Specifications in the traceability graph for <code>{fullName}</code> (
+        Specs in the traceability graph for <code>{fullName}</code> (
         {specs.length}).
       </p>
       <SpecListView owner={owner} repo={repo} specs={specs} />

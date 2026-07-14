@@ -49,7 +49,7 @@ export default async function SpecDetailPage({
   return (
     <div>
       <div className="breadcrumb">
-        <Link href="/specs">Specifications</Link> / {filePath}
+        <Link href="/specs">Specs</Link> / {filePath}
       </div>
       {docs.length === 0 ? (
         <div className="empty-state">

@@ -78,7 +78,7 @@ describe("TasksView", () => {
         createTask={action}
       />,
     );
-    const badge = screen.getByText("open");
+    const badge = screen.getByText("Open");
 
     expect(badge).toHaveClass("badge", "badge-open");
     expect(screen.getByText("Open task")).toBeInTheDocument();
@@ -94,7 +94,7 @@ describe("TasksView", () => {
         createTask={action}
       />,
     );
-    const badge = screen.getByText("unknown");
+    const badge = screen.getByText("Unknown");
 
     expect(badge).toHaveClass("badge");
     expect(badge).not.toHaveClass("badge-open");
@@ -126,8 +126,8 @@ describe("TasksView", () => {
 
     expect(within(table).getByText("agent-1")).toBeInTheDocument();
     expect(within(table).getByText("agent-2")).toBeInTheDocument();
-    expect(within(table).getByText("read_memory")).toBeInTheDocument();
-    expect(within(table).getByText("delete_memory")).toBeInTheDocument();
+    expect(within(table).getByText("Read memory")).toBeInTheDocument();
+    expect(within(table).getByText("Delete memory")).toBeInTheDocument();
     expect(within(table).getByText("k1")).toBeInTheDocument();
     expect(within(table).getByText("k2")).toBeInTheDocument();
     expect(within(table).getAllByRole("row")).toHaveLength(3);

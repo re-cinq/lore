@@ -13,6 +13,7 @@ export type IconName =
   | "search"
   | "settings"
   | "menu"
+  | "chevron"
   | "sun"
   | "moon"
   | "monitor"
@@ -41,6 +42,7 @@ export const ICONS: Record<ThemeFamily, Record<IconName, string>> = {
     search: "lucide:search",
     settings: "lucide:settings",
     menu: "lucide:menu",
+    chevron: "lucide:chevron-down",
     sun: "lucide:sun",
     moon: "lucide:moon",
     monitor: "lucide:monitor",
@@ -68,6 +70,7 @@ export const ICONS: Record<ThemeFamily, Record<IconName, string>> = {
     search: "pixelarticons:search",
     settings: "pixelarticons:sliders",
     menu: "pixelarticons:menu",
+    chevron: "pixelarticons:chevron-down",
     sun: "pixelarticons:sun",
     moon: "pixelarticons:moon",
     monitor: "pixelarticons:device-laptop",

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import PRStatusBadge from "./PRStatusBadge";
+import { EmptyState } from "@/components/EmptyState";
 import { formatCost } from "@/lib/task-presenter";
+import { formatEnumLabel } from "@/lib/enum-label";
 import styles from "./AssemblyLineTable.module.css";
 import {
   type AssemblyLine,
@@ -15,6 +17,10 @@ export interface AssemblyLineTableProps {
   runs: AssemblyLine[];
   /** Show a per-run cost column (sum of member task costs). */
   showCost?: boolean;
+  /** Empty-state CTA target — the per-repo tab points this at its own create page. */
+  createHref?: string;
+  /** A status filter is active — an empty result means "no matches", not "no runs yet". */
+  filtered?: boolean;
 }
 
 /**
@@ -26,8 +32,23 @@ export interface AssemblyLineTableProps {
 export default function AssemblyLineTable({
   runs,
   showCost = false,
+  createHref = "/assembly-lines/create",
+  filtered = false,
 }: AssemblyLineTableProps) {
   const columns = showCost ? 6 : 5;
+  const emptyState = filtered ? (
+    <EmptyState
+      title="No matches for this filter"
+      description="No runs have this status."
+      action={{ href: "/assembly-lines", label: "Clear filter" }}
+    />
+  ) : (
+    <EmptyState
+      title="No assembly lines yet"
+      description="Runs appear when a task is claimed — create a task to start one."
+      action={{ href: createHref, label: "Create a task" }}
+    />
+  );
 
   return (
     <table className={styles.table}>
@@ -47,9 +68,7 @@ export default function AssemblyLineTable({
         ))}
         {runs.length === 0 && (
           <tr>
-            <td colSpan={columns} className={`meta ${styles.emptyCell}`}>
-              No assembly lines
-            </td>
+            <td colSpan={columns}>{emptyState}</td>
           </tr>
         )}
       </tbody>
@@ -176,7 +195,7 @@ function StageDot({ member }: { member: AssemblyLineTaskRow }) {
           className={styles.stageLink}
         >
           <span className={`op-badge op-${member.status}`}>
-            {member.status}
+            {formatEnumLabel(member.status)}
           </span>
           <span className={styles.stageDesc}>{member.description}</span>
         </Link>

@@ -56,7 +56,11 @@ export default function RepoTasksView({
         Assembly lines targeting this repo. Delegate work to agents and track
         their status, stages, PRs, and cost.
       </p>
-      <AssemblyLineTable runs={runs} showCost />
+      <AssemblyLineTable
+        runs={runs}
+        showCost
+        createHref={`/repos/${owner}/${repo}/tasks/create`}
+      />
     </div>
   );
 }
