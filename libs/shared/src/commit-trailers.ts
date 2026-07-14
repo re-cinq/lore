@@ -63,7 +63,8 @@ export function formatTrailers(t: Trailers): string {
  * Returns null when:
  *  - the message has no trailer-shaped paragraph,
  *  - the last paragraph mixes trailer and non-trailer lines,
- *  - any required key (Lore-Stage, Lore-Iteration, Lore-Task) is missing,
+ *  - a required key (Lore-Stage, Lore-Iteration) is missing — Lore-Task is
+ *    optional, since task-less lines (code-review) commit without one,
  *  - Lore-Iteration is not a valid integer.
  */
 export function parseTrailers(message: string): Trailers | null {

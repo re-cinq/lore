@@ -42,9 +42,12 @@ subjects:
     namespace: {{ .Values.floor.namespace }}
 ---
 # The token provisioner clones per-task AgentDefinition/Station pairs from the
-# def-* catalog (KubeTokenProvisioner.provision/cleanup), so the Floor needs the
-# same catalog CRUD lore-api's gen-catalog uses. Without this every station
-# dispatch dies on a 403 reading the catalog AgentDefinition.
+# def-* catalog (KubeTokenProvisioner.provision/cleanup), so the Floor needs
+# catalog CRUD. Reuses lore-api's catalog-writer Role (DRY): it is broader than
+# the provisioner's get/create/update/delete — it also grants list/patch and
+# reaches the source def-* recipes and other runs' pt-* clones — so this is a
+# pragmatic reuse, not least-privilege. A dedicated Role would tighten it.
+# Without this binding every station dispatch dies on a 403 reading the catalog.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
