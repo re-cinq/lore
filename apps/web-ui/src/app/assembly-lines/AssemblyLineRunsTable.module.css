@@ -34,12 +34,24 @@
 }
 
 /* Status tones — shared by the status dot and the per-stage dots. */
-.success { background: var(--success); }
-.danger { background: var(--danger); }
-.warning { background: var(--warning); }
-.info { background: var(--info); }
-.running { background: var(--accent); }
-.muted { background: var(--text-muted); }
+.success {
+  background: var(--success);
+}
+.danger {
+  background: var(--danger);
+}
+.warning {
+  background: var(--warning);
+}
+.info {
+  background: var(--info);
+}
+.running {
+  background: var(--accent);
+}
+.muted {
+  background: var(--text-muted);
+}
 
 /* Assembly-line cell */
 

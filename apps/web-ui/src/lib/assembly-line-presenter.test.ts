@@ -19,9 +19,9 @@ describe("formatRelativeTime", () => {
   });
 
   it("reads just now under a minute", () => {
-    expect(
-      formatRelativeTime(new Date(now - 5_000).toISOString(), now),
-    ).toBe("just now");
+    expect(formatRelativeTime(new Date(now - 5_000).toISOString(), now)).toBe(
+      "just now",
+    );
   });
 });
 
@@ -54,6 +54,26 @@ describe("runStatusVisual", () => {
   it("maps finished + lease_held to a muted skipped tone", () => {
     expect(runStatusVisual("finished", "lease_held")).toEqual({
       label: "Skipped",
+      tone: "muted",
+    });
+  });
+
+  it("maps a finished-but-failed run to a danger tone (not green)", () => {
+    // The pg adapter maps only outcome 'error' to status 'failed', so a single-CR
+    // task closed 'failed' and a code-review line closed 'pr_closed' arrive here.
+    expect(runStatusVisual("finished", "failed")).toEqual({
+      label: "Failed",
+      tone: "danger",
+    });
+    expect(runStatusVisual("finished", "pr_closed")).toEqual({
+      label: "PR closed",
+      tone: "muted",
+    });
+  });
+
+  it("keeps an unknown finished outcome neutral, never success", () => {
+    expect(runStatusVisual("finished", "some_future_outcome")).toEqual({
+      label: "some_future_outcome",
       tone: "muted",
     });
   });

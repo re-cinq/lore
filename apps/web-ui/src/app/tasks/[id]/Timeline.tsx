@@ -102,9 +102,18 @@ export default function Timeline({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount; state is set inside the async fetch
     void fetchTimeline();
-    const stillActive =
-      ACTIVE_STATES.has(initialStatus) ||
-      (data?.current_stage && data.current_stage !== "retrospective");
+    // Once we have data, the fetched timeline is authoritative — poll only while a
+    // non-terminal stage is in flight (and the PR isn't merged/closed). Basing this
+    // on the LATCHED initialStatus (as before) short-circuited the OR and polled
+    // forever; now the response can actually turn it off. Before the first fetch,
+    // fall back to the initial status.
+    const stillActive = data
+      ? Boolean(data.current_stage) &&
+        data.current_stage !== "retrospective" &&
+        data.current_stage !== "done" &&
+        data.pr_state !== "merged" &&
+        data.pr_state !== "closed"
+      : ACTIVE_STATES.has(initialStatus);
 
     if (!stillActive) {
       return;

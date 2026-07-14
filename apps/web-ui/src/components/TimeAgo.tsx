@@ -1,4 +1,4 @@
-import { formatRelativeTime } from "@/lib/assembly-lines";
+import { formatRelativeTime } from "@/lib/assembly-line-presenter";
 
 export function TimeAgo({
   date,

@@ -63,6 +63,35 @@ const renderView = (
   );
 
 describe("TaskDetailView", () => {
+  it("lists the task's run attempts, each linking to its run detail", () => {
+    renderView({
+      runs: [
+        {
+          id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          status: "finished",
+          outcome: "pr_created",
+          created_at: "2026-07-14T10:00:00Z",
+        },
+      ],
+    });
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Runs" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "#aaaaaaaa" })).toHaveAttribute(
+      "href",
+      "/assembly-lines/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    );
+  });
+
+  it("omits the Runs section when the task has no run rows", () => {
+    renderView({ runs: [] });
+
+    expect(
+      screen.queryByRole("heading", { level: 2, name: "Runs" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders the truncated description heading and core task fields", () => {
     renderView({
       task: task({

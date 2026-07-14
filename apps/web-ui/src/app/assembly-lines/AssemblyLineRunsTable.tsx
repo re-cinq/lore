@@ -40,7 +40,9 @@ export default function AssemblyLineRunsTable({
           <th>Duration</th>
           <th>Started</th>
           <th>By</th>
-          <th>Cost</th>
+          <th title="LLM cost of the backing task (shared across its run attempts)">
+            Cost (task)
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -53,9 +55,7 @@ export default function AssemblyLineRunsTable({
                 <Link href={`/assembly-lines/${run.id}`}>
                   {run.definitionName}
                 </Link>
-                <span className={styles.subId}>
-                  #{run.id.substring(0, 8)}
-                </span>
+                <span className={styles.subId}>#{run.id.substring(0, 8)}</span>
               </td>
               <td>
                 <Link href={`/repos/${run.repo}`}>{run.repo}</Link>

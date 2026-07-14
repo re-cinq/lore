@@ -41,12 +41,7 @@ export function formatDuration(seconds: number | null): string {
 }
 
 export type StatusTone =
-  | "success"
-  | "danger"
-  | "warning"
-  | "info"
-  | "running"
-  | "muted";
+  "success" | "danger" | "warning" | "info" | "running" | "muted";
 
 /** Map the run vocabulary (queued/running/finished/failed × outcome) to a
  *  display label + tone. `finished` is refined by the run's outcome. */
@@ -66,14 +61,21 @@ export function runStatusVisual(
     return { label: "Failed", tone: "danger" };
   }
 
-  // status === "finished" — the outcome carries the real verdict.
+  // status === "finished" — the outcome carries the real verdict. A `finished`
+  // row can still be a FAILURE: the pg adapter maps only outcome `error` to
+  // status `failed`, so a single-CR task closed `failed`/`needs-human-help` and a
+  // code-review line closed `pr_closed` both land here with a non-error outcome.
   switch (outcome) {
     case "pr_created":
       return { label: "PR created", tone: "success" };
     case "completed":
       return { label: "Completed", tone: "success" };
+    case "failed":
+      return { label: "Failed", tone: "danger" };
     case "no_changes":
       return { label: "No changes", tone: "muted" };
+    case "pr_closed":
+      return { label: "PR closed", tone: "muted" };
     case "lease_held":
       return { label: "Skipped", tone: "muted" };
     case "iteration_max":
@@ -81,6 +83,7 @@ export function runStatusVisual(
     case "pending":
       return { label: "Pending", tone: "info" };
     default:
-      return { label: "Finished", tone: "success" };
+      // Unknown/future outcome must never masquerade as success — stay neutral.
+      return { label: outcome ?? "Finished", tone: "muted" };
   }
 }

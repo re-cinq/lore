@@ -1,10 +1,11 @@
 export const dynamic = "force-dynamic";
-import { query, queryOne } from "@/lib/db";
+import { query, queryOne, queryAllowMissing } from "@/lib/db";
 import { redirect } from "next/navigation";
 import TaskDetailView, {
   type TaskDetailTask,
   type TaskDetailEvent,
   type TaskDetailLlmCall,
+  type TaskRunRow,
 } from "./TaskDetailView";
 
 type Task = TaskDetailTask;
@@ -99,12 +100,24 @@ export default async function TaskDetailPage({
 
   const failedEvent = events.find((e) => e.to_status === "failed");
 
+  // The task's per-attempt run rows (pipeline.assembly_lines.task_id is non-unique
+  // — a retry mints a fresh row) so the detail can link to each attempt's timeline.
+  // queryAllowMissing: empty on pre-0025 DBs.
+  const runs = await queryAllowMissing<TaskRunRow>(
+    `SELECT id, status, outcome, created_at
+       FROM pipeline.assembly_lines
+      WHERE task_id = $1
+      ORDER BY created_at DESC`,
+    [id],
+  );
+
   return (
     <TaskDetailView
       task={task}
       events={events}
       llmCalls={llmCalls}
       failedEvent={failedEvent}
+      runs={runs}
       submitFeedback={submitFeedback}
     />
   );

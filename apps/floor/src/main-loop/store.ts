@@ -26,6 +26,7 @@ export async function insertEventList(
   events: EventInput[],
   source: string,
 ): Promise<void> {
+  /// TODO: intead of using try/catch here, we can add a new utility "LoggedPromise" that wraps a promise and logs errors.
   try {
     await Promise.all(events.map((ev) => insertEvent(ev)));
   } catch (err) {
