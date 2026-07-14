@@ -20,7 +20,12 @@ import {
   type AssemblyLineNode,
 } from "@re-cinq/lore-assembly-lines";
 import type { AssemblyLineNodeRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
-import { advanceLine, finishNodeAndAdvance, taskFromRow } from "./advance.js";
+import {
+  advanceLine,
+  finishNodeAndAdvance,
+  finishLine,
+  taskFromRow,
+} from "./advance.js";
 import { nodeAgentSpec, nodeStationSpec } from "./floor-assembly-line.js";
 import { runOutcomeFromTaskStatus } from "../watcher/agent-watcher-logic.js";
 import type { NodeEventDeps } from "./node-event-handler.js";
@@ -103,9 +108,14 @@ export async function assemblyLineReaperJob(
             !["running", "queued", "pending"].includes(taskStatus);
 
           if (terminal) {
-            await deps.assemblyLines.finish(
-              row.id,
+            // finishLine (not finish) so the single-CR row's token is reclaimed
+            // and, though single-CR rows carry no job_run_id, every terminal close
+            // routes through one path.
+            await finishLine(
+              row,
               runOutcomeFromTaskStatus(taskStatus),
+              undefined,
+              deps,
             );
             sweptSingleCr++;
           }
@@ -118,10 +128,13 @@ export async function assemblyLineReaperJob(
           nowMs - row.createdAt.getTime() >
           QUEUED_LIMIT_MINUTES * MINUTE_MS
         ) {
-          await deps.assemblyLines.finish(
-            row.id,
+          // finishLine so the detect fan-out's args.job_run_id is settled (failed)
+          // — a bare finish would leave the pre-created job_run row running forever.
+          await finishLine(
+            row,
             "error",
             "assembly_line.start never completed",
+            deps,
           );
           failedQueued++;
         }

@@ -82,7 +82,10 @@ export interface DetectFanOutDeps {
   assemblyLines: AssemblyLinesPort;
   /** Pre-create the `<job_ref>:<repo>` pipeline.job_runs row; the walk closes it
    *  via `args.job_run_id` when the line reaches a terminal state. */
-  jobRuns: { start(jobName: string): Promise<string> };
+  jobRuns: {
+    start(jobName: string): Promise<string>;
+    fail(runId: string, reason: string): Promise<unknown>;
+  };
   jobRef: () => Promise<string>;
   listTargetRepos: () => Promise<string[]>;
 }
@@ -109,12 +112,28 @@ export function createDetectTickHandler(
 
     for (const repo of repos) {
       const jobRunId = await deps.jobRuns.start(`${jobRef}:${repo}`);
-      const id = await deps.assemblyLines.start({
-        definitionName,
-        repo,
-        branch: detectBranchName(definitionName, repo),
-        args: { job_run_id: jobRunId },
-      });
+
+      // start() throwing mid-loop (the case the header blesses for tick retry)
+      // would orphan the just-created job_run open forever (no job_runs reaper) —
+      // fail it before rethrowing so the retry's duplicate settles cleanly.
+      let id: string;
+
+      try {
+        id = await deps.assemblyLines.start({
+          definitionName,
+          repo,
+          branch: detectBranchName(definitionName, repo),
+          args: { job_run_id: jobRunId },
+        });
+      } catch (err) {
+        await deps.jobRuns
+          .fail(
+            jobRunId,
+            `assembly_line.start failed: ${(err as Error).message}`,
+          )
+          .catch(() => {});
+        throw err;
+      }
 
       console.log(
         `[detect] ${definitionName}: started assembly line ${id} for ${repo}`,

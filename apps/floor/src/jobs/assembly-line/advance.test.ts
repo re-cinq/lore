@@ -279,8 +279,17 @@ describe("finishNodeAndAdvance", () => {
 });
 
 describe("advanceLine overlap guard (detect lines, lease parity)", () => {
-  it("finishes a duplicate not-yet-started line as lease_held when another run holds the branch", async () => {
-    const port = new InMemoryAssemblyLines();
+  // Monotonic clock so the older row has a strictly-smaller createdAt (the guard
+  // defers to the oldest; a same-millisecond tie would be resolved by uuid, which
+  // is nondeterministic in a unit test).
+  function tickingPort() {
+    let t = 1_000;
+
+    return new InMemoryAssemblyLines(() => new Date((t += 1000)));
+  }
+
+  it("finishes a newer duplicate as lease_held, leaving the older in flight", async () => {
+    const port = tickingPort();
     const { deps, launched, jobRuns } = makeDeps(port);
     const first = await port.start({
       definitionName: "code-review",
@@ -308,8 +317,32 @@ describe("advanceLine overlap guard (detect lines, lease parity)", () => {
     });
     expect(launched).toEqual([]);
     expect(jobRuns).toEqual([expect.stringContaining("complete:jr-2:skipped")]);
-    // The first run is untouched.
+    // The older run is untouched.
     expect(await port.getById(first)).toMatchObject({ status: "running" });
+  });
+
+  it("lets the OLDER row proceed even when a newer overlapping row exists (deterministic winner)", async () => {
+    const port = tickingPort();
+    const { deps, launched } = makeDeps(port);
+    const older = await port.start({
+      definitionName: "code-review",
+      repo: "o/r",
+      branch: "detect/code-review/o-r",
+    });
+    const newer = await port.start({
+      definitionName: "code-review",
+      repo: "o/r",
+      branch: "detect/code-review/o-r",
+    });
+
+    await port.markRunning(older);
+    await port.markRunning(newer);
+    // Advancing the OLDER row does not defer — it launches its entry node.
+    await advanceLine(older, deps);
+
+    expect(await port.getById(older)).toMatchObject({ status: "running" });
+    expect(launched).toHaveLength(1);
+    void newer;
   });
 });
 
@@ -337,16 +370,16 @@ describe("advanceLine job_runs bookkeeping (detect lines)", () => {
 name: detect-like
 description: detect → done, no failed edge
 version: 1
-entry: detect_node
+entry: detect-node
 exit: done
 nodes:
-  - id: detect_node
+  - id: detect-node
     type: detect
     job_ref: spec_drift
   - id: done
     type: retrospective
 edges:
-  - from: detect_node
+  - from: detect-node
     to: done
     on: success
 `);

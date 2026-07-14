@@ -78,14 +78,29 @@ export async function advanceLine(
 
   // Overlap guard (branch-lease parity): a second not-yet-started run on the same
   // repo+branch defers to the one already in flight — the detect fan-out relies on
-  // this to suppress duplicate per-repo runs, exactly as the old lease did.
+  // this to suppress duplicate per-repo runs, exactly as the old lease did. It is
+  // check-then-act (not atomic like the old lease CTE): two starts in the same
+  // drain batch can both markRunning before either reaches here. So defer only to a
+  // DETERMINISTICALLY-chosen winner — the one with the smaller row id — so at most
+  // one side backs off (a naive "any other running" would make BOTH defer and skip
+  // detection for the tick).
   if (nodes.length === 0 && row.branch) {
+    // Defer only to a strictly-older winner (earlier createdAt, ties broken by id):
+    // the single oldest open row on the branch proceeds, all others defer. A stale
+    // winner that never progresses is re-driven / failed by the reaper, so it can't
+    // wedge the branch permanently.
+    const isOlder = (other: AssemblyLineRecord): boolean => {
+      const dt = other.createdAt.getTime() - row.createdAt.getTime();
+
+      return dt < 0 || (dt === 0 && other.id < row.id);
+    };
     const overlapping = (await deps.assemblyLines.listOpen()).some(
       (other) =>
         other.id !== row.id &&
-        other.status === "running" &&
+        (other.status === "queued" || other.status === "running") &&
         other.repo === row.repo &&
-        other.branch === row.branch,
+        other.branch === row.branch &&
+        isOlder(other),
     );
 
     if (overlapping) {
@@ -152,31 +167,37 @@ export async function advanceLine(
 }
 
 /** Close the row, reclaim the token, and settle the detect fan-out's job_run. */
-async function finishLine(
+export async function finishLine(
   row: AssemblyLineRecord,
   outcome: string,
   reason: string | undefined,
   deps: AdvanceDeps,
 ): Promise<void> {
-  await deps.assemblyLines.finish(row.id, outcome, reason);
-  await deps.cleanupToken(row.taskId ?? row.id);
-
   const jobRunId = row.args.job_run_id;
 
-  if (typeof jobRunId !== "string" || jobRunId.length === 0) {
-    return;
+  // Settle the detect fan-out's job_run BEFORE closing the row: if the row close
+  // commits but this step then throws, the event retry's advanceLine early-returns
+  // on the now-terminal row and the job_run would orphan open forever. Classify by
+  // "complete only on completed/lease_held; fail everything else" so a future fail
+  // outcome added to Transition can never record a failed run as complete.
+  if (typeof jobRunId === "string" && jobRunId.length > 0) {
+    if (outcome === "completed") {
+      await deps.jobRuns.complete(
+        jobRunId,
+        `station run: ${row.definitionName}:${row.repo} ${outcome}`,
+      );
+    } else if (outcome === "lease_held") {
+      await deps.jobRuns.complete(jobRunId, `skipped: ${reason}`);
+    } else {
+      await deps.jobRuns.fail(jobRunId, reason ?? outcome);
+    }
   }
 
-  if (outcome === "error" || outcome === "iteration_max") {
-    await deps.jobRuns.fail(jobRunId, reason ?? outcome);
-  } else if (outcome === "lease_held") {
-    await deps.jobRuns.complete(jobRunId, `skipped: ${reason}`);
-  } else {
-    await deps.jobRuns.complete(
-      jobRunId,
-      `station run: ${row.definitionName}:${row.repo} ${outcome}`,
-    );
-  }
+  await deps.assemblyLines.finish(row.id, outcome, reason);
+  // finish is first-writer-wins — a losing racer (node event vs reaper re-advance)
+  // closes 0 rows yet still reaches here, so cleanupToken MUST be idempotent
+  // (cleanupPerTaskToken swallows 404s); the double-reclaim is a harmless no-op.
+  await deps.cleanupToken(row.taskId ?? row.id);
 }
 
 /** Record one node's terminal outcome (CAS — the first writer decides; a losing

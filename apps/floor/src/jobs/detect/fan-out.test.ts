@@ -4,14 +4,19 @@ import { createDetectTickHandler, detectBranchName } from "./fan-out.js";
 
 function fakeJobRuns() {
   const started: string[] = [];
+  const failed: Array<{ runId: string; reason: string }> = [];
 
   return {
     started,
+    failed,
     jobRuns: {
       start: async (jobName: string) => {
         started.push(jobName);
 
         return `jr-${started.length}`;
+      },
+      fail: async (runId: string, reason: string) => {
+        failed.push({ runId, reason });
       },
     },
   };
@@ -110,5 +115,26 @@ describe("createDetectTickHandler", () => {
 
     expect(assemblyLines.rows).toEqual([]);
     expect(started).toEqual([]);
+  });
+
+  it("fails the just-created job_run when assemblyLines.start throws before rethrowing", async () => {
+    const { started, failed, jobRuns } = fakeJobRuns();
+    const handler = createDetectTickHandler("spec-drift", {
+      assemblyLines: {
+        start: async () => {
+          throw new Error("db down");
+        },
+      } as never,
+      jobRuns,
+      jobRef: async () => "spec_drift",
+      listTargetRepos: async () => ["re-cinq/lore"],
+    });
+
+    await expect(handler({})).rejects.toThrow("db down");
+    expect(started).toEqual(["spec_drift:re-cinq/lore"]);
+    // the orphaned job_run is failed, not left running forever.
+    expect(failed).toEqual([
+      { runId: "jr-1", reason: expect.stringContaining("db down") },
+    ]);
   });
 });
