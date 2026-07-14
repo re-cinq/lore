@@ -58,6 +58,12 @@ K8s Secrets.
 **No long-lived credentials anywhere.** Workload Identity on GKE,
 gcloud auth for local dev.
 
+**Spec status upkeep.** When a branch implements or completes a feature
+described in `specs/<name>/spec.md`, update that spec's `| Status |`
+header row in the same branch (Draft → Implemented/Shipped; Rejected for
+abandoned designs). The web-ui spec lists render this header as the
+status pill — a stale header misreports the org's backlog.
+
 ## Key Components
 
 - `mcp-server/` — the MCP server (TypeScript)
