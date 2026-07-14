@@ -11,6 +11,7 @@
 //   - row queued > 30 min         → fail (assembly_line.start never completed)
 //   - row running, no open node   → advance (crash between transitions; replay
 //                                   converges on the next launch/finish)
+//   - single-CR (definition-less) row, backing task terminal → close from status
 
 import {
   stationNodeOutcome,
@@ -21,7 +22,14 @@ import {
 import type { AssemblyLineNodeRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
 import { advanceLine, finishNodeAndAdvance, taskFromRow } from "./advance.js";
 import { nodeAgentSpec, nodeStationSpec } from "./floor-assembly-line.js";
+import { runOutcomeFromTaskStatus } from "../watcher/agent-watcher-logic.js";
 import type { NodeEventDeps } from "./node-event-handler.js";
+
+/** Reaper deps: the walk deps plus the backing-task status read used to sweep a
+ *  crash-orphaned single-CR (definition-less) run row. */
+export interface AssemblyLineReaperDeps extends NodeEventDeps {
+  taskStatus: (taskId: string) => Promise<string | null>;
+}
 
 const MINUTE_MS = 60_000;
 /** Parity with the old poll loop's ~1h default (DEFAULT_MAX_POLLS) . */
@@ -66,7 +74,7 @@ export function decideNodeRecovery(input: {
 /** One sweep over every open line; per-line failures are logged and skipped so a
  *  single bad row never wedges the tick. */
 export async function assemblyLineReaperJob(
-  deps: NodeEventDeps,
+  deps: AssemblyLineReaperDeps,
 ): Promise<string> {
   const open = await deps.assemblyLines.listOpen();
   const definitions = await deps.definitions();
@@ -76,13 +84,32 @@ export async function assemblyLineReaperJob(
   let timedOut = 0;
   let failedQueued = 0;
   let advanced = 0;
+  let sweptSingleCr = 0;
 
   for (const row of open) {
     try {
       const definition = definitions.get(row.definitionName);
 
       if (!definition) {
-        // Single-CR run record (FR6.8) — the agent-watcher owns its lifecycle.
+        // Single-CR run record (FR6.8): normally the agent-watcher closes it, but
+        // a crash between the task's post-handler status write and that close (or
+        // a dropped terminal event past the reconcile window) leaves it open
+        // forever. Sweep it: if the backing task is terminal, close the row from
+        // its status; else leave it (the task is still in-flight).
+        if (row.taskId) {
+          const taskStatus = await deps.taskStatus(row.taskId);
+          const terminal =
+            taskStatus !== null &&
+            !["running", "queued", "pending"].includes(taskStatus);
+
+          if (terminal) {
+            await deps.assemblyLines.finish(
+              row.id,
+              runOutcomeFromTaskStatus(taskStatus),
+            );
+            sweptSingleCr++;
+          }
+        }
         continue;
       }
 
@@ -131,6 +158,7 @@ export async function assemblyLineReaperJob(
           {
             assemblyLineId: row.id,
             nodeId: openNode.nodeId,
+            iteration: openNode.iteration,
             result: stationNodeOutcome(node, recovery.status),
           },
           deps,
@@ -141,6 +169,7 @@ export async function assemblyLineReaperJob(
           {
             assemblyLineId: row.id,
             nodeId: openNode.nodeId,
+            iteration: openNode.iteration,
             result: { outcome: "failed" },
           },
           deps,
@@ -150,7 +179,9 @@ export async function assemblyLineReaperJob(
           `[assembly-line-reaper] node ${openNode.nodeId} of ${row.id} timed out (${node.type === "agent" ? "agent" : "station"}-timeout)`,
         );
       } else if (recovery.kind === "relaunch") {
-        await deps.launch(specForNode(definition, node, row, deps));
+        await deps.launch(
+          specForNode(definition, node, row, openNode.iteration, deps),
+        );
         relaunched++;
       }
     } catch (err) {
@@ -160,13 +191,14 @@ export async function assemblyLineReaperJob(
     }
   }
 
-  return `resolved ${resolved}, relaunched ${relaunched}, timed out ${timedOut}, failed-queued ${failedQueued}, re-advanced ${advanced} across ${open.length} open line(s)`;
+  return `resolved ${resolved}, relaunched ${relaunched}, timed out ${timedOut}, failed-queued ${failedQueued}, re-advanced ${advanced}, swept-single-cr ${sweptSingleCr} across ${open.length} open line(s)`;
 }
 
 function specForNode(
   definition: AssemblyLine,
   node: AssemblyLineNode,
   row: Parameters<typeof taskFromRow>[0],
+  iteration: number,
   deps: NodeEventDeps,
 ) {
   const task = taskFromRow(row);
@@ -176,6 +208,7 @@ function specForNode(
         node,
         task,
         deps.resolvePrompt(node.prompt_ref ?? node.type, task.description),
+        iteration,
       )
-    : nodeStationSpec(node, task);
+    : nodeStationSpec(node, task, iteration);
 }

@@ -26,6 +26,8 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
     const assemblyLineId = String(params.assemblyLineId ?? "");
     const nodeId = String(params.nodeId ?? "");
     const agentName = String(params.agentName ?? "");
+    const iteration =
+      typeof params.iteration === "number" ? params.iteration : undefined;
 
     enforceTrue(
       assemblyLineId.length > 0 && nodeId.length > 0 && agentName.length > 0,
@@ -51,7 +53,10 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
     };
     const result = stationNodeOutcome(node, status);
 
-    await finishNodeAndAdvance({ assemblyLineId, nodeId, result }, deps);
+    await finishNodeAndAdvance(
+      { assemblyLineId, nodeId, iteration, result },
+      deps,
+    );
   };
 }
 

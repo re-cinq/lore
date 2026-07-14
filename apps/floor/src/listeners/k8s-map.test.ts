@@ -4,6 +4,7 @@ import { mapAgentToEvent } from "./k8s-map.js";
 const LABEL = "lore.re-cinq.com/task-id";
 const AL_LABEL = "lore.re-cinq.com/assembly-line-id";
 const NODE_LABEL = "lore.re-cinq.com/node-id";
+const ITER_LABEL = "lore.re-cinq.com/node-iteration";
 
 describe("mapAgentToEvent for assembly-line node CRs", () => {
   const nodeCr = (phase: string) => ({
@@ -13,6 +14,7 @@ describe("mapAgentToEvent for assembly-line node CRs", () => {
         [LABEL]: "a1b2c3d4-e5f6-4711-8000-000000000000",
         [AL_LABEL]: "a1b2c3d4-e5f6-4711-8000-000000000000",
         [NODE_LABEL]: "review",
+        [ITER_LABEL]: "1",
       },
     },
     status: { phase },
@@ -25,12 +27,31 @@ describe("mapAgentToEvent for assembly-line node CRs", () => {
       params: {
         assemblyLineId: "a1b2c3d4-e5f6-4711-8000-000000000000",
         nodeId: "review",
+        iteration: 1,
         agentName: "a1b2c3d4-review",
         taskId: "a1b2c3d4-e5f6-4711-8000-000000000000",
         phase: "Succeeded",
       },
       dedupeKey: "k8s:a1b2c3d4-review:Succeeded",
     });
+  });
+
+  it("carries the iteration from the label and dedupes a revisit's CR separately", () => {
+    const iter2 = mapAgentToEvent({
+      metadata: {
+        name: "a1b2c3d4-review-2",
+        labels: {
+          [LABEL]: "al-1",
+          [AL_LABEL]: "al-1",
+          [NODE_LABEL]: "review",
+          [ITER_LABEL]: "2",
+        },
+      },
+      status: { phase: "Succeeded" },
+    });
+
+    expect(iter2?.params).toMatchObject({ iteration: 2 });
+    expect(iter2?.dedupeKey).toBe("k8s:a1b2c3d4-review-2:Succeeded");
   });
 
   it("maps a Failed node CR to kubernetes.agent_node.failed", () => {

@@ -106,6 +106,7 @@ function harness() {
   const port = new InMemoryAssemblyLines();
   const launched: LoreTaskSpec[] = [];
   const statusByName: Record<string, AgentNodeStatus | null> = {};
+  const taskStatusById: Record<string, string | null> = {};
 
   const deps = {
     assemblyLines: port,
@@ -116,9 +117,10 @@ function harness() {
     resolvePrompt: (ref: string) => `prompt:${ref}`,
     cleanupToken: async () => {},
     readAgentStatus: async (name: string) => statusByName[name] ?? null,
+    taskStatus: async (taskId: string) => taskStatusById[taskId] ?? null,
   };
 
-  return { port, launched, statusByName, deps };
+  return { port, launched, statusByName, taskStatusById, deps };
 }
 
 describe("assemblyLineReaperJob", () => {
@@ -219,10 +221,8 @@ describe("assemblyLineReaperJob", () => {
     expect(h.port.nodes[0]).toMatchObject({ nodeId: "review" });
   });
 
-  it("leaves fresh queued rows and single-CR rows (no definition) alone", async () => {
+  it("leaves a single-CR row whose backing task is still running alone", async () => {
     const h = harness();
-
-    await h.port.start({ definitionName: "code-review", repo: "o/r" });
     const singleCr = await h.port.start({
       definitionName: "runbook",
       repo: "o/r",
@@ -230,9 +230,29 @@ describe("assemblyLineReaperJob", () => {
     });
 
     await h.port.markRunning(singleCr);
+    h.taskStatusById["task-1"] = "running";
     await assemblyLineReaperJob(h.deps);
 
+    expect(await h.port.getById(singleCr)).toMatchObject({ status: "running" });
+  });
+
+  it("sweeps a crash-orphaned single-CR row whose backing task went terminal", async () => {
+    const h = harness();
+    const singleCr = await h.port.start({
+      definitionName: "runbook",
+      repo: "o/r",
+      taskId: "task-1",
+    });
+
+    await h.port.markRunning(singleCr);
+    // The task finished but the watcher crashed before closing the run row.
+    h.taskStatusById["task-1"] = "pr-created";
+    await assemblyLineReaperJob(h.deps);
+
+    expect(await h.port.getById(singleCr)).toMatchObject({
+      status: "finished",
+      outcome: "pr_created",
+    });
     expect(h.launched).toEqual([]);
-    expect((await h.port.listOpen()).length).toBe(2);
   });
 });

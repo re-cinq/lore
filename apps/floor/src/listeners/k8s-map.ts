@@ -11,9 +11,10 @@ import { k8sDedupeKey, k8sAgentNodeDedupeKey } from "../main-loop/dedupe.js";
 
 /** Mirror of agent-watcher-logic's TASK_ID_LABEL (the AgentCrBackend sets it on every CR). */
 const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
-/** Mirror of floor-assembly-line's labels: full line uuid + node id on node CRs. */
+/** Mirror of floor-assembly-line's labels: full line uuid + node id + iteration. */
 const ASSEMBLY_LINE_ID_LABEL = "lore.re-cinq.com/assembly-line-id";
 const NODE_ID_LABEL = "lore.re-cinq.com/node-id";
+const NODE_ITERATION_LABEL = "lore.re-cinq.com/node-iteration";
 
 /** The terminal CR phases that produce an event, mapped to their event action. */
 const TERMINAL_ACTIONS = { Succeeded: "succeeded", Failed: "failed" } as const;
@@ -48,16 +49,19 @@ export function mapAgentToEvent(agent: AgentLike): EventInput | null {
   const action = TERMINAL_ACTIONS[phase as TerminalPhase];
   const assemblyLineId = labels[ASSEMBLY_LINE_ID_LABEL];
   const nodeId = labels[NODE_ID_LABEL];
+  const iteration = Number(labels[NODE_ITERATION_LABEL] ?? "1");
   const agentName = agent.metadata?.name ?? null;
 
   // An assembly-line NODE CR: its own event family, deduped per CR name (all
   // node CRs of one line share the task-id label — a task-keyed dedupe would
-  // swallow every node after the first). The transition handler consumes these.
+  // swallow every node after the first). CR names embed the iteration, so the
+  // per-name dedupe key is per-iteration; the iteration also rides the params so
+  // the handler CASes the exact revisit's row. The transition handler consumes these.
   if (assemblyLineId && nodeId && agentName) {
     return {
       eventName: `kubernetes.agent_node.${action}`,
       source: "kubernetes",
-      params: { assemblyLineId, nodeId, agentName, taskId, phase },
+      params: { assemblyLineId, nodeId, iteration, agentName, taskId, phase },
       dedupeKey: k8sAgentNodeDedupeKey(agentName, phase),
     };
   }

@@ -86,6 +86,10 @@ export async function advanceLine(
     const reason = transition.kind === "fail" ? transition.reason : undefined;
 
     await deps.assemblyLines.finish(assemblyLineId, outcome, reason);
+    // finish is first-writer-wins, so a losing racer (node event vs reaper
+    // re-advance) closes 0 rows yet still reaches here — cleanupToken MUST be
+    // idempotent (cleanupPerTaskToken swallows 404s), so the double-reclaim of an
+    // already-freed pt-<id> token triple is a harmless no-op.
     await deps.cleanupToken(row.taskId ?? row.id);
 
     return;
@@ -99,14 +103,16 @@ export async function advanceLine(
     `AssemblyLine ${definition.name}: unknown node "${transition.nodeId}"`,
   );
   const task = taskFromRow(row);
+  // Iteration rides into the CR name + labels so a revisited node runs a fresh pod.
   const spec =
     node.type === "agent"
       ? nodeAgentSpec(
           node,
           task,
           deps.resolvePrompt(node.prompt_ref ?? node.type, task.description),
+          transition.iteration,
         )
-      : nodeStationSpec(node, task);
+      : nodeStationSpec(node, task, transition.iteration);
 
   // Row before CR: a crash in between leaves an open row the reaper resolves by
   // reading the (deterministically named) CR; a rowless CR would be invisible.
@@ -120,18 +126,29 @@ export async function advanceLine(
 }
 
 /** Record one node's terminal outcome (CAS — the first writer decides; a losing
- *  duplicate advances with the stored outcome) and advance the line. */
+ *  duplicate advances with the stored outcome) and advance the line. `iteration`
+ *  (from the CR's label) targets the exact revisit whose CR fired, so a late
+ *  duplicate event for a prior iteration can't overwrite the current one. */
 export async function finishNodeAndAdvance(
-  input: { assemblyLineId: string; nodeId: string; result: NodeResult },
+  input: {
+    assemblyLineId: string;
+    nodeId: string;
+    iteration?: number;
+    result: NodeResult;
+  },
   deps: AdvanceDeps,
 ): Promise<void> {
   const nodes = await deps.assemblyLines.listNodes(input.assemblyLineId);
-  const open = nodes
-    .filter((n) => n.nodeId === input.nodeId && n.outcome === null)
-    .at(-1);
+  const forNode = nodes.filter((n) => n.nodeId === input.nodeId);
+  const target =
+    input.iteration !== undefined
+      ? forNode.find(
+          (n) => n.iteration === input.iteration && n.outcome === null,
+        )
+      : forNode.filter((n) => n.outcome === null).at(-1);
 
-  if (open) {
-    await deps.assemblyLines.finishNodeOnce(open.id, input.result.outcome);
+  if (target) {
+    await deps.assemblyLines.finishNodeOnce(target.id, input.result.outcome);
   }
 
   await advanceLine(input.assemblyLineId, deps);

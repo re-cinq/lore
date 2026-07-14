@@ -36,12 +36,20 @@ export const leaseReaper = fromJob(() => leaseReaperJob());
 /** The event-driven walk's liveness bound: resolve dropped node-terminal events,
  *  relaunch rowed-but-unlaunched CRs, time out stuck nodes, fail wedged rows. */
 export const assemblyLineReaper: EventHandler = async () => {
-  const [{ assemblyLineReaperJob }, { productionNodeEventDeps }] =
-    await Promise.all([
-      import("./assembly-line/assembly-line-reaper.js"),
-      import("./assembly-line/node-event-handler.js"),
-    ]);
-  const summary = await assemblyLineReaperJob(await productionNodeEventDeps());
+  const [
+    { assemblyLineReaperJob },
+    { productionNodeEventDeps },
+    { taskStore },
+  ] = await Promise.all([
+    import("./assembly-line/assembly-line-reaper.js"),
+    import("./assembly-line/node-event-handler.js"),
+    import("../kernel/queues.js"),
+  ]);
+  const summary = await assemblyLineReaperJob({
+    ...(await productionNodeEventDeps()),
+    taskStatus: async (taskId) =>
+      (await taskStore().getById(taskId))?.status ?? null,
+  });
 
   if (!summary.startsWith("resolved 0, relaunched 0, timed out 0")) {
     console.log(`[assembly-line-reaper] ${summary}`);

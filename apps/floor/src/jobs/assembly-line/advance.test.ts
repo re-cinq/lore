@@ -160,6 +160,67 @@ describe("advanceLine", () => {
   });
 });
 
+const reviewLoop: AssemblyLine = parseAssemblyLine(`
+name: code-review
+description: review loops back to itself on changes_requested (revisit)
+version: 1
+entry: review
+exit: done
+nodes:
+  - id: review
+    type: agent
+    prompt_ref: code-review
+  - id: done
+    type: retrospective
+edges:
+  - from: review
+    to: done
+    on: success
+  - from: review
+    to: review
+    on: changes_requested
+    iteration_max: 3
+`);
+
+describe("advanceLine revisited-node iteration (fresh CR per iteration)", () => {
+  it("launches iteration 2 of a revisited node under a distinct, suffixed CR name", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await port.start({
+      definitionName: "code-review",
+      repo: "o/r",
+      branch: "b",
+      args: { description: "d" },
+    });
+
+    await port.markRunning(id);
+    const { deps, launched } = makeDeps(port);
+
+    deps.definitions = async () =>
+      new Map<string, AssemblyLine>([["code-review", reviewLoop]]);
+
+    await advanceLine(id, deps); // launches review@1
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "review",
+        iteration: 1,
+        result: { outcome: "changes_requested" },
+      },
+      deps,
+    );
+
+    // review@1 closed changes_requested → review@2 launched under a fresh name.
+    expect(port.nodes.map((n) => [n.nodeId, n.iteration])).toEqual([
+      ["review", 1],
+      ["review", 2],
+    ]);
+    expect(launched.map((l) => l.name)).toEqual([
+      `${id.substring(0, 8)}-review`,
+      `${id.substring(0, 8)}-review-2`,
+    ]);
+  });
+});
+
 describe("finishNodeAndAdvance", () => {
   it("records the outcome and launches the next node per the definition", async () => {
     const port = new InMemoryAssemblyLines();
