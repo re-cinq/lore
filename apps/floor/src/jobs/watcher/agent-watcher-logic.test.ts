@@ -6,6 +6,7 @@ import {
   parseReviewResult,
   decideCiGate,
   decideTokenReclaim,
+  runOutcomeFromTaskStatus,
 } from "./agent-watcher-logic.js";
 
 describe("taskIdOf / taskTypeOf", () => {
@@ -57,25 +58,51 @@ describe("decideCiGate", () => {
 });
 
 describe("decideTokenReclaim", () => {
+  // The tell is the ROUTING (task type has a builtin assembly line), not row
+  // existence — single-CR tasks get assembly_lines rows too now, so a row no
+  // longer distinguishes multi-node lines.
   it("reclaims a single-agent task's token on a terminal phase", () => {
     expect(
-      decideTokenReclaim({ phase: "Succeeded", hasAssemblyLine: false }),
+      decideTokenReclaim({ phase: "Succeeded", isAssemblyLineTask: false }),
     ).toBe(true);
     expect(
-      decideTokenReclaim({ phase: "Failed", hasAssemblyLine: false }),
+      decideTokenReclaim({ phase: "Failed", isAssemblyLineTask: false }),
     ).toBe(true);
   });
-  it("skips a task backed by a multi-node assembly line (freed at line completion)", () => {
+  it("skips a task routed to a multi-node assembly line (freed at line completion)", () => {
     expect(
-      decideTokenReclaim({ phase: "Succeeded", hasAssemblyLine: true }),
+      decideTokenReclaim({ phase: "Succeeded", isAssemblyLineTask: true }),
     ).toBe(false);
   });
   it("skips a non-terminal phase", () => {
     expect(
-      decideTokenReclaim({ phase: "Running", hasAssemblyLine: false }),
+      decideTokenReclaim({ phase: "Running", isAssemblyLineTask: false }),
     ).toBe(false);
     expect(
-      decideTokenReclaim({ phase: undefined, hasAssemblyLine: false }),
+      decideTokenReclaim({ phase: undefined, isAssemblyLineTask: false }),
     ).toBe(false);
+  });
+});
+
+describe("runOutcomeFromTaskStatus", () => {
+  it("maps pr-created and review to pr_created", () => {
+    expect(runOutcomeFromTaskStatus("pr-created")).toBe("pr_created");
+    expect(runOutcomeFromTaskStatus("review")).toBe("pr_created");
+  });
+  it("maps failed and needs-human-help to failed", () => {
+    expect(runOutcomeFromTaskStatus("failed")).toBe("failed");
+    expect(runOutcomeFromTaskStatus("needs-human-help")).toBe("failed");
+  });
+  it("maps completed to completed", () => {
+    expect(runOutcomeFromTaskStatus("completed")).toBe("completed");
+  });
+  it("maps an un-advanced task on a Failed CR to failed, not completed", () => {
+    // Failed phase + no failureReason → handleFailure never ran → task still
+    // running; the row must not close as completed.
+    expect(runOutcomeFromTaskStatus("running", "Failed")).toBe("failed");
+    expect(runOutcomeFromTaskStatus("queued", "Failed")).toBe("failed");
+  });
+  it("maps an un-advanced task on a Succeeded CR to completed", () => {
+    expect(runOutcomeFromTaskStatus("running", "Succeeded")).toBe("completed");
   });
 });
