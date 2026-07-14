@@ -300,8 +300,7 @@ describe("createStartEventHandler", () => {
     await createStartEventHandler(deps)(params(assemblyLineId, "onboard"));
     await flush();
 
-    expect(port.rows[0]).toMatchObject({ status: "running" });
-    expect(port.rows[0]?.outcome ?? null).toBeNull();
+    expect(port.rows[0]).toMatchObject({ status: "running", outcome: null });
     expect(calls.station).toEqual([]);
     expect(calls.detect).toEqual([]);
   });

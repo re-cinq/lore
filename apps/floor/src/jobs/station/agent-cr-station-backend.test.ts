@@ -52,7 +52,7 @@ describe("shouldUseAssemblyLine", () => {
   });
 });
 
-function makeBackend() {
+function makeBackend(openTaskIds: string[] = []) {
   const assemblyLine = new FakeBackend("assembly-line");
   const single = new FakeBackend("single");
   const started: AssemblyLineStartInput[] = [];
@@ -66,6 +66,10 @@ function makeBackend() {
 
         return "run-row-1";
       },
+      listForTask: async (taskId) =>
+        openTaskIds.includes(taskId)
+          ? [{ id: "open-row", status: "running" } as never]
+          : [],
     },
   );
 
@@ -110,6 +114,17 @@ describe("AgentCrStationBackend", () => {
     await backend.launch(spec("implementation"));
 
     expect(started).toEqual([]);
+  });
+
+  it("skips the run row on a crash-recovery re-dispatch when one is already open", async () => {
+    // findRecoverable re-claims a mid-dispatch single-CR task; the second launch
+    // reuses the same CR, so it must not mint a phantom second row.
+    const { backend, started, single } = makeBackend(["task-7"]);
+
+    await backend.launch({ ...spec("runbook"), taskId: "task-7" });
+
+    expect(started).toEqual([]);
+    expect(single.launched).toEqual(["runbook"]); // the CR re-dispatch still happens
   });
 
   it("probes isActive on the single-Agent backend (finds both paths' Agents)", async () => {

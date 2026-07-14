@@ -64,7 +64,10 @@ export function decideTokenReclaim(input: {
 }
 
 /** Map a task's post-handler status onto the run row's outcome vocabulary. */
-export function runOutcomeFromTaskStatus(status: string): string {
+export function runOutcomeFromTaskStatus(
+  status: string,
+  phase?: string,
+): string {
   if (status === "pr-created" || status === "review") {
     return "pr_created";
   }
@@ -73,5 +76,12 @@ export function runOutcomeFromTaskStatus(status: string): string {
     return "failed";
   }
 
-  return "completed";
+  if (status === "completed") {
+    return "completed";
+  }
+
+  // Un-advanced task (still running/queued): no post-handler set a terminal
+  // status, so the CR phase decides — a Failed CR (e.g. crash, or Failed with no
+  // failureReason so handleFailure never ran) must not close its row as completed.
+  return phase === "Failed" ? "failed" : "completed";
 }

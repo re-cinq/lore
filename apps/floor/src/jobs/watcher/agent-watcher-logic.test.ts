@@ -96,4 +96,13 @@ describe("runOutcomeFromTaskStatus", () => {
   it("maps completed to completed", () => {
     expect(runOutcomeFromTaskStatus("completed")).toBe("completed");
   });
+  it("maps an un-advanced task on a Failed CR to failed, not completed", () => {
+    // Failed phase + no failureReason → handleFailure never ran → task still
+    // running; the row must not close as completed.
+    expect(runOutcomeFromTaskStatus("running", "Failed")).toBe("failed");
+    expect(runOutcomeFromTaskStatus("queued", "Failed")).toBe("failed");
+  });
+  it("maps an un-advanced task on a Succeeded CR to completed", () => {
+    expect(runOutcomeFromTaskStatus("running", "Succeeded")).toBe("completed");
+  });
 });

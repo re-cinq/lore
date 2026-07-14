@@ -62,6 +62,11 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
   async markRunning(id: string): Promise<void> {
     const row = this.mustFind(id);
 
+    // Never resurrect a terminal row (mirrors the Pg guard).
+    if (row.status !== "queued" && row.status !== "running") {
+      return;
+    }
+
     row.status = "running";
     row.startedAt = this.clock();
   }

@@ -328,17 +328,14 @@ interface AgentContext {
   slack: SlackBatch;
 }
 
-/**
- * Process one terminal Agent CR. Invoked by the `kubernetes.agent.{succeeded,failed}`
- * event handlers (the event carries the agent name; the handler re-GETs the fresh
- * CR). Derives the context, applies the DB re-entry guard, and dispatches to the
- * matching handler; the Slack flush runs in `finally` so an early return still
- * delivers notifications.
- */
 /** Close a single-CR task's open run rows with an outcome derived from the task's
- *  post-handler status (total coverage — no walk finishes these rows). */
+ *  post-handler status (total coverage — no walk finishes these rows). The CR
+ *  `phase` disambiguates an un-advanced task: a Failed CR whose task is still
+ *  `running` (e.g. Failed with no failureReason) closes its row `failed`, not
+ *  `completed`. */
 async function finishSingleCrRunRows(
   taskId: string,
+  phase: string | undefined,
   failureReason?: string,
 ): Promise<void> {
   const open = (await assemblyLines().listForTask(taskId)).filter((row) =>
@@ -350,13 +347,20 @@ async function finishSingleCrRunRows(
   }
 
   const task = await taskStore().getById(taskId);
-  const outcome = runOutcomeFromTaskStatus(task?.status ?? "completed");
+  const outcome = runOutcomeFromTaskStatus(task?.status ?? "completed", phase);
 
-  for (const row of open) {
-    await assemblyLines().finish(row.id, outcome, failureReason);
-  }
+  await Promise.all(
+    open.map((row) => assemblyLines().finish(row.id, outcome, failureReason)),
+  );
 }
 
+/**
+ * Process one terminal Agent CR. Invoked by the `kubernetes.agent.{succeeded,failed}`
+ * event handlers (the event carries the agent name; the handler re-GETs the fresh
+ * CR). Derives the context, applies the DB re-entry guard, and dispatches to the
+ * matching handler; the Slack flush runs in `finally` so an early return still
+ * delivers notifications.
+ */
 export async function processAgentCr(
   agent: AgentCr,
   k8sApi: CustomObjectsApi,
@@ -424,7 +428,7 @@ export async function processAgentCr(
       const isAssemblyLineTask = (await assemblyLineNames()).has(ctx.taskType);
 
       if (!isAssemblyLineTask) {
-        await finishSingleCrRunRows(taskId, status.failureReason);
+        await finishSingleCrRunRows(taskId, phase, status.failureReason);
       }
 
       if (decideTokenReclaim({ phase, isAssemblyLineTask })) {
