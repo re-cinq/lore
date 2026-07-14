@@ -32,24 +32,36 @@ export interface FloorAssemblyLineTask {
   branch: string;
 }
 
-/** Distinct Agent CR name per (attempt, node): two runs of one task never collide on a CR.
+/** Distinct Agent CR name per (attempt, node, ITERATION): two runs of one task never
+ *  collide on a CR, and a REVISITED node (iteration>1) runs a fresh pod rather than
+ *  409-reusing the prior iteration's terminal CR. Iteration 1 keeps the bare
+ *  `<id8>-<nodeId>` form (back-compat); revisits append `-<iteration>`.
  *  The CR spec still carries the taskId — the watcher/reaper probe by task-id label. */
-export function nodeAgentName(assemblyLineId: string, nodeId: string): string {
-  return `${assemblyLineId.substring(0, 8)}-${nodeId}`;
+export function nodeAgentName(
+  assemblyLineId: string,
+  nodeId: string,
+  iteration = 1,
+): string {
+  const base = `${assemblyLineId.substring(0, 8)}-${nodeId}`;
+
+  return iteration > 1 ? `${base}-${iteration}` : base;
 }
 
 /** The CR name only carries an 8-char prefix; these labels carry the full identity
- *  so the k8s watch maps a terminal node CR back to its (line, node) directly. */
+ *  so the k8s watch maps a terminal node CR back to its (line, node, iteration). */
 export const ASSEMBLY_LINE_ID_LABEL = "lore.re-cinq.com/assembly-line-id";
 export const NODE_ID_LABEL = "lore.re-cinq.com/node-id";
+export const NODE_ITERATION_LABEL = "lore.re-cinq.com/node-iteration";
 
 function nodeLabels(
   node: AssemblyLineNode,
   task: FloorAssemblyLineTask,
+  iteration: number,
 ): Record<string, string> {
   return {
     [ASSEMBLY_LINE_ID_LABEL]: task.assemblyLineId,
     [NODE_ID_LABEL]: node.id,
+    [NODE_ITERATION_LABEL]: String(iteration),
   };
 }
 
@@ -59,6 +71,7 @@ export function nodeAgentSpec(
   node: AssemblyLineNode,
   task: FloorAssemblyLineTask,
   prompt: string,
+  iteration = 1,
 ): LoreTaskSpec {
   return {
     taskId: task.taskId,
@@ -68,8 +81,8 @@ export function nodeAgentSpec(
     targetRepo: task.targetRepo,
     branch: task.branch,
     ...(node.model ? { model: node.model } : {}),
-    name: nodeAgentName(task.assemblyLineId, node.id),
-    extraLabels: nodeLabels(node, task),
+    name: nodeAgentName(task.assemblyLineId, node.id, iteration),
+    extraLabels: nodeLabels(node, task, iteration),
   };
 }
 
@@ -90,6 +103,7 @@ const STATION_PARAM_FIELDS = [
 export function nodeStationSpec(
   node: AssemblyLineNode,
   task: FloorAssemblyLineTask,
+  iteration = 1,
 ): LoreTaskSpec {
   const params: Record<string, string> = {};
 
@@ -108,8 +122,8 @@ export function nodeStationSpec(
     prompt: "",
     targetRepo: task.targetRepo,
     branch: task.branch,
-    name: nodeAgentName(task.assemblyLineId, node.id),
-    extraLabels: nodeLabels(node, task),
+    name: nodeAgentName(task.assemblyLineId, node.id, iteration),
+    extraLabels: nodeLabels(node, task, iteration),
     stationRef: node.station_ref ?? stationName(node.type),
     parameters: {
       station_input: JSON.stringify({

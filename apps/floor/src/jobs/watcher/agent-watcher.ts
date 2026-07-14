@@ -373,6 +373,13 @@ export async function processAgentCr(
     return;
   }
 
+  // Assembly-line NODE CRs advance via kubernetes.agent_node.* transitions —
+  // the single-agent PR path must never see them (per-CR dedupe would otherwise
+  // route every node of a task-backed line into PR creation).
+  if (agent.metadata?.labels?.["lore.re-cinq.com/assembly-line-id"]) {
+    return;
+  }
+
   const ctx: AgentContext = {
     k8sApi,
     taskId,

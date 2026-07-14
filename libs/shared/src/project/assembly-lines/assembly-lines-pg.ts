@@ -65,13 +65,16 @@ export class PgAssemblyLines implements AssemblyLinesPort {
   }
 
   async finish(id: string, outcome: string, reason?: string): Promise<void> {
+    // First writer decides: duplicate/late finishers (event redelivery, reaper vs
+    // watch race) never overwrite a terminal row.
     await this.pool.query(
       `UPDATE pipeline.assembly_lines
          SET status = CASE WHEN $1 = 'error' THEN 'failed' ELSE 'finished' END,
              outcome = $1,
              reason = $2,
              finished_at = now()
-       WHERE id = $3`,
+       WHERE id = $3
+         AND status IN ('queued', 'running')`,
       [outcome, reason ?? null, id],
     );
   }

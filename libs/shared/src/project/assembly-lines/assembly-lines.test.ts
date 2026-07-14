@@ -770,3 +770,28 @@ describe("PgAssemblyLines node-transition primitives", () => {
     expect(calls[0]?.text).toContain("ORDER BY created_at");
   });
 });
+
+describe("finish is first-writer-wins", () => {
+  it("does not overwrite an already-terminal row (InMemory)", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await port.start({ definitionName: "code-review", repo: "o/r" });
+
+    await port.markRunning(id);
+    await port.finish(id, "completed");
+    await port.finish(id, "error", "late duplicate");
+
+    expect(await port.getById(id)).toMatchObject({
+      status: "finished",
+      outcome: "completed",
+      reason: null,
+    });
+  });
+
+  it("guards the Pg UPDATE on a non-terminal status", async () => {
+    const { pool, calls } = fakePool();
+
+    await new PgAssemblyLines(pool).finish("al-1", "completed");
+
+    expect(calls[0]?.text).toContain("status IN ('queued', 'running')");
+  });
+});
