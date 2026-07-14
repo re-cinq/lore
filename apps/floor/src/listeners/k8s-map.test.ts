@@ -2,6 +2,65 @@ import { describe, it, expect } from "vitest";
 import { mapAgentToEvent } from "./k8s-map.js";
 
 const LABEL = "lore.re-cinq.com/task-id";
+const AL_LABEL = "lore.re-cinq.com/assembly-line-id";
+const NODE_LABEL = "lore.re-cinq.com/node-id";
+
+describe("mapAgentToEvent for assembly-line node CRs", () => {
+  const nodeCr = (phase: string) => ({
+    metadata: {
+      name: "a1b2c3d4-review",
+      labels: {
+        [LABEL]: "a1b2c3d4-e5f6-4711-8000-000000000000",
+        [AL_LABEL]: "a1b2c3d4-e5f6-4711-8000-000000000000",
+        [NODE_LABEL]: "review",
+      },
+    },
+    status: { phase },
+  });
+
+  it("maps a labeled node CR to kubernetes.agent_node.succeeded deduped per CR name", () => {
+    expect(mapAgentToEvent(nodeCr("Succeeded"))).toEqual({
+      eventName: "kubernetes.agent_node.succeeded",
+      source: "kubernetes",
+      params: {
+        assemblyLineId: "a1b2c3d4-e5f6-4711-8000-000000000000",
+        nodeId: "review",
+        agentName: "a1b2c3d4-review",
+        taskId: "a1b2c3d4-e5f6-4711-8000-000000000000",
+        phase: "Succeeded",
+      },
+      dedupeKey: "k8s:a1b2c3d4-review:Succeeded",
+    });
+  });
+
+  it("maps a Failed node CR to kubernetes.agent_node.failed", () => {
+    expect(mapAgentToEvent(nodeCr("Failed"))).toMatchObject({
+      eventName: "kubernetes.agent_node.failed",
+      dedupeKey: "k8s:a1b2c3d4-review:Failed",
+    });
+  });
+
+  it("dedupes two node CRs of one line separately (the swallowed-second-node regression)", () => {
+    // Both node CRs share the synthetic task-id label; under the legacy
+    // task-keyed dedupe the second node's terminal event vanished.
+    const first = mapAgentToEvent({
+      metadata: {
+        name: "a1b2c3d4-review",
+        labels: { [LABEL]: "al-1", [AL_LABEL]: "al-1", [NODE_LABEL]: "review" },
+      },
+      status: { phase: "Succeeded" },
+    });
+    const second = mapAgentToEvent({
+      metadata: {
+        name: "a1b2c3d4-refine",
+        labels: { [LABEL]: "al-1", [AL_LABEL]: "al-1", [NODE_LABEL]: "refine" },
+      },
+      status: { phase: "Succeeded" },
+    });
+
+    expect(first?.dedupeKey).not.toBe(second?.dedupeKey);
+  });
+});
 
 describe("mapAgentToEvent", () => {
   it("maps a Succeeded CR to kubernetes.agent.succeeded keyed on task-id+phase", () => {

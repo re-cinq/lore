@@ -75,6 +75,11 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
   async finish(id: string, outcome: string, reason?: string): Promise<void> {
     const row = this.mustFind(id);
 
+    // First writer decides — mirrors the Pg guard on non-terminal status.
+    if (row.status !== "queued" && row.status !== "running") {
+      return;
+    }
+
     row.status = outcome === "error" ? "failed" : "finished";
     row.outcome = outcome;
     row.reason = reason ?? null;

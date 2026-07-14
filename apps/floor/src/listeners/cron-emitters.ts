@@ -31,6 +31,11 @@ export const CRON_EMITTERS: CronEmitter[] = [
   { name: "stale_task_check", schedule: "17 * * * *" },
   { name: "feature_planning_reaper", schedule: "*/1 * * * *" },
   {
+    name: "assembly_line_reaper",
+    schedule: "*/1 * * * *",
+    note: "event-driven walk liveness bound: resolve dropped node events, relaunch, timeout, fail wedged rows",
+  },
+  {
     name: "agent_watcher_reconcile",
     schedule: "*/1 * * * *",
     note: "safety net for dropped k8s watch events: re-emit terminal-unhandled CRs + prune",

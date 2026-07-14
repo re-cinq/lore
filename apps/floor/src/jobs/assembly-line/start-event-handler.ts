@@ -13,7 +13,6 @@ import type {
   SupervisorResult,
 } from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
-import type { FloorAssemblyLineTask } from "./floor-assembly-line.js";
 import { supervisorOutcome } from "./floor-assembly-line-run.js";
 
 /** The repo-less detection run input — jobs/detect path. */
@@ -29,11 +28,9 @@ export interface StartEventHandlerDeps {
   definitions: () => Promise<ReadonlyMap<string, AssemblyLine>>;
   /** Definitions with a `detect` node: the repo-less detection runner. */
   runDetect: (input: DetectRunInput) => Promise<SupervisorResult>;
-  /** Every other definition: the Floor AssemblyLine, one Agent CR per node. */
-  runOnStation: (task: FloorAssemblyLineTask) => Promise<SupervisorResult>;
-  /** Reclaim the run's per-task token triple once the station line is fully done — the
-   *  only safe point, since the line's node CRs share one `pt-<id>` token. */
-  cleanupToken: (taskId: string) => Promise<void>;
+  /** Every other definition: launch the line's entry node (advanceLine). The walk
+   *  then advances on `kubernetes.agent_node.*` events — no background promise. */
+  advance: (assemblyLineId: string) => Promise<void>;
 }
 
 export function createStartEventHandler(
@@ -47,13 +44,11 @@ export function createStartEventHandler(
       Error,
       "assembly_line.start event params missing assemblyLineId",
     );
+    // Branch/args/description ride in the row itself — the walk reads them via
+    // taskFromRow, so the event only needs identity + routing fields.
     const definitionName = String(params.definitionName ?? "");
     const repo = String(params.repo ?? "");
-    const branch = typeof params.branch === "string" ? params.branch : null;
     const taskId = typeof params.taskId === "string" ? params.taskId : null;
-    const args = (params.args ?? {}) as Record<string, unknown>;
-    const description =
-      typeof args.description === "string" ? args.description : "";
 
     const definitions = await deps.definitions();
     const definition = definitions.get(definitionName);
@@ -113,31 +108,11 @@ export function createStartEventHandler(
       return;
     }
 
-    // A task-less line (e.g. code-review) has no pipeline task; fall back to the
-    // per-attempt assemblyLineId so the per-task token + `task-id` label are unique
-    // per run. An empty taskId would key the token on "" → a single shared `pt-`
-    // triple that concurrent runs across repos race on (wrong-repo clone). The
-    // watcher's `processAgentCr` no-ops on a taskId with no backing task.
-    const runTaskId = taskId ?? assemblyLineId;
-
-    void deps
-      .runOnStation({
-        assemblyLineId,
-        taskId: runTaskId,
-        pipelineTaskId: taskId,
-        taskType: definitionName,
-        description,
-        targetRepo: repo,
-        branch: branch ?? "",
-      })
-      .then((result) =>
-        finishRow(supervisorOutcome(result), result.errorMessage),
-      )
-      .catch((err) => finishRow("error", (err as Error).message))
-      // The line is fully done here (all node CRs terminal) → reclaim its shared token.
-      .finally(() => {
-        void deps.cleanupToken(runTaskId);
-      });
+    // Station lines: launch the entry node and return — the walk advances on
+    // `kubernetes.agent_node.*` events; a Floor restart loses nothing because
+    // the state is the node rows. A throw here propagates so the event loop
+    // retries transient launch failures (advance is idempotent end to end).
+    await deps.advance(assemblyLineId);
   };
 }
 
@@ -147,29 +122,21 @@ export const assemblyLineStart: EventHandler = async (params) => {
   const [
     { assemblyLines },
     { loadBuiltinAssemblyLines },
-    { runFloorAssemblyLineForTask, floorAssemblyLineRuntime },
-    { agentCrBackend },
     { runDetect },
-    { cleanupPerTaskToken },
+    { advanceLine, productionNodeEventDeps },
   ] = await Promise.all([
     import("../../kernel/queues.js"),
     import("@re-cinq/lore-assembly-lines"),
-    import("./floor-assembly-line-run.js"),
-    import("../../composition/project-boot.js"),
     import("../detect/run-detect.js"),
-    import("../watcher/agent-watcher.js"),
+    import("./node-event-handler.js"),
   ]);
 
   const handler = createStartEventHandler({
     assemblyLines: assemblyLines(),
     definitions: loadBuiltinAssemblyLines,
     runDetect,
-    runOnStation: (task) =>
-      runFloorAssemblyLineForTask(
-        task,
-        floorAssemblyLineRuntime(agentCrBackend()),
-      ),
-    cleanupToken: cleanupPerTaskToken,
+    advance: async (assemblyLineId) =>
+      advanceLine(assemblyLineId, await productionNodeEventDeps()),
   });
 
   return handler(params);
