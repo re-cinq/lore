@@ -139,7 +139,7 @@ export default function RepoOverviewView({
             {recentTasks.map((t) => (
               <tr key={t.id}>
                 <td>
-                  <Link href={`/assembly-lines/${t.id}`}>
+                  <Link href={`/tasks/${t.id}`}>
                     {t.description.substring(0, 60)}...
                   </Link>
                 </td>

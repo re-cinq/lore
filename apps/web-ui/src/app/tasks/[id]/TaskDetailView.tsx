@@ -1,3 +1,4 @@
+import Link from "next/link";
 import PRStatusCard from "./PRStatusCard";
 import { CancelTaskButton } from "./CancelTaskButton";
 import TaskLogs from "./TaskLogs";
@@ -45,11 +46,20 @@ export interface TaskDetailLlmCall {
   created_at: string;
 }
 
+/** One per-attempt run row (pipeline.assembly_lines) backing this task. */
+export interface TaskRunRow {
+  id: string;
+  status: string;
+  outcome: string | null;
+  created_at: string;
+}
+
 export interface TaskDetailViewProps {
   task: TaskDetailTask;
   events: TaskDetailEvent[];
   llmCalls: TaskDetailLlmCall[];
   failedEvent: TaskDetailEvent | undefined;
+  runs?: TaskRunRow[];
   submitFeedback: (formData: FormData) => void | Promise<void>;
 }
 
@@ -58,6 +68,7 @@ export default function TaskDetailView({
   events,
   llmCalls,
   failedEvent,
+  runs = [],
   submitFeedback,
 }: TaskDetailViewProps) {
   return (
@@ -129,10 +140,7 @@ export default function TaskDetailView({
         <div className={styles.actions}>
           {task.status === "pending" &&
             (task.priority || "normal") === "normal" && (
-              <form
-                action={`/api/assembly-lines/${task.id}/run-now`}
-                method="POST"
-              >
+              <form action={`/api/tasks/${task.id}/run-now`} method="POST">
                 <button type="submit" className={styles.runNowBtn}>
                   Run Now
                 </button>
@@ -168,6 +176,26 @@ export default function TaskDetailView({
             </button>
           </form>
         </div>
+      )}
+
+      {runs.length > 0 && (
+        <section>
+          <h2>Runs</h2>
+          <p className="meta">
+            Each execution attempt of this task (a retry mints a new run). Open
+            one for its per-node timeline.
+          </p>
+          <ul>
+            {runs.map((run) => (
+              <li key={run.id}>
+                <Link href={`/assembly-lines/${run.id}`}>
+                  #{run.id.substring(0, 8)}
+                </Link>{" "}
+                — {run.outcome ?? run.status}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <Timeline taskId={task.id} initialStatus={task.status} />

@@ -32,8 +32,10 @@ async function createTask(formData: FormData) {
     `INSERT INTO pipeline.task_events (task_id, to_status) VALUES ($1, 'pending')`,
     [result[0].id],
   );
+  // Land on the task detail — a fresh task has no run row yet (it only appears in
+  // the run list once execution starts), and Run Now / Cancel live on task detail.
   revalidatePath("/assembly-lines");
-  redirect("/assembly-lines");
+  redirect(`/tasks/${result[0].id}`);
 }
 
 export default async function CreateTaskPage() {

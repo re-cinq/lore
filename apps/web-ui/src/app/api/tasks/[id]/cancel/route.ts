@@ -2,11 +2,11 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { serverError } from "@/lib/api-error";
+import { isCancellable } from "@/lib/task-status";
 
 interface Task {
   id: string;
   status: string;
-  priority: string;
 }
 
 export async function POST(
@@ -17,7 +17,7 @@ export async function POST(
 
   try {
     const task = await queryOne<Task>(
-      `SELECT id, status, priority FROM pipeline.tasks WHERE id = $1`,
+      `SELECT id, status FROM pipeline.tasks WHERE id = $1`,
       [id],
     );
 
@@ -25,26 +25,20 @@ export async function POST(
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
-    if (task.status !== "pending") {
+    if (!isCancellable(task.status)) {
       return NextResponse.json(
-        {
-          error: `Can only escalate pending tasks, current status: ${task.status}`,
-        },
+        { error: `Cannot cancel task in ${task.status} state` },
         { status: 400 },
       );
     }
 
     await query(
-      `UPDATE pipeline.tasks SET priority = 'immediate', updated_at = now() WHERE id = $1`,
+      `UPDATE pipeline.tasks SET status = 'cancelled', failure_reason = 'Cancelled by user', updated_at = now() WHERE id = $1`,
       [id],
     );
     await query(
-      `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, $2, $2, $3)`,
-      [
-        id,
-        task.status,
-        JSON.stringify({ action: "run-now", previous_priority: task.priority }),
-      ],
+      `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, $2, 'cancelled', $3)`,
+      [id, task.status, JSON.stringify({ cancelled_by: "ui" })],
     );
 
     const host =
@@ -52,8 +46,8 @@ export async function POST(
     const proto = _req.headers.get("x-forwarded-proto") || "https";
     const base = host ? `${proto}://${host}` : _req.url;
 
-    return NextResponse.redirect(new URL(`/assembly-lines/${id}`, base));
+    return NextResponse.redirect(new URL(`/tasks/${id}`, base));
   } catch (err) {
-    return serverError("run-now", err);
+    return serverError("cancel", err);
   }
 }
