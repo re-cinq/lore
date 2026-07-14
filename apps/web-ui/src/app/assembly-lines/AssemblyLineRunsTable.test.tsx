@@ -43,7 +43,10 @@ describe("AssemblyLineRunsTable", () => {
 
     expect(
       screen.getByRole("link", { name: "implementation" }),
-    ).toHaveAttribute("href", "/assembly-lines/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
+    ).toHaveAttribute(
+      "href",
+      "/assembly-lines/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    );
     expect(screen.getByRole("link", { name: "re-cinq/lore" })).toHaveAttribute(
       "href",
       "/repos/re-cinq/lore",
@@ -81,7 +84,9 @@ describe("AssemblyLineRunsTable", () => {
   it("shows the failure reason under a failed status", () => {
     render(
       <AssemblyLineRunsTable
-        runs={[run({ status: "failed", outcome: "error", reason: "lint failed" })]}
+        runs={[
+          run({ status: "failed", outcome: "error", reason: "lint failed" }),
+        ]}
       />,
     );
 

@@ -26,7 +26,9 @@ const run = (over: Partial<AssemblyLineRun> = {}): AssemblyLineRun => ({
   ...over,
 });
 
-const node = (over: Partial<AssemblyLineRunNode> = {}): AssemblyLineRunNode => ({
+const node = (
+  over: Partial<AssemblyLineRunNode> = {},
+): AssemblyLineRunNode => ({
   nodeId: "review",
   iteration: 1,
   outcome: "success",

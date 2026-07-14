@@ -3,10 +3,7 @@ import type {
   AssemblyLineRun,
   AssemblyLineRunNode,
 } from "@/lib/assembly-line-runs";
-import {
-  formatDuration,
-  runStatusVisual,
-} from "@/lib/assembly-line-presenter";
+import { formatDuration, runStatusVisual } from "@/lib/assembly-line-presenter";
 import styles from "./AssemblyLineRunView.module.css";
 
 const EM_DASH = "—";
