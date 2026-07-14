@@ -353,6 +353,7 @@ export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
         const noRepoOrTypeArgs = !args.repos && !args.task_types;
         const noArgsProvided =
           !args.max_concurrent && noRepoOrTypeArgs && !args.model;
+
         if (noArgsProvided) {
           return {
             content: [

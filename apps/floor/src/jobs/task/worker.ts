@@ -358,6 +358,7 @@ async function ensureIssue(
 
   const isIssueEligibleTaskType =
     task.task_type !== "general" && !isFeaturePlanningType;
+
   if (!issueNumber && isIssueEligibleTaskType && issueGate.create) {
     try {
       const taskTypeLabel =
