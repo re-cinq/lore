@@ -123,6 +123,7 @@ describe("createStartEventHandler", () => {
       {
         assemblyLineId,
         taskId: "task-9",
+        pipelineTaskId: "task-9",
         taskType: "gap-fill",
         description: "do the thing",
         targetRepo: "re-cinq/lore",
@@ -148,6 +149,7 @@ describe("createStartEventHandler", () => {
       {
         assemblyLineId,
         taskId: "task-9",
+        pipelineTaskId: "task-9",
         taskType: "implementation",
         description: "do the thing",
         targetRepo: "re-cinq/lore",
@@ -172,6 +174,32 @@ describe("createStartEventHandler", () => {
     // A task-less line (e.g. code-review) must not collapse to the empty-string taskId —
     // that would key its per-task token/label on "" and race across concurrent runs.
     expect(calls.station[0]).toMatchObject({ taskId: assemblyLineId });
+  });
+
+  it("passes pipelineTaskId null for a task-less line and the real task id otherwise", async () => {
+    const taskless = await seededPort("implementation", null);
+    const taskful = await seededPort("implementation");
+    const tasklessCalls = makeDeps(taskless.port);
+    const taskfulCalls = makeDeps(taskful.port);
+
+    await createStartEventHandler(tasklessCalls.deps)(
+      params(taskless.assemblyLineId, "implementation", null),
+    );
+    await createStartEventHandler(taskfulCalls.deps)(
+      params(taskful.assemblyLineId, "implementation"),
+    );
+    await flush();
+
+    // The synthetic taskId keys tokens/labels; the lease + audit + Lore-Task trailer
+    // need the REAL pipeline.tasks id — a synthetic uuid violates task_leases_task_fk.
+    expect(tasklessCalls.calls.station[0]).toMatchObject({
+      taskId: taskless.assemblyLineId,
+      pipelineTaskId: null,
+    });
+    expect(taskfulCalls.calls.station[0]).toMatchObject({
+      taskId: "task-9",
+      pipelineTaskId: "task-9",
+    });
   });
 
   it("reclaims the station line's per-task token once the run finishes", async () => {

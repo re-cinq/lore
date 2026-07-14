@@ -16,6 +16,7 @@ import {
 
 const task: FloorAssemblyLineTask = {
   taskId: "abcdef1234567890",
+  pipelineTaskId: "abcdef1234567890",
   assemblyLineId: "a1b2c3d4e5f6a7b8",
   taskType: "implementation",
   description: "Implement the spec",
