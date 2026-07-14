@@ -20,6 +20,16 @@ export function k8sDedupeKey(taskId: string, phase: string): string {
   return `k8s:${taskId}:${phase}`;
 }
 
+/** Assembly-line node CRs dedupe per CR NAME, not per task: every node CR of one
+ *  line shares the synthetic task-id label, so a task-keyed dedupe would swallow
+ *  the second node's terminal event. CR names are per-attempt-unique. */
+export function k8sAgentNodeDedupeKey(
+  agentName: string,
+  phase: string,
+): string {
+  return `k8s:${agentName}:${phase}`;
+}
+
 /** One tick per cron slot — collapses checkMissedRuns replay with the live tick. */
 export function cronDedupeKey(job: string, at: Date): string {
   return `cron:${job}:${flooredMinute(at)}`;

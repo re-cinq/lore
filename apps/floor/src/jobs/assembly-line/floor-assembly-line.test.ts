@@ -1,40 +1,20 @@
 import { describe, it, expect } from "vitest";
-import type { LoreTaskSpec } from "@re-cinq/lore-shared";
-import type {
-  AssemblyLineNode,
-  NodeContext,
-  ProductionHandlersDeps,
-} from "@re-cinq/lore-assembly-lines";
+import type { AssemblyLineNode } from "@re-cinq/lore-assembly-lines";
 import {
   nodeAgentName,
   nodeAgentSpec,
   nodeStationSpec,
-  buildFloorAssemblyLineHandlers,
   type FloorAssemblyLineTask,
-  type FloorAssemblyLinePorts,
 } from "./floor-assembly-line.js";
 
 const task: FloorAssemblyLineTask = {
   taskId: "abcdef1234567890",
+  pipelineTaskId: "abcdef1234567890",
   assemblyLineId: "a1b2c3d4e5f6a7b8",
   taskType: "implementation",
   description: "Implement the spec",
   targetRepo: "re-cinq/lore",
   branch: "lore/impl-abcdef12",
-};
-
-const ctx: NodeContext = {
-  taskId: task.taskId,
-  assemblyLineId: task.assemblyLineId,
-  branchName: task.branch,
-  gitDir: "/work",
-  iteration: 0,
-  assemblyLineName: "implementation",
-};
-
-const episodeDeps: ProductionHandlersDeps = {
-  writeEpisode: async () => {},
-  writeEpisodeWithCuration: async () => {},
 };
 
 describe("nodeAgentSpec", () => {
@@ -54,6 +34,11 @@ describe("nodeAgentSpec", () => {
       branch: "lore/impl-abcdef12",
       model: "claude-sonnet-4-6",
       name: "a1b2c3d4-implement",
+      extraLabels: {
+        "lore.re-cinq.com/assembly-line-id": "a1b2c3d4e5f6a7b8",
+        "lore.re-cinq.com/node-id": "implement",
+        "lore.re-cinq.com/node-iteration": "1",
+      },
     });
     expect(nodeAgentName(task.assemblyLineId, "review")).toBe(
       "a1b2c3d4-review",
@@ -65,122 +50,66 @@ describe("nodeAgentSpec", () => {
       nodeAgentSpec({ id: "push", type: "agent" }, task, "p"),
     ).not.toHaveProperty("model");
   });
-});
 
-describe("buildFloorAssemblyLineHandlers", () => {
-  function ports(over: Partial<FloorAssemblyLinePorts> = {}) {
-    const dispatched: LoreTaskSpec[] = [];
-    const base: FloorAssemblyLinePorts = {
-      dispatchAgent: async (spec) => {
-        dispatched.push(spec);
-      },
-      resolvePrompt: (node) => `prompt:${node.id}`,
-      agentStatus: async () => ({ phase: "Succeeded" }),
-      ciConclusion: async () => "success",
-      heartbeat: async () => {},
-      sleep: async () => {},
-      episodeDeps,
-      ...over,
-    };
-
-    return { ports: base, dispatched };
-  }
-
-  it("agent slot dispatches one Agent CR per node from the node's prompt", async () => {
-    const { ports: p, dispatched } = ports();
-    const handlers = buildFloorAssemblyLineHandlers(task, p);
-    const result = await handlers.agent(
-      { id: "implement", type: "agent" },
-      ctx,
+  it("suffixes the CR name + labels with the iteration for a revisited node", () => {
+    // Iteration 1 keeps the bare name (back-compat); a revisit (iteration>1) gets a
+    // distinct name + label so it runs a fresh pod, not a 409-reuse of the prior CR.
+    expect(nodeAgentName(task.assemblyLineId, "review", 2)).toBe(
+      "a1b2c3d4-review-2",
     );
+    const spec = nodeAgentSpec({ id: "review", type: "agent" }, task, "p", 2);
 
-    expect(result.outcome).toBe("success");
-    expect(dispatched).toHaveLength(1);
-    expect(dispatched[0]).toMatchObject({
-      name: "a1b2c3d4-implement",
-      prompt: "prompt:implement",
-    });
-    // The CR spec keeps the taskId — the watcher/reaper probe Agent CRs by task-id label.
-    expect(dispatched[0]).toMatchObject({ taskId: "abcdef1234567890" });
+    expect(spec.name).toBe("a1b2c3d4-review-2");
+    expect(spec.extraLabels?.["lore.re-cinq.com/node-iteration"]).toBe("2");
   });
 
-  it("every non-agent node dispatches a station CR and parses the LORE_NODE_RESULT line", async () => {
-    const output = `logs\nLORE_NODE_RESULT: {"outcome":"failed","extras":{"Lore-Validation-Failed":"lint"}}`;
-    const { ports: p, dispatched } = ports({
-      agentStatus: async () => ({ phase: "Succeeded", output }),
+  it("labels the CR with the full assembly-line id, node id and iteration (event-driven transitions)", () => {
+    // The CR name only carries an 8-char prefix; the labels carry the full uuid so
+    // the k8s watch can map a terminal node CR back to its (line, node, iteration).
+    expect(
+      nodeAgentSpec({ id: "implement", type: "agent" }, task, "p").extraLabels,
+    ).toEqual({
+      "lore.re-cinq.com/assembly-line-id": "a1b2c3d4e5f6a7b8",
+      "lore.re-cinq.com/node-id": "implement",
+      "lore.re-cinq.com/node-iteration": "1",
     });
-    const handlers = buildFloorAssemblyLineHandlers(task, p);
-
-    const result = await handlers.validate(
-      { id: "validate", type: "validate", validator: "all" },
-      ctx,
-    );
-
-    expect(result).toEqual({
-      outcome: "failed",
-      extras: { "Lore-Validation-Failed": "lint" },
+    expect(
+      nodeStationSpec({ id: "wrap", type: "retrospective" }, task).extraLabels,
+    ).toEqual({
+      "lore.re-cinq.com/assembly-line-id": "a1b2c3d4e5f6a7b8",
+      "lore.re-cinq.com/node-id": "wrap",
+      "lore.re-cinq.com/node-iteration": "1",
     });
-    expect(dispatched).toEqual([
-      expect.objectContaining({
-        name: "a1b2c3d4-validate",
-        stationRef: "def-validate",
-        parameters: {
-          station_input: JSON.stringify({
-            assembly_line_id: task.assemblyLineId,
-            node_id: "validate",
-            node_type: "validate",
-            repo: "re-cinq/lore",
-            branch: "lore/impl-abcdef12",
-            task_id: task.taskId,
-            params: { validator: "all" },
-          }),
-        },
-      }),
-    ]);
-  });
-
-  it("gate, retrospective, github_action, and detect all resolve to station handlers", async () => {
-    const output = `LORE_NODE_RESULT: {"outcome":"success","extras":{}}`;
-    const { ports: p, dispatched } = ports({
-      agentStatus: async () => ({ phase: "Succeeded", output }),
-    });
-    const handlers = buildFloorAssemblyLineHandlers(task, p);
-
-    for (const type of [
-      "gate",
-      "retrospective",
-      "github_action",
-      "detect",
-    ] as const) {
-      expect(handlers[type]).toBeTypeOf("function");
-    }
-    const result = await handlers.gate!(
-      { id: "merge-gate", type: "gate" },
-      ctx,
-    );
-
-    expect(result.outcome).toBe("success");
-    expect(dispatched[0]).toMatchObject({ stationRef: "def-gate" });
   });
 });
 
-describe("nodeStationSpec", () => {
-  it("station_ref overrides the def-<type> default and job_ref rides in params", () => {
-    const node: AssemblyLineNode = {
-      id: "detect",
-      type: "detect",
-      job_ref: "spec_drift",
-      station_ref: "acme-scanner",
-    };
-    const spec = nodeStationSpec(node, task);
+describe("nodeStationSpec (station pod contract)", () => {
+  it("builds the station_input payload the pod parses, defaulting stationRef to def-<type>", () => {
+    const spec = nodeStationSpec(
+      { id: "validate", type: "validate", validator: "lint" },
+      task,
+    );
 
-    expect(spec).toMatchObject({
-      stationRef: "acme-scanner",
-      name: "a1b2c3d4-detect",
+    // The recipe's prompt template is literally {station_input} — the whole node
+    // input rides this one JSON parameter that every lore-station pod parses.
+    expect(spec.stationRef).toBe("def-validate");
+    expect(JSON.parse(spec.parameters!.station_input)).toEqual({
+      assembly_line_id: "a1b2c3d4e5f6a7b8",
+      node_id: "validate",
+      node_type: "validate",
+      repo: "re-cinq/lore",
+      branch: "lore/impl-abcdef12",
+      task_id: "abcdef1234567890",
+      params: { validator: "lint" },
     });
-    expect(JSON.parse(spec.parameters!.station_input)).toMatchObject({
-      node_type: "detect",
-      params: { job_ref: "spec_drift" },
-    });
+  });
+
+  it("honors an explicit station_ref override (custom station image)", () => {
+    expect(
+      nodeStationSpec(
+        { id: "detect", type: "detect", station_ref: "def-custom-detect" },
+        task,
+      ).stationRef,
+    ).toBe("def-custom-detect");
   });
 });

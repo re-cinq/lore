@@ -70,13 +70,15 @@ describe("PgAssemblyLines adapter", () => {
     ]);
   });
 
-  it("markRunning stamps status running and started_at", async () => {
+  it("markRunning stamps status running and started_at, guarded against terminal rows", async () => {
     const { pool, calls } = fakePool();
 
     await new PgAssemblyLines(pool).markRunning("al-1");
 
     expect(calls[0]?.text).toContain("status = 'running'");
     expect(calls[0]?.text).toContain("started_at = now()");
+    // Never resurrect a finished/failed row (retried start event race).
+    expect(calls[0]?.text).toContain("status IN ('queued', 'running')");
     expect(calls[0]?.params).toEqual(["al-1"]);
   });
 
@@ -106,63 +108,6 @@ describe("PgAssemblyLines adapter", () => {
       "lease held by other pod",
       "al-1",
     ]);
-  });
-
-  it("recordNodeStart inserts the node row and returns its id", async () => {
-    const { pool, calls } = fakePool([[{ id: "42" }]]);
-
-    const nodeRowId = await new PgAssemblyLines(pool).recordNodeStart({
-      assemblyLineId: "al-1",
-      nodeId: "implement",
-      iteration: 1,
-      agentCrName: "al1abcde-implement",
-    });
-
-    expect(nodeRowId).toBe("42");
-    expect(calls[0]?.text).toContain(
-      "INSERT INTO pipeline.assembly_line_nodes",
-    );
-    expect(calls[0]?.params).toEqual([
-      "al-1",
-      "implement",
-      1,
-      "al1abcde-implement",
-    ]);
-  });
-
-  it("recordNodeStart without an agent CR name binds null", async () => {
-    const { pool, calls } = fakePool([[{ id: 7 }]]);
-
-    const nodeRowId = await new PgAssemblyLines(pool).recordNodeStart({
-      assemblyLineId: "al-1",
-      nodeId: "validate",
-      iteration: 2,
-    });
-
-    expect(nodeRowId).toBe("7");
-    expect(calls[0]?.params).toEqual(["al-1", "validate", 2, null]);
-  });
-
-  it("recordNodeFinish stamps outcome, commit sha, and finished_at", async () => {
-    const { pool, calls } = fakePool();
-
-    await new PgAssemblyLines(pool).recordNodeFinish(
-      "42",
-      "success",
-      "deadbeef",
-    );
-
-    expect(calls[0]?.text).toContain("UPDATE pipeline.assembly_line_nodes");
-    expect(calls[0]?.text).toContain("finished_at = now()");
-    expect(calls[0]?.params).toEqual(["success", "deadbeef", "42"]);
-  });
-
-  it("recordNodeFinish without a commit sha binds null", async () => {
-    const { pool, calls } = fakePool();
-
-    await new PgAssemblyLines(pool).recordNodeFinish("42", "failed");
-
-    expect(calls[0]?.params).toEqual(["failed", null, "42"]);
   });
 
   it("getById maps the row to an AssemblyLineRecord", async () => {
@@ -356,21 +301,21 @@ describe("InMemoryAssemblyLines double", () => {
     });
   });
 
-  it("recordNodeStart and recordNodeFinish trace one node execution", async () => {
+  it("ensureNodeStart and finishNodeOnce trace one node execution", async () => {
     const assemblyLines = new InMemoryAssemblyLines();
     const id = await assemblyLines.start({
       definitionName: "implementation",
       repo: "re-cinq/lore",
     });
 
-    const nodeRowId = await assemblyLines.recordNodeStart({
+    const { nodeRowId } = await assemblyLines.ensureNodeStart({
       assemblyLineId: id,
       nodeId: "implement",
       iteration: 1,
       agentCrName: "al1abcde-implement",
     });
 
-    await assemblyLines.recordNodeFinish(nodeRowId, "success", "deadbeef");
+    await assemblyLines.finishNodeOnce(nodeRowId, "success", "deadbeef");
 
     expect(assemblyLines.nodes).toMatchObject([
       {
@@ -386,20 +331,20 @@ describe("InMemoryAssemblyLines double", () => {
     expect(assemblyLines.nodes[0]?.finishedAt).not.toBeNull();
   });
 
-  it("recordNodeStart without an agent CR name stores null", async () => {
+  it("ensureNodeStart without an agent CR name stores null", async () => {
     const assemblyLines = new InMemoryAssemblyLines();
     const id = await assemblyLines.start({
       definitionName: "general",
       repo: "re-cinq/lore",
     });
 
-    const nodeRowId = await assemblyLines.recordNodeStart({
+    const { nodeRowId } = await assemblyLines.ensureNodeStart({
       assemblyLineId: id,
       nodeId: "validate",
       iteration: 1,
     });
 
-    await assemblyLines.recordNodeFinish(nodeRowId, "failed");
+    await assemblyLines.finishNodeOnce(nodeRowId, "failed");
 
     expect(assemblyLines.nodes[0]).toMatchObject({
       agentCrName: null,
@@ -408,7 +353,7 @@ describe("InMemoryAssemblyLines double", () => {
     });
   });
 
-  it("throws on unknown ids for markRunning, finish, and recordNodeFinish", async () => {
+  it("throws on unknown ids for markRunning and returns false for finishNodeOnce", async () => {
     const assemblyLines = new InMemoryAssemblyLines();
 
     await expect(assemblyLines.markRunning("nope")).rejects.toThrow(
@@ -417,9 +362,7 @@ describe("InMemoryAssemblyLines double", () => {
     await expect(assemblyLines.finish("nope", "error")).rejects.toThrow(
       new Error('no assembly line "nope"'),
     );
-    await expect(
-      assemblyLines.recordNodeFinish("nope", "success"),
-    ).rejects.toThrow(new Error('no assembly line node row "nope"'));
+    expect(await assemblyLines.finishNodeOnce("nope", "success")).toBe(false);
   });
 
   it("getById returns the record and null for unknown ids", async () => {
@@ -555,5 +498,241 @@ describe("AssemblyLines facade", () => {
       status: "finished",
       outcome: "pr_closed",
     });
+  });
+});
+
+// ── Event-driven walk reads/writes (FR6.8 successors): the transition machinery
+//    derives the walk state from node rows, so duplicates must converge structurally.
+describe("InMemoryAssemblyLines node-transition primitives", () => {
+  async function lineWithId(port: InMemoryAssemblyLines) {
+    return port.start({ definitionName: "implementation", repo: "o/r" });
+  }
+
+  it("ensureNodeStart creates the (line, node, iteration) row once and converges duplicates onto it", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await lineWithId(port);
+
+    const first = await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: "abcd1234-review",
+    });
+    const second = await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: "abcd1234-review",
+    });
+
+    expect(first.created).toBe(true);
+    expect(second).toEqual({ nodeRowId: first.nodeRowId, created: false });
+    expect(port.nodes).toHaveLength(1);
+  });
+
+  it("ensureNodeStart treats a new iteration of the same node as a fresh row", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await lineWithId(port);
+
+    const first = await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "implement",
+      iteration: 1,
+    });
+    const second = await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "implement",
+      iteration: 2,
+    });
+
+    expect(second.created).toBe(true);
+    expect(second.nodeRowId).not.toBe(first.nodeRowId);
+  });
+
+  it("finishNodeOnce wins the first write and rejects the second (CAS on null outcome)", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await lineWithId(port);
+    const { nodeRowId } = await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "review",
+      iteration: 1,
+    });
+
+    expect(await port.finishNodeOnce(nodeRowId, "success", "sha-1")).toBe(true);
+    expect(await port.finishNodeOnce(nodeRowId, "failed")).toBe(false);
+    expect(port.nodes[0]).toMatchObject({
+      outcome: "success",
+      commitSha: "sha-1",
+    });
+  });
+
+  it("listNodes returns the line's rows in visit order and excludes other lines", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await lineWithId(port);
+    const other = await lineWithId(port);
+
+    await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "implement",
+      iteration: 1,
+    });
+    await port.ensureNodeStart({
+      assemblyLineId: other,
+      nodeId: "review",
+      iteration: 1,
+    });
+    await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "ci",
+      iteration: 1,
+    });
+
+    expect((await port.listNodes(id)).map((n) => n.nodeId)).toEqual([
+      "implement",
+      "ci",
+    ]);
+  });
+
+  it("listOpen returns queued and running rows only", async () => {
+    const port = new InMemoryAssemblyLines();
+    const queued = await lineWithId(port);
+    const running = await lineWithId(port);
+    const done = await lineWithId(port);
+
+    await port.markRunning(running);
+    await port.markRunning(done);
+    await port.finish(done, "completed");
+
+    expect((await port.listOpen()).map((r) => r.id)).toEqual([queued, running]);
+  });
+});
+
+describe("PgAssemblyLines node-transition primitives", () => {
+  it("ensureNodeStart upserts with ON CONFLICT DO UPDATE (locks + returns in the concurrent case) and reports created via xmax", async () => {
+    const { pool, calls } = fakePool([[{ id: 42, created: true }]]);
+
+    const result = await new PgAssemblyLines(pool).ensureNodeStart({
+      assemblyLineId: "al-1",
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: "abcd1234-review",
+    });
+
+    expect(result).toEqual({ nodeRowId: "42", created: true });
+    const sql = calls[0]?.text ?? "";
+
+    // DO UPDATE (not DO NOTHING) so the row is returned even when a concurrent
+    // insert won the conflict; xmax=0 distinguishes create from converged dup.
+    expect(sql).toContain("ON CONFLICT (assembly_line_id, node_id, iteration)");
+    expect(sql).toContain("DO UPDATE");
+    expect(sql).toContain("(xmax = 0) AS created");
+    expect(calls[0]?.params).toEqual(["al-1", "review", 1, "abcd1234-review"]);
+  });
+
+  it("ensureNodeStart reports created:false for a converged duplicate (xmax != 0)", async () => {
+    const { pool } = fakePool([[{ id: 42, created: false }]]);
+
+    expect(
+      await new PgAssemblyLines(pool).ensureNodeStart({
+        assemblyLineId: "al-1",
+        nodeId: "review",
+        iteration: 1,
+      }),
+    ).toEqual({ nodeRowId: "42", created: false });
+  });
+
+  it("ensureNodeStart enforces exactly one returned row (invariant names itself)", async () => {
+    const { pool } = fakePool([[]]);
+
+    await expect(
+      new PgAssemblyLines(pool).ensureNodeStart({
+        assemblyLineId: "al-1",
+        nodeId: "review",
+        iteration: 1,
+      }),
+    ).rejects.toThrow(/expected exactly one row/);
+  });
+
+  it("finishNodeOnce CASes on a null outcome and reports whether it won", async () => {
+    const { pool, calls } = fakePool([[{ id: 42 }], []]);
+    const pg = new PgAssemblyLines(pool);
+
+    expect(await pg.finishNodeOnce("42", "success", "sha-1")).toBe(true);
+    expect(await pg.finishNodeOnce("42", "failed")).toBe(false);
+    const sql = calls[0]?.text ?? "";
+
+    expect(sql).toContain("outcome IS NULL");
+    expect(sql).toContain("RETURNING id");
+    expect(calls[0]?.params).toEqual(["success", "sha-1", "42"]);
+  });
+
+  it("listNodes selects the line's rows ordered by id", async () => {
+    const { pool, calls } = fakePool([
+      [
+        {
+          id: 1,
+          assembly_line_id: "al-1",
+          node_id: "implement",
+          iteration: 1,
+          outcome: "success",
+          agent_cr_name: "abcd1234-implement",
+          commit_sha: "sha-1",
+          started_at: new Date("2026-07-14T00:00:00Z"),
+          finished_at: new Date("2026-07-14T00:01:00Z"),
+        },
+      ],
+    ]);
+
+    const nodes = await new PgAssemblyLines(pool).listNodes("al-1");
+
+    expect(nodes).toEqual([
+      {
+        id: "1",
+        assemblyLineId: "al-1",
+        nodeId: "implement",
+        iteration: 1,
+        outcome: "success",
+        agentCrName: "abcd1234-implement",
+        commitSha: "sha-1",
+        startedAt: new Date("2026-07-14T00:00:00Z"),
+        finishedAt: new Date("2026-07-14T00:01:00Z"),
+      },
+    ]);
+    expect(calls[0]?.text).toContain("ORDER BY id");
+    expect(calls[0]?.params).toEqual(["al-1"]);
+  });
+
+  it("listOpen selects queued and running rows oldest-first", async () => {
+    const { pool, calls } = fakePool([[]]);
+
+    await new PgAssemblyLines(pool).listOpen();
+
+    expect(calls[0]?.text).toContain("status IN ('queued', 'running')");
+    expect(calls[0]?.text).toContain("ORDER BY created_at");
+  });
+});
+
+describe("finish is first-writer-wins", () => {
+  it("does not overwrite an already-terminal row (InMemory)", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await port.start({ definitionName: "code-review", repo: "o/r" });
+
+    await port.markRunning(id);
+    await port.finish(id, "completed");
+    await port.finish(id, "error", "late duplicate");
+
+    expect(await port.getById(id)).toMatchObject({
+      status: "finished",
+      outcome: "completed",
+      reason: null,
+    });
+  });
+
+  it("guards the Pg UPDATE on a non-terminal status", async () => {
+    const { pool, calls } = fakePool();
+
+    await new PgAssemblyLines(pool).finish("al-1", "completed");
+
+    expect(calls[0]?.text).toContain("status IN ('queued', 'running')");
   });
 });

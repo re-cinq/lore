@@ -17,7 +17,10 @@ import { errorMessage } from "@re-cinq/lore-shared";
 
 import { KubeConfig, CustomObjectsApi } from "@kubernetes/client-node";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
-import { projectFor } from "../../composition/project-boot.js";
+import {
+  projectFor,
+  assemblyLineNames,
+} from "../../composition/project-boot.js";
 import {
   taskStore,
   settings,
@@ -47,6 +50,7 @@ import {
   parseReviewResult,
   decideCiGate,
   decideTokenReclaim,
+  runOutcomeFromTaskStatus,
   type ReviewResult,
 } from "./agent-watcher-logic.js";
 import {
@@ -324,6 +328,32 @@ interface AgentContext {
   slack: SlackBatch;
 }
 
+/** Close a single-CR task's open run rows with an outcome derived from the task's
+ *  post-handler status (total coverage — no walk finishes these rows). The CR
+ *  `phase` disambiguates an un-advanced task: a Failed CR whose task is still
+ *  `running` (e.g. Failed with no failureReason) closes its row `failed`, not
+ *  `completed`. */
+async function finishSingleCrRunRows(
+  taskId: string,
+  phase: string | undefined,
+  failureReason?: string,
+): Promise<void> {
+  const open = (await assemblyLines().listForTask(taskId)).filter((row) =>
+    ["queued", "running"].includes(row.status),
+  );
+
+  if (open.length === 0) {
+    return;
+  }
+
+  const task = await taskStore().getById(taskId);
+  const outcome = runOutcomeFromTaskStatus(task?.status ?? "completed", phase);
+
+  await Promise.all(
+    open.map((row) => assemblyLines().finish(row.id, outcome, failureReason)),
+  );
+}
+
 /**
  * Process one terminal Agent CR. Invoked by the `kubernetes.agent.{succeeded,failed}`
  * event handlers (the event carries the agent name; the handler re-GETs the fresh
@@ -340,6 +370,13 @@ export async function processAgentCr(
   const taskId = taskIdOf(agent);
 
   if (!taskId) {
+    return;
+  }
+
+  // Assembly-line NODE CRs advance via kubernetes.agent_node.* transitions —
+  // the single-agent PR path must never see them (per-CR dedupe would otherwise
+  // route every node of a task-backed line into PR creation).
+  if (agent.metadata?.labels?.["lore.re-cinq.com/assembly-line-id"]) {
     return;
   }
 
@@ -390,15 +427,18 @@ export async function processAgentCr(
       await handleReviewVerdict(ctx, reviewResult);
     }
 
-    // Reclaim the per-task token once a single-agent task's CR is terminal (#784).
-    // Multi-node station lines share one token across node CRs and reclaim it at line
-    // completion, so skip them here (an assembly-line row is the tell) to avoid mid-line
-    // deletion; task-less lines already returned above (no backing task).
+    // Terminal single-CR task: close its run row (the watcher owns the single-CR
+    // lifecycle — no walk finishes these) and reclaim the per-task token (#784).
+    // Multi-node station lines do both at line completion, so the tell is the
+    // routing (builtin assembly line for the task type), not row existence.
     if (phase === "Succeeded" || phase === "Failed") {
-      const hasAssemblyLine =
-        (await assemblyLines().listForTask(taskId)).length > 0;
+      const isAssemblyLineTask = (await assemblyLineNames()).has(ctx.taskType);
 
-      if (decideTokenReclaim({ phase, hasAssemblyLine })) {
+      if (!isAssemblyLineTask) {
+        await finishSingleCrRunRows(taskId, phase, status.failureReason);
+      }
+
+      if (decideTokenReclaim({ phase, isAssemblyLineTask })) {
         await cleanupPerTaskToken(taskId);
       }
     }

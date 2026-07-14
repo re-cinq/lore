@@ -159,7 +159,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
 18. A station pod ends with the claude-style result line carrying `LORE_NODE_RESULT: {outcome,
     extras}`; the Floor's `parseNodeResult` maps it (precedence: LORE_NODE_RESULT → REVIEW_RESULT →
     success); CR Failed → `station-failed`; await expiry → `station-timeout`.
-    ([validated by parseNodeResult tests](../../libs/assembly-lines/src/station-node-handler.test.ts#L24))
+    ([validated by parseNodeResult tests](../../libs/assembly-lines/src/node-outcome.test.ts#L24))
 19. Cutover complete: every non-agent node on the Floor-assembly-line path dispatches a station
     (no `LORE_STATION_NODES` flag, no in-process node handlers on that path); the in-process
     supervisor path (gap-fill/runbook) is untouched. ([validated by every non-agent node dispatches a station CR](../../apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L84))

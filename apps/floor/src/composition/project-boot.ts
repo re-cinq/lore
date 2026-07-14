@@ -59,17 +59,18 @@ export function stationBackend(
 
   return new AgentCrStationBackend(
     // launch() = project.assemblyLines.start(); the assembly_line.start event
-    // handler runs the actual walk via floorAssemblyLineRuntime(agentCrBackend()).
+    // handler launches the entry node — the walk advances on agent_node events.
     new AssemblyLineStationBackend(assemblyLines()),
     agentBackend,
     assemblyLineDefinitions,
+    assemblyLines(),
   );
 }
 
 /** The builtin assembly line names (task types with an assembly line), loaded + cached once. */
 let assemblyLineNamesCache: Promise<ReadonlySet<string>> | undefined;
 
-function assemblyLineNames(): Promise<ReadonlySet<string>> {
+export function assemblyLineNames(): Promise<ReadonlySet<string>> {
   return (assemblyLineNamesCache ??= loadBuiltinAssemblyLines().then(
     (m) => new Set(m.keys()),
   ));

@@ -1,9 +1,11 @@
+import { enforceTrue } from "../../lib/enforce.js";
 import type { PgPool } from "../../memory-store.js";
 import type {
   AssemblyLinesPort,
   AssemblyLineStartInput,
   AssemblyLineNodeStartInput,
   AssemblyLineRecord,
+  AssemblyLineNodeRecord,
 } from "./assembly-lines-port.js";
 
 /**
@@ -50,30 +52,47 @@ export class PgAssemblyLines implements AssemblyLinesPort {
   }
 
   async markRunning(id: string): Promise<void> {
+    // Never resurrect a terminal row: a retried assembly_line.start event must not
+    // flip a row the watcher already finished back to `running` (it would then
+    // never close again — the CR terminal event was already consumed).
     await this.pool.query(
       `UPDATE pipeline.assembly_lines
          SET status = 'running', started_at = now()
-       WHERE id = $1`,
+       WHERE id = $1
+         AND status IN ('queued', 'running')`,
       [id],
     );
   }
 
   async finish(id: string, outcome: string, reason?: string): Promise<void> {
+    // First writer decides: duplicate/late finishers (event redelivery, reaper vs
+    // watch race) never overwrite a terminal row.
     await this.pool.query(
       `UPDATE pipeline.assembly_lines
          SET status = CASE WHEN $1 = 'error' THEN 'failed' ELSE 'finished' END,
              outcome = $1,
              reason = $2,
              finished_at = now()
-       WHERE id = $3`,
+       WHERE id = $3
+         AND status IN ('queued', 'running')`,
       [outcome, reason ?? null, id],
     );
   }
 
-  async recordNodeStart(input: AssemblyLineNodeStartInput): Promise<string> {
+  async ensureNodeStart(
+    input: AssemblyLineNodeStartInput,
+  ): Promise<{ nodeRowId: string; created: boolean }> {
+    // DO UPDATE (not DO NOTHING) so the statement locks and RETURNS the row in
+    // EVERY case, including the concurrent-duplicate race the primitive exists to
+    // absorb: a DO NOTHING + fallback SELECT sees the winner's not-yet-committed
+    // row as absent under its snapshot and returns zero rows. `xmax = 0` is true
+    // only for a fresh insert, so it distinguishes create from converged duplicate.
     const { rows } = await this.pool.query(
       `INSERT INTO pipeline.assembly_line_nodes (assembly_line_id, node_id, iteration, agent_cr_name)
-       VALUES ($1, $2, $3, $4) RETURNING id`,
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (assembly_line_id, node_id, iteration)
+         DO UPDATE SET node_id = EXCLUDED.node_id
+       RETURNING id, (xmax = 0) AS created`,
       [
         input.assemblyLineId,
         input.nodeId,
@@ -82,20 +101,57 @@ export class PgAssemblyLines implements AssemblyLinesPort {
       ],
     );
 
-    return String(rows[0].id);
+    enforceTrue(
+      rows.length === 1,
+      Error,
+      `ensureNodeStart: expected exactly one row for (${input.assemblyLineId}, ${input.nodeId}, ${input.iteration}), got ${rows.length}`,
+    );
+    const row = rows[0] as { id: number | string; created: boolean };
+
+    return { nodeRowId: String(row.id), created: row.created };
   }
 
-  async recordNodeFinish(
+  async finishNodeOnce(
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
-  ): Promise<void> {
-    await this.pool.query(
+  ): Promise<boolean> {
+    const { rows } = await this.pool.query(
       `UPDATE pipeline.assembly_line_nodes
          SET outcome = $1, commit_sha = $2, finished_at = now()
-       WHERE id = $3`,
+       WHERE id = $3 AND outcome IS NULL
+       RETURNING id`,
       [outcome, commitSha ?? null, nodeRowId],
     );
+
+    return rows.length === 1;
+  }
+
+  async listNodes(assemblyLineId: string): Promise<AssemblyLineNodeRecord[]> {
+    const { rows } = await this.pool.query(
+      `SELECT id, assembly_line_id, node_id, iteration, outcome, agent_cr_name,
+              commit_sha, started_at, finished_at
+         FROM pipeline.assembly_line_nodes
+        WHERE assembly_line_id = $1
+        ORDER BY id`,
+      [assemblyLineId],
+    );
+
+    return rows.map((r) =>
+      toNodeRecord(r as Parameters<typeof toNodeRecord>[0]),
+    );
+  }
+
+  async listOpen(): Promise<AssemblyLineRecord[]> {
+    const { rows } = await this.pool.query(
+      `SELECT id, definition_name, task_id, repo, branch, args, status, outcome, reason,
+              created_at, started_at, finished_at
+         FROM pipeline.assembly_lines
+        WHERE status IN ('queued', 'running')
+        ORDER BY created_at`,
+    );
+
+    return rows.map((r) => toRecord(r as Parameters<typeof toRecord>[0]));
   }
 
   async getById(id: string): Promise<AssemblyLineRecord | null> {
@@ -161,6 +217,30 @@ export class PgAssemblyLines implements AssemblyLinesPort {
 
     return rows.length;
   }
+}
+
+function toNodeRecord(row: {
+  id: number | string;
+  assembly_line_id: string;
+  node_id: string;
+  iteration: number;
+  outcome: string | null;
+  agent_cr_name: string | null;
+  commit_sha: string | null;
+  started_at: Date;
+  finished_at: Date | null;
+}): AssemblyLineNodeRecord {
+  return {
+    id: String(row.id),
+    assemblyLineId: row.assembly_line_id,
+    nodeId: row.node_id,
+    iteration: row.iteration,
+    outcome: row.outcome,
+    agentCrName: row.agent_cr_name,
+    commitSha: row.commit_sha,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+  };
 }
 
 function toRecord(row: {

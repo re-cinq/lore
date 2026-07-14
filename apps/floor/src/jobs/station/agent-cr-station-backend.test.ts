@@ -4,6 +4,7 @@ import type {
   StationBackend,
   StationLaunchResult,
 } from "@re-cinq/lore-shared";
+import type { AssemblyLineStartInput } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
 import {
   shouldUseAssemblyLine,
   AgentCrStationBackend,
@@ -51,15 +52,33 @@ describe("shouldUseAssemblyLine", () => {
   });
 });
 
+function makeBackend(openTaskIds: string[] = []) {
+  const assemblyLine = new FakeBackend("assembly-line");
+  const single = new FakeBackend("single");
+  const started: AssemblyLineStartInput[] = [];
+  const backend = new AgentCrStationBackend(
+    assemblyLine,
+    single,
+    assemblyLines,
+    {
+      start: async (input) => {
+        started.push(input);
+
+        return "run-row-1";
+      },
+      listForTask: async (taskId) =>
+        openTaskIds.includes(taskId)
+          ? [{ id: "open-row", status: "running" } as never]
+          : [],
+    },
+  );
+
+  return { backend, assemblyLine, single, started };
+}
+
 describe("AgentCrStationBackend", () => {
   it("routes assemblyLine-having task types to the assembly line, others to single-Agent", async () => {
-    const assemblyLine = new FakeBackend("assembly-line");
-    const single = new FakeBackend("single");
-    const backend = new AgentCrStationBackend(
-      assemblyLine,
-      single,
-      assemblyLines,
-    );
+    const { backend, assemblyLine, single } = makeBackend();
 
     expect(await backend.launch(spec("implementation"))).toEqual({
       ref: "assembly-line",
@@ -73,17 +92,45 @@ describe("AgentCrStationBackend", () => {
     expect(single.launched).toEqual(["onboard"]);
   });
 
-  it("probes isActive on the single-Agent backend (finds both paths' Agents)", async () => {
-    const assemblyLine = new FakeBackend("assembly-line");
-    const single = new FakeBackend("single");
+  it("records an assembly_lines run row for a single-Agent launch (total coverage)", async () => {
+    const { backend, started } = makeBackend();
 
-    expect(
-      await new AgentCrStationBackend(
-        assemblyLine,
-        single,
-        assemblyLines,
-      ).isActive("task-9"),
-    ).toBe(true);
+    await backend.launch({ ...spec("runbook"), taskId: "task-7" });
+
+    expect(started).toEqual([
+      {
+        definitionName: "runbook",
+        repo: "o/r",
+        branch: "b",
+        taskId: "task-7",
+        args: { description: "" },
+      },
+    ]);
+  });
+
+  it("does not double-create a row for the assembly-line branch (start() lives in its backend)", async () => {
+    const { backend, started } = makeBackend();
+
+    await backend.launch(spec("implementation"));
+
+    expect(started).toEqual([]);
+  });
+
+  it("skips the run row on a crash-recovery re-dispatch when one is already open", async () => {
+    // findRecoverable re-claims a mid-dispatch single-CR task; the second launch
+    // reuses the same CR, so it must not mint a phantom second row.
+    const { backend, started, single } = makeBackend(["task-7"]);
+
+    await backend.launch({ ...spec("runbook"), taskId: "task-7" });
+
+    expect(started).toEqual([]);
+    expect(single.launched).toEqual(["runbook"]); // the CR re-dispatch still happens
+  });
+
+  it("probes isActive on the single-Agent backend (finds both paths' Agents)", async () => {
+    const { backend, assemblyLine, single } = makeBackend();
+
+    expect(await backend.isActive("task-9")).toBe(true);
     expect(single.probed).toEqual(["task-9"]);
     expect(assemblyLine.probed).toEqual([]);
   });

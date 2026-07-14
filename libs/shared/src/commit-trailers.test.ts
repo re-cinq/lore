@@ -64,6 +64,20 @@ describe("formatTrailers with an assemblyLineId", () => {
 
     expect(out).not.toContain("Lore-Assembly-Line");
   });
+
+  it("omits the Lore-Task trailer when taskId is empty (task-less line)", () => {
+    const out = formatTrailers({
+      stage: "review",
+      iteration: 1,
+      taskId: "",
+      assemblyLineId: "11111111-2222-4333-8444-555555555555",
+    });
+
+    expect(out).toBe(
+      "Lore-Stage: review\nLore-Iteration: 1\n" +
+        "Lore-Assembly-Line: 11111111-2222-4333-8444-555555555555",
+    );
+  });
 });
 
 describe("parseTrailers", () => {
@@ -96,6 +110,20 @@ describe("parseTrailers", () => {
       taskId: "abc-123",
     });
     expect(parsed?.assemblyLineId).toBeUndefined();
+  });
+
+  it("parses trailer blocks without Lore-Task as taskId empty (task-less line)", () => {
+    const parsed = parseTrailers(
+      "Lore-Stage: review\nLore-Iteration: 1\n" +
+        "Lore-Assembly-Line: 11111111-2222-4333-8444-555555555555",
+    );
+
+    expect(parsed).toEqual({
+      stage: "review",
+      iteration: 1,
+      taskId: "",
+      assemblyLineId: "11111111-2222-4333-8444-555555555555",
+    });
   });
 
   it("round-trips with extras", () => {
@@ -132,9 +160,7 @@ Lore-Task: abc-123`;
   });
 
   it("returns null when required key is missing", () => {
-    expect(
-      parseTrailers("Lore-Stage: implement\nLore-Iteration: 1"),
-    ).toBeNull();
+    expect(parseTrailers("Lore-Iteration: 1\nLore-Task: abc-123")).toBeNull();
   });
 
   it("returns null when iteration is not a number", () => {

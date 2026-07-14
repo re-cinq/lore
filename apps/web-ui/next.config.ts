@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
     },
     {
       source: "/api/pipeline/:path*",
-      destination: "/api/assembly-lines/:path*",
+      destination: "/api/tasks/:path*",
       permanent: false,
     },
   ],

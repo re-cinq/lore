@@ -23,6 +23,21 @@ domains: [agent, pipeline, infra, governance, web-ui]
 > agent nodes — runs as an `Agent` CR in its own pod. Non-LLM nodes are "stations" (ADR-024) run by
 > a new `exec` vendor. This is folded into D2–D4, D7, and D9 below.
 
+> **Revised 2026-07 (2): the walk is event-driven.** The Floor no longer runs an in-process
+> polling walk (a fire-and-backgrounded promise died with the pod — PR #805's run proved it).
+> Node CRs carry `assembly-line-id`/`node-id` labels; their terminal phases emit
+> `kubernetes.agent_node.{succeeded,failed}` (deduped PER CR — the old per-task dedupe swallowed
+> every node after the first); a transition handler records the outcome (CAS) and re-derives the
+> next launch/finish purely from `pipeline.assembly_line_nodes` (`nextTransition` replay). A
+> per-minute reaper is the liveness bound (timeouts, relaunches, dropped/dead-lettered events).
+> Branch lease + stage-commit resume are retired on this path — the stage commits were local-only
+> and never pushed, so git-log resume was a fiction in production; DB uniqueness
+> (UNIQUE (line, node, iteration)) + event dedupe are the concurrency control. Folded into D4
+> below; spec FR6.7/FR6.9/FR6.10. Alternatives rejected: a reaper+resume patch keeping the
+> in-process walk (user chose the full rearchitecture); a per-transition lease (duplicates what
+> the unique index already guarantees). Note: detect runs DO carry a (synthetic) task-id label —
+> the earlier claim they don't was stale.
+
 ## Context
 
 [ADR-030](./ADR-030-agent-definition-recipe-and-tool-seam.md) designed the **AgentDefinition** recipe
@@ -77,13 +92,16 @@ The one CI-backed variant is the **`github-action`** node, which references the 
 Actions with the Floor-side graph gating on the run **conclusion** — deterministic, because GitHub runs
 the repo's toolchain. Repos without CI are covered by onboarding scaffolding `lore-tests.yml`.
 
-**D4 — The assembly line runs Floor-side.** `libs/assembly-lines`'s `executeAssemblyLine` (pure orchestration, no
-Anthropic dependency) runs **in the Floor**; a station-node handler **dispatches one `Agent` CR per
-node — agent or station (D9) — and awaits its terminal status**, heartbeating the branch lease while it
-waits. Lease, branch-as-state resume (commit trailers), and `iteration_max` are branch-centric and unchanged.
-CR names key on the per-attempt assemblyLineId (`<assemblyLineId:8>-<nodeId>`, FR6.5) so two attempts
-of one task never collide; the CR spec keeps `taskId` for the watcher/reaper label probes. Every node
-execution is traced into `pipeline.assembly_line_nodes` via the executor's trace sink (FR6.6).
+**D4 — The assembly line runs Floor-side, event-driven (revised 2026-07 (2)).** The Floor
+dispatches one `Agent` CR per node — agent or station (D9) — and **advances the line on the CR's
+terminal `kubernetes.agent_node.*` event**; a per-minute reaper (`cron.assembly_line_reaper.tick`)
+is the liveness bound for timeouts, unlaunched nodes, and dropped events. There is no walker
+process, no clone, no branch lease, and no stage commits on this path: the walk state IS
+`pipeline.assembly_line_nodes` (FR6.9), `iteration_max` is enforced by replaying the rows
+(`nextTransition`), and pod-death survivability is inherent. CR names key on the per-attempt
+assemblyLineId (`<assemblyLineId:8>-<nodeId>`, FR6.5) so two attempts of one task never collide;
+the CR spec keeps `taskId` for the watcher/reaper label probes and adds the full
+`assembly-line-id`/`node-id` labels the event mapping reads.
 
 **D5 — Context hydration.** The Floor injects assembled context into `Agent.spec.parameters` at
 dispatch (deterministic, turn-1); code-editing recipes also declare the Lore MCP server for
@@ -140,8 +158,9 @@ generalizing D4 from agent-only to all node types. No new CRD, no `@re-cinq/agen
 - **Cutover complete.** Every non-agent node on the Floor-assembly-line path now dispatches a
   station unconditionally; the transitional `LORE_STATION_NODES` per-type flag and the in-process
   node handlers on that path are removed. The detector cores moved to `@re-cinq/lore-shared/detect`
-  (facade-driven), so the detect node dispatches a `def-detect` station too — `run-detect` wires the
-  same agent-cr dispatch + Kubernetes status reader as the task path. The last in-process execution
+  (facade-driven), so the detect node dispatches a `def-detect` station too — since the 2026-07 (2)
+  revision, detection lines ride the same event-driven walk as every other line (the dedicated
+  `run-detect` runner was retired). The last in-process execution
   path — the gap-fill/runbook JSON supervisor (`processTaskViaSupervisor` / `createProductionHandlers`,
   which cloned in-Floor with an App token and ran the LLM node in-process) — is now also removed:
   gap-fill runs on the Floor AssemblyLine (per-node Agent CRs) and runbook (no assembly-line YAML) as a

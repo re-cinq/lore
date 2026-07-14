@@ -1,9 +1,8 @@
 import { spawn } from "node:child_process";
 
 /**
- * The `claude --print` spawn core, relocated from agent/src/claude-code.ts
- * (runClaudeCode). The binary is configurable via LORE_AGENT_CLI so callers can
- * point at a wrapper or a stub; defaults to `claude` on PATH.
+ * The `claude --print` spawn core. The binary is configurable via LORE_AGENT_CLI
+ * so callers can point at a wrapper or a stub; defaults to `claude` on PATH.
  */
 
 export interface ClaudeCliResult {

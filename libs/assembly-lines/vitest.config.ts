@@ -12,7 +12,7 @@ export default defineConfig({
       provider: "v8",
       // Scope the gate to new pure/port-injected logic, file by file, as it is added
       // (ADR-031 Wave 2). Legacy kernel files are not retroactively boiled to 100%.
-      include: ["src/agent-node-handler.ts", "src/github-action-handler.ts"],
+      include: ["src/node-outcome.ts", "src/github-action-handler.ts"],
       thresholds: {
         lines: 100,
         branches: 100,

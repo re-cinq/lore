@@ -13,6 +13,18 @@ export interface AssemblyLineNodeStartInput {
   agentCrName?: string;
 }
 
+export interface AssemblyLineNodeRecord {
+  id: string;
+  assemblyLineId: string;
+  nodeId: string;
+  iteration: number;
+  outcome: string | null;
+  agentCrName: string | null;
+  commitSha: string | null;
+  startedAt: Date;
+  finishedAt: Date | null;
+}
+
 export interface AssemblyLineRecord {
   id: string;
   definitionName: string;
@@ -43,15 +55,26 @@ export interface AssemblyLinesPort {
   markRunning(id: string): Promise<void>;
   /** `outcome: "error"` closes the row as `failed`; anything else as `finished`. */
   finish(id: string, outcome: string, reason?: string): Promise<void>;
-  /** Returns the node row id used by {@link recordNodeFinish}. */
-  recordNodeStart(input: AssemblyLineNodeStartInput): Promise<string>;
-  recordNodeFinish(
+  getById(id: string): Promise<AssemblyLineRecord | null>;
+  listForTask(taskId: string): Promise<AssemblyLineRecord[]>;
+  /**
+   * Event-driven transition primitives: the walk state is derived from node rows,
+   * so duplicate/concurrent advancers must converge structurally.
+   */
+  /** Insert-or-noop on the UNIQUE (assembly_line_id, node_id, iteration) key. */
+  ensureNodeStart(
+    input: AssemblyLineNodeStartInput,
+  ): Promise<{ nodeRowId: string; created: boolean }>;
+  /** Compare-and-set the outcome (`WHERE outcome IS NULL`); true when this call won. */
+  finishNodeOnce(
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
-  ): Promise<void>;
-  getById(id: string): Promise<AssemblyLineRecord | null>;
-  listForTask(taskId: string): Promise<AssemblyLineRecord[]>;
+  ): Promise<boolean>;
+  /** The line's node rows in visit order (row id). */
+  listNodes(assemblyLineId: string): Promise<AssemblyLineNodeRecord[]>;
+  /** Open (`queued`/`running`) lines, oldest first — the reaper's work list. */
+  listOpen(): Promise<AssemblyLineRecord[]>;
   /**
    * Open (`queued`/`running`) assembly lines whose `args.pr_number` matches — the
    * PR-scoped lookup the code-review choreography uses. Only code-review lines

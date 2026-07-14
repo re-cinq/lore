@@ -1,38 +1,39 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import RepoTasksView from "./RepoTasksView";
-import {
-  groupTasksIntoAssemblyLines,
-  type AssemblyLineTaskRow,
-} from "@/lib/assembly-lines";
+import type { AssemblyLineRun } from "@/lib/assembly-line-runs";
 
-const taskRow = (over: Partial<AssemblyLineTaskRow>): AssemblyLineTaskRow => ({
-  id: "task-abcd1234",
-  description: "Implement the widget",
-  task_type: "implementation",
-  status: "running",
-  priority: "normal",
-  target_repo: "re-cinq/lore",
-  agent_id: "agent-abc",
-  pr_url: null,
-  pr_number: null,
-  target_branch: null,
-  parent_task_id: null,
-  retry_of: null,
-  created_by: "bogdan",
-  created_at: "2026-06-01T12:00:00.000Z",
-  updated_at: "2026-06-01T12:00:00.000Z",
-  cost_usd: 0,
-  ...over,
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({ json: async () => ({}) })) as unknown as typeof fetch,
+  );
 });
 
-const group = (...rows: AssemblyLineTaskRow[]) =>
-  groupTasksIntoAssemblyLines(rows);
+const run = (over: Partial<AssemblyLineRun> = {}): AssemblyLineRun => ({
+  id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+  definitionName: "implementation",
+  taskId: "task-9",
+  repo: "re-cinq/lore",
+  branch: "lore/impl-x",
+  status: "finished",
+  outcome: "pr_created",
+  reason: null,
+  createdAt: "2026-07-14T10:00:00Z",
+  startedAt: "2026-07-14T10:00:05Z",
+  durationSeconds: 715,
+  prUrl: null,
+  prNumber: null,
+  createdBy: "bogdan",
+  costUsd: 0.25,
+  ...over,
+});
 
 describe("RepoTasksView", () => {
   it("renders the Assembly Lines heading, intro copy and New Task link", () => {
     render(<RepoTasksView owner="re-cinq" repo="lore" runs={[]} />);
+
     expect(
       screen.getByRole("heading", { level: 2, name: "Assembly Lines" }),
     ).toBeInTheDocument();
@@ -47,35 +48,24 @@ describe("RepoTasksView", () => {
 
   it("renders the empty-state row when there are no runs", () => {
     render(<RepoTasksView owner="re-cinq" repo="lore" runs={[]} />);
-    expect(screen.getByText("No assembly lines yet")).toBeInTheDocument();
+    expect(screen.getByText("No assembly line runs.")).toBeInTheDocument();
   });
 
-  it("renders a run with its stage mini-graph and a summed cost column", () => {
-    const impl = taskRow({
-      id: "task-abcd1234",
-      target_branch: "lore/x",
-      cost_usd: 0.3,
-      created_at: "2026-06-01T10:00:00.000Z",
-    });
-    const review = taskRow({
-      id: "review",
-      task_type: "review",
-      parent_task_id: "task-abcd1234",
-      target_branch: "lore/x",
-      cost_usd: 0.2,
-      created_at: "2026-06-01T11:00:00.000Z",
-    });
-
+  it("renders a repo run with its summed task cost", () => {
     render(
-      <RepoTasksView owner="re-cinq" repo="lore" runs={group(review, impl)} />,
+      <RepoTasksView
+        owner="re-cinq"
+        repo="lore"
+        runs={[run({ costUsd: 1.5 })]}
+      />,
     );
 
-    expect(screen.getByRole("link", { name: "#task-abc" })).toHaveAttribute(
+    expect(screen.getByText("$1.5000")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "implementation" }),
+    ).toHaveAttribute(
       "href",
-      "/assembly-lines/task-abcd1234",
+      "/assembly-lines/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
     );
-    expect(screen.getAllByTestId("al-stage")).toHaveLength(2);
-    expect(screen.getByText("Cost")).toBeInTheDocument();
-    expect(screen.getByText("$0.5000")).toBeInTheDocument();
   });
 });

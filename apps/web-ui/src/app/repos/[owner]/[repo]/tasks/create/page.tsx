@@ -34,8 +34,12 @@ async function createTask(formData: FormData) {
     );
   }
   revalidatePath(`/repos/${targetRepo}/tasks`);
+  // Land on the task detail (Run Now / Cancel live there); fall back to the repo
+  // tab if the just-created row couldn't be resolved.
   redirect(
-    `/repos/${targetRepo.split("/")[0]}/${targetRepo.split("/")[1]}/tasks`,
+    task[0]
+      ? `/tasks/${task[0].id}`
+      : `/repos/${targetRepo.split("/")[0]}/${targetRepo.split("/")[1]}/tasks`,
   );
 }
 
