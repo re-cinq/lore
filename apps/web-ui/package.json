@@ -39,9 +39,9 @@
     "@types/pg": "^8.11.0",
     "@types/react": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.2",
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.10",
     "jsdom": "^29.1.1",
-    "typescript": "^5.7.0",
-    "vitest": "^4.1.7"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
   }
 }
