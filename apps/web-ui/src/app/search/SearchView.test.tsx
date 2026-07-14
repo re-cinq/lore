@@ -41,11 +41,8 @@ describe("SearchView", () => {
   it("preserves the typed query in the search input", () => {
     render(<SearchView q="env var" repos={REPOS} results={[result({})]} />);
     expect(
-      (
-        screen.getByPlaceholderText(
-          /Search across all agent memories/,
-        ) as HTMLInputElement
-      ).value,
+      (screen.getByPlaceholderText(/Search memories/) as HTMLInputElement)
+        .value,
     ).toEqual("env var");
   });
 
@@ -107,12 +104,12 @@ describe("SearchView", () => {
     );
     expect(screen.getByText("deployment-gotchas-2026")).toBeInTheDocument();
     expect(
-      screen.getByText(/agent: abcdef01\.\.\. · score: 0\.429/),
+      screen.getByText(/agent: abcdef01… · score: 0\.429/),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Always set the env var before deploy"),
     ).toBeInTheDocument();
-    expect(screen.getByText("memory")).toHaveClass("op-badge", "op-read");
+    expect(screen.getByText("Memory")).toHaveClass("op-badge", "op-read");
   });
 
   it("renders a fact result with the op-search badge", () => {
@@ -123,7 +120,7 @@ describe("SearchView", () => {
         results={[result({ source: "fact" })]}
       />,
     );
-    expect(screen.getByText("fact")).toHaveClass("op-badge", "op-search");
+    expect(screen.getByText("Fact")).toHaveClass("op-badge", "op-search");
   });
 
   it("renders an episode result with the op-read badge", () => {
@@ -134,7 +131,7 @@ describe("SearchView", () => {
         results={[result({ source: "episode" })]}
       />,
     );
-    expect(screen.getByText("episode")).toHaveClass("op-badge", "op-read");
+    expect(screen.getByText("Episode")).toHaveClass("op-badge", "op-read");
   });
 
   it("renders a chunk result with the op-write badge plus the repo meta and repo badge", () => {
@@ -157,7 +154,7 @@ describe("SearchView", () => {
       .closest(".search-result") as HTMLElement;
     const scoped = within(card);
 
-    expect(scoped.getByText("chunk")).toHaveClass("op-badge", "op-write");
+    expect(scoped.getByText("Chunk")).toHaveClass("op-badge", "op-write");
     // repo appears twice in the card: the "· repo:" meta and the standalone badge
     expect(scoped.getAllByText("re-cinq/lore")).toHaveLength(2);
     expect(card.querySelector(".badge")?.textContent).toEqual("re-cinq/lore");

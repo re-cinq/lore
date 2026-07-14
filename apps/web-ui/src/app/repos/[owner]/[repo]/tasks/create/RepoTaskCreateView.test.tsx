@@ -35,11 +35,9 @@ describe("RepoTaskCreateView", () => {
     render(
       <RepoTaskCreateView fullName="re-cinq/lore" createTaskAction={action} />,
     );
-    expect(
-      screen.getByRole("option", {
-        name: "Feature Request (PM intent → spec)",
-      }),
-    ).toHaveValue("feature-request");
+    expect(screen.getByRole("option", { name: "Feature Request" })).toHaveValue(
+      "feature-request",
+    );
     expect(screen.getByRole("option", { name: "General" })).toHaveValue(
       "general",
     );

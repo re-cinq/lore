@@ -168,7 +168,7 @@ describe("RepoOverviewView", () => {
       />,
     );
     expect(screen.getByText("Implement the widget...")).toBeInTheDocument();
-    const completed = screen.getByText("completed");
+    const completed = screen.getByText("Completed");
 
     expect(completed).toHaveClass("op-badge", "op-completed");
     expect(
@@ -226,7 +226,7 @@ describe("RepoOverviewView", () => {
     );
     expect(screen.getByText("github.pull_request.opened")).toBeInTheDocument();
     expect(screen.getByText("internal.ingest.spec_trace")).toBeInTheDocument();
-    expect(screen.getByText("done")).toHaveClass("op-badge", "op-done");
+    expect(screen.getByText("Done")).toHaveClass("op-badge", "op-done");
     expect(screen.getByRole("link", { name: "Show all →" })).toHaveAttribute(
       "href",
       "/repos/re-cinq/lore/events",

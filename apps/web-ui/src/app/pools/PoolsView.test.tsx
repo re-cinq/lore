@@ -46,15 +46,24 @@ describe("PoolsView", () => {
     expect(screen.getByText("5")).toBeInTheDocument();
   });
 
-  it("truncates created_by to first 8 chars with full value in title", () => {
+  it("keeps a readable created_by whole with the full value in title", () => {
     render(
       <PoolsView
         pools={[makePool({ created_by: "agent-abcdef0123456789" })]}
       />,
     );
-    const cell = screen.getByText("agent-ab...");
+    const cell = screen.getByText("agent-abcdef0123456789");
 
     expect(cell).toHaveAttribute("title", "agent-abcdef0123456789");
+  });
+
+  it("truncates an opaque hex created_by with the full value in title", () => {
+    render(
+      <PoolsView pools={[makePool({ created_by: "abcdef0123456789" })]} />,
+    );
+    const cell = screen.getByText("abcdef01…");
+
+    expect(cell).toHaveAttribute("title", "abcdef0123456789");
   });
 
   it("renders created_at as a localized date string", () => {

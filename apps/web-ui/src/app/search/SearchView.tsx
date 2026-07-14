@@ -1,3 +1,5 @@
+import { displayAgentId } from "@/lib/agent-id";
+import { formatEnumLabel } from "@/lib/enum-label";
 import styles from "./SearchView.module.css";
 
 export interface SearchResult {
@@ -65,7 +67,7 @@ export default function SearchView({
           type="text"
           name="q"
           defaultValue={q || ""}
-          placeholder="Search across all agent memories, facts, and repo chunks..."
+          placeholder="Search memories, facts, and ingested docs..."
         />
         <button type="submit">Search</button>
       </form>
@@ -86,8 +88,7 @@ export default function SearchView({
           <div className="result-header">
             <strong>{r.key}</strong>
             <span className="meta">
-              agent: {r.agent_id.substring(0, 8)}... · score:{" "}
-              {r.score.toFixed(3)}
+              agent: {displayAgentId(r.agent_id)} · score: {r.score.toFixed(3)}
               {r.repo && (
                 <>
                   {" "}
@@ -100,7 +101,7 @@ export default function SearchView({
           <div className="result-source">
             source:{" "}
             <span className={`op-badge ${sourceBadgeClass(r.source)}`}>
-              {r.source}
+              {formatEnumLabel(r.source)}
             </span>
             {r.repo && (
               <span className={`badge ${styles.repoBadge}`}>{r.repo}</span>

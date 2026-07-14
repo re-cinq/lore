@@ -350,4 +350,54 @@ describe("PRStatusCard", () => {
       "/api/assembly-lines/second/pr-status",
     );
   });
+
+  it("keeps the loaded details on screen when a later poll fails", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => details() })
+      .mockResolvedValue({
+        ok: true,
+        json: async () => ({ error: "rate limited" }),
+      });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await renderSettled({ taskId: "task-1", prUrl: "https://gh/pr/1" });
+    expect(screen.getByText("#42 Add the widget")).toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(15_000);
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("#42 Add the widget")).toBeInTheDocument();
+    expect(screen.queryByText(/Status unavailable/)).not.toBeInTheDocument();
+  });
+
+  it("stops polling once a poll fails instead of refetching forever", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => details() })
+      .mockResolvedValue({ ok: true, json: async () => ({ error: "gone" }) });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await renderSettled({ taskId: "task-1", prUrl: "https://gh/pr/1" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(15_000);
+      await Promise.resolve();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+      await Promise.resolve();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

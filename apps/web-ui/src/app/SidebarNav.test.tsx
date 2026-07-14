@@ -23,23 +23,34 @@ vi.mock("next/link", async (importOriginal) => {
   return { ...actual, useLinkStatus: () => linkStatus() };
 });
 
+// Icon pulls in ThemeProvider context; stub it so the accordion chevron renders
+// as an inert, aria-hidden node and never contributes to a control's a11y name.
+vi.mock("@/components/Icon", () => ({
+  default: ({ name }: { name: string }) => (
+    <span data-icon={name} aria-hidden="true" />
+  ),
+}));
+
 import SidebarNav from "./SidebarNav";
 
-// The ten primary links plus the trailing "+ Add Repo" entry, in render order.
+// The nav links rendered inside <nav>, in render order: the headerless top
+// cluster (Repos + global views) then the Insights group.
 const PRIMARY_LINKS = [
   { href: "/", label: "Repos" },
-  { href: "/assembly-lines", label: "Assembly Lines" },
+  { href: "/search", label: "Search" },
+  { href: "/audit", label: "Audit" },
+  { href: "/pools", label: "Pools" },
   { href: "/analytics", label: "Analytics" },
   { href: "/spend", label: "Spend" },
-  { href: "/search", label: "Search" },
+  { href: "/gaps", label: "Gaps" },
   { href: "/episodes", label: "Episodes" },
   { href: "/graph", label: "Graph" },
-  { href: "/agents", label: "Agents" },
-  { href: "/audit", label: "Audit" },
-  { href: "/settings", label: "Settings" },
 ];
+// Pinned outside the scrollable nav.
+const SETTINGS = { href: "/settings", label: "Settings" };
 const ADD_REPO = { href: "/onboard", label: "+ Add Repo" };
-const ALL_LINKS = [...PRIMARY_LINKS, ADD_REPO];
+const FOOTER_LINKS = [SETTINGS, ADD_REPO];
+const ALL_LINKS = [...PRIMARY_LINKS, ...FOOTER_LINKS];
 
 function linkByLabel(label: string): HTMLAnchorElement {
   return screen.getByRole("link", { name: label }) as HTMLAnchorElement;
@@ -68,7 +79,7 @@ describe("SidebarNav rendering", () => {
     }
   });
 
-  it("renders the links inside a single nav element in declared order", () => {
+  it("renders the primary links inside a single nav element in declared order", () => {
     const { container } = render(<SidebarNav />);
     const nav = container.querySelector("nav");
 
@@ -77,18 +88,29 @@ describe("SidebarNav rendering", () => {
       (a) => a.textContent,
     );
 
-    expect(rendered).toEqual(ALL_LINKS.map((l) => l.label));
+    expect(rendered).toEqual(PRIMARY_LINKS.map((l) => l.label));
   });
 
-  it("applies the distinguishing module class to the Add Repo link only", () => {
-    render(<SidebarNav />);
-    const addRepo = linkByLabel("+ Add Repo");
+  it("pins the Settings and Add Repo actions outside the scrollable nav", () => {
+    const { container } = render(<SidebarNav />);
+    const nav = container.querySelector("nav");
 
-    // The module class SidebarNav passes through to the extra NavLink.
-    expect(addRepo.className).toContain("addRepo");
+    for (const { href, label } of FOOTER_LINKS) {
+      const link = linkByLabel(label);
+
+      expect(link).toHaveAttribute("href", href);
+      expect(nav!.contains(link)).toBe(false);
+    }
+  });
+
+  it("applies the distinguishing module classes to the footer links only", () => {
+    render(<SidebarNav />);
+    expect(linkByLabel("+ Add Repo").className).toContain("addRepo");
+    expect(linkByLabel("Settings").className).toContain("footerLink");
 
     // A primary link carries no such class.
     expect(linkByLabel("Repos").className).not.toContain("addRepo");
+    expect(linkByLabel("Repos").className).not.toContain("footerLink");
   });
 });
 
@@ -103,7 +125,7 @@ describe("SidebarNav active-link highlighting", () => {
     expect(repos).toHaveAttribute("aria-current", "page");
 
     // Every other link is inactive — including ones whose href is a prefix of "/".
-    for (const { label } of [...PRIMARY_LINKS.slice(1), ADD_REPO]) {
+    for (const { label } of [...PRIMARY_LINKS.slice(1), ...FOOTER_LINKS]) {
       const link = linkByLabel(label);
 
       expect(link.className).not.toContain("active");
@@ -113,7 +135,7 @@ describe("SidebarNav active-link highlighting", () => {
 
   it('does not light up "Repos" when on a deeper route (root matches exact path only)', () => {
     // rootHref branch: href === '/' must match the path exactly, never as a prefix.
-    pathname.mockReturnValue("/assembly-lines");
+    pathname.mockReturnValue("/analytics");
     render(<SidebarNav />);
     const repos = linkByLabel("Repos");
 
@@ -140,17 +162,17 @@ describe("SidebarNav active-link highlighting", () => {
 
   it('marks a primary link active on a sub-route via the "/" boundary (startsWith branch)', () => {
     // isNavActive non-root branch: pathname.startsWith(`${href}/`).
-    pathname.mockReturnValue("/assembly-lines/abc-123");
+    pathname.mockReturnValue("/audit/entry-123");
     render(<SidebarNav />);
 
-    const pipeline = linkByLabel("Assembly Lines");
+    const audit = linkByLabel("Audit");
 
-    expect(pipeline.className).toContain("active");
-    expect(pipeline).toHaveAttribute("aria-current", "page");
+    expect(audit.className).toContain("active");
+    expect(audit).toHaveAttribute("aria-current", "page");
 
-    // The sibling whose href is a string-prefix-but-not-path-prefix stays inactive.
+    // The root link whose href is a string-prefix-but-not-path-prefix stays inactive.
     expect(linkByLabel("Repos").className).not.toContain("active");
-    expect(linkByLabel("Settings").className).not.toContain("active");
+    expect(linkByLabel("Search").className).not.toContain("active");
   });
 
   it('does not light up a link when the path only shares a string prefix, not a "/" boundary', () => {
@@ -174,6 +196,20 @@ describe("SidebarNav active-link highlighting", () => {
     expect(addRepo.className).toContain("addRepo");
 
     // No primary link is active on /onboard.
+    for (const { label } of PRIMARY_LINKS) {
+      expect(linkByLabel(label).className).not.toContain("active");
+    }
+  });
+
+  it("marks the Settings link active on the /settings route", () => {
+    pathname.mockReturnValue("/settings");
+    render(<SidebarNav />);
+
+    const settings = linkByLabel("Settings");
+
+    expect(settings.className).toContain("active");
+    expect(settings).toHaveAttribute("aria-current", "page");
+
     for (const { label } of PRIMARY_LINKS) {
       expect(linkByLabel(label).className).not.toContain("active");
     }
@@ -215,7 +251,7 @@ describe("SidebarNav active-link highlighting", () => {
 });
 
 describe("SidebarNav pending navigation state", () => {
-  it("renders the loading spinner on links while navigation is pending", () => {
+  it("renders the loading spinner on every link while navigation is in flight", () => {
     // useLinkStatus pending=true exercises the NavLabel spinner branch SidebarNav
     // composes for every link, and the matching item still highlights.
     pathname.mockReturnValue("/search");
@@ -247,11 +283,63 @@ describe("SidebarNav interactions", () => {
   it("keeps every link clickable (href targets stay intact after a click)", () => {
     pathname.mockReturnValue("/");
     render(<SidebarNav />);
-    const pipeline = linkByLabel("Assembly Lines");
+    const graph = linkByLabel("Graph");
 
-    // Clicking does not mutate the rendered anchor target; SidebarNav is stateless
-    // and relies on the router (mocked away) for navigation.
-    fireEvent.click(pipeline);
-    expect(pipeline).toHaveAttribute("href", "/assembly-lines");
+    // Clicking does not mutate the rendered anchor target; SidebarNav relies on
+    // the router (mocked away) for navigation.
+    fireEvent.click(graph);
+    expect(graph).toHaveAttribute("href", "/graph");
+  });
+});
+
+describe("SidebarNav accordion groups", () => {
+  const GROUP_HEADERS = ["Insights"];
+
+  it("renders every labelled group as an expanded collapse header", () => {
+    render(<SidebarNav />);
+
+    for (const label of GROUP_HEADERS) {
+      expect(screen.getByRole("button", { name: label })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+    }
+  });
+
+  it("keeps the label-less top group headerless so Repos is always visible", () => {
+    render(<SidebarNav />);
+    expect(linkByLabel("Repos")).toHaveAttribute("href", "/");
+    expect(screen.queryByRole("button", { name: "Repos" })).toBeNull();
+  });
+
+  it("hides only that group's links when a header is collapsed", () => {
+    render(<SidebarNav />);
+    const insights = screen.getByRole("button", { name: "Insights" });
+
+    fireEvent.click(insights);
+
+    expect(insights).toHaveAttribute("aria-expanded", "false");
+
+    // Every Insights link is gone…
+    for (const label of ["Analytics", "Spend", "Gaps", "Episodes", "Graph"]) {
+      expect(screen.queryByRole("link", { name: label })).toBeNull();
+    }
+    // …while the always-on top links and footer stay put.
+    expect(linkByLabel("Repos")).toBeInTheDocument();
+    expect(linkByLabel("Search")).toBeInTheDocument();
+    expect(linkByLabel("Settings")).toBeInTheDocument();
+    expect(linkByLabel("+ Add Repo")).toBeInTheDocument();
+  });
+
+  it("restores a group's links when its header is toggled back open", () => {
+    render(<SidebarNav />);
+    const insights = screen.getByRole("button", { name: "Insights" });
+
+    fireEvent.click(insights);
+    expect(screen.queryByRole("link", { name: "Analytics" })).toBeNull();
+
+    fireEvent.click(insights);
+    expect(insights).toHaveAttribute("aria-expanded", "true");
+    expect(linkByLabel("Analytics")).toHaveAttribute("href", "/analytics");
   });
 });

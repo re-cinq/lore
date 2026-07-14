@@ -12,7 +12,7 @@ export default function UserMenu() {
 
   return (
     <div className={styles.menu}>
-      <div className={styles.row}>
+      <div className={styles.identity}>
         {session.user.image && (
           <img
             src={session.user.image}

@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/components/SubmitButton";
 import styles from "./OnboardView.module.css";
 
 export interface OnboardViewProps {
@@ -36,13 +37,14 @@ export default function OnboardView({
           title="Format: owner/repo"
         />
         <p className={`meta ${styles.hint}`}>
-          The GitHub App must have access to this repo.
+          Format: <code>owner/name</code>. The GitHub App must have access to
+          this repo.
           {onboarded.length > 0 &&
             ` Already onboarded: ${onboarded.map((r) => r.full_name).join(", ")}`}
         </p>
-        <button type="submit" className={styles.submit}>
+        <SubmitButton className={styles.submit} pendingLabel="Onboarding…">
           Onboard Repository
-        </button>
+        </SubmitButton>
       </form>
     </div>
   );

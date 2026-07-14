@@ -1,4 +1,8 @@
 import Link from "next/link";
+import { TimeAgo } from "@/components/TimeAgo";
+import { formatEnumLabel } from "@/lib/enum-label";
+import { displayAgentId } from "@/lib/agent-id";
+import { EmptyState } from "@/components/EmptyState";
 import styles from "./AuditView.module.css";
 
 export interface AuditEntryRow {
@@ -62,9 +66,27 @@ export default function AuditView({
     return `/audit${qs ? `?${qs}` : ""}`;
   }
 
+  const emptyState =
+    agent || op || totalCount > 0 ? (
+      <EmptyState
+        title="No entries match these filters"
+        description="Try a different agent or operation."
+        action={{ href: "/audit", label: "Clear filters" }}
+      />
+    ) : (
+      <EmptyState
+        title="No activity recorded yet"
+        description="Entries appear here as agents read and write memory."
+      />
+    );
+
   return (
     <div>
       <h1>Audit Trail</h1>
+      <p className="meta" style={{ marginBottom: 16 }}>
+        Every memory read and write across the org, in time order. Filter by
+        agent or operation.
+      </p>
       <form method="get" className="filter-form">
         <input
           type="text"
@@ -76,7 +98,7 @@ export default function AuditView({
           <option value="">All operations</option>
           {operations.map((o) => (
             <option key={o} value={o}>
-              {o}
+              {formatEnumLabel(o)}
             </option>
           ))}
         </select>
@@ -97,25 +119,42 @@ export default function AuditView({
         <tbody>
           {entries.map((e) => (
             <tr key={e.id}>
-              <td>{new Date(e.created_at).toLocaleString()}</td>
-              <td title={e.agent_id}>{e.agent_id.substring(0, 8)}...</td>
+              <td>
+                <TimeAgo date={e.created_at} />
+              </td>
+              <td title={e.agent_id}>{displayAgentId(e.agent_id)}</td>
               <td>
                 <span className={`op-badge op-${e.operation}`}>
-                  {e.operation}
+                  {formatEnumLabel(e.operation)}
                 </span>
               </td>
               <td>{e.memory_key || "—"}</td>
               <td>{e.pool_name || "—"}</td>
               <td>
-                {e.metadata ? JSON.stringify(e.metadata).substring(0, 50) : "—"}
+                {e.metadata ? (
+                  <details>
+                    <summary className="meta">view</summary>
+                    <pre
+                      style={{
+                        margin: "4px 0 0",
+                        fontSize: 11,
+                        whiteSpace: "pre-wrap",
+                        maxWidth: 420,
+                        overflowX: "auto",
+                      }}
+                    >
+                      {JSON.stringify(e.metadata, null, 2)}
+                    </pre>
+                  </details>
+                ) : (
+                  "—"
+                )}
               </td>
             </tr>
           ))}
           {entries.length === 0 && (
             <tr>
-              <td colSpan={6} className={styles.emptyCell}>
-                No audit entries found
-              </td>
+              <td colSpan={6}>{emptyState}</td>
             </tr>
           )}
         </tbody>

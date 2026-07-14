@@ -2,6 +2,8 @@ import Link from "next/link";
 import ChunkBody from "./ChunkBody";
 import { badgeClassForType } from "@/lib/content-types";
 import { chunkHeader, type ChunkMeta } from "@/lib/chunk-presenter";
+import { formatEnumLabel } from "@/lib/enum-label";
+import { TimeAgo } from "@/components/TimeAgo";
 import styles from "./ContextCard.module.css";
 
 export interface ContextCardChunk {
@@ -40,14 +42,14 @@ export default function ContextCard({
     <div className={styles.card}>
       <div className={styles.head}>
         <span className={badgeClassForType(chunk.content_type)}>
-          {chunk.content_type}
+          {formatEnumLabel(chunk.content_type)}
         </span>
         <Link href={detailHref} className={styles.path}>
           {chunk.file_path}
         </Link>
         {repoLabel && <span className={styles.repo}>{repoLabel}</span>}
         <span className={styles.date}>
-          {new Date(chunk.ingested_at).toLocaleDateString()}
+          <TimeAgo date={chunk.ingested_at} inline />
         </span>
       </div>
       {header && <p className={styles.subhead}>{header}</p>}

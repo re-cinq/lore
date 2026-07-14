@@ -32,7 +32,38 @@ const group = (...rows: AssemblyLineTaskRow[]) =>
 describe("AssemblyLineTable", () => {
   it("renders the empty-state row when there are no runs", () => {
     render(<AssemblyLineTable runs={[]} />);
-    expect(screen.getByText("No assembly lines")).toBeInTheDocument();
+    expect(screen.getByText("No assembly lines yet")).toBeInTheDocument();
+  });
+
+  it("links the empty-state CTA to the global create page by default", () => {
+    render(<AssemblyLineTable runs={[]} />);
+    expect(screen.getByRole("link", { name: "Create a task" })).toHaveAttribute(
+      "href",
+      "/assembly-lines/create",
+    );
+  });
+
+  it("points the empty-state CTA at createHref when given", () => {
+    render(
+      <AssemblyLineTable
+        runs={[]}
+        createHref="/repos/re-cinq/lore/tasks/create"
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Create a task" })).toHaveAttribute(
+      "href",
+      "/repos/re-cinq/lore/tasks/create",
+    );
+  });
+
+  it("shows the no-matches empty state with a clear link when filtered", () => {
+    render(<AssemblyLineTable runs={[]} filtered />);
+    expect(screen.getByText("No matches for this filter")).toBeInTheDocument();
+    expect(screen.queryByText("No assembly lines yet")).toBeNull();
+    expect(screen.getByRole("link", { name: "Clear filter" })).toHaveAttribute(
+      "href",
+      "/assembly-lines",
+    );
   });
 
   it("renders a singleton run as one row with a single-stage mini-graph linking to the lead", () => {
@@ -81,8 +112,11 @@ describe("AssemblyLineTable", () => {
     });
 
     render(<AssemblyLineTable runs={group(review, impl)} />);
+    // The member's stage badge also reads "Running" now — scope to the roll-up.
     expect(
-      within(screen.getByRole("table")).getByText("Running"),
+      within(screen.getByRole("table")).getByText("Running", {
+        selector: '[class*="ciIcon"]',
+      }),
     ).toBeInTheDocument();
   });
 

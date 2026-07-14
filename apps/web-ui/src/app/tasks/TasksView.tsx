@@ -1,3 +1,6 @@
+import { TimeAgo } from "@/components/TimeAgo";
+import { formatEnumLabel } from "@/lib/enum-label";
+import { SubmitButton } from "@/components/SubmitButton";
 import styles from "./TasksView.module.css";
 
 interface Task {
@@ -47,7 +50,7 @@ export default function TasksView({
             rows={3}
             className={styles.textarea}
           />
-          <button type="submit">Create Task</button>
+          <SubmitButton pendingLabel="Creating…">Create Task</SubmitButton>
         </form>
       </section>
 
@@ -65,10 +68,10 @@ export default function TasksView({
                   <span
                     className={`badge ${status === "open" ? "badge-open" : ""}`}
                   >
-                    {status}
+                    {formatEnumLabel(status)}
                   </span>
                   <span className="meta">
-                    {new Date(task.ingested_at).toLocaleString()}
+                    <TimeAgo date={task.ingested_at} />
                   </span>
                 </div>
                 <p>{task.content}</p>
@@ -97,11 +100,13 @@ export default function TasksView({
                 <tr key={i}>
                   <td className={styles.td}>{entry.agent_id}</td>
                   <td className={styles.td}>
-                    <span className="badge">{entry.operation}</span>
+                    <span className="badge">
+                      {formatEnumLabel(entry.operation)}
+                    </span>
                   </td>
                   <td className={styles.td}>{entry.memory_key}</td>
                   <td className={`meta ${styles.td}`}>
-                    {new Date(entry.created_at).toLocaleString()}
+                    <TimeAgo date={entry.created_at} />
                   </td>
                 </tr>
               ))}

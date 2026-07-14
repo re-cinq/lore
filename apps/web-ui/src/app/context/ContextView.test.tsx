@@ -80,26 +80,25 @@ describe("ContextView", () => {
     expect(screen.getByRole("link", { name: "adr" })).toHaveClass("active");
   });
 
-  it("shows the unfiltered empty state when there are no chunks", () => {
+  it("shows the first-run empty state with no clear-filters link when nothing is ingested", () => {
     render(<ContextView types={[]} chunks={[]} />);
-    expect(screen.getByText("No context chunks found.")).toBeInTheDocument();
+    expect(screen.getByText("Nothing ingested yet")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Clear filters" })).toBeNull();
   });
 
-  it("shows the type-scoped empty state when a type filter yields nothing", () => {
+  it("shows the filtered empty state with a clear-filters link when a type filter yields nothing", () => {
     render(<ContextView type="spec" types={["spec"]} chunks={[]} />);
-    expect(
-      screen.getByText('No context chunks found for type "spec".'),
-    ).toBeInTheDocument();
+    expect(screen.getByText("No matches for this filter")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute(
+      "href",
+      "/context",
+    );
   });
 
-  it("shows a search-scoped empty state combining query and type", () => {
+  it("shows the filtered empty state when a search query yields nothing", () => {
     render(
       <ContextView type="spec" q="widgets" types={["spec"]} chunks={[]} />,
     );
-    expect(
-      screen.getByText(
-        'No context chunks found matching “widgets” for type "spec".',
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText("No matches for this filter")).toBeInTheDocument();
   });
 });

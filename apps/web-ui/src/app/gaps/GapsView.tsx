@@ -1,3 +1,4 @@
+import { TimeAgo } from "@/components/TimeAgo";
 import styles from "./GapsView.module.css";
 
 export interface ZeroResultSearchRow {
@@ -61,7 +62,7 @@ export default function GapsView({
             <div key={i} className="spec-card">
               <h3>{mem.key}</h3>
               <span className="meta">
-                {new Date(mem.created_at).toLocaleString()}
+                <TimeAgo date={mem.created_at} />
               </span>
               <pre className={styles.findingValue}>{mem.value}</pre>
             </div>
@@ -94,7 +95,7 @@ export default function GapsView({
                     <code>{JSON.stringify(entry.metadata)}</code>
                   </td>
                   <td className={`meta ${styles.td}`}>
-                    {new Date(entry.created_at).toLocaleString()}
+                    <TimeAgo date={entry.created_at} />
                   </td>
                 </tr>
               ))}

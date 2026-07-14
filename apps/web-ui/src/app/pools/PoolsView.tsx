@@ -1,5 +1,7 @@
 import Link from "next/link";
-import styles from "./PoolsView.module.css";
+import { TimeAgo } from "@/components/TimeAgo";
+import { EmptyState } from "@/components/EmptyState";
+import { displayAgentId } from "@/lib/agent-id";
 
 export interface PoolRow {
   id: string;
@@ -18,6 +20,10 @@ export default function PoolsView({ pools }: PoolsViewProps) {
   return (
     <div>
       <h1>Shared Memory Pools</h1>
+      <p className="meta" style={{ marginBottom: 16 }}>
+        Namespaces where multiple agents contribute shared facts. Created
+        programmatically via the shared-memory MCP tools.
+      </p>
       <table>
         <thead>
           <tr>
@@ -38,14 +44,19 @@ export default function PoolsView({ pools }: PoolsViewProps) {
               </td>
               <td>{p.entry_count}</td>
               <td>{p.agent_count}</td>
-              <td title={p.created_by}>{p.created_by.substring(0, 8)}...</td>
-              <td>{new Date(p.created_at).toLocaleString()}</td>
+              <td title={p.created_by}>{displayAgentId(p.created_by)}</td>
+              <td>
+                <TimeAgo date={p.created_at} />
+              </td>
             </tr>
           ))}
           {pools.length === 0 && (
             <tr>
-              <td colSpan={5} className={styles.emptyCell}>
-                No shared pools yet
+              <td colSpan={5}>
+                <EmptyState
+                  title="No shared pools yet"
+                  description="Pools are created programmatically by agents via the shared-memory MCP tools."
+                />
               </td>
             </tr>
           )}

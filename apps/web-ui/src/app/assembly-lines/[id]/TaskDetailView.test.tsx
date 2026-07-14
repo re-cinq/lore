@@ -82,6 +82,14 @@ describe("TaskDetailView", () => {
     expect(screen.getByText("alice")).toBeInTheDocument();
   });
 
+  it("sentence-cases the header status badge", () => {
+    const { container } = renderView({ task: task({ status: "running" }) });
+
+    expect(container.querySelector(".op-badge.op-running")).toHaveTextContent(
+      "Running",
+    );
+  });
+
   it("truncates a description longer than 80 characters in the heading", () => {
     const long = "x".repeat(120);
 
@@ -128,17 +136,13 @@ describe("TaskDetailView", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders the Cancel Task form for non-terminal tasks", () => {
-    const { container } = renderView({ task: task({ status: "running" }) });
-
+  it("renders the Cancel Task control for non-terminal tasks", () => {
+    renderView({ task: task({ status: "running" }) });
+    // The confirm-gated submit form lives in CancelTaskButton (tested there);
+    // here we only assert the trigger is present for a cancellable task.
     expect(
       screen.getByRole("button", { name: "Cancel Task" }),
     ).toBeInTheDocument();
-    expect(
-      container.querySelector(
-        'form[action="/api/assembly-lines/task-1/cancel"]',
-      ),
-    ).toBeTruthy();
   });
 
   it("hides the Cancel Task form for merged tasks", () => {
@@ -293,9 +297,9 @@ describe("TaskDetailView", () => {
       name: "Event Timeline",
     }).nextElementSibling as HTMLElement;
 
-    expect(within(list).getByText("running")).toBeInTheDocument();
-    expect(within(list).getByText("queued")).toBeInTheDocument();
-    expect(within(list).getByText("← pending")).toBeInTheDocument();
+    expect(within(list).getByText("Running")).toBeInTheDocument();
+    expect(within(list).getByText("Queued")).toBeInTheDocument();
+    expect(within(list).getByText("← Pending")).toBeInTheDocument();
     expect(within(list).getByText(/"foo": "bar"/)).toBeInTheDocument();
   });
 

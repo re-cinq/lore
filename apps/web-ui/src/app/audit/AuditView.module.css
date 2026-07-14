@@ -1,9 +1,3 @@
 .count {
   margin-bottom: 12px;
 }
-
-.emptyCell {
-  text-align: center;
-  color: var(--text-muted);
-  padding: 24px;
-}

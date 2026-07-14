@@ -40,7 +40,7 @@ describe("AgentsTable rendering", () => {
   });
 
   it("omits the intro line when no intro is given", () => {
-    const { container } = render(<AgentsTable agents={[]} />);
+    const { container } = render(<AgentsTable agents={[local()]} />);
 
     expect(container.querySelector("p.meta")).toBeNull();
   });
@@ -199,13 +199,13 @@ describe("AgentsTable rows", () => {
 describe("AgentsTable empty states", () => {
   it("shows the empty-state row when there are no agents", () => {
     render(<AgentsTable agents={[]} />);
-    expect(screen.getByText("No agents to show yet")).toBeInTheDocument();
+    expect(screen.getByText("No agents yet")).toBeInTheDocument();
   });
 
   it("shows the empty-state row when only hidden task agents exist", () => {
     render(<AgentsTable agents={[task()]} />);
-    expect(screen.getByText("No agents to show yet")).toBeInTheDocument();
+    expect(screen.getByText("No agents yet")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Show task agents/ }));
-    expect(screen.queryByText("No agents to show yet")).not.toBeInTheDocument();
+    expect(screen.queryByText("No agents yet")).not.toBeInTheDocument();
   });
 });

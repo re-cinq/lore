@@ -38,7 +38,7 @@ describe("ContextCard", () => {
         repo="o/r"
       />,
     );
-    const badge = screen.getByText("code", { selector: "span.badge" });
+    const badge = screen.getByText("Code", { selector: "span.badge" });
 
     expect(badge.className).toContain("badge-gray");
   });

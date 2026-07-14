@@ -176,13 +176,14 @@ The system MUST reorganize the UI around repos.
 
 - FR-3.1: Home page (`/`) shows repo list with activity summary. ([validated by `HomeView.test.tsx:150`](apps/web-ui/src/app/HomeView.test.tsx#L150))
 - FR-3.2: Repo detail (`/repos/[owner]/[repo]`) has tabs:
-  Overview, Tasks, Context, Specs, Agents, Settings.
+  Overview, Assembly Lines, Context, Assembled, Specs, Features,
+  ADRs, Graph, Agents, Dark Factory, Settings.
 - FR-3.3: Overview tab shows: recent tasks, active agents, context
   freshness, latest PRs.
 - FR-3.4: Tasks tab shows pipeline tasks filtered to this repo. ([validated by `RepoTasksView.test.tsx:30`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/RepoTasksView.test.tsx#L30))
 - FR-3.5: Context tab shows CLAUDE.md, ADRs, runbooks for this repo. ([validated by `RepoContextView.test.tsx:64`](apps/web-ui/src/app/repos/[owner]/[repo]/context/RepoContextView.test.tsx#L64))
-- FR-3.6: Specs tab shows .specify/ specs for this repo. ([validated by `RepoSpecsView.test.tsx:18`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/RepoSpecsView.test.tsx#L18))
-- FR-3.7: Agents tab shows agent memories scoped to this repo. ([validated by `RepoAgentsView.test.tsx:36`](apps/web-ui/src/app/repos/[owner]/[repo]/agents/RepoAgentsView.test.tsx#L36))
+- FR-3.6: Specs tab shows .specify/ specs for this repo. ([validated by `SpecListView.test.tsx:17`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecListView.test.tsx#L17))
+- FR-3.7: Agents tab shows agent definitions scoped to this repo. ([validated by `AgentList.test.tsx:18`](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentList.test.tsx#L18))
 - FR-3.8: Global search, audit, and shared pools remain as
   top-level nav items.
 
@@ -193,7 +194,7 @@ The system MUST have clean, consistent form styling.
 - FR-4.1: All text inputs, textareas, selects, and buttons use
   consistent styling from globals.css.
 - FR-4.2: Repo selector is a dropdown populated from the registry,
-  not free text. ([validated by `PipelineCreateView.test.tsx:23`](apps/web-ui/src/app/pipeline/create/PipelineCreateView.test.tsx#L23))
+  not free text. ([validated by `AssemblyLineCreateView.test.tsx:31`](apps/web-ui/src/app/assembly-lines/create/AssemblyLineCreateView.test.tsx#L31))
 - FR-4.3: Task type selector shows descriptions, not just names. ([validated by `RepoTaskCreateView.test.tsx:22`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L22))
 - FR-4.4: Forms have proper labels, validation, and error states.
 

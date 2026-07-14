@@ -1,9 +1,12 @@
 import PRStatusCard from "./PRStatusCard";
+import { CancelTaskButton } from "./CancelTaskButton";
 import TaskLogs from "./TaskLogs";
 import Timeline from "./Timeline";
 import FailurePanel from "./FailurePanel";
 import Linkified from "@/components/Linkified";
 import { isCancellable } from "@/lib/task-status";
+import { TimeAgo } from "@/components/TimeAgo";
+import { formatEnumLabel } from "@/lib/enum-label";
 import styles from "./TaskDetailView.module.css";
 
 export interface TaskDetailTask {
@@ -66,7 +69,9 @@ export default function TaskDetailView({
         </p>
         <p>
           <strong>Status:</strong>{" "}
-          <span className={`op-badge op-${task.status}`}>{task.status}</span>
+          <span className={`op-badge op-${task.status}`}>
+            {formatEnumLabel(task.status)}
+          </span>
         </p>
         <p>
           <strong>Priority:</strong>{" "}
@@ -118,8 +123,8 @@ export default function TaskDetailView({
           <strong>Created by:</strong> {task.created_by}
         </p>
         <p className="meta">
-          Created: {new Date(task.created_at).toLocaleString()} · Updated:{" "}
-          {new Date(task.updated_at).toLocaleString()}
+          Created: <TimeAgo date={task.created_at} inline /> · Updated:{" "}
+          <TimeAgo date={task.updated_at} inline />
         </p>
         <div className={styles.actions}>
           {task.status === "pending" &&
@@ -133,16 +138,7 @@ export default function TaskDetailView({
                 </button>
               </form>
             )}
-          {isCancellable(task.status) && (
-            <form
-              action={`/api/assembly-lines/${task.id}/cancel`}
-              method="POST"
-            >
-              <button type="submit" className={styles.cancelBtn}>
-                Cancel Task
-              </button>
-            </form>
-          )}
+          {isCancellable(task.status) && <CancelTaskButton taskId={task.id} />}
         </div>
       </div>
 
@@ -182,10 +178,14 @@ export default function TaskDetailView({
       <div className="memory-list">
         {events.map((e) => (
           <div key={e.id} className={`version ${styles.event}`}>
-            <span className={`op-badge op-${e.to_status}`}>{e.to_status}</span>
-            {e.from_status && <span className="meta"> ← {e.from_status}</span>}
+            <span className={`op-badge op-${e.to_status}`}>
+              {formatEnumLabel(e.to_status)}
+            </span>
+            {e.from_status && (
+              <span className="meta"> ← {formatEnumLabel(e.from_status)}</span>
+            )}
             <span className={`meta ${styles.eventTime}`}>
-              {new Date(e.created_at).toLocaleString()}
+              <TimeAgo date={e.created_at} />
             </span>
             {e.metadata && (
               <pre className={styles.eventMeta}>
@@ -239,7 +239,7 @@ export default function TaskDetailView({
                     : "—"}
                 </td>
                 <td className="meta">
-                  {new Date(c.created_at).toLocaleString()}
+                  <TimeAgo date={c.created_at} />
                 </td>
               </tr>
             ))}

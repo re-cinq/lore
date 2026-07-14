@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import HelpPopover from "@/components/HelpPopover";
+import { EmptyState } from "@/components/EmptyState";
 import { formatCost, truncate, displayCreatedBy } from "@/lib/task-presenter";
 import type { AgentKind } from "@/lib/agent-classify";
 import styles from "./AgentsTable.module.css";
@@ -144,8 +145,11 @@ export default function AgentsTable({
           ))}
           {visible.length === 0 && (
             <tr>
-              <td colSpan={columnCount} className={`meta ${styles.emptyCell}`}>
-                No agents to show yet
+              <td colSpan={columnCount}>
+                <EmptyState
+                  title="No agents yet"
+                  description="Agents appear as developers use the Lore MCP server. Per-task run agents stay behind the audit toggle."
+                />
               </td>
             </tr>
           )}
