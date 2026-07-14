@@ -25,7 +25,11 @@ export default function FailureBlock({
   onRetry: () => void;
 }) {
   return (
-    <div className="spec-card" style={{ borderColor: "var(--danger)" }} role="alert">
+    <div
+      className="spec-card"
+      style={{ borderColor: "var(--danger)" }}
+      role="alert"
+    >
       <p style={{ color: "var(--danger)", fontWeight: 600, margin: 0 }}>
         Planning round {iteration} failed.
       </p>

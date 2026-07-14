@@ -395,7 +395,9 @@ export default function SpecGraphD3({
     const cssToken = (name: string, fallback: string) =>
       tokenStyles.getPropertyValue(name).trim() || fallback;
     const resolveColor = (value: string) =>
-      value.startsWith("var(") ? cssToken(value.slice(4, -1), "#94a3b8") : value;
+      value.startsWith("var(")
+        ? cssToken(value.slice(4, -1), "#94a3b8")
+        : value;
     const surfaceColor = cssToken("--bg-surface", "#ffffff");
     const edgeColor = cssToken("--chart-neutral", "#94a3b8");
     const badgeTextColor = cssToken("--text-on-accent", "#ffffff");
@@ -1562,7 +1564,12 @@ export default function SpecGraphD3({
               />
               <strong>{selected.type}</strong>
               {selected.type === "Spec" && (
-                <span style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>
+                <span
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "var(--fs-xs)",
+                  }}
+                >
                   · double-click to expand
                 </span>
               )}
