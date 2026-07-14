@@ -12,6 +12,7 @@ import * as cron from "../jobs/cron.js";
 import * as detect from "../jobs/detect/fan-out.js";
 import * as kubernetes from "../jobs/kubernetes.js";
 import { assemblyLineStart } from "../jobs/assembly-line/start-event-handler.js";
+import { agentNodeTerminal } from "../jobs/assembly-line/node-event-handler.js";
 import {
   codeReviewOnOpen,
   codeReviewOnReply,
@@ -84,6 +85,9 @@ export function buildRegistry(): Map<string, EventHandler> {
     // ── Kubernetes (the Agent-CR watch emits on terminal phase) ──
     ["kubernetes.agent.succeeded", kubernetes.agentSucceeded],
     ["kubernetes.agent.failed", kubernetes.agentFailed],
+    // Assembly-line node CRs (labeled): the event-driven walk's transitions.
+    ["kubernetes.agent_node.succeeded", agentNodeTerminal],
+    ["kubernetes.agent_node.failed", agentNodeTerminal],
 
     // ── Cron (in-process scheduler emits the tick; loop runs it) ──
     ["cron.merge_check.tick", cron.mergeCheck],
@@ -92,6 +96,7 @@ export function buildRegistry(): Map<string, EventHandler> {
     ["cron.spec_task_executor.tick", cron.specTaskExecutor],
     ["cron.stale_task_check.tick", cron.staleTaskCheck],
     ["cron.feature_planning_reaper.tick", cron.featurePlanningReaper],
+    ["cron.assembly_line_reaper.tick", cron.assemblyLineReaper],
     ["cron.agent_watcher_reconcile.tick", cron.agentWatcherReconcile],
     ["cron.lease_reaper.tick", cron.leaseReaper],
     ["cron.events_prune.tick", cron.eventsPrune],

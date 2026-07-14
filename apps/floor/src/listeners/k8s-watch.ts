@@ -9,7 +9,7 @@
 
 import { KubeConfig, Watch, CustomObjectsApi } from "@kubernetes/client-node";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
-import { taskStore } from "../kernel/queues.js";
+import { taskStore, assemblyLines } from "../kernel/queues.js";
 import { insertEvent } from "../main-loop/store.js";
 import { mapAgentToEvent } from "./k8s-map.js";
 import { makeAgentsApi } from "../jobs/watcher/agent-watcher.js";
@@ -50,7 +50,20 @@ export async function reconcileAgents(): Promise<void> {
   for (const agent of result.items ?? []) {
     const ev = mapAgentToEvent(agent as never);
 
-    if (ev) {
+    if (ev && ev.eventName.startsWith("kubernetes.agent_node.")) {
+      // Node CRs guard on the assembly-line ROW, not a task (task-less lines
+      // have none): re-emit while the line is still open. Dedupe rows persist
+      // ~7 days, so a handled event's re-emit is a no-op — recovery for a
+      // dead-lettered transition is the assembly-line reaper, not this pass.
+      const assemblyLineId = String((ev.params ?? {}).assemblyLineId ?? "");
+      const row = assemblyLineId
+        ? await assemblyLines().getById(assemblyLineId)
+        : null;
+
+      if (row && ["running", "queued"].includes(row.status)) {
+        await insertEvent(ev).catch(() => {});
+      }
+    } else if (ev) {
       const taskId = String((ev.params ?? {}).taskId ?? "");
       const dbStatus = taskId
         ? (await taskStore().getById(taskId))?.status
