@@ -50,10 +50,14 @@ export class PgAssemblyLines implements AssemblyLinesPort {
   }
 
   async markRunning(id: string): Promise<void> {
+    // Never resurrect a terminal row: a retried assembly_line.start event must not
+    // flip a row the watcher already finished back to `running` (it would then
+    // never close again — the CR terminal event was already consumed).
     await this.pool.query(
       `UPDATE pipeline.assembly_lines
          SET status = 'running', started_at = now()
-       WHERE id = $1`,
+       WHERE id = $1
+         AND status IN ('queued', 'running')`,
       [id],
     );
   }

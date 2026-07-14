@@ -59,8 +59,26 @@ export function createStartEventHandler(
     const definition = definitions.get(definitionName);
 
     if (!definition) {
-      // Config error, not a transient failure — close the row and resolve so the
-      // loop never retries an assembly line that can't exist.
+      // A task-backed row without a builtin definition is a single-CR run record
+      // (onboard / review / runbook — total coverage): mark it running and return;
+      // the agent-watcher finishes it when the task's one CR goes terminal.
+      //
+      // Caveat: a task-backed start with a typo'd/unknown definitionName is
+      // indistinguishable from a legit single-CR here and becomes a silently
+      // forever-running row (no CR was launched for it). Only reachable outside
+      // AgentCrStationBackend (manual insert / future producer bug) — log it so
+      // the silent failure leaves a breadcrumb.
+      if (taskId) {
+        console.warn(
+          `[assembly-line-start] task-backed row ${assemblyLineId} has no builtin definition "${definitionName}" — treating as single-CR (verify a CR was launched for task ${taskId})`,
+        );
+        await deps.assemblyLines.markRunning(assemblyLineId);
+
+        return;
+      }
+
+      // Task-less + unknown definition is a config error, not a transient failure —
+      // close the row and resolve so the loop never retries a line that can't exist.
       await deps.assemblyLines.finish(
         assemblyLineId,
         "error",

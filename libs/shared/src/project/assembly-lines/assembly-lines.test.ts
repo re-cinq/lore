@@ -70,13 +70,15 @@ describe("PgAssemblyLines adapter", () => {
     ]);
   });
 
-  it("markRunning stamps status running and started_at", async () => {
+  it("markRunning stamps status running and started_at, guarded against terminal rows", async () => {
     const { pool, calls } = fakePool();
 
     await new PgAssemblyLines(pool).markRunning("al-1");
 
     expect(calls[0]?.text).toContain("status = 'running'");
     expect(calls[0]?.text).toContain("started_at = now()");
+    // Never resurrect a finished/failed row (retried start event race).
+    expect(calls[0]?.text).toContain("status IN ('queued', 'running')");
     expect(calls[0]?.params).toEqual(["al-1"]);
   });
 
