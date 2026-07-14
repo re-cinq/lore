@@ -17,7 +17,14 @@ const ITERATION_KEY = "Lore-Iteration";
 const TASK_KEY = "Lore-Task";
 const ASSEMBLY_LINE_KEY = "Lore-Assembly-Line";
 const VALIDATES_KEY = "Lore-Validates";
-const REQUIRED_KEYS = [STAGE_KEY, ITERATION_KEY, TASK_KEY] as const;
+// Lore-Task is NOT required: task-less lines (code-review) commit without one.
+const REQUIRED_KEYS = [STAGE_KEY, ITERATION_KEY] as const;
+const FIRST_CLASS_KEYS = [
+  STAGE_KEY,
+  ITERATION_KEY,
+  TASK_KEY,
+  ASSEMBLY_LINE_KEY,
+] as const;
 
 const TRAILER_LINE_RE = /^([A-Za-z][A-Za-z0-9-]*):\s*(.*)$/;
 
@@ -29,8 +36,11 @@ export function formatTrailers(t: Trailers): string {
   const lines = [
     `${STAGE_KEY}: ${t.stage}`,
     `${ITERATION_KEY}: ${t.iteration}`,
-    `${TASK_KEY}: ${t.taskId}`,
   ];
+
+  if (t.taskId) {
+    lines.push(`${TASK_KEY}: ${t.taskId}`);
+  }
 
   if (t.assemblyLineId) {
     lines.push(`${ASSEMBLY_LINE_KEY}: ${t.assemblyLineId}`);
@@ -101,10 +111,7 @@ export function parseTrailers(message: string): Trailers | null {
   const extras: Record<string, string> = {};
 
   for (const [k, v] of map.entries()) {
-    if (
-      !(REQUIRED_KEYS as readonly string[]).includes(k) &&
-      k !== ASSEMBLY_LINE_KEY
-    ) {
+    if (!(FIRST_CLASS_KEYS as readonly string[]).includes(k)) {
       extras[k] = v;
     }
   }
@@ -114,7 +121,7 @@ export function parseTrailers(message: string): Trailers | null {
   return {
     stage: map.get(STAGE_KEY)!,
     iteration,
-    taskId: map.get(TASK_KEY)!,
+    taskId: map.get(TASK_KEY) ?? "",
     ...(assemblyLineId ? { assemblyLineId } : {}),
     ...(Object.keys(extras).length > 0 ? { extras } : {}),
   };

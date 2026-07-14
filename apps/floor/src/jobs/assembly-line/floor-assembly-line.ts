@@ -20,6 +20,10 @@ import { stationName } from "../agent/agent-catalog.js";
 
 export interface FloorAssemblyLineTask {
   taskId: string;
+  /** The backing pipeline.tasks row id — null for task-less lines (code-review).
+   *  Feeds the lease + audit + `Lore-Task:` trailer; a synthetic id there violates
+   *  task_leases_task_fk. Token keying + CR labels use `taskId` instead. */
+  pipelineTaskId: string | null;
   /** Per-attempt id (pipeline.assembly_lines) — CR names key on this, not the task. */
   assemblyLineId: string;
   taskType: string;
