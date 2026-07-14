@@ -33,6 +33,12 @@ export interface AdvanceDeps {
   resolvePrompt: (promptRef: string, description: string) => string;
   /** Reclaim the run's per-task token once the line is terminal. */
   cleanupToken: (runTaskId: string) => Promise<void>;
+  /** Detection-line bookkeeping: close the `args.job_run_id` pipeline.job_runs row
+   *  with the line's terminal state (the fan-out pre-created it). */
+  jobRuns: {
+    complete(runId: string, resultSummary: string): Promise<unknown>;
+    fail(runId: string, reason: string): Promise<unknown>;
+  };
 }
 
 /** The walk task shape, derived from the persisted row instead of an in-memory task. */
@@ -69,6 +75,31 @@ export async function advanceLine(
   }
 
   const nodes = await deps.assemblyLines.listNodes(assemblyLineId);
+
+  // Overlap guard (branch-lease parity): a second not-yet-started run on the same
+  // repo+branch defers to the one already in flight — the detect fan-out relies on
+  // this to suppress duplicate per-repo runs, exactly as the old lease did.
+  if (nodes.length === 0 && row.branch) {
+    const overlapping = (await deps.assemblyLines.listOpen()).some(
+      (other) =>
+        other.id !== row.id &&
+        other.status === "running" &&
+        other.repo === row.repo &&
+        other.branch === row.branch,
+    );
+
+    if (overlapping) {
+      await finishLine(
+        row,
+        "lease_held",
+        "another run holds this branch",
+        deps,
+      );
+
+      return;
+    }
+  }
+
   const visits: NodeVisit[] = nodes.map((n) => ({
     nodeId: n.nodeId,
     iteration: n.iteration,
@@ -85,12 +116,7 @@ export async function advanceLine(
       transition.kind === "finish" ? "completed" : transition.outcome;
     const reason = transition.kind === "fail" ? transition.reason : undefined;
 
-    await deps.assemblyLines.finish(assemblyLineId, outcome, reason);
-    // finish is first-writer-wins, so a losing racer (node event vs reaper
-    // re-advance) closes 0 rows yet still reaches here — cleanupToken MUST be
-    // idempotent (cleanupPerTaskToken swallows 404s), so the double-reclaim of an
-    // already-freed pt-<id> token triple is a harmless no-op.
-    await deps.cleanupToken(row.taskId ?? row.id);
+    await finishLine(row, outcome, reason, deps);
 
     return;
   }
@@ -123,6 +149,34 @@ export async function advanceLine(
     agentCrName: spec.name,
   });
   await deps.launch(spec);
+}
+
+/** Close the row, reclaim the token, and settle the detect fan-out's job_run. */
+async function finishLine(
+  row: AssemblyLineRecord,
+  outcome: string,
+  reason: string | undefined,
+  deps: AdvanceDeps,
+): Promise<void> {
+  await deps.assemblyLines.finish(row.id, outcome, reason);
+  await deps.cleanupToken(row.taskId ?? row.id);
+
+  const jobRunId = row.args.job_run_id;
+
+  if (typeof jobRunId !== "string" || jobRunId.length === 0) {
+    return;
+  }
+
+  if (outcome === "error" || outcome === "iteration_max") {
+    await deps.jobRuns.fail(jobRunId, reason ?? outcome);
+  } else if (outcome === "lease_held") {
+    await deps.jobRuns.complete(jobRunId, `skipped: ${reason}`);
+  } else {
+    await deps.jobRuns.complete(
+      jobRunId,
+      `station run: ${row.definitionName}:${row.repo} ${outcome}`,
+    );
+  }
 }
 
 /** Record one node's terminal outcome (CAS — the first writer decides; a losing

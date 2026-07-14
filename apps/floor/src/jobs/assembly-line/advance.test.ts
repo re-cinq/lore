@@ -45,6 +45,7 @@ edges:
 function makeDeps(port: InMemoryAssemblyLines) {
   const launched: LoreTaskSpec[] = [];
   const cleaned: string[] = [];
+  const jobRuns: string[] = [];
   const deps: AdvanceDeps = {
     assemblyLines: port,
     definitions: async () =>
@@ -56,9 +57,17 @@ function makeDeps(port: InMemoryAssemblyLines) {
     cleanupToken: async (runTaskId) => {
       cleaned.push(runTaskId);
     },
+    jobRuns: {
+      complete: async (runId, summary) => {
+        jobRuns.push(`complete:${runId}:${summary}`);
+      },
+      fail: async (runId, reason) => {
+        jobRuns.push(`fail:${runId}:${reason}`);
+      },
+    },
   };
 
-  return { deps, launched, cleaned };
+  return { deps, launched, cleaned, jobRuns };
 }
 
 async function runningLine(port: InMemoryAssemblyLines) {
@@ -266,6 +275,100 @@ describe("finishNodeAndAdvance", () => {
       status: "finished",
       outcome: "completed",
     });
+  });
+});
+
+describe("advanceLine overlap guard (detect lines, lease parity)", () => {
+  it("finishes a duplicate not-yet-started line as lease_held when another run holds the branch", async () => {
+    const port = new InMemoryAssemblyLines();
+    const { deps, launched, jobRuns } = makeDeps(port);
+    const first = await port.start({
+      definitionName: "code-review",
+      repo: "o/r",
+      branch: "detect/code-review/o-r",
+    });
+
+    await port.markRunning(first);
+    await advanceLine(first, deps);
+
+    const second = await port.start({
+      definitionName: "code-review",
+      repo: "o/r",
+      branch: "detect/code-review/o-r",
+      args: { job_run_id: "jr-2" },
+    });
+
+    await port.markRunning(second);
+    launched.length = 0;
+    await advanceLine(second, deps);
+
+    expect(await port.getById(second)).toMatchObject({
+      status: "finished",
+      outcome: "lease_held",
+    });
+    expect(launched).toEqual([]);
+    expect(jobRuns).toEqual([expect.stringContaining("complete:jr-2:skipped")]);
+    // The first run is untouched.
+    expect(await port.getById(first)).toMatchObject({ status: "running" });
+  });
+});
+
+describe("advanceLine job_runs bookkeeping (detect lines)", () => {
+  it("completes the args.job_run_id run when the line finishes", async () => {
+    const port = new InMemoryAssemblyLines();
+    const { deps, jobRuns } = makeDeps(port);
+    const id = await port.start({
+      definitionName: "code-review",
+      repo: "o/r",
+      branch: "b",
+      args: { job_run_id: "jr-1" },
+    });
+
+    await port.markRunning(id);
+    await advanceLine(id, deps);
+    await port.finishNodeOnce(port.nodes[0]!.id, "success");
+    await advanceLine(id, deps);
+
+    expect(jobRuns).toEqual([expect.stringContaining("complete:jr-1:")]);
+  });
+
+  it("fails the args.job_run_id run when the line fails", async () => {
+    const successOnly: AssemblyLine = parseAssemblyLine(`
+name: detect-like
+description: detect → done, no failed edge
+version: 1
+entry: detect_node
+exit: done
+nodes:
+  - id: detect_node
+    type: detect
+    job_ref: spec_drift
+  - id: done
+    type: retrospective
+edges:
+  - from: detect_node
+    to: done
+    on: success
+`);
+    const port = new InMemoryAssemblyLines();
+    const { deps, jobRuns } = makeDeps(port);
+
+    deps.definitions = async () =>
+      new Map<string, AssemblyLine>([["detect-like", successOnly]]);
+    const id = await port.start({
+      definitionName: "detect-like",
+      repo: "o/r",
+      branch: "detect/detect-like/o-r",
+      args: { job_run_id: "jr-1" },
+    });
+
+    await port.markRunning(id);
+    await advanceLine(id, deps);
+    await port.finishNodeOnce(port.nodes[0]!.id, "failed");
+    await advanceLine(id, deps);
+
+    expect(await port.getById(id)).toMatchObject({ status: "failed" });
+    expect(jobRuns.at(-1)).toContain("fail:jr-1:");
   });
 });
 
