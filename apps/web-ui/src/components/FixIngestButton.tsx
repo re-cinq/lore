@@ -41,7 +41,8 @@ export default function FixIngestButton({
         `opened ${done} PR${done === 1 ? "" : "s"}`
       ) : (
         <>
-          <Icon name="warning" size={13} /> Fix ingest workflow ({repos.length})
+          <Icon name="warning" size={13} inline /> Fix ingest workflow (
+          {repos.length})
         </>
       )}
     </button>

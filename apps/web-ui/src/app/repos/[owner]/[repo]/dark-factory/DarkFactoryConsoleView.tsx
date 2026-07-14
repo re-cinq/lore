@@ -37,11 +37,11 @@ export default function DarkFactoryConsoleView({
             Repo gate:{" "}
             {activation.repoEnabled ? (
               <>
-                <Icon name="check" size={13} /> enabled
+                <Icon name="check" size={13} inline /> enabled
               </>
             ) : (
               <>
-                <Icon name="error" size={13} /> disabled
+                <Icon name="error" size={13} inline /> disabled
               </>
             )}
           </span>

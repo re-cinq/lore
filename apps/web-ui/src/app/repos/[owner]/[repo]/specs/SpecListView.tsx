@@ -3,9 +3,10 @@
 // Presentational (data-down) list of a repo's specs, sourced from the
 // spec-traceability graph via the /trace API. The per-file summaries are grouped
 // into one card per spec folder (groupSpecSummaries): the card is titled from
-// spec.md and links to every file in the folder. Lifecycle statuses come from
-// the ingested chunks (statuses prop, keyed by file path) and drive the filter
-// chips; the graph stays the source of truth for the list itself.
+// spec.md and links to every file in the folder. Lifecycle statuses are parsed
+// from the graph's byte-exact spec.md sources (fetchSpecStatusesFromGraph;
+// statuses prop, keyed by file path) and drive the filter chips — the graph is
+// the source of truth for list and statuses alike.
 import { useState } from "react";
 import SpecCard from "./SpecCard";
 import SpecStatusChips from "@/components/SpecStatusChips";
@@ -57,7 +58,12 @@ export default function SpecListView({
 
   return (
     <div>
-      <SpecStatusChips counts={counts} active={filter} onChange={setFilter} />
+      <SpecStatusChips
+        counts={counts}
+        total={groups.length}
+        active={filter}
+        onChange={setFilter}
+      />
       {visible.map((group) => (
         <SpecCard
           key={group.key}

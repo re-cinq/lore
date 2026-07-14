@@ -16,6 +16,13 @@ interface IconProps {
   name: IconName;
   size?: number;
   className?: string;
+  /**
+   * Opt-in for icons sitting inside running text (not a flex container): an
+   * inline SVG sits on the text baseline and reads as "floating" next to the
+   * text, so -0.125em optically centers it. Opt-in rather than a default so a
+   * caller's own alignment (className or flex) is never silently overridden.
+   */
+  inline?: boolean;
   "aria-label"?: string;
 }
 
@@ -23,6 +30,7 @@ export default function Icon({
   name,
   size = 16,
   className,
+  inline = false,
   ...rest
 }: IconProps) {
   const { family } = useTheme();
@@ -34,9 +42,7 @@ export default function Icon({
       width={size}
       height={size}
       className={className}
-      // Inline SVG sits on the text baseline and reads as "floating" next to
-      // text; -0.125em optically centers it. Flex containers ignore it.
-      style={{ verticalAlign: "-0.125em" }}
+      style={inline ? { verticalAlign: "-0.125em" } : undefined}
       aria-hidden={aria ? undefined : true}
       aria-label={aria}
     />

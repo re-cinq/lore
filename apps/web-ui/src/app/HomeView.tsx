@@ -118,7 +118,7 @@ export default function HomeView({
                     title={`${badge.label} — fixable from the dashboard`}
                     style={{ backgroundColor: badge.color }}
                   >
-                    <Icon name="warning" size={12} /> {badge.label}
+                    <Icon name="warning" size={12} inline /> {badge.label}
                   </span>
                 ) : null;
               })()}

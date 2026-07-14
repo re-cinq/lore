@@ -2,9 +2,10 @@
 
 // Presentational cross-repo spec list, sourced from the spec-traceability graph
 // (/api/trace/specs). Groups by repo; each path links to that repo's structured
-// graph detail. The graph is the source of truth for the LIST; the lifecycle
-// status pill per path comes from the ingested chunks (statuses prop, keyed
-// `repo::filePath`) and drives the filter chips.
+// graph detail. The lifecycle status pill per path is parsed from the graph's
+// byte-exact spec.md sources (fetchSpecStatusesFromGraph; statuses prop, keyed
+// `repo::filePath`) and drives the filter chips — the graph is the source of
+// truth for list and statuses alike.
 import { useState } from "react";
 import Link from "next/link";
 import SpecStatusChips from "@/components/SpecStatusChips";
@@ -62,7 +63,12 @@ export default function GlobalSpecsView({
 
   return (
     <div>
-      <SpecStatusChips counts={counts} active={filter} onChange={setFilter} />
+      <SpecStatusChips
+        counts={counts}
+        total={specs.length}
+        active={filter}
+        onChange={setFilter}
+      />
       {[...byRepo.entries()].map(([repo, paths]) => (
         <section key={repo} style={{ marginBottom: 20 }}>
           <h2 style={{ fontSize: "var(--fs-base)" }}>{repo}</h2>

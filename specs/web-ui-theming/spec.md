@@ -27,7 +27,7 @@ icon set. The current dark-only look is replaced.
 - **Elegant** — Figma-like. `Inter` font, rounded corners, soft shadows, and a
   subtle frosted-glass feel (translucent + `backdrop-filter` blur) on elevated
   surfaces. Palette modeled on apple.com/mac (light `#f5f5f7`/`#1d1d1f`/`#0071e3`,
-  dark `#000`/`#f5f5f7`/`#2997ff`). Icons: **Lucide**. ([validated by `Icon.test.tsx:41`](apps/web-ui/src/components/Icon.test.tsx#L41))
+  dark `#000`/`#f5f5f7`/`#2997ff`). Icons: **Lucide**. ([validated by `Icon.test.tsx:33`](apps/web-ui/src/components/Icon.test.tsx#L33))
 - **Retro** — Tokyo Night terminal (redesigned post-ship; originally an amber
   CRT). `GohuFont` bitmap body text + `IBM Plex Mono` headings/code, sharp
   corners, soft blue-grey text (`#c0caf5`) on `#1a1b26`, blue accent
