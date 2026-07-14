@@ -103,6 +103,7 @@ export async function runDetect(
   const branch = detectBranchName(opts.definitionName, opts.repo);
   const stationTask = {
     taskId: opts.assemblyLineId, // synthetic — detect has no pipeline task, but the CR label needs a stable id
+    pipelineTaskId: null,
     assemblyLineId: opts.assemblyLineId,
     taskType: opts.definitionName,
     description: "",

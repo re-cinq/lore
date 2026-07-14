@@ -106,6 +106,7 @@ export function createStartEventHandler(
       .runOnStation({
         assemblyLineId,
         taskId: runTaskId,
+        pipelineTaskId: taskId,
         taskType: definitionName,
         description,
         targetRepo: repo,

@@ -69,7 +69,7 @@ export function runFloorAssemblyLine(
   opts: RunFloorAssemblyLineOptions,
 ): Promise<SupervisorResult> {
   return runSupervisor({
-    taskId: opts.task.taskId,
+    taskId: opts.task.pipelineTaskId,
     assemblyLineId: opts.task.assemblyLineId,
     branchName: opts.task.branch,
     gitDir: opts.gitDir,

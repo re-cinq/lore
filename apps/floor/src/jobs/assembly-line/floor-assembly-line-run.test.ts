@@ -44,6 +44,7 @@ const assemblyLine: AssemblyLine = {
 
 const task: FloorAssemblyLineTask = {
   taskId: "abcdef1234567890",
+  pipelineTaskId: "abcdef1234567890",
   assemblyLineId: "a1b2c3d4e5f6a7b8",
   taskType: "implementation",
   description: "Implement the spec",
@@ -180,6 +181,50 @@ describe("runFloorAssemblyLine (local integration — cluster ports faked)", () 
       expect(node.commitSha).toMatch(/^[0-9a-f]{40}$/);
       expect(node.finishedAt).not.toBeNull();
     }
+  });
+
+  it("leases with a NULL task id for a task-less line while CRs keep the synthetic taskId", async () => {
+    // code-review shape: no pipeline.tasks row backs the run, so taskId is the
+    // synthetic per-attempt fallback and pipelineTaskId is null. The lease must
+    // get the null — a synthetic uuid violates task_leases_task_fk in Postgres.
+    const tasklessTask: FloorAssemblyLineTask = {
+      taskId: "a1b2c3d4e5f6a7b8",
+      pipelineTaskId: null,
+      assemblyLineId: "a1b2c3d4e5f6a7b8",
+      taskType: "code-review",
+      description: "Review pull request #805",
+      targetRepo: "re-cinq/lore",
+      branch: task.branch,
+    };
+    const leaseBackend = new FileLeaseBackend(leasesDir);
+    const leasedTaskIds: Array<string | null> = [];
+    const realAcquire = leaseBackend.acquire.bind(leaseBackend);
+
+    leaseBackend.acquire = (branchName, taskId, holder, ttl) => {
+      leasedTaskIds.push(taskId);
+
+      return realAcquire(branchName, taskId, holder, ttl);
+    };
+
+    const { ports: p, dispatched } = ports();
+    const result = await runFloorAssemblyLine({
+      task: tasklessTask,
+      assemblyLine,
+      gitDir: repoDir,
+      holder: "test-floor",
+      leaseBackend,
+      ports: p,
+    });
+
+    expect(result.reason).toBe("completed");
+    expect(leasedTaskIds).toEqual([null]);
+    expect(dispatched[0]).toMatchObject({ taskId: "a1b2c3d4e5f6a7b8" });
+
+    // Task-less stage commits carry the assembly-line trailer but no fake Lore-Task.
+    const log = await execFile("git", ["-C", repoDir, "log", "--format=%B"]);
+
+    expect(log.stdout).toContain("Lore-Assembly-Line: a1b2c3d4e5f6a7b8");
+    expect(log.stdout).not.toContain("Lore-Task:");
   });
 
   it("supervisorOutcome maps supervisor reasons onto row outcomes", () => {
