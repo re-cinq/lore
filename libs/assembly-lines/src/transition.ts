@@ -5,7 +5,7 @@
 // a Floor restart loses nothing (spec 6-dark-factory FR6).
 
 import type { AssemblyLine, AssemblyLineEdge } from "./loader.js";
-import type { StageOutcome } from "./assembly-line-executor.js";
+import type { StageOutcome } from "./node-types.js";
 
 /** One node row's contribution to the walk state (outcome null = still running). */
 export interface NodeVisit {
@@ -37,10 +37,10 @@ export function selectEdge(
 }
 
 /**
- * Replay the visit history through the executor's exact routing and return what
- * happens next. Iteration accounting mirrors `executeAssemblyLine`: only an
- * `iteration_max`-carrying edge (back-edge) bumps the iteration, and exceeding
- * its budget fails the line.
+ * Replay the visit history and return what happens next. This is now the sole
+ * definition of the walk's routing (the in-process `executeAssemblyLine` it was
+ * extracted from is retired): only an `iteration_max`-carrying edge (back-edge)
+ * bumps the iteration, and exceeding its budget fails the line.
  */
 export function nextTransition(
   assemblyLine: AssemblyLine,

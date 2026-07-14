@@ -1,3 +1,7 @@
+> **Outdated (2026-07): the in-process walk this runbook exercises was replaced by the
+> event-driven walk (spec 6-dark-factory FR6.9, ADR-031 rev 2).** Kept for the cutover's
+> historical record; the supervisor/lease/stage-commit steps below no longer exist.
+
 # Runbook: Floor → ai-agent-subsystem cutover on GKE (production)
 
 When to use this runbook: you're ready to run the ADR-031 cutover on the **real GKE

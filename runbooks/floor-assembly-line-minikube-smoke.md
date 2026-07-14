@@ -1,3 +1,7 @@
+> **Outdated (2026-07): the in-process walk this runbook exercises was replaced by the
+> event-driven walk (spec 6-dark-factory FR6.9, ADR-031 rev 2).** Kept for the cutover's
+> historical record; the supervisor/lease/stage-commit steps below no longer exist.
+
 # Runbook: Floor assembly-line driver — minikube smoke test
 
 When to use this runbook: you want to verify the **real Agent-CR round-trip** of the
