@@ -13,9 +13,7 @@ function tokensOf(selector: string): Set<string> {
   expect(start).toBeGreaterThanOrEqual(0);
   const body = css.slice(css.indexOf("{", start) + 1, css.indexOf("}", start));
 
-  return new Set(
-    [...body.matchAll(/--[a-z0-9-]+(?=\s*:)/g)].map((m) => m[0]),
-  );
+  return new Set([...body.matchAll(/--[a-z0-9-]+(?=\s*:)/g)].map((m) => m[0]));
 }
 
 function declarationsOf(selector: string): Record<string, string> {

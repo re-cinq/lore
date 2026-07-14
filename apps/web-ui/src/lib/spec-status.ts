@@ -30,7 +30,10 @@ const BUCKETS: Array<{ status: SpecStatus; re: RegExp }> = [
     status: "shipped",
     re: /^(shipped|implemented|complete|accepted|done|live)/,
   },
-  { status: "rejected", re: /^(rejected|superseded|abandoned|obsolete|deprecated)/ },
+  {
+    status: "rejected",
+    re: /^(rejected|superseded|abandoned|obsolete|deprecated)/,
+  },
 ];
 
 const MAX_LABEL = 24;
@@ -48,7 +51,10 @@ export function parseSpecStatus(markdown: string): SpecStatusInfo | null {
     if (!bucket) {
       return null;
     }
-    const label = value.split(/\s+[—–-]\s+/)[0].split(" (")[0].trim();
+    const label = value
+      .split(/\s+[—–-]\s+/)[0]
+      .split(" (")[0]
+      .trim();
 
     return {
       status: bucket.status,

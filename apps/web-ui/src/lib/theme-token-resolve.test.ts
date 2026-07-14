@@ -6,23 +6,26 @@ const lookup = (values: Record<string, string>) => (name: string) =>
 
 describe("cssToken", () => {
   it("returns the trimmed token value from the lookup", () => {
-    expect(cssToken(lookup({ "--success": " #16a34a " }), "--success", "#000")).toBe(
-      "#16a34a",
-    );
+    expect(
+      cssToken(lookup({ "--success": " #16a34a " }), "--success", "#000"),
+    ).toBe("#16a34a");
   });
 
   it("falls back when the lookup yields empty or whitespace", () => {
     expect(cssToken(lookup({}), "--success", "#16a34a")).toBe("#16a34a");
-    expect(cssToken(lookup({ "--success": "   " }), "--success", "#16a34a")).toBe(
-      "#16a34a",
-    );
+    expect(
+      cssToken(lookup({ "--success": "   " }), "--success", "#16a34a"),
+    ).toBe("#16a34a");
   });
 });
 
 describe("resolveColor", () => {
   it("resolves a var() reference to the literal the theme defines", () => {
     expect(
-      resolveColor(lookup({ "--chart-feature": "#db2777" }), "var(--chart-feature)"),
+      resolveColor(
+        lookup({ "--chart-feature": "#db2777" }),
+        "var(--chart-feature)",
+      ),
     ).toBe("#db2777");
   });
 

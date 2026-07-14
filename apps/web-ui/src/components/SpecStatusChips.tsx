@@ -84,9 +84,9 @@ export default function SpecStatusChips({
         className="meta"
         style={{ margin: "6px 0 0", fontSize: "var(--fs-2xs)" }}
       >
-        Status (from the spec&apos;s header): Draft = specified, not built ·
-        In progress = underway · Shipped = built and live · Rejected =
-        abandoned. Coverage = statements validated by linked tests.
+        Status (from the spec&apos;s header): Draft = specified, not built · In
+        progress = underway · Shipped = built and live · Rejected = abandoned.
+        Coverage = statements validated by linked tests.
       </p>
     </div>
   );

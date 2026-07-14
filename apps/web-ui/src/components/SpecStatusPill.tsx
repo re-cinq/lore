@@ -1,7 +1,4 @@
-import {
-  SPEC_STATUS_COLOR,
-  type SpecStatusInfo,
-} from "@/lib/spec-status";
+import { SPEC_STATUS_COLOR, type SpecStatusInfo } from "@/lib/spec-status";
 
 export default function SpecStatusPill({ info }: { info: SpecStatusInfo }) {
   return (
