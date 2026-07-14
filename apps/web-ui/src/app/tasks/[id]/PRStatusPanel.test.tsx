@@ -58,7 +58,9 @@ afterEach(() => {
 
 describe("PRStatusPanel", () => {
   it("requests pr-status for the given task id and renders the resolved card", async () => {
-    const fetchMock = stubFetchJson(detailsPayload({ number: 7, title: "My PR" }));
+    const fetchMock = stubFetchJson(
+      detailsPayload({ number: 7, title: "My PR" }),
+    );
 
     await renderSettled({ taskId: "abc-123", prUrl: "https://gh/pr/1" });
     expect(fetchMock).toHaveBeenCalledWith("/api/tasks/abc-123/pr-status");
@@ -79,7 +81,10 @@ describe("PRStatusPanel", () => {
   });
 
   it("surfaces the unavailable fallback when the fetch rejects", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("network down")),
+    );
 
     await renderSettled({
       taskId: "task-1",

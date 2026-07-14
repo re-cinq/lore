@@ -48,7 +48,9 @@ describe("PRStatusBadgePanel", () => {
   });
 
   it("requests the pr-status endpoint for the given task id", async () => {
-    const fetchMock = stubFetch(() => jsonResponse({ computed_status: "open" }));
+    const fetchMock = stubFetch(() =>
+      jsonResponse({ computed_status: "open" }),
+    );
 
     render(<PRStatusBadgePanel taskId="abc-123" />);
     await flushFetch();

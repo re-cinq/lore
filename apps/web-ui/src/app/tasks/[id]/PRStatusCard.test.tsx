@@ -42,7 +42,9 @@ const review = (over: Partial<Review> = {}): Review => ({
 
 describe("PRStatusCard", () => {
   it("renders the Loading placeholder when there are no details yet", () => {
-    render(<PRStatusCard details={null} error={null} prUrl="https://gh/pr/1" />);
+    render(
+      <PRStatusCard details={null} error={null} prUrl="https://gh/pr/1" />,
+    );
 
     expect(screen.getByText("Loading…")).toBeInTheDocument();
     expect(screen.getByText("PR Status:")).toBeInTheDocument();
@@ -81,7 +83,11 @@ describe("PRStatusCard", () => {
   it("renders the computed status pill and a PR link", () => {
     render(
       <PRStatusCard
-        details={details({ computed_status: "open", number: 7, title: "My PR" })}
+        details={details({
+          computed_status: "open",
+          number: 7,
+          title: "My PR",
+        })}
         error={null}
         prUrl="https://gh/pr/1"
       />,
@@ -90,7 +96,10 @@ describe("PRStatusCard", () => {
     expect(screen.getByText("open")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: /#7 My PR/ });
 
-    expect(link).toHaveAttribute("href", "https://github.com/acme/repo/pull/42");
+    expect(link).toHaveAttribute(
+      "href",
+      "https://github.com/acme/repo/pull/42",
+    );
     expect(link).toHaveAttribute("target", "_blank");
   });
 
@@ -111,7 +120,9 @@ describe("PRStatusCard", () => {
   it("falls back to the muted pill color for an unknown computed status", () => {
     render(
       <PRStatusCard
-        details={details({ computed_status: "mystery-state" as PRDetails["computed_status"] })}
+        details={details({
+          computed_status: "mystery-state" as PRDetails["computed_status"],
+        })}
         error={null}
         prUrl="https://gh/pr/1"
       />,
@@ -178,7 +189,9 @@ describe("PRStatusCard", () => {
     render(
       <PRStatusCard
         details={details({
-          checks: [check({ name: "a", status: "in_progress", conclusion: null })],
+          checks: [
+            check({ name: "a", status: "in_progress", conclusion: null }),
+          ],
         })}
         error={null}
         prUrl="https://gh/pr/1"
