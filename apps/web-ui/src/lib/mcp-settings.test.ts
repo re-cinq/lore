@@ -24,6 +24,12 @@ describe("privilegedRequestBody", () => {
       { enabled: false },
     );
   });
+
+  it("emits only task_overrides when dark_factory is absent", () => {
+    expect(
+      privilegedRequestBody({ task_overrides: { review: { model: "x" } } }),
+    ).toEqual({ task_overrides: { review: { model: "x" } } });
+  });
 });
 
 describe("isEmptyPatch", () => {
@@ -135,11 +141,41 @@ describe("putPrivilegedSettings", () => {
     });
   });
 
+  it("defaults field_paths and detail when the two_key_required body omits them", async () => {
+    mockFetch(403, { error: "two_key_required" });
+    expect(
+      await putPrivilegedSettings("o/r", { dark_factory: { enabled: true } }),
+    ).toEqual({ status: "two_key_required", fieldPaths: [], detail: "" });
+  });
+
+  it("defaults code and detail when the codeowners_check_failed body omits them", async () => {
+    mockFetch(403, { error: "codeowners_check_failed" });
+    expect(
+      await putPrivilegedSettings(
+        "o/r",
+        { dark_factory: { enabled: true } },
+        "o/r#5",
+      ),
+    ).toEqual({ status: "codeowners_failed", code: "unknown", detail: "" });
+  });
+
   it("maps other non-ok responses to an error result", async () => {
     mockFetch(500, { error: "internal" });
     expect(
       await putPrivilegedSettings("o/r", { dark_factory: { enabled: true } }),
     ).toEqual({ status: "error", message: "internal" });
+  });
+
+  it("falls back to detail then the HTTP status when a non-ok body has no error", async () => {
+    mockFetch(502, { detail: "upstream gone" });
+    expect(
+      await putPrivilegedSettings("o/r", { dark_factory: { enabled: true } }),
+    ).toEqual({ status: "error", message: "upstream gone" });
+
+    mockFetch(503, {});
+    expect(
+      await putPrivilegedSettings("o/r", { dark_factory: { enabled: true } }),
+    ).toEqual({ status: "error", message: "HTTP 503" });
   });
 
   it("returns an error result when fetch throws", async () => {
