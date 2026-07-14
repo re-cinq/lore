@@ -18,6 +18,13 @@ floorSink:
   namespace: lore-floor
   port: 8080
 
+# NodeLocal DNSCache listen address. On clusters running NodeLocal DNS (GKE default),
+# run pods resolve via this link-local IP instead of the kube-dns ClusterIP — and the
+# metadata-endpoint block in the run-pod NetworkPolicy (169.254.0.0/16) would otherwise
+# drop those queries. The chart allows port 53 to just this /32 (the metadata endpoint
+# at 169.254.169.254 stays blocked). Empty string omits the rule for clusters without it.
+nodeLocalDnsIp: 169.254.20.10
+
 # The image the seeded `def-*` station recipes run (non-LLM assembly-line nodes,
 # ADR-031 amendment). CI bumps the tag alongside the other service images.
 stationImage: ghcr.io/re-cinq/lore-station:latest
