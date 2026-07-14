@@ -55,13 +55,6 @@ export interface AssemblyLinesPort {
   markRunning(id: string): Promise<void>;
   /** `outcome: "error"` closes the row as `failed`; anything else as `finished`. */
   finish(id: string, outcome: string, reason?: string): Promise<void>;
-  /** Returns the node row id used by {@link recordNodeFinish}. */
-  recordNodeStart(input: AssemblyLineNodeStartInput): Promise<string>;
-  recordNodeFinish(
-    nodeRowId: string,
-    outcome: string,
-    commitSha?: string,
-  ): Promise<void>;
   getById(id: string): Promise<AssemblyLineRecord | null>;
   listForTask(taskId: string): Promise<AssemblyLineRecord[]>;
   /**

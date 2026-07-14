@@ -5,7 +5,7 @@
 // a Floor restart loses nothing (spec 6-dark-factory FR6).
 
 import type { AssemblyLine, AssemblyLineEdge } from "./loader.js";
-import type { StageOutcome } from "./assembly-line-executor.js";
+import type { StageOutcome } from "./node-types.js";
 
 /** One node row's contribution to the walk state (outcome null = still running). */
 export interface NodeVisit {

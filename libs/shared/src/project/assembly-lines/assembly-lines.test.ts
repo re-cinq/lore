@@ -110,63 +110,6 @@ describe("PgAssemblyLines adapter", () => {
     ]);
   });
 
-  it("recordNodeStart inserts the node row and returns its id", async () => {
-    const { pool, calls } = fakePool([[{ id: "42" }]]);
-
-    const nodeRowId = await new PgAssemblyLines(pool).recordNodeStart({
-      assemblyLineId: "al-1",
-      nodeId: "implement",
-      iteration: 1,
-      agentCrName: "al1abcde-implement",
-    });
-
-    expect(nodeRowId).toBe("42");
-    expect(calls[0]?.text).toContain(
-      "INSERT INTO pipeline.assembly_line_nodes",
-    );
-    expect(calls[0]?.params).toEqual([
-      "al-1",
-      "implement",
-      1,
-      "al1abcde-implement",
-    ]);
-  });
-
-  it("recordNodeStart without an agent CR name binds null", async () => {
-    const { pool, calls } = fakePool([[{ id: 7 }]]);
-
-    const nodeRowId = await new PgAssemblyLines(pool).recordNodeStart({
-      assemblyLineId: "al-1",
-      nodeId: "validate",
-      iteration: 2,
-    });
-
-    expect(nodeRowId).toBe("7");
-    expect(calls[0]?.params).toEqual(["al-1", "validate", 2, null]);
-  });
-
-  it("recordNodeFinish stamps outcome, commit sha, and finished_at", async () => {
-    const { pool, calls } = fakePool();
-
-    await new PgAssemblyLines(pool).recordNodeFinish(
-      "42",
-      "success",
-      "deadbeef",
-    );
-
-    expect(calls[0]?.text).toContain("UPDATE pipeline.assembly_line_nodes");
-    expect(calls[0]?.text).toContain("finished_at = now()");
-    expect(calls[0]?.params).toEqual(["success", "deadbeef", "42"]);
-  });
-
-  it("recordNodeFinish without a commit sha binds null", async () => {
-    const { pool, calls } = fakePool();
-
-    await new PgAssemblyLines(pool).recordNodeFinish("42", "failed");
-
-    expect(calls[0]?.params).toEqual(["failed", null, "42"]);
-  });
-
   it("getById maps the row to an AssemblyLineRecord", async () => {
     const createdAt = new Date("2026-07-03T10:00:00Z");
     const { pool, calls } = fakePool([
@@ -358,21 +301,21 @@ describe("InMemoryAssemblyLines double", () => {
     });
   });
 
-  it("recordNodeStart and recordNodeFinish trace one node execution", async () => {
+  it("ensureNodeStart and finishNodeOnce trace one node execution", async () => {
     const assemblyLines = new InMemoryAssemblyLines();
     const id = await assemblyLines.start({
       definitionName: "implementation",
       repo: "re-cinq/lore",
     });
 
-    const nodeRowId = await assemblyLines.recordNodeStart({
+    const { nodeRowId } = await assemblyLines.ensureNodeStart({
       assemblyLineId: id,
       nodeId: "implement",
       iteration: 1,
       agentCrName: "al1abcde-implement",
     });
 
-    await assemblyLines.recordNodeFinish(nodeRowId, "success", "deadbeef");
+    await assemblyLines.finishNodeOnce(nodeRowId, "success", "deadbeef");
 
     expect(assemblyLines.nodes).toMatchObject([
       {
@@ -388,20 +331,20 @@ describe("InMemoryAssemblyLines double", () => {
     expect(assemblyLines.nodes[0]?.finishedAt).not.toBeNull();
   });
 
-  it("recordNodeStart without an agent CR name stores null", async () => {
+  it("ensureNodeStart without an agent CR name stores null", async () => {
     const assemblyLines = new InMemoryAssemblyLines();
     const id = await assemblyLines.start({
       definitionName: "general",
       repo: "re-cinq/lore",
     });
 
-    const nodeRowId = await assemblyLines.recordNodeStart({
+    const { nodeRowId } = await assemblyLines.ensureNodeStart({
       assemblyLineId: id,
       nodeId: "validate",
       iteration: 1,
     });
 
-    await assemblyLines.recordNodeFinish(nodeRowId, "failed");
+    await assemblyLines.finishNodeOnce(nodeRowId, "failed");
 
     expect(assemblyLines.nodes[0]).toMatchObject({
       agentCrName: null,
@@ -410,7 +353,7 @@ describe("InMemoryAssemblyLines double", () => {
     });
   });
 
-  it("throws on unknown ids for markRunning, finish, and recordNodeFinish", async () => {
+  it("throws on unknown ids for markRunning and returns false for finishNodeOnce", async () => {
     const assemblyLines = new InMemoryAssemblyLines();
 
     await expect(assemblyLines.markRunning("nope")).rejects.toThrow(
@@ -419,9 +362,7 @@ describe("InMemoryAssemblyLines double", () => {
     await expect(assemblyLines.finish("nope", "error")).rejects.toThrow(
       new Error('no assembly line "nope"'),
     );
-    await expect(
-      assemblyLines.recordNodeFinish("nope", "success"),
-    ).rejects.toThrow(new Error('no assembly line node row "nope"'));
+    expect(await assemblyLines.finishNodeOnce("nope", "success")).toBe(false);
   });
 
   it("getById returns the record and null for unknown ids", async () => {

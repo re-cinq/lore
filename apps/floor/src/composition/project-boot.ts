@@ -59,7 +59,7 @@ export function stationBackend(
 
   return new AgentCrStationBackend(
     // launch() = project.assemblyLines.start(); the assembly_line.start event
-    // handler runs the actual walk via floorAssemblyLineRuntime(agentCrBackend()).
+    // handler launches the entry node — the walk advances on agent_node events.
     new AssemblyLineStationBackend(assemblyLines()),
     agentBackend,
     assemblyLineDefinitions,

@@ -86,7 +86,9 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     row.finishedAt = this.clock();
   }
 
-  async recordNodeStart(input: AssemblyLineNodeStartInput): Promise<string> {
+  private async recordNodeStart(
+    input: AssemblyLineNodeStartInput,
+  ): Promise<string> {
     const id = String(this.nodes.length + 1);
 
     this.nodes.push({
@@ -104,7 +106,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     return id;
   }
 
-  async recordNodeFinish(
+  private async recordNodeFinish(
     nodeRowId: string,
     outcome: string,
     commitSha?: string,

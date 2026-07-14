@@ -1,28 +1,16 @@
 import { describe, it, expect } from "vitest";
 import type { AssemblyLineNode } from "./loader.js";
-import type { NodeContext } from "./assembly-line-executor.js";
 import {
   parseNodeResult,
   stationNodeOutcome,
-  createStationNodeHandler,
   type AgentNodeStatus,
-  type AgentNodeDeps,
-} from "./station-node-handler.js";
+} from "./node-outcome.js";
 
 const detectNode: AssemblyLineNode = {
   id: "detect",
   type: "detect",
   job_ref: "spec_drift",
 };
-const ctx: NodeContext = {
-  taskId: "task-1",
-  assemblyLineId: "al-test-1",
-  branchName: "detect/spec-drift/re-cinq/lore",
-  gitDir: "/work",
-  iteration: 0,
-  assemblyLineName: "spec-drift",
-};
-
 const resultLine = (payload: unknown) =>
   `some log\nLORE_NODE_RESULT: ${JSON.stringify(payload)}`;
 
@@ -119,72 +107,5 @@ describe("stationNodeOutcome", () => {
         { phase: "Failed" },
       ).extras?.["Lore-Validation-Status"],
     ).toBe("agent-failed");
-  });
-});
-
-function fakeDeps(
-  pollQueue: Array<AgentNodeStatus | null>,
-  over: Partial<AgentNodeDeps> = {},
-) {
-  const calls = { launch: 0, heartbeat: [] as string[], sleep: 0 };
-  const queue = [...pollQueue];
-  const deps: AgentNodeDeps = {
-    launch: async () => void calls.launch++,
-    poll: async () => (queue.length ? queue.shift()! : null),
-    heartbeat: async (_b, nodeId) => void calls.heartbeat.push(nodeId),
-    sleep: async () => void calls.sleep++,
-    ...over,
-  };
-
-  return { deps, calls };
-}
-
-describe("createStationNodeHandler", () => {
-  it("launches once and returns the parsed station result", async () => {
-    const { deps, calls } = fakeDeps([
-      { phase: "Running" },
-      {
-        phase: "Succeeded",
-        output: resultLine({
-          outcome: "success",
-          extras: { "Lore-Detect-Summary": "ok" },
-        }),
-      },
-    ]);
-
-    expect(await createStationNodeHandler(deps)(detectNode, ctx)).toEqual({
-      outcome: "success",
-      extras: { "Lore-Detect-Summary": "ok" },
-    });
-    expect(calls.launch).toBe(1);
-    expect(calls.heartbeat).toEqual(["detect", "detect"]);
-  });
-
-  it("times out to failed with station-timeout for non-agent nodes", async () => {
-    const { deps } = fakeDeps([{ phase: "Running" }], {
-      maxPolls: 2,
-      pollIntervalMs: 1,
-    });
-
-    expect(await createStationNodeHandler(deps)(detectNode, ctx)).toMatchObject(
-      {
-        outcome: "failed",
-        extras: { "Lore-Validation-Status": "station-timeout" },
-      },
-    );
-  });
-
-  it("node timeout_minutes overrides maxPolls (timeout + 2min buffer at the poll interval)", async () => {
-    // 1 minute timeout + 2 min buffer at 60s polls = 3 polls, then timeout.
-    const { deps, calls } = fakeDeps([], {
-      maxPolls: 999,
-      pollIntervalMs: 60_000,
-      sleep: async () => {},
-    });
-    const timedNode: AssemblyLineNode = { ...detectNode, timeout_minutes: 1 };
-    const result = await createStationNodeHandler(deps)(timedNode, ctx);
-
-    expect(result.extras?.["Lore-Validation-Status"]).toBe("station-timeout");
-    expect(calls.heartbeat).toHaveLength(3);
   });
 });
