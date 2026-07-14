@@ -559,3 +559,188 @@ describe("AssemblyLines facade", () => {
     });
   });
 });
+
+// ── Event-driven walk reads/writes (FR6.8 successors): the transition machinery
+//    derives the walk state from node rows, so duplicates must converge structurally.
+describe("InMemoryAssemblyLines node-transition primitives", () => {
+  async function lineWithId(port: InMemoryAssemblyLines) {
+    return port.start({ definitionName: "implementation", repo: "o/r" });
+  }
+
+  it("ensureNodeStart creates the (line, node, iteration) row once and converges duplicates onto it", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await lineWithId(port);
+
+    const first = await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: "abcd1234-review",
+    });
+    const second = await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: "abcd1234-review",
+    });
+
+    expect(first.created).toBe(true);
+    expect(second).toEqual({ nodeRowId: first.nodeRowId, created: false });
+    expect(port.nodes).toHaveLength(1);
+  });
+
+  it("ensureNodeStart treats a new iteration of the same node as a fresh row", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await lineWithId(port);
+
+    const first = await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "implement",
+      iteration: 1,
+    });
+    const second = await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "implement",
+      iteration: 2,
+    });
+
+    expect(second.created).toBe(true);
+    expect(second.nodeRowId).not.toBe(first.nodeRowId);
+  });
+
+  it("finishNodeOnce wins the first write and rejects the second (CAS on null outcome)", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await lineWithId(port);
+    const { nodeRowId } = await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "review",
+      iteration: 1,
+    });
+
+    expect(await port.finishNodeOnce(nodeRowId, "success", "sha-1")).toBe(true);
+    expect(await port.finishNodeOnce(nodeRowId, "failed")).toBe(false);
+    expect(port.nodes[0]).toMatchObject({
+      outcome: "success",
+      commitSha: "sha-1",
+    });
+  });
+
+  it("listNodes returns the line's rows in visit order and excludes other lines", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await lineWithId(port);
+    const other = await lineWithId(port);
+
+    await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "implement",
+      iteration: 1,
+    });
+    await port.ensureNodeStart({
+      assemblyLineId: other,
+      nodeId: "review",
+      iteration: 1,
+    });
+    await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "ci",
+      iteration: 1,
+    });
+
+    expect((await port.listNodes(id)).map((n) => n.nodeId)).toEqual([
+      "implement",
+      "ci",
+    ]);
+  });
+
+  it("listOpen returns queued and running rows only", async () => {
+    const port = new InMemoryAssemblyLines();
+    const queued = await lineWithId(port);
+    const running = await lineWithId(port);
+    const done = await lineWithId(port);
+
+    await port.markRunning(running);
+    await port.markRunning(done);
+    await port.finish(done, "completed");
+
+    expect((await port.listOpen()).map((r) => r.id)).toEqual([queued, running]);
+  });
+});
+
+describe("PgAssemblyLines node-transition primitives", () => {
+  it("ensureNodeStart inserts with ON CONFLICT DO NOTHING on the (line, node, iteration) key and reports created", async () => {
+    const { pool, calls } = fakePool([[{ id: 42, created: true }]]);
+
+    const result = await new PgAssemblyLines(pool).ensureNodeStart({
+      assemblyLineId: "al-1",
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: "abcd1234-review",
+    });
+
+    expect(result).toEqual({ nodeRowId: "42", created: true });
+    const sql = calls[0]?.text ?? "";
+
+    expect(sql).toContain(
+      "ON CONFLICT (assembly_line_id, node_id, iteration) DO NOTHING",
+    );
+    expect(calls[0]?.params).toEqual(["al-1", "review", 1, "abcd1234-review"]);
+  });
+
+  it("finishNodeOnce CASes on a null outcome and reports whether it won", async () => {
+    const { pool, calls } = fakePool([[{ id: 42 }], []]);
+    const pg = new PgAssemblyLines(pool);
+
+    expect(await pg.finishNodeOnce("42", "success", "sha-1")).toBe(true);
+    expect(await pg.finishNodeOnce("42", "failed")).toBe(false);
+    const sql = calls[0]?.text ?? "";
+
+    expect(sql).toContain("outcome IS NULL");
+    expect(sql).toContain("RETURNING id");
+    expect(calls[0]?.params).toEqual(["success", "sha-1", "42"]);
+  });
+
+  it("listNodes selects the line's rows ordered by id", async () => {
+    const { pool, calls } = fakePool([
+      [
+        {
+          id: 1,
+          assembly_line_id: "al-1",
+          node_id: "implement",
+          iteration: 1,
+          outcome: "success",
+          agent_cr_name: "abcd1234-implement",
+          commit_sha: "sha-1",
+          started_at: new Date("2026-07-14T00:00:00Z"),
+          finished_at: new Date("2026-07-14T00:01:00Z"),
+        },
+      ],
+    ]);
+
+    const nodes = await new PgAssemblyLines(pool).listNodes("al-1");
+
+    expect(nodes).toEqual([
+      {
+        id: "1",
+        assemblyLineId: "al-1",
+        nodeId: "implement",
+        iteration: 1,
+        outcome: "success",
+        agentCrName: "abcd1234-implement",
+        commitSha: "sha-1",
+        startedAt: new Date("2026-07-14T00:00:00Z"),
+        finishedAt: new Date("2026-07-14T00:01:00Z"),
+      },
+    ]);
+    expect(calls[0]?.text).toContain("ORDER BY id");
+    expect(calls[0]?.params).toEqual(["al-1"]);
+  });
+
+  it("listOpen selects queued and running rows oldest-first", async () => {
+    const { pool, calls } = fakePool([[]]);
+
+    await new PgAssemblyLines(pool).listOpen();
+
+    expect(calls[0]?.text).toContain("status IN ('queued', 'running')");
+    expect(calls[0]?.text).toContain("ORDER BY created_at");
+  });
+});

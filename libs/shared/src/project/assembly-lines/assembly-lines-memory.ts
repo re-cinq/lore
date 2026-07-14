@@ -5,6 +5,7 @@ import type {
   AssemblyLineStartInput,
   AssemblyLineNodeStartInput,
   AssemblyLineRecord,
+  AssemblyLineNodeRecord,
 } from "./assembly-lines-port.js";
 
 export interface SeedAssemblyLineEvent {
@@ -109,6 +110,51 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     node.outcome = outcome;
     node.commitSha = commitSha ?? null;
     node.finishedAt = this.clock();
+  }
+
+  async ensureNodeStart(
+    input: AssemblyLineNodeStartInput,
+  ): Promise<{ nodeRowId: string; created: boolean }> {
+    const existing = this.nodes.find(
+      (n) =>
+        n.assemblyLineId === input.assemblyLineId &&
+        n.nodeId === input.nodeId &&
+        n.iteration === input.iteration,
+    );
+
+    if (existing) {
+      return { nodeRowId: existing.id, created: false };
+    }
+
+    return { nodeRowId: await this.recordNodeStart(input), created: true };
+  }
+
+  async finishNodeOnce(
+    nodeRowId: string,
+    outcome: string,
+    commitSha?: string,
+  ): Promise<boolean> {
+    const node = this.nodes.find((n) => n.id === nodeRowId);
+
+    if (!node || node.outcome !== null) {
+      return false;
+    }
+
+    await this.recordNodeFinish(nodeRowId, outcome, commitSha);
+
+    return true;
+  }
+
+  async listNodes(assemblyLineId: string): Promise<AssemblyLineNodeRecord[]> {
+    return this.nodes
+      .filter((n) => n.assemblyLineId === assemblyLineId)
+      .sort((a, b) => Number(a.id) - Number(b.id));
+  }
+
+  async listOpen(): Promise<AssemblyLineRecord[]> {
+    return this.rows
+      .filter((r) => r.status === "queued" || r.status === "running")
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }
 
   async getById(id: string): Promise<AssemblyLineRecord | null> {
