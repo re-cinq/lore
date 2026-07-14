@@ -158,8 +158,9 @@ generalizing D4 from agent-only to all node types. No new CRD, no `@re-cinq/agen
 - **Cutover complete.** Every non-agent node on the Floor-assembly-line path now dispatches a
   station unconditionally; the transitional `LORE_STATION_NODES` per-type flag and the in-process
   node handlers on that path are removed. The detector cores moved to `@re-cinq/lore-shared/detect`
-  (facade-driven), so the detect node dispatches a `def-detect` station too — `run-detect` wires the
-  same agent-cr dispatch + Kubernetes status reader as the task path. The last in-process execution
+  (facade-driven), so the detect node dispatches a `def-detect` station too — since the 2026-07 (2)
+  revision, detection lines ride the same event-driven walk as every other line (the dedicated
+  `run-detect` runner was retired). The last in-process execution
   path — the gap-fill/runbook JSON supervisor (`processTaskViaSupervisor` / `createProductionHandlers`,
   which cloned in-Floor with an App token and ran the LLM node in-process) — is now also removed:
   gap-fill runs on the Floor AssemblyLine (per-node Agent CRs) and runbook (no assembly-line YAML) as a

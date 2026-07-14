@@ -558,12 +558,13 @@ as K8s CronJobs running their work directly. The detection family
 `spec_coverage_backfill`) left the carve-out: each is an assembly-line
 definition with a deterministic `detect` node
 (`libs/assembly-lines/src/assembly-lines/*.yaml`); its `cron.<job>.tick`
-emitter's handler (`apps/floor/src/jobs/detect/fan-out.ts`) starts one
-per-repo assembly line via `assemblyLines().start()`, and the
-`assembly_line.start` handler routes detect-shaped definitions to the
-repo-less runner (`apps/floor/src/jobs/detect/run-detect.ts` — no clone,
-branch name is a lease key, `pipeline.job_runs` row per repo named
-`<job>:<repo>`). Manual trigger: insert the tick event with optional
+emitter's handler (`apps/floor/src/jobs/detect/fan-out.ts`) pre-creates a
+`pipeline.job_runs` row per repo (named `<job>:<repo>`) and starts one
+per-repo assembly line via `assemblyLines().start()` with
+`args.job_run_id` + branch `detect/<definition>/<repo>` (the overlap-guard
+key). Detection lines ride the standard event-driven walk — their `detect`
+node is a station CR like any other; `advanceLine` closes the job_run at
+the terminal state. Manual trigger: insert the tick event with optional
 `{"repo": "..."}` params.
 
 **Prompt caching on agent LLM calls**: the Anthropic provider

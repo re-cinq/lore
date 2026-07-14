@@ -1,35 +1,22 @@
 // Handler for `assembly_line.start` (layer 3): the sole executor entry for assembly
 // lines. `project.assemblyLines.start()` inserted the row (queued) + this event
-// atomically; the loop claims it here. The run itself is minutes-to-hours, so the
-// handler validates, marks the row running, fire-and-backgrounds the walk, and
-// resolves immediately — terminal row status is written by the background
-// continuation. The branch lease + the agent-watcher remain the liveness signal,
-// exactly as the pre-event inline paths.
+// atomically; the loop claims it here. The handler validates, marks the row
+// running, and launches the ENTRY node's Agent CR — the walk then advances on
+// `kubernetes.agent_node.*` events (spec 6-dark-factory FR6.7/FR6.9), with the
+// assembly-line reaper as the liveness bound. Detection lines ride the same
+// machinery (their detect node is a station CR like any other).
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
-import type {
-  AssemblyLine,
-  SupervisorResult,
-} from "@re-cinq/lore-assembly-lines";
+import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
-import { supervisorOutcome } from "./floor-assembly-line-run.js";
-
-/** The repo-less detection run input — jobs/detect path. */
-export interface DetectRunInput {
-  assemblyLineId: string;
-  definitionName: string;
-  repo: string;
-}
 
 export interface StartEventHandlerDeps {
   assemblyLines: AssemblyLinesPort;
-  /** The loaded builtin assembly line YAMLs — routing reads definition shape. */
+  /** The loaded builtin assembly line YAMLs — routing reads definition presence. */
   definitions: () => Promise<ReadonlyMap<string, AssemblyLine>>;
-  /** Definitions with a `detect` node: the repo-less detection runner. */
-  runDetect: (input: DetectRunInput) => Promise<SupervisorResult>;
-  /** Every other definition: launch the line's entry node (advanceLine). The walk
-   *  then advances on `kubernetes.agent_node.*` events — no background promise. */
+  /** Launch the line's entry node (advanceLine). The walk then advances on
+   *  `kubernetes.agent_node.*` events — no background promise. */
   advance: (assemblyLineId: string) => Promise<void>;
 }
 
@@ -47,7 +34,6 @@ export function createStartEventHandler(
     // Branch/args/description ride in the row itself — the walk reads them via
     // taskFromRow, so the event only needs identity + routing fields.
     const definitionName = String(params.definitionName ?? "");
-    const repo = String(params.repo ?? "");
     const taskId = typeof params.taskId === "string" ? params.taskId : null;
 
     const definitions = await deps.definitions();
@@ -85,30 +71,7 @@ export function createStartEventHandler(
 
     await deps.assemblyLines.markRunning(assemblyLineId);
 
-    const finishRow = (outcome: string, reason?: string) =>
-      deps.assemblyLines
-        .finish(assemblyLineId, outcome, reason)
-        .catch((err) =>
-          console.warn(
-            `[assembly-line-start] finish(${assemblyLineId}) failed:`,
-            (err as Error).message,
-          ),
-        );
-
-    // Routing is by definition shape, not a name list: any definition carrying a
-    // detect node is a repo-less detection line — no task, no clone, no PR.
-    if (definition.nodes.some((n) => n.type === "detect")) {
-      void deps
-        .runDetect({ assemblyLineId, definitionName, repo })
-        .then((result) =>
-          finishRow(supervisorOutcome(result), result.errorMessage),
-        )
-        .catch((err) => finishRow("error", (err as Error).message));
-
-      return;
-    }
-
-    // Station lines: launch the entry node and return — the walk advances on
+    // Launch the entry node and return — the walk advances on
     // `kubernetes.agent_node.*` events; a Floor restart loses nothing because
     // the state is the node rows. A throw here propagates so the event loop
     // retries transient launch failures (advance is idempotent end to end).
@@ -122,19 +85,16 @@ export const assemblyLineStart: EventHandler = async (params) => {
   const [
     { assemblyLines },
     { loadBuiltinAssemblyLines },
-    { runDetect },
     { advanceLine, productionNodeEventDeps },
   ] = await Promise.all([
     import("../../kernel/queues.js"),
     import("@re-cinq/lore-assembly-lines"),
-    import("../detect/run-detect.js"),
     import("./node-event-handler.js"),
   ]);
 
   const handler = createStartEventHandler({
     assemblyLines: assemblyLines(),
     definitions: loadBuiltinAssemblyLines,
-    runDetect,
     advance: async (assemblyLineId) =>
       advanceLine(assemblyLineId, await productionNodeEventDeps()),
   });

@@ -68,7 +68,7 @@ export { advanceLine };
  *  advance, and the reaper tick. */
 export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   const [
-    { assemblyLines },
+    { assemblyLines, jobRuns },
     { loadBuiltinAssemblyLines },
     { agentCrBackend },
     { buildPrompt },
@@ -92,6 +92,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     },
     resolvePrompt: buildPrompt,
     cleanupToken: cleanupPerTaskToken,
+    jobRuns: jobRuns(),
     readAgentStatus: (name) => kubeApi.getStatus(name),
   };
 }

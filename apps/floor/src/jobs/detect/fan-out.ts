@@ -1,9 +1,10 @@
 // Layer-3 handlers for the detection-family `cron.<job>.tick` events. A tick
 // fans out one assembly-line start per target repo; each start event is then
 // claimed independently by the loop (per-repo retry + dead-letter), and the
-// per-run branch lease dedupes concurrent duplicates. A mid-loop failure lets
-// the loop retry the whole tick — re-starting an already-started repo is
-// acceptable because detection runs are idempotent and lease-guarded.
+// branch-keyed overlap guard in advanceLine defers concurrent duplicates
+// (lease parity). A mid-loop failure lets the loop retry the whole tick —
+// re-starting an already-started repo is acceptable because detection runs
+// are idempotent and overlap-guarded.
 //
 // Manual trigger (documented in specs/scheduled-job-runtime-split):
 //   INSERT INTO pipeline.events (event_name, source, params)
@@ -11,9 +12,30 @@
 // Omit `repo` for the full fan-out.
 
 import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import { loadBuiltinAssemblyLines } from "@re-cinq/lore-assembly-lines";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { EventHandler } from "../../main-loop/types.js";
 import { query } from "../../kernel/db.js";
-import { assemblyLines } from "../../kernel/queues.js";
+import { assemblyLines, jobRuns } from "../../kernel/queues.js";
+
+/** The old lease key, now the overlap-guard key (advanceLine defers duplicates). */
+export function detectBranchName(definitionName: string, repo: string): string {
+  return `detect/${definitionName}/${repo}`;
+}
+
+/** The definition's detect node's job_ref — the job-run name prefix. */
+async function builtinJobRef(definitionName: string): Promise<string> {
+  const definition = (await loadBuiltinAssemblyLines()).get(definitionName);
+  const detectNode = definition?.nodes.find((n) => n.type === "detect");
+
+  enforceTrue(
+    typeof detectNode?.job_ref === "string" && detectNode.job_ref.length > 0,
+    Error,
+    `assembly line "${definitionName}" has no detect node with job_ref`,
+  );
+
+  return detectNode.job_ref;
+}
 
 /** Days since the last code-chunk ingest for a repo to count as active. */
 const ACTIVITY_WINDOW_DAYS = 7;
@@ -58,6 +80,13 @@ const onboardedRepos = async (): Promise<string[]> =>
 
 export interface DetectFanOutDeps {
   assemblyLines: AssemblyLinesPort;
+  /** Pre-create the `<job_ref>:<repo>` pipeline.job_runs row; the walk closes it
+   *  via `args.job_run_id` when the line reaches a terminal state. */
+  jobRuns: {
+    start(jobName: string): Promise<string>;
+    fail(runId: string, reason: string): Promise<unknown>;
+  };
+  jobRef: () => Promise<string>;
   listTargetRepos: () => Promise<string[]>;
 }
 
@@ -79,8 +108,32 @@ export function createDetectTickHandler(
       return;
     }
 
+    const jobRef = await deps.jobRef();
+
     for (const repo of repos) {
-      const id = await deps.assemblyLines.start({ definitionName, repo });
+      const jobRunId = await deps.jobRuns.start(`${jobRef}:${repo}`);
+
+      // start() throwing mid-loop (the case the header blesses for tick retry)
+      // would orphan the just-created job_run open forever (no job_runs reaper) —
+      // fail it before rethrowing so the retry's duplicate settles cleanly.
+      let id: string;
+
+      try {
+        id = await deps.assemblyLines.start({
+          definitionName,
+          repo,
+          branch: detectBranchName(definitionName, repo),
+          args: { job_run_id: jobRunId },
+        });
+      } catch (err) {
+        await deps.jobRuns
+          .fail(
+            jobRunId,
+            `assembly_line.start failed: ${(err as Error).message}`,
+          )
+          .catch(() => {});
+        throw err;
+      }
 
       console.log(
         `[detect] ${definitionName}: started assembly line ${id} for ${repo}`,
@@ -89,27 +142,30 @@ export function createDetectTickHandler(
   };
 }
 
+const productionTick =
+  (
+    definitionName: string,
+    listTargetRepos: () => Promise<string[]>,
+  ): EventHandler =>
+  (params) =>
+    createDetectTickHandler(definitionName, {
+      assemblyLines: assemblyLines(),
+      jobRuns: jobRuns(),
+      jobRef: () => builtinJobRef(definitionName),
+      listTargetRepos,
+    })(params);
+
 /** Composed production handlers, one per detection tick (registry layer 3). */
-export const specDriftTick: EventHandler = (params) =>
-  createDetectTickHandler("spec-drift", {
-    assemblyLines: assemblyLines(),
-    listTargetRepos: activeSpecRepos,
-  })(params);
+export const specDriftTick = productionTick("spec-drift", activeSpecRepos);
 
-export const gapDetectionTick: EventHandler = (params) =>
-  createDetectTickHandler("gap-detect", {
-    assemblyLines: assemblyLines(),
-    listTargetRepos: onboardedRepos,
-  })(params);
+export const gapDetectionTick = productionTick("gap-detect", onboardedRepos);
 
-export const specCoverageValidateTick: EventHandler = (params) =>
-  createDetectTickHandler("spec-coverage-validate", {
-    assemblyLines: assemblyLines(),
-    listTargetRepos: specRepos,
-  })(params);
+export const specCoverageValidateTick = productionTick(
+  "spec-coverage-validate",
+  specRepos,
+);
 
-export const specCoverageBackfillTick: EventHandler = (params) =>
-  createDetectTickHandler("spec-coverage-backfill", {
-    assemblyLines: assemblyLines(),
-    listTargetRepos: activeSpecRepos,
-  })(params);
+export const specCoverageBackfillTick = productionTick(
+  "spec-coverage-backfill",
+  activeSpecRepos,
+);

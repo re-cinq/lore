@@ -116,6 +116,7 @@ function harness() {
     },
     resolvePrompt: (ref: string) => `prompt:${ref}`,
     cleanupToken: async () => {},
+    jobRuns: { complete: async () => {}, fail: async () => {} },
     readAgentStatus: async (name: string) => statusByName[name] ?? null,
     taskStatus: async (taskId: string) => taskStatusById[taskId] ?? null,
   };

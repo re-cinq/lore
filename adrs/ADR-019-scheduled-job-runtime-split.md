@@ -136,11 +136,13 @@ as an assembly line** (`libs/assembly-lines/src/assembly-lines/{gap-detect,
 spec-drift,spec-coverage-validate,spec-coverage-backfill}.yaml`, a two-node
 `detect → done` graph) and **started by an event**: an in-process cron emitter
 inserts `cron.<job>.tick` at the historic cadence, the tick handler
-(`apps/floor/src/jobs/detect/fan-out.ts`) enumerates target repos and calls
-`assemblyLines().start(<definition>, {repo})` per repo, and the
-`assembly_line.start` handler routes any definition containing a `detect` node
-to the repo-less runner (`apps/floor/src/jobs/detect/run-detect.ts`) — no
-clone, no PR; the branch name `detect/<definition>/<repo>` is a pure lease key.
+(`apps/floor/src/jobs/detect/fan-out.ts`) enumerates target repos, pre-creates
+the `<job_ref>:<repo>` `pipeline.job_runs` row, and calls
+`assemblyLines().start(<definition>, {repo, branch, args:{job_run_id}})` per
+repo. *(Amended 2026-07: the dedicated repo-less runner was retired — detection
+lines ride the standard event-driven walk (spec 6-dark-factory FR6.9); the
+branch name `detect/<definition>/<repo>` is the overlap-guard key, and
+`advanceLine` closes the job_run at the line's terminal state.)*
 
 Why the original objections no longer bind this family:
 
