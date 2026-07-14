@@ -32,7 +32,7 @@ icon set. The current dark-only look is replaced.
   CRT). `GohuFont` bitmap body text + `IBM Plex Mono` headings/code, sharp
   corners, soft blue-grey text (`#c0caf5`) on `#1a1b26`, blue accent
   (`#7aa2f7`), accent-glow shadows; the light scheme is Tokyo Night Day.
-  Icons: **Pixelarticons**.
+  Icons: **Pixelarticons**. ([validated by `Icon.test.tsx:58`](apps/web-ui/src/components/Icon.test.tsx#L58))
 
 ### Architecture
 
@@ -55,26 +55,26 @@ resolved scheme is what reaches the DOM, so CSS never matches `auto`. ([validate
 
 **New — `web-ui/src/lib/theme/`**
 - `types.ts`, `theme-core.ts` — pure, unit-tested: `resolveColorScheme()`,
-  `parseFamily()`, `parseSchemePref()`, storage-key + default constants.
+  `parseFamily()`, `parseSchemePref()`, storage-key + default constants. ([validated by `theme-core.test.ts:12`](apps/web-ui/src/lib/theme/theme-core.test.ts#L12))
 - `theme-core.test.ts` — resolver/parser cases + icon-map key-parity test.
 - `fonts.ts` — Inter + IBM Plex Mono (`next/font/google`) and self-hosted
   GohuFont (`next/font/local`) as CSS variables.
 - `theme-script.ts` — `THEME_SCRIPT` blocking IIFE (FOUC prevention; also seeds
-  `window.__loreFamily` so client icon render matches first paint).
+  `window.__loreFamily` so client icon render matches first paint). ([validated by `ThemeProvider.test.tsx:88`](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L88))
 - `ThemeProvider.tsx` — context + `useTheme()`; reflects state→DOM; subscribes
-  to the media query only while `auto`.
+  to the media query only while `auto`. ([subscribes while auto](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L269), [not otherwise](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L254))
 
 **New — `web-ui/src/app/theme.css`** — the token source of truth. Family-level
 blocks hold shape/type/glass tokens (`--radius*`, `--fs-*` type scale,
 `--glass-blur`); four `[data-theme-family][data-color-scheme]` blocks hold
 colors (`--bg*`, `--border*`, `--text*`, `--accent*`, status `--success/warning/
 danger/info` + `-bg`, `--shadow*`, `--glass-bg/border`, `--color-scheme`).
-`prefers-reduced-transparency` and a `@supports` fallback drop glass to opaque.
+`prefers-reduced-transparency` and a `@supports` fallback drop glass to opaque. ([validated by `theme-tokens.test.ts:61`](apps/web-ui/src/app/theme-tokens.test.ts#L61))
 
 **New — `web-ui/src/components/`** — `icon-map.ts` (semantic `IconName` →
 per-family Iconify name, offline via `@iconify-json/*`), `Icon.tsx`,
 `ThemeSwitcher.tsx` (+ module CSS): a Family text toggle and a Light/Auto/Dark
-square icon-only toggle, accessible radio groups. Mounted on `/settings` only.
+square icon-only toggle, accessible radio groups. Mounted on `/settings` only. ([both toggles](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L38), [accessible radios](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L59))
 
 **Edited** — `layout.tsx` (fonts on `<html>`, inline script, provider, import
 `theme.css` before `globals.css`); `globals.css` fully tokenized (color, radius,
@@ -88,7 +88,7 @@ swapped to tokens.
 
 `--fs-xs … --fs-xl` defined per family. Retro pins every body size to 14px
 because GohuFont is a bitmap crisp only at its native 14px grid; Elegant is
-xs 12 / base 16 / xl 25. No font-size literal remains in `src/`.
+xs 12 / base 16 / xl 25. No font-size literal remains in `src/`. ([validated by `theme-tokens.test.ts:77`](apps/web-ui/src/app/theme-tokens.test.ts#L77))
 
 ## Out of Scope
 
@@ -119,4 +119,4 @@ xs 12 / base 16 / xl 25. No font-size literal remains in `src/`.
   hues). `SpecGraphD3` resolves tokens to literals per render for canvas and
   `d3.interpolateRgb` (which cannot consume `var()`); SVG keeps raw `var()`
   references. The lifecycle palette in `feature-status.ts` now returns token
-  strings.
+  strings. ([validated by `feature-status.test.ts:9`](apps/web-ui/src/app/repos/[owner]/[repo]/features/feature-status.test.ts#L9), [chart tokens per family](apps/web-ui/src/app/theme-tokens.test.ts#L66), [canvas literal resolution](apps/web-ui/src/lib/theme-token-resolve.test.ts#L23))
