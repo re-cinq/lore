@@ -6,18 +6,19 @@ export interface StatusBadge {
 }
 
 // Lifecycle status → human label + pill color (mirrors the D3 graph coloring).
+// Colors are theme tokens so the palette follows the active family × scheme.
 const BADGES: Record<FeatureStatus, StatusBadge> = {
-  draft: { label: "Draft", color: "#94a3b8" },
-  planning: { label: "Planning", color: "#f59e0b" },
-  "awaiting-input": { label: "Awaiting input", color: "#f59e0b" },
-  "spec-ready": { label: "Spec ready", color: "#2563eb" },
-  "pr-open": { label: "PR open", color: "#8b5cf6" },
-  implemented: { label: "Implemented", color: "#16a34a" },
-  split: { label: "Split", color: "#d97706" },
+  draft: { label: "Draft", color: "var(--chart-neutral)" },
+  planning: { label: "Planning", color: "var(--warning)" },
+  "awaiting-input": { label: "Awaiting input", color: "var(--warning)" },
+  "spec-ready": { label: "Spec ready", color: "var(--chart-statement)" },
+  "pr-open": { label: "PR open", color: "var(--chart-spec)" },
+  implemented: { label: "Implemented", color: "var(--chart-test)" },
+  split: { label: "Split", color: "var(--chart-adr)" },
 };
 
 export function statusBadge(status: FeatureStatus): StatusBadge {
-  return BADGES[status] ?? { label: status, color: "#94a3b8" };
+  return BADGES[status] ?? { label: status, color: "var(--chart-neutral)" };
 }
 
 // Single source for the lifecycle palette. The D3 graph (SpecGraphD3) colors

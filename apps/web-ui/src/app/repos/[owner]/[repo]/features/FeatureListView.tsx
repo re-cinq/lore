@@ -66,7 +66,7 @@ export default function FeatureListView({
                 {f.original_prompt.length > 160 ? "…" : ""}
               </p>
               {f.parent_feature_id && (
-                <p className="meta" style={{ fontSize: 11 }}>
+                <p className="meta" style={{ fontSize: "var(--fs-xs)" }}>
                   ↳ split from a parent feature
                 </p>
               )}

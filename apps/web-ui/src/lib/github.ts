@@ -102,6 +102,30 @@ export function computeStatus(
   return "open";
 }
 
+export type RepoAccess = "ok" | "not-found" | "unknown";
+
+/**
+ * Pre-flight probe: can the GitHub App see this repo? 404 is definitive
+ * (wrong owner/name, or the App is not installed there — installation-scoped
+ * auth surfaces both as 404); an unconfigured App or a transient error is
+ * "unknown" so callers can fail soft — mirrors {@link checkRepoFiles}.
+ */
+export async function checkRepoAccess(repo: string): Promise<RepoAccess> {
+  if (!isGitHubConfigured()) {
+    return "unknown";
+  }
+  const ok = await octokit();
+  const [owner, name] = split(repo);
+
+  try {
+    await ok.rest.repos.get({ owner, repo: name });
+
+    return "ok";
+  } catch (e) {
+    return (e as { status?: number }).status === 404 ? "not-found" : "unknown";
+  }
+}
+
 export interface RepoMeta {
   description: string | null;
   default_branch: string;

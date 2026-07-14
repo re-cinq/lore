@@ -3,14 +3,14 @@
 import type { DecompStoryGroup } from "@/lib/decomposition-view";
 
 const STATUS_COLOR: Record<string, string> = {
-  pending: "#94a3b8",
-  queued: "#94a3b8",
-  running: "#8b5cf6",
-  "pr-created": "#0ea5e9",
-  review: "#0ea5e9",
-  completed: "#16a34a",
-  merged: "#16a34a",
-  failed: "#dc2626",
+  pending: "var(--chart-neutral)",
+  queued: "var(--chart-neutral)",
+  running: "var(--chart-spec)",
+  "pr-created": "var(--info)",
+  review: "var(--info)",
+  completed: "var(--success)",
+  merged: "var(--success)",
+  failed: "var(--danger)",
 };
 
 function TaskStatus({ status }: { status: string }) {
@@ -23,10 +23,10 @@ function TaskStatus({ status }: { status: string }) {
         textAlign: "center",
         marginRight: 8,
         padding: "0 6px",
-        borderRadius: 4,
-        fontSize: 11,
-        color: "#fff",
-        background: STATUS_COLOR[status] ?? "#94a3b8",
+        borderRadius: "var(--radius-sm)",
+        fontSize: "var(--fs-xs)",
+        color: "var(--text-on-accent)",
+        background: STATUS_COLOR[status] ?? "var(--chart-neutral)",
       }}
     >
       {status}

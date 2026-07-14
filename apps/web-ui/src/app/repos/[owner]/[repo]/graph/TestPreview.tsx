@@ -53,7 +53,7 @@ export default function TestPreview({
 
   if (error) {
     return (
-      <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
+      <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>
         Preview unavailable.
       </div>
     );
@@ -61,14 +61,14 @@ export default function TestPreview({
 
   if (text === null) {
     return (
-      <div style={{ color: "var(--text-muted)", fontSize: 12 }}>
+      <div style={{ color: "var(--text-muted)", fontSize: "var(--fs-xs)" }}>
         Loading preview…
       </div>
     );
   }
 
   return (
-    <div className="md-popover" style={{ fontSize: 12 }}>
+    <div className="md-popover" style={{ fontSize: "var(--fs-xs)" }}>
       <ReactMarkdown
         rehypePlugins={[rehypeHighlight]}
       >{`\`\`\`\n${text}\n\`\`\``}</ReactMarkdown>

@@ -1,39 +1,67 @@
 export const dynamic = "force-dynamic";
-import { query } from "@/lib/db";
+import { query, withTransaction } from "@/lib/db";
+import { checkRepoAccess } from "@/lib/github";
 import { createOnboardTask } from "@/lib/onboard";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import OnboardView from "./OnboardView";
+import OnboardView, { type OnboardState } from "./OnboardView";
 
-async function onboardRepo(formData: FormData) {
+const REPO_SLUG = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
+
+async function onboardRepo(
+  _prev: OnboardState,
+  formData: FormData,
+): Promise<OnboardState> {
   "use server";
-  const fullName = formData.get("full_name") as string;
+  const fullName = String(formData.get("full_name") ?? "").trim();
 
-  if (!fullName?.includes("/")) {
-    return;
+  if (!REPO_SLUG.test(fullName)) {
+    return {
+      error: `"${fullName}" is not a valid repository — use the owner/name format.`,
+      fullName,
+    };
   }
 
   const [owner, name] = fullName.split("/");
 
-  // Check if already onboarded
-  const existing = await query(
-    `SELECT id FROM lore.repos WHERE full_name = $1`,
-    [fullName],
-  );
+  try {
+    const existing = await query(
+      `SELECT id FROM lore.repos WHERE full_name = $1`,
+      [fullName],
+    );
 
-  if (existing.length > 0) {
-    redirect("/");
+    if (existing.length > 0) {
+      return { error: `${fullName} is already onboarded.`, fullName };
+    }
 
-    return;
+    if ((await checkRepoAccess(fullName)) === "not-found") {
+      return {
+        error: `${fullName} was not found on GitHub — check the owner and repo name, and that the Lore GitHub App has access to it.`,
+        fullName,
+      };
+    }
+
+    // One transaction: a repos row without its task would make a retry
+    // silently hit the already-onboarded path, and a task without its repos
+    // row would make a retry queue a second onboard agent. Atomicity also
+    // keeps the returned error truthful — on failure, nothing was queued.
+    await withTransaction(async (tx) => {
+      await createOnboardTask(fullName, tx);
+      await tx(
+        `INSERT INTO lore.repos (owner, name, full_name) VALUES ($1, $2, $3) ON CONFLICT (full_name) DO NOTHING`,
+        [owner, name, fullName],
+      );
+    });
+  } catch (err) {
+    // pg errors carry infrastructure detail (hosts, users) that an onboarding
+    // form must not disclose — log the real error, return a generic message.
+    console.error(`[onboard] onboarding ${fullName} failed:`, err);
+
+    return {
+      error: `Onboarding ${fullName} failed — check the server logs for details.`,
+      fullName,
+    };
   }
-
-  // Insert into repos table
-  await query(
-    `INSERT INTO lore.repos (owner, name, full_name) VALUES ($1, $2, $3) ON CONFLICT (full_name) DO NOTHING`,
-    [owner, name, fullName],
-  );
-
-  await createOnboardTask(fullName);
 
   revalidatePath("/");
   redirect("/");

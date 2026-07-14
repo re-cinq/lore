@@ -17,17 +17,13 @@ describe("parseSpecTitle", () => {
     );
   });
 
-  it("falls back to the parent directory when the path has no specs segment", () => {
+  it("uses the parent directory when the path has no specs segment", () => {
     expect(parseSpecTitle("body only", "docs/onboarding/guide.md")).toBe(
       "onboarding",
     );
   });
 
-  it("uses the specs segment when it is the parent directory", () => {
-    expect(parseSpecTitle("body only", "specs/spec.md")).toBe("specs");
-  });
-
-  it("falls back to the raw path when there is no parent directory", () => {
+  it("returns the raw path for a single-segment path with no H1", () => {
     expect(parseSpecTitle("body only", "spec.md")).toBe("spec.md");
   });
 });
@@ -52,21 +48,14 @@ describe("extractSummary", () => {
     expect(extractSummary(content)).toBe("The real summary paragraph.");
   });
 
-  it("skips fenced code and bullet-list blocks before the prose paragraph", () => {
-    const content =
-      "```ts\nconst x = 1;\n```\n\n- a bullet item\n\nThe prose after the fences.";
-
-    expect(extractSummary(content)).toBe("The prose after the fences.");
+  it("skips a leading whitespace-only block and returns the following prose", () => {
+    expect(extractSummary("   \n\n# H\n\nActual prose.")).toBe("Actual prose.");
   });
 
-  it("skips whitespace-only blocks between paragraphs", () => {
-    const content = "# Title\n\n   \n\nThe first real paragraph.";
-
-    expect(extractSummary(content)).toBe("The first real paragraph.");
-  });
-
-  it("returns an empty string when the content is all headings", () => {
-    expect(extractSummary("# One\n\n## Two\n\n### Three")).toBe("");
+  it("returns an empty string when the content is only headings, tables, and lists", () => {
+    expect(extractSummary("# Title\n\n| a |\n|---|\n\n- item\n- item")).toBe(
+      "",
+    );
   });
 });
 

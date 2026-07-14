@@ -35,7 +35,7 @@ export default function SmartFeatureCreateView({
           placeholder="What should it do, for whom, and why?"
         />
       </label>
-      {state?.error && <p style={{ color: "#dc2626" }}>{state.error}</p>}
+      {state?.error && <p style={{ color: "var(--danger)" }}>{state.error}</p>}
       <button type="submit" disabled={pending}>
         {pending ? "Starting planning…" : "Start planning"}
       </button>
