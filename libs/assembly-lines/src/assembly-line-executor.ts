@@ -7,6 +7,7 @@ import {
   type Trailers,
 } from "@re-cinq/lore-shared/commit-trailers.js";
 import type { AssemblyLine, AssemblyLineNode } from "./loader.js";
+import { selectEdge } from "./transition.js";
 import type { LeaseBackend } from "@re-cinq/lore-shared/project/leases/lease-backends.js";
 
 const execFile = promisify(execFileCb);
@@ -212,18 +213,13 @@ export async function executeAssemblyLine(
 
     visited.push({ nodeId: currentId, outcome: result.outcome, iteration });
 
-    const candidates = assemblyLine.edges.filter(
-      (e) =>
-        e.from === currentId && (e.on === result.outcome || e.on === "always"),
-    );
+    const chosen = selectEdge(assemblyLine, currentId, result.outcome);
 
     enforceTrue(
-      candidates.length !== 0,
+      chosen,
       Error,
       `AssemblyLine ${assemblyLine.name}: no edge from "${currentId}" for outcome "${result.outcome}"`,
     );
-    const matchOutcome = candidates.find((e) => e.on === result.outcome);
-    const chosen = matchOutcome ?? candidates[0];
 
     if (chosen.iteration_max !== undefined) {
       const key = `${chosen.from}->${chosen.to}`;
