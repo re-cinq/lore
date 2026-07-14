@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { query } from "@/lib/db";
+import { query, withTransaction } from "@/lib/db";
 import { checkRepoAccess } from "@/lib/github";
 import { createOnboardTask } from "@/lib/onboard";
 import { revalidatePath } from "next/cache";
@@ -41,16 +41,24 @@ async function onboardRepo(
       };
     }
 
-    // Task first, repo row second: if task creation fails, no repos row is
-    // left behind to make the retry silently hit the already-onboarded path.
-    await createOnboardTask(fullName);
-    await query(
-      `INSERT INTO lore.repos (owner, name, full_name) VALUES ($1, $2, $3) ON CONFLICT (full_name) DO NOTHING`,
-      [owner, name, fullName],
-    );
+    // One transaction: a repos row without its task would make a retry
+    // silently hit the already-onboarded path, and a task without its repos
+    // row would make a retry queue a second onboard agent. Atomicity also
+    // keeps the returned error truthful — on failure, nothing was queued.
+    await withTransaction(async (tx) => {
+      await createOnboardTask(fullName, tx);
+      await tx(
+        `INSERT INTO lore.repos (owner, name, full_name) VALUES ($1, $2, $3) ON CONFLICT (full_name) DO NOTHING`,
+        [owner, name, fullName],
+      );
+    });
   } catch (err) {
+    // pg errors carry infrastructure detail (hosts, users) that an onboarding
+    // form must not disclose — log the real error, return a generic message.
+    console.error(`[onboard] onboarding ${fullName} failed:`, err);
+
     return {
-      error: `Onboarding ${fullName} failed: ${err instanceof Error ? err.message : String(err)}`,
+      error: `Onboarding ${fullName} failed — check the server logs for details.`,
       fullName,
     };
   }
