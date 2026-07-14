@@ -3,6 +3,7 @@ import noCatchAsControlFlow from "./rules/no-catch-as-control-flow.mjs";
 import noInfraSdkInFloor from "./rules/no-infra-sdk-in-floor.mjs";
 import noForwardingClass from "./rules/no-forwarding-class.mjs";
 import requireColocatedTests from "./rules/require-colocated-tests.mjs";
+import noDbInPresentational from "./rules/no-db-in-presentational.mjs";
 
 /**
  * eslint-plugin-lore — repo-local ESLint rules codifying Lore house conventions.
@@ -16,5 +17,6 @@ export default {
     "no-infra-sdk-in-floor": noInfraSdkInFloor,
     "no-forwarding-class": noForwardingClass,
     "require-colocated-tests": requireColocatedTests,
+    "no-db-in-presentational": noDbInPresentational,
   },
 };

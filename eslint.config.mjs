@@ -57,6 +57,7 @@ export default tseslint.config(
       "lore/no-infra-sdk-in-floor": "error",
       "lore/no-forwarding-class": "error",
       "lore/require-colocated-tests": "error",
+      "lore/no-db-in-presentational": "error",
     },
   },
 
