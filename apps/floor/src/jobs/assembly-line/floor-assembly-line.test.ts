@@ -82,3 +82,34 @@ describe("nodeAgentSpec", () => {
     });
   });
 });
+
+describe("nodeStationSpec (station pod contract)", () => {
+  it("builds the station_input payload the pod parses, defaulting stationRef to def-<type>", () => {
+    const spec = nodeStationSpec(
+      { id: "validate", type: "validate", validator: "lint" },
+      task,
+    );
+
+    // The recipe's prompt template is literally {station_input} — the whole node
+    // input rides this one JSON parameter that every lore-station pod parses.
+    expect(spec.stationRef).toBe("def-validate");
+    expect(JSON.parse(spec.parameters!.station_input)).toEqual({
+      assembly_line_id: "a1b2c3d4e5f6a7b8",
+      node_id: "validate",
+      node_type: "validate",
+      repo: "re-cinq/lore",
+      branch: "lore/impl-abcdef12",
+      task_id: "abcdef1234567890",
+      params: { validator: "lint" },
+    });
+  });
+
+  it("honors an explicit station_ref override (custom station image)", () => {
+    expect(
+      nodeStationSpec(
+        { id: "detect", type: "detect", station_ref: "def-custom-detect" },
+        task,
+      ).stationRef,
+    ).toBe("def-custom-detect");
+  });
+});
