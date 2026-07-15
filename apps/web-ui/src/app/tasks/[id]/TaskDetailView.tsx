@@ -4,10 +4,13 @@ import { CancelTaskButton } from "./CancelTaskButton";
 import TaskLogs from "./TaskLogs";
 import TimelinePanel from "./TimelinePanel";
 import FailurePanel from "./FailurePanel";
+import EventTimeline from "./EventTimeline";
+import LlmCallsTable from "./LlmCallsTable";
 import Linkified from "@/components/Linkified";
 import { isCancellable } from "@/lib/task-status";
 import { TimeAgo } from "@/components/TimeAgo";
 import { formatEnumLabel } from "@/lib/enum-label";
+import type { TaskRuntimeEvent, TaskRuntimeLlmCall } from "@/lib/task-runtime";
 import styles from "./TaskDetailView.module.css";
 
 export interface TaskDetailTask {
@@ -28,23 +31,8 @@ export interface TaskDetailTask {
   updated_at: string;
 }
 
-export interface TaskDetailEvent {
-  id: string;
-  from_status: string | null;
-  to_status: string;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-}
-
-export interface TaskDetailLlmCall {
-  model: string;
-  input_tokens: number;
-  output_tokens: number;
-  duration_ms: number;
-  status: string | null;
-  error: string | null;
-  created_at: string;
-}
+export type TaskDetailEvent = TaskRuntimeEvent;
+export type TaskDetailLlmCall = TaskRuntimeLlmCall;
 
 /** One per-attempt run row (pipeline.assembly_lines) backing this task. */
 export interface TaskRunRow {
@@ -202,80 +190,9 @@ export default function TaskDetailView({
 
       <TaskLogs taskId={task.id} initialStatus={task.status} />
 
-      <h2>Event Timeline</h2>
-      <div className="memory-list">
-        {events.map((e) => (
-          <div key={e.id} className={`version ${styles.event}`}>
-            <span className={`op-badge op-${e.to_status}`}>
-              {formatEnumLabel(e.to_status)}
-            </span>
-            {e.from_status && (
-              <span className="meta"> ← {formatEnumLabel(e.from_status)}</span>
-            )}
-            <span className={`meta ${styles.eventTime}`}>
-              <TimeAgo date={e.created_at} />
-            </span>
-            {e.metadata && (
-              <pre className={styles.eventMeta}>
-                {JSON.stringify(e.metadata, null, 2)}
-              </pre>
-            )}
-          </div>
-        ))}
-      </div>
+      <EventTimeline events={events} />
 
-      <h2>LLM Calls</h2>
-      {llmCalls.length > 0 ? (
-        <table>
-          <thead>
-            <tr>
-              <th>Model</th>
-              <th>Status</th>
-              <th>Tokens (in/out)</th>
-              <th>Duration</th>
-              <th>Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {llmCalls.map((c, i) => (
-              <tr key={i}>
-                <td className={styles.mono}>{c.model}</td>
-                <td>
-                  {c.status === "failed" ? (
-                    <span
-                      className="badge badge-red"
-                      title={c.error ?? undefined}
-                    >
-                      failed
-                    </span>
-                  ) : (
-                    <span className="op-badge op-pr-created">success</span>
-                  )}
-                  {c.status === "failed" && c.error && (
-                    <div className={`meta ${styles.callError}`}>
-                      <Linkified text={c.error} repo={task.target_repo} />
-                    </div>
-                  )}
-                </td>
-                <td className={styles.mono}>
-                  {Number(c.input_tokens).toLocaleString()} /{" "}
-                  {Number(c.output_tokens).toLocaleString()}
-                </td>
-                <td className={styles.mono}>
-                  {c.duration_ms
-                    ? `${(Number(c.duration_ms) / 1000).toFixed(1)}s`
-                    : "—"}
-                </td>
-                <td className="meta">
-                  <TimeAgo date={c.created_at} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <p className="meta">No LLM calls recorded for this task.</p>
-      )}
+      <LlmCallsTable llmCalls={llmCalls} repo={task.target_repo} />
     </div>
   );
 }

@@ -3,14 +3,11 @@ import { query, queryOne, queryAllowMissing } from "@/lib/db";
 import { redirect } from "next/navigation";
 import TaskDetailView, {
   type TaskDetailTask,
-  type TaskDetailEvent,
-  type TaskDetailLlmCall,
   type TaskRunRow,
 } from "./TaskDetailView";
+import { fetchTaskEvents, fetchLlmCalls } from "@/lib/task-runtime";
 
 type Task = TaskDetailTask;
-type TaskEvent = TaskDetailEvent;
-type LlmCall = TaskDetailLlmCall;
 
 async function submitFeedback(formData: FormData) {
   "use server";
@@ -87,16 +84,8 @@ export default async function TaskDetailPage({
     );
   }
 
-  const events = await query<TaskEvent>(
-    `SELECT * FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at`,
-    [id],
-  );
-
-  const llmCalls = await query<LlmCall>(
-    `SELECT model, input_tokens, output_tokens, duration_ms, status, error, created_at
-     FROM pipeline.llm_calls WHERE task_id = $1 ORDER BY created_at`,
-    [id],
-  );
+  const events = await fetchTaskEvents(id);
+  const llmCalls = await fetchLlmCalls(id);
 
   const failedEvent = events.find((e) => e.to_status === "failed");
 
