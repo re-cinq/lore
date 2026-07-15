@@ -59,6 +59,20 @@ resource "kubectl_manifest" "es_ai_agents_secrets" {
       target = {
         name           = "agent-secrets"
         creationPolicy = "Merge"
+        # The seeded recipes' http telemetry sink declares `headers_secret: agent-events-auth`,
+        # which the controller injects as a NON-optional secretKeyRef from THIS Secret — so the
+        # key must live here or every run pod fails CreateContainerConfigError. The supervisor
+        # sends the key's VALUE verbatim as HTTP header lines, so it must be the full
+        # `Authorization: Bearer <token>` line — a bare token renders no Authorization header
+        # and the Floor 401s every event (telemetry silently dropped; found 2026-07-15).
+        # template.mergePolicy Merge keeps the plain data keys below alongside this one.
+        template = {
+          engineVersion = "v2"
+          mergePolicy   = "Merge"
+          data = {
+            "agent-events-auth" = "Authorization: Bearer {{ .LORE_AGENT_INTERNAL_TOKEN }}"
+          }
+        }
       }
       data = [
         {
@@ -71,14 +85,6 @@ resource "kubectl_manifest" "es_ai_agents_secrets" {
         },
         {
           secretKey = "LORE_AGENT_INTERNAL_TOKEN"
-          remoteRef = { key = "lore-agent-internal-token" }
-        },
-        # The seeded recipes' http telemetry sink declares `headers_secret: agent-events-auth`,
-        # which the controller injects as a NON-optional secretKeyRef from THIS Secret — so the
-        # key must live here or every run pod fails CreateContainerConfigError. Same remoteRef as
-        # the internal token: the Floor authenticates the sink as `Bearer <LORE_AGENT_INTERNAL_TOKEN>`.
-        {
-          secretKey = "agent-events-auth"
           remoteRef = { key = "lore-agent-internal-token" }
         },
       ]
@@ -137,47 +143,6 @@ resource "kubectl_manifest" "es_ai_agents_ghcr" {
         {
           secretKey = "dockerconfigjson"
           remoteRef = { key = "lore-ghcr-pull-secret" }
-        },
-      ]
-    }
-  })
-
-  depends_on = [
-    kubectl_manifest.cluster_secret_store,
-    kubernetes_namespace.ai_agents,
-  ]
-}
-
-# agent-events-auth: the Authorization header the seeded recipes' http telemetry sink
-# (headers_secret: agent-events-auth) sends to the Floor's /api/agent-events endpoint.
-# The Floor authenticates it as `Bearer <LORE_AGENT_INTERNAL_TOKEN>` (#687) — same
-# remoteRef as the agent-secrets internal token, templated into the header value.
-resource "kubectl_manifest" "es_ai_agents_events_auth" {
-  yaml_body = yamlencode({
-    apiVersion = "external-secrets.io/v1beta1"
-    kind       = "ExternalSecret"
-    metadata = {
-      name      = "agent-events-auth"
-      namespace = "ai-agents"
-    }
-    spec = {
-      refreshInterval = "1h"
-      secretStoreRef = {
-        name = "gcp-secret-manager"
-        kind = "ClusterSecretStore"
-      }
-      target = {
-        name = "agent-events-auth"
-        template = {
-          data = {
-            Authorization = "Bearer {{ .token }}"
-          }
-        }
-      }
-      data = [
-        {
-          secretKey = "token"
-          remoteRef = { key = "lore-agent-internal-token" }
         },
       ]
     }
