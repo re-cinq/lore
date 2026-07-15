@@ -37,6 +37,13 @@ jobs:
       - name: Install deps
         run: npm ci && npm install --prefix apps/web-ui
 
+      # eslint-plugin-lore's require-spec-link rule imports the compiled
+      # @re-cinq/lore-shared at config load, so shared must be built before any
+      # eslint run (the lint matrix job builds too; format was the last eslint
+      # entrypoint that didn't).
+      - name: Build shared
+        run: npm run build -w @re-cinq/lore-shared
+
       - name: Prettier + eslint --fix
         run: npm run format
 
