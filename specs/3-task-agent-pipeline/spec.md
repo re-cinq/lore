@@ -242,6 +242,16 @@ The system MUST track task lifecycle.
 - FR-5.4: Failed tasks include failure reason and agent logs.
 - FR-5.5: Tasks can be cancelled (kills running agent if active).
 
+The end-to-end `pipeline.tasks` lifecycle holds against a live database: a new
+task defaults to `pending` status and `normal` priority (or an explicit
+`immediate`), a claim is atomic (the `status = 'pending'` guard rejects a second
+claimer), and a task walks `pending → running → completed` (recording its
+`pr_url`), fails with a captured `failure_reason`, and tracks its
+`review_iteration`. Each transition is recorded in `pipeline.task_events` for the
+audit trail. The GKE worker query applies a 30-second grace period that excludes
+just-created `normal` tasks but picks up `immediate` tasks immediately, and
+run-now bumps a pending task's priority from `normal` to `immediate`. ([validated by `pipeline.test.ts:30`](apps/lore-api/src/integration-tests/pipeline.test.ts#L30), [`pipeline.test.ts:40`](apps/lore-api/src/integration-tests/pipeline.test.ts#L40), [`pipeline.test.ts:71`](apps/lore-api/src/integration-tests/pipeline.test.ts#L71), [`pipeline.test.ts:91`](apps/lore-api/src/integration-tests/pipeline.test.ts#L91), [`pipeline.test.ts:123`](apps/lore-api/src/integration-tests/pipeline.test.ts#L123), [`pipeline.test.ts:154`](apps/lore-api/src/integration-tests/pipeline.test.ts#L154), [`pipeline.test.ts:176`](apps/lore-api/src/integration-tests/pipeline.test.ts#L176), [`pipeline.test.ts:198`](apps/lore-api/src/integration-tests/pipeline.test.ts#L198), [`pipeline.test.ts:208`](apps/lore-api/src/integration-tests/pipeline.test.ts#L208), [`pipeline.test.ts:218`](apps/lore-api/src/integration-tests/pipeline.test.ts#L218), [`pipeline.test.ts:241`](apps/lore-api/src/integration-tests/pipeline.test.ts#L241))
+
 ### FR-6: Task Configuration
 
 The system MUST support configurable agent behavior per task type.

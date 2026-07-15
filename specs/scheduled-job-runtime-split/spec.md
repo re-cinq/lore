@@ -209,7 +209,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    the DB pool, logs the job summary, and exits 0 on success / non-zero on error;
    an unknown name exits non-zero. `resolveJob` returns the dispatch handler for a known name and
    null for an unknown or empty name; `runJobByName` invokes the resolved handler and exits 0.
-   ([`job-runner.test.ts:50`](apps/floor/src/delivery/job-runner.test.ts#L50), [`job-runner.test.ts:54`](apps/floor/src/delivery/job-runner.test.ts#L54), [`job-runner.test.ts:64`](apps/floor/src/delivery/job-runner.test.ts#L64))
+   ([`job-runner.test.ts:50`](apps/floor/src/delivery/job-runner.test.ts#L50), [`job-runner.test.ts:54`](apps/floor/src/delivery/job-runner.test.ts#L54), [`job-runner.test.ts:64`](apps/floor/src/delivery/job-runner.test.ts#L64), [validated by `resolves %s to a handler function`](apps/floor/src/delivery/job-runner.test.ts#L38))
 
 1a. Each runner invocation writes a `pipeline.job_runs` row — `running` on start,
    then `completed` (with `result_summary`) or `failed` (with `error`) — so a

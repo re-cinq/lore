@@ -108,7 +108,7 @@ no-ops on a fresh DB that already built the new name from 0015. ([validated by `
 - **FR21 — Web-ui list client.** `listAgents` reads the agents envelope over the API
   with the admin token (falling back to the legacy ingest token in local dev) and
   degrades to `[]` on missing env, a non-ok response, a thrown fetch, or an envelope
-  without an agents key. ([validated by returns the agents envelope on 200](apps/web-ui/src/lib/agents-api.test.ts#L38), [validated by returns [] when env is missing](apps/web-ui/src/lib/agents-api.test.ts#L43), [validated by falls back to the legacy ingest token when no admin token is set (local dev)](apps/web-ui/src/lib/agents-api.test.ts#L48), [validated by returns [] on a non-ok response](apps/web-ui/src/lib/agents-api.test.ts#L69), [validated by returns [] when fetch throws](apps/web-ui/src/lib/agents-api.test.ts#L74), [validated by returns [] when the envelope has no agents key](apps/web-ui/src/lib/agents-api.test.ts#L81))
+  without an agents key. ([validated by `agents-api.test.ts:38`](apps/web-ui/src/lib/agents-api.test.ts#L38), [`agents-api.test.ts:43`](apps/web-ui/src/lib/agents-api.test.ts#L43), [`agents-api.test.ts:48`](apps/web-ui/src/lib/agents-api.test.ts#L48), [`agents-api.test.ts:69`](apps/web-ui/src/lib/agents-api.test.ts#L69), [`agents-api.test.ts:74`](apps/web-ui/src/lib/agents-api.test.ts#L74), [`agents-api.test.ts:81`](apps/web-ui/src/lib/agents-api.test.ts#L81))
 
 - **FR22 — Web-ui write client.** `saveAgent` POSTs a create to the collection and
   PUTs an update to the named resource carrying the approval header, and both it and

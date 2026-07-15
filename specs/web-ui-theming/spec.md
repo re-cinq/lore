@@ -33,7 +33,7 @@ replaced ([now light + dark per family](apps/web-ui/src/app/theme-tokens.test.ts
   CRT). `GohuFont` bitmap body text + `IBM Plex Mono` headings/code, sharp
   corners, soft blue-grey text (`#c0caf5`) on `#1a1b26`, blue accent
   (`#7aa2f7`), accent-glow shadows; the light scheme is Tokyo Night Day.
-  Icons: **Pixelarticons**. ([validated by `Icon.test.tsx:58`](apps/web-ui/src/components/Icon.test.tsx#L58))
+  Icons: **Pixelarticons**. ([validated by `Icon.test.tsx:58`](apps/web-ui/src/components/Icon.test.tsx#L58), [validated by `renders the pixelarticons glyph for the retro family`](apps/web-ui/src/components/Icon.test.tsx#L46))
 
 ### Architecture
 
