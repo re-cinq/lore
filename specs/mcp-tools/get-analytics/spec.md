@@ -18,7 +18,7 @@ web UI. `lore_get_analytics` returns those aggregates for one of four fixed peri
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/usage-tools.ts#L53)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/usage-tools.ts#L53)).
 
 - **name**: `lore_get_analytics`
 - **description** (verbatim):
@@ -78,14 +78,14 @@ PostgreSQL-required text, the pretty-printed JSON analytics object, or the
 ## Acceptance Criteria
 
 Usage, task, and by_type aggregates are returned as a JSON analytics object for
-the month period. ([validated by `returns usage, task, and by_type analytics as JSON for the month period`](../../../apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L114))
+the month period. ([validated by `returns usage, task, and by_type analytics as JSON for the month period`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L123))
 
-The `today` period selects the `created_at > current_date` filter. ([validated by `selects the today filter when period is today`](../../../apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L143))
+The `today` period selects the `created_at > current_date` filter. ([validated by `selects the today filter when period is today`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L164))
 
-An unset `LORE_DB_HOST` yields the PostgreSQL-required message. ([validated by `returns a PostgreSQL-required message when LORE_DB_HOST is unset`](../../../apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L161))
+An unset `LORE_DB_HOST` yields the PostgreSQL-required message. ([validated by `returns a PostgreSQL-required message when LORE_DB_HOST is unset`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L225))
 
 A thrown query error is caught and returned as an `Error fetching analytics:`
-text block. ([validated by `returns an analytics Error message when a query throws`](../../../apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L170))
+text block. ([validated by `returns an analytics Error message when a query throws`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L235))
 
 ## Out of Scope
 

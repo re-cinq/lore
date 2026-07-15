@@ -22,7 +22,7 @@ LLM consumes directly.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/context-tools.ts#L94)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/context-tools.ts#L94)).
 
 - **name**: `lore_assemble_context`
 - **description** (verbatim):
@@ -93,19 +93,19 @@ context" text, the "requires PostgreSQL or LORE_API_URL" text, or the
 ## Acceptance Criteria
 
 The engine returns empty text and an empty section list when no source returns
-rows. ([validated by `returns empty text when no sources return data`](../../../apps/mcp-server/src/features/context/context-assembly.test.ts#L61))
+rows. ([validated by `returns empty text when no sources return data`](libs/server-core/src/features/context/context-assembly.test.ts#L75))
 
 A repo source returning a `doc` chunk yields a Conventions section containing
-that chunk's content. ([validated by `assembles context from repo source`](../../../apps/mcp-server/src/features/context/context-assembly.test.ts#L71))
+that chunk's content. ([validated by `assembles context from repo source`](libs/server-core/src/features/context/context-assembly.test.ts#L91))
 
 Content exceeding the budget is truncated so the assembled text stays within the
-token budget and the section is marked truncated. ([validated by `respects token budget`](../../../apps/mcp-server/src/features/context/context-assembly.test.ts#L87))
+token budget and the section is marked truncated. ([validated by `respects token budget`](libs/server-core/src/features/context/context-assembly.test.ts#L125))
 
 Retrieved documents are emitted as XML tags carrying source/type/relevance
-provenance with the chunk markdown contained inside the tag. ([validated by `emits XML-tagged documents carrying provenance, with markdown contained`](../../../apps/mcp-server/src/features/context/context-assembly.test.ts#L107))
+provenance with the chunk markdown contained inside the tag. ([validated by `emits XML-tagged documents carrying provenance, with markdown contained`](libs/server-core/src/features/context/context-assembly.test.ts#L153))
 
 The debug trace reports per-section inclusion status and an omit reason for empty
-sources. ([validated by `debug trace reports per-section status and omit reason for empty sources`](../../../apps/mcp-server/src/features/context/context-assembly.test.ts#L149))
+sources. ([validated by `debug trace reports per-section status and omit reason for empty sources`](libs/server-core/src/features/context/context-assembly.test.ts#L278))
 
 The handler's GKE-proxy fallback and the success/empty/error envelope framing are
 exercised only against live Postgres or `LORE_API_URL`. *(untested: the handler

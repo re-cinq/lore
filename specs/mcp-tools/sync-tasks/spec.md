@@ -22,7 +22,7 @@ updates in place instead of duplicating.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L231)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L231)).
 
 - **name**: `lore_sync_tasks`
 - **description** (verbatim):
@@ -71,17 +71,17 @@ guard messages, or the error message. Never throws.
 
 ## Acceptance Criteria
 
-A task with no matching existing row is inserted and counted as created. ([validated by `inserts a new task and counts it as created`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L25))
+A task with no matching existing row is inserted and counted as created. ([validated by `inserts a new task and counts it as created`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L25))
 
-A task that already exists is updated in place and not counted as created. ([validated by `updates an existing task without counting it as created`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L41))
+A task that already exists is updated in place and not counted as created. ([validated by `tasks-db.test.ts:43`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L43))
 
-A ticked checkbox is persisted with status `completed`. ([validated by `persists completed tasks with status completed`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L56))
+A ticked checkbox is persisted with status `completed`. ([validated by `tasks-db.test.ts:59`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L59))
 
-A supplied task-group id is threaded into the grouped insert statement. ([validated by `threads task_group_id into the grouped insert`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L70))
+A supplied task-group id is threaded into the grouped insert statement. ([validated by `tasks-db.test.ts:74`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L74))
 
-Across a mixed batch only the previously-unseen tasks count toward `created`. ([validated by `counts only new tasks as created across a mixed batch`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L89))
+Across a mixed batch only the previously-unseen tasks count toward `created`. ([validated by `tasks-db.test.ts:95`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L95))
 
-The markdown is parsed into structured tasks with id, description, completion, parallel and dependency markers. ([validated by `parses basic tasks`](../../../apps/mcp-server/src/features/pipeline/tasks.test.ts#L5))
+The markdown is parsed into structured tasks with id, description, completion, parallel and dependency markers. ([validated by `tasks.test.ts:5`](libs/server-core/src/features/pipeline/tasks.test.ts#L5))
 
 The repo-detection, empty-parse, and no-pool guard branches plus the summary
 framing run only inside the tool handler. *(untested: the handler wraps

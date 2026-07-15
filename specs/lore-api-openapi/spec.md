@@ -71,9 +71,9 @@ Four routes validate via **domain validators**, not `options.validate`, and stay
 that way (ADR-034 §5 kept transforming validators in their handlers):
 
 - **agents** (`agents.ts`) — the domain validator IS an exported zod schema
-  ([`AgentInputSchema`](../../apps/lore-api/src/features/agents/agents-schema.ts)).
+  ([`AgentInputSchema`](apps/lore-api/src/features/agents/agents-schema.ts)).
 - **dark-factory** (`dark-factory.ts`) — likewise
-  ([`DarkFactorySettingsSchema`](../../apps/lore-api/src/features/dark-factory/dark-factory-settings.ts)).
+  ([`DarkFactorySettingsSchema`](apps/lore-api/src/features/dark-factory/dark-factory-settings.ts)).
 - **features** (`features.ts`) — hand-rolled (`enforceFeatureInput`,
   `parseSectionAnswers`, `parseGapResult`); no single zod schema.
 - **tokens** (`tokens.ts`) — a plain TS interface + residual `if` checks.

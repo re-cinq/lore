@@ -19,7 +19,7 @@ that full log by `(job_name, run_id)` without cluster access.
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L392)).
+Registered via `server.tool` ([registration + handler](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L392)).
 
 - **name**: `lore_get_job_logs`
 - **description** (verbatim):

@@ -20,7 +20,7 @@ search while keeping its history intact.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L112)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/memory-tools.ts#L112)).
 
 - **name**: `lore_delete_memory`
 - **description** (verbatim):
@@ -74,8 +74,8 @@ path), the proxied body, the `unreachableError` message, or
 ## Acceptance Criteria
 
 1. Deleting a key sets `is_deleted = TRUE` scoped to the agent and key and
-   returns `{ key, deleted: true }`. ([validated by `soft-deletes by agent and key, returns deleted true`](../../../apps/mcp-server/src/features/memory/memory.test.ts#L139))
-2. A delete writes a `delete` audit-log entry naming the deleted key. ([validated by `writes a delete audit-log entry for the key`](../../../apps/mcp-server/src/features/memory/memory.test.ts#L152))
+   returns `{ key, deleted: true }`. ([validated by `soft-deletes by agent and key, returns deleted true`](libs/server-core/src/features/memory/memory.test.ts#L170))
+2. A delete writes a `delete` audit-log entry naming the deleted key. ([validated by `writes a delete audit-log entry for the key`](libs/server-core/src/features/memory/memory.test.ts#L186))
 3. The proxy / file-fallback framing has no unit seam. *(untested: the
    proxy/file branches need `LORE_API_URL` or offline mode; the soft-delete core
    is covered above.)*

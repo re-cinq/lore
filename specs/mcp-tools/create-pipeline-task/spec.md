@@ -24,7 +24,7 @@ the task will be picked up.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L25)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L25)).
 
 - **name**: `lore_create_pipeline_task`
 - **description** (verbatim):
@@ -96,7 +96,7 @@ message, or the `"Error creating pipeline task: …"` message. **Never throws.**
 A valid create inserts a `pipeline.tasks` row, records the `pending` transition
 event, and returns the new id with `pending` status — exercised end-to-end via the
 retry path, which calls the same shared `createTask`.
-([validated by `creates a linked task when the original is failed`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L95))
+([validated by `creates a linked task when the original is failed`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L113))
 
 An empty or whitespace-only description is rejected before any insert.
 *(untested: the guard is inline in the handler closure and not separately exported.)*

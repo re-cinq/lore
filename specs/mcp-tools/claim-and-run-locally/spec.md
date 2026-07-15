@@ -21,7 +21,7 @@ and removes it from the local pending list either way.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts#L115)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts#L115)).
 
 - **name**: `lore_claim_and_run_locally`
 - **description** (verbatim):
@@ -80,13 +80,13 @@ the ingest result, the "Claimed and running locally" report, or `"Error: …"`.
 ## Acceptance Criteria
 
 `skipTask` removes a task from the pending list by id, leaving the rest.
-([validated by `skipTask filters a task by id from the pending file`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L165))
+([validated by `skipTask filters a task by id from the pending file`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L169))
 
 `listPendingTasks` returns an array (empty when the backing file is absent).
-([validated by `listPendingTasks returns empty array when file is missing`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L158))
+([validated by `listPendingTasks returns empty array when file is missing`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L161))
 
 `validateRepoMatch` (invoked inside `spawnLocalTask`) throws on a cwd/target-repo
-mismatch. ([validated by `throws when cwd repo differs from task repo`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L227))
+mismatch. ([validated by `throws when cwd repo differs from task repo`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L227))
 
 The full claim flow (API fetch, claim POST, ingest dispatch, worktree spawn) is
 exercised only end-to-end. *(untested: the orchestration depends on network

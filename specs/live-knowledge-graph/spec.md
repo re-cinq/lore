@@ -119,17 +119,17 @@ accumulation period required.
   same text using the same LLM call (extend the extraction prompt
   to also return entities and relationships).
 - FR-2.2: Output format: list of `{name, type}` entities and
-  `{source, target, relation}` edges. ([validated by `graph.test.ts:42`](apps/mcp-server/src/graph.test.ts#L42))
+  `{source, target, relation}` edges. ([validated by `graph.test.ts:49`](libs/server-core/src/features/memory/graph.test.ts#L49))
 - FR-2.3: Entity names are normalized (lowercase, trimmed) for
-  deduplication. ([validated by `graph.test.ts:63`](apps/mcp-server/src/graph.test.ts#L63))
+  deduplication. ([validated by `graph.test.ts:71`](libs/server-core/src/features/memory/graph.test.ts#L71))
 - FR-2.4: If entity extraction fails, facts are still stored.
-  Graph update is best-effort. ([validated by `graph.test.ts:80`](apps/mcp-server/src/graph.test.ts#L80))
+  Graph update is best-effort. ([validated by `graph.test.ts:91`](libs/server-core/src/features/memory/graph.test.ts#L91))
 
 ### FR-3: Temporal Edge Invalidation
 
 - FR-3.1: When a new edge contradicts an existing one (same
   source + relation type but different target), the old edge
-  gets `valid_to = now()`. ([validated by `graph.test.ts:118`](apps/mcp-server/src/graph.test.ts#L118))
+  gets `valid_to = now()`. ([validated by `graph.test.ts:137`](libs/server-core/src/features/memory/graph.test.ts#L137))
 - FR-3.2: Example: `auth-service --uses--> Express` is
   invalidated when `auth-service --uses--> Hono` is added.
 - FR-3.3: Non-contradictory edges (different relation types, or

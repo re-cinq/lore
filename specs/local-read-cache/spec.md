@@ -60,22 +60,22 @@ The proxy classifies a non-2xx backend response into one of:
 1. **AC1** The cache is active only in local stdio mode (memory DB
    unavailable); the GKE server read path never caches. ([implemented by `isMemoryDbAvailable`](apps/mcp-server/src/mcp/tools/context-tools.ts#L109), [`withReadCache`](apps/mcp-server/src/mcp/tools/deps.ts#L131))
 2. **AC2** `LORE_CACHE_ENABLED=false` disables all cache reads and writes;
-   `=true` and `config.json`'s `enabled` are respected otherwise. ([validated by `is a no-op when LORE_CACHE_ENABLED=false`](apps/mcp-server/src/platform/proxy-cache.test.ts#L117), [`isCacheEnabled`](apps/mcp-server/src/platform/proxy-cache.ts#L92))
+   `=true` and `config.json`'s `enabled` are respected otherwise. ([validated by `is a no-op when LORE_CACHE_ENABLED=false`](libs/server-core/src/platform/proxy-cache.test.ts#L117), [`isCacheEnabled`](apps/mcp-server/src/platform/proxy-cache.ts#L92))
 3. **AC3** A fresh entry (`age < ttl`) is returned without a network call,
-   prefixed with a `lore-cache: HIT` marker (for labeled callers). ([validated by `returns a fresh hit within ttl`](apps/mcp-server/src/platform/proxy-cache.test.ts#L59), [`labels fresh and stale bodies distinctly`](apps/mcp-server/src/platform/proxy-cache.test.ts#L127))
+   prefixed with a `lore-cache: HIT` marker (for labeled callers). ([validated by `returns a fresh hit within ttl`](libs/server-core/src/platform/proxy-cache.test.ts#L59), [`proxy-cache.test.ts:147`](libs/server-core/src/platform/proxy-cache.test.ts#L147))
 4. **AC4** A successful proxied read is stored under
    `sha256(tool + \x00 + canonical(args) + \x00 + repo)`; argument ordering
-   does not change the key. ([validated by `is delimiter-pinned to a stable golden hash`](apps/mcp-server/src/platform/proxy-cache.test.ts#L44), [`is stable across argument ordering`](apps/mcp-server/src/platform/proxy-cache.test.ts#L36))
+   does not change the key. ([validated by `proxy-cache.test.ts:59`](libs/server-core/src/platform/proxy-cache.test.ts#L59), [`proxy-cache.test.ts:49`](libs/server-core/src/platform/proxy-cache.test.ts#L49))
 5. **AC5** Entries are repo-isolated: a read scoped to repo A is never served
-   for repo B. ([validated by `isolates entries by repo`](apps/mcp-server/src/platform/proxy-cache.test.ts#L74), [`differs by repo`](apps/mcp-server/src/platform/proxy-cache.test.ts#L40))
+   for repo B. ([validated by `isolates entries by repo`](libs/server-core/src/platform/proxy-cache.test.ts#L74), [`proxy-cache.test.ts:53`](libs/server-core/src/platform/proxy-cache.test.ts#L53))
 6. **AC6** When the backend is unreachable (network/timeout/5xx), an expired
-   entry is served with a `lore-cache: STALE` marker rather than erroring. ([validated by `does not return an expired entry as fresh but readAny still serves it`](apps/mcp-server/src/platform/proxy-cache.test.ts#L68), [`labels fresh and stale bodies distinctly`](apps/mcp-server/src/platform/proxy-cache.test.ts#L127))
+   entry is served with a `lore-cache: STALE` marker rather than erroring. ([validated by `does not return an expired entry as fresh but readAny still serves it`](libs/server-core/src/platform/proxy-cache.test.ts#L68), [`proxy-cache.test.ts:147`](libs/server-core/src/platform/proxy-cache.test.ts#L147))
 7. **AC7** On an authoritative access denial (HTTP 401/403), no cached copy
-   is served — fresh or stale — and the denial is surfaced to the caller. ([validated by `does not serve a stale cached copy when the backend denies access (403)`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L135))
+   is served — fresh or stale — and the denial is surfaced to the caller. ([validated by `context-tools.test.ts:171`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L171))
 8. **AC8** Per-tool TTLs apply; `ttl_overrides[tool]` in `config.json`
    overrides the policy TTL, including an override of `0`. ([implemented by `effectiveTtl`](apps/mcp-server/src/platform/proxy-cache.ts#L119))
 9. **AC9** When entry count exceeds `max_entries` (default 2000), the oldest
-   entries are evicted. ([validated by `evicts the oldest entries past max_entries`](apps/mcp-server/src/platform/proxy-cache.test.ts#L99), [`evictIfNeeded`](apps/mcp-server/src/platform/proxy-cache.ts#L171))
+   entries are evicted. ([validated by `evicts the oldest entries past max_entries`](libs/server-core/src/platform/proxy-cache.test.ts#L99), [`evictIfNeeded`](apps/mcp-server/src/platform/proxy-cache.ts#L171))
 10. **AC10** Mutations are never cached and invalidate the reads they affect:
     memory write/delete → memory reads + `assemble_context`; episode write →
     `search_memory` + `query_graph` + `assemble_context`; create task → task
@@ -84,4 +84,4 @@ The proxy classifies a non-2xx backend response into one of:
     are cached only when the response reports `complete: true`, with a 24h TTL. ([implemented by `completeOnly`](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L22), [`ttlSeconds: 86400`](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L377), [`ttlSeconds: 86400`](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L431))
 12. **AC12** The cache is derived, never authority: a missing or corrupt entry
     degrades to a network re-fetch (never an error or wrong answer), and cache
-    files are owner-only (`0600`) under an owner-only (`0700`) directory. ([validated by `returns null on a miss`](apps/mcp-server/src/platform/proxy-cache.test.ts#L64), [`writeJson`](apps/mcp-server/src/platform/proxy-cache.ts#L75))
+    files are owner-only (`0600`) under an owner-only (`0700`) directory. ([validated by `proxy-cache.test.ts:82`](libs/server-core/src/platform/proxy-cache.test.ts#L82), [`writeJson`](apps/mcp-server/src/platform/proxy-cache.ts#L75))

@@ -21,7 +21,7 @@ any ingest has run.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/context-tools.ts#L23)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/context-tools.ts#L23)).
 
 - **name**: `lore_search_context`
 - **description** (verbatim):
@@ -79,19 +79,19 @@ strings, or the path-not-found error. Never throws.
 
 ## Acceptance Criteria
 
-A matching paragraph is returned with its source path. ([validated by `returns the matching paragraph with its source path`](../../../apps/mcp-server/src/mcp/tools/context-tools.test.ts#L49))
+A matching paragraph is returned with its source path. ([validated by `returns the matching paragraph with its source path`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L62))
 
-Matching is case-insensitive. ([validated by `matches case-insensitively`](../../../apps/mcp-server/src/mcp/tools/context-tools.test.ts#L56))
+Matching is case-insensitive. ([validated by `matches case-insensitively`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L73))
 
-Paragraphs that do not contain the query are excluded. ([validated by `excludes paragraphs that do not contain the query`](../../../apps/mcp-server/src/mcp/tools/context-tools.test.ts#L61))
+Paragraphs that do not contain the query are excluded. ([validated by `excludes paragraphs that do not contain the query`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L61))
 
-When nothing matches, a no-results message is returned. ([validated by `returns a no-results message when nothing matches`](../../../apps/mcp-server/src/mcp/tools/context-tools.test.ts#L66))
+When nothing matches, a no-results message is returned. ([validated by `returns a no-results message when nothing matches`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L90))
 
-The number of returned paragraphs is capped at `limit`. ([validated by `caps the number of returned paragraphs at the limit`](../../../apps/mcp-server/src/mcp/tools/context-tools.test.ts#L73))
+The number of returned paragraphs is capped at `limit`. ([validated by `caps the number of returned paragraphs at the limit`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L73))
 
-A `team` scopes the search to that team subtree. ([validated by `scopes the search to a team subtree when team is given`](../../../apps/mcp-server/src/mcp/tools/context-tools.test.ts#L79))
+A `team` scopes the search to that team subtree. ([validated by `scopes the search to a team subtree when team is given`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L108))
 
-An unknown team yields a path-not-found error. ([validated by `returns a path-not-found error for an unknown team`](../../../apps/mcp-server/src/mcp/tools/context-tools.test.ts#L88))
+An unknown team yields a path-not-found error. ([validated by `returns a path-not-found error for an unknown team`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L118))
 
 The DB (hybrid-search) branch is exercised only against live Postgres + Vertex
 embeddings. *(untested: `hybridSearch` requires a live pgvector store and the

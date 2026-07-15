@@ -11,7 +11,7 @@
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../apps/mcp-server/src/mcp/tools/spec-trace-tools.ts#L40)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/spec-trace-tools.ts#L40)).
 
 - **name**: `lore-query-trace`
 - **description** (verbatim):
@@ -54,38 +54,38 @@ the projection itself is a pure function
 the GET proxy reuses the shared retry/config machinery
 ([`proxyGetApi`](../../apps/mcp-server/src/mcp/tools/deps.ts#L104)); the tool is
 registered read-only on the shared surface
-([`lore-query-trace` registration](../../apps/mcp-server/src/mcp/tools/spec-trace-tools.ts#L40)).
+([`lore-query-trace` registration](apps/mcp-server/src/mcp/tools/spec-trace-tools.ts#L40)).
 
 ## Acceptance Criteria
 
 With no `statement` selector, the result lists the document coverage and then
 only the `violated`, `drifted`, and `untested` statements, in that order.
-([validated by `with no selector, lists coverage then violated, drifted, untested statements in that order`](../../apps/mcp-server/src/features/spec-trace/query-trace.test.ts#L19))
+([validated by `with no selector, lists coverage then violated, drifted, untested statements in that order`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L19))
 
 An ordinal selector returns that statement in full with its test, code, and ADR
 links grouped, and flags it when violated.
-([validated by `with an ordinal selector, returns that statement with its test, code, and adr links grouped`](../../apps/mcp-server/src/features/spec-trace/query-trace.test.ts#L41))
+([validated by `with an ordinal selector, returns that statement with its test, code, and adr links grouped`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L70))
 
 A case-insensitive text-substring selector returns every matching statement.
-([validated by `with a case-insensitive substring selector, returns every matching statement`](../../apps/mcp-server/src/features/spec-trace/query-trace.test.ts#L71))
+([validated by `with a case-insensitive substring selector, returns every matching statement`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L106))
 
 An empty `TraceDocument` yields a no-graph-data message rather than an error.
-([validated by `with an empty document, returns a no-graph-data message rather than throwing`](../../apps/mcp-server/src/features/spec-trace/query-trace.test.ts#L88))
+([validated by `with an empty document, returns a no-graph-data message rather than throwing`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L141))
 
 The tool proxies a GET to the repo's `trace/document` route and formats the
 returned document.
-([validated by `proxies a GET to the repo's trace/document route and formats the result`](../../apps/mcp-server/src/features/spec-trace/query-trace.test.ts#L100))
+([validated by `proxies a GET to the repo's trace/document route and formats the result`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L169))
 
 The tool resolves the repo from `detectCurrentRepo` when `repo` is omitted, and
 reports clearly when none can be detected.
-([validated by `resolves the repo from detectRepo when repo is omitted, and reports when none is found`](../../apps/mcp-server/src/features/spec-trace/query-trace.test.ts#L111))
+([validated by `resolves the repo from detectRepo when repo is omitted, and reports when none is found`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L189))
 
 With `LORE_API_URL` or the token unset, the tool returns a not-configured text
 response rather than throwing.
-([validated by `returns a not-configured message when no proxy is configured`](../../apps/mcp-server/src/features/spec-trace/query-trace.test.ts#L119))
+([validated by `returns a not-configured message when no proxy is configured`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L198))
 
 A `403 insufficient scope` from the remote surfaces a read-scope hint.
-([validated by `surfaces a read-scope hint when the remote returns 403 insufficient scope`](../../apps/mcp-server/src/features/spec-trace/query-trace.test.ts#L127))
+([validated by `surfaces a read-scope hint when the remote returns 403 insufficient scope`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L210))
 
 ## Out of Scope
 

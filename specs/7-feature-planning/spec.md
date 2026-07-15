@@ -119,10 +119,10 @@ and owns the trust level that gates who may run planning in a repo.
    per-section follow-up questions, and a free-form prompt).
 
 **Acceptance Criteria:**
-- The planning round produces a `GapResult` (an adaptive `sections[]` list) that validates against the shared schema. ([validated by parseGapResult valid sections payload](../../libs/shared/src/feature-planning/gap-result.test.ts#L37))
+- The planning round produces a `GapResult` (an adaptive `sections[]` list) that validates against the shared schema. ([validated by parseGapResult valid sections payload](libs/shared/src/feature-planning/gap-result.test.ts#L64))
 - Planning makes no commits and opens no PR (the result is persisted, not committed).
-- The planning round runs only after the whole-feature-timeline + project context is assembled and hydrated ahead of the agent call. ([validated by composePlanningPrompt renders the prior timeline](../../libs/shared/src/feature-planning/planning-prompt.test.ts#L31))
-- Generated mockups are sanitized so no embedded script, event handler, foreignObject, or external reference can execute when rendered. ([validated by sanitizeSvg strips script](../../libs/shared/src/feature-planning/gap-result.test.ts#L139))
+- The planning round runs only after the whole-feature-timeline + project context is assembled and hydrated ahead of the agent call. ([validated by composePlanningPrompt renders the prior timeline](libs/shared/src/feature-planning/planning-prompt.test.ts#L34))
+- Generated mockups are sanitized so no embedded script, event handler, foreignObject, or external reference can execute when rendered. ([validated by sanitizeSvg strips script](libs/shared/src/feature-planning/gap-result.test.ts#L217))
 
 ### Scenario 2: Iterative refinement with per-section direction
 
@@ -137,9 +137,9 @@ and owns the trust level that gates who may run planning in a repo.
 
 **Acceptance Criteria:**
 - Each gap section exposes its own comment and direction control.
-- Per-section feedback, question answers, and free-form input persist as the round's `user_answers` and round-trip through storage. ([validated by appendIteration round-trips user_answers](../../libs/shared/src/project/features/features-pg.test.ts#L57))
-- A refinement round's context includes the full prior feature timeline (each prior section's content plus the author's per-section comments and answers). ([validated by composePlanningPrompt renders prior sections + comments](../../libs/shared/src/feature-planning/planning-prompt.test.ts#L31))
-- The feature status reflects whether the round needs author input or is ready to finalize. ([validated by decideFeatureStatus awaiting-input vs spec-ready](../../libs/shared/src/feature-planning/gap-result.test.ts#L172))
+- Per-section feedback, question answers, and free-form input persist as the round's `user_answers` and round-trip through storage. ([validated by appendIteration round-trips user_answers](libs/shared/src/project/features/features-pg.test.ts#L68))
+- A refinement round's context includes the full prior feature timeline (each prior section's content plus the author's per-section comments and answers). ([validated by composePlanningPrompt renders prior sections + comments](libs/shared/src/feature-planning/planning-prompt.test.ts#L34))
+- The feature status reflects whether the round needs author input or is ready to finalize. ([validated by decideFeatureStatus awaiting-input vs spec-ready](libs/shared/src/feature-planning/gap-result.test.ts#L275))
 
 ### Scenario 3: Finalize → spec PR (+ conditional user-story Issue)
 
@@ -152,9 +152,9 @@ and owns the trust level that gates who may run planning in a repo.
 4. The page shows the PR link and live PR status.
 
 **Acceptance Criteria:**
-- Finalize is allowed only from a settled planning state (`spec-ready`/`awaiting-input`) and runs as a Station that opens a PR on a branch, never committing to `main`. ([validated by handleFeaturesRoute refuses finalize unless settled](../../apps/mcp-server/src/api/routes/features.test.ts#L91))
+- Finalize is allowed only from a settled planning state (`spec-ready`/`awaiting-input`) and runs as a Station that opens a PR on a branch, never committing to `main`. ([validated by handleFeaturesRoute refuses finalize unless settled](apps/lore-api/src/api/routes/features/features.test.ts#L116))
 - A user-story Issue is created if and only if the repo's `create_issue` policy calls for it.
-- The feature transitions to `pr-open` and stores the PR (and Issue) references. ([validated by handleFeaturesRoute kicks finalize from spec-ready](../../apps/mcp-server/src/api/routes/features.test.ts#L100))
+- The feature transitions to `pr-open` and stores the PR (and Issue) references. ([validated by handleFeaturesRoute kicks finalize from spec-ready](apps/lore-api/src/api/routes/features/features.test.ts#L133))
 - The committed `specs/<slug>/spec.md` contains the feature overview and the macro decisions made during planning.
 
 ### Scenario 4: Split an oversized feature
@@ -168,8 +168,8 @@ and owns the trust level that gates who may run planning in a repo.
 
 **Acceptance Criteria:**
 - A split suggestion renders proposed sub-features the author can act on individually.
-- Creating a child draft inserts a feature row linked to its parent and does not navigate away from the page. ([validated by createSplitChild links parent](../../libs/shared/src/project/features/features-pg.test.ts#L137))
-- The child draft is immediately plannable from its proposed scope. ([validated by handleFeaturesRoute creates a split child from the suggestion](../../apps/mcp-server/src/api/routes/features.test.ts#L119))
+- Creating a child draft inserts a feature row linked to its parent and does not navigate away from the page. ([validated by createSplitChild links parent](libs/shared/src/project/features/features-pg.test.ts#L188))
+- The child draft is immediately plannable from its proposed scope. ([validated by handleFeaturesRoute creates a split child from the suggestion](apps/lore-api/src/api/routes/features/features.test.ts#L174))
 
 ### Scenario 5: Features tab + graph integration
 
@@ -181,9 +181,9 @@ and owns the trust level that gates who may run planning in a repo.
 3. On the **Graph** tab, the persistent Feature node represents the feature, colored by status.
 
 **Acceptance Criteria:**
-- The Features list shows drafts and shipped features with a lifecycle status badge. ([validated by statusBadge maps status](../../apps/web-ui/src/app/repos/[owner]/[repo]/features/feature-status.test.ts#L5))
-- When a persistent feature exists, the Graph tab uses it in place of the computed folder node, joined by feature path. ([validated by mergePersistentFeatures enriches by path](../../libs/shared/src/spec-trace/__tests__/merge-persistent-features.test.ts#L16))
-- A draft feature with no spec yet appears as an injected node so it is visible before any spec exists. ([validated by mergePersistentFeatures injects draft](../../libs/shared/src/spec-trace/__tests__/merge-persistent-features.test.ts#L28))
+- The Features list shows drafts and shipped features with a lifecycle status badge. ([validated by statusBadge maps status](apps/web-ui/src/app/repos/[owner]/[repo]/features/feature-status.test.ts#L9))
+- When a persistent feature exists, the Graph tab uses it in place of the computed folder node, joined by feature path. ([validated by mergePersistentFeatures enriches by path](libs/shared/src/spec-trace/merge-persistent-features.test.ts#L23))
+- A draft feature with no spec yet appears as an injected node so it is visible before any spec exists. ([validated by mergePersistentFeatures injects draft](libs/shared/src/spec-trace/merge-persistent-features.test.ts#L41))
 - A persistent Feature node is rendered with a color derived from its lifecycle status.
 
 ## Functional Requirements
@@ -201,19 +201,19 @@ The system MUST surface features as a first-class browsable entity per repo.
 
 The system MUST analyze a feature prompt in the context of the whole project.
 
-- FR-2.1: **+ Feature** opens a page where the author submits a free-text prompt; submit creates a draft feature row and kicks a `feature-planning` task. ([validated by handleFeaturesRoute creates a draft and kicks round 1](../../apps/mcp-server/src/api/routes/features.test.ts#L72))
+- FR-2.1: **+ Feature** opens a page where the author submits a free-text prompt; submit creates a draft feature row and kicks a `feature-planning` task. ([validated by handleFeaturesRoute creates a draft and kicks round 1](apps/lore-api/src/api/routes/features/features.test.ts#L87))
 - FR-2.2: A planning round is a single LLM→JSON call with no repo mutation, so `feature-planning` runs **in-process** in the worker (ADR-027) rather than in a Job pod; `feature-finalize` — which writes files and pushes a branch — runs as a Station. Neither path depends on dark-factory enablement.
-- FR-2.3: The planning round receives the feature id and iteration; the hydrated context includes the full feature timeline (prior rounds' results + per-section answers) ahead of the assembled project context. ([validated by composePlanningPrompt renders the prior timeline](../../libs/shared/src/feature-planning/planning-prompt.test.ts#L31))
-- FR-2.4: The planning prompt and model resolve from the `feature-planning` agent definition — an editable org default, overridable per project — rather than a hardcoded constant. ([validated by agent-defs serves PLANNING_INSTRUCTIONS for feature-planning](../../libs/shared/src/project/agents/agent-defs-yaml.test.ts#L80))
-- FR-2.5: The planning round bills org credentials (`ANTHROPIC_API_KEY`) by default; a developer's local Claude subscription is used only with explicit opt-in (`LORE_STATION_ALLOW_PERSONAL_AUTH`), never silently. ([validated by credentials resolve to api-key when not opted in even with local creds present](../../apps/floor/src/adapters/local-station-credentials.test.ts#L17))
+- FR-2.3: The planning round receives the feature id and iteration; the hydrated context includes the full feature timeline (prior rounds' results + per-section answers) ahead of the assembled project context. ([validated by composePlanningPrompt renders the prior timeline](libs/shared/src/feature-planning/planning-prompt.test.ts#L34))
+- FR-2.4: The planning prompt and model resolve from the `feature-planning` agent definition — an editable org default, overridable per project — rather than a hardcoded constant. ([validated by agent-defs serves PLANNING_INSTRUCTIONS for feature-planning](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L83))
+- FR-2.5: The planning round bills org credentials (`ANTHROPIC_API_KEY`) by default; a developer's local Claude subscription is used only with explicit opt-in (`LORE_STATION_ALLOW_PERSONAL_AUTH`), never silently.
 
 ### FR-3: Gap-Closing Result
 
 The planning agent MUST return a structured, schema-validated gap analysis.
 
-- FR-3.1: The `GapResult` contract is an ordered, **adaptive `sections[]`** list — the agent names the sections the feature needs (Overview first, then e.g. data model / API / migration / integration / edge cases), each carrying optional prose `content`, self-contained SVG `mockups`, and per-section follow-up `questions` — plus an optional split suggestion and the accumulated draft spec markdown. ([validated by parseGapResult valid sections payload](../../libs/shared/src/feature-planning/gap-result.test.ts#L37))
+- FR-3.1: The `GapResult` contract is an ordered, **adaptive `sections[]`** list — the agent names the sections the feature needs (Overview first, then e.g. data model / API / migration / integration / edge cases), each carrying optional prose `content`, self-contained SVG `mockups`, and per-section follow-up `questions` — plus an optional split suggestion and the accumulated draft spec markdown. ([validated by parseGapResult valid sections payload](libs/shared/src/feature-planning/gap-result.test.ts#L64))
 - FR-3.2: The result is validated against the shared schema; an invalid result marks the iteration failed.
-- FR-3.3: Mockup markup is sanitized (no script, event handlers, foreignObject, or external references) before persistence and again client-side via DOMPurify when rendered inline (no iframe). ([validated by sanitizeSvg strips script/handlers/foreignObject](../../libs/shared/src/feature-planning/gap-result.test.ts#L139))
+- FR-3.3: Mockup markup is sanitized (no script, event handlers, foreignObject, or external references) before persistence and again client-side via DOMPurify when rendered inline (no iframe). ([validated by sanitizeGapResult sanitizes mockup markup across every section](libs/shared/src/feature-planning/gap-result.test.ts#L251))
 - FR-3.4: The UI renderer is presence-driven (renders whatever fields a section carries) and resilient to missing or unknown sections. ([validated by sectionsOf returns [] for null/unrecognized input](../../libs/shared/src/feature-planning/gap-result.test.ts#L132))
 
 ### FR-4: Per-Section Feedback & Iteration
@@ -222,15 +222,15 @@ The system MUST let the author steer each section and refine across rounds.
 
 - FR-4.1: Each gap section exposes a comment field and a direction control (keep / refine / redirect).
 - FR-4.2: Follow-up questions are answerable inline; a free-form input captures anything else.
-- FR-4.3: **Refine again** spawns a new immediate `feature-planning` task carrying the per-section feedback; the UI polls the round and renders the new result. ([validated by feature-api refine posts user_answers to the iterations path](../../apps/web-ui/src/lib/feature-api.test.ts#L51))
-- FR-4.4: Iteration rounds are stored one row per round, keyed by `(feature_id, iteration)`, each linked to the planning task that produced it. ([validated by appendIteration inserts a running row at the minted iteration](../../libs/shared/src/project/features/features-pg.test.ts#L57))
-- FR-4.5: A new planning round is rejected while one is already in flight for the same feature (a stale page or double-click must not spawn a second round). ([validated by handleFeaturesRoute rejects a concurrent planning round with 409](../../apps/mcp-server/src/api/routes/features.test.ts#L152))
+- FR-4.3: **Refine again** spawns a new immediate `feature-planning` task carrying the per-section feedback; the UI polls the round and renders the new result. ([validated by feature-api refine posts user_answers to the iterations path](apps/web-ui/src/lib/feature-api.test.ts#L79))
+- FR-4.4: Iteration rounds are stored one row per round, keyed by `(feature_id, iteration)`, each linked to the planning task that produced it. ([validated by appendIteration inserts a running row at the minted iteration](libs/shared/src/project/features/features-pg.test.ts#L68))
+- FR-4.5: A new planning round is rejected while one is already in flight for the same feature (a stale page or double-click must not spawn a second round). ([validated by handleFeaturesRoute rejects a concurrent planning round with 409](apps/lore-api/src/api/routes/features/features.test.ts#L238))
 
 ### FR-5: Finalize Output
 
 The system MUST produce a reviewable spec artifact, never a direct main commit.
 
-- FR-5.1: Finalize runs a Station that writes `specs/<slug>/spec.md` from the draft, commits to a branch, and pushes. ([validated by handleFeaturesRoute kicks finalize from a spec-ready feature](../../apps/mcp-server/src/api/routes/features.test.ts#L100))
+- FR-5.1: Finalize runs a Station that writes `specs/<slug>/spec.md` from the draft, commits to a branch, and pushes. ([validated by handleFeaturesRoute kicks finalize from a spec-ready feature](apps/lore-api/src/api/routes/features/features.test.ts#L133))
 - FR-5.2: The watcher opens the spec PR with the standard `Lore-Task` footer trailer.
 - FR-5.3: A user-story Issue is created when, and only when, the repo's dark-factory `create_issue` policy resolves to create (reusing the existing decision helper).
 - FR-5.4: The feature transitions to `pr-open` and records the PR number/URL, Issue number/URL, and `spec_path`.
@@ -240,23 +240,23 @@ The system MUST produce a reviewable spec artifact, never a direct main commit.
 The system MUST support decomposing an oversized feature in place.
 
 - FR-6.1: When the agent returns a split suggestion, the UI renders the proposed sub-features.
-- FR-6.2: Creating a child draft inserts a feature row with `parent_feature_id` set and seeds its prompt from the proposed scope, without navigating away. ([validated by createSplitChild inserts a child with parent_feature_id](../../libs/shared/src/project/features/features-pg.test.ts#L137))
+- FR-6.2: Creating a child draft inserts a feature row with `parent_feature_id` set and seeds its prompt from the proposed scope, without navigating away. ([validated by createSplitChild inserts a child with parent_feature_id](libs/shared/src/project/features/features-pg.test.ts#L188))
 
 ### FR-7: Persistence & Project Port
 
 The system MUST persist feature lifecycle through the Project facade.
 
-- FR-7.1: Feature lifecycle and draft state live in `lore.features` and `lore.feature_iterations` (the `lore` schema, owned by the migration runner). ([validated by PgFeatures.create inserts into lore.features](../../libs/shared/src/project/features/features-pg.test.ts#L19))
-- FR-7.2: Access is a `features` port on the Project facade (`project.features`): create, get, list, append iteration, set iteration result, transition status, create split child. ([validated by the Features facade stamps the bound repo on every call](../../libs/shared/src/project/features/features.test.ts#L32))
-- FR-7.3: The web UI reads features directly (read-only) and routes lifecycle/task-spawning writes through the mcp-server API. ([validated by feature-api create posts to /features](../../apps/web-ui/src/lib/feature-api.test.ts#L42))
+- FR-7.1: Feature lifecycle and draft state live in `lore.features` and `lore.feature_iterations` (the `lore` schema, owned by the migration runner). ([validated by PgFeatures.create inserts into lore.features](libs/shared/src/project/features/features-pg.test.ts#L27))
+- FR-7.2: Access is a `features` port on the Project facade (`project.features`): create, get, list, append iteration, set iteration result, transition status, create split child. ([validated by the Features facade stamps the bound repo on every call](libs/shared/src/project/features/features.test.ts#L35))
+- FR-7.3: The web UI reads features directly (read-only) and routes lifecycle/task-spawning writes through the mcp-server API. ([validated by feature-api create posts to /features](apps/web-ui/src/lib/feature-api.test.ts#L60))
 
 ### FR-8: Graph Integration
 
 The system MUST make the persistent Feature node the source of truth in the graph.
 
-- FR-8.1: The `trace/graph` endpoint merges persistent features onto the computed spec-graph Feature nodes, joined by `(repo, path)`. ([validated by mergePersistentFeatures enriches a node sharing the path](../../libs/shared/src/spec-trace/__tests__/merge-persistent-features.test.ts#L16))
-- FR-8.2: A matching computed node is enriched with the persistent feature's id, status, and title (persistent wins). ([validated by mergePersistentFeatures enriches by path, persistent wins](../../libs/shared/src/spec-trace/__tests__/merge-persistent-features.test.ts#L16))
-- FR-8.3: A persistent draft with no spec yet is injected as a standalone Feature node. ([validated by mergePersistentFeatures injects a standalone draft node](../../libs/shared/src/spec-trace/__tests__/merge-persistent-features.test.ts#L28))
+- FR-8.1: The `trace/graph` endpoint merges persistent features onto the computed spec-graph Feature nodes, joined by `(repo, path)`. ([validated by mergePersistentFeatures enriches a node sharing the path](libs/shared/src/spec-trace/merge-persistent-features.test.ts#L23))
+- FR-8.2: A matching computed node is enriched with the persistent feature's id, status, and title (persistent wins). ([validated by mergePersistentFeatures enriches by path, persistent wins](libs/shared/src/spec-trace/merge-persistent-features.test.ts#L23))
+- FR-8.3: A persistent draft with no spec yet is injected as a standalone Feature node. ([validated by mergePersistentFeatures injects a standalone draft node](libs/shared/src/spec-trace/merge-persistent-features.test.ts#L41))
 - FR-8.4: Feature nodes are colored by lifecycle status in the D3 graph.
 
 ### FR-9: Migration Safety
@@ -271,22 +271,22 @@ The system MUST not break the UI deploy with its schema migration.
 
 The system MUST self-heal planning rounds left stuck by a crash or restart.
 
-- FR-10.1: A reaper job reconciles mid-planning features every minute: a round still `running` whose Station container/pod is gone is marked failed and the feature is restored to its last good analysis (or `draft`). ([validated by decidePlanningRecovery orphans a round whose runtime is gone](../../libs/shared/src/project/features/planning-recovery.test.ts#L28))
+- FR-10.1: A reaper job reconciles mid-planning features every minute: a round still `running` whose Station container/pod is gone is marked failed and the feature is restored to its last good analysis (or `draft`). ([validated by decidePlanningRecovery orphans a round whose runtime is gone](libs/shared/src/project/features/planning-recovery.test.ts#L31))
 - FR-10.2: Orphan detection probes the actual runtime (`StationBackend.isActive` — `docker ps` locally, the LoreTask CR on the cluster), so a dead round is recovered immediately rather than only after a timeout window; an age window is a fallback for a wedged-but-listed container.
-- FR-10.3: A round that produced a `ready` result while the feature is still `planning` (a missed, non-atomic status transition) has its transition re-applied. ([validated by decidePlanningRecovery re-applies a missed transition](../../libs/shared/src/project/features/planning-recovery.test.ts#L50))
+- FR-10.3: A round that produced a `ready` result while the feature is still `planning` (a missed, non-atomic status transition) has its transition re-applied. ([validated by decidePlanningRecovery re-applies a missed transition](libs/shared/src/project/features/planning-recovery.test.ts#L84))
 
 ### FR-11: Spec Decomposition (planning → implementation handoff)
 
 The system MUST turn a merged feature spec into an implementable story/task tree
 (ADR-029). Planning produces the spec; decomposition produces the work.
 
-- FR-11.1: When a feature's finalize PR merges, a `feature-decompose` task is kicked automatically — reusing the same merge detection that syncs `feature-request` spec-tasks — and is idempotent per `(repo, spec_slug)` so a re-merge or replay never duplicates stories or tasks. ([validated by decideDecomposeKick fires for a finalize task carrying a feature id](../../apps/floor/src/application/task-processing/handle-feature-decompose.test.ts#L5)) ([impl](../../apps/floor/src/application/jobs/scheduled/merge-check.ts))
-- FR-11.2: The decomposition agent reads the merged `specs/<slug>/spec.md` and returns a schema-validated `DecompositionResult`: an ordered list of user stories, each with a summary, acceptance criteria, and its implementable tasks (id, description, dependencies, phase, parallelizable, file hint). An invalid result fails the task. ([validated by parseDecomposition accepts a valid stories payload](../../libs/shared/src/feature-planning/decomposition-result.test.ts#L19)) ([impl](../../libs/shared/src/feature-planning/decomposition-result.ts))
-- FR-11.3: Each user story becomes a GitHub Issue (`User story: <title>`, labeled `lore-managed`/`user-story`, body linking the spec + feature), unless the repo's dark-factory `create_issue` policy resolves to never — then tasks-only. ([validated by storyIssueBody renders summary, acceptance criteria, tasks, and the spec link](../../libs/shared/src/feature-planning/decomposition-plan.test.ts#L37)) ([impl](../../apps/floor/src/application/task-processing/handle-feature-decompose.ts))
-- FR-11.4: Each task becomes a `spec-task` pipeline row carrying its story Issue number and `feature_id`, compatible with the existing implementation pipeline + trust gate (no new runner). ([validated by specTaskRows links each task to its story issue and feature](../../libs/shared/src/feature-planning/decomposition-plan.test.ts#L16)) ([impl](../../libs/shared/src/feature-planning/decomposition-plan.ts))
-- FR-11.5: The decomposition prompt and model resolve from the `feature-decompose` agent definition (editable org default, project override); the offline fallback is the shared `DECOMPOSITION_INSTRUCTIONS` constant. ([validated by agent-defs serves DECOMPOSITION_INSTRUCTIONS for feature-decompose](../../libs/shared/src/project/agents/agent-defs-yaml.test.ts#L102)) ([impl](../../libs/shared/src/feature-planning/decomposition-instructions.ts))
+- FR-11.1: When a feature's finalize PR merges, a `feature-decompose` task is kicked automatically — reusing the same merge detection that syncs `feature-request` spec-tasks — and is idempotent per `(repo, spec_slug)` so a re-merge or replay never duplicates stories or tasks. ([validated by decideDecomposeKick fires for a finalize task carrying a feature id](apps/floor/src/jobs/task/handle-feature-decompose.test.ts#L5)) ([impl](../../apps/floor/src/application/jobs/scheduled/merge-check.ts))
+- FR-11.2: The decomposition agent reads the merged `specs/<slug>/spec.md` and returns a schema-validated `DecompositionResult`: an ordered list of user stories, each with a summary, acceptance criteria, and its implementable tasks (id, description, dependencies, phase, parallelizable, file hint). An invalid result fails the task. ([validated by parseDecomposition accepts a valid stories payload](libs/shared/src/feature-planning/decomposition-result.test.ts#L38)) ([impl](libs/shared/src/feature-planning/decomposition-result.ts))
+- FR-11.3: Each user story becomes a GitHub Issue (`User story: <title>`, labeled `lore-managed`/`user-story`, body linking the spec + feature), unless the repo's dark-factory `create_issue` policy resolves to never — then tasks-only. ([validated by storyIssueBody renders summary, acceptance criteria, tasks, and the spec link](libs/shared/src/feature-planning/decomposition-plan.test.ts#L77)) ([impl](../../apps/floor/src/application/task-processing/handle-feature-decompose.ts))
+- FR-11.4: Each task becomes a `spec-task` pipeline row carrying its story Issue number and `feature_id`, compatible with the existing implementation pipeline + trust gate (no new runner). ([validated by specTaskRows links each task to its story issue and feature](libs/shared/src/feature-planning/decomposition-plan.test.ts#L32)) ([impl](libs/shared/src/feature-planning/decomposition-plan.ts))
+- FR-11.5: The decomposition prompt and model resolve from the `feature-decompose` agent definition (editable org default, project override); the offline fallback is the shared `DECOMPOSITION_INSTRUCTIONS` constant. ([validated by agent-defs serves DECOMPOSITION_INSTRUCTIONS for feature-decompose](../../libs/shared/src/project/agents/agent-defs-yaml.test.ts#L102)) ([impl](libs/shared/src/feature-planning/decomposition-instructions.ts))
 - FR-11.6: Decomposition runs in-process in the coordinator (the LLM analysis plus the Issue/pipeline writes are coordinator-side; no repo mutation, no pod). ([impl](../../apps/floor/src/application/task-processing/worker.ts))
-- FR-11.7: The feature detail view surfaces the resulting stories and the status of their tasks. ([validated by groupDecomposition builds the story tree from spec-task rows](../../apps/web-ui/src/lib/decomposition-view.test.ts#L12)) ([impl](../../apps/web-ui/src/app/repos/[owner]/[repo]/features/[id]/DecompositionView.tsx))
+- FR-11.7: The feature detail view surfaces the resulting stories and the status of their tasks. ([validated by groupDecomposition builds the story tree from spec-task rows](../../apps/web-ui/src/lib/decomposition-view.test.ts#L12)) ([impl](apps/web-ui/src/app/repos/[owner]/[repo]/features/[id]/DecompositionView.tsx))
 
 ### Scenario 6: A merged spec decomposes into stories + tasks
 
@@ -299,7 +299,7 @@ The system MUST turn a merged feature spec into an implementable story/task tree
 4. The implementation pipeline picks up the tasks under the repo's trust gate.
 
 **Acceptance Criteria:**
-- Decomposition fires on spec-PR merge and is skipped when the feature already has spec-tasks. ([validated by decideDecomposeKick fires for a finalize task carrying a feature id](../../apps/floor/src/application/task-processing/handle-feature-decompose.test.ts#L5))
-- The agent's `DecompositionResult` validates against the shared schema; an invalid result fails the round. ([validated by parseDecomposition accepts a valid stories payload](../../libs/shared/src/feature-planning/decomposition-result.test.ts#L19))
-- A story Issue is created per story unless the dark-factory `create_issue` policy says never. ([validated by storyIssueBody renders the story Issue](../../libs/shared/src/feature-planning/decomposition-plan.test.ts#L37))
-- Each task is a `spec-task` row linked to its story Issue and feature, runnable by the existing pipeline. ([validated by specTaskRows links each task to its story issue and feature](../../libs/shared/src/feature-planning/decomposition-plan.test.ts#L16))
+- Decomposition fires on spec-PR merge and is skipped when the feature already has spec-tasks. ([validated by decideDecomposeKick fires for a finalize task carrying a feature id](apps/floor/src/jobs/task/handle-feature-decompose.test.ts#L5))
+- The agent's `DecompositionResult` validates against the shared schema; an invalid result fails the round. ([validated by parseDecomposition accepts a valid stories payload](libs/shared/src/feature-planning/decomposition-result.test.ts#L38))
+- A story Issue is created per story unless the dark-factory `create_issue` policy says never. ([validated by storyIssueBody renders the story Issue](libs/shared/src/feature-planning/decomposition-plan.test.ts#L77))
+- Each task is a `spec-task` row linked to its story Issue and feature, runnable by the existing pipeline. ([validated by specTaskRows links each task to its story issue and feature](libs/shared/src/feature-planning/decomposition-plan.test.ts#L32))

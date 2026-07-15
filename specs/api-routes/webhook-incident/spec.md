@@ -72,17 +72,17 @@ Registered in the route table ([registration](../../../apps/mcp-server/src/api/r
 
 ## Acceptance Criteria
 
-A null pool returns 503 and an unresolvable repo returns 400. ([validated by `returns 503 when pool is null`](../../../apps/mcp-server/src/api/routes/webhook-incident.test.ts#L20), [`returns 400 when no repo can be resolved`](../../../apps/mcp-server/src/api/routes/webhook-incident.test.ts#L24))
+A null pool returns 503 and an unresolvable repo returns 400. ([validated by `returns 503 when pool is null`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L150), [`returns 400 when no repo can be resolved`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L124))
 
-A direct-format incident upserts and returns `{ok:true, repo}`. ([validated by `upserts a direct-format incident`](../../../apps/mcp-server/src/api/routes/webhook-incident.test.ts#L28))
+A direct-format incident upserts and returns `{ok:true, repo}`. ([validated by `upserts a direct-format incident`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L166))
 
-A PagerDuty/Opsgenie envelope resolves repo from `incident.service.name` and maps `summary`/`urgency`/`status`/`html_url` onto the entry. ([validated by `maps a PagerDuty/Opsgenie envelope`](../../../apps/mcp-server/src/api/routes/webhook-incident.test.ts#L34))
+A PagerDuty/Opsgenie envelope resolves repo from `incident.service.name` and maps `summary`/`urgency`/`status`/`html_url` onto the entry. ([validated by `maps a PagerDuty/Opsgenie envelope`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L178))
 
-`status:"resolved"` derives `resolved:true` and the upsert SQL caps the list at 10 (FIFO). ([validated by `derives resolved=true from status resolved and writes a FIFO-capped entry`](../../../apps/mcp-server/src/api/routes/webhook-incident.test.ts#L53))
+`status:"resolved"` derives `resolved:true` and the upsert SQL caps the list at 10 (FIFO). ([validated by `derives resolved=true from status resolved and writes a FIFO-capped entry`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L198))
 
-Missing `title`/`severity` default to `"Unknown incident"`/`"unknown"` with `resolved:false`. ([validated by `defaults title and severity when neither incident field is present`](../../../apps/mcp-server/src/api/routes/webhook-incident.test.ts#L62))
+Missing `title`/`severity` default to `"Unknown incident"`/`"unknown"` with `resolved:false`. ([validated by `defaults title and severity when neither incident field is present`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L213))
 
-A DB failure and a malformed JSON body both return 500. ([validated by `returns 500 when the upsert throws`](../../../apps/mcp-server/src/api/routes/webhook-incident.test.ts#L43), [`returns 500 on a malformed JSON body`](../../../apps/mcp-server/src/api/routes/webhook-incident.test.ts#L49))
+A DB failure and a malformed JSON body both return 500. ([validated by `returns 500 when the upsert throws`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L157))
 
 ## Out of Scope
 

@@ -217,7 +217,7 @@ system is performing.
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no
-  duplicate work. ([validated by `AssemblyLineListView.test.tsx:67`](apps/web-ui/src/app/assembly-lines/AssemblyLineListView.test.tsx#L67))
+  duplicate work. ([validated by `AssemblyLineRunListView.test.tsx:14`](apps/web-ui/src/app/assembly-lines/AssemblyLineRunListView.test.tsx#L14))
 - Watcher posts the PR link and any Slack notifications on completion.
 
 ### Scenario 8: Automated Gap Detection (Phase 2)
@@ -319,7 +319,7 @@ pipeline tasks and GitHub Issues.
   status comments and is closed when the PR is created.
 - FR-4.7: Optional approval gates: tasks can require a human to add
   an `approved` label on the GitHub Issue before processing.
-  Configured via the settings UI or `lore.settings` table. ([validated by `SettingsView.test.tsx:84`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L84))
+  Configured via the settings UI or `lore.settings` table. ([validated by `SettingsView.test.tsx:123`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L123))
 
 ### FR-5: Spec-Driven Feature Workflow
 
@@ -490,7 +490,7 @@ cron is a safety net only.
   Mon-Fri) to catch dropped webhook deliveries. Cron-triggered runs
   are gated by `isBusinessHours()` (default: Europe/Berlin, 09:00-18:00
   Mon-Fri via `LORE_BUSINESS_HOURS_{TZ,START,END,DAYS}` env vars).
-  Webhook-triggered runs are never gated by business hours. ([validated by `business-hours.test.ts:33`](libs/shared/src/business-hours.test.ts#L33))
+  Webhook-triggered runs are never gated by business hours. ([validated by `business-hours.test.ts:38`](libs/shared/src/business-hours.test.ts#L38))
 - FR-13.8: Webhook path silently degrades if `LORE_AGENT_URL` or
   `LORE_AGENT_INTERNAL_TOKEN` are missing — mcp-server logs a warning
   but continues accepting webhooks (safety-net cron covers the gap).
@@ -689,7 +689,7 @@ non-terminal states and resolve them without manual intervention.
 - Autonomous review loop (opt-in per repo, webhook-driven per ADR-015).
 - Progressive trust gating.
 - Slack integration (`/lore` slash command + watcher notifications).
-- Web UI (`/onboard`, pipeline status, task logs, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:21`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L21), [`GraphView.test.tsx:31`](apps/web-ui/src/app/graph/GraphView.test.tsx#L31), [`AnalyticsView.test.tsx:57`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L57), [`TaskLogs.test.tsx:43`](apps/web-ui/src/app/assembly-lines/[id]/TaskLogs.test.tsx#L43), [`OnboardView.test.tsx:8`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L8))
+- Web UI (`/onboard`, pipeline status, task logs, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:26`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L26), [`GraphView.test.tsx:35`](apps/web-ui/src/app/graph/GraphView.test.tsx#L35), [`AnalyticsView.test.tsx:116`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L116), [`TaskLogs.test.tsx:92`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L92), [`OnboardView.test.tsx:8`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L8))
 - Spec drift detection (Phase 2).
 - Prompt caching on agent LLM calls (ADR-015).
 - Per-template context budgets (ADR-015).

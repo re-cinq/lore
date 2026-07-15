@@ -92,21 +92,21 @@ JSON body:
 
 ## Acceptance Criteria
 
-A null pool returns 503 before any parsing. ([validated by `returns 503 when pool is null`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L23))
+A null pool returns 503 before any parsing. ([validated by `returns 503 when pool is null`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L42))
 
-A body whose `files` is not an array returns 400. ([validated by `returns 400 when files is not an array`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L29))
+A body whose `files` is not an array returns 400. ([validated by `returns 400 when files is not an array`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L49))
 
-A body missing `repo` returns 400 with the verbatim required-fields error. ([validated by `returns 400 when repo is missing`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L54))
+A body missing `repo` returns 400 with the verbatim required-fields error. ([validated by `returns 400 when repo is missing`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L68))
 
-A batch with an ingested file returns 200 and fires the spec-coverage-validate trigger. ([validated by `returns 200 and fires the spec-coverage trigger when a file lands`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L36))
+A batch with an ingested file returns 200 and fires the spec-coverage-validate trigger. ([validated by `returns 200 and inserts a spec-coverage-validate event when a file lands`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L55))
 
-A `deleted` status counts as a landed file and fires the trigger. ([validated by `treats a deleted status as a landed file and fires the trigger`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L62))
+A `deleted` status counts as a landed file and fires the trigger. ([validated by `treats a deleted status as a landed file and inserts the event`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L74))
 
-An all-skipped batch fires no trigger. ([validated by `does not fire the trigger when nothing landed`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L79))
+An all-skipped batch fires no trigger. ([validated by `does not insert an event when nothing landed`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L87))
 
-A result with no `results` array fires no trigger. ([validated by `does not fire the trigger when the result has no results array`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L95))
+A result with no `results` array fires no trigger. ([validated by `does not fire the trigger when the result has no results array`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L97))
 
-A throwing `ingestFiles` returns 500 with the error message. ([validated by `returns 500 when ingestFiles throws`](../../../apps/mcp-server/src/api/routes/ingest.test.ts#L111))
+A throwing `ingestFiles` returns 500 with the error message. ([validated by `returns 500 when ingestFiles throws`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L108))
 
 The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/mcp-server/src/api/routes/index.ts#L57)) ([implemented by](../../../apps/mcp-server/src/api/routes/ingest.ts#L8))
 

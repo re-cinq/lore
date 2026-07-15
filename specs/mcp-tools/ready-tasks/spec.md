@@ -20,7 +20,7 @@ picks the next workable item without scanning the whole backlog.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L262)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L262)).
 
 - **name**: `lore_ready_tasks`
 - **description** (verbatim):
@@ -68,9 +68,9 @@ A single MCP text content block: the `## Ready tasks` markdown list, the
 ## Acceptance Criteria
 
 The dependency query returns the rows it produces, filtered to pending
-spec-tasks with satisfied dependencies. ([validated by `returns the rows the dependency query produces`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L107))
+spec-tasks with satisfied dependencies. ([validated by `returns the rows the dependency query produces`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L118))
 
-When nothing qualifies the handler returns an empty list. ([validated by `returns an empty list when no tasks are ready`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L123))
+When nothing qualifies the handler returns an empty list. ([validated by `returns an empty list when no tasks are ready`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L139))
 
 The repo-detection / no-pool guards, the empty-result message, and the markdown
 list framing run only inside the tool handler. *(untested: handler-only

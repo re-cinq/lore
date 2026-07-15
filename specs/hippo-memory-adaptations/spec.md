@@ -191,11 +191,11 @@ repo B
 - FR-5.1: Add `computeTransferScore(factText: string): number`
   function in `memory-search.ts`.
 - FR-5.2: Portable keywords boost score: `error`, `pattern`,
-  `gotcha`, `rule`, `convention`, `best-practice`, `anti-pattern`. ([validated by `transfer-score.test.ts:24`](apps/mcp-server/src/transfer-score.test.ts#L24))
+  `gotcha`, `rule`, `convention`, `best-practice`, `anti-pattern`. ([validated by `transfer-score.test.ts:51`](apps/mcp-server/src/features/context/transfer-score.test.ts#L51))
 - FR-5.3: Local keywords reduce score: `config`, `deploy`, `url`,
-  `auth`, `secret`, `env`, `port`, `hostname`, `endpoint`. ([validated by `transfer-score.test.ts:30`](apps/mcp-server/src/transfer-score.test.ts#L30))
+  `auth`, `secret`, `env`, `port`, `hostname`, `endpoint`. ([validated by `transfer-score.test.ts:60`](apps/mcp-server/src/features/context/transfer-score.test.ts#L60))
 - FR-5.4: Base score 0.5, each portable keyword +0.15, each local
-  keyword -0.15, clamped to [0, 1]. ([validated by `transfer-score.test.ts:48`](apps/mcp-server/src/transfer-score.test.ts#L48))
+  keyword -0.15, clamped to [0, 1]. ([validated by `transfer-score.test.ts:87`](apps/mcp-server/src/features/context/transfer-score.test.ts#L87))
 - FR-5.5: Cross-repo queries in `context-assembly.ts` filter to
   `transfer_score >= 0.5`.
 
@@ -213,11 +213,11 @@ repo B
 ### FR-7: Updated Importance Scoring
 
 - FR-7.1: Replace raw `created_at` recency with
-  `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-lifecycle.test.ts:69`](apps/floor/src/application/jobs/cron/memory-lifecycle.test.ts#L69))
-- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`. ([validated by `memory-lifecycle.test.ts:58`](apps/floor/src/application/jobs/cron/memory-lifecycle.test.ts#L58))
+  `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-lifecycle.test.ts:93`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L93))
+- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`. ([validated by `memory-lifecycle.test.ts:80`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L80))
 - FR-7.3: Incorporate `retrieval_count` as a minor boost: `+1` if
-  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-lifecycle.test.ts:101`](apps/floor/src/application/jobs/cron/memory-lifecycle.test.ts#L101))
-- FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-lifecycle.test.ts:117`](apps/floor/src/application/jobs/cron/memory-lifecycle.test.ts#L117))
+  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-lifecycle.test.ts:127`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L127))
+- FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-lifecycle.test.ts:144`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L144))
 
 ## Non-Functional Requirements
 

@@ -123,34 +123,27 @@ projection seam; this route only parses, normalizes, counts, and fans out.
 ## Acceptance Criteria
 
 A canonical `coverage[]` body returns node = group count, edge = total covered
-chunks, and file = distinct file count. ([validated by `returns 200 with node, edge, and file counts derived from the body`](../../../apps/mcp-server/src/api/routes/coverage-route.test.ts#L17))
-
+chunks, and file = distinct file count.
 An LCOV `payload` is parsed and normalized into per-file groups with collapsed
-ranges before counting. ([validated by `returns 200 with counts from a normalized lcov payload`](../../../apps/mcp-server/src/api/routes/coverage-route.test.ts#L42))
+ranges before counting. ([validated by `coverage_test.go:8`](apps/lore-code-trace/coverage_test.go#L8))
 
 Two `TN` tests on the same file produce two distinct coverage nodes.
-([validated by `counts per-test nodes for an lcov payload with two TN tests on the same file`](../../../apps/mcp-server/src/api/routes/coverage-route.test.ts#L60))
-
 A Cobertura `payload` is parsed into one file-keyed group with collapsed
-ranges. ([validated by `returns 200 with counts from a normalized cobertura payload`](../../../apps/mcp-server/src/api/routes/coverage-route.test.ts#L79))
+ranges. ([validated by `coverage_test.go:20`](apps/lore-code-trace/coverage_test.go#L20))
 
 The spec-trace trigger fires with the normalized groups (not the raw payload)
-when the agent env is configured. ([validated by `fires the spec-trace trigger with the normalized coverage groups when the agent env is configured`](../../../apps/mcp-server/src/api/routes/coverage-route.test.ts#L98))
-
-An unsupported `format` is rejected with 400. ([validated by `returns 400 for an unsupported format`](../../../apps/mcp-server/src/api/routes/coverage-route.test.ts#L129))
-
-A missing `commit` is rejected with 400. ([validated by `returns 400 when commit is missing`](../../../apps/mcp-server/src/api/routes/coverage-route.test.ts#L142))
+when the agent env is configured.
+An unsupported `format` is rejected with 400.
+A missing `commit` is rejected with 400. ([validated by `ci-tests-map.test.ts:43`](apps/floor/src/listeners/ci-tests-map.test.ts#L43))
 
 LCOV `DA` rows with zero hits are filtered and a single covered line yields a
-length-1 range. ([validated by `returns a length-1 range for one covered line`](../../../apps/mcp-server/src/api/routes/coverage.test.ts#L5))
+length-1 range. ([validated by `coverage_test.go:8`](apps/lore-code-trace/coverage_test.go#L8))
 
-Contiguous covered lines collapse into one range. ([validated by `collapses three contiguous covered lines into one range`](../../../apps/mcp-server/src/api/routes/coverage.test.ts#L12))
+Contiguous covered lines collapse into one range. ([validated by `coverage_test.go:34`](apps/lore-code-trace/coverage_test.go#L34))
 
 Records sharing a `TN` merge into one group spanning both files' chunks.
-([validated by `merges two records sharing a TN into one group concatenating both files' chunks`](../../../apps/mcp-server/src/api/routes/coverage.test.ts#L41))
-
 A Cobertura class block collapses contiguous covered lines per class.
-([validated by `collapses contiguous covered lines per class into ranges`](../../../apps/mcp-server/src/api/routes/coverage.test.ts#L67))
+([validated by `coverage_test.go:20`](apps/lore-code-trace/coverage_test.go#L20))
 
 ## Out of Scope
 
