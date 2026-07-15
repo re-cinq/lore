@@ -60,6 +60,7 @@ export default tseslint.config(
       "lore/no-prop-mutation": "error",
       "lore/max-boolean-operators": ["error", { max: 2 }],
       "lore/no-io-in-view": "error",
+      "lore/require-spec-link": "error",
     },
   },
 
