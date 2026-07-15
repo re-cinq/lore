@@ -11,7 +11,6 @@ afterEach(() => {
   }
 });
 
-
 // TODO: this is not fully tested. New tests for happy paths must be added too.
 describe("POST /api/agent-events", () => {
   it("returns 401 when the bearer token does not match", async () => {

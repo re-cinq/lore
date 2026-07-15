@@ -205,7 +205,21 @@ Add a step at the end of each build workflow (after deploy):
 2. CI blocks deploy if integration tests fail
 3. Smoke tests run after every deploy
 4. Smoke test failure creates a GitHub Issue
-5. Redaction patterns have 100% coverage ([validated by `redact.test.ts:7`](libs/shared/src/redact.test.ts#L7))
-6. Task routing logic has tests for every task type ([validated by `worker.test.ts:63`](apps/floor/src/jobs/task/worker.test.ts#L63))
+5. Redaction patterns have 100% coverage ([validated by `redact.test.ts`](libs/shared/src/redact.test.ts))
+
+6. Task routing logic has tests for every task type — onboard→`handleOnboard`,
+   feature-request→`handleFeatureRequest`, and implementation/review/general/runbook/gap-fill/unknown
+   →`handleClaudeCodeTask`. ([validated by `worker.test.ts:63`](apps/floor/src/jobs/task/worker.test.ts#L63), [`worker.test.ts:64`](apps/floor/src/jobs/task/worker.test.ts#L64), [`worker.test.ts:68`](apps/floor/src/jobs/task/worker.test.ts#L68), [`worker.test.ts:72`](apps/floor/src/jobs/task/worker.test.ts#L72), [`worker.test.ts:76`](apps/floor/src/jobs/task/worker.test.ts#L76), [`worker.test.ts:80`](apps/floor/src/jobs/task/worker.test.ts#L80), [`worker.test.ts:84`](apps/floor/src/jobs/task/worker.test.ts#L84), [`worker.test.ts:88`](apps/floor/src/jobs/task/worker.test.ts#L88), [`worker.test.ts:92`](apps/floor/src/jobs/task/worker.test.ts#L92))
+
+6a. Worker pure helpers are unit-tested: `slugify` lowercases, strips special chars, collapses runs to
+   a single hyphen, trims leading/trailing hyphens, and truncates to 30 chars; `buildPrompt` fills the
+   `{description}` placeholder and falls back matching-type → general → hardcoded default; `issueRef`
+   emits `Refs #N` for a number and empty for null. ([validated by `worker.test.ts:7`](apps/floor/src/jobs/task/worker.test.ts#L7), [`worker.test.ts:13`](apps/floor/src/jobs/task/worker.test.ts#L13), [`worker.test.ts:17`](apps/floor/src/jobs/task/worker.test.ts#L17), [`worker.test.ts:21`](apps/floor/src/jobs/task/worker.test.ts#L21), [`worker.test.ts:28`](apps/floor/src/jobs/task/worker.test.ts#L28), [`worker.test.ts:32`](apps/floor/src/jobs/task/worker.test.ts#L32), [`worker.test.ts:36`](apps/floor/src/jobs/task/worker.test.ts#L36), [`worker.test.ts:113`](apps/floor/src/jobs/task/worker.test.ts#L113), [`worker.test.ts:123`](apps/floor/src/jobs/task/worker.test.ts#L123), [`worker.test.ts:133`](apps/floor/src/jobs/task/worker.test.ts#L133), [`worker.test.ts:141`](apps/floor/src/jobs/task/worker.test.ts#L141), [`worker.test.ts:159`](apps/floor/src/jobs/task/worker.test.ts#L159), [`worker.test.ts:163`](apps/floor/src/jobs/task/worker.test.ts#L163))
+
 7. Watcher re-entry guard has a test
-8. 409 CR handling has a test ([validated by `k8s-errors.test.ts:5`](libs/shared/src/k8s-errors.test.ts#L5))
+8. 409 CR handling has a test — `isAlreadyExistsError` returns true for a Kubernetes
+   AlreadyExists conflict in every shape it arrives (a 409 in `code`, `statusCode`, or
+   `response.statusCode`; `body.reason` = AlreadyExists; `body.code` = 409; the client's
+   `HTTP-Code: 409` message dump; an `already exists` message; or a `reason=AlreadyExists`
+   message) and false for anything else (a 500, a different-reason body, an object with no
+   recognizable fields, null, or a string). ([validated by `k8s-errors.test.ts:5`](libs/shared/src/k8s-errors.test.ts#L5), [`k8s-errors.test.ts:9`](libs/shared/src/k8s-errors.test.ts#L9), [`k8s-errors.test.ts:13`](libs/shared/src/k8s-errors.test.ts#L13), [`k8s-errors.test.ts:17`](libs/shared/src/k8s-errors.test.ts#L17), [`k8s-errors.test.ts:23`](libs/shared/src/k8s-errors.test.ts#L23), [`k8s-errors.test.ts:27`](libs/shared/src/k8s-errors.test.ts#L27), [`k8s-errors.test.ts:36`](libs/shared/src/k8s-errors.test.ts#L36), [`k8s-errors.test.ts:42`](libs/shared/src/k8s-errors.test.ts#L42), [`k8s-errors.test.ts:48`](libs/shared/src/k8s-errors.test.ts#L48), [`k8s-errors.test.ts:54`](libs/shared/src/k8s-errors.test.ts#L54), [`k8s-errors.test.ts:63`](libs/shared/src/k8s-errors.test.ts#L63), [`k8s-errors.test.ts:67`](libs/shared/src/k8s-errors.test.ts#L67), [`k8s-errors.test.ts:71`](libs/shared/src/k8s-errors.test.ts#L71))

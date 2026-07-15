@@ -22,7 +22,7 @@ LLM consumes directly.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/context-tools.ts#L94)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/context-tools.ts#L94)).
 
 - **name**: `lore_assemble_context`
 - **description** (verbatim):
@@ -93,25 +93,39 @@ context" text, the "requires PostgreSQL or LORE_API_URL" text, or the
 ## Acceptance Criteria
 
 The engine returns empty text and an empty section list when no source returns
-rows. ([validated by `returns empty text when no sources return data`](../../../apps/mcp-server/src/features/context/context-assembly.test.ts#L61))
+rows. ([validated by `returns empty text when no sources return data`](libs/server-core/src/features/context/context-assembly.test.ts#L75))
 
 A repo source returning a `doc` chunk yields a Conventions section containing
-that chunk's content. ([validated by `assembles context from repo source`](../../../apps/mcp-server/src/features/context/context-assembly.test.ts#L71))
+that chunk's content. ([validated by `assembles context from repo source`](libs/server-core/src/features/context/context-assembly.test.ts#L91))
 
 Content exceeding the budget is truncated so the assembled text stays within the
-token budget and the section is marked truncated. ([validated by `respects token budget`](../../../apps/mcp-server/src/features/context/context-assembly.test.ts#L87))
+token budget and the section is marked truncated. ([validated by `respects token budget`](libs/server-core/src/features/context/context-assembly.test.ts#L125))
 
 Retrieved documents are emitted as XML tags carrying source/type/relevance
-provenance with the chunk markdown contained inside the tag. ([validated by `emits XML-tagged documents carrying provenance, with markdown contained`](../../../apps/mcp-server/src/features/context/context-assembly.test.ts#L107))
+provenance with the chunk markdown contained inside the tag. ([validated by `emits XML-tagged documents carrying provenance, with markdown contained`](libs/server-core/src/features/context/context-assembly.test.ts#L153))
 
 The debug trace reports per-section inclusion status and an omit reason for empty
-sources. ([validated by `debug trace reports per-section status and omit reason for empty sources`](../../../apps/mcp-server/src/features/context/context-assembly.test.ts#L149))
+sources. ([validated by `debug trace reports per-section status and omit reason for empty sources`](libs/server-core/src/features/context/context-assembly.test.ts#L278))
 
-The handler's GKE-proxy fallback and the success/empty/error envelope framing are
-exercised only against live Postgres or `LORE_API_URL`. *(untested: the handler
-orchestration around the engine has no unit seam — the proxy branch needs a live
-API and the success branch needs a populated DB; the engine itself is covered
-above.)*
+On the proxy path, a reachable backend response is authoritative over any cached
+copy: an empty-but-reachable context is returned as-is (never a stale cache), and
+a reachable non-empty response returns the live text. ([validated by `returns an empty-but-reachable context as-is instead of a stale cached copy`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L156), [validated by `returns the live result on a reachable hit`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L192))
+
+The pre-run context-hydration URL selects the `review` template for review tasks
+and `implementation` for every other task type, truncates the query to 200 chars,
+and URL-encodes both the repo and query. ([validated by `uses implementation template by default`](apps/mcp-server/src/features/context/context-hydration.test.ts#L21), [validated by `uses review template for review tasks`](apps/mcp-server/src/features/context/context-hydration.test.ts#L32), [validated by `uses implementation template for general tasks`](apps/mcp-server/src/features/context/context-hydration.test.ts#L43), [validated by `truncates query to 200 chars`](apps/mcp-server/src/features/context/context-hydration.test.ts#L54), [validated by `encodes special characters in repo name`](apps/mcp-server/src/features/context/context-hydration.test.ts#L68), [validated by `encodes special characters in query`](apps/mcp-server/src/features/context/context-hydration.test.ts#L79))
+
+When pre-loaded context is available the spawned agent's preamble carries it and
+drops the "call lore_assemble_context first" workflow instruction; with no
+pre-loaded context the preamble falls back to that instruction. ([validated by `includes pre-loaded context when available`](apps/mcp-server/src/features/context/context-hydration.test.ts#L97), [validated by `falls back to lore_assemble_context instruction when no pre-loaded context`](apps/mcp-server/src/features/context/context-hydration.test.ts#L122))
+
+The `/api/context` endpoint runs full assembly when a `query` param is present and
+a raw chunk fetch when it is absent, and caps the pre-hydration token budget at
+8000 (below the 16000 default). ([validated by `should use full assembly when query param is present`](apps/mcp-server/src/features/context/context-hydration.test.ts#L149), [validated by `should use raw chunk fetch when no query param`](apps/mcp-server/src/features/context/context-hydration.test.ts#L161), [validated by `should cap token budget at 8000 for pre-hydration`](apps/mcp-server/src/features/context/context-hydration.test.ts#L169))
+
+The handler's GKE-proxy success/empty/error envelope framing on the DB-backed path
+is exercised only against live Postgres. *(untested: the success branch needs a
+populated DB; the engine itself is covered above.)*
 
 ## Out of Scope
 

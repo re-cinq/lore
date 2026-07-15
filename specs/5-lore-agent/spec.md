@@ -100,8 +100,8 @@ dumps). Expects tasks to complete on the first try.
 9. PR contains all expected files (not a single output dump)
 
 **Acceptance Criteria:**
-- Tasks move from pending to pr-created without manual intervention ([validated by `worker.onboard.test.ts:74`](apps/floor/src/application/task-processing/worker.onboard.test.ts#L74))
-- Onboarding PRs contain individual files (CLAUDE.md, ADRs, etc.), not a single output file ([validated by `worker.onboard.test.ts:63`](apps/floor/src/application/task-processing/worker.onboard.test.ts#L63))
+- Tasks move from pending to pr-created without manual intervention ([validated by `worker.onboard.test.ts:109`](apps/floor/src/jobs/task/worker.onboard.test.ts#L109))
+- Onboarding PRs contain individual files (CLAUDE.md, ADRs, etc.), not a single output file
 - Task processing completes within 5 minutes for standard tasks
 - Failed tasks show a clear error message in the pipeline dashboard
 - No tasks are lost during agent service restarts
@@ -194,7 +194,7 @@ parsing → PR creation → status update.
 The service calls the LLM provider API directly. The model is
 configurable per task type (defaulting to the most cost-effective
 model). Prompts are built from task-types.yaml templates with
-variable substitution.
+variable substitution. ([validated by `pipeline-config.test.ts:158`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L158))
 
 ### FR-3: Repo Context Pre-Fetch
 

@@ -102,9 +102,11 @@ The handler never touches `_pool` — the graph lives in Dgraph, not Postgres.
 
 With Dgraph unconfigured, the route fails soft to `200` with
 `status:"unavailable"` and empty statements/orphaned/annotations — never a 500.
-([validated by `returns 200 status unavailable with empty annotations when Dgraph is not configured`](../../../apps/mcp-server/src/api/routes/impact-route.test.ts#L24))
+([validated by `returns 200 status unavailable with empty annotations when Dgraph is not configured`](apps/lore-api/src/api/routes/impact/impact-route.test.ts#L36))
 
-A request without a `write`-scoped token is rejected with 403. ([validated by `rejects a request without a write-scoped token`](../../../apps/mcp-server/src/api/routes/impact-route.test.ts#L45))
+A request without a `write`-scoped token is rejected with 403. ([validated by `rejects a request without a write-scoped token`](apps/lore-api/src/api/routes/impact/impact-route.test.ts#L51))
+
+An unparseable request body is rejected with a native 400 (ADR-034 hapi payload parse). ([validated by `impact-route.test.ts:61`](apps/lore-api/src/api/routes/impact/impact-route.test.ts#L61))
 
 The `status:"ok"` branch (coupled statements + orphans + non-empty annotations
 from a live graph walk) is exercised only against live Dgraph. *(untested: the

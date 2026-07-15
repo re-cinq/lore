@@ -57,7 +57,7 @@ outcomes feed back into the memories that contributed to the task.
   hit (both facts and memories).
 - `half_life_days` increased by +2 per retrieval (capped at 365).
 - Importance scoring in `memory-lifecycle.ts` uses `half_life_days`
-  and `last_retrieved_at` instead of raw `created_at` for recency.
+  and `last_retrieved_at` instead of raw `created_at` for recency. ([validated by `memory-lifecycle.test.ts:93`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L93))
 
 ### Scenario 2: Confidence Tiers on Facts
 
@@ -171,7 +171,8 @@ repo B
 - FR-3.3: Facts extracted from memories default to `inferred`.
 - FR-3.4: Decay job transitions facts to `stale` when
   `last_retrieved_at < now() - 30 days` (or `last_retrieved_at IS
-  NULL AND created_at < now() - 30 days`).
+  NULL AND created_at < now() - 30 days`); already-`verified` facts
+  are left untouched. ([validated by `memory-lifecycle.test.ts:192`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L192), [`memory-lifecycle.test.ts:430`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L430))
 - FR-3.5: On retrieval, if confidence is `stale`, update to
   `observed`.
 - FR-3.6: Include confidence tier in search results and context
@@ -189,13 +190,13 @@ repo B
 ### FR-5: Transfer Scoring
 
 - FR-5.1: Add `computeTransferScore(factText: string): number`
-  function in `memory-search.ts`.
+  function in `memory-search.ts`. ([validated by `transfer-score.test.ts:45`](apps/mcp-server/src/features/context/transfer-score.test.ts#L45))
 - FR-5.2: Portable keywords boost score: `error`, `pattern`,
-  `gotcha`, `rule`, `convention`, `best-practice`, `anti-pattern`. ([validated by `transfer-score.test.ts:24`](apps/mcp-server/src/transfer-score.test.ts#L24))
+  `gotcha`, `rule`, `convention`, `best-practice`, `anti-pattern`. ([validated by `transfer-score.test.ts:51`](apps/mcp-server/src/features/context/transfer-score.test.ts#L51))
 - FR-5.3: Local keywords reduce score: `config`, `deploy`, `url`,
-  `auth`, `secret`, `env`, `port`, `hostname`, `endpoint`. ([validated by `transfer-score.test.ts:30`](apps/mcp-server/src/transfer-score.test.ts#L30))
+  `auth`, `secret`, `env`, `port`, `hostname`, `endpoint`. ([validated by `transfer-score.test.ts:60`](apps/mcp-server/src/features/context/transfer-score.test.ts#L60))
 - FR-5.4: Base score 0.5, each portable keyword +0.15, each local
-  keyword -0.15, clamped to [0, 1]. ([validated by `transfer-score.test.ts:48`](apps/mcp-server/src/transfer-score.test.ts#L48))
+  keyword -0.15, clamped to [0, 1]. ([validated by `transfer-score.test.ts:87`](apps/mcp-server/src/features/context/transfer-score.test.ts#L87))
 - FR-5.5: Cross-repo queries in `context-assembly.ts` filter to
   `transfer_score >= 0.5`.
 
@@ -205,19 +206,23 @@ repo B
 - FR-6.2: When creating a pipeline task, store the IDs of
   assembled facts/memories in `context_refs`.
 - FR-6.3: In `merge-check`, on PR merge: update contributing
-  facts/memories with `half_life_days += 5`.
+  facts/memories with `half_life_days += 5` (capped at 365, using the
+  table defaults 30/60 for a null `half_life_days`); an empty id list
+  is a no-op. ([validated by `memory-lifecycle.test.ts:218`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L218), [`memory-lifecycle.test.ts:478`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L478), [`memory-lifecycle.test.ts:246`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L246))
 - FR-6.4: In `merge-check`, on PR rejection: update contributing
-  facts/memories with `half_life_days = MAX(7, half_life_days - 3)`.
-- FR-6.5: Audit log outcome feedback events.
+  facts/memories with `half_life_days = MAX(7, half_life_days - 3)`
+  (using the table defaults 30/60 for a null `half_life_days`). ([validated by `memory-lifecycle.test.ts:233`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L233), [`memory-lifecycle.test.ts:494`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L494))
+- FR-6.5: Audit log outcome feedback events, with the metadata
+  serialized on the row. ([validated by `memory-lifecycle.test.ts:256`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L256), [`memory-lifecycle.test.ts:506`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L506))
 
 ### FR-7: Updated Importance Scoring
 
 - FR-7.1: Replace raw `created_at` recency with
-  `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-lifecycle.test.ts:69`](apps/floor/src/application/jobs/cron/memory-lifecycle.test.ts#L69))
-- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`. ([validated by `memory-lifecycle.test.ts:58`](apps/floor/src/application/jobs/cron/memory-lifecycle.test.ts#L58))
+  `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-lifecycle.test.ts:93`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L93))
+- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`, mapping strength to a 0–10 score and honoring a custom `half_life_days`. ([validated by `memory-lifecycle.test.ts:80`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L80), [`memory-lifecycle.test.ts:69`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L69), [`memory-lifecycle.test.ts:106`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L106))
 - FR-7.3: Incorporate `retrieval_count` as a minor boost: `+1` if
-  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-lifecycle.test.ts:101`](apps/floor/src/application/jobs/cron/memory-lifecycle.test.ts#L101))
-- FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-lifecycle.test.ts:117`](apps/floor/src/application/jobs/cron/memory-lifecycle.test.ts#L117))
+  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-lifecycle.test.ts:127`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L127))
+- FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-lifecycle.test.ts:144`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L144))
 
 ## Non-Functional Requirements
 

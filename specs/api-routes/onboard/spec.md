@@ -71,15 +71,17 @@ JSON body:
 
 ## Acceptance Criteria
 
-A null pool returns 503 before any parsing. ([validated by `returns 503 when pool is null`](../../../apps/mcp-server/src/api/routes/onboard.test.ts#L21))
+A null pool returns 503 before any parsing. ([validated by `returns 503 when pool is null`](apps/lore-api/src/api/routes/repos/onboard.test.ts#L35))
 
-A repo without a slash returns 400. ([validated by `returns 400 when repo is missing or malformed`](../../../apps/mcp-server/src/api/routes/onboard.test.ts#L27))
+A repo without a slash returns 400. ([validated by `returns 400 when repo is missing or malformed`](apps/lore-api/src/api/routes/repos/onboard.test.ts#L41))
 
-A valid repo returns 200 with the onboard result. ([validated by `returns 200 with the onboard result`](../../../apps/mcp-server/src/api/routes/onboard.test.ts#L34))
+A valid repo returns 200 with the onboard result. ([validated by `returns 200 with the onboard result`](apps/lore-api/src/api/routes/repos/onboard.test.ts#L47))
 
-A throwing `onboardRepo` returns 500. ([validated by `returns 500 when onboardRepo throws`](../../../apps/mcp-server/src/api/routes/onboard.test.ts#L42))
+A throwing `onboardRepo` returns 500. ([validated by `returns 500 when onboardRepo throws`](apps/lore-api/src/api/routes/repos/onboard.test.ts#L54))
 
-The route is registered as an exact `POST /api/onboard` match. ([implemented by](../../../apps/mcp-server/src/api/routes/index.ts#L54)) ([implemented by](../../../apps/mcp-server/src/api/routes/ingest.ts#L41))
+The route is registered as an exact `POST /api/onboard` match. ([implemented by](../../../apps/mcp-server/src/api/routes/index.ts#L54), [implemented by](../../../apps/mcp-server/src/api/routes/ingest.ts#L41))
+
+`onboardRepo` ensures the Floor webhook for the onboarded repo and returns the ensure outcome under `webhook` in its result; onboarding still completes (returning `repo_id` + `task_id`) when the ensure is skipped. ([validated by `repo-onboard.test.ts:24`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L24), [`repo-onboard.test.ts:40`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L40))
 
 ## Out of Scope
 

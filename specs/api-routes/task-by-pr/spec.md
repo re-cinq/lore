@@ -89,21 +89,23 @@ strings: `"database unavailable"`, `"no_trailer_found"`, `"pr_not_found"`,
 
 ## Acceptance Criteria
 
-A null pool returns 503. ([validated by `returns 503 when pool is null`](../../../apps/mcp-server/src/api/routes/by-pr.test.ts#L31))
+A null pool returns 503. ([validated by `by-pr.test.ts:46`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L46))
 
-A `pr_number` hit in the DB returns `trailer_source: db`. ([validated by `resolves via the DB fast path`](../../../apps/mcp-server/src/api/routes/by-pr.test.ts#L36))
+A non-numeric `:n` PR segment is rejected with 400 `{ error: "invalid pr number" }` without touching the DB. ([validated by `by-pr.test.ts:52`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L52))
 
-A DB miss with a trailer in the PR body returns `trailer_source: pr_body`. ([validated by `resolves from the PR body when the DB misses`](../../../apps/mcp-server/src/api/routes/by-pr.test.ts#L43))
+A `pr_number` hit in the DB returns `trailer_source: db`. ([validated by `resolves via the DB fast path`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L65))
 
-A DB error falls through, and a trailer on the final commit returns `trailer_source: final_commit`. ([validated by `resolves from the final commit when the body has no trailer`](../../../apps/mcp-server/src/api/routes/by-pr.test.ts#L53))
+A DB miss with a trailer in the PR body returns `trailer_source: pr_body`. ([validated by `by-pr.test.ts:74`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L74))
 
-Neither body nor commit carrying a trailer returns `no_trailer_found`. ([validated by `returns 404 when no trailer is found anywhere`](../../../apps/mcp-server/src/api/routes/by-pr.test.ts#L65))
+A DB error falls through, and a trailer on the final commit returns `trailer_source: final_commit`. ([validated by `by-pr.test.ts:92`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L92))
 
-A GitHub 404 on the PR returns `pr_not_found`. ([validated by `returns 404 when the PR is not found`](../../../apps/mcp-server/src/api/routes/by-pr.test.ts#L77))
+Neither body nor commit carrying a trailer returns `no_trailer_found`. ([validated by `returns 404 when no trailer is found anywhere`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L114))
 
-A non-404 GitHub error returns 500 `github_api`. ([validated by `returns 500 on a non-404 GitHub error`](../../../apps/mcp-server/src/api/routes/by-pr.test.ts#L87))
+A GitHub 404 on the PR returns `pr_not_found`. ([validated by `by-pr.test.ts:133`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L133))
 
-A DB-error fallback that resolves from the PR body uses the GitHub path without surfacing the DB error. ([validated by `falls through a DB error and resolves from the PR body`](../../../apps/mcp-server/src/api/routes/by-pr.test.ts#L97))
+A non-404 GitHub error returns 500 `github_api`. ([validated by `by-pr.test.ts:148`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L148))
+
+A DB-error fallback that resolves from the PR body uses the GitHub path without surfacing the DB error. ([validated by `by-pr.test.ts:163`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L163))
 
 ## Out of Scope
 

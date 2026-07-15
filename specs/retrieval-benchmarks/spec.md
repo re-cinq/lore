@@ -45,11 +45,28 @@ data volumes.
 
 ### FR-2: Analytics Dashboard Widget
 
-- FR-2.1: Add a "Retrieval Performance" section to `/analytics`.
+- FR-2.1: Add a "Retrieval Performance" section to `/analytics`; when no
+  latency has been recorded the section renders a "No latency data yet"
+  empty state instead of the table. ([section heading](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L116), [empty-latency state](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L177))
 - FR-2.2: Show p50, p95, p99 latency per tool for the last 7
-  days.
+  days. ([validated by `AnalyticsView.test.tsx:154`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L154))
 - FR-2.3: Show latency trend chart (daily p95).
-- FR-2.4: Highlight tools exceeding 200ms p95 threshold.
+- FR-2.4: Highlight tools exceeding the 200ms p95 threshold with a
+  `>200ms` badge; tools at or under the threshold show an `OK` badge
+  instead. ([over-threshold badge](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L154), [OK badge under threshold](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L168))
+- FR-2.5: The `/analytics` page frames the Retrieval Performance table
+  among the platform's other usage sections — four task-summary stat
+  cards with locale-formatted totals (all zero when the summary is
+  null), a usage-by-task-type table and a tasks-by-repo table with
+  locale-formatted token and task counts, and a daily-usage table with
+  formatted dates — each falling back to its own empty state when it
+  has no rows. ([validated by `AnalyticsView.test.tsx:135`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L135), [`AnalyticsView.test.tsx:149`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L149), [`AnalyticsView.test.tsx:186`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L186), [`AnalyticsView.test.tsx:196`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L196), [`AnalyticsView.test.tsx:203`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L203), [`AnalyticsView.test.tsx:211`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L211), [`AnalyticsView.test.tsx:219`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L219), [`AnalyticsView.test.tsx:231`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L231), [`AnalyticsView.test.tsx:283`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L283))
+- FR-2.6: A Recent Job Runs table lists each run with its name, a
+  duration in seconds or minutes, a status badge, and its result
+  summary — showing the error in place of the result when the run
+  failed, em-dashes for a run that has not completed, and a logs link
+  only when a completed run carries a log path — with an empty state
+  when there are no runs. ([validated by `AnalyticsView.test.tsx:238`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L238), [`AnalyticsView.test.tsx:253`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L253), [`AnalyticsView.test.tsx:267`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L267), [`AnalyticsView.test.tsx:276`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L276))
 
 ### FR-3: Baseline Measurement
 

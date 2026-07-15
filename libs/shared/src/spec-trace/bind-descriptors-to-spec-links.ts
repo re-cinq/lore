@@ -19,7 +19,11 @@
  * statements links them all (`parseSpecAnchors` reads either shape downstream).
  */
 
-import { linksForStatements } from "../spec-link-parser.js";
+import {
+  linksForStatements,
+  normalizePath,
+  resolveLinkPath,
+} from "../spec-link-parser.js";
 import type { TestDescriptor } from "../test-report.js";
 
 /** One spec file's path + raw markdown — the binder's read source. */
@@ -34,11 +38,6 @@ interface LinkIndexEntry {
   anchor: string;
 }
 
-/** Strip a leading `./` or `/` so repo-root-relative and dot-relative forms match. */
-function normalizePath(path: string): string {
-  return path.replace(/^\.?\/+/, "");
-}
-
 /** Flatten every spec's statements into `(test path, line) → statement anchor` entries. */
 function buildLinkIndex(specs: SpecSource[]): LinkIndexEntry[] {
   const entries: LinkIndexEntry[] = [];
@@ -50,7 +49,7 @@ function buildLinkIndex(specs: SpecSource[]): LinkIndexEntry[] {
           continue;
         }
         entries.push({
-          path: normalizePath(link.path),
+          path: resolveLinkPath(link.path, spec.path),
           line: link.line,
           anchor: `${spec.path}#${statement.ordinal}`,
         });

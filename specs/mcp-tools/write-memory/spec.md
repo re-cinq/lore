@@ -22,7 +22,7 @@ file.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L40)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/memory-tools.ts#L40)).
 
 - **name**: `lore_write_memory`
 - **description** (verbatim):
@@ -98,9 +98,11 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
 ## Acceptance Criteria
 
 1. A first write of a key inserts version 1 and returns the write result with
-   key, version, agent, and timestamp. ([validated by `inserts version 1 for a new key and returns the write result`](../../../apps/mcp-server/src/features/memory/memory.test.ts#L53))
+   key, version, agent, and timestamp. ([validated by `inserts version 1 for a new key and returns the write result`](libs/server-core/src/features/memory/memory.test.ts#L55))
+
 2. A write to an existing key increments the version and updates the row in
-   place. ([validated by `increments version when the key already exists`](../../../apps/mcp-server/src/features/memory/memory.test.ts#L73))
+   place. ([validated by `increments version when the key already exists`](libs/server-core/src/features/memory/memory.test.ts#L84))
+
 3. The handler orchestration (repo detect, embedding, proxy/file fallback,
    `extract_facts` trigger) has no unit seam. *(untested: the DB branch needs a
    live `memory.memories`; the proxy branch needs `LORE_API_URL`; the

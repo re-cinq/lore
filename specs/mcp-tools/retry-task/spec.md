@@ -19,7 +19,7 @@ hand is error-prone. Retrying must be refused for tasks that did not fail
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L182)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L182)).
 
 - **name**: `lore_retry_task`
 - **description** (verbatim):
@@ -71,14 +71,14 @@ A single MCP text content block — one of: the missing-DB message, the compact
 
 A failed task spawns a new linked task and returns the new id alongside the
 original via `retry_of`.
-([validated by `creates a linked task when the original is failed`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L95))
+([validated by `creates a linked task when the original is failed`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L113))
 
 A task that is not in a retryable state (e.g. running) is rejected with a
 `Cannot retry task in <state> state` error.
-([validated by `throws cannot retry when the task is still running`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L114))
+([validated by `throws cannot retry when the task is still running`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L153))
 
 A task id with no matching row is rejected with `Task not found`.
-([validated by `throws task not found when no row matches`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L124))
+([validated by `throws task not found when no row matches`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L166))
 
 ## Out of Scope
 

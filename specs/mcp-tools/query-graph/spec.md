@@ -21,7 +21,7 @@ edges must be temporally invalidated as new episodes arrive.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L264)). The handler body is wrapped in
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/memory-tools.ts#L264)). The handler body is wrapped in
 `trackLatency('lore_query_graph', …)` (records latency into `memory.audit_log` +
 OTEL span).
 
@@ -92,21 +92,27 @@ A single MCP text content block. One of: pretty-printed JSON array of
 
 ## Acceptance Criteria
 
-1. Entities and typed edges parse from the extractor's JSON output. ([validated by `parses entities and edges from JSON`](../../../apps/mcp-server/src/features/memory/graph.test.ts#L42))
+1. Entities and typed edges parse from the extractor's JSON output. ([validated by `graph.test.ts:49`](libs/server-core/src/features/memory/graph.test.ts#L49))
+
 2. Entity names are normalized to lowercase so a query matches regardless of
-   source casing. ([validated by `normalizes names to lowercase`](../../../apps/mcp-server/src/features/memory/graph.test.ts#L63))
+   source casing. ([validated by `graph.test.ts:71`](libs/server-core/src/features/memory/graph.test.ts#L71))
+
 3. A new edge with the same source+relation but a different target invalidates
-   the prior edge. ([validated by `invalidates contradictory edges (same source+relation, different target)`](../../../apps/mcp-server/src/features/memory/graph.test.ts#L118))
-4. An already-present exact edge is not re-inserted. ([validated by `skips insert when exact edge already exists`](../../../apps/mcp-server/src/features/memory/graph.test.ts#L168))
+   the prior edge. ([validated by `graph.test.ts:137`](libs/server-core/src/features/memory/graph.test.ts#L137))
+
+4. An already-present exact edge is not re-inserted. ([validated by `graph.test.ts:198`](libs/server-core/src/features/memory/graph.test.ts#L198))
+
 5. The live read query itself (`queryLiveGraph` SQL) has no unit seam.
    *(untested: requires live `memory.entities`/`memory.edges` rows; the
    population + parse paths are covered above.)*
 6. In local stdio mode (no DB) the tool proxies to `GET /api/graph` with the
-   query params and bearer token. ([validated by `proxies to GET /api/graph with the query params and bearer token`](../../../apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L37))
+   query params and bearer token. ([validated by `memory-tools.test.ts:48`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L48))
+
 7. With no `LORE_API_URL` configured it returns the PostgreSQL-or-API-URL
-   message rather than calling out. ([validated by `falls back to the not-configured message when LORE_API_URL is unset`](../../../apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L49))
+   message rather than calling out. ([validated by `memory-tools.test.ts:70`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L70))
+
 8. The `GET /api/graph` endpoint passes the params to `queryLiveGraph` and
-   returns its rows, 503 without a pool, 500 on error. ([validated by `returns the queryLiveGraph results, passing through entity/relation_type/repo`](../../../apps/mcp-server/src/api/routes/graph.test.ts#L24))
+   returns its rows, 503 without a pool, 500 on error. ([validated by `graph.test.ts:31`](apps/lore-api/src/api/routes/graph/graph.test.ts#L31))
 
 ## Out of Scope
 

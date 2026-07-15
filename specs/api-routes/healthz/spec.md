@@ -64,13 +64,13 @@ Registered as the first entry in the route table, matched on path only
 ## Output
 
 - `200 { status: "ok" }` — anonymous, connected ([validated by `returns 200
-  {status:ok} unauthenticated when connected`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L23)).
+  {status:ok} unauthenticated when connected`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L41)).
 - `503 { status: "error" }` — disconnected with `LORE_DB_HOST` set ([validated by
-  `returns 503 {status:error} when disconnected and LORE_DB_HOST set`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L30)).
+  `returns 503 {status:error} when disconnected and LORE_DB_HOST set`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L48)).
 - `200 { status: "ok" }` — disconnected with no `LORE_DB_HOST` ([validated by
-  `returns 200 ok when disconnected but no LORE_DB_HOST configured`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L39)).
+  `returns 200 ok when disconnected but no LORE_DB_HOST configured`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L57)).
 - `200 { status, database, tasks }` — authenticated + connected ([validated by
-  `includes database + task stats when authenticated and connected`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L46)).
+  `includes database + task stats when authenticated and connected`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L64)).
 - The `error` value verbatim is the string `"error"`; the `ok` value verbatim is
   the string `"ok"`.
 
@@ -90,34 +90,34 @@ Registered as the first entry in the route table, matched on path only
 
 An anonymous probe against a connected server returns `200 { status: "ok" }` with
 no database/tasks detail. ([validated by `returns 200 {status:ok} unauthenticated
-when connected`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L23))
+when connected`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L41))
 
 A disconnected DB with `LORE_DB_HOST` configured returns `503 { status: "error" }`.
 ([validated by `returns 503 {status:error} when disconnected and LORE_DB_HOST
-set`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L30))
+set`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L48))
 
 A disconnected DB with no `LORE_DB_HOST` configured stays `200 { status: "ok" }`.
 ([validated by `returns 200 ok when disconnected but no LORE_DB_HOST
-configured`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L39))
+configured`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L57))
 
 An authenticated probe on a connected server adds `database` and `tasks` counters.
 ([validated by `includes database + task stats when authenticated and
-connected`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L46))
+connected`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L64))
 
 A failing task-stats query degrades to zeroed counters rather than erroring.
 ([validated by `falls back to zeroed task stats when the stats query
-throws`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L58))
+throws`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L77))
 
 An authenticated probe with a null pool skips the stats query and returns zeroed
 counters. ([validated by `skips the stats query when authed but pool is
-null`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L66))
+null`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L89))
 
 A stats query returning no rows zeroes the counters. ([validated by `zeroes task
-stats when the stats query returns no rows`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L72))
+stats when the stats query returns no rows`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L97))
 
 The dispatcher exempts `/healthz` from rate limiting and bearer auth (no 401/403/429
 is ever returned on this path). ([validated by `returns 200 {status:ok}
-unauthenticated when connected`](../../../apps/mcp-server/src/api/routes/healthz.test.ts#L23))
+unauthenticated when connected`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L41), [validated by `rate-limit.test.ts:84`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L84))
 
 ## Out of Scope
 
