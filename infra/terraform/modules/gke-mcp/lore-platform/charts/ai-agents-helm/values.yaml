@@ -33,19 +33,19 @@ controller:
   replicas: 1
   image:
     repository: ghcr.io/re-cinq/ai-agent-controller
-    # Pinned by digest (never a floating tag) — v0.6.0: shared workspace volume (the
-    # clone reaches the agent container), init chowns HOME+workspace to the agent uid
-    # (Claude can write its session state and edit the repo), and the repo credential
-    # is aliased to GH_TOKEN so `gh` authenticates (ai-agent-subsystem#166; v0.5.1
-    # added the token_secret secretKeyRef injection, #160). Resolved via
-    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.6.0
-    digest: "sha256:878ca910d72a8532add05c6fdfdfb12f33c59253689127d0051ff64e243426d2"
+    # Pinned by digest (never a floating tag) — v0.6.1: run pods carry
+    # cluster-autoscaler.kubernetes.io/safe-to-evict "false" so a node scale-down
+    # no longer evicts a live run mid-flight (with backoffLimit 0 one eviction
+    # failed the whole attempt with BackoffLimitExceeded; ai-agent-subsystem#168).
+    # Resolved via
+    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.6.1
+    digest: "sha256:78a4d2ef523c8406701c97dae49508260b418864c9dfc40e4a2097bf38849e92"
   # The image whose init container injects the agent runtime + supervisor into each run
-  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.6.0
+  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.6.1
   # digest, paired with the controller above. Resolve with (needs ghcr read on the
   # ai-agent package — not public):
-  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.6.0
-  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:d36dcb72b69d8d57c31b5d29ea731b1eade49325dfbcd0d6ebbe8ff20b29ddda"
+  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.6.1
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:191865beed61d2a32ef1660691c9b1b99982c48a5590b7fe575ce10b6638cd1e"
   # Tail of run-pod log kept in Agent.status.output (bounds the object under etcd's limit).
   maxOutputBytes: "262144"
   resources:
