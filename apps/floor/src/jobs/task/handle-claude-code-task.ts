@@ -38,11 +38,11 @@ export async function handleClaudeCodeTask(
     task.description,
     buildPrompt(task.task_type, task.description),
   );
-  const timeoutMinutes =
+  const configuredTimeoutMinutes =
     agentDef?.timeout_minutes ||
     (repoOverrides?.timeout_minutes as number | undefined) ||
-    getTaskTypeConfig(task.task_type)?.timeout_minutes ||
-    30;
+    getTaskTypeConfig(task.task_type)?.timeout_minutes;
+  const timeoutMinutes = configuredTimeoutMinutes || 30;
 
   // Dark-factory mode: the label marks the CR `lore.re-cinq.com/dark-factory=true`
   // and the spec.darkFactory block tells the agent-cr backend to run the

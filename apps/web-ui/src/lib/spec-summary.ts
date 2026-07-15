@@ -48,13 +48,12 @@ export function extractSummary(content: string, maxLength = 280): string {
     }
     const first = lines[0];
 
-    if (
-      first.startsWith("#") ||
-      first.startsWith("|") ||
-      first.startsWith(">") ||
-      first.startsWith("```") ||
-      /^[-*]\s/.test(first)
-    ) {
+    const isBlockPrefix =
+      first.startsWith("#") || first.startsWith("|") || first.startsWith(">");
+    const isMarkdownSyntax =
+      isBlockPrefix || first.startsWith("```") || /^[-*]\s/.test(first);
+
+    if (isMarkdownSyntax) {
       continue;
     }
     const text = lines.join(" ").replace(/\s+/g, " ").trim();
