@@ -112,8 +112,11 @@ jobs:
             build: npm run build
             test: npx eslint . --ignore-pattern "apps/web-ui/**"
           # web-ui lint — install its own deps so react/next types resolve.
+          # Build shared first: the flat config loads the lore plugin, whose
+          # require-spec-link rule imports @re-cinq/lore-shared/dist at config load.
           - name: lint-web-ui
             install: npm install && npm install --prefix apps/web-ui
+            build: npm run build -w @re-cinq/lore-shared
             test: npx eslint apps/web-ui
 
     steps:
