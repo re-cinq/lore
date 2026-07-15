@@ -19,6 +19,7 @@
  * statements links them all (`parseSpecAnchors` reads either shape downstream).
  */
 
+import { posix } from "node:path";
 import { linksForStatements } from "../spec-link-parser.js";
 import type { TestDescriptor } from "../test-report.js";
 
@@ -39,6 +40,20 @@ function normalizePath(path: string): string {
   return path.replace(/^\.?\/+/, "");
 }
 
+/** Resolve a coverage-link path to repo-root-relative form. A `../`-prefixed
+ * href is relative to the spec file's directory (that is how GitHub renders it),
+ * so resolve it against `dirname(specPath)`; every other form is already
+ * repo-root-relative and only needs a leading `./` or `/` stripped. Without this,
+ * a `../../../apps/x.test.ts` link never matches a descriptor's repo-relative
+ * `apps/x.test.ts` file and yields no edge. */
+function resolveLinkPath(linkPath: string, specPath: string): string {
+  if (linkPath.startsWith("../")) {
+    return posix.normalize(posix.join(posix.dirname(specPath), linkPath));
+  }
+
+  return normalizePath(linkPath);
+}
+
 /** Flatten every spec's statements into `(test path, line) → statement anchor` entries. */
 function buildLinkIndex(specs: SpecSource[]): LinkIndexEntry[] {
   const entries: LinkIndexEntry[] = [];
@@ -50,7 +65,7 @@ function buildLinkIndex(specs: SpecSource[]): LinkIndexEntry[] {
           continue;
         }
         entries.push({
-          path: normalizePath(link.path),
+          path: resolveLinkPath(link.path, spec.path),
           line: link.line,
           anchor: `${spec.path}#${statement.ordinal}`,
         });

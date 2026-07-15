@@ -87,6 +87,21 @@ describe("bindDescriptorsToSpecLinks", () => {
     expect(bound.spec).toBe(`${SPEC_PATH}#${greetOrdinal}`);
   });
 
+  it("resolves a ../-relative link path against the spec's directory before matching", () => {
+    const nestedSpecPath = "specs/api-routes/foo/spec.md";
+    const nestedSpec = `# X\n\n## Acceptance Criteria\n\nThe system greets the user.\n([validated by \`greets\`](../../../src/greet.test.ts#L10))\n`;
+    const ordinal = linksForStatements(nestedSpec).filter(
+      (pair) => pair.testLinks.length > 0,
+    )[0].statement.ordinal;
+
+    const [bound] = bindDescriptorsToSpecLinks(
+      [descriptor({})],
+      [{ path: nestedSpecPath, content: nestedSpec }],
+    );
+
+    expect(bound.spec).toBe(`${nestedSpecPath}#${ordinal}`);
+  });
+
   it("binds nothing from a link with no #Lline anchor", () => {
     const noLineSpec = `# X\n\n## Acceptance Criteria\n\nThe system greets.\n([validated by \`greets\`](src/greet.test.ts))\n`;
     const [bound] = bindDescriptorsToSpecLinks(
