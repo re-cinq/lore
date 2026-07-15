@@ -35,6 +35,12 @@ ruleTester.run("require-spec-link", rule, {
       options: OPTS,
     },
     {
+      // a modifier chain (it.skip) is still a named test — whole-file link covers it
+      code: `it.skip("anything", () => {});`,
+      filename: file("tests/adr-linked.test.ts"),
+      options: OPTS,
+    },
+    {
       // non-test file — the rule does not apply
       code: `const a = 1;`,
       filename: file("src/foo.ts"),
@@ -47,14 +53,40 @@ ruleTester.run("require-spec-link", rule, {
       code: `it("works", () => {});`,
       filename: file("tests/linked.test.ts"),
       options: OPTS,
-      errors: [{ messageId: "unlinkedTest" }],
+      errors: [
+        {
+          messageId: "unlinkedTest",
+          data: { name: "works", file: "tests/linked.test.ts", line: "1" },
+        },
+      ],
     },
     {
       // test file no spec/adr references at all — every it() is flagged
       code: `it("a", () => {});\nit("b", () => {});`,
       filename: file("tests/orphan.test.ts"),
       options: OPTS,
-      errors: [{ messageId: "unlinkedTest" }, { messageId: "unlinkedTest" }],
+      errors: [
+        {
+          messageId: "unlinkedTest",
+          data: { name: "a", file: "tests/orphan.test.ts", line: "1" },
+        },
+        {
+          messageId: "unlinkedTest",
+          data: { name: "b", file: "tests/orphan.test.ts", line: "2" },
+        },
+      ],
+    },
+    {
+      // test.each — exercises the chained-callee traversal in rootCallName
+      code: `test.each([[1]])("case %s", () => {});`,
+      filename: file("tests/orphan.test.ts"),
+      options: OPTS,
+      errors: [
+        {
+          messageId: "unlinkedTest",
+          data: { name: "case %s", file: "tests/orphan.test.ts", line: "1" },
+        },
+      ],
     },
   ],
 });

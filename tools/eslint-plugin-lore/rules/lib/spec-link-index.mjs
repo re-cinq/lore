@@ -18,7 +18,7 @@ import { linksForStatements } from "@re-cinq/lore-shared/spec-link-parser.js";
 
 /** @typedef {{ lines: Set<number>, wholeFile: boolean }} LinkEntry */
 
-function toPosix(filePath) {
+export function toPosix(filePath) {
   return filePath.split(path.sep).join("/");
 }
 

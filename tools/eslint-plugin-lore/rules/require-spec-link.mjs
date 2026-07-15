@@ -18,7 +18,11 @@
  */
 
 import path from "node:path";
-import { buildLinkIndex, readSpecFiles } from "./lib/spec-link-index.mjs";
+import {
+  buildLinkIndex,
+  readSpecFiles,
+  toPosix,
+} from "./lib/spec-link-index.mjs";
 
 const TEST_FILE_RE = /\.test\.[cm]?[jt]sx?$/;
 
@@ -35,10 +39,6 @@ function getIndex(specsRoot, roots) {
   }
 
   return index;
-}
-
-function toPosix(filePath) {
-  return filePath.split(path.sep).join("/");
 }
 
 /** The base identifier of a (possibly chained) callee — `it` in `it.each([])(…)`. */
@@ -111,7 +111,7 @@ export default {
     type: "problem",
     docs: {
       description:
-        "require every test to be linked from a spec or ADR via an inline ([validated by](test.ts#Lline)) link",
+        "require every test to be linked from a spec or ADR via an inline ([validated by](test.ts#Lline)) link. The spec/adr corpus is read once per process and memoized, so in a long-lived ESLint server (VS Code extension, --watch) a newly added link is not seen until the server restarts; a one-shot `eslint`/CI run always reads fresh.",
     },
     schema: [
       {
