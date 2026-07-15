@@ -1,6 +1,3 @@
-"use client";
-import { useEffect, useState } from "react";
-
 const STATUS_COLORS: Record<string, string> = {
   draft: "var(--text-muted)",
   open: "var(--info)",
@@ -11,22 +8,11 @@ const STATUS_COLORS: Record<string, string> = {
   closed: "var(--border-hover)",
 };
 
-export default function PRStatusBadge({ taskId }: { taskId: string }) {
-  const [status, setStatus] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch(`/api/tasks/${taskId}/pr-status`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.computed_status) {
-          setStatus(data.computed_status);
-        }
-      })
-      .catch(() => {
-        /* silent */
-      });
-  }, [taskId]);
-
+/**
+ * Pure PR-status pill. Presentational (data down): the polling lives in
+ * PRStatusBadgePanel, which threads the resolved status in as a prop.
+ */
+export default function PRStatusBadge({ status }: { status: string | null }) {
   if (!status) {
     return null;
   }

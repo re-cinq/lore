@@ -4,7 +4,7 @@ import { render, screen, within } from "@testing-library/react";
 import AssemblyLineRunsTable from "./AssemblyLineRunsTable";
 import type { AssemblyLineRun } from "@/lib/assembly-line-runs";
 
-// PRStatusBadge fetches on mount; stub it so the badge case doesn't hit network.
+// PRStatusBadgePanel fetches on mount; stub it so the badge case doesn't hit network.
 beforeEach(() => {
   vi.stubGlobal(
     "fetch",
@@ -113,7 +113,7 @@ describe("AssemblyLineRunsTable", () => {
       "href",
       "https://github.com/re-cinq/lore/pull/7",
     );
-    // No backing task → PRStatusBadge is not rendered, so no fetch fires.
+    // No backing task → PRStatusBadgePanel is not rendered, so no fetch fires.
     expect(fetch).not.toHaveBeenCalled();
   });
 });
