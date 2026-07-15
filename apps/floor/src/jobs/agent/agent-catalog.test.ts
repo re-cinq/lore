@@ -31,6 +31,9 @@ describe("buildAgentDefinition", () => {
         prompt: "Implement the spec.\n\nSpec: {description}\n\n{context}",
         permission_mode: "bypass",
         max_turns: 40,
+        resources: {
+          secrets: [{ name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" }],
+        },
         output: {
           sinks: [
             { type: "stdout" },
@@ -43,6 +46,21 @@ describe("buildAgentDefinition", () => {
         },
       },
     });
+  });
+
+  it("declares ANTHROPIC_API_KEY in resources.secrets so the controller injects the model key", () => {
+    expect(buildAgentDefinition("implementation", impl).spec?.resources).toEqual(
+      { secrets: [{ name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" }] },
+    );
+  });
+
+  it("station recipes omit ANTHROPIC (exec vendor, no model call)", () => {
+    expect(
+      buildStationDefinition("validate", {
+        command: ["lore-station", "validate"],
+        timeout_minutes: 15,
+      }).spec,
+    ).not.toHaveProperty("resources");
   });
 
   it("omits model when the recipe has none", () => {
