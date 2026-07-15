@@ -50,6 +50,14 @@ resource "kubectl_manifest" "es_ai_agents_secrets" {
           secretKey = "LORE_AGENT_INTERNAL_TOKEN"
           remoteRef = { key = "lore-agent-internal-token" }
         },
+        # The seeded recipes' http telemetry sink declares `headers_secret: agent-events-auth`,
+        # which the controller injects as a NON-optional secretKeyRef from THIS Secret — so the
+        # key must live here or every run pod fails CreateContainerConfigError. Same remoteRef as
+        # the internal token: the Floor authenticates the sink as `Bearer <LORE_AGENT_INTERNAL_TOKEN>`.
+        {
+          secretKey = "agent-events-auth"
+          remoteRef = { key = "lore-agent-internal-token" }
+        },
       ]
     }
   })
@@ -57,6 +65,23 @@ resource "kubectl_manifest" "es_ai_agents_secrets" {
   depends_on = [
     kubectl_manifest.cluster_secret_store,
     kubernetes_namespace.ai_agents,
+  ]
+}
+
+# Run pods (created by the controller under the namespace `default` ServiceAccount) pull the
+# private ai-agent image from GHCR — without a pull secret on that SA every run fails
+# ImagePullBackOff/401. Bind ghcr-pull-secret to the auto-created default SA so a fresh install
+# authenticates. The controller Deployment gets its own imagePullSecrets via the chart.
+resource "kubernetes_default_service_account" "ai_agents" {
+  metadata {
+    namespace = "ai-agents"
+  }
+  image_pull_secret {
+    name = "ghcr-pull-secret"
+  }
+  depends_on = [
+    kubernetes_namespace.ai_agents,
+    kubectl_manifest.es_ai_agents_ghcr,
   ]
 }
 

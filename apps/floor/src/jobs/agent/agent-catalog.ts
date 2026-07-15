@@ -40,6 +40,13 @@ const STATION_IMAGE_SENTINEL = "__STATION_IMAGE__";
 export const stationName = (name: string): string =>
   `def-${name.replaceAll("_", "-")}`;
 
+// The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY. The controller only
+// injects keys a recipe declares here (from the agent-secrets Secret), so without it a run
+// pod has no key and the agent cannot call the model. Stations (exec vendor) omit it.
+const AGENT_SECRETS: NonNullable<
+  NonNullable<NonNullable<AgentDefinition["spec"]>["resources"]>["secrets"]
+> = [{ name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" }];
+
 const OUTPUT_SINKS: NonNullable<
   NonNullable<AgentDefinition["spec"]>["output"]
 > = {
@@ -68,6 +75,7 @@ export function buildAgentDefinition(
       prompt: `${cfg.prompt_template.trimEnd()}\n\n{context}`,
       permission_mode: "bypass",
       max_turns: 40,
+      resources: { secrets: AGENT_SECRETS },
       // D8 (#687): stream NDJSON run output to the Floor's /api/agent-events sink for
       // cost accounting. URL is per-cluster (.Values.agentEventsUrl); headers_secret
       // carries the Authorization header from agent-secrets.
