@@ -44,6 +44,7 @@ export default function TimelinePanel({
   }, [taskId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount fetch; setState runs after the awaited fetch, not synchronously
     void fetchTimeline();
   }, [fetchTimeline]);
 
