@@ -576,6 +576,81 @@ non-terminal states and resolve them without manual intervention.
   auto-curation pipeline can surface patterns (e.g. a task type that
   consistently times out).
 
+### FR-19: Task Detail UI (Phase 1)
+
+The web UI MUST present a per-task detail view at `/tasks/[id]` that
+surfaces the task's metadata, run attempts, stage timeline, PR status,
+event history, and LLM-call ledger. Live sections follow a
+data-down/actions-up split: pure `*View` presentational components are
+fed by IO `*Panel` containers that own fetching and polling.
+
+- FR-19.1: The detail heading reads `Task: <description>` with the
+  description truncated to 80 characters, and the view shows the task
+  type, target repo, creator, and a sentence-cased status badge.
+  Priority renders as a red badge when `immediate` and falls back to a
+  plain `normal` meta label when empty. ([validated by `TaskDetailView.test.tsx:95`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L95), [`TaskDetailView.test.tsx:114`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L114), [`TaskDetailView.test.tsx:122`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L122), [`TaskDetailView.test.tsx:134`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L134), [`TaskDetailView.test.tsx:141`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L141))
+- FR-19.2: The agent row, failure row, and review-iterations row each
+  render only when their value is present (agent assigned, failure
+  reason set, review iteration greater than zero) and are omitted
+  otherwise. ([validated by `TaskDetailView.test.tsx:195`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L195), [`TaskDetailView.test.tsx:201`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L201), [`TaskDetailView.test.tsx:223`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L223), [`TaskDetailView.test.tsx:229`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L229), [`TaskDetailView.test.tsx:235`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L235))
+- FR-19.3: The view lists the task's run attempts under a "Runs"
+  heading, each linking to its run detail at `/assembly-lines/<run-id>`,
+  and omits the section entirely when the task has no runs. ([validated by `TaskDetailView.test.tsx:66`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L66), [`TaskDetailView.test.tsx:87`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L87))
+- FR-19.4: In-flight controls follow actions-up: a "Run Now" form
+  posting to `/api/tasks/<id>/run-now` appears only for pending
+  normal-priority tasks; a "Cancel Task" control appears for
+  non-terminal tasks and is hidden once merged or completed; the
+  confirm-gated `CancelTaskButton` shows only its trigger until clicked,
+  then reveals a form posting to `/api/tasks/<id>/cancel` that "Keep
+  task" backs out of; and a "Give Feedback" form wired to the injected
+  server action (with a hidden `task_id`) shows only for a task that has
+  a PR and is not cancelled. ([validated by `TaskDetailView.test.tsx:148`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L148), [`TaskDetailView.test.tsx:159`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L159), [`TaskDetailView.test.tsx:166`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L166), [`TaskDetailView.test.tsx:175`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L175), [`TaskDetailView.test.tsx:188`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L188), [`TaskDetailView.test.tsx:264`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L264), [`TaskDetailView.test.tsx:285`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L285), [`TaskDetailView.test.tsx:292`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L292), [`CancelTaskButton.test.tsx:7`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L7), [`CancelTaskButton.test.tsx:17`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L17), [`CancelTaskButton.test.tsx:30`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L30))
+- FR-19.5: When a failed task carries a failed-event with metadata, the
+  view renders a "Failure" panel surfacing the error; absent that
+  metadata no panel is shown. ([validated by `TaskDetailView.test.tsx:240`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L240), [`TaskDetailView.test.tsx:257`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L257))
+- FR-19.6: The event timeline renders one badge per status transition
+  (sentence-cased to-status with a from-status arrow), pretty-prints
+  event metadata as JSON, and shows an empty-state note when there are
+  no events. ([validated by `TaskDetailView.test.tsx:305`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L305), [`EventTimeline.test.tsx:17`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L17), [`EventTimeline.test.tsx:28`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L28), [`EventTimeline.test.tsx:36`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L36))
+- FR-19.7: The LLM-calls table renders one row per call with the model,
+  `input / output` token counts, duration, and a status badge (red with
+  the error text on failure), and shows an empty-state note in place of
+  the table when there are none. ([validated by `TaskDetailView.test.tsx:333`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L333), [`TaskDetailView.test.tsx:351`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L351), [`TaskDetailView.test.tsx:365`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L365), [`LlmCallsTable.test.tsx:19`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L19), [`LlmCallsTable.test.tsx:27`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L27), [`LlmCallsTable.test.tsx:35`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L35))
+- FR-19.8: The pure stage-timeline view renders loading, error
+  (`Timeline unavailable: <reason>`), and empty (nothing rendered)
+  states from its props, shows "No stage commits yet." when the branch
+  exists but has no commits, renders a `no_branch` pending notice and a
+  branch-deleted banner that suppresses the empty-commits message, and
+  for each commit shows a node icon (bullet fallback for unknown
+  stages), an outcome pill coloured by outcome (success /
+  changes_requested / failed with a muted fallback), a formatted
+  duration (null / ms / seconds / minutes), a GitHub commit link
+  omitted when the repo is null, and a held-lease indicator naming the
+  holder and its expiry (expiry omitted when absent, hidden when the
+  lease is not held). ([validated by `TimelineView.test.tsx:45`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L45), [`TimelineView.test.tsx:51`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L51), [`TimelineView.test.tsx:59`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L59), [`TimelineView.test.tsx:67`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L67), [`TimelineView.test.tsx:74`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L74), [`TimelineView.test.tsx:88`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L88), [`TimelineView.test.tsx:123`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L123), [`TimelineView.test.tsx:139`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L139), [`TimelineView.test.tsx:169`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L169), [`TimelineView.test.tsx:191`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L191), [`TimelineView.test.tsx:212`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L212), [`TimelineView.test.tsx:224`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L224), [`TimelineView.test.tsx:244`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L244), [`TimelineView.test.tsx:257`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L257))
+- FR-19.9: The timeline container fetches `/api/tasks/<id>/timeline`,
+  rendering loading, error (non-ok response or rejected fetch), and
+  resolved states, clears a prior error after a later successful poll,
+  polls on a 10-second interval while the task is active (driven by
+  `initialStatus` or a still-active `current_stage`), does not poll for
+  a terminal status whose stage is `retrospective`, and stops fetching
+  after unmount. ([validated by `TimelinePanel.test.tsx:70`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L70), [`TimelinePanel.test.tsx:91`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L91), [`TimelinePanel.test.tsx:101`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L101), [`TimelinePanel.test.tsx:111`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L111), [`TimelinePanel.test.tsx:124`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L124), [`TimelinePanel.test.tsx:136`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L136), [`TimelinePanel.test.tsx:156`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L156), [`TimelinePanel.test.tsx:181`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L181), [`TimelinePanel.test.tsx:199`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L199), [`TimelinePanel.test.tsx:222`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L222))
+- FR-19.10: The pure PR status card shows a loading placeholder until
+  details arrive, an "unavailable" fallback with a "View on GitHub" link
+  when only an error is present, keeps the loaded details on screen even
+  when a later error arrives, renders the computed-status pill (mapped
+  colour, muted fallback for an unknown status) with a PR link, omits
+  the checks row when there are no checks and otherwise counts passing
+  (success / skipped), failing (failure / timed_out), and pending (any
+  non-completed) checks — showing no counts when every check is
+  zero-bucketed — and lists approvers and change-requesters (or both),
+  omitting the reviews row when there are neither. ([validated by `PRStatusCard.test.tsx:44`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L44), [`PRStatusCard.test.tsx:53`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L53), [`PRStatusCard.test.tsx:70`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L70), [`PRStatusCard.test.tsx:83`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L83), [`PRStatusCard.test.tsx:106`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L106), [`PRStatusCard.test.tsx:120`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L120), [`PRStatusCard.test.tsx:136`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L136), [`PRStatusCard.test.tsx:148`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L148), [`PRStatusCard.test.tsx:169`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L169), [`PRStatusCard.test.tsx:188`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L188), [`PRStatusCard.test.tsx:205`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L205), [`PRStatusCard.test.tsx:225`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L225), [`PRStatusCard.test.tsx:242`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L242), [`PRStatusCard.test.tsx:254`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L254), [`PRStatusCard.test.tsx:288`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L288))
+- FR-19.11: The PR status container fetches `/api/tasks/<id>/pr-status`
+  and renders the card, surfaces the unavailable fallback on an error
+  payload or a rejected fetch, refetches when the task id changes, does
+  not fetch after unmount, keeps the loaded details when a later poll
+  fails, and stops polling after a failed poll. ([validated by `PRStatusPanel.test.tsx:60`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L60), [`PRStatusPanel.test.tsx:70`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L70), [`PRStatusPanel.test.tsx:83`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L83), [`PRStatusPanel.test.tsx:99`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L99), [`PRStatusPanel.test.tsx:115`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L115), [`PRStatusPanel.test.tsx:133`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L133), [`PRStatusPanel.test.tsx:158`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L158))
+
 ## Non-Functional Requirements
 
 ### NFR-1: Security

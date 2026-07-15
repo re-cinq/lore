@@ -50,20 +50,32 @@ Icon.tsx    → renders Lucide (elegant) or Pixelarticons (retro) by family
 Two independent axes, persisted separately in `localStorage`
 (`lore-theme-family`, `lore-color-scheme`) ([family persists](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L216), [scheme persists](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L234)). The `auto` scheme resolves to
 light/dark via `prefers-color-scheme` and updates live on OS change ([live flip to dark](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L269), [and back to light](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L294)). The
-resolved scheme is what reaches the DOM, so CSS never matches `auto` ([auto resolves to dark](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L172), [and to light](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L186)).
+resolved scheme is what reaches the DOM, so CSS never matches `auto`, and an explicit `light`/`dark` scheme overrides the
+OS preference ([auto resolves to dark](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L172), [and to light](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L186), [explicit scheme overrides OS](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L200)).
 
 ### What Changed
 
 **New — `web-ui/src/lib/theme/`**
-- `types.ts`, `theme-core.ts` — pure, unit-tested: `resolveColorScheme()`,
-  `parseFamily()`, `parseSchemePref()`, storage-key + default constants. ([validated by `theme-core.test.ts:12`](apps/web-ui/src/lib/theme/theme-core.test.ts#L12))
+- `types.ts`, `theme-core.ts` — pure, unit-tested: `resolveColorScheme()`
+  (an explicit `light`/`dark` pref wins over the system flag, `auto` follows
+  it), `parseFamily()` / `parseSchemePref()` (pass valid values through, fall
+  back to the default on garbage or `null`), storage-key + default constants. ([light pref wins](apps/web-ui/src/lib/theme/theme-core.test.ts#L12), [dark pref wins](apps/web-ui/src/lib/theme/theme-core.test.ts#L17), [auto follows system](apps/web-ui/src/lib/theme/theme-core.test.ts#L22), [parseFamily passthrough](apps/web-ui/src/lib/theme/theme-core.test.ts#L29), [parseFamily fallback](apps/web-ui/src/lib/theme/theme-core.test.ts#L34), [parseSchemePref passthrough](apps/web-ui/src/lib/theme/theme-core.test.ts#L41), [parseSchemePref fallback](apps/web-ui/src/lib/theme/theme-core.test.ts#L47))
 - `theme-core.test.ts` — resolver/parser cases + icon-map key-parity test ([validated by `theme-core.test.ts:54`](apps/web-ui/src/lib/theme/theme-core.test.ts#L54)).
 - `fonts.ts` — Inter + IBM Plex Mono (`next/font/google`) and self-hosted
   GohuFont (`next/font/local`) as CSS variables.
 - `theme-script.ts` — `THEME_SCRIPT` blocking IIFE (FOUC prevention; also seeds
   `window.__loreFamily` so client icon render matches first paint). ([validated by `ThemeProvider.test.tsx:88`](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L88))
 - `ThemeProvider.tsx` — context + `useTheme()`; reflects state→DOM; subscribes
-  to the media query only while `auto`. ([subscribes while auto](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L269), [not otherwise](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L254))
+  to the media query only while `auto`, tearing the listener down on unmount and
+  when leaving `auto`, and re-subscribing on return to `auto`. ([subscribes while auto](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L269), [not otherwise](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L254), [unsubscribes on unmount](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L315), [re-subscribes on return to auto](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L337))
+
+On mount the provider seeds the family from `window.__loreFamily`, falling back
+to the `data-theme-family` attribute and then to the default `elegant`, and
+seeds the scheme from `localStorage`, defaulting to `auto` when the stored value
+is missing or unrecognized; it then writes both data attributes plus the
+`window.__loreFamily` global to the DOM. ([family from attribute](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L103), [family default elegant](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L116), [scheme from localStorage](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L128), [scheme default auto](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L141), [writes attributes + global](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L156))
+
+`useTheme()` throws a descriptive error when called outside a `ThemeProvider`. ([validated by `ThemeProvider.test.tsx:365`](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L365))
 
 **New — `web-ui/src/app/theme.css`** — the token source of truth ([validated by `theme-tokens.test.ts:59`](apps/web-ui/src/app/theme-tokens.test.ts#L59)). Family-level
 blocks hold shape/type/glass tokens (`--radius*`, `--fs-*` type scale,

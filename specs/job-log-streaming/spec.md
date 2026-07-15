@@ -96,3 +96,35 @@ is already stored in LoreTask `status.output` and transferred to
 3. Completed/failed tasks show final output. ([validated by `TaskLogs.test.tsx:527`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L527))
 
 4. No kubectl access needed to see what the agent is doing
+
+## Component Contract
+
+### TaskLogs viewer
+
+The initial fetch requests the bare logs URL with no `offset` query; a non-active (terminal) status never takes the offset branch. ([validated by `TaskLogs.test.tsx:75`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L75))
+
+Before any logs resolve — or when the server returns null logs — the viewer shows the placeholder "Logs will appear when the agent starts.", and the "Agent Output" heading always renders. ([validated by `TaskLogs.test.tsx:54`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L54), [validated by `TaskLogs.test.tsx:549`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L549))
+
+Status maps to a badge: "Completed" for succeeded/pr-created/merged, "In Review" for review, "Failed" for failed/cancelled; a running task that later reports completion transitions from the polling note to the Completed badge. ([validated by `TaskLogs.test.tsx:112`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L112), [validated by `TaskLogs.test.tsx:126`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L126), [validated by `TaskLogs.test.tsx:140`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L140), [validated by `TaskLogs.test.tsx:154`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L154), [validated by `TaskLogs.test.tsx:168`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L168), [validated by `TaskLogs.test.tsx:182`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L182), [validated by `TaskLogs.test.tsx:565`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L565))
+
+While running, the viewer renders a pulse indicator and a "Polling every 5s — N.N KB received" note, collapsing to a bare "Polling every 5s" when zero bytes have been received. ([validated by `TaskLogs.test.tsx:196`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L196), [validated by `TaskLogs.test.tsx:218`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L218))
+
+Once totalSize is known and the task is running, incremental polls use the `?offset=` URL and append the returned tail; an empty offset delta is not appended and does not blank the head chunk, and a still-null buffer coalesces to "" before the first appended tail. ([validated by `TaskLogs.test.tsx:235`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L235), [validated by `TaskLogs.test.tsx:274`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L274), [validated by `TaskLogs.test.tsx:297`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L297))
+
+The full (non-offset) fetch path replaces the log buffer entirely. ([validated by `TaskLogs.test.tsx:333`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L333))
+
+Fetch failures surface distinct messages: a 403 renders the access-denied message and stops polling, a 401 renders the sign-in message, any other non-ok response renders an "HTTP <code>" message, a thrown fetch renders the rejection message, and a later successful fetch clears the error. ([validated by `TaskLogs.test.tsx:352`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L352), [validated by `TaskLogs.test.tsx:387`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L387), [validated by `TaskLogs.test.tsx:409`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L409), [validated by `TaskLogs.test.tsx:429`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L429), [validated by `TaskLogs.test.tsx:446`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L446))
+
+### FailurePanel
+
+FailurePanel renders nothing when the metadata carries neither an error nor any detail rows — undefined fields, an empty details array, or undefined metadata. ([validated by `FailurePanel.test.tsx:9`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L9), [validated by `FailurePanel.test.tsx:15`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L15), [validated by `FailurePanel.test.tsx:23`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L23))
+
+A top-level error renders the "Failure" heading and the error paragraph; detail rows alone, with no top-level error, still render the heading and their error text. ([validated by `FailurePanel.test.tsx:34`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L34), [validated by `FailurePanel.test.tsx:162`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L162))
+
+The category badge maps a known code to its human label, falls back to the raw code string when unmapped, shows "Unknown" for the reserved `unknown` code, and is omitted entirely when no category is present. ([validated by `FailurePanel.test.tsx:42`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L42), [validated by `FailurePanel.test.tsx:52`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L52), [validated by `FailurePanel.test.tsx:177`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L177), [validated by `FailurePanel.test.tsx:62`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L62))
+
+A remediation hint renders under a "How to fix:" label and is omitted when no hint is provided. ([validated by `FailurePanel.test.tsx:70`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L70), [validated by `FailurePanel.test.tsx:81`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L81))
+
+Error text is linkified — a file path inside the top-level error becomes a GitHub blob link opening in a new tab. ([validated by `FailurePanel.test.tsx:86`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L86))
+
+Per-step detail rows render the step code with its own category badge, error, and linkified hint; the badge and hint are omitted when a detail lacks them, and multiple rows preserve their declared order. ([validated by `FailurePanel.test.tsx:102`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L102), [validated by `FailurePanel.test.tsx:129`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L129), [validated by `FailurePanel.test.tsx:143`](apps/web-ui/src/app/tasks/[id]/FailurePanel.test.tsx#L143))
