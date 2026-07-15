@@ -6,7 +6,7 @@ import {
   runStatusVisual,
 } from "@/lib/assembly-line-presenter";
 import { formatCost, shortAgentId } from "@/lib/task-presenter";
-import PRStatusBadge from "../tasks/PRStatusBadge";
+import PRStatusBadgePanel from "../tasks/PRStatusBadgePanel";
 import styles from "./AssemblyLineRunsTable.module.css";
 
 const EM_DASH = "—";
@@ -77,7 +77,9 @@ export default function AssemblyLineRunsTable({
                     <a href={run.prUrl} target="_blank" rel="noreferrer">
                       #{run.prNumber}
                     </a>
-                    {run.taskId ? <PRStatusBadge taskId={run.taskId} /> : null}
+                    {run.taskId ? (
+                      <PRStatusBadgePanel taskId={run.taskId} />
+                    ) : null}
                   </span>
                 ) : (
                   EM_DASH

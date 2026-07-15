@@ -42,6 +42,50 @@ describe("segmentStatements", () => {
     expect(out).toHaveLength(2);
   });
 
+  it("ends a list-item continuation at a heading, table row, or code fence", () => {
+    const out = segmentStatements(
+      [
+        "## A",
+        "",
+        "- Item before heading.",
+        "## B",
+        "- Item before table.",
+        "| a | b |",
+        "- Item before fence.",
+        "```ts",
+        "const x = 1;",
+        "```",
+      ].join("\n"),
+    );
+
+    expect(out.map((s) => s.text)).toEqual([
+      "Item before heading.",
+      "Item before table.",
+      "Item before fence.",
+    ]);
+  });
+
+  it("drops a bare list marker with no text", () => {
+    expect(segmentStatements("## A\n\n- \n")).toEqual([]);
+  });
+
+  it("keeps single-initial abbreviations like J. B. in one sentence", () => {
+    const out = segmentStatements(
+      "## A\n\nWritten by J. B. Rainsberger. Second sentence here.\n",
+    );
+
+    expect(out.map((s) => s.text)).toEqual([
+      "Written by J. B. Rainsberger.",
+      "Second sentence here.",
+    ]);
+  });
+
+  it("splits after punctuation-only leading sentences", () => {
+    const out = segmentStatements("## A\n\n... Then the prose starts.\n");
+
+    expect(out.map((s) => s.text)).toEqual(["...", "Then the prose starts."]);
+  });
+
   it("excludes headings, fenced code, and tables", () => {
     const out = segmentStatements(
       [
@@ -161,6 +205,14 @@ describe("classifyByHeuristic", () => {
 
   it("returns testable for unrecognised headings", () => {
     expect(classifyByHeuristic(make("Acceptance Criteria"), intro)).toEqual({
+      testability: "testable",
+      category: null,
+      matchedBySection: false,
+    });
+  });
+
+  it("returns testable for a statement with no enclosing heading", () => {
+    expect(classifyByHeuristic(make(null), intro)).toEqual({
       testability: "testable",
       category: null,
       matchedBySection: false,
