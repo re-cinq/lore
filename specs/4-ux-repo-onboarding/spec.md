@@ -299,6 +299,124 @@ The PR created for repo onboarding MUST include:
 - FR-5.6: All files have comments explaining their purpose and how
   to customize them.
 
+### FR-6: Top-Level Observability Pages
+
+The top-level nav hosts org-wide observability pages that read across
+every repo.
+
+- FR-6.1: The Audit page (`/audit`) renders one row per audit-log entry
+  with a truncated agent id and an operation badge, showing the key,
+  pool and stringified-metadata cells (em-dashes when null) with full
+  metadata expandable as pretty-printed JSON; it offers an operations
+  filter dropdown seeded from the current agent/op query, distinguishes
+  a first-run empty state from a no-matches state on an out-of-range
+  page, and renders pagination links that disable at the ends and
+  preserve the active filters in their hrefs. ([validated by `AuditView.test.tsx:31`](apps/web-ui/src/app/audit/AuditView.test.tsx#L31), [`AuditView.test.tsx:65`](apps/web-ui/src/app/audit/AuditView.test.tsx#L65), [`AuditView.test.tsx:92`](apps/web-ui/src/app/audit/AuditView.test.tsx#L92), [`AuditView.test.tsx:107`](apps/web-ui/src/app/audit/AuditView.test.tsx#L107), [`AuditView.test.tsx:128`](apps/web-ui/src/app/audit/AuditView.test.tsx#L128), [`AuditView.test.tsx:145`](apps/web-ui/src/app/audit/AuditView.test.tsx#L145), [`AuditView.test.tsx:167`](apps/web-ui/src/app/audit/AuditView.test.tsx#L167), [`AuditView.test.tsx:189`](apps/web-ui/src/app/audit/AuditView.test.tsx#L189), [`AuditView.test.tsx:210`](apps/web-ui/src/app/audit/AuditView.test.tsx#L210), [`AuditView.test.tsx:229`](apps/web-ui/src/app/audit/AuditView.test.tsx#L229), [`AuditView.test.tsx:262`](apps/web-ui/src/app/audit/AuditView.test.tsx#L262))
+- FR-6.2: The Episodes page (`/episodes`) renders a row per episode
+  with a truncated agent id, a source badge, its ref (em-dash when
+  null) and fact count, and a content preview that appends an ellipsis
+  only when it hits the 300-char cap; it exposes a source filter, an
+  empty-state row, and pagination that hides on a single page, carries
+  the source into the page links, and disables Previous/Next at the
+  first/last page. ([validated by `EpisodesView.test.tsx:20`](apps/web-ui/src/app/episodes/EpisodesView.test.tsx#L20), [`EpisodesView.test.tsx:60`](apps/web-ui/src/app/episodes/EpisodesView.test.tsx#L60), [`EpisodesView.test.tsx:73`](apps/web-ui/src/app/episodes/EpisodesView.test.tsx#L73), [`EpisodesView.test.tsx:88`](apps/web-ui/src/app/episodes/EpisodesView.test.tsx#L88), [`EpisodesView.test.tsx:102`](apps/web-ui/src/app/episodes/EpisodesView.test.tsx#L102), [`EpisodesView.test.tsx:124`](apps/web-ui/src/app/episodes/EpisodesView.test.tsx#L124), [`EpisodesView.test.tsx:138`](apps/web-ui/src/app/episodes/EpisodesView.test.tsx#L138), [`EpisodesView.test.tsx:152`](apps/web-ui/src/app/episodes/EpisodesView.test.tsx#L152), [`EpisodesView.test.tsx:173`](apps/web-ui/src/app/episodes/EpisodesView.test.tsx#L173))
+- FR-6.3: The Gaps page (`/gaps`) renders a card per gap-detection
+  finding (its key and raw value) and a table row per recorded
+  zero-result search (its query and serialized metadata), each with its
+  own empty state. ([validated by `GapsView.test.tsx:43`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L43), [`GapsView.test.tsx:59`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L59), [`GapsView.test.tsx:66`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L66), [`GapsView.test.tsx:87`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L87))
+- FR-6.4: The Graph explorer page (`/graph`) renders an entity-type
+  filter row (an All badge active when no type is selected, the matching
+  badge active when one is, hidden when there are no types), a row per
+  entity with name, type badge, repo (em-dash when absent), edge count
+  and an explore link carrying the active type query only when set, and
+  an entities empty state; selecting an entity reveals a relationships
+  section with a Show/Hide-invalidated toggle and invalidated badges, or
+  its own empty state when the entity has no edges. ([validated by `GraphView.test.tsx:52`](apps/web-ui/src/app/graph/GraphView.test.tsx#L52), [`GraphView.test.tsx:70`](apps/web-ui/src/app/graph/GraphView.test.tsx#L70), [`GraphView.test.tsx:85`](apps/web-ui/src/app/graph/GraphView.test.tsx#L85), [`GraphView.test.tsx:98`](apps/web-ui/src/app/graph/GraphView.test.tsx#L98), [`GraphView.test.tsx:120`](apps/web-ui/src/app/graph/GraphView.test.tsx#L120), [`GraphView.test.tsx:133`](apps/web-ui/src/app/graph/GraphView.test.tsx#L133), [`GraphView.test.tsx:148`](apps/web-ui/src/app/graph/GraphView.test.tsx#L148), [`GraphView.test.tsx:165`](apps/web-ui/src/app/graph/GraphView.test.tsx#L165), [`GraphView.test.tsx:178`](apps/web-ui/src/app/graph/GraphView.test.tsx#L178), [`GraphView.test.tsx:201`](apps/web-ui/src/app/graph/GraphView.test.tsx#L201), [`GraphView.test.tsx:218`](apps/web-ui/src/app/graph/GraphView.test.tsx#L218))
+- FR-6.5: The shared-pools list page (`/pools`) renders the heading and
+  column headers, a link per pool to its encoded detail page, entry and
+  agent counts, a localized created-at date, and a `created_by` that
+  stays whole when readable but truncates an opaque hex value (full
+  value in the title), with an empty-state row when there are no
+  pools. ([validated by `PoolsView.test.tsx:17`](apps/web-ui/src/app/pools/PoolsView.test.tsx#L17), [`PoolsView.test.tsx:29`](apps/web-ui/src/app/pools/PoolsView.test.tsx#L29), [`PoolsView.test.tsx:34`](apps/web-ui/src/app/pools/PoolsView.test.tsx#L34), [`PoolsView.test.tsx:41`](apps/web-ui/src/app/pools/PoolsView.test.tsx#L41), [`PoolsView.test.tsx:49`](apps/web-ui/src/app/pools/PoolsView.test.tsx#L49), [`PoolsView.test.tsx:60`](apps/web-ui/src/app/pools/PoolsView.test.tsx#L60), [`PoolsView.test.tsx:69`](apps/web-ui/src/app/pools/PoolsView.test.tsx#L69), [`PoolsView.test.tsx:78`](apps/web-ui/src/app/pools/PoolsView.test.tsx#L78))
+- FR-6.6: The Spend page (`/spend`) renders the title and every section
+  heading, org billed/computed cost and token totals when data is
+  available (dashes and a warning card when org billed data is
+  unavailable), billed-cost-by-model rows (including a non-token
+  fallback label), daily billed-cost rows with localized dates, and
+  lore-computed cost by repo and by task type with counts and badges —
+  each table falling back to an empty-state row when there is no
+  data. ([validated by `SpendView.test.tsx:65`](apps/web-ui/src/app/spend/SpendView.test.tsx#L65), [`SpendView.test.tsx:99`](apps/web-ui/src/app/spend/SpendView.test.tsx#L99), [`SpendView.test.tsx:117`](apps/web-ui/src/app/spend/SpendView.test.tsx#L117), [`SpendView.test.tsx:132`](apps/web-ui/src/app/spend/SpendView.test.tsx#L132), [`SpendView.test.tsx:146`](apps/web-ui/src/app/spend/SpendView.test.tsx#L146), [`SpendView.test.tsx:156`](apps/web-ui/src/app/spend/SpendView.test.tsx#L156), [`SpendView.test.tsx:166`](apps/web-ui/src/app/spend/SpendView.test.tsx#L166), [`SpendView.test.tsx:180`](apps/web-ui/src/app/spend/SpendView.test.tsx#L180))
+- FR-6.7: The knowledge-graph force layout (`lib/graph-layout`) seeds
+  feature positions within a radius at distinct spots (larger features
+  further out), partitions links into connected components, places
+  component spots on a rim, scales a bounding radius by the square root
+  of (vertices + edges) between a floor and a cap, clamps a node's
+  velocity inside that border, floors/scales/caps the pre-warm settle
+  ticks, lays a radial tree out ring-by-ring centred on each parent's
+  children, separates small components past a margin, grows the feature
+  ring so trees don't overlap, and counts edge crossings. ([validated by `graph-layout.test.ts:20`](apps/web-ui/src/lib/graph-layout.test.ts#L20), [`graph-layout.test.ts:37`](apps/web-ui/src/lib/graph-layout.test.ts#L37), [`graph-layout.test.ts:60`](apps/web-ui/src/lib/graph-layout.test.ts#L60), [`graph-layout.test.ts:79`](apps/web-ui/src/lib/graph-layout.test.ts#L79), [`graph-layout.test.ts:89`](apps/web-ui/src/lib/graph-layout.test.ts#L89), [`graph-layout.test.ts:96`](apps/web-ui/src/lib/graph-layout.test.ts#L96), [`graph-layout.test.ts:103`](apps/web-ui/src/lib/graph-layout.test.ts#L103), [`graph-layout.test.ts:109`](apps/web-ui/src/lib/graph-layout.test.ts#L109), [`graph-layout.test.ts:115`](apps/web-ui/src/lib/graph-layout.test.ts#L115), [`graph-layout.test.ts:121`](apps/web-ui/src/lib/graph-layout.test.ts#L121), [`graph-layout.test.ts:132`](apps/web-ui/src/lib/graph-layout.test.ts#L132), [`graph-layout.test.ts:138`](apps/web-ui/src/lib/graph-layout.test.ts#L138), [`graph-layout.test.ts:144`](apps/web-ui/src/lib/graph-layout.test.ts#L144), [`graph-layout.test.ts:150`](apps/web-ui/src/lib/graph-layout.test.ts#L150), [`graph-layout.test.ts:156`](apps/web-ui/src/lib/graph-layout.test.ts#L156), [`graph-layout.test.ts:175`](apps/web-ui/src/lib/graph-layout.test.ts#L175), [`graph-layout.test.ts:179`](apps/web-ui/src/lib/graph-layout.test.ts#L179), [`graph-layout.test.ts:183`](apps/web-ui/src/lib/graph-layout.test.ts#L183), [`graph-layout.test.ts:191`](apps/web-ui/src/lib/graph-layout.test.ts#L191), [`graph-layout.test.ts:195`](apps/web-ui/src/lib/graph-layout.test.ts#L195), [`graph-layout.test.ts:204`](apps/web-ui/src/lib/graph-layout.test.ts#L204), [`graph-layout.test.ts:222`](apps/web-ui/src/lib/graph-layout.test.ts#L222), [`graph-layout.test.ts:238`](apps/web-ui/src/lib/graph-layout.test.ts#L238), [`graph-layout.test.ts:266`](apps/web-ui/src/lib/graph-layout.test.ts#L266), [`graph-layout.test.ts:273`](apps/web-ui/src/lib/graph-layout.test.ts#L273), [`graph-layout.test.ts:286`](apps/web-ui/src/lib/graph-layout.test.ts#L286), [`graph-layout.test.ts:298`](apps/web-ui/src/lib/graph-layout.test.ts#L298), [`graph-layout.test.ts:317`](apps/web-ui/src/lib/graph-layout.test.ts#L317), [`graph-layout.test.ts:329`](apps/web-ui/src/lib/graph-layout.test.ts#L329))
+- FR-6.8: The graph crowding helpers (`lib/graph-crowding`) count node
+  degrees across links, weaken a link's strength by its busier
+  (higher-degree) endpoint down to a floor, scale node repulsion by the
+  square root of degree (capped so a mega-hub cannot explode the
+  layout), and grow a node's collide radius with degree up to a padding
+  cap. ([validated by `graph-crowding.test.ts:10`](apps/web-ui/src/lib/graph-crowding.test.ts#L10), [`graph-crowding.test.ts:16`](apps/web-ui/src/lib/graph-crowding.test.ts#L16), [`graph-crowding.test.ts:26`](apps/web-ui/src/lib/graph-crowding.test.ts#L26), [`graph-crowding.test.ts:32`](apps/web-ui/src/lib/graph-crowding.test.ts#L32), [`graph-crowding.test.ts:36`](apps/web-ui/src/lib/graph-crowding.test.ts#L36), [`graph-crowding.test.ts:40`](apps/web-ui/src/lib/graph-crowding.test.ts#L40), [`graph-crowding.test.ts:44`](apps/web-ui/src/lib/graph-crowding.test.ts#L44), [`graph-crowding.test.ts:50`](apps/web-ui/src/lib/graph-crowding.test.ts#L50), [`graph-crowding.test.ts:54`](apps/web-ui/src/lib/graph-crowding.test.ts#L54), [`graph-crowding.test.ts:58`](apps/web-ui/src/lib/graph-crowding.test.ts#L58), [`graph-crowding.test.ts:64`](apps/web-ui/src/lib/graph-crowding.test.ts#L64), [`graph-crowding.test.ts:68`](apps/web-ui/src/lib/graph-crowding.test.ts#L68), [`graph-crowding.test.ts:72`](apps/web-ui/src/lib/graph-crowding.test.ts#L72))
+- FR-6.9: The edge-bundling helpers (`lib/edge-bundling`) build a
+  containment forest from `in_feature`/`in_spec` parent edges (ignoring
+  cross-cutting kinds), walk a node's ancestor chain to the root
+  (stopping on a cycle), and route an edge through its endpoints' lowest
+  common ancestor, ordering the control ids source → LCA → target. ([validated by `edge-bundling.test.ts:16`](apps/web-ui/src/lib/edge-bundling.test.ts#L16), [`edge-bundling.test.ts:25`](apps/web-ui/src/lib/edge-bundling.test.ts#L25), [`edge-bundling.test.ts:34`](apps/web-ui/src/lib/edge-bundling.test.ts#L34), [`edge-bundling.test.ts:46`](apps/web-ui/src/lib/edge-bundling.test.ts#L46), [`edge-bundling.test.ts:55`](apps/web-ui/src/lib/edge-bundling.test.ts#L55), [`edge-bundling.test.ts:59`](apps/web-ui/src/lib/edge-bundling.test.ts#L59), [`edge-bundling.test.ts:78`](apps/web-ui/src/lib/edge-bundling.test.ts#L78), [`edge-bundling.test.ts:88`](apps/web-ui/src/lib/edge-bundling.test.ts#L88), [`edge-bundling.test.ts:96`](apps/web-ui/src/lib/edge-bundling.test.ts#L96))
+- FR-6.10: The assembly-line run presenters (`lib/assembly-line-presenter`)
+  format a relative time (pluralised units, "just now" under a minute),
+  format a duration in seconds/minutes (em-dash when null), and map a
+  run's state and outcome to a visual tone — success for
+  finished+completed, warning for iteration_max, muted for lease_held,
+  danger for finished-but-failed, neutral for an unknown finished
+  outcome, and muted/danger/running for queued/failed/running
+  regardless of outcome. ([validated by `assembly-line-presenter.test.ts:11`](apps/web-ui/src/lib/assembly-line-presenter.test.ts#L11), [`assembly-line-presenter.test.ts:21`](apps/web-ui/src/lib/assembly-line-presenter.test.ts#L21), [`assembly-line-presenter.test.ts:29`](apps/web-ui/src/lib/assembly-line-presenter.test.ts#L29), [`assembly-line-presenter.test.ts:34`](apps/web-ui/src/lib/assembly-line-presenter.test.ts#L34), [`assembly-line-presenter.test.ts:40`](apps/web-ui/src/lib/assembly-line-presenter.test.ts#L40), [`assembly-line-presenter.test.ts:47`](apps/web-ui/src/lib/assembly-line-presenter.test.ts#L47), [`assembly-line-presenter.test.ts:54`](apps/web-ui/src/lib/assembly-line-presenter.test.ts#L54), [`assembly-line-presenter.test.ts:61`](apps/web-ui/src/lib/assembly-line-presenter.test.ts#L61), [`assembly-line-presenter.test.ts:74`](apps/web-ui/src/lib/assembly-line-presenter.test.ts#L74), [`assembly-line-presenter.test.ts:81`](apps/web-ui/src/lib/assembly-line-presenter.test.ts#L81), [`assembly-line-presenter.test.ts:92`](apps/web-ui/src/lib/assembly-line-presenter.test.ts#L92))
+- FR-6.11: The run-row mapper (`lib/assembly-line-runs`) resolves a
+  run's PR from its task join or from `args.pr_number` for a code-review
+  run without a task PR, maps a run with no task and no PR to null
+  pr/creator/cost, and computes node and run durations (left null while
+  still running). ([validated by `assembly-line-runs.test.ts:29`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L29), [`assembly-line-runs.test.ts:42`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L42), [`assembly-line-runs.test.ts:62`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L62), [`assembly-line-runs.test.ts:79`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L79), [`assembly-line-runs.test.ts:88`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L88), [`assembly-line-runs.test.ts:109`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L109))
+
+### FR-7: Shared UI Components
+
+The app is built from a shared set of presentational components.
+
+- FR-7.1: `CopyButton` shows the Copy label, writes the given text to
+  the clipboard on click, swaps to Copied after a successful write and
+  reverts to Copy 1500ms later, and keeps the Copy label when the
+  clipboard write rejects. ([validated by `CopyButton.test.tsx:26`](apps/web-ui/src/components/CopyButton.test.tsx#L26), [`CopyButton.test.tsx:31`](apps/web-ui/src/components/CopyButton.test.tsx#L31), [`CopyButton.test.tsx:44`](apps/web-ui/src/components/CopyButton.test.tsx#L44), [`CopyButton.test.tsx:53`](apps/web-ui/src/components/CopyButton.test.tsx#L53), [`CopyButton.test.tsx:72`](apps/web-ui/src/components/CopyButton.test.tsx#L72))
+- FR-7.2: `HelpPopover` renders a collapsed trigger (default label Help,
+  a provided label applied to both the trigger and the opened dialog)
+  that opens on click and toggles closed on a second click; while open
+  it closes on an outside mousedown, on Escape and on unmount but stays
+  open on an inside mousedown or a non-Escape keydown, registering its
+  document listeners only while open and tearing them down on close and
+  unmount. ([validated by `HelpPopover.test.tsx:7`](apps/web-ui/src/components/HelpPopover.test.tsx#L7), [`HelpPopover.test.tsx:18`](apps/web-ui/src/components/HelpPopover.test.tsx#L18), [`HelpPopover.test.tsx:30`](apps/web-ui/src/components/HelpPopover.test.tsx#L30), [`HelpPopover.test.tsx:45`](apps/web-ui/src/components/HelpPopover.test.tsx#L45), [`HelpPopover.test.tsx:57`](apps/web-ui/src/components/HelpPopover.test.tsx#L57), [`HelpPopover.test.tsx:73`](apps/web-ui/src/components/HelpPopover.test.tsx#L73), [`HelpPopover.test.tsx:84`](apps/web-ui/src/components/HelpPopover.test.tsx#L84), [`HelpPopover.test.tsx:95`](apps/web-ui/src/components/HelpPopover.test.tsx#L95), [`HelpPopover.test.tsx:104`](apps/web-ui/src/components/HelpPopover.test.tsx#L104), [`HelpPopover.test.tsx:114`](apps/web-ui/src/components/HelpPopover.test.tsx#L114), [`HelpPopover.test.tsx:128`](apps/web-ui/src/components/HelpPopover.test.tsx#L128))
+- FR-7.3: `NavLink`/`NavLabel` apply the active class and `aria-current`
+  when active (omitting both when inactive) and show a loading spinner
+  while the link's navigation is pending. ([validated by `NavLink.test.tsx:17`](apps/web-ui/src/components/NavLink.test.tsx#L17), [`NavLink.test.tsx:23`](apps/web-ui/src/components/NavLink.test.tsx#L23), [`NavLink.test.tsx:31`](apps/web-ui/src/components/NavLink.test.tsx#L31), [`NavLink.test.tsx:40`](apps/web-ui/src/components/NavLink.test.tsx#L40), [`NavLink.test.tsx:48`](apps/web-ui/src/components/NavLink.test.tsx#L48))
+- FR-7.4: `EmptyState` renders its title alone, plus an optional
+  description and an optional action link. ([validated by `EmptyState.test.tsx:7`](apps/web-ui/src/components/EmptyState.test.tsx#L7), [`EmptyState.test.tsx:13`](apps/web-ui/src/components/EmptyState.test.tsx#L13), [`EmptyState.test.tsx:25`](apps/web-ui/src/components/EmptyState.test.tsx#L25))
+- FR-7.5: `InlineMarkdown` renders bold/italic/inline-code as
+  `strong`/`em`/`code` and plain prose without a block paragraph;
+  `Linkified` (over the `parseReferences` helper) renders a file path or
+  issue reference as a GitHub link opening in a new tab, a task uuid as
+  an in-place internal pipeline link, and plain prose as text with
+  interleaved prose and links kept in order — `parseReferences`
+  defaulting the branch to main and not treating a version number as a
+  file. ([validated by `InlineMarkdown.test.tsx:7`](apps/web-ui/src/components/InlineMarkdown.test.tsx#L7), [`InlineMarkdown.test.tsx:14`](apps/web-ui/src/components/InlineMarkdown.test.tsx#L14), [`InlineMarkdown.test.tsx:20`](apps/web-ui/src/components/InlineMarkdown.test.tsx#L20), [`InlineMarkdown.test.tsx:26`](apps/web-ui/src/components/InlineMarkdown.test.tsx#L26), [`Linkified.test.tsx:10`](apps/web-ui/src/components/Linkified.test.tsx#L10), [`Linkified.test.tsx:21`](apps/web-ui/src/components/Linkified.test.tsx#L21), [`Linkified.test.tsx:32`](apps/web-ui/src/components/Linkified.test.tsx#L32), [`Linkified.test.tsx:40`](apps/web-ui/src/components/Linkified.test.tsx#L40), [`Linkified.test.tsx:46`](apps/web-ui/src/components/Linkified.test.tsx#L46), [`references.test.ts:8`](apps/web-ui/src/lib/references.test.ts#L8), [`references.test.ts:18`](apps/web-ui/src/lib/references.test.ts#L18), [`references.test.ts:25`](apps/web-ui/src/lib/references.test.ts#L25), [`references.test.ts:32`](apps/web-ui/src/lib/references.test.ts#L32), [`references.test.ts:41`](apps/web-ui/src/lib/references.test.ts#L41), [`references.test.ts:47`](apps/web-ui/src/lib/references.test.ts#L47))
+- FR-7.6: `TimeAgo` keeps the absolute date/time visible alongside a
+  relative label — "just now" under a minute, hours-ago within the day,
+  days-ago within the week, and the full timestamp for old dates —
+  renders the raw value for an unparseable date, and renders absolute
+  and relative on one line when inline. ([validated by `TimeAgo.test.tsx:20`](apps/web-ui/src/components/TimeAgo.test.tsx#L20), [`TimeAgo.test.tsx:26`](apps/web-ui/src/components/TimeAgo.test.tsx#L26), [`TimeAgo.test.tsx:30`](apps/web-ui/src/components/TimeAgo.test.tsx#L30), [`TimeAgo.test.tsx:34`](apps/web-ui/src/components/TimeAgo.test.tsx#L34), [`TimeAgo.test.tsx:38`](apps/web-ui/src/components/TimeAgo.test.tsx#L38), [`TimeAgo.test.tsx:46`](apps/web-ui/src/components/TimeAgo.test.tsx#L46), [`TimeAgo.test.tsx:50`](apps/web-ui/src/components/TimeAgo.test.tsx#L50))
+- FR-7.7: The route error boundaries render the shared `RouteError`
+  fallback — showing the error message (a generic fallback when it has
+  none) and wiring the reset callback through to a Try-again button —
+  for both the per-route and the global-error boundary. ([validated by `RouteError.test.tsx:7`](apps/web-ui/src/components/RouteError.test.tsx#L7), [`RouteError.test.tsx:14`](apps/web-ui/src/components/RouteError.test.tsx#L14), [`RouteError.test.tsx:19`](apps/web-ui/src/components/RouteError.test.tsx#L19), [`route-error-boundaries.test.tsx:28`](apps/web-ui/src/app/route-error-boundaries.test.tsx#L28), [`route-error-boundaries.test.tsx:37`](apps/web-ui/src/app/route-error-boundaries.test.tsx#L37))
+
 ## Non-Functional Requirements
 
 ### NFR-1: Performance

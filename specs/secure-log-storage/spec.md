@@ -249,7 +249,8 @@ Remove: no more log entries in `task_events` (`to_status = 'log'`).
 
 ## Acceptance Criteria
 
-1. Logs persist in GCS after pod cleanup ([validated by `log-storage.test.ts:42`](apps/floor/src/main-loop/scheduling/log-storage.test.ts#L42), [`log-storage.test.ts:18`](apps/floor/src/main-loop/scheduling/log-storage.test.ts#L18))
+1. Logs persist in GCS after pod cleanup and are readable back by key, returning null for a
+   never-written key ([validated by `log-storage.test.ts:42`](apps/floor/src/main-loop/scheduling/log-storage.test.ts#L42), [`log-storage.test.ts:18`](apps/floor/src/main-loop/scheduling/log-storage.test.ts#L18), [`log-storage.test.ts:51`](apps/floor/src/main-loop/scheduling/log-storage.test.ts#L51))
 
 2. Secrets redacted before storage (API keys, JWTs, private keys, connection strings) ([validated by `redact.test.ts:5`](libs/shared/src/redact.test.ts#L5), [`redact.test.ts:48`](libs/shared/src/redact.test.ts#L48))
 

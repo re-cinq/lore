@@ -143,7 +143,8 @@ accumulation period required.
   entities and their relationships.
 - FR-4.2: `depth` controls traversal hops (default 1, max 3).
 - FR-4.3: Results filtered to `valid_to IS NULL` by default.
-- FR-4.4: Optional `repo` scope parameter.
+- FR-4.4: Optional `repo` scope parameter. The live-graph read binds the queried
+  repo and maps each row to a `GraphEdge`. ([validated by `queries the live graph bound to the repo and maps to GraphEdge`](libs/shared/src/project/knowledge/knowledge-pg.test.ts#L36))
 
 ### FR-5: Graph-Augmented Search
 

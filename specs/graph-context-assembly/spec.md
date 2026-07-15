@@ -95,6 +95,10 @@ When a graph client is present, the source reads the repo's coupled statements
 and projects them into items.
 ([validated by `projects coupled statements from the graph into items`](libs/shared/src/project/knowledge/context-assembly.test.ts#L82))
 
+An empty `GraphContextBlock` projects to an empty item list, contributing nothing
+to the assembly.
+([validated by `returns an empty list for an empty block`](libs/shared/src/project/knowledge/context-assembly.test.ts#L62))
+
 The `coupling` source is wired into the `implementation` and `review` templates;
 the `/api/context` handler constructs the (possibly-null) Dgraph client via
 `createDgraphClient(process.env)` and passes it to `assembleContext`.

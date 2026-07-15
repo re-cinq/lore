@@ -146,3 +146,9 @@ Defaults: label=`lore`, type=`general`.
 5. Duplicate issues (same issue, active task) are skipped ([validated by `webhook.test.ts:43`](apps/lore-api/src/integration-tests/webhook.test.ts#L43))
 
 6. Works on any onboarded repo with webhook configured
+
+7. The `POST /api/webhook/github` endpoint is a signed door: `verifyGitHubSignature` rejects a
+   signature computed with a different secret (accepting only one over the same secret + raw body),
+   and the route returns 202 capturing `{captured:0, events:[]}` for a validly-signed event that maps
+   to no work; `parseJsonBody` returns the typed object and throws a 400 `Boom.badRequest` on a
+   malformed body. ([validated by `github-webhook.test.ts:18`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L18), [`github-webhook.test.ts:79`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L79), [`raw-body.test.ts:6`](apps/floor/src/delivery/http/raw-body.test.ts#L6), [`raw-body.test.ts:10`](apps/floor/src/delivery/http/raw-body.test.ts#L10))

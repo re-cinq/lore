@@ -97,6 +97,17 @@ glyphs migrated to tokens + `<Icon>` in `PRStatusCard`, `PRStatusBadge`,
 font-size across ~20 pages and the two CSS modules (`HelpPopover`, `ReadmeBox`)
 swapped to tokens.
 
+The `ThemeSwitcher` maps each appearance option to its icon (sun / monitor / moon),
+marks the active family label and the active appearance label as selected, and
+calls `setFamily` / `setScheme` when one of the inactive radios is chosen. ([validated by `ThemeSwitcher.test.tsx:51`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L51), [`ThemeSwitcher.test.tsx:74`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L74), [`ThemeSwitcher.test.tsx:88`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L88), [`ThemeSwitcher.test.tsx:103`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L103), [`ThemeSwitcher.test.tsx:116`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L116), [`ThemeSwitcher.test.tsx:125`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L125), [`ThemeSwitcher.test.tsx:136`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L136))
+
+The `Icon` component defaults its width and height to 16 when no size is given
+(using the provided size for both otherwise), appends a custom `className`
+alongside the iconify base classes (and none when omitted), exposes an
+`aria-label` when one is passed (marking the glyph aria-hidden and label-less
+otherwise), and applies the -0.125em baseline alignment only when `inline` is
+set. ([validated by `Icon.test.tsx:69`](apps/web-ui/src/components/Icon.test.tsx#L69), [`Icon.test.tsx:76`](apps/web-ui/src/components/Icon.test.tsx#L76), [`Icon.test.tsx:87`](apps/web-ui/src/components/Icon.test.tsx#L87), [`Icon.test.tsx:96`](apps/web-ui/src/components/Icon.test.tsx#L96), [`Icon.test.tsx:107`](apps/web-ui/src/components/Icon.test.tsx#L107), [`Icon.test.tsx:117`](apps/web-ui/src/components/Icon.test.tsx#L117), [`Icon.test.tsx:127`](apps/web-ui/src/components/Icon.test.tsx#L127), [`Icon.test.tsx:135`](apps/web-ui/src/components/Icon.test.tsx#L135))
+
 ### Type Scale
 
 `--fs-xs … --fs-xl` defined per family ([micro-label size per family](apps/web-ui/src/app/theme-tokens.test.ts#L86)). Retro pins every body size to 14px

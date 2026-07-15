@@ -651,6 +651,138 @@ fed by IO `*Panel` containers that own fetching and polling.
   not fetch after unmount, keeps the loaded details when a later poll
   fails, and stops polling after a failed poll. ([validated by `PRStatusPanel.test.tsx:60`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L60), [`PRStatusPanel.test.tsx:70`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L70), [`PRStatusPanel.test.tsx:83`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L83), [`PRStatusPanel.test.tsx:99`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L99), [`PRStatusPanel.test.tsx:115`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L115), [`PRStatusPanel.test.tsx:133`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L133), [`PRStatusPanel.test.tsx:158`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L158))
 
+### FR-20: Project Facade Ports (Phase 1)
+
+The `Project` facade (ADR-024) exposes every data capability — tasks,
+events, chunks, features, agents, workspace, PRs, issues, cost/usage
+accounting — through repo-bound ports with a Postgres/GCS/HTTP adapter
+and an in-memory double per port, so Floor, mcp-server, and lore-api
+share one persistence surface instead of inline SQL.
+
+- FR-20.1: The `TaskQueue` port drives org-wide claim/sweep: it claims
+  one runnable pending task (immediate-first, past the minute interval,
+  without the dead `running-local` predicate) or null, CAS-updates a
+  still-pending row to a claimer (default or caller-supplied) and returns
+  false when already claimed, stays org-wide with no params but scopes to
+  a repo when given, flips a running task to completed (reporting
+  same-spec dependents it unblocks, false for unknown/non-running), and
+  exposes `awaitingApproval`, `distinctTargetRepos`, `prInfo`, and
+  `findRecoverable`. ([validated by `task-queue.test.ts:39`](libs/shared/src/project/tasks/task-queue.test.ts#L39), [`task-queue.test.ts:46`](libs/shared/src/project/tasks/task-queue.test.ts#L46), [`task-queue.test.ts:54`](libs/shared/src/project/tasks/task-queue.test.ts#L54), [`task-queue.test.ts:68`](libs/shared/src/project/tasks/task-queue.test.ts#L68), [`task-queue.test.ts:77`](libs/shared/src/project/tasks/task-queue.test.ts#L77), [`task-queue.test.ts:86`](libs/shared/src/project/tasks/task-queue.test.ts#L86), [`task-queue.test.ts:94`](libs/shared/src/project/tasks/task-queue.test.ts#L94), [`task-queue.test.ts:102`](libs/shared/src/project/tasks/task-queue.test.ts#L102), [`task-queue.test.ts:112`](libs/shared/src/project/tasks/task-queue.test.ts#L112), [`task-queue.test.ts:121`](libs/shared/src/project/tasks/task-queue.test.ts#L121), [`task-queue.test.ts:132`](libs/shared/src/project/tasks/task-queue.test.ts#L132), [`task-queue.test.ts:146`](libs/shared/src/project/tasks/task-queue.test.ts#L146), [`task-queue.test.ts:199`](libs/shared/src/project/tasks/task-queue.test.ts#L199), [`task-queue.test.ts:210`](libs/shared/src/project/tasks/task-queue.test.ts#L210), [`task-queue.test.ts:223`](libs/shared/src/project/tasks/task-queue.test.ts#L223), [`task-queue.test.ts:237`](libs/shared/src/project/tasks/task-queue.test.ts#L237), [`task-queue.test.ts:295`](libs/shared/src/project/tasks/task-queue.test.ts#L295), [`task-queue.test.ts:305`](libs/shared/src/project/tasks/task-queue.test.ts#L305), [`task-queue.test.ts:334`](libs/shared/src/project/tasks/task-queue.test.ts#L334))
+- FR-20.2: The `TaskQueue` port also drives spec-task DAG dispatch: it
+  claims a pending spec-task once via CAS (default claimer
+  `spec-task-executor`), completes it reporting only the same-spec
+  dependents it unblocks (false when not running), exposes
+  `awaitingApproval`/`distinctTargetRepos`/`prInfo`, and returns ready
+  spec-tasks whose deps are completed/merged in the same spec — scoping
+  the returned set to one repo while still resolving deps org-wide.
+  ([validated by `task-queue.test.ts:389`](libs/shared/src/project/tasks/task-queue.test.ts#L389), [`task-queue.test.ts:398`](libs/shared/src/project/tasks/task-queue.test.ts#L398), [`task-queue.test.ts:413`](libs/shared/src/project/tasks/task-queue.test.ts#L413), [`task-queue.test.ts:428`](libs/shared/src/project/tasks/task-queue.test.ts#L428), [`task-queue.test.ts:470`](libs/shared/src/project/tasks/task-queue.test.ts#L470), [`task-queue.test.ts:492`](libs/shared/src/project/tasks/task-queue.test.ts#L492), [`task-queue.test.ts:502`](libs/shared/src/project/tasks/task-queue.test.ts#L502), [`task-queue.test.ts:517`](libs/shared/src/project/tasks/task-queue.test.ts#L517), [`task-queue.test.ts:553`](libs/shared/src/project/tasks/task-queue.test.ts#L553))
+- FR-20.3: The repo-scoped `TaskStore` port queries pending statuses,
+  transitions a cancel to `cancelled`, writes `setStatus` (status +
+  updated_at + only allowlisted extra columns), reads-old-then-writes-new
+  status recording the transition event on `updateStatus`, and filters
+  `findOpenLike` by repo, type, description prefix, and given statuses —
+  each bound to the facade's repo. ([validated by `task-store-pg.test.ts:29`](libs/shared/src/project/tasks/task-store-pg.test.ts#L29), [`task-store-pg.test.ts:44`](libs/shared/src/project/tasks/task-store-pg.test.ts#L44), [`task-store-pg.test.ts:57`](libs/shared/src/project/tasks/task-store-pg.test.ts#L57), [`task-store-pg.test.ts:74`](libs/shared/src/project/tasks/task-store-pg.test.ts#L74), [`task-store-pg.test.ts:88`](libs/shared/src/project/tasks/task-store-pg.test.ts#L88))
+- FR-20.4: The task-list surface returns the repo's pending tasks as
+  typed `Task` wrappers and reflects the new status after `cancel()`.
+  ([validated by `task-list.test.ts:101`](libs/shared/src/project/tasks/task-list.test.ts#L101), [`task-list.test.ts:118`](libs/shared/src/project/tasks/task-list.test.ts#L118))
+- FR-20.5: The `EventQueue` port claims runnable rows with `FOR UPDATE
+  SKIP LOCKED` incrementing attempts (oldest-first, flipping to
+  processing), collapses a redelivery sharing a dedupe key, truncates the
+  error and applies the backoff on `markFailed` (a failed row becomes
+  claimable only after the backoff elapses), resets timed-out processing
+  rows to failed on `reapStuck`, and prunes handled/terminal rows past
+  the window — returning affected-row counts. ([validated by `event-queue.test.ts:25`](libs/shared/src/project/events/event-queue.test.ts#L25), [`event-queue.test.ts:42`](libs/shared/src/project/events/event-queue.test.ts#L42), [`event-queue.test.ts:51`](libs/shared/src/project/events/event-queue.test.ts#L51), [`event-queue.test.ts:58`](libs/shared/src/project/events/event-queue.test.ts#L58), [`event-queue.test.ts:72`](libs/shared/src/project/events/event-queue.test.ts#L72), [`event-queue.test.ts:91`](libs/shared/src/project/events/event-queue.test.ts#L91), [`event-queue.test.ts:104`](libs/shared/src/project/events/event-queue.test.ts#L104), [`event-queue.test.ts:119`](libs/shared/src/project/events/event-queue.test.ts#L119), [`event-queue.test.ts:141`](libs/shared/src/project/events/event-queue.test.ts#L141))
+- FR-20.6: The `Chunks` knowledge-store port checks schema existence via
+  `information_schema`, counts/inserts/deletes chunks within an
+  interpolated (injection-rejecting) schema, sets the caller-formatted
+  embedding vector, reads a repo's spec chunks and code symbols from
+  `org_shared`, checks chunk existence by content type and optional file
+  suffix, counts stale chunks by ingest age, and returns distinct teams
+  with per-team `org_shared` counts (defaulting a missing count to zero).
+  ([validated by `chunks.test.ts:33`](libs/shared/src/project/chunks/chunks.test.ts#L33), [`chunks.test.ts:41`](libs/shared/src/project/chunks/chunks.test.ts#L41), [`chunks.test.ts:47`](libs/shared/src/project/chunks/chunks.test.ts#L47), [`chunks.test.ts:57`](libs/shared/src/project/chunks/chunks.test.ts#L57), [`chunks.test.ts:72`](libs/shared/src/project/chunks/chunks.test.ts#L72), [`chunks.test.ts:89`](libs/shared/src/project/chunks/chunks.test.ts#L89), [`chunks.test.ts:97`](libs/shared/src/project/chunks/chunks.test.ts#L97), [`chunks.test.ts:108`](libs/shared/src/project/chunks/chunks.test.ts#L108), [`chunks.test.ts:122`](libs/shared/src/project/chunks/chunks.test.ts#L122), [`chunks.test.ts:130`](libs/shared/src/project/chunks/chunks.test.ts#L130), [`chunks.test.ts:136`](libs/shared/src/project/chunks/chunks.test.ts#L136), [`chunks.test.ts:144`](libs/shared/src/project/chunks/chunks.test.ts#L144), [`chunks.test.ts:161`](libs/shared/src/project/chunks/chunks.test.ts#L161), [`chunks.test.ts:181`](libs/shared/src/project/chunks/chunks.test.ts#L181), [`chunks.test.ts:191`](libs/shared/src/project/chunks/chunks.test.ts#L191), [`chunks.test.ts:200`](libs/shared/src/project/chunks/chunks.test.ts#L200), [`chunks.test.ts:211`](libs/shared/src/project/chunks/chunks.test.ts#L211), [`chunks.test.ts:226`](libs/shared/src/project/chunks/chunks.test.ts#L226), [`chunks.test.ts:235`](libs/shared/src/project/chunks/chunks.test.ts#L235), [`chunks.test.ts:242`](libs/shared/src/project/chunks/chunks.test.ts#L242), [`chunks.test.ts:264`](libs/shared/src/project/chunks/chunks.test.ts#L264), [`chunks.test.ts:272`](libs/shared/src/project/chunks/chunks.test.ts#L272), [`chunks.test.ts:301`](libs/shared/src/project/chunks/chunks.test.ts#L301), [`chunks.test.ts:315`](libs/shared/src/project/chunks/chunks.test.ts#L315))
+- FR-20.7: The HTTP `Chunks` adapter reads spec chunks (and backfill
+  chunks with embeddings) from the repo-scoped API with a bearer token,
+  maps `hasChunk`/`staleChunkCount` to their query endpoints, and throws
+  on a non-ok response and on the Floor-only write surface. ([validated by `chunks-http.test.ts:28`](libs/shared/src/project/chunks/chunks-http.test.ts#L28), [`chunks-http.test.ts:43`](libs/shared/src/project/chunks/chunks-http.test.ts#L43), [`chunks-http.test.ts:60`](libs/shared/src/project/chunks/chunks-http.test.ts#L60), [`chunks-http.test.ts:94`](libs/shared/src/project/chunks/chunks-http.test.ts#L94))
+- FR-20.8: The `Features` store persists feature planning bound to its
+  repo: it lists by repo ordered by `updated_at` (with an optional status
+  filter), attaches a `task_id` to an iteration, updates an iteration's
+  `gap_result`/status, sets status alone or alongside a column patch, and
+  deletes a feature scoped to its repo (returning whether a row was
+  removed); the facade stamps the bound repo on every call, and the pure
+  helpers gate finalizing to a settled planning state and return the gap
+  of the highest-numbered ready iteration (null when none). ([validated by `features-pg.test.ts:48`](libs/shared/src/project/features/features-pg.test.ts#L48), [`features-pg.test.ts:58`](libs/shared/src/project/features/features-pg.test.ts#L58), [`features-pg.test.ts:95`](libs/shared/src/project/features/features-pg.test.ts#L95), [`features-pg.test.ts:112`](libs/shared/src/project/features/features-pg.test.ts#L112), [`features-pg.test.ts:139`](libs/shared/src/project/features/features-pg.test.ts#L139), [`features-pg.test.ts:148`](libs/shared/src/project/features/features-pg.test.ts#L148), [`features-pg.test.ts:168`](libs/shared/src/project/features/features-pg.test.ts#L168), [`features-pg.test.ts:178`](libs/shared/src/project/features/features-pg.test.ts#L178), [`features.test.ts:45`](libs/shared/src/project/features/features.test.ts#L45), [`features.test.ts:52`](libs/shared/src/project/features/features.test.ts#L52), [`features.test.ts:62`](libs/shared/src/project/features/features.test.ts#L62), [`features.test.ts:72`](libs/shared/src/project/features/features.test.ts#L72), [`features-port.test.ts:28`](libs/shared/src/project/features/features-port.test.ts#L28), [`features-port.test.ts:34`](libs/shared/src/project/features/features-port.test.ts#L34), [`features-port.test.ts:48`](libs/shared/src/project/features/features-port.test.ts#L48), [`features-port.test.ts:58`](libs/shared/src/project/features/features-port.test.ts#L58), [`features-port.test.ts:68`](libs/shared/src/project/features/features-port.test.ts#L68))
+- FR-20.9: Feature planning recovery orphans a running round older than
+  the window (even while the runtime reports active), leaves a recent
+  active round alone, no-ops when a ready round already moved the feature
+  out of `planning` or there are no iterations, and keys on the latest
+  iteration so a newer ready round supersedes an older running one; the
+  round-in-flight helper returns a recent running iteration and null when
+  the only running one is orphaned or none is running. ([validated by `planning-recovery.test.ts:48`](libs/shared/src/project/features/planning-recovery.test.ts#L48), [`planning-recovery.test.ts:67`](libs/shared/src/project/features/planning-recovery.test.ts#L67), [`planning-recovery.test.ts:97`](libs/shared/src/project/features/planning-recovery.test.ts#L97), [`planning-recovery.test.ts:110`](libs/shared/src/project/features/planning-recovery.test.ts#L110), [`planning-recovery.test.ts:130`](libs/shared/src/project/features/planning-recovery.test.ts#L130), [`round-in-flight.test.ts:26`](libs/shared/src/project/features/round-in-flight.test.ts#L26), [`round-in-flight.test.ts:38`](libs/shared/src/project/features/round-in-flight.test.ts#L38), [`round-in-flight.test.ts:48`](libs/shared/src/project/features/round-in-flight.test.ts#L48))
+- FR-20.10: The `AgentRunner` port launches a Station via the injected
+  `StationBackend` in cluster mode (passing the execution image, throwing
+  when no provider is supplied) and calls the injected `LlmPort` in
+  direct mode; agent execution refuses LOCAL mode on the shared server
+  (`LORE_DB_HOST` set) yet allows cluster mode there. ([validated by `agent-runner.test.ts:33`](libs/shared/src/project/agents/agent-runner.test.ts#L33), [`agent-runner.test.ts:70`](libs/shared/src/project/agents/agent-runner.test.ts#L70), [`agent-runner.test.ts:90`](libs/shared/src/project/agents/agent-runner.test.ts#L90), [`agent-runner.test.ts:114`](libs/shared/src/project/agents/agent-runner.test.ts#L114), [`agents.test.ts:22`](libs/shared/src/project/agents/agents.test.ts#L22), [`agents.test.ts:34`](libs/shared/src/project/agents/agents.test.ts#L34))
+- FR-20.11: The station-mode selector honours explicit `k8s`/`docker`
+  overrides and the `inprocess` escape hatch, defaults to `k8s`
+  in-cluster and `docker` off-cluster, and ignores an unrecognized value
+  falling back to context. ([validated by `station-port.test.ts:5`](libs/shared/src/project/agents/station-port.test.ts#L5), [`station-port.test.ts:9`](libs/shared/src/project/agents/station-port.test.ts#L9), [`station-port.test.ts:18`](libs/shared/src/project/agents/station-port.test.ts#L18), [`station-port.test.ts:24`](libs/shared/src/project/agents/station-port.test.ts#L24), [`station-port.test.ts:30`](libs/shared/src/project/agents/station-port.test.ts#L30), [`station-port.test.ts:34`](libs/shared/src/project/agents/station-port.test.ts#L34))
+- FR-20.12: The `AgentDefs` port resolves an agent definition through
+  three layers (yaml base → org row → project row), inheriting nullable
+  fields upward and letting each higher layer override, returning null
+  when every layer is null; the Pg adapter binds the name and repo,
+  qualifies the `lore.repos` JOIN columns, and creates/deletes the repo's
+  project row scoped to the repo; the yaml base resolves task types
+  (mapping zero-LLM ingest types with graph-ingest mode), lists agents
+  sorted by name, serves `DECOMPOSITION_INSTRUCTIONS` for
+  `feature-decompose`, and returns null for an unknown name; the facade
+  lists and delegates create/delete with the bound repo; and the HTTP
+  adapter resolves/lists via the bearer-authed API (null on 404).
+  ([validated by `agent-defs-port.test.ts:23`](libs/shared/src/project/agents/agent-defs-port.test.ts#L23), [`agent-defs-port.test.ts:27`](libs/shared/src/project/agents/agent-defs-port.test.ts#L27), [`agent-defs-port.test.ts:31`](libs/shared/src/project/agents/agent-defs-port.test.ts#L31), [`agent-defs-port.test.ts:67`](libs/shared/src/project/agents/agent-defs-port.test.ts#L67), [`agent-defs-pg.test.ts:101`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L101), [`agent-defs-pg.test.ts:110`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L110), [`agent-defs-pg.test.ts:122`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L122), [`agent-defs-pg.test.ts:138`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L138), [`agent-defs-pg.test.ts:165`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L165), [`agent-defs-yaml.test.ts:43`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L43), [`agent-defs-yaml.test.ts:58`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L58), [`agent-defs-yaml.test.ts:68`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L68), [`agent-defs-yaml.test.ts:77`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L77), [`agent-defs-yaml.test.ts:109`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L109), [`agent-defs.test.ts:60`](libs/shared/src/project/agents/agent-defs.test.ts#L60), [`agent-defs.test.ts:68`](libs/shared/src/project/agents/agent-defs.test.ts#L68), [`agent-defs-http.test.ts:55`](libs/shared/src/project/agents/agent-defs-http.test.ts#L55), [`agent-defs-http.test.ts:64`](libs/shared/src/project/agents/agent-defs-http.test.ts#L64), [`agent-defs-http.test.ts:70`](libs/shared/src/project/agents/agent-defs-http.test.ts#L70))
+- FR-20.13: The `Workspace`/`Git` ports carry the installation token as a
+  base64 `x-access-token` `http.extraheader` override (honouring a
+  non-default host, never embedding the raw token in the args or
+  `.git/config`) and build a credential-free https URL when tokenless;
+  the git CLI clones and reads a seeded file, writes/commits on a new
+  branch and pushes (falling back to the Lore Agent identity), and
+  `ensureClone`/`ensureCheckout` cache-reuse via fetch, pin the branch,
+  and refuse to switch a dirty tree; the workspace facade writes-then-
+  reads a file committing through the GitPort and pushes then opens the
+  PR via the pulls port. ([validated by `git-auth.test.ts:5`](libs/shared/src/project/workspace/git-auth.test.ts#L5), [`git-auth.test.ts:14`](libs/shared/src/project/workspace/git-auth.test.ts#L14), [`git-auth.test.ts:20`](libs/shared/src/project/workspace/git-auth.test.ts#L20), [`git-auth.test.ts:26`](libs/shared/src/project/workspace/git-auth.test.ts#L26), [`git-cli-auth.test.ts:22`](libs/shared/src/project/workspace/git-cli-auth.test.ts#L22), [`git-cli-auth.test.ts:35`](libs/shared/src/project/workspace/git-cli-auth.test.ts#L35), [`git-cli-auth.test.ts:46`](libs/shared/src/project/workspace/git-cli-auth.test.ts#L46), [`git-cli.test.ts:53`](libs/shared/src/project/workspace/git-cli.test.ts#L53), [`git-cli.test.ts:63`](libs/shared/src/project/workspace/git-cli.test.ts#L63), [`git-cli.test.ts:81`](libs/shared/src/project/workspace/git-cli.test.ts#L81), [`git-cli.test.ts:100`](libs/shared/src/project/workspace/git-cli.test.ts#L100), [`git-cli.test.ts:112`](libs/shared/src/project/workspace/git-cli.test.ts#L112), [`git-cli.test.ts:130`](libs/shared/src/project/workspace/git-cli.test.ts#L130), [`workspace.test.ts:39`](libs/shared/src/project/workspace/workspace.test.ts#L39), [`workspace.test.ts:52`](libs/shared/src/project/workspace/workspace.test.ts#L52))
+- FR-20.14: The `Repo` files port reads a file at a given ref (null when
+  absent) and creates a branch committing a file via the API, repo bound.
+  ([validated by `repo-files.test.ts:53`](libs/shared/src/project/repo/repo-files.test.ts#L53), [`repo-files.test.ts:59`](libs/shared/src/project/repo/repo-files.test.ts#L59), [`repo-files.test.ts:65`](libs/shared/src/project/repo/repo-files.test.ts#L65))
+- FR-20.15: The `PullRequests` port lists only the repo's PRs, merges by
+  number with the requested method, and exposes PR reads bound to the
+  repo and number. ([validated by `pull-requests.test.ts:68`](libs/shared/src/project/pulls/pull-requests.test.ts#L68), [`pull-requests.test.ts:104`](libs/shared/src/project/pulls/pull-requests.test.ts#L104), [`pull-requests.test.ts:113`](libs/shared/src/project/pulls/pull-requests.test.ts#L113))
+- FR-20.16: The `Issues` port returns the GitHubPort issues for the
+  project's repo, creates an issue bound to the repo, and comments,
+  closes, and labels by number bound to the repo. ([validated by `issues.test.ts:57`](libs/shared/src/project/issues/issues.test.ts#L57), [`issues.test.ts:101`](libs/shared/src/project/issues/issues.test.ts#L101), [`issues.test.ts:114`](libs/shared/src/project/issues/issues.test.ts#L114))
+- FR-20.17: The `TestRunner` port lists tests in a trusted sandbox (no
+  `LORE_DB_HOST`); its exec adapter lists the descriptors from the
+  manifest `list` command, runs a single test aggregating the report, and
+  runs `run` once per file (selector = file) fanning the result to each
+  descriptor. ([validated by `test-suite.test.ts:43`](libs/shared/src/project/test-runner/test-suite.test.ts#L43), [`test-runner-exec.test.ts:42`](libs/shared/src/project/test-runner/test-runner-exec.test.ts#L42), [`test-runner-exec.test.ts:50`](libs/shared/src/project/test-runner/test-runner-exec.test.ts#L50), [`test-runner-exec.test.ts:64`](libs/shared/src/project/test-runner/test-runner-exec.test.ts#L64))
+- FR-20.18: The accounting ports persist their own tables: `usage`
+  inserts an `llm_calls` row (defaulting cost and null task) and returns
+  today/total counts (missing rows default to zero); `cost` upserts
+  `pipeline.anthropic_cost_daily` keyed on `(bucket_date, model)` —
+  appending an unseen pair, replacing a same-key row, keeping separate
+  rows per model; `job_runs` inserts a running row returning its id,
+  marks it completed/failed with summary/error and log path (defaulting
+  the path to null) and selects the most-recent `started_at` for a job
+  (null when never run); `evals` inserts an `eval_runs` row and reads the
+  latest and previous (offset 1) pass_rate per team for the regression
+  check; and `baseline` inserts a JSON-serialized counter snapshot and
+  reads windowed PR/median-time-to-merge counters from `pipeline.tasks`
+  (defaulting an empty window to zero/null, excluding other repos and
+  out-of-window rows). ([validated by `usage-pg.test.ts:22`](libs/shared/src/project/usage/usage-pg.test.ts#L22), [`usage-pg.test.ts:45`](libs/shared/src/project/usage/usage-pg.test.ts#L45), [`usage-pg.test.ts:61`](libs/shared/src/project/usage/usage-pg.test.ts#L61), [`cost.test.ts:36`](libs/shared/src/project/cost/cost.test.ts#L36), [`cost.test.ts:60`](libs/shared/src/project/cost/cost.test.ts#L60), [`cost.test.ts:68`](libs/shared/src/project/cost/cost.test.ts#L68), [`cost.test.ts:80`](libs/shared/src/project/cost/cost.test.ts#L80), [`job-runs.test.ts:23`](libs/shared/src/project/job-runs/job-runs.test.ts#L23), [`job-runs.test.ts:36`](libs/shared/src/project/job-runs/job-runs.test.ts#L36), [`job-runs.test.ts:54`](libs/shared/src/project/job-runs/job-runs.test.ts#L54), [`job-runs.test.ts:62`](libs/shared/src/project/job-runs/job-runs.test.ts#L62), [`job-runs.test.ts:72`](libs/shared/src/project/job-runs/job-runs.test.ts#L72), [`job-runs.test.ts:86`](libs/shared/src/project/job-runs/job-runs.test.ts#L86), [`job-runs.test.ts:94`](libs/shared/src/project/job-runs/job-runs.test.ts#L94), [`job-runs.test.ts:104`](libs/shared/src/project/job-runs/job-runs.test.ts#L104), [`job-runs.test.ts:118`](libs/shared/src/project/job-runs/job-runs.test.ts#L118), [`job-runs.test.ts:131`](libs/shared/src/project/job-runs/job-runs.test.ts#L131), [`job-runs.test.ts:172`](libs/shared/src/project/job-runs/job-runs.test.ts#L172), [`evals.test.ts:23`](libs/shared/src/project/evals/evals.test.ts#L23), [`evals.test.ts:38`](libs/shared/src/project/evals/evals.test.ts#L38), [`evals.test.ts:48`](libs/shared/src/project/evals/evals.test.ts#L48), [`evals.test.ts:59`](libs/shared/src/project/evals/evals.test.ts#L59), [`evals.test.ts:81`](libs/shared/src/project/evals/evals.test.ts#L81), [`evals.test.ts:102`](libs/shared/src/project/evals/evals.test.ts#L102), [`evals.test.ts:123`](libs/shared/src/project/evals/evals.test.ts#L123), [`baseline.test.ts:23`](libs/shared/src/project/baseline/baseline.test.ts#L23), [`baseline.test.ts:46`](libs/shared/src/project/baseline/baseline.test.ts#L46), [`baseline.test.ts:64`](libs/shared/src/project/baseline/baseline.test.ts#L64), [`baseline.test.ts:78`](libs/shared/src/project/baseline/baseline.test.ts#L78), [`baseline.test.ts:92`](libs/shared/src/project/baseline/baseline.test.ts#L92), [`baseline.test.ts:125`](libs/shared/src/project/baseline/baseline.test.ts#L125))
+- FR-20.19: The `Archive` GCS port saves to `<bucket>/<key>`
+  non-resumable with the given content type (passing `cacheControl`
+  through as file metadata) and returns the object content as utf-8, null
+  when the object is absent or the storage call throws. ([validated by `archive-gcs.test.ts:38`](libs/shared/src/project/archive/archive-gcs.test.ts#L38), [`archive-gcs.test.ts:55`](libs/shared/src/project/archive/archive-gcs.test.ts#L55), [`archive-gcs.test.ts:73`](libs/shared/src/project/archive/archive-gcs.test.ts#L73), [`archive-gcs.test.ts:83`](libs/shared/src/project/archive/archive-gcs.test.ts#L83), [`archive-gcs.test.ts:92`](libs/shared/src/project/archive/archive-gcs.test.ts#L92))
+
 ## Non-Functional Requirements
 
 ### NFR-1: Security
