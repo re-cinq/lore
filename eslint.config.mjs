@@ -58,6 +58,7 @@ export default tseslint.config(
       "lore/no-forwarding-class": "error",
       "lore/require-colocated-tests": "error",
       "lore/no-prop-mutation": "error",
+      "lore/max-boolean-operators": ["error", { max: 2 }],
       "lore/no-io-in-view": "error",
     },
   },

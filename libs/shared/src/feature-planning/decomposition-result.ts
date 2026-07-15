@@ -60,9 +60,9 @@ function normalizeTask(raw: unknown, index: number): DecompTask {
     "decomposition: task must be an object or string",
   );
   const t = raw as Record<string, unknown>;
-  const description =
-    (typeof t.description === "string" && t.description) ||
-    (typeof t.text === "string" && t.text);
+  const descriptionField = typeof t.description === "string" && t.description;
+  const textField = typeof t.text === "string" && t.text;
+  const description = descriptionField || textField;
 
   enforceTrue(
     description,
@@ -92,9 +92,9 @@ function normalizeStory(raw: unknown): UserStory {
     "decomposition: each story must be an object",
   );
   const s = raw as Record<string, unknown>;
-  const title =
-    (typeof s.title === "string" && s.title) ||
-    (typeof s.name === "string" && s.name);
+  const titleField = typeof s.title === "string" && s.title;
+  const nameField = typeof s.name === "string" && s.name;
+  const title = titleField || nameField;
 
   enforceTrue(title, Error, "decomposition: each story needs a title");
   const tasksRaw = Array.isArray(s.tasks) ? s.tasks : [];

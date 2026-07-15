@@ -86,10 +86,9 @@ export default function PlanningWizard({
   // gap_result after the task ended) — the user must see it + retry, never an endless spinner.
   const taskActive = !task || RUNNING_TASK_STATUSES.has(task.status);
   const latestReady = latest?.status === "ready" && !!latest.gap_result;
+  const settledUnusable = !latestReady && !taskActive;
   const failed =
-    task?.status === "failed" ||
-    latest?.status === "failed" ||
-    (!latestReady && !taskActive);
+    task?.status === "failed" || latest?.status === "failed" || settledUnusable;
   const running = (!latest || latest.status === "running") && !failed;
 
   useEffect(() => {

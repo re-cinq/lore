@@ -245,11 +245,8 @@ async function processTask(task: PipelineTask): Promise<void> {
     );
 
     // Resolve model — the resolved agent definition wins, then legacy overrides.
-    const model =
-      agentDef?.model ||
-      repoOverrides?.model ||
-      getTaskTypeConfig(task.task_type)?.model ||
-      undefined;
+    const resolvedModel = agentDef?.model || repoOverrides?.model;
+    const model = resolvedModel || getTaskTypeConfig(task.task_type)?.model;
 
     // Read downstream to forward the repo's assembly line name to the Agent CR
     // dispatch (dark-mode repos run the Floor-side graph, one Agent CR per node).
@@ -358,12 +355,10 @@ async function ensureIssue(
   const { shouldCreateIssue } = await import("../dark-factory/dark-factory.js");
   const issueGate = await shouldCreateIssue(task);
 
-  if (
-    !issueNumber &&
-    task.task_type !== "general" &&
-    !isFeaturePlanningType &&
-    issueGate.create
-  ) {
+  const isIssueEligibleTaskType =
+    task.task_type !== "general" && !isFeaturePlanningType;
+
+  if (!issueNumber && isIssueEligibleTaskType && issueGate.create) {
     try {
       const taskTypeLabel =
         task.task_type === "feature-request" ? "spec" : task.task_type;

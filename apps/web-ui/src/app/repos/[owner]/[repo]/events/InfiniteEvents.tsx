@@ -42,8 +42,10 @@ export default function InfiniteEvents({
 
   useEffect(() => {
     const node = sentinel.current;
+    const isIdle = !loading && !failed;
+    const canObserve = !!node && more && isIdle;
 
-    if (!node || !more || loading || failed) {
+    if (!canObserve) {
       return;
     }
 

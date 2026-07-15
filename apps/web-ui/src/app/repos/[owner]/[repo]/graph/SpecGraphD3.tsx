@@ -271,12 +271,12 @@ function nodeLinks(
 ): Array<{ label: string; href: string; external: boolean }> {
   const out: Array<{ label: string; href: string; external: boolean }> = [];
 
-  if (
-    (node.type === "Spec" ||
-      node.type === "Statement" ||
-      node.type === "Section") &&
-    node.path
-  ) {
+  const isSpecFamily =
+    node.type === "Spec" ||
+    node.type === "Statement" ||
+    node.type === "Section";
+
+  if (isSpecFamily && node.path) {
     out.push({
       label: "Open in Lore",
       href: `/specs/${encodeURIComponent(node.path)}`,
@@ -680,12 +680,11 @@ export default function SpecGraphD3({
         }
 
         for (const n of nodes) {
-          if (
-            expanded.has(n.id) ||
-            ringPinned.has(n.id) ||
-            n.fx != null ||
-            n.fy != null
-          ) {
+          const isPinned = n.fx != null || n.fy != null;
+          const isFixed =
+            expanded.has(n.id) || ringPinned.has(n.id) || isPinned;
+
+          if (isFixed) {
             continue;
           }
           const isAnchor =
