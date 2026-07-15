@@ -40,15 +40,18 @@ function normalizePath(path: string): string {
   return path.replace(/^\.?\/+/, "");
 }
 
-/** Resolve a coverage-link path to repo-root-relative form. A `../`-prefixed
- * href is relative to the spec file's directory (that is how GitHub renders it),
- * so resolve it against `dirname(specPath)`; every other form is already
+/** Resolve a coverage-link path to repo-root-relative form. An href that climbs
+ * out of the spec's directory with `../` (optionally behind a leading `./`) is
+ * relative to the spec file's directory — that is how GitHub renders it — so
+ * resolve it against `dirname(specPath)`; every other form is already
  * repo-root-relative and only needs a leading `./` or `/` stripped. Without this,
  * a `../../../apps/x.test.ts` link never matches a descriptor's repo-relative
  * `apps/x.test.ts` file and yields no edge. */
 function resolveLinkPath(linkPath: string, specPath: string): string {
-  if (linkPath.startsWith("../")) {
-    return posix.normalize(posix.join(posix.dirname(specPath), linkPath));
+  const stripped = linkPath.startsWith("./") ? linkPath.slice(2) : linkPath;
+
+  if (stripped.startsWith("../")) {
+    return posix.normalize(posix.join(posix.dirname(specPath), stripped));
   }
 
   return normalizePath(linkPath);

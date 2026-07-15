@@ -89,7 +89,24 @@ describe("bindDescriptorsToSpecLinks", () => {
 
   it("resolves a ../-relative link path against the spec's directory before matching", () => {
     const nestedSpecPath = "specs/api-routes/foo/spec.md";
+    // ../../../ from specs/api-routes/foo/ climbs 3 levels to the repo root, then
+    // descends into src/ — matching the descriptor factory's file: "src/greet.test.ts".
     const nestedSpec = `# X\n\n## Acceptance Criteria\n\nThe system greets the user.\n([validated by \`greets\`](../../../src/greet.test.ts#L10))\n`;
+    const ordinal = linksForStatements(nestedSpec).filter(
+      (pair) => pair.testLinks.length > 0,
+    )[0].statement.ordinal;
+
+    const [bound] = bindDescriptorsToSpecLinks(
+      [descriptor({})],
+      [{ path: nestedSpecPath, content: nestedSpec }],
+    );
+
+    expect(bound.spec).toBe(`${nestedSpecPath}#${ordinal}`);
+  });
+
+  it("resolves a ./../-relative link path (leading ./ then ../) against the spec's directory", () => {
+    const nestedSpecPath = "specs/api-routes/foo/spec.md";
+    const nestedSpec = `# X\n\n## Acceptance Criteria\n\nThe system greets the user.\n([validated by \`greets\`](./../../../src/greet.test.ts#L10))\n`;
     const ordinal = linksForStatements(nestedSpec).filter(
       (pair) => pair.testLinks.length > 0,
     )[0].statement.ordinal;
