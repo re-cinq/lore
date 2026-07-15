@@ -24,6 +24,13 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -78,6 +85,13 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -146,6 +160,13 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -200,6 +221,13 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -260,6 +288,13 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -325,6 +360,13 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -385,6 +427,13 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -444,6 +493,13 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -526,6 +582,13 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -584,6 +647,13 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -634,6 +704,13 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -768,6 +845,13 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -819,6 +903,13 @@ spec:
     command:
       - lore-station
       - validate
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -870,6 +961,13 @@ spec:
     command:
       - lore-station
       - gate
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -921,6 +1019,13 @@ spec:
     command:
       - lore-station
       - retrospective
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -972,6 +1077,13 @@ spec:
     command:
       - lore-station
       - github_action
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -1023,6 +1135,13 @@ spec:
     command:
       - lore-station
       - detect
+  resources:
+    # The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY; the controller only
+    # injects keys a recipe declares here (from the agent-secrets Secret), so without this the
+    # run pod has no key and the agent cannot call the model.
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
