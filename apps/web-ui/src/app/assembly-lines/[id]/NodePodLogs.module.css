@@ -1,0 +1,48 @@
+/* Per-node live pod-log panels — co-located with NodePodLogs.tsx. */
+
+.wrap {
+  margin-top: 24px;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.error {
+  color: var(--danger);
+  font-size: var(--fs-sm);
+}
+
+.placeholder {
+  font-style: italic;
+}
+
+.terminal {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  padding: 16px;
+  margin-top: 8px;
+  border-radius: var(--radius-sm);
+  overflow-y: auto;
+  max-height: 500px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  border: 1px solid var(--border);
+}
