@@ -20,6 +20,28 @@ resource "kubernetes_namespace" "ai_agents" {
 # ANTHROPIC_API_KEY + the Lore API tokens, mirrored from the SAME remoteRefs the
 # Floor consumes. The Floor PATCHes short-lived per-task GitHub tokens in/out later
 # (re-cinq/lore#685); this provisions the inherited baseline only.
+#
+# The Secret has TWO writers: ESO (the static baseline below) and the Floor (dynamic
+# per-task GH_TOKEN_<id> keys, patched in per run and removed on terminal). ESO's
+# default creationPolicy (Owner) PRUNES keys it doesn't manage on every reconcile —
+# deleting the Floor's tokens mid-run, so run pods fail CreateContainerConfigError
+# on their (non-optional) GH_TOKEN secretKeyRef. `Merge` scopes ESO to its own keys.
+# Merge does not create the target, so terraform bootstraps the Secret itself.
+resource "kubernetes_secret" "agent_secrets_bootstrap" {
+  metadata {
+    name      = "agent-secrets"
+    namespace = "ai-agents"
+  }
+
+  lifecycle {
+    # ESO merges the baseline keys and the Floor patches per-task tokens into `data`;
+    # terraform owns only the Secret's existence, never its content or their markers.
+    ignore_changes = [data, metadata[0].annotations, metadata[0].labels]
+  }
+
+  depends_on = [kubernetes_namespace.ai_agents]
+}
+
 resource "kubectl_manifest" "es_ai_agents_secrets" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
@@ -35,7 +57,8 @@ resource "kubectl_manifest" "es_ai_agents_secrets" {
         kind = "ClusterSecretStore"
       }
       target = {
-        name = "agent-secrets"
+        name           = "agent-secrets"
+        creationPolicy = "Merge"
       }
       data = [
         {
@@ -65,6 +88,7 @@ resource "kubectl_manifest" "es_ai_agents_secrets" {
   depends_on = [
     kubectl_manifest.cluster_secret_store,
     kubernetes_namespace.ai_agents,
+    kubernetes_secret.agent_secrets_bootstrap,
   ]
 }
 
