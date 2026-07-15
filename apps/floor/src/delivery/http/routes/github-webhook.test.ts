@@ -42,6 +42,8 @@ afterEach(() => {
   }
 });
 
+// TODO: this is not fully tested. New tests for happy paths must be added too.
+
 describe("POST /api/webhook/github", () => {
   it("returns 503 when the webhook secret is not configured", async () => {
     delete process.env.LORE_WEBHOOK_SECRET;

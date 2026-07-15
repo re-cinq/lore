@@ -43,14 +43,14 @@ export const githubWebhookRoute: ServerRoute = {
     enforceTrue(
       secret,
       Boom.serverUnavailable,
-      "webhook secret not configured",
+      "webhook secret not configured", // TODO: message should be more actionable, e.g. "set LORE_WEBHOOK_SECRET on lore floor app."
     );
-    enforceTrue(signature, Boom.unauthorized, "missing signature");
+    enforceTrue(signature, Boom.unauthorized, "missing signature"); // TODO: message should be more actionable, e.g. "GitHub webhook must send x-hub-signature-256 header."
     enforceTrue(
       verifyGitHubSignature(secret, signature, raw),
       Boom.unauthorized,
       "invalid signature",
-    );
+    ); // TODO: message should be more actionable, e.g. "GitHub webhook signature verification failed; check LORE_WEBHOOK_SECRET and GitHub webhook secret match."
     enforceTrue(eventType, Boom.badRequest, "missing x-github-event header");
 
     const events = mapGitHubEvent(eventType, parseJsonBody(raw), deliveryId);
