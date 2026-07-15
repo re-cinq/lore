@@ -33,18 +33,19 @@ controller:
   replicas: 1
   image:
     repository: ghcr.io/re-cinq/ai-agent-controller
-    # Pinned by digest (never a floating tag) — v0.5.1, which injects a repo's
-    # token_secret as a secretKeyRef env so the init container's git clone authenticates
-    # (ai-agent-subsystem#160; v0.4.0 dropped the token and every clone failed auth).
-    # Resolved via
-    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.5.1
-    digest: "sha256:25c877a9d2c32917c91655fc559a5b0c965873ac7779fe56e2c0007c658d4905"
+    # Pinned by digest (never a floating tag) — v0.6.0: shared workspace volume (the
+    # clone reaches the agent container), init chowns HOME+workspace to the agent uid
+    # (Claude can write its session state and edit the repo), and the repo credential
+    # is aliased to GH_TOKEN so `gh` authenticates (ai-agent-subsystem#166; v0.5.1
+    # added the token_secret secretKeyRef injection, #160). Resolved via
+    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.6.0
+    digest: "sha256:878ca910d72a8532add05c6fdfdfb12f33c59253689127d0051ff64e243426d2"
   # The image whose init container injects the agent runtime + supervisor into each run
-  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.5.1
+  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.6.0
   # digest, paired with the controller above. Resolve with (needs ghcr read on the
   # ai-agent package — not public):
-  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.5.1
-  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:6fccbde05028d25040887595c99845c72c90a5fb2b2218142b0be56d5a7e991e"
+  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.6.0
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:d36dcb72b69d8d57c31b5d29ea731b1eade49325dfbcd0d6ebbe8ff20b29ddda"
   # Tail of run-pod log kept in Agent.status.output (bounds the object under etcd's limit).
   maxOutputBytes: "262144"
   resources:
