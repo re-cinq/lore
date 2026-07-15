@@ -111,7 +111,7 @@ accumulation period required.
 - FR-1.3: Entity deduplication by `(name, entity_type, repo)`.
   Upserting an entity with the same key updates properties.
 - FR-1.4: Edge deduplication by
-  `(source_id, target_id, relation_type)` where `valid_to IS NULL`.
+  `(source_id, target_id, relation_type)` where `valid_to IS NULL`. ([validated by `graph.test.ts:198`](libs/server-core/src/features/memory/graph.test.ts#L198))
 
 ### FR-2: Entity Extraction Pipeline
 

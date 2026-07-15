@@ -29,7 +29,7 @@ product used across teams and repos with different access levels.
 2. **Access-controlled** — users only see logs for repos they have
    access to (verified via GitHub API)
 3. **Redacted** — secrets, tokens, and credentials stripped before
-   storage
+   storage ([validated by `redact.test.ts:78`](libs/shared/src/redact.test.ts#L78))
 4. **Encrypted at rest** — logs stored encrypted, decrypted on read
 5. **Retention policy** — auto-delete after configurable TTL
 6. **Streamable** — live logs during execution, not just after

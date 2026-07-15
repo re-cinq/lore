@@ -93,7 +93,7 @@ available to agents. They are the authoritative interface.
     superseded by later contradictions are included).
   - `graph_augment=true` enriches results with related graph entities.
   - Results are capped at 3 per (agent_id + source) combo to prevent
-    verbose sessions from dominating (session diversification).
+    verbose sessions from dominating (session diversification). ([validated by `memory-ranking.test.ts:53`](libs/shared/src/memory-ranking.test.ts#L53))
   - Every search call asynchronously increments `retrieval_count`,
     updates `last_retrieved_at`, and extends `half_life_days` (+2,
     cap 365) on returned facts and memories.
@@ -258,11 +258,11 @@ strength = 0.5 ^ (effective_age_days / half_life_days)
 ```
 
 Age is measured from `last_retrieved_at` when available, falling back
-to `created_at`. This means retrieval resets the decay clock.
+to `created_at`. This means retrieval resets the decay clock. ([validated by `memory-ranking.test.ts:168`](libs/shared/src/memory-ranking.test.ts#L168))
 
 Additional factors:
 - Retrieval count and `last_retrieved_at` boost scores.
-- Confidence tier affects baseline: `stale` facts get -1 penalty.
+- Confidence tier affects baseline: `stale` facts get -1 penalty. ([validated by `memory-ranking.test.ts:162`](libs/shared/src/memory-ranking.test.ts#L162))
 - Content signals: decisions/conventions +2, auto-curation/sessions -1.
 
 When an agent exceeds 500 memories, lowest-scoring are soft-deleted
@@ -318,7 +318,7 @@ Facts retrieved for cross-repo context are filtered by a portability
 score. Portable keywords (`error`, `pattern`, `gotcha`, `convention`)
 boost the score; local keywords (`config`, `deploy`, `url`, `auth`,
 `secret`) reduce it. Only facts scoring >= 0.5 pass through to
-prevent repo-specific configuration from polluting other repos.
+prevent repo-specific configuration from polluting other repos. ([validated by `transfer-score.test.ts:69`](apps/mcp-server/src/features/context/transfer-score.test.ts#L69))
 
 ## Divergences from Original Design
 

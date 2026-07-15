@@ -62,7 +62,7 @@ Semantic (vector + keyword) search across org-wide memories and extracted facts;
       — Reciprocal Rank Fusion; each list is contiguous rank order so index
       rank == row rank. Carries `confidence` onto fused rows.
    7. `diversify(merged, limit)` — caps per `agent_id::source` (max 3 each),
-      then slices to `limit`.
+      then slices to `limit`. ([validated by `memory-ranking.test.ts:67`](libs/shared/src/memory-ranking.test.ts#L67))
    8. **Graph augment** (when `graph_augment` and results non-empty):
       `refreshEntityCache` (5-min TTL of `memory.entities` names) →
       `detectEntities` (≥3 chars, max 5) → `graphAugment` (1-hop over

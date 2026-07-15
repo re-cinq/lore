@@ -127,7 +127,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
 6. A `Succeeded` `Agent` with pushed changes results in a PR carrying the `Lore-Task` footer; an
    `Agent` with no changes completes the task with no PR.
 7. The deterministic gate reads the **conclusion of the GitHub Actions referenced by the assembly line**:
-   a red conclusion routes to the address loop, a green conclusion proceeds.
+   a red conclusion routes to the address loop, a green conclusion proceeds. ([validated by `agent-watcher-logic.test.ts:50`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L50), [`agent-watcher-logic.test.ts:54`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L54))
 8. The `/agents` web UI edits an `AgentDefinition`/`Station` and **applies the YAML to Kubernetes**
    with no Postgres write; the Floor reads recipes from the CRDs via `@re-cinq/agent-contracts`.
 9. Secrets in `ai-agents` are mirrored from the existing remoteRefs; the per-task GitHub token is

@@ -194,7 +194,7 @@ parsing → PR creation → status update.
 The service calls the LLM provider API directly. The model is
 configurable per task type (defaulting to the most cost-effective
 model). Prompts are built from task-types.yaml templates with
-variable substitution.
+variable substitution. ([validated by `pipeline-config.test.ts:158`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L158))
 
 ### FR-3: Repo Context Pre-Fetch
 

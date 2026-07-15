@@ -116,10 +116,10 @@ RETURNING *;
 ```
 
 GKE's agent worker uses the same query but with `status = 'pending'`.
-The `FOR UPDATE SKIP LOCKED` ensures only one runner claims each task.
+The `FOR UPDATE SKIP LOCKED` ensures only one runner claims each task. ([validated by `task-queue.test.ts:26`](libs/shared/src/project/tasks/task-queue.test.ts#L26))
 
 **Grace period**: GKE worker waits 30s before claiming pending tasks.
-Local runners claim immediately. This gives local runners priority.
+Local runners claim immediately. This gives local runners priority. ([validated by `task-queue.test.ts:266`](libs/shared/src/project/tasks/task-queue.test.ts#L266), [`task-queue.test.ts:253`](libs/shared/src/project/tasks/task-queue.test.ts#L253))
 
 ### Execution Flow
 
@@ -202,7 +202,7 @@ locally:
 - **Isolation**: each task gets its own git worktree
 - **Developer's session**: unaffected — worktrees are separate
 - **Machine sleep**: in-progress tasks are killed. Cleanup job detects
-  stale tasks (no PID running) and re-queues them as `pending` for GKE
+  stale tasks (no PID running) and re-queues them as `pending` for GKE ([validated by `worker.test.ts:179`](apps/floor/src/jobs/task/worker.test.ts#L179))
 
 ### Statusline Integration
 
@@ -304,4 +304,4 @@ const task = await query(
 9. Failed tasks preserve worktree for debugging
 10. No API credits consumed (uses Claude Code subscription)
 11. Auto-review triggers on GKE after local PR creation
-12. Stale tasks (machine offline) re-queued to GKE after 30 min
+12. Stale tasks (machine offline) re-queued to GKE after 30 min ([validated by `worker.test.ts:179`](apps/floor/src/jobs/task/worker.test.ts#L179))
