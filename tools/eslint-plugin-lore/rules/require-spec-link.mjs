@@ -37,7 +37,14 @@ import {
 const indexCache = new Map();
 
 /** specsRoots we've already warned about having no spec/adr corpus, so a
- * misconfigured run warns once instead of once per linted test file. */
+ * misconfigured run warns once instead of once per linted test file.
+ *
+ * Scope is the whole Node process, matching `indexCache` above. In a one-shot
+ * `eslint`/CI run that is exactly one warning. In a long-lived ESLint server
+ * (VS Code, --watch) the module is not re-required between cycles, so once a
+ * specsRoot has warned it stays quiet even after the CWD is fixed — the same
+ * process-lifetime memoization caveat the corpus cache carries. Restart the
+ * server (or the editor) to re-arm the warning. */
 const warnedMissingCorpus = new Set();
 
 function getIndex(specsRoot, roots) {
