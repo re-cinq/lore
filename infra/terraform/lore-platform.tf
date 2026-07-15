@@ -137,6 +137,5 @@ resource "helm_release" "lore_platform" {
     kubectl_manifest.lore_db_cluster,
     kubectl_manifest.es_ai_agents_secrets,
     kubectl_manifest.es_ai_agents_ghcr,
-    kubectl_manifest.es_ai_agents_events_auth,
   ]
 }
