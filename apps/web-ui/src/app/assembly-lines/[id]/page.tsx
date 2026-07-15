@@ -5,7 +5,11 @@ import {
   fetchAssemblyLineRun,
   fetchAssemblyLineRunNodes,
 } from "@/lib/assembly-line-runs";
+import { fetchTaskEvents, fetchLlmCalls } from "@/lib/task-runtime";
 import AssemblyLineRunView from "./AssemblyLineRunView";
+import NodePodLogs from "./NodePodLogs";
+import EventTimeline from "@/app/tasks/[id]/EventTimeline";
+import LlmCallsTable from "@/app/tasks/[id]/LlmCallsTable";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -32,8 +36,33 @@ export default async function AssemblyLineResolverPage({
 
   if (run) {
     const nodes = await fetchAssemblyLineRunNodes(id);
+    const logNodes = nodes
+      .filter((n) => n.agentCrName)
+      .map((n) => ({ nodeId: n.nodeId, agentCrName: n.agentCrName as string }));
+    const [events, llmCalls] = run.taskId
+      ? await Promise.all([
+          fetchTaskEvents(run.taskId),
+          fetchLlmCalls(run.taskId),
+        ])
+      : [[], []];
 
-    return <AssemblyLineRunView run={run} nodes={nodes} />;
+    return (
+      <>
+        <AssemblyLineRunView run={run} nodes={nodes} />
+        <NodePodLogs assemblyLineId={run.id} nodes={logNodes} />
+        {run.taskId ? (
+          <>
+            <EventTimeline events={events} />
+            <LlmCallsTable llmCalls={llmCalls} repo={run.repo} />
+          </>
+        ) : (
+          <p className="meta">
+            This run has no backing task — cost and status-transition history
+            are not available.
+          </p>
+        )}
+      </>
+    );
   }
 
   const task = await queryOne<{ id: string }>(
