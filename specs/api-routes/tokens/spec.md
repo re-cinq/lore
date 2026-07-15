@@ -87,23 +87,15 @@ here; method is resolved inside the handler)
 
 ## Output
 
-- `503 { error: "database not available" }` — null pool ([validated by `returns
-  503 when pool is null`](../../../apps/mcp-server/src/api/routes/tokens.test.ts#L17)).
-- `200 { tokens: [...] }` — GET ([validated by `lists active tokens on
-  GET`](../../../apps/mcp-server/src/api/routes/tokens.test.ts#L22)).
-- `200 { ok: true }` — revoke ([validated by `revokes a token on
-  POST`](../../../apps/mcp-server/src/api/routes/tokens.test.ts#L29)).
-- `400 { error: "name required" }` — create without name ([validated by `returns
-  400 when creating without a name`](../../../apps/mcp-server/src/api/routes/tokens.test.ts#L36)).
+- `503 { error: "database not available" }` — null pool ([validated by `tokens.test.ts:41`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L41)).
+- `200 { tokens: [...] }` — GET ([validated by `tokens.test.ts:47`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L47)).
+- `200 { ok: true }` — revoke ([validated by `tokens.test.ts:80`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L80)).
+- `400 { error: "name required" }` — create without name ([validated by `tokens.test.ts:92`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L92)).
 - `201 { …, token: "lore_<64 hex>", expires_at }` — create; invalid scopes
-  filtered, `expires_in_days` → ISO timestamp ([validated by `creates a token,
-  filtering invalid scopes and computing expiry`](../../../apps/mcp-server/src/api/routes/tokens.test.ts#L42)).
-- `201` with `expires_at: null` — create without `expires_in_days` ([validated by
-  `creates a token with default scope and no expiry`](../../../apps/mcp-server/src/api/routes/tokens.test.ts#L51)).
-- `500 { error: <message> }` — insert throws ([validated by `returns 500 when the
-  insert throws`](../../../apps/mcp-server/src/api/routes/tokens.test.ts#L58)).
-- `405 { error: "method not allowed" }` — unsupported / absent method ([validated
-  by `returns 405 for unsupported methods`](../../../apps/mcp-server/src/api/routes/tokens.test.ts#L65)).
+  filtered, `expires_in_days` → ISO timestamp ([validated by `tokens.test.ts:98`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L98)).
+- `201` with `expires_at: null` — create without `expires_in_days` ([validated by `tokens.test.ts:119`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L119)).
+- `500 { error: <message> }` — insert throws ([validated by `tokens.test.ts:128`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L128)).
+- `405 { error: "method not allowed" }` — unsupported / absent method ([validated by `tokens.test.ts:137`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L137)).
 
 Verbatim strings: `"database not available"`, `"name required"`, `"method not
 allowed"`, the `"lore_"` token prefix, the `created_by` literal `"admin"`.
@@ -119,43 +111,32 @@ allowed"`, the `"lore_"` token prefix, the `created_by` literal `"admin"`.
   `500`).
 - Auth coupling: the same `pipeline.api_tokens.token_hash` column is what
   `validateClientToken` matches on for *every* `/api/*` route, and a successful
-  validation bumps `last_used` (see [auth scope override test
-  `returns admin for the tokens route`](../../../apps/mcp-server/src/api/routes/auth.test.ts#L13)).
+  validation bumps `last_used` (see [auth scope override test `auth.test.ts:58`](apps/lore-api/src/api/routes/auth.test.ts#L58)).
 - Env: `LORE_INGEST_TOKEN` (legacy full-access token also satisfies the admin gate).
 
 ## Acceptance Criteria
 
-A null pool returns `503 { error: "database not available" }`. ([validated by
-`returns 503 when pool is null`](../../../apps/mcp-server/src/api/routes/tokens.test.ts#L17))
+A null pool returns `503 { error: "database not available" }`. ([validated by `tokens.test.ts:41`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L41))
 
-GET returns only metadata rows for non-revoked tokens, never a secret. ([validated
-by `lists active tokens on GET`](../../../apps/mcp-server/src/api/routes/tokens.test.ts#L22))
+GET returns only metadata rows for non-revoked tokens, never a secret. ([validated by `tokens.test.ts:47`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L47))
 
 `{ action: "revoke", token_id }` marks the token revoked and returns `{ ok: true }`.
-([validated by `revokes a token on POST`](../../../apps/mcp-server/src/api/routes/tokens.test.ts#L29))
+([validated by `tokens.test.ts:80`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L80))
 
-Creating without a `name` returns `400 { error: "name required" }`. ([validated by
-`returns 400 when creating without a name`](../../../apps/mcp-server/src/api/routes/tokens.test.ts#L36))
+Creating without a `name` returns `400 { error: "name required" }`. ([validated by `tokens.test.ts:92`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L92))
 
 Creation returns a one-time `lore_`-prefixed 64-hex token, filters out invalid
-scopes, and computes an ISO expiry from `expires_in_days`. ([validated by `creates
-a token, filtering invalid scopes and computing
-expiry`](../../../apps/mcp-server/src/api/routes/tokens.test.ts#L42))
+scopes, and computes an ISO expiry from `expires_in_days`. ([validated by `tokens.test.ts:98`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L98))
 
-Creation without `expires_in_days` yields `expires_at: null`. ([validated by
-`creates a token with default scope and no
-expiry`](../../../apps/mcp-server/src/api/routes/tokens.test.ts#L51))
+Creation without `expires_in_days` yields `expires_at: null`. ([validated by `tokens.test.ts:119`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L119))
 
-An insert failure surfaces as `500 { error: <message> }`. ([validated by `returns
-500 when the insert throws`](../../../apps/mcp-server/src/api/routes/tokens.test.ts#L58))
+An insert failure surfaces as `500 { error: <message> }`. ([validated by `tokens.test.ts:128`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L128))
 
 Any non-GET/POST verb (including an absent method) returns `405 { error: "method
-not allowed" }`. ([validated by `returns 405 for unsupported
-methods`](../../../apps/mcp-server/src/api/routes/tokens.test.ts#L65))
+not allowed" }`. ([validated by `tokens.test.ts:137`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L137))
 
 The route requires `admin` scope; the dispatcher 403s a read-scoped token before
-the handler runs. ([validated by `returns admin for the tokens
-route`](../../../apps/mcp-server/src/api/routes/auth.test.ts#L13) and `returns 403 when
+the handler runs. ([validated by `auth.test.ts:110`](apps/lore-api/src/api/routes/auth.test.ts#L110) and `returns 403 when
 the DB token lacks the admin scope an admin route
 needs`](../../../apps/mcp-server/src/api/routes/dispatch.test.ts#L145))
 

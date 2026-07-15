@@ -83,17 +83,17 @@ Always `200` (success or empty) or `500` (engine throw). JSON only.
 
 A query with a pool returns the assembled `{ text, sections }`. ([validated by `returns assembled context when query + pool present`](apps/lore-api/src/api/routes/context/context.test.ts#L21))
 
-`debug=1` is forwarded as the engine's debug flag and the trace is returned in the envelope. ([validated by `passes debug=1 through and returns the trace in the envelope`](../../../apps/mcp-server/src/api/routes/context.test.ts#L29))
+`debug=1` is forwarded as the engine's debug flag and the trace is returned in the envelope. ([validated by `context.test.ts:41`](apps/lore-api/src/api/routes/context/context.test.ts#L41))
 
-Empty engine text is coerced to `null`. ([validated by `nulls text when assembleContext returns empty text`](../../../apps/mcp-server/src/api/routes/context.test.ts#L38))
+Empty engine text is coerced to `null`. ([validated by `context.test.ts:109`](apps/lore-api/src/api/routes/context/context.test.ts#L109))
 
-No query but a repo + pool joins the matching chunks with the `---` separator. ([validated by `joins repo chunks when no query but repo + pool present`](../../../apps/mcp-server/src/api/routes/context.test.ts#L46))
+No query but a repo + pool joins the matching chunks with the `---` separator. ([validated by `context.test.ts:119`](apps/lore-api/src/api/routes/context/context.test.ts#L119))
 
-An empty chunk set returns `{ text: null }`. ([validated by `nulls text when repo chunks are empty`](../../../apps/mcp-server/src/api/routes/context.test.ts#L54))
+An empty chunk set returns `{ text: null }`. ([validated by `context.test.ts:130`](apps/lore-api/src/api/routes/context/context.test.ts#L130))
 
-Neither query nor repo returns `{ text: null }`. ([validated by `nulls text when neither query nor repo provided`](../../../apps/mcp-server/src/api/routes/context.test.ts#L62))
+Neither query nor repo returns `{ text: null }`. ([validated by `context.test.ts:139`](apps/lore-api/src/api/routes/context/context.test.ts#L139))
 
-A throwing engine returns 500. ([validated by `returns 500 when assembleContext throws`](../../../apps/mcp-server/src/api/routes/context.test.ts#L68))
+A throwing engine returns 500. ([validated by `context.test.ts:145`](apps/lore-api/src/api/routes/context/context.test.ts#L145))
 
 The route is registered as a `GET /api/context` prefix match. ([implemented by](../../../apps/mcp-server/src/api/routes/index.ts#L55)) ([implemented by](../../../apps/mcp-server/src/api/routes/context.ts#L6))
 

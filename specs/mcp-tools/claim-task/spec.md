@@ -19,7 +19,7 @@ one caller wins; everyone else is told the task is already taken.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L292)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L292)).
 
 - **name**: `lore_claim_task`
 - **description** (verbatim):
@@ -67,13 +67,13 @@ Never throws.
 ## Acceptance Criteria
 
 A pending task is locked, flipped to `running` with the claiming agent, and the
-transaction commits returning true. ([validated by `commits and returns true when a pending task is locked`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L131))
+transaction commits returning true. ([validated by `returns true and records the claim event when a pending task is claimed`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L148))
 
 When the row is already locked or absent the handler rolls back and returns
-false. ([validated by `rolls back and returns false when the row is already locked or absent`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L151))
+false. ([validated by `returns false and records no event when the row is already claimed`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L164))
 
 A failure recording the claim event does not abort the claim; the transaction
-still commits. ([validated by `still commits when the event-recording insert throws`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L166))
+still commits. ([validated by `still returns true when the event-recording insert throws`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L175))
 
 The no-pool guard, agent resolution, and success/failure message framing run
 only inside the tool handler. *(untested: handler-only orchestration around

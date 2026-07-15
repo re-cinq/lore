@@ -97,9 +97,9 @@ The handler never touches `_pool` directly — all reads go through `project.tra
 
 ## Acceptance Criteria
 
-An unknown trace kind is rejected with 404 `{ error: "not found" }`. ([validated by `returns 404 for an unknown trace kind`](../../../apps/mcp-server/src/api/routes/trace.test.ts#L25))
+An unknown trace kind is rejected with 404 `{ error: "not found" }`. ([validated by `trace.test.ts:30`](apps/lore-api/src/api/routes/trace/trace.test.ts#L30))
 
-A matched trace kind passes the read-scope auth gate (no 401/403). ([validated by `passes read-scope auth for a matched kind (no 401/403 gate hit)`](../../../apps/mcp-server/src/api/routes/trace.test.ts#L46))
+A matched trace kind passes the read-scope auth gate (no 401/403). ([validated by `trace.test.ts:43`](apps/lore-api/src/api/routes/trace/trace.test.ts#L43))
 
 The `document`/`source`/`ring` `400 "path query param required"` gate is reached
 only after a successful `projectFor`, so it needs a live Project/Dgraph backend

@@ -117,29 +117,28 @@ not awaited; the route returns 200 regardless of their eventual outcome.
 ## Acceptance Criteria
 
 A request without `content` returns 400 without touching the DB. ([validated by
-`returns 400 when content is missing`](../../../apps/mcp-server/src/api/routes/episode.test.ts#L43))
+`episode.test.ts:59`](apps/lore-api/src/api/routes/memory/episode.test.ts#L59))
 
 A token whose scopes lack `write` is rejected 403 before the handler runs.
-([validated by `returns 403 when the token lacks write scope`](../../../apps/mcp-server/src/api/routes/episode.test.ts#L48))
+([validated by `episode.test.ts:65`](apps/lore-api/src/api/routes/memory/episode.test.ts#L65))
 
 An insert that conflicts (returns no rows) yields `{ status: "duplicate" }`.
-([validated by `returns duplicate when the insert conflicts`](../../../apps/mcp-server/src/api/routes/episode.test.ts#L60))
+([validated by `episode.test.ts:77`](apps/lore-api/src/api/routes/memory/episode.test.ts#L77))
 
 A new episode returns `{ status: "ok", episode_id }`, triggers fact extraction,
 and — when `ANTHROPIC_API_KEY` is set — runs the graph LLM closure. ([validated by
-`stores a new episode and runs the graph LLM closure when key is set`](../../../apps/mcp-server/src/api/routes/episode.test.ts#L67))
+`episode.test.ts:86`](apps/lore-api/src/api/routes/memory/episode.test.ts#L86))
 
 With `ANTHROPIC_API_KEY` unset, graph extraction is skipped entirely. ([validated
-by `skips graph extraction when ANTHROPIC_API_KEY is unset`](../../../apps/mcp-server/src/api/routes/episode.test.ts#L85))
+by `episode.test.ts:113`](apps/lore-api/src/api/routes/memory/episode.test.ts#L113))
 
-A thrown insert returns 500. ([validated by `returns 500 when the episode insert
-throws`](../../../apps/mcp-server/src/api/routes/episode.test.ts#L93))
+A thrown insert returns 500. ([validated by `episode.test.ts:123`](apps/lore-api/src/api/routes/memory/episode.test.ts#L123))
 
 A rejecting fact extraction is swallowed and the response stays 200. ([validated
-by `swallows a failing fact extraction`](../../../apps/mcp-server/src/api/routes/episode.test.ts#L100))
+by `episode.test.ts:132`](apps/lore-api/src/api/routes/memory/episode.test.ts#L132))
 
 A rejecting graph update is swallowed and the response stays 200. ([validated by
-`swallows a failing graph update`](../../../apps/mcp-server/src/api/routes/episode.test.ts#L109))
+`episode.test.ts:145`](apps/lore-api/src/api/routes/memory/episode.test.ts#L145))
 
 The actual fact/entity/edge content produced by the extraction LLM is exercised
 only against the live model. *(untested: fact + graph extraction are live-IO LLM

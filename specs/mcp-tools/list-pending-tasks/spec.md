@@ -20,7 +20,7 @@ pending file written by the notifier.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L429)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L429)).
 
 - **name**: `lore_list_pending_tasks`
 - **description** (verbatim):
@@ -70,7 +70,7 @@ listing, a "No pending tasks" message, or the error message. Never throws.
 ## Acceptance Criteria
 
 `listPendingTasks` returns an array (empty when the cached pending file is
-absent). ([validated by `listPendingTasks returns empty array when file is missing`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L158))
+absent). ([validated by `runner.local.test.ts:161`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L161))
 
 The handler's API-path grouping/formatting, the `repo` filter, and the
 local-fallback formatting run only inside the tool. *(untested: the API branch

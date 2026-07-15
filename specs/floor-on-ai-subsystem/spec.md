@@ -151,22 +151,22 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
 > in-process handler deletion. Criteria link as each phase's PR lands.
 
 15. `model: "exec"` routes to a non-LLM adapter spawning the recipe's `tool_config.command` with the
-    rendered prompt appended; no CRD schema change. ([validated by agentForModel exec routing test](../../../ai-agent-subsystem/packages/agentcore/source/agentcore/vendors/select.d))
+    rendered prompt appended; no CRD schema change. ([validated by agentForModel exec routing test](../ai-agent-subsystem/packages/agentcore/source/agentcore/vendors/select.d))
 16. Node YAML accepts optional `station_ref` (custom station, default `def-<type>`) and
-    `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](../../libs/assembly-lines/src/loader.test.ts#L226))
+    `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](libs/assembly-lines/src/loader.test.ts#L231))
 17. `nodeStationSpec` builds the CR spec: stationRef, `parameters.station_input` JSON
-    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](../../apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L84))
+    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L87))
 18. A station pod ends with the claude-style result line carrying `LORE_NODE_RESULT: {outcome,
     extras}`; the Floor's `parseNodeResult` maps it (precedence: LORE_NODE_RESULT → REVIEW_RESULT →
     success); CR Failed → `station-failed`; await expiry → `station-timeout`.
-    ([validated by parseNodeResult tests](../../libs/assembly-lines/src/node-outcome.test.ts#L24))
+    ([validated by parseNodeResult tests](libs/assembly-lines/src/node-outcome.test.ts#L19))
 19. Cutover complete: every non-agent node on the Floor-assembly-line path dispatches a station
     (no `LORE_STATION_NODES` flag, no in-process node handlers on that path); the in-process
-    supervisor path (gap-fill/runbook) is untouched. ([validated by every non-agent node dispatches a station CR](../../apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L84))
+    supervisor path (gap-fill/runbook) is untouched. ([validated by every non-agent node dispatches a station CR](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L87))
 20. `scripts/task-types.yaml` `stations:` seeds `def-<type>` AgentDefinition/Station pairs (exec
     model, `{station_input}` prompt, lore-station image via `.Values.stationImage`, deadline
     default 15); org rows seeded by migration 0027 (`execution_mode: 'station'`).
-    ([validated by station catalog tests](../../apps/floor/src/jobs/agent/agent-catalog.test.ts#L96))
+    ([validated by station catalog tests](apps/floor/src/jobs/agent/agent-catalog.test.ts#L141))
 21. Custom station images honor [station-contract.md](../6-dark-factory/contracts/station-contract.md).
 
 ## Out of scope

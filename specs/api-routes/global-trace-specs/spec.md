@@ -71,10 +71,10 @@ The handler ignores `_pool` — the cross-repo list lives in Dgraph.
 ## Acceptance Criteria
 
 With Dgraph unconfigured, the route fails soft to `200 { specs: [] }` — never a
-500. ([validated by `returns 200 with an empty specs list when Dgraph is not configured`](../../../apps/mcp-server/src/api/routes/trace.test.ts#L69))
+500. ([validated by `returns 200 with an empty specs list when Dgraph is not configured`](apps/lore-api/src/api/routes/trace/trace.test.ts#L71))
 
 A request without a bearer token is rejected with 401 before the handler runs.
-([validated by `returns 401 without a bearer token`](../../../apps/mcp-server/src/api/routes/trace.test.ts#L80))
+([validated by `returns 401 without a bearer token`](apps/lore-api/src/api/routes/trace/trace.test.ts#L78))
 
 The live `listAllSpecDocuments` success body and the `500` query-error branch
 need a live Dgraph backend. *(untested: both require `LORE_DGRAPH_HTTP` pointed

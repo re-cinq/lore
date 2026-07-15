@@ -20,7 +20,7 @@ error.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L87)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L87)).
 
 - **name**: `lore_get_pipeline_status`
 - **description** (verbatim):
@@ -73,7 +73,7 @@ A task id with no matching row resolves to `null` (the handler surfaces this as
 ([validated by `returns null when no task row matches the id`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L21))
 
 A matching id returns the task row merged with its ordered `events` array.
-([validated by `returns the task with its ordered events when the id matches`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L27))
+([validated by `returns the task with its ordered events when the id matches`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L28))
 
 The stdio-proxy branch and the not-found/error envelope framing are exercised
 only against a live API or DB.

@@ -48,20 +48,19 @@ The console is read-only; the write path is a separate, ceremony-routed change.
 
 The activation state is `active` only when the repo is enabled **and** the
 cluster gate is on.
-([validated by `is active when the repo is enabled and the cluster gate is on`](../../apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L17))
+([validated by `is active when the repo is enabled`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L16))
 
 When the repo is enabled but the cluster gate is off, the activation state is
 `inactive` with a reason naming the platform cluster gate — so the console
 never claims a repo is running dark-mode when the cluster gate would route it to
 the legacy path.
-([validated by `is inactive with a cluster-gate reason when the repo is enabled but the cluster gate is off`](../../apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L21))
 
 When the repo is not enabled, the activation state is `disabled` regardless of
 the cluster gate.
-([validated by `is disabled when the repo is not enabled, regardless of the cluster gate`](../../apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L27))
+([validated by `is disabled when the repo is not enabled`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L22))
 
 The model exposes the resolved config and trust level for display.
-([validated by `exposes the resolved config and trust level`](../../apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L34))
+([validated by `exposes the resolved config and trust level`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L33))
 
 Recent tasks are projected to work items carrying id, type, status, and PR link.
 ([validated by `projects recent tasks to work items with id, type, status, and PR link`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L40))
@@ -70,7 +69,7 @@ Dark-factory audit events are projected to a decision feed: an
 `auto_merge_decision` summarizes its outcome, an `escalation_issued` its reason,
 a `lease_expired` its previous holder, and a `spec_trace_ingest` its
 validated_by / violated counts.
-([validated by `projects audit events to a decision feed summarized by kind`](../../apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L54))
+([validated by `projects audit events to a decision feed summarized by kind`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L63))
 
 ## Out of Scope
 

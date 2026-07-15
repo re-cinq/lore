@@ -21,7 +21,7 @@ and PID — the session continues while the task runs and eventually opens a PR.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts#L7)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts#L7)).
 
 - **name**: `lore_run_task_locally`
 - **description** (verbatim):
@@ -88,7 +88,7 @@ wrong-repo warning, or `"Error: {message}"`. **Never throws**.
 ## Acceptance Criteria
 
 `validateRepoMatch` passes when the cwd repo matches the task's target repo.
-([validated by `passes when cwd repo matches task repo`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L221))
+([validated by `passes when cwd repo matches task repo`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L227))
 
 `validateRepoMatch` throws when the cwd repo differs from the task's target repo.
 ([validated by `throws when cwd repo differs from task repo`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L227))
@@ -97,13 +97,13 @@ The repo-mismatch error names both repos and suggests a `cd`.
 ([validated by `error message names both repos and suggests a cd`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L233))
 
 `validateRepoMatch` passes when the cwd repo cannot be detected (null).
-([validated by `passes when cwd repo cannot be detected (null)`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L244))
+([validated by `passes when cwd repo cannot be detected (null)`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L250))
 
 The spawned branch follows the `lore/<type>/<slug>-<shortId>` format.
-([validated by `creates lore/<type>/<slug>-<shortId> format`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L195))
+([validated by `creates lore/<type>/<slug>-<shortId> format`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L200))
 
 A short prompt still produces a valid branch name.
-([validated by `handles very short prompts`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L209))
+([validated by `handles very short prompts`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L214))
 
 The end-to-end spawn (worktree creation, `claude` process, `monitorTask` →
 commit/push/PR) is exercised only by manual / integration runs. *(untested:

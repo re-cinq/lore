@@ -20,7 +20,7 @@ only currently-valid facts by default while still allowing historical lookups.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L162)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/memory-tools.ts#L162)).
 
 - **name**: `lore_search_memory`
 - **description** (verbatim):
@@ -99,12 +99,12 @@ A single MCP text content block. Pretty-printed JSON array of
 
 ## Acceptance Criteria
 
-1. A `pool` argument is resolved to a pool id by name before any search runs. ([validated by `resolves the pool by name before searching`](../../../apps/mcp-server/src/features/memory/memory-search.test.ts#L31))
+1. A `pool` argument is resolved to a pool id by name before any search runs. ([validated by `memory-search.test.ts:38`](libs/server-core/src/features/memory/memory-search.test.ts#L38))
 2. When the named pool does not exist, search short-circuits to an empty
-   result. ([validated by `returns empty when the named pool does not exist`](../../../apps/mcp-server/src/features/memory/memory-search.test.ts#L23))
-3. RRF rank fusion carries each candidate's confidence onto the fused result. ([validated by `carries confidence from the candidate onto the fused result`](../../../libs/shared/src/memory-ranking.test.ts#L6))
+   result. ([validated by `memory-search.test.ts:25`](libs/server-core/src/features/memory/memory-search.test.ts#L25))
+3. RRF rank fusion carries each candidate's confidence onto the fused result. ([validated by `memory-ranking.test.ts:11`](libs/shared/src/memory-ranking.test.ts#L11))
 4. Diversification slices the total output to the requested limit across all
-   sources. ([validated by `slices the total output to limit across all sources`](../../../libs/shared/src/memory-ranking.test.ts#L66))
+   sources. ([validated by `memory-ranking.test.ts:86`](libs/shared/src/memory-ranking.test.ts#L86))
 
 ## Out of Scope
 

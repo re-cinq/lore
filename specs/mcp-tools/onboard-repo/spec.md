@@ -20,7 +20,7 @@ pipeline task.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/repo-tools.ts#L34)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/repo-tools.ts#L34)).
 
 - **name**: `lore_onboard_repo`
 - **description** (verbatim):
@@ -74,11 +74,11 @@ case). **Never throws** — every path returns text.
 
 ## Acceptance Criteria
 
-The `/api/onboard` route returns 503 when the pool is null. ([validated by `returns 503 when pool is null`](../../../apps/mcp-server/src/api/routes/onboard.test.ts#L21))
+The `/api/onboard` route returns 503 when the pool is null. ([validated by `onboard.test.ts:35`](apps/lore-api/src/api/routes/repos/onboard.test.ts#L35))
 
-The route returns 400 for a malformed (`owner/repo`-less) repo argument. ([validated by `returns 400 when repo is missing or malformed`](../../../apps/mcp-server/src/api/routes/onboard.test.ts#L27))
+The route returns 400 for a malformed (`owner/repo`-less) repo argument. ([validated by `onboard.test.ts:41`](apps/lore-api/src/api/routes/repos/onboard.test.ts#L41))
 
-A well-formed repo returns the onboard result on 200. ([validated by `returns 200 with the onboard result`](../../../apps/mcp-server/src/api/routes/onboard.test.ts#L34))
+A well-formed repo returns the onboard result on 200. ([validated by `onboard.test.ts:47`](apps/lore-api/src/api/routes/repos/onboard.test.ts#L47))
 
 The MCP-tool wrapper's own `LORE_DB_HOST` gate and JSON-envelope framing reuse
 the same `onboardRepo` handler the route covers. *(untested: the tool wrapper has

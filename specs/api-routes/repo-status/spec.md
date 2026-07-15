@@ -78,19 +78,19 @@ Always `200` JSON. Shape depends on the branch.
 
 ## Acceptance Criteria
 
-A null pool returns `{ onboarded: false }`. ([validated by `returns onboarded:false when pool is null`](../../../apps/mcp-server/src/api/routes/repo-status.test.ts#L17))
+A null pool returns `{ onboarded: false }`. ([validated by `returns onboarded:false when pool is null`](apps/lore-api/src/api/routes/repos/repo-status.test.ts#L26))
 
-A missing `repo` param returns `{ onboarded: false }`. ([validated by `returns onboarded:false when no repo param`](../../../apps/mcp-server/src/api/routes/repo-status.test.ts#L23))
+A missing `repo` param returns `{ onboarded: false }`. ([validated by `returns onboarded:false when no repo param`](apps/lore-api/src/api/routes/repos/repo-status.test.ts#L32))
 
-A repo absent from `lore.repos` returns `{ onboarded: false, repo }`. ([validated by `returns onboarded:false with repo when repo not in DB`](../../../apps/mcp-server/src/api/routes/repo-status.test.ts#L30))
+A repo absent from `lore.repos` returns `{ onboarded: false, repo }`. ([validated by `returns onboarded:false with repo when repo not in DB`](apps/lore-api/src/api/routes/repos/repo-status.test.ts#L38))
 
 A fresh onboarded repo returns numeric counts, `auto_review`, and `stale: false`. ([validated by `returns full stats with stale=false for a fresh repo`](apps/lore-api/src/api/routes/repos/repo-status.test.ts#L38))
 
-A null `last_ingested_at` marks `stale: true`. ([validated by `marks stale=true when last_ingested_at is null`](../../../apps/mcp-server/src/api/routes/repo-status.test.ts#L58))
+A null `last_ingested_at` marks `stale: true`. ([validated by `marks stale=true when last_ingested_at is null`](apps/lore-api/src/api/routes/repos/repo-status.test.ts#L72))
 
-Null settings and missing count rows coerce to defaults (counts 0, `auto_review` false). ([validated by `handles null settings and count rows missing`](../../../apps/mcp-server/src/api/routes/repo-status.test.ts#L70))
+Null settings and missing count rows coerce to defaults (counts 0, `auto_review` false). ([validated by `handles null settings and count rows missing`](apps/lore-api/src/api/routes/repos/repo-status.test.ts#L91))
 
-A throwing query returns `{ onboarded: false, error }` with status 200. ([validated by `returns onboarded:false with error when a query throws`](../../../apps/mcp-server/src/api/routes/repo-status.test.ts#L82))
+A throwing query returns `{ onboarded: false, error }` with status 200. ([validated by `returns onboarded:false with error when a query throws`](apps/lore-api/src/api/routes/repos/repo-status.test.ts#L112))
 
 The route is registered as a `GET /api/repo-status` prefix match. ([implemented by](../../../apps/mcp-server/src/api/routes/index.ts#L52)) ([implemented by](../../../apps/mcp-server/src/api/routes/health.ts#L27))
 
