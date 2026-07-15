@@ -1,8 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import PRStatusCard, { type PRDetails } from "./PRStatusCard";
+import PRStatusCard, { type PRDetails, type PRStatus } from "./PRStatusCard";
 
-const TERMINAL_STATES = new Set<string>(["merged", "closed"]);
+const TERMINAL_STATES = new Set<PRStatus>(["merged", "closed"]);
 const POLL_INTERVAL_MS = 15_000;
 
 /**

@@ -18,9 +18,13 @@
  */
 
 const WEBUI_MARKER = "/apps/web-ui/src/";
-const VIEW_SUFFIX = /(?:View|Card|Table|Section|Badge|Row|Timeline)\.tsx$/;
+const VIEW_SUFFIX = /(?:View|Card|Table|Section|Badge|Row)\.tsx$/;
 const DATA_MODULES = new Set(["@/lib/db", "@/lib/github"]);
-const XHR_CONSTRUCTORS = new Set(["WebSocket", "EventSource", "XMLHttpRequest"]);
+const XHR_CONSTRUCTORS = new Set([
+  "WebSocket",
+  "EventSource",
+  "XMLHttpRequest",
+]);
 const GLOBAL_HOSTS = new Set(["window", "globalThis", "self"]);
 
 function bannedSource(value) {

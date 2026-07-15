@@ -65,7 +65,7 @@ export default function TimelinePanel({
     const handle = setInterval(() => void fetchTimeline(), POLL_INTERVAL_MS);
 
     return () => clearInterval(handle);
-  }, [fetchTimeline, initialStatus, data?.current_stage]);
+  }, [fetchTimeline, initialStatus, data?.current_stage, data?.pr_state]);
 
   return <TimelineView data={data} loading={loading} error={error} />;
 }

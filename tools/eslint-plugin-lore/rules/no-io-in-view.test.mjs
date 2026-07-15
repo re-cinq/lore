@@ -71,6 +71,17 @@ ruleTester.run("no-io-in-view", rule, {
       filename: VIEW,
       errors: [{ messageId: "networkCallInView" }],
     },
+    // globalThis.fetch and self.fetch are still fetch
+    {
+      code: `export default function PRStatusCard() { globalThis.fetch("/api/x"); return null; }`,
+      filename: VIEW,
+      errors: [{ messageId: "networkCallInView" }],
+    },
+    {
+      code: `export default function PRStatusCard() { self.fetch("/api/x"); return null; }`,
+      filename: VIEW,
+      errors: [{ messageId: "networkCallInView" }],
+    },
     // websocket / eventsource / xhr
     {
       code: `export default function PRStatusCard() { const s = new WebSocket("wss://x"); return s ? null : null; }`,

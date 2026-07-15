@@ -16,6 +16,20 @@ describe("parseSpecTitle", () => {
       "local-task-runner",
     );
   });
+
+  it("falls back to the parent directory when the path has no specs segment", () => {
+    expect(parseSpecTitle("body only", "docs/runbooks/spec.md")).toBe(
+      "runbooks",
+    );
+  });
+
+  it("falls back to the parent directory when specs is the last directory", () => {
+    expect(parseSpecTitle("body only", "specs/spec.md")).toBe("specs");
+  });
+
+  it("returns the file path when there is no parent directory", () => {
+    expect(parseSpecTitle("body only", "spec.md")).toBe("spec.md");
+  });
 });
 
 describe("extractSummary", () => {
@@ -36,6 +50,21 @@ describe("extractSummary", () => {
       "# Title\n\n> **Note:** This spec was updated after shipping.\n> Several features were not exposed.\n\nThe real summary paragraph.";
 
     expect(extractSummary(content)).toBe("The real summary paragraph.");
+  });
+
+  it("skips code fences and list items before the first prose paragraph", () => {
+    const content =
+      "```bash\nnpm test\n```\n\n- bullet one\n* bullet two\n\nProse after the noise.";
+
+    expect(extractSummary(content)).toBe("Prose after the noise.");
+  });
+
+  it("skips whitespace-only blocks and returns short text without an ellipsis", () => {
+    expect(extractSummary(" \n\nShort prose.")).toBe("Short prose.");
+  });
+
+  it("returns an empty string when no prose paragraph exists", () => {
+    expect(extractSummary("# Only a heading\n\n| a |\n|---|")).toBe("");
   });
 });
 
