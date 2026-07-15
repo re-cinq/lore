@@ -50,7 +50,8 @@ function archiveRaw(body: string, rows: readonly LlmCallRow[]): void {
     rows.map((r) => r.taskId),
   );
 
-  // todo: we must update the infra to drop the logs after 30 days. (this should be a variable.)
+  // TODO: we must update the infra to drop the logs after 30 days. (this should be a variable.)
+  // TODO: we should use here a ProxyPromise that wraps the promise and logs errors. This way we can avoid using try/catch here.
   void archiveAgentEvents(body, key).catch((err) =>
     console.warn(`[floor] events archive skipped: ${errorMessage(err)}`),
   );

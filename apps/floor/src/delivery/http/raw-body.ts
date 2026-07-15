@@ -31,6 +31,7 @@ export function parseJsonBody<T = unknown>(raw: string): T {
   try {
     return JSON.parse(raw) as T;
   } catch {
+    // TODO: we must say where the invalid json is coming from. We can add a parameter to this function that will be the name of the route that is calling it. This way we can have a more actionable error message. Also, we need to tell the client where the error is in the request body.
     throw Boom.badRequest("invalid JSON");
   }
 }

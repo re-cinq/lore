@@ -23,6 +23,7 @@ const authed = (payload: string) =>
     payload,
   });
 
+// TODO: this is not fully tested. New tests for happy paths must be added too.
 describe("POST /api/webhook/ci-ingest", () => {
   it("returns 503 when the ingest token is not configured", async () => {
     delete process.env.LORE_INGEST_TOKEN;
