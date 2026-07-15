@@ -21,6 +21,7 @@ import path from "node:path";
 import { isTestFile } from "@re-cinq/lore-shared/test-paths.js";
 import {
   buildLinkIndex,
+  corpusExists,
   readSpecFiles,
   toPosix,
 } from "./lib/spec-link-index.mjs";
@@ -35,8 +36,13 @@ import {
  */
 const indexCache = new Map();
 
+/** specsRoots we've already warned about having no spec/adr corpus, so a
+ * misconfigured run warns once instead of once per linted test file. */
+const warnedMissingCorpus = new Set();
+
 function getIndex(specsRoot, roots) {
-  const key = `${specsRoot}\0${roots.join(",")}`;
+  // `\0` separates every element so no root value can collide with the joiner.
+  const key = [specsRoot, ...roots].join("\0");
   let index = indexCache.get(key);
 
   if (!index) {
@@ -64,6 +70,14 @@ function rootCallName(callee) {
 
     if (node.type === "CallExpression") {
       node = node.callee;
+
+      continue;
+    }
+
+    // `it.each`table`(name, fn)` — the outer callee is a tagged template whose
+    // `.tag` is the `it.each` member chain; drill into it or the test escapes.
+    if (node.type === "TaggedTemplateExpression") {
+      node = node.tag;
 
       continue;
     }
@@ -145,6 +159,22 @@ export default {
     const options = context.options[0] ?? {};
     const specsRoot = options.specsRoot ?? context.cwd;
     const roots = options.roots ?? ["specs", "adrs"];
+
+    // With no corpus under specsRoot, every test would flag as unlinked — a
+    // false-positive storm that means the run started outside the repo root
+    // (e.g. `eslint apps/floor/` in a subdir). Warn once and skip rather than
+    // report thousands of misleading errors.
+    if (!corpusExists(specsRoot, roots)) {
+      if (!warnedMissingCorpus.has(specsRoot)) {
+        warnedMissingCorpus.add(specsRoot);
+        console.warn(
+          `[lore/require-spec-link] no ${roots.join("/")} directory under ${specsRoot} — ` +
+            "run eslint from the repo root (or pass options.specsRoot). Skipping the spec-link check.",
+        );
+      }
+
+      return {};
+    }
 
     const index = getIndex(specsRoot, roots);
     const relPath = toPosix(path.relative(specsRoot, context.filename));

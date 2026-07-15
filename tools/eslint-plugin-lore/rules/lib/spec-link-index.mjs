@@ -14,7 +14,10 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { linksForStatements } from "@re-cinq/lore-shared/spec-link-parser.js";
+import {
+  linksForStatements,
+  resolveLinkPath,
+} from "@re-cinq/lore-shared/spec-link-parser.js";
 
 /** @typedef {{ lines: Set<number>, wholeFile: boolean }} LinkEntry */
 
@@ -22,10 +25,20 @@ export function toPosix(filePath) {
   return filePath.split(path.sep).join("/");
 }
 
+/** True when at least one of `dirs` exists under `root`. The rule uses this to
+ * tell "no test is linked" from "the corpus was never found" (e.g. eslint run
+ * from a subdirectory where `context.cwd` is not the repo root). */
+export function corpusExists(root, dirs = ["specs", "adrs"]) {
+  return dirs.some((dir) => fs.existsSync(path.join(root, dir)));
+}
+
 /**
  * Fold every test link found across the given markdown files into a
- * `Map<repoRelTestPath, LinkEntry>`. Link paths are already repo-relative and
- * leading-slash-stripped by the parser.
+ * `Map<repoRelTestPath, LinkEntry>`. Href paths are resolved to canonical
+ * repo-root-relative form via the shared `resolveLinkPath` — the same resolver
+ * the graph binder uses — so a `../`-relative href (relative to the spec's own
+ * directory, as GitHub renders it) indexes under the test's repo-relative key
+ * and matches, instead of a literal `../../apps/x.test.ts` miss.
  *
  * @param {Array<{ path: string, content: string }>} files
  * @returns {Map<string, LinkEntry>}
@@ -36,11 +49,12 @@ export function buildLinkIndex(files) {
   for (const file of files) {
     for (const { testLinks } of linksForStatements(file.content)) {
       for (const link of testLinks) {
-        let entry = index.get(link.path);
+        const key = resolveLinkPath(link.path, file.path);
+        let entry = index.get(key);
 
         if (!entry) {
           entry = { lines: new Set(), wholeFile: false };
-          index.set(link.path, entry);
+          index.set(key, entry);
         }
 
         if (link.line === null) {

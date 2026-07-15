@@ -46,6 +46,14 @@ ruleTester.run("require-spec-link", rule, {
       filename: file("src/foo.ts"),
       options: OPTS,
     },
+    {
+      // it.each`table`(...) — the callee is a TaggedTemplateExpression; the
+      // spec links this file at L1 via a `../`-relative href that resolves to
+      // the repo-root-relative key `tests/tagged.test.ts`.
+      code: 'it.each`\n  n\n  ${1}\n`("adds %s", () => {});',
+      filename: file("tests/tagged.test.ts"),
+      options: OPTS,
+    },
   ],
   invalid: [
     {
@@ -85,6 +93,19 @@ ruleTester.run("require-spec-link", rule, {
         {
           messageId: "unlinkedTest",
           data: { name: "case %s", file: "tests/orphan.test.ts", line: "1" },
+        },
+      ],
+    },
+    {
+      // it.each`table`(...) with no link — the tagged-template callee must not
+      // let the test escape the rule (regression guard for the TaggedTemplate arm)
+      code: 'it.each`\n  n\n  ${1}\n`("case", () => {});',
+      filename: file("tests/orphan.test.ts"),
+      options: OPTS,
+      errors: [
+        {
+          messageId: "unlinkedTest",
+          data: { name: "case", file: "tests/orphan.test.ts", line: "1" },
         },
       ],
     },

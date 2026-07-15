@@ -19,8 +19,11 @@
  * statements links them all (`parseSpecAnchors` reads either shape downstream).
  */
 
-import { posix } from "node:path";
-import { linksForStatements } from "../spec-link-parser.js";
+import {
+  linksForStatements,
+  normalizePath,
+  resolveLinkPath,
+} from "../spec-link-parser.js";
 import type { TestDescriptor } from "../test-report.js";
 
 /** One spec file's path + raw markdown — the binder's read source. */
@@ -33,28 +36,6 @@ interface LinkIndexEntry {
   path: string;
   line: number;
   anchor: string;
-}
-
-/** Strip a leading `./` or `/` so repo-root-relative and dot-relative forms match. */
-function normalizePath(path: string): string {
-  return path.replace(/^\.?\/+/, "");
-}
-
-/** Resolve a coverage-link path to repo-root-relative form. An href that climbs
- * out of the spec's directory with `../` (optionally behind a leading `./`) is
- * relative to the spec file's directory — that is how GitHub renders it — so
- * resolve it against `dirname(specPath)`; every other form is already
- * repo-root-relative and only needs a leading `./` or `/` stripped. Without this,
- * a `../../../apps/x.test.ts` link never matches a descriptor's repo-relative
- * `apps/x.test.ts` file and yields no edge. */
-function resolveLinkPath(linkPath: string, specPath: string): string {
-  const stripped = linkPath.startsWith("./") ? linkPath.slice(2) : linkPath;
-
-  if (stripped.startsWith("../")) {
-    return posix.normalize(posix.join(posix.dirname(specPath), stripped));
-  }
-
-  return normalizePath(linkPath);
 }
 
 /** Flatten every spec's statements into `(test path, line) → statement anchor` entries. */

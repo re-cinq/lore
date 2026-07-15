@@ -2,7 +2,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildLinkIndex, readSpecFiles } from "./spec-link-index.mjs";
+import {
+  buildLinkIndex,
+  corpusExists,
+  readSpecFiles,
+} from "./spec-link-index.mjs";
 
 const FIXTURES = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -13,7 +17,10 @@ const FIXTURES = path.join(
 
 test("indexes a #Lnn test link as that line", () => {
   const index = buildLinkIndex([
-    { path: "specs/a/spec.md", content: `Works. ([validated by](a.test.ts#L88))` },
+    {
+      path: "specs/a/spec.md",
+      content: `Works. ([validated by](a.test.ts#L88))`,
+    },
   ]);
 
   assert.deepEqual(index.get("a.test.ts"), {
@@ -58,4 +65,21 @@ test("readSpecFiles reads specs and adrs, buildLinkIndex covers both", () => {
 
 test("readSpecFiles skips absent directories", () => {
   assert.deepEqual(readSpecFiles(FIXTURES, ["does-not-exist"]), []);
+});
+
+test("resolves a dir-relative ../ href to the repo-root key", () => {
+  const index = buildLinkIndex([
+    {
+      path: "specs/foo/spec.md",
+      content: `Works. ([validated by](../../apps/x.test.ts#L5))`,
+    },
+  ]);
+
+  assert.deepEqual(index.get("apps/x.test.ts").lines, new Set([5]));
+  assert.equal(index.has("../../apps/x.test.ts"), false);
+});
+
+test("corpusExists true when a root dir is present, false otherwise", () => {
+  assert.equal(corpusExists(FIXTURES), true);
+  assert.equal(corpusExists(FIXTURES, ["nope"]), false);
 });

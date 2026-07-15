@@ -33,8 +33,33 @@
  *   - the parenthetical contains no links the parser keeps.
  */
 
+import { posix } from "node:path";
 import { isTestFile, isDocFile } from "./test-paths.js";
 import { segmentStatements, type Statement } from "./spec-segment.js";
+
+/** Strip a leading `./` or `/` so repo-root-relative and dot-relative forms match. */
+export function normalizePath(path: string): string {
+  return path.replace(/^\.?\/+/, "");
+}
+
+/** Resolve a coverage-link href to canonical repo-root-relative form. An href that
+ * climbs out of the spec's directory with `../` (optionally behind a leading `./`)
+ * is relative to the spec file's directory — that is how GitHub renders it — so
+ * resolve it against `dirname(specPath)`; every other form is already
+ * repo-root-relative and only needs a leading `./` or `/` stripped. Without this,
+ * a `../../../apps/x.test.ts` link never matches a descriptor's (or a test file's)
+ * repo-relative `apps/x.test.ts` path. Both the graph binder
+ * (`bindDescriptorsToSpecLinks`) and the `require-spec-link` ESLint index resolve
+ * through here so they agree on what a link points at. */
+export function resolveLinkPath(linkPath: string, specPath: string): string {
+  const stripped = linkPath.startsWith("./") ? linkPath.slice(2) : linkPath;
+
+  if (stripped.startsWith("../")) {
+    return posix.normalize(posix.join(posix.dirname(specPath), stripped));
+  }
+
+  return normalizePath(linkPath);
+}
 
 /** A resolved `[label](path#Lline)` link parsed from a statement's
  * trailing parenthetical. Shared shape for both test and code links. */
