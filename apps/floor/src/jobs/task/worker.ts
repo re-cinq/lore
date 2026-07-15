@@ -246,8 +246,7 @@ async function processTask(task: PipelineTask): Promise<void> {
 
     // Resolve model — the resolved agent definition wins, then legacy overrides.
     const resolvedModel = agentDef?.model || repoOverrides?.model;
-    const model =
-      resolvedModel || getTaskTypeConfig(task.task_type)?.model || undefined;
+    const model = resolvedModel || getTaskTypeConfig(task.task_type)?.model;
 
     // Read downstream to forward the repo's assembly line name to the Agent CR
     // dispatch (dark-mode repos run the Floor-side graph, one Agent CR per node).

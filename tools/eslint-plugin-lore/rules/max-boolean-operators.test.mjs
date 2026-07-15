@@ -13,6 +13,7 @@ ruleTester.run("max-boolean-operators", rule, {
     `x = a || b;`,
     `const x = a ?? b ?? c ?? d;`,
     `const x = (a && b) ?? c;`,
+    `const x = (a && b) ?? (c && d);`,
     `for (let i = 0; a && b; i++) {}`,
     `for (;;) {}`,
     `const y = a && b && c ? 1 : 2;`,
@@ -44,6 +45,11 @@ ruleTester.run("max-boolean-operators", rule, {
     },
     {
       code: `const y = a && b && c && d ? 1 : 2;`,
+      errors: [{ messageId: "tooManyOperators" }],
+    },
+    // ?? is not a boundary — operators on both sides share one budget
+    {
+      code: `const x = (a && b && c) ?? (d && e);`,
       errors: [{ messageId: "tooManyOperators" }],
     },
   ],

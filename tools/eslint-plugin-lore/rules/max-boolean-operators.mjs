@@ -5,8 +5,10 @@
  *
  * Counted contexts: `if`, `while`/`do-while`/`for` tests, ternary conditions,
  * and the right-hand side of variable declarations and assignments. `??`
- * (nullish coalescing) is value-selection, not boolean branching, so it does
- * NOT count toward the budget.
+ * (nullish coalescing) is value-selection, not boolean branching, so the `??`
+ * operator itself does NOT count toward the budget — but it is not a boundary
+ * either: `&&`/`||` on both sides of a `??` share one budget, so
+ * `(a && b && c) ?? (d && e)` totals 3 and fires.
  *
  * Detect-only: extracting a named boolean is human judgment, not a mechanical
  * rewrite. Default `max` is 2 (a third operator is flagged).
