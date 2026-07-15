@@ -141,4 +141,33 @@ describe("readAgentLogs", () => {
 
     expect(result.logs).toBe("line2\nline3");
   });
+
+  it("returns reason no-pod when the pod is GC-ed during the read (404)", async () => {
+    const source: PodLogSource = {
+      agentInfo: () =>
+        Promise.resolve({ phase: "Running", jobName: "job-review" }),
+      podsForJob: () =>
+        Promise.resolve([
+          { name: "pod-review", creationTimestamp: "2026-07-15T10:00:00.000Z" },
+        ]),
+      podLog: () => Promise.reject({ code: 404 }),
+    };
+
+    const result = await readAgentLogs(source, "05fc5491-review");
+
+    expect(result).toMatchObject({ available: false, reason: "no-pod" });
+  });
+
+  it("rethrows a non-404 Kubernetes error (e.g. RBAC 403)", async () => {
+    const source: PodLogSource = {
+      agentInfo: () =>
+        Promise.resolve({ phase: "Running", jobName: "job-review" }),
+      podsForJob: () => Promise.reject({ code: 403 }),
+      podLog: () => Promise.resolve(""),
+    };
+
+    await expect(readAgentLogs(source, "05fc5491-review")).rejects.toEqual({
+      code: 403,
+    });
+  });
 });

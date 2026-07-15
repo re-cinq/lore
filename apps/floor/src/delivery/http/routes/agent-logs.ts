@@ -14,11 +14,17 @@ import {
 } from "../../../jobs/station/agent-pod-logs.js";
 
 const DEFAULT_TAIL_LINES = 5000;
+const MAX_TAIL_LINES = 50_000;
 
-function parseTail(raw: unknown): number {
+/** Clamp the caller-supplied `tail`. LORE_INGEST_TOKEN is shared with the web-ui,
+ *  so a signed-in user could hit this route directly — an unbounded `tailLines`
+ *  would ask Kubernetes for arbitrarily many lines and pressure the Floor's memory. */
+export function parseTail(raw: unknown): number {
   const n = Number(raw);
 
-  return Number.isInteger(n) && n > 0 ? n : DEFAULT_TAIL_LINES;
+  return Number.isInteger(n) && n > 0
+    ? Math.min(n, MAX_TAIL_LINES)
+    : DEFAULT_TAIL_LINES;
 }
 
 export function agentLogsRoute(

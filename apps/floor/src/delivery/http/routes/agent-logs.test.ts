@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { buildServer } from "../server.js";
+import { parseTail } from "./agent-logs.js";
 import type {
   PodLogSource,
   AgentPodInfo,
@@ -73,5 +74,21 @@ describe("GET /api/agent-logs/{name}", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.result).toMatchObject({ available: false, reason: "no-agent" });
+  });
+});
+
+describe("parseTail", () => {
+  it("caps an over-large value at the maximum", () => {
+    expect(parseTail("2000000000")).toBe(50_000);
+  });
+
+  it("keeps a reasonable value as-is", () => {
+    expect(parseTail("200")).toBe(200);
+  });
+
+  it("falls back to the default for non-positive or non-numeric input", () => {
+    expect(parseTail("-5")).toBe(5000);
+    expect(parseTail("abc")).toBe(5000);
+    expect(parseTail(undefined)).toBe(5000);
   });
 });

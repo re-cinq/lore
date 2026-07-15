@@ -35,6 +35,15 @@ export async function GET(
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
 
+    // Authorize before probing the node table, so an unauthorized user can't
+    // distinguish a valid agentCrName (404 "not found") from an invalid one.
+    if (!(await userCanAccessRepo(session.accessToken, run.repo))) {
+      return NextResponse.json(
+        { error: "Access denied — you do not have access to this repo" },
+        { status: 403 },
+      );
+    }
+
     const node = await queryOne<{ agent_cr_name: string }>(
       `SELECT agent_cr_name FROM pipeline.assembly_line_nodes
         WHERE assembly_line_id = $1 AND agent_cr_name = $2
@@ -46,13 +55,6 @@ export async function GET(
       return NextResponse.json(
         { error: "Node not found for this run" },
         { status: 404 },
-      );
-    }
-
-    if (!(await userCanAccessRepo(session.accessToken, run.repo))) {
-      return NextResponse.json(
-        { error: "Access denied — you do not have access to this repo" },
-        { status: 403 },
       );
     }
 

@@ -59,7 +59,9 @@ export function pickLatestPod(pods: readonly PodSummary[]): PodSummary | null {
 
 /** Resolve an assembly-line node's Agent CR to its pod and read the pod's logs.
  *  Every dead-end (no CR / no job yet / pod GC'd) is a normal `available:false`
- *  result, not a throw — the pod-log lifetime is intentionally short. */
+ *  result, not a throw — the pod-log lifetime is intentionally short. A pod can
+ *  also be GC'd in the TOCTOU window between listing and reading, surfacing as a
+ *  404; that too collapses to `no-pod`. Genuine faults (RBAC, 5xx) still throw. */
 export async function readAgentLogs(
   source: PodLogSource,
   agentName: string,
@@ -75,18 +77,31 @@ export async function readAgentLogs(
     return unavailable("no-job", info.phase);
   }
 
-  const pod = pickLatestPod(await source.podsForJob(info.jobName));
+  try {
+    const pod = pickLatestPod(await source.podsForJob(info.jobName));
 
-  if (!pod) {
-    return unavailable("no-pod", info.phase);
+    if (!pod) {
+      return unavailable("no-pod", info.phase);
+    }
+
+    return {
+      available: true,
+      logs: await source.podLog(pod.name, opts.tailLines),
+      phase: info.phase,
+      podName: pod.name,
+    };
+  } catch (err) {
+    if (isNotFound(err)) {
+      return unavailable("no-pod", info.phase);
+    }
+    throw err;
   }
+}
 
-  return {
-    available: true,
-    logs: await source.podLog(pod.name, opts.tailLines),
-    phase: info.phase,
-    podName: pod.name,
-  };
+function isNotFound(err: unknown): boolean {
+  const e = err as { code?: number; response?: { statusCode?: number } };
+
+  return e?.code === 404 || e?.response?.statusCode === 404;
 }
 
 function unavailable(

@@ -27,7 +27,7 @@ export default function LlmCallsTable({
           </thead>
           <tbody>
             {llmCalls.map((c, i) => (
-              <tr key={i}>
+              <tr key={`${c.created_at}-${i}`}>
                 <td className={styles.mono}>{c.model}</td>
                 <td>
                   {c.status === "failed" ? (

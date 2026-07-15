@@ -32,4 +32,12 @@ describe("EventTimeline", () => {
 
     expect(screen.getByText(/"feedback": "redo"/)).toBeInTheDocument();
   });
+
+  it("renders an empty-state note when there are no events", () => {
+    render(<EventTimeline events={[]} />);
+
+    expect(
+      screen.getByText("No events recorded for this task."),
+    ).toBeInTheDocument();
+  });
 });
