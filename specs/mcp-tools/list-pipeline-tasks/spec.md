@@ -80,6 +80,8 @@ With a status filter, only matching rows and their total are returned.
 An invalid status string is rejected with the list of valid values.
 *(untested: the status allowlist check is inline in the handler closure and not separately exported.)*
 
+The `/api/tasks` HTTP route (the stdio-proxy target) lists tasks with paging: it passes a `status` filter and `limit` through to `listTasks`, caps `limit` at 100, defaults to `limit 20` / `offset 0` and echoes them, passes `offset` through with `total`/`limit`/`offset` metadata, rejects a negative offset or a malformed `status` with 400, and returns 500 when `listTasks` throws. ([validated by GET /api/tasks lists with status and limit](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L32), [`list-tasks.test.ts:41`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L41), [`list-tasks.test.ts:47`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L47), [`list-tasks.test.ts:55`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L55), [`list-tasks.test.ts:71`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L71), [`list-tasks.test.ts:84`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L84), [`list-tasks.test.ts:77`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L77))
+
 ## Out of Scope
 
 - Single-task detail + timeline (covered by `lore_get_pipeline_status`).

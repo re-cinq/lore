@@ -95,7 +95,7 @@ available to agents. They are the authoritative interface.
     superseded by later contradictions are included).
   - `graph_augment=true` enriches results with related graph entities.
   - Results are capped at 3 per (agent_id + source) combo to prevent
-    verbose sessions from dominating (session diversification). ([validated by `memory-ranking.test.ts:53`](libs/shared/src/memory-ranking.test.ts#L53))
+    verbose sessions from dominating (session diversification); sources already under the cap are returned intact. ([validated by `memory-ranking.test.ts:53`](libs/shared/src/memory-ranking.test.ts#L53), [validated by `keeps all items when each source is under the cap`](libs/shared/src/memory-ranking.test.ts#L99))
   - Every search call asynchronously increments `retrieval_count`,
     updates `last_retrieved_at`, and extends `half_life_days` (+2,
     cap 365) on returned facts and memories.
@@ -278,8 +278,8 @@ Additional factors:
 - Confidence tier affects baseline: `stale` facts get -1 penalty. ([validated by `memory-ranking.test.ts:162`](libs/shared/src/memory-ranking.test.ts#L162))
 - Content signals: decisions/conventions/gotchas/patterns +2,
   auto-curation/sessions -1, and content richness (short `<50` chars
-  -2, long `>500` chars +1). ([validated by `memory-lifecycle.test.ts:172`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L172), [`memory-lifecycle.test.ts:161`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L161))
-- The final score is clamped to the `[0, 10]` range. ([validated by `memory-lifecycle.test.ts:184`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L184), [`memory-lifecycle.test.ts:196`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L196))
+  -2, long `>500` chars +1). ([validated by `memory-lifecycle.test.ts:172`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L172), [`memory-lifecycle.test.ts:161`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L161), [validated by `adds 2 for a key containing gotcha`](libs/shared/src/memory-ranking.test.ts#L156), [validated by `subtracts 2 for a value shorter than 50 chars`](libs/shared/src/memory-ranking.test.ts#L147))
+- The final score is clamped to the `[0, 10]` range. ([validated by `memory-lifecycle.test.ts:184`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L184), [`memory-lifecycle.test.ts:196`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L196), [validated by `clamps to 0 when decay and penalties push below zero`](libs/shared/src/memory-ranking.test.ts#L180))
 
 When an agent exceeds 500 memories, memories are scored, sorted
 least-important-first, and the lowest-scoring are soft-deleted
@@ -343,8 +343,8 @@ nor a proxy and returns a "requires PostgreSQL" message in local mode.
 Facts retrieved for cross-repo context are filtered by a portability
 score. Portable keywords (`error`, `pattern`, `gotcha`, `convention`)
 boost the score; local keywords (`config`, `deploy`, `url`, `auth`,
-`secret`) reduce it. Only facts scoring >= 0.5 pass through to
-prevent repo-specific configuration from polluting other repos. ([validated by `transfer-score.test.ts:69`](apps/mcp-server/src/features/context/transfer-score.test.ts#L69))
+`secret`) reduce it. Each portable keyword adds 0.15 above the 0.5 base and each local keyword subtracts 0.15, with the result clamped to `[0, 1]`. Only facts scoring >= 0.5 pass through to
+prevent repo-specific configuration from polluting other repos. ([validated by `transfer-score.test.ts:69`](apps/mcp-server/src/features/context/transfer-score.test.ts#L69), [validated by `adds 0.15 per portable keyword above the base`](libs/shared/src/memory-ranking.test.ts#L33), [validated by `subtracts 0.15 per local keyword below the base`](libs/shared/src/memory-ranking.test.ts#L37), [validated by `clamps to 1 when many portable keywords stack`](libs/shared/src/memory-ranking.test.ts#L41), [validated by `clamps to 0 when many local keywords stack`](libs/shared/src/memory-ranking.test.ts#L47))
 
 ## Divergences from Original Design
 

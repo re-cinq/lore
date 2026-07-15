@@ -112,6 +112,10 @@ The post-200 spec-coverage-validate fan-out is resilient: it is a no-op when the
 
 The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/mcp-server/src/api/routes/index.ts#L57), [implemented by](../../../apps/mcp-server/src/api/routes/ingest.ts#L8))
 
+A `files` entry may be a bare path string or a `{path, content}` object; the two are distinguished by type and the path is extracted from either form. ([validated by IngestFile distinguishes path strings from content objects](apps/lore-api/src/features/spec-trace/ingest.test.ts#L53), [`ingest.test.ts:62`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L62))
+
+When the supplied `commit` belongs to a different repo than the one being fetched, content resolution falls back to `HEAD`; a matching repo keeps the specific commit, and the fetch retries refs in order (specific commit, then `HEAD`) without duplicating `HEAD` when the commit is already `HEAD`. ([validated by commit SHA fallback uses HEAD when commit is from a different repo](apps/lore-api/src/features/spec-trace/ingest.test.ts#L81), [`ingest.test.ts:91`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L91), [`ingest.test.ts:101`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L101), [`ingest.test.ts:108`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L108))
+
 ## Out of Scope
 
 - The chunking/embedding/persistence engine internals (`ingestFiles`).

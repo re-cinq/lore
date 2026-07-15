@@ -320,6 +320,20 @@ pipeline tasks and GitHub Issues.
 - FR-4.7: Optional approval gates: tasks can require a human to add
   an `approved` label on the GitHub Issue before processing.
   Configured via the settings UI or `lore.settings` table. ([validated by `SettingsView.test.tsx:123`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L123))
+- FR-4.8: `parseTasks` turns each `- [ ] Tnnn ...` markdown line into a task
+  record — id, description, `completed` from the checkbox, `parallelizable` with a
+  stripped description from a `[P]` marker, a `dependsOn` list from a `[DEPENDS ON: ...]`
+  marker, a plain-or-backtick file path from the trailing ` | ` suffix, and the phase
+  number carried from the preceding `## Phase N` header — defaulting phase to 0 and
+  ignoring lines that are neither tasks nor phase headers. ([validated by `tasks.test.ts:25`](libs/shared/src/tasks.test.ts#L25), [`tasks.test.ts:39`](libs/shared/src/tasks.test.ts#L39), [`tasks.test.ts:46`](libs/shared/src/tasks.test.ts#L46), [`tasks.test.ts:53`](libs/shared/src/tasks.test.ts#L53), [`tasks.test.ts:69`](libs/shared/src/tasks.test.ts#L69), [`tasks.test.ts:85`](libs/shared/src/tasks.test.ts#L85), [`tasks.test.ts:101`](libs/shared/src/tasks.test.ts#L101), [`tasks.test.ts:23`](libs/server-core/src/features/pipeline/tasks.test.ts#L23), [`tasks.test.ts:31`](libs/server-core/src/features/pipeline/tasks.test.ts#L31), [`tasks.test.ts:39`](libs/server-core/src/features/pipeline/tasks.test.ts#L39), [`tasks.test.ts:47`](libs/server-core/src/features/pipeline/tasks.test.ts#L47), [`tasks.test.ts:54`](libs/server-core/src/features/pipeline/tasks.test.ts#L54), [`tasks.test.ts:73`](libs/server-core/src/features/pipeline/tasks.test.ts#L73), [`tasks.test.ts:92`](libs/server-core/src/features/pipeline/tasks.test.ts#L92))
+- FR-4.9: `inferPhaseDependencies` derives dependency edges deterministically: a task
+  depends on every task of the previous phase, sequential (non-`[P]`) tasks chain within a
+  phase, `[P]` tasks stay free of intra-phase deps, explicit `[DEPENDS ON: ...]` deps are
+  preserved rather than overwritten, and task lists with no phases (or empty input) are
+  returned unchanged. ([validated by `tasks.test.ts:110`](libs/shared/src/tasks.test.ts#L110), [`tasks.test.ts:114`](libs/shared/src/tasks.test.ts#L114), [`tasks.test.ts:120`](libs/shared/src/tasks.test.ts#L120), [`tasks.test.ts:138`](libs/shared/src/tasks.test.ts#L138), [`tasks.test.ts:150`](libs/shared/src/tasks.test.ts#L150), [`tasks.test.ts:160`](libs/shared/src/tasks.test.ts#L160), [`tasks.test.ts:106`](libs/server-core/src/features/pipeline/tasks.test.ts#L106), [`tasks.test.ts:116`](libs/server-core/src/features/pipeline/tasks.test.ts#L116), [`tasks.test.ts:133`](libs/server-core/src/features/pipeline/tasks.test.ts#L133), [`tasks.test.ts:149`](libs/server-core/src/features/pipeline/tasks.test.ts#L149), [`tasks.test.ts:166`](libs/server-core/src/features/pipeline/tasks.test.ts#L166), [`tasks.test.ts:181`](libs/server-core/src/features/pipeline/tasks.test.ts#L181), [`tasks.test.ts:212`](libs/server-core/src/features/pipeline/tasks.test.ts#L212))
+- FR-4.10: `specSlugFromBranch` extracts the spec slug from a
+  `lore/feature-request/<slug>-<8hex>` branch by dropping the 8-hex task suffix, and returns
+  null for a non-feature-request branch or one that has the prefix but no slug. ([validated by `tasks.test.ts:9`](libs/shared/src/tasks.test.ts#L9), [`tasks.test.ts:15`](libs/shared/src/tasks.test.ts#L15), [`tasks.test.ts:19`](libs/shared/src/tasks.test.ts#L19))
 
 ### FR-5: Spec-Driven Feature Workflow
 

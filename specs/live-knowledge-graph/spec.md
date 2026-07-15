@@ -145,6 +145,7 @@ accumulation period required.
 - FR-4.3: Results filtered to `valid_to IS NULL` by default.
 - FR-4.4: Optional `repo` scope parameter. The live-graph read binds the queried
   repo and maps each row to a `GraphEdge`. ([validated by `queries the live graph bound to the repo and maps to GraphEdge`](libs/shared/src/project/knowledge/knowledge-pg.test.ts#L36))
+- FR-4.5: The `/api/graph` HTTP route backs the graph query: it passes `entity`/`relation_type`/`repo` and an `include_invalidated` flag through to the live-graph read, requires Postgres (503 when the pool is unavailable), rejects a `repo` that is not `owner/name` (400), and surfaces a read failure as 500. ([validated by GET /api/graph parses include_invalidated=true](apps/lore-api/src/api/routes/graph/graph.test.ts#L53), [`graph.test.ts:67`](apps/lore-api/src/api/routes/graph/graph.test.ts#L67), [`graph.test.ts:80`](apps/lore-api/src/api/routes/graph/graph.test.ts#L80), [`graph.test.ts:73`](apps/lore-api/src/api/routes/graph/graph.test.ts#L73))
 
 ### FR-5: Graph-Augmented Search
 

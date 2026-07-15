@@ -93,7 +93,7 @@ A null pool returns 503. ([validated by `by-pr.test.ts:46`](apps/lore-api/src/ap
 
 A non-numeric `:n` PR segment is rejected with 400 `{ error: "invalid pr number" }` without touching the DB. ([validated by `by-pr.test.ts:52`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L52))
 
-A `pr_number` hit in the DB returns `trailer_source: db`. ([validated by `resolves via the DB fast path`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L36))
+A `pr_number` hit in the DB returns `trailer_source: db`. ([validated by `resolves via the DB fast path`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L65))
 
 A DB miss with a trailer in the PR body returns `trailer_source: pr_body`. ([validated by `by-pr.test.ts:74`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L74))
 

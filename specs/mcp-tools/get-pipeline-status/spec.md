@@ -79,6 +79,8 @@ The stdio-proxy branch and the not-found/error envelope framing are exercised
 only against a live API or DB.
 *(untested: the transport switch is inline in the handler closure — the proxy branch needs a live API; the shared CRUD is covered above.)*
 
+The `/api/task/:id` HTTP route (the stdio-proxy target) returns the task when found, 404 when no row matches, and 500 when the lookup throws. ([validated by GET /api/task/:id returns the task when found](apps/lore-api/src/api/routes/tasks/get-task.test.ts#L32), [`get-task.test.ts:39`](apps/lore-api/src/api/routes/tasks/get-task.test.ts#L39), [`get-task.test.ts:46`](apps/lore-api/src/api/routes/tasks/get-task.test.ts#L46))
+
 ## Out of Scope
 
 - Live PR / CI state (covered by `lore_get_pr_status`).
