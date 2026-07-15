@@ -50,6 +50,7 @@ The tool takes no parameters — the schema object is `{}`.
    DESC`.
 3. **Empty guard** — if the result array is empty, return the literal text
    `"No repos onboarded yet. Use lore_onboard_repo to add one."` ([validated by `repo-tools.test.ts:128`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L128))
+
 4. **Success envelope** — return `JSON.stringify(repos, null, 2)`.
 5. Any thrown error is caught and returned as `"Error listing repos: {message}"`.
 
@@ -77,6 +78,10 @@ the web-ui repo-status path.)*
 The handler returns the no-repos guidance string when the table is empty and the
 JSON array otherwise. *(untested: handler orchestration around the query has no
 unit seam — the empty and populated branches need a live DB.)*
+
+When repos are served over the API proxy, the handler pages in 100-row windows —
+walking `offset` by 100 until every row is fetched — and merges them into one
+array carrying the reported `total`. ([validated by `pages through repos beyond the 100-row API cap`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L92))
 
 ## Out of Scope
 

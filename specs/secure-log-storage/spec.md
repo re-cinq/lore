@@ -30,6 +30,7 @@ product used across teams and repos with different access levels.
    access to (verified via GitHub API)
 3. **Redacted** — secrets, tokens, and credentials stripped before
    storage ([validated by `redact.test.ts:78`](libs/shared/src/redact.test.ts#L78))
+
 4. **Encrypted at rest** — logs stored encrypted, decrypted on read
 5. **Retention policy** — auto-delete after configurable TTL
 6. **Streamable** — live logs during execution, not just after
@@ -249,7 +250,9 @@ Remove: no more log entries in `task_events` (`to_status = 'log'`).
 ## Acceptance Criteria
 
 1. Logs persist in GCS after pod cleanup ([validated by `log-storage.test.ts:42`](apps/floor/src/main-loop/scheduling/log-storage.test.ts#L42), [`log-storage.test.ts:18`](apps/floor/src/main-loop/scheduling/log-storage.test.ts#L18))
+
 2. Secrets redacted before storage (API keys, JWTs, private keys, connection strings) ([validated by `redact.test.ts:5`](libs/shared/src/redact.test.ts#L5), [`redact.test.ts:48`](libs/shared/src/redact.test.ts#L48))
+
 3. Users only see logs for repos they have GitHub access to
 4. 403 returned for unauthorized log access
 5. Logs encrypted at rest with CMEK

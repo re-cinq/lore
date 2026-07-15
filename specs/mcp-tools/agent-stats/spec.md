@@ -84,7 +84,9 @@ PostgreSQL-required text, or `"Error fetching agent stats: {message}"`.
 ## Acceptance Criteria
 
 1. Stats returns fact/memory/search counters keyed to the resolved agent. ([validated by `memory.test.ts:305`](libs/server-core/src/features/memory/memory.test.ts#L305))
+
 2. Health returns memory and snapshot counts keyed to the resolved agent. ([validated by `memory.test.ts:281`](libs/server-core/src/features/memory/memory.test.ts#L281))
+
 3. The recent-episodes preview query and the merge/DB-gate framing have no unit
    seam. *(untested: composed inline in the tool handler; requires live
    `memory.episodes` rows — the health + stats aggregators are covered above.)*

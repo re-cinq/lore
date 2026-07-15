@@ -255,8 +255,43 @@ review:
 2. Review Job pod clones repo, reads spec + diff, posts PR comments
 3. Approved: parent task marked as `review/approved`
 4. Changes requested (iteration < 2): new implementation LoreTask with feedback, same branch ([validated by `review-feedback.test.ts`](libs/shared/src/review-feedback.test.ts))
+
 5. Changes requested (iteration >= 2): escalate with `needs-human-review` label
 6. Review completes in <5 min
 7. Review result visible in pipeline UI
 8. Auto-review is opt-in per repo
 9. All steps run as ephemeral Job pods — no in-process LLM calls
+
+## Code-review assembly line — validated behavior
+
+These statements pin the `code-review` choreography (`apps/floor/src/jobs/review/code-review.ts`)
+and the webhook/verdict plumbing it rides on.
+
+1. `autoReviewEnabled` gates the whole loop on the per-repo `auto_review` setting: `true` only for
+   the boolean `true`, `false` when the flag is absent, `false`, or the settings are null, and it
+   parses a JSON-string settings blob. ([validated by `should-auto-review.test.ts:5`](apps/floor/src/jobs/review/should-auto-review.test.ts#L5), [`should-auto-review.test.ts:9`](apps/floor/src/jobs/review/should-auto-review.test.ts#L9), [`should-auto-review.test.ts:15`](apps/floor/src/jobs/review/should-auto-review.test.ts#L15))
+
+2. Bot loop guard: `isBotActor` is true only for `[bot]` logins; a bot-authored PR is skipped (Lore
+   never double-reviews its own PRs) and the bot's own comment never starts a reply pass. ([validated by `code-review.test.ts:53`](apps/floor/src/jobs/review/code-review.test.ts#L53), [`code-review.test.ts:149`](apps/floor/src/jobs/review/code-review.test.ts#L149), [`code-review.test.ts:183`](apps/floor/src/jobs/review/code-review.test.ts#L183))
+
+3. On PR open/reopen/ready: `decideReviewOnOpen` starts a `code-review` line in `review` mode only
+   for an open, non-draft, human PR with auto-review on, and posts a started-comment linking the
+   assembly line; it does nothing when auto-review is off. ([validated by `code-review.test.ts:59`](apps/floor/src/jobs/review/code-review.test.ts#L59), [`code-review.test.ts:125`](apps/floor/src/jobs/review/code-review.test.ts#L125), [`code-review.test.ts:140`](apps/floor/src/jobs/review/code-review.test.ts#L140))
+
+4. On a human reply: `decideReviewOnReply` starts a `reply`-mode line carrying the comment id/body
+   only for a human comment on an open, non-draft PR with auto-review on; a reply on a closed PR is
+   ignored. ([validated by `code-review.test.ts:85`](apps/floor/src/jobs/review/code-review.test.ts#L85), [`code-review.test.ts:159`](apps/floor/src/jobs/review/code-review.test.ts#L159), [`code-review.test.ts:197`](apps/floor/src/jobs/review/code-review.test.ts#L197))
+
+5. On PR close: `onClose` finishes any open code-review line for that PR with outcome `pr_closed`. ([validated by `code-review.test.ts:213`](apps/floor/src/jobs/review/code-review.test.ts#L213))
+
+6. The GitHub webhook maps `pull_request.closed` to `github.pull_request.closed` carrying
+   `merged`/`branch`/`merge_commit_sha`/`labels` — for both a merged and a closed-without-merge PR —
+   so code-review can finish its line. ([validated by `github-map.test.ts:24`](apps/floor/src/listeners/github-map.test.ts#L24), [`github-map.test.ts:54`](apps/floor/src/listeners/github-map.test.ts#L54))
+
+7. A human reply arrives as a created `pull_request_review_comment` mapped to
+   `github.pull_request_review_comment.created` with author/id/body; a non-created review comment is
+   ignored. ([validated by `github-map.test.ts:146`](apps/floor/src/listeners/github-map.test.ts#L146), [`github-map.test.ts:172`](apps/floor/src/listeners/github-map.test.ts#L172))
+
+8. The watcher parses the agent's review verdict from stdout: `REVIEW_RESULT:APPROVED` → `approved`,
+   `CHANGES_REQUESTED` (with trailing feedback) → `changes_requested`, and no marker or absent output
+   → undefined. ([validated by `agent-watcher-logic.test.ts:33`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L33), [`agent-watcher-logic.test.ts:38`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L38), [`agent-watcher-logic.test.ts:43`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L43))

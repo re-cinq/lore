@@ -119,7 +119,9 @@ accumulation period required.
   same text using the same LLM call (extend the extraction prompt
   to also return entities and relationships).
 - FR-2.2: Output format: list of `{name, type}` entities and
-  `{source, target, relation}` edges. ([validated by `graph.test.ts:49`](libs/server-core/src/features/memory/graph.test.ts#L49))
+  `{source, target, relation}` edges. The parser unwraps ```` ```json ````
+  code fences, filters entities/edges with missing fields, and caps the
+  result at 10 entities and 10 edges. ([validated by `graph.test.ts:49`](libs/server-core/src/features/memory/graph.test.ts#L49), [`graph.test.ts:83`](libs/server-core/src/features/memory/graph.test.ts#L83), [`graph.test.ts:117`](libs/server-core/src/features/memory/graph.test.ts#L117), [`graph.test.ts:98`](libs/server-core/src/features/memory/graph.test.ts#L98))
 - FR-2.3: Entity names are normalized (lowercase, trimmed) for
   deduplication. ([validated by `graph.test.ts:71`](libs/server-core/src/features/memory/graph.test.ts#L71))
 - FR-2.4: If entity extraction fails, facts are still stored.

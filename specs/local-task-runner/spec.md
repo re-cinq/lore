@@ -296,6 +296,7 @@ const task = await query(
 1. `lore_run_task_locally` spawns background Claude Code in a worktree
 2. Developer's main session continues uninterrupted
 3. Polling mode claims pending tasks before GKE (30s priority window) ([validated by `task-queue.test.ts:26`](libs/shared/src/project/tasks/task-queue.test.ts#L26), [`worker.test.ts:179`](apps/floor/src/jobs/task/worker.test.ts#L179))
+
 4. Tasks from GitHub Issues work through local runner when polling
 5. Background task commits, pushes, creates PR on completion
 6. Logs stored locally and in GCS (redacted)

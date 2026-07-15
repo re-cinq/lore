@@ -46,6 +46,8 @@ Issue gets comment: "Working on this → PR #N"
 New HTTP handler: `POST /api/webhook/github`
 - Validates GitHub webhook signature (HMAC SHA-256)
 - Handles `issues` event with action `labeled` ([validated by `github-map.test.ts:224`](apps/floor/src/listeners/github-map.test.ts#L224))
+- The event mapper is a guard at the door: it returns nothing when the `repository` is missing or the
+  event type is unhandled. ([validated by `github-map.test.ts:260`](apps/floor/src/listeners/github-map.test.ts#L260), [`github-map.test.ts:270`](apps/floor/src/listeners/github-map.test.ts#L270))
 - If label name is `lore` (configurable):
   - Extract: issue title, body, repo full_name, issue number
   - Determine task type from issue labels:
@@ -135,8 +137,12 @@ Defaults: label=`lore`, type=`general`.
 ## Acceptance Criteria
 
 1. Adding `lore` label to a GitHub Issue creates a pipeline task ([validated by `webhook.test.ts:32`](apps/lore-api/src/integration-tests/webhook.test.ts#L32))
+
 2. Task type determined from `lore:*` label variants
 3. Agent works on the task, creates PR linked to the issue
-4. Issue gets comment with task ID and PR link
+4. Issue gets comment with task ID and PR link; `loreTaskRef` links the task uuid to its deployed
+   assembly-line page and trims a trailing slash on the UI url. ([validated by `issue-body.test.ts:11`](apps/floor/src/jobs/task/issue-body.test.ts#L11))
+
 5. Duplicate issues (same issue, active task) are skipped ([validated by `webhook.test.ts:43`](apps/lore-api/src/integration-tests/webhook.test.ts#L43))
+
 6. Works on any onboarded repo with webhook configured

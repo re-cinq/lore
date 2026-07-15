@@ -92,6 +92,10 @@ The companion read returns the slice from `offset` for an existing object. ([val
 
 The companion read returns 500 on a GCS failure. ([validated by `returns 500 when storage throws`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L141))
 
+A `task`-scoped token that lacks `write` is rejected 403 on both the POST upload and the GET read, before the handler runs. ([validated by `task-logs.test.ts:70`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L70), [validated by `task-logs.test.ts:150`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L150))
+
+The companion read resolves `repo` from `task_id` via the pool when `repo` is omitted, and returns 503 when no pool can resolve it. ([validated by `task-logs.test.ts:106`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L106), [validated by `task-logs.test.ts:98`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L98))
+
 The live-GCS save body (real bucket I/O, resumable flag, contentType) is exercised only against a real bucket. *(untested: real `@google-cloud/storage` network I/O has no unit seam beyond the mocked save call already asserted above.)*
 
 ## Out of Scope

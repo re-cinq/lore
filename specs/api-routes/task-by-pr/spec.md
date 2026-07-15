@@ -91,13 +91,15 @@ strings: `"database unavailable"`, `"no_trailer_found"`, `"pr_not_found"`,
 
 A null pool returns 503. ([validated by `by-pr.test.ts:46`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L46))
 
+A non-numeric `:n` PR segment is rejected with 400 `{ error: "invalid pr number" }` without touching the DB. ([validated by `by-pr.test.ts:52`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L52))
+
 A `pr_number` hit in the DB returns `trailer_source: db`. ([validated by `resolves via the DB fast path`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L36))
 
 A DB miss with a trailer in the PR body returns `trailer_source: pr_body`. ([validated by `by-pr.test.ts:74`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L74))
 
 A DB error falls through, and a trailer on the final commit returns `trailer_source: final_commit`. ([validated by `by-pr.test.ts:92`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L92))
 
-Neither body nor commit carrying a trailer returns `no_trailer_found`. ([validated by `returns 404 when no trailer is found anywhere`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L65))
+Neither body nor commit carrying a trailer returns `no_trailer_found`. ([validated by `returns 404 when no trailer is found anywhere`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L114))
 
 A GitHub 404 on the PR returns `pr_not_found`. ([validated by `by-pr.test.ts:133`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L133))
 

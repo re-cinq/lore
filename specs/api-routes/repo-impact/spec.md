@@ -106,6 +106,8 @@ With Dgraph unconfigured, the route fails soft to `200` with
 
 A request without a `write`-scoped token is rejected with 403. ([validated by `rejects a request without a write-scoped token`](apps/lore-api/src/api/routes/impact/impact-route.test.ts#L51))
 
+An unparseable request body is rejected with a native 400 (ADR-034 hapi payload parse). ([validated by `impact-route.test.ts:61`](apps/lore-api/src/api/routes/impact/impact-route.test.ts#L61))
+
 The `status:"ok"` branch (coupled statements + orphans + non-empty annotations
 from a live graph walk) is exercised only against live Dgraph. *(untested: the
 `computeImpact` graph walk needs a populated Dgraph backend; only the null-client

@@ -123,15 +123,23 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
 4. `decideExecutionBackend` routes a task to the Agent-CR path only when both gates (per-repo setting
    + cluster env) are on; otherwise it returns the LoreTask path.
 5. `AgentBackend.launch` produces a correct `Agent` CR from a task (stationRef from task type,
-   parameters populated, `taskId` label), and resolves activeness by label.
+   parameters populated, `taskId` label), and resolves activeness by label. `taskIdOf`/`taskTypeOf`
+   read exactly the `lore.re-cinq.com/task-id` + `task-type` labels `AgentCrBackend` sets and return
+   undefined when they are absent. ([validated by `agent-watcher-logic.test.ts:13`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L13), [`agent-watcher-logic.test.ts:26`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L26))
+
 6. A `Succeeded` `Agent` with pushed changes results in a PR carrying the `Lore-Task` footer; an
    `Agent` with no changes completes the task with no PR.
 7. The deterministic gate reads the **conclusion of the GitHub Actions referenced by the assembly line**:
    a red conclusion routes to the address loop, a green conclusion proceeds. ([validated by `agent-watcher-logic.test.ts:50`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L50), [`agent-watcher-logic.test.ts:54`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L54))
+
 8. The `/agents` web UI edits an `AgentDefinition`/`Station` and **applies the YAML to Kubernetes**
    with no Postgres write; the Floor reads recipes from the CRDs via `@re-cinq/agent-contracts`.
 9. Secrets in `ai-agents` are mirrored from the existing remoteRefs; the per-task GitHub token is
-   added before a run, referenced by `token_secret`, and removed on terminal status.
+   added before a run, referenced by `token_secret`, and removed on terminal status. `decideTokenReclaim`
+   reclaims a single-agent task's token only on a terminal phase (`Succeeded`/`Failed`), skips a
+   non-terminal phase, and skips a task routed to a multi-node assembly line (its token is freed at
+   line completion). ([validated by `agent-watcher-logic.test.ts:64`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L64), [`agent-watcher-logic.test.ts:72`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L72))
+
 10. Run output reaches the Floor over the public-LB http sink and is recorded in
     `pipeline.llm_calls`, OTEL spans, and GCS (the UI log viewer shows it).
 11. `createAgentNodeHandler` maps an `Agent`'s terminal status to a node outcome
@@ -152,21 +160,27 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
 
 15. `model: "exec"` routes to a non-LLM adapter spawning the recipe's `tool_config.command` with the
     rendered prompt appended; no CRD schema change. ([validated by agentForModel exec routing test](../ai-agent-subsystem/packages/agentcore/source/agentcore/vendors/select.d))
+
 16. Node YAML accepts optional `station_ref` (custom station, default `def-<type>`) and
     `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](libs/assembly-lines/src/loader.test.ts#L231))
+
 17. `nodeStationSpec` builds the CR spec: stationRef, `parameters.station_input` JSON
     (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L87))
+
 18. A station pod ends with the claude-style result line carrying `LORE_NODE_RESULT: {outcome,
     extras}`; the Floor's `parseNodeResult` maps it (precedence: LORE_NODE_RESULT → REVIEW_RESULT →
     success); CR Failed → `station-failed`; await expiry → `station-timeout`.
     ([validated by parseNodeResult tests](libs/assembly-lines/src/node-outcome.test.ts#L19))
+
 19. Cutover complete: every non-agent node on the Floor-assembly-line path dispatches a station
     (no `LORE_STATION_NODES` flag, no in-process node handlers on that path); the in-process
     supervisor path (gap-fill/runbook) is untouched. ([validated by every non-agent node dispatches a station CR](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L87))
+
 20. `scripts/task-types.yaml` `stations:` seeds `def-<type>` AgentDefinition/Station pairs (exec
     model, `{station_input}` prompt, lore-station image via `.Values.stationImage`, deadline
     default 15); org rows seeded by migration 0027 (`execution_mode: 'station'`).
     ([validated by station catalog tests](apps/floor/src/jobs/agent/agent-catalog.test.ts#L141))
+
 21. Custom station images honor [station-contract.md](../6-dark-factory/contracts/station-contract.md).
 
 ## Out of scope
@@ -174,3 +188,23 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
 - `feature-decompose` and `graph-ingest` stay in-process (no pod) and are not migrated.
 - The `StationDefinition` Postgres record and compute sizing (ADR-030 §5 follow-up) — the Station's
   `PodTemplateSpec` already carries image/compute.
+
+## Watcher, worker & CR-watch — validated behavior
+
+These statements pin the deterministic Floor glue that wraps the subsystem.
+
+- **Pending-task single-flight.** The Floor worker's `pollWithGuard` claims and processes one task
+  per tick, does nothing when there is no runnable task, and skips a concurrent tick while a task is
+  still processing (only one claim in flight). ([validated by `worker.poll.test.ts:5`](apps/floor/src/jobs/task/worker.poll.test.ts#L5), [`worker.poll.test.ts:17`](apps/floor/src/jobs/task/worker.poll.test.ts#L17), [`worker.poll.test.ts:29`](apps/floor/src/jobs/task/worker.poll.test.ts#L29))
+- **CR-watch event mapping.** `mapAgentToEvent` maps a terminal `Agent` CR to
+  `kubernetes.agent.{succeeded,failed}` keyed on task-id+phase, and an assembly-line node CR to
+  `kubernetes.agent_node.{succeeded,failed}` deduped per CR name (carrying the node iteration) so two
+  node CRs of one line dedupe separately (the swallowed-second-node regression); it returns null for a
+  non-terminal phase and when the task-id label is absent. ([validated by `k8s-map.test.ts:39`](apps/floor/src/listeners/k8s-map.test.ts#L39), [`k8s-map.test.ts:57`](apps/floor/src/listeners/k8s-map.test.ts#L57), [`k8s-map.test.ts:64`](apps/floor/src/listeners/k8s-map.test.ts#L64), [`k8s-map.test.ts:87`](apps/floor/src/listeners/k8s-map.test.ts#L87), [`k8s-map.test.ts:101`](apps/floor/src/listeners/k8s-map.test.ts#L101), [`k8s-map.test.ts:113`](apps/floor/src/listeners/k8s-map.test.ts#L113), [`k8s-map.test.ts:122`](apps/floor/src/listeners/k8s-map.test.ts#L122))
+- **Run-outcome mapping.** `runOutcomeFromTaskStatus` records the watcher's run outcome: `pr-created`
+  and `review` → `pr_created`; `failed` and `needs-human-help` → `failed`; `completed` → `completed`;
+  an un-advanced task on a `Failed` CR maps to `failed` (not completed) while a `Succeeded` CR maps to
+  `completed`. ([validated by `agent-watcher-logic.test.ts:88`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L88), [`agent-watcher-logic.test.ts:92`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L92), [`agent-watcher-logic.test.ts:96`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L96), [`agent-watcher-logic.test.ts:99`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L99), [`agent-watcher-logic.test.ts:105`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L105))
+- **Station failure diagnostic.** When a station CR fails, `stationLogTail` surfaces the tail of the
+  pod output where the git/clone error lives: it drops blank lines, bounds to the last `maxLines`, and
+  returns empty for empty output. ([validated by `finalize-station-run.test.ts:5`](apps/floor/src/jobs/task/finalize-station-run.test.ts#L5), [`finalize-station-run.test.ts:18`](apps/floor/src/jobs/task/finalize-station-run.test.ts#L18), [`finalize-station-run.test.ts:22`](apps/floor/src/jobs/task/finalize-station-run.test.ts#L22))

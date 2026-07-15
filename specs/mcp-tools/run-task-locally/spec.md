@@ -94,10 +94,15 @@ wrong-repo warning, or `"Error: {message}"`. **Never throws**.
 ([validated by `throws when cwd repo differs from task repo`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L227))
 
 The repo-mismatch error names both repos and suggests a `cd`.
-([validated by `error message names both repos and suggests a cd`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L233))
+([validated by `error message names both repos and suggests a cd`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L239))
 
 `validateRepoMatch` passes when the cwd repo cannot be detected (null).
 ([validated by `passes when cwd repo cannot be detected (null)`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L250))
+
+The `<slug>` segment normalizes the description: lowercased, every run of
+non-alphanumeric characters collapsed to a single dash, truncated to 40 chars,
+with any trailing dash stripped; digits-only and empty inputs are preserved.
+([validated by `runner.local.test.ts:33`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L33), [validated by `runner.local.test.ts:37`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L37), [validated by `runner.local.test.ts:41`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L41), [validated by `runner.local.test.ts:49`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L49), [validated by `runner.local.test.ts:57`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L57), [validated by `runner.local.test.ts:65`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L65), [validated by `runner.local.test.ts:69`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L69), [validated by `runner.local.test.ts:73`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L73))
 
 The spawned branch follows the `lore/<type>/<slug>-<shortId>` format.
 ([validated by `creates lore/<type>/<slug>-<shortId> format`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L200))

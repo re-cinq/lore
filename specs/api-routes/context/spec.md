@@ -81,7 +81,15 @@ Always `200` (success or empty) or `500` (engine throw). JSON only.
 
 ## Acceptance Criteria
 
-A query with a pool returns the assembled `{ text, sections }`. ([validated by `returns assembled context when query + pool present`](apps/lore-api/src/api/routes/context/context.test.ts#L21))
+A query with a pool returns the assembled `{ text, sections }`. ([validated by `returns assembled context when query + pool present`](apps/lore-api/src/api/routes/context/context.test.ts#L21), [validated by `context.test.ts:31`](apps/lore-api/src/api/routes/context/context.test.ts#L31))
+
+`max_tokens`, `agent_id`, and `cross_repo` query params are forwarded to `assembleContext` at their respective argument positions. ([validated by `context.test.ts:70`](apps/lore-api/src/api/routes/context/context.test.ts#L70))
+
+The max-tokens budget defaults to 8000 when `max_tokens` is absent or non-numeric. ([validated by `context.test.ts:86`](apps/lore-api/src/api/routes/context/context.test.ts#L86))
+
+Cross-repo search is enabled from the repo's `settings.cross_repo` when the `cross_repo` param is not set. ([validated by `context.test.ts:95`](apps/lore-api/src/api/routes/context/context.test.ts#L95))
+
+An unknown `template` name is rejected with 400. ([validated by `context.test.ts:152`](apps/lore-api/src/api/routes/context/context.test.ts#L152))
 
 `debug=1` is forwarded as the engine's debug flag and the trace is returned in the envelope. ([validated by `context.test.ts:41`](apps/lore-api/src/api/routes/context/context.test.ts#L41))
 
@@ -95,7 +103,7 @@ Neither query nor repo returns `{ text: null }`. ([validated by `context.test.ts
 
 A throwing engine returns 500. ([validated by `context.test.ts:145`](apps/lore-api/src/api/routes/context/context.test.ts#L145))
 
-The route is registered as a `GET /api/context` prefix match. ([implemented by](../../../apps/mcp-server/src/api/routes/index.ts#L55)) ([implemented by](../../../apps/mcp-server/src/api/routes/context.ts#L6))
+The route is registered as a `GET /api/context` prefix match. ([implemented by](../../../apps/mcp-server/src/api/routes/index.ts#L55), [implemented by](../../../apps/mcp-server/src/api/routes/context.ts#L6))
 
 ## Out of Scope
 

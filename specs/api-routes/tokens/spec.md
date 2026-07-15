@@ -118,7 +118,11 @@ allowed"`, the `"lore_"` token prefix, the `created_by` literal `"admin"`.
 
 A null pool returns `503 { error: "database not available" }`. ([validated by `tokens.test.ts:41`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L41))
 
-GET returns only metadata rows for non-revoked tokens, never a secret. ([validated by `tokens.test.ts:47`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L47))
+GET returns only metadata rows for non-revoked tokens, never a secret, alongside `total`/`limit`/`offset` paging metadata (defaulting to limit 20, offset 0). ([validated by `tokens.test.ts:47`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L47))
+
+GET clamps an over-max `limit` to 100 and applies the given `offset`. ([validated by `tokens.test.ts:64`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L64))
+
+GET rejects a negative `offset` with 400. ([validated by `tokens.test.ts:74`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L74))
 
 `{ action: "revoke", token_id }` marks the token revoked and returns `{ ok: true }`.
 ([validated by `tokens.test.ts:80`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L80))

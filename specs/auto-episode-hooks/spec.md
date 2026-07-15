@@ -42,6 +42,7 @@ knowledge graph and fact store.
 3. A hook fires that calls `lore_write_episode` with a summary of
    the session: files changed, decisions made, problems hit.
 4. Facts and graph entities are extracted automatically. ([validated by `session-summary.test.ts:135`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L135))
+
 5. Next session, `lore_search_memory` returns insights from this one.
 
 **Acceptance Criteria:**

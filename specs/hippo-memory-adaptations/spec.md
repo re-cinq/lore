@@ -171,7 +171,8 @@ repo B
 - FR-3.3: Facts extracted from memories default to `inferred`.
 - FR-3.4: Decay job transitions facts to `stale` when
   `last_retrieved_at < now() - 30 days` (or `last_retrieved_at IS
-  NULL AND created_at < now() - 30 days`).
+  NULL AND created_at < now() - 30 days`); already-`verified` facts
+  are left untouched. ([validated by `memory-lifecycle.test.ts:192`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L192), [`memory-lifecycle.test.ts:430`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L430))
 - FR-3.5: On retrieval, if confidence is `stale`, update to
   `observed`.
 - FR-3.6: Include confidence tier in search results and context
@@ -205,16 +206,20 @@ repo B
 - FR-6.2: When creating a pipeline task, store the IDs of
   assembled facts/memories in `context_refs`.
 - FR-6.3: In `merge-check`, on PR merge: update contributing
-  facts/memories with `half_life_days += 5`.
+  facts/memories with `half_life_days += 5` (capped at 365, using the
+  table defaults 30/60 for a null `half_life_days`); an empty id list
+  is a no-op. ([validated by `memory-lifecycle.test.ts:218`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L218), [`memory-lifecycle.test.ts:478`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L478), [`memory-lifecycle.test.ts:246`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L246))
 - FR-6.4: In `merge-check`, on PR rejection: update contributing
-  facts/memories with `half_life_days = MAX(7, half_life_days - 3)`.
-- FR-6.5: Audit log outcome feedback events.
+  facts/memories with `half_life_days = MAX(7, half_life_days - 3)`
+  (using the table defaults 30/60 for a null `half_life_days`). ([validated by `memory-lifecycle.test.ts:233`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L233), [`memory-lifecycle.test.ts:494`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L494))
+- FR-6.5: Audit log outcome feedback events, with the metadata
+  serialized on the row. ([validated by `memory-lifecycle.test.ts:256`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L256), [`memory-lifecycle.test.ts:506`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L506))
 
 ### FR-7: Updated Importance Scoring
 
 - FR-7.1: Replace raw `created_at` recency with
   `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-lifecycle.test.ts:93`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L93))
-- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`. ([validated by `memory-lifecycle.test.ts:80`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L80))
+- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`, mapping strength to a 0–10 score and honoring a custom `half_life_days`. ([validated by `memory-lifecycle.test.ts:80`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L80), [`memory-lifecycle.test.ts:69`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L69), [`memory-lifecycle.test.ts:106`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L106))
 - FR-7.3: Incorporate `retrieval_count` as a minor boost: `+1` if
   `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-lifecycle.test.ts:127`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L127))
 - FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-lifecycle.test.ts:144`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L144))

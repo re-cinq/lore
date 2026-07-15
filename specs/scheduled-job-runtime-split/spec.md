@@ -208,13 +208,16 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
 1. `node dist/job-runner.js <jobName>` runs each of the 10 batch jobs, initializes
    the DB pool, logs the job summary, and exits 0 on success / non-zero on error;
    an unknown name exits non-zero. ([validated by `job-runner.test.ts:42`](apps/floor/src/delivery/job-runner.test.ts#L42), [`job-runner.test.ts:47`](apps/floor/src/delivery/job-runner.test.ts#L47))
+
 1a. Each runner invocation writes a `pipeline.job_runs` row — `running` on start,
    then `completed` (with `result_summary`) or `failed` (with `error`) — so a
    CronJob run appears in the web-ui `/analytics` view identically to an
    in-process run. ([validated by `job-run.test.ts:16`](apps/floor/src/adapters/job-run.test.ts#L16), [`job-run.test.ts:32`](apps/floor/src/adapters/job-run.test.ts#L32), [`job-run.test.ts:63`](apps/floor/src/adapters/job-run.test.ts#L63))
+
 1b. A completed or failed CronJob run's full output is retained in GCS (redacted,
    CMEK-encrypted) and retrievable via the UI / MCP, referenced by
    `pipeline.job_runs.log_path` — not lost to ephemeral pod stdout. ([validated by `log-storage.test.ts:42`](apps/floor/src/main-loop/scheduling/log-storage.test.ts#L42), [`job-run.test.ts:31`](apps/floor/src/main-loop/scheduling/job-run.test.ts#L31))
+
 2. Ten CronJobs exist, one per batch job, with schedules exactly matching the
    prior in-process schedules.
 3. CronJob pods carry the same env vars, secret refs, and service account as the

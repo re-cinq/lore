@@ -78,7 +78,16 @@ runs to end of file.
 
 A descriptor whose leaf name matches no declaration is returned unchanged
 (line-blind), so the binder skips it.
-([validated by `leaves a descriptor whose leaf name matches no declaration unchanged`](libs/shared/src/spec-trace/resolve-test-lines.test.ts#L40))
+([validated by `leaves a descriptor whose leaf name matches no declaration unchanged`](libs/shared/src/spec-trace/resolve-test-lines.test.ts#L40), [validated by `resolve-test-lines:47`](libs/shared/src/spec-trace/resolve-test-lines.test.ts#L47))
+
+### Producer (descriptors from the runner list)
+
+`descriptorsFromVitestList` turns one vitest list entry into a per-`it`
+descriptor carrying `id`, `name`, `file`, and the enclosing describe chain as its
+`suite` (omitted for a top-level `it`); it drops a stale `dist/` path that is not
+under `<pkg>/src/`, keeps two `it`s in the same file as two distinct descriptors,
+and groups descriptor ids by file in first-appearance order.
+([validated by `trace-descriptors:8`](libs/shared/src/spec-trace/trace-descriptors.test.ts#L8), [validated by `trace-descriptors:29`](libs/shared/src/spec-trace/trace-descriptors.test.ts#L29), [validated by `trace-descriptors:42`](libs/shared/src/spec-trace/trace-descriptors.test.ts#L42), [validated by `trace-descriptors:51`](libs/shared/src/spec-trace/trace-descriptors.test.ts#L51), [validated by `trace-descriptors:68`](libs/shared/src/spec-trace/trace-descriptors.test.ts#L68))
 
 ### Binding (the inverter)
 
@@ -107,15 +116,15 @@ validating several statements links them all.
 A descriptor's `spec` — one anchor (string), several (`string[]`), or none — is
 parsed into a list of `{specPath, ordinal}`, dropping any entry that does not
 parse.
-([validated by `spec-anchor.test.ts:28`](libs/shared/src/spec-trace/spec-anchor.test.ts#L28))
+([validated by `spec-anchor.test.ts:28`](libs/shared/src/spec-trace/spec-anchor.test.ts#L28), [validated by `spec-anchor:5`](libs/shared/src/spec-trace/spec-anchor.test.ts#L5), [validated by `spec-anchor:12`](libs/shared/src/spec-trace/spec-anchor.test.ts#L12), [validated by `spec-anchor:16`](libs/shared/src/spec-trace/spec-anchor.test.ts#L16), [validated by `spec-anchor:22`](libs/shared/src/spec-trace/spec-anchor.test.ts#L22), [validated by `spec-anchor:37`](libs/shared/src/spec-trace/spec-anchor.test.ts#L37))
 
 Link paths and descriptor files are compared after normalizing a leading `./`
 or `/`, so repo-root-relative and dot-relative forms match.
-([validated by `bind-descriptors-to-spec-links.test.ts:81`](libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L81))
+([validated by `bind-descriptors-to-spec-links.test.ts:81`](libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L81), [validated by `bind-descriptors-to-spec-links:107`](libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L107))
 
 A link with no `#Lline` anchor seeds no `(path, line)` index entry and binds
 nothing.
-([validated by `bind-descriptors-to-spec-links.test.ts:90`](libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L90))
+([validated by `bind-descriptors-to-spec-links.test.ts:90`](libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L90), [validated by `bind-descriptors-to-spec-links:122`](libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L122))
 
 ### Observability
 
@@ -123,7 +132,7 @@ nothing.
 coversEdges}`, and the agent's spec-trace trigger surfaces it as a one-line log
 plus a `spec_trace_ingest` audit row per ingest — replacing the fire-and-forget
 discard — so a run's real graph effect is observable.
-([validated by `spec-trace-audit.test.ts:33`](apps/floor/src/jobs/spec-trace/spec-trace-audit.test.ts#L33))
+([validated by `spec-trace-audit.test.ts:33`](apps/floor/src/jobs/spec-trace/spec-trace-audit.test.ts#L33), [validated by `spec-trace-audit:50`](apps/floor/src/jobs/spec-trace/spec-trace-audit.test.ts#L50), [validated by `spec-trace-audit:58`](apps/floor/src/jobs/spec-trace/spec-trace-audit.test.ts#L58), [validated by `spec-trace-audit:74`](apps/floor/src/jobs/spec-trace/spec-trace-audit.test.ts#L74))
 
 ## Out of Scope
 

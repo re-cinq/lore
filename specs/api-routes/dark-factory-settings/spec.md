@@ -183,16 +183,16 @@ PUT deep-merges the nested `auto_merge` object over prior settings. ([validated 
 `dark-factory.test.ts:222`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L222))
 
 A privileged-field PUT with no `X-Lore-Approval-PR` header returns `403 { error:
-"two_key_required" }`. ([validated by `dark-factory.test.ts:250`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L250))
+"two_key_required" }`. ([validated by `dark-factory.test.ts:250`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L250), [validated by `two-key.test.ts:38`](apps/lore-api/src/api/routes/two-key.test.ts#L38), [validated by `two-key.test.ts:58`](apps/lore-api/src/api/routes/two-key.test.ts#L58))
 
 A privileged-field PUT applies at `tier: "two_key"` after a passing CODEOWNERS
-approval. ([validated by `dark-factory.test.ts:275`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L275))
+approval. ([validated by `dark-factory.test.ts:275`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L275), [validated by `two-key.test.ts:73`](apps/lore-api/src/api/routes/two-key.test.ts#L73))
 
 A failed CODEOWNERS check returns `403 { error: "codeowners_check_failed", code }`.
-([validated by `dark-factory.test.ts:300`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L300))
+([validated by `dark-factory.test.ts:300`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L300), [validated by `two-key.test.ts:94`](apps/lore-api/src/api/routes/two-key.test.ts#L94))
 
 A non-`TwoKeyError` GitHub failure returns `503 { error: "github_api_unavailable" }`.
-([validated by `dark-factory.test.ts:314`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L314))
+([validated by `dark-factory.test.ts:314`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L314), [validated by `two-key.test.ts:117`](apps/lore-api/src/api/routes/two-key.test.ts#L117))
 
 A repo deleted between auth and the `FOR UPDATE` read returns `404`. ([validated by
 `dark-factory.test.ts:323`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L323))

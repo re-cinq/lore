@@ -99,8 +99,10 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
 
 1. A first write of a key inserts version 1 and returns the write result with
    key, version, agent, and timestamp. ([validated by `inserts version 1 for a new key and returns the write result`](libs/server-core/src/features/memory/memory.test.ts#L55))
+
 2. A write to an existing key increments the version and updates the row in
    place. ([validated by `increments version when the key already exists`](libs/server-core/src/features/memory/memory.test.ts#L84))
+
 3. The handler orchestration (repo detect, embedding, proxy/file fallback,
    `extract_facts` trigger) has no unit seam. *(untested: the DB branch needs a
    live `memory.memories`; the proxy branch needs `LORE_API_URL`; the

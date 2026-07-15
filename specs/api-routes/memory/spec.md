@@ -136,14 +136,16 @@ via the DB writer, returning its result. ([validated by `memory.test.ts:78`](app
 When the memory DB is unavailable, `write` routes to the file fallback writer.
 ([validated by `memory.test.ts:87`](apps/lore-api/src/api/routes/memory/memory.test.ts#L87))
 
+The body is JSON-parsed regardless of the client's `Content-Type` (ADR-034 payload override), so a JSON body sent as `application/x-www-form-urlencoded` still dispatches on `action`. ([validated by `memory.test.ts:95`](apps/lore-api/src/api/routes/memory/memory.test.ts#L95))
+
 A `write` missing `value` returns 400 without calling a store. ([validated by `memory.test.ts:110`](apps/lore-api/src/api/routes/memory/memory.test.ts#L110))
 
 A `read` with a numeric `version` string is coerced to a number before the DB
-read. ([validated by `memory.test.ts:116`](apps/lore-api/src/api/routes/memory/memory.test.ts#L116))
+read, and identically on the file-fallback path. ([validated by `memory.test.ts:116`](apps/lore-api/src/api/routes/memory/memory.test.ts#L116), [validated by `memory.test.ts:139`](apps/lore-api/src/api/routes/memory/memory.test.ts#L139))
 
-A `read` with `version=all` passes `"all"` through unchanged. ([validated by `memory.test.ts:125`](apps/lore-api/src/api/routes/memory/memory.test.ts#L125))
+A `read` with `version=all` passes `"all"` through unchanged on both DB and file paths. ([validated by `memory.test.ts:125`](apps/lore-api/src/api/routes/memory/memory.test.ts#L125), [validated by `memory.test.ts:146`](apps/lore-api/src/api/routes/memory/memory.test.ts#L146))
 
-A `read` with no version passes `undefined` (latest). ([validated by `memory.test.ts:132`](apps/lore-api/src/api/routes/memory/memory.test.ts#L132))
+A `read` with no version passes `undefined` (latest) on both DB and file paths. ([validated by `memory.test.ts:132`](apps/lore-api/src/api/routes/memory/memory.test.ts#L132), [validated by `memory.test.ts:153`](apps/lore-api/src/api/routes/memory/memory.test.ts#L153))
 
 A falsy embedding result is passed to the writer as `undefined`, not the falsy
 value. ([validated by `memory.test.ts:160`](apps/lore-api/src/api/routes/memory/memory.test.ts#L160))
@@ -158,9 +160,15 @@ A `search` falls back to the file searcher with `limit` defaulting to 10.
 
 A `search` missing `query` returns 400. ([validated by `memory.test.ts:197`](apps/lore-api/src/api/routes/memory/memory.test.ts#L197))
 
+A `delete` removes the memory via the DB deleter, or the file-fallback deleter when the memory DB is unavailable. ([validated by `memory.test.ts:203`](apps/lore-api/src/api/routes/memory/memory.test.ts#L203), [validated by `memory.test.ts:211`](apps/lore-api/src/api/routes/memory/memory.test.ts#L211))
+
 A `delete` missing `key` returns 400. ([validated by `memory.test.ts:218`](apps/lore-api/src/api/routes/memory/memory.test.ts#L218))
 
-A `list` defaults `limit` to 50 and offset to 0. ([validated by `memory.test.ts:224`](apps/lore-api/src/api/routes/memory/memory.test.ts#L224))
+A `list` defaults `limit` to 50 and offset to 0, and falls back to the file lister when the memory DB is unavailable. ([validated by `memory.test.ts:224`](apps/lore-api/src/api/routes/memory/memory.test.ts#L224), [validated by `memory.test.ts:261`](apps/lore-api/src/api/routes/memory/memory.test.ts#L261))
+
+A `list` threads `offset` through to the lister and echoes `limit`/`offset` paging metadata alongside the rows. ([validated by `memory.test.ts:234`](apps/lore-api/src/api/routes/memory/memory.test.ts#L234))
+
+A `list` caps the requested `limit` at 100. ([validated by `memory.test.ts:251`](apps/lore-api/src/api/routes/memory/memory.test.ts#L251))
 
 An unrecognized action returns 400 with the action-list message. ([validated by `memory.test.ts:271`](apps/lore-api/src/api/routes/memory/memory.test.ts#L271))
 

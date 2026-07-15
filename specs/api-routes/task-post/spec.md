@@ -156,9 +156,13 @@ A create with an unknown `task_type` falls back to `general`. ([validated by `fa
 
 A create with no `task_type` defaults to `general`. ([validated by `defaults to general when no task_type is provided`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L165))
 
+A create threads `group_id` through to `createTask` as its trailing argument when provided. ([validated by `task-post.test.ts:179`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L179))
+
 A blank `description` returns 400. ([validated by `returns 400 when description is blank`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L193))
 
 Invalid JSON returns 500. ([validated by `returns 400 on invalid JSON`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L199))
+
+The route counts against the `task` rate bucket (60/min): the 61st POST to `/api/task` in the window trips 429. ([validated by `rate-limit.test.ts:47`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L47))
 
 ## Out of Scope
 

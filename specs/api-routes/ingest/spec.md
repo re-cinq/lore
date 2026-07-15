@@ -108,7 +108,9 @@ A result with no `results` array fires no trigger. ([validated by `does not fire
 
 A throwing `ingestFiles` returns 500 with the error message. ([validated by `returns 500 when ingestFiles throws`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L108))
 
-The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/mcp-server/src/api/routes/index.ts#L57)) ([implemented by](../../../apps/mcp-server/src/api/routes/ingest.ts#L8))
+The post-200 spec-coverage-validate fan-out is resilient: it is a no-op when there is no pool and swallows insert errors so a flaky DB never breaks the already-written ingest response. ([validated by `spec-coverage-validate-trigger.test.ts:32`](apps/lore-api/src/api/routes/spec-coverage-validate-trigger.test.ts#L32), [validated by `spec-coverage-validate-trigger.test.ts:38`](apps/lore-api/src/api/routes/spec-coverage-validate-trigger.test.ts#L38))
+
+The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/mcp-server/src/api/routes/index.ts#L57), [implemented by](../../../apps/mcp-server/src/api/routes/ingest.ts#L8))
 
 ## Out of Scope
 

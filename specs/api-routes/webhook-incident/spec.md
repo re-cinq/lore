@@ -84,6 +84,12 @@ Missing `title`/`severity` default to `"Unknown incident"`/`"unknown"` with `res
 
 A DB failure and a malformed JSON body both return 500. ([validated by `returns 500 when the upsert throws`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L157))
 
+The handler authenticates the caller: an unconfigured secret-and-token returns 503; missing credentials, a mismatched bearer token, and a non-matching HMAC signature each return 401; a matching bearer token, a valid PagerDuty HMAC signature (including one among a rotated comma-delimited list), and the `?token=` query fallback are all accepted. ([validated by `returns 503 when neither secret nor token is configured`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L46), [`returns 401 when no credentials are presented`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L54), [`returns 401 when the bearer token does not match`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L61), [`returns 401 when the HMAC signature does not match`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L100), [`accepts a valid PagerDuty HMAC signature`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L70), [`accepts one signature among a rotated comma-delimited list`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L85), [`accepts the token via the ?token= query fallback`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L111))
+
+Input is validated before upsert: a garbage JSON body returns 400, a non-ISO `date` returns 400, and a body exceeding the 1 MB cap returns 413. ([validated by `returns 400 on a garbage JSON body`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L137), [`returns 400 when the date is not a valid ISO string`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L131), [`returns 413 when the body exceeds the 1 MB cap`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L144))
+
+A future `date` is clamped to now so it cannot pin the FIFO list. ([validated by `clamps a future date to now so it cannot pin the FIFO list`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L227))
+
 ## Out of Scope
 
 - Provider webhook configuration (PagerDuty/Opsgenie subscription setup).

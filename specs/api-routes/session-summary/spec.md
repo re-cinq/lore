@@ -128,7 +128,7 @@ reason: "empty session" }`. ([validated by `skips when the string summary is too
 short`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L65))
 
 An object `session_log` with a `.summary` field uses that field. ([validated by
-`uses the object .summary field`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L53))
+`uses the object .summary field`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L53), [validated by `session-summary.test.ts:71`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L71))
 
 An object without `.summary` falls back to `JSON.stringify`. ([validated by
 `falls back to JSON.stringify for objects without a summary`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L83))
