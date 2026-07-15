@@ -737,7 +737,7 @@ share one persistence surface instead of inline SQL.
   `StationBackend` in cluster mode (passing the execution image, throwing
   when no provider is supplied) and calls the injected `LlmPort` in
   direct mode; agent execution refuses LOCAL mode on the shared server
-  (`LORE_DB_HOST` set) yet allows cluster mode there. ([validated by `agent-runner.test.ts:33`](libs/shared/src/project/agents/agent-runner.test.ts#L33), [`agent-runner.test.ts:70`](libs/shared/src/project/agents/agent-runner.test.ts#L70), [`agent-runner.test.ts:90`](libs/shared/src/project/agents/agent-runner.test.ts#L90), [`agent-runner.test.ts:114`](libs/shared/src/project/agents/agent-runner.test.ts#L114), [`agents.test.ts:22`](libs/shared/src/project/agents/agents.test.ts#L22), [`agents.test.ts:34`](libs/shared/src/project/agents/agents.test.ts#L34))
+  (`LORE_DB_HOST` set) yet allows cluster mode there. ([validated by `agent-runner.test.ts:33`](libs/shared/src/project/agents/agent-runner.test.ts#L33), [`agent-runner.test.ts:15`](libs/shared/src/project/agents/agent-runner.test.ts#L15), [`agent-runner.test.ts:70`](libs/shared/src/project/agents/agent-runner.test.ts#L70), [`agent-runner.test.ts:90`](libs/shared/src/project/agents/agent-runner.test.ts#L90), [`agent-runner.test.ts:114`](libs/shared/src/project/agents/agent-runner.test.ts#L114), [`agents.test.ts:22`](libs/shared/src/project/agents/agents.test.ts#L22), [`agents.test.ts:34`](libs/shared/src/project/agents/agents.test.ts#L34))
 - FR-20.11: The station-mode selector honours explicit `k8s`/`docker`
   overrides and the `inprocess` escape hatch, defaults to `k8s`
   in-cluster and `docker` off-cluster, and ignores an unrecognized value

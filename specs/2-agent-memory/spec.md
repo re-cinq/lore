@@ -250,7 +250,7 @@ The extraction LLM is configurable via `LORE_FACT_LLM`:
 Haiku is used for extraction by default to minimize cost on high-frequency
 writes, falling back to the Claude CLI when no `ANTHROPIC_API_KEY` is
 present. Each extracted fact gets an independent embedding for
-fine-grained search. ([validated by `facts.test.ts:81`](libs/server-core/src/features/memory/facts.test.ts#L81), [`facts.test.ts:100`](libs/server-core/src/features/memory/facts.test.ts#L100))
+fine-grained search. ([validated by `facts.test.ts:81`](libs/server-core/src/features/memory/facts.test.ts#L81), [`facts.test.ts:100`](libs/server-core/src/features/memory/facts.test.ts#L100), [`facts.test.ts:110`](libs/server-core/src/features/memory/facts.test.ts#L110))
 
 The LLM's raw output is parsed into individual facts: a JSON array
 (unwrapping ```` ```json ```` code fences), falling back to newline /
