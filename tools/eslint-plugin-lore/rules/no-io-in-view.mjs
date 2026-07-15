@@ -106,6 +106,7 @@ export default {
 
     return {
       ImportDeclaration(node) {
+        if (node.importKind === "type") return;
         reportImport(node, node.source.value);
       },
       ImportExpression(node) {

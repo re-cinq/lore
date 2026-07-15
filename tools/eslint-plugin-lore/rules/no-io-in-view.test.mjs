@@ -24,6 +24,11 @@ ruleTester.run("no-io-in-view", rule, {
       code: `import { isCancellable } from "@/lib/task-status"; import styles from "./x.module.css"; export default function StatusCard() { return null; }`,
       filename: VIEW,
     },
+    // type-only imports are erased at compile time — not runtime IO
+    {
+      code: `import type { DBRow } from "@/lib/db"; export default function PRStatusCard({ row }: { row: DBRow }) { return null; }`,
+      filename: VIEW,
+    },
     // the same IO in a container (not a view suffix) is exactly where it belongs
     {
       code: `import { query } from "@/lib/db"; export default async function PRStatusPanel() { await fetch("/api/x"); return null; }`,
