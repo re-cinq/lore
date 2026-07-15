@@ -57,7 +57,7 @@ outcomes feed back into the memories that contributed to the task.
   hit (both facts and memories).
 - `half_life_days` increased by +2 per retrieval (capped at 365).
 - Importance scoring in `memory-lifecycle.ts` uses `half_life_days`
-  and `last_retrieved_at` instead of raw `created_at` for recency.
+  and `last_retrieved_at` instead of raw `created_at` for recency. ([validated by `memory-lifecycle.test.ts:93`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L93))
 
 ### Scenario 2: Confidence Tiers on Facts
 
@@ -189,7 +189,7 @@ repo B
 ### FR-5: Transfer Scoring
 
 - FR-5.1: Add `computeTransferScore(factText: string): number`
-  function in `memory-search.ts`.
+  function in `memory-search.ts`. ([validated by `transfer-score.test.ts:45`](apps/mcp-server/src/features/context/transfer-score.test.ts#L45))
 - FR-5.2: Portable keywords boost score: `error`, `pattern`,
   `gotcha`, `rule`, `convention`, `best-practice`, `anti-pattern`. ([validated by `transfer-score.test.ts:24`](apps/mcp-server/src/transfer-score.test.ts#L24))
 - FR-5.3: Local keywords reduce score: `config`, `deploy`, `url`,

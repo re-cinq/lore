@@ -190,7 +190,7 @@ The system MUST run agents in response to task events.
   repo + branch. Lore is one instance per org managing multiple
   repos. Target repo is required — defaults to the Lore context
   repo for context tasks, must be specified for code tasks (via
-  task type config or task description).
+  task type config or task description). ([validated by `pipeline-config.test.ts:223`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L223))
 - FR-2.3: Agent has GitHub access via a GitHub App installed on
   the org. Each agent run gets a short-lived installation token
   scoped to configured repos. No personal access tokens.
@@ -246,9 +246,9 @@ The system MUST track task lifecycle.
 The system MUST support configurable agent behavior per task type.
 
 - FR-6.1: Task types defined in a config file (e.g., `runbook`,
-  `implementation`, `spec-review`, `gap-fill`).
+  `implementation`, `spec-review`, `gap-fill`). ([validated by `pipeline-config.test.ts:20`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L20))
 - FR-6.2: Each type specifies: agent prompt template, target repo,
-  timeout, review required (boolean).
+  timeout, review required (boolean). ([validated by `pipeline-config.test.ts:119`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L119), [`pipeline-config.test.ts:112`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L112))
 - FR-6.3: Default type for UI-created tasks: `general`.
 - FR-6.4: Platform engineers manage config via the context repo
   (version-controlled, PRs to change).

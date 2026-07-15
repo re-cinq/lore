@@ -52,7 +52,7 @@ Returns org-wide pipeline analytics for a time window: { period, usage: { llm_ca
       ('pr-created','merged')) as succeeded, count(*) FILTER (WHERE status =
       'failed') as failed FROM pipeline.tasks WHERE {filter}`.
    3. By type — `SELECT t.task_type, count(DISTINCT t.id) as tasks FROM
-      pipeline.tasks t WHERE t.{filter} GROUP BY t.task_type ORDER BY tasks DESC`.
+      pipeline.tasks t WHERE t.{filter} GROUP BY t.task_type ORDER BY tasks DESC`. ([validated by `usage-tools.test.ts:194`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L194))
 4. **Success envelope** — assemble
    `{ period, usage: { llm_calls, input_tokens, output_tokens },
    tasks: { total, succeeded, failed }, by_type: rows }` (the scalar counts go

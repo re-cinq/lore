@@ -45,11 +45,11 @@ data volumes.
 
 ### FR-2: Analytics Dashboard Widget
 
-- FR-2.1: Add a "Retrieval Performance" section to `/analytics`.
+- FR-2.1: Add a "Retrieval Performance" section to `/analytics`. ([validated by `AnalyticsView.test.tsx:116`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L116))
 - FR-2.2: Show p50, p95, p99 latency per tool for the last 7
-  days.
+  days. ([validated by `AnalyticsView.test.tsx:154`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L154))
 - FR-2.3: Show latency trend chart (daily p95).
-- FR-2.4: Highlight tools exceeding 200ms p95 threshold.
+- FR-2.4: Highlight tools exceeding 200ms p95 threshold. ([validated by `AnalyticsView.test.tsx:168`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L168))
 
 ### FR-3: Baseline Measurement
 

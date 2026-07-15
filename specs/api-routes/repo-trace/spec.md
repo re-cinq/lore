@@ -50,7 +50,7 @@ graph stays the single source of truth and the UI never couples to storage.
 
 1. Dispatcher gates: rate-limit (`default`), then bearer auth —
    `getRequiredScope(url)` returns `read`. Missing token → 401; insufficient
-   scope → 403.
+   scope → 403. ([validated by `trace.test.ts:37`](apps/lore-api/src/api/routes/trace/trace.test.ts#L37))
 2. `(req.url).match(TRACE_RE)` — on no match (unknown kind, missing path
    segment), write `404 { error: "not found" }` and return.
 3. Destructure `owner`, `repo`, `kind`, `queryString`;

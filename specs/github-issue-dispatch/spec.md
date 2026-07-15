@@ -45,7 +45,7 @@ Issue gets comment: "Working on this → PR #N"
 
 New HTTP handler: `POST /api/webhook/github`
 - Validates GitHub webhook signature (HMAC SHA-256)
-- Handles `issues` event with action `labeled`
+- Handles `issues` event with action `labeled` ([validated by `github-map.test.ts:224`](apps/floor/src/listeners/github-map.test.ts#L224))
 - If label name is `lore` (configurable):
   - Extract: issue title, body, repo full_name, issue number
   - Determine task type from issue labels:

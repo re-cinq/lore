@@ -147,7 +147,7 @@ low-risk reads before touching auth-sensitive writes:
   constructed. Production boot and the integration tests both use it.
 - **FR4** Native routes are guarded by the `bearer-scope` auth strategy with the
   same required scope the route has today; webhook routes keep their own HMAC
-  verification and set `auth: false`.
+  verification and set `auth: false`. ([validated by `bearer-scope.test.ts:76`](apps/lore-api/src/server/plugins/bearer-scope.test.ts#L76))
 - **FR5** Migrating a group deletes that group's rows from the legacy
   `API_ROUTES` table and its entries from the `getRequiredScope`/`SCOPE_OVERRIDES`
   maps in the same PR — no dead legacy routing is left behind.
@@ -163,9 +163,9 @@ low-risk reads before touching auth-sensitive writes:
   the **hapi** server via `buildServer`, unchanged in intent.
 - **SC-3** Auth matrix preserved: for every route, an under-scoped token still
   gets `403`, a missing token `401`, and `LORE_INGEST_TOKEN` full access — proven
-  by tests migrated alongside each group.
+  by tests migrated alongside each group. ([validated by `bearer-scope.test.ts:45`](apps/lore-api/src/server/plugins/bearer-scope.test.ts#L45))
 - **SC-4** Rate limiting still returns `429` + `Retry-After: 60` at the same
-  per-bucket thresholds (webhook 30, task 60, default 200 per minute).
+  per-bucket thresholds (webhook 30, task 60, default 200 per minute). ([validated by `rate-limit.test.ts:29`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L29))
 - **SC-5** Each PR in the migration is independently revertable and was merged
   without an API outage (no route 404s introduced mid-migration).
 

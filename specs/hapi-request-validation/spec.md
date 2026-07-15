@@ -122,14 +122,14 @@ today. Validation errors surface only for authenticated requests.
 
 - **FR1** A single shared adapter (`server/plugins/zod-validate.ts`) converts a
   zod schema into a hapi `options.validate` function for `payload`, `query`, and
-  `params`.
+  `params`. ([validated by `zod-validate.test.ts:17`](apps/lore-api/src/server/plugins/zod-validate.test.ts#L17))
 - **FR2** Every native **write** route (`POST`/`PUT`/`DELETE` with a body)
   declares a zod `payload` schema via the adapter; routes with constrained query
   or path params declare `query`/`params` schemas where it removes an in-handler
   check.
 - **FR3** Validation failures return HTTP `400` with body `{ error: <message> }`
   (the existing convention), never hapi's default `{ statusCode, error, message }`
-  envelope. The message names the offending field where zod provides it.
+  envelope. The message names the offending field where zod provides it. ([validated by `zod-validate.test.ts:63`](apps/lore-api/src/server/plugins/zod-validate.test.ts#L63))
 - **FR4** hapi parses request payloads natively (`parse: true`); handlers receive
   a typed, validated `request.payload`. No native-route handler calls `JSON.parse`,
   `rawBody`, or `parseJsonBodyCapped`. Those helpers are deleted when unused.
@@ -138,7 +138,7 @@ today. Validation errors surface only for authenticated requests.
   1 MB; the per-bucket `429` thresholds are untouched.
 - **FR6** Polymorphic routes (`/api/memory`, `POST /api/task`) validate via a zod
   discriminated union on their dispatch field, or — where a union would contort —
-  a documented permissive schema plus residual handler branching.
+  a documented permissive schema plus residual handler branching. ([validated by `memory.test.ts:110`](apps/lore-api/src/api/routes/memory/memory.test.ts#L110))
 - **FR7** Webhook ingress routes (`/api/webhook/slack`, `/api/webhook/incident`)
   are **out of scope**: they keep `parse: false` and their own HMAC / URL-encoded
   body handling. This feature touches JSON API routes only.
@@ -149,12 +149,12 @@ today. Validation errors surface only for authenticated requests.
   returns nothing outside the webhook routes (FR7) and tests.
 - **SC-2** Malformed JSON to a native route returns `400` (documented change from
   `500`); the affected tests (`memory.test.ts`, `task-post.test.ts`) assert `400`
-  and reference ADR-034.
+  and reference ADR-034. ([validated by `memory.test.ts:277`](apps/lore-api/src/api/routes/memory/memory.test.ts#L277))
 - **SC-3** For each converted route, a request missing or mis-typing a required
   field returns `400` `{ error: <message> }` with the field named — proven by a
   test migrated alongside the route.
 - **SC-4** Auth + rate-limit outcomes unchanged: under-scoped → `403`, missing →
-  `401`, both before validation; `rate-limit.test.ts` still green.
+  `401`, both before validation; `rate-limit.test.ts` still green. ([validated by `memory.test.ts:292`](apps/lore-api/src/api/routes/memory/memory.test.ts#L292))
 - **SC-5** `apps/lore-api` typechecks (`tsc --noEmit`) and the full vitest suite
   is green. Each route group is an independently-revertable commit.
 

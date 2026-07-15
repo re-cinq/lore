@@ -66,7 +66,7 @@ available for historical queries.
    contradictory.
 
 **Acceptance Criteria:**
-- Both facts remain valid (no invalidation).
+- Both facts remain valid (no invalidation). ([validated by `facts.test.ts:181`](libs/server-core/src/features/memory/facts.test.ts#L181))
 - Contradiction detection uses a similarity threshold high enough
   to avoid false positives on related-but-different facts.
 - Threshold is configurable (default 0.92 cosine similarity).

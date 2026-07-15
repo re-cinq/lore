@@ -308,12 +308,12 @@ pipeline tasks and GitHub Issues.
 - FR-4.3: Session end hook reminds about open claimed tasks.
 - FR-4.4: `lore_sync_tasks` MCP tool converts tasks.md task output into
   pipeline tasks with dependency relationships parsed from
-  `[DEPENDS ON: ...]` annotations.
+  `[DEPENDS ON: ...]` annotations. ([validated by `tasks.test.ts:60`](libs/shared/src/tasks.test.ts#L60))
 - FR-4.5: Concurrent task claiming uses `SELECT ... FOR UPDATE SKIP
   LOCKED` — atomically prevents duplicate work without versioning
   overhead. A claim attempt on a taken task returns an immediate
   error; the developer or agent reads the ready list and picks
-  another task.
+  another task. ([validated by `task-queue.test.ts:26`](libs/shared/src/project/tasks/task-queue.test.ts#L26))
 - FR-4.6: Every pipeline task automatically creates a GitHub Issue
   on the target repo (labelled `lore-managed`). The issue receives
   status comments and is closed when the PR is created.
@@ -445,7 +445,7 @@ cooperation.
 - FR-12.2: Daily job at 5 AM scores memories 0-10 using half-life
   decay (`strength = 0.5^(age / half_life_days)`). Evicts
   lowest-scoring memories when agent exceeds 500 entries. Cleans
-  invalidated facts older than 30 days beyond the 2000 cap.
+  invalidated facts older than 30 days beyond the 2000 cap. ([validated by `memory-ranking.test.ts:143`](libs/shared/src/memory-ranking.test.ts#L143))
 - FR-12.3: Daily job at 5:30 AM groups recent facts (7-day lookback)
   by repo and calls Haiku to extract 1-3 higher-level patterns per
   repo. Stored as `consolidated/{repo}/{timestamp}` memories.
@@ -531,13 +531,13 @@ API calls to reduce token cost. Added 2026-04-17 per ADR-015.
   `LORE_CACHE_1H_JOBS` allowlist and `{type: "ephemeral"}` (5-min)
   otherwise. Default allowlist: `auto-curation`, `review_reactor`,
   `fact-extraction`, `graph-extraction`. Special values: `none`
-  disables 1h everywhere; `*` enables it for every job.
+  disables 1h everywhere; `*` enables it for every job. ([validated by `prompt-cache.test.ts:93`](libs/shared/src/llm/prompt-cache.test.ts#L93))
 - FR-16.3: Cache eligibility is latched at module load to prevent
   mid-process toggles from busting the server-side cache.
 - FR-16.4: Each call computes a djb2 hash of the system + tools prefix
   and compares to the last call for the same `jobName`. Log line
   emits: `cache hit | first-call | break:system | break:tools |
-  break:ttl(Nm)`.
+  break:ttl(Nm)`. ([validated by `prompt-cache.test.ts:123`](libs/shared/src/llm/prompt-cache.test.ts#L123), [`prompt-cache.test.ts:129`](libs/shared/src/llm/prompt-cache.test.ts#L129))
 - FR-16.5: `response.usage.cache_creation_input_tokens` and
   `cache_read_input_tokens` feed cost accounting (1.25× writes,
   0.1× reads).
@@ -566,7 +566,7 @@ non-terminal states and resolve them without manual intervention.
 
 - FR-18.1: A `stale_task_check` job runs hourly at `:17` and flags
   tasks in `running` or `pending` state for longer than their
-  configured timeout plus a grace period.
+  configured timeout plus a grace period. ([validated by `task-queue.test.ts:365`](libs/shared/src/project/tasks/task-queue.test.ts#L365))
 - FR-18.2: Stuck tasks are transitioned to a terminal state
   (`failed` with reason `timeout_exceeded`) so the pipeline does not
   stall waiting for a pod that has already exited.
