@@ -39,7 +39,7 @@ function ElapsedTimer({
       style={{
         marginLeft: 8,
         fontVariantNumeric: "tabular-nums",
-        color: over ? "#dc2626" : undefined,
+        color: over ? "var(--danger)" : undefined,
       }}
     >
       · {formatSeconds(secs)} / {timeoutMinutes}:00
@@ -52,11 +52,11 @@ const PRE_STYLE: React.CSSProperties = {
   wordBreak: "break-word",
   maxHeight: 220,
   overflow: "auto",
-  background: "var(--bg-elevated, #f6f8fa)",
-  border: "1px solid var(--border, #e5e7eb)",
+  background: "var(--bg-elevated)",
+  border: "1px solid var(--border)",
   borderRadius: 6,
   padding: 10,
-  fontSize: 12,
+  fontSize: "var(--fs-xs)",
   marginTop: 8,
 };
 

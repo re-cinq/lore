@@ -16,7 +16,7 @@
   width: 100%;
   padding: 4px 12px 2px;
   font-family: inherit;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;

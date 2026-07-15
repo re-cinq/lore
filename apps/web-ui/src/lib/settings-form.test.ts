@@ -205,4 +205,35 @@ describe("parsePrivilegedChanges", () => {
 
     expect(parsePrivilegedChanges(fd, current, TYPES)).toEqual({});
   });
+
+  it("emits require_bot_approval when toggled off against the default", () => {
+    const fd = form({ df_am_bot_approval: "no" });
+
+    expect(parsePrivilegedChanges(fd, { dark_factory: {} }, TYPES)).toEqual({
+      dark_factory: { auto_merge: { require_bot_approval: false } },
+    });
+  });
+
+  it("does NOT emit require_green_ci when it matches the default of true", () => {
+    const fd = form({ df_am_green_ci: "yes" });
+
+    expect(parsePrivilegedChanges(fd, { dark_factory: {} }, TYPES)).toEqual({});
+  });
+
+  it("emits a per-type system_prompt_suffix when it changes", () => {
+    const fd = form({ to_review_suffix: "Be terse." });
+
+    expect(parsePrivilegedChanges(fd, {}, TYPES)).toEqual({
+      task_overrides: { review: { system_prompt_suffix: "Be terse." } },
+    });
+  });
+
+  it("does NOT emit a per-type suffix that matches the current value", () => {
+    const current = {
+      task_overrides: { review: { system_prompt_suffix: "Be terse." } },
+    };
+    const fd = form({ to_review_suffix: "Be terse." });
+
+    expect(parsePrivilegedChanges(fd, current, TYPES)).toEqual({});
+  });
 });

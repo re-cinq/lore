@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./PoolDetailView.module.css";
 
-const btnStyle = { padding: "2px 8px", fontSize: 11 };
+const btnStyle = { padding: "2px 8px", fontSize: "var(--fs-xs)" };
 
 export function PoolValueCell({ value }: { value: string }) {
   const [expanded, setExpanded] = useState(false);

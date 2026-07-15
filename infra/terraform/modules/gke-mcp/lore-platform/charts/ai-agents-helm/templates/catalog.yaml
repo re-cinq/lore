@@ -24,6 +24,10 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -78,6 +82,10 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -137,12 +145,19 @@ spec:
       surfaces it as the descriptor's `spec` field and the spec→test
       (VALIDATED_BY) link is established automatically — see
       `.lore/test-commands.yml` for how this repo exposes test descriptors
+    - If this work completes what a `specs/<name>/spec.md` describes, update
+      that spec's `| Status |` header row in the same branch (Draft ->
+      Implemented/Shipped) so the status never lags the code
 
     Spec: {description}
 
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -197,6 +212,10 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -257,6 +276,10 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -322,6 +345,10 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -382,6 +409,10 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -441,6 +472,10 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -523,6 +558,10 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -581,6 +620,10 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -631,6 +674,10 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout
@@ -765,6 +812,10 @@ spec:
     {context}
   permission_mode: bypass
   max_turns: 40
+  resources:
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
   output:
     sinks:
       - type: stdout

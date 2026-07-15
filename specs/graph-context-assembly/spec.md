@@ -3,7 +3,7 @@
 | Field          | Value                                                                                   |
 |----------------|-----------------------------------------------------------------------------------------|
 | Feature        | Graph-Enriched Context Assembly                                                          |
-| Status         | **Draft**                                                                                |
+| Status         | **Shipped**                                                                                |
 | Created        | 2026-06-10                                                                               |
 | Owner          | Platform Engineering                                                                     |
 | Decision       | [ADR-021](../../adrs/ADR-021-graph-derived-context-source.md) — graph-derived, signal-ranked context source (extends [ADR-020](../../adrs/ADR-020-context-assembly-xml-and-relevance.md)) |

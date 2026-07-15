@@ -3,7 +3,7 @@
 | Field          | Value                                              |
 |----------------|----------------------------------------------------|
 | Feature        | Spec Traceability Graph                            |
-| Status         | **Draft**                                          |
+| Status         | **Shipped**                                          |
 | Created        | 2026-06-05                                         |
 | Owner          | Platform Engineering                               |
 | Depends on     | [`memory-dgraph-migration`](../memory-dgraph-migration/spec.md) (shared Dgraph cluster, client, ACL, deploy, vectors); **[`project-test-interface`](../project-test-interface/spec.md)** — built **first**; supplies test discovery, coverage, and the pass/fail (`violated`) signal the graph consumes |

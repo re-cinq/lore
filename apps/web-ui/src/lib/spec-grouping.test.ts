@@ -45,4 +45,34 @@ describe("groupSpecSummaries", () => {
       },
     ]);
   });
+
+  it("skips files without coverage and reports zero coverage for a folder that has none", () => {
+    const groups = groupSpecSummaries([
+      {
+        filePath: "specs/pay/spec.md",
+        title: "Pay Spec",
+        description: "billing",
+        coverage: { testable: 3, covered: 1, ratio: 1 / 3 },
+      },
+      { filePath: "specs/pay/notes.md", title: "Notes", description: "" },
+    ]);
+
+    expect(groups[0].coverage).toEqual({
+      testable: 3,
+      covered: 1,
+      untestable: 0,
+      ratio: 1 / 3,
+    });
+  });
+
+  it("titles a spec.md-less folder from its key when the primary file has no title", () => {
+    const groups = groupSpecSummaries([
+      { filePath: "docs/onboarding/guide.md", title: "", description: "d" },
+    ]);
+
+    expect(groups[0]).toMatchObject({
+      key: "docs/onboarding",
+      title: "onboarding",
+    });
+  });
 });
