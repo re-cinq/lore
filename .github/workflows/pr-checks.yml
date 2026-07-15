@@ -37,6 +37,13 @@ jobs:
       - name: Install deps
         run: npm ci && npm install --prefix apps/web-ui
 
+      # eslint-plugin-lore's require-spec-link rule imports the compiled
+      # @re-cinq/lore-shared at config load, so shared must be built before any
+      # eslint run (the lint matrix job builds too; format was the last eslint
+      # entrypoint that didn't).
+      - name: Build shared
+        run: npm run build -w @re-cinq/lore-shared
+
       - name: Prettier + eslint --fix
         run: npm run format
 
@@ -105,8 +112,11 @@ jobs:
             build: npm run build
             test: npx eslint . --ignore-pattern "apps/web-ui/**"
           # web-ui lint — install its own deps so react/next types resolve.
+          # Build shared first: the flat config loads the lore plugin, whose
+          # require-spec-link rule imports @re-cinq/lore-shared/dist at config load.
           - name: lint-web-ui
             install: npm install && npm install --prefix apps/web-ui
+            build: npm run build -w @re-cinq/lore-shared
             test: npx eslint apps/web-ui
 
     steps:

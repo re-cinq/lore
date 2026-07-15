@@ -20,7 +20,7 @@ mechanism that never claims or mutates tasks.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L503)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L503)).
 
 - **name**: `lore_enable_task_notifications`
 - **description** (verbatim):

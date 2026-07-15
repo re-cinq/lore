@@ -19,7 +19,7 @@ SQL by hand.
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L202)).
+Registered via `server.tool` ([registration + handler](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L202)).
 
 - **name**: `lore_list_task_group`
 - **description** (verbatim):

@@ -33,7 +33,7 @@ replaced ([now light + dark per family](apps/web-ui/src/app/theme-tokens.test.ts
   CRT). `GohuFont` bitmap body text + `IBM Plex Mono` headings/code, sharp
   corners, soft blue-grey text (`#c0caf5`) on `#1a1b26`, blue accent
   (`#7aa2f7`), accent-glow shadows; the light scheme is Tokyo Night Day.
-  Icons: **Pixelarticons**. ([validated by `Icon.test.tsx:58`](apps/web-ui/src/components/Icon.test.tsx#L58))
+  Icons: **Pixelarticons**. ([validated by `Icon.test.tsx:58`](apps/web-ui/src/components/Icon.test.tsx#L58), [validated by `renders the pixelarticons glyph for the retro family`](apps/web-ui/src/components/Icon.test.tsx#L46))
 
 ### Architecture
 
@@ -50,20 +50,32 @@ Icon.tsx    → renders Lucide (elegant) or Pixelarticons (retro) by family
 Two independent axes, persisted separately in `localStorage`
 (`lore-theme-family`, `lore-color-scheme`) ([family persists](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L216), [scheme persists](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L234)). The `auto` scheme resolves to
 light/dark via `prefers-color-scheme` and updates live on OS change ([live flip to dark](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L269), [and back to light](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L294)). The
-resolved scheme is what reaches the DOM, so CSS never matches `auto` ([auto resolves to dark](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L172), [and to light](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L186)).
+resolved scheme is what reaches the DOM, so CSS never matches `auto`, and an explicit `light`/`dark` scheme overrides the
+OS preference ([auto resolves to dark](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L172), [and to light](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L186), [explicit scheme overrides OS](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L200)).
 
 ### What Changed
 
 **New — `web-ui/src/lib/theme/`**
-- `types.ts`, `theme-core.ts` — pure, unit-tested: `resolveColorScheme()`,
-  `parseFamily()`, `parseSchemePref()`, storage-key + default constants. ([validated by `theme-core.test.ts:12`](apps/web-ui/src/lib/theme/theme-core.test.ts#L12))
+- `types.ts`, `theme-core.ts` — pure, unit-tested: `resolveColorScheme()`
+  (an explicit `light`/`dark` pref wins over the system flag, `auto` follows
+  it), `parseFamily()` / `parseSchemePref()` (pass valid values through, fall
+  back to the default on garbage or `null`), storage-key + default constants. ([light pref wins](apps/web-ui/src/lib/theme/theme-core.test.ts#L12), [dark pref wins](apps/web-ui/src/lib/theme/theme-core.test.ts#L17), [auto follows system](apps/web-ui/src/lib/theme/theme-core.test.ts#L22), [parseFamily passthrough](apps/web-ui/src/lib/theme/theme-core.test.ts#L29), [parseFamily fallback](apps/web-ui/src/lib/theme/theme-core.test.ts#L34), [parseSchemePref passthrough](apps/web-ui/src/lib/theme/theme-core.test.ts#L41), [parseSchemePref fallback](apps/web-ui/src/lib/theme/theme-core.test.ts#L47))
 - `theme-core.test.ts` — resolver/parser cases + icon-map key-parity test ([validated by `theme-core.test.ts:54`](apps/web-ui/src/lib/theme/theme-core.test.ts#L54)).
 - `fonts.ts` — Inter + IBM Plex Mono (`next/font/google`) and self-hosted
   GohuFont (`next/font/local`) as CSS variables.
 - `theme-script.ts` — `THEME_SCRIPT` blocking IIFE (FOUC prevention; also seeds
   `window.__loreFamily` so client icon render matches first paint). ([validated by `ThemeProvider.test.tsx:88`](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L88))
 - `ThemeProvider.tsx` — context + `useTheme()`; reflects state→DOM; subscribes
-  to the media query only while `auto`. ([subscribes while auto](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L269), [not otherwise](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L254))
+  to the media query only while `auto`, tearing the listener down on unmount and
+  when leaving `auto`, and re-subscribing on return to `auto`. ([subscribes while auto](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L269), [not otherwise](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L254), [unsubscribes on unmount](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L315), [re-subscribes on return to auto](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L337))
+
+On mount the provider seeds the family from `window.__loreFamily`, falling back
+to the `data-theme-family` attribute and then to the default `elegant`, and
+seeds the scheme from `localStorage`, defaulting to `auto` when the stored value
+is missing or unrecognized; it then writes both data attributes plus the
+`window.__loreFamily` global to the DOM. ([family from attribute](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L103), [family default elegant](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L116), [scheme from localStorage](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L128), [scheme default auto](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L141), [writes attributes + global](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L156))
+
+`useTheme()` throws a descriptive error when called outside a `ThemeProvider`. ([validated by `ThemeProvider.test.tsx:365`](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L365))
 
 **New — `web-ui/src/app/theme.css`** — the token source of truth ([validated by `theme-tokens.test.ts:59`](apps/web-ui/src/app/theme-tokens.test.ts#L59)). Family-level
 blocks hold shape/type/glass tokens (`--radius*`, `--fs-*` type scale,
@@ -84,6 +96,17 @@ glyphs migrated to tokens + `<Icon>` in `PRStatusCard`, `PRStatusBadge`,
 `Timeline`, `EnrollmentSection`, `AppShell`; every remaining hardcoded color and
 font-size across ~20 pages and the two CSS modules (`HelpPopover`, `ReadmeBox`)
 swapped to tokens.
+
+The `ThemeSwitcher` maps each appearance option to its icon (sun / monitor / moon),
+marks the active family label and the active appearance label as selected, and
+calls `setFamily` / `setScheme` when one of the inactive radios is chosen. ([validated by `ThemeSwitcher.test.tsx:51`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L51), [`ThemeSwitcher.test.tsx:74`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L74), [`ThemeSwitcher.test.tsx:88`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L88), [`ThemeSwitcher.test.tsx:103`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L103), [`ThemeSwitcher.test.tsx:116`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L116), [`ThemeSwitcher.test.tsx:125`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L125), [`ThemeSwitcher.test.tsx:136`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L136))
+
+The `Icon` component defaults its width and height to 16 when no size is given
+(using the provided size for both otherwise), appends a custom `className`
+alongside the iconify base classes (and none when omitted), exposes an
+`aria-label` when one is passed (marking the glyph aria-hidden and label-less
+otherwise), and applies the -0.125em baseline alignment only when `inline` is
+set. ([validated by `Icon.test.tsx:69`](apps/web-ui/src/components/Icon.test.tsx#L69), [`Icon.test.tsx:76`](apps/web-ui/src/components/Icon.test.tsx#L76), [`Icon.test.tsx:87`](apps/web-ui/src/components/Icon.test.tsx#L87), [`Icon.test.tsx:96`](apps/web-ui/src/components/Icon.test.tsx#L96), [`Icon.test.tsx:107`](apps/web-ui/src/components/Icon.test.tsx#L107), [`Icon.test.tsx:117`](apps/web-ui/src/components/Icon.test.tsx#L117), [`Icon.test.tsx:127`](apps/web-ui/src/components/Icon.test.tsx#L127), [`Icon.test.tsx:135`](apps/web-ui/src/components/Icon.test.tsx#L135))
 
 ### Type Scale
 
@@ -120,4 +143,4 @@ xs 12 / base 16 / xl 25 ([retro pins body sizes to 14px](apps/web-ui/src/app/the
   hues). `SpecGraphD3` resolves tokens to literals per render for canvas and
   `d3.interpolateRgb` (which cannot consume `var()`); SVG keeps raw `var()`
   references. The lifecycle palette in `feature-status.ts` now returns token
-  strings. ([validated by `feature-status.test.ts:9`](apps/web-ui/src/app/repos/[owner]/[repo]/features/feature-status.test.ts#L9), [chart tokens per family](apps/web-ui/src/app/theme-tokens.test.ts#L66), [canvas literal resolution](apps/web-ui/src/lib/theme-token-resolve.test.ts#L23))
+  strings. ([validated by `feature-status.test.ts:9`](apps/web-ui/src/app/repos/[owner]/[repo]/features/feature-status.test.ts#L9), [chart tokens per family](apps/web-ui/src/app/theme-tokens.test.ts#L64), [canvas literal resolution](apps/web-ui/src/lib/theme-token-resolve.test.ts#L23))

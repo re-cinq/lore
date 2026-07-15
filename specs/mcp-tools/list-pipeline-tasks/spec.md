@@ -19,7 +19,7 @@ must fail loudly rather than silently returning everything.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L131)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L131)).
 
 - **name**: `lore_list_pipeline_tasks`
 - **description** (verbatim):
@@ -72,13 +72,15 @@ remote-error message, the `"invalid status: …"` message, the pretty-printed
 ## Acceptance Criteria
 
 With no filter, all tasks are returned alongside a total count.
-([validated by `returns all rows with a total count when no status filter is given`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L42))
+([validated by `pipeline-crud.test.ts:48`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L48))
 
 With a status filter, only matching rows and their total are returned.
-([validated by `returns the filtered rows and matching total when a status is given`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L53))
+([validated by `pipeline-crud.test.ts:60`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L60))
 
 An invalid status string is rejected with the list of valid values.
 *(untested: the status allowlist check is inline in the handler closure and not separately exported.)*
+
+The `/api/tasks` HTTP route (the stdio-proxy target) lists tasks with paging: it passes a `status` filter and `limit` through to `listTasks`, caps `limit` at 100, defaults to `limit 20` / `offset 0` and echoes them, passes `offset` through with `total`/`limit`/`offset` metadata, rejects a negative offset or a malformed `status` with 400, and returns 500 when `listTasks` throws. ([validated by GET /api/tasks lists with status and limit](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L32), [`list-tasks.test.ts:41`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L41), [`list-tasks.test.ts:47`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L47), [`list-tasks.test.ts:55`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L55), [`list-tasks.test.ts:71`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L71), [`list-tasks.test.ts:84`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L84), [`list-tasks.test.ts:77`](apps/lore-api/src/api/routes/tasks/list-tasks.test.ts#L77))
 
 ## Out of Scope
 

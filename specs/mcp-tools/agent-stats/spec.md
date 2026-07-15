@@ -19,7 +19,7 @@ quiet or runaway agent means hand-writing SQL across several `memory.*` tables.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L291)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/memory-tools.ts#L291)).
 
 - **name**: `lore_agent_stats`
 - **description** (verbatim):
@@ -83,8 +83,10 @@ PostgreSQL-required text, or `"Error fetching agent stats: {message}"`.
 
 ## Acceptance Criteria
 
-1. Stats returns fact/memory/search counters keyed to the resolved agent. ([validated by `returns fact/memory/search counters keyed to the agent`](../../../apps/mcp-server/src/features/memory/memory.test.ts#L238))
-2. Health returns memory and snapshot counts keyed to the resolved agent. ([validated by `returns memory/snapshot counts keyed to the agent`](../../../apps/mcp-server/src/features/memory/memory.test.ts#L217))
+1. Stats returns fact/memory/search counters keyed to the resolved agent. ([validated by `memory.test.ts:305`](libs/server-core/src/features/memory/memory.test.ts#L305))
+
+2. Health returns memory and snapshot counts keyed to the resolved agent. ([validated by `memory.test.ts:281`](libs/server-core/src/features/memory/memory.test.ts#L281))
+
 3. The recent-episodes preview query and the merge/DB-gate framing have no unit
    seam. *(untested: composed inline in the tool handler; requires live
    `memory.episodes` rows — the health + stats aggregators are covered above.)*

@@ -190,7 +190,8 @@ The system MUST run agents in response to task events.
   repo + branch. Lore is one instance per org managing multiple
   repos. Target repo is required — defaults to the Lore context
   repo for context tasks, must be specified for code tasks (via
-  task type config or task description).
+  task type config or task description). `getDefaultRepo` returns the configured default
+  repo for a type that declares one and falls back to `re-cinq/lore` otherwise. ([validated by `pipeline-config.test.ts:223`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L223), [`pipeline-config.test.ts:217`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L217))
 - FR-2.3: Agent has GitHub access via a GitHub App installed on
   the org. Each agent run gets a short-lived installation token
   scoped to configured repos. No personal access tokens.
@@ -241,17 +242,33 @@ The system MUST track task lifecycle.
 - FR-5.4: Failed tasks include failure reason and agent logs.
 - FR-5.5: Tasks can be cancelled (kills running agent if active).
 
+The end-to-end `pipeline.tasks` lifecycle holds against a live database: a new
+task defaults to `pending` status and `normal` priority (or an explicit
+`immediate`), a claim is atomic (the `status = 'pending'` guard rejects a second
+claimer), and a task walks `pending → running → completed` (recording its
+`pr_url`), fails with a captured `failure_reason`, and tracks its
+`review_iteration`. Each transition is recorded in `pipeline.task_events` for the
+audit trail. The GKE worker query applies a 30-second grace period that excludes
+just-created `normal` tasks but picks up `immediate` tasks immediately, and
+run-now bumps a pending task's priority from `normal` to `immediate`. ([validated by `pipeline.test.ts:30`](apps/lore-api/src/integration-tests/pipeline.test.ts#L30), [`pipeline.test.ts:40`](apps/lore-api/src/integration-tests/pipeline.test.ts#L40), [`pipeline.test.ts:71`](apps/lore-api/src/integration-tests/pipeline.test.ts#L71), [`pipeline.test.ts:91`](apps/lore-api/src/integration-tests/pipeline.test.ts#L91), [`pipeline.test.ts:123`](apps/lore-api/src/integration-tests/pipeline.test.ts#L123), [`pipeline.test.ts:154`](apps/lore-api/src/integration-tests/pipeline.test.ts#L154), [`pipeline.test.ts:176`](apps/lore-api/src/integration-tests/pipeline.test.ts#L176), [`pipeline.test.ts:198`](apps/lore-api/src/integration-tests/pipeline.test.ts#L198), [`pipeline.test.ts:208`](apps/lore-api/src/integration-tests/pipeline.test.ts#L208), [`pipeline.test.ts:218`](apps/lore-api/src/integration-tests/pipeline.test.ts#L218), [`pipeline.test.ts:241`](apps/lore-api/src/integration-tests/pipeline.test.ts#L241))
+
 ### FR-6: Task Configuration
 
 The system MUST support configurable agent behavior per task type.
 
 - FR-6.1: Task types defined in a config file (e.g., `runbook`,
-  `implementation`, `spec-review`, `gap-fill`).
+  `implementation`, `spec-review`, `gap-fill`), loaded from the YAML with a missing file
+  handled gracefully as an empty config rather than throwing. ([validated by `pipeline-config.test.ts:20`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L20), [`pipeline-config.test.ts:46`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L46))
 - FR-6.2: Each type specifies: agent prompt template, target repo,
-  timeout, review required (boolean).
+  timeout, review required (boolean), and execution mode. `getTaskTypeConfig` returns the
+  config for a known type (with `implementation` carrying `claude-code` execution mode) and
+  null for an unknown type. ([validated by `pipeline-config.test.ts:119`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L119), [`pipeline-config.test.ts:112`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L112), [`pipeline-config.test.ts:92`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L92), [`pipeline-config.test.ts:101`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L101), [`pipeline-config.test.ts:105`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L105))
 - FR-6.3: Default type for UI-created tasks: `general`.
 - FR-6.4: Platform engineers manage config via the context repo
   (version-controlled, PRs to change).
+- FR-6.5: `buildPrompt` renders a task by substituting the task `{description}` into the
+  type's template, falls back to the default template for an unknown type, and leaves no
+  unrendered `{description}` placeholder for empty or special-character descriptions. ([validated by `pipeline-config.test.ts:165`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L165), [`pipeline-config.test.ts:173`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L173), [`pipeline-config.test.ts:181`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L181), [`pipeline-config.test.ts:188`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L188))
 
 ## Non-Functional Requirements
 

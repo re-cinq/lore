@@ -71,9 +71,9 @@ Four routes validate via **domain validators**, not `options.validate`, and stay
 that way (ADR-034 §5 kept transforming validators in their handlers):
 
 - **agents** (`agents.ts`) — the domain validator IS an exported zod schema
-  ([`AgentInputSchema`](../../apps/lore-api/src/features/agents/agents-schema.ts)).
+  ([`AgentInputSchema`](apps/lore-api/src/features/agents/agents-schema.ts)).
 - **dark-factory** (`dark-factory.ts`) — likewise
-  ([`DarkFactorySettingsSchema`](../../apps/lore-api/src/features/dark-factory/dark-factory-settings.ts)).
+  ([`DarkFactorySettingsSchema`](apps/lore-api/src/features/dark-factory/dark-factory-settings.ts)).
 - **features** (`features.ts`) — hand-rolled (`enforceFeatureInput`,
   `parseSectionAnswers`, `parseGapResult`); no single zod schema.
 - **tokens** (`tokens.ts`) — a plain TS interface + residual `if` checks.
@@ -84,7 +84,10 @@ new schema code); for features and tokens it emits a **freeform** `object` body 
 records them as uncovered. The sidecar also supplies the concrete verbs for the two
 `method: "*"` routes (dark-factory: GET/PUT; tokens: GET/POST), which hapi expresses
 as a wildcard the doc cannot. The sidecar is the **one** place fork-3 exceptions are
-declared — and the drift guard cross-checks it. (Design fork 3.)
+declared — and the drift guard cross-checks it. (Design fork 3.) The coverage report
+records tokens + features POSTs as documented freeform and agents + dark-factory as
+lifted; the lifted agents body carries its zod fields while features/tokens render a
+permissive `object`. ([validated by `build-document.test.ts:52`](apps/lore-api/src/openapi/build-document.test.ts#L52), [validated by `build-document.test.ts:61`](apps/lore-api/src/openapi/build-document.test.ts#L61), [validated by `build-document.test.ts:88`](apps/lore-api/src/openapi/build-document.test.ts#L88), [validated by `build-document.test.ts:96`](apps/lore-api/src/openapi/build-document.test.ts#L96))
 
 ### Representing auth, scope, and rate limits
 
@@ -130,19 +133,21 @@ A test builds the document from `routeList(() => null)` and asserts:
 - Every route whose method can carry a body (`POST`/`PUT`/`DELETE`/`*`) either
   declares a `zodValidate` payload schema **or** is in the documented-freeform
   sidecar allowlist. A new body-bearing route added with neither **fails the test** —
-  the doc cannot silently rot. (Design fork 5.)
+  the doc cannot silently rot. (Design fork 5.) ([validated by `coverage.test.ts:18`](apps/lore-api/src/openapi/coverage.test.ts#L18), [validated by `build-document.test.ts:41`](apps/lore-api/src/openapi/build-document.test.ts#L41))
 - Every `/api/*` route appears exactly once in `paths` (catch silent drops); the two
   operational non-API paths (`/healthz`, `/dist/*`) are the only documented
   exclusions.
 - The output is a structurally valid OpenAPI 3.1 document (`openapi: "3.1.0"`,
   `info`, `paths`, `components.securitySchemes.bearerAuth`). An external OpenAPI
-  linter validates the **served** document in the verification step.
+  linter validates the **served** document in the verification step. Every operation
+  carries a `security` declaration, a `responses` object and a rate-limit bucket, and
+  every `requestBody` is an `application/json` schema. ([validated by `coverage.test.ts:65`](apps/lore-api/src/openapi/coverage.test.ts#L65), [validated by `coverage.test.ts:78`](apps/lore-api/src/openapi/coverage.test.ts#L78), [validated by `coverage.test.ts:91`](apps/lore-api/src/openapi/coverage.test.ts#L91))
 
 ## Functional Requirements
 
 - **FR1** `zodValidate(schema)` stamps the raw zod schema onto the validation
   function it returns; `getZodSchema(fn)` recovers it. Validation behavior
-  (parse → typed data → `{ error }` 400) is unchanged.
+  (parse → typed data → `{ error }` 400) is unchanged. ([validated by `zod-validate.test.ts:29`](apps/lore-api/src/server/plugins/zod-validate.test.ts#L29), [`zod-validate.test.ts:17`](apps/lore-api/src/server/plugins/zod-validate.test.ts#L17))
 - **FR2** The route array is hoisted into a shared `routeList(getPool)` consumed by
   both `buildServer` and the generator. No route definition changes; no parallel
   registry.
@@ -151,16 +156,24 @@ A test builds the document from `routeList(() => null)` and asserts:
   reflecting optionality), method(s), required-scope extension, rate-limit-bucket
   extension, `requestBody` (converted zod schema for covered routes; lifted domain
   schema for agents/dark-factory; freeform `object` for features/tokens), and the
-  shared error responses.
+  shared error responses referenced from `components.responses`; the document
+  defaults `servers` to the relative root when no `serverUrl` is given. ([validated by `build-document.test.ts:29`](apps/lore-api/src/openapi/build-document.test.ts#L29), [validated by `build-document.test.ts:33`](apps/lore-api/src/openapi/build-document.test.ts#L33), [validated by `build-document.test.ts:208`](apps/lore-api/src/openapi/build-document.test.ts#L208))
 - **FR4** Auth is modelled as a `bearerAuth` security scheme; authed operations set
-  `security: [{ bearerAuth: [] }]`, HMAC webhook operations set `security: []`.
+  `security: [{ bearerAuth: [] }]`, HMAC webhook operations set `security: []`. ([validated by `build-document.test.ts:13`](apps/lore-api/src/openapi/build-document.test.ts#L13), [`build-document.test.ts:148`](apps/lore-api/src/openapi/build-document.test.ts#L148))
 - **FR5** `GET /api/openapi.json` (read scope) serves the document. `GET /api/docs`
-  (read scope) serves a Redoc HTML page with the document **inlined**.
+  (read scope) serves a Redoc HTML page with the document **inlined**. Both gate on
+  read scope: a missing bearer is `401` and a token lacking read scope is `403`
+  before the handler runs. ([validated by `openapi.test.ts:28`](apps/lore-api/src/api/routes/openapi/openapi.test.ts#L28), [`openapi.test.ts:63`](apps/lore-api/src/api/routes/openapi/openapi.test.ts#L63), [validated by `openapi.test.ts:41`](apps/lore-api/src/api/routes/openapi/openapi.test.ts#L41), [validated by `openapi.test.ts:48`](apps/lore-api/src/api/routes/openapi/openapi.test.ts#L48))
 - **FR6** Request-body schemas are converted with `zod-to-json-schema` (already a
   resolved dependency); no new dependency subtree is introduced. `@asteasolutions/
   zod-to-openapi` is not adopted.
 - **FR7** Non-API operational paths (`/healthz`, `/dist/*`) are excluded from the
-  document and the exclusion is logged, not silent.
+  document and the exclusion is logged, not silent. ([validated by `build-document.test.ts:45`](apps/lore-api/src/openapi/build-document.test.ts#L45), [`coverage.test.ts:42`](apps/lore-api/src/openapi/coverage.test.ts#L42))
+
+- **FR8** Operations are grouped into Redoc sidebar categories: the tags are
+  declared in canonical order (only those in use, each with a description), a
+  representative operation of each resource carries its tag, and every operation is
+  assigned exactly one declared category. ([validated by `build-document.test.ts:160`](apps/lore-api/src/openapi/build-document.test.ts#L160), [validated by `build-document.test.ts:178`](apps/lore-api/src/openapi/build-document.test.ts#L178), [validated by `coverage.test.ts:49`](apps/lore-api/src/openapi/coverage.test.ts#L49))
 
 ## Success Criteria
 
@@ -168,16 +181,17 @@ A test builds the document from `routeList(() => null)` and asserts:
   OpenAPI 3.1 linter (`npx @redocly/cli lint` in the verification step).
 - **SC-2** Every `/api/*` route registered in `routeList` appears exactly once in
   the document's `paths` (asserted by test). The `*` routes (dark-factory, tokens)
-  expand to their real verbs.
+  expand to their real verbs, merging every verb at a shared path and normalizing a
+  hapi optional path param to `required: true` with an "optional" note. ([validated by `coverage.test.ts:34`](apps/lore-api/src/openapi/coverage.test.ts#L34), [`build-document.test.ts:111`](apps/lore-api/src/openapi/build-document.test.ts#L111), [validated by `build-document.test.ts:123`](apps/lore-api/src/openapi/build-document.test.ts#L123))
 - **SC-3** Every covered write route's `requestBody` schema round-trips its zod
   contract: a required field is `required`, an enum is an `enum`, the memory
-  discriminated union is a `oneOf`/discriminator. Proven by generator unit tests.
+  discriminated union is a `oneOf`/discriminator. Proven by generator unit tests. ([validated by `build-document.test.ts:81`](apps/lore-api/src/openapi/build-document.test.ts#L81), [`build-document.test.ts:72`](apps/lore-api/src/openapi/build-document.test.ts#L72))
 - **SC-4** A body-bearing route with neither a `zodValidate` schema nor a sidecar
   allowlist entry fails the drift-guard test (proven by a fixture route in the
-  test).
+  test). ([validated by `coverage.test.ts:22`](apps/lore-api/src/openapi/coverage.test.ts#L22))
 - **SC-5** Per-route scope and rate-limit bucket appear as `x-required-scope` /
   `x-rate-limit-bucket`; `bearerAuth` is the sole security scheme; webhook
-  operations are `security: []`.
+  operations are `security: []`. ([validated by `build-document.test.ts:136`](apps/lore-api/src/openapi/build-document.test.ts#L136))
 - **SC-6** `apps/lore-api` typechecks (`tsc --noEmit`), builds (`npm run build`),
   and the full vitest suite is green. Each phase is an independently-revertable
   commit.

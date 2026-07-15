@@ -97,18 +97,18 @@ The handler never touches `_pool` — deferred Dgraph projection seam.
 ## Acceptance Criteria
 
 A report with two tests (one spec-anchored) and two passing results yields the
-correct chunk/validated/coverage/edge counts with `violated = 0`. ([validated by `returns 200 with counts derived from tests and results`](../../../apps/mcp-server/src/api/routes/test-report.test.ts#L17))
+correct chunk/validated/coverage/edge counts with `violated = 0`. ([validated by `connects Statement to File via validated_by to TestChunk to coverage to covers for a per-it descriptor`](libs/shared/src/spec-trace/ingest-test-report.test.ts#L504))
 
 Only a failing spec-anchored test increments `violated`; a failing
-non-anchored test does not. ([validated by `returns violated 1 when only the spec-anchored test fails`](../../../apps/mcp-server/src/api/routes/test-report.test.ts#L51))
+non-anchored test does not. ([validated by `marks the spec Statement violated with a reason naming failing test renders when its result passed is false`](libs/shared/src/spec-trace/ingest-test-report.test.ts#L358))
 
 The spec-trace trigger fires with the raw report body when the agent env is
-configured. ([validated by `fires the spec-trace trigger with the report body when the agent env is configured`](../../../apps/mcp-server/src/api/routes/test-report.test.ts#L75))
+configured. ([validated by `maps a test-report body to one internal.ingest.spec_trace event with kind test-report`](apps/floor/src/listeners/ci-tests-map.test.ts#L5))
 
-A missing `commit` is rejected with 400. ([validated by `returns 400 when commit is missing`](../../../apps/mcp-server/src/api/routes/test-report.test.ts#L105))
+A missing `commit` is rejected with 400. ([validated by `rejects a missing commit with a 400`](apps/floor/src/listeners/ci-tests-map.test.ts#L43))
 
 The fan-out forwarder POSTs `{repo, kind, payload}` to `/api/trigger/spec-trace`
-with the bearer token. ([validated by `POSTs repo, kind, and payload to /api/trigger/spec-trace with the bearer token`](../../../apps/mcp-server/src/api/routes/spec-trace-trigger.test.ts#L18))
+with the bearer token. ([validated by `POSTs repo, kind, and payload to /api/trigger/spec-trace with the bearer token`](apps/lore-api/src/api/routes/spec-trace-trigger.test.ts#L18))
 
 ## Out of Scope
 

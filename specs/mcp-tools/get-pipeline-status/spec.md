@@ -20,7 +20,7 @@ error.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L87)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L87)).
 
 - **name**: `lore_get_pipeline_status`
 - **description** (verbatim):
@@ -70,14 +70,16 @@ task JSON (`{...row, events: [...]}`), or `"Error: {message}"`. **Never throws.*
 
 A task id with no matching row resolves to `null` (the handler surfaces this as
 `task not found`).
-([validated by `returns null when no task row matches the id`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L21))
+([validated by `returns null when no task row matches the id`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L21))
 
 A matching id returns the task row merged with its ordered `events` array.
-([validated by `returns the task with its ordered events when the id matches`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L27))
+([validated by `returns the task with its ordered events when the id matches`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L28))
 
 The stdio-proxy branch and the not-found/error envelope framing are exercised
 only against a live API or DB.
 *(untested: the transport switch is inline in the handler closure — the proxy branch needs a live API; the shared CRUD is covered above.)*
+
+The `/api/task/:id` HTTP route (the stdio-proxy target) returns the task when found, 404 when no row matches, and 500 when the lookup throws. ([validated by GET /api/task/:id returns the task when found](apps/lore-api/src/api/routes/tasks/get-task.test.ts#L32), [`get-task.test.ts:39`](apps/lore-api/src/api/routes/tasks/get-task.test.ts#L39), [`get-task.test.ts:46`](apps/lore-api/src/api/routes/tasks/get-task.test.ts#L46))
 
 ## Out of Scope
 

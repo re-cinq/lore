@@ -21,7 +21,7 @@ asynchronously, without leaking secrets into the org-wide store.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/memory-tools.ts#L193)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/memory-tools.ts#L193)).
 
 - **name**: `lore_write_episode`
 - **description** (verbatim):
@@ -90,16 +90,19 @@ ingested."}`; the proxied body; the `unreachableError` message; the
 - `getPool()`, `isMemoryDbAvailable()`, `resolveAgentId()`, `sanitizeContent`
   (`redactSecrets`), `getQueryEmbedding()`, `createGraphLlmCall`.
 - Async: `extractFactsFromEpisode` ([facts.ts](../../../apps/mcp-server/src/features/memory/facts.ts#L213)), `extractAndUpdateGraph` ([graph.ts](../../../apps/mcp-server/src/features/memory/graph.ts#L119)).
-- `proxyToApi` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L62)).
+- `proxyToApi` / `unreachableError` ([deps.ts](apps/mcp-server/src/mcp/tools/deps.ts#L62)).
 - Tables: `memory.episodes` (insert, idempotent on `(agent_id, content_hash)`), `memory.facts` + `memory.fact_conflicts` (async), `memory.entities` + `memory.edges` (async), `memory.audit_log` (insert).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`, `LORE_FACT_SIMILARITY_THRESHOLD`, LLM provider env (`LORE_LLM_PROVIDER` / `LORE_FACT_LLM`).
 
 ## Acceptance Criteria
 
-1. Extracted facts parse from a JSON array of fact strings. ([validated by `parses a JSON array of strings`](../../../apps/mcp-server/src/features/memory/facts.test.ts#L30))
-2. Fact extraction caps at 10 facts per episode. ([validated by `limits to 10 facts`](../../../apps/mcp-server/src/features/memory/facts.test.ts#L53))
-3. A new fact that closely matches an existing one invalidates the old fact. ([validated by `invalidates high-similarity facts`](../../../apps/mcp-server/src/features/memory/facts.test.ts#L123))
-4. No invalidation happens when no similar fact exists. ([validated by `does nothing when no similar facts exist`](../../../apps/mcp-server/src/features/memory/facts.test.ts#L144))
+1. Extracted facts parse from a JSON array of fact strings. ([validated by `parses a JSON array of strings`](libs/server-core/src/features/memory/facts.test.ts#L36))
+
+2. Fact extraction caps at 10 facts per episode. ([validated by `limits to 10 facts`](libs/server-core/src/features/memory/facts.test.ts#L63))
+
+3. A new fact that closely matches an existing one invalidates the old fact. ([validated by `invalidates high-similarity facts`](libs/server-core/src/features/memory/facts.test.ts#L123))
+
+4. No invalidation happens when no similar fact exists. ([validated by `does nothing when no similar facts exist`](libs/server-core/src/features/memory/facts.test.ts#L181))
 
 ## Out of Scope
 

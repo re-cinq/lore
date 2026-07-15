@@ -123,17 +123,43 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
 4. `decideExecutionBackend` routes a task to the Agent-CR path only when both gates (per-repo setting
    + cluster env) are on; otherwise it returns the LoreTask path.
 5. `AgentBackend.launch` produces a correct `Agent` CR from a task (stationRef from task type,
-   parameters populated, `taskId` label), and resolves activeness by label.
+   parameters populated, `taskId` label), and resolves activeness by label. `taskIdOf`/`taskTypeOf`
+   read exactly the `lore.re-cinq.com/task-id` + `task-type` labels `AgentCrBackend` sets and return
+   undefined when they are absent. `AgentCrBackend.launch` injects the assembled context into the CR
+   parameters (omitting it when the source is absent or returns undefined), maps the task to the CR
+   (stationRef=taskType, task-id/task-type labels, description/prompt/pr_number parameters, explicit
+   name + extraLabels honoured), returns `launched:false` on a 409, runs the Agent on the per-task
+   Station the provisioner returns (falling back to the catalog Station, skipping provisioning for a
+   repo-less task), and resolves `isActive` by the task-id label (true while any matching Agent is
+   non-terminal, conservatively true when the probe fails). ([validated by `agent-watcher-logic.test.ts:13`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L13), [`agent-watcher-logic.test.ts:26`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L26), [`agent-backend.test.ts:52`](apps/floor/src/jobs/station/agent-backend.test.ts#L52), [`agent-backend.test.ts:57`](apps/floor/src/jobs/station/agent-backend.test.ts#L57), [`agent-backend.test.ts:62`](apps/floor/src/jobs/station/agent-backend.test.ts#L62), [`agent-backend.test.ts:68`](apps/floor/src/jobs/station/agent-backend.test.ts#L68), [`agent-backend.test.ts:74`](apps/floor/src/jobs/station/agent-backend.test.ts#L74), [`agent-backend.test.ts:83`](apps/floor/src/jobs/station/agent-backend.test.ts#L83), [`agent-backend.test.ts:102`](apps/floor/src/jobs/station/agent-backend.test.ts#L102), [`agent-backend.test.ts:119`](apps/floor/src/jobs/station/agent-backend.test.ts#L119), [`agent-backend.test.ts:129`](apps/floor/src/jobs/station/agent-backend.test.ts#L129), [`agent-backend.test.ts:151`](apps/floor/src/jobs/station/agent-backend.test.ts#L151), [`agent-backend.test.ts:160`](apps/floor/src/jobs/station/agent-backend.test.ts#L160), [`agent-backend.test.ts:171`](apps/floor/src/jobs/station/agent-backend.test.ts#L171), [`agent-backend.test.ts:188`](apps/floor/src/jobs/station/agent-backend.test.ts#L188), [`agent-backend.test.ts:194`](apps/floor/src/jobs/station/agent-backend.test.ts#L194), [`agent-backend.test.ts:200`](apps/floor/src/jobs/station/agent-backend.test.ts#L200), [`agent-backend.test.ts:206`](apps/floor/src/jobs/station/agent-backend.test.ts#L206))
+
 6. A `Succeeded` `Agent` with pushed changes results in a PR carrying the `Lore-Task` footer; an
    `Agent` with no changes completes the task with no PR.
 7. The deterministic gate reads the **conclusion of the GitHub Actions referenced by the assembly line**:
-   a red conclusion routes to the address loop, a green conclusion proceeds.
+   a red conclusion routes to the address loop, a green conclusion proceeds. ([validated by `agent-watcher-logic.test.ts:50`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L50), [`agent-watcher-logic.test.ts:54`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L54))
+
 8. The `/agents` web UI edits an `AgentDefinition`/`Station` and **applies the YAML to Kubernetes**
    with no Postgres write; the Floor reads recipes from the CRDs via `@re-cinq/agent-contracts`.
 9. Secrets in `ai-agents` are mirrored from the existing remoteRefs; the per-task GitHub token is
-   added before a run, referenced by `token_secret`, and removed on terminal status.
+   added before a run, referenced by `token_secret`, and removed on terminal status. `decideTokenReclaim`
+   reclaims a single-agent task's token only on a terminal phase (`Succeeded`/`Failed`), skips a
+   non-terminal phase, and skips a task routed to a multi-node assembly line (its token is freed at
+   line completion). Per-task provisioning derives the token-secret key + Station/Definition names
+   from the first 8 of the task id, only provisions when the task targets a repo, injects the target
+   repo (clone URL + branch ref, ref omitted when the spec has no branch + `token_secret`) into the
+   renamed-and-task-id-labelled AgentDefinition (catalog recipe preserved), and points the per-task
+   Station's `agentDefRef` at it (template preserved, empty-template fallback). ([validated by `agent-watcher-logic.test.ts:64`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L64), [`agent-watcher-logic.test.ts:72`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L72), [`per-task-token.test.ts:56`](apps/floor/src/jobs/station/per-task-token.test.ts#L56), [`per-task-token.test.ts:63`](apps/floor/src/jobs/station/per-task-token.test.ts#L63), [`per-task-token.test.ts:66`](apps/floor/src/jobs/station/per-task-token.test.ts#L66), [`per-task-token.test.ts:79`](apps/floor/src/jobs/station/per-task-token.test.ts#L79), [`per-task-token.test.ts:94`](apps/floor/src/jobs/station/per-task-token.test.ts#L94), [`per-task-token.test.ts:104`](apps/floor/src/jobs/station/per-task-token.test.ts#L104), [`per-task-token.test.ts:110`](apps/floor/src/jobs/station/per-task-token.test.ts#L110), [`per-task-token.test.ts:125`](apps/floor/src/jobs/station/per-task-token.test.ts#L125), [`per-task-token.test.ts:143`](apps/floor/src/jobs/station/per-task-token.test.ts#L143))
+
 10. Run output reaches the Floor over the public-LB http sink and is recorded in
-    `pipeline.llm_calls`, OTEL spans, and GCS (the UI log viewer shows it).
+    `pipeline.llm_calls`, OTEL spans, and GCS (the UI log viewer shows it). `parseAgentEvents` maps
+    each NDJSON terminal result envelope to one `llm_calls` row (model from `modelUsage` → flat
+    `model` field → `unknown`; missing usage/cost/duration default to zero; non-result events,
+    results with no usage, task-less lines, and non-object/blank/unparseable lines are skipped; one
+    row per run across lines), and `agentEventsArchiveKey` builds a date-partitioned archive key from
+    the received instant + first task id (`unknown` when the batch carries none). The
+    `POST /api/agent-events` sink rejects a request whose bearer token mismatches or whose internal
+    token is unconfigured (401). ([validated by `agent-events.test.ts:14`](apps/floor/src/jobs/agent/agent-events.test.ts#L14), [`agent-events.test.ts:37`](apps/floor/src/jobs/agent/agent-events.test.ts#L37), [`agent-events.test.ts:49`](apps/floor/src/jobs/agent/agent-events.test.ts#L49), [`agent-events.test.ts:60`](apps/floor/src/jobs/agent/agent-events.test.ts#L60), [`agent-events.test.ts:70`](apps/floor/src/jobs/agent/agent-events.test.ts#L70), [`agent-events.test.ts:77`](apps/floor/src/jobs/agent/agent-events.test.ts#L77), [`agent-events.test.ts:89`](apps/floor/src/jobs/agent/agent-events.test.ts#L89), [`agent-events.test.ts:107`](apps/floor/src/jobs/agent/agent-events.test.ts#L107), [`agent-events.test.ts:115`](apps/floor/src/jobs/agent/agent-events.test.ts#L115), [`agent-events.test.ts:16`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L16), [`agent-events.test.ts:28`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L28))
+
 11. `createAgentNodeHandler` maps an `Agent`'s terminal status to a node outcome
     (`success`/`failed`/`changes_requested`); the branch lease is heartbeated across a long node and
     is not reaped while the node runs; a forced Floor restart resumes from the last stage trailer.
@@ -151,26 +177,90 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
 > in-process handler deletion. Criteria link as each phase's PR lands.
 
 15. `model: "exec"` routes to a non-LLM adapter spawning the recipe's `tool_config.command` with the
-    rendered prompt appended; no CRD schema change. ([validated by agentForModel exec routing test](../../../ai-agent-subsystem/packages/agentcore/source/agentcore/vendors/select.d))
+    rendered prompt appended; no CRD schema change. ([validated by agentForModel exec routing test](../ai-agent-subsystem/packages/agentcore/source/agentcore/vendors/select.d))
+
 16. Node YAML accepts optional `station_ref` (custom station, default `def-<type>`) and
-    `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](../../libs/assembly-lines/src/loader.test.ts#L226))
+    `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](libs/assembly-lines/src/loader.test.ts#L231))
+
 17. `nodeStationSpec` builds the CR spec: stationRef, `parameters.station_input` JSON
-    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](../../apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L84))
+    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L87))
+
 18. A station pod ends with the claude-style result line carrying `LORE_NODE_RESULT: {outcome,
     extras}`; the Floor's `parseNodeResult` maps it (precedence: LORE_NODE_RESULT → REVIEW_RESULT →
-    success); CR Failed → `station-failed`; await expiry → `station-timeout`.
-    ([validated by parseNodeResult tests](../../libs/assembly-lines/src/node-outcome.test.ts#L24))
+    success); CR Failed → `station-failed`; await expiry → `station-timeout`. The station's
+    `resultLine` emits the claude-style terminal event (`is_error:false`, `result` prefixed
+    `LORE_NODE_RESULT: `) that round-trips through `parseNodeResult`, and marks an infrastructure
+    error `is_error:true` so the CR fails.
+    ([validated by parseNodeResult tests](libs/assembly-lines/src/node-outcome.test.ts#L19), [`output.test.ts:6`](apps/lore-station/src/output.test.ts#L6), [`output.test.ts:17`](apps/lore-station/src/output.test.ts#L17), [`output.test.ts:29`](apps/lore-station/src/output.test.ts#L29))
+
 19. Cutover complete: every non-agent node on the Floor-assembly-line path dispatches a station
     (no `LORE_STATION_NODES` flag, no in-process node handlers on that path); the in-process
-    supervisor path (gap-fill/runbook) is untouched. ([validated by every non-agent node dispatches a station CR](../../apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L84))
+    supervisor path (gap-fill/runbook) is untouched. ([validated by every non-agent node dispatches a station CR](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L87))
+
 20. `scripts/task-types.yaml` `stations:` seeds `def-<type>` AgentDefinition/Station pairs (exec
     model, `{station_input}` prompt, lore-station image via `.Values.stationImage`, deadline
-    default 15); org rows seeded by migration 0027 (`execution_mode: 'station'`).
-    ([validated by station catalog tests](../../apps/floor/src/jobs/agent/agent-catalog.test.ts#L96))
+    default 15); org rows seeded by migration 0027 (`execution_mode: 'station'`). The catalog
+    builder maps each agent recipe to an AgentDefinition (prompt + `{context}`, `permission_mode`,
+    `max_turns`, `ANTHROPIC_API_KEY` secret for the model key, agent-events http sink; model omitted
+    when the recipe has none) and Station (agentDefRef, deadline default 30, agent container), and
+    each station recipe to a `def-<name>` exec pair (`model: exec`, `{station_input}` prompt,
+    `tool_config.command`, station image, deadline default 15, RFC-1123-sanitised name, no ANTHROPIC
+    secret); `buildCatalog` emits both kinds per type in order and `catalogChartYaml` guards the seed
+    behind `.Values.seedCatalog` (`resource-policy: keep`) and templates the sink URL / namespace /
+    image from helm values (no sentinel leaks). ([validated by station catalog tests](apps/floor/src/jobs/agent/agent-catalog.test.ts#L141), [`agent-catalog.test.ts:20`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L20), [`agent-catalog.test.ts:51`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L51), [`agent-catalog.test.ts:59`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L59), [`agent-catalog.test.ts:68`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L68), [`agent-catalog.test.ts:76`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L76), [`agent-catalog.test.ts:94`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L94), [`agent-catalog.test.ts:102`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L102), [`agent-catalog.test.ts:120`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L120), [`agent-catalog.test.ts:126`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L126), [`agent-catalog.test.ts:130`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L130), [`agent-catalog.test.ts:134`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L134), [`agent-catalog.test.ts:147`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L147), [`agent-catalog.test.ts:176`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L176), [`agent-catalog.test.ts:195`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L195), [`agent-catalog.test.ts:210`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L210))
+
 21. Custom station images honor [station-contract.md](../6-dark-factory/contracts/station-contract.md).
+
+22. The `lore-station` image runs one module per non-agent node type, each reading the Floor's
+    `station_input` JSON (`parseStationInput`: params default empty, a null `task_id` allowed for
+    detection runs, throwing on malformed input or missing required fields): `validate` reports
+    `success` with a no-tooling `Lore-Validation: none` extra on an empty repo, `gate` echoes the
+    `condition_ref` (`none` when absent), `github_action` times out to `failed` after its CI poll
+    budget, and `detect` dispatches by `job_ref` returning the detector's capped summary (throwing on
+    an unknown `job_ref`). ([validated by `validate.test.ts:39`](apps/lore-station/src/stations/validate.test.ts#L39), [`stations.test.ts:18`](apps/lore-station/src/stations/stations.test.ts#L18), [`stations.test.ts:40`](apps/lore-station/src/stations/stations.test.ts#L40), [`stations.test.ts:61`](apps/lore-station/src/stations/stations.test.ts#L61), [`stations.test.ts:78`](apps/lore-station/src/stations/stations.test.ts#L78), [`input.test.ts:18`](apps/lore-station/src/input.test.ts#L18), [`input.test.ts:30`](apps/lore-station/src/input.test.ts#L30), [`input.test.ts:45`](apps/lore-station/src/input.test.ts#L45))
 
 ## Out of scope
 
 - `feature-decompose` and `graph-ingest` stay in-process (no pod) and are not migrated.
 - The `StationDefinition` Postgres record and compute sizing (ADR-030 §5 follow-up) — the Station's
   `PodTemplateSpec` already carries image/compute.
+
+## Watcher, worker & CR-watch — validated behavior
+
+These statements pin the deterministic Floor glue that wraps the subsystem.
+
+- **Pending-task single-flight.** The Floor worker's `pollWithGuard` claims and processes one task
+  per tick, does nothing when there is no runnable task, and skips a concurrent tick while a task is
+  still processing (only one claim in flight). ([validated by `worker.poll.test.ts:5`](apps/floor/src/jobs/task/worker.poll.test.ts#L5), [`worker.poll.test.ts:17`](apps/floor/src/jobs/task/worker.poll.test.ts#L17), [`worker.poll.test.ts:29`](apps/floor/src/jobs/task/worker.poll.test.ts#L29))
+- **CR-watch event mapping.** `mapAgentToEvent` maps a terminal `Agent` CR to
+  `kubernetes.agent.{succeeded,failed}` keyed on task-id+phase, and an assembly-line node CR to
+  `kubernetes.agent_node.{succeeded,failed}` deduped per CR name (carrying the node iteration) so two
+  node CRs of one line dedupe separately (the swallowed-second-node regression); it returns null for a
+  non-terminal phase and when the task-id label is absent. ([validated by `k8s-map.test.ts:39`](apps/floor/src/listeners/k8s-map.test.ts#L39), [`k8s-map.test.ts:57`](apps/floor/src/listeners/k8s-map.test.ts#L57), [`k8s-map.test.ts:64`](apps/floor/src/listeners/k8s-map.test.ts#L64), [`k8s-map.test.ts:87`](apps/floor/src/listeners/k8s-map.test.ts#L87), [`k8s-map.test.ts:101`](apps/floor/src/listeners/k8s-map.test.ts#L101), [`k8s-map.test.ts:113`](apps/floor/src/listeners/k8s-map.test.ts#L113), [`k8s-map.test.ts:122`](apps/floor/src/listeners/k8s-map.test.ts#L122))
+- **Run-outcome mapping.** `runOutcomeFromTaskStatus` records the watcher's run outcome: `pr-created`
+  and `review` → `pr_created`; `failed` and `needs-human-help` → `failed`; `completed` → `completed`;
+  an un-advanced task on a `Failed` CR maps to `failed` (not completed) while a `Succeeded` CR maps to
+  `completed`. ([validated by `agent-watcher-logic.test.ts:88`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L88), [`agent-watcher-logic.test.ts:92`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L92), [`agent-watcher-logic.test.ts:96`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L96), [`agent-watcher-logic.test.ts:77`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L77), [`agent-watcher-logic.test.ts:99`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L99), [`agent-watcher-logic.test.ts:105`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L105))
+- **Station failure diagnostic.** When a station CR fails, `stationLogTail` surfaces the tail of the
+  pod output where the git/clone error lives: it drops blank lines, bounds to the last `maxLines`, and
+  returns empty for empty output. ([validated by `finalize-station-run.test.ts:5`](apps/floor/src/jobs/task/finalize-station-run.test.ts#L5), [`finalize-station-run.test.ts:18`](apps/floor/src/jobs/task/finalize-station-run.test.ts#L18), [`finalize-station-run.test.ts:22`](apps/floor/src/jobs/task/finalize-station-run.test.ts#L22))
+- **Agent pod-log retrieval.** `readAgentLogs` resolves an Agent CR's newest job pod and returns its
+  (tail-bounded) logs, or `available:false` with a reason — `no-agent` (CR gone), `no-job` (no
+  jobName yet), `no-pod` (pod GC-ed, including a 404 during the read) — rethrowing a non-404
+  Kubernetes error (RBAC 403); `podSelectorForJob` builds the `job-name` selector and `pickLatestPod`
+  picks the newest by `creationTimestamp` (null on empty). The `GET /api/agent-logs/{name}` route
+  serves it behind the ingest bearer (401 on mismatch), and `parseTail` caps an over-large tail at
+  50 000, keeps a sane value, and defaults non-positive/non-numeric input. ([validated by `agent-pod-logs.test.ts:39`](apps/floor/src/jobs/station/agent-pod-logs.test.ts#L39), [`agent-pod-logs.test.ts:47`](apps/floor/src/jobs/station/agent-pod-logs.test.ts#L47), [`agent-pod-logs.test.ts:51`](apps/floor/src/jobs/station/agent-pod-logs.test.ts#L51), [`agent-pod-logs.test.ts:66`](apps/floor/src/jobs/station/agent-pod-logs.test.ts#L66), [`agent-pod-logs.test.ts:87`](apps/floor/src/jobs/station/agent-pod-logs.test.ts#L87), [`agent-pod-logs.test.ts:95`](apps/floor/src/jobs/station/agent-pod-logs.test.ts#L95), [`agent-pod-logs.test.ts:111`](apps/floor/src/jobs/station/agent-pod-logs.test.ts#L111), [`agent-pod-logs.test.ts:127`](apps/floor/src/jobs/station/agent-pod-logs.test.ts#L127), [`agent-pod-logs.test.ts:145`](apps/floor/src/jobs/station/agent-pod-logs.test.ts#L145), [`agent-pod-logs.test.ts:161`](apps/floor/src/jobs/station/agent-pod-logs.test.ts#L161), [`agent-logs.test.ts:39`](apps/floor/src/delivery/http/routes/agent-logs.test.ts#L39), [`agent-logs.test.ts:50`](apps/floor/src/delivery/http/routes/agent-logs.test.ts#L50), [`agent-logs.test.ts:67`](apps/floor/src/delivery/http/routes/agent-logs.test.ts#L67), [`agent-logs.test.ts:81`](apps/floor/src/delivery/http/routes/agent-logs.test.ts#L81), [`agent-logs.test.ts:85`](apps/floor/src/delivery/http/routes/agent-logs.test.ts#L85), [`agent-logs.test.ts:89`](apps/floor/src/delivery/http/routes/agent-logs.test.ts#L89))
+- **Recipe → CRD materialisation.** `agentDefToCrds` maps an `AgentDefinition` recipe to a paired
+  Kubernetes `AgentDefinition` + `Station`: an AI recipe carries `permission_mode:"bypass"`,
+  `max_turns:40`, a `{context}`-suffixed prompt, and — when an events URL is supplied — the http
+  telemetry sink alongside stdout; model/prompt are omitted when the recipe inherits them, deadline
+  defaults to 30 and image to `node:22-bookworm`, and stdout-only sinks stand in without an events
+  URL. An `execution_mode:"station"` recipe materialises an exec-vendor station (`model:"exec"`,
+  `{station_input}` prompt, `max_turns:1`, `lore-station <type>` command) on its own image. ([validated by `agent-crd.test.ts:17`](apps/lore-api/src/features/agents/agent-crd.test.ts#L17), [`agent-crd.test.ts:58`](apps/lore-api/src/features/agents/agent-crd.test.ts#L58), [`agent-crd.test.ts:82`](apps/lore-api/src/features/agents/agent-crd.test.ts#L82))
+- **CR-watch idempotency.** Event dedupe keys collapse redundant deliveries so a Floor restart replays
+  nothing twice: `githubDedupeKey` prefixes the delivery id, `k8sDedupeKey` keys a terminal Agent CR
+  on task-id+phase (repeated `MODIFIED` events collapse), `cronDedupeKey` floors the tick to the
+  minute (a restart replay collapses with the normal tick; distinct minutes stay distinct); the
+  `kubernetes.agent` handler treats a 404 on the CR GET as already-pruned (no processing, no throw)
+  and rethrows a 403 so the loop retries rather than marking it handled. ([validated by `dedupe.test.ts:5`](apps/floor/src/main-loop/dedupe.test.ts#L5), [`dedupe.test.ts:11`](apps/floor/src/main-loop/dedupe.test.ts#L11), [`dedupe.test.ts:17`](apps/floor/src/main-loop/dedupe.test.ts#L17), [`dedupe.test.ts:23`](apps/floor/src/main-loop/dedupe.test.ts#L23), [`kubernetes.test.ts:22`](apps/floor/src/jobs/kubernetes.test.ts#L22), [`kubernetes.test.ts:30`](apps/floor/src/jobs/kubernetes.test.ts#L30))

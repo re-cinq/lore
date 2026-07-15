@@ -207,14 +207,23 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
 
 1. `node dist/job-runner.js <jobName>` runs each of the 10 batch jobs, initializes
    the DB pool, logs the job summary, and exits 0 on success / non-zero on error;
-   an unknown name exits non-zero. ([validated by `job-runner.test.ts:42`](apps/floor/src/delivery/job-runner.test.ts#L42), [`job-runner.test.ts:47`](apps/floor/src/delivery/job-runner.test.ts#L47))
+   an unknown name exits non-zero. `resolveJob` returns the dispatch handler for a known name and
+   null for an unknown or empty name; `runJobByName` invokes the resolved handler and exits 0.
+   ([`job-runner.test.ts:50`](apps/floor/src/delivery/job-runner.test.ts#L50), [`job-runner.test.ts:54`](apps/floor/src/delivery/job-runner.test.ts#L54), [`job-runner.test.ts:64`](apps/floor/src/delivery/job-runner.test.ts#L64), [validated by `resolves %s to a handler function`](apps/floor/src/delivery/job-runner.test.ts#L38))
+
 1a. Each runner invocation writes a `pipeline.job_runs` row — `running` on start,
    then `completed` (with `result_summary`) or `failed` (with `error`) — so a
    CronJob run appears in the web-ui `/analytics` view identically to an
-   in-process run. ([validated by `job-run.test.ts:16`](apps/floor/src/adapters/job-run.test.ts#L16), [`job-run.test.ts:32`](apps/floor/src/adapters/job-run.test.ts#L32), [`job-run.test.ts:63`](apps/floor/src/adapters/job-run.test.ts#L63))
+   in-process run. `startJobRun` opens a `running` row and returns the run id, `completeJobRun`
+   stamps `completed` with the `result_summary`, and `failJobRun` stamps `failed` with the error.
+   ([`job-run.test.ts:6`](apps/floor/src/main-loop/scheduling/job-run.test.ts#L6), [`job-run.test.ts:18`](apps/floor/src/main-loop/scheduling/job-run.test.ts#L18), [`job-run.test.ts:51`](apps/floor/src/main-loop/scheduling/job-run.test.ts#L51))
+
 1b. A completed or failed CronJob run's full output is retained in GCS (redacted,
    CMEK-encrypted) and retrievable via the UI / MCP, referenced by
-   `pipeline.job_runs.log_path` — not lost to ephemeral pod stdout. ([validated by `log-storage.test.ts:42`](apps/floor/src/adapters/log-storage.test.ts#L42), [`job-run.test.ts:45`](apps/floor/src/adapters/job-run.test.ts#L45))
+   `pipeline.job_runs.log_path` — not lost to ephemeral pod stdout. `jobRunLogKey` builds the
+   `__job_runs__/<job>/<runId>/output.log` key, and both `completeJobRun` and `failJobRun` persist
+   the `log_path` when provided. ([validated by `log-storage.test.ts:42`](apps/floor/src/main-loop/scheduling/log-storage.test.ts#L42), [`job-run.test.ts:31`](apps/floor/src/main-loop/scheduling/job-run.test.ts#L31), [`log-storage.test.ts:10`](apps/floor/src/main-loop/scheduling/log-storage.test.ts#L10), [`job-run.test.ts:64`](apps/floor/src/main-loop/scheduling/job-run.test.ts#L64))
+
 2. Ten CronJobs exist, one per batch job, with schedules exactly matching the
    prior in-process schedules.
 3. CronJob pods carry the same env vars, secret refs, and service account as the
@@ -230,7 +239,22 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    `README.md` naming its runtime/container; `agent` typecheck and `vitest run`
    pass after the move.
 7. `kubectl create job --from=cronjob/<name>` runs a batch job on demand.
-8. No job is scheduled both in-process and as a CronJob in any release. ([validated by `job-runner.test.ts:47`](apps/floor/src/delivery/job-runner.test.ts#L47))
+8. No job is scheduled both in-process and as a CronJob in any release. ([validated by `job-runner.test.ts:44`](apps/floor/src/delivery/job-runner.test.ts#L44))
+
+9. Each migrated batch job is an independently-runnable unit the runner dispatches and whose one-line
+   result the run row records: `memory_ttl` soft-deletes expired memories and reports the count,
+   `anthropic_cost_sync` returns a skip summary when `ANTHROPIC_ADMIN_KEY` is unset (and otherwise
+   parses the Admin cost/usage report — cents-string amount → dollars, 1h + 5m ephemeral
+   cache-creation buckets summed, cost joined to tokens per date+model), and `context_reindex`
+   selects only the doc seed roots (`CLAUDE.md`/`AGENTS.md`/`adrs/`/`specs/<feature>`/`.specify`),
+   excluding source code, root docs, and binary/unsupported files. ([validated by `ttl-cleanup.test.ts:25`](apps/floor/src/jobs/memory/ttl-cleanup/ttl-cleanup.test.ts#L25), [`ttl-cleanup.test.ts:34`](apps/floor/src/jobs/memory/ttl-cleanup/ttl-cleanup.test.ts#L34), [`anthropic-cost-sync.test.ts:9`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L9), [`anthropic-cost.test.ts:9`](apps/floor/src/jobs/cost/anthropic-cost.test.ts#L9), [`anthropic-cost.test.ts:37`](apps/floor/src/jobs/cost/anthropic-cost.test.ts#L37), [`anthropic-cost.test.ts:75`](apps/floor/src/jobs/cost/anthropic-cost.test.ts#L75), [`reindex-seed.test.ts:5`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L5), [`reindex-seed.test.ts:30`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L30), [`reindex-seed.test.ts:36`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L36))
+
+10. The detection-family cron tick fans out one per-repo assembly line (2026-07 amendment):
+   `detectBranchName` keys each run `detect/<definition>/<repo>` (the old lease key, now the
+   overlap-guard key), the handler pre-creates a `pipeline.job_runs` row (`<job_ref>:<repo>`) and
+   starts one line per target repo with that branch + `args.job_run_id`, restricts to `params.repo`
+   without enumerating when a single repo is given, starts nothing when there are no target repos, and
+   fails the just-created job_run (before rethrowing) if `assemblyLines.start` throws. ([validated by `fan-out.test.ts:26`](apps/floor/src/jobs/detect/fan-out.test.ts#L26), [`fan-out.test.ts:34`](apps/floor/src/jobs/detect/fan-out.test.ts#L34), [`fan-out.test.ts:81`](apps/floor/src/jobs/detect/fan-out.test.ts#L81), [`fan-out.test.ts:104`](apps/floor/src/jobs/detect/fan-out.test.ts#L104), [`fan-out.test.ts:120`](apps/floor/src/jobs/detect/fan-out.test.ts#L120))
 
 ## File Changes
 

@@ -18,7 +18,7 @@ failed, and removes the worktree.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts#L91)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts#L91)).
 
 - **name**: `lore_cancel_local_task`
 - **description** (verbatim):
@@ -66,7 +66,7 @@ or `"Error: {message}"`. **Never throws**.
 ## Acceptance Criteria
 
 Cancelling an unknown task id reports it as not found without claiming success.
-([validated by `returns not-found for an unknown task id with no local registry`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L262))
+([validated by `runner.local.test.ts:266`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L266))
 
 The SIGTERM kill, worktree removal, and not-running short-circuit are exercised
 only end-to-end. *(untested: those branches require a populated

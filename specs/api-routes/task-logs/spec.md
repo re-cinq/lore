@@ -78,19 +78,23 @@ the body is not echoed.
 
 ## Acceptance Criteria
 
-A missing field returns 400. ([validated by `returns 400 when fields are missing`](../../../apps/mcp-server/src/api/routes/task-logs.test.ts#L30))
+A missing field returns 400. ([validated by `returns 400 when fields are missing`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L52))
 
-A complete body saves the logs to GCS and returns `{ ok: true }`. ([validated by `saves logs to storage`](../../../apps/mcp-server/src/api/routes/task-logs.test.ts#L35))
+A complete body saves the logs to GCS and returns `{ ok: true }`. ([validated by `saves logs to storage`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L57))
 
-A GCS failure returns 500. ([validated by `returns 500 when storage throws`](../../../apps/mcp-server/src/api/routes/task-logs.test.ts#L42))
+A GCS failure returns 500. ([validated by `returns 500 when storage throws`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L64))
 
-The companion read returns 400 without `task_id`/`repo`. ([validated by `returns 400 when task_id or repo missing`](../../../apps/mcp-server/src/api/routes/task-logs.test.ts#L51))
+The companion read returns 400 without `task_id`/`repo`. ([validated by `returns 400 when task_id is missing`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L90))
 
-The companion read returns empty for a missing object. ([validated by `returns empty when the log file does not exist`](../../../apps/mcp-server/src/api/routes/task-logs.test.ts#L56))
+The companion read returns empty for a missing object. ([validated by `returns empty and incomplete when the log file does not exist`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L118))
 
-The companion read returns the slice from `offset` for an existing object. ([validated by `returns a slice from offset when the file exists`](../../../apps/mcp-server/src/api/routes/task-logs.test.ts#L62))
+The companion read returns the slice from `offset` for an existing object. ([validated by `returns a slice from offset when the file exists`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L127))
 
-The companion read returns 500 on a GCS failure. ([validated by `returns 500 when storage throws`](../../../apps/mcp-server/src/api/routes/task-logs.test.ts#L69))
+The companion read returns 500 on a GCS failure. ([validated by `returns 500 when storage throws`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L141))
+
+A `task`-scoped token that lacks `write` is rejected 403 on both the POST upload and the GET read, before the handler runs. ([validated by `task-logs.test.ts:70`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L70), [validated by `task-logs.test.ts:150`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L150))
+
+The companion read resolves `repo` from `task_id` via the pool when `repo` is omitted, and returns 503 when no pool can resolve it. ([validated by `task-logs.test.ts:106`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L106), [validated by `task-logs.test.ts:98`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L98))
 
 The live-GCS save body (real bucket I/O, resumable flag, contentType) is exercised only against a real bucket. *(untested: real `@google-cloud/storage` network I/O has no unit seam beyond the mocked save call already asserted above.)*
 

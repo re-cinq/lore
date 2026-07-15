@@ -20,7 +20,7 @@ without scripting the GitHub REST API.
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L112)).
+Registered via `server.tool` ([registration + handler](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L112)).
 
 - **name**: `lore_get_pr_status`
 - **description** (verbatim):
@@ -83,6 +83,8 @@ the matching `computed_status` by the fixed precedence above.
 
 Missing GitHub credentials return a configuration message instead of throwing.
 *(untested: the null path is gated on `getGitHubToken()` reading process env / GitHub App state — no deterministic seam without live config.)*
+
+The `/api/pr-status` HTTP route (the same `fetchPrStatus` behind the tool) validates its query: a valid `repo` + integer `pr_number` returns the derived status, an unconfigured GitHub (`fetchPrStatus` → null) returns 424, a `repo` that is not `owner/name` or a missing or non-integer `pr_number` returns 400, and a thrown fetch returns 500. ([validated by GET /api/pr-status returns the PR status for a valid repo and pr_number](apps/lore-api/src/api/routes/repos/pr-status.test.ts#L29), [`pr-status.test.ts:37`](apps/lore-api/src/api/routes/repos/pr-status.test.ts#L37), [`pr-status.test.ts:44`](apps/lore-api/src/api/routes/repos/pr-status.test.ts#L44), [`pr-status.test.ts:50`](apps/lore-api/src/api/routes/repos/pr-status.test.ts#L50), [`pr-status.test.ts:56`](apps/lore-api/src/api/routes/repos/pr-status.test.ts#L56), [`pr-status.test.ts:62`](apps/lore-api/src/api/routes/repos/pr-status.test.ts#L62))
 
 ## Out of Scope
 

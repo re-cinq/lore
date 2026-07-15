@@ -19,7 +19,7 @@ one-line summary per task.
 
 ## Interface
 
-Registered via `server.tool` ([registration](../../../apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts#L70)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts#L70)).
 
 - **name**: `lore_list_local_tasks`
 - **description** (verbatim):
@@ -64,7 +64,7 @@ summary, or `"Error: {message}"`. **Never throws**.
 ## Acceptance Criteria
 
 `listPendingTasks` returns an array (empty when the backing file is absent).
-([validated by `listPendingTasks returns empty array when file is missing`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L158))
+([validated by `listPendingTasks returns empty array when file is missing`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L161))
 
 The live-PID reconciliation of `listLocalTasks` and the per-line formatting are
 exercised only end-to-end. *(untested: `listLocalTasks` reads
