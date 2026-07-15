@@ -88,5 +88,17 @@ ruleTester.run("require-spec-link", rule, {
         },
       ],
     },
+    {
+      // a .spec.ts file is a test file too (isTestFile), so it is enforced
+      code: `it("x", () => {});`,
+      filename: file("tests/orphan.spec.ts"),
+      options: OPTS,
+      errors: [
+        {
+          messageId: "unlinkedTest",
+          data: { name: "x", file: "tests/orphan.spec.ts", line: "1" },
+        },
+      ],
+    },
   ],
 });

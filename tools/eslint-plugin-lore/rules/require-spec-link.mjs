@@ -18,15 +18,21 @@
  */
 
 import path from "node:path";
+import { isTestFile } from "@re-cinq/lore-shared/test-paths.js";
 import {
   buildLinkIndex,
   readSpecFiles,
   toPosix,
 } from "./lib/spec-link-index.mjs";
 
-const TEST_FILE_RE = /\.test\.[cm]?[jt]sx?$/;
-
-/** specsRoot+roots → index, so the corpus is walked once per process. */
+/**
+ * specsRoot+roots → index, so the corpus is walked once per process.
+ *
+ * Note: the cache is keyed on specsRoot only, with no mtime/content hash — a
+ * single-pass `eslint`/CI run always reads fresh, but a long-lived ESLint
+ * server (VS Code extension, --watch) will not see a spec link added after the
+ * first lint until the server restarts.
+ */
 const indexCache = new Map();
 
 function getIndex(specsRoot, roots) {
@@ -130,7 +136,10 @@ export default {
   },
 
   create(context) {
-    if (!TEST_FILE_RE.test(context.filename)) {
+    // Match the same predicate `buildLinkIndex` uses to keep validated-by links
+    // (isTestFile: .test./.spec./__tests__/…), so a linkable test can't escape
+    // the rule on a naming variant.
+    if (!isTestFile(toPosix(context.filename))) {
       return {};
     }
     const options = context.options[0] ?? {};

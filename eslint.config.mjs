@@ -60,6 +60,7 @@ export default tseslint.config(
       "lore/no-prop-mutation": "error",
       "lore/max-boolean-operators": ["error", { max: 2 }],
       "lore/no-io-in-view": "error",
+      "lore/require-spec-link": "error",
     },
   },
 
@@ -125,12 +126,9 @@ export default tseslint.config(
 
   // Tests run syntactically (some live outside their package's tsconfig, e.g.
   // lore-station excludes *.test.ts) and may lean on `any` for doubles. Keep the
-  // custom + syntactic rules on; drop the type-aware ones. `require-spec-link`
-  // is test-only, so it lives here (outside the type-aware projectService session)
-  // rather than firing create() for every source file.
+  // custom + syntactic rules on; drop the type-aware ones.
   {
     files: ["**/*.test.{ts,tsx}"],
-    plugins: { lore },
     languageOptions: {
       parserOptions: { projectService: false, project: false },
     },
@@ -139,7 +137,6 @@ export default tseslint.config(
       "@typescript-eslint/no-floating-promises": "off",
       "@typescript-eslint/no-misused-promises": "off",
       "@typescript-eslint/await-thenable": "off",
-      "lore/require-spec-link": "error",
     },
   },
 );
