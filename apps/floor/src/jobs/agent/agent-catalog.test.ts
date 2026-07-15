@@ -49,9 +49,11 @@ describe("buildAgentDefinition", () => {
   });
 
   it("declares ANTHROPIC_API_KEY in resources.secrets so the controller injects the model key", () => {
-    expect(buildAgentDefinition("implementation", impl).spec?.resources).toEqual(
-      { secrets: [{ name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" }] },
-    );
+    expect(
+      buildAgentDefinition("implementation", impl).spec?.resources,
+    ).toEqual({
+      secrets: [{ name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" }],
+    });
   });
 
   it("station recipes omit ANTHROPIC (exec vendor, no model call)", () => {
