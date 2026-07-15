@@ -28,6 +28,41 @@ export async function queryOne<T = Record<string, unknown>>(
   return rows[0] || null;
 }
 
+export type QueryFn = <T = Record<string, unknown>>(
+  text: string,
+  params?: unknown[],
+) => Promise<T[]>;
+
+/**
+ * Run `fn` inside a single BEGIN/COMMIT on one pooled connection, rolling back
+ * on any failure. Only for write paths that genuinely need atomicity — e.g.
+ * onboarding's task + repos-row pair, where a partial write leaves a zombie
+ * repo or a duplicate-spawning retry.
+ */
+export async function withTransaction<T>(
+  fn: (tx: QueryFn) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    const tx: QueryFn = async (text, params) =>
+      (await client.query(text, params)).rows;
+    const result = await fn(tx);
+
+    await client.query("COMMIT");
+
+    return result;
+  } catch (err) {
+    // Best-effort: the connection may already be dead, and that failure must
+    // not mask the original error.
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 /**
  * Like `query`, but returns `[]` when the relation does not exist (Postgres
  * 42P01) instead of throwing. For tables added by deploy-time migrations that

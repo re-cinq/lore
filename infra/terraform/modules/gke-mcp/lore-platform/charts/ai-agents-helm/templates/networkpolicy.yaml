@@ -30,6 +30,20 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
+{{- if .Values.nodeLocalDnsIp }}
+    # NodeLocal DNSCache listens on a link-local IP, so pods resolve there rather than at
+    # the kube-dns pods above. The metadata-endpoint block below (169.254.0.0/16) would
+    # drop those queries — allow port 53 to just this /32. The metadata endpoint
+    # (169.254.169.254) is a different /32 and stays blocked.
+    - to:
+        - ipBlock:
+            cidr: {{ .Values.nodeLocalDnsIp }}/32
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}
     # HTTPS to the public internet, excluding RFC1918 + link-local (169.254.0.0/16
     # covers the metadata endpoint) — blocks SSRF to internal services + metadata theft.
     - to:

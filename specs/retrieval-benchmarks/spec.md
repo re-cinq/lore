@@ -3,7 +3,7 @@
 | Field          | Value                                       |
 |----------------|---------------------------------------------|
 | Feature        | Retrieval Benchmarks                        |
-| Status         | Draft                                       |
+| Status         | Implemented                                       |
 | Created        | 2026-04-03                                  |
 | Owner          | Platform Engineering                        |
 | Priority       | P2 — Observability                          |

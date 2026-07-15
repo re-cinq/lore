@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import OnboardView from "./OnboardView";
 
-const action = vi.fn();
+const action = vi.fn().mockResolvedValue(null);
 
 describe("OnboardView", () => {
   it("renders the heading and intro copy", () => {
@@ -55,5 +55,31 @@ describe("OnboardView", () => {
     expect(input).toHaveAttribute("required");
     expect(input).toHaveAttribute("placeholder", "re-cinq/my-service");
     expect(input).toHaveAttribute("pattern", "[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+");
+  });
+
+  it("shows the action error and keeps the typed repo name after a failed submit", async () => {
+    const failing = vi.fn().mockResolvedValue({
+      error: "re-cinq/nope is already onboarded.",
+      fullName: "re-cinq/nope",
+    });
+    const { container } = render(
+      <OnboardView onboarded={[]} onboardRepoAction={failing} />,
+    );
+    const input = container.querySelector<HTMLInputElement>(
+      'input[name="full_name"]',
+    )!;
+
+    fireEvent.change(input, { target: { value: "re-cinq/nope" } });
+    fireEvent.click(screen.getByRole("button", { name: "Onboard Repository" }));
+
+    expect(
+      await screen.findByText("re-cinq/nope is already onboarded."),
+    ).toHaveAttribute("role", "alert");
+    await waitFor(() => expect(input.value).toBe("re-cinq/nope"));
+  });
+
+  it("renders no alert before any submit", () => {
+    render(<OnboardView onboarded={[]} onboardRepoAction={action} />);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

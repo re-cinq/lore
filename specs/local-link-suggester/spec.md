@@ -3,7 +3,7 @@
 | Field          | Value                                    |
 |----------------|------------------------------------------|
 | Feature        | Local Link Suggester                     |
-| Status         | Draft                                    |
+| Status         | Shipped                                    |
 | Created        | 2026-06-03                               |
 | Owner          | Platform Engineering                     |
 | Builds on      | [`spec-test-coverage`](../spec-test-coverage/spec.md) v3 (markdown link source-of-truth + backfill cron) |

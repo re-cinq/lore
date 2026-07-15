@@ -4,10 +4,13 @@
 // to every file in the folder. Types mirror the API JSON — web-ui is not a
 // workspace member, so it cannot import @re-cinq/lore-shared.
 import Link from "next/link";
+import SpecStatusPill from "@/components/SpecStatusPill";
+import type { SpecStatusInfo } from "@/lib/spec-status";
 
 export interface SpecCardProps {
   title: string;
   description: string;
+  status?: SpecStatusInfo;
   coverage?: { testable: number; covered: number; ratio: number };
   /** Multi-file spec folder: one link chip per file. */
   files?: Array<{ label: string; href: string }>;
@@ -19,7 +22,7 @@ const chip: React.CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: 4,
   padding: "2px 8px",
-  fontSize: 12,
+  fontSize: "var(--fs-xs)",
   fontFamily: "monospace",
   color: "var(--text)",
   textDecoration: "none",
@@ -28,6 +31,7 @@ const chip: React.CSSProperties = {
 export default function SpecCard({
   title,
   description,
+  status,
   coverage,
   files,
   detailsHref,
@@ -41,7 +45,17 @@ export default function SpecCard({
         marginBottom: 8,
       }}
     >
-      <h3 style={{ margin: "0 0 4px" }}>{title}</h3>
+      <h3
+        style={{
+          margin: "0 0 4px",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        {title}
+        {status && <SpecStatusPill info={status} />}
+      </h3>
       {description && (
         <p style={{ margin: "0 0 8px", color: "var(--text-muted)" }}>
           {description}

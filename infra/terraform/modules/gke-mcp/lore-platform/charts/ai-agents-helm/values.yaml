@@ -18,6 +18,13 @@ floorSink:
   namespace: lore-floor
   port: 8080
 
+# NodeLocal DNSCache listen address. On clusters running NodeLocal DNS (GKE default),
+# run pods resolve via this link-local IP instead of the kube-dns ClusterIP — and the
+# metadata-endpoint block in the run-pod NetworkPolicy (169.254.0.0/16) would otherwise
+# drop those queries. The chart allows port 53 to just this /32 (the metadata endpoint
+# at 169.254.169.254 stays blocked). Empty string omits the rule for clusters without it.
+nodeLocalDnsIp: 169.254.20.10
+
 # The image the seeded `def-*` station recipes run (non-LLM assembly-line nodes,
 # ADR-031 amendment). CI bumps the tag alongside the other service images.
 stationImage: ghcr.io/re-cinq/lore-station:latest
@@ -26,17 +33,19 @@ controller:
   replicas: 1
   image:
     repository: ghcr.io/re-cinq/ai-agent-controller
-    # Pinned by digest (never a floating tag) — v0.4.0, which registers the `exec`
-    # vendor (station recipes run as plain commands). Resolved via
-    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.4.0
-    digest: "sha256:73a75fce24b5c5fdc0b5420427936bf918a972e2010dae1eef9d54d640b513e4"
+    # Pinned by digest (never a floating tag) — v0.6.0: shared workspace volume (the
+    # clone reaches the agent container), init chowns HOME+workspace to the agent uid
+    # (Claude can write its session state and edit the repo), and the repo credential
+    # is aliased to GH_TOKEN so `gh` authenticates (ai-agent-subsystem#166; v0.5.1
+    # added the token_secret secretKeyRef injection, #160). Resolved via
+    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.6.0
+    digest: "sha256:878ca910d72a8532add05c6fdfdfb12f33c59253689127d0051ff64e243426d2"
   # The image whose init container injects the agent runtime + supervisor into each run
-  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.4.0
-  # digest, paired with the controller above. v0.4.0's `exec` vendor also carries the
-  # no-op ExecSetup, so station pods skip the claude-CLI install. Resolve with (needs
-  # ghcr read on the ai-agent package — not public):
-  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.4.0
-  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:9a945eb8bbd08b2f583f7ab98cf5271982002882ec40469eb82120248102ab5c"
+  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.6.0
+  # digest, paired with the controller above. Resolve with (needs ghcr read on the
+  # ai-agent package — not public):
+  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.6.0
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:d36dcb72b69d8d57c31b5d29ea731b1eade49325dfbcd0d6ebbe8ff20b29ddda"
   # Tail of run-pod log kept in Agent.status.output (bounds the object under etcd's limit).
   maxOutputBytes: "262144"
   resources:

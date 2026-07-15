@@ -4,7 +4,7 @@
 |----------|--------------------------------|
 | Feature  | Agent definitions as data      |
 | Branch   | feat/lore-agents-table         |
-| Status   | In review                      |
+| Status   | Shipped                      |
 | Created  | 2026-06-16                     |
 | Owner    | Platform Engineering           |
 | ADR      | ADR-024                        |

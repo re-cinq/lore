@@ -3,7 +3,7 @@
 | Field          | Value                                       |
 |----------------|---------------------------------------------|
 | Feature        | Auto-Episode Hooks                          |
-| Status         | Draft                                       |
+| Status         | Shipped                                       |
 | Created        | 2026-04-03                                  |
 | Owner          | Platform Engineering                        |
 | Priority       | P1 — Lower effort, high impact              |

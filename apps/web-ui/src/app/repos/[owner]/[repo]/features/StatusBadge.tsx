@@ -13,10 +13,10 @@ export default function StatusBadge({ status }: { status: FeatureStatus }) {
       style={{
         display: "inline-block",
         padding: "2px 8px",
-        borderRadius: 999,
-        fontSize: 12,
+        borderRadius: "var(--radius-pill)",
+        fontSize: "var(--fs-xs)",
         fontWeight: 600,
-        color: "#fff",
+        color: "var(--text-on-accent)",
         background: badge.color,
       }}
     >

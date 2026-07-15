@@ -1,8 +1,8 @@
 import Link from "next/link";
-import PRStatusCard from "./PRStatusCard";
+import PRStatusPanel from "./PRStatusPanel";
 import { CancelTaskButton } from "./CancelTaskButton";
 import TaskLogs from "./TaskLogs";
-import Timeline from "./Timeline";
+import TimelinePanel from "./TimelinePanel";
 import FailurePanel from "./FailurePanel";
 import Linkified from "@/components/Linkified";
 import { isCancellable } from "@/lib/task-status";
@@ -115,7 +115,7 @@ export default function TaskDetailView({
           </p>
         )}
         {task.pr_url && task.pr_number && (
-          <PRStatusCard taskId={task.id} prUrl={task.pr_url} />
+          <PRStatusPanel taskId={task.id} prUrl={task.pr_url} />
         )}
         {task.failure_reason && (
           <p>
@@ -198,7 +198,7 @@ export default function TaskDetailView({
         </section>
       )}
 
-      <Timeline taskId={task.id} initialStatus={task.status} />
+      <TimelinePanel taskId={task.id} initialStatus={task.status} />
 
       <TaskLogs taskId={task.id} initialStatus={task.status} />
 

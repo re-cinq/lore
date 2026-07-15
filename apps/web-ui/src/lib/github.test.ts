@@ -28,6 +28,7 @@ import {
   isGitHubConfigured,
   getRepoFileContent,
   openIngestWorkflowPR,
+  checkRepoAccess,
 } from "./github";
 
 const open = { merged: false, state: "open" as const };
@@ -333,6 +334,38 @@ describe("openIngestWorkflowPR", () => {
     expect(
       await openIngestWorkflowPR("re-cinq/app", "p.yml", "CONTENT"),
     ).toBeNull();
+    expect(rest.repos.get).not.toHaveBeenCalled();
+  });
+});
+
+describe("checkRepoAccess", () => {
+  beforeEach(() => {
+    configureApp();
+    resetRest();
+  });
+
+  it("returns ok when the App can fetch the repo", async () => {
+    rest.repos.get.mockResolvedValue({ data: { full_name: "re-cinq/app" } });
+    expect(await checkRepoAccess("re-cinq/app")).toBe("ok");
+    expect(rest.repos.get).toHaveBeenCalledWith({
+      owner: "re-cinq",
+      repo: "app",
+    });
+  });
+
+  it("returns not-found when GitHub answers 404", async () => {
+    rest.repos.get.mockRejectedValue(httpError(404));
+    expect(await checkRepoAccess("wrong-owner/app")).toBe("not-found");
+  });
+
+  it("returns unknown on a transient GitHub error", async () => {
+    rest.repos.get.mockRejectedValue(httpError(500));
+    expect(await checkRepoAccess("re-cinq/app")).toBe("unknown");
+  });
+
+  it("returns unknown without touching GitHub when the App is not configured", async () => {
+    delete process.env.GITHUB_APP_PRIVATE_KEY;
+    expect(await checkRepoAccess("re-cinq/app")).toBe("unknown");
     expect(rest.repos.get).not.toHaveBeenCalled();
   });
 });

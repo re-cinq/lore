@@ -1,12 +1,7 @@
-"use client";
-import { useCallback, useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import styles from "./PRStatusCard.module.css";
 
-const TERMINAL_STATES = new Set<PRStatus>(["merged", "closed"]);
-const POLL_INTERVAL_MS = 15_000;
-
-type PRStatus =
+export type PRStatus =
   | "draft"
   | "open"
   | "checks-failing"
@@ -15,7 +10,7 @@ type PRStatus =
   | "merged"
   | "closed";
 
-interface PRDetails {
+export interface PRDetails {
   number: number;
   title: string;
   state: string;
@@ -38,50 +33,19 @@ const STATUS_COLORS: Record<PRStatus, string> = {
   closed: "var(--border-hover)",
 };
 
+/**
+ * Pure PR-status card. Presentational (data down): PRStatusPanel owns the poll
+ * and threads the resolved details / error in as props.
+ */
 export default function PRStatusCard({
-  taskId,
+  details,
+  error,
   prUrl,
 }: {
-  taskId: string;
+  details: PRDetails | null;
+  error: string | null;
   prUrl: string;
 }) {
-  const [details, setDetails] = useState<PRDetails | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchStatus = useCallback(() => {
-    fetch(`/api/tasks/${taskId}/pr-status`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) {
-          setError(data.error);
-        } else {
-          setDetails(data);
-          setError(null);
-        }
-      })
-      .catch(() => setError("Status unavailable"));
-  }, [taskId]);
-
-  useEffect(() => {
-    fetchStatus();
-  }, [fetchStatus]);
-
-  // Poll while the PR is live. Merged/closed and error are both terminal:
-  // without the error stop, a persistently failing endpoint (deleted PR,
-  // rate limit) would be re-fetched every 15s for the tab's lifetime.
-  const isTerminal = details
-    ? TERMINAL_STATES.has(details.computed_status)
-    : false;
-
-  useEffect(() => {
-    if (isTerminal || error) {
-      return;
-    }
-    const handle = setInterval(fetchStatus, POLL_INTERVAL_MS);
-
-    return () => clearInterval(handle);
-  }, [fetchStatus, isTerminal, error]);
-
   // A failed poll must not wipe already-loaded details off the screen.
   if (error && !details) {
     return (
