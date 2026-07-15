@@ -60,7 +60,7 @@ registered read-only on the shared surface
 
 With no `statement` selector, the result lists the document coverage and then
 only the `violated`, `drifted`, and `untested` statements, in that order.
-([validated by `with no selector, lists coverage then violated, drifted, untested statements in that order`](../../apps/mcp-server/src/features/spec-trace/query-trace.test.ts#L19))
+([validated by `with no selector, lists coverage then violated, drifted, untested statements in that order`](libs/server-core/src/features/spec-trace/query-trace.test.ts#L19))
 
 An ordinal selector returns that statement in full with its test, code, and ADR
 links grouped, and flags it when violated.

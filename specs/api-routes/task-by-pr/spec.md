@@ -91,13 +91,13 @@ strings: `"database unavailable"`, `"no_trailer_found"`, `"pr_not_found"`,
 
 A null pool returns 503. ([validated by `returns 503 when pool is null`](../../../apps/mcp-server/src/api/routes/by-pr.test.ts#L31))
 
-A `pr_number` hit in the DB returns `trailer_source: db`. ([validated by `resolves via the DB fast path`](../../../apps/mcp-server/src/api/routes/by-pr.test.ts#L36))
+A `pr_number` hit in the DB returns `trailer_source: db`. ([validated by `resolves via the DB fast path`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L36))
 
 A DB miss with a trailer in the PR body returns `trailer_source: pr_body`. ([validated by `resolves from the PR body when the DB misses`](../../../apps/mcp-server/src/api/routes/by-pr.test.ts#L43))
 
 A DB error falls through, and a trailer on the final commit returns `trailer_source: final_commit`. ([validated by `resolves from the final commit when the body has no trailer`](../../../apps/mcp-server/src/api/routes/by-pr.test.ts#L53))
 
-Neither body nor commit carrying a trailer returns `no_trailer_found`. ([validated by `returns 404 when no trailer is found anywhere`](../../../apps/mcp-server/src/api/routes/by-pr.test.ts#L65))
+Neither body nor commit carrying a trailer returns `no_trailer_found`. ([validated by `returns 404 when no trailer is found anywhere`](apps/lore-api/src/api/routes/tasks/by-pr.test.ts#L65))
 
 A GitHub 404 on the PR returns `pr_not_found`. ([validated by `returns 404 when the PR is not found`](../../../apps/mcp-server/src/api/routes/by-pr.test.ts#L77))
 

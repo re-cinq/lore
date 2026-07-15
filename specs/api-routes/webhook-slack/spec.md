@@ -106,7 +106,7 @@ A valid `v0=` signature over `v0:{ts}:{body}` verifies; a mismatched timestamp o
 
 An unset secret returns 503; missing signature headers, a stale timestamp, and an invalid signature each return 401. ([validated by `returns 503 when the signing secret is unset`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L44), [`returns 401 when signature headers are missing`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L49), [`returns 401 when the timestamp is too old`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L54), [`returns 401 on an invalid signature`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L58))
 
-The url_verification handshake echoes the challenge, and an absent challenge yields an empty body. ([validated by `answers the url_verification challenge`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L62), [`answers url_verification with an empty challenge when absent`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L67))
+The url_verification handshake echoes the challenge, and an absent challenge yields an empty body. ([validated by `answers the url_verification challenge`](apps/lore-api/src/api/routes/webhooks/webhook-slack.test.ts#L62), [`answers url_verification with an empty challenge when absent`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L67))
 
 An empty command returns the ephemeral usage help. ([validated by `returns usage help when text is empty`](../../../apps/mcp-server/src/api/routes/webhook-slack.test.ts#L72))
 

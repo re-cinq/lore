@@ -130,5 +130,5 @@ show a small status indicator next to the PR link (fetched client-side).
 2. Check results (pass/fail) visible without going to GitHub ([validated by `github.test.ts:44`](apps/web-ui/src/lib/github.test.ts#L44))
 3. Review status (who approved, who requested changes) visible ([validated by `github.test.ts:52`](apps/web-ui/src/lib/github.test.ts#L52))
 4. MCP tool `lore_get_pr_status` returns structured PR state
-5. Graceful fallback when GitHub API is unavailable. ([validated by `PRStatusCard.test.tsx:273`](apps/web-ui/src/app/pipeline/[id]/PRStatusCard.test.tsx#L273))
+5. Graceful fallback when GitHub API is unavailable. ([validated by `PRStatusCard.test.tsx:273`](apps/web-ui/src/app/tasks/[id]/PRStatusCard.test.tsx#L273))
 6. No database migrations required

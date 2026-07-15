@@ -46,16 +46,16 @@ The projection and its wrapper live in
 
 A statement's signal is the highest-priority condition it meets, in the
 order `violated` > `drifted` > `untested` > `normal`.
-([validated by `ranks ... and dedups by xid`](../../libs/shared/src/spec-trace/__tests__/graph-context.test.ts#L5))
+([validated by `ranks ... and dedups by xid`](libs/shared/src/spec-trace/graph-context.test.ts#L5))
 
 Statements are ranked by signal descending, so a `violated` statement
 precedes a `drifted` one and both precede an `untested` or `normal`
 statement.
-([validated by `ranks ... and dedups by xid`](../../libs/shared/src/spec-trace/__tests__/graph-context.test.ts#L5))
+([validated by `ranks ... and dedups by xid`](libs/shared/src/spec-trace/graph-context.test.ts#L5))
 
 A `Statement` reachable through more than one seed appears once in the
 block, deduplicated by its `Statement.xid`.
-([validated by `ranks ... and dedups by xid`](../../libs/shared/src/spec-trace/__tests__/graph-context.test.ts#L5))
+([validated by `ranks ... and dedups by xid`](libs/shared/src/spec-trace/graph-context.test.ts#L5))
 
 A testable statement carrying no `validated_by` test link has signal
 `untested`; an `untestable` statement is `normal` regardless of its

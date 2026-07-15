@@ -84,7 +84,7 @@ A missing `repo` param returns `{ onboarded: false }`. ([validated by `returns o
 
 A repo absent from `lore.repos` returns `{ onboarded: false, repo }`. ([validated by `returns onboarded:false with repo when repo not in DB`](../../../apps/mcp-server/src/api/routes/repo-status.test.ts#L30))
 
-A fresh onboarded repo returns numeric counts, `auto_review`, and `stale: false`. ([validated by `returns full stats with stale=false for a fresh repo`](../../../apps/mcp-server/src/api/routes/repo-status.test.ts#L38))
+A fresh onboarded repo returns numeric counts, `auto_review`, and `stale: false`. ([validated by `returns full stats with stale=false for a fresh repo`](apps/lore-api/src/api/routes/repos/repo-status.test.ts#L38))
 
 A null `last_ingested_at` marks `stale: true`. ([validated by `marks stale=true when last_ingested_at is null`](../../../apps/mcp-server/src/api/routes/repo-status.test.ts#L58))
 

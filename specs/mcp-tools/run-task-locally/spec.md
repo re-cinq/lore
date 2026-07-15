@@ -91,10 +91,10 @@ wrong-repo warning, or `"Error: {message}"`. **Never throws**.
 ([validated by `passes when cwd repo matches task repo`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L221))
 
 `validateRepoMatch` throws when the cwd repo differs from the task's target repo.
-([validated by `throws when cwd repo differs from task repo`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L227))
+([validated by `throws when cwd repo differs from task repo`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L227))
 
 The repo-mismatch error names both repos and suggests a `cd`.
-([validated by `error message names both repos and suggests a cd`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L233))
+([validated by `error message names both repos and suggests a cd`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L233))
 
 `validateRepoMatch` passes when the cwd repo cannot be detected (null).
 ([validated by `passes when cwd repo cannot be detected (null)`](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L244))

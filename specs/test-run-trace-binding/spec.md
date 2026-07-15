@@ -78,7 +78,7 @@ runs to end of file.
 
 A descriptor whose leaf name matches no declaration is returned unchanged
 (line-blind), so the binder skips it.
-([validated by `leaves a descriptor whose leaf name matches no declaration unchanged`](../../libs/shared/src/spec-trace/resolve-test-lines.test.ts#L40))
+([validated by `leaves a descriptor whose leaf name matches no declaration unchanged`](libs/shared/src/spec-trace/resolve-test-lines.test.ts#L40))
 
 ### Binding (the inverter)
 

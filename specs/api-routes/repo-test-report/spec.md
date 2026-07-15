@@ -108,7 +108,7 @@ configured. ([validated by `fires the spec-trace trigger with the report body wh
 A missing `commit` is rejected with 400. ([validated by `returns 400 when commit is missing`](../../../apps/mcp-server/src/api/routes/test-report.test.ts#L105))
 
 The fan-out forwarder POSTs `{repo, kind, payload}` to `/api/trigger/spec-trace`
-with the bearer token. ([validated by `POSTs repo, kind, and payload to /api/trigger/spec-trace with the bearer token`](../../../apps/mcp-server/src/api/routes/spec-trace-trigger.test.ts#L18))
+with the bearer token. ([validated by `POSTs repo, kind, and payload to /api/trigger/spec-trace with the bearer token`](apps/lore-api/src/api/routes/spec-trace-trigger.test.ts#L18))
 
 ## Out of Scope
 

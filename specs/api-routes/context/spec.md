@@ -81,7 +81,7 @@ Always `200` (success or empty) or `500` (engine throw). JSON only.
 
 ## Acceptance Criteria
 
-A query with a pool returns the assembled `{ text, sections }`. ([validated by `returns assembled context when query + pool present`](../../../apps/mcp-server/src/api/routes/context.test.ts#L21))
+A query with a pool returns the assembled `{ text, sections }`. ([validated by `returns assembled context when query + pool present`](apps/lore-api/src/api/routes/context/context.test.ts#L21))
 
 `debug=1` is forwarded as the engine's debug flag and the trace is returned in the envelope. ([validated by `passes debug=1 through and returns the trace in the envelope`](../../../apps/mcp-server/src/api/routes/context.test.ts#L29))
 

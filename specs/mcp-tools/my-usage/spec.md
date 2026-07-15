@@ -83,7 +83,7 @@ PostgreSQL-required text, the pretty-printed JSON usage object, or the
 ## Acceptance Criteria
 
 Per-period task counts and token totals are returned as a JSON usage object keyed
-by today / 7_day / 30_day. ([validated by `returns per-period task and token totals as JSON`](../../../apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L42))
+by today / 7_day / 30_day. ([validated by `returns per-period task and token totals as JSON`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L42))
 
 One query is issued per period, parameterized with the resolved agent id and an
 8-char LIKE prefix, with the correct interval filters. ([validated by `issues one query per period with the agent id and 8-char LIKE prefix params`](../../../apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L70))

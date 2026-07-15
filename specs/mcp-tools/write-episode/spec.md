@@ -98,7 +98,7 @@ ingested."}`; the proxied body; the `unreachableError` message; the
 
 1. Extracted facts parse from a JSON array of fact strings. ([validated by `parses a JSON array of strings`](../../../apps/mcp-server/src/features/memory/facts.test.ts#L30))
 2. Fact extraction caps at 10 facts per episode. ([validated by `limits to 10 facts`](../../../apps/mcp-server/src/features/memory/facts.test.ts#L53))
-3. A new fact that closely matches an existing one invalidates the old fact. ([validated by `invalidates high-similarity facts`](../../../apps/mcp-server/src/features/memory/facts.test.ts#L123))
+3. A new fact that closely matches an existing one invalidates the old fact. ([validated by `invalidates high-similarity facts`](libs/server-core/src/features/memory/facts.test.ts#L123))
 4. No invalidation happens when no similar fact exists. ([validated by `does nothing when no similar facts exist`](../../../apps/mcp-server/src/features/memory/facts.test.ts#L144))
 
 ## Out of Scope

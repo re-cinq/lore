@@ -71,7 +71,7 @@ guard messages, or the error message. Never throws.
 
 ## Acceptance Criteria
 
-A task with no matching existing row is inserted and counted as created. ([validated by `inserts a new task and counts it as created`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L25))
+A task with no matching existing row is inserted and counted as created. ([validated by `inserts a new task and counts it as created`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L25))
 
 A task that already exists is updated in place and not counted as created. ([validated by `updates an existing task without counting it as created`](../../../apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L41))
 

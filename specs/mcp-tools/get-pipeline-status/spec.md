@@ -70,7 +70,7 @@ task JSON (`{...row, events: [...]}`), or `"Error: {message}"`. **Never throws.*
 
 A task id with no matching row resolves to `null` (the handler surfaces this as
 `task not found`).
-([validated by `returns null when no task row matches the id`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L21))
+([validated by `returns null when no task row matches the id`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L21))
 
 A matching id returns the task row merged with its ordered `events` array.
 ([validated by `returns the task with its ordered events when the id matches`](../../../apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L27))

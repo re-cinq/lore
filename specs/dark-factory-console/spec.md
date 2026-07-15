@@ -64,7 +64,7 @@ The model exposes the resolved config and trust level for display.
 ([validated by `exposes the resolved config and trust level`](../../apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L34))
 
 Recent tasks are projected to work items carrying id, type, status, and PR link.
-([validated by `projects recent tasks to work items with id, type, status, and PR link`](../../apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L40))
+([validated by `projects recent tasks to work items with id, type, status, and PR link`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L40))
 
 Dark-factory audit events are projected to a decision feed: an
 `auto_merge_decision` summarizes its outcome, an `escalation_issued` its reason,
