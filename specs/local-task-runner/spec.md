@@ -202,7 +202,7 @@ locally:
 - **Isolation**: each task gets its own git worktree
 - **Developer's session**: unaffected — worktrees are separate
 - **Machine sleep**: in-progress tasks are killed. Cleanup job detects
-  stale tasks (no PID running) and re-queues them as `pending` for GKE ([validated by `task-queue.test.ts:334`](libs/shared/src/project/tasks/task-queue.test.ts#L334))
+  stale tasks (no PID running) and re-queues them as `pending` for GKE ([validated by `worker.test.ts:179`](apps/floor/src/jobs/task/worker.test.ts#L179))
 
 ### Statusline Integration
 
@@ -304,4 +304,4 @@ const task = await query(
 9. Failed tasks preserve worktree for debugging
 10. No API credits consumed (uses Claude Code subscription)
 11. Auto-review triggers on GKE after local PR creation
-12. Stale tasks (machine offline) re-queued to GKE after 30 min ([validated by `task-queue.test.ts:365`](libs/shared/src/project/tasks/task-queue.test.ts#L365))
+12. Stale tasks (machine offline) re-queued to GKE after 30 min ([validated by `worker.test.ts:179`](apps/floor/src/jobs/task/worker.test.ts#L179))
