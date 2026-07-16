@@ -58,6 +58,7 @@ import {
   withTxn,
   upsertByXid,
   replaceEdge,
+  deletePredicate,
   type SpecTraceNodeType,
 } from "./dgraph-upsert.js";
 import { parseAdrRefs } from "./adr-refs.js";
@@ -620,10 +621,16 @@ export async function projectSpecFile(
   const specUid = await upsertByXid(dgraph, "Spec", `${repo}|${filePath}`, {
     "Spec.repo": repo,
     "Spec.file_path": filePath,
-    "Spec.content_hash": contentHash,
     ...(title !== null ? { "Spec.title": title } : {}),
     ...(featureUid ? { "Spec.feature": { uid: featureUid } } : {}),
   });
+
+  // The hash is a completed-projection receipt, not an attempted-projection
+  // marker: clear it now and persist it only after every child write below
+  // succeeds. A projection that dies mid-file (txn abort under contention)
+  // then leaves the gate open, so the next attempt re-projects the whole
+  // file — hash-first left files permanently skipped with partial children.
+  await deletePredicate(dgraph, specUid, "Spec.content_hash");
 
   await upsertByXid(dgraph, "Repo", repo, { "Repo.specs": [{ uid: specUid }] });
 
@@ -680,6 +687,10 @@ export async function projectSpecFile(
   );
 
   await projectBlocks(context, content);
+
+  await upsertByXid(dgraph, "Spec", `${repo}|${filePath}`, {
+    "Spec.content_hash": contentHash,
+  });
 
   return { projected: true };
 }
