@@ -6,9 +6,11 @@
 # subchart key. Only the webhook ingress remains here.
 # --------------------------------------------------------------------------
 
-# External ingress for the GitHub webhook (the ingress moved from mcp-server into
-# the Floor). Created only when a webhook hostname is configured; routes just the
-# webhook path to the Floor HTTP server (the handler HMAC-verifies in-process).
+# External ingress for the Floor webhook hooks (the ingress moved from mcp-server
+# into the Floor). Created only when a webhook hostname is configured; routes the
+# /api/webhook prefix — github (HMAC-verified in-process), ci-tests and ci-ingest
+# (bearer ingest-token) — to the Floor HTTP server. /healthz and /api/agent-events
+# stay cluster-internal.
 # Operator step after apply: repoint the GitHub App / org webhook to this host.
 resource "kubernetes_ingress_v1" "lore_floor_webhook" {
   count = var.lore_webhook_hostname != "" ? 1 : 0
@@ -32,7 +34,7 @@ resource "kubernetes_ingress_v1" "lore_floor_webhook" {
       host = var.lore_webhook_hostname
       http {
         path {
-          path      = "/api/webhook/github"
+          path      = "/api/webhook"
           path_type = "Prefix"
           backend {
             service {
