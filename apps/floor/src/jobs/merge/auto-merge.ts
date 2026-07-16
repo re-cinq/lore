@@ -15,6 +15,7 @@ export type AutoMergeOutcome =
   | "deferred:trust_too_low"
   | "deferred:dark_mode_off"
   | "deferred:no_changes"
+  | "deferred:review_in_flight"
   | "deferred:api_failure";
 
 export interface DarkFactoryAutoMerge {
@@ -32,6 +33,8 @@ export interface AutoMergePolicyInputs {
   ciSucceeded: boolean;
   botApproved: boolean;
   humanChangesRequested: boolean;
+  /** An open code-review line for this PR — defer until the review completes. */
+  reviewInFlight: boolean;
 }
 
 export interface AutoMergeDecision {
@@ -86,6 +89,10 @@ export function evaluateAutoMerge(
   // diff. Surface the real reason in the audit log instead.
   if (inputs.changedPaths.length === 0) {
     return { outcome: "deferred:no_changes", rule: baseRule };
+  }
+
+  if (inputs.reviewInFlight) {
+    return { outcome: "deferred:review_in_flight", rule: baseRule };
   }
 
   if (inputs.humanChangesRequested) {

@@ -49,6 +49,7 @@ export interface PrForAutoMerge {
     ciSucceeded: boolean;
     botApproved: boolean;
     humanChangesRequested: boolean;
+    reviewInFlight: boolean;
   };
 }
 
@@ -160,6 +161,22 @@ export async function resolvePrForTaskFromDb(
     );
   }
 
+  // Defer auto-merge while a review-family line is open for this PR (the required
+  // lore/code-review check does the same for human merges; this guards Lore's own).
+  let reviewInFlight = false;
+
+  try {
+    const project = await projectFor(row.target_repo);
+
+    reviewInFlight =
+      (await project.assemblyLines.findOpenByPr(row.pr_number)).length > 0;
+  } catch (err) {
+    console.warn(
+      "[pr-policy] review-in-flight lookup failed:",
+      (err as Error).message,
+    );
+  }
+
   let trustLevel: ResolvedDarkFactorySettings["auto_merge"]["min_trust"] =
     "docs";
   const lvl = await readTrustLevel(deps.repos, row.target_repo);
@@ -185,6 +202,7 @@ export async function resolvePrForTaskFromDb(
       ciSucceeded,
       botApproved,
       humanChangesRequested,
+      reviewInFlight,
     },
   };
 }
