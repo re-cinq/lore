@@ -58,7 +58,7 @@ function makeRule({ tier }) {
       schema: [],
       messages: {
         unlinkedStatement:
-          'Testable {{status}} statement has no ([validated by](test.ts#Lline)) link: "{{excerpt}}". Link it to the test that validates it, or move it under a narrative section (Background / Rationale / Open Questions …).',
+          'Testable statement in a {{status}} spec/ADR has no test link — add ([validated by](path/to/test.ts#Lline)) to the test that validates it, or move it under a narrative heading (Background / Rationale / Open Questions …) if it states no testable behaviour. Statement: "{{excerpt}}"',
       },
     },
 
@@ -82,7 +82,7 @@ function makeRule({ tier }) {
               loc: { line: statement.line, column: 1 },
               messageId: "unlinkedStatement",
               data: {
-                status: status ?? kind,
+                status: status ?? "untagged",
                 excerpt: excerpt(statement.text),
               },
             });
