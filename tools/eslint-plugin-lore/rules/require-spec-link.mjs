@@ -152,7 +152,7 @@ export default {
     ],
     messages: {
       unlinkedTest:
-        "Test {{name}} is not linked to a spec or ADR. Add an inline link — ([validated by]({{file}}#L{{line}})) — to the statement it validates in a specs/**/*.md or adrs/**/*.md file.",
+        "Test {{name}} has no spec link — add an inline ([validated by]({{file}}#L{{line}})) to the statement it validates in a specs/**/*.md or adrs/**/*.md file (or, if this test isn't tied to a spec statement, it may not belong in the traceable suite).",
     },
   },
 
