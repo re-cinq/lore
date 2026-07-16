@@ -3,7 +3,7 @@
 | Field    | Value                                                              |
 |----------|-------------------------------------------------------------------|
 | Feature  | Replace hand-rolled body parsing + imperative field checks with declarative zod schemas wired into hapi's `options.validate` |
-| Status   | Complete — every JSON API route validates through zod             |
+| Status   | Shipped                                                           |
 | Created  | 2026-07-03                                                        |
 | Owner    | Platform Engineering                                             |
 | ADR      | [ADR-034](../../adrs/ADR-034-lore-api-request-validation.md) (to be written) — amends [ADR-033](../../adrs/ADR-033-lore-api-hapi.md) |

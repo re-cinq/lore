@@ -1,7 +1,7 @@
 ---
 adr_number: "008"
 title: AST-based code chunking via web-tree-sitter
-status: accepted
+status: shipped
 date: 2026-04-01
 domains:
   - architecture

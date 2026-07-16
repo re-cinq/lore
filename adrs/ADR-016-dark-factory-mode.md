@@ -1,7 +1,7 @@
 ---
 adr_number: 16
 title: "Dark Factory mode — opt-out human gates, branch-as-state, declarative workflow graphs"
-status: accepted
+status: shipped
 date: 2026-04-28
 domains: [agent, pipeline, ux, governance, cost]
 supersedes: ADR-009

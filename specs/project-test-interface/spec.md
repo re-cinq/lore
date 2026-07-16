@@ -3,7 +3,7 @@
 | Field          | Value                                              |
 |----------------|----------------------------------------------------|
 | Feature        | Project Test Interface                             |
-| Status         | **Shipped**                                          |
+| Status         | Shipped                                              |
 | Created        | 2026-06-05                                         |
 | Owner          | Platform Engineering                               |
 | Supersedes     | `coverage-ingestion` (absorbs its bulk-upload endpoint + parsers) |

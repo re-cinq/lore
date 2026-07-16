@@ -3,7 +3,7 @@
 | Field          | Value                                    |
 |----------------|------------------------------------------|
 | Feature        | Spec → Test Coverage                     |
-| Status         | Shipped (v3) — supersedes v1 and v2        |
+| Status         | Shipped                                    |
 | Created        | 2026-06-01                               |
 | Last redesign  | 2026-06-02 (v3, author-driven markdown links + cron-as-suggester) |
 | Owner          | Platform Engineering                     |

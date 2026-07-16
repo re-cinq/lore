@@ -3,7 +3,7 @@
 | Field   | Value                                                                 |
 |---------|-----------------------------------------------------------------------|
 | Feature | Slack `/lore` slash-command receiver                                  |
-| Status  | **Draft**                                                            |
+| Status  | Draft                                                                |
 | Created | 2026-06-10                                                           |
 | Owner   | Platform Engineering                                                 |
 | Route   | `POST /api/webhook/slack`                                            |

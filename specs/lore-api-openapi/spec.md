@@ -3,7 +3,7 @@
 | Field    | Value                                                              |
 |----------|-------------------------------------------------------------------|
 | Feature  | Derive an OpenAPI 3.1 document from the zod route schemas and serve it (JSON + Redoc UI) |
-| Status   | Complete                                                       |
+| Status   | Shipped                                                        |
 | Created  | 2026-07-06                                                        |
 | Owner    | Platform Engineering                                             |
 | ADR      | [ADR-035](../../adrs/ADR-035-lore-api-openapi.md) — builds on [ADR-034](../../adrs/ADR-034-lore-api-request-validation.md) / [ADR-033](../../adrs/ADR-033-lore-api-hapi.md) |

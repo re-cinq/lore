@@ -3,7 +3,7 @@
 | Field       | Value                                                                       |
 |-------------|-----------------------------------------------------------------------------|
 | Feature     | Dark-Factory Settings API Route                                             |
-| Status      | **Implemented**                                                             |
+| Status      | Shipped                                                                     |
 | Created     | 2026-06-10                                                                  |
 | Owner       | Platform Engineering                                                        |
 | Route       | `GET / PUT /api/repos/:owner/:repo/settings/dark-factory`                   |

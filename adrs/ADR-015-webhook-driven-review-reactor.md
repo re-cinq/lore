@@ -1,7 +1,7 @@
 ---
 adr_number: 15
 title: "Webhook-driven review reactor + prompt caching + business-hours cron"
-status: accepted
+status: shipped
 date: 2026-04-17
 domains: [agent, pipeline, review, cost, observability]
 ---

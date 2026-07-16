@@ -1,7 +1,7 @@
 ---
 adr_number: 13
 title: "Minions-inspired task pipeline improvements"
-status: accepted
+status: shipped
 date: 2026-04-05
 domains: [pipeline, agents, integrations]
 ---

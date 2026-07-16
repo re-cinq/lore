@@ -4,7 +4,7 @@
 |----------|--------------------------------|
 | Feature  | Testing Standards              |
 | Branch   | improve-web-ui                 |
-| Status   | Accepted                       |
+| Status   | Shipped                        |
 | Created  | 2026-05-29                     |
 | Owner    | Platform Engineering           |
 | Target   | Ongoing convention             |

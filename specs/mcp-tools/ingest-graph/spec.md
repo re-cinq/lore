@@ -3,7 +3,7 @@
 | Field   | Value                                  |
 |---------|----------------------------------------|
 | Feature | lore_ingest_graph MCP Tool             |
-| Status  | **Removed (2026-06-29)**               |
+| Status  | Rejected                               |
 | Created | 2026-06-10                             |
 | Tool    | `lore_ingest_graph` (deleted)          |
 | Module  | Spec-trace                             |
