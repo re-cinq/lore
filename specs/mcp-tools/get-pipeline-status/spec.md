@@ -39,10 +39,11 @@ Returns one pipeline task's full record (status + ordered event timeline) as JSO
 
 1. **Transport branch on `process.env.LORE_DB_HOST`:**
    - **stdio mode (no `LORE_DB_HOST`)** — read `LORE_API_URL` + `LORE_INGEST_TOKEN`;
-     if either missing return `"Pipeline requires LORE_API_URL + LORE_INGEST_TOKEN for remote access."`
-     Otherwise `GET {LORE_API_URL}/api/task/{task_id}` with `Authorization: Bearer {token}`;
-     on non-2xx return `"Remote error: {statusText}"`; on success return the
-     pretty-printed (`JSON.stringify(…, null, 2)`) response body.
+     if either missing return the shared `notConfiguredError("getting pipeline status")`.
+     Otherwise `GET {LORE_API_URL}/api/task/{task_id}` with `Authorization: Bearer {token}`.
+     A thrown `fetch` (network failure) returns `unreachableError`; a `401`/`403`
+     returns `deniedError`; any other non-2xx returns `"Remote error: {statusText}"`;
+     on success return the pretty-printed (`JSON.stringify(…, null, 2)`) response body.
    - **DB mode (`LORE_DB_HOST` set)** — call `getTask(task_id)`
      ([handler wrapper](../../../apps/mcp-server/src/features/pipeline/pipeline.ts#L35)).
 2. **Shared CRUD** ([`getTask`](../../../libs/shared/src/pipeline-tasks.ts#L107)) — `SELECT * FROM
@@ -51,13 +52,14 @@ Returns one pipeline task's full record (status + ordered event timeline) as JSO
    the task row spread with an `events` array.
 3. **Not-found guard** — when the wrapper returns `null`, return `"task not found: {task_id}"`.
 4. **Success** — return the task object (row + `events`) as `JSON.stringify(task, null, 2)`.
-5. Any thrown error is caught and returned as `"Error: {message}"`.
+5. Any thrown error is caught and returned as `"Error getting pipeline status: {message}"`.
 
 ## Output
 
-A single MCP text content block — one of: the missing-config message, the
-remote-error message, the `"task not found: {id}"` message, the pretty-printed
-task JSON (`{...row, events: [...]}`), or `"Error: {message}"`. **Never throws.**
+A single MCP text content block — one of: the not-configured / denied / unreachable
+proxy message, the remote-error message, the `"task not found: {id}"` message, the
+pretty-printed task JSON (`{...row, events: [...]}`), or
+`"Error getting pipeline status: {message}"`. **Never throws.**
 
 ## Dependencies & side effects
 
@@ -75,9 +77,14 @@ A task id with no matching row resolves to `null` (the handler surfaces this as
 A matching id returns the task row merged with its ordered `events` array.
 ([validated by `returns the task with its ordered events when the id matches`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L28))
 
-The stdio-proxy branch and the not-found/error envelope framing are exercised
-only against a live API or DB.
-*(untested: the transport switch is inline in the handler closure — the proxy branch needs a live API; the shared CRUD is covered above.)*
+The stdio-proxy branch selects the not-configured, denied, and unreachable errors
+by cause (missing env, 401/403, network failure).
+([validated by `returns the not-configured message when the env is unset`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L165), [validated by `returns the denied message on a 401`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L179), [validated by `returns the unreachable message when fetch throws`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L197))
+
+The not-found and success envelope framing on the stdio path are exercised only
+against a live API. *(untested: the transport switch is inline in the handler
+closure — the success/not-found proxy responses need a live API; the shared CRUD
+is covered above.)*
 
 The `/api/task/:id` HTTP route (the stdio-proxy target) returns the task when found, 404 when no row matches, and 500 when the lookup throws. ([validated by GET /api/task/:id returns the task when found](apps/lore-api/src/api/routes/tasks/get-task.test.ts#L32), [`get-task.test.ts:39`](apps/lore-api/src/api/routes/tasks/get-task.test.ts#L39), [`get-task.test.ts:46`](apps/lore-api/src/api/routes/tasks/get-task.test.ts#L46))
 

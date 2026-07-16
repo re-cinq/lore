@@ -46,15 +46,19 @@ Enqueues a new server-side pipeline task and returns its UUID and a pickup hint.
 
 ## Behavior
 
-1. **Empty guard** — if `description` is empty or whitespace-only, return
-   `"description is required and cannot be empty"` (no insert).
+1. **Schema validation** — `description` must be non-blank (Zod `.min(1)` plus a
+   trim `.refine`) and at most 10000 chars (`.max(10000)`); the MCP input schema
+   rejects an empty, whitespace-only, or over-length value before the handler runs
+   (no insert).
 2. **Repo resolution** — `resolvedRepo = target_repo || detectCurrentRepo() || undefined`.
 3. **Transport branch on `process.env.LORE_DB_HOST`:**
    - **stdio mode (no `LORE_DB_HOST`)** — read `LORE_API_URL` + `LORE_INGEST_TOKEN`.
-     If either is missing, return `"Task delegation requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh or set them manually."`
+     If either is missing, return the shared `notConfiguredError("creating a pipeline task")`.
      Otherwise `POST {LORE_API_URL}/api/task` with `Authorization: Bearer {token}`,
-     body `{description, task_type, target_repo: resolvedRepo, priority, context}`.
-     On non-2xx return `"Remote task creation failed: {error || statusText}"`.
+     body `{description, task_type, target_repo: resolvedRepo, priority, group_id, context}`.
+     A thrown `fetch` (network failure) returns `unreachableError`; a `401`/`403`
+     returns `deniedError`; any other non-2xx returns
+     `"Remote task creation failed: {error || statusText}"`.
      On success format the success message (below) using `result.task_id` and
      `result.task_type || task_type`.
    - **DB mode (`LORE_DB_HOST` set)** — `validTypes = getTaskTypes()`;
@@ -98,8 +102,9 @@ event, and returns the new id with `pending` status — exercised end-to-end via
 retry path, which calls the same shared `createTask`.
 ([validated by `creates a linked task when the original is failed`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L113))
 
-An empty or whitespace-only description is rejected before any insert.
-*(untested: the guard is inline in the handler closure and not separately exported.)*
+An empty or whitespace-only description is rejected by the input schema before
+any insert; a normal description is accepted.
+([validated by `rejects an empty task description`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L114), [validated by `rejects a whitespace-only task description`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L122), [validated by `accepts an in-range task description`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L130))
 
 The target repo defaults to the git remote when `target_repo` is omitted; an
 explicit value wins.
@@ -108,8 +113,9 @@ explicit value wins.
 A task type outside the known catalogue falls back to `general`.
 *(untested: the fallback is inline in the handler closure and not separately exported.)*
 
-A description over 10000 chars is rejected by the shared CRUD.
-*(untested: covered by the shared CRUD guard, no dedicated mcp-side test seam.)*
+A description over 10000 chars is rejected by the input schema (and, on the DB
+path, by the shared CRUD).
+([validated by `rejects a task description over 10000 chars`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L106))
 
 ## Out of Scope
 
