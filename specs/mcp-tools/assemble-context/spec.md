@@ -123,6 +123,10 @@ The `/api/context` endpoint runs full assembly when a `query` param is present a
 a raw chunk fetch when it is absent, and caps the pre-hydration token budget at
 8000 (below the 16000 default). ([validated by `should use full assembly when query param is present`](apps/mcp-server/src/features/context/context-hydration.test.ts#L149), [validated by `should use raw chunk fetch when no query param`](apps/mcp-server/src/features/context/context-hydration.test.ts#L161), [validated by `should cap token budget at 8000 for pre-hydration`](apps/mcp-server/src/features/context/context-hydration.test.ts#L169))
 
+The `max_tokens` input schema enforces the documented floor of 2000 — a lower
+value is rejected and the floor itself is accepted.
+([validated by `rejects max_tokens below the 2000 floor`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L138), [validated by `accepts max_tokens at the 2000 floor`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L146))
+
 The handler's GKE-proxy success/empty/error envelope framing on the DB-backed path
 is exercised only against live Postgres. *(untested: the success branch needs a
 populated DB; the engine itself is covered above.)*

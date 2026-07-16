@@ -207,6 +207,12 @@ function getToken(): string {
   }
 }
 
+function warnBestEffort(op: string, err: unknown): void {
+  const msg = err instanceof Error ? err.message : String(err);
+
+  console.error(`[lore] local-runner: ${op} failed: ${msg}`);
+}
+
 async function updateTaskViaAPI(
   taskId: string,
   status: string,
@@ -228,8 +234,8 @@ async function updateTaskViaAPI(
       },
       body: JSON.stringify({ task_id: taskId, status, ...metadata }),
     });
-  } catch {
-    // Best effort — don't crash if the API is unreachable
+  } catch (err) {
+    warnBestEffort(`status update (${status}) for task ${taskId}`, err);
   }
 }
 
@@ -517,8 +523,11 @@ async function monitorTask(task: LocalTask): Promise<void> {
         }),
       });
     }
-  } catch {
-    /* best effort — local logs still at task.logFile */
+  } catch (err) {
+    warnBestEffort(
+      `log upload for task ${task.taskId} (logs kept locally)`,
+      err,
+    );
   }
 
   writeTasks(tasks);
@@ -590,6 +599,8 @@ export async function spawnLocalTask(opts: {
   const token = getToken();
 
   if (apiUrl && token) {
+    const startedAt = Date.now();
+
     try {
       const template = taskType === "review" ? "review" : "implementation";
       const contextUrl = `${apiUrl}/api/context?repo=${encodeURIComponent(repo)}&template=${template}&query=${encodeURIComponent(prompt.substring(0, 200))}`;
@@ -604,9 +615,16 @@ export async function spawnLocalTask(opts: {
         if (data.text) {
           preContext = data.text;
         }
+      } else {
+        console.error(
+          `[lore] local-runner: context hydration returned ${resp.status} after ${Date.now() - startedAt}ms, agent starting cold`,
+        );
       }
-    } catch {
+    } catch (err) {
       // Proceed without pre-hydration — agent will call lore_assemble_context itself
+      console.error(
+        `[lore] local-runner: context hydration failed after ${Date.now() - startedAt}ms, agent starting cold: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
@@ -772,7 +790,9 @@ export function cancelLocalTask(taskId: string): {
   }
 
   // Update pipeline status (fire and forget)
-  updateTaskViaAPI(taskId, "cancelled", {}).catch(() => {});
+  updateTaskViaAPI(taskId, "cancelled", {}).catch((err) =>
+    warnBestEffort(`cancel status update for task ${taskId}`, err),
+  );
 
   return { cancelled: true };
 }
@@ -1010,7 +1030,9 @@ export function startNotifier(
     pollCount++;
 
     if (pollCount % 5 === 0) {
-      await cleanupStaleTasks().catch(() => {});
+      await cleanupStaleTasks().catch((err) =>
+        warnBestEffort("stale-task cleanup sweep", err),
+      );
     }
   };
 

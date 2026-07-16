@@ -320,3 +320,22 @@ export function deniedError(
     ],
   };
 }
+
+// Format an MCP error for a proxy call that cannot run because the API
+// endpoint/token are not configured. Distinct from unreachable (env is set
+// but the network failed) so the developer knows to configure rather than
+// debug connectivity.
+export function notConfiguredError(op: string): {
+  content: [{ type: "text"; text: string }];
+} {
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text:
+          `Lore API not configured for ${op}: set LORE_API_URL + LORE_INGEST_TOKEN. ` +
+          `Run install.sh or export them manually, then retry.`,
+      },
+    ],
+  };
+}
