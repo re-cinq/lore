@@ -1,6 +1,7 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 // The detect station: run one deterministic detection job (spec_drift /
-// gap_detection / spec_coverage_validate / spec_coverage_backfill) against one
+// gap_detection / spec_coverage_validate / spec_coverage_backfill /
+// status_staleness) against one
 // repo, entirely over HTTP. The detector cores live in @re-cinq/lore-shared/
 // detect (facade-driven); the pod composes createStationProject(repo) so every
 // read/write goes through the Lore API — no Postgres, Dgraph, or GitHub App in
@@ -11,6 +12,7 @@ import {
   gapDetectJob,
   validateSpecCoverageJob,
   specCoverageBackfillJob,
+  statusStalenessJob,
 } from "@re-cinq/lore-shared/detect/index.js";
 import { createStationProject, type Project } from "@re-cinq/lore-shared";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
@@ -28,6 +30,8 @@ const detectors: Record<string, Detector> = {
     validateSpecCoverageJob({ repoFilter: repo, project }),
   spec_coverage_backfill: (repo, project) =>
     specCoverageBackfillJob({ repoFilter: repo, project }),
+  status_staleness: (repo, project) =>
+    statusStalenessJob({ repoFilter: repo, project }),
 };
 
 export async function runDetectStation(

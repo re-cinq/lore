@@ -169,3 +169,10 @@ export const specCoverageBackfillTick = productionTick(
   "spec-coverage-backfill",
   activeSpecRepos,
 );
+
+// Every repo with specs, not just the active ones: a stale header in a dormant
+// repo is exactly the case this catches (spec-status-upkeep FR2).
+export const statusStalenessTick = productionTick(
+  "status-staleness",
+  specRepos,
+);

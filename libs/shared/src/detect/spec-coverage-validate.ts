@@ -202,7 +202,7 @@ export interface ValidateOptions {
 }
 
 /** Group a repo's spec chunks by file path so multi-chunk specs reassemble. */
-function specsByPath(
+export function specsByPath(
   specs: SpecChunkWithIngest[],
 ): Map<string, SpecChunkWithIngest[]> {
   const byPath = new Map<string, SpecChunkWithIngest[]>();

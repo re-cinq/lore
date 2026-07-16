@@ -65,6 +65,11 @@ export const CRON_EMITTERS: CronEmitter[] = [
     schedule: "0 6 * * *",
     note: "detection fan-out: one link-validate assembly line per repo with specs",
   },
+  {
+    name: "status_staleness",
+    schedule: "0 12 * * 1",
+    note: "detection fan-out: one status-staleness assembly line per repo with specs (spec-status-upkeep FR2)",
+  },
 ];
 
 /** The `cron.<name>.tick` event names these emitters produce (the registry must cover each). */

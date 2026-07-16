@@ -84,4 +84,22 @@ describe("runDetectStation", () => {
       ),
     ).rejects.toThrow(/no detector for job_ref "nope"/);
   });
+
+  // Appended, not inserted: specs/floor-on-ai-subsystem/spec.md links the tests
+  // above by line number, and inserting here silently redirects those links.
+  it("dispatches job_ref status_staleness to the staleness detector", async () => {
+    const fakeProject = {
+      chunks: { specChunksWithIngest: async () => [] },
+    } as unknown as Project;
+    const result = await runDetectStation(
+      input({ node_type: "detect", params: { job_ref: "status_staleness" } }),
+      undefined,
+      () => fakeProject,
+    );
+
+    expect(result).toEqual({
+      outcome: "success",
+      extras: { "Lore-Detect-Summary": "No specs found" },
+    });
+  });
 });

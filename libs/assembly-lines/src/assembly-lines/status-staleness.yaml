@@ -1,0 +1,20 @@
+name: status-staleness
+description: Per-repo spec status-staleness detection; reports draft/in-progress specs carrying evidence of being implemented.
+version: 1
+entry: detect
+exit: done
+
+nodes:
+  - id: detect
+    type: detect
+    job_ref: status_staleness
+    description: Deterministic evidence sweep of the repo's draft/in-progress specs.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker (the executor halts on exit).
+
+edges:
+  - from: detect
+    to: done
+    on: success
