@@ -31,6 +31,7 @@ describe("classifyComment", () => {
 
   it("passes the replied-to comment into the prompt for a reply", async () => {
     const fake = new FakeLlm({ data: { action: "answer", reason: "question" } });
+
     Llm.setInstance(fake);
 
     await classifyComment({

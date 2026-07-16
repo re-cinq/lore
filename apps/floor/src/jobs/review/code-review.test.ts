@@ -149,6 +149,7 @@ describe("onTrigger", () => {
 
   it("does not re-review a PR that already has a code-review line (first-review-only)", async () => {
     const { port, handlers } = harness(openPr());
+
     await new AssemblyLines(REPO, port).start("code-review", {
       args: { pr_number: 42 },
     });

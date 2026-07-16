@@ -75,9 +75,11 @@ function isReviewOutput(value: unknown): value is ReviewOutput {
   if (!isRecord(value)) {
     return false;
   }
+
   if (!includes(VERDICTS, value.verdict)) {
     return false;
   }
+
   if (value.summary !== undefined && typeof value.summary !== "string") {
     return false;
   }

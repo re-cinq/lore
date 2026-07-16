@@ -111,6 +111,7 @@ async function publishStartCheck(assemblyLineId: string): Promise<void> {
   if (!assemblyLineId) {
     return;
   }
+
   try {
     const [{ assemblyLines }, { projectFor }, { publishPrCheck }] =
       await Promise.all([

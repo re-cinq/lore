@@ -87,6 +87,7 @@ async function postReviewFromNode(
   if (!prNumber) {
     return;
   }
+
   try {
     const project = await projectFor(row.repo);
 
@@ -127,6 +128,7 @@ async function routeCommentTriage(
   if (!action) {
     return;
   }
+
   try {
     await codeReviewOnCommentTriaged({
       action,

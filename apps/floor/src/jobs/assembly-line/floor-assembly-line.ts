@@ -105,6 +105,7 @@ export function nodeStationSpec(
       params[key] = String(value);
     }
   }
+
   for (const field of STATION_PARAM_FIELDS) {
     const value = node[field];
 

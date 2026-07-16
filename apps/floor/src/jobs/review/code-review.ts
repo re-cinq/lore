@@ -93,6 +93,7 @@ export function routeTriagedComment(
       },
     };
   }
+
   if (action === "address" || action === "answer") {
     return {
       definition: "code-review-reply",
@@ -186,6 +187,7 @@ export async function startReview(
   if (!pr || pr.state !== "open") {
     return null;
   }
+
   if (
     !input.forced &&
     !decideReviewOnOpen({ autoReview: input.autoReview, pr }).start
@@ -250,6 +252,7 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     ) {
       return;
     }
+
     // Explicit keyword bypasses the triage — deterministic re-review.
     if (isReviewRequest(p.comment_body)) {
       await startReview(

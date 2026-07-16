@@ -39,6 +39,7 @@ export class ConventionalComment {
     if (discussion?.trim()) {
       blocks.push(discussion.trim());
     }
+
     if (suggestion !== undefined) {
       blocks.push(`\`\`\`suggestion\n${suggestion}\n\`\`\``);
     }

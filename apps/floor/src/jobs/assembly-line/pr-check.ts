@@ -55,6 +55,7 @@ function terminal(line: AssemblyLineRecord): {
   if (line.status === "failed" || line.outcome === "error") {
     return { conclusion: "failure", summary: `${line.definitionName} failed.` };
   }
+
   if (line.outcome === "changes_requested") {
     return {
       conclusion: "neutral",
@@ -62,6 +63,7 @@ function terminal(line: AssemblyLineRecord): {
         "Changes suggested — reply to a review comment to apply, or push a fix.",
     };
   }
+
   if (line.outcome === "pr_closed") {
     return { conclusion: "cancelled", summary: "PR closed." };
   }
@@ -80,6 +82,7 @@ export async function publishPrCheck(
   if (!check) {
     return;
   }
+
   try {
     await repo.upsertCheckRun(check);
   } catch (err) {
