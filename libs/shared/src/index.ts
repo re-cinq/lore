@@ -204,11 +204,17 @@ export {
 export {
   parseDocStatus,
   statusTier,
+  rewriteSpecStatusRow,
   type DocKind,
   type DocStatus,
   type StatusBucket,
   type StatusTier,
 } from "./spec-status.js";
+export {
+  openSpecStatusFlipPr,
+  type StatusFlipOptions,
+  type StatusFlipResult,
+} from "./spec-status-flip.js";
 export { isTestFile, isDocFile, normalizeTestName } from "./test-paths.js";
 export {
   parseTestCommandManifest,

@@ -92,3 +92,50 @@ export function parseDocStatus(content: string, kind: DocKind): DocStatus {
 export function statusTier(status: StatusBucket | null): StatusTier {
   return status === "rejected" ? "skip" : "warn";
 }
+
+/** Rewrite a status value cell to `label`, preserving the leading space and the
+ *  original cell width so the table stays aligned when the label fits. */
+function replaceStatusCell(rawCell: string, label: string): string {
+  const leading = rawCell.match(/^\s*/)?.[0] ?? " ";
+  const core = `${leading}${label}`;
+  const trailing = Math.max(1, rawCell.length - core.length);
+
+  return `${core}${" ".repeat(trailing)}`;
+}
+
+/**
+ * Deterministically flip a spec's `| Status | <value> |` header row to `label`.
+ * Returns the rewritten markdown, or `null` when there is nothing to do — no
+ * status row exists, or the current value already buckets to `shipped`
+ * (implemented/complete/accepted/…), which makes the flip idempotent. Only the
+ * status value cell changes; every other line is left byte-for-byte intact.
+ */
+export function rewriteSpecStatusRow(
+  content: string,
+  label: string,
+): string | null {
+  const current = specTableStatusValue(content);
+
+  if (current === null || bucketOf(current) === "shipped") {
+    return null;
+  }
+
+  const lines = content.split(/\r?\n/);
+
+  for (let i = 0; i < lines.length; i++) {
+    const cells = lines[i].split("|");
+    const statusIdx = cells.findIndex(
+      (cell, idx) => idx > 0 && cell.trim().toLowerCase() === "status",
+    );
+
+    if (statusIdx === -1 || statusIdx + 1 >= cells.length) {
+      continue;
+    }
+    cells[statusIdx + 1] = replaceStatusCell(cells[statusIdx + 1], label);
+    lines[i] = cells.join("|");
+
+    return lines.join("\n");
+  }
+
+  return null;
+}
