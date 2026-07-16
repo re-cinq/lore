@@ -7,6 +7,9 @@ import noPropMutation from "./rules/no-prop-mutation.mjs";
 import maxBooleanOperators from "./rules/max-boolean-operators.mjs";
 import noIoInView from "./rules/no-io-in-view.mjs";
 import requireSpecLink from "./rules/require-spec-link.mjs";
+import requireStatementLinks, {
+  finalized as requireStatementLinksShipped,
+} from "./rules/require-statement-links.mjs";
 
 /**
  * eslint-plugin-lore — repo-local ESLint rules codifying Lore house conventions.
@@ -24,5 +27,7 @@ export default {
     "max-boolean-operators": maxBooleanOperators,
     "no-io-in-view": noIoInView,
     "require-spec-link": requireSpecLink,
+    "require-statement-links": requireStatementLinks,
+    "require-statement-links-shipped": requireStatementLinksShipped,
   },
 };

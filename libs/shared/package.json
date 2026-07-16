@@ -46,6 +46,10 @@
       "types": "./dist/spec-segment.d.ts",
       "default": "./dist/spec-segment.js"
     },
+    "./spec-status.js": {
+      "types": "./dist/spec-status.d.ts",
+      "default": "./dist/spec-status.js"
+    },
     "./spec-judge-llm.js": {
       "types": "./dist/spec-judge-llm.d.ts",
       "default": "./dist/spec-judge-llm.js"

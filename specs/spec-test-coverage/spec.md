@@ -142,6 +142,32 @@ The backfill PR is the **only** mechanism by which the cron writes
 anything. No DB rows. No silent state. Every cron action is
 reviewable as a git PR.
 
+### Enforcement & rationale (CI linter)
+
+The cron *proposes* links; a deterministic ESLint rule *requires* them,
+closing the loop so a testable statement cannot ship un-linked without a
+visible signal. This is the statement-side complement of the test-side
+`lore/require-spec-link` rule (which fails a test that no statement
+references) — same inline-link contract, read from the other direction.
+
+`lore/require-statement-links` (`tools/eslint-plugin-lore/`) walks each
+`spec.md` / ADR under `specs/**/spec.md` + `adrs/**/*.md` (the first
+`@eslint/markdown` language block in the repo), reusing the same
+`segmentStatements` + `classifyByHeuristic` + `parseTestLinksInStatement`
+stack the UI and cron already agree on. A statement is flagged only when the
+section heuristic calls it **testable** and it carries zero test links — the
+narrative/intro exemptions above apply unchanged, so the linter and the
+coverage bar never disagree about what counts as a gap.
+
+Severity is tiered by lifecycle so in-flight specs stay green while finalized
+ones are held to the bar. Because ESLint severity is static per rule, the one
+core is registered as two rules gated on the doc's parsed status
+(`@re-cinq/lore-shared/spec-status.js`): a `warn` variant on in-flight docs
+and an `error` variant on finalized docs — a spec whose `| Status |` is in the
+shipped bucket, or an ADR whose frontmatter `status: accepted`. A doc matches
+exactly one variant, so the two never double-report. Statement start lines for
+the report location come from the `line` field on `segmentStatements`.
+
 ### Decisions (locked)
 
 | Decision | Choice | Rationale |
@@ -155,6 +181,7 @@ reviewable as a git PR.
 | Cron — backfill | **Weekly schedule + manual trigger**. Runs the v2 judge pipeline but emits its output as **PR edits to `spec.md`**, not DB rows | Expensive; weekly is right cadence |
 | Backfill output target | **PR against the spec's own repo** adding the suggested markdown links inline | Author reviews in their normal git flow; no UI for "accept/reject suggestions" needed |
 | Validation output target | **PR comment** on the most recent open PR touching the spec, or an issue if none exists | Surfaces link rot at the right moment |
+| Enforcement | **ESLint `lore/require-statement-links`** — testable statement with no link → `warn` in-flight, `error` once finalized (spec Status shipped / ADR `status: accepted`) | Deterministic, always-on CI gate; the statement-side mirror of the test-side `lore/require-spec-link` |
 | Coverage scope | Per-repo specs pages only (v2 limitation carries over) | The global `/specs` viewer doesn't get statement-level coloring |
 | Pass/fail status | **Not shown** (v2 limitation carries over) | Out of scope; this feature maps tests to statements, not run results |
 | v2 cleanup | A separate **Phase 4** drops the v2 tables, MCP tools, persist API, BYO-compute skill, and `local-coverage-linker` apparatus | Avoids "ghost state" once v3 ships |
@@ -389,6 +416,7 @@ CronJob via `node dist/job-runner.js spec_coverage_backfill`.
 21. `resolveHref()` rewrites a repo-relative path (stripping a leading `./`) to a `github.com/<owner>/<repo>/blob/<branch>/<path>` URL marked external on the given branch, leaves an absolute https URL external, and leaves an in-page `#anchor`, a relative path when the repo is not `owner/name`, and an empty href unchanged and not external; `SpecDetails` renders an inline test link as that absolute GitHub URL opening in a new tab (`target=_blank`, `rel=noopener noreferrer`), rewrites a non-test ADR author link the same way without the test-link cue, and leaves links relative (no new tab) when the repo is not `owner/name`. ([validated by `resolveHref:326`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L326), [`resolveHref:335`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L335), [`resolveHref:341`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L341), [`resolveHref:347`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L347), [`resolveHref:356`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L356), [`resolveHref:363`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L363), [`resolveHref:370`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L370), [`SpecDetails:117`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L117), [`SpecDetails:148`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L148), [`SpecDetails:171`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L171))
 
 22. `SpecDetails` marks a drifted statement's `<mark>` with `data-drifted="true"` and surfaces a drift notice in its hover popover, keeps the statement highlight stable across re-renders, wraps statements spanning inline bold, inline code, or a code span containing literal link/emphasis syntax with `stmt-tested`, and renders none of the legacy DB-driven `tests[]` list, `TestLink` prop, or list-only/legacy badges. ([validated by `SpecDetails:46`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L46), [`SpecDetails:213`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L213), [`SpecDetails:232`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L232), [`SpecDetails:244`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L244), [`SpecDetails:264`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L264), [`SpecDetails:284`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L284), [`SpecDetails:305`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecDetails.test.tsx#L305))
+23. Enforcement support in `@re-cinq/lore-shared`: `segmentStatements()` stamps each statement's 1-based source start line (the paragraph line for a sentence, the marker line for a list item, shared across sentences split from one paragraph) so the `require-statement-links` rule can report at the offending line, and `parseDocStatus()` buckets a spec's `| Status |` table row (the shipped bucket folds Shipped / Implemented / Complete / Accepted / Done / Live, stripping bold markers and trailing prose) or an ADR's frontmatter `status:` (finalized only when `accepted`, read only inside the `---` block) into a `{ status, isFinalized }` verdict. ([validated by `ss-line`](libs/shared/src/spec-segment.test.ts#L330), [`ds-shipped`](libs/shared/src/spec-status.test.ts#L8), [`ds-folds`](libs/shared/src/spec-status.test.ts#L15), [`ds-strips`](libs/shared/src/spec-status.test.ts#L27), [`ds-draft`](libs/shared/src/spec-status.test.ts#L35), [`ds-rejected`](libs/shared/src/spec-status.test.ts#L42), [`ds-null`](libs/shared/src/spec-status.test.ts#L49), [`ds-adr-accepted`](libs/shared/src/spec-status.test.ts#L68), [`ds-adr-proposed`](libs/shared/src/spec-status.test.ts#L75), [`ds-adr-superseded`](libs/shared/src/spec-status.test.ts#L82), [`ds-adr-frontmatter-only`](libs/shared/src/spec-status.test.ts#L88))
 
 ## Limitations & Open Questions
 

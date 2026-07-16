@@ -3,6 +3,7 @@ import tseslint from "typescript-eslint";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import stylistic from "@stylistic/eslint-plugin";
+import markdown from "@eslint/markdown";
 import lore from "./tools/eslint-plugin-lore/index.mjs";
 
 /**
@@ -137,6 +138,21 @@ export default tseslint.config(
       "@typescript-eslint/no-floating-promises": "off",
       "@typescript-eslint/no-misused-promises": "off",
       "@typescript-eslint/await-thenable": "off",
+    },
+  },
+
+  // Spec/ADR markdown — the statement-side of spec-test coverage. Every testable
+  // statement must carry an inline ([validated by](test.ts#Lline)) link. Warns
+  // on in-flight docs; errors once the doc is finalized (spec Status Shipped /
+  // ADR status accepted). Scoped to spec.md + ADR bodies — not the exploratory
+  // plan.md/tasks.md/research.md siblings. First markdown-language block in the repo.
+  {
+    files: ["specs/**/spec.md", "adrs/**/*.md"],
+    language: "markdown/gfm",
+    plugins: { markdown, lore },
+    rules: {
+      "lore/require-statement-links": "warn",
+      "lore/require-statement-links-shipped": "error",
     },
   },
 );

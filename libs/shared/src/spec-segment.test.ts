@@ -323,3 +323,33 @@ describe("classifyByHeuristic", () => {
     });
   });
 });
+
+// Appended as its own block at end-of-file so no inserted test shifts the line
+// anchors the spec-coverage corpus pins against the tests above.
+describe("segmentStatements start line", () => {
+  it("stamps each statement with its 1-based source start line", () => {
+    const out = segmentStatements(
+      [
+        "# H1 Title", // line 1
+        "", // 2
+        "Intro statement.", // 3
+        "", // 4
+        "## Section", // 5
+        "", // 6
+        "First para sentence. Second para sentence.", // 7
+        "", // 8
+        "- First item.", // 9
+        "- Second item that", // 10
+        "  wraps.", // 11
+      ].join("\n"),
+    );
+
+    expect(out.map((s) => [s.text, s.line])).toEqual([
+      ["Intro statement.", 3],
+      ["First para sentence.", 7],
+      ["Second para sentence.", 7],
+      ["First item.", 9],
+      ["Second item that wraps.", 10],
+    ]);
+  });
+});
