@@ -6,7 +6,12 @@ import type { Project } from "./index.js";
 interface FakeState {
   branches: string[];
   commits: Array<{ branch: string; path: string; content: string }>;
-  pulls: Array<{ branch: string; title: string; labels: string[] }>;
+  pulls: Array<{
+    branch: string;
+    title: string;
+    body: string;
+    labels: string[];
+  }>;
 }
 
 function fakeProject(files: Record<string, string | null>): {
@@ -28,11 +33,11 @@ function fakeProject(files: Record<string, string | null>): {
       open: async (
         branch: string,
         title: string,
-        _body: string,
+        body: string,
         _base: string | undefined,
         labels: string[],
       ) => {
-        state.pulls.push({ branch, title, labels });
+        state.pulls.push({ branch, title, body, labels });
 
         return { url: `https://example.test/pr/${state.pulls.length}` };
       },
@@ -58,7 +63,13 @@ describe("openSpecStatusFlipPr", () => {
       "specs/example/spec.md": specWith("Draft"),
     });
 
-    const result = await openSpecStatusFlipPr(project, "specs/example/spec.md");
+    const result = await openSpecStatusFlipPr(
+      project,
+      "specs/example/spec.md",
+      {
+        evidence: "Completion: group g1 merged.",
+      },
+    );
 
     expect(result).toEqual({
       prUrl: "https://example.test/pr/1",
@@ -70,6 +81,7 @@ describe("openSpecStatusFlipPr", () => {
       "lore-managed",
       "spec-status-upkeep",
     ]);
+    expect(state.pulls[0].body).toContain("Completion: group g1 merged.");
     expect(parseDocStatus(state.commits[0].content, "spec").status).toBe(
       "shipped",
     );
