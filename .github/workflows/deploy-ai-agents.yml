@@ -1,0 +1,47 @@
+# Deploys the ai-agents subchart when its chart changes on main. Unlike the
+# service workflows (build-floor/lore-api/ui) there is no image build here: the
+# controller + agent images are digest-pinned in the subchart's values.yaml
+# (bumped by PR when the ai-agent-subsystem releases), so a deploy is just a
+# helm upgrade of the umbrella with the checked-out chart — the "-" tag tells
+# the deploy script to skip the image override.
+name: Deploy ai-agents
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/**"
+      - ".github/workflows/deploy-ai-agents.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Auth to GCP
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v3
+        with:
+          cluster_name: ${{ vars.GKE_CLUSTER_NAME }}
+          location: europe-west1
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      # Serialize on Helm's release lock (retry while another service's deploy
+      # holds it) instead of a GitHub concurrency group, which would cancel the
+      # middle of simultaneous deploys. See the script header.
+      - name: Deploy ai-agents into the umbrella release
+        run: bash scripts/ci/deploy-lore-platform.sh ai-agents - agent-controller ai-agents
