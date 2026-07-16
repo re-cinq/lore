@@ -11,7 +11,7 @@
 |----------------|---------------------------------------------|
 | Feature        | Task-to-Agent Pipeline                      |
 | Branch         | 3-task-agent-pipeline                       |
-| Status         | Shipped                                     |
+| Status         | In Progress                                 |
 | Created        | 2026-03-29                                  |
 | Owner          | Platform Engineering                        |
 

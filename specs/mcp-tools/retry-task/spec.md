@@ -3,7 +3,7 @@
 | Field   | Value                          |
 |---------|--------------------------------|
 | Feature | lore_retry_task MCP Tool            |
-| Status  | Draft                          |
+| Status  | In Progress                    |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_retry_task`                   |

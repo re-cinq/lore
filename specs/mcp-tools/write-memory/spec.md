@@ -3,7 +3,7 @@
 | Field   | Value                                            |
 |---------|--------------------------------------------------|
 | Feature | `lore_write_memory` MCP tool                          |
-| Status  | Draft                                            |
+| Status  | In Progress                                      |
 | Created | 2026-06-10                                       |
 | Owner   | Platform Engineering                             |
 | Tool    | `lore_write_memory`                                   |

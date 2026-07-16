@@ -1,7 +1,7 @@
 ---
 adr_number: 23
 title: "Test-run ↔ statement binding via inline spec links"
-status: in progress
+status: draft
 date: 2026-06-11
 domains: [shared, spec-trace, test-interface, observability]
 ---

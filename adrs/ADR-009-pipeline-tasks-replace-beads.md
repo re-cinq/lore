@@ -1,7 +1,7 @@
 ---
 adr_number: "009"
 title: Pipeline tasks replace Beads for developer task tracking
-status: shipped
+status: draft
 date: 2026-04-01
 domains:
   - architecture

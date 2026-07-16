@@ -4,7 +4,7 @@
 |----------|-----------------------|
 | Feature  | Context Viewer        |
 | Branch   | feat/context-tab-rich |
-| Status   | Shipped               |
+| Status   | In Progress           |
 | Created  | 2026-06-04            |
 | Owner    | Platform Engineering  |
 | PR       | #516                  |

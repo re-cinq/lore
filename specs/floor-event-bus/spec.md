@@ -3,7 +3,7 @@
 | Field   | Value                    |
 |---------|--------------------------|
 | Feature | Floor Event Bus          |
-| Status  | Shipped                  |
+| Status  | In Progress              |
 | Owner   | Platform Engineering     |
 | Builds on | [ADR-015](../../adrs/ADR-015-webhook-driven-review-reactor.md) |
 

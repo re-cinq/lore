@@ -3,7 +3,7 @@
 | Field      | Value                                                            |
 |------------|------------------------------------------------------------------|
 | Feature    | PR → task resolver                                               |
-| Status     | Draft                                                            |
+| Status     | In Progress                                                      |
 | Created    | 2026-06-10                                                      |
 | Owner      | Platform Engineering                                            |
 | Route      | `GET /api/tasks/by-pr/:owner/:repo/:n`                         |

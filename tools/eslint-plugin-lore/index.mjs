@@ -9,6 +9,7 @@ import noIoInView from "./rules/no-io-in-view.mjs";
 import requireSpecLink from "./rules/require-spec-link.mjs";
 import requireStatementLinks from "./rules/require-statement-links.mjs";
 import requireIntroParagraph from "./rules/require-intro-paragraph.mjs";
+import requireStatusMatchesCoverage from "./rules/require-status-matches-coverage.mjs";
 
 /**
  * eslint-plugin-lore — repo-local ESLint rules codifying Lore house conventions.
@@ -28,5 +29,6 @@ export default {
     "require-spec-link": requireSpecLink,
     "require-statement-links": requireStatementLinks,
     "require-intro-paragraph": requireIntroParagraph,
+    "require-status-matches-coverage": requireStatusMatchesCoverage,
   },
 };

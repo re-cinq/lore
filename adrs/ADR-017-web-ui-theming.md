@@ -1,7 +1,7 @@
 ---
 adr_number: 17
 title: "Web UI theming — token-driven families (Elegant + Retro), light/dark/auto, per-family icon sets"
-status: shipped
+status: draft
 date: 2026-05-29
 domains: [ux, web-ui]
 ---

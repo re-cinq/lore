@@ -4,7 +4,7 @@
 |----------------|---------------------------------------------|
 | Feature        | Smart Feature Planning                      |
 | Branch         | 7-feature-planning                          |
-| Status         | Shipped                                 |
+| Status         | In Progress                             |
 | Created        | 2026-06-17                                  |
 | Owner          | Platform Engineering                        |
 

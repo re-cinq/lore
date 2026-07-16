@@ -3,7 +3,7 @@
 | Field          | Value                                    |
 |----------------|------------------------------------------|
 | Feature        | Local Task Runner                        |
-| Status         | Shipped                                  |
+| Status         | In Progress                              |
 | Created        | 2026-04-04                               |
 | Owner          | Platform Engineering                     |
 

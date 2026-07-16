@@ -1,7 +1,7 @@
 ---
 adr_number: 25
 title: "BYO execution container: per-repo/per-task image, Lore-hosted, kernel sidecar"
-status: shipped
+status: draft
 date: 2026-06-15
 domains: [agent, pipeline, infra, security]
 ---

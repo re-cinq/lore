@@ -112,17 +112,29 @@ function replaceStatusCell(rawCell: string, label: string): string {
   return `${core}${" ".repeat(trailing)}`;
 }
 
+export interface RewriteStatusOptions {
+  /**
+   * Rewrite even when the current value buckets to a terminal state
+   * (`shipped` / `retired`). Off by default so the spec-status-upkeep flip stays
+   * idempotent and promotion-only; the corpus-wide status reconciliation opts in
+   * because a demotion is exactly a terminal-state rewrite.
+   */
+  allowTerminal?: boolean;
+}
+
 /**
  * Deterministically flip a spec's `| Status | <value> |` header row to `label`.
  * Returns the rewritten markdown, or `null` when there is nothing to do — no
- * status row exists, or the current value already buckets to a terminal state:
- * `shipped` (implemented/complete/accepted/…) or `retired` (superseded/removed).
- * That makes the flip idempotent and stops it re-marking a retired spec. Only
- * the status value cell changes; every other line is left byte-for-byte intact.
+ * status row exists, or (unless `allowTerminal` is set) the current value already
+ * buckets to a terminal state: `shipped` (implemented/complete/accepted/…) or
+ * `retired` (superseded/removed). That makes the flip idempotent and stops it
+ * re-marking a retired spec. Only the status value cell changes; every other line
+ * is left byte-for-byte intact.
  */
 export function rewriteSpecStatusRow(
   content: string,
   label: string,
+  opts: RewriteStatusOptions = {},
 ): string | null {
   const current = specTableStatusValue(content);
 
@@ -131,7 +143,7 @@ export function rewriteSpecStatusRow(
   }
   const bucket = bucketOf(current);
 
-  if (bucket === "shipped" || bucket === "retired") {
+  if (!opts.allowTerminal && (bucket === "shipped" || bucket === "retired")) {
     return null;
   }
 
@@ -149,6 +161,44 @@ export function rewriteSpecStatusRow(
     }
     cells[statusIdx + 1] = replaceStatusCell(cells[statusIdx + 1], label);
     lines[i] = cells.join("|");
+
+    return lines.join(sep);
+  }
+
+  return null;
+}
+
+/**
+ * The ADR counterpart of `rewriteSpecStatusRow`: flip the YAML frontmatter
+ * `status:` value to `label`. Returns the rewritten markdown, or `null` when the
+ * ADR has no frontmatter block or no `status:` key inside it. Only that one line
+ * changes; a `status:`-looking line in the ADR body is left alone, mirroring
+ * `adrFrontmatterStatusValue`'s read.
+ *
+ * Unlike the spec rewriter there is no terminal-state bail: the only caller is
+ * the corpus status reconciliation, which decides what to skip from the doc's
+ * coverage tier before calling.
+ */
+export function rewriteAdrStatusRow(
+  content: string,
+  label: string,
+): string | null {
+  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+
+  if (!frontmatter) {
+    return null;
+  }
+  const sep = content.includes("\r\n") ? "\r\n" : "\n";
+  const lines = content.split(/\r?\n/);
+  // The frontmatter block is delimited by the `---` on line 1 and the next
+  // `---`; only lines strictly inside it are eligible.
+  const closing = lines.indexOf("---", 1);
+
+  for (let i = 1; i < closing; i++) {
+    if (!/^status\s*:\s*(.+?)\s*$/i.test(lines[i])) {
+      continue;
+    }
+    lines[i] = lines[i].replace(/^(status\s*:\s*).+?\s*$/i, `$1${label}`);
 
     return lines.join(sep);
   }

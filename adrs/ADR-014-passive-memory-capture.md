@@ -1,7 +1,7 @@
 ---
 adr_number: 14
 title: "Intelligent memory lifecycle — passive capture, decay, consolidation"
-status: shipped
+status: draft
 date: 2026-04-06
 domains: [memory, agents, pipeline]
 ---

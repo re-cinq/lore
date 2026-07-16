@@ -3,7 +3,7 @@
 | Field   | Value                                  |
 |---------|----------------------------------------|
 | Feature | lore_complete_task MCP Tool                 |
-| Status  | Draft                                  |
+| Status  | In Progress                            |
 | Created | 2026-06-10                             |
 | Owner   | Platform Engineering                   |
 | Tool    | `lore_complete_task`                        |

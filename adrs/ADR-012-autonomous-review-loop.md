@@ -1,7 +1,7 @@
 ---
 adr_number: 12
 title: Autonomous Review Loop via LoreTask CRD
-status: shipped
+status: draft
 date: 2026-04-01
 domains: [agent, pipeline, review]
 ---

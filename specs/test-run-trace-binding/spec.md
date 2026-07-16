@@ -3,7 +3,7 @@
 | Field          | Value                                                                                   |
 |----------------|-----------------------------------------------------------------------------------------|
 | Feature        | Test-Run ↔ Statement Binding                                                             |
-| Status         | Shipped                                                                                    |
+| Status         | In Progress                                                                                |
 | Created        | 2026-06-11                                                                               |
 | Owner          | Platform Engineering                                                                     |
 | Decision       | [ADR-023](../../adrs/ADR-023-test-run-trace-binding.md) — derive descriptor spec anchors from inline spec links |

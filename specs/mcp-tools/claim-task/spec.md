@@ -3,7 +3,7 @@
 | Field   | Value                                  |
 |---------|----------------------------------------|
 | Feature | lore_claim_task MCP Tool                    |
-| Status  | Draft                                  |
+| Status  | In Progress                            |
 | Created | 2026-06-10                             |
 | Owner   | Platform Engineering                   |
 | Tool    | `lore_claim_task`                           |

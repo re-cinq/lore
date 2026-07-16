@@ -3,7 +3,7 @@
 | Field          | Value                                       |
 |----------------|---------------------------------------------|
 | Feature        | Context Assembly Templates                  |
-| Status         | Shipped                                       |
+| Status         | In Progress                                   |
 | Created        | 2026-04-03                                  |
 | Owner          | Platform Engineering                        |
 | Priority       | P2 — Higher value, higher effort            |

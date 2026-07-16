@@ -15,7 +15,7 @@ import {
   specSlugFromBranch,
   openSpecStatusFlipPr,
 } from "@re-cinq/lore-shared";
-import type { Project } from "@re-cinq/lore-shared";
+import type { Project, StatusFlipResult } from "@re-cinq/lore-shared";
 import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import { decideDecomposeKick } from "../task/handle-feature-decompose.js";
 
@@ -181,10 +181,27 @@ export function decideSpecStatusFlip(
 }
 
 /**
+ * Keep the features table and the spec file in sync (FR1's invariant): a feature
+ * is implemented only when its spec now claims `shipped` — freshly flipped, or
+ * already claiming it. An `in-progress` outcome (test-link coverage short of
+ * full), a missing / status-row-less / terminal spec, or one with no testable
+ * statement to confirm the claim, is left for a human to reconcile.
+ */
+export function decideFeatureImplemented(result: StatusFlipResult): boolean {
+  return (
+    result.status === "shipped" &&
+    (!result.skipped || result.reason === "already-current")
+  );
+}
+
+/**
  * spec-status-upkeep FR1. When `task`'s merge completes its feature's task
- * group, resolve the owning feature and open a deterministic one-line PR
- * flipping the spec's `| Status |` header to Implemented, then transition the
- * feature to `implemented`. No-op for non-spec-tasks, groupless tasks,
+ * group, resolve the owning feature and open a deterministic one-line PR setting
+ * the spec's `| Status |` header to whatever its test-link coverage entitles it
+ * to claim, then transition the feature to `implemented` only if that status is
+ * `shipped`. A merged task group no longer implies completion on its own — a
+ * spec whose statements are not all linked lands `In Progress`, and its feature
+ * is left for a human to reconcile. No-op for non-spec-tasks, groupless tasks,
  * incomplete groups, or unresolvable features.
  */
 async function maybeFlipSpecStatus(
@@ -210,10 +227,7 @@ async function maybeFlipSpecStatus(
     evidence: `Completion: every task in group \`${task.task_group_id}\` is merged (last: PR #${task.pr_number}).`,
   });
 
-  // Keep the features table and the spec file in sync (FR1's invariant): only
-  // mark implemented when the spec was flipped or already reflects completion.
-  // A missing / status-row-less spec_path is left for a human to reconcile.
-  if (!result.skipped || result.reason === "already-current") {
+  if (decideFeatureImplemented(result)) {
     await project.features.transitionStatus(decision.featureId, "implemented");
     console.log(
       `[job] merge-check: spec-status-upkeep marked ${specPath} implemented ` +
@@ -223,8 +237,10 @@ async function maybeFlipSpecStatus(
     return;
   }
   console.warn(
-    `[job] merge-check: spec-status-upkeep did not flip ${specPath} ` +
-      `(${result.reason}); feature ${decision.featureId} left for human reconcile`,
+    `[job] merge-check: spec-status-upkeep did not mark ${specPath} shipped ` +
+      `(status=${result.status ?? "unreadable"}, reason=${result.reason ?? "flipped"}` +
+      `${result.prUrl ? `, pr=${result.prUrl}` : ""}); ` +
+      `feature ${decision.featureId} left for human reconcile`,
   );
 }
 

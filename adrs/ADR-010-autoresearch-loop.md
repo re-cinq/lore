@@ -1,7 +1,7 @@
 ---
 adr_number: "010"
 title: Autoresearch loop for self-improving context quality
-status: shipped
+status: draft
 date: 2026-04-01
 domains:
   - architecture

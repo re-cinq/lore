@@ -3,7 +3,7 @@
 | Field    | Value                                         |
 |----------|-----------------------------------------------|
 | Feature  | Scheduled Job Runtime Split (in-process ↔ K8s CronJob) |
-| Status   | Shipped                                         |
+| Status   | In Progress                                     |
 | Created  | 2026-06-02                                    |
 | Owner    | Platform Engineering                          |
 | ADR      | [ADR-019](../../adrs/ADR-019-scheduled-job-runtime-split.md) |

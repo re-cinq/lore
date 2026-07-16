@@ -3,7 +3,7 @@
 | Field      | Value                                                  |
 |------------|--------------------------------------------------------|
 | Feature    | Repo spec-traceability read route                      |
-| Status     | Draft                                                  |
+| Status     | In Progress                                            |
 | Created    | 2026-06-10                                             |
 | Owner      | Platform Engineering                                   |
 | Route      | `GET /api/repos/:owner/:repo/trace/{specs\|spec-summaries\|adrs\|adr-summaries\|document\|source\|graph\|ring}` |
