@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { parseDocStatus, statusTier } from "./spec-status.js";
+import {
+  parseDocStatus,
+  statusTier,
+  rewriteSpecStatusRow,
+} from "./spec-status.js";
 
 describe("parseDocStatus (spec)", () => {
   const table = (status: string) =>
@@ -124,5 +128,79 @@ describe("statusTier", () => {
     expect(statusTier("draft")).toBe("warn");
     expect(statusTier("in-progress")).toBe("warn");
     expect(statusTier(null)).toBe("warn");
+  });
+});
+
+describe("rewriteSpecStatusRow", () => {
+  const spec = (status: string) =>
+    [
+      "# Feature Specification: Example",
+      "",
+      "| Field    | Value       |",
+      "|----------|-------------|",
+      "| Feature  | Example     |",
+      `| Status   | ${status}   |`,
+      "| Created  | 2026-07-14  |",
+      "",
+      "## Body",
+      "",
+      "Prose here.",
+    ].join("\n");
+
+  it("flips a Draft status to Implemented", () => {
+    const out = rewriteSpecStatusRow(spec("Draft"), "Implemented");
+
+    expect(out).not.toBeNull();
+    expect(parseDocStatus(out as string, "spec").status).toBe("shipped");
+    expect(out).toContain("| Status   | Implemented");
+  });
+
+  it("flips a bold **Draft** status", () => {
+    const out = rewriteSpecStatusRow(spec("**Draft**"), "Implemented");
+
+    expect(parseDocStatus(out as string, "spec").status).toBe("shipped");
+  });
+
+  it("flips In Progress to Implemented", () => {
+    const out = rewriteSpecStatusRow(spec("In Progress"), "Implemented");
+
+    expect(parseDocStatus(out as string, "spec").status).toBe("shipped");
+  });
+
+  it("returns null when the status already buckets to shipped", () => {
+    expect(rewriteSpecStatusRow(spec("Implemented"), "Implemented")).toBeNull();
+    expect(rewriteSpecStatusRow(spec("Shipped"), "Implemented")).toBeNull();
+    expect(rewriteSpecStatusRow(spec("Accepted"), "Implemented")).toBeNull();
+  });
+
+  it("returns null for a retired spec so it is not re-marked", () => {
+    expect(rewriteSpecStatusRow(spec("Superseded"), "Implemented")).toBeNull();
+    expect(rewriteSpecStatusRow(spec("Retired"), "Implemented")).toBeNull();
+  });
+
+  it("returns null when there is no Status row", () => {
+    expect(
+      rewriteSpecStatusRow("# Spec\n\nNo table.\n", "Implemented"),
+    ).toBeNull();
+  });
+
+  it("preserves CRLF line endings when the source uses them", () => {
+    const crlf = spec("Draft").replace(/\n/g, "\r\n");
+    const out = rewriteSpecStatusRow(crlf, "Implemented") as string;
+
+    expect(out.includes("\r\n")).toBe(true);
+    expect(out.includes("\n\n")).toBe(false);
+    expect(parseDocStatus(out, "spec").status).toBe("shipped");
+  });
+
+  it("leaves every other line untouched", () => {
+    const before = spec("Draft");
+    const after = rewriteSpecStatusRow(before, "Implemented") as string;
+    const changed = before
+      .split("\n")
+      .filter((line, i) => line !== after.split("\n")[i]);
+
+    expect(changed).toHaveLength(1);
+    expect(changed[0]).toContain("Status");
   });
 });
