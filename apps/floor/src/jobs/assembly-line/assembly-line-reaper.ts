@@ -20,12 +20,8 @@ import {
   type AssemblyLineNode,
 } from "@re-cinq/lore-assembly-lines";
 import type { AssemblyLineNodeRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
-import {
-  advanceLine,
-  finishNodeAndAdvance,
-  finishLine,
-  taskFromRow,
-} from "./advance.js";
+import { advanceLine, finishLine, taskFromRow } from "./advance.js";
+import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { nodeAgentSpec, nodeStationSpec } from "./floor-assembly-line.js";
 import { runOutcomeFromTaskStatus } from "../watcher/agent-watcher-logic.js";
 import type { NodeEventDeps } from "./node-event-handler.js";
@@ -167,20 +163,27 @@ export async function assemblyLineReaperJob(
       });
 
       if (recovery.kind === "resolve") {
-        await finishNodeAndAdvance(
+        // A dropped event lands here instead — it owes the PR the same review and
+        // check the event path would have posted, off the same resolved outcome.
+        const status = normalizeAgentStatus(recovery.status);
+
+        await finishNodeTerminal(
           {
-            assemblyLineId: row.id,
+            row,
+            node,
             nodeId: openNode.nodeId,
             iteration: openNode.iteration,
-            result: stationNodeOutcome(node, recovery.status),
+            result: stationNodeOutcome(node, status),
+            output: status.output,
           },
           deps,
         );
         resolved++;
       } else if (recovery.kind === "timeout") {
-        await finishNodeAndAdvance(
+        await finishNodeTerminal(
           {
-            assemblyLineId: row.id,
+            row,
+            node,
             nodeId: openNode.nodeId,
             iteration: openNode.iteration,
             result: { outcome: "failed" },
