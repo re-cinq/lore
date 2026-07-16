@@ -15,7 +15,13 @@ describe("buildReviewSummary", () => {
     const output: ReviewOutput = {
       verdict: "changes_requested",
       findings: [
-        { path: "a.ts", line: 1, label: "issue", decoration: "blocking", subject: "x" },
+        {
+          path: "a.ts",
+          line: 1,
+          label: "issue",
+          decoration: "blocking",
+          subject: "x",
+        },
         { path: "a.ts", line: 2, label: "suggestion", subject: "y" },
         { path: "a.ts", line: 3, label: "question", subject: "z" },
         { path: "a.ts", line: 4, label: "nit", subject: "w" },

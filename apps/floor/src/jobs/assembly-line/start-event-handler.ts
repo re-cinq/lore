@@ -128,9 +128,6 @@ async function publishStartCheck(assemblyLineId: string): Promise<void> {
 
     await publishPrCheck(project.repo, row, process.env.LORE_UI_URL);
   } catch (err) {
-    console.warn(
-      "[pr-check] start publish failed:",
-      (err as Error).message,
-    );
+    console.warn("[pr-check] start publish failed:", (err as Error).message);
   }
 }

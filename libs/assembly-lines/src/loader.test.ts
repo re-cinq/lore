@@ -351,9 +351,8 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
       wf?.edges.find((e) => e.from === "review" && e.to === "done")?.on,
     ).toBe("success");
     expect(
-      wf?.edges.find(
-        (e) => e.from === "review" && e.on === "changes_requested",
-      )?.to,
+      wf?.edges.find((e) => e.from === "review" && e.on === "changes_requested")
+        ?.to,
     ).toBe("done");
   });
 

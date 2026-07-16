@@ -25,7 +25,11 @@ describe("runCommentTriageStation", () => {
     );
 
     const result = await runCommentTriageStation(
-      input({ comment_body: "ok, fix it", in_reply_to_id: "5", pr_number: "42" }),
+      input({
+        comment_body: "ok, fix it",
+        in_reply_to_id: "5",
+        pr_number: "42",
+      }),
     );
 
     expect(result).toMatchObject({

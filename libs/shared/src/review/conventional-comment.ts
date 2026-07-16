@@ -10,13 +10,7 @@
  */
 
 export type ConventionalLabel =
-  | "issue"
-  | "suggestion"
-  | "nit"
-  | "question"
-  | "praise"
-  | "thought"
-  | "chore";
+  "issue" | "suggestion" | "nit" | "question" | "praise" | "thought" | "chore";
 
 export type ConventionalDecoration = "blocking" | "non-blocking" | "if-minor";
 

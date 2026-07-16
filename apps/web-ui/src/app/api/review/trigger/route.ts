@@ -69,9 +69,12 @@ export async function POST(req: Request) {
     const referer = req.headers.get("referer");
     const base = referer ?? new URL(req.url).origin;
 
-    return NextResponse.redirect(new URL(referer ? base : "/assembly-lines", base), {
-      status: 303,
-    });
+    return NextResponse.redirect(
+      new URL(referer ? base : "/assembly-lines", base),
+      {
+        status: 303,
+      },
+    );
   } catch (err) {
     return serverError("review-trigger", err);
   }

@@ -23,7 +23,10 @@ import { maybePostReview } from "../review/post-review.js";
 import { publishPrCheck } from "./pr-check.js";
 import { projectFor } from "../../composition/project-boot.js";
 import type { AssemblyLineRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
-import type { AssemblyLineNode, NodeResult } from "@re-cinq/lore-assembly-lines";
+import type {
+  AssemblyLineNode,
+  NodeResult,
+} from "@re-cinq/lore-assembly-lines";
 
 export interface NodeEventDeps extends AdvanceDeps {
   /** Read the CR's status by name; null when it no longer exists (pruned). */
@@ -135,7 +138,10 @@ async function routeCommentTriage(
       context: contextFromRow(row),
     });
   } catch (err) {
-    console.warn("[code-review] triage routing failed:", (err as Error).message);
+    console.warn(
+      "[code-review] triage routing failed:",
+      (err as Error).message,
+    );
   }
 }
 

@@ -40,7 +40,9 @@ describe("POST /api/review/start", () => {
   it("returns 400 when repo or pr_number is missing", async () => {
     process.env.LORE_INGEST_TOKEN = "right-token";
 
-    expect((await post(JSON.stringify({ repo: "re-cinq/lore" }))).statusCode).toBe(400);
+    expect(
+      (await post(JSON.stringify({ repo: "re-cinq/lore" }))).statusCode,
+    ).toBe(400);
   });
 
   it("starts a forced review and returns 202 with the line id", async () => {

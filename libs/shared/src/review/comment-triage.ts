@@ -85,7 +85,5 @@ function buildPrompt(ctx: CommentContext): string {
 }
 
 function isAction(value: unknown): value is TriageAction {
-  return (
-    typeof value === "string" && (ACTIONS as string[]).includes(value)
-  );
+  return typeof value === "string" && (ACTIONS as string[]).includes(value);
 }

@@ -18,7 +18,9 @@ describe("ConventionalComment", () => {
       subject: "user can be null here",
     });
 
-    expect(comment.render()).toBe("**issue (blocking):** user can be null here");
+    expect(comment.render()).toBe(
+      "**issue (blocking):** user can be null here",
+    );
   });
 
   it("appends a suggestion block after the header", () => {

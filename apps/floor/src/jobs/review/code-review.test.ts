@@ -79,11 +79,18 @@ describe("code-review pure decisions", () => {
   });
 
   it("decideReviewOnOpen starts only for an open, non-draft, human PR with auto-review on", () => {
-    expect(decideReviewOnOpen({ autoReview: true, pr: openPr() }).start).toBe(true);
-    expect(decideReviewOnOpen({ autoReview: false, pr: openPr() }).start).toBe(false);
-    expect(decideReviewOnOpen({ autoReview: true, pr: null }).start).toBe(false);
+    expect(decideReviewOnOpen({ autoReview: true, pr: openPr() }).start).toBe(
+      true,
+    );
+    expect(decideReviewOnOpen({ autoReview: false, pr: openPr() }).start).toBe(
+      false,
+    );
+    expect(decideReviewOnOpen({ autoReview: true, pr: null }).start).toBe(
+      false,
+    );
     expect(
-      decideReviewOnOpen({ autoReview: true, pr: openPr({ draft: true }) }).start,
+      decideReviewOnOpen({ autoReview: true, pr: openPr({ draft: true }) })
+        .start,
     ).toBe(false);
     expect(
       decideReviewOnOpen({
@@ -95,7 +102,11 @@ describe("code-review pure decisions", () => {
 
   it("decideReviewOnReply starts only for an open, non-draft PR with a human comment", () => {
     expect(
-      decideReviewOnReply({ autoReview: true, pr: openPr(), commentAuthor: "alice" }).start,
+      decideReviewOnReply({
+        autoReview: true,
+        pr: openPr(),
+        commentAuthor: "alice",
+      }).start,
     ).toBe(true);
     expect(
       decideReviewOnReply({
@@ -141,7 +152,10 @@ describe("onTrigger", () => {
     await handlers.onTrigger({ repo: REPO, pr_number: 42 });
 
     expect(port.rows).toMatchObject([
-      { definitionName: "code-review", args: { pr_number: 42, mode: "review", head_sha: "abc123" } },
+      {
+        definitionName: "code-review",
+        args: { pr_number: 42, mode: "review", head_sha: "abc123" },
+      },
     ]);
     expect(comments[0]?.body).toContain(`/assembly-lines/${port.rows[0]?.id}`);
     expect(comments[0]?.body).toContain("@lore review");
@@ -196,7 +210,10 @@ describe("onComment", () => {
     });
 
     expect(port.rows).toMatchObject([
-      { definitionName: "comment-triage", args: { comment_id: 7, in_reply_to_id: 5 } },
+      {
+        definitionName: "comment-triage",
+        args: { comment_id: 7, in_reply_to_id: 5 },
+      },
     ]);
   });
 

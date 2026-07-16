@@ -297,15 +297,16 @@ and the webhook/verdict plumbing it rides on.
    → undefined. ([validated by `agent-watcher-logic.test.ts:33`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L33), [`agent-watcher-logic.test.ts:38`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L38), [`agent-watcher-logic.test.ts:43`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L43))
 
 
+
 ## Validated behavior — code-review line overhaul (2026-07)
 
-The code-review assembly line is the sole reviewer (ADR-012 amendment): first review on open / out-of-draft / first push, re-review on explicit `@lore review`; comments are triaged by a Haiku station (review / address / answer / ignore); reviews are suggestion-only Conventional Comments built from structured findings; fixes are human-gated; a PR check surfaces state and blocks merge while the review runs. Each behavior below is pinned to its test.
+The code-review assembly line is the sole reviewer (ADR-012 amendment): first review on open / out-of-draft / first push, re-review on explicit `@lore review`; comments are triaged by a Haiku station (review / address / answer / ignore); reviews are suggestion-only Conventional Comments built from structured findings; fixes are human-gated; a PR check surfaces state and blocks merge while the review runs. Each behaviour below is pinned to its test.
 
 ### `apps/floor/src/delivery/http/routes/review-start.test.ts`
 
 - returns 401 on a wrong bearer token. ([validated by](apps/floor/src/delivery/http/routes/review-start.test.ts#L34))
 - returns 400 when repo or pr_number is missing. ([validated by](apps/floor/src/delivery/http/routes/review-start.test.ts#L40))
-- starts a forced review and returns 202 with the line id. ([validated by](apps/floor/src/delivery/http/routes/review-start.test.ts#L46))
+- starts a forced review and returns 202 with the line id. ([validated by](apps/floor/src/delivery/http/routes/review-start.test.ts#L48))
 
 ### `apps/floor/src/jobs/assembly-line/pr-check.test.ts`
 
@@ -335,21 +336,22 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 
 - isBotActor is true only for [bot] logins. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L69))
 - isReviewRequest matches an @lore review keyword, not arbitrary chatter. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L74))
-- decideReviewOnReply starts only for an open, non-draft PR with a human comment. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L96))
-- routes review to a code-review line. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L111))
-- routes address to a code-review-reply line with the address intent + thread. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L118))
-- routes ignore to nothing. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L132))
-- skips a draft PR. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L162))
-- starts the routed follow-up line for the action. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L219))
-- does nothing on an ignore action. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L229))
-- starts a code-review-reply line with the address intent. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L239))
-- finishes any open code-review lines for the PR. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L251))
+- decideReviewOnReply starts only for an open, non-draft PR with a human comment. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L103))
+- routes address to a code-review-reply line with the address intent + thread. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L129))
+- routes ignore to nothing. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L143))
+- does not re-review a PR that already has a code-review line (first-review-only). ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L164))
+- skips a draft PR. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L176))
+- ignores the bot's own comment (loop guard). ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L220))
+- starts the routed follow-up line for the action. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L236))
+- does nothing on an ignore action. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L246))
+- starts a code-review-reply line with the address intent. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L256))
+- finishes any open code-review lines for the PR. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L268))
 
 ### `apps/floor/src/jobs/review/post-review.test.ts`
 
-- posts one COMMENT review with a rendered comment per finding and a summary. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L18))
-- posts when the output carries a REVIEW_FINDINGS block. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L57))
-- does nothing when there is no findings block. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L68))
+- posts one COMMENT review with a rendered comment per finding and a summary. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L22))
+- posts when the output carries a REVIEW_FINDINGS block. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L69))
+- does nothing when there is no findings block. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L80))
 
 ### `apps/floor/src/listeners/github-map.test.ts`
 
@@ -360,7 +362,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 ### `apps/lore-station/src/stations/comment-triage.test.ts`
 
 - emits the classified action in LORE_NODE_RESULT extras. ([validated by](apps/lore-station/src/stations/comment-triage.test.ts#L22))
-- defaults to ignore when classification fails. ([validated by](apps/lore-station/src/stations/comment-triage.test.ts#L37))
+- defaults to ignore when classification fails. ([validated by](apps/lore-station/src/stations/comment-triage.test.ts#L41))
 
 ### `apps/web-ui/src/app/assembly-lines/[id]/TriggerReviewButton.test.tsx`
 
@@ -369,9 +371,8 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 ### `libs/assembly-lines/src/loader.test.ts`
 
 - code-review is a suggestion-only review→done graph (no refine/auto-commit). ([validated by](libs/assembly-lines/src/loader.test.ts#L342))
-- comment-triage is a triage(station)→done graph. ([validated by](libs/assembly-lines/src/loader.test.ts#L360))
-- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L391))
-- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L424))
+- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L390))
+- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L423))
 
 ### `libs/shared/src/project/assembly-lines/assembly-lines.test.ts`
 
@@ -421,9 +422,9 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 
 - renders label and subject as a bold header. ([validated by](libs/shared/src/review/conventional-comment.test.ts#L5))
 - renders the decoration in parentheses after the label. ([validated by](libs/shared/src/review/conventional-comment.test.ts#L14))
-- appends a suggestion block after the header. ([validated by](libs/shared/src/review/conventional-comment.test.ts#L24))
-- renders discussion between the header and the suggestion. ([validated by](libs/shared/src/review/conventional-comment.test.ts#L36))
-- renders an empty suggestion block for a whole-line deletion. ([validated by](libs/shared/src/review/conventional-comment.test.ts#L49))
+- appends a suggestion block after the header. ([validated by](libs/shared/src/review/conventional-comment.test.ts#L26))
+- renders discussion between the header and the suggestion. ([validated by](libs/shared/src/review/conventional-comment.test.ts#L38))
+- renders an empty suggestion block for a whole-line deletion. ([validated by](libs/shared/src/review/conventional-comment.test.ts#L51))
 
 ### `libs/shared/src/review/review-findings.test.ts`
 
@@ -437,5 +438,5 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 
 - renders the Approved header and a zero tally for no findings. ([validated by](libs/shared/src/review/review-summary.test.ts#L6))
 - counts blocking issues as must-fix, nits, and the rest as consider. ([validated by](libs/shared/src/review/review-summary.test.ts#L14))
-- includes the agent summary line under the header when present. ([validated by](libs/shared/src/review/review-summary.test.ts#L31))
+- includes the agent summary line under the header when present. ([validated by](libs/shared/src/review/review-summary.test.ts#L37))
 

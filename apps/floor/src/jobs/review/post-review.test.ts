@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { postReview, maybePostReview, type ReviewPoster } from "./post-review.js";
+import {
+  postReview,
+  maybePostReview,
+  type ReviewPoster,
+} from "./post-review.js";
 import type { CreateReviewInput } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import type { ReviewOutput } from "@re-cinq/lore-shared/review/review-findings.js";
 
@@ -28,7 +32,13 @@ describe("postReview", () => {
           subject: "null deref",
           suggestion: "const x = y ?? 0;",
         },
-        { path: "src/b.ts", line: 3, side: "LEFT", label: "nit", subject: "rename" },
+        {
+          path: "src/b.ts",
+          line: 3,
+          side: "LEFT",
+          label: "nit",
+          subject: "rename",
+        },
       ],
     };
 
@@ -49,7 +59,9 @@ describe("postReview", () => {
         ],
       },
     });
-    expect(calls[0]?.input.body).toContain("### Lore review — Changes suggested");
+    expect(calls[0]?.input.body).toContain(
+      "### Lore review — Changes suggested",
+    );
   });
 });
 
@@ -68,7 +80,9 @@ describe("maybePostReview", () => {
   it("does nothing when there is no findings block", async () => {
     const { pulls, calls } = recorder();
 
-    expect(await maybePostReview(pulls, 7, "REVIEW_RESULT:APPROVED")).toBe(false);
+    expect(await maybePostReview(pulls, 7, "REVIEW_RESULT:APPROVED")).toBe(
+      false,
+    );
     expect(calls).toHaveLength(0);
   });
 });

@@ -327,16 +327,33 @@ spec:
   prompt: |-
     {description}
 
-    You are reviewing this pull request against the repo's conventions
-    (CLAUDE.md), ADRs in adrs/, and any spec in specs/. Check correctness,
-    type safety, security, and simplicity.
+    Review this pull request against the repo's conventions (CLAUDE.md),
+    ADRs in adrs/, and any spec in specs/. Check correctness, type safety,
+    security, and simplicity. Do NOT edit code and do NOT post comments
+    yourself — Lore posts your findings for you.
 
-    Post LINE-LEVEL inline comments — create one review carrying a comments
-    array, e.g.:
-      gh api repos/{owner}/{repo}/pulls/{pr}/reviews -f event=COMMENT \
-        -f 'comments[][path]=<file>' -F 'comments[][line]=<n>' \
-        -f 'comments[][body]=<comment>'
-    Keep each comment specific and actionable; do not restate the diff.
+    Emit a fenced REVIEW_FINDINGS block (one finding per point) then the
+    verdict. Be liberal with concrete `suggestion` fixes. Each `subject` is
+    ONE short imperative line. Labels: issue | suggestion | nit | question |
+    praise | thought | chore. Add `"decoration":"blocking"` to a must-fix
+    issue. `suggestion` is the replacement text for that exact line(s).
+
+    ```REVIEW_FINDINGS
+    {
+      "verdict": "approved" | "changes_requested",
+      "summary": "<one line>",
+      "findings": [
+        {
+          "path": "src/foo.ts",
+          "line": 42,
+          "label": "issue",
+          "decoration": "blocking",
+          "subject": "user can be null here — guard before deref",
+          "suggestion": "const name = user?.name ?? \"anon\";"
+        }
+      ]
+    }
+    ```
 
     Then output exactly one of:
     - REVIEW_RESULT:APPROVED
@@ -396,11 +413,14 @@ spec:
   prompt: |-
     {description}
 
-    Decide how to act on the outstanding review point:
-    - If it is a question or discussion, reply in the review thread via
-      `gh api` (reviews/comments replies) — do NOT change code.
-    - If it is an actionable fix request, edit the code and commit to the PR
-      branch (the branch is already checked out).
+    The task line above states the intent and the thread. Act on it:
+    - intent = address: implement the requested fix, commit it to the PR
+      branch (already checked out), then post a SHORT confirmation in the
+      review thread via `gh api` (…/pulls/<pr>/comments/<root_id>/replies).
+    - intent = answer: reply briefly in the review thread via `gh api`; do
+      NOT change code.
+    Read the thread being replied to (the in_reply_to id in the task) to
+    understand what "it" refers to before acting.
 
     Then output exactly one of:
     - REVIEW_RESULT:APPROVED
@@ -1090,6 +1110,57 @@ metadata:
 spec:
   agentDefRef: def-detect
   deadlineMinutes: 30
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: {{ .Values.stationImage }}
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: def-comment-triage
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore comment-triage station recipe (seeded).
+  model: exec
+  prompt: "{station_input}"
+  permission_mode: bypass
+  max_turns: 1
+  tool_config:
+    command:
+      - lore-station
+      - comment-triage
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: def-comment-triage
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: def-comment-triage
+  deadlineMinutes: 5
   template:
     spec:
       containers:

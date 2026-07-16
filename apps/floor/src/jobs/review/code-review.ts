@@ -179,7 +179,12 @@ export interface CommentContext {
  */
 export async function startReview(
   project: CodeReviewProject,
-  input: { repo: string; prNumber: number; autoReview: boolean; forced?: boolean },
+  input: {
+    repo: string;
+    prNumber: number;
+    autoReview: boolean;
+    forced?: boolean;
+  },
   uiUrl?: string,
 ): Promise<string | null> {
   const pr = await project.pulls.get(input.prNumber);
@@ -233,7 +238,11 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     if (await project.assemblyLines.hasReviewedPr(pr_number)) {
       return;
     }
-    await startReview(project, { repo, prNumber: pr_number, autoReview }, deps.uiUrl());
+    await startReview(
+      project,
+      { repo, prNumber: pr_number, autoReview },
+      deps.uiUrl(),
+    );
   };
 
   const onComment: EventHandler = async (params) => {
