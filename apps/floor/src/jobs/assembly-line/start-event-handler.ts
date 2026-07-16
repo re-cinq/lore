@@ -99,5 +99,37 @@ export const assemblyLineStart: EventHandler = async (params) => {
       advanceLine(assemblyLineId, await productionNodeEventDeps()),
   });
 
-  return handler(params);
+  await handler(params);
+
+  // Publish the in_progress PR check as soon as the line starts, so a required
+  // `lore/code-review` check blocks merge for the whole review window (not just
+  // from the first node-terminal). Best-effort — never fails the start.
+  await publishStartCheck(String(params.assemblyLineId ?? ""));
 };
+
+async function publishStartCheck(assemblyLineId: string): Promise<void> {
+  if (!assemblyLineId) {
+    return;
+  }
+  try {
+    const [{ assemblyLines }, { projectFor }, { publishPrCheck }] =
+      await Promise.all([
+        import("../../kernel/queues.js"),
+        import("../../composition/project-boot.js"),
+        import("./pr-check.js"),
+      ]);
+    const row = await assemblyLines().getById(assemblyLineId);
+
+    if (!row || !(Number(row.args.pr_number) > 0)) {
+      return;
+    }
+    const project = await projectFor(row.repo);
+
+    await publishPrCheck(project.repo, row, process.env.LORE_UI_URL);
+  } catch (err) {
+    console.warn(
+      "[pr-check] start publish failed:",
+      (err as Error).message,
+    );
+  }
+}
