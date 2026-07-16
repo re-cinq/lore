@@ -6,7 +6,13 @@ import {
   classifyFile,
   buildIngestedChunkMetadata,
   getQueryEmbedding,
+  createDgraphClient,
+  type DgraphClientPort,
 } from "@re-cinq/lore-shared";
+import {
+  projectRepoGraph,
+  type RepoReader,
+} from "../../spec-trace/graph-ingest-handler.js";
 
 const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
 
@@ -142,6 +148,37 @@ async function ingestFile(
   return true;
 }
 
+// ── Graph backstop ──────────────────────────────────────────────────
+
+/** Doc kinds projected into the spec-traceability graph (mirrors the CI graph job). */
+const GRAPH_KINDS = ["specs", "adrs"] as const;
+
+/**
+ * Projects a repo's specs + ADRs into the spec-traceability graph — the backstop
+ * for the CI graph job (lore-ingest.yml), which soft-skips when LORE_WEBHOOK_URL
+ * is unset. `projectRepoGraph` reads the FULL tree and is content-hash idempotent,
+ * so it self-heals docs the CI job never projected without re-touching unchanged
+ * ones. No-op (not an error) when Dgraph is unconfigured, matching internal.ts.
+ */
+export async function projectDocsIntoGraph(
+  fullName: string,
+  dgraph: DgraphClientPort | null,
+  reader: RepoReader,
+): Promise<void> {
+  if (!dgraph) {
+    return;
+  }
+
+  for (const kind of GRAPH_KINDS) {
+    const summary = await projectRepoGraph({ kind, repo: fullName }, {
+      repo: reader,
+      dgraph,
+    });
+
+    console.log(`[job] graph ${kind} ${fullName}: ${summary.message}`);
+  }
+}
+
 // ── Main job ─────────────────────────────────────────────────────────
 
 export async function reindexJob(): Promise<string> {
@@ -217,6 +254,22 @@ export async function reindexJob(): Promise<string> {
 
       // Update last_ingested_at
       await settings().markIngested(repo.full_name);
+
+      // Backstop the spec-traceability graph (the CI graph job soft-skips without
+      // LORE_WEBHOOK_URL). Isolated so a graph failure never undoes the chunk reindex.
+      try {
+        const project = await projectFor(repo.full_name);
+
+        await projectDocsIntoGraph(
+          repo.full_name,
+          createDgraphClient(),
+          project.repo,
+        );
+      } catch (err) {
+        console.error(
+          `[job] Error projecting ${repo.full_name} into the graph: ${errorMessage(err)}`,
+        );
+      }
 
       totalFiles += repoFileCount;
       totalRepos++;
