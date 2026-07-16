@@ -189,11 +189,14 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
 
 18. A station pod ends with the claude-style result line carrying `LORE_NODE_RESULT: {outcome,
     extras}`; the Floor's `parseNodeResult` maps it (precedence: LORE_NODE_RESULT → REVIEW_RESULT →
-    success); CR Failed → `station-failed`; await expiry → `station-timeout`. The station's
-    `resultLine` emits the claude-style terminal event (`is_error:false`, `result` prefixed
-    `LORE_NODE_RESULT: `) that round-trips through `parseNodeResult`, and marks an infrastructure
-    error `is_error:true` so the CR fails.
-    ([validated by parseNodeResult tests](libs/assembly-lines/src/node-outcome.test.ts#L19), [`output.test.ts:6`](apps/lore-station/src/output.test.ts#L6), [`output.test.ts:17`](apps/lore-station/src/output.test.ts#L17), [`output.test.ts:29`](apps/lore-station/src/output.test.ts#L29))
+    success); CR Failed → `station-failed`; await expiry → `station-timeout`. The wrap side and the
+    unwrap side live in ONE module (`libs/assembly-lines/src/agent-output.ts`): `resultLine` emits
+    the claude-style terminal event (`is_error:false`, `result` prefixed `LORE_NODE_RESULT: `) that
+    round-trips through `parseNodeResult` and `resultTextFromOutput`, marks an infrastructure error
+    `is_error:true` so the CR fails, and MUST refuse (enforce-throw) to wrap a payload that is
+    already a wrapped agent output line — the envelope is applied exactly once, never nested.
+    `eventLine` emits the non-terminal log events the result scan skips over.
+    ([validated by parseNodeResult tests](libs/assembly-lines/src/node-outcome.test.ts#L19), [`agent-output.test.ts:139`](libs/assembly-lines/src/agent-output.test.ts#L139), [`agent-output.test.ts:150`](libs/assembly-lines/src/agent-output.test.ts#L150), [`agent-output.test.ts:162`](libs/assembly-lines/src/agent-output.test.ts#L162), [`agent-output.test.ts:170`](libs/assembly-lines/src/agent-output.test.ts#L170), [`agent-output.test.ts:180`](libs/assembly-lines/src/agent-output.test.ts#L180), [`agent-output.test.ts:188`](libs/assembly-lines/src/agent-output.test.ts#L188), [`agent-output.test.ts:198`](libs/assembly-lines/src/agent-output.test.ts#L198); implemented by [`agent-output.ts:104`](libs/assembly-lines/src/agent-output.ts#L104))
 
 19. Cutover complete: every non-agent node on the Floor-assembly-line path dispatches a station
     (no `LORE_STATION_NODES` flag, no in-process node handlers on that path); the in-process

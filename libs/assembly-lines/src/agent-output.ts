@@ -1,26 +1,47 @@
-// The station contract's output envelope (ADR-031 D8/D9). An Agent's
-// `status.output` is an NDJSON event stream whose terminal line is the
-// claude-style `{"type":"result","is_error":false,"result":"<agent text>"}`
-// (written by `apps/lore-station/src/output.ts`). The agent text rides inside a
-// JSON string field, so its newlines arrive escaped and any fenced block or
-// embedded JSON is backslash-escaped with it.
+// The single source of truth for the station contract's output envelope
+// (ADR-031 D8/D9): the wrap side every station emits through and the unwrap
+// side every Floor reader consumes through. An Agent's `status.output` is an
+// NDJSON event stream whose terminal line is the claude-style
+// `{"type":"result","is_error":false,"result":"<agent text>"}`.
 //
+// The agent text rides inside a JSON string field, so its newlines arrive
+// escaped and any fenced block or embedded JSON is backslash-escaped with it.
 // Unwrap here, once, at the read boundary — then the text parsers
-// (parseNodeResult / parseReviewVerdict / parseReviewFindings) stay pure and see
-// the agent text exactly as the agent printed it. Parsers that scan for a
+// (parseNodeResult / parseReviewVerdict / parseReviewFindings) stay pure and
+// see the agent text exactly as the agent printed it. Parsers that scan for a
 // single-line marker survive the escaping by luck; anything needing a real
 // newline (the ```REVIEW_FINDINGS block) does not.
+
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import type { NodeResult } from "./node-types.js";
 
 interface ResultLine {
   type: string;
   result?: unknown;
 }
 
+// TRANSITIONAL (delete once no pre-cutover CRs remain): before the
+// ai-agent-subsystem stopped stamping its {"source": {...}, "event": <line>}
+// attribution envelope onto stdout, every status.output line arrived wrapped
+// one level deeper. Peel that layer so those CRs' results still parse.
+interface AttributedLine {
+  source: unknown;
+  event: unknown;
+}
+
 function parseLine(line: string): ResultLine | null {
   try {
     const value: unknown = JSON.parse(line);
 
-    return isResultLine(value) ? value : null;
+    if (isResultLine(value)) {
+      return value;
+    }
+
+    if (isAttributedLine(value) && isResultLine(value.event)) {
+      return value.event;
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -31,6 +52,15 @@ function isResultLine(value: unknown): value is ResultLine {
     typeof value === "object" &&
     value !== null &&
     (value as ResultLine).type === "result"
+  );
+}
+
+function isAttributedLine(value: unknown): value is AttributedLine {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "source" in value &&
+    "event" in value
   );
 }
 
@@ -52,4 +82,47 @@ export function resultTextFromOutput(output: string): string {
   }
 
   return output;
+}
+
+/** True when `text` is already a serialized result line or attribution envelope. */
+function isWrappedAgentOutput(text: string): boolean {
+  try {
+    const value: unknown = JSON.parse(text);
+
+    return isResultLine(value) || isAttributedLine(value);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The terminal NDJSON line a station emits. A NodeResult (including outcome
+ * "failed" — a normal result that routes the failed edge) emits
+ * `is_error:false`; pass `null` + an error message for infrastructure
+ * failures, which fail the CR itself.
+ */
+export function resultLine(
+  result: NodeResult | null,
+  errorMessage?: string,
+): string {
+  const payload = result
+    ? `LORE_NODE_RESULT: ${JSON.stringify({ outcome: result.outcome, extras: result.extras ?? {} })}`
+    : (errorMessage ?? "station failed");
+
+  enforceTrue(
+    !isWrappedAgentOutput(payload),
+    Error,
+    "refusing to wrap an already-wrapped agent output line — the envelope is applied exactly once",
+  );
+
+  return JSON.stringify({
+    type: "result",
+    is_error: result === null,
+    result: payload,
+  });
+}
+
+/** Progress lines for the log sinks (anything non-terminal). */
+export function eventLine(message: string): string {
+  return JSON.stringify({ type: "log", message });
 }
