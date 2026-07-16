@@ -1,7 +1,7 @@
 ---
 adr_number: 21
 title: "Context assembly: graph-derived, signal-ranked source"
-status: in-progress
+status: in progress
 date: 2026-06-10
 domains: [shared, mcp-server, context, retrieval, spec-trace]
 ---
