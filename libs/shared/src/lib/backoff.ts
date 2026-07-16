@@ -13,6 +13,11 @@ export interface BackoffOptions {
   delaysMs: readonly number[];
   /** Injectable sleep for tests; defaults to setTimeout. */
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * Retry only errors this predicate accepts; anything else rethrows
+   * immediately, before any sleep. Omitted = retry every error.
+   */
+  retryOn?: (err: unknown) => boolean;
 }
 
 const defaultSleep = (ms: number): Promise<void> =>
@@ -29,6 +34,9 @@ export async function withBackoff<T>(
     try {
       return await fn();
     } catch (err) {
+      if (opts.retryOn && !opts.retryOn(err)) {
+        throw err;
+      }
       lastError = err;
 
       if (attempt < opts.delaysMs.length) {

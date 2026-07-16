@@ -17,6 +17,7 @@
  */
 
 import type { DgraphClientPort, DgraphTxn } from "./deps.js";
+import { withBackoff } from "../lib/backoff.js";
 
 /**
  * Node types in the spec-traceability graph, all upserted by xid through
@@ -40,18 +41,58 @@ export type SpecTraceNodeType =
   | "Feature"
   | "TraceLink";
 
-/** Runs `fn` inside a fresh transaction, always discarding it afterwards. */
+/**
+ * True for dgraph's abort/conflict errors. The driver (dgraph-js-http)
+ * normalizes both aborted txns and write-write conflicts into one plain-Error
+ * singleton, "Transaction has been aborted. Please retry" — the message is the
+ * only discriminator, and this heuristic mirrors the driver's own
+ * `isAbortedError` (lowercased message carrying both "abort" and "retry").
+ */
+export function isTxnAborted(err: unknown): boolean {
+  if (!(err instanceof Error)) {
+    return false;
+  }
+  const message = err.message.toLowerCase();
+
+  return message.includes("abort") && message.includes("retry");
+}
+
+/**
+ * Aborts clear as soon as the winning concurrent txn commits (ms-scale), so a
+ * 200ms first retry wins most races and ~1.7s bounds the worst case per write
+ * — deliberately NOT the event-loop's 1-300s schedule, which would push a
+ * many-write ingest handler toward the 600s stuck-row reaper timeout.
+ */
+export const TXN_ABORT_DELAYS_MS: readonly number[] = [200, 500, 1000];
+
+/**
+ * Runs `fn` inside a fresh transaction, always discarding it afterwards.
+ * An aborted/conflicted attempt retries on a NEW transaction (an aborted
+ * dgraph txn is finished) up to the TXN_ABORT_DELAYS_MS schedule — safe
+ * because every spec-trace write is an idempotent xid upsert. Any other
+ * error rethrows immediately.
+ */
 export async function withTxn<T>(
   dgraph: DgraphClientPort,
   fn: (txn: DgraphTxn) => Promise<T>,
+  opts?: { sleep?: (ms: number) => Promise<void> },
 ): Promise<T> {
-  const txn = dgraph.newTxn();
+  return withBackoff(
+    async () => {
+      const txn = dgraph.newTxn();
 
-  try {
-    return await fn(txn);
-  } finally {
-    await txn.discard().catch(() => {});
-  }
+      try {
+        return await fn(txn);
+      } finally {
+        await txn.discard().catch(() => {});
+      }
+    },
+    {
+      delaysMs: TXN_ABORT_DELAYS_MS,
+      retryOn: isTxnAborted,
+      sleep: opts?.sleep,
+    },
+  );
 }
 
 /** Extracts the assigned uid of a blank node from a commitNow mutation result. */

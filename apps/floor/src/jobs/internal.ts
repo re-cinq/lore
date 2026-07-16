@@ -5,7 +5,10 @@
  */
 
 import { createDgraphClient } from "@re-cinq/lore-shared";
-import { dispatchSpecTrace } from "./spec-trace/spec-trace-dispatch.js";
+import {
+  dispatchSpecTrace,
+  enforceProjectionComplete,
+} from "./spec-trace/spec-trace-dispatch.js";
 import { projectFor } from "../composition/project-boot.js";
 import { writeAuditLog } from "./lib/audit.js";
 import { validateSpecCoverageJob } from "@re-cinq/lore-shared/detect/index.js";
@@ -27,15 +30,20 @@ export const specTrace: EventHandler = async (params) => {
 
     return;
   }
-  const { logLine, audit } = await dispatchSpecTrace(repo, kind, payload, {
-    dgraph,
-    projectFor,
-  });
+  const { logLine, audit, failedFiles } = await dispatchSpecTrace(
+    repo,
+    kind,
+    payload,
+    { dgraph, projectFor },
+  );
 
+  // Log + audit record this attempt's summary BEFORE the completeness guard —
+  // the throw exists for the event loop's retry, not to hide what happened.
   console.log(logLine);
   await writeAuditLog(audit).catch((err) =>
     console.error(`[events] spec-trace audit write failed for ${repo}:`, err),
   );
+  enforceProjectionComplete(repo, kind, failedFiles);
 };
 
 export const specCoverageValidate: EventHandler = async (params) => {
