@@ -10,6 +10,7 @@ import type {
   PullRequestsPort,
   PullRef,
   PRReviewEvent,
+  CreateReviewInput,
   MergeMethod,
   PullReview,
   ReviewComment,
@@ -472,6 +473,29 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     });
   }
 
+  async createReview(
+    repo: string,
+    number: number,
+    input: CreateReviewInput,
+  ): Promise<void> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+
+    await ok.rest.pulls.createReview({
+      owner,
+      repo: name,
+      pull_number: number,
+      body: input.body,
+      event: input.event,
+      comments: input.comments.map((c) => ({
+        path: c.path,
+        line: c.line,
+        ...(c.side ? { side: c.side } : {}),
+        body: c.body,
+      })),
+    });
+  }
+
   async addLabel(repo: string, number: number, label: string): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
@@ -883,7 +907,7 @@ function toPullRef(
   pr: {
     number: number;
     title: string;
-    head: { ref: string };
+    head: { ref: string; sha?: string };
     state: string;
     merged_at?: string | null;
     html_url: string;
@@ -902,5 +926,6 @@ function toPullRef(
     url: pr.html_url,
     author: pr.user?.login ?? "",
     draft: pr.draft ?? false,
+    headSha: pr.head.sha,
   };
 }
