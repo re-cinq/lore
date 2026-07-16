@@ -30,10 +30,7 @@ describe("fetchDocStatusesFromGraph", () => {
 
     expect(fetchTraceSourceMock).toHaveBeenCalledTimes(1);
     expect(result).toEqual({
-      [specStatusKey("org/a", "specs/x/spec.md")]: {
-        status: "shipped",
-        label: "Shipped",
-      },
+      [specStatusKey("org/a", "specs/x/spec.md")]: "shipped",
     });
   });
 
@@ -52,14 +49,8 @@ describe("fetchDocStatusesFromGraph", () => {
 
     expect(fetchTraceSourceMock).toHaveBeenCalledTimes(2);
     expect(result).toEqual({
-      [specStatusKey("org/a", "adrs/ADR-001-x.md")]: {
-        status: "shipped",
-        label: "Accepted",
-      },
-      [specStatusKey("org/a", "adrs/ADR-002-y.md")]: {
-        status: "retired",
-        label: "Superseded",
-      },
+      [specStatusKey("org/a", "adrs/ADR-001-x.md")]: "shipped",
+      [specStatusKey("org/a", "adrs/ADR-002-y.md")]: "retired",
     });
   });
 
@@ -79,10 +70,7 @@ describe("fetchDocStatusesFromGraph", () => {
     );
 
     expect(result).toEqual({
-      [specStatusKey("org/a", "adrs/ADR-003-z.md")]: {
-        status: "draft",
-        label: "Draft",
-      },
+      [specStatusKey("org/a", "adrs/ADR-003-z.md")]: "draft",
     });
   });
 

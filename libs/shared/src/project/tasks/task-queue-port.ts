@@ -89,6 +89,13 @@ export interface CompletedSpecTask {
 }
 
 /**
+ * Statuses that leave a task group's work settled — nothing more will happen on
+ * this row, and it is not holding the feature open. Single-sourced so both queue
+ * adapters agree; see `countOutstandingInGroup` for why each one is here.
+ */
+export const SETTLED_GROUP_STATUSES = ["merged", "completed", "retried"];
+
+/**
  * From an already-ready set, the dependents unblocked by completing
  * `specTaskId` in `specSlug`: same-spec tasks that list it in `depends_on`.
  * Shared by both queue adapters so the readiness predicate stays single-sourced.
@@ -157,12 +164,24 @@ export interface TaskQueueRepository {
   countRunningSpecTasksByGroup(): Promise<SpecGroupCount[]>;
 
   /**
-   * Count tasks in `groupId` whose status is not `merged` — the spec-status-upkeep
-   * (FR1) group-completion signal. Zero means every task in the group has merged.
-   * A sibling closed-without-merge keeps the count above zero, so no flip fires
-   * for a partially-abandoned group; a human resolves those.
+   * Count tasks in `groupId` with work still outstanding — the spec-status-upkeep
+   * (FR1) group-completion signal. Zero means the group's work is done.
+   *
+   * Three statuses are settled and do NOT count:
+   *   - `merged`    — landed, the success signal.
+   *   - `completed` — terminal success with no PR to merge: the agent found no
+   *     changes to make (agent-watcher), or a local runner completed it. Such a
+   *     row can never reach `merged` (mergeableTasks only selects
+   *     `pr-created`/`review`), so counting it stalled the flip forever.
+   *   - `retried`   — superseded; the replacement carries the same
+   *     `task_group_id` and blocks on its own behalf until it settles.
+   *
+   * Everything else counts: the pending/running families are not done yet, and
+   * `failed` / `cancelled` / `needs-human-help` are unfinished business. A
+   * partially-abandoned group never flips; a human (or FR2's weekly detector)
+   * resolves those.
    */
-  countUnmergedInGroup(groupId: string): Promise<number>;
+  countOutstandingInGroup(groupId: string): Promise<number>;
 
   /**
    * Atomically flip a still-`pending` spec-task to `running`; true iff this

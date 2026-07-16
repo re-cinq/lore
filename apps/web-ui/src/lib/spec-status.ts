@@ -1,19 +1,33 @@
-// Parses a doc's lifecycle status into a normalized bucket + display label.
-// Two source shapes feed the same buckets (in-sync mirror of the canonical
-// parser in libs/shared/src/spec-status.ts — web-ui cannot import lore-shared):
+// Parses a doc's lifecycle status into a normalized bucket. Two source shapes
+// feed the same buckets (in-sync mirror of the canonical parser in
+// libs/shared/src/spec-status.ts — web-ui cannot import lore-shared):
 //   - spec.md — the `| Status | ... |` header table row
 //   - ADR .md — YAML frontmatter `status: <value>`
 // Pure value-in/value-out — the markdown comes from the trace-graph source.
+//
+// The bucket is the ONLY thing that escapes this module (ADR-037). The synonym
+// table below is tolerant on the way in, because Lore parses corpora it does not
+// own — a repo onboarded with MADR ADRs writes `status: accepted`, and Lore's own
+// onboard prompt tells it to. Emitting the author's raw word back out is what
+// made one state render as four different pills, across two corpora that spell
+// the same state differently (`Implemented` vs `accepted`).
 
 export type DocKind = "spec" | "adr";
 
 export type SpecStatus =
   "draft" | "in-progress" | "shipped" | "rejected" | "retired";
 
-export interface SpecStatusInfo {
-  status: SpecStatus;
-  label: string;
-}
+/** The one display name per bucket — every surface renders these, never the
+ *  raw cell or frontmatter text. Purely a UI concern: the write-side vocabulary
+ *  (what a status flip puts *into* a file, per corpus) is shared's
+ *  `statusLabel(status, kind)`, which is a different table on purpose. */
+export const SPEC_STATUS_LABEL: Record<SpecStatus, string> = {
+  draft: "Draft",
+  "in-progress": "In progress",
+  shipped: "Shipped",
+  rejected: "Rejected",
+  retired: "Retired",
+};
 
 export const SPEC_STATUS_COLOR: Record<SpecStatus, string> = {
   draft: "var(--chart-neutral)",
@@ -55,30 +69,21 @@ const BUCKETS: Array<{ status: SpecStatus; re: RegExp }> = [
   },
 ];
 
-const MAX_LABEL = 24;
+/** Bucket a bare status value — an ADR frontmatter `status:`, or a spec's
+ *  status cell once the table markup is stripped. */
+export function statusFromValue(value: string): SpecStatus | null {
+  return BUCKETS.find((b) => b.re.test(value.toLowerCase()))?.status ?? null;
+}
 
-export function parseSpecStatus(markdown: string): SpecStatusInfo | null {
+export function parseSpecStatus(markdown: string): SpecStatus | null {
   for (const line of markdown.split("\n")) {
     const cells = line.split("|").map((c) => c.trim());
 
     if (cells.length < 3 || cells[1].toLowerCase() !== "status") {
       continue;
     }
-    const value = cells[2].replace(/\*/g, "").trim();
-    const bucket = BUCKETS.find((b) => b.re.test(value.toLowerCase()));
 
-    if (!bucket) {
-      return null;
-    }
-    const label = value
-      .split(/\s+[—–-]\s+/)[0]
-      .split(" (")[0]
-      .trim();
-
-    return {
-      status: bucket.status,
-      label: label.slice(0, MAX_LABEL) || value.slice(0, MAX_LABEL),
-    };
+    return statusFromValue(cells[2].replace(/\*/g, "").trim());
   }
 
   return null;
@@ -102,37 +107,23 @@ function adrFrontmatterStatusValue(markdown: string): string | null {
   return null;
 }
 
-/** Bucket a bare status value (an ADR frontmatter `status:`) into pill info. */
-export function statusInfoFromValue(value: string): SpecStatusInfo | null {
-  const bucket = BUCKETS.find((b) => b.re.test(value.toLowerCase()));
-
-  if (!bucket) {
-    return null;
-  }
-
-  return {
-    status: bucket.status,
-    label: (value.charAt(0).toUpperCase() + value.slice(1)).slice(0, MAX_LABEL),
-  };
-}
-
 export function parseDocStatus(
   markdown: string,
   kind: DocKind,
-): SpecStatusInfo | null {
+): SpecStatus | null {
   if (kind === "spec") {
     return parseSpecStatus(markdown);
   }
   const value = adrFrontmatterStatusValue(markdown);
 
-  return value === null ? null : statusInfoFromValue(value);
+  return value === null ? null : statusFromValue(value);
 }
 
 export type SpecStatusFilter = "all" | SpecStatus;
 
 export function matchesSpecStatusFilter(
-  info: SpecStatusInfo | undefined,
+  status: SpecStatus | undefined,
   filter: SpecStatusFilter,
 ): boolean {
-  return filter === "all" || info?.status === filter;
+  return filter === "all" || status === filter;
 }

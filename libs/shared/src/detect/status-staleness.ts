@@ -48,6 +48,24 @@ const CANDIDATE_STATUSES: StatusBucket[] = ["draft", "in-progress"];
 /** Task types whose merge is evidence the spec's feature actually shipped. */
 const IMPLEMENTING_TASK_TYPES = ["spec-task", "implementation"];
 
+/**
+ * Statuses meaning a task is still going somewhere — the pending + running
+ * families of `TaskStatus`. Everything else has settled: `merged` is the
+ * evidence, while `completed` / `failed` / `cancelled` / `retried` are dead ends
+ * that say nothing either way. Testing "not merged" instead would let a single
+ * cancelled or retried sibling suppress the signal forever, and retries are
+ * exactly what the messiest (so most likely stale) features accumulate.
+ */
+const IN_FLIGHT_TASK_STATUSES = [
+  "pending",
+  "queued",
+  "awaiting_approval",
+  "running",
+  "running-local",
+  "review",
+  "pr-created",
+];
+
 /** A lone backticked path proves nothing — a spec naming several that all exist does. */
 const MIN_NAMED_PATHS = 2;
 const MIN_NAMED_PATH_RATIO = 0.5;
@@ -60,8 +78,8 @@ export interface StaleEvidence {
   resolvingTestLinks: number;
   /** Linked pipeline tasks that merged. */
   mergedTasks: number;
-  /** Linked pipeline tasks that have not merged (any other status). */
-  unmergedTasks: number;
+  /** Linked pipeline tasks still in flight (pending or running). */
+  outstandingTasks: number;
   /** Backticked paths the spec names that exist in the indexed code. */
   namedPathsExisting: number;
   namedPathsTotal: number;
@@ -126,12 +144,13 @@ export function gatherEvidence(
   }
 
   const paths = namedPaths(content);
-  const merged = taskRows.filter((t) => t.status === "merged").length;
 
   return {
     resolvingTestLinks,
-    mergedTasks: merged,
-    unmergedTasks: taskRows.length - merged,
+    mergedTasks: taskRows.filter((t) => t.status === "merged").length,
+    outstandingTasks: taskRows.filter((t) =>
+      IN_FLIGHT_TASK_STATUSES.includes(t.status),
+    ).length,
     namedPathsExisting: paths.filter((p) => knownPaths.has(p)).length,
     namedPathsTotal: paths.length,
   };
@@ -152,7 +171,7 @@ export function decideStale(evidence: StaleEvidence): string[] {
     );
   }
 
-  if (evidence.mergedTasks > 0 && evidence.unmergedTasks === 0) {
+  if (evidence.mergedTasks > 0 && evidence.outstandingTasks === 0) {
     reasons.push(
       `${evidence.mergedTasks} linked pipeline task${evidence.mergedTasks === 1 ? "" : "s"} merged, none outstanding`,
     );
@@ -253,16 +272,20 @@ export async function statusStalenessJob(
     return "No specs found";
   }
 
-  const testChunks: ChunkLineRange[] = (
-    await project.chunks.testChunkRanges()
-  ).map((c) => ({
+  // Every `code` chunk in the repo's resolved schema — the name reflects the
+  // first caller, not the filter. One read serves both evidence signals: the
+  // line ranges links resolve against, and the paths the index knows about.
+  // Deliberately not `chunks.codeSymbols()`, which is hardcoded to
+  // `org_shared.chunks` while the spec reads above resolve the team schema — on
+  // a team-schema repo that mismatch returns zero paths, silently killing the
+  // named-paths signal rather than failing.
+  const codeChunks = await project.chunks.testChunkRanges();
+  const testChunks: ChunkLineRange[] = codeChunks.map((c) => ({
     file_path: c.filePath,
     start_line: c.startLine,
     end_line: c.endLine,
   }));
-  const knownPaths = new Set(
-    (await project.chunks.codeSymbols()).map((c) => c.filePath),
-  );
+  const knownPaths = new Set(codeChunks.map((c) => c.filePath));
 
   const findings: StaleFinding[] = [];
   let candidates = 0;

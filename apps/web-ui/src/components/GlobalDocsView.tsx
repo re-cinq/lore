@@ -12,11 +12,7 @@ import DocListControls from "@/components/DocListControls";
 import SpecStatusChips from "@/components/SpecStatusChips";
 import SpecStatusPill from "@/components/SpecStatusPill";
 import { filterDocCards } from "@/lib/doc-filter";
-import type {
-  DocKind,
-  SpecStatusFilter,
-  SpecStatusInfo,
-} from "@/lib/spec-status";
+import type { DocKind, SpecStatusFilter, SpecStatus } from "@/lib/spec-status";
 
 export default function GlobalDocsView({
   docs,
@@ -27,7 +23,7 @@ export default function GlobalDocsView({
   chipsKind = "spec",
 }: {
   docs: Array<{ repo: string; filePath: string }>;
-  statuses?: Record<string, SpecStatusInfo>;
+  statuses?: Record<string, SpecStatus>;
   hrefFor: (repo: string, filePath: string) => string;
   emptyHint: string;
   noMatchHint: string;
@@ -76,7 +72,7 @@ export default function GlobalDocsView({
           <h2 style={{ fontSize: "var(--fs-base)" }}>{repo}</h2>
           <ul style={{ listStyle: "none", padding: 0 }}>
             {paths.map((filePath) => {
-              const info = statusOf(repo, filePath);
+              const status = statusOf(repo, filePath);
 
               return (
                 <li
@@ -89,7 +85,7 @@ export default function GlobalDocsView({
                   }}
                 >
                   <Link href={hrefFor(repo, filePath)}>{filePath}</Link>
-                  {info && <SpecStatusPill info={info} />}
+                  {status && <SpecStatusPill status={status} />}
                 </li>
               );
             })}

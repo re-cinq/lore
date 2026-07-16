@@ -209,7 +209,7 @@ async function maybeFlipSpecStatus(
   task: MergeableTask,
 ): Promise<void> {
   const remaining = task.task_group_id
-    ? await taskQueue().countUnmergedInGroup(task.task_group_id)
+    ? await taskQueue().countOutstandingInGroup(task.task_group_id)
     : 0;
   const decision = decideSpecStatusFlip(task, remaining);
 
@@ -224,7 +224,7 @@ async function maybeFlipSpecStatus(
   }
   const specPath = feature.spec_path ?? `specs/${feature.slug}/spec.md`;
   const result = await openSpecStatusFlipPr(project, specPath, {
-    evidence: `Completion: every task in group \`${task.task_group_id}\` is merged (last: PR #${task.pr_number}).`,
+    evidence: `Completion: no task in group \`${task.task_group_id}\` has work outstanding (last merge: PR #${task.pr_number}).`,
   });
 
   if (decideFeatureImplemented(result)) {

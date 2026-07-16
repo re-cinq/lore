@@ -5,11 +5,7 @@
 // bound the fan-out). Freshness follows the CI projection on push to main.
 
 import { fetchTraceSource } from "./trace-api";
-import {
-  parseDocStatus,
-  type DocKind,
-  type SpecStatusInfo,
-} from "./spec-status";
+import { parseDocStatus, type DocKind, type SpecStatus } from "./spec-status";
 
 const BATCH = 10;
 
@@ -22,10 +18,10 @@ export const specStatusKey = (repo: string, filePath: string): string =>
 export async function fetchDocStatusesFromGraph(
   entries: Array<{ repo: string; filePath: string }>,
   kind: DocKind,
-): Promise<Record<string, SpecStatusInfo>> {
+): Promise<Record<string, SpecStatus>> {
   const docs =
     kind === "spec" ? entries.filter((e) => isSpecDoc(e.filePath)) : entries;
-  const result: Record<string, SpecStatusInfo> = {};
+  const result: Record<string, SpecStatus> = {};
 
   for (let i = 0; i < docs.length; i += BATCH) {
     const batch = docs.slice(i, i + BATCH);

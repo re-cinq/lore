@@ -7,7 +7,6 @@ import {
   SPEC_STATUS_ORDER,
   type SpecStatus,
   type SpecStatusFilter,
-  type SpecStatusInfo,
 } from "./spec-status";
 
 export type DocSortOrder = "path" | "status";
@@ -19,7 +18,7 @@ export interface DocFilterResult<T> {
 
 export function filterDocCards<T>(
   items: T[],
-  statusOf: (item: T) => SpecStatusInfo | undefined,
+  statusOf: (item: T) => SpecStatus | undefined,
   filter: SpecStatusFilter,
   query?: string,
   textOf?: (item: T) => string,
@@ -32,10 +31,10 @@ export function filterDocCards<T>(
   const counts: Partial<Record<SpecStatus, number>> = {};
 
   for (const item of matched) {
-    const info = statusOf(item);
+    const status = statusOf(item);
 
-    if (info) {
-      counts[info.status] = (counts[info.status] ?? 0) + 1;
+    if (status) {
+      counts[status] = (counts[status] ?? 0) + 1;
     }
   }
 
@@ -52,16 +51,16 @@ export function filterDocCards<T>(
 export function sortDocCards<T>(
   items: T[],
   order: DocSortOrder,
-  statusOf: (item: T) => SpecStatusInfo | undefined,
+  statusOf: (item: T) => SpecStatus | undefined,
 ): T[] {
   if (order === "path") {
     return items;
   }
   const rank = (item: T): number => {
-    const info = statusOf(item);
+    const status = statusOf(item);
 
-    return info
-      ? SPEC_STATUS_ORDER.indexOf(info.status)
+    return status
+      ? SPEC_STATUS_ORDER.indexOf(status)
       : SPEC_STATUS_ORDER.length;
   };
 

@@ -5,12 +5,12 @@
 // workspace member, so it cannot import @re-cinq/lore-shared.
 import Link from "next/link";
 import SpecStatusPill from "@/components/SpecStatusPill";
-import type { SpecStatusInfo } from "@/lib/spec-status";
+import type { SpecStatus } from "@/lib/spec-status";
 
 export interface SpecCardProps {
   title: string;
   description: string;
-  status?: SpecStatusInfo;
+  status?: SpecStatus;
   coverage?: { testable: number; covered: number; ratio: number };
   /** Multi-file spec folder: one link chip per file. */
   files?: Array<{ label: string; href: string }>;
@@ -54,7 +54,7 @@ export default function SpecCard({
         }}
       >
         {title}
-        {status && <SpecStatusPill info={status} />}
+        {status && <SpecStatusPill status={status} />}
       </h3>
       {description && (
         <p style={{ margin: "0 0 8px", color: "var(--text-muted)" }}>

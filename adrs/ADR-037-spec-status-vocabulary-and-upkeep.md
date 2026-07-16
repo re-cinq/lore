@@ -64,8 +64,19 @@ forms. ([validated by `spec-status.test.ts:30`](libs/shared/src/spec-status.test
 | `rejected` | rejected, abandoned | skip |
 | `retired` | retired, superseded, removed, deprecated, obsolete | skip |
 
-Two choices carry weight:
+**The synonym table is tolerant because Lore parses corpora it does not own.**
+This repo's own specs use five of these words; the rest are not dead weight. Lore
+serves every onboarded repo, each with its own house style, and MADR — the ADR
+standard — natively says `proposed` / `accepted` / `superseded` / `deprecated`.
+Lore's own `onboard` prompt ([task-types.yaml](../scripts/task-types.yaml))
+instructs every new repo to write `status: accepted`, so Lore *manufactures* the
+inputs the table absorbs. A parser that only knew `Shipped` would return `null` on
+a conformant MADR corpus: no pill, and `status-staleness` skipping the file.
 
+Three choices carry weight:
+
+- **Tolerant on input, canonical on output.** The synonyms exist for reading, and
+  the bucket is the only thing that escapes the parser — see §2.
 - **`Retired` is distinct from `Rejected`.** They mean opposite histories:
   `retired` shipped and was later superseded; `rejected` was never accepted.
   Collapsing them would erase the "was live" fact, which is exactly what a reader
@@ -78,19 +89,60 @@ Two choices carry weight:
 ### 2. `libs/shared/src/spec-status.ts` is the single source; a parity test holds the mirror
 
 Consumers import the shared module. `apps/web-ui` cannot (ADR-036 boundaries), so
-it keeps a mirror plus its own UI-only concerns (pill color, sort order, display
-label). The mirror is held in lockstep by a parity test that imports shared's pure
-module **by relative file path — never the package**:
+it keeps a mirror plus its own UI-only concerns (`SPEC_STATUS_LABEL` / `_COLOR` /
+`_ORDER`). The mirror is held in lockstep by a parity test that imports shared's
+pure module **by relative file path — never the package**:
 
-- Both implementations bucket every synonym in the vocabulary identically, including bold cells, trailing qualifiers, and values in no bucket at all. ([validated by `spec-status.parity.test.ts:50`](apps/web-ui/src/lib/spec-status.parity.test.ts#L50))
-- Both report no status when the table carries no `Status` row. ([validated by `spec-status.parity.test.ts:60`](apps/web-ui/src/lib/spec-status.parity.test.ts#L60))
+- Both implementations bucket every synonym in the vocabulary identically, including bold cells, trailing qualifiers, and values in no bucket at all. ([validated by `spec-status.parity.test.ts:57`](apps/web-ui/src/lib/spec-status.parity.test.ts#L57))
+- Parity is asserted over both corpora, since both mirrors parse both: a spec's `| Status |` row and an ADR's frontmatter `status:`. ([validated by `spec-status.parity.test.ts:65`](apps/web-ui/src/lib/spec-status.parity.test.ts#L65))
+- Both report no status when a spec table carries no `Status` row, and when an ADR carries no frontmatter at all. ([validated by `spec-status.parity.test.ts:73`](apps/web-ui/src/lib/spec-status.parity.test.ts#L73), [`spec-status.parity.test.ts:81`](apps/web-ui/src/lib/spec-status.parity.test.ts#L81))
 
 This follows the existing
 [feature-types.parity.test.ts](../apps/web-ui/src/lib/feature-types.parity.test.ts)
 precedent and ADR-036's philosophy: import boundaries are enforced by tests, not
 by convention. A comment did not stop the `proposed` drift; the test does.
 
-### 3. Statuses are maintained by machine, in two layers
+Historical note, since the file dates mislead: the web-ui pill
+([0dfb32d1](https://github.com/re-cinq/lore/pull/814)) came **first**, and shared's
+table ([b255f45a](https://github.com/re-cinq/lore/pull/835)) was copied from it two
+days later for the lint rule. Shared is the single source by decision, not by
+seniority — which is exactly how `proposed` came to exist in the copy and not the
+original.
+
+### 3. Only the bucket is displayed — never the author's raw word
+
+`parseDocStatus` returns the bucket alone, for both corpora. Each bucket has
+exactly one display name (`SPEC_STATUS_LABEL`), and every surface — pill and
+filter chips, spec and ADR alike — renders that:
+
+- Every synonym of a bucket renders as one label, so `Shipped`, `Implemented — merged to main 2026-06-30`, `Complete` and `Accepted (pre-implementation)` all read **Shipped**. ([validated by `spec-status.test.ts:54`](apps/web-ui/src/lib/spec-status.test.ts#L54))
+- The pill takes a bucket, so its colour and its word cannot disagree. ([validated by `SpecStatusPill.test.tsx:7`](apps/web-ui/src/components/SpecStatusPill.test.tsx#L7), [`SpecStatusPill.test.tsx:13`](apps/web-ui/src/components/SpecStatusPill.test.tsx#L13), [`SpecStatusPill.test.tsx:24`](apps/web-ui/src/components/SpecStatusPill.test.tsx#L24))
+
+Previously the pill printed the raw cell text, lightly truncated, while its colour
+came from the bucket. That was a feature of the free-text era — showing the
+author's own word was the point — but once
+[28e6694b](https://github.com/re-cinq/lore/pull/836) normalized the corpus it
+became a leak: one state rendered as four different green pills, the filter chips
+(which always showed bucket names) disagreed with the cards they filtered, and the
+types let `{status: "rejected", label: "Superseded"}` render a retired spec in
+rejected red. Buckets in, buckets out.
+
+The cost is that an unrecognized-but-bucketed spelling no longer surfaces the
+author's wording. That bought little: `parseSpecStatus` already returns `null` for
+anything in no bucket, so the raw word only ever varied *within* a bucket — which
+is precisely the variation that confused readers.
+
+The two corpora make the case sharper than specs alone did. Since
+[#861](https://github.com/re-cinq/lore/pull/861) the same pill renders ADRs, whose
+frontmatter spells shipped as `accepted` — so the raw-word era would have printed
+**Implemented** and **Accepted** side by side in one list for a single state. The
+bucket is the only thing the two corpora agree on, so it is the only thing to
+render. Note this is a *display* table: the write-side vocabulary — what a status
+flip puts back *into* a file — is shared's `statusLabel(status, kind)`, which
+deliberately keeps each corpus's own spelling (`Shipped` in a spec cell,
+`shipped` in ADR frontmatter). Read normalizes; write respects the house style.
+
+### 4. Statuses are maintained by machine, in two layers
 
 Both layers are deterministic — **no LLM** — and both produce artifacts for human
 review rather than acting unilaterally. Spec:
@@ -100,12 +152,33 @@ review rather than acting unilaterally. Spec:
 ([spec-status-flip.ts](../libs/shared/src/spec-status-flip.ts),
 [merge-check.ts](../apps/floor/src/jobs/merge/merge-check.ts)):
 
-- The flip fires only when a merging spec-task leaves no unmerged sibling in its `task_group_id` and the group resolves to an owning feature. ([validated by `spec-status-flip.test.ts:14`](apps/floor/src/jobs/merge/spec-status-flip.test.ts#L14), [`spec-status-flip.test.ts:18`](apps/floor/src/jobs/merge/spec-status-flip.test.ts#L18), [`spec-status-flip.test.ts:22`](apps/floor/src/jobs/merge/spec-status-flip.test.ts#L22), [`spec-status-flip.test.ts:26`](apps/floor/src/jobs/merge/spec-status-flip.test.ts#L26), [`spec-status-flip.test.ts:30`](apps/floor/src/jobs/merge/spec-status-flip.test.ts#L30))
-- It opens one PR carrying the upkeep labels, and skips silently when the spec is already Implemented, missing from the default branch, or has no status row. ([validated by `spec-status-flip.test.ts:61`](libs/shared/src/spec-status-flip.test.ts#L61), [`spec-status-flip.test.ts:90`](libs/shared/src/spec-status-flip.test.ts#L90), [`spec-status-flip.test.ts:106`](libs/shared/src/spec-status-flip.test.ts#L106), [`spec-status-flip.test.ts:115`](libs/shared/src/spec-status-flip.test.ts#L115))
+- The flip fires only when a merging spec-task leaves no sibling with work outstanding in its `task_group_id`, and the group resolves to an owning feature. ([validated by `spec-status-flip.test.ts:14`](apps/floor/src/jobs/merge/spec-status-flip.test.ts#L14), [`spec-status-flip.test.ts:18`](apps/floor/src/jobs/merge/spec-status-flip.test.ts#L18), [`spec-status-flip.test.ts:22`](apps/floor/src/jobs/merge/spec-status-flip.test.ts#L22), [`spec-status-flip.test.ts:26`](apps/floor/src/jobs/merge/spec-status-flip.test.ts#L26), [`spec-status-flip.test.ts:30`](apps/floor/src/jobs/merge/spec-status-flip.test.ts#L30))
+- It writes the status the spec's test-link coverage entitles it to claim — never a fixed word: no links → `Draft`, some → `In Progress`, all → `Shipped`. The literal comes from the write-side vocabulary (`statusLabel`), which spells the same bucket per corpus (a spec cell is Title Case, an ADR's frontmatter lowercase). One PR carries the upkeep labels; it skips silently when the spec is missing, has no status row, is terminal, has nothing testable to derive from, or already claims what its coverage supports. ([validated by `spec-status-flip.test.ts:71`](libs/shared/src/spec-status-flip.test.ts#L71), [`spec-status-flip.test.ts:103`](libs/shared/src/spec-status-flip.test.ts#L103), [`spec-status-flip.test.ts:139`](libs/shared/src/spec-status-flip.test.ts#L139), [`spec-status-flip.test.ts:156`](libs/shared/src/spec-status-flip.test.ts#L156))
 - The edit is a single-cell rewrite that leaves every other line byte-for-byte intact, preserves CRLF, and is idempotent by content — an already-shipped or retired spec is never re-marked. ([validated by `spec-status.test.ts:150`](libs/shared/src/spec-status.test.ts#L150), [`spec-status.test.ts:164`](libs/shared/src/spec-status.test.ts#L164), [`spec-status.test.ts:170`](libs/shared/src/spec-status.test.ts#L170), [`spec-status.test.ts:176`](libs/shared/src/spec-status.test.ts#L176), [`spec-status.test.ts:181`](libs/shared/src/spec-status.test.ts#L181), [`spec-status.test.ts:187`](libs/shared/src/spec-status.test.ts#L187), [`spec-status.test.ts:196`](libs/shared/src/spec-status.test.ts#L196))
 
 The `lore.features` row transitions to `implemented` only when the flip succeeded or
 the spec was already current, so the table and the file never diverge.
+
+**"Done" is the absence of outstanding work, not the presence of merges.** The
+gate originally counted rows `WHERE status <> 'merged'`, which cannot distinguish
+"not yet done" from "will never be done". Three statuses never reach `merged` and
+so stalled the flip permanently: `completed` (an agent that found no changes opens
+no PR, and `mergeableTasks` only selects `pr-created`/`review` — a locally-run task
+lands here too), and `retried` (superseded). Those are settled. `failed`,
+`cancelled` and `needs-human-help` are unfinished business and still hold the group
+open — FR1 must not announce a feature the pipeline never finished; FR2's weekly
+detector is the net for a group a human resolved by hand.
+
+`retried` is only safe to ignore because `retryTask` now passes the original's
+`task_group_id` to the replacement. It previously omitted it, so the replacement
+was born groupless: the `retried` original blocked forever *and* merging its
+replacement could never clear the group. Ignoring `retried` without that fix would
+have flipped the spec while the retry was still running — trading a false negative
+for a worse false positive.
+
+Note the asymmetry with FR2, which treats `failed`/`cancelled` as settled: FR1
+*acts* (opens a PR, transitions the feature row) while FR2 only *reports* evidence
+for a human. The threshold to act is higher than the threshold to mention.
 
 **FR2 — weekly status-staleness detector**
 ([status-staleness.ts](../libs/shared/src/detect/status-staleness.ts)). FR1 only
@@ -132,6 +205,12 @@ distinguishes "abandoned" from "not started yet".
 - The web-ui mirror still exists and must be edited in step with shared — but the
   parity test now fails CI instead of letting the drift ship. Adding a synonym is
   a two-file change, by construction.
+- Adding a *bucket* is now a three-file change in web-ui: the regex table, the
+  colour map, and `SPEC_STATUS_LABEL`. `Record<SpecStatus, string>` makes the last
+  two compile errors rather than omissions.
+- A reader loses the ability to see which synonym an author wrote without opening
+  the spec. Deliberate: that string was the confusion, and the raw header is one
+  click away.
 - FR2's evidence comes from chunks, which reflect the last reindex rather than the
   live default branch. A just-merged file reads as missing for up to a day. That
   costs findings and never invents them, which is the right direction to err for a

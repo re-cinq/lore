@@ -1,5 +1,5 @@
 import type { PipelineTask } from "../../types.js";
-import { unblockedBy } from "./task-queue-port.js";
+import { unblockedBy, SETTLED_GROUP_STATUSES } from "./task-queue-port.js";
 import type {
   TaskQueueRepository,
   RecoverableTask,
@@ -156,9 +156,11 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     }));
   }
 
-  async countUnmergedInGroup(groupId: string): Promise<number> {
+  async countOutstandingInGroup(groupId: string): Promise<number> {
     return this.tasks.filter(
-      (t) => t.task_group_id === groupId && t.status !== "merged",
+      (t) =>
+        t.task_group_id === groupId &&
+        !SETTLED_GROUP_STATUSES.includes(t.status ?? "pending"),
     ).length;
   }
 

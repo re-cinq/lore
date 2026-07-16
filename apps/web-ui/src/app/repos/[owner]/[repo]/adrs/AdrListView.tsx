@@ -16,7 +16,7 @@ import {
   sortDocCards,
   type DocSortOrder,
 } from "@/lib/doc-filter";
-import type { SpecStatusFilter, SpecStatusInfo } from "@/lib/spec-status";
+import type { SpecStatus, SpecStatusFilter } from "@/lib/spec-status";
 
 interface AdrSummary {
   filePath: string;
@@ -33,7 +33,7 @@ export default function AdrListView({
   owner: string;
   repo: string;
   adrs: AdrSummary[];
-  statuses?: Record<string, SpecStatusInfo>;
+  statuses?: Record<string, SpecStatus>;
 }) {
   const [filter, setFilter] = useState<SpecStatusFilter>("all");
   const [query, setQuery] = useState("");

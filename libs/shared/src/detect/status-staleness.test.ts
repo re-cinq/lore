@@ -16,7 +16,7 @@ import type { Project } from "../index.js";
 const evidence = (over: Partial<StaleEvidence> = {}): StaleEvidence => ({
   resolvingTestLinks: 0,
   mergedTasks: 0,
-  unmergedTasks: 0,
+  outstandingTasks: 0,
   namedPathsExisting: 0,
   namedPathsTotal: 0,
   ...over,
@@ -79,7 +79,7 @@ describe("gatherEvidence", () => {
     });
   });
 
-  it("splits linked tasks into merged and unmerged", () => {
+  it("splits linked tasks into merged and still-in-flight", () => {
     const tasks: DriftTaskRow[] = [
       { status: "merged", created_at: "2026-01-01", issue_number: 1 },
       { status: "merged", created_at: "2026-01-02", issue_number: 2 },
@@ -90,7 +90,7 @@ describe("gatherEvidence", () => {
       gatherEvidence("no links", testChunks, knownPaths, tasks),
     ).toMatchObject({
       mergedTasks: 2,
-      unmergedTasks: 1,
+      outstandingTasks: 1,
     });
   });
 
@@ -122,9 +122,9 @@ describe("decideStale", () => {
   });
 
   it("stays silent when a linked task is still outstanding", () => {
-    expect(decideStale(evidence({ mergedTasks: 3, unmergedTasks: 1 }))).toEqual(
-      [],
-    );
+    expect(
+      decideStale(evidence({ mergedTasks: 3, outstandingTasks: 1 })),
+    ).toEqual([]);
   });
 
   it("fires when at least half of two-or-more named paths exist", () => {
@@ -231,12 +231,12 @@ function fakeProject(opts: FakeOpts) {
           content: s.content,
           ingestedAt: "2026-07-16",
         })),
+      // Every `code` chunk: the job reads this one call for both the link
+      // ranges and the set of paths the index knows.
       testChunkRanges: async () => [
         { filePath: "src/x.test.ts", startLine: 1, endLine: 50 },
-      ],
-      codeSymbols: async () => [
-        { symbolName: "a", symbolType: "function", filePath: "src/a.ts" },
-        { symbolName: "b", symbolType: "function", filePath: "src/b.ts" },
+        { filePath: "src/a.ts", startLine: 1, endLine: 20 },
+        { filePath: "src/b.ts", startLine: 1, endLine: 20 },
       ],
     },
     tasks: {
@@ -379,5 +379,59 @@ We might build the thing in \`src/future.ts\` one day.
     expect(created).toHaveLength(1);
     expect(created[0].body).toContain("Header says **in-progress**");
     expect(created[0].body).toContain("merged, none outstanding");
+  });
+});
+
+// Appended, not inserted: specs/spec-status-upkeep/spec.md links every test
+// above by line number, and inserting silently redirects those links.
+describe("gatherEvidence — settled vs in-flight task statuses", () => {
+  const linked = (status: string): DriftTaskRow[] => [
+    { status: "merged", created_at: "2026-01-01", issue_number: 1 },
+    { status, created_at: "2026-01-02", issue_number: 2 },
+  ];
+
+  it.each(["completed", "failed", "cancelled", "retried"])(
+    "a %s sibling is settled, so the merged-tasks signal still fires",
+    (status) => {
+      const found = gatherEvidence("no links", [], new Set(), linked(status));
+
+      expect(found).toMatchObject({ mergedTasks: 1, outstandingTasks: 0 });
+      expect(decideStale(found)).toEqual([
+        "1 linked pipeline task merged, none outstanding",
+      ]);
+    },
+  );
+
+  it.each([
+    "pending",
+    "queued",
+    "awaiting_approval",
+    "running",
+    "running-local",
+    "review",
+    "pr-created",
+  ])("a %s sibling is in flight, so the signal stays silent", (status) => {
+    const found = gatherEvidence("no links", [], new Set(), linked(status));
+
+    expect(found).toMatchObject({ mergedTasks: 1, outstandingTasks: 1 });
+    expect(decideStale(found)).toEqual([]);
+  });
+});
+
+describe("statusStalenessJob — named-paths signal end to end", () => {
+  it("scores paths against the same resolved-schema read the links use", async () => {
+    const { project, created } = fakeProject({
+      specs: [
+        {
+          filePath: "specs/thing/spec.md",
+          content: `${specHeader("Draft")}\nTouches \`src/a.ts\` and \`src/b.ts\`.\n`,
+        },
+      ],
+    });
+
+    await statusStalenessJob({ repoFilter: "re-cinq/lore", project });
+
+    expect(created).toHaveLength(1);
+    expect(created[0].body).toContain("2 of the 2 paths it names exist");
   });
 });
