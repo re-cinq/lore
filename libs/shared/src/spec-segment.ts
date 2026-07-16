@@ -34,6 +34,11 @@ export interface Statement {
   text: string;
   kind: StatementKind;
   enclosingHeading: string | null;
+  /** 1-based line where the statement's source construct starts (the paragraph
+   * for a sentence, the marker line for a list item). Sentences split from the
+   * same paragraph share its start line. Always set by `segmentStatements`;
+   * optional so hand-built `Statement` doubles in tests need not supply it. */
+  line?: number;
 }
 
 export interface Classification {
@@ -172,12 +177,14 @@ export function segmentStatements(content: string): Statement[] {
   let currentHeading: string | null = null;
   let inFence = false;
   let paragraphLines: string[] = [];
+  let paragraphStartLine = 0;
 
   const flushParagraph = () => {
     if (paragraphLines.length === 0) {
       return;
     }
     const para = paragraphLines.join(" ");
+    const startLine = paragraphStartLine;
 
     paragraphLines = [];
 
@@ -187,6 +194,7 @@ export function segmentStatements(content: string): Statement[] {
         text: sentence,
         kind: "sentence",
         enclosingHeading: currentHeading,
+        line: startLine,
       });
     }
   };
@@ -222,6 +230,7 @@ export function segmentStatements(content: string): Statement[] {
 
     if (isListItem(line)) {
       flushParagraph();
+      const itemStartLine = i + 1;
       let combined = stripListMarker(line);
 
       while (i + 1 < lines.length) {
@@ -257,11 +266,15 @@ export function segmentStatements(content: string): Statement[] {
           text: combined,
           kind: "list-item",
           enclosingHeading: currentHeading,
+          line: itemStartLine,
         });
       }
       continue;
     }
 
+    if (paragraphLines.length === 0) {
+      paragraphStartLine = i + 1;
+    }
     paragraphLines.push(line.trim());
   }
   flushParagraph();

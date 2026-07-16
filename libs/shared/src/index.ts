@@ -201,6 +201,14 @@ export {
   type UntestableCategory,
   type Classification,
 } from "./spec-segment.js";
+export {
+  parseDocStatus,
+  statusTier,
+  type DocKind,
+  type DocStatus,
+  type StatusBucket,
+  type StatusTier,
+} from "./spec-status.js";
 export { isTestFile, isDocFile, normalizeTestName } from "./test-paths.js";
 export {
   parseTestCommandManifest,

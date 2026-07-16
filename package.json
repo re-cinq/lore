@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@eslint/markdown": "^8.0.3",
     "@stylistic/eslint-plugin": "^5.4.0",
     "concurrently": "^9.1.0",
     "eslint": "^10.7.0",
