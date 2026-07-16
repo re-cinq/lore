@@ -8,6 +8,7 @@ import {
 import { fetchTaskEvents, fetchLlmCalls } from "@/lib/task-runtime";
 import AssemblyLineRunView from "./AssemblyLineRunView";
 import NodePodLogs from "./NodePodLogs";
+import { TriggerReviewButton } from "./TriggerReviewButton";
 import EventTimeline from "@/app/tasks/[id]/EventTimeline";
 import LlmCallsTable from "@/app/tasks/[id]/LlmCallsTable";
 
@@ -49,6 +50,9 @@ export default async function AssemblyLineResolverPage({
     return (
       <>
         <AssemblyLineRunView run={run} nodes={nodes} />
+        {run.definitionName === "code-review" && run.prNumber ? (
+          <TriggerReviewButton repo={run.repo} prNumber={run.prNumber} />
+        ) : null}
         <NodePodLogs assemblyLineId={run.id} nodes={logNodes} />
         {run.taskId ? (
           <>

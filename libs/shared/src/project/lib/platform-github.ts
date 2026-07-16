@@ -5,11 +5,13 @@ import type {
   IssueFilter,
   IssueState,
   CloseReason,
+  CheckRunInput,
 } from "./github-port.js";
 import type {
   PullRequestsPort,
   PullRef,
   PRReviewEvent,
+  CreateReviewInput,
   MergeMethod,
   PullReview,
   ReviewComment,
@@ -410,6 +412,43 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     });
   }
 
+  async upsertCheckRun(repo: string, input: CheckRunInput): Promise<void> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const { data } = await ok.rest.checks.listForRef({
+      owner,
+      repo: name,
+      ref: input.headSha,
+      check_name: input.name,
+    });
+    const existing = data.check_runs[0];
+    const output = { title: input.title, summary: input.summary };
+    const fields = {
+      status: input.status,
+      ...(input.conclusion ? { conclusion: input.conclusion } : {}),
+      ...(input.detailsUrl ? { details_url: input.detailsUrl } : {}),
+      output,
+    };
+
+    if (existing) {
+      await ok.rest.checks.update({
+        owner,
+        repo: name,
+        check_run_id: existing.id,
+        ...fields,
+      });
+
+      return;
+    }
+    await ok.rest.checks.create({
+      owner,
+      repo: name,
+      name: input.name,
+      head_sha: input.headSha,
+      ...fields,
+    });
+  }
+
   // ── PullRequestsPort ────────────────────────────────────────────────
 
   async list(repo: string): Promise<PullRef[]> {
@@ -469,6 +508,29 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       pull_number: number,
       body,
       event,
+    });
+  }
+
+  async createReview(
+    repo: string,
+    number: number,
+    input: CreateReviewInput,
+  ): Promise<void> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+
+    await ok.rest.pulls.createReview({
+      owner,
+      repo: name,
+      pull_number: number,
+      body: input.body,
+      event: input.event,
+      comments: input.comments.map((c) => ({
+        path: c.path,
+        line: c.line,
+        ...(c.side ? { side: c.side } : {}),
+        body: c.body,
+      })),
     });
   }
 
@@ -883,7 +945,7 @@ function toPullRef(
   pr: {
     number: number;
     title: string;
-    head: { ref: string };
+    head: { ref: string; sha?: string };
     state: string;
     merged_at?: string | null;
     html_url: string;
@@ -902,5 +964,6 @@ function toPullRef(
     url: pr.html_url,
     author: pr.user?.login ?? "",
     draft: pr.draft ?? false,
+    headSha: pr.head.sha,
   };
 }

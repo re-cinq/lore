@@ -1,17 +1,24 @@
 /**
- * The code-review choreography (ADR-016 / assembly-lines): PR-lifecycle webhooks
- * start (or finish) short-lived `code-review` assembly lines. The line itself does
- * not listen for events — nodes are walked synchronously; all event wiring lives in
- * the Floor registry, which routes each event here. Every trigger enters the line at
- * `review`; `args.mode` (`review` | `reply`) tells the review node what it's looking at.
+ * The code-review choreography (ADR-012 / assembly-lines): PR-lifecycle webhooks
+ * and PR comments start short-lived assembly lines. The line itself does not
+ * listen for events — all wiring lives in the Floor registry.
  *
- * Gated per-repo on `auto_review` (reused, widened from Lore's own PRs to all open
- * PRs). Loop-prevention is a correctness requirement: bot-authored PRs and bot
- * comments are skipped so the review never re-triggers on its own output.
+ * Triggers (ADR-012 amendment):
+ * - first review on open / out-of-draft / first push (`onTrigger`, first-review-only)
+ * - explicit `@lore review` comment (`onComment` keyword fast-path)
+ * - every other human comment → the Haiku `comment-triage` line, which classifies
+ *   and routes (`onCommentTriaged`): review / address-and-commit / answer / ignore
+ * - a formal "request changes" review → address (`onReviewSubmitted`)
+ *
+ * Review is suggestion-only; fixes are human-gated (the `address` intent). Gated
+ * per-repo on `auto_review`; bot actors are skipped so the review never
+ * re-triggers on its own output.
  */
 
 import type { EventHandler } from "../../main-loop/types.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import { REVIEW_HELP } from "@re-cinq/lore-shared/review/review-summary.js";
+import type { TriageAction } from "@re-cinq/lore-shared/review/comment-triage.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { shouldAutoReview } from "./should-auto-review.js";
 import { loreTaskRef } from "../task/issue-body.js";
@@ -19,6 +26,11 @@ import { loreTaskRef } from "../task/issue-body.js";
 /** A GitHub App / bot login ends with `[bot]`; only human actors drive the review. */
 export function isBotActor(login: string): boolean {
   return login.endsWith("[bot]");
+}
+
+/** An explicit request to (re)review — the deterministic fast-path past the triage. */
+export function isReviewRequest(body: string): boolean {
+  return /(^|\s)[@/]?lore\s+review\b/i.test(body);
 }
 
 export function decideReviewOnOpen(input: {
@@ -54,6 +66,67 @@ export function decideReviewOnReply(input: {
   };
 }
 
+/**
+ * Where the triage routes a classified comment. Pure so the routing table is
+ * unit-testable; `ignore` yields null (no follow-up line, only the triage pod ran).
+ */
+export function routeTriagedComment(
+  action: TriageAction,
+  ctx: CommentContext,
+): { definition: string; args: Record<string, unknown> } | null {
+  const thread = {
+    pr_number: ctx.pr_number,
+    head_sha: ctx.head_sha,
+    comment_id: ctx.comment_id,
+    in_reply_to_id: ctx.in_reply_to_id,
+    comment_body: ctx.comment_body,
+  };
+
+  if (action === "review") {
+    return {
+      definition: "code-review",
+      args: {
+        pr_number: ctx.pr_number,
+        head_sha: ctx.head_sha,
+        mode: "review",
+        description: reviewDescription(ctx.repo, ctx.pr_number, ctx.branch),
+      },
+    };
+  }
+
+  if (action === "address" || action === "answer") {
+    return {
+      definition: "code-review-reply",
+      args: {
+        ...thread,
+        mode: "reply",
+        intent: action,
+        description: replyDescription(action, ctx),
+      },
+    };
+  }
+
+  return null;
+}
+
+function reviewDescription(repo: string, pr: number, branch: string): string {
+  return `Review pull request #${pr} in ${repo} (branch ${branch}).`;
+}
+
+function replyDescription(
+  intent: "address" | "answer",
+  ctx: CommentContext,
+): string {
+  const thread = ctx.in_reply_to_id
+    ? ` (reply on review-comment thread ${ctx.in_reply_to_id})`
+    : "";
+  const head = `On pull request #${ctx.pr_number} in ${ctx.repo} (branch ${ctx.branch})${thread}, a human commented: ${ctx.comment_body}`;
+
+  return intent === "address"
+    ? `${head}\n\nThey approved a fix — implement it and commit to the PR branch, then confirm briefly in the thread.`
+    : `${head}\n\nAnswer their question briefly in the review thread; do not change code.`;
+}
+
 /** The narrow project surface the handlers touch — kept minimal so tests use light doubles. */
 export interface CodeReviewProject {
   pulls: {
@@ -66,6 +139,7 @@ export interface CodeReviewProject {
       opts: { branch?: string; args?: Record<string, unknown> },
     ): Promise<string>;
     finishOpenByPr(prNumber: number, outcome: string): Promise<number>;
+    hasReviewedPr(prNumber: number): Promise<boolean>;
   };
 }
 
@@ -79,18 +153,135 @@ interface OpenParams {
   repo: string;
   pr_number: number;
 }
-interface ReplyParams extends OpenParams {
+interface CommentParams extends OpenParams {
   comment_id: number;
   comment_author: string;
   comment_body: string;
+  in_reply_to_id?: number | null;
+}
+
+/** The thread context threaded from a comment into the triage + follow-up lines. */
+export interface CommentContext {
+  repo: string;
+  pr_number: number;
+  branch: string;
+  head_sha?: string;
+  comment_id: number;
+  comment_body: string;
+  in_reply_to_id?: number | null;
+}
+
+/**
+ * Start a `code-review` line (mode `review`) and post the how-to started comment.
+ * `forced` bypasses the auto-review gate (explicit human intent: the `@lore review`
+ * keyword, the manual UI button, or a triage `review` route). Returns the line id
+ * or null when the gate/PR check skips it.
+ */
+export async function startReview(
+  project: CodeReviewProject,
+  input: {
+    repo: string;
+    prNumber: number;
+    autoReview: boolean;
+    forced?: boolean;
+  },
+  uiUrl?: string,
+): Promise<string | null> {
+  const pr = await project.pulls.get(input.prNumber);
+
+  if (!pr || pr.state !== "open") {
+    return null;
+  }
+
+  if (
+    !input.forced &&
+    !decideReviewOnOpen({ autoReview: input.autoReview, pr }).start
+  ) {
+    return null;
+  }
+  const id = await project.assemblyLines.start("code-review", {
+    branch: pr.branch,
+    args: {
+      pr_number: input.prNumber,
+      mode: "review",
+      head_sha: pr.headSha,
+      description: reviewDescription(input.repo, input.prNumber, pr.branch),
+    },
+  });
+
+  await project.pulls.comment(
+    input.prNumber,
+    `Lore is reviewing this PR — ${loreTaskRef(id, uiUrl)}.\n\n${REVIEW_HELP}`,
+  );
+
+  return id;
 }
 
 export function createCodeReviewHandlers(deps: CodeReviewDeps): {
-  onOpen: EventHandler;
-  onReply: EventHandler;
+  onTrigger: EventHandler;
+  onComment: EventHandler;
+  onReviewSubmitted: EventHandler;
+  onCommentTriaged: EventHandler;
   onClose: EventHandler;
 } {
-  const onOpen: EventHandler = async (params) => {
+  const onTrigger: EventHandler = async (params) => {
+    const { repo, pr_number } = params as unknown as OpenParams;
+    const autoReview = await deps.autoReview(repo);
+
+    if (!autoReview) {
+      return;
+    }
+    const project = await deps.project(repo);
+
+    // First-review-only: opened/ready_for_review/synchronize should review once;
+    // subsequent pushes don't re-review (re-review is an explicit `@lore review`).
+    if (await project.assemblyLines.hasReviewedPr(pr_number)) {
+      return;
+    }
+    await startReview(
+      project,
+      { repo, prNumber: pr_number, autoReview },
+      deps.uiUrl(),
+    );
+  };
+
+  const onComment: EventHandler = async (params) => {
+    const p = params as unknown as CommentParams;
+    const autoReview = await deps.autoReview(p.repo);
+
+    if (!autoReview || isBotActor(p.comment_author)) {
+      return; // loop guard before any API call
+    }
+    const project = await deps.project(p.repo);
+    const pr = await project.pulls.get(p.pr_number);
+
+    if (
+      !decideReviewOnReply({ autoReview, pr, commentAuthor: p.comment_author })
+        .start
+    ) {
+      return;
+    }
+
+    // Explicit keyword bypasses the triage — deterministic re-review.
+    if (isReviewRequest(p.comment_body)) {
+      await startReview(
+        project,
+        { repo: p.repo, prNumber: p.pr_number, autoReview, forced: true },
+        deps.uiUrl(),
+      );
+
+      return;
+    }
+    // Everything else → the Haiku triage line, which classifies + routes.
+    const ctx = commentContext(p, pr!);
+
+    await project.assemblyLines.start("comment-triage", {
+      branch: pr!.branch,
+      args: { ...ctx, mode: "triage", description: triageDescription(ctx) },
+    });
+  };
+
+  const onReviewSubmitted: EventHandler = async (params) => {
     const { repo, pr_number } = params as unknown as OpenParams;
     const autoReview = await deps.autoReview(repo);
 
@@ -100,50 +291,43 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     const project = await deps.project(repo);
     const pr = await project.pulls.get(pr_number);
 
-    if (!decideReviewOnOpen({ autoReview, pr }).start) {
+    if (!decideReviewOnReply({ autoReview, pr, commentAuthor: "" }).start) {
       return;
     }
-    const id = await project.assemblyLines.start("code-review", {
-      branch: pr!.branch,
-      args: {
-        pr_number,
-        mode: "review",
-        description: `Review pull request #${pr_number} in ${repo} (branch ${pr!.branch}).`,
-      },
-    });
-
-    await project.pulls.comment(
+    const ctx: CommentContext = {
+      repo,
       pr_number,
-      `Lore review has started — ${loreTaskRef(id, deps.uiUrl())}`,
-    );
+      branch: pr!.branch,
+      head_sha: pr!.headSha,
+      comment_id: 0,
+      comment_body: "changes requested in a submitted review",
+    };
+    const route = routeTriagedComment("address", ctx)!;
+
+    await project.assemblyLines.start(route.definition, {
+      branch: pr!.branch,
+      args: route.args,
+    });
   };
 
-  const onReply: EventHandler = async (params) => {
-    const { repo, pr_number, comment_id, comment_author, comment_body } =
-      params as unknown as ReplyParams;
-    const autoReview = await deps.autoReview(repo);
+  /** Route a finished comment-triage line's action to the follow-up line. */
+  const onCommentTriaged: EventHandler = async (params) => {
+    const action = String(params.action ?? "ignore") as TriageAction;
+    const ctx = params.context as CommentContext | undefined;
 
-    if (!autoReview || isBotActor(comment_author)) {
-      return;
-    } // loop guard before any API call
-    const project = await deps.project(repo);
-    const pr = await project.pulls.get(pr_number);
-
-    if (
-      !decideReviewOnReply({ autoReview, pr, commentAuthor: comment_author })
-        .start
-    ) {
+    if (!ctx) {
       return;
     }
-    await project.assemblyLines.start("code-review", {
-      branch: pr!.branch,
-      args: {
-        pr_number,
-        mode: "reply",
-        comment_id,
-        comment_body,
-        description: `Respond to review feedback on pull request #${pr_number} in ${repo} (branch ${pr!.branch}). ${comment_author} replied: ${comment_body}`,
-      },
+    const route = routeTriagedComment(action, ctx);
+
+    if (!route) {
+      return;
+    }
+    const project = await deps.project(ctx.repo);
+
+    await project.assemblyLines.start(route.definition, {
+      branch: ctx.branch,
+      args: route.args,
     });
   };
 
@@ -154,7 +338,23 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     await project.assemblyLines.finishOpenByPr(pr_number, "pr_closed");
   };
 
-  return { onOpen, onReply, onClose };
+  return { onTrigger, onComment, onReviewSubmitted, onCommentTriaged, onClose };
+}
+
+function commentContext(p: CommentParams, pr: PullRef): CommentContext {
+  return {
+    repo: p.repo,
+    pr_number: p.pr_number,
+    branch: pr.branch,
+    head_sha: pr.headSha,
+    comment_id: p.comment_id,
+    comment_body: p.comment_body,
+    in_reply_to_id: p.in_reply_to_id ?? null,
+  };
+}
+
+function triageDescription(ctx: CommentContext): string {
+  return `Triage a human comment on pull request #${ctx.pr_number} in ${ctx.repo}: ${ctx.comment_body}`;
 }
 
 const handlers = createCodeReviewHandlers({
@@ -163,6 +363,8 @@ const handlers = createCodeReviewHandlers({
   uiUrl: () => process.env.LORE_UI_URL,
 });
 
-export const codeReviewOnOpen = handlers.onOpen;
-export const codeReviewOnReply = handlers.onReply;
+export const codeReviewOnTrigger = handlers.onTrigger;
+export const codeReviewOnComment = handlers.onComment;
+export const codeReviewOnReviewSubmitted = handlers.onReviewSubmitted;
+export const codeReviewOnCommentTriaged = handlers.onCommentTriaged;
 export const codeReviewOnClose = handlers.onClose;

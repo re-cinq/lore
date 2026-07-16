@@ -22,11 +22,6 @@ export interface CronEmitter {
 export const CRON_EMITTERS: CronEmitter[] = [
   { name: "merge_check", schedule: "*/1 * * * *" },
   { name: "approval_check", schedule: "*/1 * * * *" },
-  {
-    name: "review_reactor",
-    schedule: "7 7-17 * * 1-5",
-    note: "safety net (webhook is primary); handler self-gates on business hours",
-  },
   { name: "spec_task_executor", schedule: "*/1 * * * *" },
   { name: "stale_task_check", schedule: "17 * * * *" },
   { name: "feature_planning_reaper", schedule: "*/1 * * * *" },

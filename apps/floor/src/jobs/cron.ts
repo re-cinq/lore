@@ -7,7 +7,6 @@
 
 import { mergeCheckJob } from "./merge/merge-check.js";
 import { approvalCheckJob } from "./dark-factory/approval-check.js";
-import { reviewReactorJob } from "./review/review-reactor.js";
 import { specTaskExecutorJob } from "./task/spec-task-executor.js";
 import { staleTaskCheckJob } from "./task/stale-task-check.js";
 import { featurePlanningReaperJob } from "./task/feature-planning-reaper.js";
@@ -25,7 +24,6 @@ const fromJob =
 
 export const mergeCheck = fromJob(mergeCheckJob);
 export const approvalCheck = fromJob(approvalCheckJob);
-export const reviewReactorCron = fromJob(reviewReactorJob);
 export const specTaskExecutor = fromJob(specTaskExecutorJob);
 export const staleTaskCheck = fromJob(staleTaskCheckJob);
 export const featurePlanningReaper = fromJob(featurePlanningReaperJob);

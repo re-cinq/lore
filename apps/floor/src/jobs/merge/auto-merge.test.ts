@@ -23,6 +23,7 @@ function inputs(
     ciSucceeded: true,
     botApproved: true,
     humanChangesRequested: false,
+    reviewInFlight: false,
     ...overrides,
   };
 }
@@ -46,6 +47,12 @@ describe("evaluateAutoMerge — deferral reasons (priority)", () => {
   it("deferred:no_changes for an empty PR before path-allowlist check", () => {
     expect(evaluateAutoMerge(inputs({ changedPaths: [] })).outcome).toBe(
       "deferred:no_changes",
+    );
+  });
+
+  it("deferred:review_in_flight while a code-review line is open", () => {
+    expect(evaluateAutoMerge(inputs({ reviewInFlight: true })).outcome).toBe(
+      "deferred:review_in_flight",
     );
   });
 

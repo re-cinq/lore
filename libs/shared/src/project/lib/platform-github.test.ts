@@ -14,6 +14,8 @@ const state: {
   checkRuns: Array<{ name: string; status: string; conclusion: string | null }>;
   token: string;
   labelError?: { status?: number };
+  reviewCall?: Record<string, unknown>;
+  prData?: Record<string, unknown>;
 } = { files: [], checkRuns: [], token: "" };
 
 vi.mock("octokit", () => ({
@@ -24,7 +26,13 @@ vi.mock("octokit", () => ({
       params: unknown,
     ) => fn(params);
     rest = {
-      pulls: { listFiles: async () => state.files },
+      pulls: {
+        listFiles: async () => state.files,
+        get: async () => ({ data: state.prData }),
+        createReview: async (params: Record<string, unknown>) => {
+          state.reviewCall = params;
+        },
+      },
       checks: { listForRef: async () => state.checkRuns },
       issues: {
         createLabel: async () => {
@@ -59,6 +67,8 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     state.checkRuns = [];
     state.token = "";
     state.labelError = undefined;
+    state.reviewCall = undefined;
+    state.prData = undefined;
   });
   afterEach(() => vi.clearAllMocks());
 
@@ -111,5 +121,44 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     await expect(
       gh().createLabels("re-cinq/lore", [{ name: "x", color: "fff" }]),
     ).rejects.toMatchObject({ status: 500 });
+  });
+
+  it("createReview posts one review with the mapped comments array", async () => {
+    await gh().createReview("re-cinq/lore", 7, {
+      event: "COMMENT",
+      body: "### Lore review",
+      comments: [
+        { path: "a.ts", line: 12, body: "**nit:** rename" },
+        { path: "b.ts", line: 3, side: "LEFT", body: "**issue:** null" },
+      ],
+    });
+
+    expect(state.reviewCall).toMatchObject({
+      owner: "re-cinq",
+      repo: "lore",
+      pull_number: 7,
+      body: "### Lore review",
+      event: "COMMENT",
+      comments: [
+        { path: "a.ts", line: 12, body: "**nit:** rename" },
+        { path: "b.ts", line: 3, side: "LEFT", body: "**issue:** null" },
+      ],
+    });
+  });
+
+  it("get exposes the PR head sha as headSha", async () => {
+    state.prData = {
+      number: 7,
+      title: "t",
+      head: { ref: "feat/x", sha: "deadbeef" },
+      state: "open",
+      html_url: "https://gh/pr/7",
+      user: { login: "bob" },
+    };
+
+    expect(await gh().get("re-cinq/lore", 7)).toMatchObject({
+      headSha: "deadbeef",
+      branch: "feat/x",
+    });
   });
 });

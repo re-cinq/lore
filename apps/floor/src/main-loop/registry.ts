@@ -14,8 +14,9 @@ import * as kubernetes from "../jobs/kubernetes.js";
 import { assemblyLineStart } from "../jobs/assembly-line/start-event-handler.js";
 import { agentNodeTerminal } from "../jobs/assembly-line/node-event-handler.js";
 import {
-  codeReviewOnOpen,
-  codeReviewOnReply,
+  codeReviewOnTrigger,
+  codeReviewOnComment,
+  codeReviewOnReviewSubmitted,
   codeReviewOnClose,
 } from "../jobs/review/code-review.js";
 
@@ -46,31 +47,22 @@ export function withExtra(
 export function buildRegistry(): Map<string, EventHandler> {
   return new Map<string, EventHandler>([
     // ── GitHub (layer 1: floor webhook ingress) ──
-    [
-      "github.pull_request.opened",
-      withExtra(github.reviewReactor, codeReviewOnOpen),
-    ],
-    ["github.pull_request.synchronize", github.reviewReactor],
-    [
-      "github.pull_request.reopened",
-      withExtra(github.reviewReactor, codeReviewOnOpen),
-    ],
-    [
-      "github.pull_request.ready_for_review",
-      withExtra(github.reviewReactor, codeReviewOnOpen),
-    ],
+    ["github.pull_request.opened", codeReviewOnTrigger],
+    ["github.pull_request.synchronize", codeReviewOnTrigger],
+    ["github.pull_request.reopened", codeReviewOnTrigger],
+    ["github.pull_request.ready_for_review", codeReviewOnTrigger],
     [
       "github.pull_request.closed",
       withExtra(github.specPrMerge, codeReviewOnClose),
     ],
-    ["github.pull_request_review.submitted", github.onReviewSubmitted],
-    ["github.pull_request_review_comment.created", codeReviewOnReply],
+    [
+      "github.pull_request_review.submitted",
+      withExtra(github.onReviewSubmitted, codeReviewOnReviewSubmitted),
+    ],
+    ["github.pull_request_review_comment.created", codeReviewOnComment],
     ["github.check_run.completed", github.autoMerge],
     ["github.check_suite.completed", github.autoMerge],
-    [
-      "github.issue_comment.created",
-      withExtra(github.reviewReactor, codeReviewOnReply),
-    ],
+    ["github.issue_comment.created", codeReviewOnComment],
     ["github.issues.labeled", github.issuesLabeled],
 
     // ── Internal (mcp-server post-ingest) ──
@@ -92,7 +84,6 @@ export function buildRegistry(): Map<string, EventHandler> {
     // ── Cron (in-process scheduler emits the tick; loop runs it) ──
     ["cron.merge_check.tick", cron.mergeCheck],
     ["cron.approval_check.tick", cron.approvalCheck],
-    ["cron.review_reactor.tick", cron.reviewReactorCron],
     ["cron.spec_task_executor.tick", cron.specTaskExecutor],
     ["cron.stale_task_check.tick", cron.staleTaskCheck],
     ["cron.feature_planning_reaper.tick", cron.featurePlanningReaper],
