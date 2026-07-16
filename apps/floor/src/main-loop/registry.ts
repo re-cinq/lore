@@ -106,6 +106,7 @@ export function buildRegistry(): Map<string, EventHandler> {
     ["cron.spec_drift.tick", detect.specDriftTick],
     ["cron.spec_coverage_backfill.tick", detect.specCoverageBackfillTick],
     ["cron.spec_coverage_validate.tick", detect.specCoverageValidateTick],
+    ["cron.status_staleness.tick", detect.statusStalenessTick],
   ]);
 }
 

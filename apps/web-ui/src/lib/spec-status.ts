@@ -26,9 +26,14 @@ export const SPEC_STATUS_ORDER: SpecStatus[] = [
   "retired",
 ];
 
+// Mirrors libs/shared/src/spec-status.ts — the canonical vocabulary (ADR-037).
+// spec-status.parity.test.ts holds the two in lockstep; edit both together.
 const BUCKETS: Array<{ status: SpecStatus; re: RegExp }> = [
   { status: "draft", re: /^draft/ },
-  { status: "in-progress", re: /^(in progress|in review|planning|wip)/ },
+  {
+    status: "in-progress",
+    re: /^(in progress|in review|planning|wip|proposed)/,
+  },
   {
     status: "shipped",
     re: /^(shipped|implemented|complete|accepted|done|live)/,

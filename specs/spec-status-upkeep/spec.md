@@ -4,7 +4,7 @@
 |----------|-----------------------------------------------|
 | Feature  | Automatic Spec Status Upkeep                  |
 | Branch   | (unassigned)                                  |
-| Status   | In Progress                                   |
+| Status   | Implemented                                   |
 | Created  | 2026-07-14                                    |
 | Owner    | Platform Engineering                          |
 
@@ -22,6 +22,10 @@ repo CLAUDE.md instructs sessions to flip the header in the same branch
 that completes a spec, and the `implementation` task prompt in
 `scripts/task-types.yaml` carries the same rule. Conventions rot without
 enforcement; the two mechanisms below close the loop.
+
+The canonical status vocabulary these mechanisms read and write — the five
+buckets, `Retired` vs `Rejected`, and the single-source rule — is recorded
+in [ADR-037](../../adrs/ADR-037-spec-status-vocabulary-and-upkeep.md).
 
 ## FR1 — Deterministic flip on feature completion (pipeline-driven work)
 
@@ -44,15 +48,23 @@ safety net catches what FR1 and convention miss. Add a
 (`spec_drift`, `gap_detect` pattern: `cron.<job>.tick` → one repo-less
 per-repo line, deterministic detect node):
 
-- For each spec whose parsed status is `draft` or `in-progress`
-  (`apps/web-ui/src/lib/spec-status.ts` normalization, hoisted to
-  shared), gather implementation evidence: all linked pipeline tasks
-  merged; inline `([validated by ...])` links resolving to real tests;
-  files/routes the spec names existing on the default branch.
-- Evidence above threshold → open an issue (or, at high confidence, a
-  status-flip PR like FR1) naming the evidence.
-- Zero findings is the healthy steady state; the detector exists so a
-  stale header survives at most one week, not one quarter.
+- For each spec whose parsed status is `draft` or `in-progress` (the shared
+  `parseDocStatus` normalization), gather implementation evidence: linked
+  pipeline tasks all merged; inline `([validated by ...])` links resolving to
+  real tests; paths the spec names existing in the repo's indexed code. ([validated by `status-staleness.test.ts:65`](libs/shared/src/detect/status-staleness.test.ts#L65), [`status-staleness.test.ts:74`](libs/shared/src/detect/status-staleness.test.ts#L74), [`status-staleness.test.ts:82`](libs/shared/src/detect/status-staleness.test.ts#L82), [`status-staleness.test.ts:97`](libs/shared/src/detect/status-staleness.test.ts#L97), [`status-staleness.test.ts:33`](libs/shared/src/detect/status-staleness.test.ts#L33), [`status-staleness.test.ts:44`](libs/shared/src/detect/status-staleness.test.ts#L44), [`status-staleness.test.ts:52`](libs/shared/src/detect/status-staleness.test.ts#L52), [`status-staleness.test.ts:329`](libs/shared/src/detect/status-staleness.test.ts#L329), [`status-staleness.test.ts:263`](libs/shared/src/detect/status-staleness.test.ts#L263))
+- Evidence above threshold — any one signal firing — opens one aggregated issue
+  per repo naming every spec and the evidence behind it, deduped against an
+  already-open one. ([validated by `status-staleness.test.ts:112`](libs/shared/src/detect/status-staleness.test.ts#L112), [`status-staleness.test.ts:118`](libs/shared/src/detect/status-staleness.test.ts#L118), [`status-staleness.test.ts:130`](libs/shared/src/detect/status-staleness.test.ts#L130), [`status-staleness.test.ts:148`](libs/shared/src/detect/status-staleness.test.ts#L148), [`status-staleness.test.ts:171`](libs/shared/src/detect/status-staleness.test.ts#L171), [`status-staleness.test.ts:175`](libs/shared/src/detect/status-staleness.test.ts#L175), [`status-staleness.test.ts:184`](libs/shared/src/detect/status-staleness.test.ts#L184), [`status-staleness.test.ts:197`](libs/shared/src/detect/status-staleness.test.ts#L197), [`status-staleness.test.ts:205`](libs/shared/src/detect/status-staleness.test.ts#L205), [`status-staleness.test.ts:272`](libs/shared/src/detect/status-staleness.test.ts#L272), [`status-staleness.test.ts:347`](libs/shared/src/detect/status-staleness.test.ts#L347), [`status-staleness.test.ts:366`](libs/shared/src/detect/status-staleness.test.ts#L366))
+- The line joins the detect family as a two-node `detect → done` definition whose
+  node the station dispatches by `job_ref`. ([validated by `loader.test.ts:322`](libs/assembly-lines/src/loader.test.ts#L322), [`stations.test.ts:90`](apps/lore-station/src/stations/stations.test.ts#L90))
+- A spec whose draft/in-progress header is honest yields no finding — zero is the
+  healthy steady state; the detector exists so a stale header survives at most one
+  week, not one quarter. ([validated by `status-staleness.test.ts:108`](libs/shared/src/detect/status-staleness.test.ts#L108), [`status-staleness.test.ts:124`](libs/shared/src/detect/status-staleness.test.ts#L124), [`status-staleness.test.ts:136`](libs/shared/src/detect/status-staleness.test.ts#L136), [`status-staleness.test.ts:142`](libs/shared/src/detect/status-staleness.test.ts#L142), [`status-staleness.test.ts:298`](libs/shared/src/detect/status-staleness.test.ts#L298))
+- It files an issue rather than a status-flip PR: the detect node runs in a station
+  pod, which has no `project.repo.read` to read the spec off the default branch,
+  and a weekly PR-opener would stack duplicates while an unmerged flip PR leaves
+  the branch reading `Draft` (ADR-037).
+- No LLM — every signal is a deterministic read of chunks and task rows.
 
 ## Out of Scope
 
