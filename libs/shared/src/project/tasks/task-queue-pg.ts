@@ -123,6 +123,18 @@ export class PgTaskQueue implements TaskQueueRepository {
     return rows as SpecGroupCount[];
   }
 
+  async countUnmergedInGroup(groupId: string): Promise<number> {
+    const { rows } = await this.pool.query<{ cnt: string }>(
+      `SELECT COUNT(*) as cnt
+         FROM pipeline.tasks
+        WHERE task_group_id = $1
+          AND status <> 'merged'`,
+      [groupId],
+    );
+
+    return Number(rows[0]?.cnt ?? 0);
+  }
+
   async claimSpecTask(
     id: string,
     agentId = "spec-task-executor",
@@ -252,7 +264,7 @@ export class PgTaskQueue implements TaskQueueRepository {
   async mergeableTasks(): Promise<MergeableTask[]> {
     const { rows } = await this.pool.query<MergeableTask>(
       `SELECT id, target_repo, target_branch, pr_url, pr_number, issue_number,
-              task_type, description, created_at, context_bundle
+              task_type, description, created_at, task_group_id, context_bundle
          FROM pipeline.tasks
         WHERE status IN ('pr-created', 'review')
           AND pr_number IS NOT NULL

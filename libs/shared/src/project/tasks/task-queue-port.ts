@@ -56,7 +56,12 @@ export interface MergeableTask {
   task_type: string;
   description: string;
   created_at: string;
-  context_bundle: { feature_id?: string; slug?: string } | null;
+  task_group_id: string | null;
+  context_bundle: {
+    feature_id?: string;
+    slug?: string;
+    spec_slug?: string;
+  } | null;
 }
 
 /** Contributing-context refs captured on a task (PR-outcome feedback target). */
@@ -150,6 +155,14 @@ export interface TaskQueueRepository {
 
   /** running/queued spec-task counts per group, for the concurrency gate. */
   countRunningSpecTasksByGroup(): Promise<SpecGroupCount[]>;
+
+  /**
+   * Count tasks in `groupId` whose status is not `merged` — the spec-status-upkeep
+   * (FR1) group-completion signal. Zero means every task in the group has merged.
+   * A sibling closed-without-merge keeps the count above zero, so no flip fires
+   * for a partially-abandoned group; a human resolves those.
+   */
+  countUnmergedInGroup(groupId: string): Promise<number>;
 
   /**
    * Atomically flip a still-`pending` spec-task to `running`; true iff this
