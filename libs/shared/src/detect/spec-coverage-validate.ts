@@ -109,6 +109,9 @@ export function collectBrokenLinks(
   return out;
 }
 
+/** GitHub rejects issue bodies over 65,536 chars; leave headroom for the footer. */
+const MAX_ISSUE_BODY = 60_000;
+
 export function formatBrokenLinksReport(broken: BrokenLink[]): string {
   if (broken.length === 0) {
     return "";
@@ -127,18 +130,42 @@ export function formatBrokenLinksReport(broken: BrokenLink[]): string {
     `${broken.length} link${broken.length === 1 ? "" : "s"} across ${bySpec.size} spec${bySpec.size === 1 ? "" : "s"} don't resolve to a known test chunk or sit outside the trailing parenthetical.`,
     "",
   ];
+  // Whole bullets only, up to the budget: a raw slice could cut mid-line and
+  // drop the footer, and the total counts above already preserve the full
+  // picture when the tail is elided.
+  let budget = lines.join("\n").length;
+  let elided = 0;
 
   for (const [specPath, list] of bySpec) {
-    lines.push(`### \`${specPath}\``);
+    const heading = `### \`${specPath}\``;
+
+    if (budget + heading.length > MAX_ISSUE_BODY) {
+      elided += list.length;
+      continue;
+    }
+    lines.push(heading);
     lines.push("");
+    budget += heading.length + 2;
 
     for (const b of list) {
       const where = `\`${b.link.path}${b.link.line ? `:${b.link.line}` : ""}\``;
+      const bullet = `- **${b.reason}** ${where} — referenced by: _${truncate(b.statement_text, 80)}_`;
 
-      lines.push(
-        `- **${b.reason}** ${where} — referenced by: _${truncate(b.statement_text, 80)}_`,
-      );
+      if (budget + bullet.length > MAX_ISSUE_BODY) {
+        elided += 1;
+        continue;
+      }
+      lines.push(bullet);
+      budget += bullet.length + 1;
     }
+    lines.push("");
+    budget += 1;
+  }
+
+  if (elided > 0) {
+    lines.push(
+      `_…and ${elided} more broken link(s) truncated — see the job logs._`,
+    );
     lines.push("");
   }
   lines.push("---");
