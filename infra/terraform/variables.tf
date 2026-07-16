@@ -139,7 +139,7 @@ variable "github_org" {
 }
 
 variable "lore_webhook_hostname" {
-  description = "Hostname for the Floor GitHub-webhook ingress (e.g. lore-webhook.example.com). Empty disables the ingress."
+  description = "Hostname for the Floor webhook ingress — GitHub webhooks plus the CI doc/test ingest routes under /api/webhook (e.g. lore-webhook.example.com). Empty disables the ingress."
   type        = string
   default     = ""
 }
