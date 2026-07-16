@@ -57,6 +57,9 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         .string()
         .min(1)
         .max(10000)
+        .refine((v) => v.trim().length > 0, {
+          message: "description cannot be blank",
+        })
         .describe(
           "Primary natural-language instruction; be specific. Max 10000 chars; non-empty.",
         ),
@@ -102,17 +105,6 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       context,
     }) => {
       try {
-        if (!desc || !desc.trim()) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "description is required and cannot be empty",
-              },
-            ],
-          };
-        }
-
         // Auto-detect repo from git remote if not specified
         const resolvedRepo = target_repo || detectCurrentRepo() || undefined;
 

@@ -25,7 +25,6 @@ type ToolSchema = Record<string, ZodTypeAny>;
 
 const handlers: Record<string, ToolHandler> = {};
 const schemas: Record<string, ToolSchema> = {};
-const originalEnv = { ...process.env };
 const fetchMock = vi.fn();
 
 beforeAll(async () => {
@@ -49,8 +48,8 @@ beforeAll(async () => {
 
 describe("lore_list_pending_tasks file-fallback repo filter", () => {
   beforeEach(() => {
-    delete process.env.LORE_API_URL;
-    delete process.env.LORE_INGEST_TOKEN;
+    vi.stubEnv("LORE_API_URL", "");
+    vi.stubEnv("LORE_INGEST_TOKEN", "");
     mkdirSync(join(fakeHome, ".lore"), { recursive: true });
     writeFileSync(
       join(fakeHome, ".lore", "pending-tasks.json"),
@@ -73,7 +72,7 @@ describe("lore_list_pending_tasks file-fallback repo filter", () => {
     );
   });
   afterEach(() => {
-    process.env = { ...originalEnv };
+    vi.unstubAllEnvs();
   });
 
   it("returns only the matching repo's tasks", async () => {
@@ -120,6 +119,14 @@ describe("zod schema bounds", () => {
     expect(result.success).toBe(false);
   });
 
+  it("rejects a whitespace-only task description", () => {
+    const result = z
+      .object(schemas["lore_create_pipeline_task"])
+      .safeParse({ description: "   " });
+
+    expect(result.success).toBe(false);
+  });
+
   it("accepts an in-range task description", () => {
     const result = z
       .object(schemas["lore_create_pipeline_task"])
@@ -151,13 +158,13 @@ describe("lore_get_pipeline_status proxy error-code selection", () => {
     vi.stubGlobal("fetch", fetchMock);
   });
   afterEach(() => {
-    process.env = { ...originalEnv };
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
 
   it("returns the not-configured message when the env is unset", async () => {
-    delete process.env.LORE_API_URL;
-    delete process.env.LORE_INGEST_TOKEN;
+    vi.stubEnv("LORE_API_URL", "");
+    vi.stubEnv("LORE_INGEST_TOKEN", "");
 
     const result = await handlers["lore_get_pipeline_status"]({
       task_id: "t1",
@@ -170,8 +177,8 @@ describe("lore_get_pipeline_status proxy error-code selection", () => {
   });
 
   it("returns the denied message on a 401", async () => {
-    process.env.LORE_API_URL = "https://lore-api.example.com";
-    process.env.LORE_INGEST_TOKEN = "tok";
+    vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
+    vi.stubEnv("LORE_INGEST_TOKEN", "tok");
     fetchMock.mockResolvedValue({
       ok: false,
       status: 401,
@@ -188,8 +195,8 @@ describe("lore_get_pipeline_status proxy error-code selection", () => {
   });
 
   it("returns the unreachable message when fetch throws", async () => {
-    process.env.LORE_API_URL = "https://lore-api.example.com";
-    process.env.LORE_INGEST_TOKEN = "tok";
+    vi.stubEnv("LORE_API_URL", "https://lore-api.example.com");
+    vi.stubEnv("LORE_INGEST_TOKEN", "tok");
     fetchMock.mockRejectedValue(new Error("connect ECONNREFUSED"));
 
     const result = await handlers["lore_get_pipeline_status"]({
