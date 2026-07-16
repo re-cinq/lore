@@ -115,9 +115,10 @@ function replaceStatusCell(rawCell: string, label: string): string {
 /**
  * Deterministically flip a spec's `| Status | <value> |` header row to `label`.
  * Returns the rewritten markdown, or `null` when there is nothing to do — no
- * status row exists, or the current value already buckets to `shipped`
- * (implemented/complete/accepted/…), which makes the flip idempotent. Only the
- * status value cell changes; every other line is left byte-for-byte intact.
+ * status row exists, or the current value already buckets to a terminal state:
+ * `shipped` (implemented/complete/accepted/…) or `retired` (superseded/removed).
+ * That makes the flip idempotent and stops it re-marking a retired spec. Only
+ * the status value cell changes; every other line is left byte-for-byte intact.
  */
 export function rewriteSpecStatusRow(
   content: string,
@@ -125,7 +126,12 @@ export function rewriteSpecStatusRow(
 ): string | null {
   const current = specTableStatusValue(content);
 
-  if (current === null || bucketOf(current) === "shipped") {
+  if (current === null) {
+    return null;
+  }
+  const bucket = bucketOf(current);
+
+  if (bucket === "shipped" || bucket === "retired") {
     return null;
   }
 

@@ -114,6 +114,23 @@ describe("parseDocStatus (adr)", () => {
   });
 });
 
+describe("statusTier", () => {
+  it("skips rejected and retired", () => {
+    expect(statusTier("rejected")).toBe("skip");
+    expect(statusTier("retired")).toBe("skip");
+  });
+
+  it("warns on shipped", () => {
+    expect(statusTier("shipped")).toBe("warn");
+  });
+
+  it("warns on draft, in-progress, and unknown", () => {
+    expect(statusTier("draft")).toBe("warn");
+    expect(statusTier("in-progress")).toBe("warn");
+    expect(statusTier(null)).toBe("warn");
+  });
+});
+
 describe("rewriteSpecStatusRow", () => {
   const spec = (status: string) =>
     [
@@ -156,6 +173,11 @@ describe("rewriteSpecStatusRow", () => {
     expect(rewriteSpecStatusRow(spec("Accepted"), "Implemented")).toBeNull();
   });
 
+  it("returns null for a retired spec so it is not re-marked", () => {
+    expect(rewriteSpecStatusRow(spec("Superseded"), "Implemented")).toBeNull();
+    expect(rewriteSpecStatusRow(spec("Retired"), "Implemented")).toBeNull();
+  });
+
   it("returns null when there is no Status row", () => {
     expect(
       rewriteSpecStatusRow("# Spec\n\nNo table.\n", "Implemented"),
@@ -180,22 +202,5 @@ describe("rewriteSpecStatusRow", () => {
 
     expect(changed).toHaveLength(1);
     expect(changed[0]).toContain("Status");
-  });
-});
-
-describe("statusTier", () => {
-  it("skips rejected and retired", () => {
-    expect(statusTier("rejected")).toBe("skip");
-    expect(statusTier("retired")).toBe("skip");
-  });
-
-  it("warns on shipped", () => {
-    expect(statusTier("shipped")).toBe("warn");
-  });
-
-  it("warns on draft, in-progress, and unknown", () => {
-    expect(statusTier("draft")).toBe("warn");
-    expect(statusTier("in-progress")).toBe("warn");
-    expect(statusTier(null)).toBe("warn");
   });
 });
