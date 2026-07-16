@@ -1,7 +1,7 @@
 ---
 adr_number: 33
 title: "Migrate lore-api from hand-rolled node:http to the hapi framework"
-status: shipped
+status: draft
 date: 2026-07-02
 domains: [lore-api, http, routing, auth, dx]
 relates: "specs/hapi-migration/spec.md"

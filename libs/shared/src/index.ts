@@ -204,12 +204,25 @@ export {
 export {
   parseDocStatus,
   statusTier,
+  rewriteAdrStatusRow,
   rewriteSpecStatusRow,
   type DocKind,
   type DocStatus,
+  type RewriteStatusOptions,
   type StatusBucket,
   type StatusTier,
 } from "./spec-status.js";
+export {
+  coverageStatusLabel,
+  coverageTier,
+  expectedStatus,
+  statementCoverage,
+  statusLabel,
+  unlinkedTestableStatements,
+  type CoverageTier,
+  type StatementCoverage,
+  type UnlinkedStatement,
+} from "./spec-status-coverage.js";
 export {
   openSpecStatusFlipPr,
   type StatusFlipOptions,

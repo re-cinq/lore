@@ -1,7 +1,7 @@
 ---
 adr_number: 29
 title: "Feature spec → user-story/task decomposition: a post-merge in-process agent"
-status: shipped
+status: draft
 date: 2026-06-18
 domains: [agent, pipeline, web-ui]
 ---

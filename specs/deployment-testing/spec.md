@@ -3,7 +3,7 @@
 | Field          | Value                                    |
 |----------------|------------------------------------------|
 | Feature        | Deployment Testing                       |
-| Status         | Shipped                                        |
+| Status         | In Progress                                    |
 | Created        | 2026-04-04                               |
 | Owner          | Platform Engineering                     |
 

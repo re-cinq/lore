@@ -6,7 +6,7 @@
  * link from the test's side). It walks each `.md` body, keeps the statements the
  * shared section heuristic calls *testable* (intro / vision / background /
  * rationale / open-question / limitation prose is exempt), and reports any with
- * no test link — see `lib/statement-coverage.mjs`.
+ * no test link — see `@re-cinq/lore-shared/spec-status-coverage.js`.
  *
  * Reporting is gated on the doc's normalized lifecycle status
  * (`@re-cinq/lore-shared/spec-status.js` — specs and ADRs fold into the same
@@ -19,24 +19,10 @@ import {
   parseDocStatus,
   statusTier,
 } from "@re-cinq/lore-shared/spec-status.js";
-import { unlinkedTestableStatements } from "./lib/statement-coverage.mjs";
+import { unlinkedTestableStatements } from "@re-cinq/lore-shared/spec-status-coverage.js";
+import { docKind } from "./lib/doc-kind.mjs";
 
 const EXCERPT_MAX = 60;
-
-/** spec.md lives under `specs/`, ADRs under `adrs/`; anything else is out of scope. */
-function docKind(filename) {
-  const posix = filename.split("\\").join("/");
-
-  if (posix.includes("/adrs/") || posix.startsWith("adrs/")) {
-    return "adr";
-  }
-
-  if (posix.includes("/specs/") || posix.startsWith("specs/")) {
-    return "spec";
-  }
-
-  return null;
-}
 
 function excerpt(text) {
   return text.length > EXCERPT_MAX ? `${text.slice(0, EXCERPT_MAX)}…` : text;

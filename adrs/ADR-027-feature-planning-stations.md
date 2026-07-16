@@ -1,7 +1,7 @@
 ---
 adr_number: 27
 title: "Smart feature planning: interactive Stations, a Feature port, and a graph-merged Feature node"
-status: shipped
+status: draft
 date: 2026-06-17
 domains: [web-ui, agent, pipeline]
 ---

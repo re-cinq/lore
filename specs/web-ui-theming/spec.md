@@ -4,7 +4,7 @@
 |----------|-----------------------------------------------|
 | Feature  | Web UI Theming                                |
 | Branch   | improve-web-ui                                |
-| Status   | Shipped                                       |
+| Status   | In Progress                                   |
 | Created  | 2026-05-29                                    |
 | Owner    | Platform Engineering                          |
 | Target   | 2-3 days                                       |

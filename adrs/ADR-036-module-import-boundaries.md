@@ -1,11 +1,14 @@
+---
+adr_number: 36
+title: "Enforced module import boundaries"
+status: in progress
+date: 2026-07-15
+domains: [architecture, modules, testing, ci, dx]
+---
+
 # ADR-036: Enforced module import boundaries
 
 This ADR enforces architectural module import boundaries with a domain-boundaries test suite that asserts the allowed import directions between packages and layers, failing CI when a disallowed edge appears so the layering becomes a checked build invariant.
-
-| Field    | Value              |
-|----------|--------------------|
-| Status   | Accepted           |
-| Deciders | Platform Engineering |
 
 ## Context
 

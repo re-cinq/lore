@@ -1,7 +1,7 @@
 ---
 adr_number: 35
 title: "Generate the lore-api OpenAPI 3.1 document from the zod route schemas"
-status: shipped
+status: draft
 date: 2026-07-06
 domains: [lore-api, http, validation, openapi, dx]
 relates: "specs/lore-api-openapi/spec.md"

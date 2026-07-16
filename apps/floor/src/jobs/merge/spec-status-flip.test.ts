@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { decideSpecStatusFlip } from "./merge-check.js";
+import {
+  decideFeatureImplemented,
+  decideSpecStatusFlip,
+} from "./merge-check.js";
 
 type GateTask = Parameters<typeof decideSpecStatusFlip>[0];
 
@@ -30,5 +33,85 @@ describe("decideSpecStatusFlip", () => {
   it("returns null when the bundle carries no feature id", () => {
     expect(decideSpecStatusFlip(task({ context_bundle: {} }), 0)).toBeNull();
     expect(decideSpecStatusFlip(task({ context_bundle: null }), 0)).toBeNull();
+  });
+});
+
+describe("decideFeatureImplemented", () => {
+  it("returns true when the flip PR set the spec to shipped", () => {
+    expect(
+      decideFeatureImplemented({
+        prUrl: "https://example.test/pr/1",
+        skipped: false,
+        status: "shipped",
+      }),
+    ).toBe(true);
+  });
+
+  it("returns true when the spec already claimed shipped", () => {
+    expect(
+      decideFeatureImplemented({
+        prUrl: null,
+        skipped: true,
+        reason: "already-current",
+        status: "shipped",
+      }),
+    ).toBe(true);
+  });
+
+  it("returns false when coverage only supported In Progress", () => {
+    expect(
+      decideFeatureImplemented({
+        prUrl: "https://example.test/pr/1",
+        skipped: false,
+        status: "in-progress",
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false when the spec already claimed a status short of shipped", () => {
+    expect(
+      decideFeatureImplemented({
+        prUrl: null,
+        skipped: true,
+        reason: "already-current",
+        status: "draft",
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false for a shipped spec with no testable statement to confirm it", () => {
+    expect(
+      decideFeatureImplemented({
+        prUrl: null,
+        skipped: true,
+        reason: "no-coverage-tier",
+        status: "shipped",
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false when the spec is missing, terminal, or has no status row", () => {
+    expect(
+      decideFeatureImplemented({
+        prUrl: null,
+        skipped: true,
+        reason: "missing",
+      }),
+    ).toBe(false);
+    expect(
+      decideFeatureImplemented({
+        prUrl: null,
+        skipped: true,
+        reason: "terminal",
+        status: "retired",
+      }),
+    ).toBe(false);
+    expect(
+      decideFeatureImplemented({
+        prUrl: null,
+        skipped: true,
+        reason: "no-status-row",
+      }),
+    ).toBe(false);
   });
 });

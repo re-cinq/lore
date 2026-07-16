@@ -54,6 +54,10 @@
       "types": "./dist/spec-status.d.ts",
       "default": "./dist/spec-status.js"
     },
+    "./spec-status-coverage.js": {
+      "types": "./dist/spec-status-coverage.d.ts",
+      "default": "./dist/spec-status-coverage.js"
+    },
     "./spec-judge-llm.js": {
       "types": "./dist/spec-judge-llm.d.ts",
       "default": "./dist/spec-judge-llm.js"

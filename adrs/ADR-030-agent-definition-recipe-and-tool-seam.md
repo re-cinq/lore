@@ -1,7 +1,7 @@
 ---
 adr_number: 30
 title: "AgentDefinition as a declarative recipe; the AgentTool seam; image/compute belong to the Station"
-status: shipped
+status: draft
 date: 2026-06-18
 domains: [agent, pipeline, security, web-ui, governance]
 ---

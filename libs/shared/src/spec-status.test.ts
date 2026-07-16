@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseDocStatus,
   statusTier,
+  rewriteAdrStatusRow,
   rewriteSpecStatusRow,
 } from "./spec-status.js";
 
@@ -184,6 +185,31 @@ describe("rewriteSpecStatusRow", () => {
     ).toBeNull();
   });
 
+  it("demotes a Shipped status when allowTerminal is set", () => {
+    const out = rewriteSpecStatusRow(spec("Shipped"), "In Progress", {
+      allowTerminal: true,
+    });
+
+    expect(parseDocStatus(out as string, "spec").status).toBe("in-progress");
+    expect(out).toContain("| Status   | In Progress");
+  });
+
+  it("demotes a Retired status when allowTerminal is set", () => {
+    const out = rewriteSpecStatusRow(spec("Retired"), "Draft", {
+      allowTerminal: true,
+    });
+
+    expect(parseDocStatus(out as string, "spec").status).toBe("draft");
+  });
+
+  it("returns null with allowTerminal set when there is no Status row", () => {
+    expect(
+      rewriteSpecStatusRow("# Spec\n\nNo table.\n", "Draft", {
+        allowTerminal: true,
+      }),
+    ).toBeNull();
+  });
+
   it("preserves CRLF line endings when the source uses them", () => {
     const crlf = spec("Draft").replace(/\n/g, "\r\n");
     const out = rewriteSpecStatusRow(crlf, "Implemented") as string;
@@ -202,5 +228,83 @@ describe("rewriteSpecStatusRow", () => {
 
     expect(changed).toHaveLength(1);
     expect(changed[0]).toContain("Status");
+  });
+});
+
+describe("rewriteAdrStatusRow", () => {
+  const adr = (status: string) =>
+    [
+      "---",
+      'adr_number: "007"',
+      "title: Replace Klaus with a purpose-built agent",
+      `status: ${status}`,
+      "date: 2026-03-29",
+      "domains:",
+      "  - architecture",
+      "---",
+      "",
+      "# ADR-007: Replace Klaus",
+      "",
+      "Prose here.",
+    ].join("\n");
+
+  it("flips a shipped ADR to draft", () => {
+    const out = rewriteAdrStatusRow(adr("shipped"), "draft");
+
+    expect(parseDocStatus(out as string, "adr").status).toBe("draft");
+    expect(out).toContain("status: draft");
+  });
+
+  it("flips an in progress ADR to draft", () => {
+    const out = rewriteAdrStatusRow(adr("in progress"), "draft");
+
+    expect(parseDocStatus(out as string, "adr").status).toBe("draft");
+  });
+
+  it("flips a quoted status value", () => {
+    const out = rewriteAdrStatusRow(adr('"shipped"'), "in progress");
+
+    expect(parseDocStatus(out as string, "adr").status).toBe("in-progress");
+  });
+
+  it("returns null when the ADR has no frontmatter", () => {
+    expect(
+      rewriteAdrStatusRow("# ADR-36\n\nNo frontmatter.\n", "draft"),
+    ).toBeNull();
+  });
+
+  it("returns null when the frontmatter has no status key", () => {
+    const noStatus = ["---", 'adr_number: "036"', "---", "", "# ADR-36"].join(
+      "\n",
+    );
+
+    expect(rewriteAdrStatusRow(noStatus, "draft")).toBeNull();
+  });
+
+  it("only rewrites the status key inside the frontmatter block", () => {
+    const withBodyStatus = `${adr("shipped")}\n\nstatus: shipped\n`;
+    const out = rewriteAdrStatusRow(withBodyStatus, "draft") as string;
+
+    expect(parseDocStatus(out, "adr").status).toBe("draft");
+    expect(out.endsWith("\n\nstatus: shipped\n")).toBe(true);
+  });
+
+  it("preserves CRLF line endings when the source uses them", () => {
+    const crlf = adr("shipped").replace(/\n/g, "\r\n");
+    const out = rewriteAdrStatusRow(crlf, "draft") as string;
+
+    expect(out.includes("\r\n")).toBe(true);
+    expect(out.includes("\n\n")).toBe(false);
+    expect(parseDocStatus(out, "adr").status).toBe("draft");
+  });
+
+  it("leaves every other line untouched", () => {
+    const before = adr("shipped");
+    const after = rewriteAdrStatusRow(before, "draft") as string;
+    const changed = before
+      .split("\n")
+      .filter((line, i) => line !== after.split("\n")[i]);
+
+    expect(changed).toEqual(["status: shipped"]);
   });
 });

@@ -1,7 +1,7 @@
 ---
 adr_number: 34
 title: "Move lore-api request validation into hapi's options.validate (zod)"
-status: shipped
+status: draft
 date: 2026-07-03
 domains: [lore-api, http, validation, dx]
 relates: "specs/hapi-request-validation/spec.md"
