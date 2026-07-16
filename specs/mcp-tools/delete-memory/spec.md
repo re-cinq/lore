@@ -3,7 +3,7 @@
 | Field   | Value                                            |
 |---------|--------------------------------------------------|
 | Feature | `lore_delete_memory` MCP tool                         |
-| Status  | **Draft**                                        |
+| Status  | Draft                                            |
 | Created | 2026-06-10                                       |
 | Owner   | Platform Engineering                             |
 | Tool    | `lore_delete_memory`                                  |

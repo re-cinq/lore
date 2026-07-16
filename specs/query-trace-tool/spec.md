@@ -3,7 +3,7 @@
 | Field          | Value                                                                                     |
 |----------------|-------------------------------------------------------------------------------------------|
 | Feature        | `lore-query-trace` MCP Tool                                                                     |
-| Status         | **Shipped**                                                                                  |
+| Status         | Shipped                                                                                      |
 | Created        | 2026-06-10                                                                                 |
 | Owner          | Platform Engineering                                                                       |
 | Consumes       | [`spec-traceability-graph`](../spec-traceability-graph/spec.md) — the `/trace/document` read route |

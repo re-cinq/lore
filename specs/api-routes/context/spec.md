@@ -3,7 +3,7 @@
 | Field      | Value                                          |
 |------------|------------------------------------------------|
 | Feature    | Context assembly HTTP route                     |
-| Status     | **Draft**                                       |
+| Status     | Draft                                           |
 | Created    | 2026-06-10                                      |
 | Owner      | Platform Engineering                           |
 | Route      | `GET /api/context`                             |

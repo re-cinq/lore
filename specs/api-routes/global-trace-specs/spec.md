@@ -3,7 +3,7 @@
 | Field      | Value                                                  |
 |------------|--------------------------------------------------------|
 | Feature    | Global cross-repo spec list route                      |
-| Status     | **Draft**                                              |
+| Status     | Draft                                                  |
 | Created    | 2026-06-10                                             |
 | Owner      | Platform Engineering                                   |
 | Route      | `GET /api/trace/specs`                                 |

@@ -12,6 +12,7 @@ const LABEL: Record<SpecStatus, string> = {
   "in-progress": "In progress",
   shipped: "Shipped",
   rejected: "Rejected",
+  retired: "Retired",
 };
 
 /**

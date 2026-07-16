@@ -1,7 +1,7 @@
 ---
 adr_number: 18
 title: "TDD adoption + per-subproject test CI"
-status: accepted
+status: shipped
 date: 2026-05-29
 domains: [testing, ci, dx]
 ---

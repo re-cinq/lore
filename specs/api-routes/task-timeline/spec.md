@@ -3,7 +3,7 @@
 | Field      | Value                                                          |
 |------------|----------------------------------------------------------------|
 | Feature    | Task stage-commit timeline                                     |
-| Status     | **Draft**                                                      |
+| Status     | Draft                                                          |
 | Created    | 2026-06-10                                                    |
 | Owner      | Platform Engineering                                          |
 | Route      | `GET /api/tasks/:id/timeline`                                 |

@@ -3,7 +3,7 @@
 | Field       | Value                                                  |
 |-------------|--------------------------------------------------------|
 | Feature     | GET /healthz API Route                                 |
-| Status      | **Draft**                                              |
+| Status      | Draft                                                  |
 | Created     | 2026-06-10                                             |
 | Owner       | Platform Engineering                                   |
 | Route       | `GET /healthz` (any method; matched on path only)      |

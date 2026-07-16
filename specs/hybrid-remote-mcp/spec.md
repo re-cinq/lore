@@ -3,7 +3,7 @@
 | Field          | Value                                    |
 |----------------|------------------------------------------|
 | Feature        | Hybrid Remote MCP — direct-connect for global reads |
-| Status         | Rejected (2026-06-17) — see note below   |
+| Status         | Rejected                                 |
 | Created        | 2026-06-17                               |
 | Owner          | Platform Engineering                     |
 | Related        | [docs/mcp-transport-options.md](../../docs/mcp-transport-options.md), [docs/mcp-tools.md](../../docs/mcp-tools.md) |

@@ -1,7 +1,7 @@
 ---
 adr_number: 26
 title: "Spec-drift detection: graph-primary signal, hardened dedup + infra retry"
-status: accepted
+status: shipped
 date: 2026-06-17
 domains: [agent, pipeline]
 ---
