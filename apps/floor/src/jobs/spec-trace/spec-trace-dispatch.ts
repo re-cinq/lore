@@ -11,6 +11,7 @@
  */
 
 import { ingestSpecTrace, type DgraphClientPort } from "@re-cinq/lore-shared";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectRepoGraph, type RepoReader } from "./graph-ingest-handler.js";
 import {
   specTraceAuditEntry,
@@ -35,12 +36,32 @@ export interface SpecTraceDispatchDeps {
   projectFor: (repo: string) => Promise<{ repo: RepoReader }>;
 }
 
+/**
+ * The event-retry gate for the repo-read kinds: their per-file failures are
+ * swallowed into the summary (per-file isolation), so the handler must throw
+ * for the event loop to re-drive them — the content_hash gate makes a retry
+ * re-project only the unfinished files. Payload kinds throw on their own.
+ * The message lands in `pipeline.events.error`, file list included.
+ */
+export function enforceProjectionComplete(
+  repo: string,
+  kind: string,
+  failedFiles: readonly string[],
+): void {
+  enforceTrue(
+    failedFiles.length === 0,
+    Error,
+    `spec-trace ${kind} for ${repo}: ${failedFiles.length} file(s) failed to project ` +
+      `(${failedFiles.join(", ")}) — throwing so the event queue re-drives them`,
+  );
+}
+
 export async function dispatchSpecTrace(
   repo: string,
   kind: string,
   payload: unknown,
   deps: SpecTraceDispatchDeps,
-): Promise<{ logLine: string; audit: AuditLogEntry }> {
+): Promise<{ logLine: string; audit: AuditLogEntry; failedFiles: string[] }> {
   if (REPO_READ_KINDS.has(kind)) {
     const p = (payload ?? {}) as RepoReadPayload;
     const project = await deps.projectFor(repo);
@@ -58,6 +79,7 @@ export async function dispatchSpecTrace(
     return {
       logLine: graphIngestLogLine(repo, summary),
       audit: graphIngestAuditEntry(repo, summary),
+      failedFiles: summary.failedFiles,
     };
   }
 
@@ -66,5 +88,6 @@ export async function dispatchSpecTrace(
   return {
     logLine: specTraceLogLine(repo, outcome),
     audit: specTraceAuditEntry(repo, outcome),
+    failedFiles: [],
   };
 }
