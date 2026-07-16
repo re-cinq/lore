@@ -17,8 +17,9 @@
 
 const MIN_INTRO_CHARS = 40;
 
-/** First line of a block is markdown structure, not prose, when it opens a heading,
- * table row, blockquote, code fence, list item, or a `**Status:** …` metadata line. */
+/** A line is markdown structure, not prose, when it opens a heading, table row,
+ * blockquote, code fence, bullet or ordered list item, or a `**Status:** …`
+ * metadata line. */
 function isProseLine(line) {
   const trimmed = line.trim();
 
@@ -31,7 +32,7 @@ function isProseLine(line) {
     trimmed.startsWith("|") ||
     trimmed.startsWith(">") ||
     trimmed.startsWith("```") ||
-    /^[-*]\s/.test(trimmed) ||
+    /^(\d+\.|[-*+])\s/.test(trimmed) ||
     /^\*\*status\b/i.test(trimmed);
 
   return !isStructure;
@@ -49,6 +50,8 @@ function introRegion(content, kind) {
     while (i < lines.length && lines[i].trim() !== "---") {
       i++;
     }
+    // A missing closing `---` leaves start past the last line, so the region is
+    // empty and the rule fires — the right answer for malformed frontmatter.
     start = i + 1;
   }
   const region = [];
@@ -80,22 +83,18 @@ export function hasLeadParagraph(content, kind) {
   };
 
   for (const line of region) {
-    if (line.trim() === "") {
-      if (paragraph.length > 0 && meetsMinimum()) {
-        return true;
-      }
-      paragraph = [];
-      continue;
-    }
-
-    if (paragraph.length === 0 && !isProseLine(line)) {
-      continue;
-    }
-
-    if (paragraph.length > 0 || isProseLine(line)) {
+    // Only prose accumulates. A blank or structural line closes the current
+    // paragraph — it must never pad a too-short intro toward the minimum.
+    if (isProseLine(line)) {
       paragraph.push(line.trim());
+      continue;
     }
+
+    if (meetsMinimum()) {
+      return true;
+    }
+    paragraph = [];
   }
 
-  return paragraph.length > 0 && meetsMinimum();
+  return meetsMinimum();
 }

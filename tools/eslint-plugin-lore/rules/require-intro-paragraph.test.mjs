@@ -77,5 +77,32 @@ ruleTester.run("require-intro-paragraph", rule, {
       filename: "adrs/ADR-1.md",
       errors: [{ messageId: "missingIntro", line: 1 }],
     },
+    // an intro under the 40-char minimum does not count
+    {
+      code: specNoIntro.replace(
+        "## Problem Statement",
+        "Too short.\n\n## Problem Statement",
+      ),
+      filename: "specs/my-feature/spec.md",
+      errors: [{ messageId: "missingIntro", line: 1 }],
+    },
+    // a bold status line is metadata, not prose
+    {
+      code: specNoIntro.replace(
+        "## Problem Statement",
+        "**Status:** Implemented — 2026-06-17\n\n## Problem Statement",
+      ),
+      filename: "specs/my-feature/spec.md",
+      errors: [{ messageId: "missingIntro", line: 1 }],
+    },
+    // a structural line must not pad a too-short intro to the minimum
+    {
+      code: specNoIntro.replace(
+        "## Problem Statement",
+        "Too short.\n| a table row long enough to pad past the minimum |\n\n## Problem Statement",
+      ),
+      filename: "specs/my-feature/spec.md",
+      errors: [{ messageId: "missingIntro", line: 1 }],
+    },
   ],
 });

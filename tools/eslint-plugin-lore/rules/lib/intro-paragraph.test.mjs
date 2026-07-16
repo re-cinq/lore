@@ -117,3 +117,59 @@ test("adr that jumps from frontmatter and H1 to Status fails", () => {
 test("spec with no section headings still requires a lead paragraph", () => {
   assert.equal(hasLeadParagraph(specNoSections, "spec"), true);
 });
+
+// A structural line abutting a too-short intro must not pad it to the minimum.
+const specShortIntroPaddedByTable = [
+  "# Feature Specification: Widgets",
+  "",
+  "| Field | Value |",
+  "|---|---|",
+  "| Status | Draft |",
+  "",
+  "Too short.",
+  "| a table row long enough to pad past the forty character minimum |",
+  "",
+  "## Problem Statement",
+].join("\n");
+
+const specShortIntroPaddedByQuote = [
+  "# Feature Specification: Widgets",
+  "",
+  "Too short.",
+  "> a blockquote long enough to pad past the forty character minimum",
+  "",
+  "## Problem Statement",
+].join("\n");
+
+const specOrderedListIntro = [
+  "# Feature Specification: Widgets",
+  "",
+  "| Field | Value |",
+  "|---|---|",
+  "| Status | Draft |",
+  "",
+  "1. An ordered list item is not an introductory paragraph at all.",
+  "",
+  "## Problem Statement",
+].join("\n");
+
+const specPlusListIntro = specOrderedListIntro.replace(
+  "1. An ordered",
+  "+ An ordered",
+);
+
+test("spec whose short intro is padded by an adjoining table row fails", () => {
+  assert.equal(hasLeadParagraph(specShortIntroPaddedByTable, "spec"), false);
+});
+
+test("spec whose short intro is padded by an adjoining blockquote fails", () => {
+  assert.equal(hasLeadParagraph(specShortIntroPaddedByQuote, "spec"), false);
+});
+
+test("spec whose only intro-region prose is an ordered list item fails", () => {
+  assert.equal(hasLeadParagraph(specOrderedListIntro, "spec"), false);
+});
+
+test("spec whose only intro-region prose is a + list item fails", () => {
+  assert.equal(hasLeadParagraph(specPlusListIntro, "spec"), false);
+});

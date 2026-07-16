@@ -41,7 +41,7 @@ export default {
     schema: [],
     messages: {
       missingIntro:
-        "Add a 1–2 sentence introductory paragraph after the title (specs: below the status table; ADRs: below the H1) and before the first `##` section — the web-UI card renders it as the doc's description.",
+        "Add a 1–2 sentence introductory paragraph (at least 40 characters) after the title (specs: below the status table; ADRs: below the H1) and before the first `##` section — the web-UI card renders it as the doc's description.",
     },
   },
 
