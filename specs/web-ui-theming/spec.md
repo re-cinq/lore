@@ -9,6 +9,8 @@
 | Owner    | Platform Engineering                          |
 | Target   | 2-3 days                                       |
 
+Web UI Theming replaces the web-ui's hardcoded dark-only styling with a token-driven system offering two theme families, Elegant and Retro, each with light and dark variants, OS auto-switching, its own font, and its own icon set.
+
 ## Problem Statement
 
 The `web-ui` had no theming. `globals.css` was a single dark-only stylesheet

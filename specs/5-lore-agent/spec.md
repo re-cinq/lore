@@ -15,6 +15,8 @@
 | Created        | 2026-03-29                                  |
 | Owner          | Platform Engineering                        |
 
+The Lore Agent Service is Lore's purpose-built agent runtime that turns pipeline tasks into PRs reliably on the first attempt, providing predictable structured output, direct repo access, per-task model control, crash recovery across pod restarts, and consolidated scheduling of periodic maintenance jobs.
+
 ## Problem Statement
 
 Lore's pipeline needs a purpose-built agent runtime that it fully

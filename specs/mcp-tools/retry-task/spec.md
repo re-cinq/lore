@@ -10,6 +10,8 @@
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
+`lore_retry_task` clones a failed or escalated task into a fresh pipeline task linked via retry_of, refusing to re-run tasks that did not fail.
+
 ## Problem Statement
 
 A task that failed or escalated to `needs-human-help` often just needs a second

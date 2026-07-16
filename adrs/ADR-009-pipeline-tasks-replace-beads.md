@@ -11,6 +11,8 @@ domains:
 
 # Pipeline tasks replace Beads for developer task tracking
 
+Retires the Beads/Dolt task tracker and extends the existing PostgreSQL pipeline task system with MCP tools for syncing, claiming, and completing tasks, enforcing tasks.md dependency ordering at query time.
+
 ## Status
 
 Accepted

@@ -8,6 +8,8 @@
 | Owner          | Platform Engineering                     |
 | Related        | [docs/mcp-transport-options.md](../../docs/mcp-transport-options.md), [docs/mcp-tools.md](../../docs/mcp-tools.md) |
 
+This spec evaluates a hybrid design that would connect Claude Code directly to the dormant remote `/mcp` endpoint for repo-agnostic reads such as memory search and graph queries, rather than bouncing every read through the local stdio proxy to the REST backend — a design ultimately rejected in favor of the existing adapter pattern.
+
 > **REJECTED.** The right architecture is the **adapter pattern Lore already
 > uses**: the local stdio MCP server is the sole MCP surface and wraps the
 > remote HTTP REST routes into MCP tools; the backend stays a plain REST API.

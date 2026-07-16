@@ -10,6 +10,8 @@
 | Module  | Spec-Trace (`spec-trace-tools.ts`)          |
 | Scope   | local                                       |
 
+`lore_list_tests` runs the repo's declared test-list command in the caller's trusted local sandbox and returns the runner-native test descriptors that feed the spec-traceability graph.
+
 ## Problem Statement
 
 The spec-traceability graph needs the repo's authoritative list of tests — the

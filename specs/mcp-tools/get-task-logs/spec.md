@@ -10,6 +10,8 @@
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
+`lore_get_task_logs` fetches a pipeline task's raw execution output by id, supporting incremental polling from a byte offset and reporting whether the task has finished so a poller knows when to stop.
+
 ## Problem Statement
 
 While a task runs (and after it finishes) the developer wants its raw execution

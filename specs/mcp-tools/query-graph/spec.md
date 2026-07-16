@@ -10,6 +10,8 @@
 | Module  | memory                                           |
 | Scope   | shared                                           |
 
+`lore_query_graph` reads the live knowledge graph and returns an entity's typed relationship edges, filtered by relation type or repo, so agents can see structured connections rather than prose.
+
 ## Problem Statement
 
 Facts and memories answer "what is true" but not "how things connect" — which

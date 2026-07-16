@@ -9,6 +9,8 @@ supersedes: ADR-009
 
 # ADR-016: Dark Factory mode
 
+Introduces per-repo dark-factory mode that makes the branch durable state via commit trailers, externalizes workflows into declarative YAML graphs, and turns human gates and GitHub Issues into opt-out exception surfaces with path-allowlisted auto-merge.
+
 > **Mechanism update ([ADR-031](./ADR-031-agent-station-crds.md)).** Dark Factory mode is
 > unchanged, but the tasks it governs now execute on the ai-agent-subsystem's `Agent` CRs
 > (per-repo + percentage cutover via `RoutingStationBackend`), not `LoreTask` CRs. The

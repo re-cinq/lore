@@ -10,6 +10,8 @@
 | Module  | Pipeline (`runner.local.ts`)                |
 | Scope   | local                                       |
 
+`lore_cancel_local_task` stops a developer's background local worktree task by id: it kills the task process, marks the task cancelled, and removes the git worktree to reclaim disk.
+
 ## Problem Statement
 
 A developer who started a background local task needs to stop it and reclaim the

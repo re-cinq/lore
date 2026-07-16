@@ -9,6 +9,8 @@
 | Priority       | P1 — High value, lower effort               |
 | Motivation     | [Zep competitive research](../zep-competitive-research.md) |
 
+Passive Episode Ingestion adds a lore_write_episode MCP tool that takes raw unstructured text — conversations, reviews, debugging sessions, CI failures — and automatically stores it, extracts temporally valid facts, and updates the knowledge graph, so the messy signal is captured with no manual curation.
+
 ## Problem Statement
 
 Lore's memory system requires agents to explicitly call

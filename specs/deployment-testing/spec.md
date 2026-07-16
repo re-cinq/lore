@@ -7,6 +7,8 @@
 | Created        | 2026-04-04                               |
 | Owner          | Platform Engineering                     |
 
+Deployment Testing introduces real CI test gates to Lore, which today only compiles TypeScript and pushes images, layering unit, integration, and post-deploy smoke tests across the MCP server, agent, and web UI so bugs stop reaching production undetected.
+
 ## Problem Statement
 
 Lore has zero test gates in CI. Builds compile TypeScript and push

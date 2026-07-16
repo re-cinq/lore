@@ -10,6 +10,8 @@
 | Auth scope | —                                                      |
 | Module     | (was `mcp-server/src/api/routes/coverage.ts`)          |
 
+This now-retired route accepted a project's per-test coverage report in canonical JSON, LCOV, or Cobertura form, normalized it server-side into canonical ranges, counted the graph nodes and edges the projection would create, and fanned the normalized groups out to the spec-trace projection.
+
 > **Removed.** The bulk coverage route and its LCOV/Cobertura parsers were deleted.
 > The `lore-code-trace` binary now parses json/lcov/cobertura to canonical ranges in CI
 > (`apps/lore-code-trace/coverage.go`) and ships them inside the test-report it POSTs to

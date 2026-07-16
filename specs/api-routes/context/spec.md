@@ -10,6 +10,8 @@
 | Auth scope | `read`                                          |
 | Module     | `mcp-server/src/api/routes/context.ts` (`handleContext`) |
 
+GET /api/context returns a token-budgeted, provenance-tagged context block for a query, or a plain concatenation of a repo's docs, ADRs, and specs when no query is supplied, serving clients that cannot run the assembly engine locally.
+
 ## Problem Statement
 
 Clients that cannot run the assembly engine locally — the stdio MCP proxy when

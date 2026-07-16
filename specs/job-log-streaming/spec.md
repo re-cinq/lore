@@ -9,6 +9,8 @@
 | Owner          | Platform Engineering                     |
 | Target         | 3-5 days                                 |
 
+Job Log Streaming pipes a running task pod's stdout and stderr into the pipeline UI in near real time, giving developers progress and output for in-flight tasks instead of a bare running indicator that otherwise requires kubectl logs to inspect.
+
 ## Problem Statement
 
 When a LoreTask Job runs, the only way to see what Claude Code is

@@ -8,6 +8,8 @@ domains: [agent, pipeline, infra, governance, web-ui]
 
 # ADR-031: The ai-agent-subsystem is the production execution substrate
 
+This ADR adopts the standalone ai-agent-subsystem as Lore's production execution substrate, modeling Agent, Station, and AgentDefinition as Kubernetes CRDs and retiring the LoreTask path, with the Floor orchestrating an event-driven assembly-line walk where every node runs as its own pod.
+
 > **Cutover complete.** The legacy `LoreTask` path — the CRD + controller, the
 > `claude-runner` image, the `RoutingStationBackend` cutover router, the per-repo
 > `execution.backend` opt-in, and the Docker/local Station backend — has been

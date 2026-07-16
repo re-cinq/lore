@@ -10,6 +10,8 @@
 | Consumes       | [`spec-traceability-graph`](../spec-traceability-graph/spec.md) — `Statement` + `validated_by`/`decided_by` edges |
 | Sibling        | [`project-test-interface`](../project-test-interface/spec.md) — the `violated`/coverage signal this ranks on |
 
+Graph-Enriched Context Assembly projects the spec-traceability graph into `lore_assemble_context`, deterministically ranking the statements coupled to a task by signal so broken contracts and the ADRs that govern the code surface first, instead of relying on vector similarity alone.
+
 ## Problem Statement
 
 `lore_assemble_context` retrieves chunks by vector similarity and fuses them

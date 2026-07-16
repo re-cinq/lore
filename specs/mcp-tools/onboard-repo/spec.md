@@ -10,6 +10,8 @@
 | Module  | Repo (`repo-tools.ts`)         |
 | Scope   | shared                         |
 
+`lore_onboard_repo` registers a GitHub repo in Lore and spawns an onboard pipeline task that authors CLAUDE.md, AGENTS.md, and CI workflows and opens a PR asynchronously.
+
 ## Problem Statement
 
 Adding a repo to Lore requires both a registry row in `lore.repos` and an agent

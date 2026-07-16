@@ -9,6 +9,8 @@
 | Owner          | Platform Engineering                     |
 | Supersedes     | `local-coverage-linker` (BYO-compute persist path); defers `coverage-ingestion` (decoupled from v3) |
 
+Spec → Test Coverage (v3) makes author-written inline markdown links in `spec.md` the source of truth for spec-to-test linkage, colored at render time by the web UI, with a cron that validates links against test metadata and backfills suggestions via PR — retiring the v2 relational linker tables.
+
 ## Problem Statement
 
 The per-repo specs page renders specifications as a flat list of cards.

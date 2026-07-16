@@ -10,6 +10,8 @@
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
+`lore_get_pr_status` fetches a task's live PR state from GitHub and folds PR state, check-run conclusions, and review verdicts into one derived `computed_status`, returning the underlying checks and reviews without the caller scripting the GitHub REST API.
+
 ## Problem Statement
 
 A task's PR is the canonical artifact, but its true state lives on GitHub:

@@ -8,6 +8,8 @@
 | Owner    | Platform Engineering                                             |
 | ADR      | [ADR-033](../../adrs/ADR-033-lore-api-hapi.md)                     |
 
+This spec replaces lore-api's hand-rolled `node:http` router and its order-sensitive match-table with the hapi framework, turning routing, bearer-scope auth, rate limiting, and the body-size cap into declarative per-route configuration rather than duplicated imperative plumbing buried inside each handler.
+
 ## Problem Statement
 
 The remote REST backend [`apps/lore-api`](../../apps/lore-api/) serves every

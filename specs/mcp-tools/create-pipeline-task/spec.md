@@ -10,6 +10,8 @@
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
+`lore_create_pipeline_task` is the single entry point for delegating work to the Lore pipeline: it validates the description, resolves the repo, enforces the per-repo trust gate, inserts the `pipeline.tasks` row, and tells the caller how the task will be picked up.
+
 ## Problem Statement
 
 Developers and PMs need a single MCP entry point to delegate work to the Lore

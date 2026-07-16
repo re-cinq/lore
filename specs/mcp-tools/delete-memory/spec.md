@@ -10,6 +10,8 @@
 | Module  | memory                                           |
 | Scope   | shared                                           |
 
+`lore_delete_memory` soft-deletes an agent memory by key, hiding it from reads, listings, and search while retaining its version history and audit trail so a stale or mistaken entry can be retired without losing provenance.
+
 ## Problem Statement
 
 Agents accumulate memories that go stale — a convention is superseded, a

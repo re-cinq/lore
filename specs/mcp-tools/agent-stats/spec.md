@@ -10,6 +10,8 @@
 | Module  | memory                                           |
 | Scope   | shared                                           |
 
+`lore_agent_stats` returns one agent's combined health and learning metrics — memory count, active vs invalidated fact counts, search activity, shared pools, and recent episodes — as a single JSON block for operators diagnosing a quiet or runaway agent.
+
 ## Problem Statement
 
 There is no single call that tells an operator how much an agent has learned

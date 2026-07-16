@@ -8,6 +8,8 @@ domains: [agent, pipeline, web-ui]
 
 # ADR-029: Feature spec decomposition
 
+This ADR adds a feature-decompose agent that runs in-process when a feature's spec PR merges, turning the merged spec into a user-story-to-task tree — one GitHub Issue per story plus spec-task rows wired into the existing implementation pipeline.
+
 ## Context
 
 Smart feature planning (ADR-027) ends at a merged `specs/<slug>/spec.md` PR plus,

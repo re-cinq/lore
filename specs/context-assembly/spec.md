@@ -9,6 +9,8 @@
 | Priority       | P2 — Higher value, higher effort            |
 | Motivation     | [Zep competitive research](../zep-competitive-research.md) |
 
+Context Assembly Templates add a lore_assemble_context MCP tool that retrieves from all memory sources and formats the result through centrally managed context-block templates, replacing the ad-hoc, inconsistent context each agent used to assemble on its own.
+
 ## Problem Statement
 
 Agents call `lore_search_memory` and `get_context` and receive raw text

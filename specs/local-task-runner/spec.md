@@ -7,6 +7,8 @@
 | Created        | 2026-04-04                               |
 | Owner          | Platform Engineering                     |
 
+Local Task Runner runs Lore pipeline tasks inside the developer's own Claude Code session and an isolated git worktree — via explicit invocation or opt-in polling — so subscription holders spend included usage instead of Anthropic API credits and skip the fresh-clone overhead of a GKE pod.
+
 ## Problem Statement
 
 Every Lore task runs on GKE as an ephemeral Job pod, using Anthropic

@@ -10,6 +10,8 @@
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
+`lore_list_pipeline_tasks` returns a newest-first roster of pipeline tasks with a total count, optionally filtered to a single status, without writing SQL or knowing the storage backend.
+
 ## Problem Statement
 
 Operators need a quick roster of recent pipeline tasks — optionally narrowed to

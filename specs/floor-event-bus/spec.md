@@ -7,6 +7,8 @@
 | Owner   | Platform Engineering     |
 | Builds on | [ADR-015](../../adrs/ADR-015-webhook-driven-review-reactor.md) |
 
+The Floor Event Bus routes every Floor trigger — GitHub webhooks, Agent-CR terminal phases, cron ticks, post-ingest hooks — through one durable, at-least-once `pipeline.events` substrate, where a single loop atomically claims runnable rows, dispatches by event name through a registry, and retries with backoff into a dead-letter.
+
 ## Problem Statement
 
 Every Floor trigger — GitHub webhooks, Agent-CR terminal phases, cron ticks,

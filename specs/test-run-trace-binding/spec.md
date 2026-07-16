@@ -10,6 +10,8 @@
 | Consumes       | [`spec-test-coverage`](../spec-test-coverage/spec.md) — the inline `([validated by](test.ts#Lnn))` links |
 | Feeds          | [`spec-traceability-graph`](../spec-traceability-graph/spec.md) — `ingestTestReport`'s anchor path (`Statement.validated_by` / `violated`) |
 
+Test-Run to Statement Binding adds a pure inverter that derives each test descriptor's spec anchor from the inline `([validated by](test.ts#Lnn))` links, joining the spec side's static links with the run side's pass/fail so the graph's high-value `violated` signal is finally populated.
+
 ## Problem Statement
 
 The deterministic test-report pipeline is built and live: on every push to

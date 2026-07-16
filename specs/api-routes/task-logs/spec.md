@@ -10,6 +10,8 @@
 | Auth scope | `write` (prefix `/api/task-logs` → `write`)      |
 | Module     | Logs (`api/routes/logs.ts` → `handleTaskLogs`)   |
 
+POST /api/task-logs receives a task's captured execution output from the local runner or Job pods and persists it to a single canonical GCS object per task, which the UI's live log viewer reads back.
+
 ## Problem Statement
 
 The local task runner and the claude-runner Job pods produce a stream of

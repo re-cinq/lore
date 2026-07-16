@@ -10,6 +10,8 @@
 | Auth scope | `task` (prefix `/api/task` → `task`)             |
 | Module     | Tasks (`api/routes/tasks.ts` → `handleTaskPost`) |
 
+POST /api/task is the single action-dispatched write endpoint that creates a pipeline task or mutates its lifecycle (retry, cancel, set priority, status update) for the MCP server, Slack bridge, web UI, and local runner.
+
 ## Problem Statement
 
 The MCP server, the Slack bridge, the web UI, and the local task runner all

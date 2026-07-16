@@ -11,6 +11,8 @@ domains:
 
 # AST-based code chunking via web-tree-sitter
 
+Adopts WASM-based web-tree-sitter to split code at AST declaration boundaries instead of storing whole files truncated at 8,000 characters, producing symbol-level chunks and metadata for higher-quality search and spec drift detection.
+
 ## Status
 
 Accepted

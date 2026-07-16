@@ -10,6 +10,8 @@
 | Motivation     | [Zep competitive research](../zep-competitive-research.md) |
 | Depends on     | [Episode ingestion](../episode-ingestion/spec.md) (shipped) |
 
+Auto-Episode Hooks make episode ingestion passive: Claude Code hooks call lore_write_episode automatically at key moments — session end, after tool use, on PR review events — so valuable session context is captured without agents having to remember to record it.
+
 ## Problem Statement
 
 `lore_write_episode` exists but agents must call it explicitly. In

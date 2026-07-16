@@ -12,6 +12,8 @@ domains:
 
 # LoreTask CRD for ephemeral Claude Code execution
 
+Introduces the LoreTask Kubernetes CRD and controller that runs each implementation task in an ephemeral Job pod, making execution deploy-safe, parallel, and resource-isolated (later superseded by the ai-agent-subsystem in ADR-031).
+
 > **Superseded by [ADR-031](./ADR-031-agent-station-crds.md).** The `LoreTask` CRD +
 > `claude-runner` Job model described here is retired: task execution moved to the
 > ai-agent-subsystem's `Agent` custom resources — the workflow graph runs Floor-side and

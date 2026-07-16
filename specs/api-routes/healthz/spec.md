@@ -10,6 +10,8 @@
 | Auth scope  | **none** — unauthenticated; rate-limit-exempt          |
 | Module      | `mcp-server/src/api/routes/health.ts` (`handleHealthz`) |
 
+GET /healthz is an unauthenticated liveness probe reporting whether the MCP server is up and its database reachable, upgrading to full database and task-counter diagnostics for callers presenting a valid read-scoped token.
+
 ## Problem Statement
 
 A load balancer, a Kubernetes liveness probe, and an operator all need a cheap,

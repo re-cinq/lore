@@ -10,6 +10,8 @@ amends: "adrs/ADR-033-lore-api-hapi.md"
 
 # ADR-034: lore-api request validation via hapi `options.validate` (zod)
 
+This ADR wires zod schemas into hapi's options.validate through a shared adapter so each write route declares its request contract in one place instead of hand-parsing bodies in the handler, and corrects malformed-JSON responses from a legacy 500 to a proper 400.
+
 ## Context
 
 ADR-033 migrated lore-api to hapi and made routing declarative, but deliberately

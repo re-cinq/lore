@@ -8,6 +8,8 @@ domains: [testing, ci, dx]
 
 # ADR-018: TDD adoption + per-subproject test CI
 
+Adopts Red-Green-Refactor TDD for new code, standardizes on vitest across every subproject, and adds a per-subproject CI test matrix so unit regressions are caught and attributed per suite on every PR.
+
 ## Context
 
 Lore has 44 test files across `shared`, `mcp-server`, `agent`, and `web-ui`,

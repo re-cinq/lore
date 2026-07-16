@@ -10,6 +10,8 @@
 | Module  | Repo (`repo-tools.ts`)         |
 | Scope   | shared                         |
 
+`lore_list_repos` returns every repo onboarded into Lore alongside its per-repo pipeline task count, so operators can inspect the deployment without opening the web UI or querying Postgres by hand.
+
 ## Problem Statement
 
 A developer or agent inspecting the Lore deployment needs to know which repos

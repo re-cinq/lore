@@ -8,6 +8,8 @@
 | Created        | 2026-03-29                                  |
 | Owner          | Platform Engineering                        |
 
+This spec reorganizes the Lore UI around repos instead of tools — a single repo-centric view for context, pipeline tasks, agent memory, specs, and audit — and adds a one-click self-service onboarding flow that opens a setup PR on the target repo.
+
 ## Problem Statement
 
 The Lore UI is organized by tool (agents, memory, pipeline, search,
