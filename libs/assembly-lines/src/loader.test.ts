@@ -360,6 +360,7 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
       "spec-coverage-backfill",
       "spec-coverage-validate",
       "spec-drift",
+      "status-staleness",
     ]);
   });
 
@@ -397,6 +398,7 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
       "gap-detect": "gap_detection",
       "spec-coverage-validate": "spec_coverage_validate",
       "spec-coverage-backfill": "spec_coverage_backfill",
+      "status-staleness": "status_staleness",
     };
 
     for (const [name, jobRef] of Object.entries(expected)) {

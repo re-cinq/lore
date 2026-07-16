@@ -20,3 +20,14 @@ export {
   specCoverageBackfillJob,
   type BackfillOptions,
 } from "./spec-coverage-backfill.js";
+export {
+  statusStalenessJob,
+  type StatusStalenessOptions,
+  type StaleEvidence,
+  type StaleFinding,
+  namedPaths,
+  gatherEvidence,
+  decideStale,
+  formatStaleStatusReport,
+  hasOpenStaleStatusIssue,
+} from "./status-staleness.js";
