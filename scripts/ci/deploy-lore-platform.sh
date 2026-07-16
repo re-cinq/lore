@@ -12,10 +12,12 @@
 #
 # Usage: deploy-lore-platform.sh <subchart> <image_tag> <deployment> <namespace>
 #   e.g. deploy-lore-platform.sh lore-api 5d270e9 lore-api lore-api
+# An image_tag of "-" deploys the chart as checked out with no image override —
+# for subcharts whose images are digest-pinned in values.yaml (ai-agents).
 set -euo pipefail
 
 SUBCHART="${1:?subchart values key, e.g. lore-floor}"
-TAG="${2:?image tag}"
+TAG="${2:?image tag, or - for no image override}"
 DEPLOY="${3:?deployment name for rollout status}"
 NS="${4:?namespace of that deployment}"
 IMAGE_REPO="${5:-}" # optional: pin image.repository too
@@ -29,6 +31,10 @@ CHART="infra/terraform/modules/gke-mcp/lore-platform"
 repo_set=()
 if [ -n "$IMAGE_REPO" ]; then
   repo_set+=(--set "${SUBCHART}.image.repository=${IMAGE_REPO}")
+fi
+tag_set=()
+if [ "$TAG" != "-" ]; then
+  tag_set+=(--set "${SUBCHART}.image.tag=${TAG}")
 fi
 HOME_NS="lore-floor" # the umbrella release record lives here
 STALE_SECS=300       # a pending revision older than this is from a dead run, not an active deploy
@@ -64,7 +70,7 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
   # No --wait (Autopilot wedges on it); rollout is gated by kubectl below.
   if helm upgrade --install lore-platform "$CHART" \
       --namespace "$HOME_NS" \
-      --set "${SUBCHART}.image.tag=${TAG}" \
+      "${tag_set[@]}" \
       "${repo_set[@]}" \
       --set lore-db-helm.ownershipReconciler.enabled=false \
       --reset-then-reuse-values \

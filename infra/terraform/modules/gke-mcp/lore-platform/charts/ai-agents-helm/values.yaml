@@ -51,10 +51,12 @@ controller:
   resources:
     requests:
       cpu: 50m
-      memory: 64Mi
+      memory: 128Mi
     limits:
       cpu: 250m
-      memory: 128Mi
+      # 128Mi OOMKilled the controller in prod (2026-07-16: exit 137 ~60s after start,
+      # 67 restarts) once the startup reconcile replayed the accumulated Agent CRs.
+      memory: 512Mi
 
 imagePullSecrets:
   - name: ghcr-pull-secret
