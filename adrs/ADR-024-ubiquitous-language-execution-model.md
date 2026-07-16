@@ -1,7 +1,7 @@
 ---
 adr_number: 24
 title: "Ubiquitous language for the execution model: Factory / Floor / AssemblyLine / Station / Agent"
-status: shipped
+status: draft
 date: 2026-06-15
 domains: [agent, pipeline, ux, governance, web-ui, infra]
 ---

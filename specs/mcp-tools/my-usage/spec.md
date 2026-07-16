@@ -3,7 +3,7 @@
 | Field   | Value                          |
 |---------|--------------------------------|
 | Feature | lore_my_usage MCP Tool              |
-| Status  | Draft                          |
+| Status  | In Progress                    |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_my_usage`                     |

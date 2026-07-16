@@ -3,7 +3,7 @@
 | Field          | Value                                              |
 |----------------|----------------------------------------------------|
 | Feature        | Memory → Dgraph Migration                          |
-| Status         | Draft                                              |
+| Status         | In Progress                                        |
 | Created        | 2026-06-05                                         |
 | Owner          | Platform Engineering                               |
 | Benefits       | Unifies vector search + knowledge graph in one store; deep multi-hop traversal; ends the relational schema-drift class of outages; substrate for [`spec-traceability-graph`](../spec-traceability-graph/spec.md) |

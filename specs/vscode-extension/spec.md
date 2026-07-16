@@ -3,7 +3,7 @@
 | Field   | Value                    |
 |---------|--------------------------|
 | Feature | VS Code Extension        |
-| Status  | Shipped                  |
+| Status  | In Progress              |
 | Owner   | Platform Engineering     |
 
 The VS Code Extension surfaces Lore's spec-to-code-to-test links, coverage, and drift inline in the editor by reading the live traceability graph, so a developer sees which spec statements a file implements or validates without leaving the editor.

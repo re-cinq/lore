@@ -1,7 +1,7 @@
 ---
 adr_number: 20
 title: "Context assembly: XML-tagged output + relevance-ranked, deduped retrieval"
-status: shipped
+status: draft
 date: 2026-06-05
 domains: [mcp-server, context, retrieval, web-ui]
 ---

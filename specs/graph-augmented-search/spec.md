@@ -3,7 +3,7 @@
 | Field          | Value                                       |
 |----------------|---------------------------------------------|
 | Feature        | Graph-Augmented Search                      |
-| Status         | Shipped                                       |
+| Status         | Draft                                         |
 | Created        | 2026-04-03                                  |
 | Owner          | Platform Engineering                        |
 | Priority       | P1 — Lower effort                           |

@@ -3,7 +3,7 @@
 | Field   | Value                    |
 |---------|--------------------------|
 | Feature | Passive Session Tracking |
-| Status  | Shipped                  |
+| Status  | In Progress              |
 | Owner   | Platform Engineering     |
 
 Passive Session Tracking records every MCP tool call in a per-session ring buffer and, on exit, dumps a session summary for automatic episode and fact extraction with no agent cooperation; this spec documents the tracker's contract so its unit tests trace to a statement.

@@ -3,7 +3,7 @@
 | Field    | Value                                                              |
 |----------|-------------------------------------------------------------------|
 | Feature  | Replace the hand-rolled `node:http` router in `apps/lore-api` with hapi |
-| Status   | Shipped                                                              |
+| Status   | In Progress                                                          |
 | Created  | 2026-07-01                                                        |
 | Owner    | Platform Engineering                                             |
 | ADR      | [ADR-033](../../adrs/ADR-033-lore-api-hapi.md)                     |

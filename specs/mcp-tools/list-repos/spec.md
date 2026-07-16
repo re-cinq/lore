@@ -3,7 +3,7 @@
 | Field   | Value                          |
 |---------|--------------------------------|
 | Feature | lore_list_repos MCP Tool            |
-| Status  | Draft                          |
+| Status  | In Progress                    |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_list_repos`                   |

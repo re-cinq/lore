@@ -3,7 +3,7 @@
 | Field      | Value                                            |
 |------------|--------------------------------------------------|
 | Feature    | Task action endpoint (create / mutate)           |
-| Status     | Draft                                             |
+| Status     | In Progress                                       |
 | Created    | 2026-06-10                                        |
 | Owner      | Platform Engineering                             |
 | Route      | `POST /api/task`                                 |

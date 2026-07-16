@@ -1,7 +1,7 @@
 ---
 adr_number: "007"
 title: Replace Klaus with purpose-built Lore Agent service
-status: shipped
+status: draft
 date: 2026-03-29
 domains:
   - architecture

@@ -3,7 +3,7 @@
 | Field      | Value                                              |
 |------------|----------------------------------------------------|
 | Feature    | Task log upload                                    |
-| Status     | Draft                                              |
+| Status     | In Progress                                        |
 | Created    | 2026-06-10                                        |
 | Owner      | Platform Engineering                             |
 | Route      | `POST /api/task-logs`                             |

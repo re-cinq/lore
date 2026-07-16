@@ -26,7 +26,7 @@
 |----------------|------------------------------------------|
 | Feature        | Autonomous Review Loop                   |
 | Branch         | feat/auto-review-loop                    |
-| Status         | Shipped                                  |
+| Status         | In Progress                              |
 | Created        | 2026-04-01                               |
 | Owner          | Platform Engineering                     |
 | Target         | 3-5 days                                 |
