@@ -4,7 +4,7 @@
 |----------|-----------------------------------------------|
 | Feature  | Automatic Spec Status Upkeep                  |
 | Branch   | (unassigned)                                  |
-| Status   | Draft                                         |
+| Status   | In Progress                                   |
 | Created  | 2026-07-14                                    |
 | Owner    | Platform Engineering                          |
 
@@ -25,20 +25,16 @@ enforcement; the two mechanisms below close the loop.
 
 ## FR1 — Deterministic flip on feature completion (pipeline-driven work)
 
-When the last task in a feature's task group merges, the Floor already
-detects completion (it writes the group-summary episode). At that same
-hook, when the group is linked to a spec path (feature-planning rows and
-spec-tasks both know theirs):
+When the last spec-task in a feature's task group merges, the Floor's
+merge-check detects group completion — no sibling in the `task_group_id`
+is still unmerged — and, when the group resolves to a feature + spec path
+(feature-planning rows and spec-tasks both carry it):
 
-- Open a one-line follow-up PR flipping the spec's `| Status |` row to
-  `Implemented`, using the same PR-opening plumbing as
-  `spec-coverage-backfill` (`proposeLinkInsertions` sibling).
+- Detect that this merge completes the group, then resolve the owning feature before acting. ([validated by `task-queue.test.ts:600`](libs/shared/src/project/tasks/task-queue.test.ts#L600), [`task-queue.test.ts:609`](libs/shared/src/project/tasks/task-queue.test.ts#L609), [`task-queue.test.ts:615`](libs/shared/src/project/tasks/task-queue.test.ts#L615), [`spec-status-flip.test.ts:14`](apps/floor/src/jobs/merge/spec-status-flip.test.ts#L14), [`spec-status-flip.test.ts:18`](apps/floor/src/jobs/merge/spec-status-flip.test.ts#L18), [`spec-status-flip.test.ts:22`](apps/floor/src/jobs/merge/spec-status-flip.test.ts#L22), [`spec-status-flip.test.ts:26`](apps/floor/src/jobs/merge/spec-status-flip.test.ts#L26), [`spec-status-flip.test.ts:30`](apps/floor/src/jobs/merge/spec-status-flip.test.ts#L30))
+- Open a one-line follow-up PR flipping the spec's `| Status |` row to `Implemented` using the same PR-opening plumbing as `spec-coverage-backfill`, skipping when the spec is already shipped/retired, missing, or has no status row. ([validated by `spec-status-flip.test.ts:61`](libs/shared/src/spec-status-flip.test.ts#L61), [`spec-status-flip.test.ts:90`](libs/shared/src/spec-status-flip.test.ts#L90), [`spec-status-flip.test.ts:106`](libs/shared/src/spec-status-flip.test.ts#L106), [`spec-status-flip.test.ts:115`](libs/shared/src/spec-status-flip.test.ts#L115))
 - No LLM call — the edit is a deterministic single-row rewrite.
-- Under dark-factory auto-merge rules the PR is eligible to land itself
-  (docs-only path, one file).
-- The `lore.features.status` transition to `implemented` and the spec
-  header flip happen from the same event, so table and file never
-  diverge.
+- The PR is opened for human review. Dark-factory auto-merge is task-bound, so a hook-opened flip PR (docs-only path, one file) is not auto-merged in this iteration.
+- The `lore.features.status` transition to `implemented` fires only when the flip succeeded or the spec is already current, so the features table and the spec file never diverge.
 
 ## FR2 — Status-staleness detector (everything else)
 

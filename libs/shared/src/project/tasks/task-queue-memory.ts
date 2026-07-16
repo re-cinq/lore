@@ -156,6 +156,12 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     }));
   }
 
+  async countUnmergedInGroup(groupId: string): Promise<number> {
+    return this.tasks.filter(
+      (t) => t.task_group_id === groupId && t.status !== "merged",
+    ).length;
+  }
+
   async claimSpecTask(
     id: string,
     agentId = "spec-task-executor",
@@ -309,9 +315,13 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
         task_type: t.task_type ?? "",
         description: (t.description as string) ?? "",
         created_at: t.created_at ?? "",
+        task_group_id: t.task_group_id ?? null,
         context_bundle:
-          (t.context_bundle as { feature_id?: string; slug?: string } | null) ??
-          null,
+          (t.context_bundle as {
+            feature_id?: string;
+            slug?: string;
+            spec_slug?: string;
+          } | null) ?? null,
       }));
   }
 

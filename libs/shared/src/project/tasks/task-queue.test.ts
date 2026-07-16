@@ -595,3 +595,34 @@ describe("InMemoryTaskQueue.findReadySpecTasks", () => {
     ]);
   });
 });
+
+describe("countUnmergedInGroup", () => {
+  it("PgTaskQueue counts group rows whose status is not merged", async () => {
+    const { pool, calls } = mockPool([{ rows: [{ cnt: "2" }] }]);
+
+    expect(await new PgTaskQueue(pool).countUnmergedInGroup("g1")).toBe(2);
+    expect(calls[0].sql).toContain("task_group_id = $1");
+    expect(calls[0].sql).toContain("status <> 'merged'");
+    expect(calls[0].values).toEqual(["g1"]);
+  });
+
+  it("PgTaskQueue returns 0 when the count row is absent", async () => {
+    const { pool } = mockPool([{ rows: [] }]);
+
+    expect(await new PgTaskQueue(pool).countUnmergedInGroup("g1")).toBe(0);
+  });
+
+  it("InMemory returns >0 while a sibling is unmerged, 0 when all merged", async () => {
+    const seed: SeedTask[] = [
+      { id: "a", task_group_id: "g1", status: "merged" },
+      { id: "b", task_group_id: "g1", status: "review" },
+      { id: "c", task_group_id: "g2", status: "pending" },
+    ];
+    const q = new InMemoryTaskQueue(seed);
+
+    expect(await q.countUnmergedInGroup("g1")).toBe(1);
+    seed[1].status = "merged";
+    expect(await q.countUnmergedInGroup("g1")).toBe(0);
+    expect(await q.countUnmergedInGroup("g2")).toBe(1);
+  });
+});
