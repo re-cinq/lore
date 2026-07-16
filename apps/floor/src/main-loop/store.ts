@@ -36,8 +36,11 @@ export async function insertEventList(
 }
 
 /** Atomically claim up to `limit` runnable rows: pending/failed past their backoff. */
-export function claimBatch(limit: number): Promise<EventRow[]> {
-  return eventQueue().claimBatch(limit);
+export function claimBatch(
+  limit: number,
+  excludeEventNames: string[] = [],
+): Promise<EventRow[]> {
+  return eventQueue().claimBatch(limit, excludeEventNames);
 }
 
 export function markDone(id: string): Promise<void> {

@@ -160,7 +160,15 @@ table (migration 0023) drained by a single loop. Three layers:
 2. **The loop & internal processes** atomically claim runnable rows
    (`FOR UPDATE SKIP LOCKED`), dispatch by `event_name` via a registry, with
    retry/backoff → dead-letter + a stuck-row reaper. Floor is a singleton, but the
-   claim is HA-safe by construction.
+   claim is HA-safe by construction. Dispatch is parallel per batch with one
+   exception (2026-07-16): event names in `SERIAL_FAMILIES`
+   (`internal.ingest.spec_trace`) run at most one handler at a time per
+   instance — their handlers contend on shared dgraph state and abort each
+   other. Serialization happens at **claim time** (the busy family is excluded
+   from the claim, its waiting rows stay `pending`) rather than by queueing
+   claimed rows, which the >600s stuck-row reaper would reap mid-wait and
+   re-run concurrently anyway. Cross-instance contention is handled below the
+   bus by the dgraph writer's retry-on-abort.
 3. **Tasks/jobs** are the existing handlers (review-reactor, auto-merge,
    agent-watcher per-CR, the cron jobs, spec-trace/coverage, issue-dispatch,
    spec-PR-merge) keyed in the registry — one `event_name` → one handler.

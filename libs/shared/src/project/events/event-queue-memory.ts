@@ -43,13 +43,17 @@ export class InMemoryEventQueue implements EventQueueRepository {
     });
   }
 
-  async claimBatch(limit: number): Promise<EventRow[]> {
+  async claimBatch(
+    limit: number,
+    excludeEventNames: string[] = [],
+  ): Promise<EventRow[]> {
     const now = this.now();
     const claimable = this.rows
       .filter(
         (r) =>
           (r.status === "pending" || r.status === "failed") &&
-          new Date(r.next_attempt_at).getTime() <= now,
+          new Date(r.next_attempt_at).getTime() <= now &&
+          !excludeEventNames.includes(r.event_name),
       )
       .sort((a, b) => {
         const an = new Date(a.next_attempt_at).getTime();
