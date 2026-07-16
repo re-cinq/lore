@@ -11,6 +11,7 @@
 
 import type { AssemblyLineRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
 import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
+import { writeAuditLog } from "../lib/audit.js";
 
 /** The repo-bound surface the publisher writes through (project.repo). */
 export interface CheckPublisher {
@@ -86,6 +87,21 @@ export async function publishPrCheck(
   try {
     await repo.upsertCheckRun(check);
   } catch (err) {
-    console.warn("[pr-check] publish failed:", (err as Error).message);
+    const message = (err as Error).message;
+
+    // Non-fatal by design, but never silent: "Resource not accessible by
+    // integration" here means the App is missing `checks`, and the merge gate is
+    // simply absent — which reads identically to a clean review.
+    console.error("[pr-check] publish failed:", message);
+    await writeAuditLog({
+      event_type: "pr_check_publish_failed",
+      repo: line.repo,
+      payload: {
+        assembly_line_id: line.id,
+        definition: line.definitionName,
+        check: check.name,
+        error: message,
+      },
+    });
   }
 }

@@ -349,9 +349,19 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 
 ### `apps/floor/src/jobs/review/post-review.test.ts`
 
-- posts one COMMENT review with a rendered comment per finding and a summary. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L22))
-- posts when the output carries a REVIEW_FINDINGS block. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L69))
-- does nothing when there is no findings block. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L80))
+- posts one COMMENT review with a rendered comment per finding and a summary. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L23))
+- posts when the output carries a REVIEW_FINDINGS block. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L70))
+- does nothing when there is no findings block. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L81))
+- The review node's findings are carried inside the Agent output envelope, so the raw stream parses to no findings and posts nothing — the review reaches a verdict while the PR receives silence. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L129))
+- Unwrapping the envelope first restores the agent text, and every finding is then posted as a review comment. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L136))
+
+### `apps/floor/src/jobs/assembly-line/node-terminal.test.ts`
+
+- A code-review node's findings are posted as one review against the line's PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L96))
+- A node that is not a code review posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L111))
+- A line carrying no `pr_number` posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L120))
+- A verdict that reaches no parseable findings MUST be audited as `review_findings_unparsed` rather than passing silently — that state is indistinguishable from a clean review at the PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L128))
+- A post that throws MUST be audited as `review_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L148))
 
 ### `apps/floor/src/listeners/github-map.test.ts`
 

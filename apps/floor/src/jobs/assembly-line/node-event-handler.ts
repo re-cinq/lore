@@ -10,23 +10,14 @@ import {
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
-import {
-  advanceLine,
-  finishNodeAndAdvance,
-  type AdvanceDeps,
-} from "./advance.js";
+import { advanceLine, type AdvanceDeps } from "./advance.js";
+import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import {
   codeReviewOnCommentTriaged,
   type CommentContext,
 } from "../review/code-review.js";
-import { maybePostReview } from "../review/post-review.js";
-import { publishPrCheck } from "./pr-check.js";
-import { projectFor } from "../../composition/project-boot.js";
 import type { AssemblyLineRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
-import type {
-  AssemblyLineNode,
-  NodeResult,
-} from "@re-cinq/lore-assembly-lines";
+import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 
 export interface NodeEventDeps extends AdvanceDeps {
   /** Read the CR's status by name; null when it no longer exists (pruned). */
@@ -60,60 +51,23 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
       return;
     }
 
-    const status = (await deps.readAgentStatus(agentName)) ?? {
-      phase: String(params.phase ?? ""),
-    };
+    // Unwrap the NDJSON envelope once, here: every text parser below (the outcome
+    // precedence and the review findings alike) must read the agent text, not the
+    // stream that carries it.
+    const status = normalizeAgentStatus(
+      (await deps.readAgentStatus(agentName)) ?? {
+        phase: String(params.phase ?? ""),
+      },
+    );
     const result = stationNodeOutcome(node, status);
 
-    await finishNodeAndAdvance(
-      { assemblyLineId, nodeId, iteration, result },
+    await finishNodeTerminal(
+      { row, node, nodeId, iteration, result, output: status.output },
       deps,
     );
 
-    await postReviewFromNode(row, node, status.output);
     await routeCommentTriage(row, nodeId, result);
-    await publishCheck(assemblyLineId, deps);
   };
-}
-
-/** A review node emits structured findings instead of posting; render + post them here. */
-async function postReviewFromNode(
-  row: AssemblyLineRecord,
-  node: AssemblyLineNode,
-  output?: string,
-): Promise<void> {
-  if (node.prompt_ref !== "code-review") {
-    return;
-  }
-  const prNumber = Number(row.args.pr_number) || 0;
-
-  if (!prNumber) {
-    return;
-  }
-
-  try {
-    const project = await projectFor(row.repo);
-
-    await maybePostReview(project.pulls, prNumber, output ?? "");
-  } catch (err) {
-    console.warn("[code-review] post review failed:", (err as Error).message);
-  }
-}
-
-/** Publish the line's current state as a PR check (in_progress while running,
- *  terminal once finished). Best-effort — a missing `checks: write` never blocks. */
-async function publishCheck(
-  assemblyLineId: string,
-  deps: NodeEventDeps,
-): Promise<void> {
-  const row = await deps.assemblyLines.getById(assemblyLineId);
-
-  if (!row || !(Number(row.args.pr_number) > 0)) {
-    return;
-  }
-  const project = await projectFor(row.repo);
-
-  await publishPrCheck(project.repo, row, process.env.LORE_UI_URL);
 }
 
 /** When a comment-triage node goes terminal, read its classified action and start
