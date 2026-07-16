@@ -10,6 +10,8 @@
 | Module  | Pipeline (`features/pipeline/tasks.ts`)|
 | Scope   | shared                                 |
 
+`lore_sync_tasks` parses a speckit tasks.md and idempotently upserts each checklist item as a spec-task row, so re-running after edits updates rows in place instead of duplicating them.
+
 ## Problem Statement
 
 A speckit `tasks.md` is a human-authored checklist of spec-tasks with phases,

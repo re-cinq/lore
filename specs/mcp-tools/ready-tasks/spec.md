@@ -10,6 +10,8 @@
 | Module  | Pipeline (`features/pipeline/tasks.ts`)|
 | Scope   | shared                                 |
 
+`lore_ready_tasks` lists the pending spec-tasks in one repo whose every declared dependency has completed, so an agent can pick the next workable item without scanning the whole backlog.
+
 ## Problem Statement
 
 Once a `tasks.md` is synced (see [`lore_sync_tasks`](../sync-tasks/spec.md)), an agent

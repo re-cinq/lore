@@ -9,6 +9,8 @@
 | Owner    | Platform Engineering           |
 | ADR      | ADR-024                        |
 
+This spec promotes per-task-type agent behaviour — model, timeout, prompt, and container image — out of the hardcoded `task-types.yaml` into a first-class `lore.agent_definitions` table with per-repo overrides, a dedicated Agents settings tab, and a `/lore-agents` skill, so operators can retune a repo's agents without a source edit and redeploy.
+
 ## Why
 
 Per-task-type behaviour (model, timeout, prompt, container image) was hardcoded

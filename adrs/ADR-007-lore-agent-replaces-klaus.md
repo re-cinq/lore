@@ -11,6 +11,8 @@ domains:
 
 # Replace Klaus with purpose-built Lore Agent service
 
+Replaces the Klaus Claude Code runtime with lore-agent, a purpose-built TypeScript service that calls the Anthropic API directly, after Klaus's black-box output wrapping and dropped model parameters made pipeline-task responses unreliable.
+
 ## Status
 
 Accepted

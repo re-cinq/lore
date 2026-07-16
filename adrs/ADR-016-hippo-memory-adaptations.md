@@ -8,6 +8,8 @@ domains: [memory, agents, pipeline]
 
 # ADR-016: Hippo-memory adaptations
 
+Extends the memory system with retrieval strengthening, confidence tiers, conflict surfacing, transfer scoring, and merge/reject outcome feedback so the store becomes self-reinforcing and cross-repo-safe.
+
 ## Context
 
 ADR-014 established passive memory capture, importance decay, and

@@ -31,6 +31,8 @@
 | Owner          | Platform Engineering                     |
 | Target         | 3-5 days                                 |
 
+The Autonomous Review Loop closes the loop on agent-authored PRs: after an implementation PR is opened, a review agent clones the branch, checks it against the spec and conventions, posts inline comments, and either approves or requests changes for another iteration.
+
 ## Problem Statement
 
 When an implementation task creates a PR via the LoreTask CRD, the PR

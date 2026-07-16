@@ -10,6 +10,8 @@
 | Module  | Pipeline (`runner.local.ts`)                |
 | Scope   | local                                       |
 
+`lore_configure_local_runner` views or updates the local task runner's config — the repos and task-types the notifier watches plus concurrency and default-model limits — so a developer changes settings without hand-editing the JSON file.
+
 ## Problem Statement
 
 The local task runner watches a set of repos/task-types and bounds concurrency

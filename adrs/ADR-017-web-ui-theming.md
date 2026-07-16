@@ -8,6 +8,8 @@ domains: [ux, web-ui]
 
 # ADR-017: Web UI theming
 
+Adds a two-axis token-driven theming system (Elegant/Retro families across light/dark/auto schemes) for the web UI, with a hand-rolled provider, a FOUC-preventing inline script, a single theme.css source of truth, and per-family icon sets.
+
 ## Context
 
 The `web-ui` shipped a single dark-only `globals.css`: ~8 CSS custom

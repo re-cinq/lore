@@ -9,6 +9,8 @@
 | Priority       | P1 — High value, lower effort               |
 | Motivation     | [Zep competitive research](../zep-competitive-research.md) |
 
+Temporal Fact Invalidation gives every fact a validity window so that when a new fact contradicts an existing one the old fact is automatically stamped with a `valid_to` timestamp, letting search return only currently valid facts by default while preserving the full fact timeline for historical queries.
+
 ## Problem Statement
 
 Facts in `memory.facts` are append-only. When an agent learns

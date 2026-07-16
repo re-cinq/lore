@@ -10,6 +10,8 @@ builds_on: "adrs/ADR-034-lore-api-request-validation.md"
 
 # ADR-035: lore-api OpenAPI 3.1 document generated from zod route schemas
 
+This ADR generates lore-api's OpenAPI 3.1 document by walking the same route array the server registers and converting each zod schema with the already-resolved zod-to-json-schema library, with a drift guard that fails the build if a body-bearing route lacks a schema.
+
 ## Context
 
 ADR-034 moved every JSON API route's request validation into hapi's

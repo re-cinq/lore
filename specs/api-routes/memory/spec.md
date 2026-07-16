@@ -10,6 +10,8 @@
 | Auth scope | `write`                                                  |
 | Module     | Memory routes (`api/routes/memory.ts` → `handleMemory`) |
 
+POST /api/memory multiplexes the five agent-memory actions (write, read, search, delete, list) over one endpoint, dispatching on an action discriminator and falling back to a file-backed store when the memory database is unavailable.
+
 ## Problem Statement
 
 The Lore MCP server runs locally in stdio mode and proxies every memory

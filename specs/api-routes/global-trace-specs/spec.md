@@ -10,6 +10,8 @@
 | Auth scope | `read` (default)                                       |
 | Module     | `mcp-server/src/api/routes/trace.ts`                   |
 
+GET /api/trace/specs lists every spec document across all repos for the global spec viewer, querying the spec-traceability Dgraph directly and failing soft to an empty list when Dgraph is unconfigured.
+
 ## Problem Statement
 
 The global spec viewer needs every spec document across **all** repos, not just

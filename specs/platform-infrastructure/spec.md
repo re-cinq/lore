@@ -6,6 +6,8 @@
 | Status  | Shipped                  |
 | Owner   | Platform Engineering     |
 
+Platform Infrastructure documents the cross-cutting plumbing beneath Lore's features — health and readiness probes, the GitHub App/token client adapter, git-remote repo detection, schema migrations, the context-core store, and the autoresearch store — so each capability's tests trace to a written statement.
+
 ## Problem Statement
 
 Several cross-cutting platform capabilities have no single feature spec but carry

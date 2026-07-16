@@ -10,6 +10,8 @@
 | Module  | memory                                           |
 | Scope   | shared                                           |
 
+`lore_read_memory` fetches one memory by its exact key, returning the latest version by default or a specific past version or the full version history on request.
+
 ## Problem Statement
 
 When an agent knows the exact key of a memory it wants — a named convention, a

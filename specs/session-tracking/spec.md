@@ -6,6 +6,8 @@
 | Status  | Shipped                  |
 | Owner   | Platform Engineering     |
 
+Passive Session Tracking records every MCP tool call in a per-session ring buffer and, on exit, dumps a session summary for automatic episode and fact extraction with no agent cooperation; this spec documents the tracker's contract so its unit tests trace to a statement.
+
 ## Problem Statement
 
 The MCP server passively records every tool call in a session (a ring buffer)

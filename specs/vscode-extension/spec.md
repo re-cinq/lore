@@ -6,6 +6,8 @@
 | Status  | Shipped                  |
 | Owner   | Platform Engineering     |
 
+The VS Code Extension surfaces Lore's spec-to-code-to-test links, coverage, and drift inline in the editor by reading the live traceability graph, so a developer sees which spec statements a file implements or validates without leaving the editor.
+
 ## Problem Statement
 
 The Lore spec-traceability graph and coverage signal are most useful while a

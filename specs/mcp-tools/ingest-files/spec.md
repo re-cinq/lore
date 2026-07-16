@@ -10,6 +10,8 @@
 | Module  | Repo (`repo-tools.ts`)         |
 | Scope   | shared                         |
 
+`lore_ingest_files` pushes specific repo files into Lore's context store on demand — resolving the repo and commit locally and proxying the embed work to the GKE ingest API — so a just-merged ADR or CLAUDE.md is searchable without waiting for nightly ingestion.
+
 ## Problem Statement
 
 Nightly ingestion picks up a repo's content on a schedule, but a developer who

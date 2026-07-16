@@ -15,6 +15,8 @@
 | Created        | 2026-03-29                                  |
 | Owner          | Platform Engineering                        |
 
+The task-to-agent pipeline makes work event-driven: when a task is created in the UI or via the MCP tools, or a PR is opened, an agent on GKE automatically picks it up, pulls relevant context from Lore's memory and knowledge base, does the work, and opens a PR for human review.
+
 ## Problem Statement
 
 Today, tasks exist in two disconnected worlds. A product owner

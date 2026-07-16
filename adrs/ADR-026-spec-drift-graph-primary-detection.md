@@ -8,6 +8,8 @@ domains: [agent, pipeline]
 
 # ADR-026: Graph-primary spec-drift detection
 
+This ADR makes spec-drift detection decide from the statement-level spec-trace graph where it is populated, keeping the symbol-name heuristic only as a de-noised fallback, and hardens the dedup key plus transient-infra retry so real drift is neither buried nor forever-suppressed.
+
 ## Context
 
 The weekly `spec_drift` cron

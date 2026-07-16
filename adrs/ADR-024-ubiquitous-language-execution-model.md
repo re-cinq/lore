@@ -8,6 +8,8 @@ domains: [agent, pipeline, ux, governance, web-ui, infra]
 
 # ADR-024: Ubiquitous language for the execution model
 
+This ADR adopts a single factory-metaphor vocabulary (Factory ⊃ Floor ⊃ AssemblyLine ⊃ Station ⊃ Agent) so the overloaded word "agent" stops meaning four different things, reserving it for one ephemeral Claude-plus-prompt run.
+
 ## Context
 
 "Agent" had been overloaded across the codebase, specs, and ADRs to mean at

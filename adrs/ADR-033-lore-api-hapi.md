@@ -9,6 +9,8 @@ relates: "specs/hapi-migration/spec.md"
 
 # ADR-033: Migrate lore-api to the hapi HTTP framework
 
+This ADR migrates lore-api from a hand-rolled node:http server to the hapi framework via the strangler-fig pattern, making route resolution, bearer-scope auth, rate limiting, and the body cap first-class framework constructs while keeping the API shippable after every PR.
+
 ## Context
 
 The remote REST backend `apps/lore-api` serves every `/api/*` route on a

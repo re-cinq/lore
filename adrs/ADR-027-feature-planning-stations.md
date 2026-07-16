@@ -8,6 +8,8 @@ domains: [web-ui, agent, pipeline]
 
 # ADR-027: Smart feature planning via Stations
 
+This ADR runs feature planning and finalize as interactive Stations, persists feature lifecycle through a Project port, and makes the persistent Feature node — rather than the computed one — the source of truth in the spec-trace graph.
+
 > **Mechanism update ([ADR-031](./ADR-031-agent-station-crds.md)).** "Stations" survive as
 > a first-class concept — they are now the ai-agent-subsystem `Station` CRs, not the
 > `LoreTask` backend. Feature planning/finalize still run in-process for the lightweight

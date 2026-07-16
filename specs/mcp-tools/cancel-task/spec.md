@@ -10,6 +10,8 @@
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
+`lore_cancel_task` flips a server-side pipeline task to `cancelled` by id and best-effort stops its running GKE agent, refusing tasks that already reached a terminal merged, failed, or cancelled state.
+
 ## Problem Statement
 
 A task that is no longer wanted — queued, running, or mid-review — must be

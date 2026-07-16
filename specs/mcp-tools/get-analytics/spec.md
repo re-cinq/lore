@@ -10,6 +10,8 @@
 | Module  | Usage (`usage-tools.ts`)       |
 | Scope   | shared                         |
 
+`lore_get_analytics` returns an org-wide pipeline pulse for a chosen time window — task throughput, success and failure counts, token spend, and a per-type breakdown — so a team lead can read the aggregates without opening the web UI.
+
 ## Problem Statement
 
 A team lead wants a quick org-wide pulse — task throughput, success rate, token

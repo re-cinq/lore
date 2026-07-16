@@ -10,6 +10,8 @@
 | Auth scope  | **admin** (`SCOPE_OVERRIDES` → `/api/tokens` = `admin`)     |
 | Module      | `mcp-server/src/api/routes/tokens.ts` (`handleTokens`)      |
 
+This admin-only route lets operators mint scoped per-client bearer tokens, list live tokens as metadata, and revoke a leaked one, storing only SHA-256 hashes and returning the raw secret exactly once at creation.
+
 ## Problem Statement
 
 The MCP server accepts per-client bearer tokens with coarse scopes

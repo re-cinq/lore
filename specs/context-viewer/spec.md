@@ -9,6 +9,8 @@
 | Owner    | Platform Engineering  |
 | PR       | #516                  |
 
+The Context Viewer brings the UI's Context tab to parity with the specs viewer, replacing raw truncated chunk dumps with rich per-content-type rendering, clickable file paths that link to per-file detail pages, a data-driven type filter, and keyword search over the search_tsv index.
+
 ## Problem Statement
 
 The Context tab — both the per-repo view (`/repos/:o/:r/context`) and the global

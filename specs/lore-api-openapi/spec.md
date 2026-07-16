@@ -8,6 +8,8 @@
 | Owner    | Platform Engineering                                             |
 | ADR      | [ADR-035](../../adrs/ADR-035-lore-api-openapi.md) — builds on [ADR-034](../../adrs/ADR-034-lore-api-request-validation.md) / [ADR-033](../../adrs/ADR-033-lore-api-hapi.md) |
 
+This spec derives an OpenAPI 3.1 document for lore-api from the zod schemas each hapi route already declares, serving it as JSON plus a Redoc UI so clients no longer have to read handler source to learn the roughly fifty-operation API contract.
+
 ## Problem Statement
 
 lore-api serves ~50 `/api/*` operations across ~30 hapi routes, and there is **no

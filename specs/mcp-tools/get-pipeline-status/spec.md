@@ -10,6 +10,8 @@
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
+`lore_get_pipeline_status` returns one pipeline task's full record — its current status plus the ordered event timeline — by task id, reporting a missing id distinctly from an error and working whether the server is local or on GKE.
+
 ## Problem Statement
 
 After delegating a task, the caller needs to see where it stands — current

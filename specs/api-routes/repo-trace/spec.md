@@ -10,6 +10,8 @@
 | Auth scope | `read` (default)                                       |
 | Module     | `mcp-server/src/api/routes/trace.ts`                   |
 
+This route serves a repo's spec-traceability graph to the web UI in UI-ready shapes — document lists, an ordered trace document, byte-exact source, a force-graph, and a per-statement coverage ring — through the shared Project.trace facade so the UI never touches storage directly.
+
 ## Problem Statement
 
 The web UI is not a workspace member and must not read Postgres chunks or

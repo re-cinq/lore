@@ -10,6 +10,8 @@
 | Module  | memory                                           |
 | Scope   | shared                                           |
 
+`lore_list_memories` browses the stored memory keys for the current repo, newest-first and paginated, excluding expired and soft-deleted entries so agents can enumerate what exists without running a semantic search.
+
 ## Problem Statement
 
 An agent (or a developer) needs to see what memories exist for the repo it is

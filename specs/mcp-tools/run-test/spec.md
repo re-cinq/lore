@@ -10,6 +10,8 @@
 | Module  | Spec-Trace (`spec-trace-tools.ts`)          |
 | Scope   | local                                       |
 
+`lore_run_test` runs a single test by its runner-native id through the repo's declared run command in the caller's trusted sandbox and returns the pass/fail outcome plus the covered code ranges.
+
 ## Problem Statement
 
 To attach per-test coverage to the spec-traceability graph, the system needs to

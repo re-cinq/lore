@@ -8,6 +8,8 @@ domains: [agent, pipeline, security, web-ui, governance]
 
 # ADR-030: AgentDefinition as a recipe, the AgentTool seam, and the Station boundary
 
+This ADR redefines the AgentDefinition as a self-describing declarative recipe behind a tool-agnostic AgentTool seam with runner-owned output fan-out and gated privileged fields, and settles execution image and compute onto the Station rather than the definition.
+
 > **Storage decision superseded by [ADR-031](./ADR-031-agent-station-crds.md).** The recipe is now a
 > Kubernetes Custom Resource — the **source of truth**, edited via the web UI which applies the YAML
 > to the cluster — **not** a `lore.agent_definitions` JSONB row. ADR-030's recipe *schema*, the

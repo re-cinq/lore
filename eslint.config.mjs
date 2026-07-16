@@ -143,15 +143,18 @@ export default tseslint.config(
 
   // Spec/ADR markdown — the statement-side of spec-test coverage. Every testable
   // statement should carry an inline ([validated by](test.ts#Lline)) link; a gap
-  // warns. A rejected spec / superseded ADR is skipped. Scoped to spec.md + ADR
-  // bodies — not the exploratory plan.md/tasks.md/research.md siblings. First
-  // markdown-language block in the repo.
+  // warns. A rejected spec / superseded ADR is skipped. Every doc must also open
+  // with a lead paragraph (before the first ## section) so the web-UI spec/ADR
+  // cards render a description — a gap errors. Scoped to spec.md + ADR bodies —
+  // not the exploratory plan.md/tasks.md/research.md siblings. First markdown-
+  // language block in the repo.
   {
     files: ["specs/**/spec.md", "adrs/**/*.md"],
     language: "markdown/gfm",
     plugins: { markdown, lore },
     rules: {
       "lore/require-statement-links": "warn",
+      "lore/require-intro-paragraph": "error",
     },
   },
 );

@@ -8,6 +8,8 @@ domains: [agent, pipeline, review]
 
 # ADR-012: Autonomous Review Loop via LoreTask CRD
 
+Closes the review loop by automatically running an agent review after an implementation PR is opened, so it posts an APPROVED or CHANGES_REQUESTED verdict and iterates on the branch (up to two rounds) without waiting for a human.
+
 > **Mechanism update ([ADR-031](./ADR-031-agent-station-crds.md)).** The review-loop
 > decision stands, but it no longer runs on `LoreTask` CRs: the review is a `github_action`
 > + agent node in the Floor-side workflow graph (the `review` Agent posts the verdict; the

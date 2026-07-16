@@ -10,6 +10,8 @@
 | Auth scope | `write`                                         |
 | Module     | `mcp-server/src/api/routes/ingest.ts` (`handleIngest`) |
 
+POST /api/ingest chunks, embeds, and writes a batch of a repo's files at a given commit into the per-team vector store, reports per-file outcomes, and asynchronously triggers spec-coverage re-validation once a batch lands.
+
 ## Problem Statement
 
 Repo content (docs, ADRs, specs, source files) must be chunked, embedded, and

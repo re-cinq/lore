@@ -9,6 +9,8 @@
 | Priority       | P2 — Higher value, higher effort            |
 | Motivation     | [Zep competitive research](../zep-competitive-research.md) |
 
+Live Knowledge Graph replaces the static, offline-built `graphrag/graph.json` with an incremental Postgres-backed graph that runs entity and edge extraction on every memory and episode write, so the graph is useful from a repo's first day with no months-long accumulation period.
+
 ## Problem Statement
 
 Lore's knowledge graph (`graphrag/graph.json`) is a static file

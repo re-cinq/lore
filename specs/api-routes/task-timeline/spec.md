@@ -10,6 +10,8 @@
 | Auth scope | `read` (prefix `/api/tasks` → `read`)                        |
 | Module     | Task timeline (`api/routes/task-timeline.ts` → `handleTaskTimeline`) |
 
+GET /api/tasks/:id/timeline reconstructs a dark-factory task's stage-commit history from its branch trailers via the GitHub API and overlays PR and lease state, feeding the web UI Timeline view without a local checkout.
+
 ## Problem Statement
 
 A dark-factory task records its progress as a chain of git commits, each

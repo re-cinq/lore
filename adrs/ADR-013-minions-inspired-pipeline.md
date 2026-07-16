@@ -8,6 +8,8 @@ domains: [pipeline, agents, integrations]
 
 # ADR-013: Minions-inspired task pipeline improvements
 
+Adds Stripe-Minions-inspired quality gates to the task runner: deterministic lint/typecheck validation, a two-round fix retry cap, pre-run context hydration, per-directory convention rules, and a Slack task interface.
+
 ## Context
 
 Stripe's Minions system produces 1,000+ merged PRs/week by treating

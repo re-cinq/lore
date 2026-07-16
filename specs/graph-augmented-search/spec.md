@@ -10,6 +10,8 @@
 | Motivation     | [Zep competitive research](../zep-competitive-research.md), [Live knowledge graph FR-5](../live-knowledge-graph/spec.md) |
 | Depends on     | [Live knowledge graph](../live-knowledge-graph/spec.md) (shipped) |
 
+Graph-Augmented Search adds an optional `graph_augment` parameter to `lore_search_memory` so matched entities are enriched with their one-hop knowledge-graph neighbors in the same response, sparing agents a separate `lore_query_graph` call to learn what a service uses, who owns it, and what governs it.
+
 ## Problem Statement
 
 `lore_search_memory` returns facts and memories ranked by text

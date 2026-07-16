@@ -8,6 +8,8 @@ domains: [shared, mcp-server, context, retrieval, spec-trace]
 
 # ADR-021: Context assembly — graph-derived, signal-ranked source
 
+Adds a graph-derived context source projected from the spec-traceability graph that ranks coupled spec statements by collision signal (violated over drifted over untested) rather than textual similarity, degrading gracefully when the graph is absent.
+
 ## Context
 
 [ADR-020](ADR-020-context-assembly-xml-and-relevance.md) made `lore_assemble_context`

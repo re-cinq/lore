@@ -9,6 +9,8 @@ relates: "specs/split-local-remote-api/spec.md"
 
 # ADR-032: Split the local MCP adapter from the remote HTTP API
 
+This ADR splits the fused mcp-server into two deployables sharing a light core — a local-only stdio MCP adapter and a new remote lore-api HTTPS REST backend — so local installs drop remote-only dependencies like pg and tree-sitter, and the names stop calling a plain REST API "mcp".
+
 ## Context
 
 The local stdio MCP adapter and the remote HTTPS REST backend are the **same

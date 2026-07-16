@@ -8,6 +8,8 @@
 | Owner          | Platform Engineering                               |
 | Benefits       | Unifies vector search + knowledge graph in one store; deep multi-hop traversal; ends the relational schema-drift class of outages; substrate for [`spec-traceability-graph`](../spec-traceability-graph/spec.md) |
 
+This spec proposes migrating the agent memory subsystem off the PostgreSQL `memory` schema onto Dgraph to unify vector search and the knowledge graph in one store, enable deep multi-hop traversal, and end the relational schema-drift outages that have silently dropped memories from assembled context.
+
 ## Problem Statement
 
 The agent memory subsystem stores everything in the PostgreSQL `memory`

@@ -10,6 +10,8 @@
 | Auth    | None at the handler (router-level `webhook` rate-limit bucket; auth-exempt path — the deployment fronts it with a provider-shared secret URL) |
 | Module  | `mcp-server/src/api/routes/webhooks.ts` (`handleIncidentWebhook`) |
 
+POST /api/webhook/incident receives PagerDuty, Opsgenie, or direct incident payloads, normalizes them, and upserts each into a repo's settings as a FIFO list of the ten most recent so context assembly can surface active incidents.
+
 ## Problem Statement
 
 `lore_assemble_context` surfaces recent production incidents at priority 1 so agents

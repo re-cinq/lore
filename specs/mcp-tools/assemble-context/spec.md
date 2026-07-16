@@ -10,6 +10,8 @@
 | Module  | Context (`context-tools.ts`)   |
 | Scope   | shared                         |
 
+`lore_assemble_context` is the mandatory first call for a task: it pulls from every knowledge source at once — conventions, ADRs, memories, facts, episodes, and graph relationships — and returns one token-budgeted, template-ordered, provenance-tagged block an agent consumes directly.
+
 ## Problem Statement
 
 A Claude Code session starting a task needs conventions, ADRs, memories, facts,

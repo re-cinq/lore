@@ -10,6 +10,8 @@
 | Module  | Usage (`usage-tools.ts`)       |
 | Scope   | shared                         |
 
+`lore_my_usage` reports the calling agent's own task count and input/output token totals across today, 7-day, and 30-day windows, giving a developer their delegation footprint without an admin dashboard.
+
 ## Problem Statement
 
 A developer delegating tasks to Lore agents wants to see their own footprint —

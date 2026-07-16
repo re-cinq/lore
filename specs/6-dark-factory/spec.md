@@ -13,6 +13,8 @@
 | Created  | 2026-04-28                     |
 | Owner    | Platform Engineering           |
 
+Dark Factory mode trims the pipeline's per-task artifact chatter — GitHub Issues, status comments, Slack messages, bot reviews — down to the few durable artifacts (the branch, the merged PR, the curated episode), suppressing issues and auto-merging low-risk changes so humans are not buried in watch-me-work theater.
+
 ## Problem Statement
 
 Lore today defaults to maximum chatter. Every pipeline task produces a

@@ -8,6 +8,8 @@
 | Owner    | Platform Engineering                                          |
 | ADR      | [ADR-032](../../adrs/ADR-032-split-local-remote-api.md)        |
 
+This split separates the local stdio MCP adapter from the remote HTTPS REST backend into two deployables, so a developer's local install no longer pulls remote-only dependencies (pg, octokit, GCS, tree-sitter, OTel exporters) and the remote surface is renamed to reflect that it speaks REST, not MCP.
+
 ## Problem Statement
 
 Today the local stdio MCP adapter and the remote HTTPS REST backend are the

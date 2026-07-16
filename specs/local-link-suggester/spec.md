@@ -8,6 +8,8 @@
 | Owner          | Platform Engineering                     |
 | Builds on      | [`spec-test-coverage`](../spec-test-coverage/spec.md) v3 (markdown link source-of-truth + backfill cron) |
 
+Local Link Suggester adds an on-demand `/lore-suggest-links` Claude Code skill that runs the spec-coverage backfill judge pipeline against a single spec in the developer's local tree, opening a suggestion PR immediately and billing the work to the developer's subscription rather than waiting for the weekly org-wide cron.
+
 ## Problem Statement
 
 `spec-test-coverage` v3 has two write-paths to suggest test links:
