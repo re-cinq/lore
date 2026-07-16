@@ -49,6 +49,12 @@ describe("parseDocStatus (spec)", () => {
     });
   });
 
+  it("buckets Retired / Removed / Deprecated as retired", () => {
+    for (const value of ["Retired", "Removed", "Deprecated"]) {
+      expect(parseDocStatus(table(value), "spec").status).toBe("retired");
+    }
+  });
+
   it("returns null status when no Status row is present", () => {
     expect(parseDocStatus("# Spec\n\nNo table here.\n", "spec")).toEqual({
       status: null,
@@ -79,9 +85,15 @@ describe("parseDocStatus (adr)", () => {
     });
   });
 
-  it("folds a superseded ADR into rejected", () => {
+  it("folds a superseded ADR into retired", () => {
     expect(parseDocStatus(frontmatter("superseded"), "adr").status).toBe(
-      "rejected",
+      "retired",
+    );
+  });
+
+  it("keeps a retired ADR as retired", () => {
+    expect(parseDocStatus(frontmatter("retired"), "adr").status).toBe(
+      "retired",
     );
   });
 
@@ -99,8 +111,9 @@ describe("parseDocStatus (adr)", () => {
 });
 
 describe("statusTier", () => {
-  it("skips rejected", () => {
+  it("skips rejected and retired", () => {
     expect(statusTier("rejected")).toBe("skip");
+    expect(statusTier("retired")).toBe("skip");
   });
 
   it("warns on shipped", () => {

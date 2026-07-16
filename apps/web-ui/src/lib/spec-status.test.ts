@@ -44,6 +44,16 @@ describe("parseSpecStatus", () => {
     ).toEqual({ status: "rejected", label: "Rejected" });
   });
 
+  it("buckets Retired (and superseded/removed) as retired", () => {
+    expect(parseSpecStatus(spec("Retired"))).toEqual({
+      status: "retired",
+      label: "Retired",
+    });
+    expect(parseSpecStatus(spec("Removed (cutover 2026-06-29)"))?.status).toBe(
+      "retired",
+    );
+  });
+
   it("matches the Status label case-insensitively", () => {
     expect(parseSpecStatus(spec("shipped"))?.status).toBe("shipped");
   });
