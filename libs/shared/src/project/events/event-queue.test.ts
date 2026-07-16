@@ -34,7 +34,15 @@ describe("PgEventQueue.claimBatch", () => {
       "status IN ('pending', 'failed') AND next_attempt_at <= now()",
     );
     expect(calls[0].sql).toContain("FOR UPDATE SKIP LOCKED");
-    expect(calls[0].values).toEqual([20]);
+    expect(calls[0].values).toEqual([20, []]);
+  });
+
+  it("excludes the passed event names from the claim so busy serial families stay pending", async () => {
+    const { pool, calls } = mockPool([{ rows: [] }]);
+
+    await new PgEventQueue(pool).claimBatch(20, ["internal.ingest.spec_trace"]);
+    expect(calls[0].sql).toContain("event_name <> ALL($2::text[])");
+    expect(calls[0].values).toEqual([20, ["internal.ingest.spec_trace"]]);
   });
 });
 
@@ -99,6 +107,33 @@ describe("InMemoryEventQueue insert + claim", () => {
     expect(claimed[0]).toMatchObject({ status: "processing", attempts: 1 });
     // second claim picks up the next row
     expect((await q.claimBatch(10)).map((r) => r.event_name)).toEqual(["e2"]);
+  });
+
+  it("a claim excluding internal.ingest.spec_trace leaves those rows pending and claims the rest", async () => {
+    const q = new InMemoryEventQueue([], () => NOW);
+
+    await q.insert({
+      eventName: "internal.ingest.spec_trace",
+      source: "internal",
+    });
+    await q.insert({
+      eventName: "github.pull_request.opened",
+      source: "github",
+    });
+    const claimed = await q.claimBatch(10, ["internal.ingest.spec_trace"]);
+
+    expect(claimed.map((r) => r.event_name)).toEqual([
+      "github.pull_request.opened",
+    ]);
+    expect(q.rows[0]).toMatchObject({
+      event_name: "internal.ingest.spec_trace",
+      status: "pending",
+      attempts: 0,
+    });
+    // an unfiltered claim then picks it up
+    expect((await q.claimBatch(10)).map((r) => r.event_name)).toEqual([
+      "internal.ingest.spec_trace",
+    ]);
   });
 
   it("a failed row becomes claimable again only after its backoff elapses", async () => {
