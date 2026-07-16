@@ -17,6 +17,7 @@ import { errorMessage } from "@re-cinq/lore-shared";
 
 import { KubeConfig, CustomObjectsApi } from "@kubernetes/client-node";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
+import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
 import {
   projectFor,
   assemblyLineNames,
@@ -387,7 +388,7 @@ export async function processAgentCr(
     branch: agent.spec?.branch ?? "",
     targetRepo: agent.spec?.targetRepo ?? "",
     description: agent.spec?.parameters?.description ?? "",
-    output: status.output ?? "",
+    output: resultTextFromOutput(status.output ?? ""),
     name: agent.metadata?.name as string,
     slack: new SlackBatch(),
   };

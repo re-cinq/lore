@@ -72,6 +72,22 @@ terminal detection keys on it, and its `result` text lands in
 - Anything the pod prints before the terminal line is log stream
   (`{"type":"log","message":"..."}` recommended).
 
+### Envelope ownership (one wrap, one unwrap)
+
+`libs/assembly-lines/src/agent-output.ts` is the single source of truth for
+this envelope: stations emit through its `resultLine`/`eventLine` (which
+enforce-throw when asked to wrap a payload that is already a wrapped output
+line — the envelope is applied exactly once), and every Floor reader unwraps
+through its `resultTextFromOutput`.
+
+The subsystem's `{"source": {...}, "event": <line>}` attribution wrapper
+exists ONLY on the sink lanes (the `/api/agent-events` cost sink, file sinks),
+where streams from many pods merge — never on stdout / `Agent.status.output`.
+Pre-cutover CRs (written while the subsystem still stamped attribution onto
+stdout) carry the wrapped shape in `status.output`; `resultTextFromOutput`
+transitionally peels that one layer and the shim is deleted once no such CRs
+remain.
+
 ## Timeouts
 
 The referenced Station CR's `deadlineMinutes` is the hard stop (Kubernetes kills

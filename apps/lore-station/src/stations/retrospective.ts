@@ -5,8 +5,7 @@
 // Best-effort: an episode-write failure logs but never fails the assembly line
 // (the node's job is to mark the run done, not to gate on telemetry).
 
-import type { NodeResult } from "@re-cinq/lore-assembly-lines";
-import { eventLine } from "../output.js";
+import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "../input.js";
 
 async function postEpisode(input: StationInput): Promise<void> {
