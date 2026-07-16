@@ -37,10 +37,10 @@ describe("parseDocStatus (spec)", () => {
     });
   });
 
-  it("buckets an In Progress spec as in-progress", () => {
-    expect(parseDocStatus(table("In Progress"), "spec").status).toBe(
-      "in-progress",
-    );
+  it("buckets In Progress / In Review / Planning / WIP as in-progress", () => {
+    for (const value of ["In Progress", "In Review", "Planning", "WIP"]) {
+      expect(parseDocStatus(table(value), "spec").status).toBe("in-progress");
+    }
   });
 
   it("buckets Rejected as rejected", () => {

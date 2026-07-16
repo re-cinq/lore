@@ -30,6 +30,9 @@ const BUCKETS: Array<{ status: StatusBucket; re: RegExp }> = [
     re: /^(in progress|in review|planning|wip|proposed)/,
   },
   {
+    // `accepted` (with implemented/complete/…) folds into shipped, mirroring the
+    // web-ui status pill (apps/web-ui/src/lib/spec-status.ts). The rule is
+    // warn-only, so an "Accepted, pre-implementation" spec is nudged, not blocked.
     status: "shipped",
     re: /^(shipped|implemented|complete|accepted|done|live)/,
   },

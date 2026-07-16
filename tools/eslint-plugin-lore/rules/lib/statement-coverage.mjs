@@ -37,7 +37,9 @@ export function unlinkedTestableStatements(content) {
     if (parseTestLinksInStatement(statement.text).length > 0) {
       continue;
     }
-    unlinked.push({ text: statement.text, line: statement.line });
+    // `Statement.line` is optional (test doubles omit it); every statement from
+    // `segmentStatements` carries one, but fall back to line 1 to be safe.
+    unlinked.push({ text: statement.text, line: statement.line ?? 1 });
   }
 
   return unlinked;
