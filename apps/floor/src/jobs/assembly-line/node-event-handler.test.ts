@@ -120,6 +120,31 @@ describe("createNodeEventHandler", () => {
     });
   });
 
+  // Production hands the handler an NDJSON stream, not the bare marker the cases
+  // above use — the outcome must come out identical either way.
+  it("routes a review node whose outcome arrives inside an NDJSON envelope", async () => {
+    const h = harness();
+    const { id, crName } = await reviewInFlight(h);
+
+    h.statusByName[crName] = {
+      phase: "Succeeded",
+      output: [
+        JSON.stringify({ type: "log", message: "cloning" }),
+        JSON.stringify({
+          type: "result",
+          is_error: false,
+          result: "notes\nREVIEW_RESULT:CHANGES_REQUESTED: fix the null check",
+        }),
+      ].join("\n"),
+    };
+    await h.handler(params(id, crName));
+
+    expect(h.port.nodes.map((n) => [n.nodeId, n.outcome])).toEqual([
+      ["review", "changes_requested"],
+      ["refine", null],
+    ]);
+  });
+
   it("falls back to the event's phase when the CR is already pruned (404)", async () => {
     const h = harness();
     const { id, crName } = await reviewInFlight(h);
