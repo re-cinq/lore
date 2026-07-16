@@ -13,22 +13,34 @@ domains: [agent, pipeline, review]
 > + agent node in the Floor-side workflow graph (the `review` Agent posts the verdict; the
 > graph follows the `changes_requested` edge). The substrate is the ai-agent-subsystem.
 
-> **Widening: the `code-review` assembly line.** The loop above reviews only Lore's
-> **own** implementation PRs (the watcher fires it after `pr-created`). The `code-review`
-> assembly line ([`libs/assembly-lines/src/assembly-lines/code-review.yaml`](../libs/assembly-lines/src/assembly-lines/code-review.yaml),
-> `review → refine → done`) widens this to **any open PR on a repo with `auto_review`
-> enabled — including human-authored PRs** — driven by PR-lifecycle webhooks on the event
-> bus ([ADR-015](./ADR-015-webhook-driven-review-reactor.md)) rather than the `pr-created`
-> hook. Because an assembly line runs **once to completion** (no park-until-webhook), the
-> PR-long engagement is an **event choreography**, not one long-lived line: `pull_request.
-> opened/reopened/ready_for_review` starts a review pass (and posts a "review has started"
-> PR comment linking the Lore assembly-line page); each human reply (`issue_comment.created`
-> / `pull_request_review_comment.created`) starts a fresh `mode: reply` pass whose `review`
-> node decides **per reply** to answer in-thread or commit a fix; `pull_request.closed`
-> finishes any open line for the PR. Loop-prevention is load-bearing: bot-authored PRs and
-> bot comments (`…[bot]`) are skipped so the review never re-triggers on its own output.
-> Wiring lives in [`apps/floor/src/jobs/review/code-review.ts`](../apps/floor/src/jobs/review/code-review.ts)
-> + the registry combinator; the reused `auto_review` gate is `shouldAutoReview()`.
+> **Widening: the `code-review` assembly line (2026-07 amendment).** The loop above
+> reviewed only Lore's **own** implementation PRs. The `code-review` assembly line
+> ([`code-review.yaml`](../libs/assembly-lines/src/assembly-lines/code-review.yaml)) widens
+> this to **any open PR on a repo with `auto_review` enabled** — driven by PR-lifecycle
+> webhooks on the event bus ([ADR-015](./ADR-015-webhook-driven-review-reactor.md)). It is
+> the **sole reviewer** (the legacy `review-reactor` was retired). The engagement is an
+> **event choreography** (wiring in [`code-review.ts`](../apps/floor/src/jobs/review/code-review.ts)):
+>
+> - **Triggers.** A **first** review runs on `opened` / `reopened` / `ready_for_review` /
+>   `synchronize` — first-review-only (`hasReviewedPr`), so pushes after the first don't
+>   re-review. Re-review is an explicit `@lore review` comment (or the manual
+>   `POST /api/review/start` button). It posts a how-to "review started" comment.
+> - **Reviews are suggestion-only.** The `review` node emits **structured findings**
+>   (`REVIEW_FINDINGS`) + a verdict; the Floor renders them as **Conventional Comments**
+>   (with ` ```suggestion ` blocks) and posts ONE review. It never commits.
+> - **Comments are triaged.** Every non-keyword human comment starts the `comment-triage`
+>   line — a cheap Haiku station classifies it (review / address / answer / ignore) and the
+>   Floor routes it: `address` → a `code-review-reply` line commits the approved fix,
+>   `answer` → replies in-thread, `ignore` → nothing (no action pod).
+> - **Fixes are human-gated.** A fix only happens when a human approves it via a reply.
+> - **State + merge gate.** Each PR-linked line publishes a `lore/<definition>` **check
+>   run** (in_progress while running; `neutral` on changes-suggested); required in branch
+>   protection it blocks merge only while the review runs. Lore's own auto-merge defers
+>   with `review_in_flight` while a review line is open.
+>
+> Loop-prevention stays load-bearing: bot-authored PRs and bot comments (`…[bot]`) are
+> skipped so the review never re-triggers on its own output. The reused gate is
+> `shouldAutoReview()`.
 
 ## Context
 
