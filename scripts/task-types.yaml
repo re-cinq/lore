@@ -310,3 +310,6 @@ stations:
   detect:
     command: ["lore-station", "detect"]
     timeout_minutes: 30
+  comment-triage:
+    command: ["lore-station", "comment-triage"]
+    timeout_minutes: 5

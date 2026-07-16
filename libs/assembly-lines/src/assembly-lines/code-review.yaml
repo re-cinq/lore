@@ -1,5 +1,5 @@
 name: code-review
-description: Review a PR — evaluate the diff (or an incoming reply), post line-level comments, then refine/act on the verdict.
+description: Review a PR — assess the diff and emit structured findings; the Floor posts them as suggestion-only Conventional Comments. Fixes are human-gated via replies.
 version: 1
 entry: review
 exit: done
@@ -9,13 +9,7 @@ nodes:
     type: agent
     prompt_ref: code-review
     model: claude-sonnet-4-6
-    description: Evaluate the diff or an incoming reply; post line-level inline comments; emit a verdict.
-
-  - id: refine
-    type: agent
-    prompt_ref: code-review-refine
-    model: claude-sonnet-4-6
-    description: Act on the verdict — answer in-thread or commit a fix to the PR branch.
+    description: Assess the diff; emit REVIEW_FINDINGS (structured) + a REVIEW_RESULT verdict. Does not post or commit.
 
   - id: done
     type: retrospective
@@ -23,14 +17,11 @@ nodes:
 
 edges:
   - from: review
-    to: refine
-    on: changes_requested
-  - from: review
     to: done
     on: success
   - from: review
     to: done
-    on: failed
-  - from: refine
+    on: changes_requested
+  - from: review
     to: done
-    on: always
+    on: failed

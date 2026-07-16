@@ -15,6 +15,15 @@ import {
   finishNodeAndAdvance,
   type AdvanceDeps,
 } from "./advance.js";
+import {
+  codeReviewOnCommentTriaged,
+  type CommentContext,
+} from "../review/code-review.js";
+import { maybePostReview } from "../review/post-review.js";
+import { publishPrCheck } from "./pr-check.js";
+import { projectFor } from "../../composition/project-boot.js";
+import type { AssemblyLineRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type { AssemblyLineNode, NodeResult } from "@re-cinq/lore-assembly-lines";
 
 export interface NodeEventDeps extends AdvanceDeps {
   /** Read the CR's status by name; null when it no longer exists (pruned). */
@@ -57,6 +66,89 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
       { assemblyLineId, nodeId, iteration, result },
       deps,
     );
+
+    await postReviewFromNode(row, node, status.output);
+    await routeCommentTriage(row, nodeId, result);
+    await publishCheck(assemblyLineId, deps);
+  };
+}
+
+/** A review node emits structured findings instead of posting; render + post them here. */
+async function postReviewFromNode(
+  row: AssemblyLineRecord,
+  node: AssemblyLineNode,
+  output?: string,
+): Promise<void> {
+  if (node.prompt_ref !== "code-review") {
+    return;
+  }
+  const prNumber = Number(row.args.pr_number) || 0;
+
+  if (!prNumber) {
+    return;
+  }
+  try {
+    const project = await projectFor(row.repo);
+
+    await maybePostReview(project.pulls, prNumber, output ?? "");
+  } catch (err) {
+    console.warn("[code-review] post review failed:", (err as Error).message);
+  }
+}
+
+/** Publish the line's current state as a PR check (in_progress while running,
+ *  terminal once finished). Best-effort — a missing `checks: write` never blocks. */
+async function publishCheck(
+  assemblyLineId: string,
+  deps: NodeEventDeps,
+): Promise<void> {
+  const row = await deps.assemblyLines.getById(assemblyLineId);
+
+  if (!row || !(Number(row.args.pr_number) > 0)) {
+    return;
+  }
+  const project = await projectFor(row.repo);
+
+  await publishPrCheck(project.repo, row, process.env.LORE_UI_URL);
+}
+
+/** When a comment-triage node goes terminal, read its classified action and start
+ *  the routed follow-up line. Best-effort — a routing failure never fails the walk. */
+async function routeCommentTriage(
+  row: AssemblyLineRecord,
+  nodeId: string,
+  result: NodeResult,
+): Promise<void> {
+  if (row.definitionName !== "comment-triage" || nodeId !== "triage") {
+    return;
+  }
+  const action = result.extras?.action;
+
+  if (!action) {
+    return;
+  }
+  try {
+    await codeReviewOnCommentTriaged({
+      action,
+      context: contextFromRow(row),
+    });
+  } catch (err) {
+    console.warn("[code-review] triage routing failed:", (err as Error).message);
+  }
+}
+
+function contextFromRow(row: AssemblyLineRecord): CommentContext {
+  const a = row.args;
+
+  return {
+    repo: row.repo,
+    pr_number: Number(a.pr_number) || 0,
+    branch: row.branch ?? "",
+    head_sha: typeof a.head_sha === "string" ? a.head_sha : undefined,
+    comment_id: Number(a.comment_id) || 0,
+    comment_body: String(a.comment_body ?? ""),
+    in_reply_to_id:
+      typeof a.in_reply_to_id === "number" ? a.in_reply_to_id : null,
   };
 }
 

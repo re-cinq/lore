@@ -18,6 +18,9 @@ export interface FloorAssemblyLineTask {
   description: string;
   targetRepo: string;
   branch: string;
+  /** The line's args — string/number entries are threaded into a station's params
+   *  (e.g. the comment-triage station reads comment_body / in_reply_to_id / pr_number). */
+  args?: Record<string, unknown>;
 }
 
 /** Distinct Agent CR name per (attempt, node, ITERATION): two runs of one task never
@@ -95,6 +98,13 @@ export function nodeStationSpec(
 ): LoreTaskSpec {
   const params: Record<string, string> = {};
 
+  // Line args (string/number) ride into params so a station reads its input without
+  // a DB round-trip — e.g. the comment-triage station's comment_body/in_reply_to_id.
+  for (const [key, value] of Object.entries(task.args ?? {})) {
+    if (typeof value === "string" || typeof value === "number") {
+      params[key] = String(value);
+    }
+  }
   for (const field of STATION_PARAM_FIELDS) {
     const value = node[field];
 
