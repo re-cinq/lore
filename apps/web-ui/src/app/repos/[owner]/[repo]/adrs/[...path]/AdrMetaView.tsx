@@ -4,7 +4,7 @@
 // `amends` to the amended ADR's detail page.
 import Link from "next/link";
 import SpecStatusPill from "@/components/SpecStatusPill";
-import { statusInfoFromValue } from "@/lib/spec-status";
+import { statusFromValue } from "@/lib/spec-status";
 
 const chip: React.CSSProperties = {
   border: "1px solid var(--border)",
@@ -26,13 +26,13 @@ export default function AdrMetaView({
   repo: string;
   meta: Record<string, string | string[]>;
 }) {
-  const status = scalar(meta.status);
-  const statusInfo = status ? statusInfoFromValue(status) : null;
+  const statusValue = scalar(meta.status);
+  const status = statusValue ? statusFromValue(statusValue) : null;
   const date = scalar(meta.date);
   const domains = Array.isArray(meta.domains) ? meta.domains : [];
   const relates = scalar(meta.relates);
   const amends = scalar(meta.amends);
-  const renderable = [statusInfo, date, relates, amends, ...domains];
+  const renderable = [status, date, relates, amends, ...domains];
 
   if (renderable.every((field) => !field)) {
     return null;
@@ -48,7 +48,7 @@ export default function AdrMetaView({
         marginBottom: 16,
       }}
     >
-      {statusInfo && <SpecStatusPill info={statusInfo} />}
+      {status && <SpecStatusPill status={status} />}
       {date && (
         <span className="meta" style={{ fontSize: "var(--fs-xs)" }}>
           {date}

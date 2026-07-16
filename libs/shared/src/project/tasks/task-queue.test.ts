@@ -596,23 +596,23 @@ describe("InMemoryTaskQueue.findReadySpecTasks", () => {
   });
 });
 
-describe("countUnmergedInGroup", () => {
-  it("PgTaskQueue counts group rows whose status is not merged", async () => {
+describe("countOutstandingInGroup", () => {
+  it("PgTaskQueue excludes the settled statuses, scoped to the group", async () => {
     const { pool, calls } = mockPool([{ rows: [{ cnt: "2" }] }]);
 
-    expect(await new PgTaskQueue(pool).countUnmergedInGroup("g1")).toBe(2);
+    expect(await new PgTaskQueue(pool).countOutstandingInGroup("g1")).toBe(2);
     expect(calls[0].sql).toContain("task_group_id = $1");
-    expect(calls[0].sql).toContain("status <> 'merged'");
-    expect(calls[0].values).toEqual(["g1"]);
+    expect(calls[0].sql).toContain("NOT (status = ANY($2))");
+    expect(calls[0].values).toEqual(["g1", ["merged", "completed", "retried"]]);
   });
 
   it("PgTaskQueue returns 0 when the count row is absent", async () => {
     const { pool } = mockPool([{ rows: [] }]);
 
-    expect(await new PgTaskQueue(pool).countUnmergedInGroup("g1")).toBe(0);
+    expect(await new PgTaskQueue(pool).countOutstandingInGroup("g1")).toBe(0);
   });
 
-  it("InMemory returns >0 while a sibling is unmerged, 0 when all merged", async () => {
+  it("InMemory returns >0 while a sibling is in flight, 0 when all merged", async () => {
     const seed: SeedTask[] = [
       { id: "a", task_group_id: "g1", status: "merged" },
       { id: "b", task_group_id: "g1", status: "review" },
@@ -620,9 +620,38 @@ describe("countUnmergedInGroup", () => {
     ];
     const q = new InMemoryTaskQueue(seed);
 
-    expect(await q.countUnmergedInGroup("g1")).toBe(1);
+    expect(await q.countOutstandingInGroup("g1")).toBe(1);
     seed[1].status = "merged";
-    expect(await q.countUnmergedInGroup("g1")).toBe(0);
-    expect(await q.countUnmergedInGroup("g2")).toBe(1);
+    expect(await q.countOutstandingInGroup("g1")).toBe(0);
+    expect(await q.countOutstandingInGroup("g2")).toBe(1);
   });
+
+  // The FR1 regression: neither status can ever reach `merged`, so counting them
+  // stalled the status flip forever. `completed` is the common case — an agent
+  // that found no changes to make, or a locally-run task.
+  it.each(["completed", "retried"])(
+    "a settled %s sibling does not hold the group open",
+    async (status) => {
+      const q = new InMemoryTaskQueue([
+        { id: "a", task_group_id: "g1", status: "merged" },
+        { id: "b", task_group_id: "g1", status },
+      ]);
+
+      expect(await q.countOutstandingInGroup("g1")).toBe(0);
+    },
+  );
+
+  // Unfinished business: the feature did not complete, so FR1 must not claim it
+  // did. FR2's weekly detector is the net for a human-resolved group.
+  it.each(["failed", "cancelled", "needs-human-help", "pending", "pr-created"])(
+    "an outstanding %s sibling holds the group open",
+    async (status) => {
+      const q = new InMemoryTaskQueue([
+        { id: "a", task_group_id: "g1", status: "merged" },
+        { id: "b", task_group_id: "g1", status },
+      ]);
+
+      expect(await q.countOutstandingInGroup("g1")).toBe(1);
+    },
+  );
 });

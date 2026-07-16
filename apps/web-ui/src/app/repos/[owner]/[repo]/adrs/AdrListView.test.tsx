@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import AdrListView from "./AdrListView";
-import type { SpecStatusInfo } from "@/lib/spec-status";
+import type { SpecStatus } from "@/lib/spec-status";
 
 const adrs = [
   {
@@ -17,9 +17,9 @@ const adrs = [
   },
 ];
 
-const statuses: Record<string, SpecStatusInfo> = {
-  "adrs/ADR-016-dark-factory.md": { status: "shipped", label: "Accepted" },
-  "adrs/ADR-015-review-reactor.md": { status: "draft", label: "Draft" },
+const statuses: Record<string, SpecStatus> = {
+  "adrs/ADR-016-dark-factory.md": "shipped",
+  "adrs/ADR-015-review-reactor.md": "draft",
 };
 
 describe("AdrListView", () => {
@@ -54,7 +54,7 @@ describe("AdrListView", () => {
       />,
     );
 
-    expect(screen.getByText("Accepted")).toBeTruthy();
+    expect(screen.getByText("Shipped")).toBeTruthy();
     expect(screen.getByText("Draft (1)")).toBeTruthy();
   });
 
@@ -137,6 +137,6 @@ describe("AdrListView", () => {
       .queryAllByRole("heading")
       .map((node) => node.textContent?.trim());
 
-    expect(titles).toEqual(["Review ReactorDraft", "Dark FactoryAccepted"]);
+    expect(titles).toEqual(["Review ReactorDraft", "Dark FactoryShipped"]);
   });
 });

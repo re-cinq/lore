@@ -17,7 +17,7 @@ import {
   type DocSortOrder,
 } from "@/lib/doc-filter";
 import { groupSpecSummaries, type SpecSummaryInput } from "@/lib/spec-grouping";
-import { type SpecStatusFilter, type SpecStatusInfo } from "@/lib/spec-status";
+import { type SpecStatus, type SpecStatusFilter } from "@/lib/spec-status";
 
 export default function SpecListView({
   owner,
@@ -28,7 +28,7 @@ export default function SpecListView({
   owner: string;
   repo: string;
   specs: SpecSummaryInput[];
-  statuses?: Record<string, SpecStatusInfo>;
+  statuses?: Record<string, SpecStatus>;
 }) {
   const [filter, setFilter] = useState<SpecStatusFilter>("all");
   const [query, setQuery] = useState("");

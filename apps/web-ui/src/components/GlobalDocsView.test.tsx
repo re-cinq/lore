@@ -49,14 +49,8 @@ describe("GlobalDocsView", () => {
           { repo: "re-cinq/lore", filePath: "specs/pay/spec.md" },
         ]}
         statuses={{
-          "re-cinq/lore::specs/auth/spec.md": {
-            status: "shipped",
-            label: "Shipped",
-          },
-          "re-cinq/lore::specs/pay/spec.md": {
-            status: "draft",
-            label: "Draft",
-          },
+          "re-cinq/lore::specs/auth/spec.md": "shipped",
+          "re-cinq/lore::specs/pay/spec.md": "draft",
         }}
         hrefFor={hrefFor}
         emptyHint="No specs in the graph yet."
@@ -76,10 +70,7 @@ describe("GlobalDocsView", () => {
       <GlobalDocsView
         docs={[{ repo: "re-cinq/lore", filePath: "adrs/ADR-001-x.md" }]}
         statuses={{
-          "re-cinq/lore::adrs/ADR-001-x.md": {
-            status: "draft",
-            label: "Draft",
-          },
+          "re-cinq/lore::adrs/ADR-001-x.md": "draft",
         }}
         hrefFor={hrefFor}
         emptyHint="No ADRs in the graph yet."
@@ -119,10 +110,7 @@ describe("GlobalDocsView", () => {
       <GlobalDocsView
         docs={[{ repo: "re-cinq/lore", filePath: "adrs/ADR-001-x.md" }]}
         statuses={{
-          "re-cinq/lore::adrs/ADR-001-x.md": {
-            status: "draft",
-            label: "Draft",
-          },
+          "re-cinq/lore::adrs/ADR-001-x.md": "draft",
         }}
         hrefFor={hrefFor}
         emptyHint="No ADRs in the graph yet."

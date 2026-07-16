@@ -1,6 +1,6 @@
 import type { PgPool } from "../../memory-store.js";
 import type { PipelineTask } from "../../types.js";
-import { unblockedBy } from "./task-queue-port.js";
+import { unblockedBy, SETTLED_GROUP_STATUSES } from "./task-queue-port.js";
 import type {
   TaskQueueRepository,
   RecoverableTask,
@@ -123,13 +123,13 @@ export class PgTaskQueue implements TaskQueueRepository {
     return rows as SpecGroupCount[];
   }
 
-  async countUnmergedInGroup(groupId: string): Promise<number> {
+  async countOutstandingInGroup(groupId: string): Promise<number> {
     const { rows } = await this.pool.query<{ cnt: string }>(
       `SELECT COUNT(*) as cnt
          FROM pipeline.tasks
         WHERE task_group_id = $1
-          AND status <> 'merged'`,
-      [groupId],
+          AND NOT (status = ANY($2))`,
+      [groupId, SETTLED_GROUP_STATUSES],
     );
 
     return Number(rows[0]?.cnt ?? 0);

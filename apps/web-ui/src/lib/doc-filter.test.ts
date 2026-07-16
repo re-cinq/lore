@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { filterDocCards, sortDocCards } from "./doc-filter";
-import type { SpecStatusInfo } from "./spec-status";
+import type { SpecStatus } from "./spec-status";
 
 interface Doc {
   path: string;
-  status?: SpecStatusInfo;
+  status?: SpecStatus;
 }
 
-const shipped: SpecStatusInfo = { status: "shipped", label: "Shipped" };
-const draft: SpecStatusInfo = { status: "draft", label: "Draft" };
+const shipped: SpecStatus = "shipped";
+const draft: SpecStatus = "draft";
 
 const docs: Doc[] = [
   { path: "specs/alpha/spec.md", status: shipped },

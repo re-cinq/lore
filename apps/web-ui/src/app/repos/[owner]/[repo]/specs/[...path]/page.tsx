@@ -38,7 +38,7 @@ export default async function RepoSpecDetail({
         }}
       >
         <Link href={specsLink}>← Specs</Link>
-        {status && <SpecStatusPill info={status} />}
+        {status && <SpecStatusPill status={status} />}
       </p>
       {source ? (
         <SpecDocument

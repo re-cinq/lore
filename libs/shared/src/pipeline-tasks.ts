@@ -75,6 +75,7 @@ export interface PipelineTaskRow {
   context_bundle: Record<string, unknown> | null;
   priority?: string;
   created_at?: string;
+  task_group_id?: string | null;
   [column: string]: unknown;
 }
 
@@ -231,6 +232,14 @@ export async function retryTask(
     targetRepo: task.target_repo ?? undefined,
     createdBy: `retry:${task.created_by}`,
     contextBundle: { ...(task.context_bundle || {}), retry_of: taskId },
+    // The replacement IS the superseded task's work, so it inherits the
+    // original's placement and urgency. Dropping the group orphaned the retry
+    // from its own spec-task DAG and left the `retried` original as a permanent
+    // non-merged row that no merge could clear (spec-status-upkeep FR1);
+    // dropping the priority silently demoted an `immediate` task to `normal`
+    // exactly when it was already running late.
+    taskGroupId: task.task_group_id ?? undefined,
+    priority: task.priority,
   });
 
   await updateTaskStatus(pool, taskId, "retried", {

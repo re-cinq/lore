@@ -74,8 +74,8 @@ describe("SpecListView", () => {
         repo="lore"
         specs={specs}
         statuses={{
-          "specs/auth/spec.md": { status: "shipped", label: "Shipped" },
-          "specs/pay/spec.md": { status: "draft", label: "Draft" },
+          "specs/auth/spec.md": "shipped",
+          "specs/pay/spec.md": "draft",
         }}
       />,
     );
@@ -144,8 +144,8 @@ describe("SpecListView", () => {
         repo="lore"
         specs={specs}
         statuses={{
-          "specs/auth/spec.md": { status: "shipped", label: "Shipped" },
-          "specs/pay/spec.md": { status: "draft", label: "Draft" },
+          "specs/auth/spec.md": "shipped",
+          "specs/pay/spec.md": "draft",
         }}
       />,
     );
