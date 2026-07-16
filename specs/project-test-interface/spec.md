@@ -10,6 +10,8 @@
 | Feeds          | [`spec-traceability-graph`](../spec-traceability-graph/spec.md) — seeds `TestChunk`/`Coverage`/`COVERS`, the `violated` signal, and the `VALIDATED_BY` link |
 | Wire contract  | [`contracts/test-commands.md`](./contracts/test-commands.md) |
 
+Project Test Interface lets a repo declare a small, language-neutral test-command manifest (`list` and `run`) so Lore consumes the project's own authoritative test discovery and per-test coverage — feeding the traceability graph deterministically instead of guessing tests by file-name pattern.
+
 > **Cutover note (2026-06-29):** the mcp ingest endpoints described below —
 > `POST /api/repos/:o/:r/test-report` and `…/coverage` — have been **removed**.
 > The manifest contract (`list`/`run`, `contracts/test-commands.md`) is unchanged,

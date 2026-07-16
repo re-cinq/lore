@@ -9,6 +9,8 @@
 | Consumes       | [`spec-traceability-graph`](../spec-traceability-graph/spec.md) — the `/trace/document` read route |
 | Sibling        | [`graph-context-assembly`](../graph-context-assembly/spec.md) — shares the `violated > drifted > untested` signal ordering |
 
+The `lore-query-trace` MCP tool proxies a read to the remote `/trace/document` route and projects per-statement spec coverage into agent-readable text, letting a developer in a Claude session ask which tests validate a statement and whether any are currently drifted or violated.
+
 ## Interface
 
 Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/spec-trace-tools.ts#L40)).

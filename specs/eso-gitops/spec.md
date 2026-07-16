@@ -9,6 +9,8 @@
 | Owner          | Platform Engineering                     |
 | Target         | 1 week                                   |
 
+ESO + Terraform GitOps consolidates Lore's scattered deployment state — manually created K8s Secrets, ad-hoc kubectl patches, duplicated credentials — into GCP Secret Manager fronted by External Secrets Operator and Terraform, so the whole platform can be reconstructed from scratch with a single command.
+
 ## Problem Statement
 
 Lore's deployment state is scattered:

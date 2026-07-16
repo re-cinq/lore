@@ -10,6 +10,8 @@
 | Module  | Pipeline (`features/pipeline/tasks.ts`)|
 | Scope   | shared                                 |
 
+`lore_claim_task` atomically flips one pending spec-task to `running` under a row lock so exactly one polling agent wins ownership and everyone else is told the task is already taken.
+
 ## Problem Statement
 
 Multiple agents may poll the same repo's ready spec-tasks at once. Without an

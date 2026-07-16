@@ -10,6 +10,8 @@
 | Auth scope  | **admin** + two-key CODEOWNERS-approval-PR ceremony on privileged fields   |
 | Module      | `mcp-server/src/api/routes/dark-factory.ts` (`handleDarkFactorySettingsRoute`) |
 
+This route reads and patches a repo's dark-factory auto-merge settings for platform admins, gating privileged-field changes behind a two-key CODEOWNERS-approval ceremony and recording every mutation in the audit log.
+
 ## Problem Statement
 
 Dark-factory mode (ADR-016) lets a repo's Lore tasks auto-merge with no human

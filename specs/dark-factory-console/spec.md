@@ -9,6 +9,8 @@
 | Decision       | extends [ADR-016](../../adrs/ADR-016-dark-factory-mode.md) — surfaces dark-factory operation in the UI |
 | Consumes       | `lore.repos.settings.dark_factory` (resolved via `resolveDarkFactorySettings`), `pipeline.tasks`, `pipeline.audit_log` |
 
+The Dark Factory Console adds a per-repo Dark Factory tab that honestly surfaces the two-gate activation state, the resolved settings, what the factory is currently working on, and a reverse-chronological decision feed of auto-merge, escalation, and lease audit events.
+
 ## Problem Statement
 
 Dark-factory mode is fully built but barely visible. The only UI surface is a

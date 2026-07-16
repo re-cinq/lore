@@ -10,6 +10,8 @@
 | Module  | Pipeline (`features/pipeline/tasks.ts`)|
 | Scope   | shared                                 |
 
+`lore_complete_task` marks a claimed running spec-task as completed and reports which dependent tasks that completion newly unblocks, so the caller can pick up the next unit of work without a full readiness scan.
+
 ## Problem Statement
 
 When an agent finishes a claimed (`running`) spec-task, that completion may

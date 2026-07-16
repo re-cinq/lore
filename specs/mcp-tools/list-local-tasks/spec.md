@@ -10,6 +10,8 @@
 | Module  | Pipeline (`runner.local.ts`)                |
 | Scope   | local                                       |
 
+`lore_list_local_tasks` reads the local task registry and prints a one-line summary per background task — status, repo, branch, PR URL, and error — reconciling stale running rows whose process has already died.
+
 ## Problem Statement
 
 A developer running background tasks needs to see what is running, completed, or

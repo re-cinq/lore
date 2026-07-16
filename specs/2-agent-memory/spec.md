@@ -9,6 +9,8 @@
 | Updated        | 2026-04-20 (post-ship drift correction)     |
 | Owner          | Platform Engineering                        |
 
+Agent Runtime Memory gives every agent — local Claude Code, Lore cluster workers, and future integrations — persistent, versioned, semantically searchable memory backed by Lore's existing PostgreSQL and pgvector infrastructure, so sessions and scheduled agents no longer start cold every time.
+
 > **Note:** This spec was updated after shipping to reflect the actual
 > implementation. Several features from the original design were not
 > exposed as MCP tools (shared pools, snapshots), and several

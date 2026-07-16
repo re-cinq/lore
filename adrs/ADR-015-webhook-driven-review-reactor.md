@@ -9,6 +9,8 @@ superseded_note: "2026-07: the review-reactor COMPONENT is retired — the code-
 
 # ADR-015: Event-driven review reactor + cost optimizations
 
+Replaces the 5-minute review-reactor poll with a GitHub webhook fan-out and adds prompt caching on agent LLM calls, a business-hours safety cron, and smaller per-template context budgets to cut API cost and review latency.
+
 > **Reused by the `code-review` assembly line ([ADR-012](./ADR-012-autonomous-review-loop.md)).**
 > The same webhook→event substrate now also drives PR review for *all* open PRs (not just
 > the review-reactor's Lore-managed ones). New: `pull_request_review_comment` is subscribed

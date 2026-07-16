@@ -10,6 +10,8 @@
 | Module  | memory                                           |
 | Scope   | shared                                           |
 
+`lore_write_memory` persists one curated key/value memory, versioned and repo-scoped with optional expiry, pushing to the org-wide backend when the local server has no database.
+
 ## Problem Statement
 
 Agents and developers need to persist decisions, conventions, corrections, and

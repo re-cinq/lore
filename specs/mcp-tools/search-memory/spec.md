@@ -10,6 +10,8 @@
 | Module  | memory                                           |
 | Scope   | shared                                           |
 
+`lore_search_memory` runs a semantic search across org-wide memories and extracted facts, returning relevance-ranked matches with confidence annotations so agents can reuse prior learnings by meaning rather than by exact key.
+
 ## Problem Statement
 
 Agents need to find whether a problem was already solved or whether a previous

@@ -9,6 +9,8 @@
 | Owner    | Platform Engineering           |
 | Target   | Ongoing convention             |
 
+Testing Standards codifies Lore's test methodology and conventions — TDD by default, vitest as the single runner, an attributable per-subproject CI job, fast dependency-free unit suites, and behaviour-over-implementation tests — as a first-class, ingestible spec rather than scattered CLAUDE.md bullets.
+
 ## Problem Statement
 
 Lore has 44 test files across four subprojects (`shared`, `mcp-server`,

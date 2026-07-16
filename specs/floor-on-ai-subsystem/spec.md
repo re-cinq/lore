@@ -10,6 +10,8 @@
 | Epic           | [#690](https://github.com/re-cinq/lore/issues/690)                   |
 | Subsystem      | [`re-cinq/ai-agent-subsystem`](https://github.com/re-cinq/ai-agent-subsystem) (`agents.re-cinq.com` / `ai-agents`) |
 
+This spec retires Lore's bespoke LoreTask CRD execution path and moves all Floor task execution onto the ai-agent-subsystem's Agent CRs, preserving Lore's deterministic guarantees by relocating context hydration, validation, commit/push, PR creation, and the assembly line Floor-side.
+
 > **Revised 2026-07:** generalized so **every** assembly-line node — not just agent nodes — runs as an
 > `Agent` CR / pod; non-LLM "station" nodes (validate/gate/retrospective/`github_action`/detect/custom)
 > run via a new `exec` vendor. Folded into the Solution, D9, the architecture, File Changes, and AC15–21.

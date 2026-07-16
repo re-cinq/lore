@@ -6,6 +6,8 @@
 | Status  | Shipped                  |
 | Owner   | Platform Engineering     |
 
+Shared Utilities documents the behavioural contracts of the small cross-cutting helpers in `libs/shared` — retry/backoff, bounded concurrency, path/text classification, the `enforce` guard, the LLM provider abstraction, embeddings, and the Dgraph client — so their unit tests trace to a statement without scattering the contracts across feature specs.
+
 ## Problem Statement
 
 `libs/shared` carries small, cross-cutting helpers (retry/backoff, bounded

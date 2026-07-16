@@ -8,6 +8,8 @@
 | Created  | 2026-07-14                                    |
 | Owner    | Platform Engineering                          |
 
+Automatic Spec Status Upkeep keeps each spec's `| Status |` header honest by deterministically flipping it to Implemented when a feature's task group merges and by running a weekly staleness detector that flags implemented-but-Draft specs, closing the loop that convention alone leaves to rot.
+
 ## Problem Statement
 
 The `| Status |` header row in each `specs/<name>/spec.md` is the only

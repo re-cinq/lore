@@ -10,6 +10,8 @@
 | Auth scope | `write` (SCOPE_OVERRIDES)                              |
 | Module     | `mcp-server/src/api/routes/impact.ts`                  |
 
+POST /api/repos/:owner/:repo/impact is a deterministic pre-merge graph read that reports which spec statements a PR diff couples to or orphans, plus Checks-API annotations and a markdown comment, failing soft to a neutral result when the traceability graph is unreachable.
+
 ## Problem Statement
 
 Before a PR merges, an advisory GitHub Action needs to know which spec

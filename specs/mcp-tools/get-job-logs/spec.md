@@ -10,6 +10,8 @@
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
+`lore_get_job_logs` fetches the full stdout/stderr of one scheduled CronJob run, keyed by job name and run id, so an operator can inspect a misbehaving batch run from GCS without cluster access.
+
 ## Problem Statement
 
 Scheduled batch jobs (K8s CronJobs — context reindex, spec-test linker, etc.)

@@ -10,6 +10,8 @@
 | Auth scope | —                                                      |
 | Module     | (was `mcp-server/src/api/routes/test-report.ts`)       |
 
+This now-retired route folded a project's test descriptors and per-test run results into spec-traceability graph counts (test chunks, validated-by links, coverage, violations), echoed those counts, and fired a spec-trace projection trigger to the agent.
+
 > **Removed.** Test ingest moved to the Floor **`ci-tests`** hook
 > (`POST /api/webhook/ci-tests` → `internal.ingest.spec_trace`, kind `test-report`),
 > fed by the portable `lore-code-trace` binary (`apps/lore-code-trace`). The request

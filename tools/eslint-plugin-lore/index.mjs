@@ -8,6 +8,7 @@ import maxBooleanOperators from "./rules/max-boolean-operators.mjs";
 import noIoInView from "./rules/no-io-in-view.mjs";
 import requireSpecLink from "./rules/require-spec-link.mjs";
 import requireStatementLinks from "./rules/require-statement-links.mjs";
+import requireIntroParagraph from "./rules/require-intro-paragraph.mjs";
 
 /**
  * eslint-plugin-lore — repo-local ESLint rules codifying Lore house conventions.
@@ -26,5 +27,6 @@ export default {
     "no-io-in-view": noIoInView,
     "require-spec-link": requireSpecLink,
     "require-statement-links": requireStatementLinks,
+    "require-intro-paragraph": requireIntroParagraph,
   },
 };

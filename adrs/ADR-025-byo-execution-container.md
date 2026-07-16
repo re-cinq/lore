@@ -8,6 +8,8 @@ domains: [agent, pipeline, infra, security]
 
 # ADR-025: Bring-Your-Own execution container
 
+This ADR adopts Lore-hosted Bring-Your-Own execution images so each repo runs its tasks in its own toolchain container beside a kernel sidecar, letting polyglot lint/typecheck validation actually run while keeping Lore's in-cluster, NetworkPolicy-restricted security perimeter.
+
 > **Mechanism update ([ADR-031](./ADR-031-agent-station-crds.md)).** The BYO-image knob
 > survives, but it no longer rides on the `LoreTask` CR's `image` field: a per-repo recipe
 > sets it on the catalog `Station`'s pod template (the `image` two-key gate is preserved on

@@ -2,6 +2,8 @@
 
 **Status:** Implemented — 2026-06-17
 
+Local Read-Through Cache adds a small on-disk cache to the stdio MCP proxy that skips the network on fresh read hits and serves a labeled stale copy when the backend is unreachable, while staying derived data whose loss degrades only to a re-fetch, never to a wrong answer.
+
 ## Problem
 
 The local MCP server (stdio adapter) proxies every read to the GKE backend

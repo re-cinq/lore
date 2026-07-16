@@ -9,6 +9,8 @@
 | Owner          | Platform Engineering                     |
 | Target         | 2-3 days                                 |
 
+GitHub Issue Dispatch lets developers stay in their natural workflow: adding a `lore` label to any GitHub Issue makes Lore pick it up via webhook and automatically create a pipeline task from the issue title and body, avoiding a re-describe-in-Lore context switch.
+
 ## Problem Statement
 
 Developers create GitHub Issues as part of their natural workflow.

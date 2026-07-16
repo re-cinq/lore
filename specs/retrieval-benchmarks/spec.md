@@ -9,6 +9,8 @@
 | Priority       | P2 — Observability                          |
 | Motivation     | [Zep competitive research](../zep-competitive-research.md) |
 
+Retrieval Benchmarks instruments Lore's retrieval MCP tools with p50/p95/p99 latency tracking surfaced in the analytics dashboard, establishing baseline measurements and alert thresholds so the team knows whether retrieval meets its latency targets as data grows.
+
 ## Problem Statement
 
 Zep targets <200ms retrieval latency as a product SLA. We don't

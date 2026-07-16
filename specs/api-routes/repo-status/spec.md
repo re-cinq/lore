@@ -10,6 +10,8 @@
 | Auth scope | `read`                                          |
 | Module     | `mcp-server/src/api/routes/health.ts` (`handleRepoStatus`) |
 
+GET /api/repo-status returns a repo's onboarding state, in-flight and PR-ready task counts, memory total, auto-review flag, and context-staleness in one read for the statusline and UI, always degrading to 200 rather than erroring.
+
 ## Problem Statement
 
 The statusline, the `lore_assemble_context` freshness warning, and the UI need a cheap

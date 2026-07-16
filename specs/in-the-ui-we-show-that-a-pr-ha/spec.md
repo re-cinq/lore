@@ -10,6 +10,8 @@
 | Owner             | Platform Engineering                       |
 | Target            | 2-3 working days                           |
 
+PR State Visibility surfaces a Lore-created PR's live status — draft, failing CI, awaiting review, or merged — directly on the task UI by fetching from GitHub on page load, so developers no longer have to switch to GitHub to see where the PR stands.
+
 ## Problem Statement
 
 When developers create a PR through Lore (via pipeline tasks, `/lore-pr`,

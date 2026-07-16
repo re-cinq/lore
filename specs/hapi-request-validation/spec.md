@@ -8,6 +8,8 @@
 | Owner    | Platform Engineering                                             |
 | ADR      | [ADR-034](../../adrs/ADR-034-lore-api-request-validation.md) (to be written) — amends [ADR-033](../../adrs/ADR-033-lore-api-hapi.md) |
 
+This spec moves lore-api's per-route request validation into hapi's `options.validate` using declarative zod schemas, retiring the hand-rolled body parsing and scattered imperative field checks that each write route currently repeats inside its handler.
+
 ## Problem Statement
 
 The hapi migration (ADR-033) made lore-api's routing declarative, but stopped

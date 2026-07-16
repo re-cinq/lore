@@ -10,6 +10,8 @@
 | Auth scope | `write`                                                     |
 | Module     | Memory routes (`api/routes/memory.ts` → `handleEpisode`)   |
 
+POST /api/episode redacts, deduplicates, and persists a raw text episode for an agent, then fires asynchronous fact and knowledge-graph extraction without blocking the HTTP response.
+
 ## Problem Statement
 
 Episodes are raw text blobs — conversation turns, code reviews, observations —

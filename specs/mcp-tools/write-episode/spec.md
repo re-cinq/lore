@@ -10,6 +10,8 @@
 | Module  | memory                                           |
 | Scope   | shared                                           |
 
+`lore_write_episode` ingests one raw uncurated text blob as a deduplicated, secret-redacted episode from which facts and knowledge-graph entities are extracted asynchronously.
+
 ## Problem Statement
 
 Curated `lore_write_memory` calls capture only what an agent decides to write down.

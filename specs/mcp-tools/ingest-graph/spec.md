@@ -9,6 +9,8 @@
 | Module  | Spec-trace                             |
 | Scope   | shared                                 |
 
+`lore_ingest_graph` was a spec-traceability tool that created an `ingest-tests` pipeline task; it has been retired now that specs, ADRs, and tests all project into the graph via CI rather than pipeline tasks.
+
 ## Status
 
 The `lore_ingest_graph` MCP tool has been **removed**. Its only job was to create

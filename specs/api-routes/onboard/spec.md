@@ -10,6 +10,8 @@
 | Auth scope | `admin`                                         |
 | Module     | `mcp-server/src/api/routes/ingest.ts` (`handleOnboard`) |
 
+POST /api/onboard brings a repo into Lore by inspecting it, opening a bootstrap PR that adds CLAUDE.md, AGENTS.md, ADRs, and CI workflows, and registering a lore.repos row for nightly ingestion.
+
 ## Problem Statement
 
 Bringing a repo into Lore is a privileged, side-effecting operation: it inspects

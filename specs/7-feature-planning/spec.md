@@ -8,6 +8,8 @@
 | Created        | 2026-06-17                                  |
 | Owner          | Platform Engineering                        |
 
+Smart Feature Planning turns the fire-and-forget feature-request flow into an interactive, section-by-section drafting experience backed by a first-class draft Feature entity, letting a product owner shape a spec through gap-closing analysis and per-section direction before any PR is opened.
+
 ## Problem Statement
 
 Lore can already turn a one-line intent into a spec PR through the

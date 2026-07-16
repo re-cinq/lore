@@ -9,6 +9,8 @@ supersedes: [ADR-020]
 
 # ADR-022: Context assembly — hybrid ranking + code retrieval + per-document cap
 
+This ADR replaces keyword-only assembly ranking with hybrid vector+BM25 retrieval across the repo, ADR, and a new dedicated code source, so implementation tasks actually receive the files they edit, and caps any single document to half a section's token budget.
+
 ## Context
 
 ADR-020 made `repo`/`adrs` rank by `ts_rank` (over recency) and **deferred**

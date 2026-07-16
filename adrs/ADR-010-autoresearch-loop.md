@@ -11,6 +11,8 @@ domains:
 
 # Autoresearch loop for self-improving context quality
 
+Adds three scheduled Lore Agent jobs — eval-runner, autoresearch, and context-core-builder — that detect knowledge gaps from usage traces and eval-gate context improvements before opening PRs for human approval.
+
 ## Status
 
 Accepted

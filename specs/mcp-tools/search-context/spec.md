@@ -10,6 +10,8 @@
 | Module  | Context (`context-tools.ts`)   |
 | Scope   | shared                         |
 
+`lore_search_context` searches a repo's ingested document corpus for matching passages via hybrid vector plus BM25 retrieval, degrading to a local file-system text scan when no database is available.
+
 ## Problem Statement
 
 A developer or agent needs to find relevant passages across a repo's ingested

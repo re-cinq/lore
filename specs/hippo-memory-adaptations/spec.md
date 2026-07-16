@@ -10,6 +10,8 @@
 | Priority       | P1 — High value, medium effort              |
 | Motivation     | [GitHub issue #205](https://github.com/re-cinq/lore/issues/205), [ADR-014](../../adrs/ADR-014-passive-memory-capture.md) |
 
+Hippo-Memory Adaptations gives facts and memories a continuous strength score that grows on retrieval and decays over time, adds confidence tiers, surfaces contradictions explicitly instead of resolving them silently, filters cross-repo context by transferability, and feeds PR merge/reject outcomes back into the memories that contributed to a task.
+
 ## Problem Statement
 
 Lore's memory system treats fact validity as a binary cliff: a fact

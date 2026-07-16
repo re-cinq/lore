@@ -9,6 +9,8 @@
 | ADR      | [ADR-019](../../adrs/ADR-019-scheduled-job-runtime-split.md) |
 | Supersedes | Scheduling portion of [5-lore-agent](../5-lore-agent/spec.md) (Problem #5, FR-6, SC#2) |
 
+This runtime split runs Lore's periodic work under two profiles — sub-minute, hot-path, webhook-coupled jobs stay in the always-on agent's in-process scheduler while heavy, infrequent batch jobs move to isolated Kubernetes CronJobs — so each batch job gets its own resource limits, retries, timeouts, missed-run catch-up, and run history.
+
 ## Problem Statement
 
 [Spec 5-lore-agent](../5-lore-agent/spec.md) deliberately consolidated all

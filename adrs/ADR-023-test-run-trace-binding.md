@@ -8,6 +8,8 @@ domains: [shared, spec-trace, test-interface, observability]
 
 # ADR-023: Test-run ↔ statement binding via inline spec links
 
+This ADR closes the gap between the spec side (which test validates a statement) and the run side (whether it passed) by deriving descriptor spec anchors from the inline validated-by links, so a linked test that fails flips its statement to violated on every main run.
+
 ## Context
 
 The spec-traceability pipeline has two halves that never meet.

@@ -8,6 +8,8 @@ domains: [memory, agents, pipeline]
 
 # ADR-014: Intelligent memory lifecycle
 
+Adds passive session capture, post-task auto-curation, importance-based decay with eviction, and automatic fact consolidation so memory records learnings without agent cooperation and stays bounded and de-noised.
+
 ## Context
 
 Lore's memory system had three gaps: agents skipped explicit

@@ -10,6 +10,8 @@
 | Module  | Pipeline (`features/pipeline/runner.local.ts`) |
 | Scope   | local                                          |
 
+`lore_enable_task_notifications` starts a background poller that watches chosen repos for new pending pipeline tasks and writes matches to a cache file the statusline reads — a read-only surfacing mechanism that never claims or mutates tasks.
+
 ## Problem Statement
 
 A developer wants to be told when new pending pipeline tasks appear on the repos

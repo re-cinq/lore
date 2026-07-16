@@ -10,6 +10,8 @@
 | Auth    | HMAC SHA-256 (`X-Hub-Signature-256: sha256=…`, secret `LORE_WEBHOOK_SECRET`) |
 | Module  | `mcp-server/src/api/routes/webhooks.ts` (`handleGitHubWebhook`)      |
 
+POST /api/webhook/github receives HMAC-signed GitHub events and dispatches on the event type to drive the Lore pipeline — fanning spec-PR merges into tasks, waking the review reactor, re-evaluating auto-merge, and creating tasks from labeled issues.
+
 ## Problem Statement
 
 GitHub events (PR lifecycle, reviews, CI checks, issue comments, issue labels)

@@ -8,6 +8,8 @@ domains: [agent, pipeline, infra]
 
 # ADR-028: Station runner backends
 
+This ADR introduces one StationBackend port with two adapters — a Kubernetes Job pod on the cluster and a plain docker run locally — chosen by an explicit env var, so Station tasks run in both environments without the local dev path diverging.
+
 > **Mechanism update ([ADR-031](./ADR-031-agent-station-crds.md)).** The `StationBackend`
 > port this ADR introduced still holds — but the **LoreTask** and **Docker** backends
 > described below have been **removed**. The ai-agent-subsystem (`AgentBackend` +

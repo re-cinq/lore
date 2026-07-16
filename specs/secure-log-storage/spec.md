@@ -9,6 +9,8 @@
 | Owner          | Platform Engineering                     |
 | Target         | 1 week                                   |
 
+Secure Persistent Log Storage keeps agent task logs in a CMEK-encrypted GCS bucket with secret redaction, per-repo GitHub access control, a configurable 30-day retention policy, and an access audit trail, replacing today's ephemeral pod logs and unredacted database dumps.
+
 ## Problem Statement
 
 Agent task logs (Claude Code output) contain sensitive data:

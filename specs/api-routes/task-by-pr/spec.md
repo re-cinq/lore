@@ -10,6 +10,8 @@
 | Auth scope | `read` (prefix `/api/tasks` → `read`)                          |
 | Module     | Task timeline (`api/routes/task-timeline.ts` → `handleTaskByPr`) |
 
+GET /api/tasks/by-pr/:owner/:repo/:n resolves the Lore task that produced a given pull request for webhook handlers and the UI, using the DB `pr_number` fast path and falling back to parsing the `Lore-Task` trailer from the PR body or head commit.
+
 ## Problem Statement
 
 Every Lore-authored PR carries a `Lore-Task: <uuid>` trailer in its body and on

@@ -9,6 +9,8 @@ supersedes: "Scheduling decision in 5-lore-agent (Problem #5, FR-6, SC#2)"
 
 # ADR-019: Scheduled job runtime split (in-process scheduler ↔ K8s CronJobs)
 
+Splits the agent's scheduled jobs by cadence, keeping hot-path and sub-minute jobs in the resident scheduler while moving heavy, infrequent batch jobs to isolated Kubernetes CronJobs with retry, missed-run catch-up, and per-run logs.
+
 ## Context
 
 [ADR — 5-lore-agent spec] consolidated all periodic work into a single

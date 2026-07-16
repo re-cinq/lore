@@ -10,6 +10,8 @@
 | Module  | Pipeline (`features/pipeline/runner.local.ts`) |
 | Scope   | local                                          |
 
+`lore_skip_task` removes one task from the local pending-tasks notification cache so it stops appearing in the statusline, without changing server-side task state.
+
 ## Problem Statement
 
 A pending-task notification surfaced in the statusline is a prompt, not an

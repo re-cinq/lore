@@ -10,6 +10,8 @@
 | Auth scope | `write`                                                          |
 | Module     | Memory routes (`api/routes/memory.ts` → `handleSessionSummary`) |
 
+POST /api/session-summary is the Stop-hook ingest endpoint that normalizes a captured Claude Code session log, frames it with its repo, deduplicates it, persists it as an episode, and fires asynchronous fact and graph extraction.
+
 ## Problem Statement
 
 When a Claude Code session ends, the Stop hook POSTs the captured session log so

@@ -10,6 +10,8 @@
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
+`lore_list_task_group` lists every task sharing one task_group_id with a completed/total rollup, so a caller can gauge a single multi-repo feature's progress at a glance.
+
 ## Problem Statement
 
 Multi-repo features are coordinated as a task group (shared `task_group_id`). To

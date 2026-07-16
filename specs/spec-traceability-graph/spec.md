@@ -11,6 +11,8 @@
 | Sequencing     | `project-test-interface` ships before this graph; this spec **references** it for test/coverage inputs rather than re-describing them |
 | Hardened by    | [ADR-026](../../adrs/ADR-026-spec-drift-graph-primary-detection.md) — the weekly `spec_drift` cron consumes this graph's `violated`/`drifted` signal; dedup, bounded infra-retry, and actionable issue copy |
 
+The Spec Traceability Graph is a derived Dgraph projection giving a queryable, bidirectional, sentence-level map from spec statements to the tests and code that implement them, so drift detection can catch a statement whose implementation changed — not just link rot — across any programming language.
+
 ## Problem Statement
 
 There is no queryable, bidirectional, sentence-level map from a spec to

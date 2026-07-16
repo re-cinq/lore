@@ -10,6 +10,8 @@
 | Module  | Pipeline (`features/pipeline/runner.local.ts`) |
 | Scope   | local                                          |
 
+`lore_disable_task_notifications` tears down the local pending-task background poller and removes its cache file, giving a developer a clean, idempotent way to stop notifications and clear the statusline.
+
 ## Problem Statement
 
 A developer who turned on pending-task notifications needs a clean way to stop

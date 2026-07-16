@@ -10,6 +10,8 @@
 | Module  | Pipeline (`runner.local.ts`)                |
 | Scope   | local                                       |
 
+`lore_claim_and_run_locally` lets a developer claim an existing pending pipeline task by id and run it on their own machine — in-process for ingest types, or as a background worktree task otherwise — removing it from the local pending list either way.
+
 ## Problem Statement
 
 A pending pipeline task surfaced by the notifier should be claimable by a

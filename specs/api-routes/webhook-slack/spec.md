@@ -10,6 +10,8 @@
 | Auth    | HMAC SHA-256 (`X-Slack-Signature: v0=…` over `v0:{ts}:{body}`, secret `LORE_SLACK_SIGNING_SECRET`) + 5-min replay window |
 | Module  | `mcp-server/src/api/routes/webhooks.ts` (`handleSlackWebhook`)       |
 
+POST /api/webhook/slack receives the signed `/lore` slash command from Slack, verifies it, maps the channel to a repo, and creates a pipeline task so developers can dispatch work without leaving the channel.
+
 ## Problem Statement
 
 Developers invoke `/lore [task_type] <description>` from Slack to create

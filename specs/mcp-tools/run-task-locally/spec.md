@@ -10,6 +10,8 @@
 | Module  | Pipeline (`runner.local.ts`)                |
 | Scope   | local                                       |
 
+`lore_run_task_locally` spawns a detached headless Claude Code process in a fresh git worktree on the developer's machine and returns immediately with the task id, branch, worktree path, log file, and PID.
+
 ## Problem Statement
 
 A developer wants to delegate an implementation task to a background Claude Code

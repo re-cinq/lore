@@ -10,6 +10,8 @@
 | Module  | Pipeline (`features/pipeline/runner.local.ts`) |
 | Scope   | local                                          |
 
+`lore_list_pending_tasks` shows unclaimed backlog pipeline tasks grouped by repo so a developer can pick one to run locally before the GKE agent claims it.
+
 ## Problem Statement
 
 A developer running Claude Code locally wants to see backlog pipeline tasks they

@@ -8,6 +8,8 @@ domains: [mcp-server, context, retrieval, web-ui]
 
 # ADR-020: Context assembly — XML-tagged output + relevance-ranked, deduped retrieval
 
+Reworks context assembly to rank local sources by ts_rank relevance and dedupe by file path, and to serialize the block as XML-tagged documents with provenance instead of a collision-prone markdown blob.
+
 ## Context
 
 `lore_assemble_context` builds the context block every Claude session and task runner
