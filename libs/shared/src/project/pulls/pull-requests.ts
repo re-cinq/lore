@@ -2,6 +2,7 @@ import type {
   PullRequestsPort,
   PullRef,
   PRReviewEvent,
+  CreateReviewInput,
   MergeMethod,
   PullReview,
   ReviewComment,
@@ -36,6 +37,10 @@ export class PullRequests {
 
   review(number: number, body: string, event: PRReviewEvent): Promise<void> {
     return this.pulls.review(this.repo, number, body, event);
+  }
+
+  createReview(number: number, input: CreateReviewInput): Promise<void> {
+    return this.pulls.createReview(this.repo, number, input);
   }
 
   addLabel(number: number, label: string): Promise<void> {

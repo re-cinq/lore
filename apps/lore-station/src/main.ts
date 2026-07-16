@@ -13,6 +13,7 @@ import { runGateStation } from "./stations/gate.js";
 import { runGithubActionStation } from "./stations/github-action.js";
 import { runRetrospectiveStation } from "./stations/retrospective.js";
 import { runDetectStation } from "./stations/detect.js";
+import { runCommentTriageStation } from "./stations/comment-triage.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 
 type StationRunner = (
@@ -26,6 +27,7 @@ export const stations: Record<string, StationRunner> = {
   github_action: runGithubActionStation,
   retrospective: runRetrospectiveStation,
   detect: runDetectStation,
+  "comment-triage": runCommentTriageStation,
 };
 
 export async function runStation(

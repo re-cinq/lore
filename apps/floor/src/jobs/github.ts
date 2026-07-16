@@ -1,5 +1,5 @@
 /**
- * Layer-3 handlers for GitHub events. review-reactor + auto-merge already lived in
+ * Layer-3 handlers for GitHub events. auto-merge already lived in
  * Floor; the issues-labeled dispatch and the spec-PR-merge spec-task sync are
  * MOVED here from the mcp-server webhook (they do real DB + GitHub work, not just
  * a fan-out), using Floor's platform + the shared task helpers.
@@ -15,7 +15,6 @@ import {
 import { getPool } from "../kernel/db.js";
 import { projectFor } from "../composition/project-boot.js";
 import { settings, taskStore, taskQueue } from "../kernel/queues.js";
-import { runReviewReactorForPR } from "./review/review-reactor.js";
 import { tryAutoMergeForCompletedTask } from "./merge/auto-merge-trigger.js";
 import type { EventHandler } from "../main-loop/types.js";
 
@@ -29,13 +28,6 @@ async function autoMergeForPR(repo: string, prNumber: number): Promise<void> {
   await tryAutoMergeForCompletedTask({ taskId });
 }
 
-/** pull_request sync/open/reopen/ready + issue_comment on a PR → review reactor. */
-export const reviewReactor: EventHandler = async (params) => {
-  const { repo, pr_number } = params as { repo: string; pr_number: number };
-
-  await runReviewReactorForPR(repo, pr_number);
-};
-
 /** check_run/check_suite completed → re-evaluate auto-merge for the backing task. */
 export const autoMerge: EventHandler = async (params) => {
   const { repo, pr_number } = params as { repo: string; pr_number: number };
@@ -43,11 +35,11 @@ export const autoMerge: EventHandler = async (params) => {
   await autoMergeForPR(repo, pr_number);
 };
 
-/** A submitted review can flip both the review loop and the auto-merge gate. */
+/** A submitted review can flip the auto-merge gate (the address handling rides the
+ *  code-review-reply line, wired separately in the registry). */
 export const onReviewSubmitted: EventHandler = async (params) => {
   const { repo, pr_number } = params as { repo: string; pr_number: number };
 
-  await runReviewReactorForPR(repo, pr_number);
   await autoMergeForPR(repo, pr_number);
 };
 

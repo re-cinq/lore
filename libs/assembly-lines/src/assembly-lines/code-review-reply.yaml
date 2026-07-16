@@ -1,0 +1,27 @@
+name: code-review-reply
+description: Act on a human reply to a review comment — answer in-thread, or (on approval) commit the fix. Started by the comment-triage router or a submitted review.
+version: 1
+entry: reply
+exit: done
+
+nodes:
+  - id: reply
+    type: agent
+    prompt_ref: code-review-refine
+    model: claude-sonnet-4-6
+    description: Intent-aware — answer in the thread, or implement the approved fix and commit to the PR branch.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker.
+
+edges:
+  - from: reply
+    to: done
+    on: success
+  - from: reply
+    to: done
+    on: changes_requested
+  - from: reply
+    to: done
+    on: failed

@@ -1,0 +1,23 @@
+name: comment-triage
+description: Classify a human PR comment (Haiku station) and route it — the Floor reads the triage action and starts the review / address / answer follow-up (or nothing, on ignore).
+version: 1
+entry: triage
+exit: done
+
+nodes:
+  - id: triage
+    type: comment-triage
+    timeout_minutes: 5
+    description: Classify the comment into review / address / answer / ignore; the action rides in LORE_NODE_RESULT extras.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker.
+
+edges:
+  - from: triage
+    to: done
+    on: success
+  - from: triage
+    to: done
+    on: failed

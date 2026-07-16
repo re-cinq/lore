@@ -325,6 +325,8 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
 
     expect(names).toEqual([
       "code-review",
+      "code-review-reply",
+      "comment-triage",
       "feature-finalize",
       "feature-planning",
       "gap-detect",
@@ -337,23 +339,31 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
     ]);
   });
 
-  it("code-review routes review→refine on changes_requested and review→done on success", async () => {
+  it("code-review is a suggestion-only review→done graph (no refine/auto-commit)", async () => {
     const map = await loadAssemblyLineDir(assemblyLinesDir);
     const wf = map.get("code-review");
 
     expect(wf?.entry).toBe("review");
     expect(wf?.exit).toBe("done");
     expect(wf?.nodes.find((n) => n.id === "review")?.type).toBe("agent");
-    expect(wf?.nodes.find((n) => n.id === "refine")?.type).toBe("agent");
-    expect(
-      wf?.edges.find((e) => e.from === "review" && e.to === "refine")?.on,
-    ).toBe("changes_requested");
+    expect(wf?.nodes.find((n) => n.id === "refine")).toBeUndefined();
     expect(
       wf?.edges.find((e) => e.from === "review" && e.to === "done")?.on,
     ).toBe("success");
     expect(
-      wf?.edges.find((e) => e.from === "refine" && e.to === "done")?.on,
-    ).toBe("always");
+      wf?.edges.find((e) => e.from === "review" && e.on === "changes_requested")
+        ?.to,
+    ).toBe("done");
+  });
+
+  it("comment-triage is a triage(station)→done graph", async () => {
+    const map = await loadAssemblyLineDir(assemblyLinesDir);
+    const wf = map.get("comment-triage");
+
+    expect(wf?.entry).toBe("triage");
+    expect(wf?.nodes.find((n) => n.id === "triage")?.type).toBe(
+      "comment-triage",
+    );
   });
 
   it("detection lines are two-node detect → done graphs keyed to their historic job names", async () => {

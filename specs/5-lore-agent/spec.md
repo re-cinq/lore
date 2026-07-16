@@ -275,9 +275,14 @@ When processing a task, the service creates a GitHub Issue on the target repo to
 
 If the GitHub App lacks Issues permission on a repo, the task proceeds without an issue.
 
-### FR-14: Review Reactor
+### FR-14: Review Reactor (RETIRED 2026-07)
 
-The service monitors agent-generated PRs for human review feedback every 5 minutes. When "changes requested" reviews or new comments are detected after the last commit, the agent assembles context (PR diff + review comments + repo conventions), calls the LLM to generate fixes, and commits corrections to the existing branch. Maximum 3 iterations per PR before escalating with a `needs-human` label. Review corrections are stored in agent memory for future tasks on the same repo.
+The legacy review-reactor — a 5-minute poll that LLM-rewrote whole files to address
+review feedback — is **retired**. Handling PR review feedback is now owned by the
+`code-review` assembly line (ADR-012): a Haiku `comment-triage` station classifies each
+comment and a `code-review-reply` line commits an approved fix or answers in-thread.
+Reviews themselves are suggestion-only (structured findings → Conventional Comments) and
+fixes are human-gated. See `specs/auto-review-loop/spec.md`.
 
 ### FR-15: Platform Abstraction
 

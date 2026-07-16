@@ -51,6 +51,7 @@ export function taskFromRow(row: AssemblyLineRecord): FloorAssemblyLineTask {
     description: String(row.args.description ?? ""),
     targetRepo: row.repo,
     branch: row.branch ?? "",
+    args: row.args,
   };
 }
 

@@ -4,6 +4,7 @@ title: "Webhook-driven review reactor + prompt caching + business-hours cron"
 status: shipped
 date: 2026-04-17
 domains: [agent, pipeline, review, cost, observability]
+superseded_note: "2026-07: the review-reactor COMPONENT is retired — the code-review assembly line (ADR-012) is the sole reviewer, and PR comments are handled by the comment-triage station + code-review-reply line rather than the reactor's whole-file LLM rewrite. The webhook→event-bus substrate, prompt caching, and business-hours cron introduced here stand and are unaffected."
 ---
 
 # ADR-015: Event-driven review reactor + cost optimizations

@@ -90,23 +90,40 @@ task_types:
     # is the safe fallback. Monitor parse-success rate for a week.
     model: claude-haiku-4-5-20251001
 
-  # The code-review assembly line's review node. Reviews ANY open PR (not just
-  # Lore's own), posting LINE-LEVEL inline comments — `gh pr review` alone posts
-  # only a top-level body, so use the reviews API with a comments array.
+  # The code-review assembly line's review node. Suggestion-only: it does NOT post
+  # or commit — it emits STRUCTURED findings and the Floor renders + posts them as
+  # Conventional Comments (deterministic). Be liberal with concrete suggestions.
   code-review:
     prompt_template: |
       {description}
 
-      You are reviewing this pull request against the repo's conventions
-      (CLAUDE.md), ADRs in adrs/, and any spec in specs/. Check correctness,
-      type safety, security, and simplicity.
+      Review this pull request against the repo's conventions (CLAUDE.md),
+      ADRs in adrs/, and any spec in specs/. Check correctness, type safety,
+      security, and simplicity. Do NOT edit code and do NOT post comments
+      yourself — Lore posts your findings for you.
 
-      Post LINE-LEVEL inline comments — create one review carrying a comments
-      array, e.g.:
-        gh api repos/{owner}/{repo}/pulls/{pr}/reviews -f event=COMMENT \
-          -f 'comments[][path]=<file>' -F 'comments[][line]=<n>' \
-          -f 'comments[][body]=<comment>'
-      Keep each comment specific and actionable; do not restate the diff.
+      Emit a fenced REVIEW_FINDINGS block (one finding per point) then the
+      verdict. Be liberal with concrete `suggestion` fixes. Each `subject` is
+      ONE short imperative line. Labels: issue | suggestion | nit | question |
+      praise | thought | chore. Add `"decoration":"blocking"` to a must-fix
+      issue. `suggestion` is the replacement text for that exact line(s).
+
+      ```REVIEW_FINDINGS
+      {
+        "verdict": "approved" | "changes_requested",
+        "summary": "<one line>",
+        "findings": [
+          {
+            "path": "src/foo.ts",
+            "line": 42,
+            "label": "issue",
+            "decoration": "blocking",
+            "subject": "user can be null here — guard before deref",
+            "suggestion": "const name = user?.name ?? \"anon\";"
+          }
+        ]
+      }
+      ```
 
       Then output exactly one of:
       - REVIEW_RESULT:APPROVED
@@ -116,17 +133,20 @@ task_types:
     execution_mode: claude-code
     model: claude-sonnet-4-6
 
-  # The code-review assembly line's refine node — reached on changes_requested.
-  # Decides per reply: answer in the thread, or commit a fix to the PR branch.
+  # The code-review-reply line's node — intent-aware, thread-targeted. Started by
+  # the comment-triage router (address|answer) or a submitted review (address).
   code-review-refine:
     prompt_template: |
       {description}
 
-      Decide how to act on the outstanding review point:
-      - If it is a question or discussion, reply in the review thread via
-        `gh api` (reviews/comments replies) — do NOT change code.
-      - If it is an actionable fix request, edit the code and commit to the PR
-        branch (the branch is already checked out).
+      The task line above states the intent and the thread. Act on it:
+      - intent = address: implement the requested fix, commit it to the PR
+        branch (already checked out), then post a SHORT confirmation in the
+        review thread via `gh api` (…/pulls/<pr>/comments/<root_id>/replies).
+      - intent = answer: reply briefly in the review thread via `gh api`; do
+        NOT change code.
+      Read the thread being replied to (the in_reply_to id in the task) to
+      understand what "it" refers to before acting.
 
       Then output exactly one of:
       - REVIEW_RESULT:APPROVED
@@ -310,3 +330,6 @@ stations:
   detect:
     command: ["lore-station", "detect"]
     timeout_minutes: 30
+  comment-triage:
+    command: ["lore-station", "comment-triage"]
+    timeout_minutes: 5

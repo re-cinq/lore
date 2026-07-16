@@ -87,4 +87,9 @@ export interface AssemblyLinesPort {
     prNumber: number,
     outcome: string,
   ): Promise<number>;
+  /**
+   * True when any `code-review` line (any status) has ever run for the repo+PR —
+   * the first-review-only guard so pushes after the first review don't re-review.
+   */
+  hasReviewedPr(repo: string, prNumber: number): Promise<boolean>;
 }

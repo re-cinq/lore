@@ -217,6 +217,21 @@ describe("PgAssemblyLines adapter", () => {
     expect(calls[0]?.text).toContain("status IN ('queued', 'running')");
     expect(calls[0]?.params).toEqual(["pr_closed", "re-cinq/lore", 42]);
   });
+
+  it("hasReviewedPr matches repo + code-review + args pr_number", async () => {
+    const { pool, calls } = fakePool([[{ "?column?": 1 }]]);
+
+    const reviewed = await new PgAssemblyLines(pool).hasReviewedPr(
+      "re-cinq/lore",
+      42,
+    );
+
+    expect(reviewed).toBe(true);
+    expect(calls[0]?.text).toContain("definition_name = 'code-review'");
+    expect(calls[0]?.text).toContain("(args->>'pr_number')::int = $2");
+    expect(calls[0]?.text).toContain("LIMIT 1");
+    expect(calls[0]?.params).toEqual(["re-cinq/lore", 42]);
+  });
 });
 
 describe("InMemoryAssemblyLines double", () => {
@@ -460,6 +475,26 @@ describe("InMemoryAssemblyLines double", () => {
     expect(await assemblyLines.getById(other)).toMatchObject({
       status: "queued",
     });
+  });
+
+  it("hasReviewedPr is true once any code-review line ran, false otherwise", async () => {
+    const assemblyLines = new InMemoryAssemblyLines();
+    const reviewed = await assemblyLines.start({
+      definitionName: "code-review",
+      repo: "r/a",
+      args: { pr_number: 42 },
+    });
+
+    await assemblyLines.finish(reviewed, "success");
+    await assemblyLines.start({
+      definitionName: "comment-triage",
+      repo: "r/a",
+      args: { pr_number: 99 },
+    });
+
+    expect(await assemblyLines.hasReviewedPr("r/a", 42)).toBe(true);
+    expect(await assemblyLines.hasReviewedPr("r/a", 99)).toBe(false);
+    expect(await assemblyLines.hasReviewedPr("r/b", 42)).toBe(false);
   });
 });
 

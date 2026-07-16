@@ -23,8 +23,9 @@ The agent now registers **16** jobs (`agent/src/index.ts`), spanning two
 profiles the one scheduler serves badly at the heavy end:
 
 - **Hot-path / sub-minute** — `merge_check`, `approval_check`,
-  `loretask_watcher`, `spec_task_executor` (`*/1`), plus `review_reactor` and
-  `stale_task_check`. These want the resident process: a pod-per-tick is pure
+  `loretask_watcher`, `spec_task_executor` (`*/1`), and `stale_task_check`
+  (`review_reactor` was retired in 2026-07 — see [ADR-012](./ADR-012-autonomous-review-loop.md)).
+  These want the resident process: a pod-per-tick is pure
   churn, and several are coupled to the agent's webhook trigger endpoints and
   warm in-memory state (DB pool, Octokit client, prompt-cache break tracker).
 - **Heavy / infrequent batch** — `context_reindex`, `gap_detection`,

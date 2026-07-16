@@ -191,6 +191,9 @@ export function mapGitHubEvent(
           repo,
           pr_number: prNumber,
           ...commentParams(payload.comment),
+          // The thread root a reply hangs off — the GitHub replies endpoint keys
+          // on it, and it is the triage's is-a-reply signal.
+          in_reply_to_id: payload.comment?.in_reply_to_id ?? null,
         },
         dedupeKey: key,
       },

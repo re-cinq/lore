@@ -1,10 +1,25 @@
 /**
- * The no-clone PR lifecycle port. Consumed by auto-merge + review-reactor,
- * which operate purely over the API and never clone. lib/platform-github
- * implements this alongside GitHubPort.
+ * The no-clone PR lifecycle port. Consumed by auto-merge + the code-review
+ * choreography, which operate purely over the API and never clone.
+ * lib/platform-github implements this alongside GitHubPort.
  */
 
 export type PRReviewEvent = "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
+
+/** One inline comment in a review — rendered from a structured finding. */
+export interface ReviewCommentInput {
+  path: string;
+  line: number;
+  side?: "LEFT" | "RIGHT";
+  body: string;
+}
+
+/** A single review carrying a body + an array of inline comments (reviews API). */
+export interface CreateReviewInput {
+  event: PRReviewEvent;
+  body: string;
+  comments: ReviewCommentInput[];
+}
 export type MergeMethod = "squash" | "merge" | "rebase";
 
 /** Aggregate GitHub Actions conclusion for a ref: the deterministic gate (ADR-031 D3).
@@ -23,6 +38,8 @@ export interface PullRef {
   author?: string;
   /** Draft flag — the code-review gate skips drafts. Absent on legacy doubles. */
   draft?: boolean;
+  /** Head commit sha — the PR-check publisher attaches the check to it. Absent on legacy doubles. */
+  headSha?: string;
 }
 
 export interface PullReview {
@@ -79,6 +96,12 @@ export interface PullRequestsPort {
     number: number,
     body: string,
     event: PRReviewEvent,
+  ): Promise<void>;
+  /** Post one review carrying an array of inline (line-level) comments. */
+  createReview(
+    repo: string,
+    number: number,
+    input: CreateReviewInput,
   ): Promise<void>;
   addLabel(repo: string, number: number, label: string): Promise<void>;
   merge(repo: string, number: number, method?: MergeMethod): Promise<void>;
