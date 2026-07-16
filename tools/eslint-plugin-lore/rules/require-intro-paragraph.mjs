@@ -14,22 +14,8 @@
  * is Draft or Shipped.
  */
 
+import { docKind } from "./lib/doc-kind.mjs";
 import { hasLeadParagraph } from "./lib/intro-paragraph.mjs";
-
-/** spec.md lives under `specs/`, ADRs under `adrs/`; anything else is out of scope. */
-function docKind(filename) {
-  const posix = filename.split("\\").join("/");
-
-  if (posix.includes("/adrs/") || posix.startsWith("adrs/")) {
-    return "adr";
-  }
-
-  if (posix.includes("/specs/") || posix.startsWith("specs/")) {
-    return "spec";
-  }
-
-  return null;
-}
 
 export default {
   meta: {
