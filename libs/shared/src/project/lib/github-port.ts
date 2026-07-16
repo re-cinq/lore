@@ -22,6 +22,22 @@ export interface IssueFilter {
   labels?: string[];
 }
 
+export type CheckStatus = "queued" | "in_progress" | "completed";
+export type CheckConclusion = "success" | "neutral" | "failure" | "cancelled";
+
+/** A GitHub check run upsert — keyed by `(headSha, name)`, so re-publishing a
+ *  line's state updates the same check rather than stacking new ones. */
+export interface CheckRunInput {
+  headSha: string;
+  name: string;
+  status: CheckStatus;
+  /** Required by GitHub when `status === "completed"`. */
+  conclusion?: CheckConclusion;
+  title: string;
+  summary: string;
+  detailsUrl?: string;
+}
+
 export interface GitHubPort {
   readonly name: string;
   isConfigured(): boolean;
@@ -66,4 +82,6 @@ export interface GitHubPort {
     content: string,
     message: string,
   ): Promise<void>;
+  /** Create or update a check run for `input.headSha`, keyed by check name. */
+  upsertCheckRun(repo: string, input: CheckRunInput): Promise<void>;
 }

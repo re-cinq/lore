@@ -1,4 +1,4 @@
-import type { GitHubPort } from "../lib/github-port.js";
+import type { CheckRunInput, GitHubPort } from "../lib/github-port.js";
 
 /**
  * project.repo — GitHub file access over the API, repo bound. READS need no
@@ -49,5 +49,9 @@ export class RepoFiles {
     message: string,
   ): Promise<void> {
     return this.github.commitFile(this.repo, branch, path, content, message);
+  }
+
+  upsertCheckRun(input: CheckRunInput): Promise<void> {
+    return this.github.upsertCheckRun(this.repo, input);
   }
 }

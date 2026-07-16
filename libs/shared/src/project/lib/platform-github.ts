@@ -5,6 +5,7 @@ import type {
   IssueFilter,
   IssueState,
   CloseReason,
+  CheckRunInput,
 } from "./github-port.js";
 import type {
   PullRequestsPort,
@@ -408,6 +409,43 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       message,
       content: Buffer.from(content).toString("base64"),
       ...(sha ? { sha } : {}),
+    });
+  }
+
+  async upsertCheckRun(repo: string, input: CheckRunInput): Promise<void> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const { data } = await ok.rest.checks.listForRef({
+      owner,
+      repo: name,
+      ref: input.headSha,
+      check_name: input.name,
+    });
+    const existing = data.check_runs[0];
+    const output = { title: input.title, summary: input.summary };
+    const fields = {
+      status: input.status,
+      ...(input.conclusion ? { conclusion: input.conclusion } : {}),
+      ...(input.detailsUrl ? { details_url: input.detailsUrl } : {}),
+      output,
+    };
+
+    if (existing) {
+      await ok.rest.checks.update({
+        owner,
+        repo: name,
+        check_run_id: existing.id,
+        ...fields,
+      });
+
+      return;
+    }
+    await ok.rest.checks.create({
+      owner,
+      repo: name,
+      name: input.name,
+      head_sha: input.headSha,
+      ...fields,
     });
   }
 

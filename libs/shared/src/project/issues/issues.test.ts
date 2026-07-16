@@ -50,6 +50,7 @@ function fakeGitHub(issues: IssueRef[], calls: string[] = []): GitHubPort {
     },
     createBranch: async () => {},
     commitFile: async () => {},
+    upsertCheckRun: async () => {},
   };
 }
 
