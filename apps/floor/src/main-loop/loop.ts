@@ -94,6 +94,7 @@ export async function drainOnce(deps: LoopDeps): Promise<number> {
 
   const serial = [...serialByFamily.entries()].map(async ([family, events]) => {
     busyFamilies.add(family);
+
     try {
       for (const ev of events) {
         await handleOne(ev, deps).catch(logTransitionFailure(ev));
