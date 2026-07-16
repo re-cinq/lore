@@ -7,7 +7,8 @@
  * commitFile → pulls.open).
  */
 
-import { rewriteSpecStatusRow } from "./spec-status.js";
+import { randomUUID } from "node:crypto";
+import { rewriteSpecStatusRow, parseDocStatus } from "./spec-status.js";
 import type { Project } from "./index.js";
 
 const BRANCH_PREFIX = "lore/spec-status-upkeep";
@@ -24,9 +25,14 @@ export interface StatusFlipOptions {
 export interface StatusFlipResult {
   /** The opened PR's URL, or null when nothing was opened. */
   prUrl: string | null;
-  /** True when no PR was opened (spec missing or already at the target status). */
+  /** True when no PR was opened. */
   skipped: boolean;
-  reason?: "missing" | "already-current";
+  /**
+   * Why nothing was opened: the spec is absent on the default branch
+   * (`missing`), its status already buckets to shipped (`already-current`), or
+   * it has no `| Status |` header row to flip (`no-status-row`).
+   */
+  reason?: "missing" | "already-current" | "no-status-row";
 }
 
 function buildFlipBranchName(specPath: string): string {
@@ -36,9 +42,10 @@ function buildFlipBranchName(specPath: string): string {
     .replace(/[^a-zA-Z0-9._/-]/g, "-")
     .replace(/\/+/g, "-")
     .slice(0, 60);
-  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T-]/g, "");
+  // Random suffix (not wall-clock) so two flips for the same spec never collide.
+  const token = randomUUID().slice(0, 8);
 
-  return `${BRANCH_PREFIX}/${safe}-${stamp}`;
+  return `${BRANCH_PREFIX}/${safe}-${token}`;
 }
 
 function buildFlipPrBody(
@@ -79,7 +86,13 @@ export async function openSpecStatusFlipPr(
   const newContent = rewriteSpecStatusRow(content, newLabel);
 
   if (newContent === null) {
-    return { prUrl: null, skipped: true, reason: "already-current" };
+    const hasStatusRow = parseDocStatus(content, "spec").status !== null;
+
+    return {
+      prUrl: null,
+      skipped: true,
+      reason: hasStatusRow ? "already-current" : "no-status-row",
+    };
   }
 
   const branch = buildFlipBranchName(specPath);

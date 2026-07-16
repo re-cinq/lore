@@ -99,4 +99,19 @@ describe("openSpecStatusFlipPr", () => {
     expect(result).toEqual({ prUrl: null, skipped: true, reason: "missing" });
     expect(state.pulls).toHaveLength(0);
   });
+
+  it("reports no-status-row when the spec has no Status header", async () => {
+    const { project, state } = fakeProject({
+      "specs/example/spec.md": "# Spec\n\nNo status table here.\n",
+    });
+
+    const result = await openSpecStatusFlipPr(project, "specs/example/spec.md");
+
+    expect(result).toEqual({
+      prUrl: null,
+      skipped: true,
+      reason: "no-status-row",
+    });
+    expect(state.pulls).toHaveLength(0);
+  });
 });

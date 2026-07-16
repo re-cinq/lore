@@ -120,6 +120,7 @@ export function rewriteSpecStatusRow(
     return null;
   }
 
+  const sep = content.includes("\r\n") ? "\r\n" : "\n";
   const lines = content.split(/\r?\n/);
 
   for (let i = 0; i < lines.length; i++) {
@@ -134,7 +135,7 @@ export function rewriteSpecStatusRow(
     cells[statusIdx + 1] = replaceStatusCell(cells[statusIdx + 1], label);
     lines[i] = cells.join("|");
 
-    return lines.join("\n");
+    return lines.join(sep);
   }
 
   return null;

@@ -150,6 +150,15 @@ describe("rewriteSpecStatusRow", () => {
     ).toBeNull();
   });
 
+  it("preserves CRLF line endings when the source uses them", () => {
+    const crlf = spec("Draft").replace(/\n/g, "\r\n");
+    const out = rewriteSpecStatusRow(crlf, "Implemented") as string;
+
+    expect(out.includes("\r\n")).toBe(true);
+    expect(out.includes("\n\n")).toBe(false);
+    expect(parseDocStatus(out, "spec").status).toBe("shipped");
+  });
+
   it("leaves every other line untouched", () => {
     const before = spec("Draft");
     const after = rewriteSpecStatusRow(before, "Implemented") as string;

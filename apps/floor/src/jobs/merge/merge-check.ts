@@ -210,10 +210,21 @@ async function maybeFlipSpecStatus(
     evidence: `Completion: every task in group \`${task.task_group_id}\` is merged (last: PR #${task.pr_number}).`,
   });
 
-  await project.features.transitionStatus(decision.featureId, "implemented");
-  console.log(
-    `[job] merge-check: spec-status-upkeep marked ${specPath} implemented ` +
-      `(${result.skipped ? `no PR: ${result.reason}` : result.prUrl})`,
+  // Keep the features table and the spec file in sync (FR1's invariant): only
+  // mark implemented when the spec was flipped or already reflects completion.
+  // A missing / status-row-less spec_path is left for a human to reconcile.
+  if (!result.skipped || result.reason === "already-current") {
+    await project.features.transitionStatus(decision.featureId, "implemented");
+    console.log(
+      `[job] merge-check: spec-status-upkeep marked ${specPath} implemented ` +
+        `(${result.skipped ? "already current" : result.prUrl})`,
+    );
+
+    return;
+  }
+  console.warn(
+    `[job] merge-check: spec-status-upkeep did not flip ${specPath} ` +
+      `(${result.reason}); feature ${decision.featureId} left for human reconcile`,
   );
 }
 
