@@ -82,11 +82,11 @@ through its `resultTextFromOutput`.
 
 The subsystem's `{"source": {...}, "event": <line>}` attribution wrapper
 exists ONLY on the sink lanes (the `/api/agent-events` cost sink, file sinks),
-where streams from many pods merge — never on stdout / `Agent.status.output`.
-Pre-cutover CRs (written while the subsystem still stamped attribution onto
-stdout) carry the wrapped shape in `status.output`; `resultTextFromOutput`
-transitionally peels that one layer and the shim is deleted once no such CRs
-remain.
+where streams from many pods merge — never on stdout / `Agent.status.output`
+(its `wrapEvent` enforce-throws on nesting since v0.6.2). The reader
+deliberately does not unwrap the envelope shape: an attribution-wrapped line
+falls through to the raw fallback, so a regression at the writer surfaces
+immediately instead of being silently tolerated.
 
 ## Timeouts
 

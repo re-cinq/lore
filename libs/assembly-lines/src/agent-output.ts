@@ -20,10 +20,10 @@ interface ResultLine {
   result?: unknown;
 }
 
-// TRANSITIONAL (delete once no pre-cutover CRs remain): before the
-// ai-agent-subsystem stopped stamping its {"source": {...}, "event": <line>}
-// attribution envelope onto stdout, every status.output line arrived wrapped
-// one level deeper. Peel that layer so those CRs' results still parse.
+// The subsystem's {"source": {...}, "event": <line>} attribution envelope
+// exists only on sink lanes, never on stdout/status.output (its wrapEvent
+// enforce-throws on nesting since v0.6.2) — the reader recognizes the shape
+// solely so resultLine can refuse to wrap one.
 interface AttributedLine {
   source: unknown;
   event: unknown;
@@ -33,15 +33,7 @@ function parseLine(line: string): ResultLine | null {
   try {
     const value: unknown = JSON.parse(line);
 
-    if (isResultLine(value)) {
-      return value;
-    }
-
-    if (isAttributedLine(value) && isResultLine(value.event)) {
-      return value.event;
-    }
-
-    return null;
+    return isResultLine(value) ? value : null;
   } catch {
     return null;
   }
