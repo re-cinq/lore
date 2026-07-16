@@ -75,14 +75,19 @@ jobs:
           # Canary: doc projection moved to the Floor event-bus ingress. Until the
           # operator provisions LORE_WEBHOOK_URL (+ exposes the Floor ingress), this
           # repo hasn't cut over yet — warn and skip (the nightly reindex backstops),
-          # don't red-fail main. A SET-but-broken URL still surfaces via curl below.
+          # don't red-fail main. A SET-but-broken URL red-fails via curl below.
           if [ -z "${LORE_WEBHOOK_URL}" ]; then
             echo "::warning::LORE_WEBHOOK_URL not set — ${{ matrix.kind }} projection skipped (pending Floor ci-ingest cutover)"
             exit 0
           fi
-          curl -sf -X POST \
+          # Hard-fail: a swallowed warning here let the ci-ingest 404 silently for
+          # weeks (ingress only routed /api/webhook/github) and stalled graph doc
+          # projection. This runs on push to main only — red is pure signal.
+          if ! curl -sf -X POST \
             -H "Authorization: Bearer ${LORE_INGEST_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "{\"repo\": \"${{ github.repository }}\", \"kinds\": [\"${{ matrix.kind }}\"], \"commit\": \"${{ github.sha }}\"}" \
-            "${LORE_WEBHOOK_URL}/api/webhook/ci-ingest" \
-            || echo "::warning::Lore ci-ingest endpoint returned an error for ${{ matrix.kind }} (transient — not blocking merge)"
+            "${LORE_WEBHOOK_URL}/api/webhook/ci-ingest"; then
+            echo "::error::Lore ci-ingest endpoint returned an error for ${{ matrix.kind }} — graph doc projection is NOT running"
+            exit 1
+          fi

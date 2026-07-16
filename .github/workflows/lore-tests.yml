@@ -67,4 +67,10 @@ jobs:
           if [ -z "${LORE_WEBHOOK_URL}" ]; then
             echo "::warning::LORE_WEBHOOK_URL not set — skipping (pending Floor ci-tests cutover)"; exit 0
           fi
-          ./lore-code-trace --post || echo "::warning::Lore test ingest failed"
+          # Hard-fail: a swallowed warning here let the ci-tests ingest 404 silently
+          # for weeks (ingress only routed /api/webhook/github) and starved the
+          # spec-impact graph. This runs on push to main only — red is pure signal.
+          if ! ./lore-code-trace --post; then
+            echo "::error::Lore test ingest failed — the spec-traceability graph is NOT receiving coverage"
+            exit 1
+          fi
