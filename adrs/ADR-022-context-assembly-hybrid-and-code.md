@@ -1,7 +1,7 @@
 ---
 adr_number: 22
 title: "Context assembly: hybrid (vector+BM25) ranking, a dedicated code source, and a per-document cap"
-status: accepted
+status: shipped
 date: 2026-06-11
 domains: [mcp-server, context, retrieval]
 supersedes: [ADR-020]

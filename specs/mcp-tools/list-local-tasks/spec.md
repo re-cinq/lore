@@ -3,7 +3,7 @@
 | Field   | Value                                       |
 |---------|---------------------------------------------|
 | Feature | lore_list_local_tasks MCP Tool                   |
-| Status  | **Draft**                                   |
+| Status  | Draft                                       |
 | Created | 2026-06-10                                  |
 | Owner   | Platform Engineering                        |
 | Tool    | `lore_list_local_tasks`                          |

@@ -3,7 +3,7 @@
 | Field       | Value                                                       |
 |-------------|-------------------------------------------------------------|
 | Feature     | /api/tokens API Route                                       |
-| Status      | **Draft**                                                   |
+| Status      | Draft                                                       |
 | Created     | 2026-06-10                                                  |
 | Owner       | Platform Engineering                                        |
 | Route       | `GET / POST /api/tokens` (path-only match)                  |

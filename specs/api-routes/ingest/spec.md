@@ -3,7 +3,7 @@
 | Field      | Value                                          |
 |------------|------------------------------------------------|
 | Feature    | Ingest files HTTP route                        |
-| Status     | **Draft**                                       |
+| Status     | Draft                                           |
 | Created    | 2026-06-10                                      |
 | Owner      | Platform Engineering                           |
 | Route      | `POST /api/ingest`                             |

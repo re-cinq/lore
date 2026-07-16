@@ -1,7 +1,7 @@
 ---
 adr_number: "011"
 title: LoreTask CRD for ephemeral Claude Code execution
-status: superseded
+status: retired
 date: 2026-04-01
 superseded_by: "031"
 domains:

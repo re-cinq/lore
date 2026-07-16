@@ -10,8 +10,9 @@
  *
  * Reporting is gated on the doc's normalized lifecycle status
  * (`@re-cinq/lore-shared/spec-status.js` — specs and ADRs fold into the same
- * buckets): a `rejected` spec / `superseded` ADR skips the rule entirely;
- * every other status warns. Configured `warn` in eslint.config.mjs.
+ * buckets): a `rejected` (never accepted) or `retired` (shipped then
+ * superseded/removed) doc skips the rule entirely; every other status warns.
+ * Configured `warn` in eslint.config.mjs.
  */
 
 import {

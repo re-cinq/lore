@@ -1,7 +1,7 @@
 ---
 adr_number: 16
 title: "Hippo-memory adaptations — retrieval strengthening, confidence tiers, conflict surfacing, transfer scoring, outcome feedback"
-status: accepted
+status: shipped
 date: 2026-04-20
 domains: [memory, agents, pipeline]
 ---
