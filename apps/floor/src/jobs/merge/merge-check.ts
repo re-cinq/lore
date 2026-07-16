@@ -13,6 +13,7 @@ import {
   inferPhaseDependencies,
   syncTasksToDb,
   specSlugFromBranch,
+  openSpecStatusFlipPr,
 } from "@re-cinq/lore-shared";
 import type { Project } from "@re-cinq/lore-shared";
 import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
@@ -158,6 +159,64 @@ export async function mergeCheckJob(): Promise<string> {
   return `Checked ${repos.length} repos (${mergedCount} merged), ${tasks.length} tasks (${tasksMerged} merged, ${tasksClosed} rejected)`;
 }
 
+/**
+ * spec-status-upkeep FR1 gate (pure). Returns the owning `featureId` when a
+ * just-merged task completes its feature's group — a spec-task, in a group,
+ * with `remainingInGroup === 0`, carrying a `feature_id` — else null.
+ */
+export function decideSpecStatusFlip(
+  task: Pick<MergeableTask, "task_type" | "task_group_id" | "context_bundle">,
+  remainingInGroup: number,
+): { featureId: string } | null {
+  if (task.task_type !== "spec-task" || !task.task_group_id) {
+    return null;
+  }
+
+  if (remainingInGroup > 0) {
+    return null;
+  }
+  const featureId = task.context_bundle?.feature_id;
+
+  return featureId ? { featureId } : null;
+}
+
+/**
+ * spec-status-upkeep FR1. When `task`'s merge completes its feature's task
+ * group, resolve the owning feature and open a deterministic one-line PR
+ * flipping the spec's `| Status |` header to Implemented, then transition the
+ * feature to `implemented`. No-op for non-spec-tasks, groupless tasks,
+ * incomplete groups, or unresolvable features.
+ */
+async function maybeFlipSpecStatus(
+  project: Project,
+  task: MergeableTask,
+): Promise<void> {
+  const remaining = task.task_group_id
+    ? await taskQueue().countUnmergedInGroup(task.task_group_id)
+    : 0;
+  const decision = decideSpecStatusFlip(task, remaining);
+
+  if (!decision) {
+    return;
+  }
+
+  const feature = await project.features.get(decision.featureId);
+
+  if (!feature) {
+    return;
+  }
+  const specPath = feature.spec_path ?? `specs/${feature.slug}/spec.md`;
+  const result = await openSpecStatusFlipPr(project, specPath, {
+    evidence: `Completion: every task in group \`${task.task_group_id}\` is merged (last: PR #${task.pr_number}).`,
+  });
+
+  await project.features.transitionStatus(decision.featureId, "implemented");
+  console.log(
+    `[job] merge-check: spec-status-upkeep marked ${specPath} implemented ` +
+      `(${result.skipped ? `no PR: ${result.reason}` : result.prUrl})`,
+  );
+}
+
 /** A merged task: mark merged, close its Issue, capture the outcome episode + stats,
  *  boost contributing memory, promote trust, and kick spec-sync / decompose. */
 async function handleMergedTask(
@@ -168,6 +227,16 @@ async function handleMergedTask(
   await taskStore().recordEvent(task.id, "pr-created", "merged", {
     merged_by: "merge-check",
   });
+
+  // spec-status-upkeep (FR1): when this merge completes a feature's task group,
+  // flip the spec's status header to Implemented and mark the feature done.
+  try {
+    await maybeFlipSpecStatus(project, task);
+  } catch (err) {
+    console.error(
+      `[job] merge-check: spec-status flip failed for ${task.id}: ${errorMessage(err)}`,
+    );
+  }
 
   // Close the GitHub Issue if still open
   if (task.issue_number) {
