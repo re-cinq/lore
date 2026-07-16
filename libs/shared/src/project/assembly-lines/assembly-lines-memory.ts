@@ -203,6 +203,15 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     return open.length;
   }
 
+  async hasReviewedPr(repo: string, prNumber: number): Promise<boolean> {
+    return this.rows.some(
+      (r) =>
+        r.repo === repo &&
+        r.definitionName === "code-review" &&
+        Number(r.args.pr_number) === prNumber,
+    );
+  }
+
   private matchesOpenPr(
     row: AssemblyLineRecord,
     repo: string,

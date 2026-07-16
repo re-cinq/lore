@@ -217,6 +217,20 @@ export class PgAssemblyLines implements AssemblyLinesPort {
 
     return rows.length;
   }
+
+  async hasReviewedPr(repo: string, prNumber: number): Promise<boolean> {
+    const { rows } = await this.pool.query(
+      `SELECT 1
+         FROM pipeline.assembly_lines
+        WHERE repo = $1
+          AND definition_name = 'code-review'
+          AND (args->>'pr_number')::int = $2
+        LIMIT 1`,
+      [repo, prNumber],
+    );
+
+    return rows.length > 0;
+  }
 }
 
 function toNodeRecord(row: {
