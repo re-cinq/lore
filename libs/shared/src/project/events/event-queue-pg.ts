@@ -17,18 +17,22 @@ export class PgEventQueue implements EventQueueRepository {
     return insertEvent(this.pool, input);
   }
 
-  async claimBatch(limit: number): Promise<EventRow[]> {
+  async claimBatch(
+    limit: number,
+    excludeEventNames: string[] = [],
+  ): Promise<EventRow[]> {
     const { rows } = await this.pool.query<EventRow>(
       `UPDATE pipeline.events e
           SET status = 'processing', attempts = attempts + 1, claimed_at = now()
         WHERE e.id IN (
           SELECT id FROM pipeline.events
            WHERE status IN ('pending', 'failed') AND next_attempt_at <= now()
+             AND event_name <> ALL($2::text[])
            ORDER BY next_attempt_at, id
            FOR UPDATE SKIP LOCKED
            LIMIT $1)
         RETURNING e.*`,
-      [limit],
+      [limit, excludeEventNames],
     );
 
     return rows as EventRow[];

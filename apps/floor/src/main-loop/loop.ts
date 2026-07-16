@@ -11,7 +11,7 @@ import type { EventHandler, EventRow } from "./types.js";
 
 export interface LoopDeps {
   resolve: (eventName: string) => EventHandler | undefined;
-  claim: (limit: number) => Promise<EventRow[]>;
+  claim: (limit: number, excludeEventNames: string[]) => Promise<EventRow[]>;
   markDone: (id: string) => Promise<void>;
   markFailed: (
     id: string,
@@ -21,6 +21,22 @@ export interface LoopDeps {
   markDead: (id: string, error: string) => Promise<void>;
   batchSize?: number;
 }
+
+/**
+ * Families whose handlers contend on shared external state (dgraph — every
+ * spec-trace writer aborts its concurrent twin): at most one handler in flight
+ * per Floor instance. Exclusion happens at CLAIM time so waiting rows stay
+ * `pending` — a dispatch-side queue would park claimed rows in `processing`,
+ * where anything waiting >600s is reaped as presumed-dead, re-claimed, and run
+ * concurrently anyway (the observed duplicate-self race on long projections).
+ * Cross-instance conflicts are absorbed by withTxn's retry-on-abort.
+ */
+const SERIAL_FAMILIES: ReadonlySet<string> = new Set([
+  "internal.ingest.spec_trace",
+]);
+
+/** Serial families with a handler in flight, shared across drain ticks. */
+const busyFamilies = new Set<string>();
 
 export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
   const handler = deps.resolve(ev.event_name);
@@ -48,26 +64,46 @@ export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
 }
 
 export async function drainOnce(deps: LoopDeps): Promise<number> {
-  const batch = await deps.claim(deps.batchSize ?? 20);
+  const batch = await deps.claim(deps.batchSize ?? 20, [...busyFamilies]);
 
   if (batch.length === 0) {
     return 0;
   }
-  const settled = await Promise.allSettled(
-    batch.map((ev) => handleOne(ev, deps)),
-  );
 
   // handleOne swallows handler errors into the row's state; a rejection here means a
   // mark-op itself failed (e.g. DB down mid-drain) and the row is left mid-flight for
-  // the reaper — surface it rather than letting Promise.allSettled hide it.
-  settled.forEach((r, i) => {
-    if (r.status === "rejected") {
-      console.error(
-        `[events] drain: transition failed for ${batch[i].event_name} (${batch[i].id}):`,
-        r.reason,
-      );
+  // the reaper — surface it rather than letting it vanish.
+  const logTransitionFailure = (ev: EventRow) => (reason: unknown) =>
+    console.error(
+      `[events] drain: transition failed for ${ev.event_name} (${ev.id}):`,
+      reason,
+    );
+
+  const parallel = batch
+    .filter((ev) => !SERIAL_FAMILIES.has(ev.event_name))
+    .map((ev) => handleOne(ev, deps).catch(logTransitionFailure(ev)));
+
+  const serialByFamily = new Map<string, EventRow[]>();
+
+  for (const ev of batch.filter((e) => SERIAL_FAMILIES.has(e.event_name))) {
+    serialByFamily.set(ev.event_name, [
+      ...(serialByFamily.get(ev.event_name) ?? []),
+      ev,
+    ]);
+  }
+
+  const serial = [...serialByFamily.entries()].map(async ([family, events]) => {
+    busyFamilies.add(family);
+    try {
+      for (const ev of events) {
+        await handleOne(ev, deps).catch(logTransitionFailure(ev));
+      }
+    } finally {
+      busyFamilies.delete(family);
     }
   });
+
+  await Promise.all([...parallel, ...serial]);
 
   return batch.length;
 }

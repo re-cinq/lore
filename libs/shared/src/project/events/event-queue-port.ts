@@ -33,8 +33,14 @@ export interface EventRow {
 export interface EventQueueRepository {
   /** Insert one event, collapsing a redelivery when `dedupeKey` is set. */
   insert(input: EventInsert): Promise<void>;
-  /** Atomically claim up to `limit` runnable rows (pending/failed past backoff). */
-  claimBatch(limit: number): Promise<EventRow[]>;
+  /**
+   * Atomically claim up to `limit` runnable rows (pending/failed past
+   * backoff). `excludeEventNames` skips busy serial families at claim time so
+   * their waiting rows stay `pending` — parking them in `processing` behind an
+   * in-process queue would get them reaped as presumed-dead and re-run
+   * concurrently anyway.
+   */
+  claimBatch(limit: number, excludeEventNames?: string[]): Promise<EventRow[]>;
   markDone(id: string): Promise<void>;
   markFailed(id: string, error: string, backoffSeconds: number): Promise<void>;
   markDead(id: string, error: string): Promise<void>;
