@@ -171,6 +171,57 @@ describe("formatBrokenLinksReport", () => {
   it("returns the empty string when there are no broken links", () => {
     expect(formatBrokenLinksReport([])).toBe("");
   });
+
+  it("keeps a report over GitHub's 65536-char issue limit under budget, ending with a truncation line and the footer", () => {
+    const broken: BrokenLink[] = Array.from({ length: 2000 }, (_, i) => ({
+      spec_path: `specs/spec-${i % 40}/spec.md`,
+      statement_text: `Statement ${i}: ${"x".repeat(70)}`,
+      link: {
+        label: "test",
+        path: `src/deep/nested/path/file-${i}.test.ts`,
+        line: i + 1,
+      },
+      reason: "line-out-of-range" as const,
+    }));
+    const body = formatBrokenLinksReport(broken);
+
+    expect(body.length).toBeLessThan(65536);
+    expect(body).toContain("2000 links across 40 specs");
+    expect(body).toMatch(
+      /…and \d+ more broken link\(s\) truncated — see the job logs\./,
+    );
+    expect(
+      body
+        .trimEnd()
+        .endsWith("Fix or remove the broken links to silence this."),
+    ).toBe(true);
+    // never cuts mid-bullet: every rendered bullet line is complete
+
+    for (const line of body.split("\n")) {
+      if (line.startsWith("- **")) {
+        expect(line).toMatch(/— referenced by: _.*_$/);
+      }
+    }
+  });
+
+  it("leaves a small report byte-identical to the uncapped rendering", () => {
+    const broken: BrokenLink[] = [
+      {
+        spec_path: "specs/a/spec.md",
+        statement_text: "Returns the expected value.",
+        link: { label: "test", path: "src/missing.test.ts", line: 10 },
+        reason: "file-missing",
+      },
+    ];
+    const body = formatBrokenLinksReport(broken);
+
+    expect(body).not.toContain("truncated");
+    expect(
+      body
+        .trimEnd()
+        .endsWith("Fix or remove the broken links to silence this."),
+    ).toBe(true);
+  });
 });
 
 describe("hasOpenLinkRotIssue", () => {
