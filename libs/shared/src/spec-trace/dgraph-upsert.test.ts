@@ -3,7 +3,14 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
-import { upsertByXid, replaceEdgeWithFacets } from "./dgraph-upsert.js";
+import {
+  upsertByXid,
+  replaceEdgeWithFacets,
+  withTxn,
+  isTxnAborted,
+} from "./dgraph-upsert.js";
+import { enforceTrue } from "../lib/enforce.js";
+import type { DgraphClientPort, DgraphTxn } from "../memory-store.js";
 
 /**
  * replaceEdgeWithFacets (spec-traceability-graph) — sets a `[uid]` edge to a set
@@ -133,5 +140,133 @@ describe.skipIf(!reachable)("replaceEdgeWithFacets (live Dgraph)", () => {
       "File.path": "src/a.ts",
       "Coverage.covers|ranges": "12-18,30-40",
     });
+  });
+});
+
+/**
+ * Retry-on-abort (spec-traceability-graph #36 context): dgraph normalizes
+ * aborts AND write-write conflicts into one Error whose message is the only
+ * discriminator ("Transaction has been aborted. Please retry"). withTxn
+ * retries those on a FRESH transaction per attempt (an aborted txn is
+ * finished) and rethrows anything else immediately. Fake 3-method port — no
+ * container needed.
+ */
+describe("withTxn retry-on-abort (fake port)", () => {
+  const ABORT = "Transaction has been aborted. Please retry";
+
+  interface ScriptedTxn {
+    txn: DgraphTxn;
+    discarded: boolean;
+  }
+
+  function scriptedPort(behaviors: Array<"abort" | "ok" | "schema-error">): {
+    port: DgraphClientPort;
+    txns: ScriptedTxn[];
+  } {
+    const txns: ScriptedTxn[] = [];
+
+    return {
+      txns,
+      port: {
+        newTxn: () => {
+          const behavior = behaviors[txns.length] ?? "ok";
+          const scripted: ScriptedTxn = {
+            discarded: false,
+            txn: {
+              queryWithVars: async () => {
+                enforceTrue(behavior !== "abort", Error, ABORT);
+                enforceTrue(
+                  behavior !== "schema-error",
+                  Error,
+                  "Schema not defined for predicate Spec.xid",
+                );
+
+                return { data: { found: [{ uid: "0xok" }] } };
+              },
+
+              mutate: async () => ({ data: {} }),
+
+              discard: async () => {
+                scripted.discarded = true;
+              },
+            },
+          };
+
+          txns.push(scripted);
+
+          return scripted.txn;
+        },
+      },
+    };
+  }
+
+  const recordingSleep = () => {
+    const slept: number[] = [];
+
+    const sleep = async (ms: number): Promise<void> => {
+      slept.push(ms);
+    };
+
+    return { slept, sleep };
+  };
+
+  it("retries an abort on a fresh txn, sleeping 200ms, and returns the 2nd attempt's result", async () => {
+    const { port, txns } = scriptedPort(["abort", "ok"]);
+    const { slept, sleep } = recordingSleep();
+    const result = await withTxn(
+      port,
+      async (txn) => (await txn.queryWithVars("q", {})).data,
+      { sleep },
+    );
+
+    expect(result).toEqual({ found: [{ uid: "0xok" }] });
+    expect(txns).toHaveLength(2);
+    expect(slept).toEqual([200]);
+    expect(txns.map((t) => t.discarded)).toEqual([true, true]);
+  });
+
+  it("rethrows a non-abort error immediately: 1 txn, 0 sleeps", async () => {
+    const { port, txns } = scriptedPort(["schema-error"]);
+    const { slept, sleep } = recordingSleep();
+
+    await expect(
+      withTxn(port, async (txn) => txn.queryWithVars("q", {}), { sleep }),
+    ).rejects.toThrow("Schema not defined for predicate Spec.xid");
+    expect(txns).toHaveLength(1);
+    expect(slept).toEqual([]);
+  });
+
+  it("exhausts after 4 attempts sleeping 200/500/1000ms and rethrows the abort", async () => {
+    const { port, txns } = scriptedPort(["abort", "abort", "abort", "abort"]);
+    const { slept, sleep } = recordingSleep();
+
+    await expect(
+      withTxn(port, async (txn) => txn.queryWithVars("q", {}), { sleep }),
+    ).rejects.toThrow(ABORT);
+    expect(txns).toHaveLength(4);
+    expect(slept).toEqual([200, 500, 1000]);
+  });
+
+  it("isTxnAborted accepts the driver's abort shapes and rejects everything else", () => {
+    expect(isTxnAborted(new Error(ABORT))).toBe(true);
+    expect(isTxnAborted(new Error("Transaction aborted, please retry"))).toBe(
+      true,
+    );
+    expect(isTxnAborted(new Error("connection refused"))).toBe(false);
+    expect(isTxnAborted(new Error("retry later"))).toBe(false);
+    expect(isTxnAborted("Transaction has been aborted. Please retry")).toBe(
+      false,
+    );
+    expect(isTxnAborted(undefined)).toBe(false);
+  });
+
+  it("upsertByXid survives a first-attempt abort and reuses the node the retry finds", async () => {
+    const { port, txns } = scriptedPort(["abort", "ok"]);
+    const uid = await upsertByXid(port, "Spec", "re-cinq/lore|specs/a.md", {
+      "Spec.repo": "re-cinq/lore",
+    });
+
+    expect(uid).toBe("0xok");
+    expect(txns).toHaveLength(2);
   });
 });
