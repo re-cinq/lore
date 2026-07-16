@@ -104,6 +104,27 @@ describe("nodeStationSpec (station pod contract)", () => {
     });
   });
 
+  it("threads string + number line args into params, skipping non-primitive values", () => {
+    const spec = nodeStationSpec(
+      { id: "triage", type: "comment-triage" },
+      {
+        ...task,
+        args: {
+          comment_body: "ok, fix it",
+          in_reply_to_id: 5,
+          nested: { skip: true },
+          description: "prose",
+        },
+      },
+    );
+
+    expect(JSON.parse(spec.parameters!.station_input).params).toEqual({
+      comment_body: "ok, fix it",
+      in_reply_to_id: "5",
+      description: "prose",
+    });
+  });
+
   it("honors an explicit station_ref override (custom station image)", () => {
     expect(
       nodeStationSpec(
