@@ -256,6 +256,12 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    without enumerating when a single repo is given, starts nothing when there are no target repos, and
    fails the just-created job_run (before rethrowing) if `assemblyLines.start` throws. ([validated by `fan-out.test.ts:26`](apps/floor/src/jobs/detect/fan-out.test.ts#L26), [`fan-out.test.ts:34`](apps/floor/src/jobs/detect/fan-out.test.ts#L34), [`fan-out.test.ts:81`](apps/floor/src/jobs/detect/fan-out.test.ts#L81), [`fan-out.test.ts:104`](apps/floor/src/jobs/detect/fan-out.test.ts#L104), [`fan-out.test.ts:120`](apps/floor/src/jobs/detect/fan-out.test.ts#L120))
 
+11. The `context_reindex` job also backstops the spec-traceability graph: after a repo's chunk
+   reindex it projects that repo's specs and ADRs into the graph via `projectRepoGraph`, so a CI
+   `ci-ingest` projection that was dropped is healed on the next run. It reads the full tree
+   (content-hash idempotent — unchanged docs are skipped), no-ops when Dgraph is unconfigured, and
+   isolates each kind so a failure projecting `specs` does not skip `adrs`. ([validated by `reindex-graph.test.ts:34`](apps/floor/src/jobs/context-jobs/reindex/reindex-graph.test.ts#L34), [`reindex-graph.test.ts:42`](apps/floor/src/jobs/context-jobs/reindex/reindex-graph.test.ts#L42), [`reindex-graph.test.ts:50`](apps/floor/src/jobs/context-jobs/reindex/reindex-graph.test.ts#L50))
+
 ## File Changes
 
 | File | Change |
