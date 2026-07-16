@@ -91,44 +91,10 @@ describe("resultTextFromOutput", () => {
     expect(resultTextFromOutput(stream)).toBe(stream);
   });
 
-  it("unwraps a result line nested in a {source,event} attribution envelope", () => {
-    const agentText =
-      'Compiled review.\n\n```REVIEW_FINDINGS\n{"verdict":"approved","findings":[]}\n```';
-    const line = attributedLine({
-      type: "result",
-      is_error: false,
-      result: agentText,
-    });
-
-    expect(resultTextFromOutput(line)).toBe(agentText);
-  });
-
-  it("returns the attributed result of a pre-cutover CR stream that ends with a lifecycle event", () => {
-    const stream = [
-      attributedLine({ type: "log", message: "cloning repo" }),
-      attributedLine({
-        type: "result",
-        is_error: false,
-        result:
-          'REVIEW_RESULT:CHANGES_REQUESTED\n```REVIEW_FINDINGS\n{"verdict":"changes_requested","findings":[]}\n```',
-      }),
-      attributedLine({
-        kind: "lifecycle",
-        exitCode: 0,
-        phase: "agent",
-        status: "succeeded",
-      }),
-    ].join("\n");
-
-    expect(resultTextFromOutput(stream)).toBe(
-      'REVIEW_RESULT:CHANGES_REQUESTED\n```REVIEW_FINDINGS\n{"verdict":"changes_requested","findings":[]}\n```',
-    );
-  });
-
-  it("returns the raw stream when attributed events carry no result line", () => {
+  it("never unwraps a {source,event} attribution envelope — sink-lane lines fall through raw", () => {
     const stream = [
       attributedLine({ kind: "lifecycle", status: "running" }),
-      attributedLine({ type: "log", message: "working" }),
+      attributedLine({ type: "result", is_error: false, result: "sink copy" }),
     ].join("\n");
 
     expect(resultTextFromOutput(stream)).toBe(stream);
