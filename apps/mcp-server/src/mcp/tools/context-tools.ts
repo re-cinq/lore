@@ -182,6 +182,7 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
         ),
       max_tokens: z
         .number()
+        .min(2000)
         .default(8000)
         .describe(
           "Token budget for the assembled block; floor 2000. Raise to ~16000 for research-heavy queries. Defaults to 8000.",

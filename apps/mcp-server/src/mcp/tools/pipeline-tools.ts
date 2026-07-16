@@ -33,6 +33,7 @@ import {
   withReadCache,
   unreachableError,
   deniedError,
+  notConfiguredError,
   proxyGetApi,
 } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
@@ -54,6 +55,11 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     {
       description: z
         .string()
+        .min(1)
+        .max(10000)
+        .refine((v) => v.trim().length > 0, {
+          message: "description cannot be blank",
+        })
         .describe(
           "Primary natural-language instruction; be specific. Max 10000 chars; non-empty.",
         ),
@@ -99,17 +105,6 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       context,
     }) => {
       try {
-        if (!desc || !desc.trim()) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "description is required and cannot be empty",
-              },
-            ],
-          };
-        }
-
         // Auto-detect repo from git remote if not specified
         const resolvedRepo = target_repo || detectCurrentRepo() || undefined;
 
@@ -119,30 +114,37 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           const apiToken = process.env.LORE_INGEST_TOKEN;
 
           if (!apiUrl || !apiToken) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: "Task delegation requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh or set them manually.",
-                },
-              ],
-            };
+            return notConfiguredError("creating a pipeline task");
           }
-          const res = await fetch(`${apiUrl}/api/task`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              description: desc,
-              task_type,
-              target_repo: resolvedRepo,
-              priority,
-              group_id,
-              context,
-            }),
-          });
+
+          let res: Response;
+
+          try {
+            res = await fetch(`${apiUrl}/api/task`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${apiToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                description: desc,
+                task_type,
+                target_repo: resolvedRepo,
+                priority,
+                group_id,
+                context,
+              }),
+            });
+          } catch (err) {
+            return unreachableError(
+              "creating a pipeline task",
+              errorMessage(err),
+            );
+          }
+
+          if (res.status === 401 || res.status === 403) {
+            return deniedError("creating a pipeline task", res.statusText);
+          }
 
           if (!res.ok) {
             const err = await res
@@ -230,18 +232,25 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           const apiToken = process.env.LORE_INGEST_TOKEN;
 
           if (!apiUrl || !apiToken) {
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: "Pipeline requires LORE_API_URL + LORE_INGEST_TOKEN for remote access.",
-                },
-              ],
-            };
+            return notConfiguredError("getting pipeline status");
           }
-          const res = await fetch(`${apiUrl}/api/task/${task_id}`, {
-            headers: { Authorization: `Bearer ${apiToken}` },
-          });
+
+          let res: Response;
+
+          try {
+            res = await fetch(`${apiUrl}/api/task/${task_id}`, {
+              headers: { Authorization: `Bearer ${apiToken}` },
+            });
+          } catch (err) {
+            return unreachableError(
+              "getting pipeline status",
+              errorMessage(err),
+            );
+          }
+
+          if (res.status === 401 || res.status === 403) {
+            return deniedError("getting pipeline status", res.statusText);
+          }
 
           if (!res.ok) {
             return {
@@ -281,7 +290,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       } catch (err) {
         return {
           content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+            {
+              type: "text" as const,
+              text: `Error getting pipeline status: ${errorMessage(err)}`,
+            },
           ],
         };
       }
@@ -317,14 +329,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         }
 
         if (proxied.reason === "not_configured") {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "PR status requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.",
-              },
-            ],
-          };
+          return notConfiguredError("getting PR status");
         }
 
         if (proxied.reason === "denied") {
@@ -345,7 +350,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       } catch (err) {
         return {
           content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+            {
+              type: "text" as const,
+              text: `Error getting PR status: ${errorMessage(err)}`,
+            },
           ],
         };
       }
@@ -450,7 +458,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       } catch (err) {
         return {
           content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+            {
+              type: "text" as const,
+              text: `Error listing pipeline tasks: ${errorMessage(err)}`,
+            },
           ],
         };
       }
@@ -587,7 +598,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       } catch (err) {
         return {
           content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+            {
+              type: "text" as const,
+              text: `Error listing task group: ${errorMessage(err)}`,
+            },
           ],
         };
       }
@@ -938,7 +952,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       } catch (err) {
         return {
           content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+            {
+              type: "text" as const,
+              text: `Error getting task logs: ${errorMessage(err)}`,
+            },
           ],
         };
       }
@@ -1028,7 +1045,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       } catch (err) {
         return {
           content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+            {
+              type: "text" as const,
+              text: `Error getting job logs: ${errorMessage(err)}`,
+            },
           ],
         };
       }
@@ -1037,7 +1057,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_list_pending_tasks",
-    "Shows unclaimed 'pending' backlog tasks grouped by repo — the 'what can I grab' view. Falls back to ~/.lore/pending-tasks.json (local notifier cache) when the API is unreachable; the local fallback ignores the repo filter. After choosing one, run it with lore_claim_and_run_locally. Instead: lore_list_pipeline_tasks for a general status-filterable listing; lore_ready_tasks for dependency-ready spec-tasks in one repo.",
+    "Shows unclaimed 'pending' backlog tasks grouped by repo — the 'what can I grab' view. Falls back to ~/.lore/pending-tasks.json (local notifier cache) when the API is unreachable; the repo filter applies on both paths. After choosing one, run it with lore_claim_and_run_locally. Instead: lore_list_pipeline_tasks for a general status-filterable listing; lore_ready_tasks for dependency-ready spec-tasks in one repo.",
     {
       repo: z
         .string()
@@ -1110,11 +1130,21 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         // Fallback to local pending file
         const { listPendingTasks } =
           await import("../../features/pipeline/runner.local.js");
-        const tasks = listPendingTasks();
+        const allTasks = listPendingTasks();
+        const tasks = filterRepo
+          ? allTasks.filter((t) => t.target_repo === filterRepo)
+          : allTasks;
 
         if (tasks.length === 0) {
           return {
-            content: [{ type: "text" as const, text: "No pending tasks." }],
+            content: [
+              {
+                type: "text" as const,
+                text: filterRepo
+                  ? `No pending tasks for ${filterRepo}.`
+                  : "No pending tasks.",
+              },
+            ],
           };
         }
         const lines = tasks.map(
@@ -1128,7 +1158,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       } catch (err) {
         return {
           content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+            {
+              type: "text" as const,
+              text: `Error listing pending tasks: ${errorMessage(err)}`,
+            },
           ],
         };
       }
@@ -1159,7 +1192,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       } catch (err) {
         return {
           content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+            {
+              type: "text" as const,
+              text: `Error skipping task: ${errorMessage(err)}`,
+            },
           ],
         };
       }
@@ -1231,7 +1267,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       } catch (err) {
         return {
           content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+            {
+              type: "text" as const,
+              text: `Error enabling task notifications: ${errorMessage(err)}`,
+            },
           ],
         };
       }
@@ -1257,7 +1296,10 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       } catch (err) {
         return {
           content: [
-            { type: "text" as const, text: `Error: ${errorMessage(err)}` },
+            {
+              type: "text" as const,
+              text: `Error disabling task notifications: ${errorMessage(err)}`,
+            },
           ],
         };
       }
