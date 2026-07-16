@@ -169,13 +169,20 @@ export async function projectDocsIntoGraph(
     return;
   }
 
+  // Per-kind isolation: a transient failure projecting specs must not skip adrs.
   for (const kind of GRAPH_KINDS) {
-    const summary = await projectRepoGraph({ kind, repo: fullName }, {
-      repo: reader,
-      dgraph,
-    });
+    try {
+      const summary = await projectRepoGraph({ kind, repo: fullName }, {
+        repo: reader,
+        dgraph,
+      });
 
-    console.log(`[job] graph ${kind} ${fullName}: ${summary.message}`);
+      console.log(`[job] graph ${kind} ${fullName}: ${summary.message}`);
+    } catch (err) {
+      console.error(
+        `[job] Error projecting ${kind} for ${fullName}: ${errorMessage(err)}`,
+      );
+    }
   }
 }
 

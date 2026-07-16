@@ -44,4 +44,20 @@ describe("projectDocsIntoGraph", () => {
 
     expect(f.treeCalls).toEqual([]);
   });
+
+  it("isolates a failing kind so the other still projects", async () => {
+    let attempts = 0;
+    const reader = {
+      tree: async () => {
+        attempts += 1;
+        throw new Error("boom");
+      },
+      read: async () => "" as string | null,
+    };
+
+    await expect(
+      projectDocsIntoGraph("re-cinq/lore", stubDgraph, reader),
+    ).resolves.toBeUndefined();
+    expect(attempts).toBe(2);
+  });
 });
