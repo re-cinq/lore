@@ -10,6 +10,7 @@ import {
   enforceProjectionComplete,
 } from "./spec-trace/spec-trace-dispatch.js";
 import { projectFor } from "../composition/project-boot.js";
+import { insertEvent } from "../main-loop/store.js";
 import { writeAuditLog } from "./lib/audit.js";
 import { validateSpecCoverageJob } from "@re-cinq/lore-shared/detect/index.js";
 import type { EventHandler } from "../main-loop/types.js";
@@ -34,7 +35,7 @@ export const specTrace: EventHandler = async (params) => {
     repo,
     kind,
     payload,
-    { dgraph, projectFor },
+    { dgraph, projectFor, insertEvent },
   );
 
   // Log + audit record this attempt's summary BEFORE the completeness guard —

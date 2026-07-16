@@ -10,8 +10,13 @@
  *     (lore-tests.yml POSTs /test-report + /coverage) — no pipeline task.
  */
 
-import { ingestSpecTrace, type DgraphClientPort } from "@re-cinq/lore-shared";
+import {
+  ingestSpecTrace,
+  chunkGlobsForKind,
+  type DgraphClientPort,
+} from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import type { EventInput } from "../../main-loop/types.js";
 import { projectRepoGraph, type RepoReader } from "./graph-ingest-handler.js";
 import {
   specTraceAuditEntry,
@@ -34,6 +39,8 @@ interface RepoReadPayload {
 export interface SpecTraceDispatchDeps {
   dgraph: DgraphClientPort;
   projectFor: (repo: string) => Promise<{ repo: RepoReader }>;
+  /** Required for the force-without-glob path, which self-chunks into child events. */
+  insertEvent?: (input: EventInput) => Promise<void>;
 }
 
 /**
@@ -65,6 +72,50 @@ export async function dispatchSpecTrace(
   if (REPO_READ_KINDS.has(kind)) {
     const p = (payload ?? {}) as RepoReadPayload;
     const project = await deps.projectFor(repo);
+
+    // A force pass with no glob re-projects EVERY file with per-statement
+    // embeddings — as one event it outlives the bus's 600s visibility timeout
+    // and its handler becomes an uncancellable zombie (2026-07-16). Self-chunk
+    // instead: one child event per top-level directory, each seconds-long, run
+    // one at a time by the spec_trace serial family. Chunks carry a glob, so
+    // they can never re-chunk.
+    if (p.force && !p.glob) {
+      enforceTrue(
+        deps.insertEvent !== undefined,
+        Error,
+        "self-chunking a force projection requires the insertEvent dep",
+      );
+      const ref = p.commit || p.branch || undefined;
+      const globs = chunkGlobsForKind(kind, await project.repo.tree(ref));
+
+      for (const glob of globs) {
+        await deps.insertEvent!({
+          eventName: "internal.ingest.spec_trace",
+          source: "internal",
+          dedupeKey: `spec-trace-force:${kind}:${ref ?? "head"}:${glob}`,
+          params: {
+            kind,
+            repo,
+            payload: { ...(ref ? { commit: ref } : {}), force: true, glob },
+          },
+        });
+      }
+      const logLine = `[floor] spec-trace ${kind} ${repo}: force chunked into ${globs.length} per-directory event(s)`;
+
+      return {
+        logLine,
+        audit: graphIngestAuditEntry(repo, {
+          kind,
+          projected: 0,
+          skipped: 0,
+          failed: 0,
+          failedFiles: [],
+          status: "completed",
+          message: `${kind}: force chunked into ${globs.length} per-directory event(s)`,
+        }),
+        failedFiles: [],
+      };
+    }
     const summary = await projectRepoGraph(
       {
         kind,

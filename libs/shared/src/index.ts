@@ -128,6 +128,7 @@ export {
   runIngestGraph,
   selectIngestFiles,
   summarizeIngest,
+  chunkGlobsForKind,
   INGEST_KINDS,
   type IngestKind,
   type IngestGraphParams,
