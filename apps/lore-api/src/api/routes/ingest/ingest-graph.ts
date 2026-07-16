@@ -24,6 +24,8 @@ const IngestGraphBody = z.preprocess(
     kinds: z.array(z.string()).optional(),
     commit: z.string().optional(),
     force: z.boolean().optional(),
+    /** Substring path filter — lets an operator target one directory slice. */
+    glob: z.string().optional(),
   }),
 );
 
@@ -60,6 +62,7 @@ export function ingestGraphRoute(getPool: () => Pool | null): ServerRoute {
         void triggerAgentSpecTrace(pool, repo, kind, {
           commit: body.commit,
           force: body.force,
+          glob: body.glob,
         });
       }
 

@@ -103,6 +103,44 @@ export const INGEST_KINDS: Record<string, IngestKindDef> = {
 };
 
 /**
+ * Per-directory chunk globs for a kind's files: `specs/<dir>/` per top-level
+ * directory, the bare prefix for files sitting directly under it. A forced
+ * full-repo projection re-embeds every statement and outlives the event bus's
+ * stuck-row visibility timeout as ONE event; split by these globs, each chunk
+ * finishes in seconds (globs are `filterFiles` substring filters — the
+ * trailing slash keeps sibling dirs with a common prefix distinct).
+ */
+export function chunkGlobsForKind(
+  kind: string,
+  tree: string[],
+  registry: Record<string, IngestKindDef> = INGEST_KINDS,
+): string[] {
+  const def = registry[kind];
+
+  if (!def) {
+    return [];
+  }
+  const globs = new Set<string>();
+
+  for (const path of tree) {
+    if (!path.endsWith(".md")) {
+      continue;
+    }
+    const prefix = def.prefixes.find((p) => path.startsWith(p));
+
+    if (!prefix) {
+      continue;
+    }
+    const rest = path.slice(prefix.length);
+    const slash = rest.indexOf("/");
+
+    globs.add(slash === -1 ? prefix : `${prefix}${rest.slice(0, slash + 1)}`);
+  }
+
+  return [...globs].sort();
+}
+
+/**
  * Files of `kind` in the tree (optionally narrowed by the `glob` substring).
  * When `patterns` is given (from `.lore/ingest.yml`), it REPLACES the kind's
  * built-in prefix defaults — paths are matched by those globs (which also carry

@@ -3,6 +3,7 @@ import {
   selectIngestFiles,
   summarizeIngest,
   runIngestGraph,
+  chunkGlobsForKind,
   type IngestKindDef,
 } from "./ingest-graph-task.js";
 import type { DgraphClientPort } from "./deps.js";
@@ -56,6 +57,34 @@ describe("selectIngestFiles", () => {
         "design/**/*.md",
       ]),
     ).toEqual(["design/decisions/x.md", "design/draft.md"]);
+  });
+});
+
+describe("chunkGlobsForKind", () => {
+  it("yields one per-directory glob per top-level specs dir, plus the bare prefix for root-level files", () => {
+    const tree = [
+      "specs/auth/spec.md",
+      "specs/auth/contracts/api.md",
+      "specs/billing/plan.md",
+      ".specify/overview.md",
+      "specs/README.md",
+      "src/auth.ts",
+    ];
+
+    expect(chunkGlobsForKind("specs", tree)).toEqual([
+      ".specify/",
+      "specs/",
+      "specs/auth/",
+      "specs/billing/",
+    ]);
+  });
+
+  it("collapses the flat adrs kind into its single prefix glob", () => {
+    expect(chunkGlobsForKind("adrs", TREE)).toEqual(["adrs/"]);
+  });
+
+  it("returns nothing for an unknown kind", () => {
+    expect(chunkGlobsForKind("docs", TREE)).toEqual([]);
   });
 });
 

@@ -86,6 +86,78 @@ describe("dispatchSpecTrace", () => {
     ).not.toThrow();
   });
 
+  it("chunks a force run without a glob into one child event per top-level dir instead of projecting inline", async () => {
+    const inserted: Array<Record<string, unknown>> = [];
+    const projectFor = async (_repo: string) => ({
+      repo: {
+        tree: async () => [
+          "specs/auth/spec.md",
+          "specs/billing/spec.md",
+          ".specify/overview.md",
+        ],
+        read: async () => {
+          throw new Error("chunking must not read file contents");
+        },
+      },
+    });
+    const result = await dispatchSpecTrace(
+      "re-cinq/lore",
+      "specs",
+      { commit: "abc123", force: true },
+      {
+        dgraph: stubDgraph,
+        projectFor,
+        insertEvent: async (input) => {
+          inserted.push(input as unknown as Record<string, unknown>);
+        },
+      },
+    );
+
+    expect(inserted).toHaveLength(3);
+    expect(inserted[0]).toMatchObject({
+      eventName: "internal.ingest.spec_trace",
+      source: "internal",
+      dedupeKey: "spec-trace-force:specs:abc123:.specify/",
+      params: {
+        kind: "specs",
+        repo: "re-cinq/lore",
+        payload: { commit: "abc123", force: true, glob: ".specify/" },
+      },
+    });
+    expect(
+      inserted.map(
+        (i) => (i.params as { payload: { glob: string } }).payload.glob,
+      ),
+    ).toEqual([".specify/", "specs/auth/", "specs/billing/"]);
+    expect(result.failedFiles).toEqual([]);
+    expect(result.logLine).toContain("chunked into 3");
+  });
+
+  it("projects a force run WITH a glob inline — chunks never re-chunk", async () => {
+    const inserted: unknown[] = [];
+    const projectFor = async (_repo: string) => ({
+      repo: {
+        tree: async () => [] as string[],
+        read: async () => "",
+      },
+    });
+    const result = await dispatchSpecTrace(
+      "re-cinq/lore",
+      "specs",
+      { commit: "abc123", force: true, glob: "specs/auth/" },
+      {
+        dgraph: stubDgraph,
+        projectFor,
+        insertEvent: async (input) => {
+          inserted.push(input);
+        },
+      },
+    );
+
+    expect(inserted).toEqual([]);
+    expect(result.logLine).toContain("[floor] spec-trace specs re-cinq/lore");
+  });
+
   it("routes an unrecognized kind to ingestSpecTrace, which rejects without reading the repo", async () => {
     const f = fakeProjectFor();
 
