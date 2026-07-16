@@ -14,6 +14,7 @@ import { agentLogsRoute } from "./routes/agent-logs.js";
 import { githubWebhookRoute } from "./routes/github-webhook.js";
 import { ciIngestRoute } from "./routes/ci-ingest.js";
 import { ciTestsRoute } from "./routes/ci-tests.js";
+import { reviewStartRoute } from "./routes/review-start.js";
 import type { PodLogSource } from "../../jobs/station/agent-pod-logs.js";
 
 // GitHub caps webhook payloads at 25 MB; the old raw `node:http` server read the
@@ -41,6 +42,7 @@ export function buildServer(opts: {
     githubWebhookRoute,
     ciIngestRoute,
     ciTestsRoute,
+    reviewStartRoute,
   ]);
 
   return server;
