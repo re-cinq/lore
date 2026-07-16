@@ -211,4 +211,22 @@ describe("drainOnce serial families", () => {
     expect(excludesSeen).toEqual([[], []]);
     expect(rec.failed).toHaveLength(1);
   });
+
+  it("releases the family slot when a serial handler never settles, instead of starving the family", async () => {
+    const rec = recorder();
+    const hanging: EventHandler = () => new Promise(() => {});
+    const { deps: d, excludesSeen } = drainDeps(
+      [[specTraceRow("st1")], []],
+      hanging,
+      rec,
+    );
+
+    await drainOnce({ ...d, serialDeadlineMs: 5 });
+    await drainOnce({ ...d, serialDeadlineMs: 5 });
+
+    // the second drain's claim no longer excludes the family — the deadline
+    // released the slot (the hung row itself is the reaper's to re-queue)
+    expect(excludesSeen).toEqual([[], []]);
+    expect(rec.done).toEqual([]);
+  });
 });

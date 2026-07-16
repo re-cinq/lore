@@ -20,7 +20,26 @@ export interface LoopDeps {
   ) => Promise<void>;
   markDead: (id: string, error: string) => Promise<void>;
   batchSize?: number;
+  /** Deadline before a serial handler's family slot is released (test hook). */
+  serialDeadlineMs?: number;
 }
+
+/**
+ * A serial handler that outlives this deadline releases its family slot: by
+ * then the reaper (600s) has already re-queued the row, and holding the busy
+ * flag for an unsettled promise starves every later event in the family
+ * (observed 2026-07-16: one hung network call froze spec_trace ingestion for
+ * good). The abandoned handler runs on unsupervised — exactly a parallel
+ * handler's failure mode — and its writes stay safe (idempotent upserts).
+ */
+const SERIAL_DEADLINE_MS = 620_000;
+
+const releaseAfter = (ms: number): Promise<"deadline"> =>
+  new Promise((resolve) => {
+    const timer = setTimeout(() => resolve("deadline"), ms);
+
+    timer.unref?.();
+  });
 
 /**
  * Families whose handlers contend on shared external state (dgraph — every
@@ -92,12 +111,22 @@ export async function drainOnce(deps: LoopDeps): Promise<number> {
     ]);
   }
 
+  const deadlineMs = deps.serialDeadlineMs ?? SERIAL_DEADLINE_MS;
   const serial = [...serialByFamily.entries()].map(async ([family, events]) => {
     busyFamilies.add(family);
 
     try {
       for (const ev of events) {
-        await handleOne(ev, deps).catch(logTransitionFailure(ev));
+        const outcome = await Promise.race([
+          handleOne(ev, deps).catch(logTransitionFailure(ev)),
+          releaseAfter(deadlineMs),
+        ]);
+
+        if (outcome === "deadline") {
+          console.error(
+            `[events] serial handler for ${ev.event_name} (${ev.id}) exceeded ${deadlineMs}ms — releasing the family slot to its reaped retry`,
+          );
+        }
       }
     } finally {
       busyFamilies.delete(family);
