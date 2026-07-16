@@ -8,7 +8,7 @@ import maxBooleanOperators from "./rules/max-boolean-operators.mjs";
 import noIoInView from "./rules/no-io-in-view.mjs";
 import requireSpecLink from "./rules/require-spec-link.mjs";
 import requireStatementLinks, {
-  finalized as requireStatementLinksShipped,
+  shipped as requireStatementLinksShipped,
 } from "./rules/require-statement-links.mjs";
 
 /**

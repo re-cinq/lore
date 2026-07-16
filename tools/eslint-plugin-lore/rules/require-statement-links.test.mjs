@@ -1,6 +1,6 @@
 import { RuleTester } from "eslint";
 import markdown from "@eslint/markdown";
-import rule, { finalized } from "./require-statement-links.mjs";
+import rule, { shipped } from "./require-statement-links.mjs";
 
 const ruleTester = new RuleTester({
   plugins: { markdown },
@@ -68,12 +68,22 @@ const acceptedAdrUnlinked = [
 
 const proposedAdrUnlinked = acceptedAdrUnlinked.replace("accepted", "proposed");
 
-// ── warn variant: fires only on NON-finalized docs ──
+// rejected specs / superseded ADRs are the skip tier — the rule does not run.
+const rejectedUnlinked = shippedUnlinked.replace("Shipped", "Rejected");
+const supersededAdrUnlinked = acceptedAdrUnlinked.replace(
+  "accepted",
+  "superseded",
+);
+
+// ── warn variant: fires only on the warn tier (draft / in-progress) ──
 ruleTester.run("require-statement-links", rule, {
   valid: [
-    // finalized docs belong to the -shipped variant, not this one
+    // shipped (error tier) belongs to the -shipped variant, not this one
     { code: shippedUnlinked, filename: "specs/my-feature/spec.md" },
     { code: acceptedAdrUnlinked, filename: "adrs/ADR-1.md" },
+    // rejected / superseded are the skip tier — neither variant fires
+    { code: rejectedUnlinked, filename: "specs/my-feature/spec.md" },
+    { code: supersededAdrUnlinked, filename: "adrs/ADR-1.md" },
     // a linked draft has nothing to flag
     { code: draftLinked, filename: "specs/my-feature/spec.md" },
     // outside specs/ and adrs/ the rule does not apply
@@ -86,6 +96,7 @@ ruleTester.run("require-statement-links", rule, {
       errors: [{ messageId: "unlinkedStatement", line: 11 }],
     },
     {
+      // a proposed ADR folds into in-progress → warn tier
       code: proposedAdrUnlinked,
       filename: "adrs/ADR-1.md",
       errors: [{ messageId: "unlinkedStatement", line: 11 }],
@@ -93,15 +104,18 @@ ruleTester.run("require-statement-links", rule, {
   ],
 });
 
-// ── error variant: fires only on finalized docs ──
-ruleTester.run("require-statement-links-shipped", finalized, {
+// ── error variant: fires only on the error tier (shipped) ──
+ruleTester.run("require-statement-links-shipped", shipped, {
   valid: [
-    // non-finalized docs belong to the warn variant
+    // warn-tier docs belong to the warn variant
     { code: draftUnlinked, filename: "specs/my-feature/spec.md" },
     { code: proposedAdrUnlinked, filename: "adrs/ADR-1.md" },
-    // finalized but fully linked
+    // skip tier — the rule does not run
+    { code: rejectedUnlinked, filename: "specs/my-feature/spec.md" },
+    { code: supersededAdrUnlinked, filename: "adrs/ADR-1.md" },
+    // shipped but fully linked
     { code: shippedLinked, filename: "specs/my-feature/spec.md" },
-    // finalized but every statement is intro/narrative (heuristic exempts them)
+    // shipped but every statement is intro/narrative (heuristic exempts them)
     { code: shippedNarrativeOnly, filename: "specs/my-feature/spec.md" },
   ],
   invalid: [
@@ -111,6 +125,7 @@ ruleTester.run("require-statement-links-shipped", finalized, {
       errors: [{ messageId: "unlinkedStatement", line: 11 }],
     },
     {
+      // an accepted ADR folds into shipped → error tier
       code: acceptedAdrUnlinked,
       filename: "adrs/ADR-1.md",
       errors: [{ messageId: "unlinkedStatement", line: 11 }],

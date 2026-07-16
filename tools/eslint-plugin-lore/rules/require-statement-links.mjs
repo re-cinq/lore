@@ -8,17 +8,22 @@
  * rationale / open-question / limitation prose is exempt), and reports any with
  * no test link — see `lib/statement-coverage.mjs`.
  *
- * ESLint severity is static per rule, but the requirement is warn-normally /
- * error-when-finalized. So one core is exported as two rules, gated on the doc's
- * parsed status (`@re-cinq/lore-shared/spec-status.js`) and configured at
- * different severities in eslint.config.mjs:
- *   - default export        → fires on NON-finalized docs        → `warn`
- *   - `finalized` export     → fires on finalized docs           → `error`
- *     (a spec with `| Status | Shipped |`, or an ADR with `status: accepted`)
- * A doc matches exactly one variant, so the two never double-report.
+ * Enforcement is tiered by the doc's normalized lifecycle status
+ * (`@re-cinq/lore-shared/spec-status.js` — specs and ADRs fold into the same
+ * buckets): `rejected` skips the rule entirely, `shipped` errors, everything
+ * else (draft / in-progress / unknown) warns. ESLint severity is static per
+ * rule, so one core is exported as two rules configured at the two severities
+ * in eslint.config.mjs, each firing only on its tier:
+ *   - default export     → fires on the `warn` tier   → `warn`
+ *   - `shipped` export    → fires on the `error` tier  → `error`
+ * A doc's tier matches at most one variant (and `rejected` matches neither), so
+ * the two never double-report.
  */
 
-import { parseDocStatus } from "@re-cinq/lore-shared/spec-status.js";
+import {
+  parseDocStatus,
+  statusTier,
+} from "@re-cinq/lore-shared/spec-status.js";
 import { unlinkedTestableStatements } from "./lib/statement-coverage.mjs";
 
 const EXCERPT_MAX = 60;
@@ -42,13 +47,13 @@ function excerpt(text) {
   return text.length > EXCERPT_MAX ? `${text.slice(0, EXCERPT_MAX)}…` : text;
 }
 
-function makeRule({ finalizedOnly }) {
+function makeRule({ tier }) {
   return {
     meta: {
       type: "problem",
       docs: {
         description:
-          "require every testable spec.md / ADR statement to carry an inline ([validated by](test.ts#Lline)) link. Warns on non-finalized docs; errors on finalized ones (spec Status Shipped / ADR status accepted).",
+          "require every testable spec.md / ADR statement to carry an inline ([validated by](test.ts#Lline)) link. Tiered by lifecycle status: rejected skips, shipped errors, draft/in-progress warn.",
       },
       schema: [],
       messages: {
@@ -64,9 +69,9 @@ function makeRule({ finalizedOnly }) {
         return {};
       }
       const text = context.sourceCode.getText();
-      const { isFinalized, status } = parseDocStatus(text, kind);
+      const { status } = parseDocStatus(text, kind);
 
-      if (isFinalized !== finalizedOnly) {
+      if (statusTier(status) !== tier) {
         return {};
       }
 
@@ -88,5 +93,5 @@ function makeRule({ finalizedOnly }) {
   };
 }
 
-export default makeRule({ finalizedOnly: false });
-export const finalized = makeRule({ finalizedOnly: true });
+export default makeRule({ tier: "warn" });
+export const shipped = makeRule({ tier: "error" });

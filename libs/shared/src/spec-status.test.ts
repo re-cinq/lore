@@ -1,18 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { parseDocStatus } from "./spec-status.js";
+import { parseDocStatus, statusTier } from "./spec-status.js";
 
 describe("parseDocStatus (spec)", () => {
   const table = (status: string) =>
     ["| Field | Value |", "|---|---|", `| Status | ${status} |`, ""].join("\n");
 
-  it("returns finalized for a Shipped spec", () => {
+  it("buckets a Shipped spec as shipped", () => {
     expect(parseDocStatus(table("Shipped"), "spec")).toEqual({
       status: "shipped",
-      isFinalized: true,
     });
   });
 
-  it("folds Implemented / Complete / Accepted / Done / Live into the finalized bucket", () => {
+  it("folds Implemented / Complete / Accepted / Done / Live into shipped", () => {
     for (const value of [
       "Implemented",
       "Complete",
@@ -20,36 +19,39 @@ describe("parseDocStatus (spec)", () => {
       "Done",
       "Live",
     ]) {
-      expect(parseDocStatus(table(value), "spec").isFinalized).toBe(true);
+      expect(parseDocStatus(table(value), "spec").status).toBe("shipped");
     }
   });
 
   it("strips bold markers and trailing prose before bucketing", () => {
-    expect(parseDocStatus(table("**Shipped**"), "spec").isFinalized).toBe(true);
+    expect(parseDocStatus(table("**Shipped**"), "spec").status).toBe("shipped");
     expect(
       parseDocStatus(table("Shipped (v3) — supersedes v1 and v2"), "spec")
-        .isFinalized,
-    ).toBe(true);
+        .status,
+    ).toBe("shipped");
   });
 
-  it("returns not-finalized for a Draft spec", () => {
+  it("buckets a Draft spec as draft", () => {
     expect(parseDocStatus(table("**Draft**"), "spec")).toEqual({
       status: "draft",
-      isFinalized: false,
     });
   });
 
-  it("returns not-finalized for Rejected", () => {
+  it("buckets an In Progress spec as in-progress", () => {
+    expect(parseDocStatus(table("In Progress"), "spec").status).toBe(
+      "in-progress",
+    );
+  });
+
+  it("buckets Rejected as rejected", () => {
     expect(parseDocStatus(table("Rejected (2026-06-17)"), "spec")).toEqual({
       status: "rejected",
-      isFinalized: false,
     });
   });
 
   it("returns null status when no Status row is present", () => {
     expect(parseDocStatus("# Spec\n\nNo table here.\n", "spec")).toEqual({
       status: null,
-      isFinalized: false,
     });
   });
 });
@@ -65,23 +67,21 @@ describe("parseDocStatus (adr)", () => {
       "",
     ].join("\n");
 
-  it("returns finalized for an accepted ADR", () => {
+  it("folds an accepted ADR into shipped", () => {
     expect(parseDocStatus(frontmatter("accepted"), "adr")).toEqual({
-      status: "accepted",
-      isFinalized: true,
+      status: "shipped",
     });
   });
 
-  it("returns not-finalized for a proposed ADR", () => {
+  it("folds a proposed ADR into in-progress", () => {
     expect(parseDocStatus(frontmatter("proposed"), "adr")).toEqual({
-      status: "proposed",
-      isFinalized: false,
+      status: "in-progress",
     });
   });
 
-  it("returns not-finalized for a superseded ADR", () => {
-    expect(parseDocStatus(frontmatter("superseded"), "adr").isFinalized).toBe(
-      false,
+  it("folds a superseded ADR into rejected", () => {
+    expect(parseDocStatus(frontmatter("superseded"), "adr").status).toBe(
+      "rejected",
     );
   });
 
@@ -94,9 +94,22 @@ describe("parseDocStatus (adr)", () => {
       "status: accepted in prose",
     ].join("\n");
 
-    expect(parseDocStatus(body, "adr")).toEqual({
-      status: null,
-      isFinalized: false,
-    });
+    expect(parseDocStatus(body, "adr")).toEqual({ status: null });
+  });
+});
+
+describe("statusTier", () => {
+  it("skips rejected", () => {
+    expect(statusTier("rejected")).toBe("skip");
+  });
+
+  it("errors on shipped", () => {
+    expect(statusTier("shipped")).toBe("error");
+  });
+
+  it("warns on draft, in-progress, and unknown", () => {
+    expect(statusTier("draft")).toBe("warn");
+    expect(statusTier("in-progress")).toBe("warn");
+    expect(statusTier(null)).toBe("warn");
   });
 });
