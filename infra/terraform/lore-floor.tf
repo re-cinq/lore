@@ -14,6 +14,9 @@
 # `/api/webhook/github` alone silently 404'd ci-ingest, so specs/ADRs pushed after
 # the CI-projection cutover never reached the graph. Each route authenticates
 # in-process, so the broader prefix grants no access the handlers don't gate.
+# CONVENTION: because this prefix is load-bearing, any new `/api/webhook/*` Floor
+# handler MUST authenticate in-process — it is internet-exposed the moment it is
+# added, with no separate Terraform change acting as a forcing function.
 # Operator step after apply: repoint the GitHub App / org webhook to this host.
 resource "kubernetes_ingress_v1" "lore_floor_webhook" {
   count = var.lore_webhook_hostname != "" ? 1 : 0

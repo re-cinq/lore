@@ -10,6 +10,8 @@ import type { DgraphClientPort } from "@re-cinq/lore-shared";
  * tree() call count proves how many kinds ran (projectRepoGraph lists the tree
  * once per kind).
  */
+// Safe empty cast: an empty-tree reader means projectRepoGraph never calls a
+// method on the client, so a real stub would add nothing. Mirrors spec-trace-dispatch.test.ts.
 const stubDgraph = {} as DgraphClientPort;
 
 function fakeReader() {
