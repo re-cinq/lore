@@ -163,8 +163,41 @@ describe("mapGitHubEvent — review and comments", () => {
           comment_id: 222,
           comment_author: "bob",
           comment_body: "why here?",
+          in_reply_to_id: null,
         },
         dedupeKey: "github:d8",
+      },
+    ]);
+  });
+
+  it("surfaces in_reply_to_id when the review comment is a thread reply", () => {
+    const payload = {
+      ...REPO,
+      action: "created",
+      pull_request: { number: 8 },
+      comment: {
+        id: 223,
+        body: "ok, fix it",
+        user: { login: "bob" },
+        in_reply_to_id: 222,
+      },
+    };
+
+    expect(
+      mapGitHubEvent("pull_request_review_comment", payload, "d9"),
+    ).toEqual([
+      {
+        eventName: "github.pull_request_review_comment.created",
+        source: "github",
+        params: {
+          repo: "re-cinq/lore",
+          pr_number: 8,
+          comment_id: 223,
+          comment_author: "bob",
+          comment_body: "ok, fix it",
+          in_reply_to_id: 222,
+        },
+        dedupeKey: "github:d9",
       },
     ]);
   });
