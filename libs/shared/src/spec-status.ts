@@ -5,8 +5,7 @@
  * Every spec and ADR is normalized into the same four buckets — the linter
  * treats specs and ADRs consistently:
  *   - `rejected`  → the rule does not run (skip)
- *   - `shipped`   → error on an unlinked testable statement
- *   - `draft` / `in-progress` (or an absent/unknown status) → warn
+ *   - every other status (`shipped` / `draft` / `in-progress` / unknown) → warn
  *
  * Two source shapes feed the same buckets:
  *   - spec.md — a `| Status | <value> |` markdown table row (bucketed like the
@@ -17,7 +16,7 @@
 
 export type DocKind = "spec" | "adr";
 export type StatusBucket = "draft" | "in-progress" | "shipped" | "rejected";
-export type StatusTier = "skip" | "warn" | "error";
+export type StatusTier = "skip" | "warn";
 
 export interface DocStatus {
   /** Normalized bucket, or `null` when no status was found. */
@@ -85,16 +84,8 @@ export function parseDocStatus(content: string, kind: DocKind): DocStatus {
   return { status: value === null ? null : bucketOf(value) };
 }
 
-/** Enforcement tier for a bucket: `rejected` skips the rule, `shipped` errors,
- * everything else (draft / in-progress / unknown) warns. */
+/** Enforcement tier for a bucket: `rejected` skips the rule, every other
+ * status (shipped / draft / in-progress / unknown) warns. */
 export function statusTier(status: StatusBucket | null): StatusTier {
-  if (status === "rejected") {
-    return "skip";
-  }
-
-  if (status === "shipped") {
-    return "error";
-  }
-
-  return "warn";
+  return status === "rejected" ? "skip" : "warn";
 }

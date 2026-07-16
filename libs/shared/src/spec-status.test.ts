@@ -103,8 +103,8 @@ describe("statusTier", () => {
     expect(statusTier("rejected")).toBe("skip");
   });
 
-  it("errors on shipped", () => {
-    expect(statusTier("shipped")).toBe("error");
+  it("warns on shipped", () => {
+    expect(statusTier("shipped")).toBe("warn");
   });
 
   it("warns on draft, in-progress, and unknown", () => {
