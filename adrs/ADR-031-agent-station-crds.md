@@ -1,7 +1,7 @@
 ---
 adr_number: 31
 title: "Agent / Station / AgentDefinition as Kubernetes CRDs — the production execution substrate (replaces LoreTask)"
-status: accepted
+status: shipped
 date: 2026-06-25
 domains: [agent, pipeline, infra, governance, web-ui]
 ---

@@ -2,7 +2,8 @@
 // lifecycle bucket + display label. Pure value-in/value-out — the markdown may
 // come from the trace-graph source (detail pages) or Postgres chunks (lists).
 
-export type SpecStatus = "draft" | "in-progress" | "shipped" | "rejected";
+export type SpecStatus =
+  "draft" | "in-progress" | "shipped" | "rejected" | "retired";
 
 export interface SpecStatusInfo {
   status: SpecStatus;
@@ -14,6 +15,7 @@ export const SPEC_STATUS_COLOR: Record<SpecStatus, string> = {
   "in-progress": "var(--warning)",
   shipped: "var(--success)",
   rejected: "var(--danger)",
+  retired: "var(--chart-neutral)",
 };
 
 export const SPEC_STATUS_ORDER: SpecStatus[] = [
@@ -21,6 +23,7 @@ export const SPEC_STATUS_ORDER: SpecStatus[] = [
   "in-progress",
   "shipped",
   "rejected",
+  "retired",
 ];
 
 const BUCKETS: Array<{ status: SpecStatus; re: RegExp }> = [
@@ -30,9 +33,15 @@ const BUCKETS: Array<{ status: SpecStatus; re: RegExp }> = [
     status: "shipped",
     re: /^(shipped|implemented|complete|accepted|done|live)/,
   },
+  // Shipped-then-terminated — distinct from rejected (never accepted); both skip
+  // the require-statement-links rule. Mirrors libs/shared/src/spec-status.ts.
+  {
+    status: "retired",
+    re: /^(retired|superseded|removed|deprecated|obsolete)/,
+  },
   {
     status: "rejected",
-    re: /^(rejected|superseded|abandoned|obsolete|deprecated)/,
+    re: /^(rejected|abandoned)/,
   },
 ];
 

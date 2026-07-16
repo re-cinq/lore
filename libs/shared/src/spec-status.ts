@@ -2,20 +2,22 @@
  * Doc lifecycle-status parsing for the spec/ADR corpus, shared by the
  * `require-statement-links` ESLint rule to pick the enforcement tier.
  *
- * Every spec and ADR is normalized into the same four buckets — the linter
- * treats specs and ADRs consistently:
- *   - `rejected`  → the rule does not run (skip)
+ * Every spec and ADR is normalized into the same buckets — the linter treats
+ * specs and ADRs consistently:
+ *   - `rejected` (never accepted) and `retired` (shipped, then superseded/
+ *     removed) → the rule does not run (skip)
  *   - every other status (`shipped` / `draft` / `in-progress` / unknown) → warn
  *
  * Two source shapes feed the same buckets:
  *   - spec.md — a `| Status | <value> |` markdown table row (bucketed like the
  *     web-ui status pill in apps/web-ui/src/lib/spec-status.ts).
  *   - ADR .md — YAML frontmatter `status: <value>`; `accepted` folds into
- *     `shipped`, `proposed` into `in-progress`, `superseded` into `rejected`.
+ *     `shipped`, `proposed` into `in-progress`, `retired` stays `retired`.
  */
 
 export type DocKind = "spec" | "adr";
-export type StatusBucket = "draft" | "in-progress" | "shipped" | "rejected";
+export type StatusBucket =
+  "draft" | "in-progress" | "shipped" | "rejected" | "retired";
 export type StatusTier = "skip" | "warn";
 
 export interface DocStatus {
@@ -37,8 +39,15 @@ const BUCKETS: Array<{ status: StatusBucket; re: RegExp }> = [
     re: /^(shipped|implemented|complete|accepted|done|live)/,
   },
   {
+    // Shipped, then retired — superseded / removed / deprecated / obsolete. A
+    // distinct terminal state from `rejected` (never accepted); both skip the
+    // rule, but this one preserves the "was live" history.
+    status: "retired",
+    re: /^(retired|superseded|removed|deprecated|obsolete)/,
+  },
+  {
     status: "rejected",
-    re: /^(rejected|superseded|abandoned|obsolete|deprecated)/,
+    re: /^(rejected|abandoned)/,
   },
 ];
 
@@ -87,10 +96,10 @@ export function parseDocStatus(content: string, kind: DocKind): DocStatus {
   return { status: value === null ? null : bucketOf(value) };
 }
 
-/** Enforcement tier for a bucket: `rejected` skips the rule, every other
- * status (shipped / draft / in-progress / unknown) warns. */
+/** Enforcement tier for a bucket: `rejected` and `retired` skip the rule (dead
+ * specs), every other status (shipped / draft / in-progress / unknown) warns. */
 export function statusTier(status: StatusBucket | null): StatusTier {
-  return status === "rejected" ? "skip" : "warn";
+  return status === "rejected" || status === "retired" ? "skip" : "warn";
 }
 
 /** Rewrite a status value cell to `label`, preserving the leading space and the

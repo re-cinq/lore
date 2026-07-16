@@ -3,7 +3,7 @@
 | Field      | Value                                                  |
 |------------|--------------------------------------------------------|
 | Feature    | Repo coverage ingest route                             |
-| Status     | **Removed** (cutover 2026-06-29)                        |
+| Status     | Retired                                                 |
 | Created    | 2026-06-10                                             |
 | Owner      | Platform Engineering                                   |
 | Route      | ~~`POST /api/repos/:owner/:repo/coverage`~~ (deleted)  |

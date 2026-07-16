@@ -3,7 +3,7 @@
 | Field          | Value                                                                                   |
 |----------------|-----------------------------------------------------------------------------------------|
 | Feature        | Dark Factory Console                                                                     |
-| Status         | **Shipped**                                                                                |
+| Status         | Shipped                                                                                    |
 | Created        | 2026-06-12                                                                               |
 | Owner          | Platform Engineering                                                                     |
 | Decision       | extends [ADR-016](../../adrs/ADR-016-dark-factory-mode.md) — surfaces dark-factory operation in the UI |

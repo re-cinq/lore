@@ -9,7 +9,7 @@
 |----------|--------------------------------|
 | Feature  | Dark Factory Mode              |
 | Branch   | 6-dark-factory                 |
-| Status   | Implemented                    |
+| Status   | Shipped                        |
 | Created  | 2026-04-28                     |
 | Owner    | Platform Engineering           |
 

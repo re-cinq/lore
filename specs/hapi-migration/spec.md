@@ -3,7 +3,7 @@
 | Field    | Value                                                              |
 |----------|-------------------------------------------------------------------|
 | Feature  | Replace the hand-rolled `node:http` router in `apps/lore-api` with hapi |
-| Status   | Complete — lore-api is pure hapi (all 12 groups migrated + teardown) |
+| Status   | Shipped                                                              |
 | Created  | 2026-07-01                                                        |
 | Owner    | Platform Engineering                                             |
 | ADR      | [ADR-033](../../adrs/ADR-033-lore-api-hapi.md)                     |

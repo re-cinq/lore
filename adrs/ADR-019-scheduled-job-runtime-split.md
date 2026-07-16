@@ -1,7 +1,7 @@
 ---
 adr_number: 19
 title: "Scheduled job runtime split: in-process scheduler ↔ K8s CronJobs"
-status: accepted
+status: shipped
 date: 2026-06-02
 domains: [agent, scheduling, infra, k8s]
 supersedes: "Scheduling decision in 5-lore-agent (Problem #5, FR-6, SC#2)"

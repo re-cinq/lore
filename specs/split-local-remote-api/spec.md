@@ -3,7 +3,7 @@
 | Field    | Value                                                          |
 |----------|----------------------------------------------------------------|
 | Feature  | Split Local MCP Adapter ↔ Remote HTTPS REST API                |
-| Status   | Implemented — merged to `main` 2026-06-30                      |
+| Status   | Shipped                                                        |
 | Created  | 2026-06-23                                                     |
 | Owner    | Platform Engineering                                          |
 | ADR      | [ADR-032](../../adrs/ADR-032-split-local-remote-api.md)        |

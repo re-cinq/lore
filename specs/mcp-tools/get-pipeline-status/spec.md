@@ -3,7 +3,7 @@
 | Field   | Value                          |
 |---------|--------------------------------|
 | Feature | lore_get_pipeline_status MCP Tool   |
-| Status  | **Draft**                      |
+| Status  | Draft                          |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_get_pipeline_status`          |

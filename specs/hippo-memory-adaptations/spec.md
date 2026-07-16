@@ -3,7 +3,7 @@
 | Field          | Value                                       |
 |----------------|---------------------------------------------|
 | Feature        | Hippo-Memory Adaptations                    |
-| Status         | Implemented                                 |
+| Status         | Shipped                                     |
 | Created        | 2026-04-07                                  |
 | Implemented    | 2026-04-20                                  |
 | Owner          | Platform Engineering                        |

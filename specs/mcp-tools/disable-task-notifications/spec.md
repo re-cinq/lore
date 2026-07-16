@@ -3,7 +3,7 @@
 | Field   | Value                                          |
 |---------|------------------------------------------------|
 | Feature | lore_disable_task_notifications MCP Tool            |
-| Status  | **Draft**                                      |
+| Status  | Draft                                          |
 | Created | 2026-06-10                                     |
 | Owner   | Platform Engineering                           |
 | Tool    | `lore_disable_task_notifications`                   |

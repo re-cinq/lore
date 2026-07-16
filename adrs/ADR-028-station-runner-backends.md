@@ -1,7 +1,7 @@
 ---
 adr_number: 28
 title: "Station runner backends: one port, K8s (cluster) + Docker (local)"
-status: accepted
+status: shipped
 date: 2026-06-17
 domains: [agent, pipeline, infra]
 ---
