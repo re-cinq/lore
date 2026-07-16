@@ -17,7 +17,7 @@ import {
   projectDocumentBlocks,
   pruneOrphanBlocksByFile,
 } from "./project-blocks.js";
-import { withTxn, upsertByXid } from "./dgraph-upsert.js";
+import { withTxn, upsertByXid, deletePredicate } from "./dgraph-upsert.js";
 import { adrNumberFromPath } from "./adr-refs.js";
 
 function sha256(text: string): string {
@@ -60,9 +60,13 @@ export async function projectAdrFile(
   const adrUid = await upsertByXid(dgraph, "ADR", xid, {
     "ADR.repo": repo,
     "ADR.file_path": filePath,
-    "ADR.content_hash": contentHash,
     ...(number != null ? { "ADR.number": number } : {}),
   });
+
+  // The hash is a completed-projection receipt: cleared now, persisted only
+  // after every child write succeeds, so a mid-file failure reopens the gate
+  // and the next attempt re-projects (same ordering as projectSpecFile).
+  await deletePredicate(dgraph, adrUid, "ADR.content_hash");
 
   await upsertByXid(dgraph, "Repo", repo, { "Repo.adrs": [{ uid: adrUid }] });
   const validXids = await projectDocumentBlocks(
@@ -73,6 +77,8 @@ export async function projectAdrFile(
   );
 
   await pruneOrphanBlocksByFile(dgraph, repo, filePath, validXids);
+
+  await upsertByXid(dgraph, "ADR", xid, { "ADR.content_hash": contentHash });
 
   return { projected: true };
 }
