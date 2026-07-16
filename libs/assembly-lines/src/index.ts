@@ -21,7 +21,7 @@ export {
   type AgentNodeStatus,
 } from "./node-outcome.js";
 
-export { resultTextFromOutput } from "./agent-output.js";
+export { resultTextFromOutput, resultLine, eventLine } from "./agent-output.js";
 
 export { ciOutcome, type CiConclusion } from "./github-action-handler.js";
 
