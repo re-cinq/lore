@@ -172,7 +172,7 @@ low-risk reads before touching auth-sensitive writes:
 - **SC-4** Rate limiting still returns `429` + `Retry-After: 60` at the same
   per-bucket thresholds (webhook 30, task 60, default 200 per minute); a bucket
   allows requests up to its limit then blocks, and admits them again once the 60s
-  window slides past. ([validated by `rate-limit.test.ts:29`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L29), [validated by `auth.test.ts:19`](apps/lore-api/src/api/routes/auth.test.ts#L19), [validated by `auth.test.ts:26`](apps/lore-api/src/api/routes/auth.test.ts#L26))
+  window slides past. ([validated by `rate-limit.test.ts:42`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L42), [validated by `auth.test.ts:19`](apps/lore-api/src/api/routes/auth.test.ts#L19), [validated by `auth.test.ts:26`](apps/lore-api/src/api/routes/auth.test.ts#L26))
 - **SC-5** Each PR in the migration is independently revertable and was merged
   without an API outage (no route 404s introduced mid-migration).
 
