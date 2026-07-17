@@ -236,6 +236,13 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
 
 These statements pin the deterministic Floor glue that wraps the subsystem.
 
+- **Cluster credential resolution.** Every Kubernetes client the Floor and lore-api construct
+  loads credentials through `loadKube`: the in-cluster pod service account when
+  `KUBERNETES_SERVICE_HOST` is present, else the explicit `LORE_KUBECONFIG` override, else the
+  ambient default (`KUBECONFIG`, then `~/.kube/config`). In-cluster wins over the override, so a
+  stray `LORE_KUBECONFIG` in a pod env can never repoint a deployed process; the override exists so
+  a developer's host-run Floor can drive a laptop minikube
+  (`runbooks/floor-assembly-line-minikube-smoke.md`). ([validated by `kube-config.test.ts:24`](libs/shared/src/kube-config.test.ts#L24), [`kube-config.test.ts:30`](libs/shared/src/kube-config.test.ts#L30), [`kube-config.test.ts:36`](libs/shared/src/kube-config.test.ts#L36), [`kube-config.test.ts:40`](libs/shared/src/kube-config.test.ts#L40), [`kube-config.test.ts:49`](libs/shared/src/kube-config.test.ts#L49), [`kube-config.test.ts:57`](libs/shared/src/kube-config.test.ts#L57), [`kube-config.test.ts:65`](libs/shared/src/kube-config.test.ts#L65), [`kube-config.test.ts:73`](libs/shared/src/kube-config.test.ts#L73))
 - **Pending-task single-flight.** The Floor worker's `pollWithGuard` claims and processes one task
   per tick, does nothing when there is no runnable task, and skips a concurrent tick while a task is
   still processing (only one claim in flight). ([validated by `worker.poll.test.ts:5`](apps/floor/src/jobs/task/worker.poll.test.ts#L5), [`worker.poll.test.ts:17`](apps/floor/src/jobs/task/worker.poll.test.ts#L17), [`worker.poll.test.ts:29`](apps/floor/src/jobs/task/worker.poll.test.ts#L29))

@@ -1,4 +1,4 @@
-import { errorMessage } from "@re-cinq/lore-shared";
+import { errorMessage, loadKube } from "@re-cinq/lore-shared";
 /**
  * Agent CR (agents.re-cinq.com) processing (ADR-031). The decisions that differ
  * from a LoreTask (Agent.status carries no changedFiles / reviewResult / taskType,
@@ -301,14 +301,15 @@ async function patchAgentStatus(
   }
 }
 
-/** Construct the in-cluster Agent CR API client + namespace. */
+/** Construct the Agent CR API client + namespace (in-cluster, or the developer's
+ *  kubeconfig when the Floor runs on a laptop against minikube). */
 export function makeAgentsApi(): {
   k8sApi: CustomObjectsApi;
   namespace: string;
 } {
   const kc = new KubeConfig();
 
-  kc.loadFromCluster();
+  loadKube(kc);
 
   return {
     k8sApi: kc.makeApiClient(CustomObjectsApi),
