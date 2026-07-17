@@ -159,4 +159,35 @@ describe("nodeStationSpec (station pod contract)", () => {
       ).stationRef,
     ).toBe("def-custom-detect");
   });
+
+  it("marks only ingest and validate nodes for cloning — detect/gate/retrospective/triage read via the API and a checkout of their synthetic lease-key branch would fail the init", () => {
+    const cloneByType = (type: AssemblyLineNode["type"]) =>
+      nodeStationSpec({ id: type, type }, task).clone;
+
+    expect(cloneByType("ingest")).toBe(true);
+    expect(cloneByType("validate")).toBe(true);
+    expect(cloneByType("detect")).toBe(false);
+    expect(cloneByType("gate")).toBe(false);
+    expect(cloneByType("retrospective")).toBe(false);
+    expect(cloneByType("comment-triage")).toBe(false);
+    expect(cloneByType("github_action")).toBe(false);
+    expect(
+      nodeAgentSpec({ id: "implement", type: "agent" }, task, "p").clone,
+    ).toBeUndefined();
+  });
+
+  it("clones at args.ref when set — the line's branch is only the lease key (ingest/<kind>/<ref>)", () => {
+    const ingestTask = {
+      ...task,
+      branch: "ingest/specs/abc123",
+      args: { kind: "specs", ref: "abc123" },
+    };
+    const spec = nodeStationSpec({ id: "ingest", type: "ingest" }, ingestTask);
+
+    expect(spec.branch).toBe("abc123");
+    expect(JSON.parse(spec.parameters!.station_input).branch).toBe("abc123");
+    expect(
+      nodeAgentSpec({ id: "implement", type: "agent" }, ingestTask, "p").branch,
+    ).toBe("abc123");
+  });
 });

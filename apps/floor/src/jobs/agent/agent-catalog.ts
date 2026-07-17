@@ -29,6 +29,11 @@ const BASE_IMAGE = "node:22-bookworm";
 const SEED_LABELS = { "app.kubernetes.io/managed-by": "lore-catalog-seed" };
 // Placeholder for the per-cluster sink URL; catalogChartYaml swaps it for the helm value.
 const EVENTS_URL_SENTINEL = "__AGENT_EVENTS_URL__";
+
+// Placeholder for the per-cluster Lore API base URL every lore-station pod calls
+// (createStationProject / apiEmbed / payload fetch); catalogChartYaml swaps it for
+// the helm value.
+const API_URL_SENTINEL = "__LORE_API_URL__";
 // Placeholder for the subchart namespace (umbrella spans namespaces, so each CR needs
 // an explicit namespace); catalogChartYaml swaps it for the helm value.
 const NAMESPACE_SENTINEL = "__NAMESPACE__";
@@ -145,17 +150,20 @@ export function buildStationDefinition(
       output: OUTPUT_SINKS,
       // The controller folds recipe resources.env into the run env; a Station
       // pod-template env block is OVERWRITTEN by the controller (jobspec.d
-      // wirePodTemplate) and silently lost — learned live, 2026-07-17.
-      ...(cfg.env && Object.keys(cfg.env).length > 0
-        ? {
-            resources: {
-              env: Object.entries(cfg.env).map(([name, value]) => ({
-                name,
-                value,
-              })),
-            },
-          }
-        : {}),
+      // wirePodTemplate) and silently lost — learned live, 2026-07-17. Every
+      // station pod reads/writes over HTTP (createStationProject, D7), so the
+      // API base URL + ingest token ship on every recipe; per-station cfg.env
+      // (e.g. def-ingest's LORE_DGRAPH_HTTP) appends after.
+      resources: {
+        env: [
+          { name: "LORE_API_URL", value: API_URL_SENTINEL },
+          ...Object.entries(cfg.env ?? {}).map(([name, value]) => ({
+            name,
+            value,
+          })),
+        ],
+        secrets: [{ name: "LORE_INGEST_TOKEN", ref: "LORE_INGEST_TOKEN" }],
+      },
     },
   };
 }
@@ -236,6 +244,7 @@ export function catalogChartYaml(
 
   return body
     .replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}")
+    .replaceAll(API_URL_SENTINEL, "{{ .Values.loreApiUrl }}")
     .replaceAll(NAMESPACE_SENTINEL, "{{ .Values.namespace }}")
     .replaceAll(STATION_IMAGE_SENTINEL, "{{ .Values.stationImage }}");
 }

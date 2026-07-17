@@ -893,6 +893,13 @@ spec:
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+  resources:
+    env:
+      - name: LORE_API_URL
+        value: {{ .Values.loreApiUrl }}
+    secrets:
+      - name: LORE_INGEST_TOKEN
+        ref: LORE_INGEST_TOKEN
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -944,6 +951,13 @@ spec:
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+  resources:
+    env:
+      - name: LORE_API_URL
+        value: {{ .Values.loreApiUrl }}
+    secrets:
+      - name: LORE_INGEST_TOKEN
+        ref: LORE_INGEST_TOKEN
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -995,6 +1009,13 @@ spec:
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+  resources:
+    env:
+      - name: LORE_API_URL
+        value: {{ .Values.loreApiUrl }}
+    secrets:
+      - name: LORE_INGEST_TOKEN
+        ref: LORE_INGEST_TOKEN
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -1046,6 +1067,13 @@ spec:
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+  resources:
+    env:
+      - name: LORE_API_URL
+        value: {{ .Values.loreApiUrl }}
+    secrets:
+      - name: LORE_INGEST_TOKEN
+        ref: LORE_INGEST_TOKEN
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -1097,6 +1125,13 @@ spec:
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+  resources:
+    env:
+      - name: LORE_API_URL
+        value: {{ .Values.loreApiUrl }}
+    secrets:
+      - name: LORE_INGEST_TOKEN
+        ref: LORE_INGEST_TOKEN
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -1148,6 +1183,13 @@ spec:
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+  resources:
+    env:
+      - name: LORE_API_URL
+        value: {{ .Values.loreApiUrl }}
+    secrets:
+      - name: LORE_INGEST_TOKEN
+        ref: LORE_INGEST_TOKEN
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -1201,8 +1243,13 @@ spec:
         headers_secret: agent-events-auth
   resources:
     env:
+      - name: LORE_API_URL
+        value: {{ .Values.loreApiUrl }}
       - name: LORE_DGRAPH_HTTP
         value: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080
+    secrets:
+      - name: LORE_INGEST_TOKEN
+        ref: LORE_INGEST_TOKEN
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station

@@ -104,7 +104,7 @@ export class AgentCrBackend implements StationBackend {
     const context =
       spec.hydrate === false ? undefined : await this.context?.assemble(spec);
     const stationRef =
-      this.tokens && needsToken(spec)
+      this.tokens && needsToken(spec) && spec.clone !== false
         ? await this.tokens.provision(spec)
         : undefined;
     const { name, created } = await this.api.create(

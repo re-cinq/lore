@@ -56,6 +56,14 @@ function nodeLabels(
   };
 }
 
+/** The git ref a node's pod checks out: `args.ref` when the line's branch is
+ *  only a lease key (ingest lines lease `ingest/<kind>/<ref>`), else the branch. */
+function cloneRef(task: FloorAssemblyLineTask): string {
+  const ref = task.args?.ref;
+
+  return typeof ref === "string" && ref.length > 0 ? ref : task.branch;
+}
+
 /** Pure: the Agent dispatch spec for one agent-node. Prompt is resolved per node; model
  *  from the node (else inherited); repo/branch/description from the task. */
 export function nodeAgentSpec(
@@ -70,7 +78,7 @@ export function nodeAgentSpec(
     description: task.description,
     prompt,
     targetRepo: task.targetRepo,
-    branch: task.branch,
+    branch: cloneRef(task),
     ...(node.model ? { model: node.model } : {}),
     // An agent node's recipe/Station can differ from the line's taskType-derived
     // default — code-review-reply's node runs on code-review-refine. Without
@@ -81,6 +89,11 @@ export function nodeAgentSpec(
     extraLabels: nodeLabels(node, task, iteration),
   };
 }
+
+/** Station types whose pod works on the repo checkout — only these get the
+ *  per-task token + clone triple. The rest read via the API, and their line
+ *  branch can be a synthetic lease key no `git checkout` could resolve. */
+const CLONING_STATION_TYPES = new Set(["ingest", "validate"]);
 
 /** Node knobs a station receives as its `params` (everything execution-relevant
  *  the YAML can say about the node, minus the routing fields). */
@@ -125,20 +138,21 @@ export function nodeStationSpec(
     description: task.description,
     prompt: "",
     targetRepo: task.targetRepo,
-    branch: task.branch,
+    branch: cloneRef(task),
     name: nodeAgentName(task.assemblyLineId, node.id, iteration),
     extraLabels: nodeLabels(node, task, iteration),
     stationRef: node.station_ref ?? stationName(node.type),
     // Stations render only {station_input} — never hydrate (D5 is for agent
     // nodes); an empty description otherwise assembles an unbounded context.
     hydrate: false,
+    clone: CLONING_STATION_TYPES.has(node.type),
     parameters: {
       station_input: JSON.stringify({
         assembly_line_id: task.assemblyLineId,
         node_id: node.id,
         node_type: node.type,
         repo: task.targetRepo,
-        branch: task.branch,
+        branch: cloneRef(task),
         task_id: task.taskId,
         params,
       }),
