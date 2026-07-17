@@ -161,7 +161,7 @@ describe("nodeStationSpec (station pod contract)", () => {
   });
 
   it("marks only ingest and validate nodes for cloning — detect/gate/retrospective/triage read via the API and a checkout of their synthetic lease-key branch would fail the init", () => {
-    const cloneByType = (type: string) =>
+    const cloneByType = (type: AssemblyLineNode["type"]) =>
       nodeStationSpec({ id: type, type }, task).clone;
 
     expect(cloneByType("ingest")).toBe(true);
