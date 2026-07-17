@@ -18,10 +18,16 @@ export {
   stationNodeOutcome,
   parseNodeResult,
   parseReviewVerdict,
+  isBillingError,
   type AgentNodeStatus,
 } from "./node-outcome.js";
 
-export { resultTextFromOutput, resultLine, eventLine } from "./agent-output.js";
+export {
+  resultTextFromOutput,
+  terminalErrorText,
+  resultLine,
+  eventLine,
+} from "./agent-output.js";
 
 export { ciOutcome, type CiConclusion } from "./github-action-handler.js";
 

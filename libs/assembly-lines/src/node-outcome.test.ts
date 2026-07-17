@@ -4,6 +4,7 @@ import {
   parseNodeResult,
   parseReviewVerdict,
   stationNodeOutcome,
+  isBillingError,
   type AgentNodeStatus,
 } from "./node-outcome.js";
 
@@ -108,6 +109,20 @@ describe("stationNodeOutcome", () => {
         { phase: "Failed" },
       ).extras?.["Lore-Validation-Status"],
     ).toBe("agent-failed");
+  });
+});
+
+describe("isBillingError", () => {
+  it("matches the Anthropic credit-balance error case-insensitively", () => {
+    expect(isBillingError("Credit balance is too low")).toBe(true);
+    expect(isBillingError("credit balance too low to run")).toBe(true);
+    expect(isBillingError("insufficient credits for this request")).toBe(true);
+  });
+
+  it("does not match unrelated errors or null", () => {
+    expect(isBillingError("ENOENT: no such file")).toBe(false);
+    expect(isBillingError("rate limit exceeded")).toBe(false);
+    expect(isBillingError(null)).toBe(false);
   });
 });
 

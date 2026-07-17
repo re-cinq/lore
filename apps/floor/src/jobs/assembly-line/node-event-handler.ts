@@ -13,6 +13,7 @@ import type { EventHandler } from "../../main-loop/types.js";
 import { advanceLine, type AdvanceDeps } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { notifyLineFailure } from "./notify-failure.js";
+import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
 import {
   codeReviewOnCommentTriaged,
   type CommentContext,
@@ -23,6 +24,13 @@ import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 export interface NodeEventDeps extends AdvanceDeps {
   /** Read the CR's status by name; null when it no longer exists (pruned). */
   readAgentStatus: (name: string) => Promise<AgentNodeStatus | null>;
+  /** Fire the throttled operator alert when a CR failed because the Anthropic
+   *  account ran dry (best-effort; optional so tests/partial deps omit it). */
+  alertBilling?: (
+    repo: string,
+    nodeType: string,
+    status: AgentNodeStatus,
+  ) => Promise<void>;
 }
 
 export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
@@ -61,6 +69,13 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
       },
     );
     const result = stationNodeOutcome(node, status);
+
+    // An account-out-of-credits failure downs every LLM node at once; surface it
+    // once to operators (the seam throttles + classifies) before the per-line
+    // failure notice, which only ever carries a routing reason.
+    if (result.outcome === "failed" && deps.alertBilling) {
+      await deps.alertBilling(row.repo, node.type, status);
+    }
 
     await finishNodeTerminal(
       { row, node, nodeId, iteration, result, output: status.output },
@@ -125,7 +140,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   const [
     { assemblyLines, jobRuns },
     { loadBuiltinAssemblyLines },
-    { agentCrBackend },
+    { agentCrBackend, projectFor },
     { buildPrompt },
     { cleanupPerTaskToken },
     { KubeAgentApi },
@@ -151,8 +166,19 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     notifyFailure: (row, outcome, reason) =>
       notifyLineFailure(row, outcome, reason),
     readAgentStatus: (name) => kubeApi.getStatus(name),
+    alertBilling: async (repo, nodeType, status) => {
+      await maybeAlertBilling(repo, nodeType, status, {
+        notify: async (level, message) =>
+          (await projectFor(repo)).notify.notify(level, message),
+        throttle: billingAlertThrottle,
+      });
+    },
   };
 }
+
+/** Module singleton: the billing outage is account-wide, so the alert throttle
+ *  must survive across per-event deps (one alert/hour across all repos). */
+const billingAlertThrottle = new BillingAlertThrottle();
 
 /** Composed production handler for the registry (both node-terminal events). */
 export const agentNodeTerminal: EventHandler = async (params) => {

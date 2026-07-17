@@ -42,6 +42,7 @@ function harness() {
   const port = new InMemoryAssemblyLines();
   const launched: LoreTaskSpec[] = [];
   const statusByName: Record<string, AgentNodeStatus | null> = {};
+  const billingAlerts: Array<{ repo: string; nodeType: string }> = [];
   const handler = createNodeEventHandler({
     assemblyLines: port,
     definitions: async () => new Map([["code-review", line]]),
@@ -52,9 +53,12 @@ function harness() {
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },
     readAgentStatus: async (name) => statusByName[name] ?? null,
+    alertBilling: async (repo, nodeType) => {
+      billingAlerts.push({ repo, nodeType });
+    },
   });
 
-  return { port, launched, statusByName, handler };
+  return { port, launched, statusByName, billingAlerts, handler };
 }
 
 async function reviewInFlight(h: ReturnType<typeof harness>) {
@@ -102,6 +106,34 @@ describe("createNodeEventHandler", () => {
       ["refine", null],
     ]);
     expect(h.launched.at(-1)?.name).toBe(`${id.substring(0, 8)}-refine`);
+  });
+
+  it("fires the billing alert with the repo + node type when a node CR fails", async () => {
+    const h = harness();
+    const { id, crName } = await reviewInFlight(h);
+
+    h.statusByName[crName] = {
+      phase: "Failed",
+      failureReason: "BackoffLimitExceeded",
+      output:
+        '{"type":"result","is_error":true,"result":"Credit balance is too low"}',
+    };
+    await h.handler(params(id, crName, "Failed"));
+
+    expect(h.billingAlerts).toEqual([{ repo: "o/r", nodeType: "agent" }]);
+  });
+
+  it("does not fire the billing alert on a successful node", async () => {
+    const h = harness();
+    const { id, crName } = await reviewInFlight(h);
+
+    h.statusByName[crName] = {
+      phase: "Succeeded",
+      output: "REVIEW_RESULT:APPROVED",
+    };
+    await h.handler(params(id, crName));
+
+    expect(h.billingAlerts).toEqual([]);
   });
 
   it("finishes the line completed on an approved review", async () => {
