@@ -56,13 +56,18 @@ describe("buildAgentDefinition", () => {
     });
   });
 
-  it("station recipes omit ANTHROPIC (exec vendor, no model call)", () => {
-    expect(
-      buildStationDefinition("validate", {
-        command: ["lore-station", "validate"],
-        timeout_minutes: 15,
-      }).spec,
-    ).not.toHaveProperty("resources");
+  it("station recipes swap ANTHROPIC (exec vendor, no model call) for the Lore API pair every lore-station pod needs", () => {
+    const resources = buildStationDefinition("validate", {
+      command: ["lore-station", "validate"],
+      timeout_minutes: 15,
+    }).spec?.resources;
+
+    expect(resources?.secrets).toEqual([
+      { name: "LORE_INGEST_TOKEN", ref: "LORE_INGEST_TOKEN" },
+    ]);
+    expect(resources?.env).toEqual([
+      { name: "LORE_API_URL", value: "__LORE_API_URL__" },
+    ]);
   });
 
   it("omits model when the recipe has none", () => {
@@ -127,6 +132,15 @@ describe("catalogChartYaml", () => {
     expect(out).toContain("url: {{ .Values.agentEventsUrl }}");
     expect(out).not.toContain("__AGENT_EVENTS_URL__");
   });
+  it("templates the station recipes' LORE_API_URL with the helm value (no sentinel leaks)", () => {
+    const withStation = catalogChartYaml(
+      {},
+      { gate: { command: ["lore-station", "gate"] } },
+    );
+
+    expect(withStation).toContain("value: {{ .Values.loreApiUrl }}");
+    expect(withStation).not.toContain("__LORE_API_URL__");
+  });
   it("stamps each CR namespace with the helm value (umbrella spans namespaces)", () => {
     expect(out).toContain("namespace: {{ .Values.namespace }}");
     expect(out).not.toContain("__NAMESPACE__");
@@ -169,6 +183,10 @@ describe("station catalog (exec vendor recipes)", () => {
             },
           ],
         },
+        resources: {
+          env: [{ name: "LORE_API_URL", value: "__LORE_API_URL__" }],
+          secrets: [{ name: "LORE_INGEST_TOKEN", ref: "LORE_INGEST_TOKEN" }],
+        },
       },
     });
   });
@@ -202,15 +220,12 @@ describe("station catalog (exec vendor recipes)", () => {
     });
 
     expect(definition.spec?.resources?.env).toEqual([
+      { name: "LORE_API_URL", value: "__LORE_API_URL__" },
       {
         name: "LORE_DGRAPH_HTTP",
         value: "http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080",
       },
     ]);
-    expect(
-      buildStationDefinition("gate", { command: ["lore-station", "gate"] }).spec
-        ?.resources,
-    ).toBeUndefined();
     const station = buildStationStation("ingest", {
       command: ["lore-station", "ingest"],
       env: { LORE_DGRAPH_HTTP: "x" },

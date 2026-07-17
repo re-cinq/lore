@@ -111,12 +111,14 @@ describe("dispatchSpecTrace", () => {
       },
     );
 
+    // branch is the overlap-guard lease key — per kind, so the specs and adrs
+    // lines of one push never collide; the clone ref rides args.ref.
     expect(started).toEqual([
       {
         definitionName: "ingest",
         repo: "re-cinq/lore",
-        branch: "abc123",
-        args: { kind: "specs" },
+        branch: "ingest/specs/abc123",
+        args: { kind: "specs", ref: "abc123" },
       },
     ]);
     expect(result.failedFiles).toEqual([]);
@@ -145,7 +147,12 @@ describe("dispatchSpecTrace", () => {
     );
 
     expect(started[0]).toMatchObject({
-      args: { kind: "specs", glob: "specs/auth/", force: "true" },
+      args: {
+        kind: "specs",
+        ref: "abc123",
+        glob: "specs/auth/",
+        force: "true",
+      },
     });
   });
 
@@ -246,8 +253,8 @@ describe("dispatchSpecTrace", () => {
       {
         definitionName: "ingest",
         repo: "re-cinq/lore",
-        branch: "abc123",
-        args: { kind: "test-report", payload_event_id: "4711" },
+        branch: "ingest/test-report/abc123",
+        args: { kind: "test-report", ref: "abc123", payload_event_id: "4711" },
       },
     ]);
     expect(result.failedFiles).toEqual([]);

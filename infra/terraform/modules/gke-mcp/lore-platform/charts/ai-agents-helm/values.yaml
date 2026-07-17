@@ -29,6 +29,13 @@ nodeLocalDnsIp: 169.254.20.10
 # ADR-031 amendment). CI bumps the tag alongside the other service images.
 stationImage: ghcr.io/re-cinq/lore-station:latest
 
+# Lore API base URL the seeded station recipes call (createStationProject reads,
+# apiEmbed, payload-by-reference fetches). The EXTERNAL URL on purpose: the run-pod
+# NetworkPolicy denies RFC1918 egress except the floor sink, so in-cluster service
+# URLs are unreachable from a run pod while public HTTPS is allowed. Terraform may
+# override per cluster.
+loreApiUrl: https://lore-api.gcp.re-cinq.com
+
 controller:
   replicas: 1
   image:
