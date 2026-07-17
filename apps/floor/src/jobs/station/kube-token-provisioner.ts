@@ -10,6 +10,7 @@ import type { TokenProvisioner } from "./agent-backend.js";
 import {
   tokenSecretKey,
   perTaskName,
+  catalogLookupName,
   injectRepoToken,
   perTaskStation,
 } from "./per-task-token.js";
@@ -63,8 +64,9 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
   ) {}
 
   async provision(spec: LoreTaskSpec): Promise<string | undefined> {
-    const catalogDef = await this.catalog.getAgentDefinition(spec.taskType);
-    const catalogStation = await this.catalog.getStation(spec.taskType);
+    const lookup = catalogLookupName(spec);
+    const catalogDef = await this.catalog.getAgentDefinition(lookup);
+    const catalogStation = await this.catalog.getStation(lookup);
 
     if (!catalogDef || !catalogStation) {
       return undefined;

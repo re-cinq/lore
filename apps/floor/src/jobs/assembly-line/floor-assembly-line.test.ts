@@ -159,4 +159,19 @@ describe("nodeStationSpec (station pod contract)", () => {
       ).stationRef,
     ).toBe("def-custom-detect");
   });
+
+  it("clones at args.ref when set — the line's branch is only the lease key (ingest/<kind>/<ref>)", () => {
+    const ingestTask = {
+      ...task,
+      branch: "ingest/specs/abc123",
+      args: { kind: "specs", ref: "abc123" },
+    };
+    const spec = nodeStationSpec({ id: "ingest", type: "ingest" }, ingestTask);
+
+    expect(spec.branch).toBe("abc123");
+    expect(JSON.parse(spec.parameters!.station_input).branch).toBe("abc123");
+    expect(
+      nodeAgentSpec({ id: "implement", type: "agent" }, ingestTask, "p").branch,
+    ).toBe("abc123");
+  });
 });

@@ -45,14 +45,23 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   (`libs/assembly-lines/src/assembly-lines/ingest.yaml`, node type `ingest`) rides
   the standard event-driven walk, per-node timeout, and reaper. With the line
   starter wired, the Floor's spec-trace dispatch routes docs kinds to
-  `assemblyLines().start("ingest", …)` — the clone pinned to the ingested commit
-  via the line's `branch` field (full clone + `git checkout <ref>`), `kind`/`glob`/
-  `force` threaded as string args into `station_input.params` — and the event marks
-  done; convergence, retry, and dead-letter shift from the event loop to the line
-  machinery (the reaper is the liveness bound; ADR-031 FR6.10). Force-without-glob
-  still self-chunks into child events BEFORE any line starts; payload kinds stay
-  inline until FR3.
-  ([validated by `spec-trace-dispatch:89`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L89), [`spec-trace-dispatch:126`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L126), [`loader:231`](libs/assembly-lines/src/loader.test.ts#L231); implemented by [`spec-trace-dispatch.ts:120`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.ts#L120), [`ingest.yaml:1`](libs/assembly-lines/src/assembly-lines/ingest.yaml#L1))
+  `assemblyLines().start("ingest", …)`. The line's `branch` is ONLY the
+  overlap-guard lease key, `ingest/<kind>/<ref>` — the specs/adrs/test-report
+  lines of one push must not take each other's lease (a bare `branch=<sha>`
+  closed all but one of every push's lines as `finished/lease_held`,
+  2026-07-17); the pod clones at `args.ref` (full clone + `git checkout <ref>`),
+  which the node spec builders prefer over the lease key for the CR's branch and
+  `station_input.branch`. `kind`/`ref`/`glob`/`force` thread as string args into
+  `station_input.params` and the event marks done; convergence, retry, and
+  dead-letter shift from the event loop to the line machinery (the reaper is the
+  liveness bound; ADR-031 FR6.10). Force-without-glob still self-chunks into
+  child events BEFORE any line starts. The per-task provisioner materialises the
+  pod's clone triple from the recipe the node actually runs on —
+  `stationRef ?? taskType` — because a task-less line's `taskType` is its
+  definition name, which is no catalog recipe at all (the day-one lookup miss
+  left ingest pods with no `/workspace/target`), and a task-backed line's
+  station node would otherwise clone the task type's LLM recipe.
+  ([validated by `spec-trace-dispatch:89`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L89), [`spec-trace-dispatch:128`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L128), [`floor-assembly-line:163`](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L163), [`per-task-token:64`](apps/floor/src/jobs/station/per-task-token.test.ts#L64), [`per-task-token:70`](apps/floor/src/jobs/station/per-task-token.test.ts#L70), [`loader:231`](libs/assembly-lines/src/loader.test.ts#L231); implemented by [`spec-trace-dispatch.ts:120`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.ts#L120), [`ingest.yaml:1`](libs/assembly-lines/src/assembly-lines/ingest.yaml#L1))
 
 - **FR3 — payload transport.** `station_input` carries kind + a payload *reference*,
   never an inline test-report body: report payloads reach ~1 MB (the HTTP body
@@ -61,7 +70,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   back from `GET /api/repos/:o/:r/events/:id/payload` (read scope, repo must match
   the row) and runs `ingestSpecTrace`; docs kinds need only `{commit, glob, force}`
   inline.
-  ([validated by `ingest.test.ts:202`](apps/lore-station/src/stations/ingest.test.ts#L202), [`ingest.test.ts:228`](apps/lore-station/src/stations/ingest.test.ts#L228), [`event-payload.test.ts:35`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L35), [`event-payload.test.ts:48`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L48), [`event-payload.test.ts:58`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L58), [`spec-trace-dispatch:224`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L224), [`loop.test.ts:110`](apps/floor/src/main-loop/loop.test.ts#L110); implemented by [`event-payload.ts:14`](apps/lore-api/src/api/routes/ingest/event-payload.ts#L14))
+  ([validated by `ingest.test.ts:202`](apps/lore-station/src/stations/ingest.test.ts#L202), [`ingest.test.ts:228`](apps/lore-station/src/stations/ingest.test.ts#L228), [`event-payload.test.ts:35`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L35), [`event-payload.test.ts:48`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L48), [`event-payload.test.ts:58`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L58), [`spec-trace-dispatch:224`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L231), [`loop.test.ts:110`](apps/floor/src/main-loop/loop.test.ts#L110); implemented by [`event-payload.ts:14`](apps/lore-api/src/api/routes/ingest/event-payload.ts#L14))
 
 - **FR4 — network policy + pod providers.** A label-scoped NetworkPolicy
   (`ingest-station-egress`, selecting `agents.re-cinq.com/station: def-ingest`)
@@ -70,14 +79,19 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   `LORE_DGRAPH_HTTP` via `AgentDefinition.spec.resources.env` — the controller
   folds recipe env into the run env, while a Station pod-template env block is
   OVERWRITTEN and silently lost (learned live: the first prod pods failed with
-  "LORE_DGRAPH_HTTP not configured" while the template carried it). Statement
+  "LORE_DGRAPH_HTTP not configured" while the template carried it). EVERY
+  seeded station recipe carries the `LORE_API_URL` env (`.Values.loreApiUrl` —
+  the external URL, since the run-pod NetworkPolicy denies RFC1918 egress) plus
+  the `LORE_INGEST_TOKEN` secret: `createStationProject` requires them, and no
+  detect/ingest pod ever had them before this pair (detect lines failed for five
+  straight days as "createStationProject requires LORE_API_URL"). Statement
   embeddings ride `POST /api/embed` — the API proxies Vertex on its own
   credentials, so no GCP identity ever reaches a run pod. Station dispatches
   never hydrate context (`hydrate: false`): the exec recipe renders only
   `{station_input}`, and an empty-description dispatch otherwise assembles an
   unbounded-query context (~3 MB) that blew the 2 MiB apiserver limit and
   blocked every ingest CR create on day one.
-  ([validated by `agent-backend.test.ts:68`](apps/floor/src/jobs/station/agent-backend.test.ts#L68), [`floor-assembly-line.test.ts:87`](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L107), [`agent-catalog.test.ts:195`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L195), [`embed.test.ts:38`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L38), [`embed.test.ts:45`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L45), [`embed.test.ts:52`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L52), [`ingest.test.ts:239`](apps/lore-station/src/stations/ingest.test.ts#L239), [`ingest.test.ts:258`](apps/lore-station/src/stations/ingest.test.ts#L258); implemented by [`ingest-station-egress.yaml:1`](infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/templates/ingest-station-egress.yaml#L1), [`embed.ts:27`](apps/lore-api/src/api/routes/ingest/embed.ts#L27))
+  ([validated by `agent-backend.test.ts:68`](apps/floor/src/jobs/station/agent-backend.test.ts#L68), [`floor-assembly-line.test.ts:107`](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L107), [`agent-catalog.test.ts:213`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L213), [`agent-catalog.test.ts:59`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L59), [`agent-catalog.test.ts:135`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L135), [`embed.test.ts:38`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L38), [`embed.test.ts:45`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L45), [`embed.test.ts:52`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L52), [`ingest.test.ts:239`](apps/lore-station/src/stations/ingest.test.ts#L239), [`ingest.test.ts:258`](apps/lore-station/src/stations/ingest.test.ts#L258); implemented by [`ingest-station-egress.yaml:1`](infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/templates/ingest-station-egress.yaml#L1), [`embed.ts:27`](apps/lore-api/src/api/routes/ingest/embed.ts#L27))
 
 - **FR5 — validate substrate dedup.** The post-ingest `spec_coverage_validate`
   event routes through the SAME production detect-tick handler as the weekly cron

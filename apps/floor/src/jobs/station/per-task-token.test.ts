@@ -5,6 +5,7 @@ import {
   tokenSecretKey,
   perTaskName,
   needsToken,
+  catalogLookupName,
   injectRepoToken,
   perTaskStation,
 } from "./per-task-token.js";
@@ -56,6 +57,18 @@ describe("tokenSecretKey / perTaskName", () => {
   it("derive per-task names from the first 8 of the task id", () => {
     expect(tokenSecretKey(spec.taskId)).toBe("GH_TOKEN_abc12345");
     expect(perTaskName(spec.taskId)).toBe("pt-abc12345");
+  });
+});
+
+describe("catalogLookupName", () => {
+  it("resolves a station node's recipe by its stationRef (def-ingest), not the line's task type", () => {
+    expect(catalogLookupName({ ...spec, stationRef: "def-ingest" })).toBe(
+      "def-ingest",
+    );
+  });
+
+  it("falls back to the task type for a plain task with no explicit Station", () => {
+    expect(catalogLookupName(spec)).toBe("implementation");
   });
 });
 

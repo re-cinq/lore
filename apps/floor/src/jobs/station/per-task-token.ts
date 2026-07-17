@@ -27,6 +27,15 @@ export function needsToken(spec: LoreTaskSpec): boolean {
   return !!spec.targetRepo;
 }
 
+/** The catalog recipe the per-task triple clones: the spec's explicit Station
+ *  (station nodes run `def-<type>`, agent nodes may pin a `station_ref` recipe),
+ *  else the task type. Looking up the task type for a station node cloned the
+ *  wrong recipe — or none at all for task-less lines, whose ingest pods then
+ *  had no repo to read (2026-07-17). */
+export function catalogLookupName(spec: LoreTaskSpec): string {
+  return spec.stationRef ?? spec.taskType;
+}
+
 /** Clone a catalog AgentDefinition into a per-task one: rename, label with the task id,
  *  and add the target repo carrying the per-task token-secret key (so the subsystem's
  *  init container clones it with auth). The recipe (model/prompt/tools) is preserved. */

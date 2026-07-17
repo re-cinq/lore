@@ -72,6 +72,11 @@ export function enforceProjectionComplete(
   );
 }
 
+/** The ingest line's overlap-guard key: one lease per (kind, ref). */
+function ingestLineBranch(kind: string, ref: string): string {
+  return `ingest/${kind}/${ref}`;
+}
+
 export async function dispatchSpecTrace(
   repo: string,
   kind: string,
@@ -133,12 +138,17 @@ export async function dispatchSpecTrace(
     // with FR6.
     if (deps.startLine) {
       const ref = p.commit || p.branch || "main";
+      // The line's branch is the overlap-guard lease key: per kind, so the
+      // specs/adrs/test-report lines of one push never take each other's lease
+      // (branch=<sha> alone closed all but one as lease_held, 2026-07-17). The
+      // pod clones at args.ref — the node spec prefers it over the lease key.
       const lineId = await deps.startLine({
         definitionName: "ingest",
         repo,
-        branch: ref,
+        branch: ingestLineBranch(kind, ref),
         args: {
           kind,
+          ref,
           ...(p.glob ? { glob: p.glob } : {}),
           ...(p.force ? { force: "true" } : {}),
         },
@@ -182,11 +192,12 @@ export async function dispatchSpecTrace(
   // ~1 MB; station_input is an argv element).
   if (deps.startLine && deps.eventId && PAYLOAD_KINDS.has(kind)) {
     const p = (payload ?? {}) as RepoReadPayload;
+    const ref = p.commit || p.branch || "main";
     const lineId = await deps.startLine({
       definitionName: "ingest",
       repo,
-      branch: p.commit || p.branch || "main",
-      args: { kind, payload_event_id: deps.eventId },
+      branch: ingestLineBranch(kind, ref),
+      args: { kind, ref, payload_event_id: deps.eventId },
     });
     const message = `${kind}: routed to ingest line ${lineId.slice(0, 8)} (payload by reference, event ${deps.eventId})`;
 

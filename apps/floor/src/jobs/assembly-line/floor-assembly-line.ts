@@ -56,6 +56,14 @@ function nodeLabels(
   };
 }
 
+/** The git ref a node's pod checks out: `args.ref` when the line's branch is
+ *  only a lease key (ingest lines lease `ingest/<kind>/<ref>`), else the branch. */
+function cloneRef(task: FloorAssemblyLineTask): string {
+  const ref = task.args?.ref;
+
+  return typeof ref === "string" && ref.length > 0 ? ref : task.branch;
+}
+
 /** Pure: the Agent dispatch spec for one agent-node. Prompt is resolved per node; model
  *  from the node (else inherited); repo/branch/description from the task. */
 export function nodeAgentSpec(
@@ -70,7 +78,7 @@ export function nodeAgentSpec(
     description: task.description,
     prompt,
     targetRepo: task.targetRepo,
-    branch: task.branch,
+    branch: cloneRef(task),
     ...(node.model ? { model: node.model } : {}),
     // An agent node's recipe/Station can differ from the line's taskType-derived
     // default — code-review-reply's node runs on code-review-refine. Without
@@ -125,7 +133,7 @@ export function nodeStationSpec(
     description: task.description,
     prompt: "",
     targetRepo: task.targetRepo,
-    branch: task.branch,
+    branch: cloneRef(task),
     name: nodeAgentName(task.assemblyLineId, node.id, iteration),
     extraLabels: nodeLabels(node, task, iteration),
     stationRef: node.station_ref ?? stationName(node.type),
@@ -138,7 +146,7 @@ export function nodeStationSpec(
         node_id: node.id,
         node_type: node.type,
         repo: task.targetRepo,
-        branch: task.branch,
+        branch: cloneRef(task),
         task_id: task.taskId,
         params,
       }),
