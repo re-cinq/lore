@@ -4,7 +4,7 @@
 |----------|-----------------------------------------------|
 | Feature  | Automatic Spec Status Upkeep                  |
 | Branch   | (unassigned)                                  |
-| Status   | Shipped                                       |
+| Status   | In Progress                                   |
 | Created  | 2026-07-14                                    |
 | Owner    | Platform Engineering                          |
 
