@@ -6,6 +6,7 @@
 // LORE_NODE_RESULT terminal line for any node outcome (success AND failed);
 // exit 1 with is_error for infrastructure failures.
 
+import { join } from "node:path";
 import { parseStationInput, type StationInput } from "./input.js";
 import { resultLine, eventLine } from "@re-cinq/lore-assembly-lines";
 import { runValidateStation, type StationEnv } from "./stations/validate.js";
@@ -29,7 +30,8 @@ export const stations: Record<string, StationRunner> = {
   retrospective: runRetrospectiveStation,
   detect: runDetectStation,
   "comment-triage": runCommentTriageStation,
-  ingest: (input) => runIngestStation(input),
+  ingest: (input, env) =>
+    runIngestStation(input, { workspaceDir: join(env.workspaceDir, "target") }),
 };
 
 export async function runStation(

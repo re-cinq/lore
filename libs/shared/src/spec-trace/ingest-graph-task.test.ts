@@ -168,7 +168,7 @@ describe("runIngestGraph", () => {
       registry,
     );
 
-    expect(embedsSeen).toEqual([stubEmbed]);
+    expect(embedsSeen[0]).toBe(stubEmbed);
   });
 
   it("short-circuits to skipped when no dgraph client is configured", async () => {

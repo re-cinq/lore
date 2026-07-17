@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { describe, it, expect, afterAll } from "vitest";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runIngestStation } from "./ingest.js";
@@ -26,8 +26,18 @@ function input(params: Record<string, unknown>): StationInput {
   } as StationInput;
 }
 
+const tmpDirs: string[] = [];
+
+afterAll(() => {
+  for (const dir of tmpDirs) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 function fixtureClone(): string {
   const dir = mkdtempSync(join(tmpdir(), "ingest-station-"));
+
+  tmpDirs.push(dir);
 
   mkdirSync(join(dir, "specs", "alpha"), { recursive: true });
   mkdirSync(join(dir, "adrs"), { recursive: true });
@@ -134,6 +144,58 @@ describe("runIngestStation", () => {
     expect(result).toMatchObject({ outcome: "failed" });
     expect(result.extras?.["Lore-Ingest-Failed-Files"]).toContain(
       "specs/alpha/spec.md",
+    );
+  });
+
+  it('re-projects unchanged files when force is "true" (hash gate bypass)', async () => {
+    const hashByXid = new Map<string, string>();
+    const rememberingTxn: DgraphTxn = {
+      queryWithVars: async (query: string, vars?: Record<string, string>) => {
+        const xid = vars?.["$xid"];
+        const hash = xid === undefined ? undefined : hashByXid.get(xid);
+
+        if (query.includes("content_hash") && hash !== undefined) {
+          return { data: { found: [{ "Spec.content_hash": hash }] } };
+        }
+
+        return { data: { found: [] } };
+      },
+      mutate: async (m: Record<string, unknown>) => {
+        const setJson = m["setJson"] as Record<string, unknown> | undefined;
+        const xid = setJson?.["Spec.xid"] as string | undefined;
+        const hash = setJson?.["Spec.content_hash"] as string | undefined;
+
+        if (xid !== undefined && hash !== undefined) {
+          hashByXid.set(xid, hash);
+        }
+
+        if ((setJson?.["uid"] as string | undefined)?.startsWith("_:")) {
+          const label = (setJson!["uid"] as string).slice(2);
+
+          return { data: { uids: { [label]: `0x${hashByXid.size + 1}` } } };
+        }
+
+        return { data: {} };
+      },
+      discard: async () => {},
+    };
+    const port = { newTxn: () => rememberingTxn };
+    const clone = fixtureClone();
+    const run = (force?: string) =>
+      runIngestStation(input({ kind: "specs", ...(force ? { force } : {}) }), {
+        workspaceDir: clone,
+        dgraph: port,
+        embed: async () => [0.1],
+      });
+
+    expect((await run()).extras?.["Lore-Ingest-Summary"]).toContain(
+      "projected=1",
+    );
+    expect((await run()).extras?.["Lore-Ingest-Summary"]).toContain(
+      "skipped=1",
+    );
+    expect((await run("true")).extras?.["Lore-Ingest-Summary"]).toContain(
+      "projected=1",
     );
   });
 
