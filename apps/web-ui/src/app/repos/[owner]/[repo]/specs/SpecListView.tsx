@@ -4,19 +4,20 @@
 // spec-traceability graph via the /trace API. The per-file summaries are grouped
 // into one card per spec folder (groupSpecSummaries): the card is titled from
 // spec.md and links to every file in the folder. Lifecycle statuses are parsed
-// from the graph's byte-exact spec.md sources (fetchSpecStatusesFromGraph;
+// from the graph's byte-exact spec.md sources (fetchDocStatusesFromGraph;
 // statuses prop, keyed by file path) and drive the filter chips — the graph is
 // the source of truth for list and statuses alike.
 import { useState } from "react";
 import SpecCard from "./SpecCard";
+import DocListControls from "@/components/DocListControls";
 import SpecStatusChips from "@/components/SpecStatusChips";
-import { groupSpecSummaries, type SpecSummaryInput } from "@/lib/spec-grouping";
 import {
-  matchesSpecStatusFilter,
-  type SpecStatus,
-  type SpecStatusFilter,
-  type SpecStatusInfo,
-} from "@/lib/spec-status";
+  filterDocCards,
+  sortDocCards,
+  type DocSortOrder,
+} from "@/lib/doc-filter";
+import { groupSpecSummaries, type SpecSummaryInput } from "@/lib/spec-grouping";
+import { type SpecStatusFilter, type SpecStatusInfo } from "@/lib/spec-status";
 
 export default function SpecListView({
   owner,
@@ -30,6 +31,8 @@ export default function SpecListView({
   statuses?: Record<string, SpecStatusInfo>;
 }) {
   const [filter, setFilter] = useState<SpecStatusFilter>("all");
+  const [query, setQuery] = useState("");
+  const [order, setOrder] = useState<DocSortOrder>("path");
 
   if (specs.length === 0) {
     return (
@@ -43,28 +46,30 @@ export default function SpecListView({
   const groups = groupSpecSummaries(specs);
   const statusOf = (group: { key: string; files: { filePath: string }[] }) =>
     statuses[`${group.key}/spec.md`] ?? statuses[group.files[0]?.filePath];
-  const counts: Partial<Record<SpecStatus, number>> = {};
-
-  for (const group of groups) {
-    const info = statusOf(group);
-
-    if (info) {
-      counts[info.status] = (counts[info.status] ?? 0) + 1;
-    }
-  }
-  const visible = groups.filter((g) =>
-    matchesSpecStatusFilter(statusOf(g), filter),
+  const { counts, visible } = filterDocCards(
+    groups,
+    statusOf,
+    filter,
+    query,
+    (group) => `${group.title} ${group.description} ${group.key}`,
   );
+  const ordered = sortDocCards(visible, order, statusOf);
 
   return (
     <div>
+      <DocListControls
+        query={query}
+        onQueryChange={setQuery}
+        sort={order}
+        onSortChange={setOrder}
+      />
       <SpecStatusChips
         counts={counts}
         total={groups.length}
         active={filter}
         onChange={setFilter}
       />
-      {visible.map((group) => (
+      {ordered.map((group) => (
         <SpecCard
           key={group.key}
           title={group.title}

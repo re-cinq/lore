@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { matchesSpecStatusFilter, parseSpecStatus } from "./spec-status";
+import {
+  matchesSpecStatusFilter,
+  parseDocStatus,
+  parseSpecStatus,
+} from "./spec-status";
 
 const spec = (statusCell: string) =>
   `# Feature\n\n| Field | Value |\n|---|---|\n| Feature | X |\n| Status | ${statusCell} |\n| Owner | Y |\n`;
@@ -68,6 +72,69 @@ describe("parseSpecStatus", () => {
 
   it("ignores a non-table line containing the word Status", () => {
     expect(parseSpecStatus("# X\n\nStatus is unclear.\n")).toBeNull();
+  });
+});
+
+const adr = (statusValue: string) =>
+  `---\nadr_number: 7\ntitle: "Example"\nstatus: ${statusValue}\ndate: 2026-06-23\n---\n\n# ADR-007: Example\n\nLead paragraph.\n\n## Context\n`;
+
+describe("parseDocStatus", () => {
+  it("buckets frontmatter accepted as shipped with label Accepted", () => {
+    expect(parseDocStatus(adr("accepted"), "adr")).toEqual({
+      status: "shipped",
+      label: "Accepted",
+    });
+  });
+
+  it("buckets frontmatter proposed as in-progress", () => {
+    expect(parseDocStatus(adr("proposed"), "adr")?.status).toBe("in-progress");
+  });
+
+  it("buckets frontmatter superseded as retired", () => {
+    expect(parseDocStatus(adr("superseded"), "adr")?.status).toBe("retired");
+  });
+
+  it("buckets a multi-word value with label In progress", () => {
+    expect(parseDocStatus(adr("in progress"), "adr")).toEqual({
+      status: "in-progress",
+      label: "In progress",
+    });
+  });
+
+  it("strips quotes around the frontmatter value", () => {
+    expect(parseDocStatus(adr('"draft"'), "adr")).toEqual({
+      status: "draft",
+      label: "Draft",
+    });
+  });
+
+  it("returns null when the doc has no frontmatter", () => {
+    expect(
+      parseDocStatus(
+        "# ADR-001: X\n\nProse only.\n\n## Status\n\nAccepted\n",
+        "adr",
+      ),
+    ).toBeNull();
+  });
+
+  it("ignores a body Status section that disagrees with frontmatter", () => {
+    const doc = `${adr("draft")}\n## Status\n\nAccepted\n`;
+
+    expect(parseDocStatus(doc, "adr")?.status).toBe("draft");
+  });
+
+  it("returns null for an unrecognized frontmatter value", () => {
+    expect(parseDocStatus(adr("contemplating"), "adr")).toBeNull();
+  });
+
+  it("parses spec kind identically to parseSpecStatus", () => {
+    const doc = spec("Shipped (v3) — supersedes v1 and v2");
+
+    expect(parseDocStatus(doc, "spec")).toEqual(parseSpecStatus(doc));
+  });
+
+  it("buckets a spec Proposed row as in-progress", () => {
+    expect(parseSpecStatus(spec("Proposed"))?.status).toBe("in-progress");
   });
 });
 
