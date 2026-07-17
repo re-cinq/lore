@@ -11,7 +11,7 @@
 |----------------|---------------------------------------------|
 | Feature        | Lore Agent Service                          |
 | Branch         | 5-lore-agent                                |
-| Status         | In Progress                                 |
+| Status         | Retired (LoreTask substrate; see ADR-031)   |
 | Created        | 2026-03-29                                  |
 | Owner          | Platform Engineering                        |
 

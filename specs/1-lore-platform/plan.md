@@ -413,7 +413,7 @@ Lore Agent `autoresearch.ts` weekly CronJob:
 - Best candidate promoted if score improves >= 2%.
 - Failed attempts logged to Cloud Monitoring; GitHub Issue opened for manual review.
 - PRs labelled `context-experiment-passed`.
-- `research-charter.md` defines standing instructions for the research system.
+- `graveyard/research-charter.md` defines standing instructions for the research system.
 
 #### Spec Drift Detection
 

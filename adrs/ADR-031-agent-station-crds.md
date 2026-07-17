@@ -17,7 +17,7 @@ This ADR adopts the standalone ai-agent-subsystem as Lore's production execution
 
 > **Revises the earlier draft of ADR-031** (which scoped the CRDs as a *standalone, greenfield,
 > not-wired-to-production* experiment). This version adopts the subsystem as the **production**
-> execution substrate and **supersedes [ADR-011](./ADR-011-loretask-crd-ephemeral-execution.md)**
+> execution substrate and **supersedes [ADR-011](../graveyard/adrs/ADR-011-loretask-crd-ephemeral-execution.md)**
 > (the `LoreTask` CRD) and the **storage** decision of
 > [ADR-030](./ADR-030-agent-definition-recipe-and-tool-seam.md).
 
