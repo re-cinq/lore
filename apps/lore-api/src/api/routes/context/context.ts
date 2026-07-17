@@ -27,6 +27,8 @@ const ContextQuery = z.object({
 
 type ContextQuery = z.infer<typeof ContextQuery>;
 
+const SEPARATOR = "\n\n---\n\n";
+
 export function contextRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -85,14 +87,27 @@ export function contextRoute(getPool: () => Pool | null): ServerRoute {
              ORDER BY content_type, ingested_at DESC`,
             [repo],
           );
+          // The join must honour the token budget too: whole chunks until the
+          // next would overflow max_tokens*4 chars. Unbounded, this path
+          // returned ~3 MB for a repo — which, injected into an Agent CR's
+          // parameters, blew the 2 MiB apiserver limit (2026-07-17).
+          const maxChars = maxTokens * 4;
+          let used = 0;
 
-          for (const r of rows) {
+          for (const r of rows as Array<{ content: string }>) {
+            const cost =
+              r.content.length + (parts.length > 0 ? SEPARATOR.length : 0);
+
+            if (used + cost > maxChars && parts.length > 0) {
+              break;
+            }
             parts.push(r.content);
+            used += cost;
           }
         }
 
         return h.response({
-          text: parts.length > 0 ? parts.join("\n\n---\n\n") : null,
+          text: parts.length > 0 ? parts.join(SEPARATOR) : null,
         });
       } catch (err) {
         return h.response({ error: errorMessage(err) }).code(500);

@@ -127,6 +127,35 @@ describe("GET /api/context", () => {
     expect(res.result).toEqual({ text: "A\n\n---\n\nB" });
   });
 
+  it("caps the no-query chunk join at max_tokens*4 chars — whole chunks kept until the budget is hit", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [
+        { content: "a".repeat(3000) },
+        { content: "b".repeat(3000) },
+        { content: "c".repeat(3000) },
+      ],
+    });
+    const res = await get(pool, "/api/context?repo=o/r&max_tokens=1000");
+    const text = (res.result as { text: string }).text;
+
+    expect(text).toBe("a".repeat(3000));
+    expect(text.length).toBeLessThanOrEqual(4000);
+  });
+
+  it("no-query join respects the 8000-token default when max_tokens is absent", async () => {
+    const pool = makePool();
+    const bigChunk = "x".repeat(30000);
+
+    pool.query.mockResolvedValue({
+      rows: [{ content: bigChunk }, { content: bigChunk }],
+    });
+    const res = await get(pool, "/api/context?repo=o/r");
+
+    expect((res.result as { text: string }).text).toBe(bigChunk);
+  });
+
   it("nulls text when repo chunks are empty", async () => {
     const pool = makePool();
 
