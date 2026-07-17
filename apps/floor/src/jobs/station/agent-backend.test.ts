@@ -65,6 +65,24 @@ describe("context hydration (D5)", () => {
     await new AgentCrBackend(api, ctx("assembled")).launch(baseSpec);
     expect(api.created[0].spec?.parameters?.context).toBe("assembled");
   });
+  it("launch never assembles context for a hydrate:false station spec", async () => {
+    const api = new FakeAgentApi();
+    let assembled = 0;
+    const source = {
+      assemble: async () => {
+        assembled += 1;
+
+        return "should never appear";
+      },
+    };
+
+    await new AgentCrBackend(api, source).launch({
+      ...baseSpec,
+      hydrate: false,
+    });
+    expect(assembled).toBe(0);
+    expect(api.created[0].spec?.parameters).not.toHaveProperty("context");
+  });
   it("launch omits context when the source returns undefined", async () => {
     const api = new FakeAgentApi();
 

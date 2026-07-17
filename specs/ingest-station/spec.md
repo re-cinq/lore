@@ -67,10 +67,17 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   (`ingest-station-egress`, selecting `agents.re-cinq.com/station: def-ingest`)
   grants egress to dgraph ONLY for ingest-station pods; all other station/agent
   pods keep the D7 posture. The `def-ingest` recipe alone injects
-  `LORE_DGRAPH_HTTP` (a catalog `env` block, seeded from `task-types.yaml`), and
-  statement embeddings ride `POST /api/embed` — the API proxies Vertex on its own
-  credentials, so no GCP identity ever reaches a run pod.
-  ([validated by `agent-catalog.test.ts:195`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L195), [`embed.test.ts:38`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L38), [`embed.test.ts:45`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L45), [`embed.test.ts:52`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L52), [`ingest.test.ts:239`](apps/lore-station/src/stations/ingest.test.ts#L239), [`ingest.test.ts:258`](apps/lore-station/src/stations/ingest.test.ts#L258); implemented by [`ingest-station-egress.yaml:1`](infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/templates/ingest-station-egress.yaml#L1), [`embed.ts:27`](apps/lore-api/src/api/routes/ingest/embed.ts#L27))
+  `LORE_DGRAPH_HTTP` via `AgentDefinition.spec.resources.env` — the controller
+  folds recipe env into the run env, while a Station pod-template env block is
+  OVERWRITTEN and silently lost (learned live: the first prod pods failed with
+  "LORE_DGRAPH_HTTP not configured" while the template carried it). Statement
+  embeddings ride `POST /api/embed` — the API proxies Vertex on its own
+  credentials, so no GCP identity ever reaches a run pod. Station dispatches
+  never hydrate context (`hydrate: false`): the exec recipe renders only
+  `{station_input}`, and an empty-description dispatch otherwise assembles an
+  unbounded-query context (~3 MB) that blew the 2 MiB apiserver limit and
+  blocked every ingest CR create on day one.
+  ([validated by `agent-backend.test.ts:68`](apps/floor/src/jobs/station/agent-backend.test.ts#L68), [`floor-assembly-line.test.ts:87`](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L87), [`agent-catalog.test.ts:195`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L195), [`embed.test.ts:38`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L38), [`embed.test.ts:45`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L45), [`embed.test.ts:52`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L52), [`ingest.test.ts:239`](apps/lore-station/src/stations/ingest.test.ts#L239), [`ingest.test.ts:258`](apps/lore-station/src/stations/ingest.test.ts#L258); implemented by [`ingest-station-egress.yaml:1`](infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/templates/ingest-station-egress.yaml#L1), [`embed.ts:27`](apps/lore-api/src/api/routes/ingest/embed.ts#L27))
 
 - **FR5 — validate substrate dedup.** The post-ingest `spec_coverage_validate` path
   dispatches this station instead of running `validateSpecCoverageJob` inline, so

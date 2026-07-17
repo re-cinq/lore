@@ -124,6 +124,9 @@ export function nodeStationSpec(
     name: nodeAgentName(task.assemblyLineId, node.id, iteration),
     extraLabels: nodeLabels(node, task, iteration),
     stationRef: node.station_ref ?? stationName(node.type),
+    // Stations render only {station_input} — never hydrate (D5 is for agent
+    // nodes); an empty description otherwise assembles an unbounded context.
+    hydrate: false,
     parameters: {
       station_input: JSON.stringify({
         assembly_line_id: task.assemblyLineId,
