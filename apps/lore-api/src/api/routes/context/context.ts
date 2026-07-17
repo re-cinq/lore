@@ -20,12 +20,24 @@ const ContextQuery = z.object({
     .enum(["default", "review", "implementation", "research"])
     .default("default"),
   debug: boolFlag,
-  max_tokens: z.coerce.number().int().positive().catch(8000).default(8000),
+  // .max keeps the budget meaningful — an absurd max_tokens (e.g. 1000000)
+  // would re-open the unbounded chunk-join this budget exists to close.
+  max_tokens: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(128000)
+    .catch(8000)
+    .default(8000),
   agent_id: z.string().optional(),
   cross_repo: boolFlag,
 });
 
 type ContextQuery = z.infer<typeof ContextQuery>;
+
+const SEPARATOR = "\n\n---\n\n";
+// The same chars-per-token heuristic the assembly engine's truncateText uses.
+const CHARS_PER_TOKEN = 4;
 
 export function contextRoute(getPool: () => Pool | null): ServerRoute {
   return {
@@ -85,14 +97,27 @@ export function contextRoute(getPool: () => Pool | null): ServerRoute {
              ORDER BY content_type, ingested_at DESC`,
             [repo],
           );
+          // The join must honour the token budget too: whole chunks until the
+          // next would overflow the char budget. Unbounded, this path
+          // returned ~3 MB for a repo — which, injected into an Agent CR's
+          // parameters, blew the 2 MiB apiserver limit (2026-07-17).
+          const maxChars = maxTokens * CHARS_PER_TOKEN;
+          let used = 0;
 
-          for (const r of rows) {
+          for (const r of rows as Array<{ content: string }>) {
+            const cost =
+              r.content.length + (parts.length > 0 ? SEPARATOR.length : 0);
+
+            if (parts.length > 0 && used + cost > maxChars) {
+              break;
+            }
             parts.push(r.content);
+            used += cost;
           }
         }
 
         return h.response({
-          text: parts.length > 0 ? parts.join("\n\n---\n\n") : null,
+          text: parts.length > 0 ? parts.join(SEPARATOR) : null,
         });
       } catch (err) {
         return h.response({ error: errorMessage(err) }).code(500);
