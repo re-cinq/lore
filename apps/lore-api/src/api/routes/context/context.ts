@@ -28,6 +28,8 @@ const ContextQuery = z.object({
 type ContextQuery = z.infer<typeof ContextQuery>;
 
 const SEPARATOR = "\n\n---\n\n";
+// The same chars-per-token heuristic the assembly engine's truncateText uses.
+const CHARS_PER_TOKEN = 4;
 
 export function contextRoute(getPool: () => Pool | null): ServerRoute {
   return {
@@ -88,17 +90,17 @@ export function contextRoute(getPool: () => Pool | null): ServerRoute {
             [repo],
           );
           // The join must honour the token budget too: whole chunks until the
-          // next would overflow max_tokens*4 chars. Unbounded, this path
+          // next would overflow the char budget. Unbounded, this path
           // returned ~3 MB for a repo — which, injected into an Agent CR's
           // parameters, blew the 2 MiB apiserver limit (2026-07-17).
-          const maxChars = maxTokens * 4;
+          const maxChars = maxTokens * CHARS_PER_TOKEN;
           let used = 0;
 
           for (const r of rows as Array<{ content: string }>) {
             const cost =
               r.content.length + (parts.length > 0 ? SEPARATOR.length : 0);
 
-            if (used + cost > maxChars && parts.length > 0) {
+            if (parts.length > 0 && used + cost > maxChars) {
               break;
             }
             parts.push(r.content);
