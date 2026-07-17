@@ -64,6 +64,17 @@ describe("classifyFile", () => {
     expect(classifyFile("a.cjs")).toBe("code");
   });
 
+  it("returns null for every file under graveyard/", () => {
+    expect(classifyFile("graveyard/specs/5-lore-agent/spec.md")).toBeNull();
+    expect(classifyFile("graveyard/adrs/ADR-011.md")).toBeNull();
+    expect(classifyFile("graveyard/README.md")).toBeNull();
+    expect(classifyFile("graveyard/agent-prompts/graphrag-build.md")).toBeNull();
+  });
+
+  it("classifies a non-root graveyard/ directory normally", () => {
+    expect(classifyFile("apps/floor/graveyard/notes.md")).toBe("doc");
+  });
+
   it("classifies other markdown / yaml as doc and skips binaries/unknowns", () => {
     expect(classifyFile("README.md")).toBe("doc");
     expect(classifyFile("config.yaml")).toBe("doc");
