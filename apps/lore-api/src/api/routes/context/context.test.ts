@@ -92,6 +92,15 @@ describe("GET /api/context", () => {
     expect(vi.mocked(assembleContext).mock.calls[0][3]).toBe(8000);
   });
 
+  it("falls back to 8000 when max_tokens exceeds the 128000 server cap", async () => {
+    vi.mocked(assembleContext).mockResolvedValue({
+      text: "ctx",
+      sections: [],
+    } as any);
+    await get(makePool(), "/api/context?query=hi&max_tokens=1000000");
+    expect(vi.mocked(assembleContext).mock.calls[0][3]).toBe(8000);
+  });
+
   it("enables cross_repo from repo settings when the param is not set", async () => {
     vi.mocked(assembleContext).mockResolvedValue({
       text: "ctx",
@@ -125,6 +134,35 @@ describe("GET /api/context", () => {
     const res = await get(pool, "/api/context?repo=o/r");
 
     expect(res.result).toEqual({ text: "A\n\n---\n\nB" });
+  });
+
+  it("caps the no-query chunk join at max_tokens*4 chars — whole chunks kept until the budget is hit", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [
+        { content: "a".repeat(3000) },
+        { content: "b".repeat(3000) },
+        { content: "c".repeat(3000) },
+      ],
+    });
+    const res = await get(pool, "/api/context?repo=o/r&max_tokens=1000");
+    const text = (res.result as { text: string }).text;
+
+    expect(text).toBe("a".repeat(3000));
+    expect(text.length).toBeLessThanOrEqual(4000);
+  });
+
+  it("no-query join respects the 8000-token default when max_tokens is absent", async () => {
+    const pool = makePool();
+    const bigChunk = "x".repeat(30000);
+
+    pool.query.mockResolvedValue({
+      rows: [{ content: bigChunk }, { content: bigChunk }],
+    });
+    const res = await get(pool, "/api/context?repo=o/r");
+
+    expect((res.result as { text: string }).text).toBe(bigChunk);
   });
 
   it("nulls text when repo chunks are empty", async () => {
