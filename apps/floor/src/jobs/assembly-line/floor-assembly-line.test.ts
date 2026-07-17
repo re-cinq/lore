@@ -83,6 +83,26 @@ describe("nodeAgentSpec", () => {
   });
 });
 
+describe("nodeAgentSpec station_ref", () => {
+  it("threads the node's station_ref so a renamed recipe still resolves (code-review-reply -> code-review-refine)", () => {
+    expect(
+      nodeAgentSpec(
+        {
+          id: "reply",
+          type: "agent",
+          prompt_ref: "code-review-refine",
+          station_ref: "code-review-refine",
+        },
+        task,
+        "prompt",
+      ).stationRef,
+    ).toBe("code-review-refine");
+    expect(
+      nodeAgentSpec({ id: "reply", type: "agent" }, task, "prompt").stationRef,
+    ).toBeUndefined();
+  });
+});
+
 describe("nodeStationSpec (station pod contract)", () => {
   it("sets hydrate false — a station CR never carries assembled context", () => {
     expect(
