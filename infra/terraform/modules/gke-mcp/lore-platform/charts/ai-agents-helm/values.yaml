@@ -30,11 +30,19 @@ nodeLocalDnsIp: 169.254.20.10
 stationImage: ghcr.io/re-cinq/lore-station:latest
 
 # Lore API base URL the seeded station recipes call (createStationProject reads,
-# apiEmbed, payload-by-reference fetches). The EXTERNAL URL on purpose: the run-pod
-# NetworkPolicy denies RFC1918 egress except the floor sink, so in-cluster service
-# URLs are unreachable from a run pod while public HTTPS is allowed. Terraform may
-# override per cluster.
-loreApiUrl: https://lore-api.gcp.re-cinq.com
+# apiEmbed, payload-by-reference fetches). IN-CLUSTER on purpose: the external LB
+# VIP is useless from a run pod — Dataplane V2 short-circuits a VIP whose backend
+# lives in this cluster (DNAT to the backend pod IP), and the post-DNAT 10.x
+# address hits the egress policy's RFC1918 except-list, so the connection just
+# times out (proven live 2026-07-17: api.anthropic.com answered while both Lore
+# VIPs dropped). The run-pod NetworkPolicy opens exactly this service via apiSink.
+loreApiUrl: http://lore-api.lore-api.svc.cluster.local:3000
+
+# In-cluster egress target for the station API calls — must match the host:port in
+# loreApiUrl above (same pattern as floorSink/agentEventsUrl).
+apiSink:
+  namespace: lore-api
+  port: 3000
 
 controller:
   replicas: 1

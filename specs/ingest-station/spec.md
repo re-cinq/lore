@@ -86,7 +86,10 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   OVERWRITTEN and silently lost (learned live: the first prod pods failed with
   "LORE_DGRAPH_HTTP not configured" while the template carried it). EVERY
   seeded station recipe carries the `LORE_API_URL` env (`.Values.loreApiUrl` —
-  the external URL, since the run-pod NetworkPolicy denies RFC1918 egress) plus
+  the IN-CLUSTER service URL plus a matching `apiSink` egress rule: the external
+  LB VIP is DNAT-short-circuited by Dataplane V2 to the backend pod IP, which
+  the egress policy's RFC1918 except-list then drops — proven live when
+  api.anthropic.com answered while both Lore VIPs timed out) plus
   the `LORE_INGEST_TOKEN` secret: `createStationProject` requires them, and no
   detect/ingest pod ever had them before this pair (detect lines failed for five
   straight days as "createStationProject requires LORE_API_URL"). Statement
