@@ -2,6 +2,8 @@
 // claude CLI's stream-json events — into a compact, human-readable transcript of
 // the model's conversation for the planning wizard's live view. Pure.
 
+import { clip, toolSummary, toolResultText } from "./agent-log-entries";
+
 type ContentBlock =
   | { type: "text"; text?: string }
   | { type: "thinking"; thinking?: string }
@@ -11,42 +13,6 @@ type ContentBlock =
 interface StreamEvent {
   type?: string;
   message?: { content?: ContentBlock[] };
-}
-
-function clip(text: string, max: number): string {
-  const flat = text.replace(/\s+/g, " ").trim();
-
-  return flat.length > max ? `${flat.slice(0, max)}…` : flat;
-}
-
-function toolSummary(block: {
-  name?: string;
-  input?: Record<string, unknown>;
-}): string {
-  const input = block.input ?? {};
-  const arg = [
-    input.command,
-    input.file_path,
-    input.pattern,
-    input.path,
-    input.description,
-  ].find((v): v is string => typeof v === "string" && v.length > 0);
-
-  return arg
-    ? `→ ${block.name}: ${clip(arg, 100)}`
-    : `→ ${block.name ?? "tool"}`;
-}
-
-function resultText(content: unknown): string {
-  if (typeof content === "string") {
-    return content;
-  }
-
-  if (Array.isArray(content)) {
-    return content.map((c) => (c as { text?: string }).text ?? "").join(" ");
-  }
-
-  return "";
 }
 
 function renderEvent(event: StreamEvent): string | null {
@@ -78,7 +44,7 @@ function renderEvent(event: StreamEvent): string | null {
         (b): b is Extract<ContentBlock, { type: "tool_result" }> =>
           b.type === "tool_result",
       )
-      .map((b) => `← ${clip(resultText(b.content), 120)}`);
+      .map((b) => `← ${clip(toolResultText(b.content), 120)}`);
 
     return results.length ? results.join("\n") : null;
   }

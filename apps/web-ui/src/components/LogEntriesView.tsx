@@ -1,0 +1,117 @@
+import {
+  clip,
+  formatDuration,
+  formatTokens,
+  type LogEntry,
+} from "@/lib/agent-log-entries";
+import styles from "./LogEntriesView.module.css";
+
+const INLINE_RESULT_MAX = 160;
+
+function resultSummary(entry: Extract<LogEntry, { kind: "result" }>): string {
+  const parts = [entry.isError ? "✗ failed" : "✓ finished"];
+
+  if (entry.durationMs !== undefined) {
+    parts.push(` — ${formatDuration(entry.durationMs)}`);
+  }
+
+  if (entry.costUsd !== undefined) {
+    parts.push(` · $${entry.costUsd.toFixed(2)}`);
+  }
+
+  if (entry.numTurns !== undefined) {
+    parts.push(` · ${entry.numTurns} turns`);
+  }
+
+  return parts.join("");
+}
+
+function EntryLine({ entry }: { entry: LogEntry }) {
+  switch (entry.kind) {
+    case "lifecycle":
+      return (
+        <div className={styles.dim}>
+          · agent {entry.status}
+          {entry.exitCode !== undefined ? ` (exit ${entry.exitCode})` : ""}
+        </div>
+      );
+    case "session-init":
+      return (
+        <details className={styles.dim}>
+          <summary className={styles.summary}>
+            session started — {entry.model}
+            {entry.version ? ` (Claude Code ${entry.version})` : ""}
+          </summary>
+          <pre className={styles.detailsPre}>{entry.detailsJson}</pre>
+        </details>
+      );
+    case "thinking-tokens":
+      return (
+        <div className={styles.thinking}>
+          thinking… {formatTokens(entry.tokens)} tokens
+        </div>
+      );
+    case "thinking":
+      return <div className={styles.thinking}>{entry.text}</div>;
+    case "assistant-text":
+      return <div className={styles.text}>{entry.text}</div>;
+    case "tool-use":
+      return <div className={styles.tool}>{entry.summary}</div>;
+    case "tool-result": {
+      const errorClass = entry.isError ? ` ${styles.error}` : "";
+
+      if (
+        entry.text.length <= INLINE_RESULT_MAX &&
+        !entry.text.includes("\n")
+      ) {
+        return <div className={styles.dim + errorClass}>← {entry.text}</div>;
+      }
+
+      return (
+        <details className={styles.dim + errorClass}>
+          <summary className={styles.summary}>
+            ← {clip(entry.text, INLINE_RESULT_MAX)}
+          </summary>
+          <pre className={styles.detailsPre}>{entry.text}</pre>
+        </details>
+      );
+    }
+    case "user-text":
+      return (
+        <details className={styles.dim}>
+          <summary className={styles.summary}>
+            user: {clip(entry.text, INLINE_RESULT_MAX)}
+          </summary>
+          <pre className={styles.detailsPre}>{entry.text}</pre>
+        </details>
+      );
+    case "result":
+      return (
+        <div className={styles.resultFooter}>
+          <div className={entry.isError ? styles.error : styles.text}>
+            {resultSummary(entry)}
+          </div>
+          {entry.text && (
+            <details className={styles.dim}>
+              <summary className={styles.summary}>result</summary>
+              <pre className={styles.detailsPre}>{entry.text}</pre>
+            </details>
+          )}
+        </div>
+      );
+    case "station-log":
+      return <div className={styles.dim}>· {entry.text}</div>;
+    case "raw":
+      return <div className={styles.rawLine}>{entry.text}</div>;
+  }
+}
+
+export default function LogEntriesView({ entries }: { entries: LogEntry[] }) {
+  return (
+    <>
+      {entries.map((entry, index) => (
+        <EntryLine key={index} entry={entry} />
+      ))}
+    </>
+  );
+}
