@@ -18,6 +18,7 @@ import type { NodeResult } from "./node-types.js";
 interface ResultLine {
   type: string;
   result?: unknown;
+  is_error?: unknown;
 }
 
 // TRANSITIONAL (delete once no pre-cutover CRs remain): before the
@@ -82,6 +83,35 @@ export function resultTextFromOutput(output: string): string {
   }
 
   return output;
+}
+
+/**
+ * The error text of the last `is_error` result line in an NDJSON stream (the
+ * same envelope `resultTextFromOutput` reads, both bare and `{source,event}`
+ * wrapped), capped at 300 chars. Null when the terminal result is not an error,
+ * there is no result line, or the output is not a stream. This is how the Floor
+ * surfaces WHY a CR's Job failed — the infra-failure branch only sees the CR
+ * phase, not the message the agent printed before it died.
+ */
+export function terminalErrorText(output?: string): string | null {
+  if (!output) {
+    return null;
+  }
+  const lines = output.split("\n");
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const parsed = parseLine(lines[i].trim());
+
+    if (
+      parsed &&
+      parsed.is_error === true &&
+      typeof parsed.result === "string"
+    ) {
+      return parsed.result.substring(0, 300);
+    }
+  }
+
+  return null;
 }
 
 /** True when `text` is already a serialized result line or attribution envelope. */
