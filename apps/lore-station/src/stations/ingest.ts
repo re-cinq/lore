@@ -41,6 +41,53 @@ export interface IngestStationDeps {
   fetchPayload?: (eventId: string) => Promise<unknown>;
 }
 
+/**
+ * Statement embedder proxied through the Lore API (FR4): run pods carry no GCP
+ * credentials, so Vertex rides POST /api/embed on the API's own access. The
+ * default for docs kinds when LORE_API_URL is set; injectable for tests.
+ */
+export function apiEmbed(
+  baseUrl: string,
+  token: string | undefined,
+  fetchImpl: typeof fetch = fetch,
+): (text: string) => Promise<number[] | null> {
+  return async (text: string) => {
+    const res = await fetchImpl(`${baseUrl}/api/embed`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text }),
+    });
+
+    enforceTrue(
+      res.ok,
+      Error,
+      `ingest station: embed proxy returned ${res.status}`,
+    );
+    const body = (await res.json()) as { embedding: number[] | null };
+
+    return body.embedding;
+  };
+}
+
+/** The default embedder: the API proxy when configured, else the projector's
+ *  own fallback (Vertex ADC — local/dev only). */
+function defaultEmbed():
+  ((text: string) => Promise<number[] | null>) | undefined {
+  const baseUrl = process.env.LORE_API_URL;
+
+  if (!baseUrl) {
+    return undefined;
+  }
+
+  return apiEmbed(
+    baseUrl,
+    process.env.LORE_STATION_TOKEN ?? process.env.LORE_INGEST_TOKEN,
+  );
+}
+
 /** GET the scheduling event's payload back from the Lore API (FR3). */
 async function fetchPayloadFromApi(
   repo: string,
@@ -154,7 +201,7 @@ export async function runIngestStation(
       listTree: () => listClone(workspaceDir),
       readFile: async (path: string) =>
         readFile(join(workspaceDir, path), "utf8"),
-      embed: deps.embed,
+      embed: deps.embed ?? defaultEmbed(),
     },
   );
 
