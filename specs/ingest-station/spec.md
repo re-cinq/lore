@@ -39,7 +39,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   params; the embedder threads through `IngestGraphPorts.embed` (station pods
   have no GCP ADC — provider wiring lands with FR4); payload kinds reject loudly
   until FR3.
-  ([validated by `ingest.test.ts:76`](apps/lore-station/src/stations/ingest.test.ts#L85), [`ingest.test.ts:89`](apps/lore-station/src/stations/ingest.test.ts#L98), [`ingest.test.ts:101`](apps/lore-station/src/stations/ingest.test.ts#L110), [`ingest.test.ts:119`](apps/lore-station/src/stations/ingest.test.ts#L128), [`ingest.test.ts:150`](apps/lore-station/src/stations/ingest.test.ts#L150), [`ingest.test.ts:266`](apps/lore-station/src/stations/ingest.test.ts#L266), [`ingest-graph-task.test.ts:145`](libs/shared/src/spec-trace/ingest-graph-task.test.ts#L145); implemented by [`ingest.ts:71`](apps/lore-station/src/stations/ingest.ts#L71))
+  ([validated by `ingest.test.ts:76`](apps/lore-station/src/stations/ingest.test.ts#L85), [`ingest.test.ts:89`](apps/lore-station/src/stations/ingest.test.ts#L98), [`ingest.test.ts:101`](apps/lore-station/src/stations/ingest.test.ts#L110), [`ingest.test.ts:119`](apps/lore-station/src/stations/ingest.test.ts#L128), [`ingest.test.ts:150`](apps/lore-station/src/stations/ingest.test.ts#L150), [`ingest.test.ts:266`](apps/lore-station/src/stations/ingest.test.ts#L266), [`ingest-graph-task.test.ts:146`](libs/shared/src/spec-trace/ingest-graph-task.test.ts#L146); implemented by [`ingest.ts:71`](apps/lore-station/src/stations/ingest.ts#L71))
 
 - **FR2 — dispatch.** A single-node detect-shaped assembly line definition
   (`libs/assembly-lines/src/assembly-lines/ingest.yaml`, node type `ingest`) rides
