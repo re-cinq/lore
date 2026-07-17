@@ -151,10 +151,19 @@ export async function deleteSpecSubtree(
       ? spec.feature[0]
       : spec.feature;
 
+    // Dedupe: TestChunks are file-scoped (xid `${repo}|${path}`), so many
+    // statements/ACs in one spec point at the same chunk uid. Without the
+    // Set, gcOrphanChunks runs its ownership query + delete once per duplicate
+    // (all but the first a no-op) — a 40-statement spec would fire ~40
+    // redundant txns instead of one.
     return {
       featureUid: feature?.uid,
-      validatedUids: children.flatMap((child) => uids(child.validated)),
-      implementedUids: children.flatMap((child) => uids(child.implemented)),
+      validatedUids: [
+        ...new Set(children.flatMap((child) => uids(child.validated))),
+      ],
+      implementedUids: [
+        ...new Set(children.flatMap((child) => uids(child.implemented))),
+      ],
     };
   });
 

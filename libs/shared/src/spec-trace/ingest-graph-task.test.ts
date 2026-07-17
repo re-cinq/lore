@@ -215,7 +215,7 @@ describe("runIngestGraph", () => {
 
   function pruneRegistry(
     graphDocPaths: string[],
-    opts?: { failProject?: boolean; failDelete?: string },
+    opts?: { failProject?: boolean; failDelete?: string; failList?: boolean },
   ): {
     registry: Record<string, IngestKindDef>;
     deleted: string[];
@@ -231,7 +231,11 @@ describe("runIngestGraph", () => {
           return { projected: false };
         },
         prune: {
-          listDocPaths: async () => graphDocPaths,
+          listDocPaths: async () => {
+            enforceTrue(!opts?.failList, Error, "list query down");
+
+            return graphDocPaths;
+          },
           deleteSubtree: async (_dgraph, _repo, filePath) => {
             enforceTrue(filePath !== opts?.failDelete, Error, "delete failed");
             deleted.push(filePath);
@@ -279,6 +283,26 @@ describe("runIngestGraph", () => {
 
     expect(deleted).toEqual([]);
     expect(result.pruned).toBeUndefined();
+  });
+
+  it("reports pruned as undefined (not 0) when the doc-list read throws", async () => {
+    const { registry, deleted } = pruneRegistry(["specs/moved/spec.md"], {
+      failList: true,
+    });
+
+    const result = await runIngestGraph(
+      { kind: "specs", repo: "o/r" },
+      {
+        dgraph: DUMMY_DGRAPH,
+        listTree: async () => ["specs/alive/spec.md"],
+        readFile: async () => "x",
+      },
+      registry,
+    );
+
+    expect(deleted).toEqual([]);
+    expect(result.pruned).toBeUndefined();
+    expect(result.status).toBe("completed");
   });
 
   it("does not prune when every attempted file failed to project", async () => {

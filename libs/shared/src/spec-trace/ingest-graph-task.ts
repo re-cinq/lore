@@ -359,10 +359,20 @@ export async function runIngestGraph(
  * Deletes the subtrees of graph docs whose files left the tree. Runs even when
  * every current file hash-skipped — a moved file's OLD path never re-projects,
  * so freshness gives no signal. Skips (returns undefined) without a prune seam,
- * on an empty selection (never mass-delete on a bad tree read), or when every
- * attempted file failed (a systemically broken run must not delete anything).
- * A prune failure never fails the ingest: per-candidate isolation, logged like
- * per-file projection failures.
+ * on an empty selection (never mass-delete on a bad tree read), when every
+ * attempted file failed (a systemically broken run must not delete anything),
+ * or when the doc-list read itself throws (a dgraph read error is "didn't run",
+ * NOT a clean "nothing to delete" — the two must stay distinguishable in the
+ * summary). A per-candidate delete failure never fails the ingest: it is
+ * isolated and logged like a per-file projection failure.
+ *
+ * INVARIANT: the graph is repo-keyed (branch-agnostic), but the tree-vs-graph
+ * diff is taken at THIS run's `params.ref`. Ingest therefore MUST run at the
+ * repo's default-branch HEAD — a force/manual run at a feature-branch commit
+ * missing a spec that still exists on the default branch would delete that
+ * still-valid subtree from the shared graph (self-heals on the next
+ * default-branch ingest). The CI ingress (`lore-ingest.yml`) enforces this by
+ * firing on `branches: [main]` only.
  */
 async function pruneDisappearedDocs(
   params: IngestGraphParams,
@@ -415,6 +425,10 @@ async function pruneDisappearedDocs(
     console.error(
       `[ingest-graph] ${params.kind} ${params.repo} :: prune listing failed: ${reason}`,
     );
+
+    // The list read failed, so the prune never ran — report "didn't run"
+    // (undefined), not a misleading "pruned 0" that reads as a clean reconcile.
+    return undefined;
   }
 
   return pruned;
