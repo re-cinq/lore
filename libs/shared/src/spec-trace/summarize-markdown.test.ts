@@ -16,4 +16,29 @@ describe("summarizeMarkdown", () => {
       "We will adopt a dark factory pipeline.",
     );
   });
+
+  it("skips YAML frontmatter so an ADR yields its H1 title and lead paragraph", () => {
+    const source =
+      '---\nadr_number: 16\ntitle: "Dark Factory"\nstatus: accepted\ndate: 2026-06-23\n---\n\n# ADR-016: Dark Factory\n\nWe will adopt a dark factory pipeline.\n\n## Context\n';
+
+    expect(summarizeMarkdown(source)).toEqual({
+      title: "ADR-016: Dark Factory",
+      description: "We will adopt a dark factory pipeline.",
+    });
+  });
+
+  it("treats a later --- as an hr, not frontmatter", () => {
+    const source = "# Title\n\nLead paragraph.\n\n---\n\nAfter the rule.\n";
+
+    expect(summarizeMarkdown(source).description).toBe("Lead paragraph.");
+  });
+
+  it("does not mistake a lone leading --- with no closing fence for frontmatter", () => {
+    const source = "---\n# Title\nNo closing fence here.\n";
+
+    expect(summarizeMarkdown(source)).toEqual({
+      title: "Title",
+      description: "---",
+    });
+  });
 });

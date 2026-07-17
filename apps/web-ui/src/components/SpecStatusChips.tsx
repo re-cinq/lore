@@ -3,6 +3,7 @@
 import {
   SPEC_STATUS_COLOR,
   SPEC_STATUS_ORDER,
+  type DocKind,
   type SpecStatus,
   type SpecStatusFilter,
 } from "@/lib/spec-status";
@@ -15,21 +16,35 @@ const LABEL: Record<SpecStatus, string> = {
   retired: "Retired",
 };
 
+const LEGEND: Record<DocKind, string> = {
+  spec:
+    "Status (from the spec's header): Draft = specified, not built · In " +
+    "progress / In review = underway · Shipped / Implemented / Complete / " +
+    "Accepted = done and live · Rejected / Superseded = abandoned or " +
+    "replaced. Coverage = statements validated by linked tests.",
+  adr:
+    "Status (from the ADR's frontmatter): Draft = decision being written · " +
+    "Proposed / In progress = under discussion · Accepted / Shipped = " +
+    "decided and live · Rejected / Superseded = abandoned or replaced.",
+};
+
 /**
- * Filter chip row for spec lists: All + one chip per status present, with
+ * Filter chip row for spec/ADR lists: All + one chip per status present, with
  * counts. `total` is the true list length — it can exceed the status counts'
- * sum because specs with no parsed status are still shown under "All".
+ * sum because docs with no parsed status are still shown under "All".
  */
 export default function SpecStatusChips({
   counts,
   total,
   active,
   onChange,
+  kind = "spec",
 }: {
   counts: Partial<Record<SpecStatus, number>>;
   total: number;
   active: SpecStatusFilter;
   onChange: (filter: SpecStatusFilter) => void;
+  kind?: DocKind;
 }) {
   const present = SPEC_STATUS_ORDER.filter((s) => (counts[s] ?? 0) > 0);
 
@@ -90,10 +105,7 @@ export default function SpecStatusChips({
         className="meta"
         style={{ margin: "6px 0 0", fontSize: "var(--fs-2xs)" }}
       >
-        Status (from the spec&apos;s header): Draft = specified, not built · In
-        progress / In review = underway · Shipped / Implemented / Complete /
-        Accepted = done and live · Rejected / Superseded = abandoned or
-        replaced. Coverage = statements validated by linked tests.
+        {LEGEND[kind]}
       </p>
     </div>
   );

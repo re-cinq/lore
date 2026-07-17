@@ -91,4 +91,19 @@ describe("SpecStatusChips", () => {
 
     expect(screen.getByText(/Coverage = statements validated/)).toBeTruthy();
   });
+
+  it("renders a frontmatter legend without the coverage clause for the adr kind", () => {
+    render(
+      <SpecStatusChips
+        counts={{ draft: 1 }}
+        total={1}
+        active="all"
+        onChange={vi.fn()}
+        kind="adr"
+      />,
+    );
+
+    expect(screen.getByText(/from the ADR's frontmatter/)).toBeTruthy();
+    expect(screen.queryByText(/Coverage = statements validated/)).toBeNull();
+  });
 });

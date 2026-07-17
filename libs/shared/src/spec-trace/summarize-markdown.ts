@@ -1,6 +1,10 @@
 /** Matches an ATX heading line, capturing the text after the `#` marker(s). */
 const ATX_HEADING = /^#{1,6}\s+(.*)$/;
 
+/** A YAML frontmatter block opening the document (ADRs carry one); a `---`
+ *  appearing later is a horizontal rule and stays. */
+const LEADING_FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
+
 /** First ATX heading text as title, first non-blank non-heading line as description (both trimmed, or ""). */
 export function summarizeMarkdown(source: string): {
   title: string;
@@ -9,7 +13,7 @@ export function summarizeMarkdown(source: string): {
   let title = "";
   let description = "";
 
-  for (const line of source.split("\n")) {
+  for (const line of source.replace(LEADING_FRONTMATTER, "").split("\n")) {
     const heading = ATX_HEADING.exec(line);
 
     if (heading && title === "") {
