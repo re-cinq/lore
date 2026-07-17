@@ -18,6 +18,11 @@ const CODE_RE =
   /\.(ts|tsx|js|jsx|mjs|cjs|py|go|sh|rs|java|rb|kt|c|cpp|h|hpp|css|scss|sass|less)$/;
 
 export function classifyFile(path: string): ContentType | null {
+  // Retired docs live in the repo-root graveyard/ and must never be indexed.
+  if (path.startsWith("graveyard/")) {
+    return null;
+  }
+
   if (BINARY_RE.test(path)) {
     return null;
   }

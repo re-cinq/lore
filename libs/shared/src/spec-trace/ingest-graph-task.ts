@@ -14,6 +14,12 @@ import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
 import { ingestSpecTrace } from "./ingest-spec-trace.js";
 import { parseIngestPatterns, matchesAnyGlob } from "./ingest-patterns.js";
+import {
+  selectPruneCandidates,
+  listGraphDocPaths,
+  deleteSpecSubtree,
+  deleteAdrSubtree,
+} from "./prune-removed-docs.js";
 
 /** Per-repo override of which files become specs/adrs; sibling of `.lore/test-commands.yml`. */
 const INGEST_MANIFEST_PATH = ".lore/ingest.yml";
@@ -56,6 +62,9 @@ export interface IngestGraphSummary {
   skipped: number;
   failed: number;
   failedFiles: string[];
+  /** Whole-file subtrees deleted for disappeared files; absent when the prune
+   *  didn't run (no prune seam, empty selection, or an all-failed run). */
+  pruned?: number;
   status: "completed" | "skipped" | "failed";
   message: string;
 }
@@ -83,6 +92,16 @@ export interface IngestKindDef {
     force?: boolean,
   ): Promise<{ projected: boolean }>;
   runsOn: "runner+local" | "local-only";
+  /** Whole-file pruning: how to list this kind's graph docs + delete one
+   *  subtree. Absent = the kind's disappeared files are never pruned. */
+  prune?: {
+    listDocPaths(dgraph: DgraphClientPort, repo: string): Promise<string[]>;
+    deleteSubtree(
+      dgraph: DgraphClientPort,
+      repo: string,
+      filePath: string,
+    ): Promise<void>;
+  };
 }
 
 /**
@@ -97,11 +116,19 @@ export const INGEST_KINDS: Record<string, IngestKindDef> = {
     prefixes: ["specs/", ".specify/"],
     project: projectSpecFile,
     runsOn: "runner+local",
+    prune: {
+      listDocPaths: (dgraph, repo) => listGraphDocPaths(dgraph, "Spec", repo),
+      deleteSubtree: deleteSpecSubtree,
+    },
   },
   adrs: {
     prefixes: ["adrs/"],
     project: projectAdrFile,
     runsOn: "runner+local",
+    prune: {
+      listDocPaths: (dgraph, repo) => listGraphDocPaths(dgraph, "ADR", repo),
+      deleteSubtree: deleteAdrSubtree,
+    },
   },
 };
 
@@ -184,6 +211,7 @@ export function summarizeIngest(
   projected: number,
   skipped: number,
   failedFiles: string[],
+  pruned?: number,
 ): IngestGraphSummary {
   const failed = failedFiles.length;
   const allAttemptedFailed = projected === 0 && skipped === 0 && failed > 0;
@@ -192,9 +220,19 @@ export function summarizeIngest(
   const message =
     status === "failed"
       ? `${kind}: all ${attempted} file(s) failed to project`
-      : `${kind}: projected ${projected}, skipped ${skipped}, failed ${failed}`;
+      : `${kind}: projected ${projected}, skipped ${skipped}, failed ${failed}` +
+        (pruned !== undefined ? `, pruned ${pruned}` : "");
 
-  return { kind, projected, skipped, failed, failedFiles, status, message };
+  return {
+    kind,
+    projected,
+    skipped,
+    failed,
+    failedFiles,
+    ...(pruned !== undefined ? { pruned } : {}),
+    status,
+    message,
+  };
 }
 
 function skippedSummary(kind: IngestKind, message: string): IngestGraphSummary {
@@ -299,11 +337,99 @@ export async function runIngestGraph(
     }
   }
 
+  const pruned = await pruneDisappearedDocs(params, ports, registry, {
+    def,
+    files,
+    patterns,
+    allAttemptedFailed:
+      projected === 0 && skipped === 0 && failedFiles.length > 0,
+  });
+
   return summarizeIngest(
     params.kind,
     files.length,
     projected,
     skipped,
     failedFiles,
+    pruned,
   );
+}
+
+/**
+ * Deletes the subtrees of graph docs whose files left the tree. Runs even when
+ * every current file hash-skipped — a moved file's OLD path never re-projects,
+ * so freshness gives no signal. Skips (returns undefined) without a prune seam,
+ * on an empty selection (never mass-delete on a bad tree read), when every
+ * attempted file failed (a systemically broken run must not delete anything),
+ * or when the doc-list read itself throws (a dgraph read error is "didn't run",
+ * NOT a clean "nothing to delete" — the two must stay distinguishable in the
+ * summary). A per-candidate delete failure never fails the ingest: it is
+ * isolated and logged like a per-file projection failure.
+ *
+ * INVARIANT: the graph is repo-keyed (branch-agnostic), but the tree-vs-graph
+ * diff is taken at THIS run's `params.ref`. Ingest therefore MUST run at the
+ * repo's default-branch HEAD — a force/manual run at a feature-branch commit
+ * missing a spec that still exists on the default branch would delete that
+ * still-valid subtree from the shared graph (self-heals on the next
+ * default-branch ingest). The CI ingress (`lore-ingest.yml`) enforces this by
+ * firing on `branches: [main]` only.
+ */
+async function pruneDisappearedDocs(
+  params: IngestGraphParams,
+  ports: IngestGraphPorts,
+  registry: Record<string, IngestKindDef>,
+  run: {
+    def: IngestKindDef;
+    files: string[];
+    patterns?: string[];
+    allAttemptedFailed: boolean;
+  },
+): Promise<number | undefined> {
+  const { def, files, patterns, allAttemptedFailed } = run;
+  const emptySelection = files.length === 0;
+  const pruneSkipped = emptySelection || allAttemptedFailed;
+
+  if (!def.prune || !ports.dgraph || pruneSkipped) {
+    return undefined;
+  }
+  const dgraph = ports.dgraph;
+  let pruned = 0;
+
+  try {
+    const graphDocPaths = await def.prune.listDocPaths(dgraph, params.repo);
+    const isInScope = (path: string) =>
+      selectIngestFiles([path], params.kind, params.glob, registry, patterns)
+        .length === 1;
+
+    for (const filePath of selectPruneCandidates(
+      graphDocPaths,
+      files,
+      isInScope,
+    )) {
+      try {
+        await def.prune.deleteSubtree(dgraph, params.repo, filePath);
+        pruned += 1;
+      } catch (err) {
+        const reason =
+          err instanceof Error ? (err.stack ?? err.message) : String(err);
+
+        console.error(
+          `[ingest-graph] ${params.kind} ${params.repo} :: failed to prune ${filePath}: ${reason}`,
+        );
+      }
+    }
+  } catch (err) {
+    const reason =
+      err instanceof Error ? (err.stack ?? err.message) : String(err);
+
+    console.error(
+      `[ingest-graph] ${params.kind} ${params.repo} :: prune listing failed: ${reason}`,
+    );
+
+    // The list read failed, so the prune never ran — report "didn't run"
+    // (undefined), not a misleading "pruned 0" that reads as a clean reconcile.
+    return undefined;
+  }
+
+  return pruned;
 }
