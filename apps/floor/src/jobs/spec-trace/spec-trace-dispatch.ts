@@ -17,6 +17,7 @@ import {
 } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { EventInput } from "../../main-loop/types.js";
+import type { AssemblyLineStartInput } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
 import { projectRepoGraph, type RepoReader } from "./graph-ingest-handler.js";
 import {
   specTraceAuditEntry,
@@ -41,6 +42,9 @@ export interface SpecTraceDispatchDeps {
   projectFor: (repo: string) => Promise<{ repo: RepoReader }>;
   /** Required for the force-without-glob path, which self-chunks into child events. */
   insertEvent?: (input: EventInput) => Promise<void>;
+  /** When present, docs kinds run as an ingest-station line (FR2) instead of
+   *  projecting inline; the returned id names the started line. */
+  startLine?: (input: AssemblyLineStartInput) => Promise<string>;
 }
 
 /**
@@ -112,6 +116,40 @@ export async function dispatchSpecTrace(
           failedFiles: [],
           status: "completed",
           message: `${kind}: force chunked into ${globs.length} per-directory event(s)`,
+        }),
+        failedFiles: [],
+      };
+    }
+
+    // FR2 (specs/ingest-station): with a line starter wired, docs projection
+    // runs in an ingest-station pod — one line per payload, the clone pinned to
+    // the commit via the line's branch field (full clone + git checkout <ref>).
+    // The inline path below remains only for callers without the seam and dies
+    // with FR6.
+    if (deps.startLine) {
+      const ref = p.commit || p.branch || "main";
+      const lineId = await deps.startLine({
+        definitionName: "ingest",
+        repo,
+        branch: ref,
+        args: {
+          kind,
+          ...(p.glob ? { glob: p.glob } : {}),
+          ...(p.force ? { force: "true" } : {}),
+        },
+      });
+      const message = `${kind}: routed to ingest line ${lineId.slice(0, 8)} at ${ref.slice(0, 12)}`;
+
+      return {
+        logLine: `[floor] spec-trace ${kind} ${repo}: ${message}`,
+        audit: graphIngestAuditEntry(repo, {
+          kind,
+          projected: 0,
+          skipped: 0,
+          failed: 0,
+          failedFiles: [],
+          status: "completed",
+          message,
         }),
         failedFiles: [],
       };
