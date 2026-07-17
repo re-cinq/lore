@@ -1,0 +1,27 @@
+# Overlay for a laptop minikube (scripts/infra/setup-minikube-agents.sh).
+#
+# The hybrid local topology inverts one assumption the GKE defaults are built on:
+# there, the Floor and Lore API are pods and a run pod reaches them over ClusterIP;
+# here they are HOST processes (`npm start`) and a run pod reaches them at
+# host.minikube.internal. Everything below follows from that.
+#
+# Not used on GKE — terraform/CI never reference this file.
+
+# The run-pod egress posture assumes the Floor + Lore API are in-cluster: it denies
+# all RFC1918 egress except their ClusterIPs. Locally they ARE RFC1918
+# (host.minikube.internal), so the policy would drop precisely the traffic that must
+# work. minikube's default CNI does not enforce NetworkPolicy anyway — applying it
+# would only advertise a posture that is not actually running.
+networkPolicy:
+  enabled: false
+
+# The host Floor's NDJSON cost sink (`npm start` serves :8080).
+agentEventsUrl: http://host.minikube.internal:8080/api/agent-events
+
+# The host Lore API the station recipes read/write through (dev-local runs it on
+# :3001, not the in-cluster :3000).
+loreApiUrl: http://host.minikube.internal:3001
+
+# The host Dgraph the ingest-station recipes project into. docker compose publishes
+# its HTTP port on :8081 (dodging the Floor's :8080), not the in-cluster :8080.
+dgraphUrl: http://host.minikube.internal:8081

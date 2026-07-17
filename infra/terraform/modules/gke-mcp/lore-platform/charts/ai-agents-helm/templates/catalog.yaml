@@ -1246,7 +1246,7 @@ spec:
       - name: LORE_API_URL
         value: {{ .Values.loreApiUrl }}
       - name: LORE_DGRAPH_HTTP
-        value: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080
+        value: {{ .Values.dgraphUrl }}
     secrets:
       - name: LORE_INGEST_TOKEN
         ref: LORE_INGEST_TOKEN

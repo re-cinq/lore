@@ -5,7 +5,7 @@
 // allowlist). All Kubernetes calls use the object-param client (like k8s-loretask.ts).
 
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
-import type { LoreTaskSpec } from "@re-cinq/lore-shared";
+import { loadKube, type LoreTaskSpec } from "@re-cinq/lore-shared";
 import type { TokenProvisioner } from "./agent-backend.js";
 import {
   tokenSecretKey,
@@ -125,7 +125,7 @@ export class KubeSecretKeyWriter implements SecretKeyWriter {
     const { KubeConfig, CoreV1Api } = await import("@kubernetes/client-node");
     const kc = new KubeConfig();
 
-    kc.loadFromCluster();
+    loadKube(kc);
 
     return kc.makeApiClient(CoreV1Api);
   }
@@ -189,7 +189,7 @@ export class KubeCatalogApi implements CatalogApi {
       await import("@kubernetes/client-node");
     const kc = new KubeConfig();
 
-    kc.loadFromCluster();
+    loadKube(kc);
 
     return kc.makeApiClient(CustomObjectsApi);
   }
