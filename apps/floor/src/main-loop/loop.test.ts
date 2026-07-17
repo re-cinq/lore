@@ -106,6 +106,17 @@ describe("handleOne", () => {
     );
     expect(seen).toEqual({ repo: "re-cinq/lore", pr_number: 7 });
   });
+
+  it("passes the event id as meta so a handler can hand the payload off by reference", async () => {
+    const rec = recorder();
+    let metaSeen: { eventId: string } | undefined;
+    const capture: EventHandler = async (_params, meta) => {
+      metaSeen = meta;
+    };
+
+    await handleOne(row({ id: "4711" }), deps(capture, rec));
+    expect(metaSeen).toEqual({ eventId: "4711" });
+  });
 });
 
 describe("drainOnce serial families", () => {

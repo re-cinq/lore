@@ -16,7 +16,7 @@ import { writeAuditLog } from "./lib/audit.js";
 import { validateSpecCoverageJob } from "@re-cinq/lore-shared/detect/index.js";
 import type { EventHandler } from "../main-loop/types.js";
 
-export const specTrace: EventHandler = async (params) => {
+export const specTrace: EventHandler = async (params, meta) => {
   const { repo, kind, payload } = params as {
     repo: string;
     kind: string;
@@ -40,9 +40,10 @@ export const specTrace: EventHandler = async (params) => {
       dgraph,
       projectFor,
       insertEvent,
-      // FR2: docs kinds run as ingest-station lines; payload kinds stay inline
-      // until FR3 (dispatchSpecTrace routes only repo-read kinds through this).
+      // FR2/FR3: docs kinds and payload kinds run as ingest-station lines;
+      // payload bodies hand off by reference through the scheduling event's id.
       startLine: (input) => assemblyLines().start(input),
+      eventId: meta?.eventId,
     },
   );
 

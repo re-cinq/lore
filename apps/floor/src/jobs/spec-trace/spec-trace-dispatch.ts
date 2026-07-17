@@ -29,6 +29,8 @@ import type { AuditLogEntry } from "@re-cinq/lore-shared/project/audit/audit-por
 
 /** Kinds whose data is read from the repo (not carried in the trigger payload). */
 const REPO_READ_KINDS = new Set(["specs", "adrs"]);
+/** Kinds whose body rides the scheduling event and reaches the pod by reference. */
+const PAYLOAD_KINDS = new Set(["test-report", "coverage"]);
 
 interface RepoReadPayload {
   commit?: string;
@@ -45,6 +47,9 @@ export interface SpecTraceDispatchDeps {
   /** When present, docs kinds run as an ingest-station line (FR2) instead of
    *  projecting inline; the returned id names the started line. */
   startLine?: (input: AssemblyLineStartInput) => Promise<string>;
+  /** The scheduling event's id — payload kinds hand their body off by
+   *  reference through it (FR3), never inline through station_input. */
+  eventId?: string;
 }
 
 /**
@@ -169,6 +174,34 @@ export async function dispatchSpecTrace(
       logLine: graphIngestLogLine(repo, summary),
       audit: graphIngestAuditEntry(repo, summary),
       failedFiles: summary.failedFiles,
+    };
+  }
+
+  // FR3: payload kinds ride the ingest line too when the scheduling event's id
+  // is known — the station fetches the body back by reference (a test report is
+  // ~1 MB; station_input is an argv element).
+  if (deps.startLine && deps.eventId && PAYLOAD_KINDS.has(kind)) {
+    const p = (payload ?? {}) as RepoReadPayload;
+    const lineId = await deps.startLine({
+      definitionName: "ingest",
+      repo,
+      branch: p.commit || p.branch || "main",
+      args: { kind, payload_event_id: deps.eventId },
+    });
+    const message = `${kind}: routed to ingest line ${lineId.slice(0, 8)} (payload by reference, event ${deps.eventId})`;
+
+    return {
+      logLine: `[floor] spec-trace ${kind} ${repo}: ${message}`,
+      audit: graphIngestAuditEntry(repo, {
+        kind,
+        projected: 0,
+        skipped: 0,
+        failed: 0,
+        failedFiles: [],
+        status: "completed",
+        message,
+      }),
+      failedFiles: [],
     };
   }
 

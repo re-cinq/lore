@@ -199,13 +199,50 @@ describe("runIngestStation", () => {
     );
   });
 
-  it("rejects a payload kind until payload-by-reference lands (FR3)", async () => {
+  it("fetches a payload kind by event reference and ingests it (FR3)", async () => {
+    const fetched: string[] = [];
+    const result = await runIngestStation(
+      input({ kind: "test-report", payload_event_id: "4711" }),
+      {
+        workspaceDir: fixtureClone(),
+        dgraph: fakeDgraph().port,
+        embed: async () => [0.1],
+        fetchPayload: async (eventId) => {
+          fetched.push(eventId);
+
+          return {
+            repo: "re-cinq/lore",
+            commit: "abc",
+            tests: [],
+            results: [],
+          };
+        },
+      },
+    );
+
+    expect(fetched).toEqual(["4711"]);
+    expect(result).toMatchObject({ outcome: "success" });
+    expect(result.extras?.["Lore-Ingest-Summary"]).toContain("test_chunks=0");
+  });
+
+  it("rejects a payload kind without payload_event_id", async () => {
     await expect(
       runIngestStation(input({ kind: "test-report" }), {
         workspaceDir: fixtureClone(),
         dgraph: fakeDgraph().port,
         embed: async () => [0.1],
+        fetchPayload: async () => ({}),
       }),
-    ).rejects.toThrow(/no ingest handler for kind "test-report"/);
+    ).rejects.toThrow(/payload_event_id/);
+  });
+
+  it("rejects an unknown kind", async () => {
+    await expect(
+      runIngestStation(input({ kind: "bogus" }), {
+        workspaceDir: fixtureClone(),
+        dgraph: fakeDgraph().port,
+        embed: async () => [0.1],
+      }),
+    ).rejects.toThrow(/no ingest handler for kind "bogus"/);
   });
 });

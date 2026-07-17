@@ -41,6 +41,7 @@ import { episodeRoute } from "../api/routes/memory/episode.js";
 import { sessionSummaryRoute } from "../api/routes/memory/session-summary.js";
 import { ingestRoute } from "../api/routes/ingest/ingest.js";
 import { ingestGraphRoute } from "../api/routes/ingest/ingest-graph.js";
+import { eventPayloadRoute } from "../api/routes/ingest/event-payload.js";
 import { onboardRoute } from "../api/routes/repos/onboard.js";
 import { slackWebhookRoute } from "../api/routes/webhooks/webhook-slack.js";
 import { incidentWebhookRoute } from "../api/routes/webhooks/webhook-incident.js";
@@ -97,6 +98,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     sessionSummaryRoute(getPool),
     ingestRoute(getPool),
     ingestGraphRoute(getPool),
+    eventPayloadRoute(getPool),
     onboardRoute(getPool),
     slackWebhookRoute(getPool),
     incidentWebhookRoute(getPool),
