@@ -12,6 +12,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   runIngestGraph,
   createDgraphClient,
+  ingestSpecTrace,
   INGEST_KINDS,
   type DgraphClientPort,
   type IngestGraphSummary,
@@ -20,8 +21,11 @@ import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "../input.js";
 
 // Derived, not parallel: INGEST_KINDS holds exactly the file-projectable doc
-// kinds (tests is special-cased inside runIngestGraph, payload kinds are FR3).
+// kinds (tests is special-cased inside runIngestGraph).
 const DOC_KINDS = new Set(Object.keys(INGEST_KINDS));
+// Payload kinds arrive by reference (FR3): the body lives on the scheduling
+// pipeline.events row; station_input carries only payload_event_id.
+const PAYLOAD_KINDS = new Set(["test-report", "coverage"]);
 // Keeps the extras value well under the ~1 KB stage-commit trailer guidance
 // (station-contract.md) — long detail belongs in the log lines.
 const FAILED_FILES_MAX = 900;
@@ -33,6 +37,31 @@ export interface IngestStationDeps {
   dgraph?: DgraphClientPort | null;
   /** Injectable embedder for tests; defaults to Vertex. */
   embed?: (text: string) => Promise<number[] | null>;
+  /** Payload-by-reference fetch; defaults to the Lore API events endpoint. */
+  fetchPayload?: (eventId: string) => Promise<unknown>;
+}
+
+/** GET the scheduling event's payload back from the Lore API (FR3). */
+async function fetchPayloadFromApi(
+  repo: string,
+  eventId: string,
+): Promise<unknown> {
+  const baseUrl = process.env.LORE_API_URL;
+  const token = process.env.LORE_STATION_TOKEN ?? process.env.LORE_INGEST_TOKEN;
+
+  enforceTrue(baseUrl, Error, "ingest station: LORE_API_URL not configured");
+  const res = await fetch(
+    `${baseUrl}/api/repos/${repo}/events/${eventId}/payload`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+
+  enforceTrue(
+    res.ok,
+    Error,
+    `ingest station: payload fetch for event ${eventId} returned ${res.status}`,
+  );
+
+  return res.json();
 }
 
 /** Walks the clone for every file path, repo-relative with forward slashes. */
@@ -77,9 +106,9 @@ export async function runIngestStation(
   const kind = input.params.kind as string | undefined;
 
   enforceTrue(
-    kind !== undefined && DOC_KINDS.has(kind),
+    kind !== undefined && (DOC_KINDS.has(kind) || PAYLOAD_KINDS.has(kind)),
     Error,
-    `ingest station: no ingest handler for kind "${kind}" (payload kinds land with FR3)`,
+    `ingest station: no ingest handler for kind "${kind}"`,
   );
   const workspaceDir =
     deps.workspaceDir ??
@@ -91,6 +120,27 @@ export async function runIngestStation(
     Error,
     "ingest station: LORE_DGRAPH_HTTP not configured — the def-ingest recipe must inject it (FR4)",
   );
+
+  if (PAYLOAD_KINDS.has(kind!)) {
+    const eventId = input.params.payload_event_id as string | undefined;
+
+    enforceTrue(
+      eventId,
+      Error,
+      `ingest station: kind "${kind}" requires the payload_event_id param`,
+    );
+    const payload = await (
+      deps.fetchPayload ?? ((id: string) => fetchPayloadFromApi(input.repo, id))
+    )(eventId!);
+    const outcome = await ingestSpecTrace(dgraph!, input.repo, kind!, payload);
+
+    return {
+      outcome: "success",
+      extras: {
+        "Lore-Ingest-Summary": `validated_by=${outcome.validatedBy} violated=${outcome.violated} coverage_nodes=${outcome.coverageNodes} covers_edges=${outcome.coversEdges} test_chunks=${outcome.testChunks}`,
+      },
+    };
+  }
 
   const summary = await runIngestGraph(
     {

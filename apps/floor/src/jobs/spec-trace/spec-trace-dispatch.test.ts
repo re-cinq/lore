@@ -221,6 +221,39 @@ describe("dispatchSpecTrace", () => {
     expect(result.logLine).toContain("[floor] spec-trace specs re-cinq/lore");
   });
 
+  it("routes a payload kind to the ingest line by event reference", async () => {
+    const started: Array<Record<string, unknown>> = [];
+    const projectFor = async (_repo: string) => ({
+      repo: { tree: async () => [] as string[], read: async () => "" },
+    });
+    const result = await dispatchSpecTrace(
+      "re-cinq/lore",
+      "test-report",
+      { commit: "abc123", tests: [] },
+      {
+        dgraph: stubDgraph,
+        projectFor,
+        eventId: "4711",
+        startLine: async (input) => {
+          started.push(input as unknown as Record<string, unknown>);
+
+          return "lineid00-0000";
+        },
+      },
+    );
+
+    expect(started).toEqual([
+      {
+        definitionName: "ingest",
+        repo: "re-cinq/lore",
+        branch: "abc123",
+        args: { kind: "test-report", payload_event_id: "4711" },
+      },
+    ]);
+    expect(result.failedFiles).toEqual([]);
+    expect(result.logLine).toContain("ingest line lineid00");
+  });
+
   it("routes an unrecognized kind to ingestSpecTrace, which rejects without reading the repo", async () => {
     const f = fakeProjectFor();
 

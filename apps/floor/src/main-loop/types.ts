@@ -19,4 +19,13 @@ export interface EventInput {
 export type { EventRow } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
 
 /** A layer-3 handler. Self-sources its own deps (DB pool, platform); params carry the event payload. */
-export type EventHandler = (params: Record<string, unknown>) => Promise<void>;
+/** Row identity a handler may need (e.g. to hand a large payload off by
+ *  reference instead of copying it); handlers that don't care ignore it. */
+export interface EventMeta {
+  eventId: string;
+}
+
+export type EventHandler = (
+  params: Record<string, unknown>,
+  meta?: EventMeta,
+) => Promise<void>;
