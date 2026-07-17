@@ -142,6 +142,35 @@ function fakeRegistry(): Record<string, IngestKindDef> {
 const DUMMY_DGRAPH = {} as DgraphClientPort;
 
 describe("runIngestGraph", () => {
+  it("passes ports.embed through to the kind's project call", async () => {
+    const embedsSeen: Array<unknown> = [];
+    const stubEmbed = async (): Promise<number[]> => [0.5];
+    const registry: Record<string, IngestKindDef> = {
+      specs: {
+        prefixes: ["specs/"],
+        runsOn: "runner+local",
+        project: async (_repo, _path, _content, _dgraph, embed) => {
+          embedsSeen.push(embed);
+
+          return { projected: true };
+        },
+      },
+    };
+
+    await runIngestGraph(
+      { kind: "specs", repo: "o/r" },
+      {
+        dgraph: DUMMY_DGRAPH,
+        listTree: async () => ["specs/a/spec.md"],
+        readFile: async () => "x",
+        embed: stubEmbed,
+      },
+      registry,
+    );
+
+    expect(embedsSeen).toEqual([stubEmbed]);
+  });
+
   it("short-circuits to skipped when no dgraph client is configured", async () => {
     const result = await runIngestGraph(
       { kind: "specs", repo: "o/r" },
