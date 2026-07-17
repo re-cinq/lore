@@ -117,15 +117,11 @@ resource "google_project_iam_member" "lore_agent_logging_viewer" {
   member  = "serviceAccount:${google_service_account.lore_agent.email}"
 }
 
-# Retention on the _Default log bucket, where GKE ships every pod's stdout/stderr.
-# The provider updates this system bucket in place (no import needed); raising it
-# is how pod logs outlive the default 30 days.
-resource "google_logging_project_bucket_config" "default" {
-  project        = var.project_id
-  location       = "global"
-  bucket_id      = "_Default"
-  retention_days = var.pod_log_retention_days
-}
+# NOTE: raising the _Default log-bucket retention past its 30-day default is a
+# manual admin action (`gcloud logging buckets update _Default --location=global
+# --retention-days=N`) — it needs logging.admin, which the terraform deployer
+# identity intentionally lacks. The fallback works on the 30-day default; only
+# the read grant above is required.
 
 # Workload Identity: the helm-managed KSA lore-floor/lore-floor impersonates this SA.
 resource "google_service_account_iam_member" "lore_agent_wi" {
