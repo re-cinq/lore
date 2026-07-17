@@ -3,7 +3,7 @@
 | Field   | Value                                                                 |
 |---------|-----------------------------------------------------------------------|
 | Feature | Ingest station — the `internal.ingest.*` family leaves the Floor      |
-| Status  | Draft                                                                 |
+| Status  | In Progress                                                                 |
 | Created | 2026-07-17                                                            |
 | Owner   | Platform Engineering                                                  |
 | ADR     | [`ADR-031`](../../adrs/ADR-031-agent-station-crds.md) (ingest-station amendment, accepted 2026-07-17) |
@@ -35,6 +35,11 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   `LORE_NODE_RESULT` line with the run summary (`projected/skipped/failed` or
   ingest counts) in `extras`; any partial per-file failure yields outcome `failed`
   with the file list, so the line's failed edge (not a silent `done`) owns retries.
+  Docs kinds read the init container's local clone and accept `glob`/`force`
+  params; the embedder threads through `IngestGraphPorts.embed` (station pods
+  have no GCP ADC — provider wiring lands with FR4); payload kinds reject loudly
+  until FR3.
+  ([validated by `ingest.test.ts:76`](apps/lore-station/src/stations/ingest.test.ts#L85), [`ingest.test.ts:89`](apps/lore-station/src/stations/ingest.test.ts#L98), [`ingest.test.ts:101`](apps/lore-station/src/stations/ingest.test.ts#L110), [`ingest.test.ts:119`](apps/lore-station/src/stations/ingest.test.ts#L128), [`ingest.test.ts:150`](apps/lore-station/src/stations/ingest.test.ts#L150), [`ingest.test.ts:202`](apps/lore-station/src/stations/ingest.test.ts#L202), [`ingest-graph-task.test.ts:145`](libs/shared/src/spec-trace/ingest-graph-task.test.ts#L145); implemented by [`ingest.ts:71`](apps/lore-station/src/stations/ingest.ts#L71))
 
 - **FR2 — dispatch.** A single-node detect-shaped assembly line definition
   (`libs/assembly-lines/src/assembly-lines/ingest.yaml`) rides the standard
