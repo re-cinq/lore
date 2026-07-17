@@ -14,6 +14,10 @@ spec:
     metadata:
       labels:
         app: lore-api
+      annotations:
+        # Roll the pods whenever the mounted task-types.yaml content changes —
+        # without this a ConfigMap update leaves running pods on the old file.
+        checksum/task-types: {{ sha256sum (.Values.taskTypesConfig | default "") }}
     spec:
       {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
