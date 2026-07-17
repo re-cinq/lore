@@ -41,7 +41,7 @@ env:
   # In-cluster Floor URL — the /api/assembly-lines/[id]/nodes/[name]/logs route
   # proxies here to read live per-node pod logs from the cluster (the UI SA has
   # no Kubernetes access; the Floor brokers the read). Bearer LORE_INGEST_TOKEN.
-  LORE_FLOOR_URL: http://floor.lore-floor.svc.cluster.local:8080
+  LORE_FLOOR_URL: http://lore-floor.lore-floor.svc.cluster.local:8080
 
 # Schema migrations applied as a pre-install/pre-upgrade hook Job before the UI
 # rolls out. SQL lives in migrations/*.sql; tracked in lore.schema_migrations.
