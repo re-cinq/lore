@@ -143,6 +143,19 @@ export function buildStationDefinition(
       max_turns: 1,
       tool_config: { command: cfg.command },
       output: OUTPUT_SINKS,
+      // The controller folds recipe resources.env into the run env; a Station
+      // pod-template env block is OVERWRITTEN by the controller (jobspec.d
+      // wirePodTemplate) and silently lost — learned live, 2026-07-17.
+      ...(cfg.env && Object.keys(cfg.env).length > 0
+        ? {
+            resources: {
+              env: Object.entries(cfg.env).map(([name, value]) => ({
+                name,
+                value,
+              })),
+            },
+          }
+        : {}),
     },
   };
 }
@@ -166,14 +179,6 @@ export function buildStationStation(
             {
               name: "agent",
               image: STATION_IMAGE_SENTINEL,
-              ...(cfg.env
-                ? {
-                    env: Object.entries(cfg.env).map(([name, value]) => ({
-                      name,
-                      value,
-                    })),
-                  }
-                : {}),
               resources: {
                 requests: { cpu: "250m", memory: "512Mi" },
                 limits: { cpu: "1", memory: "1Gi" },

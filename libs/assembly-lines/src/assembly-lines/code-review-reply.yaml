@@ -8,6 +8,7 @@ nodes:
   - id: reply
     type: agent
     prompt_ref: code-review-refine
+    station_ref: code-review-refine
     model: claude-sonnet-4-6
     description: Intent-aware — answer in the thread, or implement the approved fix and commit to the PR branch.
 
