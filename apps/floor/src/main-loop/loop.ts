@@ -22,6 +22,9 @@ export interface LoopDeps {
   batchSize?: number;
   /** Deadline before a serial handler's family slot is released (test hook). */
   serialDeadlineMs?: number;
+  /** Serial-family override (test hook); defaults to the module set — empty
+   *  since specs/ingest-station FR6. */
+  serialFamilies?: ReadonlySet<string>;
 }
 
 /**
@@ -42,17 +45,16 @@ const releaseAfter = (ms: number): Promise<"deadline"> =>
   });
 
 /**
- * Families whose handlers contend on shared external state (dgraph — every
- * spec-trace writer aborts its concurrent twin): at most one handler in flight
- * per Floor instance. Exclusion happens at CLAIM time so waiting rows stay
- * `pending` — a dispatch-side queue would park claimed rows in `processing`,
- * where anything waiting >600s is reaped as presumed-dead, re-claimed, and run
- * concurrently anyway (the observed duplicate-self race on long projections).
- * Cross-instance conflicts are absorbed by withTxn's retry-on-abort.
+ * Families whose handlers contend on shared external state: at most one
+ * handler in flight per Floor instance, excluded at CLAIM time so waiting rows
+ * stay `pending` (a dispatch-side queue would park claimed rows in
+ * `processing`, where the >600s reaper re-runs them concurrently). EMPTY since
+ * specs/ingest-station FR6 — no in-process dgraph writer remains; chunk
+ * isolation now comes from one-pod-per-event, the station deadline, and dgraph
+ * retry-on-abort inside the pod. The mechanism stays as a general tool
+ * (LoopDeps.serialFamilies is the seam).
  */
-const SERIAL_FAMILIES: ReadonlySet<string> = new Set([
-  "internal.ingest.spec_trace",
-]);
+const SERIAL_FAMILIES: ReadonlySet<string> = new Set();
 
 /** Serial families with a handler in flight, shared across drain ticks. */
 const busyFamilies = new Set<string>();
@@ -83,6 +85,7 @@ export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
 }
 
 export async function drainOnce(deps: LoopDeps): Promise<number> {
+  const serialFamilies = deps.serialFamilies ?? SERIAL_FAMILIES;
   const batch = await deps.claim(deps.batchSize ?? 20, [...busyFamilies]);
 
   if (batch.length === 0) {
@@ -99,12 +102,12 @@ export async function drainOnce(deps: LoopDeps): Promise<number> {
     );
 
   const parallel = batch
-    .filter((ev) => !SERIAL_FAMILIES.has(ev.event_name))
+    .filter((ev) => !serialFamilies.has(ev.event_name))
     .map((ev) => handleOne(ev, deps).catch(logTransitionFailure(ev)));
 
   const serialByFamily = new Map<string, EventRow[]>();
 
-  for (const ev of batch.filter((e) => SERIAL_FAMILIES.has(e.event_name))) {
+  for (const ev of batch.filter((e) => serialFamilies.has(e.event_name))) {
     serialByFamily.set(ev.event_name, [
       ...(serialByFamily.get(ev.event_name) ?? []),
       ev,

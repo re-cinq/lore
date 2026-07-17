@@ -120,6 +120,9 @@ describe("handleOne", () => {
 });
 
 describe("drainOnce serial families", () => {
+  // FR6 (specs/ingest-station): production SERIAL_FAMILIES is EMPTY — no
+  // in-process dgraph writer remains. The mechanism stays as a general tool,
+  // so these tests inject a family through the deps seam.
   const specTraceRow = (id: string) =>
     row({ id, event_name: "internal.ingest.spec_trace", params: { id } });
 
@@ -136,6 +139,7 @@ describe("drainOnce serial families", () => {
       excludesSeen,
       deps: {
         ...base,
+        serialFamilies: new Set(["internal.ingest.spec_trace"]),
         claim: async (_limit, excludeEventNames) => {
           excludesSeen.push([...excludeEventNames]);
 
@@ -144,6 +148,37 @@ describe("drainOnce serial families", () => {
       },
     };
   }
+
+  it("production default has no serial families — every event runs parallel (FR6)", async () => {
+    const rec = recorder();
+    const order: string[] = [];
+    let release: () => void = () => {};
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const handler: EventHandler = async (params) => {
+      order.push(`start:${String(params.id)}`);
+
+      if (params.id === "st1") {
+        await blocked;
+      }
+      order.push(`end:${String(params.id)}`);
+    };
+    const base = deps(handler, rec);
+    const batch = [specTraceRow("st1"), specTraceRow("st2")];
+    let call = 0;
+    const drain = drainOnce({
+      ...base,
+      claim: async () => (call++ === 0 ? batch : []),
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    // st2 finished while st1 is still blocked — no family serialization.
+    expect(order).toContain("end:st2");
+    expect(order).not.toContain("end:st1");
+    release();
+    await drain;
+  });
 
   it("runs two spec_trace events one after the other while an unrelated event runs alongside", async () => {
     const rec = recorder();
