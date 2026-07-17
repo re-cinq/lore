@@ -1,12 +1,20 @@
 ---
 adr_number: 37
 title: "Spec status: one canonical vocabulary, machine-maintained"
-status: shipped
+status: in progress
 date: 2026-07-16
 domains: [pipeline, agent]
 ---
 
 # ADR-037: Spec status vocabulary and automatic upkeep
+
+Every spec and ADR carries a lifecycle status, and that status is the org's
+backlog signal — the web-UI pills render it, the upkeep automation flips it, and
+humans read it to know what is real. This ADR fixes the vocabulary those statuses
+are written in: five buckets normalized from free text, tolerant on input and
+canonical on output, single-sourced in `libs/shared` and held to its web-UI mirror
+by a parity test — plus the two machine layers that keep the headers honest once
+convention rots.
 
 ## Context
 
