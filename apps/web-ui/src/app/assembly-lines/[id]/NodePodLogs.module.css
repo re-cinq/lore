@@ -46,3 +46,9 @@
   word-break: break-all;
   border: 1px solid var(--border);
 }
+
+.toggleRow {
+  display: flex;
+  justify-content: flex-end;
+  margin: 8px 0 4px;
+}

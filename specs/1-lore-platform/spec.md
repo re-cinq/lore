@@ -910,7 +910,7 @@ share one persistence surface instead of inline SQL.
 - Autonomous review loop (opt-in per repo, webhook-driven per ADR-015).
 - Progressive trust gating.
 - Slack integration (`/lore` slash command + watcher notifications).
-- Web UI (`/onboard`, pipeline status, task logs, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:26`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L26), [`GraphView.test.tsx:35`](apps/web-ui/src/app/graph/GraphView.test.tsx#L35), [`AnalyticsView.test.tsx:116`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L116), [`TaskLogs.test.tsx:92`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L92), [`OnboardView.test.tsx:8`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L8))
+- Web UI (`/onboard`, pipeline status, task logs, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:26`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L26), [`GraphView.test.tsx:35`](apps/web-ui/src/app/graph/GraphView.test.tsx#L35), [`AnalyticsView.test.tsx:116`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L116), [`TaskLogs.test.tsx:93`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L93), [`OnboardView.test.tsx:8`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L8))
 - Spec drift detection (Phase 2).
 - Prompt caching on agent LLM calls (ADR-015).
 - Per-template context budgets (ADR-015).
