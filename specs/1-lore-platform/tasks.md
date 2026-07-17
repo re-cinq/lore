@@ -294,7 +294,7 @@ review required.
 - [x] T061 [US8] ~~Deploy self-hosted Dolt remote~~ — superseded by ADR-009; pipeline tasks use PostgreSQL pipeline.tasks table, no Dolt required
 - [x] T062 [US8] Add .specify/** to context-evals.yml trigger paths (1 line) in .github/workflows/context-evals.yml
 - [x] T063 [US8] Deploy weekly gap detection job in lore-agent scheduler (Monday 9am UTC): runs gap-detect.ts which queries Cloud Monitoring for gap candidate metrics
-- [x] T064 [US8] Write Lore Agent prompt for gap detection: query Cloud Monitoring for gap candidate metrics, cluster by similarity, draft missing content, open PR to re-cinq/lore with context-gap-draft label in scripts/agent-prompts/gap-detection.md
+- [x] T064 [US8] Write Lore Agent prompt for gap detection: query Cloud Monitoring for gap candidate metrics, cluster by similarity, draft missing content, open PR to re-cinq/lore with context-gap-draft label in graveyard/agent-prompts/gap-detection.md
 
 ---
 
@@ -348,9 +348,9 @@ Autoresearch loop autonomously improves context quality.
 - [x] T068 [US9] Write Lore Agent prompt for weekly spec drift detection with VIOLATES graph edges in scripts/agent-prompts/spec-drift.md
 - [x] T069 [US9] Add optional AgentDB local cache prompt to install.sh
 - [x] T070b [US9] Write Context Core manifest schema (lore-core.json) in scripts/context-cores/manifest-schema.json
-- [x] T071b [US9] Write Lore Agent prompt for nightly Context Core builder (build → eval → promote/discard) in scripts/agent-prompts/context-core-builder.md
-- [x] T072b [US9] Write research-charter.md with standing instructions for the autoresearch loop in research-charter.md
-- [x] T073b [US9] Write Lore Agent prompt for weekly autoresearch loop (generate → eval → promote/discard) in scripts/agent-prompts/autoresearch-loop.md
+- [x] T071b [US9] Write Lore Agent prompt for nightly Context Core builder (build → eval → promote/discard) in graveyard/agent-prompts/context-core-builder.md
+- [x] T072b [US9] Write research-charter.md with standing instructions for the autoresearch loop in graveyard/research-charter.md
+- [x] T073b [US9] Write Lore Agent prompt for weekly autoresearch loop (generate → eval → promote/discard) in graveyard/agent-prompts/autoresearch-loop.md
 
 ---
 

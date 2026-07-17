@@ -126,7 +126,7 @@ Repo.files:           [uid] @reverse @count .
 
 # Feature (one per speckit folder under specs/ — the UI grouping node)
 Feature.repo:         string @index(hash) .
-Feature.path:         string @index(hash) .          # e.g. specs/5-lore-agent
+Feature.path:         string @index(hash) .          # e.g. specs/spec-traceability-graph
 Feature.title:        string .                        # folder basename
 
 # Spec / Section

@@ -61,6 +61,17 @@ no-ops on a fresh DB that already built the new name from 0015. ([validated by `
   inherits the prompt from the yaml base. ([validated by `agent-defs-pg.test.ts:68`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L68))
 - **FR5 — Offline fallback.** `AgentDefsYaml` resolves task types from
   `task-types.yaml` and refuses writes (read-only without a DB). ([validated by `agent-defs-yaml.test.ts:133`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L133))
+- **FR5a — Base task-types reader.** The `pipeline-config` reader that
+  `AgentDefsYaml` resolves over parses the project's `task-types.yaml`
+  (`loadTaskTypes`, pointed at by `TASK_TYPES_PATH`), loading an empty config
+  without throwing when the file is missing; `getTaskTypeConfig(type)` returns a
+  known type's config (null for an unknown type) — an `implementation` type
+  carries `execution_mode: claude-code`, a `review` type a configured timeout,
+  and every claude-code type a `prompt_template`; `buildPrompt` substitutes
+  `{description}` into that template (preserving the surrounding structure,
+  tolerating empty or special-character descriptions) and falls back to the
+  default template for an unknown type; `getDefaultRepo(type)` returns a type's
+  configured default repo, falling back to `re-cinq/lore`. ([validated by `loads task types from the project's YAML file`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L20), [validated by `handles missing YAML gracefully`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L46), [validated by `returns config for a known task type`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L92), [validated by `returns null for unknown task type`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L101), [validated by `implementation type has claude-code execution mode`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L105), [validated by `review type has timeout configured`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L112), [validated by `each claude-code task type has a prompt_template`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L119), [validated by `substitutes {description} in the template`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L158), [validated by `falls back to default template for unknown type`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L165), [validated by `preserves template structure around the description`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L173), [validated by `handles empty description`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L181), [validated by `handles description with special characters`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L188), [validated by `returns configured default repo`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L217), [validated by `falls back to re-cinq/lore for unknown types`](libs/server-core/src/features/pipeline/pipeline-config.test.ts#L223); implemented by [`pipeline-config.ts:1`](libs/server-core/src/features/pipeline/pipeline-config.ts#L1))
 - **FR6 — Runner fetches over the API.** `AgentDefsHttp` resolves an agent by
   fetching the agent-definitions endpoint with the bearer token and is read-only. ([validated by `agent-defs-http.test.ts:78`](libs/shared/src/project/agents/agent-defs-http.test.ts#L78))
 - **FR7 — Facade delegation.** `project.agentDefs` delegates the definition methods
