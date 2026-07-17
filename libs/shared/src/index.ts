@@ -54,6 +54,7 @@ export {
   listSpecDocuments,
   listAdrDocuments,
   listAllSpecDocuments,
+  listAllAdrDocuments,
   listSpecSummaries,
   listAdrSummaries,
   type SpecSummary,
