@@ -64,19 +64,23 @@ export class PgAssemblyLines implements AssemblyLinesPort {
     );
   }
 
-  async finish(id: string, outcome: string, reason?: string): Promise<void> {
+  async finish(id: string, outcome: string, reason?: string): Promise<boolean> {
     // First writer decides: duplicate/late finishers (event redelivery, reaper vs
-    // watch race) never overwrite a terminal row.
-    await this.pool.query(
+    // watch race) never overwrite a terminal row. RETURNING reports the win so
+    // callers can gate once-only side effects on it.
+    const { rows } = await this.pool.query(
       `UPDATE pipeline.assembly_lines
          SET status = CASE WHEN $1 = 'error' THEN 'failed' ELSE 'finished' END,
              outcome = $1,
              reason = $2,
              finished_at = now()
        WHERE id = $3
-         AND status IN ('queued', 'running')`,
+         AND status IN ('queued', 'running')
+       RETURNING id`,
       [outcome, reason ?? null, id],
     );
+
+    return rows.length > 0;
   }
 
   async ensureNodeStart(

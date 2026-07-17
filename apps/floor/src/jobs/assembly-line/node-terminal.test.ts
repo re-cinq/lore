@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { normalizeAgentStatus, postReviewFromNode } from "./node-terminal.js";
+import {
+  normalizeAgentStatus,
+  postReviewFromNode,
+  reviewNodeResultOverride,
+} from "./node-terminal.js";
 import type { ReviewPoster } from "../review/post-review.js";
 import type {
   AuditLogEntry,
@@ -168,5 +172,72 @@ describe("postReviewFromNode", () => {
         },
       },
     ]);
+  });
+
+  it("reports posted, no_findings, post_failed and not_review as its outcome", async () => {
+    const p = ports();
+    const failing: ReviewPoster = {
+      createReview: async () => {
+        throw new Error("boom");
+      },
+    };
+
+    expect(
+      await postReviewFromNode(row(), reviewNode, findingsText("approved"), p),
+    ).toBe("posted");
+    expect(
+      await postReviewFromNode(row(), reviewNode, "no block here", p),
+    ).toBe("no_findings");
+    expect(
+      await postReviewFromNode(row(), reviewNode, findingsText("approved"), {
+        poster: failing,
+        audit: p.audit,
+      }),
+    ).toBe("post_failed");
+    expect(
+      await postReviewFromNode(row(), plainNode, findingsText("approved"), p),
+    ).toBe("not_review");
+  });
+});
+
+describe("reviewNodeResultOverride", () => {
+  it("fails the node when no findings parsed and no verdict was reached (the silent-review outage shape)", () => {
+    const result = reviewNodeResultOverride(
+      "no_findings",
+      "I could not fetch the diff.",
+      {
+        outcome: "success",
+      },
+    );
+
+    expect(result).toEqual({ outcome: "failed" });
+  });
+
+  it("keeps a verdict-carrying result even without a findings block (legitimate minimal approve)", () => {
+    const result = reviewNodeResultOverride(
+      "no_findings",
+      "REVIEW_RESULT:APPROVED",
+      { outcome: "success" },
+    );
+
+    expect(result).toEqual({ outcome: "success" });
+  });
+
+  it("keeps the result when findings were posted", () => {
+    const result = reviewNodeResultOverride(
+      "posted",
+      findingsText("changes_requested"),
+      { outcome: "changes_requested" },
+    );
+
+    expect(result).toEqual({ outcome: "changes_requested" });
+  });
+
+  it("keeps the result for non-review nodes", () => {
+    const result = reviewNodeResultOverride("not_review", undefined, {
+      outcome: "success",
+    });
+
+    expect(result).toEqual({ outcome: "success" });
   });
 });

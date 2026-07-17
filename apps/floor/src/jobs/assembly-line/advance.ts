@@ -23,6 +23,7 @@ import {
   nodeStationSpec,
   type FloorAssemblyLineTask,
 } from "./floor-assembly-line.js";
+import { isFailureOutcome } from "./notify-failure.js";
 
 export interface AdvanceDeps {
   assemblyLines: AssemblyLinesPort;
@@ -39,6 +40,27 @@ export interface AdvanceDeps {
     complete(runId: string, resultSummary: string): Promise<unknown>;
     fail(runId: string, reason: string): Promise<unknown>;
   };
+  /** User-facing failure notification (Slack + PR comment), fired once per line by
+   *  the winning finisher. Optional seam — tests and partial compositions omit it. */
+  notifyFailure?: (
+    row: AssemblyLineRecord,
+    outcome: string,
+    reason?: string,
+  ) => Promise<void>;
+}
+
+/** A walk that reached exit still failed as a whole when a node failed on the way
+ *  (every definition routes `failed` edges toward exit so the retrospective runs) —
+ *  "completed" would render a green check over a failed review. */
+export function lineOutcomeFromVisits(visits: NodeVisit[]): {
+  outcome: "completed" | "failed";
+  reason?: string;
+} {
+  const failed = visits.find((v) => v.outcome === "failed");
+
+  return failed
+    ? { outcome: "failed", reason: `node "${failed.nodeId}" failed` }
+    : { outcome: "completed" };
 }
 
 /** The walk task shape, derived from the persisted row instead of an in-memory task. */
@@ -128,9 +150,10 @@ export async function advanceLine(
   }
 
   if (transition.kind === "finish" || transition.kind === "fail") {
-    const outcome =
-      transition.kind === "finish" ? "completed" : transition.outcome;
-    const reason = transition.kind === "fail" ? transition.reason : undefined;
+    const { outcome, reason } =
+      transition.kind === "finish"
+        ? lineOutcomeFromVisits(visits)
+        : { outcome: transition.outcome, reason: transition.reason };
 
     await finishLine(row, outcome, reason, deps);
 
@@ -194,11 +217,22 @@ export async function finishLine(
     }
   }
 
-  await deps.assemblyLines.finish(row.id, outcome, reason);
+  const closedNow = await deps.assemblyLines.finish(row.id, outcome, reason);
+
   // finish is first-writer-wins — a losing racer (node event vs reaper re-advance)
   // closes 0 rows yet still reaches here, so cleanupToken MUST be idempotent
   // (cleanupPerTaskToken swallows 404s); the double-reclaim is a harmless no-op.
   await deps.cleanupToken(row.taskId ?? row.id);
+
+  // Only the winning finisher tells the user — losers would duplicate the Slack
+  // message and PR comment. Never let a notification failure poison the close.
+  if (closedNow && isFailureOutcome(outcome) && deps.notifyFailure) {
+    try {
+      await deps.notifyFailure(row, outcome, reason);
+    } catch (err) {
+      console.error("[notify-failure] notifier threw:", (err as Error).message);
+    }
+  }
 }
 
 /** Record one node's terminal outcome (CAS — the first writer decides; a losing

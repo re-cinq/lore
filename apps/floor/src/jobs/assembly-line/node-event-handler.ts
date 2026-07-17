@@ -12,6 +12,7 @@ import {
 import type { EventHandler } from "../../main-loop/types.js";
 import { advanceLine, type AdvanceDeps } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
+import { notifyLineFailure } from "./notify-failure.js";
 import {
   codeReviewOnCommentTriaged,
   type CommentContext,
@@ -147,6 +148,8 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     resolvePrompt: buildPrompt,
     cleanupToken: cleanupPerTaskToken,
     jobRuns: jobRuns(),
+    notifyFailure: (row, outcome, reason) =>
+      notifyLineFailure(row, outcome, reason),
     readAgentStatus: (name) => kubeApi.getStatus(name),
   };
 }

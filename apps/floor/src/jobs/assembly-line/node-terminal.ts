@@ -53,19 +53,43 @@ export interface ReviewPorts {
   audit?: AuditPort;
 }
 
+/** How the review post went — the walk converts the outage shape into an honest
+ *  node failure so the generic failure notification catches it. */
+export type ReviewPostOutcome =
+  "posted" | "no_findings" | "post_failed" | "not_review";
+
+/**
+ * The outage shape: the review produced neither findings nor a verdict (e.g. the
+ * agent could not read the diff), yet the CR exited 0 — recording `success` would
+ * finish the line green ("Approved." on an unreviewed PR). A verdict without a
+ * findings block stays untouched: that is a legitimate minimal approve. A
+ * `post_failed` also stays — the verdict is real, and the throw is audited.
+ */
+export function reviewNodeResultOverride(
+  post: ReviewPostOutcome,
+  output: string | undefined,
+  result: NodeResult,
+): NodeResult {
+  if (post === "no_findings" && parseReviewVerdict(output) === null) {
+    return { outcome: "failed" };
+  }
+
+  return result;
+}
+
 /** Post the review, record the outcome + advance, then publish the PR check. */
 export async function finishNodeTerminal(
   input: NodeTerminalInput,
   deps: AdvanceDeps,
 ): Promise<void> {
-  await postReviewFromNode(input.row, input.node, input.output);
+  const post = await postReviewFromNode(input.row, input.node, input.output);
 
   await finishNodeAndAdvance(
     {
       assemblyLineId: input.row.id,
       nodeId: input.nodeId,
       iteration: input.iteration,
-      result: input.result,
+      result: reviewNodeResultOverride(post, input.output, input.result),
     },
     deps,
   );
@@ -84,14 +108,14 @@ export async function postReviewFromNode(
   node: AssemblyLineNode,
   output?: string,
   ports: ReviewPorts = {},
-): Promise<void> {
+): Promise<ReviewPostOutcome> {
   if (node.prompt_ref !== "code-review") {
-    return;
+    return "not_review";
   }
   const prNumber = Number(row.args.pr_number) || 0;
 
   if (!prNumber) {
-    return;
+    return "not_review";
   }
 
   try {
@@ -100,7 +124,11 @@ export async function postReviewFromNode(
 
     if (!posted) {
       await auditUnparsedFindings(row, prNumber, output, ports);
+
+      return "no_findings";
     }
+
+    return "posted";
   } catch (err) {
     const message = (err as Error).message;
 
@@ -117,6 +145,8 @@ export async function postReviewFromNode(
       },
       ports.audit,
     );
+
+    return "post_failed";
   }
 }
 
