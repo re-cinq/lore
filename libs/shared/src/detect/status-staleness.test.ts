@@ -10,12 +10,10 @@ import {
   type StaleEvidence,
   type StaleFinding,
 } from "./status-staleness.js";
-import type { ChunkLineRange } from "./spec-coverage-validate.js";
 import type { DriftTaskRow } from "../project/tasks/task-store-port.js";
 import type { IssueFilter, Project } from "../index.js";
 
 const evidence = (over: Partial<StaleEvidence> = {}): StaleEvidence => ({
-  resolvingTestLinks: 0,
   mergedTasks: 0,
   outstandingTasks: 0,
   namedPathsExisting: 0,
@@ -58,26 +56,17 @@ describe("namedPaths", () => {
 });
 
 describe("gatherEvidence", () => {
-  const testChunks: ChunkLineRange[] = [
-    { file_path: "src/x.test.ts", start_line: 1, end_line: 50 },
-  ];
   const knownPaths = new Set(["src/a.ts", "src/b.ts"]);
 
-  it("counts test links that resolve to a real test chunk", () => {
+  // The ladder (require-status-matches-coverage) owns the links and reads a
+  // half-linked spec as legitimately in progress. Counting them here reported
+  // that spec as stale every week — including this feature's own spec, which
+  // sits at 29/50 and is correctly In Progress.
+  it("ignores inline test links entirely — the ladder owns them", () => {
     const content =
       "Does the thing. ([validated by `x.test.ts:42`](src/x.test.ts#L42))";
 
-    expect(gatherEvidence(content, testChunks, knownPaths, [])).toMatchObject({
-      resolvingTestLinks: 1,
-    });
-  });
-
-  it("does not count a link whose line falls outside every test chunk", () => {
-    const content = "Does the thing. ([validated by `x`](src/x.test.ts#L999))";
-
-    expect(gatherEvidence(content, testChunks, knownPaths, [])).toMatchObject({
-      resolvingTestLinks: 0,
-    });
+    expect(decideStale(gatherEvidence(content, knownPaths, []))).toEqual([]);
   });
 
   it("splits linked tasks into merged and still-in-flight", () => {
@@ -87,9 +76,7 @@ describe("gatherEvidence", () => {
       { status: "running", created_at: "2026-01-03", issue_number: 3 },
     ];
 
-    expect(
-      gatherEvidence("no links", testChunks, knownPaths, tasks),
-    ).toMatchObject({
+    expect(gatherEvidence("no links", knownPaths, tasks)).toMatchObject({
       mergedTasks: 2,
       outstandingTasks: 1,
     });
@@ -98,7 +85,7 @@ describe("gatherEvidence", () => {
   it("counts named paths present in the indexed code", () => {
     const content = "Touches `src/a.ts`, `src/b.ts` and `src/gone.ts`.";
 
-    expect(gatherEvidence(content, testChunks, knownPaths, [])).toMatchObject({
+    expect(gatherEvidence(content, knownPaths, [])).toMatchObject({
       namedPathsExisting: 2,
       namedPathsTotal: 3,
     });
@@ -108,12 +95,6 @@ describe("gatherEvidence", () => {
 describe("decideStale", () => {
   it("returns no reasons for a spec with no evidence", () => {
     expect(decideStale(evidence())).toEqual([]);
-  });
-
-  it("fires on a single resolving test link", () => {
-    expect(decideStale(evidence({ resolvingTestLinks: 1 }))).toEqual([
-      "1 inline test link resolves to real tests",
-    ]);
   });
 
   it("fires when every linked task merged", () => {
@@ -150,13 +131,12 @@ describe("decideStale", () => {
     expect(
       decideStale(
         evidence({
-          resolvingTestLinks: 2,
           mergedTasks: 1,
           namedPathsExisting: 2,
           namedPathsTotal: 2,
         }),
       ),
-    ).toHaveLength(3);
+    ).toHaveLength(2);
   });
 });
 
@@ -164,8 +144,8 @@ describe("formatStaleStatusReport", () => {
   const finding = (over: Partial<StaleFinding> = {}): StaleFinding => ({
     specPath: "specs/thing/spec.md",
     status: "draft",
-    evidence: evidence({ resolvingTestLinks: 1 }),
-    reasons: ["1 inline test link resolves to real tests"],
+    evidence: evidence({ mergedTasks: 2 }),
+    reasons: ["2 linked pipeline tasks merged, none outstanding"],
     ...over,
   });
 
@@ -178,7 +158,9 @@ describe("formatStaleStatusReport", () => {
 
     expect(body).toContain("`specs/thing/spec.md`");
     expect(body).toContain("Header says **draft**");
-    expect(body).toContain("- 1 inline test link resolves to real tests");
+    expect(body).toContain(
+      "- 2 linked pipeline tasks merged, none outstanding",
+    );
     expect(body).toContain("status-staleness");
   });
 
@@ -236,8 +218,8 @@ function fakeProject(opts: FakeOpts) {
           content: s.content,
           ingestedAt: "2026-07-16",
         })),
-      // Every `code` chunk: the job reads this one call for both the link
-      // ranges and the set of paths the index knows.
+      // Every `code` chunk: the job reads this one call for the set of paths
+      // the index knows about.
       testChunkRanges: async () => [
         { filePath: "src/x.test.ts", startLine: 1, endLine: 50 },
         { filePath: "src/a.ts", startLine: 1, endLine: 20 },
@@ -269,8 +251,11 @@ function fakeProject(opts: FakeOpts) {
 }
 
 describe("statusStalenessJob", () => {
+  // The case the ladder is blind to: shipped, but nobody wrote the links. Its
+  // coverage says Draft and its header agrees, so require-status-matches-coverage
+  // is satisfied — the code existing is the only thing that betrays it.
   const implementedButDraft = `${specHeader("Draft")}
-Does the thing. ([validated by \`x.test.ts:42\`](src/x.test.ts#L42))
+Ships in \`src/a.ts\` and \`src/b.ts\`.
 `;
 
   it("reports no specs for an empty repo", async () => {
@@ -304,8 +289,35 @@ Does the thing. ([validated by \`x.test.ts:42\`](src/x.test.ts#L42))
     });
     expect(created[0].body).toContain("`specs/thing/spec.md`");
     expect(created[0].body).toContain(
-      "1 inline test link resolves to real tests",
+      "2 of the 2 paths it names exist in the code",
     );
+  });
+
+  // A half-linked spec sitting at In Progress is exactly what the ladder
+  // prescribes — reporting it weekly was the false positive that this feature's
+  // own spec (29/50 linked) would have tripped every Monday.
+  it("files nothing for a partially-linked in-progress spec, which the ladder blesses", async () => {
+    const { project, created } = fakeProject({
+      specs: [
+        {
+          filePath: "specs/thing/spec.md",
+          content: `${specHeader("In Progress")}
+Does the thing. ([validated by \`x.test.ts:42\`](src/x.test.ts#L42))
+Does another thing, unlinked.
+`,
+        },
+      ],
+    });
+
+    const summary = await statusStalenessJob({
+      repoFilter: "re-cinq/lore",
+      project,
+    });
+
+    expect(summary).toBe(
+      "Checked 1 draft/in-progress specs in re-cinq/lore — 0 look implemented, 0 reports opened",
+    );
+    expect(created).toEqual([]);
   });
 
   it("yields zero findings and files nothing for a repo with honest headers", async () => {
@@ -313,9 +325,9 @@ Does the thing. ([validated by \`x.test.ts:42\`](src/x.test.ts#L42))
       specs: [
         {
           filePath: "specs/shipped/spec.md",
-          // Implemented, with all the evidence — an honest header, not a finding.
+          // Terminal bucket — never a candidate, whatever evidence it carries.
           content: `${specHeader("Implemented")}
-Does the thing. ([validated by \`x.test.ts:42\`](src/x.test.ts#L42))
+Ships in \`src/a.ts\` and \`src/b.ts\`.
 `,
         },
         {
@@ -465,7 +477,7 @@ describe("gatherEvidence — settled vs in-flight task statuses", () => {
   it.each(["completed", "failed", "cancelled", "retried"])(
     "a %s sibling is settled, so the merged-tasks signal still fires",
     (status) => {
-      const found = gatherEvidence("no links", [], new Set(), linked(status));
+      const found = gatherEvidence("no links", new Set(), linked(status));
 
       expect(found).toMatchObject({ mergedTasks: 1, outstandingTasks: 0 });
       expect(decideStale(found)).toEqual([
@@ -483,7 +495,7 @@ describe("gatherEvidence — settled vs in-flight task statuses", () => {
     "review",
     "pr-created",
   ])("a %s sibling is in flight, so the signal stays silent", (status) => {
-    const found = gatherEvidence("no links", [], new Set(), linked(status));
+    const found = gatherEvidence("no links", new Set(), linked(status));
 
     expect(found).toMatchObject({ mergedTasks: 1, outstandingTasks: 1 });
     expect(decideStale(found)).toEqual([]);

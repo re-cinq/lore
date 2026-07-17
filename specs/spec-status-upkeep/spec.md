@@ -80,16 +80,28 @@ Human-driven and interactive work bypasses the pipeline, so a weekly
 safety net catches what FR1 and convention miss. Add a
 `status-staleness` detect assembly line to the existing detect family
 (`spec_drift`, `gap_detect` pattern: `cron.<job>.tick` → one repo-less
-per-repo line, deterministic detect node):
+per-repo line, deterministic detect node).
+
+The detector covers exactly the ladder's blind spot, and nothing else. FR3
+already holds every header to what its inline links entitle it to claim,
+repo-wide, on every PR — so a header that disagrees with its links cannot
+survive CI, and re-checking that here would be redundant. What the rule cannot
+see is a spec that shipped without anyone writing the links: its coverage says
+`Draft`, its header agrees, the rule is satisfied, and the spec is still a lie.
+That is the 20-of-22 case above, and the evidence for it lives outside the links:
 
 - For each spec whose parsed status is `draft` or `in-progress` (the shared
-  `parseDocStatus` normalization), gather implementation evidence: linked
-  pipeline tasks all merged; inline `([validated by ...])` links resolving to
-  real tests; paths the spec names existing in the repo's indexed code. ([validated by `status-staleness.test.ts:66`](libs/shared/src/detect/status-staleness.test.ts#L66), [`status-staleness.test.ts:75`](libs/shared/src/detect/status-staleness.test.ts#L75), [`status-staleness.test.ts:83`](libs/shared/src/detect/status-staleness.test.ts#L83), [`status-staleness.test.ts:98`](libs/shared/src/detect/status-staleness.test.ts#L98), [`status-staleness.test.ts:34`](libs/shared/src/detect/status-staleness.test.ts#L34), [`status-staleness.test.ts:45`](libs/shared/src/detect/status-staleness.test.ts#L45), [`status-staleness.test.ts:53`](libs/shared/src/detect/status-staleness.test.ts#L53), [`status-staleness.test.ts:342`](libs/shared/src/detect/status-staleness.test.ts#L342), [`status-staleness.test.ts:276`](libs/shared/src/detect/status-staleness.test.ts#L276))
+  `parseDocStatus` normalization), gather implementation evidence that the links
+  do not record: the feature's pipeline tasks all merged, and paths the spec
+  names existing in the repo's indexed code. ([validated by `status-staleness.test.ts:72`](libs/shared/src/detect/status-staleness.test.ts#L72), [`status-staleness.test.ts:85`](libs/shared/src/detect/status-staleness.test.ts#L85), [`status-staleness.test.ts:32`](libs/shared/src/detect/status-staleness.test.ts#L32), [`status-staleness.test.ts:43`](libs/shared/src/detect/status-staleness.test.ts#L43), [`status-staleness.test.ts:51`](libs/shared/src/detect/status-staleness.test.ts#L51), [`status-staleness.test.ts:323`](libs/shared/src/detect/status-staleness.test.ts#L323), [`status-staleness.test.ts:270`](libs/shared/src/detect/status-staleness.test.ts#L270), [`status-staleness.test.ts:261`](libs/shared/src/detect/status-staleness.test.ts#L261), [`status-staleness.test.ts:354`](libs/shared/src/detect/status-staleness.test.ts#L354))
+- Inline test links are deliberately **not** evidence. The ladder owns them, and
+  it reads a partially-linked spec as legitimately `In Progress` — so counting
+  them reported a correctly-labelled spec as stale every week. This feature's own
+  spec (29 of 50 statements linked) is that case. ([validated by `status-staleness.test.ts:65`](libs/shared/src/detect/status-staleness.test.ts#L65), [`status-staleness.test.ts:299`](libs/shared/src/detect/status-staleness.test.ts#L299))
 - Only a task still in flight withholds the merged-tasks signal. A linked task
   that settled without merging (`completed`, `failed`, `cancelled`, `retried`) is
   a dead end that says nothing either way — testing for "not merged" instead would
-  let one cancelled or retried sibling suppress the signal forever. ([validated by `status-staleness.test.ts:465`](libs/shared/src/detect/status-staleness.test.ts#L465), [`status-staleness.test.ts:477`](libs/shared/src/detect/status-staleness.test.ts#L477))
+  let one cancelled or retried sibling suppress the signal forever. ([validated by `status-staleness.test.ts:477`](libs/shared/src/detect/status-staleness.test.ts#L477), [`status-staleness.test.ts:489`](libs/shared/src/detect/status-staleness.test.ts#L489))
 - The linked tasks are the feature's `spec-task` rows, found by the feature slug
   parsed out of `specs/<slug>/spec.md` — `spec_slug` is the only spec link a
   spec-task's context bundle carries. Keying on `spec_path` instead matched no
@@ -97,19 +109,19 @@ per-repo line, deterministic detect node):
   while its unit tests passed against a fake that answered regardless of the key.
   `implementation` rows are not consulted at all: the review-fix loop is their
   only creator, and its bundle holds a branch and a parent task id, nothing
-  spec-shaped. ([validated by `status-staleness.test.ts:405`](libs/shared/src/detect/status-staleness.test.ts#L405), [`status-staleness.test.ts:444`](libs/shared/src/detect/status-staleness.test.ts#L444), [`status-staleness.test.ts:451`](libs/shared/src/detect/status-staleness.test.ts#L451))
+  spec-shaped. ([validated by `status-staleness.test.ts:417`](libs/shared/src/detect/status-staleness.test.ts#L417), [`status-staleness.test.ts:456`](libs/shared/src/detect/status-staleness.test.ts#L456), [`status-staleness.test.ts:463`](libs/shared/src/detect/status-staleness.test.ts#L463))
 - Named paths are scored against the same resolved-schema code read the inline
   links resolve against, so the signal cannot silently die on a repo whose chunks
-  live in a team schema rather than `org_shared`. ([validated by `status-staleness.test.ts:494`](libs/shared/src/detect/status-staleness.test.ts#L494))
+  live in a team schema rather than `org_shared`. ([validated by `status-staleness.test.ts:506`](libs/shared/src/detect/status-staleness.test.ts#L506))
 - Evidence above threshold — any one signal firing — opens one aggregated issue
   per repo naming every spec and the evidence behind it, deduped against an
   already-open one, read back under the `stale-spec-status` label rather than by
-  paginating every open issue and filtering in memory. ([validated by `status-staleness.test.ts:425`](libs/shared/src/detect/status-staleness.test.ts#L425), [`status-staleness.test.ts:113`](libs/shared/src/detect/status-staleness.test.ts#L113), [`status-staleness.test.ts:119`](libs/shared/src/detect/status-staleness.test.ts#L119), [`status-staleness.test.ts:131`](libs/shared/src/detect/status-staleness.test.ts#L131), [`status-staleness.test.ts:149`](libs/shared/src/detect/status-staleness.test.ts#L149), [`status-staleness.test.ts:172`](libs/shared/src/detect/status-staleness.test.ts#L172), [`status-staleness.test.ts:176`](libs/shared/src/detect/status-staleness.test.ts#L176), [`status-staleness.test.ts:185`](libs/shared/src/detect/status-staleness.test.ts#L185), [`status-staleness.test.ts:198`](libs/shared/src/detect/status-staleness.test.ts#L198), [`status-staleness.test.ts:206`](libs/shared/src/detect/status-staleness.test.ts#L206), [`status-staleness.test.ts:285`](libs/shared/src/detect/status-staleness.test.ts#L285), [`status-staleness.test.ts:360`](libs/shared/src/detect/status-staleness.test.ts#L360), [`status-staleness.test.ts:379`](libs/shared/src/detect/status-staleness.test.ts#L379))
+  paginating every open issue and filtering in memory. ([validated by `status-staleness.test.ts:437`](libs/shared/src/detect/status-staleness.test.ts#L437), [`status-staleness.test.ts:100`](libs/shared/src/detect/status-staleness.test.ts#L100), [`status-staleness.test.ts:112`](libs/shared/src/detect/status-staleness.test.ts#L112), [`status-staleness.test.ts:130`](libs/shared/src/detect/status-staleness.test.ts#L130), [`status-staleness.test.ts:152`](libs/shared/src/detect/status-staleness.test.ts#L152), [`status-staleness.test.ts:156`](libs/shared/src/detect/status-staleness.test.ts#L156), [`status-staleness.test.ts:167`](libs/shared/src/detect/status-staleness.test.ts#L167), [`status-staleness.test.ts:180`](libs/shared/src/detect/status-staleness.test.ts#L180), [`status-staleness.test.ts:188`](libs/shared/src/detect/status-staleness.test.ts#L188), [`status-staleness.test.ts:270`](libs/shared/src/detect/status-staleness.test.ts#L270), [`status-staleness.test.ts:372`](libs/shared/src/detect/status-staleness.test.ts#L372), [`status-staleness.test.ts:391`](libs/shared/src/detect/status-staleness.test.ts#L391))
 - The line joins the detect family as a two-node `detect → done` definition whose
   node the station dispatches by `job_ref`. ([validated by `loader.test.ts:322`](libs/assembly-lines/src/loader.test.ts#L322), [`stations.test.ts:90`](apps/lore-station/src/stations/stations.test.ts#L90))
 - A spec whose draft/in-progress header is honest yields no finding — zero is the
   healthy steady state; the detector exists so a stale header survives at most one
-  week, not one quarter. ([validated by `status-staleness.test.ts:109`](libs/shared/src/detect/status-staleness.test.ts#L109), [`status-staleness.test.ts:125`](libs/shared/src/detect/status-staleness.test.ts#L125), [`status-staleness.test.ts:137`](libs/shared/src/detect/status-staleness.test.ts#L137), [`status-staleness.test.ts:143`](libs/shared/src/detect/status-staleness.test.ts#L143), [`status-staleness.test.ts:311`](libs/shared/src/detect/status-staleness.test.ts#L311))
+  week, not one quarter. ([validated by `status-staleness.test.ts:96`](libs/shared/src/detect/status-staleness.test.ts#L96), [`status-staleness.test.ts:106`](libs/shared/src/detect/status-staleness.test.ts#L106), [`status-staleness.test.ts:118`](libs/shared/src/detect/status-staleness.test.ts#L118), [`status-staleness.test.ts:124`](libs/shared/src/detect/status-staleness.test.ts#L124), [`status-staleness.test.ts:323`](libs/shared/src/detect/status-staleness.test.ts#L323))
 - It files an issue rather than a status-flip PR: the detect node runs in a station
   pod, which has no `project.repo.read` to read the spec off the default branch,
   and a weekly PR-opener would stack duplicates while an unmerged flip PR leaves
