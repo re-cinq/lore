@@ -46,6 +46,12 @@ const NAMESPACE_SENTINEL = "__NAMESPACE__";
 // Placeholder for the lore-station image (per-cluster tag pin); catalogChartYaml
 // swaps it for the helm value.
 const STATION_IMAGE_SENTINEL = "__STATION_IMAGE__";
+// The GKE dgraph endpoint the ingest recipe's LORE_DGRAPH_HTTP carries verbatim in
+// scripts/task-types.yaml (kept literal there for the runtime YAML fallback); the
+// seeded chart references the helm value instead so a non-GKE install (minikube) can
+// repoint it. check-catalog-drift.sh fails loudly if the two ever desync.
+const GKE_DGRAPH_URL =
+  "http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080";
 
 /** Station Station/AgentDefinition names: `def-<node type>` — what the Floor's
  *  nodeStationSpec resolves when a node has no explicit station_ref. Underscores in
@@ -257,6 +263,7 @@ export function catalogChartYaml(
   return body
     .replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}")
     .replaceAll(API_URL_SENTINEL, "{{ .Values.loreApiUrl }}")
+    .replaceAll(GKE_DGRAPH_URL, "{{ .Values.dgraphUrl }}")
     .replaceAll(NAMESPACE_SENTINEL, "{{ .Values.namespace }}")
     .replaceAll(STATION_IMAGE_SENTINEL, "{{ .Values.stationImage }}");
 }
