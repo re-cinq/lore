@@ -1,3 +1,4 @@
+import { enforceTrue } from "../lib/enforce.js";
 import { describe, it, expect } from "vitest";
 import {
   selectIngestFiles,
@@ -210,6 +211,156 @@ describe("runIngestGraph", () => {
       skipped: 2,
       status: "completed",
     });
+  });
+
+  function pruneRegistry(
+    graphDocPaths: string[],
+    opts?: { failProject?: boolean; failDelete?: string; failList?: boolean },
+  ): {
+    registry: Record<string, IngestKindDef>;
+    deleted: string[];
+  } {
+    const deleted: string[] = [];
+    const registry: Record<string, IngestKindDef> = {
+      specs: {
+        prefixes: ["specs/"],
+        runsOn: "runner+local",
+        project: async () => {
+          enforceTrue(!opts?.failProject, Error, "projection down");
+
+          return { projected: false };
+        },
+        prune: {
+          listDocPaths: async () => {
+            enforceTrue(!opts?.failList, Error, "list query down");
+
+            return graphDocPaths;
+          },
+          deleteSubtree: async (_dgraph, _repo, filePath) => {
+            enforceTrue(filePath !== opts?.failDelete, Error, "delete failed");
+            deleted.push(filePath);
+          },
+        },
+      },
+    };
+
+    return { registry, deleted };
+  }
+
+  it("prunes graph docs whose files left the tree even when every current file hash-skips", async () => {
+    const { registry, deleted } = pruneRegistry([
+      "specs/alive/spec.md",
+      "specs/moved/spec.md",
+    ]);
+
+    const result = await runIngestGraph(
+      { kind: "specs", repo: "o/r" },
+      {
+        dgraph: DUMMY_DGRAPH,
+        listTree: async () => ["specs/alive/spec.md"],
+        readFile: async () => "x",
+      },
+      registry,
+    );
+
+    expect(deleted).toEqual(["specs/moved/spec.md"]);
+    expect(result.pruned).toBe(1);
+    expect(result.message).toMatch(/pruned 1/);
+  });
+
+  it("does not prune when the tree selection is empty but the graph has docs", async () => {
+    const { registry, deleted } = pruneRegistry(["specs/moved/spec.md"]);
+
+    const result = await runIngestGraph(
+      { kind: "specs", repo: "o/r" },
+      {
+        dgraph: DUMMY_DGRAPH,
+        listTree: async () => [],
+        readFile: async () => "x",
+      },
+      registry,
+    );
+
+    expect(deleted).toEqual([]);
+    expect(result.pruned).toBeUndefined();
+  });
+
+  it("reports pruned as undefined (not 0) when the doc-list read throws", async () => {
+    const { registry, deleted } = pruneRegistry(["specs/moved/spec.md"], {
+      failList: true,
+    });
+
+    const result = await runIngestGraph(
+      { kind: "specs", repo: "o/r" },
+      {
+        dgraph: DUMMY_DGRAPH,
+        listTree: async () => ["specs/alive/spec.md"],
+        readFile: async () => "x",
+      },
+      registry,
+    );
+
+    expect(deleted).toEqual([]);
+    expect(result.pruned).toBeUndefined();
+    expect(result.status).toBe("completed");
+  });
+
+  it("does not prune when every attempted file failed to project", async () => {
+    const { registry, deleted } = pruneRegistry(["specs/moved/spec.md"], {
+      failProject: true,
+    });
+
+    const result = await runIngestGraph(
+      { kind: "specs", repo: "o/r" },
+      {
+        dgraph: DUMMY_DGRAPH,
+        listTree: async () => ["specs/alive/spec.md"],
+        readFile: async () => "x",
+      },
+      registry,
+    );
+
+    expect(deleted).toEqual([]);
+    expect(result.status).toBe("failed");
+  });
+
+  it("isolates a prune failure so other candidates still prune and ingest completes", async () => {
+    const { registry, deleted } = pruneRegistry(
+      ["specs/gone-a/spec.md", "specs/gone-b/spec.md", "specs/alive/spec.md"],
+      { failDelete: "specs/gone-a/spec.md" },
+    );
+
+    const result = await runIngestGraph(
+      { kind: "specs", repo: "o/r" },
+      {
+        dgraph: DUMMY_DGRAPH,
+        listTree: async () => ["specs/alive/spec.md"],
+        readFile: async () => "x",
+      },
+      registry,
+    );
+
+    expect(deleted).toEqual(["specs/gone-b/spec.md"]);
+    expect(result).toMatchObject({ status: "completed", pruned: 1 });
+  });
+
+  it("scopes pruning by the run's glob so a chunked run leaves other directories alone", async () => {
+    const { registry, deleted } = pruneRegistry([
+      "specs/auth/spec.md",
+      "specs/billing/spec.md",
+    ]);
+
+    await runIngestGraph(
+      { kind: "specs", repo: "o/r", glob: "specs/auth/" },
+      {
+        dgraph: DUMMY_DGRAPH,
+        listTree: async () => ["specs/auth/other.md"],
+        readFile: async () => "x",
+      },
+      registry,
+    );
+
+    expect(deleted).toEqual(["specs/auth/spec.md"]);
   });
 
   it("self-skips the tests kind when no buildTestReport port is provided (cluster)", async () => {
