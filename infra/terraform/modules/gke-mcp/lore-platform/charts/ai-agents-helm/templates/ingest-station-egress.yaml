@@ -3,7 +3,11 @@
 # docs projector writes the spec-traceability graph directly (ADR-031
 # ingest-station amendment, Option 1: the pod runs the signed, deterministic
 # lore-station binary; no repo code, no LLM). NetworkPolicies are additive, so
-# this grants on top of agent-job-egress for pods of the def-ingest station.
+# this grants on top of agent-job-egress. Selected by the dgraph-egress pod
+# TEMPLATE label (seeded from task-types.yaml `pod_labels`), NOT the station
+# name: the per-task clone renames def-ingest to pt-<id>, so a name-keyed
+# selector silently loses the pods (learned 2026-07-17 — every ingest pod hung
+# to its deadline with dgraph unreachable).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -13,7 +17,7 @@ spec:
   podSelector:
     matchLabels:
       agents.re-cinq.com/component: job
-      agents.re-cinq.com/station: def-ingest
+      lore.re-cinq.com/dgraph-egress: "true"
   policyTypes:
     - Egress
   egress:

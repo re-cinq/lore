@@ -210,6 +210,24 @@ describe("station catalog (exec vendor recipes)", () => {
     ).toBe(15);
   });
 
+  it("stamps configured pod_labels on the Station's POD TEMPLATE metadata — the per-task clone renames the Station, so a name-keyed NetworkPolicy selector loses its pods (template labels survive the clone; the controller merge preserves them)", () => {
+    const station = buildStationStation("ingest", {
+      command: ["lore-station", "ingest"],
+      pod_labels: { "lore.re-cinq.com/dgraph-egress": "true" },
+    });
+
+    expect(
+      (station.spec?.template as { metadata?: { labels?: unknown } }).metadata
+        ?.labels,
+    ).toEqual({ "lore.re-cinq.com/dgraph-egress": "true" });
+    expect(
+      (
+        buildStationStation("gate", { command: ["lore-station", "gate"] }).spec
+          ?.template as { metadata?: unknown }
+      ).metadata,
+    ).toBeUndefined();
+  });
+
   it("puts the catalog env on the DEFINITION's resources.env — the controller discards Station template env (def-ingest gets LORE_DGRAPH_HTTP)", () => {
     const definition = buildStationDefinition("ingest", {
       command: ["lore-station", "ingest"],

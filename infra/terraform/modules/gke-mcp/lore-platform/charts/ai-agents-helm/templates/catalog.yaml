@@ -1264,6 +1264,9 @@ spec:
   agentDefRef: def-ingest
   deadlineMinutes: 10
   template:
+    metadata:
+      labels:
+        lore.re-cinq.com/dgraph-egress: "true"
     spec:
       containers:
         - name: agent
