@@ -72,9 +72,12 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   credentials, so no GCP identity ever reaches a run pod.
   ([validated by `agent-catalog.test.ts:195`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L195), [`embed.test.ts:38`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L38), [`embed.test.ts:45`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L45), [`embed.test.ts:52`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L52), [`ingest.test.ts:239`](apps/lore-station/src/stations/ingest.test.ts#L239), [`ingest.test.ts:258`](apps/lore-station/src/stations/ingest.test.ts#L258); implemented by [`ingest-station-egress.yaml:1`](infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/templates/ingest-station-egress.yaml#L1), [`embed.ts:27`](apps/lore-api/src/api/routes/ingest/embed.ts#L27))
 
-- **FR5 — validate substrate dedup.** The post-ingest `spec_coverage_validate` path
-  dispatches this station instead of running `validateSpecCoverageJob` inline, so
-  the weekly detect line and the post-ingest trigger share one execution substrate.
+- **FR5 — validate substrate dedup.** The post-ingest `spec_coverage_validate`
+  event routes through the SAME production detect-tick handler as the weekly cron
+  (`params.repo` narrows it to the ingested repo, job-run bookkeeping and the
+  overlap-guard branch included) — the validate core runs in the detect station
+  pod on both triggers, never inline in the Floor.
+  ([validated by `registry.test.ts:39`](apps/floor/src/main-loop/registry.test.ts#L39); implemented by [`registry.ts:70`](apps/floor/src/main-loop/registry.ts#L70))
 
 - **FR6 — the Floor is pure orchestration.** With no in-process dgraph writer left,
   `SERIAL_FAMILIES` empties (chunk isolation comes from one-pod-per-event, the
