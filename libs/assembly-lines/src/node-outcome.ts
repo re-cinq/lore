@@ -78,6 +78,26 @@ export function parseNodeResult(output?: string): NodeResult | null {
   return { outcome: outcome as StageOutcome, extras: stringExtras };
 }
 
+/**
+ * A CR failure whose text is the Anthropic account running dry (`Credit balance
+ * is too low`, `insufficient credits`) — an operator-actionable, not
+ * code-actionable, failure: it takes down EVERY LLM node (review/refine/triage/
+ * implementation) at once until the account is topped up, so the Floor routes it
+ * to a dedicated throttled Slack alert instead of one PR comment per drowned run.
+ */
+export function isBillingError(text: string | null | undefined): boolean {
+  if (!text) {
+    return false;
+  }
+  const lower = text.toLowerCase();
+
+  return (
+    (lower.includes("credit") && lower.includes("balance")) ||
+    lower.includes("credit balance too low") ||
+    lower.includes("insufficient credit")
+  );
+}
+
 const failureKind = (node: AssemblyLineNode): string =>
   node.type === "agent" ? "agent" : "station";
 
