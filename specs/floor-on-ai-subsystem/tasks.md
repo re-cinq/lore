@@ -36,7 +36,7 @@ One PR per task, in order, each merged before the next. Every PR: TDD, 100% cove
 ## Finish
 - [ ] **#688** `feat/cutover-teardown` — graded-rollout pure fn + terraform teardown.
   Router + teardown shipped (superseded by #731's all-in removal); **remaining: the live GKE deploy
-  soak** per `runbooks/floor-assembly-line-gke-cutover.md`. *(vitest 100% scoped on rollout logic)*
+  soak** per `graveyard/runbooks/floor-assembly-line-gke-cutover.md`. *(vitest 100% scoped on rollout logic)*
   — **AC 13** — depends on all
 - [x] **#689** `docs/strip-loretask` — `adrs/` superseded banners + `specs/` LoreTask → past tense.
   *(docs — coverage N/A)* — **AC 14** — depends on #688

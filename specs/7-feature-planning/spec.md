@@ -53,7 +53,7 @@ it **replaces** the computed folder node, carrying its lifecycle status.
 This feature is not an island — it sits on top of the existing pipeline, graph,
 and spec machinery and feeds the rest of the system.
 
-- **Task-to-Agent Pipeline (`specs/3-task-agent-pipeline`).** `feature-planning`
+- **Task-to-Agent Pipeline (`graveyard/specs/3-task-agent-pipeline`).** `feature-planning`
   and `feature-finalize` are two new task types on the existing pipeline. Planning
   is a no-mutation LLM→JSON round run in-process (ADR-027); finalize writes files
   and pushes, so it runs as a Station on the LoreTask CRD → Job pod →

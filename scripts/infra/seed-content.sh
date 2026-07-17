@@ -23,7 +23,7 @@ insert() {
 }
 
 # Docs
-for f in CLAUDE.md AGENTS.md CODEOWNERS research-charter.md .specify/memory/constitution.md; do insert doc "$f"; done
+for f in CLAUDE.md AGENTS.md CODEOWNERS .specify/memory/constitution.md; do insert doc "$f"; done
 
 # Specs
 for f in "$REPO"/specs/*/spec.md "$REPO"/specs/*/plan.md "$REPO"/specs/*/tasks.md "$REPO"/specs/*/research.md "$REPO"/specs/*/data-model.md; do
