@@ -40,7 +40,10 @@ if [ -n "$IMAGE_REPO" ]; then
 fi
 tag_set=()
 if [ "$TAG" != "-" ]; then
-  tag_set+=(--set "${SUBCHART}.image.tag=${TAG}")
+  # --set-string, never --set: an all-digits short SHA (e.g. 9402776) is parsed as
+  # a number and, once stored + reused via JSON, re-renders as a float in scientific
+  # notation (9.402776e+06) → InvalidImageName on the next --reuse-values upgrade.
+  tag_set+=(--set-string "${SUBCHART}.image.tag=${TAG}")
 fi
 overlay_flags=()
 if [ -n "$VALUES_OVERLAY" ]; then
