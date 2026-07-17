@@ -2,7 +2,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runIngestStation } from "./ingest.js";
+import { runIngestStation, apiEmbed } from "./ingest.js";
 import type { StationInput } from "../input.js";
 import type { DgraphClientPort, DgraphTxn } from "@re-cinq/lore-shared";
 
@@ -234,6 +234,33 @@ describe("runIngestStation", () => {
         fetchPayload: async () => ({}),
       }),
     ).rejects.toThrow(/payload_event_id/);
+  });
+
+  it("apiEmbed posts the text to /api/embed and returns the embedding", async () => {
+    const calls: Array<{ url: string; body: string }> = [];
+    const embed = apiEmbed(
+      "https://lore-api.example",
+      "tok-123",
+      async (url, init) => {
+        calls.push({ url: String(url), body: String(init?.body) });
+
+        return new Response(JSON.stringify({ embedding: [0.7, 0.8] }), {
+          status: 200,
+        });
+      },
+    );
+
+    expect(await embed("some statement")).toEqual([0.7, 0.8]);
+    expect(calls[0].url).toBe("https://lore-api.example/api/embed");
+    expect(JSON.parse(calls[0].body)).toEqual({ text: "some statement" });
+  });
+
+  it("apiEmbed returns null when the proxy yields no embedding", async () => {
+    const embed = apiEmbed("https://lore-api.example", "tok-123", async () => {
+      return new Response(JSON.stringify({ embedding: null }), { status: 200 });
+    });
+
+    expect(await embed("x")).toBeNull();
   });
 
   it("rejects an unknown kind", async () => {

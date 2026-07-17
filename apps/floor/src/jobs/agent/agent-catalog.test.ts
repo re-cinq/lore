@@ -192,6 +192,39 @@ describe("station catalog (exec vendor recipes)", () => {
     ).toBe(15);
   });
 
+  it("injects the recipe's env block into the station pod template (def-ingest gets LORE_DGRAPH_HTTP)", () => {
+    const station = buildStationStation("ingest", {
+      command: ["lore-station", "ingest"],
+      env: {
+        LORE_DGRAPH_HTTP:
+          "http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080",
+      },
+    });
+    const container = (
+      station.spec?.template as {
+        spec: {
+          containers: Array<{ env?: Array<{ name: string; value: string }> }>;
+        };
+      }
+    ).spec.containers[0];
+
+    expect(container.env).toEqual([
+      {
+        name: "LORE_DGRAPH_HTTP",
+        value: "http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080",
+      },
+    ]);
+    expect(
+      (
+        buildStationStation("gate", {
+          command: ["lore-station", "gate"],
+        }).spec?.template as {
+          spec: { containers: Array<{ env?: unknown }> };
+        }
+      ).spec.containers[0].env,
+    ).toBeUndefined();
+  });
+
   it("sanitizes underscores in the station name to a valid RFC-1123 k8s name", () => {
     const githubAction: StationCatalogConfig = {
       command: ["lore-station", "github_action"],

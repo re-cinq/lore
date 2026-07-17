@@ -39,7 +39,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   params; the embedder threads through `IngestGraphPorts.embed` (station pods
   have no GCP ADC — provider wiring lands with FR4); payload kinds reject loudly
   until FR3.
-  ([validated by `ingest.test.ts:76`](apps/lore-station/src/stations/ingest.test.ts#L85), [`ingest.test.ts:89`](apps/lore-station/src/stations/ingest.test.ts#L98), [`ingest.test.ts:101`](apps/lore-station/src/stations/ingest.test.ts#L110), [`ingest.test.ts:119`](apps/lore-station/src/stations/ingest.test.ts#L128), [`ingest.test.ts:150`](apps/lore-station/src/stations/ingest.test.ts#L150), [`ingest.test.ts:239`](apps/lore-station/src/stations/ingest.test.ts#L239), [`ingest-graph-task.test.ts:145`](libs/shared/src/spec-trace/ingest-graph-task.test.ts#L145); implemented by [`ingest.ts:71`](apps/lore-station/src/stations/ingest.ts#L71))
+  ([validated by `ingest.test.ts:76`](apps/lore-station/src/stations/ingest.test.ts#L85), [`ingest.test.ts:89`](apps/lore-station/src/stations/ingest.test.ts#L98), [`ingest.test.ts:101`](apps/lore-station/src/stations/ingest.test.ts#L110), [`ingest.test.ts:119`](apps/lore-station/src/stations/ingest.test.ts#L128), [`ingest.test.ts:150`](apps/lore-station/src/stations/ingest.test.ts#L150), [`ingest.test.ts:266`](apps/lore-station/src/stations/ingest.test.ts#L266), [`ingest-graph-task.test.ts:145`](libs/shared/src/spec-trace/ingest-graph-task.test.ts#L145); implemented by [`ingest.ts:71`](apps/lore-station/src/stations/ingest.ts#L71))
 
 - **FR2 — dispatch.** A single-node detect-shaped assembly line definition
   (`libs/assembly-lines/src/assembly-lines/ingest.yaml`, node type `ingest`) rides
@@ -63,10 +63,14 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   inline.
   ([validated by `ingest.test.ts:202`](apps/lore-station/src/stations/ingest.test.ts#L202), [`ingest.test.ts:228`](apps/lore-station/src/stations/ingest.test.ts#L228), [`event-payload.test.ts:35`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L35), [`event-payload.test.ts:48`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L48), [`event-payload.test.ts:58`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L58), [`spec-trace-dispatch:224`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L224), [`loop.test.ts:110`](apps/floor/src/main-loop/loop.test.ts#L110); implemented by [`event-payload.ts:14`](apps/lore-api/src/api/routes/ingest/event-payload.ts#L14))
 
-- **FR4 — network policy.** A label-scoped NetworkPolicy grants egress to
-  `lore-dgraph-alpha.lore-dgraph.svc:8080` ONLY to pods of the ingest station type;
-  all other station/agent pods keep the D7 posture (Lore API only). The ingest
-  recipe injects `LORE_DGRAPH_HTTP`; no other station type receives it.
+- **FR4 — network policy + pod providers.** A label-scoped NetworkPolicy
+  (`ingest-station-egress`, selecting `agents.re-cinq.com/station: def-ingest`)
+  grants egress to dgraph ONLY for ingest-station pods; all other station/agent
+  pods keep the D7 posture. The `def-ingest` recipe alone injects
+  `LORE_DGRAPH_HTTP` (a catalog `env` block, seeded from `task-types.yaml`), and
+  statement embeddings ride `POST /api/embed` — the API proxies Vertex on its own
+  credentials, so no GCP identity ever reaches a run pod.
+  ([validated by `agent-catalog.test.ts:195`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L195), [`embed.test.ts:38`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L38), [`embed.test.ts:45`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L45), [`embed.test.ts:52`](apps/lore-api/src/api/routes/ingest/embed.test.ts#L52), [`ingest.test.ts:239`](apps/lore-station/src/stations/ingest.test.ts#L239), [`ingest.test.ts:258`](apps/lore-station/src/stations/ingest.test.ts#L258); implemented by [`ingest-station-egress.yaml:1`](infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/templates/ingest-station-egress.yaml#L1), [`embed.ts:27`](apps/lore-api/src/api/routes/ingest/embed.ts#L27))
 
 - **FR5 — validate substrate dedup.** The post-ingest `spec_coverage_validate` path
   dispatches this station instead of running `validateSpecCoverageJob` inline, so
