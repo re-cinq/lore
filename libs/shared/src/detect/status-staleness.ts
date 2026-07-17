@@ -14,11 +14,24 @@
  * pod can read over HTTP (a pod has no `project.repo.read`, which is also why
  * this files an issue rather than a status-flip PR).
  *
+ * **This detector covers exactly the ladder's blind spot.** ADR-037's
+ * `require-status-matches-coverage` rule already holds every header to what its
+ * inline test links entitle it to claim, repo-wide, on every PR — so a header
+ * that disagrees with its links cannot survive CI, and a detector re-checking
+ * that would be both redundant and wrong (a half-linked spec sitting at
+ * `In Progress` is exactly *correct* per the ladder, yet a naive "it has links,
+ * so it shipped" rule would report it every week). What the ladder cannot see is
+ * a spec that shipped without anyone writing the links: coverage says `Draft`,
+ * the header agrees, the rule is satisfied, and the spec is still a lie. That is
+ * the 20-of-22 case above. So the evidence here is deliberately the kind that
+ * exists *outside* the links — merged spec-tasks, and named paths that are real.
+ *
  * Runs as the `detect` node of the `status-staleness` assembly line, fanned out
  * weekly per spec-carrying repo by the `cron.status_staleness.tick` handler.
  *
  * Pure (no DB, no GitHub) helpers exported for unit tests:
  *   - namedPaths
+ *   - specSlugFromPath
  *   - gatherEvidence
  *   - decideStale
  *   - formatStaleStatusReport
@@ -26,18 +39,13 @@
  */
 
 import {
-  linksForStatements,
   reassembleSpec,
   parseDocStatus,
   type Project,
   type StatusBucket,
 } from "../index.js";
 import type { DriftTaskRow } from "../project/tasks/task-store-port.js";
-import {
-  resolveTestLink,
-  specsByPath,
-  type ChunkLineRange,
-} from "./spec-coverage-validate.js";
+import { specsByPath } from "./spec-coverage-validate.js";
 import { isAssertionSource } from "./spec-drift-rules.js";
 
 const STALE_STATUS_LABEL = "stale-spec-status";
@@ -74,8 +82,6 @@ const MIN_NAMED_PATH_RATIO = 0.5;
 const MAX_REPORTED_SPECS = 25;
 
 export interface StaleEvidence {
-  /** Inline `([validated by ...])` links resolving to a real test chunk. */
-  resolvingTestLinks: number;
   /** Linked pipeline tasks that merged. */
   mergedTasks: number;
   /** Linked pipeline tasks still in flight (pending or running). */
@@ -130,8 +136,11 @@ export function namedPaths(content: string): string[] {
 }
 
 /**
- * Score one spec's implementation evidence. Pure: the caller supplies the test
- * chunk ranges, the indexed code paths, and the spec's linked task rows.
+ * Score one spec's implementation evidence. Pure: the caller supplies the indexed
+ * code paths and the spec's linked task rows.
+ *
+ * Inline test links are deliberately not evidence — see the module header. The
+ * ladder owns them, and it reads a half-linked spec as legitimately in progress.
  *
  * `knownPaths` comes from the last reindex, not the live default branch, so a
  * just-added file reads as missing for a day. That only costs findings (never
@@ -139,24 +148,12 @@ export function namedPaths(content: string): string[] {
  */
 export function gatherEvidence(
   content: string,
-  testChunks: ChunkLineRange[],
   knownPaths: Set<string>,
   taskRows: DriftTaskRow[],
 ): StaleEvidence {
-  let resolvingTestLinks = 0;
-
-  for (const { testLinks } of linksForStatements(content)) {
-    for (const link of testLinks) {
-      if (resolveTestLink(link, testChunks).ok) {
-        resolvingTestLinks++;
-      }
-    }
-  }
-
   const paths = namedPaths(content);
 
   return {
-    resolvingTestLinks,
     mergedTasks: taskRows.filter((t) => t.status === "merged").length,
     outstandingTasks: taskRows.filter((t) =>
       IN_FLIGHT_TASK_STATUSES.includes(t.status),
@@ -172,14 +169,6 @@ export function gatherEvidence(
  */
 export function decideStale(evidence: StaleEvidence): string[] {
   const reasons: string[] = [];
-
-  if (evidence.resolvingTestLinks > 0) {
-    const one = evidence.resolvingTestLinks === 1;
-
-    reasons.push(
-      `${evidence.resolvingTestLinks} inline test link${one ? "" : "s"} ${one ? "resolves" : "resolve"} to real tests`,
-    );
-  }
 
   if (evidence.mergedTasks > 0 && evidence.outstandingTasks === 0) {
     reasons.push(
@@ -208,7 +197,11 @@ export function formatStaleStatusReport(findings: StaleFinding[]): string {
   const lines: string[] = [
     "**Specs whose status header looks stale**",
     "",
-    `${findings.length} spec${findings.length === 1 ? "" : "s"} still marked draft or in-progress carry evidence of being implemented. Flip the \`| Status |\` row to \`Implemented\`, or correct the evidence.`,
+    `${findings.length} spec${findings.length === 1 ? "" : "s"} still marked draft or in-progress carry evidence of being implemented — evidence that lives outside the test links, so \`require-status-matches-coverage\` cannot see it.`,
+    "",
+    "Add an inline `([validated by ...](path/to/test.ts#Lline))` link to each testable statement that already has a test. The status then follows automatically: the ladder raises a fully-linked spec to `Shipped`, and FR1 opens the flip PR. Editing the `| Status |` row on its own will fail CI — the rule holds the header to what the links support.",
+    "",
+    "If a spec here is genuinely still in progress, leave it; the evidence below is heuristic.",
     "",
   ];
 
@@ -230,6 +223,10 @@ export function formatStaleStatusReport(findings: StaleFinding[]): string {
   lines.push("---");
   lines.push(
     "Posted by Lore's `status-staleness` job (spec-status-upkeep FR2, ADR-037). Evidence is heuristic — a spec legitimately mid-flight can carry all of it. Close this once the headers are honest.",
+  );
+  lines.push("");
+  lines.push(
+    "_Inline test links are not counted here: `require-status-matches-coverage` already holds every header to what its links entitle it to claim, on every PR. This job reports only what those links cannot record._",
   );
 
   return lines.join("\n");
@@ -340,18 +337,12 @@ export async function statusStalenessJob(
   }
 
   // Every `code` chunk in the repo's resolved schema — the name reflects the
-  // first caller, not the filter. One read serves both evidence signals: the
-  // line ranges links resolve against, and the paths the index knows about.
+  // first caller, not the filter; only the paths are used here.
   // Deliberately not `chunks.codeSymbols()`, which is hardcoded to
   // `org_shared.chunks` while the spec reads above resolve the team schema — on
   // a team-schema repo that mismatch returns zero paths, silently killing the
   // named-paths signal rather than failing.
   const codeChunks = await project.chunks.testChunkRanges();
-  const testChunks: ChunkLineRange[] = codeChunks.map((c) => ({
-    file_path: c.filePath,
-    start_line: c.startLine,
-    end_line: c.endLine,
-  }));
   const knownPaths = new Set(codeChunks.map((c) => c.filePath));
 
   const findings: StaleFinding[] = [];
@@ -376,7 +367,6 @@ export async function statusStalenessJob(
     try {
       const evidence = gatherEvidence(
         content,
-        testChunks,
         knownPaths,
         await linkedTasks(project, specPath),
       );

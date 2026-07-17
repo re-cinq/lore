@@ -192,8 +192,16 @@ for a human. The threshold to act is higher than the threshold to mention.
 ([status-staleness.ts](../libs/shared/src/detect/status-staleness.ts)). FR1 only
 sees pipeline-driven work; human-driven and interactive work bypasses it entirely:
 
-- A `status-staleness` detect line sweeps every spec-carrying repo weekly and scores each draft/in-progress spec on resolving inline links, linked pipeline tasks all merged, and backticked paths present in the indexed code. ([validated by `status-staleness.test.ts:66`](libs/shared/src/detect/status-staleness.test.ts#L66), [`status-staleness.test.ts:83`](libs/shared/src/detect/status-staleness.test.ts#L83), [`status-staleness.test.ts:98`](libs/shared/src/detect/status-staleness.test.ts#L98))
-- Any signal firing yields one aggregated `stale-spec-status` issue naming the evidence, deduped against an already-open one; zero findings is the healthy steady state. ([validated by `status-staleness.test.ts:285`](libs/shared/src/detect/status-staleness.test.ts#L285), [`status-staleness.test.ts:311`](libs/shared/src/detect/status-staleness.test.ts#L311), [`status-staleness.test.ts:360`](libs/shared/src/detect/status-staleness.test.ts#L360))
+- A `status-staleness` detect line sweeps every spec-carrying repo weekly and scores each draft/in-progress spec on the evidence its links do not record: the feature's pipeline tasks all merged, and backticked paths present in the indexed code. ([validated by `status-staleness.test.ts:72`](libs/shared/src/detect/status-staleness.test.ts#L72), [`status-staleness.test.ts:85`](libs/shared/src/detect/status-staleness.test.ts#L85))
+
+**The two layers partition the problem; they do not overlap.** The ladder holds a
+header to its links on every PR. FR2 reports implementation the links never
+recorded — a spec that shipped with nothing linked reads `Draft`, its coverage
+agrees, and the rule is satisfied while the spec lies. Inline links are therefore
+deliberately absent from FR2's evidence: the ladder reads a half-linked spec as
+legitimately `In Progress`, so counting links here would report a
+correctly-labelled spec every week. This ADR's own spec was that case. ([validated by `status-staleness.test.ts:65`](libs/shared/src/detect/status-staleness.test.ts#L65))
+- Any signal firing yields one aggregated `stale-spec-status` issue naming the evidence, deduped against an already-open one; zero findings is the healthy steady state. ([validated by `status-staleness.test.ts:270`](libs/shared/src/detect/status-staleness.test.ts#L270), [`status-staleness.test.ts:323`](libs/shared/src/detect/status-staleness.test.ts#L323), [`status-staleness.test.ts:372`](libs/shared/src/detect/status-staleness.test.ts#L372))
 
 **FR2 files an issue, not a PR.** A detect node runs in a station pod, which by
 design has no `project.repo.read` (ADR-031 D6/D7: no Postgres, Dgraph, or GitHub
@@ -224,8 +232,8 @@ distinguishes "abandoned" from "not started yet".
   costs findings and never invents them, which is the right direction to err for a
   detector whose healthy state is silence.
 - The evidence signals are heuristic. A spec legitimately mid-flight can carry
-  merged tasks and resolving test links, so FR2 reports rather than decides, and
-  the issue names its evidence so a human can dismiss it in seconds.
+  merged tasks and name files that already exist, so FR2 reports rather than
+  decides, and the issue names its evidence so a human can dismiss it in seconds.
 - Two unrelated "status" vocabularies now coexist and are easy to conflate:
   `StatusBucket` here (markdown lifecycle, five values, regex-bucketed) and
   `lore.features.status` (row lifecycle, seven values, DB CHECK-constrained). FR1's
