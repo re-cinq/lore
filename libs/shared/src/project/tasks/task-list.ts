@@ -56,12 +56,17 @@ export class TaskList {
     return this.store.retry(id);
   }
 
-  /** Drift-dedup rows for a spec (keyed by context_bundle.spec_path). */
+  /** Drift-dedup rows for a spec (keyed by context_bundle.spec_path — gap-fill only). */
   driftTasksForSpec(
     taskType: string,
     specPath: string,
   ): Promise<DriftTaskRow[]> {
     return this.store.driftTasksForSpec(this.repo, taskType, specPath);
+  }
+
+  /** Every spec-task for a feature (keyed by context_bundle.spec_slug). */
+  specTasksForSlug(specSlug: string): Promise<DriftTaskRow[]> {
+    return this.store.specTasksForSlug(this.repo, specSlug);
   }
 
   /** Open (per statuses) tasks of one type whose description starts with the prefix — job dedup. */

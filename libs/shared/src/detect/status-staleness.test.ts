@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   namedPaths,
+  specSlugFromPath,
   gatherEvidence,
   decideStale,
   formatStaleStatusReport,
@@ -11,7 +12,7 @@ import {
 } from "./status-staleness.js";
 import type { ChunkLineRange } from "./spec-coverage-validate.js";
 import type { DriftTaskRow } from "../project/tasks/task-store-port.js";
-import type { Project } from "../index.js";
+import type { IssueFilter, Project } from "../index.js";
 
 const evidence = (over: Partial<StaleEvidence> = {}): StaleEvidence => ({
   resolvingTestLinks: 0,
@@ -216,12 +217,16 @@ describe("hasOpenStaleStatusIssue", () => {
 
 interface FakeOpts {
   specs: Array<{ filePath: string; content: string }>;
-  tasks?: DriftTaskRow[];
-  openIssues?: { labels: string[] }[];
+  /** Spec-task rows per feature slug — keyed exactly as the real store keys
+   *  them (`context_bundle->>'spec_slug'`), so a job asking on the wrong key
+   *  gets nothing back instead of a fake's blanket answer. */
+  tasksBySlug?: Record<string, DriftTaskRow[]>;
+  openIssues?: Array<{ labels: string[] }>;
 }
 
 function fakeProject(opts: FakeOpts) {
   const created: Array<{ title: string; body: string; labels: string[] }> = [];
+  const listFilters: Array<IssueFilter | undefined> = [];
   const project = {
     chunks: {
       specChunksWithIngest: async () =>
@@ -240,10 +245,18 @@ function fakeProject(opts: FakeOpts) {
       ],
     },
     tasks: {
-      driftTasksForSpec: async () => opts.tasks ?? [],
+      specTasksForSlug: async (slug: string) => opts.tasksBySlug?.[slug] ?? [],
     },
     issues: {
-      list: async () => opts.openIssues ?? [],
+      list: async (filter?: IssueFilter) => {
+        listFilters.push(filter);
+
+        const all = opts.openIssues ?? [];
+
+        return filter?.labels?.length
+          ? all.filter((i) => filter.labels?.some((l) => i.labels.includes(l)))
+          : all;
+      },
       create: async (title: string, body: string, labels: string[]) => {
         created.push({ title, body, labels });
 
@@ -252,7 +265,7 @@ function fakeProject(opts: FakeOpts) {
     },
   } as unknown as Project;
 
-  return { project, created };
+  return { project, created, listFilters };
 }
 
 describe("statusStalenessJob", () => {
@@ -371,7 +384,11 @@ We might build the thing in \`src/future.ts\` one day.
           content: `${specHeader("In Progress")}\nNo links here.\n`,
         },
       ],
-      tasks: [{ status: "merged", created_at: "2026-01-01", issue_number: 1 }],
+      tasksBySlug: {
+        thing: [
+          { status: "merged", created_at: "2026-01-01", issue_number: 1 },
+        ],
+      },
     });
 
     await statusStalenessJob({ repoFilter: "re-cinq/lore", project });
@@ -380,10 +397,65 @@ We might build the thing in \`src/future.ts\` one day.
     expect(created[0].body).toContain("Header says **in-progress**");
     expect(created[0].body).toContain("merged, none outstanding");
   });
+
+  // The signal was wired to `driftTasksForSpec(taskType, specPath)`, which keys
+  // on `context_bundle->>'spec_path'` — a key no spec-task row has ever carried.
+  // It silently returned zero rows for every spec, so this reason could never
+  // fire in production while the fake happily answered in tests.
+  it("asks for spec-tasks by the feature slug, not the spec path", async () => {
+    const { project, created } = fakeProject({
+      specs: [
+        {
+          filePath: "specs/thing/spec.md",
+          content: `${specHeader("Draft")}\nNo links here.\n`,
+        },
+      ],
+      tasksBySlug: {
+        "specs/thing/spec.md": [
+          { status: "merged", created_at: "2026-01-01", issue_number: 1 },
+        ],
+      },
+    });
+
+    await statusStalenessJob({ repoFilter: "re-cinq/lore", project });
+
+    expect(created).toEqual([]);
+  });
+
+  it("passes the stale-spec-status label to the issue read rather than filtering in memory", async () => {
+    const { project, listFilters } = fakeProject({
+      specs: [
+        { filePath: "specs/thing/spec.md", content: implementedButDraft },
+      ],
+      openIssues: [{ labels: ["unrelated"] }],
+    });
+
+    await statusStalenessJob({ repoFilter: "re-cinq/lore", project });
+
+    expect(listFilters).toEqual([
+      { state: "open", labels: ["stale-spec-status"] },
+    ]);
+  });
 });
 
 // Appended, not inserted: specs/spec-status-upkeep/spec.md links every test
 // above by line number, and inserting silently redirects those links.
+describe("specSlugFromPath", () => {
+  it.each([
+    ["specs/spec-status-upkeep/spec.md", "spec-status-upkeep"],
+    ["specs/6-dark-factory/contracts/station-contract.md", "6-dark-factory"],
+  ])("reads the feature slug out of %s", (path, slug) => {
+    expect(specSlugFromPath(path)).toBe(slug);
+  });
+
+  it.each(["docs/spec.md", "spec.md", "specs/spec.md", ""])(
+    "returns null for %s, which names no feature",
+    (path) => {
+      expect(specSlugFromPath(path)).toBeNull();
+    },
+  );
+});
+
 describe("gatherEvidence — settled vs in-flight task statuses", () => {
   const linked = (status: string): DriftTaskRow[] => [
     { status: "merged", created_at: "2026-01-01", issue_number: 1 },

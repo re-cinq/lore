@@ -698,7 +698,7 @@ share one persistence surface instead of inline SQL.
   each bound to the facade's repo. ([validated by `task-store-pg.test.ts:29`](libs/shared/src/project/tasks/task-store-pg.test.ts#L29), [`task-store-pg.test.ts:44`](libs/shared/src/project/tasks/task-store-pg.test.ts#L44), [`task-store-pg.test.ts:57`](libs/shared/src/project/tasks/task-store-pg.test.ts#L57), [`task-store-pg.test.ts:74`](libs/shared/src/project/tasks/task-store-pg.test.ts#L74), [`task-store-pg.test.ts:88`](libs/shared/src/project/tasks/task-store-pg.test.ts#L88))
 - FR-20.4: The task-list surface returns the repo's pending tasks as
   typed `Task` wrappers and reflects the new status after `cancel()`.
-  ([validated by `task-list.test.ts:101`](libs/shared/src/project/tasks/task-list.test.ts#L101), [`task-list.test.ts:118`](libs/shared/src/project/tasks/task-list.test.ts#L118))
+  ([validated by `task-list.test.ts:102`](libs/shared/src/project/tasks/task-list.test.ts#L102), [`task-list.test.ts:119`](libs/shared/src/project/tasks/task-list.test.ts#L119))
 - FR-20.5: The `EventQueue` port claims runnable rows with `FOR UPDATE
   SKIP LOCKED` incrementing attempts (oldest-first, flipping to
   processing), collapses a redelivery sharing a dedupe key, truncates the
