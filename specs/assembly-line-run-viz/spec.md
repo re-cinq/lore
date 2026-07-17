@@ -68,7 +68,11 @@ useful granularity.
 
 - FR1.8. The file paths a tool call touches are extracted into `filePaths` at write time rather than derived by readers from the payload.
 
+- FR1.8a. The `summary` field is one human-readable line describing the event, derived at write time and truncated to at most 200 characters. It is a rendering convenience, never a parsing target: no reader may branch on its content, and it is null whenever no meaningful line can be derived. Its exact per-event-type wording is an implementation choice of the projector, not a contract this spec fixes.
+
 - FR1.9. An event is correlated to its assembly-line node at write time by matching the envelope's `source.agent` against `pipeline.assembly_line_nodes.agent_cr_name`.
+
+- FR1.9a. A correlation miss is not an error. When no node row matches the envelope's `source.agent` — because the event arrived before the node row carried its CR name, or because the CR belongs to no node at all — the row is still written, with `agentCrName` retained and `assemblyLineId`, `nodeId`, and `iteration` left null. Retaining `agentCrName` on an uncorrelated row is what keeps a later backfill possible; a backfill is not in scope here.
 
 - FR1.10. The correlation lookup is served by a partial index on `pipeline.assembly_line_nodes (agent_cr_name)` where `agent_cr_name` is not null; that index does not exist today and is created by the migration that adds this table.
 
@@ -90,7 +94,7 @@ useful granularity.
 
 - FR2.5. A `: ping` comment is emitted every 25 seconds to keep the connection open through idle-timeout intermediaries.
 
-- FR2.6. The replay start cursor is the row id supplied by the client as a `Last-Event-ID` request header or as an `?after` query parameter.
+- FR2.6. The replay start cursor is the row id supplied by the client as a `Last-Event-ID` request header or as an `?after` query parameter. The replay query is additionally scoped to the `assemblyLineId` in the URL path: a cursor is a position, never an authorization, so a client presenting a cursor from another run receives that run's events only if it is already entitled to the run it asked for. An implementation that filters on `id > cursor` alone discloses one run's events to another run's subscriber.
 
 - FR2.7. Responses carry `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no` so that no intermediary buffers the stream into unusable chunks.
 
@@ -110,7 +114,7 @@ useful granularity.
 
 - FR4.4. The page renders a per-node transcript, a file-attention heatmap over `filePaths`, and a run timeline.
 
-- FR4.5. The client-side transcript is capped per node so an unbounded run cannot exhaust browser memory.
+- FR4.5. The client-side transcript is capped at 500 events per node; beyond the cap the oldest events are dropped from the rendered list, and the view states that older events were dropped rather than silently presenting a partial transcript as whole. The cap bounds browser memory for an unbounded run; 500 is a starting value chosen to exceed any observed node's event count, and moving it breaks no contract.
 
 - FR4.6. The client reducer applies each arriving event in constant time rather than rescanning accumulated state.
 
@@ -130,7 +134,7 @@ useful granularity.
 
 - FR5.3. A client that reconnects with a `Last-Event-ID` receives every event after that id with no gap and no duplicate.
 
-- FR5.4. A subscriber that cannot keep up with the live tail is disconnected rather than allowed to apply back-pressure to the Floor.
+- FR5.4. A subscriber that cannot keep up with the live tail is disconnected rather than allowed to apply back-pressure to the Floor. The bound is the subscriber's own buffer: each subscription holds at most 1000 undelivered events, and on overflow the server drops the subscriber and closes the connection. Dropping is safe precisely because it is recoverable — the client's `EventSource` reconnects with its `Last-Event-ID` and FR5.3 replays the gap from the database, so a slow reader loses latency, never data. The buffer is what makes this bounded; an implementation that lets an unread subscriber grow the Floor's heap satisfies neither this FR nor FR5.1.
 
 ## Key Entities
 
