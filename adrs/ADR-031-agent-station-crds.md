@@ -215,7 +215,7 @@ generalizing D4 from agent-only to all node types. No new CRD, no `@re-cinq/agen
 
 ## Amendment (proposed 2026-07-16): the `internal.ingest.*` family becomes an ingest station
 
-**Status: proposed — under review.** The graph-ingestion outage recovery exposed the last
+**Status: accepted 2026-07-17 — Option 1 (label-scoped dgraph egress) chosen.** The graph-ingestion outage recovery exposed the last
 substantive work still running inside the Floor process: the `internal.ingest.*` event
 handlers. Docs projection (`spec_trace` kinds `specs`/`adrs`), test-report/coverage
 ingest (dgraph writes on every CI push), and the post-ingest `spec_coverage_validate`
@@ -235,19 +235,21 @@ the event payload"; the post-ingest validate path dispatches the same station th
 detect line already uses instead of running the core inline. Episode auto-curation's
 in-process Haiku call is a later candidate (retrospective-station duty), not in scope.
 
-**The D7 decision this needs (pick one before implementation):**
+**The D7 decision (Option 1 chosen, 2026-07-17):**
 
-1. **Scoped dgraph egress (recommended).** The run-pod NetworkPolicy grants egress to
+1. **Scoped dgraph egress (CHOSEN).** The run-pod NetworkPolicy grants egress to
    `lore-dgraph-alpha.lore-dgraph.svc:8080` ONLY for pods of the ingest station type
    (label-scoped). The projector code stays unchanged. Justification: the station runs
    the signed, deterministic `lore-station` binary — no repo code, no LLM — so the
    unauthenticated in-cluster dgraph is exposed to a fixed, audited code path rather
    than to arbitrary agent workloads; D7's intent (agent pods can't reach internal
    state) is preserved.
-2. **Graph writes proxied through lore-api.** New authenticated write endpoints
-   mirroring `dgraph-upsert.ts` (~8 mutation shapes), projector ported to the facade.
-   Keeps D7 byte-pure; costs a new write surface on the API, double network hops on
-   every mutation, and a second copy of the transaction/retry semantics.
+2. **Graph writes proxied through lore-api (rejected).** New authenticated write
+   endpoints mirroring `dgraph-upsert.ts` (~8 mutation shapes), projector ported to
+   the facade. Keeps D7 byte-pure; costs a new write surface on the API, double
+   network hops on every mutation, and a second copy of the transaction/retry
+   semantics — rejected for surface and duplication over a label-scoped policy hole
+   confined to a signed, deterministic, no-repo-code station image.
 
 **Consequences.** The Floor becomes pure orchestration (its remaining handlers are
 GitHub ceremony and event routing — deliberately Floor-side: merge authority never rides
