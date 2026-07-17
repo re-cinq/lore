@@ -43,5 +43,14 @@ jobs:
       # Serialize on Helm's release lock (retry while another service's deploy
       # holds it) instead of a GitHub concurrency group, which would cancel the
       # middle of simultaneous deploys. See the script header.
+      #
+      # The subchart's own values.yaml is passed as a -f overlay so it outranks
+      # the release's stored user-supplied values — the release carries a full
+      # legacy ai-agents block that otherwise shadows every values.yaml edit
+      # (digests, resources) under --reset-then-reuse-values.
       - name: Deploy ai-agents into the umbrella release
-        run: bash scripts/ci/deploy-lore-platform.sh ai-agents - agent-controller ai-agents
+        run: |
+          yq -o=json '{"ai-agents": .}' \
+            infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/values.yaml \
+            > /tmp/ai-agents-overlay.json
+          bash scripts/ci/deploy-lore-platform.sh ai-agents - agent-controller ai-agents "" /tmp/ai-agents-overlay.json
