@@ -21,6 +21,12 @@ export interface StationCatalogConfig {
   /** Plain env for the station pod (e.g. def-ingest's LORE_DGRAPH_HTTP — the
    *  label-scoped dgraph egress exists only for that station type, FR4). */
   env?: Record<string, string>;
+  /** Pod-template labels (e.g. the dgraph-egress marker a NetworkPolicy selects).
+   *  MUST ride the template, not the Station name: the per-task triple renames
+   *  the Station to pt-<id>, so a name-keyed selector loses its pods, while the
+   *  controller's label merge preserves template labels (learned live: every
+   *  round-3 ingest pod hung to its deadline with dgraph egress silently gone). */
+  pod_labels?: Record<string, string>;
 }
 
 const API_VERSION = "agents.re-cinq.com/v1alpha1";
@@ -182,6 +188,12 @@ export function buildStationStation(
       agentDefRef: stationName(name),
       deadlineMinutes: cfg.timeout_minutes ?? 15,
       template: {
+        // Template labels survive the per-task Station clone AND the
+        // controller's label merge — the only marker a NetworkPolicy can key
+        // on that still matches pt-* pods (a station-name selector does not).
+        ...(cfg.pod_labels && Object.keys(cfg.pod_labels).length > 0
+          ? { metadata: { labels: { ...cfg.pod_labels } } }
+          : {}),
         spec: {
           containers: [
             {
