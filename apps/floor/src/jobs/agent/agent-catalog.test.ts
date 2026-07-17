@@ -192,33 +192,33 @@ describe("station catalog (exec vendor recipes)", () => {
     ).toBe(15);
   });
 
-  it("injects the recipe's env block into the station pod template (def-ingest gets LORE_DGRAPH_HTTP)", () => {
-    const station = buildStationStation("ingest", {
+  it("puts the catalog env on the DEFINITION's resources.env — the controller discards Station template env (def-ingest gets LORE_DGRAPH_HTTP)", () => {
+    const definition = buildStationDefinition("ingest", {
       command: ["lore-station", "ingest"],
       env: {
         LORE_DGRAPH_HTTP:
           "http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080",
       },
     });
-    const container = (
-      station.spec?.template as {
-        spec: {
-          containers: Array<{ env?: Array<{ name: string; value: string }> }>;
-        };
-      }
-    ).spec.containers[0];
 
-    expect(container.env).toEqual([
+    expect(definition.spec?.resources?.env).toEqual([
       {
         name: "LORE_DGRAPH_HTTP",
         value: "http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080",
       },
     ]);
     expect(
+      buildStationDefinition("gate", { command: ["lore-station", "gate"] }).spec
+        ?.resources,
+    ).toBeUndefined();
+    const station = buildStationStation("ingest", {
+      command: ["lore-station", "ingest"],
+      env: { LORE_DGRAPH_HTTP: "x" },
+    });
+
+    expect(
       (
-        buildStationStation("gate", {
-          command: ["lore-station", "gate"],
-        }).spec?.template as {
+        station.spec?.template as {
           spec: { containers: Array<{ env?: unknown }> };
         }
       ).spec.containers[0].env,

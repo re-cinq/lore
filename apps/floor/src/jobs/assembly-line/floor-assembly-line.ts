@@ -72,6 +72,11 @@ export function nodeAgentSpec(
     targetRepo: task.targetRepo,
     branch: task.branch,
     ...(node.model ? { model: node.model } : {}),
+    // An agent node's recipe/Station can differ from the line's taskType-derived
+    // default — code-review-reply's node runs on code-review-refine. Without
+    // this, the CR resolves a Station named after the LINE, which only existed
+    // as a stale pre-#840-rename object until a catalog deploy pruned it.
+    ...(node.station_ref ? { stationRef: node.station_ref } : {}),
     name: nodeAgentName(task.assemblyLineId, node.id, iteration),
     extraLabels: nodeLabels(node, task, iteration),
   };
@@ -124,6 +129,9 @@ export function nodeStationSpec(
     name: nodeAgentName(task.assemblyLineId, node.id, iteration),
     extraLabels: nodeLabels(node, task, iteration),
     stationRef: node.station_ref ?? stationName(node.type),
+    // Stations render only {station_input} — never hydrate (D5 is for agent
+    // nodes); an empty description otherwise assembles an unbounded context.
+    hydrate: false,
     parameters: {
       station_input: JSON.stringify({
         assembly_line_id: task.assemblyLineId,

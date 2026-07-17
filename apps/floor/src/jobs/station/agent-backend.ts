@@ -101,7 +101,8 @@ export class AgentCrBackend implements StationBackend {
   ) {}
 
   async launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
-    const context = await this.context?.assemble(spec);
+    const context =
+      spec.hydrate === false ? undefined : await this.context?.assemble(spec);
     const stationRef =
       this.tokens && needsToken(spec)
         ? await this.tokens.provision(spec)
