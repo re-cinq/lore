@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { parseAgentLog } from "@/lib/agent-log-entries";
+import LogEntriesView from "@/components/LogEntriesView";
+import LogFormatToggle from "@/components/LogFormatToggle";
 import {
   nodeLogsUrl,
   shouldPollNode,
@@ -57,7 +60,9 @@ function NodeLogPanel({
   const [open, setOpen] = useState(false);
   const [resp, setResp] = useState<NodeLogsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showRaw, setShowRaw] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const entries = useMemo(() => parseAgentLog(resp?.logs ?? ""), [resp?.logs]);
 
   const fetchLogs = useCallback(async () => {
     try {
@@ -118,9 +123,21 @@ function NodeLogPanel({
         </p>
       )}
 
+      {!error && resp?.available && resp.logs && (
+        <div className={styles.toggleRow}>
+          <LogFormatToggle raw={showRaw} onChange={setShowRaw} />
+        </div>
+      )}
+
       {!error && resp?.available && (
         <div className={styles.terminal}>
-          {resp.logs || "(no output yet)"}
+          {!resp.logs ? (
+            "(no output yet)"
+          ) : showRaw ? (
+            resp.logs
+          ) : (
+            <LogEntriesView entries={entries} />
+          )}
           <div ref={bottomRef} />
         </div>
       )}

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, fireEvent } from "@testing-library/react";
 import TaskLogs from "./TaskLogs";
+import { SAMPLE_LOG, TOOL_USE_BASH } from "@/lib/agent-log-entries.fixtures";
 
 // jsdom does not implement scrollIntoView; the auto-scroll effect calls it on every logs change.
 beforeEach(() => {
@@ -603,5 +604,111 @@ describe("TaskLogs", () => {
     expect(screen.getByText("Completed")).toBeInTheDocument();
     // Now terminal → the polling note disappears.
     expect(screen.queryByText(/Polling every 5s/)).not.toBeInTheDocument();
+  });
+
+  it("renders the sample NDJSON as formatted entries by default", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          logs: SAMPLE_LOG,
+          status: "succeeded",
+          totalSize: SAMPLE_LOG.length,
+        }),
+      ),
+    );
+
+    render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
+    await settle();
+
+    expect(screen.getByText(/^→ Bash: gh pr view 871/)).toBeInTheDocument();
+    // SAMPLE_LOG carries two thinking_tokens runs → exactly two counters.
+    expect(screen.getAllByText(/^thinking… ~/)).toHaveLength(2);
+    expect(
+      screen.getByText("✓ finished — 3m 21s · $0.51 · 27 turns"),
+    ).toBeInTheDocument();
+    // The raw JSON ticker lines are gone in formatted mode.
+    expect(screen.queryByText(/estimated_tokens/)).not.toBeInTheDocument();
+  });
+
+  it("shows the verbatim blob after clicking Raw and formats again after clicking Formatted", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          logs: SAMPLE_LOG,
+          status: "succeeded",
+          totalSize: SAMPLE_LOG.length,
+        }),
+      ),
+    );
+
+    render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
+    await settle();
+
+    fireEvent.click(screen.getByRole("button", { name: "Raw" }));
+    expect(screen.getByText(/estimated_tokens/)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/^→ Bash: gh pr view 871/),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Formatted" }));
+    expect(screen.getByText(/^→ Bash: gh pr view 871/)).toBeInTheDocument();
+  });
+
+  it("classifies a JSON line split across an offset poll after the second chunk arrives", async () => {
+    // Converging buffer: the head fetch delivers half a JSON line, the offset
+    // poll the rest — the full-blob reparse must classify the healed line.
+    const HEAD = TOOL_USE_BASH.slice(0, 40);
+    const FULL = `${TOOL_USE_BASH}\n`;
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      const m = url.match(/offset=(\d+)/);
+
+      if (!m) {
+        return Promise.resolve(
+          jsonResponse({
+            logs: HEAD,
+            status: "running",
+            totalSize: HEAD.length,
+          }),
+        );
+      }
+
+      return Promise.resolve(
+        jsonResponse({
+          logs: FULL.slice(Number(m[1])),
+          status: "running",
+          totalSize: FULL.length,
+        }),
+      );
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TaskLogs taskId="t1" initialStatus="running" />);
+    await settle();
+
+    expect(offsetCalls(fetchMock).length).toBeGreaterThan(0);
+    expect(screen.getByText(/^→ Bash: gh pr view 871/)).toBeInTheDocument();
+    // No dangling half-line rendered as raw.
+    expect(screen.queryByText(HEAD)).not.toBeInTheDocument();
+  });
+
+  it("hides the format toggle until logs arrive", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ logs: null, status: "queued", totalSize: 0 }),
+        ),
+    );
+
+    render(<TaskLogs taskId="t1" initialStatus="queued" />);
+    await settle();
+
+    expect(
+      screen.queryByRole("button", { name: "Raw" }),
+    ).not.toBeInTheDocument();
   });
 });
