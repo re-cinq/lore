@@ -164,7 +164,7 @@ A blank `description` returns 400. ([validated by `returns 400 when description 
 
 Invalid JSON returns 500. ([validated by `returns 400 on invalid JSON`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L199))
 
-The route counts against the `task` rate bucket (60/min): the 61st POST to `/api/task` in the window trips 429. ([validated by `rate-limit.test.ts:47`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L47))
+The route counts against the `task` rate bucket (60/min): the 61st POST to `/api/task` in the window trips 429. ([validated by `rate-limit.test.ts:60`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L60))
 
 ## Out of Scope
 

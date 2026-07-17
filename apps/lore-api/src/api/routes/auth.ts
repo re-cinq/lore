@@ -10,11 +10,16 @@ import { createHash } from "node:crypto";
 
 // ── Rate limiter (in-memory sliding window) ─────────────────────────
 
-export type RateBucket = "webhook" | "task" | "default";
+export type RateBucket = "webhook" | "task" | "embed" | "default";
 
 const RATE_LIMITS: Record<RateBucket, number> = {
   webhook: 30, // 30/min for webhooks
   task: 60, // 60/min for task operations
+  // The ingest station embeds one statement per call: a changed-spec batch is
+  // hundreds of POSTs in seconds (7 files → ~250 calls all 429'd on 2026-07-17
+  // under `default`). Own bucket, sized under Vertex's RPM quota, so the burst
+  // neither starves nor is starved by everything else.
+  embed: 1200,
   default: 200, // 200/min for everything else
 };
 
