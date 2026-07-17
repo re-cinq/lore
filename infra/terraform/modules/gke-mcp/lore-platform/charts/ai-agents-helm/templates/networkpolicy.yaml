@@ -70,3 +70,17 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.floorSink.port }}
+    # The Lore API the station pods read/write through (createStationProject, D7).
+    # In-cluster because the external LB VIP DNAT-short-circuits to the backend pod
+    # IP, which the RFC1918 except-list above then drops. Host/port must match
+    # loreApiUrl.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.apiSink.namespace }}
+          podSelector:
+            matchLabels:
+              app: lore-api
+      ports:
+        - protocol: TCP
+          port: {{ .Values.apiSink.port }}
