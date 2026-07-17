@@ -1,58 +1,58 @@
 "use client";
 
-// Presentational cross-repo spec list, sourced from the spec-traceability graph
-// (/api/trace/specs). Groups by repo; each path links to that repo's structured
-// graph detail. The lifecycle status pill per path is parsed from the graph's
-// byte-exact spec.md sources (fetchSpecStatusesFromGraph; statuses prop, keyed
-// `repo::filePath`) and drives the filter chips — the graph is the source of
-// truth for list and statuses alike.
+// Presentational cross-repo doc list shared by the global /specs and /adrs
+// viewers, sourced from the spec-traceability graph. Groups by repo; each path
+// links via hrefFor to that repo's detail page. The lifecycle status pill per
+// path comes from the statuses prop (keyed `repo::filePath`, parsed from the
+// graph's byte-exact sources) and drives the filter chips — the graph is the
+// source of truth for list and statuses alike.
 import { useState } from "react";
 import Link from "next/link";
+import DocListControls from "@/components/DocListControls";
 import SpecStatusChips from "@/components/SpecStatusChips";
 import SpecStatusPill from "@/components/SpecStatusPill";
-import {
-  matchesSpecStatusFilter,
-  type SpecStatus,
-  type SpecStatusFilter,
-  type SpecStatusInfo,
+import { filterDocCards } from "@/lib/doc-filter";
+import type {
+  DocKind,
+  SpecStatusFilter,
+  SpecStatusInfo,
 } from "@/lib/spec-status";
 
-export default function GlobalSpecsView({
-  specs,
+export default function GlobalDocsView({
+  docs,
   statuses = {},
+  hrefFor,
+  emptyHint,
+  noMatchHint,
+  chipsKind = "spec",
 }: {
-  specs: Array<{ repo: string; filePath: string }>;
+  docs: Array<{ repo: string; filePath: string }>;
   statuses?: Record<string, SpecStatusInfo>;
+  hrefFor: (repo: string, filePath: string) => string;
+  emptyHint: string;
+  noMatchHint: string;
+  chipsKind?: DocKind;
 }) {
   const [filter, setFilter] = useState<SpecStatusFilter>("all");
+  const [query, setQuery] = useState("");
 
-  if (specs.length === 0) {
-    return (
-      <p style={{ color: "var(--text-muted)" }}>
-        No specs in the graph yet. Specs are projected automatically by CI on
-        push to <code>main</code>.
-      </p>
-    );
+  if (docs.length === 0) {
+    return <p style={{ color: "var(--text-muted)" }}>{emptyHint}</p>;
   }
 
   const statusOf = (repo: string, filePath: string) =>
     statuses[`${repo}::${filePath}`];
-  const counts: Partial<Record<SpecStatus, number>> = {};
-
-  for (const { repo, filePath } of specs) {
-    const info = statusOf(repo, filePath);
-
-    if (info) {
-      counts[info.status] = (counts[info.status] ?? 0) + 1;
-    }
-  }
+  const { counts, visible } = filterDocCards(
+    docs,
+    (doc) => statusOf(doc.repo, doc.filePath),
+    filter,
+    query,
+    (doc) => `${doc.repo} ${doc.filePath}`,
+  );
 
   const byRepo = new Map<string, string[]>();
 
-  for (const { repo, filePath } of specs) {
-    if (!matchesSpecStatusFilter(statusOf(repo, filePath), filter)) {
-      continue;
-    }
+  for (const { repo, filePath } of visible) {
     const bucket = byRepo.get(repo) ?? [];
 
     if (!byRepo.has(repo)) {
@@ -63,11 +63,13 @@ export default function GlobalSpecsView({
 
   return (
     <div>
+      <DocListControls query={query} onQueryChange={setQuery} />
       <SpecStatusChips
         counts={counts}
-        total={specs.length}
+        total={docs.length}
         active={filter}
         onChange={setFilter}
+        kind={chipsKind}
       />
       {[...byRepo.entries()].map(([repo, paths]) => (
         <section key={repo} style={{ marginBottom: 20 }}>
@@ -86,11 +88,7 @@ export default function GlobalSpecsView({
                     gap: 8,
                   }}
                 >
-                  <Link
-                    href={`/repos/${repo}/specs/${encodeURIComponent(filePath)}`}
-                  >
-                    {filePath}
-                  </Link>
+                  <Link href={hrefFor(repo, filePath)}>{filePath}</Link>
                   {info && <SpecStatusPill info={info} />}
                 </li>
               );
@@ -99,9 +97,7 @@ export default function GlobalSpecsView({
         </section>
       ))}
       {byRepo.size === 0 && (
-        <p style={{ color: "var(--text-muted)" }}>
-          No specs match this status filter.
-        </p>
+        <p style={{ color: "var(--text-muted)" }}>{noMatchHint}</p>
       )}
     </div>
   );

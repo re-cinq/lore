@@ -33,6 +33,8 @@ const groups: NavGroup[] = [
       { href: "/gaps", label: "Gaps" },
       { href: "/episodes", label: "Episodes" },
       { href: "/graph", label: "Graph" },
+      { href: "/specs", label: "Specs" },
+      { href: "/adrs", label: "ADRs" },
     ],
   },
 ];

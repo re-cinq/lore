@@ -45,6 +45,8 @@ const PRIMARY_LINKS = [
   { href: "/gaps", label: "Gaps" },
   { href: "/episodes", label: "Episodes" },
   { href: "/graph", label: "Graph" },
+  { href: "/specs", label: "Specs" },
+  { href: "/adrs", label: "ADRs" },
 ];
 // Pinned outside the scrollable nav.
 const SETTINGS = { href: "/settings", label: "Settings" };
@@ -321,7 +323,15 @@ describe("SidebarNav accordion groups", () => {
     expect(insights).toHaveAttribute("aria-expanded", "false");
 
     // Every Insights link is gone…
-    for (const label of ["Analytics", "Spend", "Gaps", "Episodes", "Graph"]) {
+    for (const label of [
+      "Analytics",
+      "Spend",
+      "Gaps",
+      "Episodes",
+      "Graph",
+      "Specs",
+      "ADRs",
+    ]) {
       expect(screen.queryByRole("link", { name: label })).toBeNull();
     }
     // …while the always-on top links and footer stay put.

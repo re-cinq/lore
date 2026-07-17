@@ -138,3 +138,16 @@ export async function fetchAllSpecs(): Promise<
     )?.specs ?? []
   );
 }
+
+/** Cross-repo ADR list for the global /adrs viewer. */
+export async function fetchAllAdrs(): Promise<
+  Array<{ repo: string; filePath: string }>
+> {
+  return (
+    (
+      await apiGet<{ adrs: Array<{ repo: string; filePath: string }> }>(
+        "/api/trace/adrs",
+      )
+    )?.adrs ?? []
+  );
+}
