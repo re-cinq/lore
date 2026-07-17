@@ -9,6 +9,7 @@
 
 import { KubeConfig, Watch, CustomObjectsApi } from "@kubernetes/client-node";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
+import { loadKube, selectStationBackend } from "@re-cinq/lore-shared";
 import { taskStore, assemblyLines } from "../kernel/queues.js";
 import { insertEvent } from "../main-loop/store.js";
 import { mapAgentToEvent } from "./k8s-map.js";
@@ -110,10 +111,13 @@ async function pruneIfOld(
 
 let backoffMs = 1000;
 
-/** Start the watch (no-op outside the cluster, e.g. local `npm start`). */
+/** Start the watch. Runs in the cluster, and on a laptop whenever the developer
+ *  opted into the k8s station backend (`LORE_STATION_BACKEND=k8s`) — that Floor
+ *  dispatches Agent CRs to minikube, so it needs their terminal events too.
+ *  No-op otherwise (a plain `npm start` has no cluster to watch). */
 export function startK8sWatch(): void {
-  if (!process.env.KUBERNETES_SERVICE_HOST) {
-    console.log("[events] k8s watch disabled (not running in a cluster)");
+  if (selectStationBackend(process.env) !== "k8s") {
+    console.log("[events] k8s watch disabled (station backend is not k8s)");
 
     return;
   }
@@ -140,7 +144,7 @@ async function runWatchForever(): Promise<void> {
 async function watchOnce(): Promise<void> {
   const kc = new KubeConfig();
 
-  kc.loadFromCluster();
+  loadKube(kc);
   // Seed resourceVersion + catch up on terminal CRs we may have missed while down.
   const { k8sApi, namespace } = makeAgentsApi();
   const list = (await k8sApi.listNamespacedCustomObject({

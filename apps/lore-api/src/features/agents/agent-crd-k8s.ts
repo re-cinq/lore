@@ -3,6 +3,7 @@
 // object-param CustomObjectsApi like the Floor's KubeCatalogApi: create, or replace with
 // the live resourceVersion when the resource already exists.
 
+import { loadKube } from "@re-cinq/lore-shared";
 import type { CrdPair } from "./agent-crd.js";
 
 const GROUP = "agents.re-cinq.com";
@@ -26,7 +27,7 @@ async function api() {
     await import("@kubernetes/client-node");
   const kc = new KubeConfig();
 
-  kc.loadFromCluster();
+  loadKube(kc);
 
   return kc.makeApiClient(CustomObjectsApi);
 }

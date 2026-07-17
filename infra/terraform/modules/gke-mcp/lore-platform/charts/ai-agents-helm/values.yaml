@@ -18,6 +18,16 @@ floorSink:
   namespace: lore-floor
   port: 8080
 
+# The run-pod egress posture (templates/networkpolicy.yaml + ingest-station-egress.yaml).
+# ON everywhere real. Turn OFF only for a laptop minikube (values.minikube.yaml): the
+# deny-RFC1918 rule exists to stop a run pod reaching cluster-internal services, but in
+# the hybrid local setup the Floor and Lore API ARE on the developer's host — an RFC1918
+# host.minikube.internal — so the policy would drop exactly the traffic that must work.
+# minikube's default CNI does not enforce NetworkPolicy anyway, so leaving these applied
+# there would give a false sense of a posture that is not actually running.
+networkPolicy:
+  enabled: true
+
 # NodeLocal DNSCache listen address. On clusters running NodeLocal DNS (GKE default),
 # run pods resolve via this link-local IP instead of the kube-dns ClusterIP — and the
 # metadata-endpoint block in the run-pod NetworkPolicy (169.254.0.0/16) would otherwise
@@ -43,6 +53,10 @@ loreApiUrl: http://lore-api.lore-api.svc.cluster.local:3000
 apiSink:
   namespace: lore-api
   port: 3000
+
+# The spec-traceability graph the ingest-station recipes project into. In-cluster for
+# the same reason as loreApiUrl; ingest-station-egress opens exactly this service.
+dgraphUrl: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080
 
 controller:
   replicas: 1

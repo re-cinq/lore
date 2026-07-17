@@ -9,6 +9,7 @@ import {
   type Agent as AgentCr,
 } from "@re-cinq/agent-contracts";
 import type { AgentNodeStatus } from "@re-cinq/lore-assembly-lines";
+import { loadKube } from "@re-cinq/lore-shared";
 import type { AgentApi } from "./agent-backend.js";
 
 const PLURAL = "agents";
@@ -23,7 +24,7 @@ export class KubeAgentApi implements AgentApi {
       await import("@kubernetes/client-node");
     const kc = new KubeConfig();
 
-    kc.loadFromCluster();
+    loadKube(kc);
 
     return kc.makeApiClient(CustomObjectsApi);
   }

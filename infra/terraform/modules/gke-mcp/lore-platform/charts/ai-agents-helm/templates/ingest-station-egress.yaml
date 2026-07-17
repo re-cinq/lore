@@ -8,6 +8,7 @@
 # name: the per-task clone renames def-ingest to pt-<id>, so a name-keyed
 # selector silently loses the pods (learned 2026-07-17 — every ingest pod hung
 # to its deadline with dgraph unreachable).
+{{- if .Values.networkPolicy.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -31,3 +32,4 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+{{- end }}

@@ -9,6 +9,7 @@ import {
   VERSION,
   type Agent as AgentCr,
 } from "@re-cinq/agent-contracts";
+import { loadKube } from "@re-cinq/lore-shared";
 
 const PLURAL = "agents";
 
@@ -111,8 +112,8 @@ function unavailable(
   return { available: false, logs: null, phase, podName: null, reason };
 }
 
-/** Live PodLogSource over @kubernetes/client-node (in-cluster config), same
- *  lazy-import pattern as KubeAgentApi. */
+/** Live PodLogSource over @kubernetes/client-node, same lazy-import pattern as
+ *  KubeAgentApi. */
 export class KubePodLogs implements PodLogSource {
   private namespace(): string {
     return process.env.LORE_AGENTS_NAMESPACE ?? "ai-agents";
@@ -122,7 +123,7 @@ export class KubePodLogs implements PodLogSource {
     const { KubeConfig } = await import("@kubernetes/client-node");
     const kc = new KubeConfig();
 
-    kc.loadFromCluster();
+    loadKube(kc);
 
     return kc;
   }
