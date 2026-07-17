@@ -114,6 +114,12 @@ variable "log_retention_days" {
   default     = 30
 }
 
+variable "pod_log_retention_days" {
+  description = "Days to retain pod stdout/stderr in the Cloud Logging _Default bucket (GKE workload logs). Raise above 30 to keep node-pod logs longer."
+  type        = number
+  default     = 90
+}
+
 variable "lore_api_url" {
   description = "External URL for the Lore API server (e.g. https://lore-api.example.com); also drives the lore-api ingress host"
   type        = string

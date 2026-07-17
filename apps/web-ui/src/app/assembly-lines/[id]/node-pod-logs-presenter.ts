@@ -8,6 +8,9 @@ export interface NodeLogsResponse {
   phase: string | null;
   podName: string | null;
   reason?: string;
+  /** true when the logs were read back from the durable archive (Cloud Logging)
+   *  because the live pod was already cleaned up. */
+  archived?: boolean;
 }
 
 export function nodeLogsUrl(

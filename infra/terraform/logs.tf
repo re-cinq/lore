@@ -108,6 +108,25 @@ resource "google_storage_bucket_iam_member" "lore_agent_logs_admin" {
   member = "serviceAccount:${google_service_account.lore_agent.email}"
 }
 
+# Cloud Logging read — the Floor agent-logs endpoint (CloudLoggingPodLogs) reads
+# a GC-ed node pod's stdout back from the _Default log bucket once the live pod
+# is gone, so the assembly-line run view keeps showing logs after the pod exits.
+resource "google_project_iam_member" "lore_agent_logging_viewer" {
+  project = var.project_id
+  role    = "roles/logging.viewer"
+  member  = "serviceAccount:${google_service_account.lore_agent.email}"
+}
+
+# Retention on the _Default log bucket, where GKE ships every pod's stdout/stderr.
+# The provider updates this system bucket in place (no import needed); raising it
+# is how pod logs outlive the default 30 days.
+resource "google_logging_project_bucket_config" "default" {
+  project        = var.project_id
+  location       = "global"
+  bucket_id      = "_Default"
+  retention_days = var.pod_log_retention_days
+}
+
 # Workload Identity: the helm-managed KSA lore-floor/lore-floor impersonates this SA.
 resource "google_service_account_iam_member" "lore_agent_wi" {
   service_account_id = google_service_account.lore_agent.name
