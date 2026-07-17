@@ -36,9 +36,7 @@ export function selectPruneCandidates(
   }
   const selected = new Set(selectedFiles);
 
-  return graphDocPaths.filter(
-    (path) => isInScope(path) && !selected.has(path),
-  );
+  return graphDocPaths.filter((path) => isInScope(path) && !selected.has(path));
 }
 
 /**
@@ -139,7 +137,8 @@ export async function deleteSpecSubtree(
       `<${spec.uid}> * * .`,
       ...childUids.map((uid) => `<${uid}> * * .`),
     ];
-    const rootUid = ((res.data?.root ?? []) as Array<Record<string, string>>)[0]?.uid;
+    const rootUid = ((res.data?.root ?? []) as Array<Record<string, string>>)[0]
+      ?.uid;
 
     if (rootUid) {
       // `<uid> * * .` only drops OUTGOING edges — the Repo keeps a dangling
@@ -228,15 +227,13 @@ export async function deleteAdrSubtree(
       }`,
       { $xid: `${repo}|${filePath}`, $repo: repo },
     );
-    const adr = (res.data?.adr?.[0] ?? null) as
-      | {
-          uid: string;
-          citers?: UidRef[];
-          acCiters?: UidRef[];
-          superseders?: UidRef[];
-          links?: Array<UidRef & { stmt?: UidRef[] | UidRef }>;
-        }
-      | null;
+    const adr = (res.data?.adr?.[0] ?? null) as {
+      uid: string;
+      citers?: UidRef[];
+      acCiters?: UidRef[];
+      superseders?: UidRef[];
+      links?: Array<UidRef & { stmt?: UidRef[] | UidRef }>;
+    } | null;
 
     if (!adr) {
       return false;
@@ -262,7 +259,8 @@ export async function deleteAdrSubtree(
         deletes.push(`<${stmt.uid}> <Statement.trace_links> <${link.uid}> .`);
       }
     }
-    const rootUid = ((res.data?.root ?? []) as Array<Record<string, string>>)[0]?.uid;
+    const rootUid = ((res.data?.root ?? []) as Array<Record<string, string>>)[0]
+      ?.uid;
 
     if (rootUid) {
       deletes.push(`<${rootUid}> <Repo.adrs> <${adr.uid}> .`);

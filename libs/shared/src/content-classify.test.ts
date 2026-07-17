@@ -68,7 +68,9 @@ describe("classifyFile", () => {
     expect(classifyFile("graveyard/specs/5-lore-agent/spec.md")).toBeNull();
     expect(classifyFile("graveyard/adrs/ADR-011.md")).toBeNull();
     expect(classifyFile("graveyard/README.md")).toBeNull();
-    expect(classifyFile("graveyard/agent-prompts/graphrag-build.md")).toBeNull();
+    expect(
+      classifyFile("graveyard/agent-prompts/graphrag-build.md"),
+    ).toBeNull();
   });
 
   it("classifies a non-root graveyard/ directory normally", () => {

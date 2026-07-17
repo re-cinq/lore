@@ -27,9 +27,9 @@ describe("selectPruneCandidates", () => {
   });
 
   it("returns nothing when the tree selection is empty", () => {
-    expect(
-      selectPruneCandidates(["specs/moved/spec.md"], [], inScope),
-    ).toEqual([]);
+    expect(selectPruneCandidates(["specs/moved/spec.md"], [], inScope)).toEqual(
+      [],
+    );
   });
 
   it("leaves graph docs outside the scope filter untouched", () => {
@@ -321,7 +321,12 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
       "# A\n\nA point.\n",
       dgraphClient,
     );
-    await projectAdrFile(repo, "adrs/ADR-001.md", "# One\n\nX.\n", dgraphClient);
+    await projectAdrFile(
+      repo,
+      "adrs/ADR-001.md",
+      "# One\n\nX.\n",
+      dgraphClient,
+    );
 
     expect(await listGraphDocPaths(dgraphClient, "Spec", repo)).toEqual([
       "specs/a/spec.md",

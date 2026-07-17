@@ -226,7 +226,7 @@ describe("runIngestGraph", () => {
         prefixes: ["specs/"],
         runsOn: "runner+local",
         project: async () => {
-          enforceTrue(!(opts?.failProject), Error, "projection down");
+          enforceTrue(!opts?.failProject, Error, "projection down");
 
           return { projected: false };
         },
