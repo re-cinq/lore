@@ -273,7 +273,6 @@ export {
   type TestLinkRef,
   type CodeLinkRef,
 } from "./spec-link-parser.js";
-export { repoRelativeLinkTarget } from "./spec-trace/link-target-path.js";
 export {
   specFeatureSlug,
   hasDirectoryAffinity,

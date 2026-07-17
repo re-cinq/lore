@@ -146,7 +146,7 @@ export function buildStationDefinition(
       // The controller folds recipe resources.env into the run env; a Station
       // pod-template env block is OVERWRITTEN by the controller (jobspec.d
       // wirePodTemplate) and silently lost — learned live, 2026-07-17.
-      ...(cfg.env
+      ...(cfg.env && Object.keys(cfg.env).length > 0
         ? {
             resources: {
               env: Object.entries(cfg.env).map(([name, value]) => ({
