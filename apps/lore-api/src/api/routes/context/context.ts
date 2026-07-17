@@ -20,7 +20,15 @@ const ContextQuery = z.object({
     .enum(["default", "review", "implementation", "research"])
     .default("default"),
   debug: boolFlag,
-  max_tokens: z.coerce.number().int().positive().catch(8000).default(8000),
+  // .max keeps the budget meaningful — an absurd max_tokens (e.g. 1000000)
+  // would re-open the unbounded chunk-join this budget exists to close.
+  max_tokens: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(128000)
+    .catch(8000)
+    .default(8000),
   agent_id: z.string().optional(),
   cross_repo: boolFlag,
 });

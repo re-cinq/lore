@@ -92,6 +92,15 @@ describe("GET /api/context", () => {
     expect(vi.mocked(assembleContext).mock.calls[0][3]).toBe(8000);
   });
 
+  it("falls back to 8000 when max_tokens exceeds the 128000 server cap", async () => {
+    vi.mocked(assembleContext).mockResolvedValue({
+      text: "ctx",
+      sections: [],
+    } as any);
+    await get(makePool(), "/api/context?query=hi&max_tokens=1000000");
+    expect(vi.mocked(assembleContext).mock.calls[0][3]).toBe(8000);
+  });
+
   it("enables cross_repo from repo settings when the param is not set", async () => {
     vi.mocked(assembleContext).mockResolvedValue({
       text: "ctx",
