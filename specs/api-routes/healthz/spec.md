@@ -119,7 +119,7 @@ stats when the stats query returns no rows`](apps/lore-api/src/api/routes/health
 
 The dispatcher exempts `/healthz` from rate limiting and bearer auth (no 401/403/429
 is ever returned on this path). ([validated by `returns 200 {status:ok}
-unauthenticated when connected`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L41), [validated by `rate-limit.test.ts:84`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L84))
+unauthenticated when connected`](apps/lore-api/src/api/routes/healthz/healthz.test.ts#L41), [validated by `rate-limit.test.ts:97`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L97))
 
 ## Out of Scope
 

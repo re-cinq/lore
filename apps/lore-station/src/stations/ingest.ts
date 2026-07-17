@@ -46,20 +46,35 @@ export interface IngestStationDeps {
  * credentials, so Vertex rides POST /api/embed on the API's own access. The
  * default for docs kinds when LORE_API_URL is set; injectable for tests.
  */
+/** Backoff before each 429 retry — a burst that outruns the API's embed bucket
+ *  clears within the same sliding-window minute, so short waits win it back. */
+const EMBED_429_DELAYS_MS = [2000, 5000, 15000];
+
 export function apiEmbed(
   baseUrl: string,
   token: string | undefined,
   fetchImpl: typeof fetch = fetch,
+  sleep: (ms: number) => Promise<void> = (ms) =>
+    new Promise((resolve) => setTimeout(resolve, ms)),
 ): (text: string) => Promise<number[] | null> {
   return async (text: string) => {
-    const res = await fetchImpl(`${baseUrl}/api/embed`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text }),
-    });
+    let res: Response;
+
+    for (let attempt = 0; ; attempt++) {
+      res = await fetchImpl(`${baseUrl}/api/embed`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      if (res.status !== 429 || attempt >= EMBED_429_DELAYS_MS.length) {
+        break;
+      }
+      await sleep(EMBED_429_DELAYS_MS[attempt]);
+    }
 
     enforceTrue(
       res.ok,

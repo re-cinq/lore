@@ -23,6 +23,10 @@ export function bucketFor(path: string): RateBucket {
     return "task";
   }
 
+  if (path === "/api/embed") {
+    return "embed";
+  }
+
   return "default";
 }
 
