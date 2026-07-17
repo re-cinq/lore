@@ -84,9 +84,23 @@ export LORE_API_URL="${LORE_API_URL:-http://localhost:3001}"
 export LORE_INGEST_TOKEN="${LORE_INGEST_TOKEN:-lore-local-dev-token}"
 
 # Station execution. Tasks run as Agent CRs on the ai-agent-subsystem (agent-cr),
-# which needs a Kubernetes cluster — local dev cannot execute impl/review tasks
-# without one. The lightweight feature-planning/finalize path runs inprocess.
+# which needs a Kubernetes cluster. The default `inprocess` keeps the lightweight
+# feature-planning/finalize path for a dev without one; set LORE_STATION_BACKEND=k8s
+# in .env.local to execute real impl/review tasks against a laptop minikube.
 export LORE_STATION_BACKEND="${LORE_STATION_BACKEND:-inprocess}"
+
+# Agent CR plumbing. The Floor reaches the cluster through the developer's kubeconfig
+# (LORE_KUBECONFIG, else KUBECONFIG, else ~/.kube/config — shared/src/kube-config.ts);
+# run pods reach back to this host at host.minikube.internal. The run pods' telemetry
+# callbacks are authorized with LORE_AGENT_INTERNAL_TOKEN, so this host and the
+# cluster's agent-secrets must agree — both default to the same dev token.
+export LORE_AGENTS_NAMESPACE="${LORE_AGENTS_NAMESPACE:-ai-agents}"
+export LORE_AGENT_INTERNAL_TOKEN="${LORE_AGENT_INTERNAL_TOKEN:-lore-local-agent-token}"
+
+if [ "$LORE_STATION_BACKEND" = "k8s" ]; then
+  log "Station backend is k8s — bootstrapping the ai-agent-subsystem on minikube"
+  bash "$ROOT/scripts/infra/setup-minikube-agents.sh"
+fi
 
 # 2b. web-ui auth (NextAuth). Needs a URL + secret locally. Generate the secret
 #     once and persist it (gitignored) so sessions survive restarts.

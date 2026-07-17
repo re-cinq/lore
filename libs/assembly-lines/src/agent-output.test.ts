@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { resultTextFromOutput, resultLine, eventLine } from "./agent-output.js";
+import {
+  resultTextFromOutput,
+  terminalErrorText,
+  resultLine,
+  eventLine,
+} from "./agent-output.js";
 import { parseNodeResult } from "./node-outcome.js";
 
 const logLine = (message: string) => JSON.stringify({ type: "log", message });
@@ -132,6 +137,42 @@ describe("resultTextFromOutput", () => {
     ].join("\n");
 
     expect(resultTextFromOutput(stream)).toBe(stream);
+  });
+});
+
+describe("terminalErrorText", () => {
+  it("returns the last is_error result line's text", () => {
+    const output = [
+      logLine("starting"),
+      bareResultLine("first error", true),
+      bareResultLine("Credit balance is too low", true),
+    ].join("\n");
+
+    expect(terminalErrorText(output)).toBe("Credit balance is too low");
+  });
+
+  it("unwraps an is_error result nested in a {source,event} attribution envelope", () => {
+    const output = attributedLine({
+      type: "result",
+      is_error: true,
+      result: "Credit balance is too low",
+    });
+
+    expect(terminalErrorText(output)).toBe("Credit balance is too low");
+  });
+
+  it("returns null for a successful result, no result line, or empty output", () => {
+    expect(terminalErrorText(bareResultLine("ok"))).toBeNull();
+    expect(terminalErrorText(logLine("x"))).toBeNull();
+    expect(terminalErrorText("")).toBeNull();
+    expect(terminalErrorText(undefined)).toBeNull();
+    expect(terminalErrorText("not json at all")).toBeNull();
+  });
+
+  it("caps the text at 300 chars so a stack dump never floods a notification", () => {
+    const output = bareResultLine("x".repeat(500), true);
+
+    expect(terminalErrorText(output)?.length).toBe(300);
   });
 });
 

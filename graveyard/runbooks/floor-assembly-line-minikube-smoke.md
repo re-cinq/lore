@@ -1,127 +1,122 @@
-> **Outdated (2026-07): the in-process walk this runbook exercises was replaced by the
-> event-driven walk (spec 6-dark-factory FR6.9, ADR-031 rev 2).** Kept for the cutover's
-> historical record; the supervisor/lease/stage-commit steps below no longer exist.
+# Runbook: run Lore + the ai-agent-subsystem locally on minikube
 
-# Runbook: Floor assembly-line driver — minikube smoke test
+When to use this runbook: you want a laptop that executes **real tasks** end-to-end —
+Floor → `Agent` CR → controller → run pod → PR — instead of the lightweight in-process
+path. This is the local counterpart of the GKE deploy, and the manual gate before
+flipping anything in prod (`runbooks/floor-assembly-line-gke-cutover.md`).
 
-When to use this runbook: you want to verify the **real Agent-CR round-trip** of the
-Floor-side workflow-assembly line driver (ADR-031 D4, `#686`) — the parts the local integration
-test (`apps/floor/src/jobs/assembly-line/floor-assembly-line-run.test.ts`) deliberately fakes. That test
-already proves the orchestration (lease → assembly line walk → branch-as-state stage commits →
-resume → CI loop-back) on a temp git repo. What it does **not** exercise, and what this
-runbook does, is the cluster-shaped IO:
+Plain-language note: **minikube** is a one-node Kubernetes cluster on your laptop. A
+*custom resource* (CR) is just a typed YAML object the cluster stores; the subsystem's
+*controller* watches for `Agent` CRs and creates a *Job* (a run-once pod) for each. A
+*Secret* is a namespaced blob of key/values a pod can mount as env vars.
 
-- `dispatchAgent` actually creating a per-node `Agent` custom resource,
-- the subsystem controller turning each `Agent` into a Job pod that runs,
-- `agentStatus` reading that CR's real status back,
-- the real `git push` of the stage commits + the branch's CI conclusion.
+## The topology (hybrid)
 
-Plain-language note: minikube is a one-node Kubernetes cluster on your laptop. A *custom
-resource* (CR) is just a typed YAML object the cluster stores; the subsystem's
-*controller* watches for `Agent` CRs and creates a *Job* (a run-once pod) for each.
+The app processes stay on your host, as usual — only the agent execution substrate goes
+in the cluster:
+
+| Runs where | What |
+|---|---|
+| Host (`npm start`) | web-ui :3000, lore-api :3001, Floor :8080; Postgres :5432 + Dgraph :8081 in Docker |
+| minikube | the ai-agent-subsystem: CRDs, controller, seeded catalog, and the run pods |
+
+Two consequences follow, and everything else is detail:
+
+- **The Floor reaches the cluster through your kubeconfig.** In GKE the Floor is a pod
+  and reads its service account; on your laptop it has none, so it loads
+  `LORE_KUBECONFIG`, else `KUBECONFIG`, else `~/.kube/config`
+  (`libs/shared/src/kube-config.ts`).
+- **Run pods reach back to your host at `host.minikube.internal`.** The chart's defaults
+  point at in-cluster DNS (`lore-floor.lore-floor.svc…`), which doesn't exist here, so
+  `values.minikube.yaml` repoints the agent-events sink, the Lore API, and Dgraph at the
+  host. It also disables the run-pod NetworkPolicy: that policy denies all RFC1918 egress
+  except the in-cluster Floor/API, and locally those *are* RFC1918 — it would drop exactly
+  the traffic that must work. (minikube's default CNI doesn't enforce NetworkPolicy
+  anyway, so applying it would only advertise a posture that isn't running.)
 
 ## Prerequisites
 
-- `minikube start` (running) and `kubectl`/`helm` on PATH.
-- The ai-agent-subsystem controller image (build it in that repo, then load it so the
-  in-laptop cluster can see it without a registry):
+- `minikube`, `kubectl`, `helm` on PATH.
+- A GitHub PAT with `read:packages` — the controller + agent-runtime images are **private**
+  ghcr packages from `re-cinq/ai-agent-subsystem`, not built from this repo.
+- An Anthropic API key, and the Lore GitHub App creds (the Floor mints per-task tokens
+  from the App to clone/push/open PRs).
+- A throwaway repo onboarded to Lore to aim tasks at.
 
-  ```bash
-  # in re-cinq/ai-agent-subsystem (no root Dockerfile — point -f at the controller recipe;
-  # context is the repo root, since the build does `COPY . .` + `dub build :controller`)
-  docker build -f deploy/Dockerfile.controller -t ghcr.io/re-cinq/ai-agent-controller:smoke .
-  minikube image load ghcr.io/re-cinq/ai-agent-controller:smoke
-  ```
+## 1. Configure
 
-- An Anthropic API key and a GitHub token with push + PR scope on a throwaway test repo.
-
-## 1. Deploy the subsystem to minikube
-
-The `ai-agents-helm` chart (from `#682`) ships the CRDs, controller, RBAC, the seeded
-catalog (`#699`), and the per-recipe telemetry sink (`#687`).
+Copy `.env.local.example` to `.env.local` and fill in:
 
 ```bash
-cd infra/terraform/modules/gke-mcp
-helm install ai-agents ./ai-agents-helm \
-  --namespace ai-agents --create-namespace \
-  --set-string agentEventsUrl=http://host.minikube.internal:8080/api/agent-events \
-  --set seedCatalog=true
+ANTHROPIC_API_KEY=sk-ant-...
+GITHUB_APP_ID=...
+GITHUB_APP_INSTALLATION_ID=...
+GITHUB_APP_PRIVATE_KEY=...
 
-# The chart pins the controller by DIGEST (templates/controller.yaml renders
-# `repository@digest` — there is NO image.tag path), so a `--set controller.image.tag`
-# is silently ignored and the pod ImagePullBackOffs on the unreachable prod digest.
-# Repoint the running Deployment at the locally-loaded :smoke tag (imagePullPolicy is
-# IfNotPresent, so kubelet uses the `minikube image load`ed image, no registry pull):
-kubectl -n ai-agents set image deployment/agent-controller \
-  controller=ghcr.io/re-cinq/ai-agent-controller:smoke
-kubectl -n ai-agents rollout status deployment/agent-controller
-
-kubectl -n ai-agents get pods                       # controller Running
-kubectl -n ai-agents get agentdefinitions,stations  # the seeded catalog (one per task type)
+LORE_STATION_BACKEND=k8s      # opt in — without this you get the in-process path
+GHCR_USER=your-github-username
+GHCR_TOKEN=ghp_...            # read:packages
 ```
 
-`agentEventsUrl` is baked into the seeded recipes at install time (templates/catalog.yaml),
-so it must be overridden here, not exported later — the default points at the in-cluster
-prod DNS name (`lore-floor.lore-floor.svc`) that doesn't exist on minikube.
+`.env.local` is the single source of truth: `npm start` sources it, and the bootstrap
+script materializes the cluster Secrets from it. Nothing is hand-written into the cluster.
 
-## 2. Provide the run secrets
-
-The run pods read allowlisted keys from the single `agent-secrets` Secret (the chart
-expects ESO in prod; on minikube we create it by hand):
+## 2. Start
 
 ```bash
-kubectl -n ai-agents create secret generic agent-secrets \
-  --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
-# the per-task GitHub token (#697) is PATCHed in at dispatch by the Floor.
+minikube start
+npm start
 ```
 
-## 3. Run the Floor against minikube
+Because `LORE_STATION_BACKEND=k8s`, `npm start` runs
+`scripts/infra/setup-minikube-agents.sh` before booting the stack. That script is
+idempotent and does what terraform + ESO do on GKE:
 
-Point the Floor at the laptop cluster and flip on the Agent-CR backend. The driver's
-ports resolve to: `dispatchAgent` → `AgentBackend.launch`, `agentStatus` → the per-node CR
-read, `ciConclusion` → `project.pulls`, lease → `DbLeaseBackend`.
+1. creates the `ai-agents` namespace,
+2. creates `ghcr-pull-secret` **and binds it to the namespace's `default` ServiceAccount**
+   — run pods are created under that SA, and the chart's `imagePullSecrets` only covers
+   the controller, so without this every run `ImagePullBackOff`s,
+3. merges `agent-secrets` (`ANTHROPIC_API_KEY`, `LORE_INGEST_TOKEN`,
+   `LORE_AGENT_INTERNAL_TOKEN`, `agent-events-auth`),
+4. applies the CRDs,
+5. `helm upgrade --install`s the chart with `values.minikube.yaml`.
+
+You can also run it standalone: `bash scripts/infra/setup-minikube-agents.sh`.
+
+## 3. Verify the cluster came up
 
 ```bash
-export KUBECONFIG="$HOME/.kube/config"          # minikube context active
-export LORE_AGENTS_NAMESPACE=ai-agents
-export LORE_AGENT_CR_BACKEND_ENABLED=true        # cluster gate (ADR-031 two-gate)
-export LORE_AGENT_INTERNAL_TOKEN=smoke-token      # Bearer the /api/agent-events sink requires
-npm start                                        # or: npm run -w @re-cinq/lore-floor start
+kubectl -n ai-agents get deploy                     # agent-controller Ready 1/1
+kubectl -n ai-agents get agentdefinitions,stations  # the seeded catalog, one per task type
 ```
 
-## 4. Trigger a assembly-line task + watch
+And in the `npm start` output, the Floor should log `[events] k8s Agent-CR watch started`
+— that line proves the kubeconfig loaded and the terminal-event watch is live. If it says
+`k8s watch disabled (station backend is not k8s)`, `LORE_STATION_BACKEND` never reached the
+process.
 
-Create an `implementation` task against the throwaway repo (UI `/onboard` → task, MCP
-`lore_create_pipeline_task`, or `POST /api/tasks`). Then watch the round-trip:
+## 4. Run a task and watch the round-trip
+
+Create a task against the throwaway repo (UI, MCP `lore_create_pipeline_task`, or
+`POST /api/tasks` on :3001), then:
 
 ```bash
-# One Agent CR PER agent-node (impl.yaml has 4) — names are <taskId8>-<nodeId>:
+# One Agent CR per agent-node, named <taskId8>-<nodeId>:
 kubectl -n ai-agents get agents -w
-kubectl -n ai-agents get jobs,pods               # a Job pod per dispatched Agent
+kubectl -n ai-agents get jobs,pods
 kubectl -n ai-agents logs -l lore.re-cinq.com/task-id=<taskId> --tail=50
-
-# Branch-as-state: stage commits land on the task branch with trailers.
-git -C <clone-of-test-repo> log --format='%s%n%b' origin/<task-branch> | grep Lore-Stage
 ```
 
-## Verification checklist
+### Checklist
 
-- [ ] **Per-node dispatch** — `kubectl get agents` shows one CR per agent-node, named
-      `<taskId8>-<nodeId>` (proves `nodeAgentSpec` + the `dispatchAgent` port).
-- [ ] **Controller reconcile** — each `Agent` produced a Job pod that ran to `Succeeded`.
-- [ ] **Status read-back** — the node advanced only after its Agent reached a terminal
-      phase (proves the `agentStatus` per-node `poll(taskId, nodeId)` contract).
-- [ ] **Branch-as-state** — `Lore-Stage:` / `Lore-Task:` trailers are on the pushed
-      branch, one per executed node.
-- [ ] **CI gate** — a `github_action` node blocked until the branch's CI concluded.
-- [ ] **Telemetry** — `pipeline.llm_calls` gained rows for the run (`#687` sink).
-      **Known gap (expect 0 rows today):** run pods POST NDJSON to `/api/agent-events`
-      with no `Authorization` header — the subsystem parses each recipe's
-      `headers_secret: agent-events-auth` but never applies it to the outgoing request
-      (no header wiring in `agentcore/output`), so the Floor's `authInternal` 401s every
-      event. This clears once the subsystem implements `headers_secret` → `Authorization`
-      (the v0.3.0 path the chart's digest TODO tracks).
-- [ ] **Lease** — `pipeline.task_leases` is empty after completion (released cleanly).
+- [ ] **Dispatch** — `kubectl get agents` shows a CR per node (the Floor's kubeconfig works).
+- [ ] **Reconcile** — each `Agent` produced a Job pod that ran to `Succeeded`.
+- [ ] **Clone** — pod logs show the repo cloned (the per-task GitHub token was PATCHed into
+      `agent-secrets` and the ghcr pull secret worked).
+- [ ] **Advance** — nodes advanced on terminal phase (the watch is emitting events).
+- [ ] **PR** — the Floor's `agent-watcher` opened a PR on the target repo.
+- [ ] **Telemetry** — `pipeline.llm_calls` gained rows (run pods POSTed to the host sink at
+      `host.minikube.internal:8080` with the `agent-events-auth` header line).
 
 ## Teardown
 
@@ -131,30 +126,38 @@ kubectl delete namespace ai-agents
 minikube stop
 ```
 
-## Notes
+## Notes / troubleshooting
 
-- This is the manual gate before flipping the rollout in prod. The cutover +
-  LoreTask teardown is `#688` (`runbooks/dark-factory-rollback.md` covers the revert).
-- If an `Agent` never produces a Job, check the controller logs and that
-  `agentdefinitions`/`stations` for the task type exist (`kubectl -n ai-agents get
-  stations`). A missing catalog entry is the usual cause.
-- **Empty catalog (`No resources found`) despite a Running controller?** The catalog is
-  plain CRs gated by `{{ if .Values.seedCatalog }}` — they only get created by an actual
-  `helm install/upgrade`. If the controller + CRDs were bootstrapped outside Helm (`helm
-  list -A` shows no release), the seed block never rendered. A full `helm install` now
-  collides with the existing `agent-controller` Deployment, so seed just the catalog:
+- **Every run pod `CreateContainerConfigError`.** A key the recipe declares is missing from
+  `agent-secrets` — the controller injects them as *non-optional* secretKeyRefs. Re-run the
+  bootstrap script. Note `agent-events-auth` must be the whole
+  `Authorization: Bearer <token>` line, not a bare token: the supervisor sends the value
+  verbatim as HTTP header lines, so a bare token renders no header and the Floor 401s every
+  telemetry event.
+- **Run pods `ImagePullBackOff`.** The pull secret isn't on the `default` ServiceAccount of
+  the `ai-agents` namespace (`kubectl -n ai-agents get sa default -o yaml`), or the PAT
+  lacks `read:packages`.
+- **Empty catalog despite a Running controller.** The catalog is plain CRs gated by
+  `{{ if .Values.seedCatalog }}` — they're only created by an actual `helm install/upgrade`.
+  If the CRDs/controller were bootstrapped outside Helm (`helm list -A` shows no release),
+  the seed block never rendered.
+- **An `Agent` never produces a Job.** Check the controller logs and that the task type's
+  `agentdefinitions`/`stations` exist. A missing catalog entry is the usual cause.
+- **`npm start` fights your other checkout.** The Docker container names (`lore-postgres`,
+  `lore-dgraph`) and ports are fixed, and `free_stale_ports()` kills whatever holds
+  3000/3001/8080 — only run one Lore stack at a time.
+- **Hacking on the subsystem itself?** The chart pins the controller by DIGEST
+  (`templates/controller.yaml` renders `repository@digest`; there is no `image.tag` path),
+  so `--set controller.image.tag` is silently ignored. Build in `re-cinq/ai-agent-subsystem`,
+  `minikube image load` it, then repoint the Deployment:
 
   ```bash
-  helm template ai-agents ./ai-agents-helm --namespace ai-agents --set seedCatalog=true \
-    --set-string agentEventsUrl=http://host.minikube.internal:8080/api/agent-events \
-    --show-only templates/catalog.yaml | kubectl -n ai-agents apply -f -
+  docker build -f deploy/Dockerfile.controller -t ghcr.io/re-cinq/ai-agent-controller:smoke .
+  minikube image load ghcr.io/re-cinq/ai-agent-controller:smoke
+  kubectl -n ai-agents set image deployment/agent-controller \
+    controller=ghcr.io/re-cinq/ai-agent-controller:smoke
   ```
-- Only the **controller** image is built/loaded above. The run-pod **agentImage**
-  (`controller.agentImage` in values.yaml) stays pinned to its prod digest, pulled from
-  ghcr — so that package must be public or a `ghcr-pull-secret` must exist in the
-  `ai-agents` namespace, else run pods `ImagePullBackOff`. To smoke-test *agent-side*
-  changes (e.g. the events-sink auth above), build + `minikube image load` the agent
-  image too and add `--set-string controller.agentImage=ghcr.io/re-cinq/ai-agent:smoke`.
-- Long-term fix for the digest-only `kubectl set image` dance: give the chart a
-  `controller.image.tag` fallback used when `digest` is empty (keeps prod digest-pinned,
-  unblocks local smoke builds).
+
+  The run-pod `agentImage` is a separate digest-pinned image; override it with
+  `--set-string controller.agentImage=...` if you're testing agent-side changes. Controller
+  and agent ship as a **pair** — don't mix versions.
