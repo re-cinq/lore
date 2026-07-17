@@ -333,3 +333,8 @@ stations:
   comment-triage:
     command: ["lore-station", "comment-triage"]
     timeout_minutes: 5
+  ingest:
+    command: ["lore-station", "ingest"]
+    # Sized for the largest self-chunked slice (41 files with embeddings ~ 7 min);
+    # whole-repo passes never reach a pod (the Floor chunks force runs first).
+    timeout_minutes: 10

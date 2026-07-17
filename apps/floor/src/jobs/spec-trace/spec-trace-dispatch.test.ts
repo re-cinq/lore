@@ -86,6 +86,69 @@ describe("dispatchSpecTrace", () => {
     ).not.toThrow();
   });
 
+  it("routes a docs kind to the ingest line instead of projecting inline", async () => {
+    const started: Array<Record<string, unknown>> = [];
+    const projectFor = async (_repo: string) => ({
+      repo: {
+        tree: async (): Promise<string[]> => {
+          throw new Error("line routing must not read the repo");
+        },
+        read: async () => "",
+      },
+    });
+    const result = await dispatchSpecTrace(
+      "re-cinq/lore",
+      "specs",
+      { commit: "abc123" },
+      {
+        dgraph: stubDgraph,
+        projectFor,
+        startLine: async (input) => {
+          started.push(input as unknown as Record<string, unknown>);
+
+          return "a1b2c3d4-0000-0000-0000-000000000000";
+        },
+      },
+    );
+
+    expect(started).toEqual([
+      {
+        definitionName: "ingest",
+        repo: "re-cinq/lore",
+        branch: "abc123",
+        args: { kind: "specs" },
+      },
+    ]);
+    expect(result.failedFiles).toEqual([]);
+    expect(result.logLine).toContain("ingest line a1b2c3d4");
+  });
+
+  it("threads glob and force into the line args as strings", async () => {
+    const started: Array<Record<string, unknown>> = [];
+    const projectFor = async (_repo: string) => ({
+      repo: { tree: async () => [] as string[], read: async () => "" },
+    });
+
+    await dispatchSpecTrace(
+      "re-cinq/lore",
+      "specs",
+      { commit: "abc123", force: true, glob: "specs/auth/" },
+      {
+        dgraph: stubDgraph,
+        projectFor,
+        startLine: async (input) => {
+          started.push(input as unknown as Record<string, unknown>);
+
+          return "lineid";
+        },
+      },
+    );
+
+    expect(started[0]).toMatchObject({
+      args: { kind: "specs", glob: "specs/auth/", force: "true" },
+    });
+  });
+
   it("chunks a force run without a glob into one child event per top-level dir instead of projecting inline", async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const projectFor = async (_repo: string) => ({

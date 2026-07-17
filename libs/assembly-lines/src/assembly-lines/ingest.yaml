@@ -1,0 +1,17 @@
+name: ingest
+description: One internal.ingest.* payload projected into the spec-traceability graph by an ingest station pod (specs/ingest-station FR2).
+version: 1
+entry: ingest
+exit: done
+nodes:
+  - id: ingest
+    type: ingest
+    timeout_minutes: 10
+    description: Runs the docs projection against the pod's clone; kind/glob/force arrive via the line's args.
+  - id: done
+    type: retrospective
+    description: Terminal marker (the executor halts on exit).
+edges:
+  - from: ingest
+    to: done
+    on: success

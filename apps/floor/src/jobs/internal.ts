@@ -11,6 +11,7 @@ import {
 } from "./spec-trace/spec-trace-dispatch.js";
 import { projectFor } from "../composition/project-boot.js";
 import { insertEvent } from "../main-loop/store.js";
+import { assemblyLines } from "../kernel/queues.js";
 import { writeAuditLog } from "./lib/audit.js";
 import { validateSpecCoverageJob } from "@re-cinq/lore-shared/detect/index.js";
 import type { EventHandler } from "../main-loop/types.js";
@@ -35,7 +36,14 @@ export const specTrace: EventHandler = async (params) => {
     repo,
     kind,
     payload,
-    { dgraph, projectFor, insertEvent },
+    {
+      dgraph,
+      projectFor,
+      insertEvent,
+      // FR2: docs kinds run as ingest-station lines; payload kinds stay inline
+      // until FR3 (dispatchSpecTrace routes only repo-read kinds through this).
+      startLine: (input) => assemblyLines().start(input),
+    },
   );
 
   // Log + audit record this attempt's summary BEFORE the completeness guard —
