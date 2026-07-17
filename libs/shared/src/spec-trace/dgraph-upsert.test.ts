@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
+import { findRepoRoot } from "../lib/repo-root.js";
 import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import {
@@ -20,7 +21,7 @@ import type { DgraphClientPort, DgraphTxn } from "../memory-store.js";
  */
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
-const REPO_ROOT = join(process.cwd(), "..");
+const REPO_ROOT = findRepoRoot();
 const APPLIER = join(
   REPO_ROOT,
   "scripts",
