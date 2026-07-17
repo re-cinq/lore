@@ -263,6 +263,43 @@ describe("runIngestStation", () => {
     expect(await embed("x")).toBeNull();
   });
 
+  it("apiEmbed retries a 429 after backing off and succeeds — a per-statement burst can outrun the API's embed bucket", async () => {
+    const slept: number[] = [];
+    let attempts = 0;
+    const embed = apiEmbed(
+      "https://lore-api.example",
+      "tok-123",
+      async () => {
+        attempts += 1;
+
+        return attempts < 3
+          ? new Response("rate limit exceeded", { status: 429 })
+          : new Response(JSON.stringify({ embedding: [0.5] }), { status: 200 });
+      },
+      async (ms) => {
+        slept.push(ms);
+      },
+    );
+
+    expect(await embed("statement")).toEqual([0.5]);
+    expect(slept).toEqual([2000, 5000]);
+  });
+
+  it("apiEmbed gives up after 4 429s (3 retries) with the status in the error", async () => {
+    const slept: number[] = [];
+    const embed = apiEmbed(
+      "https://lore-api.example",
+      "tok-123",
+      async () => new Response("rate limit exceeded", { status: 429 }),
+      async (ms) => {
+        slept.push(ms);
+      },
+    );
+
+    await expect(embed("statement")).rejects.toThrow(/429/);
+    expect(slept).toEqual([2000, 5000, 15000]);
+  });
+
   it("rejects an unknown kind", async () => {
     await expect(
       runIngestStation(input({ kind: "bogus" }), {

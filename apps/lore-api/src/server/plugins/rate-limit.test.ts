@@ -26,6 +26,19 @@ describe("rate-limit ext", () => {
     process.env = { ...originalEnv };
   });
 
+  it("routes /api/embed to its own 1200/min bucket — the per-statement projector burst must not starve (or be starved by) the 200/min default", async () => {
+    const { bucketFor } = await import("./rate-limit.js");
+    const { rateLimit } = await import("../../api/routes/auth.js");
+
+    expect(bucketFor("/api/embed")).toBe("embed");
+
+    for (let i = 0; i < 1200; i++) {
+      expect(rateLimit("embed")).toBe(true);
+    }
+    expect(rateLimit("embed")).toBe(false);
+    expect(rateLimit("default")).toBe(true);
+  });
+
   it("trips the default bucket at the 201st request on a native route (/dist)", async () => {
     const server = buildServer(() => null);
     const hit = () =>
