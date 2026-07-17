@@ -33,19 +33,20 @@ controller:
   replicas: 1
   image:
     repository: ghcr.io/re-cinq/ai-agent-controller
-    # Pinned by digest (never a floating tag) — v0.6.1: run pods carry
-    # cluster-autoscaler.kubernetes.io/safe-to-evict "false" so a node scale-down
-    # no longer evicts a live run mid-flight (with backoffLimit 0 one eviction
-    # failed the whole attempt with BackoffLimitExceeded; ai-agent-subsystem#168).
+    # Pinned by digest (never a floating tag) — v0.6.2: stdout (pod logs /
+    # Agent.status.output) carries the BARE event line; the {source,event}
+    # attribution envelope rides only on sink deliveries, and wrapEvent
+    # enforce-throws on nesting (ai-agent-subsystem#171). Prerequisite for
+    # deleting lore's transitional reader peel (lore#857).
     # Resolved via
-    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.6.1
-    digest: "sha256:78a4d2ef523c8406701c97dae49508260b418864c9dfc40e4a2097bf38849e92"
+    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.6.2
+    digest: "sha256:0d4ad7c0938bd83ee537c41a8dba9a178dc0690671ef97783508b538fa8d69f7"
   # The image whose init container injects the agent runtime + supervisor into each run
-  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.6.1
+  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.6.2
   # digest, paired with the controller above. Resolve with (needs ghcr read on the
   # ai-agent package — not public):
-  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.6.1
-  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:191865beed61d2a32ef1660691c9b1b99982c48a5590b7fe575ce10b6638cd1e"
+  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.6.2
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:94f2c94428772f70d9792b2592467da9ad839d127635fabc31588cc45d63d742"
   # Tail of run-pod log kept in Agent.status.output (bounds the object under etcd's limit).
   maxOutputBytes: "262144"
   resources:
