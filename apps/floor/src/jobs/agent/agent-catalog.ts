@@ -18,6 +18,9 @@ export interface StationCatalogConfig {
   /** The argv the exec vendor spawns; the rendered station_input is appended. */
   command: string[];
   timeout_minutes?: number;
+  /** Plain env for the station pod (e.g. def-ingest's LORE_DGRAPH_HTTP — the
+   *  label-scoped dgraph egress exists only for that station type, FR4). */
+  env?: Record<string, string>;
 }
 
 const API_VERSION = "agents.re-cinq.com/v1alpha1";
@@ -163,6 +166,14 @@ export function buildStationStation(
             {
               name: "agent",
               image: STATION_IMAGE_SENTINEL,
+              ...(cfg.env
+                ? {
+                    env: Object.entries(cfg.env).map(([name, value]) => ({
+                      name,
+                      value,
+                    })),
+                  }
+                : {}),
               resources: {
                 requests: { cpu: "250m", memory: "512Mi" },
                 limits: { cpu: "1", memory: "1Gi" },

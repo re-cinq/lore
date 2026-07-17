@@ -1,0 +1,29 @@
+# The ONE hole in the run-pod egress posture (agent-job-egress denies all
+# RFC1918): ingest-station pods — and only they — may reach dgraph, because the
+# docs projector writes the spec-traceability graph directly (ADR-031
+# ingest-station amendment, Option 1: the pod runs the signed, deterministic
+# lore-station binary; no repo code, no LLM). NetworkPolicies are additive, so
+# this grants on top of agent-job-egress for pods of the def-ingest station.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ingest-station-egress
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      agents.re-cinq.com/component: job
+      agents.re-cinq.com/station: def-ingest
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: lore-dgraph
+          podSelector:
+            matchLabels:
+              app: lore-dgraph
+      ports:
+        - protocol: TCP
+          port: 8080

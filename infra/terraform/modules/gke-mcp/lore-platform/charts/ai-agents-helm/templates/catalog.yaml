@@ -1217,6 +1217,9 @@ spec:
       containers:
         - name: agent
           image: {{ .Values.stationImage }}
+          env:
+            - name: LORE_DGRAPH_HTTP
+              value: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080
           resources:
             requests:
               cpu: 250m
