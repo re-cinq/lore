@@ -67,7 +67,10 @@ export function buildRegistry(): Map<string, EventHandler> {
 
     // ── Internal (mcp-server post-ingest) ──
     ["internal.ingest.spec_trace", internal.specTrace],
-    ["internal.ingest.spec_coverage_validate", internal.specCoverageValidate],
+    // FR5 (specs/ingest-station): the post-ingest validate rides the SAME detect
+    // tick as the weekly cron — params.repo narrows it, the core runs in a
+    // station pod, never inline in the Floor.
+    ["internal.ingest.spec_coverage_validate", detect.specCoverageValidateTick],
 
     // ── Assembly lines (project.assemblyLines.start() inserts row + event atomically;
     //    a top-level family — the assembly line is a primary concept, its producer
