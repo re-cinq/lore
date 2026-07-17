@@ -4,6 +4,7 @@ import {
   terminalErrorText,
   resultLine,
   eventLine,
+  unwrapAttribution,
 } from "./agent-output.js";
 import { parseNodeResult } from "./node-outcome.js";
 
@@ -173,6 +174,95 @@ describe("terminalErrorText", () => {
     const output = bareResultLine("x".repeat(500), true);
 
     expect(terminalErrorText(output)?.length).toBe(300);
+  });
+});
+
+describe("unwrapAttribution", () => {
+  const resultEvent = { type: "result", is_error: false, result: "done" };
+
+  it("returns the event and source of a single {source,event} envelope", () => {
+    expect(
+      unwrapAttribution({ source: { task: "t1" }, event: resultEvent }),
+    ).toEqual({ source: { task: "t1" }, event: resultEvent });
+  });
+
+  it("peels both layers of a double-wrapped envelope", () => {
+    expect(
+      unwrapAttribution({
+        source: { task: "t1" },
+        event: { source: { task: "t1" }, event: resultEvent },
+      }),
+    ).toEqual({ source: { task: "t1" }, event: resultEvent });
+  });
+
+  it("merges double-wrap source fields with the outer envelope winning", () => {
+    expect(
+      unwrapAttribution({
+        source: { task: "outer-task", agent: "outer-agent" },
+        event: {
+          source: { task: "inner-task", pod: "inner-pod" },
+          event: resultEvent,
+        },
+      }),
+    ).toEqual({
+      source: { task: "outer-task", agent: "outer-agent", pod: "inner-pod" },
+      event: resultEvent,
+    });
+  });
+
+  it("takes an inner source field the outer envelope leaves undefined", () => {
+    expect(
+      unwrapAttribution({
+        source: { agent: "outer-agent" },
+        event: { source: { task: "inner-task" }, event: resultEvent },
+      }).source,
+    ).toEqual({ task: "inner-task", agent: "outer-agent" });
+  });
+
+  it("returns a null source when neither envelope source is an object", () => {
+    expect(
+      unwrapAttribution({
+        source: "agent-1",
+        event: { source: null, event: resultEvent },
+      }),
+    ).toEqual({ source: null, event: resultEvent });
+  });
+
+  it("leaves a third envelope layer intact as the event", () => {
+    const third = { source: { task: "t1" }, event: resultEvent };
+
+    expect(
+      unwrapAttribution({
+        source: { task: "t1" },
+        event: { source: { task: "t1" }, event: third },
+      }),
+    ).toEqual({ source: { task: "t1" }, event: third });
+  });
+
+  it("returns a null source and the value itself for a bare line with no envelope", () => {
+    expect(unwrapAttribution(resultEvent)).toEqual({
+      source: null,
+      event: resultEvent,
+    });
+    expect(unwrapAttribution("raw stdout text")).toEqual({
+      source: null,
+      event: "raw stdout text",
+    });
+  });
+
+  it("returns a null source when the envelope source is not an object", () => {
+    expect(
+      unwrapAttribution({ source: "agent-1", event: resultEvent }),
+    ).toEqual({ source: null, event: resultEvent });
+  });
+
+  it("returns a null source when only the inner envelope source is an object", () => {
+    expect(
+      unwrapAttribution({
+        source: "agent-1",
+        event: { source: { task: "t1" }, event: resultEvent },
+      }),
+    ).toEqual({ source: { task: "t1" }, event: resultEvent });
   });
 });
 
