@@ -86,6 +86,9 @@ class GitHubHttp {
     return (
       await this.http.get<{ issues: IssueRef[] }>("/issues", {
         state: filter?.state ?? "open",
+        // Dropping this silently returned every open issue to a caller that
+        // asked for a label subset — the filter has to reach GitHub.
+        ...(filter?.labels?.length ? { labels: filter.labels.join(",") } : {}),
       })
     ).issues;
   }
@@ -151,7 +154,7 @@ class TraceHttp {
   }
 }
 
-/** TaskStorePort subset: driftTasksForSpec + findOpenLike + create. */
+/** TaskStorePort subset: driftTasksForSpec + specTasksForSlug + findOpenLike + create. */
 class TaskStoreHttp {
   constructor(private readonly http: Http) {}
   async driftTasksForSpec(
@@ -163,6 +166,16 @@ class TaskStoreHttp {
       await this.http.get<{ tasks: DriftTaskRow[] }>("/tasks/drift", {
         task_type: taskType,
         spec_path: specPath,
+      })
+    ).tasks;
+  }
+  async specTasksForSlug(
+    _repo: string,
+    specSlug: string,
+  ): Promise<DriftTaskRow[]> {
+    return (
+      await this.http.get<{ tasks: DriftTaskRow[] }>("/tasks/spec-slug", {
+        spec_slug: specSlug,
       })
     ).tasks;
   }

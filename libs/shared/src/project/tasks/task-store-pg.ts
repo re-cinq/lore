@@ -174,6 +174,20 @@ export class PgTaskStore implements TaskStorePort {
     return rows as DriftTaskRow[];
   }
 
+  async specTasksForSlug(
+    repo: string,
+    specSlug: string,
+  ): Promise<DriftTaskRow[]> {
+    const { rows } = await this.pool.query<DriftTaskRow>(
+      `SELECT status, created_at, issue_number FROM pipeline.tasks
+       WHERE target_repo = $1 AND task_type = 'spec-task'
+         AND context_bundle->>'spec_slug' = $2`,
+      [repo, specSlug],
+    );
+
+    return rows as DriftTaskRow[];
+  }
+
   private async byStatus(
     repo: string,
     statuses: string[],

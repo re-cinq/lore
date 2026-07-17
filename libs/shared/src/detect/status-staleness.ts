@@ -45,8 +45,8 @@ const STALE_STATUS_LABEL = "stale-spec-status";
 /** Statuses that can be stale. Terminal buckets (shipped/rejected/retired) can't. */
 const CANDIDATE_STATUSES: StatusBucket[] = ["draft", "in-progress"];
 
-/** Task types whose merge is evidence the spec's feature actually shipped. */
-const IMPLEMENTING_TASK_TYPES = ["spec-task", "implementation"];
+/** `specs/<slug>/…` — the feature slug a spec path belongs to. */
+const SPEC_SLUG_RE = /^specs\/([^/]+)\//;
 
 /**
  * Statuses meaning a task is still going somewhere — the pending + running
@@ -94,6 +94,16 @@ export interface StaleFinding {
 }
 
 // ── Pure helpers ────────────────────────────────────────────────────
+
+/**
+ * The feature slug a spec path belongs to — `specs/<slug>/spec.md` → `<slug>`,
+ * the same key `specTaskRows` stamps into every spec-task's context bundle.
+ * `null` for a spec living outside the `specs/` convention, which simply has no
+ * task rows to find.
+ */
+export function specSlugFromPath(specPath: string): string | null {
+  return specPath.match(SPEC_SLUG_RE)?.[1] ?? null;
+}
 
 /**
  * Repo-relative file paths a spec names in backticked code spans, deduped.
@@ -244,18 +254,75 @@ export interface StatusStalenessOptions {
   project: Project;
 }
 
-/** Every implementing task linked to the spec, across the task types that count. */
+/**
+ * File the one aggregated report for a repo; returns how many issues were opened
+ * (0 or 1). Skips when an open `stale-spec-status` issue already exists — this
+ * runs weekly and would otherwise stack a duplicate every Monday. A read failure
+ * leaves the list empty and we fall through to file: surfacing the staleness
+ * beats silence, and a duplicate issue is the cheaper mistake.
+ */
+async function fileReport(
+  project: Project,
+  repo: string,
+  findings: StaleFinding[],
+): Promise<number> {
+  const openIssues = await project.issues
+    .list({ state: "open", labels: [STALE_STATUS_LABEL] })
+    .catch((err) => {
+      console.error(
+        `[job] status-staleness: open-issue read failed for ${repo}:`,
+        err,
+      );
+
+      return [] as Awaited<ReturnType<typeof project.issues.list>>;
+    });
+
+  if (hasOpenStaleStatusIssue(openIssues)) {
+    console.log(
+      `[job] status-staleness: ${repo} — ${findings.length} stale specs, open ${STALE_STATUS_LABEL} issue exists, skipping`,
+    );
+
+    return 0;
+  }
+
+  try {
+    const issue = await project.issues.create(
+      "Stale spec statuses",
+      formatStaleStatusReport(findings),
+      [STALE_STATUS_LABEL, "lore-managed"],
+    );
+
+    console.log(
+      `[job] status-staleness: ${repo} — ${findings.length} stale specs → issue ${issue.url}`,
+    );
+
+    return 1;
+  } catch (err) {
+    console.error(
+      `[job] status-staleness: failed to file report for ${repo}:`,
+      err,
+    );
+
+    return 0;
+  }
+}
+
+/**
+ * Every spec-task linked to the spec, or `[]` for a spec outside `specs/<slug>/`.
+ *
+ * `spec-task` is the only task type that links back to a spec at all, and
+ * `spec_slug` is the only key it links by (`specTaskRows` / `syncTasksToDb`
+ * write it; nothing writes `spec_path` onto a spec-task). `implementation` rows
+ * are deliberately not consulted: the review-fix loop is their only creator and
+ * its bundle holds a branch and a parent task id, nothing spec-shaped.
+ */
 async function linkedTasks(
   project: Project,
   specPath: string,
 ): Promise<DriftTaskRow[]> {
-  const perType = await Promise.all(
-    IMPLEMENTING_TASK_TYPES.map((taskType) =>
-      project.tasks.driftTasksForSpec(taskType, specPath),
-    ),
-  );
+  const slug = specSlugFromPath(specPath);
 
-  return perType.flat();
+  return slug ? project.tasks.specTasksForSlug(slug) : [];
 }
 
 export async function statusStalenessJob(
@@ -326,48 +393,8 @@ export async function statusStalenessJob(
     }
   }
 
-  let reportsOpened = 0;
-
-  if (findings.length > 0) {
-    // Dedup: skip filing when an open stale-spec-status issue already exists —
-    // this runs weekly and would otherwise stack a duplicate every Monday. A read
-    // failure leaves openIssues empty and we fall through to file; surfacing the
-    // staleness beats silence.
-    try {
-      const openIssues = await project.issues
-        .list({ state: "open" })
-        .catch((err) => {
-          console.error(
-            `[job] status-staleness: open-issue read failed for ${repo}:`,
-            err,
-          );
-
-          return [] as Awaited<ReturnType<typeof project.issues.list>>;
-        });
-
-      if (hasOpenStaleStatusIssue(openIssues)) {
-        console.log(
-          `[job] status-staleness: ${repo} — ${findings.length} stale specs, open ${STALE_STATUS_LABEL} issue exists, skipping`,
-        );
-      } else {
-        const issue = await project.issues.create(
-          "Stale spec statuses",
-          formatStaleStatusReport(findings),
-          [STALE_STATUS_LABEL, "lore-managed"],
-        );
-
-        reportsOpened++;
-        console.log(
-          `[job] status-staleness: ${repo} — ${findings.length} stale specs → issue ${issue.url}`,
-        );
-      }
-    } catch (err) {
-      console.error(
-        `[job] status-staleness: failed to file report for ${repo}:`,
-        err,
-      );
-    }
-  }
+  const reportsOpened =
+    findings.length > 0 ? await fileReport(project, repo, findings) : 0;
 
   const summary = `Checked ${candidates} draft/in-progress specs in ${repo} — ${findings.length} look implemented, ${reportsOpened} reports opened`;
 

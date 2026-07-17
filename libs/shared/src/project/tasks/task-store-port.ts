@@ -72,12 +72,23 @@ export interface TaskStorePort {
   getWithEvents(id: string): Promise<TaskWithEvents | null>;
   /** Open (per `statuses`) tasks of one type whose description starts with the prefix — job dedup. */
   findOpenLike(input: FindOpenLikeInput): Promise<PipelineTask[]>;
-  /** Drift dedup: tasks of one type for a repo keyed by `context_bundle->>'spec_path'`. */
+  /**
+   * Drift dedup: tasks of one type for a repo keyed by
+   * `context_bundle->>'spec_path'`. Only spec-drift's `gap-fill` tasks carry
+   * that key — for spec-tasks use `specTasksForSlug`.
+   */
   driftTasksForSpec(
     repo: string,
     taskType: string,
     specPath: string,
   ): Promise<DriftTaskRow[]>;
+  /**
+   * Every `spec-task` for a feature, keyed by `context_bundle->>'spec_slug'` —
+   * the link spec-task rows actually carry (`specTaskRows` / `syncTasksToDb`
+   * write `spec_slug`, never `spec_path`). The status-staleness detector's
+   * completion signal (spec-status-upkeep FR2).
+   */
+  specTasksForSlug(repo: string, specSlug: string): Promise<DriftTaskRow[]>;
   // writes
   create(input: CreateTaskInput): Promise<CreatedTask>;
   retry(id: string): Promise<RetriedTask>;

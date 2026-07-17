@@ -39,13 +39,14 @@ const TaskBody = z.object({
  * the shared Project facade server-side. Grouped in one array for registration.
  *
  *   GET  /repos/:o/:r/onboarded                → { onboarded }
- *   GET  /repos/:o/:r/issues?state=            → { issues }
+ *   GET  /repos/:o/:r/issues?state=&labels=    → { issues }
  *   POST /repos/:o/:r/issues                   → the created issue
  *   POST /repos/:o/:r/branches                 → { ok }        (branch create)
  *   POST /repos/:o/:r/commit                   → { ok }        (commit a file)
  *   POST /repos/:o/:r/pulls                    → the opened PR
  *   GET  /repos/:o/:r/ci-conclusion?ref=       → { conclusion }
  *   GET  /repos/:o/:r/tasks/drift?…            → { tasks }     (spec_path dedup)
+ *   GET  /repos/:o/:r/tasks/spec-slug?…        → { tasks }     (spec-tasks for a feature)
  *   GET  /repos/:o/:r/tasks/open-like?…        → { tasks }     (prefix dedup)
  *   POST /repos/:o/:r/tasks                     → the created task
  */
@@ -79,9 +80,18 @@ export function stationDataRoutes(): ServerRoute[] {
         try {
           const state =
             (request.query.state as "open" | "closed" | undefined) ?? "open";
+          const labels = (request.query.labels as string | undefined)
+            ?.split(",")
+            .map((l) => l.trim())
+            .filter(Boolean);
           const p = await projectFor(repoOf(request.params));
 
-          return h.response({ issues: await p.issues.list({ state }) });
+          return h.response({
+            issues: await p.issues.list({
+              state,
+              ...(labels?.length ? { labels } : {}),
+            }),
+          });
         } catch (err) {
           return fail(h, err);
         }
@@ -208,6 +218,27 @@ export function stationDataRoutes(): ServerRoute[] {
 
           return h.response({
             tasks: await p.tasks.driftTasksForSpec(q.task_type, q.spec_path),
+          });
+        } catch (err) {
+          return fail(h, err);
+        }
+      },
+    },
+    {
+      method: "GET",
+      path: "/api/repos/{owner}/{repo}/tasks/spec-slug",
+      options: bearerScope("read"),
+      handler: async (request, h) => {
+        try {
+          const specSlug = request.query.spec_slug as string | undefined;
+
+          if (!specSlug) {
+            return h.response({ error: "spec_slug required" }).code(400);
+          }
+          const p = await projectFor(repoOf(request.params));
+
+          return h.response({
+            tasks: await p.tasks.specTasksForSlug(specSlug),
           });
         } catch (err) {
           return fail(h, err);

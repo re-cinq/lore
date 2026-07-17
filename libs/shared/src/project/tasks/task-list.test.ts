@@ -40,6 +40,7 @@ function fakeStore(rows: PipelineTask[]): TaskStorePort {
           statuses.includes(r.status),
       ),
     driftTasksForSpec: async () => [],
+    specTasksForSlug: async () => [],
     create: async (input) => ({
       task_id: "new",
       task_type: input.taskType ?? "general",
