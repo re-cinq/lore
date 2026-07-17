@@ -12,6 +12,7 @@ const NodeType = z.enum([
   "github_action",
   "detect",
   "comment-triage",
+  "ingest",
 ]);
 const EdgeCondition = z.enum([
   "success",

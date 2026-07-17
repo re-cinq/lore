@@ -42,11 +42,17 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   ([validated by `ingest.test.ts:76`](apps/lore-station/src/stations/ingest.test.ts#L85), [`ingest.test.ts:89`](apps/lore-station/src/stations/ingest.test.ts#L98), [`ingest.test.ts:101`](apps/lore-station/src/stations/ingest.test.ts#L110), [`ingest.test.ts:119`](apps/lore-station/src/stations/ingest.test.ts#L128), [`ingest.test.ts:150`](apps/lore-station/src/stations/ingest.test.ts#L150), [`ingest.test.ts:202`](apps/lore-station/src/stations/ingest.test.ts#L202), [`ingest-graph-task.test.ts:145`](libs/shared/src/spec-trace/ingest-graph-task.test.ts#L145); implemented by [`ingest.ts:71`](apps/lore-station/src/stations/ingest.ts#L71))
 
 - **FR2 — dispatch.** A single-node detect-shaped assembly line definition
-  (`libs/assembly-lines/src/assembly-lines/ingest.yaml`) rides the standard
-  event-driven walk, per-node timeout, and reaper. The Floor's `internal.ingest.*`
-  handlers shrink to `assemblyLines().start("ingest", …)` with the event payload and
-  mark the event done — convergence, retry, and dead-letter shift from the event loop
-  to the line machinery (the reaper is the liveness bound; ADR-031 FR6.10).
+  (`libs/assembly-lines/src/assembly-lines/ingest.yaml`, node type `ingest`) rides
+  the standard event-driven walk, per-node timeout, and reaper. With the line
+  starter wired, the Floor's spec-trace dispatch routes docs kinds to
+  `assemblyLines().start("ingest", …)` — the clone pinned to the ingested commit
+  via the line's `branch` field (full clone + `git checkout <ref>`), `kind`/`glob`/
+  `force` threaded as string args into `station_input.params` — and the event marks
+  done; convergence, retry, and dead-letter shift from the event loop to the line
+  machinery (the reaper is the liveness bound; ADR-031 FR6.10). Force-without-glob
+  still self-chunks into child events BEFORE any line starts; payload kinds stay
+  inline until FR3.
+  ([validated by `spec-trace-dispatch:89`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L89), [`spec-trace-dispatch:126`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L126), [`loader:231`](libs/assembly-lines/src/loader.test.ts#L231); implemented by [`spec-trace-dispatch.ts:120`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.ts#L120), [`ingest.yaml:1`](libs/assembly-lines/src/assembly-lines/ingest.yaml#L1))
 
 - **FR3 — payload transport.** `station_input` carries kind + a payload *reference*,
   never an inline test-report body: report payloads reach ~1 MB (the HTTP body

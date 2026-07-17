@@ -228,6 +228,29 @@ edges:
     });
   });
 
+  it("accepts an ingest node type (the ingest-station line)", () => {
+    const wf = parseAssemblyLine(`
+name: ingest
+description: d
+version: 1
+entry: ingest
+exit: done
+nodes:
+  - id: ingest
+    type: ingest
+  - id: done
+    type: retrospective
+edges:
+  - from: ingest
+    to: done
+    on: success
+`);
+
+    expect(wf.nodes.find((n) => n.id === "ingest")).toMatchObject({
+      type: "ingest",
+    });
+  });
+
   it("accepts station_ref and timeout_minutes on a node", () => {
     const wf = parseAssemblyLine(`
 name: custom-line
@@ -333,6 +356,7 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
       "gap-fill",
       "general",
       "implementation",
+      "ingest",
       "spec-coverage-backfill",
       "spec-coverage-validate",
       "spec-drift",
