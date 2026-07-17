@@ -46,9 +46,8 @@ function fixtureClone(): string {
 function fakeDgraph(): { port: DgraphClientPort; mutations: number } {
   const state = { mutations: 0 };
   const txn: DgraphTxn = {
-    // eslint-disable-next-line @typescript-eslint/require-await
     queryWithVars: async () => ({ data: { found: [] } }),
-    // eslint-disable-next-line @typescript-eslint/require-await
+
     mutate: async (m: Record<string, unknown>) => {
       state.mutations += 1;
       const setJson = m["setJson"] as Record<string, unknown> | undefined;
@@ -60,7 +59,7 @@ function fakeDgraph(): { port: DgraphClientPort; mutations: number } {
 
       return { data: {} };
     },
-    // eslint-disable-next-line @typescript-eslint/require-await
+
     discard: async () => {},
   };
 
@@ -118,13 +117,12 @@ describe("runIngestStation", () => {
 
   it("returns outcome failed naming the files when a projection fails partially", async () => {
     const broken: DgraphTxn = {
-      // eslint-disable-next-line @typescript-eslint/require-await
       queryWithVars: async () => ({ data: { found: [] } }),
-      // eslint-disable-next-line @typescript-eslint/require-await
+
       mutate: async () => {
         throw new Error("Schema not defined for predicate Spec.xid");
       },
-      // eslint-disable-next-line @typescript-eslint/require-await
+
       discard: async () => {},
     };
     const result = await runIngestStation(input({ kind: "specs" }), {
