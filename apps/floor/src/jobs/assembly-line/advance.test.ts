@@ -7,6 +7,7 @@ import {
 } from "@re-cinq/lore-assembly-lines";
 import {
   advanceLine,
+  finishLine,
   finishNodeAndAdvance,
   taskFromRow,
   type AdvanceDeps,
@@ -46,6 +47,7 @@ function makeDeps(port: InMemoryAssemblyLines) {
   const launched: LoreTaskSpec[] = [];
   const cleaned: string[] = [];
   const jobRuns: string[] = [];
+  const notified: Array<{ id: string; outcome: string; reason?: string }> = [];
   const deps: AdvanceDeps = {
     assemblyLines: port,
     definitions: async () =>
@@ -65,9 +67,12 @@ function makeDeps(port: InMemoryAssemblyLines) {
         jobRuns.push(`fail:${runId}:${reason}`);
       },
     },
+    notifyFailure: async (row, outcome, reason) => {
+      notified.push({ id: row.id, outcome, reason });
+    },
   };
 
-  return { deps, launched, cleaned, jobRuns };
+  return { deps, launched, cleaned, jobRuns, notified };
 }
 
 async function runningLine(port: InMemoryAssemblyLines) {
@@ -402,6 +407,84 @@ edges:
 
     expect(await port.getById(id)).toMatchObject({ status: "failed" });
     expect(jobRuns.at(-1)).toContain("fail:jr-1:");
+  });
+
+  it("closes the line with outcome failed when a node failed on the way to exit", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await runningLine(port);
+    const { deps, notified } = makeDeps(port);
+
+    await advanceLine(id, deps);
+    await port.finishNodeOnce(port.nodes[0]!.id, "failed");
+    await advanceLine(id, deps);
+
+    expect(await port.getById(id)).toMatchObject({ outcome: "failed" });
+    expect(notified).toEqual([
+      { id, outcome: "failed", reason: 'node "review" failed' },
+    ]);
+  });
+
+  it("does not notify when the walk finishes completed", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await runningLine(port);
+    const { deps, notified } = makeDeps(port);
+
+    await advanceLine(id, deps);
+    await port.finishNodeOnce(port.nodes[0]!.id, "success");
+    await advanceLine(id, deps);
+
+    expect(await port.getById(id)).toMatchObject({ outcome: "completed" });
+    expect(notified).toEqual([]);
+  });
+
+  it("does not notify the lease_held defer of an overlapping duplicate", async () => {
+    const port = new InMemoryAssemblyLines();
+    const first = await runningLine(port);
+    const second = await runningLine(port);
+    const { deps, notified } = makeDeps(port);
+
+    await advanceLine(first, deps);
+    await advanceLine(second, deps);
+
+    const outcomes = [
+      (await port.getById(first))?.outcome,
+      (await port.getById(second))?.outcome,
+    ];
+
+    expect(outcomes.filter((o) => o === "lease_held")).toHaveLength(1);
+    expect(notified).toEqual([]);
+  });
+
+  it("notifies exactly once when racing finishers close the same failed line", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await runningLine(port);
+    const { deps, notified } = makeDeps(port);
+    const row = (await port.getById(id))!;
+
+    await finishLine(row, "error", "station exploded", deps);
+    await finishLine(row, "error", "late racer", deps);
+
+    expect(notified).toEqual([
+      { id, outcome: "error", reason: "station exploded" },
+    ]);
+  });
+
+  it("finishes the line even when the failure notifier throws", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+
+    deps.notifyFailure = async () => {
+      throw new Error("slack down");
+    };
+    const row = (await port.getById(id))!;
+
+    await finishLine(row, "error", "station exploded", deps);
+
+    expect(await port.getById(id)).toMatchObject({
+      status: "failed",
+      outcome: "error",
+    });
   });
 });
 

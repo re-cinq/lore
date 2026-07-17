@@ -94,6 +94,15 @@ describe("PgAssemblyLines adapter", () => {
     expect(calls[0]?.params).toEqual(["pr_created", null, "al-1"]);
   });
 
+  it("finish returns true when this call closed the row and false when it was already terminal", async () => {
+    const { pool, calls } = fakePool([[{ id: "al-1" }], []]);
+    const adapter = new PgAssemblyLines(pool);
+
+    expect(await adapter.finish("al-1", "completed")).toBe(true);
+    expect(await adapter.finish("al-1", "error", "late racer")).toBe(false);
+    expect(calls[0]?.text).toContain("RETURNING id");
+  });
+
   it("finish with outcome error records the reason", async () => {
     const { pool, calls } = fakePool();
 
@@ -281,6 +290,18 @@ describe("InMemoryAssemblyLines double", () => {
 
     expect(assemblyLines.rows[0]).toMatchObject({ status: "running" });
     expect(assemblyLines.rows[0]?.startedAt).not.toBeNull();
+  });
+
+  it("finish returns true for the first writer and false for the losing duplicate", async () => {
+    const assemblyLines = new InMemoryAssemblyLines();
+    const id = await assemblyLines.start({
+      definitionName: "general",
+      repo: "re-cinq/lore",
+    });
+
+    expect(await assemblyLines.finish(id, "completed")).toBe(true);
+    expect(await assemblyLines.finish(id, "error")).toBe(false);
+    expect(assemblyLines.rows[0]).toMatchObject({ outcome: "completed" });
   });
 
   it("finish with outcome pr_created closes the row as finished", async () => {

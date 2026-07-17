@@ -53,8 +53,11 @@ export interface AssemblyLinesPort {
    */
   start(input: AssemblyLineStartInput): Promise<string>;
   markRunning(id: string): Promise<void>;
-  /** `outcome: "error"` closes the row as `failed`; anything else as `finished`. */
-  finish(id: string, outcome: string, reason?: string): Promise<void>;
+  /** `outcome: "error"` closes the row as `failed`; anything else as `finished`.
+   *  First writer decides — returns true only for the call that closed the row,
+   *  so racing finishers (node event vs reaper) can gate once-only side effects
+   *  (failure notification) on the win. */
+  finish(id: string, outcome: string, reason?: string): Promise<boolean>;
   getById(id: string): Promise<AssemblyLineRecord | null>;
   listForTask(taskId: string): Promise<AssemblyLineRecord[]>;
   /**

@@ -57,6 +57,30 @@ describe("assemblyLineCheck", () => {
     ).toMatchObject({ status: "completed", conclusion: "failure" });
   });
 
+  it("maps a finished line with outcome failed to a failure conclusion carrying the reason", () => {
+    expect(
+      assemblyLineCheck(
+        line({
+          status: "finished",
+          outcome: "failed",
+          reason: 'node "review" failed',
+        }),
+      ),
+    ).toMatchObject({
+      status: "completed",
+      conclusion: "failure",
+      summary: expect.stringContaining('node "review" failed'),
+    });
+  });
+
+  it("adds the @lore review re-run hint to a failed code-review line", () => {
+    const check = assemblyLineCheck(
+      line({ status: "finished", outcome: "failed" }),
+    );
+
+    expect(check?.summary).toContain("@lore review");
+  });
+
   it("maps a pr_closed outcome to a cancelled conclusion", () => {
     expect(
       assemblyLineCheck(line({ status: "finished", outcome: "pr_closed" })),
