@@ -10,10 +10,15 @@
 #   - clear ONLY a STALE (>5m) pending revision left by a dead run — never an
 #     active concurrent deploy's fresh lock.
 #
-# Usage: deploy-lore-platform.sh <subchart> <image_tag> <deployment> <namespace>
+# Usage: deploy-lore-platform.sh <subchart> <image_tag> <deployment> <namespace> [image_repo] [values_overlay]
 #   e.g. deploy-lore-platform.sh lore-api 5d270e9 lore-api lore-api
 # An image_tag of "-" deploys the chart as checked out with no image override —
 # for subcharts whose images are digest-pinned in values.yaml (ai-agents).
+# `values_overlay` (a YAML/JSON file) is passed with -f AFTER the reused values,
+# so its keys win over the release's stored user-supplied values. The release
+# carries a full legacy ai-agents block that would otherwise shadow every
+# values.yaml edit under --reset-then-reuse-values (2026-07-16: a memory-limit
+# bump deployed green and changed nothing).
 set -euo pipefail
 
 SUBCHART="${1:?subchart values key, e.g. lore-floor}"
@@ -21,6 +26,7 @@ TAG="${2:?image tag, or - for no image override}"
 DEPLOY="${3:?deployment name for rollout status}"
 NS="${4:?namespace of that deployment}"
 IMAGE_REPO="${5:-}" # optional: pin image.repository too
+VALUES_OVERLAY="${6:-}" # optional: -f overlay that outranks stored release values
 
 CHART="infra/terraform/modules/gke-mcp/lore-platform"
 
@@ -35,6 +41,10 @@ fi
 tag_set=()
 if [ "$TAG" != "-" ]; then
   tag_set+=(--set "${SUBCHART}.image.tag=${TAG}")
+fi
+overlay_flags=()
+if [ -n "$VALUES_OVERLAY" ]; then
+  overlay_flags+=(-f "$VALUES_OVERLAY")
 fi
 HOME_NS="lore-floor" # the umbrella release record lives here
 STALE_SECS=300       # a pending revision older than this is from a dead run, not an active deploy
@@ -72,6 +82,7 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
       --namespace "$HOME_NS" \
       "${tag_set[@]}" \
       "${repo_set[@]}" \
+      "${overlay_flags[@]}" \
       --set lore-db-helm.ownershipReconciler.enabled=false \
       --reset-then-reuse-values \
       --cleanup-on-fail 2>"$ERRLOG"; then
