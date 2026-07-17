@@ -36,8 +36,8 @@ export default function NodePodLogs({
     <section className={styles.wrap}>
       <h2>Pod logs</h2>
       <p className="meta">
-        Live per-node output, read from the cluster. Logs are not retained —
-        once a node's pod is cleaned up they are no longer available.
+        Live per-node output, read from the cluster. Once a node's pod is
+        cleaned up, older runs fall back to retained logs from Cloud Logging.
       </p>
       {nodes.map((node) => (
         <NodeLogPanel
@@ -113,6 +113,7 @@ function NodeLogPanel({
       <summary className={styles.summary}>
         <span className={styles.mono}>{node.nodeId}</span>
         {resp?.phase && <span className="meta"> · {resp.phase}</span>}
+        {resp?.archived && <span className="meta"> · retained</span>}
       </summary>
 
       {error && <p className={styles.error}>Failed to load logs: {error}</p>}

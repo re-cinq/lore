@@ -15,7 +15,10 @@ import { githubWebhookRoute } from "./routes/github-webhook.js";
 import { ciIngestRoute } from "./routes/ci-ingest.js";
 import { ciTestsRoute } from "./routes/ci-tests.js";
 import { reviewStartRoute } from "./routes/review-start.js";
-import type { PodLogSource } from "../../jobs/station/agent-pod-logs.js";
+import type {
+  PodLogSource,
+  PodLogArchive,
+} from "../../jobs/station/agent-pod-logs.js";
 
 // GitHub caps webhook payloads at 25 MB; the old raw `node:http` server read the
 // body unbounded. Bound it generously rather than at hapi's 1 MB default, which
@@ -26,6 +29,7 @@ export function buildServer(opts: {
   getJobStatus: () => unknown;
   port?: number;
   podLogSource?: PodLogSource;
+  podLogArchive?: PodLogArchive;
 }): Hapi.Server {
   const server = Hapi.server({
     port: opts.port ?? 0,
@@ -38,7 +42,7 @@ export function buildServer(opts: {
   server.route([
     healthRoute(opts.getJobStatus),
     agentEventsRoute,
-    agentLogsRoute(opts.podLogSource),
+    agentLogsRoute(opts.podLogSource, opts.podLogArchive),
     githubWebhookRoute,
     ciIngestRoute,
     ciTestsRoute,
