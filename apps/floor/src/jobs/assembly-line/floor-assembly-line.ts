@@ -90,6 +90,11 @@ export function nodeAgentSpec(
   };
 }
 
+/** Station types whose pod works on the repo checkout — only these get the
+ *  per-task token + clone triple. The rest read via the API, and their line
+ *  branch can be a synthetic lease key no `git checkout` could resolve. */
+const CLONING_STATION_TYPES = new Set(["ingest", "validate"]);
+
 /** Node knobs a station receives as its `params` (everything execution-relevant
  *  the YAML can say about the node, minus the routing fields). */
 const STATION_PARAM_FIELDS = [
@@ -140,6 +145,7 @@ export function nodeStationSpec(
     // Stations render only {station_input} — never hydrate (D5 is for agent
     // nodes); an empty description otherwise assembles an unbounded context.
     hydrate: false,
+    clone: CLONING_STATION_TYPES.has(node.type),
     parameters: {
       station_input: JSON.stringify({
         assembly_line_id: task.assemblyLineId,

@@ -160,6 +160,22 @@ describe("nodeStationSpec (station pod contract)", () => {
     ).toBe("def-custom-detect");
   });
 
+  it("marks only ingest and validate nodes for cloning — detect/gate/retrospective/triage read via the API and a checkout of their synthetic lease-key branch would fail the init", () => {
+    const cloneByType = (type: string) =>
+      nodeStationSpec({ id: type, type }, task).clone;
+
+    expect(cloneByType("ingest")).toBe(true);
+    expect(cloneByType("validate")).toBe(true);
+    expect(cloneByType("detect")).toBe(false);
+    expect(cloneByType("gate")).toBe(false);
+    expect(cloneByType("retrospective")).toBe(false);
+    expect(cloneByType("comment-triage")).toBe(false);
+    expect(cloneByType("github_action")).toBe(false);
+    expect(
+      nodeAgentSpec({ id: "implement", type: "agent" }, task, "p").clone,
+    ).toBeUndefined();
+  });
+
   it("clones at args.ref when set — the line's branch is only the lease key (ingest/<kind>/<ref>)", () => {
     const ingestTask = {
       ...task,

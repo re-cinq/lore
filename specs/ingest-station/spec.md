@@ -60,8 +60,13 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   `stationRef ?? taskType` — because a task-less line's `taskType` is its
   definition name, which is no catalog recipe at all (the day-one lookup miss
   left ingest pods with no `/workspace/target`), and a task-backed line's
-  station node would otherwise clone the task type's LLM recipe.
-  ([validated by `spec-trace-dispatch:89`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L89), [`spec-trace-dispatch:128`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L128), [`floor-assembly-line:163`](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L163), [`per-task-token:64`](apps/floor/src/jobs/station/per-task-token.test.ts#L64), [`per-task-token:70`](apps/floor/src/jobs/station/per-task-token.test.ts#L70), [`loader:231`](libs/assembly-lines/src/loader.test.ts#L231); implemented by [`spec-trace-dispatch.ts:120`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.ts#L120), [`ingest.yaml:1`](libs/assembly-lines/src/assembly-lines/ingest.yaml#L1))
+  station node would otherwise clone the task type's LLM recipe. Only station
+  types that work on the checkout (`ingest`, `validate`) provision the
+  token/clone triple at all — API-reading nodes (detect/gate/retrospective/
+  triage/github_action) set `clone: false`, because their line branch is a
+  synthetic lease key (`detect/<definition>/<repo>`) that `git checkout` cannot
+  resolve, and a forced clone would fail their init.
+  ([validated by `spec-trace-dispatch:89`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L89), [`spec-trace-dispatch:128`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L128), [`floor-assembly-line:179`](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L179), [`floor-assembly-line:163`](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L163), [`agent-backend:201`](apps/floor/src/jobs/station/agent-backend.test.ts#L201), [`per-task-token:64`](apps/floor/src/jobs/station/per-task-token.test.ts#L64), [`per-task-token:70`](apps/floor/src/jobs/station/per-task-token.test.ts#L70), [`loader:231`](libs/assembly-lines/src/loader.test.ts#L231); implemented by [`spec-trace-dispatch.ts:120`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.ts#L120), [`ingest.yaml:1`](libs/assembly-lines/src/assembly-lines/ingest.yaml#L1))
 
 - **FR3 — payload transport.** `station_input` carries kind + a payload *reference*,
   never an inline test-report body: report payloads reach ~1 MB (the HTTP body

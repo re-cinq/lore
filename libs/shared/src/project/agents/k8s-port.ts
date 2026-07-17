@@ -32,6 +32,10 @@ export interface LoreTaskSpec {
    *  empty-description dispatch assembles an unbounded-query blob that blew
    *  the 2 MiB apiserver limit, 2026-07-17). Default true. */
   hydrate?: boolean;
+  /** false skips per-task token/clone provisioning: API-reading station nodes
+   *  (detect/gate/retrospective/triage) need no repo, and their line branch is
+   *  a synthetic lease key no `git checkout` could resolve. Default true. */
+  clone?: boolean;
 }
 
 export interface K8sPort {

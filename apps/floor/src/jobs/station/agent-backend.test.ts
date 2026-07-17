@@ -197,6 +197,19 @@ describe("AgentCrBackend.launch — per-task token (#697)", () => {
     expect(provisioner.seen).toEqual([]);
     expect(api.created[0].spec?.stationRef).toBe("implementation");
   });
+
+  it("skips provisioning for a clone:false spec even when it targets a repo — a detect node's lease-key branch is no git ref, so a forced checkout would fail its init", async () => {
+    const api = new FakeAgentApi();
+    const provisioner = new FakeProvisioner("pt-abcdef12");
+
+    await new AgentCrBackend(api, undefined, provisioner).launch({
+      ...baseSpec,
+      stationRef: "def-detect",
+      clone: false,
+    });
+    expect(provisioner.seen).toEqual([]);
+    expect(api.created[0].spec?.stationRef).toBe("def-detect");
+  });
 });
 
 describe("AgentCrBackend.isActive", () => {
