@@ -31,7 +31,7 @@ data that was being thrown away.
 The observable result today is that a developer watching an assembly line has a
 task row, a set of node rows, and a PR link — but no view of what the agent is
 actually doing inside a node while it runs. Every live view in the product is a
-5–15 second `setInterval` poll, which cannot render a per-tool-call stream at a
+4–15 second `setInterval` poll, which cannot render a per-tool-call stream at a
 useful granularity.
 
 ## Goals & Non-Goals

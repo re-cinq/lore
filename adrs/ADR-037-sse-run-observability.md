@@ -45,7 +45,7 @@ treats it as such.
 
 **Nothing in the stack streams today.** A search of `apps/floor/src`,
 `apps/web-ui/src`, and `libs` for `text/event-stream`, `new WebSocket`, and
-`new EventSource` returns zero hits; every live view is a 5–15 second
+`new EventSource` returns zero hits; every live view is a 4–15 second
 `setInterval` poll. One false positive is worth naming so a later reader's grep
 does not conclude otherwise: `apps/floor/src/main-loop/event-names.ts:13` exports
 `type EventSource`, which is the event bus's source union (`github` / `cron` /
@@ -130,7 +130,7 @@ catch-up-then-live semantic the spec requires. Native `EventSource` needs no
 dependency.
 
 **Polling, as every other live view does.** Rejected for this view specifically.
-A per-tool-call transcript at a 5–15 second poll interval renders as jumps rather
+A per-tool-call transcript at a 4–15 second poll interval renders as jumps rather
 than as a stream, and closing the interval enough to feel live turns each viewer
 into a repeated whole-window query. The existing polled views stay polled.
 
