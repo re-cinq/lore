@@ -39,7 +39,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   params; the embedder threads through `IngestGraphPorts.embed` (station pods
   have no GCP ADC — provider wiring lands with FR4); payload kinds reject loudly
   until FR3.
-  ([validated by `ingest.test.ts:76`](apps/lore-station/src/stations/ingest.test.ts#L85), [`ingest.test.ts:89`](apps/lore-station/src/stations/ingest.test.ts#L98), [`ingest.test.ts:101`](apps/lore-station/src/stations/ingest.test.ts#L110), [`ingest.test.ts:119`](apps/lore-station/src/stations/ingest.test.ts#L128), [`ingest.test.ts:150`](apps/lore-station/src/stations/ingest.test.ts#L150), [`ingest.test.ts:202`](apps/lore-station/src/stations/ingest.test.ts#L202), [`ingest-graph-task.test.ts:145`](libs/shared/src/spec-trace/ingest-graph-task.test.ts#L145); implemented by [`ingest.ts:71`](apps/lore-station/src/stations/ingest.ts#L71))
+  ([validated by `ingest.test.ts:76`](apps/lore-station/src/stations/ingest.test.ts#L85), [`ingest.test.ts:89`](apps/lore-station/src/stations/ingest.test.ts#L98), [`ingest.test.ts:101`](apps/lore-station/src/stations/ingest.test.ts#L110), [`ingest.test.ts:119`](apps/lore-station/src/stations/ingest.test.ts#L128), [`ingest.test.ts:150`](apps/lore-station/src/stations/ingest.test.ts#L150), [`ingest.test.ts:239`](apps/lore-station/src/stations/ingest.test.ts#L239), [`ingest-graph-task.test.ts:145`](libs/shared/src/spec-trace/ingest-graph-task.test.ts#L145); implemented by [`ingest.ts:71`](apps/lore-station/src/stations/ingest.ts#L71))
 
 - **FR2 — dispatch.** A single-node detect-shaped assembly line definition
   (`libs/assembly-lines/src/assembly-lines/ingest.yaml`, node type `ingest`) rides
@@ -56,9 +56,12 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
 
 - **FR3 — payload transport.** `station_input` carries kind + a payload *reference*,
   never an inline test-report body: report payloads reach ~1 MB (the HTTP body
-  limit) while `station_input` is an argv element. The station fetches the payload
-  from the Lore API by event id (a read-scoped endpoint added for this); docs kinds
-  need only `{commit, glob, force}` inline.
+  limit) while `station_input` is an argv element. The Floor threads the scheduling
+  event's id into the line args (`payload_event_id`); the station fetches the body
+  back from `GET /api/repos/:o/:r/events/:id/payload` (read scope, repo must match
+  the row) and runs `ingestSpecTrace`; docs kinds need only `{commit, glob, force}`
+  inline.
+  ([validated by `ingest.test.ts:202`](apps/lore-station/src/stations/ingest.test.ts#L202), [`ingest.test.ts:228`](apps/lore-station/src/stations/ingest.test.ts#L228), [`event-payload.test.ts:35`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L35), [`event-payload.test.ts:48`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L48), [`event-payload.test.ts:58`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L58), [`spec-trace-dispatch:224`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L224), [`loop.test.ts:110`](apps/floor/src/main-loop/loop.test.ts#L110); implemented by [`event-payload.ts:14`](apps/lore-api/src/api/routes/ingest/event-payload.ts#L14))
 
 - **FR4 — network policy.** A label-scoped NetworkPolicy grants egress to
   `lore-dgraph-alpha.lore-dgraph.svc:8080` ONLY to pods of the ingest station type;

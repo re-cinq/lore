@@ -68,7 +68,7 @@ export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
   }
 
   try {
-    await handler(ev.params ?? {});
+    await handler(ev.params ?? {}, { eventId: ev.id });
     await deps.markDone(ev.id);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
