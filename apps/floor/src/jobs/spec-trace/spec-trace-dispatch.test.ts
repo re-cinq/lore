@@ -1,18 +1,12 @@
 import { describe, it, expect } from "vitest";
-import {
-  dispatchSpecTrace,
-  enforceProjectionComplete,
-} from "./spec-trace-dispatch.js";
-import type { DgraphClientPort } from "@re-cinq/lore-shared";
+import { dispatchSpecTrace } from "./spec-trace-dispatch.js";
 
 /**
- * dispatchSpecTrace routes a posted spec-trace trigger by kind: repo-read kinds
- * (specs/adrs) read the repo and project markdown; payload kinds
- * (test-report/coverage) go to the shared ingestSpecTrace. Exercised with a fake
- * project (empty tree → no graph writes) and a stub dgraph — no live Dgraph.
+ * dispatchSpecTrace routes a spec-trace trigger by kind onto the ingest
+ * assembly line (FR6: the Floor never projects inline — every dgraph write
+ * happens in an ingest-station pod). The repo is only ever read to self-chunk
+ * a force-without-glob pass into per-directory child events.
  */
-const stubDgraph = {} as DgraphClientPort;
-
 function fakeProjectFor() {
   const reposAskedFor: string[] = [];
   const projectFor = async (repo: string) => {
@@ -24,70 +18,22 @@ function fakeProjectFor() {
   return { projectFor, reposAskedFor };
 }
 
+const startLineRecorder = () => {
+  const started: Array<Record<string, unknown>> = [];
+
+  return {
+    started,
+    startLine: async (input: unknown) => {
+      started.push(input as Record<string, unknown>);
+
+      return "a1b2c3d4-0000-0000-0000-000000000000";
+    },
+  };
+};
+
 describe("dispatchSpecTrace", () => {
-  it("projects from the repo and returns a graph-ingest audit/log for the specs kind", async () => {
-    const f = fakeProjectFor();
-
-    const result = await dispatchSpecTrace(
-      "re-cinq/lore",
-      "specs",
-      { commit: "abc123" },
-      {
-        dgraph: stubDgraph,
-        projectFor: f.projectFor,
-      },
-    );
-
-    expect(f.reposAskedFor).toEqual(["re-cinq/lore"]);
-    expect(result.audit).toMatchObject({
-      event_type: "spec_trace_ingest",
-      repo: "re-cinq/lore",
-    });
-    expect((result.audit.payload as { kind: string }).kind).toBe("specs");
-    expect(result.logLine).toContain("[floor] spec-trace specs re-cinq/lore");
-    expect(result.failedFiles).toEqual([]);
-  });
-
-  it("surfaces failedFiles ['specs/a/spec.md'] when the one spec in the tree fails to project", async () => {
-    const projectFor = async (_repo: string) => ({
-      repo: {
-        tree: async () => ["specs/a/spec.md"],
-        read: async () => "# Spec A\n\nA statement.\n",
-      },
-    });
-    // The stub port has no newTxn, so every dgraph write throws → the per-file
-    // catch records the file and the summary carries it.
-    const result = await dispatchSpecTrace(
-      "re-cinq/lore",
-      "specs",
-      { commit: "abc123" },
-      { dgraph: stubDgraph, projectFor },
-    );
-
-    expect(result.failedFiles).toEqual(["specs/a/spec.md"]);
-    expect(result.logLine).toContain("failed=1");
-    expect(result.audit).toMatchObject({ event_type: "spec_trace_ingest" });
-  });
-
-  it("enforceProjectionComplete throws naming the 2 failed files for a partial specs failure", () => {
-    expect(() =>
-      enforceProjectionComplete("re-cinq/lore", "specs", [
-        "specs/a/spec.md",
-        "specs/b/spec.md",
-      ]),
-    ).toThrow(
-      /2 file\(s\) failed to project.*specs\/a\/spec\.md, specs\/b\/spec\.md/,
-    );
-  });
-
-  it("enforceProjectionComplete returns silently for an empty failedFiles list", () => {
-    expect(() =>
-      enforceProjectionComplete("re-cinq/lore", "adrs", []),
-    ).not.toThrow();
-  });
-
   it("routes a docs kind to the ingest line instead of projecting inline", async () => {
-    const started: Array<Record<string, unknown>> = [];
+    const { started, startLine } = startLineRecorder();
     const projectFor = async (_repo: string) => ({
       repo: {
         tree: async (): Promise<string[]> => {
@@ -100,15 +46,7 @@ describe("dispatchSpecTrace", () => {
       "re-cinq/lore",
       "specs",
       { commit: "abc123" },
-      {
-        dgraph: stubDgraph,
-        projectFor,
-        startLine: async (input) => {
-          started.push(input as unknown as Record<string, unknown>);
-
-          return "a1b2c3d4-0000-0000-0000-000000000000";
-        },
-      },
+      { projectFor, startLine },
     );
 
     // branch is the overlap-guard lease key — per kind, so the specs and adrs
@@ -121,29 +59,18 @@ describe("dispatchSpecTrace", () => {
         args: { kind: "specs", ref: "abc123" },
       },
     ]);
-    expect(result.failedFiles).toEqual([]);
     expect(result.logLine).toContain("ingest line a1b2c3d4");
   });
 
   it("threads glob and force into the line args as strings", async () => {
-    const started: Array<Record<string, unknown>> = [];
-    const projectFor = async (_repo: string) => ({
-      repo: { tree: async () => [] as string[], read: async () => "" },
-    });
+    const { started, startLine } = startLineRecorder();
+    const f = fakeProjectFor();
 
     await dispatchSpecTrace(
       "re-cinq/lore",
       "specs",
       { commit: "abc123", force: true, glob: "specs/auth/" },
-      {
-        dgraph: stubDgraph,
-        projectFor,
-        startLine: async (input) => {
-          started.push(input as unknown as Record<string, unknown>);
-
-          return "lineid";
-        },
-      },
+      { projectFor: f.projectFor, startLine },
     );
 
     expect(started[0]).toMatchObject({
@@ -156,7 +83,21 @@ describe("dispatchSpecTrace", () => {
     });
   });
 
-  it("chunks a force run without a glob into one child event per top-level dir instead of projecting inline", async () => {
+  it("a docs kind without a line starter is a config error, not a silent inline projection", async () => {
+    const f = fakeProjectFor();
+
+    await expect(
+      dispatchSpecTrace(
+        "re-cinq/lore",
+        "specs",
+        { commit: "abc123" },
+        { projectFor: f.projectFor },
+      ),
+    ).rejects.toThrow(/requires the startLine dep/);
+    expect(f.reposAskedFor).toEqual([]);
+  });
+
+  it("chunks a force run without a glob into one child event per top-level dir instead of starting a line", async () => {
     const inserted: Array<Record<string, unknown>> = [];
     const projectFor = async (_repo: string) => ({
       repo: {
@@ -170,19 +111,21 @@ describe("dispatchSpecTrace", () => {
         },
       },
     });
+    const { started, startLine } = startLineRecorder();
     const result = await dispatchSpecTrace(
       "re-cinq/lore",
       "specs",
       { commit: "abc123", force: true },
       {
-        dgraph: stubDgraph,
         projectFor,
+        startLine,
         insertEvent: async (input) => {
           inserted.push(input as unknown as Record<string, unknown>);
         },
       },
     );
 
+    expect(started).toEqual([]);
     expect(inserted).toHaveLength(3);
     expect(inserted[0]).toMatchObject({
       eventName: "internal.ingest.spec_trace",
@@ -199,25 +142,21 @@ describe("dispatchSpecTrace", () => {
         (i) => (i.params as { payload: { glob: string } }).payload.glob,
       ),
     ).toEqual([".specify/", "specs/auth/", "specs/billing/"]);
-    expect(result.failedFiles).toEqual([]);
     expect(result.logLine).toContain("chunked into 3");
   });
 
-  it("projects a force run WITH a glob inline — chunks never re-chunk", async () => {
+  it("starts a line for a force run WITH a glob — chunks never re-chunk", async () => {
     const inserted: unknown[] = [];
-    const projectFor = async (_repo: string) => ({
-      repo: {
-        tree: async () => [] as string[],
-        read: async () => "",
-      },
-    });
-    const result = await dispatchSpecTrace(
+    const { started, startLine } = startLineRecorder();
+    const f = fakeProjectFor();
+
+    await dispatchSpecTrace(
       "re-cinq/lore",
       "specs",
       { commit: "abc123", force: true, glob: "specs/auth/" },
       {
-        dgraph: stubDgraph,
-        projectFor,
+        projectFor: f.projectFor,
+        startLine,
         insertEvent: async (input) => {
           inserted.push(input);
         },
@@ -225,28 +164,17 @@ describe("dispatchSpecTrace", () => {
     );
 
     expect(inserted).toEqual([]);
-    expect(result.logLine).toContain("[floor] spec-trace specs re-cinq/lore");
+    expect(started).toHaveLength(1);
   });
 
   it("routes a payload kind to the ingest line by event reference", async () => {
-    const started: Array<Record<string, unknown>> = [];
-    const projectFor = async (_repo: string) => ({
-      repo: { tree: async () => [] as string[], read: async () => "" },
-    });
+    const { started, startLine } = startLineRecorder();
+    const f = fakeProjectFor();
     const result = await dispatchSpecTrace(
       "re-cinq/lore",
       "test-report",
       { commit: "abc123", tests: [] },
-      {
-        dgraph: stubDgraph,
-        projectFor,
-        eventId: "4711",
-        startLine: async (input) => {
-          started.push(input as unknown as Record<string, unknown>);
-
-          return "lineid00-0000";
-        },
-      },
+      { projectFor: f.projectFor, eventId: "4711", startLine },
     );
 
     expect(started).toEqual([
@@ -257,11 +185,25 @@ describe("dispatchSpecTrace", () => {
         args: { kind: "test-report", ref: "abc123", payload_event_id: "4711" },
       },
     ]);
-    expect(result.failedFiles).toEqual([]);
-    expect(result.logLine).toContain("ingest line lineid00");
+    expect(result.logLine).toContain("ingest line a1b2c3d4");
   });
 
-  it("routes an unrecognized kind to ingestSpecTrace, which rejects without reading the repo", async () => {
+  it("a payload kind without the scheduling event's id is a config error — the pod can only fetch the body by reference", async () => {
+    const { startLine } = startLineRecorder();
+    const f = fakeProjectFor();
+
+    await expect(
+      dispatchSpecTrace(
+        "re-cinq/lore",
+        "test-report",
+        { commit: "abc123", tests: [] },
+        { projectFor: f.projectFor, startLine },
+      ),
+    ).rejects.toThrow(/payload kind .* eventId/);
+  });
+
+  it("an unrecognized kind throws without reading the repo or starting a line", async () => {
+    const { started, startLine } = startLineRecorder();
     const f = fakeProjectFor();
 
     await expect(
@@ -269,9 +211,10 @@ describe("dispatchSpecTrace", () => {
         "re-cinq/lore",
         "bogus",
         {},
-        { dgraph: stubDgraph, projectFor: f.projectFor },
+        { projectFor: f.projectFor, startLine },
       ),
-    ).rejects.toThrow(new Error('ingestSpecTrace: unrecognized kind "bogus"'));
+    ).rejects.toThrow(/unknown spec-trace kind "bogus"/);
     expect(f.reposAskedFor).toEqual([]);
+    expect(started).toEqual([]);
   });
 });

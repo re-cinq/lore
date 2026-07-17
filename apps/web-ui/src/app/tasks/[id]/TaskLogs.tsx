@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { parseAgentLog } from "@/lib/agent-log-entries";
+import LogEntriesView from "@/components/LogEntriesView";
+import LogFormatToggle from "@/components/LogFormatToggle";
 import styles from "./TaskLogs.module.css";
 
 interface LogsResponse {
@@ -25,7 +28,9 @@ export default function TaskLogs({
   const [totalSize, setTotalSize] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
+  const [showRaw, setShowRaw] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const entries = useMemo(() => parseAgentLog(logs ?? ""), [logs]);
 
   const fetchLogs = useCallback(async () => {
     // Don't keep polling if access was denied
@@ -125,6 +130,11 @@ export default function TaskLogs({
             Failed
           </span>
         )}
+        {logs !== null && !accessDenied && (
+          <span className={styles.toggle}>
+            <LogFormatToggle raw={showRaw} onChange={setShowRaw} />
+          </span>
+        )}
       </h2>
 
       {accessDenied && (
@@ -143,7 +153,7 @@ export default function TaskLogs({
         </p>
       ) : !accessDenied && logs !== null ? (
         <div className={styles.terminal}>
-          {logs}
+          {showRaw ? logs : <LogEntriesView entries={entries} />}
           <div ref={bottomRef} />
         </div>
       ) : null}
