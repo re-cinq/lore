@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { fetchSpecSummaries } from "@/lib/trace-api";
 import {
-  fetchSpecStatusesFromGraph,
+  fetchDocStatusesFromGraph,
   specStatusKey,
 } from "@/lib/spec-status-source";
 import SpecListView from "./SpecListView";
@@ -18,8 +18,9 @@ export default async function RepoSpecs({
   // lifecycle status pills (parsed from each spec.md's graph source) alike.
   const summaries = await fetchSpecSummaries(fullName);
   const specs = summaries.sort((a, b) => a.filePath.localeCompare(b.filePath));
-  const byRepoKey = await fetchSpecStatusesFromGraph(
+  const byRepoKey = await fetchDocStatusesFromGraph(
     specs.map((s) => ({ repo: fullName, filePath: s.filePath })),
+    "spec",
   );
   const statuses = Object.fromEntries(
     specs

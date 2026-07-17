@@ -1,7 +1,9 @@
 export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { fetchTraceSource } from "@/lib/trace-api";
+import { parseFrontmatter } from "@/lib/frontmatter";
 import SpecDocument from "../../specs/[...path]/SpecDocument";
+import AdrMetaView from "./AdrMetaView";
 
 export default async function RepoAdrDetail({
   params,
@@ -14,8 +16,11 @@ export default async function RepoAdrDetail({
   const adrsLink = `/repos/${owner}/${repo}/adrs`;
 
   // ADRs have no Statement/coverage overlay — render the byte-exact source
-  // reassembled from the graph's Block layer (recomputeFile).
+  // reassembled from the graph's Block layer (recomputeFile), minus the YAML
+  // frontmatter, which renders as a metadata header instead (safe to strip:
+  // statements=[] means no offset coupling to the original source).
   const source = await fetchTraceSource(fullName, filePath);
+  const { meta, body } = parseFrontmatter(source ?? "");
 
   return (
     <div>
@@ -23,7 +28,10 @@ export default async function RepoAdrDetail({
         <Link href={adrsLink}>← ADRs</Link>
       </p>
       {source ? (
-        <SpecDocument repo={fullName} content={source} statements={[]} />
+        <>
+          <AdrMetaView owner={owner} repo={repo} meta={meta} />
+          <SpecDocument repo={fullName} content={body} statements={[]} />
+        </>
       ) : (
         <p style={{ color: "var(--text-muted)" }}>
           No graph data for <code>{filePath}</code>. ADRs are projected

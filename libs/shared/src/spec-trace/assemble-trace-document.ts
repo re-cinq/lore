@@ -212,26 +212,53 @@ const LIST_ALL_SPECS_DQL = `query allSpecs {
   q(func: type(Spec), orderasc: Spec.repo) { Spec.repo Spec.file_path }
 }`;
 
-/** Cross-repo: every spec document in the graph as {repo, filePath} — backs the global /specs viewer. */
-export async function listAllSpecDocuments(
+const LIST_ALL_ADRS_DQL = `query allAdrs {
+  q(func: type(ADR), orderasc: ADR.repo) { ADR.repo ADR.file_path }
+}`;
+
+async function listAllDocPaths(
+  dql: string,
+  repoPredicate: string,
+  pathPredicate: string,
   dgraph: DgraphClientPort,
 ): Promise<Array<{ repo: string; filePath: string }>> {
   const rows = await withTxn(dgraph, async (txn) => {
-    const res = await txn.queryWithVars(LIST_ALL_SPECS_DQL, {});
+    const res = await txn.queryWithVars(dql, {});
 
-    return (res.data?.q ?? []) as Array<{
-      "Spec.repo"?: string;
-      "Spec.file_path"?: string;
-    }>;
+    return (res.data?.q ?? []) as Array<Record<string, string | undefined>>;
   });
 
   return rows
     .filter(
       (r) =>
-        typeof r["Spec.repo"] === "string" &&
-        typeof r["Spec.file_path"] === "string",
+        typeof r[repoPredicate] === "string" &&
+        typeof r[pathPredicate] === "string",
     )
-    .map((r) => ({ repo: r["Spec.repo"]!, filePath: r["Spec.file_path"]! }));
+    .map((r) => ({ repo: r[repoPredicate]!, filePath: r[pathPredicate]! }));
+}
+
+/** Cross-repo: every spec document in the graph as {repo, filePath} — backs the global /specs viewer. */
+export function listAllSpecDocuments(
+  dgraph: DgraphClientPort,
+): Promise<Array<{ repo: string; filePath: string }>> {
+  return listAllDocPaths(
+    LIST_ALL_SPECS_DQL,
+    "Spec.repo",
+    "Spec.file_path",
+    dgraph,
+  );
+}
+
+/** Cross-repo: every ADR document in the graph as {repo, filePath} — backs the global /adrs viewer. */
+export function listAllAdrDocuments(
+  dgraph: DgraphClientPort,
+): Promise<Array<{ repo: string; filePath: string }>> {
+  return listAllDocPaths(
+    LIST_ALL_ADRS_DQL,
+    "ADR.repo",
+    "ADR.file_path",
+    dgraph,
+  );
 }
 
 /** Reads one spec's ordered Section/Statement structure + links + coverage from the graph. */

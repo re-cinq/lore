@@ -92,4 +92,71 @@ describe("SpecListView", () => {
       screen.queryByRole("heading", { name: /Pay spec/ }),
     ).not.toBeInTheDocument();
   });
+
+  it("narrows the cards to the typed search text", () => {
+    const specs = [
+      {
+        filePath: "specs/auth/spec.md",
+        title: "Auth spec",
+        description: "login",
+        coverage: { testable: 2, covered: 2, ratio: 1 },
+      },
+      {
+        filePath: "specs/pay/spec.md",
+        title: "Pay spec",
+        description: "billing",
+        coverage: { testable: 2, covered: 0, ratio: 0 },
+      },
+    ];
+
+    render(<SpecListView owner="re-cinq" repo="lore" specs={specs} />);
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "billing" },
+    });
+
+    expect(
+      screen.getByRole("heading", { name: /Pay spec/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: /Auth spec/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reorders the cards by lifecycle status when the status sort is picked", () => {
+    const specs = [
+      {
+        filePath: "specs/auth/spec.md",
+        title: "Auth spec",
+        description: "login",
+        coverage: { testable: 2, covered: 2, ratio: 1 },
+      },
+      {
+        filePath: "specs/pay/spec.md",
+        title: "Pay spec",
+        description: "billing",
+        coverage: { testable: 2, covered: 0, ratio: 0 },
+      },
+    ];
+
+    render(
+      <SpecListView
+        owner="re-cinq"
+        repo="lore"
+        specs={specs}
+        statuses={{
+          "specs/auth/spec.md": { status: "shipped", label: "Shipped" },
+          "specs/pay/spec.md": { status: "draft", label: "Draft" },
+        }}
+      />,
+    );
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "status" },
+    });
+
+    const titles = screen
+      .queryAllByRole("heading")
+      .map((node) => node.textContent?.trim());
+
+    expect(titles).toEqual(["Pay specDraft", "Auth specShipped"]);
+  });
 });

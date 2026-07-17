@@ -1,16 +1,16 @@
-# Feature Specification: GET /api/trace/specs
+# Feature Specification: GET /api/trace/specs and GET /api/trace/adrs
 
 | Field      | Value                                                  |
 |------------|--------------------------------------------------------|
-| Feature    | Global cross-repo spec list route                      |
+| Feature    | Global cross-repo doc list routes (specs + ADRs)       |
 | Status     | In Progress                                            |
 | Created    | 2026-06-10                                             |
 | Owner      | Platform Engineering                                   |
-| Route      | `GET /api/trace/specs`                                 |
+| Route      | `GET /api/trace/specs`, `GET /api/trace/adrs`          |
 | Auth scope | `read` (default)                                       |
 | Module     | `mcp-server/src/api/routes/trace.ts`                   |
 
-GET /api/trace/specs lists every spec document across all repos for the global spec viewer, querying the spec-traceability Dgraph directly and failing soft to an empty list when Dgraph is unconfigured.
+GET /api/trace/specs lists every spec document across all repos for the global spec viewer, querying the spec-traceability Dgraph directly and failing soft to an empty list when Dgraph is unconfigured; GET /api/trace/adrs is its ADR twin, backing the global ADR viewer the same way.
 
 ## Problem Statement
 
@@ -83,12 +83,16 @@ With a Dgraph client present, the route returns `200 { specs }` from
 
 A thrown Dgraph read is caught and returned as `500 { error: <message> }`. ([validated by `trace-specs.test.ts:58`](apps/lore-api/src/api/routes/trace/trace-specs.test.ts#L58))
 
+`GET /api/trace/adrs` mirrors both branches for ADRs: with a Dgraph client
+present it returns `200 { adrs }` from `listAllAdrDocuments`, and a thrown
+Dgraph read is caught and returned as `500 { error: <message> }`. ([validated by `trace-adrs.test.ts:44`](apps/lore-api/src/api/routes/trace/trace-adrs.test.ts#L44), [`trace-adrs.test.ts:57`](apps/lore-api/src/api/routes/trace/trace-adrs.test.ts#L57))
+
 The live cross-repo DQL contents of `listAllSpecDocuments` are exercised only
 against a populated Dgraph. *(untested: the query itself needs `LORE_DGRAPH_HTTP`
 pointed at a populated Dgraph; the route seam mocks the client.)*
 
 ## Out of Scope
 
-- The `listAllSpecDocuments` cross-repo DQL — owned by `shared/src/spec-trace/assemble-trace-document.ts`.
+- The `listAllSpecDocuments` / `listAllAdrDocuments` cross-repo DQL — owned by `shared/src/spec-trace/assemble-trace-document.ts`.
 - Per-repo trace reads — owned by [`repo-trace`](../repo-trace/spec.md).
 - The deferred Dgraph projection that populates the graph.
