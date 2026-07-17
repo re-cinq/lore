@@ -159,6 +159,29 @@ describe("createStartEventHandler", () => {
     expect(calls.advanced).toEqual([]);
   });
 
+  it("notifies the failure when a task-less start names an unknown definition", async () => {
+    const { port, assemblyLineId } = await seededPort(
+      "no-such-definition",
+      null,
+    );
+    const notified: Array<{ id: string; outcome: string }> = [];
+    const { deps } = makeDeps(port, {
+      notifyFailure: async (row, outcome) => {
+        notified.push({ id: row.id, outcome });
+      },
+    });
+
+    await createStartEventHandler(deps)(
+      params(assemblyLineId, "no-such-definition", null),
+    );
+    // A redelivered event must not notify again — the row is already terminal.
+    await createStartEventHandler(deps)(
+      params(assemblyLineId, "no-such-definition", null),
+    );
+
+    expect(notified).toEqual([{ id: assemblyLineId, outcome: "error" }]);
+  });
+
   it("marks a task-backed single-CR row running without walking (watcher owns its lifecycle)", async () => {
     // Total coverage: single-CR task types (onboard, review, runbook-without-yaml)
     // get an assembly_lines row but no builtin definition. The row is a run record,

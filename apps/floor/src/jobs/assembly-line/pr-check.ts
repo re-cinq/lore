@@ -53,8 +53,23 @@ function terminal(line: AssemblyLineRecord): {
   conclusion: NonNullable<CheckRunInput["conclusion"]>;
   summary: string;
 } {
-  if (line.status === "failed" || line.outcome === "error") {
-    return { conclusion: "failure", summary: `${line.definitionName} failed.` };
+  // `outcome: "failed"` closes the row as `finished` (only "error" flips the
+  // status), so keying on status alone would render a failed walk as "Approved."
+  if (
+    line.status === "failed" ||
+    line.outcome === "error" ||
+    line.outcome === "failed"
+  ) {
+    const why = line.reason ? ` — ${line.reason}` : "";
+    const rerunHint =
+      line.definitionName === "code-review"
+        ? " Comment `@lore review` to re-run."
+        : "";
+
+    return {
+      conclusion: "failure",
+      summary: `${line.definitionName} failed${why}.${rerunHint}`,
+    };
   }
 
   if (line.outcome === "changes_requested") {

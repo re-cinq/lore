@@ -318,8 +318,8 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 - maps a changes_requested outcome to a neutral conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L40))
 - maps a successful line to a success conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L48))
 - maps a failed line to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L54))
-- maps a pr_closed outcome to a cancelled conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L60))
-- adds a details_url to the Lore UI when a uiUrl is given. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L66))
+- maps a pr_closed outcome to a cancelled conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L84))
+- adds a details_url to the Lore UI when a uiUrl is given. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L90))
 
 ### `apps/floor/src/jobs/merge/auto-merge.test.ts`
 
@@ -359,11 +359,11 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 
 ### `apps/floor/src/jobs/assembly-line/node-terminal.test.ts`
 
-- A code-review node's findings are posted as one review against the line's PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L96))
-- A node that is not a code review posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L111))
-- A line carrying no `pr_number` posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L120))
-- A verdict that reaches no parseable findings MUST be audited as `review_findings_unparsed` rather than passing silently — that state is indistinguishable from a clean review at the PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L128))
-- A post that throws MUST be audited as `review_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L148))
+- A code-review node's findings are posted as one review against the line's PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L100))
+- A node that is not a code review posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L115))
+- A line carrying no `pr_number` posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L124))
+- A verdict that reaches no parseable findings MUST be audited as `review_findings_unparsed` rather than passing silently — that state is indistinguishable from a clean review at the PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L132))
+- A post that throws MUST be audited as `review_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L152))
 
 ### `apps/floor/src/listeners/github-map.test.ts`
 
@@ -388,15 +388,15 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 
 ### `libs/shared/src/project/assembly-lines/assembly-lines.test.ts`
 
-- markRunning transitions the matching row to running with started_at. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L273))
-- throws on unknown ids for markRunning and returns false for finishNodeOnce. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L371))
-- getById returns the record and null for unknown ids. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L383))
-- listForTask and getById pass through to the port. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L516))
-- ensureNodeStart enforces exactly one returned row (invariant names itself). ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L679))
-- finishNodeOnce CASes on a null outcome and reports whether it won. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L691))
-- listOpen selects queued and running rows oldest-first. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L740))
-- does not overwrite an already-terminal row (InMemory). ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L751))
-- guards the Pg UPDATE on a non-terminal status. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L766))
+- markRunning transitions the matching row to running with started_at. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L282))
+- throws on unknown ids for markRunning and returns false for finishNodeOnce. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L392))
+- getById returns the record and null for unknown ids. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L404))
+- listForTask and getById pass through to the port. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L537))
+- ensureNodeStart enforces exactly one returned row (invariant names itself). ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L700))
+- finishNodeOnce CASes on a null outcome and reports whether it won. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L712))
+- listOpen selects queued and running rows oldest-first. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L761))
+- does not overwrite an already-terminal row (InMemory). ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L772))
+- guards the Pg UPDATE on a non-terminal status. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L787))
 
 ### `libs/shared/src/project/issues/issues.test.ts`
 

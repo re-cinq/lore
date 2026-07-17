@@ -7,7 +7,10 @@
 // machinery (their detect node is a station CR like any other).
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type {
+  AssemblyLinesPort,
+  AssemblyLineRecord,
+} from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
 import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
 
@@ -18,6 +21,13 @@ export interface StartEventHandlerDeps {
   /** Launch the line's entry node (advanceLine). The walk then advances on
    *  `kubernetes.agent_node.*` events — no background promise. */
   advance: (assemblyLineId: string) => Promise<void>;
+  /** User-facing failure notification for the config-error close below — the only
+   *  line closure that bypasses finishLine's seam. Optional, mirrors AdvanceDeps. */
+  notifyFailure?: (
+    row: AssemblyLineRecord,
+    outcome: string,
+    reason?: string,
+  ) => Promise<void>;
 }
 
 export function createStartEventHandler(
@@ -60,11 +70,25 @@ export function createStartEventHandler(
 
       // Task-less + unknown definition is a config error, not a transient failure —
       // close the row and resolve so the loop never retries a line that can't exist.
-      await deps.assemblyLines.finish(
+      const reason = `no assembly line defined for task type "${definitionName}"`;
+      const row = await deps.assemblyLines.getById(assemblyLineId);
+      const closedNow = await deps.assemblyLines.finish(
         assemblyLineId,
         "error",
-        `no assembly line defined for task type "${definitionName}"`,
+        reason,
       );
+
+      // Winner-only, like finishLine — a redelivered event must not re-notify.
+      if (closedNow && row && deps.notifyFailure) {
+        try {
+          await deps.notifyFailure(row, "error", reason);
+        } catch (err) {
+          console.error(
+            "[notify-failure] notifier threw:",
+            (err as Error).message,
+          );
+        }
+      }
 
       return;
     }
@@ -92,11 +116,15 @@ export const assemblyLineStart: EventHandler = async (params) => {
     import("./node-event-handler.js"),
   ]);
 
+  const { notifyLineFailure } = await import("./notify-failure.js");
+
   const handler = createStartEventHandler({
     assemblyLines: assemblyLines(),
     definitions: loadBuiltinAssemblyLines,
     advance: async (assemblyLineId) =>
       advanceLine(assemblyLineId, await productionNodeEventDeps()),
+    notifyFailure: (row, outcome, reason) =>
+      notifyLineFailure(row, outcome, reason),
   });
 
   await handler(params);

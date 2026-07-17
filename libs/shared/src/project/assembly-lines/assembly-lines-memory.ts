@@ -72,18 +72,20 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     row.startedAt = this.clock();
   }
 
-  async finish(id: string, outcome: string, reason?: string): Promise<void> {
+  async finish(id: string, outcome: string, reason?: string): Promise<boolean> {
     const row = this.mustFind(id);
 
     // First writer decides — mirrors the Pg guard on non-terminal status.
     if (row.status !== "queued" && row.status !== "running") {
-      return;
+      return false;
     }
 
     row.status = outcome === "error" ? "failed" : "finished";
     row.outcome = outcome;
     row.reason = reason ?? null;
     row.finishedAt = this.clock();
+
+    return true;
   }
 
   private async recordNodeStart(
