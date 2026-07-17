@@ -42,6 +42,19 @@ export interface AgentLogsResult {
   phase: string | null;
   podName: string | null;
   reason?: AgentLogsReason;
+  /** true when the logs came from the durable archive (Cloud Logging), not a
+   *  live pod — the pod was already garbage-collected. */
+  archived?: boolean;
+}
+
+/** The durable-log seam: a finished node's stdout, read back from a store that
+ *  outlives the pod (Cloud Logging). Consulted only once the live pod is gone. */
+export interface PodLogArchive {
+  /** Retained stdout for a Job's pod, or null when nothing is retained. */
+  logsForJob(
+    jobName: string,
+    opts?: { tailLines?: number },
+  ): Promise<string | null>;
 }
 
 export function podSelectorForJob(jobName: string): string {
@@ -67,6 +80,7 @@ export async function readAgentLogs(
   source: PodLogSource,
   agentName: string,
   opts: { tailLines?: number } = {},
+  archive?: PodLogArchive,
 ): Promise<AgentLogsResult> {
   const info = await source.agentInfo(agentName);
 
@@ -74,15 +88,17 @@ export async function readAgentLogs(
     return unavailable("no-agent", null);
   }
 
-  if (!info.jobName) {
+  const jobName = info.jobName;
+
+  if (!jobName) {
     return unavailable("no-job", info.phase);
   }
 
   try {
-    const pod = pickLatestPod(await source.podsForJob(info.jobName));
+    const pod = pickLatestPod(await source.podsForJob(jobName));
 
     if (!pod) {
-      return unavailable("no-pod", info.phase);
+      return archivedOrNoPod(jobName, info.phase, opts, archive);
     }
 
     return {
@@ -93,10 +109,27 @@ export async function readAgentLogs(
     };
   } catch (err) {
     if (isNotFound(err)) {
-      return unavailable("no-pod", info.phase);
+      return archivedOrNoPod(jobName, info.phase, opts, archive);
     }
     throw err;
   }
+}
+
+/** The pod is gone. Serve the durable archive if it has anything retained,
+ *  otherwise report `no-pod` as before. */
+async function archivedOrNoPod(
+  jobName: string,
+  phase: string | null,
+  opts: { tailLines?: number },
+  archive: PodLogArchive | undefined,
+): Promise<AgentLogsResult> {
+  const logs = archive ? await archive.logsForJob(jobName, opts) : null;
+
+  if (logs === null) {
+    return unavailable("no-pod", phase);
+  }
+
+  return { available: true, logs, phase, podName: null, archived: true };
 }
 
 function isNotFound(err: unknown): boolean {
@@ -189,5 +222,88 @@ export class KubePodLogs implements PodLogSource {
       namespace: this.namespace(),
       tailLines,
     });
+  }
+}
+
+/** One Cloud Logging entry — a container log line is either a raw `textPayload`
+ *  or a structured `jsonPayload` (agents that log JSON). */
+export interface LogEntry {
+  textPayload?: string;
+  jsonPayload?: { message?: string } & Record<string, unknown>;
+}
+
+const DEFAULT_ARCHIVE_LINES = 5000;
+const LOGGING_ENTRIES_URL = "https://logging.googleapis.com/v2/entries:list";
+const LOGGING_READ_SCOPE = "https://www.googleapis.com/auth/logging.read";
+
+/** The stdout line for one entry: raw payload, else the structured message,
+ *  else the structured payload as JSON. */
+export function entryText(entry: LogEntry): string {
+  if (typeof entry.textPayload === "string") {
+    return entry.textPayload;
+  }
+
+  if (typeof entry.jsonPayload?.message === "string") {
+    return entry.jsonPayload.message;
+  }
+
+  return entry.jsonPayload ? JSON.stringify(entry.jsonPayload) : "";
+}
+
+/** Cloud Logging filter selecting one Job's container logs in a namespace. */
+export function podLogFilter(namespace: string, jobName: string): string {
+  return [
+    `resource.type="k8s_container"`,
+    `resource.labels.namespace_name="${namespace}"`,
+    `labels."k8s-pod/job-name"="${jobName}"`,
+  ].join(" ");
+}
+
+/** Entries arrive newest-first (orderBy timestamp desc) — reverse to
+ *  chronological order and join. null when the archive holds nothing. */
+export function assembleArchivedLog(entries: LogEntry[]): string | null {
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return entries.map(entryText).reverse().join("\n");
+}
+
+/** PodLogArchive backed by GCP Cloud Logging (the `_Default` log bucket, where
+ *  GKE ships every pod's stdout and retains it long after the pod is GC-ed).
+ *  Auth via Workload Identity (ADC); any failure degrades to null so the
+ *  agent-logs endpoint never 500s on a logging hiccup. */
+export class CloudLoggingPodLogs implements PodLogArchive {
+  constructor(
+    private readonly namespace = process.env.LORE_AGENTS_NAMESPACE ??
+      "ai-agents",
+  ) {}
+
+  async logsForJob(
+    jobName: string,
+    opts: { tailLines?: number } = {},
+  ): Promise<string | null> {
+    try {
+      const { GoogleAuth } = await import("google-auth-library");
+      const auth = new GoogleAuth({ scopes: LOGGING_READ_SCOPE });
+      const [projectId, client] = await Promise.all([
+        auth.getProjectId(),
+        auth.getClient(),
+      ]);
+      const res = await client.request<{ entries?: LogEntry[] }>({
+        url: LOGGING_ENTRIES_URL,
+        method: "POST",
+        data: {
+          resourceNames: [`projects/${projectId}`],
+          filter: podLogFilter(this.namespace, jobName),
+          orderBy: "timestamp desc",
+          pageSize: opts.tailLines ?? DEFAULT_ARCHIVE_LINES,
+        },
+      });
+
+      return assembleArchivedLog(res.data.entries ?? []);
+    } catch {
+      return null;
+    }
   }
 }

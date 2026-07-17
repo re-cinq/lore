@@ -10,7 +10,9 @@ import type { ServerRoute } from "@hapi/hapi";
 import {
   readAgentLogs,
   KubePodLogs,
+  CloudLoggingPodLogs,
   type PodLogSource,
+  type PodLogArchive,
 } from "../../../jobs/station/agent-pod-logs.js";
 
 const DEFAULT_TAIL_LINES = 5000;
@@ -29,6 +31,7 @@ export function parseTail(raw: unknown): number {
 
 export function agentLogsRoute(
   source: PodLogSource = new KubePodLogs(),
+  archive: PodLogArchive = new CloudLoggingPodLogs(),
 ): ServerRoute {
   return {
     method: "GET",
@@ -37,7 +40,7 @@ export function agentLogsRoute(
     handler: async (request, h) => {
       const name = request.params.name;
       const tailLines = parseTail(request.query.tail);
-      const result = await readAgentLogs(source, name, { tailLines });
+      const result = await readAgentLogs(source, name, { tailLines }, archive);
 
       return h.response(result).code(200);
     },

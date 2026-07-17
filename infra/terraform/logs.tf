@@ -108,6 +108,21 @@ resource "google_storage_bucket_iam_member" "lore_agent_logs_admin" {
   member = "serviceAccount:${google_service_account.lore_agent.email}"
 }
 
+# Cloud Logging read — the Floor agent-logs endpoint (CloudLoggingPodLogs) reads
+# a GC-ed node pod's stdout back from the _Default log bucket once the live pod
+# is gone, so the assembly-line run view keeps showing logs after the pod exits.
+resource "google_project_iam_member" "lore_agent_logging_viewer" {
+  project = var.project_id
+  role    = "roles/logging.viewer"
+  member  = "serviceAccount:${google_service_account.lore_agent.email}"
+}
+
+# NOTE: raising the _Default log-bucket retention past its 30-day default is a
+# manual admin action (`gcloud logging buckets update _Default --location=global
+# --retention-days=N`) — it needs logging.admin, which the terraform deployer
+# identity intentionally lacks. The fallback works on the 30-day default; only
+# the read grant above is required.
+
 # Workload Identity: the helm-managed KSA lore-floor/lore-floor impersonates this SA.
 resource "google_service_account_iam_member" "lore_agent_wi" {
   service_account_id = google_service_account.lore_agent.name
