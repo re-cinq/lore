@@ -66,6 +66,9 @@ export interface IngestGraphPorts {
   listTree(ref?: string): Promise<string[]>;
   readFile(path: string, ref?: string): Promise<string>;
   buildTestReport?: () => Promise<unknown>;
+  /** Statement embedder passed to each kind's project; omitted = the
+   *  projector's default (Vertex via GCP ADC — absent in station pods). */
+  embed?: (text: string) => Promise<number[] | null>;
 }
 
 /** One file-projectable kind: how to discover its files + how to project one. */
@@ -273,7 +276,7 @@ export async function runIngestGraph(
         filePath,
         content,
         ports.dgraph,
-        undefined,
+        ports.embed,
         params.force,
       );
 
