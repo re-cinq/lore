@@ -13,7 +13,6 @@ import { projectFor } from "../composition/project-boot.js";
 import { insertEvent } from "../main-loop/store.js";
 import { assemblyLines } from "../kernel/queues.js";
 import { writeAuditLog } from "./lib/audit.js";
-import { validateSpecCoverageJob } from "@re-cinq/lore-shared/detect/index.js";
 import type { EventHandler } from "../main-loop/types.js";
 
 export const specTrace: EventHandler = async (params, meta) => {
@@ -54,13 +53,4 @@ export const specTrace: EventHandler = async (params, meta) => {
     console.error(`[events] spec-trace audit write failed for ${repo}:`, err),
   );
   enforceProjectionComplete(repo, kind, failedFiles);
-};
-
-export const specCoverageValidate: EventHandler = async (params) => {
-  const { repo } = params as { repo: string };
-
-  await validateSpecCoverageJob({
-    repoFilter: repo,
-    project: await projectFor(repo),
-  });
 };

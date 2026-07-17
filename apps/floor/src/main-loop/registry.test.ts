@@ -35,6 +35,15 @@ describe("buildRegistry", () => {
       expect(handler, `handler for ${name}`).toBeTypeOf("function");
     }
   });
+
+  it("routes the post-ingest validate event through the detect tick (one substrate, FR5)", () => {
+    // The same production handler serves the weekly cron and the post-ingest
+    // trigger: params.repo narrows it to the one repo, and the validate core
+    // runs in the detect station pod either way — never inline in the Floor.
+    expect(buildRegistry().get("internal.ingest.spec_coverage_validate")).toBe(
+      buildRegistry().get("cron.spec_coverage_validate.tick"),
+    );
+  });
 });
 
 describe("withExtra", () => {
