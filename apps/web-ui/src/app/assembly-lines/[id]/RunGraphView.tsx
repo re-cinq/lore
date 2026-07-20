@@ -101,7 +101,7 @@ export default function RunGraphView({
           return (
             <g key={edgeKey(edge)}>
               <path
-                className={`${styles.edge} ${styles[edge.kind]}`}
+                className={[styles.edge, styles[edge.kind]].filter(Boolean).join(' ')}
                 data-edge={edgeKey(edge)}
                 data-kind={edge.kind}
                 d={edge.d}
@@ -125,7 +125,9 @@ export default function RunGraphView({
           const visual = nodeStatusVisual(state?.status ?? IDLE_STATUS);
           const ceiling = attemptCeiling(definition, node.id);
           const attempts =
-            ceiling !== null && state ? `${state.iteration}/${ceiling}` : null;
+            ceiling !== null && state?.iteration
+              ? `${state.iteration}/${ceiling}`
+              : null;
 
           return (
             <g
