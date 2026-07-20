@@ -3,7 +3,7 @@
 | Field   | Value                    |
 |---------|--------------------------|
 | Feature | Assembly Line Run Visualization |
-| Status  | Draft                    |
+| Status  | In Progress              |
 | Owner   | Platform Engineering     |
 | Builds on | [ADR-037](../../adrs/ADR-037-sse-run-observability.md), [ADR-015](../../adrs/ADR-015-webhook-driven-review-reactor.md) |
 
@@ -54,9 +54,11 @@ useful granularity.
 
 - FR1.1. Every stream-json line POSTed to `/api/agent-events` is projected into one `pipeline.agent_run_events` row, not only the terminal `result` line.
 
-- FR1.2. The canonical row contract is `AgentRunEventRow` with the fields `id` (a string-encoded bigint used as the stream cursor), `taskId`, `agentCrName`, `assemblyLineId`, `nodeId`, `iteration`, `eventType`, `toolName`, `toolUseId`, `isError`, `filePaths`, `summary`, `payload`, and `createdAt`.
+- FR1.1a. Rows are written in batches. An empty batch issues no query and returns no rows, and a non-empty batch is bound as a single parameter rather than interpolated into statement text, because `filePaths` and `payload` carry agent-controlled text. ([validated by `agent-run-events.test.ts:171`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L171), [`agent-run-events.test.ts:294`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L294), [`agent-run-events.test.ts:313`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L313))
 
-- FR1.3. The `id` field crosses every wire boundary as a string and is never narrowed to a JavaScript number, because a bigint identity column exceeds `Number.MAX_SAFE_INTEGER`.
+- FR1.2. The canonical row contract is `AgentRunEventRow` with the fields `id` (a string-encoded bigint used as the stream cursor), `taskId`, `agentCrName`, `assemblyLineId`, `nodeId`, `iteration`, `eventType`, `toolName`, `toolUseId`, `isError`, `filePaths`, `summary`, `payload`, and `createdAt`. ([validated by `agent-run-events.test.ts:96`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L96), [`agent-run-events.test.ts:137`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L137))
+
+- FR1.3. The `id` field crosses every wire boundary as a string and is never narrowed to a JavaScript number, because a bigint identity column exceeds `Number.MAX_SAFE_INTEGER`. ([validated by `agent-run-events.test.ts:84`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L84), [`agent-run-events.test.ts:249`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L249), [`agent-run-events.test.ts:336`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L336))
 
 - FR1.4. The `eventType` field is one of `init`, `message`, `thinking`, `tool_call`, `tool_result`, or `result`.
 
@@ -70,17 +72,17 @@ useful granularity.
 
 - FR1.8a. The `summary` field is one human-readable line describing the event, derived at write time and truncated to at most 200 characters. It is a rendering convenience, never a parsing target: no reader may branch on its content, and it is null whenever no meaningful line can be derived. Its exact per-event-type wording is an implementation choice of the projector, not a contract this spec fixes.
 
-- FR1.9. An event is correlated to its assembly-line node at write time by matching the envelope's `source.agent` against `pipeline.assembly_line_nodes.agent_cr_name`.
+- FR1.9. An event is correlated to its assembly-line node at write time by matching the envelope's `source.agent` against `pipeline.assembly_line_nodes.agent_cr_name`. ([validated by `agent-run-events.test.ts:35`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L35), [`agent-run-events.test.ts:301`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L301))
 
-- FR1.9a. A correlation miss is not an error. When no node row matches the envelope's `source.agent` — because the event arrived before the node row carried its CR name, or because the CR belongs to no node at all — the row is still written, with `agentCrName` retained and `assemblyLineId`, `nodeId`, and `iteration` left null. Retaining `agentCrName` on an uncorrelated row is what keeps a later backfill possible; a backfill is not in scope here.
+- FR1.9a. A correlation miss is not an error. When no node row matches the envelope's `source.agent` — because the event arrived before the node row carried its CR name, or because the CR belongs to no node at all — the row is still written, with `agentCrName` retained and `assemblyLineId`, `nodeId`, and `iteration` left null. Retaining `agentCrName` on an uncorrelated row is what keeps a later backfill possible; a backfill is not in scope here. ([validated by `agent-run-events.test.ts:60`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L60), [`agent-run-events.test.ts:74`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L74), [`agent-run-events.test.ts:152`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L152))
 
 - FR1.10. The correlation lookup is served by a partial index on `pipeline.assembly_line_nodes (agent_cr_name)` where `agent_cr_name` is not null; that index does not exist today and is created by the migration that adds this table.
 
-- FR1.11. The `assemblyLineId`, `nodeId`, and `iteration` fields are nullable, because agent CRs dispatched for a plain task rather than an assembly-line node are named from the task id and resolve to no node.
+- FR1.11. The `assemblyLineId`, `nodeId`, and `iteration` fields are nullable, because agent CRs dispatched for a plain task rather than an assembly-line node are named from the task id and resolve to no node. ([validated by `agent-run-events.test.ts:60`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L60))
 
 - FR1.12. A double-wrapped envelope line of the shape `{source, event: {source, event}}` is projected rather than dropped.
 
-- FR1.13. Rows older than 14 days are pruned.
+- FR1.13. Rows older than 14 days are pruned. ([validated by `agent-run-events.test.ts:269`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L269), [`agent-run-events.test.ts:281`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L281), [`agent-run-events.test.ts:410`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L410))
 
 ### FR2 — Live transport
 
@@ -94,7 +96,7 @@ useful granularity.
 
 - FR2.5. A `: ping` comment is emitted every 25 seconds to keep the connection open through idle-timeout intermediaries.
 
-- FR2.6. The replay start cursor is the row id supplied by the client as a `Last-Event-ID` request header or as an `?after` query parameter. The replay query is additionally scoped to the `assemblyLineId` in the URL path: a cursor is a position, never an authorization, so a client presenting a cursor from another run receives that run's events only if it is already entitled to the run it asked for. An implementation that filters on `id > cursor` alone discloses one run's events to another run's subscriber.
+- FR2.6. The replay start cursor is the row id supplied by the client as a `Last-Event-ID` request header or as an `?after` query parameter. The replay query is additionally scoped to the `assemblyLineId` in the URL path: a cursor is a position, never an authorization, so a client presenting a cursor from another run receives that run's events only if it is already entitled to the run it asked for. An implementation that filters on `id > cursor` alone discloses one run's events to another run's subscriber. ([validated by `agent-run-events.test.ts:204`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L204), [`agent-run-events.test.ts:212`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L212), [`agent-run-events.test.ts:220`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L220), [`agent-run-events.test.ts:228`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L228), [`agent-run-events.test.ts:236`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L236), [`agent-run-events.test.ts:398`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L398))
 
 - FR2.7. Responses carry `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no` so that no intermediary buffers the stream into unusable chunks.
 
