@@ -204,12 +204,14 @@ export {
   type Classification,
 } from "./spec-segment.js";
 export {
+  docStatusPill,
   parseDocStatus,
   statusTier,
   rewriteAdrStatusRow,
   rewriteSpecStatusRow,
   type DocKind,
   type DocStatus,
+  type DocStatusPill,
   type RewriteStatusOptions,
   type StatusBucket,
   type StatusTier,

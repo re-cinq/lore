@@ -1,13 +1,12 @@
 export const dynamic = "force-dynamic";
 import { fetchAllSpecs } from "@/lib/trace-api";
-import { fetchDocStatusesFromGraph } from "@/lib/spec-status-source";
+import { statusesByKey } from "@/lib/doc-statuses";
 import GlobalDocsView from "@/components/GlobalDocsView";
 
 export default async function SpecsPage() {
   // The spec-traceability graph is the source of truth — the list and the
-  // lifecycle status pills (parsed from each spec.md's graph source) alike.
+  // lifecycle status pills alike, both from this one call.
   const specs = await fetchAllSpecs();
-  const statuses = await fetchDocStatusesFromGraph(specs, "spec");
 
   return (
     <div>
@@ -18,7 +17,7 @@ export default async function SpecsPage() {
       </p>
       <GlobalDocsView
         docs={specs}
-        statuses={statuses}
+        statuses={statusesByKey(specs)}
         emptyHint="No specs in the graph yet. Specs are projected automatically by CI on push to main."
         noMatchHint="No specs match this filter."
       />

@@ -9,15 +9,15 @@ import { isValidElement, type ReactElement } from "react";
 
 vi.mock("@/lib/trace-api", () => ({
   fetchAllSpecs: async () => [
-    { repo: "re-cinq/lore", filePath: "specs/auth/spec.md" },
+    {
+      repo: "re-cinq/lore",
+      filePath: "specs/auth/spec.md",
+      status: { status: "shipped", label: "Shipped" },
+    },
   ],
   fetchAllAdrs: async () => [
-    { repo: "re-cinq/lore", filePath: "adrs/ADR-001-x.md" },
+    { repo: "re-cinq/lore", filePath: "adrs/ADR-001-x.md", status: null },
   ],
-}));
-
-vi.mock("@/lib/spec-status-source", () => ({
-  fetchDocStatusesFromGraph: async () => ({}),
 }));
 
 const functionProps = (node: unknown, path = "root"): string[] => {
