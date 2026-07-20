@@ -194,7 +194,7 @@ export function agentEventsStreamRoute(
       const assemblyLineId = request.params.assemblyLineId;
       const after = parseCursor(
         request.headers["last-event-id"],
-        request.query.after ?? request.query.lastEventId,
+        request.query.after,
       );
 
       let run: RunEventStream;
@@ -209,9 +209,20 @@ export function agentEventsStreamRoute(
           heartbeatMs: deps?.heartbeatMs,
           highWaterMark: deps?.highWaterMark,
         });
-      } catch {
+      } catch (err) {
         // The bus refuses past MAX_SUBSCRIBERS_PER_LINE. That is capacity, not a
-        // bug in the request — 503 tells the client to come back.
+        // bug in the request — 503 tells the client to come back. Anything else
+        // is a real fault and must surface as a 500; swallowing it here would
+        // report every programming error as backpressure. Matched on the bus's
+        // own message prefix because subscribe throws a plain Error — if that
+        // ever becomes a typed error, match the type instead.
+        const capacity =
+          err instanceof Error && err.message.startsWith("agent event bus: ");
+
+        if (!capacity) {
+          throw err;
+        }
+
         throw Boom.serverUnavailable("too many subscribers for this run");
       }
 
@@ -223,7 +234,6 @@ export function agentEventsStreamRoute(
           .type("text/event-stream")
           .header("cache-control", "no-cache, no-transform")
           .header("x-accel-buffering", "no")
-          .header("connection", "keep-alive")
           // Compressing an SSE stream would let an intermediary hold frames back
           // until a compression block fills; identity keeps each frame on the wire.
           .header("content-encoding", "identity")

@@ -30,7 +30,17 @@ export function assemblyLineDefinitionsRoute(
     path: "/api/assembly-line-definitions/{name}",
     options: { auth: "ingest-token" },
     handler: async (request, h) => {
-      const definitions = await (cached ??= load());
+      // Cache the promise, not just the value — but never cache a rejection:
+      // a transient I/O error at first call would otherwise fail every request
+      // for the process's lifetime.
+      if (!cached) {
+        cached = load().catch((err: unknown) => {
+          cached = undefined;
+          throw err;
+        });
+      }
+
+      const definitions = await cached;
       const definition = definitions.get(request.params.name);
 
       enforceTrue(

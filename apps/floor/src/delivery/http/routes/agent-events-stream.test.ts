@@ -525,4 +525,22 @@ describe("GET /api/agent-events/stream/{assemblyLineId}", () => {
 
     expect(res.statusCode).toBe(503);
   });
+
+  it("returns 500, not 503, when subscribe fails for a reason other than capacity", async () => {
+    process.env.LORE_INGEST_TOKEN = "ingest-secret";
+    const res = await streamServer({
+      events: { listSince: () => Promise.resolve([]) },
+      bus: {
+        subscribe: () => {
+          throw new TypeError("handler is not a function");
+        },
+      },
+    }).inject({
+      method: "GET",
+      url: "/api/agent-events/stream/line-1",
+      headers: { authorization: "Bearer ingest-secret" },
+    });
+
+    expect(res.statusCode).toBe(500);
+  });
 });

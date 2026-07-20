@@ -100,7 +100,7 @@ useful granularity.
 
 - FR2.7. Responses carry `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no` so that no intermediary buffers the stream into unusable chunks. ([validated by `agent-events-stream.test.ts:481`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L481))
 
-- FR2.8. A connection refused because the run already has its maximum concurrent subscribers is answered `503 Service Unavailable`, not `500`: the request is well-formed and the client should retry, so the status has to say capacity rather than fault. ([validated by `agent-events-stream.test.ts:511`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L511))
+- FR2.8. A connection refused because the run already has its maximum concurrent subscribers is answered `503 Service Unavailable`, not `500`: the request is well-formed and the client should retry, so the status has to say capacity rather than fault. The converse binds equally: a subscribe failure that is NOT capacity must surface as `500`, so a programming fault is never disguised as backpressure and silently retried. ([validated by `agent-events-stream.test.ts:511`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L511), [`agent-events-stream.test.ts:529`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L529))
 
 ### FR3 — History and definitions
 
