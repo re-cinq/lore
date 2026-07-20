@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, fireEvent } from "@testing-library/react";
 import RunVisualizationPanel from "./RunVisualizationPanel";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import { HISTORY_PAGE_LIMIT } from "./run-stream-presenter";
@@ -274,5 +274,130 @@ describe("live events", () => {
     });
 
     expect(FakeEventSource.instances).toHaveLength(1);
+  });
+});
+
+describe("node transcript drill-in", () => {
+  async function selectNode(name: string) {
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: new RegExp(`^${name} —`) }),
+      );
+    });
+  }
+
+  it("shows the implement node transcript after clicking the implement node", async () => {
+    stubHistory([
+      eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
+      eventRow({
+        id: "2",
+        nodeId: "implement",
+        eventType: "tool_call",
+        toolName: "Edit",
+        summary: "spec.md",
+      }),
+    ]);
+    useFakeEventSource();
+
+    renderPanel("running");
+    await settle();
+    await selectNode("implement");
+
+    expect(screen.getByText("Edit")).toBeInTheDocument();
+    expect(screen.getByText("spec.md")).toBeInTheDocument();
+  });
+
+  it("swaps to the validate node transcript when the selection changes", async () => {
+    stubHistory([
+      eventRow({
+        id: "1",
+        nodeId: "implement",
+        eventType: "tool_call",
+        toolName: "Edit",
+        summary: "spec.md",
+      }),
+      eventRow({
+        id: "2",
+        nodeId: "validate",
+        eventType: "tool_call",
+        toolName: "Bash",
+        summary: "npm test",
+      }),
+    ]);
+    useFakeEventSource();
+
+    renderPanel("running");
+    await settle();
+    await selectNode("implement");
+    await selectNode("validate");
+
+    expect(screen.getByText("npm test")).toBeInTheDocument();
+    expect(screen.queryByText("spec.md")).not.toBeInTheDocument();
+  });
+
+  it("renders the empty transcript message for a node with no events", async () => {
+    stubHistory([]);
+    useFakeEventSource();
+
+    renderPanel("running");
+    await settle();
+    await selectNode("implement");
+
+    expect(
+      screen.getByText("No agent events for implement yet."),
+    ).toBeInTheDocument();
+  });
+
+  it("appends a live tool_call row to the open transcript", async () => {
+    stubHistory([
+      eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
+    ]);
+    useFakeEventSource();
+
+    renderPanel("running");
+    await settle();
+    await selectNode("implement");
+
+    await act(async () => {
+      FakeEventSource.instances[0].emit(
+        "agent-event",
+        eventRow({
+          id: "9",
+          nodeId: "implement",
+          eventType: "tool_call",
+          toolName: "Bash",
+          summary: "npm run build",
+        }),
+      );
+    });
+
+    expect(screen.getByText("npm run build")).toBeInTheDocument();
+  });
+
+  it("keeps the transcript scroll handler working when the reader scrolls", async () => {
+    stubHistory([
+      eventRow({
+        id: "1",
+        nodeId: "implement",
+        eventType: "message",
+        summary: "alpha",
+      }),
+    ]);
+    useFakeEventSource();
+
+    const view = renderPanel("running");
+
+    await settle();
+    await selectNode("implement");
+
+    const box = view.container.querySelector("div[class*='transcriptScroll']");
+
+    expect(box).not.toBeNull();
+
+    await act(async () => {
+      box?.dispatchEvent(new Event("scroll", { bubbles: true }));
+    });
+
+    expect(screen.getByText("alpha")).toBeInTheDocument();
   });
 });
