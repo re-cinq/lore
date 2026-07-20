@@ -11,6 +11,9 @@ import { registerRequestTracing } from "./tracing.js";
 import { healthRoute } from "./routes/health.js";
 import { agentEventsRoute } from "./routes/agent-events.js";
 import { agentLogsRoute } from "./routes/agent-logs.js";
+import { agentEventsStreamRoute } from "./routes/agent-events-stream.js";
+import { agentEventsHistoryRoute } from "./routes/agent-events-history.js";
+import { assemblyLineDefinitionsRoute } from "./routes/assembly-line-definitions.js";
 import { githubWebhookRoute } from "./routes/github-webhook.js";
 import { ciIngestRoute } from "./routes/ci-ingest.js";
 import { ciTestsRoute } from "./routes/ci-tests.js";
@@ -42,6 +45,9 @@ export function buildServer(opts: {
   server.route([
     healthRoute(opts.getJobStatus),
     agentEventsRoute,
+    agentEventsStreamRoute(),
+    agentEventsHistoryRoute(),
+    assemblyLineDefinitionsRoute(),
     agentLogsRoute(opts.podLogSource, opts.podLogArchive),
     githubWebhookRoute,
     ciIngestRoute,
