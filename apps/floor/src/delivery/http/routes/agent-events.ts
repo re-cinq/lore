@@ -8,12 +8,14 @@ import { errorMessage } from "@re-cinq/lore-shared";
  */
 
 import type { ServerRoute } from "@hapi/hapi";
-import { usage } from "../../../kernel/queues.js";
+import { usage, agentRunEvents } from "../../../kernel/queues.js";
 import {
   parseAgentEvents,
   agentEventsArchiveKey,
   type LlmCallRow,
 } from "../../../jobs/agent/agent-events.js";
+import { parseAgentRunEvents } from "../../../jobs/agent/agent-run-events.js";
+import { agentEventBus } from "../../../jobs/agent/agent-event-bus.js";
 import { archiveAgentEvents } from "../../../jobs/agent/agent-events-store.js";
 import { rawBody } from "../raw-body.js";
 
@@ -57,6 +59,29 @@ function archiveRaw(body: string, rows: readonly LlmCallRow[]): void {
   );
 }
 
+/**
+ * Persist the per-tool-call run-visualization projection and fan it out (#876).
+ * Publishing happens strictly AFTER the insert resolves, so a live subscriber can
+ * never see an id that `listSince` cannot replay on reconnect — that ordering is
+ * the whole correctness argument for the SSE catch-up. Skip-not-fail like
+ * `recordAgentCosts`: a viz persistence failure must never 500 the cost sink.
+ */
+async function recordRunEvents(rawNdjson: string): Promise<number> {
+  try {
+    const inserted = await agentRunEvents().insertBatch(
+      parseAgentRunEvents(rawNdjson),
+    );
+
+    agentEventBus().publish(inserted);
+
+    return inserted.length;
+  } catch (err) {
+    console.warn(`[floor] agent_run_events skipped: ${errorMessage(err)}`);
+
+    return 0;
+  }
+}
+
 export const agentEventsRoute: ServerRoute = {
   method: "POST",
   path: "/api/agent-events",
@@ -67,10 +92,12 @@ export const agentEventsRoute: ServerRoute = {
     const rawNdjson = rawBody(request);
     const rows = parseAgentEvents(rawNdjson);
     const recorded = await recordAgentCosts(rows);
+    const vizRows = await recordRunEvents(rawNdjson);
 
     request.app.span?.setAttributes({
       "agent_events.count": rows.length,
       "agent_events.recorded": recorded,
+      "agent_events.viz_rows": vizRows,
     });
     archiveRaw(rawNdjson, rows);
 
