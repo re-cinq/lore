@@ -116,6 +116,11 @@ export interface TraceDocumentResult {
 }
 
 import type { DgraphClientPort } from "./deps.js";
+import {
+  docStatusPill,
+  type DocKind,
+  type DocStatusPill,
+} from "../spec-status.js";
 import { withTxn } from "./dgraph-upsert.js";
 import { recomputeFile } from "./recompute-spec-file.js";
 import { summarizeMarkdown } from "./summarize-markdown.js";
@@ -184,14 +189,15 @@ export function listAdrDocuments(
   return listDocPaths(LIST_ADRS_DQL, "ADR.file_path", repo, dgraph);
 }
 
-/** Card summary of one ADR for list pages: title + description (from its markdown source; no coverage). */
+/** Card summary of one ADR for list pages: title + description + status (from its markdown source; no coverage). */
 export interface AdrSummary {
   filePath: string;
   title: string;
   description: string;
+  status: DocStatusPill | null;
 }
 
-/** Lists each ADR as a card summary (title/description), parsed from its byte-exact reassembled source. */
+/** Lists each ADR as a card summary, parsed from its byte-exact reassembled source. */
 export async function listAdrSummaries(
   repo: string,
   dgraph: DgraphClientPort,
@@ -203,7 +209,13 @@ export async function listAdrSummaries(
       const source = await recomputeFile(repo, filePath, dgraph);
       const { title, description } = summarizeMarkdown(source ?? "");
 
-      return { filePath, title: title || basename(filePath), description };
+      return {
+        filePath,
+        title: title || basename(filePath),
+        description,
+        // Free: the source is already reassembled here for title/description.
+        status: source ? docStatusPill(source, "adr") : null,
+      };
     }),
   );
 }
@@ -237,26 +249,66 @@ async function listAllDocPaths(
     .map((r) => ({ repo: r[repoPredicate]!, filePath: r[pathPredicate]! }));
 }
 
-/** Cross-repo: every spec document in the graph as {repo, filePath} — backs the global /specs viewer. */
-export function listAllSpecDocuments(
+/** A global-viewer list entry: the document's identity plus its lifecycle pill. */
+export interface GlobalDocEntry {
+  repo: string;
+  filePath: string;
+  status: DocStatusPill | null;
+}
+
+/**
+ * Attaches each document's status pill by reassembling its source from the
+ * Block layer. One graph query per doc, run in parallel — measured at ~194ms
+ * for 113 specs, so it stays inside the list call rather than making the
+ * browser issue one HTTP request per document (which would put a single page
+ * render over the API's 200/min shared `default` rate-limit bucket).
+ * Only spec.md carries a `| Status |` row; other spec paths resolve to null.
+ */
+async function withStatuses(
+  docs: Array<{ repo: string; filePath: string }>,
+  kind: DocKind,
   dgraph: DgraphClientPort,
-): Promise<Array<{ repo: string; filePath: string }>> {
-  return listAllDocPaths(
-    LIST_ALL_SPECS_DQL,
-    "Spec.repo",
-    "Spec.file_path",
+): Promise<GlobalDocEntry[]> {
+  return Promise.all(
+    docs.map(async (doc) => {
+      if (kind === "spec" && basename(doc.filePath) !== "spec.md") {
+        return { ...doc, status: null };
+      }
+      const source = await recomputeFile(doc.repo, doc.filePath, dgraph);
+
+      return { ...doc, status: source ? docStatusPill(source, kind) : null };
+    }),
+  );
+}
+
+/** Cross-repo: every spec document in the graph with its status — backs the global /specs viewer. */
+export async function listAllSpecDocuments(
+  dgraph: DgraphClientPort,
+): Promise<GlobalDocEntry[]> {
+  return withStatuses(
+    await listAllDocPaths(
+      LIST_ALL_SPECS_DQL,
+      "Spec.repo",
+      "Spec.file_path",
+      dgraph,
+    ),
+    "spec",
     dgraph,
   );
 }
 
-/** Cross-repo: every ADR document in the graph as {repo, filePath} — backs the global /adrs viewer. */
-export function listAllAdrDocuments(
+/** Cross-repo: every ADR document in the graph with its status — backs the global /adrs viewer. */
+export async function listAllAdrDocuments(
   dgraph: DgraphClientPort,
-): Promise<Array<{ repo: string; filePath: string }>> {
-  return listAllDocPaths(
-    LIST_ALL_ADRS_DQL,
-    "ADR.repo",
-    "ADR.file_path",
+): Promise<GlobalDocEntry[]> {
+  return withStatuses(
+    await listAllDocPaths(
+      LIST_ALL_ADRS_DQL,
+      "ADR.repo",
+      "ADR.file_path",
+      dgraph,
+    ),
+    "adr",
     dgraph,
   );
 }
@@ -284,6 +336,7 @@ export interface SpecSummary {
   title: string;
   description: string;
   coverage: TraceCoverage;
+  status: DocStatusPill | null;
 }
 
 /**
@@ -306,9 +359,24 @@ export async function listSpecSummaries(
         title: doc.title,
         description: doc.description,
         coverage: doc.coverage,
+        status: await specStatusOf(repo, filePath, dgraph),
       };
     }),
   );
+}
+
+/** Only spec.md carries a `| Status |` row; other spec paths have no pill. */
+async function specStatusOf(
+  repo: string,
+  filePath: string,
+  dgraph: DgraphClientPort,
+): Promise<DocStatusPill | null> {
+  if (basename(filePath) !== "spec.md") {
+    return null;
+  }
+  const source = await recomputeFile(repo, filePath, dgraph);
+
+  return source ? docStatusPill(source, "spec") : null;
 }
 
 function basename(path: string): string {

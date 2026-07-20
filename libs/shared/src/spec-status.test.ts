@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  docStatusPill,
   parseDocStatus,
   statusTier,
   rewriteAdrStatusRow,
@@ -306,5 +307,73 @@ describe("rewriteAdrStatusRow", () => {
       .filter((line, i) => line !== after.split("\n")[i]);
 
     expect(changed).toEqual(["status: shipped"]);
+  });
+});
+
+const adrDoc = (statusValue: string) =>
+  `---\nadr_number: 7\ntitle: "Example"\nstatus: ${statusValue}\ndate: 2026-06-23\n---\n\n# ADR-007: Example\n\nLead paragraph.\n`;
+
+const specDoc = (statusCell: string) =>
+  `# Feature\n\n| Field | Value |\n|---|---|\n| Status | ${statusCell} |\n`;
+
+// docStatusPill backs the /specs and /adrs list pills. Unlike parseDocStatus it
+// preserves the doc's own casing, so it asserts labels as well as buckets.
+describe("docStatusPill", () => {
+  it("buckets frontmatter accepted as shipped with label Accepted", () => {
+    expect(docStatusPill(adrDoc("accepted"), "adr")).toEqual({
+      status: "shipped",
+      label: "Accepted",
+    });
+  });
+
+  it("buckets a multi-word value with label In progress", () => {
+    expect(docStatusPill(adrDoc("in progress"), "adr")).toEqual({
+      status: "in-progress",
+      label: "In progress",
+    });
+  });
+
+  it("strips quotes around the frontmatter value", () => {
+    expect(docStatusPill(adrDoc('"draft"'), "adr")).toEqual({
+      status: "draft",
+      label: "Draft",
+    });
+  });
+
+  it("buckets frontmatter superseded as retired", () => {
+    expect(docStatusPill(adrDoc("superseded"), "adr")?.status).toBe("retired");
+  });
+
+  it("ignores a body Status section that disagrees with frontmatter", () => {
+    const doc = `${adrDoc("draft")}\n## Status\n\nAccepted\n`;
+
+    expect(docStatusPill(doc, "adr")?.status).toBe("draft");
+  });
+
+  it("returns null when an adr has no frontmatter", () => {
+    expect(
+      docStatusPill("# ADR-001: X\n\n## Status\n\nAccepted\n", "adr"),
+    ).toBeNull();
+  });
+
+  it("returns null for an unrecognized value", () => {
+    expect(docStatusPill(adrDoc("contemplating"), "adr")).toBeNull();
+  });
+
+  it("trims a decorated spec row to its leading phrase", () => {
+    expect(
+      docStatusPill(specDoc("Shipped (v3) — supersedes v1"), "spec"),
+    ).toEqual({ status: "shipped", label: "Shipped" });
+  });
+
+  it("keeps the spec row's own casing in the label", () => {
+    expect(docStatusPill(specDoc("**Draft**"), "spec")).toEqual({
+      status: "draft",
+      label: "Draft",
+    });
+  });
+
+  it("returns null when a spec has no Status row", () => {
+    expect(docStatusPill("# Feature\n\nJust prose.\n", "spec")).toBeNull();
   });
 });

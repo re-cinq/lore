@@ -6,8 +6,20 @@
 
 import type { TraceDocument } from "@/lib/trace-types";
 import type { SpecGraph, SpecRing } from "@/lib/spec-graph";
+import type { SpecStatusInfo } from "@/lib/spec-status";
 
 export type { TraceDocument };
+
+/**
+ * A global-viewer list entry. The status pill ships with the list rather than
+ * being fetched per document: the old one-source-fetch-per-doc fan-out put a
+ * single /specs render at 114 requests, over the API's shared 200/min bucket.
+ */
+export interface GlobalDocEntry {
+  repo: string;
+  filePath: string;
+  status: SpecStatusInfo | null;
+}
 
 function creds(): { api: string; token: string } | null {
   const api = process.env.LORE_API_URL;
@@ -53,6 +65,7 @@ export interface SpecSummary {
     untestable: number;
     ratio: number;
   };
+  status: SpecStatusInfo | null;
 }
 
 /** Card summaries (title/description/coverage) for the repo's specs. */
@@ -72,6 +85,7 @@ export interface AdrSummary {
   filePath: string;
   title: string;
   description: string;
+  status: SpecStatusInfo | null;
 }
 
 /** Card summaries (title/description) for the repo's ADRs. */
@@ -127,27 +141,15 @@ export async function fetchTraceRing(
 }
 
 /** Cross-repo spec list for the global /specs viewer. */
-export async function fetchAllSpecs(): Promise<
-  Array<{ repo: string; filePath: string }>
-> {
+export async function fetchAllSpecs(): Promise<GlobalDocEntry[]> {
   return (
-    (
-      await apiGet<{ specs: Array<{ repo: string; filePath: string }> }>(
-        "/api/trace/specs",
-      )
-    )?.specs ?? []
+    (await apiGet<{ specs: GlobalDocEntry[] }>("/api/trace/specs"))?.specs ?? []
   );
 }
 
 /** Cross-repo ADR list for the global /adrs viewer. */
-export async function fetchAllAdrs(): Promise<
-  Array<{ repo: string; filePath: string }>
-> {
+export async function fetchAllAdrs(): Promise<GlobalDocEntry[]> {
   return (
-    (
-      await apiGet<{ adrs: Array<{ repo: string; filePath: string }> }>(
-        "/api/trace/adrs",
-      )
-    )?.adrs ?? []
+    (await apiGet<{ adrs: GlobalDocEntry[] }>("/api/trace/adrs"))?.adrs ?? []
   );
 }

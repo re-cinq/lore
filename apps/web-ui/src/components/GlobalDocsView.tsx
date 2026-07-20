@@ -1,11 +1,13 @@
 "use client";
 
 // Presentational cross-repo doc list shared by the global /specs and /adrs
-// viewers, sourced from the spec-traceability graph. Groups by repo; each path
-// links via hrefFor to that repo's detail page. The lifecycle status pill per
-// path comes from the statuses prop (keyed `repo::filePath`, parsed from the
-// graph's byte-exact sources) and drives the filter chips — the graph is the
-// source of truth for list and statuses alike.
+// viewers, sourced from the spec-traceability graph. Groups by repo; `kind`
+// picks both the detail-page href and the chip legend. It is a plain string
+// rather than an href-building callback on purpose: this is a client component
+// rendered by server components, and functions cannot cross that boundary.
+// The lifecycle status pill per path comes from the statuses prop (keyed
+// `repo::filePath`, parsed from the graph's byte-exact sources) and drives the
+// filter chips — the graph is the source of truth for list and statuses alike.
 import { useState } from "react";
 import Link from "next/link";
 import DocListControls from "@/components/DocListControls";
@@ -18,20 +20,21 @@ import type {
   SpecStatusInfo,
 } from "@/lib/spec-status";
 
+const hrefFor = (kind: DocKind, repo: string, filePath: string): string =>
+  `/repos/${repo}/${kind === "adr" ? "adrs" : "specs"}/${encodeURIComponent(filePath)}`;
+
 export default function GlobalDocsView({
   docs,
   statuses = {},
-  hrefFor,
   emptyHint,
   noMatchHint,
-  chipsKind = "spec",
+  kind = "spec",
 }: {
   docs: Array<{ repo: string; filePath: string }>;
   statuses?: Record<string, SpecStatusInfo>;
-  hrefFor: (repo: string, filePath: string) => string;
   emptyHint: string;
   noMatchHint: string;
-  chipsKind?: DocKind;
+  kind?: DocKind;
 }) {
   const [filter, setFilter] = useState<SpecStatusFilter>("all");
   const [query, setQuery] = useState("");
@@ -69,7 +72,7 @@ export default function GlobalDocsView({
         total={docs.length}
         active={filter}
         onChange={setFilter}
-        kind={chipsKind}
+        kind={kind}
       />
       {[...byRepo.entries()].map(([repo, paths]) => (
         <section key={repo} style={{ marginBottom: 20 }}>
@@ -88,7 +91,7 @@ export default function GlobalDocsView({
                     gap: 8,
                   }}
                 >
-                  <Link href={hrefFor(repo, filePath)}>{filePath}</Link>
+                  <Link href={hrefFor(kind, repo, filePath)}>{filePath}</Link>
                   {info && <SpecStatusPill info={info} />}
                 </li>
               );
