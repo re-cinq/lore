@@ -12,8 +12,12 @@ import { staleTaskCheckJob } from "./task/stale-task-check.js";
 import { featurePlanningReaperJob } from "./task/feature-planning-reaper.js";
 import { leaseReaperJob } from "../main-loop/lease/lease-reaper.js";
 import { pruneHandled } from "../main-loop/store.js";
+import { agentRunEvents } from "../kernel/queues.js";
 import { reconcileAgents } from "../listeners/k8s-watch.js";
 import type { EventHandler } from "../main-loop/types.js";
+
+/** Agent run events are per-tool-call telemetry: high volume, low half-life. */
+const AGENT_RUN_EVENT_RETENTION_DAYS = 14;
 
 /** Adapt an existing `() => Promise<string>` job into an event handler (drop the summary). */
 const fromJob =
@@ -54,12 +58,21 @@ export const assemblyLineReaper: EventHandler = async () => {
   }
 };
 
-/** Housekeeping: drop old terminal event rows so the claim index stays small. */
+/** Housekeeping: drop old terminal event rows so the claim index stays small, and
+ *  reap agent run events past the 14-day retention horizon (FR1.13). */
 export const eventsPrune: EventHandler = async () => {
   const n = await pruneHandled(7);
 
   if (n > 0) {
     console.log(`[events] pruned ${n} handled event(s)`);
+  }
+
+  const runEvents = await agentRunEvents().pruneOld(
+    AGENT_RUN_EVENT_RETENTION_DAYS,
+  );
+
+  if (runEvents > 0) {
+    console.log(`[events] pruned ${runEvents} agent run event(s)`);
   }
 };
 
