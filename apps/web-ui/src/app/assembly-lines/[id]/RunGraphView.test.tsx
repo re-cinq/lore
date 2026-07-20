@@ -41,7 +41,10 @@ describe("RunGraphView structure", () => {
 
   it("shows no attempt badge on a pending node whose edge declares iteration_max", () => {
     const { container } = render(
-      <RunGraphView definition={implementationDefinition} nodeStates={states()} />,
+      <RunGraphView
+        definition={implementationDefinition}
+        nodeStates={states()}
+      />,
     );
 
     expect(nodeEl(container, "implement").textContent).not.toContain("0/");
