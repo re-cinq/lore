@@ -86,6 +86,56 @@ describe("parseAgentEvents", () => {
     expect(parseAgentEvents(ndjson)).toEqual([]);
   });
 
+  it("maps a double-wrapped result event to one llm_calls row", () => {
+    const ndjson = JSON.stringify({
+      source: src,
+      event: {
+        source: { task: "task-uuid-1", agent: "agent-abc" },
+        event: result({
+          modelUsage: { "claude-sonnet-4-6": {} },
+          usage: { input_tokens: 1200, output_tokens: 340 },
+          total_cost_usd: 0.0185,
+          duration_ms: 42000,
+        }),
+      },
+    });
+
+    expect(parseAgentEvents(ndjson)).toEqual([
+      {
+        taskId: "task-uuid-1",
+        model: "claude-sonnet-4-6",
+        inputTokens: 1200,
+        outputTokens: 340,
+        costUsd: 0.0185,
+        durationMs: 42000,
+      },
+    ]);
+  });
+
+  it("resolves the task id from the inner envelope when the outer carries none", () => {
+    const ndjson = JSON.stringify({
+      source: { agent: "agent-abc" },
+      event: { source: src, event: result({ usage: { input_tokens: 5 } }) },
+    });
+
+    expect(parseAgentEvents(ndjson)[0]).toMatchObject({
+      taskId: "task-uuid-1",
+      inputTokens: 5,
+    });
+  });
+
+  it("skips a triple-wrapped line, since the peel stops at two envelopes", () => {
+    const ndjson = JSON.stringify({
+      source: src,
+      event: {
+        source: src,
+        event: { source: src, event: result({ usage: { input_tokens: 1 } }) },
+      },
+    });
+
+    expect(parseAgentEvents(ndjson)).toEqual([]);
+  });
+
   it("emits a row per run across multiple lines", () => {
     const a = line(
       { task: "t-a" },

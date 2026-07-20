@@ -4,6 +4,11 @@
 // pipeline.llm_calls rows for cost accounting: one row per run, taken from the terminal
 // `result` event (it carries total_cost_usd + the run's cumulative usage + duration). The
 // HTTP receipt + DB insert is the IO shell (delivery/http/routes/agent-events.ts).
+//
+// The envelope itself is owned by @re-cinq/lore-assembly-lines' agent-output —
+// this mapper consumes unwrapAttribution and peels nothing of its own (#875).
+
+import { unwrapAttribution } from "@re-cinq/lore-assembly-lines";
 
 export interface LlmCallRow {
   taskId: string;
@@ -36,17 +41,12 @@ function resultModel(ev: Record<string, unknown>): string {
 }
 
 function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
-  if (!isObject(envelope)) {
-    return null;
-  }
-  const source = envelope.source;
-  const taskId =
-    isObject(source) && typeof source.task === "string" ? source.task : "";
+  const { source, event: ev } = unwrapAttribution(envelope);
+  const taskId = typeof source?.task === "string" ? source.task : "";
 
   if (!taskId) {
     return null;
   }
-  const ev = envelope.event;
 
   if (!isObject(ev) || ev.type !== "result" || !isObject(ev.usage)) {
     return null;
