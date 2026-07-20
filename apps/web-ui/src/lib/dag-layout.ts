@@ -120,6 +120,7 @@ export function layerByLongestPath(
   }
 
   const acyclicOut = new Map<string, DefinitionEdge[]>();
+
   for (const edge of acyclic) {
     indegree[edge.to] += 1;
     acyclicOut.set(edge.from, [...(acyclicOut.get(edge.from) ?? []), edge]);
