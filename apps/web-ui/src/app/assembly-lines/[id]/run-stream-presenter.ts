@@ -24,13 +24,17 @@ export function historyUrl(runId: string, afterId: string): string {
     runId,
   )}/events?limit=${HISTORY_PAGE_LIMIT}`;
 
-  return afterId === "0" ? base : `${base}&after=${afterId}`;
+  return afterId === "0"
+    ? base
+    : `${base}&after=${encodeURIComponent(afterId)}`;
 }
 
 export function streamUrl(runId: string, afterId: string): string {
   const base = `/api/assembly-lines/${encodeURIComponent(runId)}/events/stream`;
 
-  return afterId === "0" ? base : `${base}?after=${afterId}`;
+  return afterId === "0"
+    ? base
+    : `${base}?after=${encodeURIComponent(afterId)}`;
 }
 
 export function isTerminalRunStatus(status: string): boolean {

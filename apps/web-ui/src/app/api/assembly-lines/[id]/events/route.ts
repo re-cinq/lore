@@ -12,9 +12,11 @@ import { serverError } from "@/lib/api-error";
  * the event history out of the RSC payload: the page ships the graph, the
  * client pages the events.
  *
- * The auth ladder is cloned from the node-logs route in the same order
- * (session → run → repo access) so a 403 and a 404 never let a caller
- * distinguish "not yours" from "does not exist".
+ * The auth ladder is cloned from the node-logs route in the same order:
+ * session (401) → run lookup (404) → repo access (403). An authenticated caller
+ * CAN tell the two apart — 404 means the run does not exist, 403 means it does
+ * but the repo is not theirs. The order is for consistency with the node-logs
+ * route, not to collapse the codes.
  */
 export async function GET(
   req: Request,

@@ -43,7 +43,9 @@ export default function RunVisualizationPanel({
   const [state, dispatch] = useReducer(reduceRunEvent, undefined, () =>
     initialRunState(definition, nodes),
   );
-  const [historyLoaded, setHistoryLoaded] = useState(false);
+  // The run history was folded FOR: comparing it to runId makes a stale gate
+  // impossible by construction, where a boolean would need resetting.
+  const [historyLoadedFor, setHistoryLoadedFor] = useState<string | null>(null);
   const [streamUnavailable, setStreamUnavailable] = useState(false);
   const [connection, setConnection] = useState<ConnectionState>("connecting");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -99,7 +101,7 @@ export default function RunVisualizationPanel({
         }
 
         if (!cancelled) {
-          setHistoryLoaded(true);
+          setHistoryLoadedFor(runId);
         }
       } catch {
         if (!cancelled) {
@@ -126,7 +128,7 @@ export default function RunVisualizationPanel({
   useRunEventStream({
     runId,
     afterId: state.lastEventId ?? "0",
-    enabled: mode === "live" && historyLoaded,
+    enabled: mode === "live" && historyLoadedFor === runId,
     onEvent,
     onConnectionChange: setConnection,
   });
@@ -141,7 +143,11 @@ export default function RunVisualizationPanel({
   return (
     <section className={styles.panel}>
       <div className={styles.header}>
-        <span className={`${styles.chip} ${styles[chipState]}`}>
+        <span
+          className={`${styles.chip} ${styles[chipState]}`}
+          role="status"
+          aria-live="polite"
+        >
           {connectionLabel(chipState)}
         </span>
       </div>

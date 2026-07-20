@@ -86,7 +86,6 @@ export async function GET(
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-transform",
         "X-Accel-Buffering": "no",
-        Connection: "keep-alive",
       },
     });
   } catch (err) {

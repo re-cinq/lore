@@ -46,6 +46,16 @@ export function useRunEventStream({
     onConnectionChangeRef.current = onConnectionChange;
   });
 
+  // afterId changes on EVERY live event. Holding it in a ref keeps it OUT of the
+  // effect's deps: otherwise each event tore the EventSource down and rebuilt it,
+  // which replayed, delivered events, and changed afterId again. Reconnects still
+  // read the freshest cursor because connect() reads .current at call time.
+  const afterIdRef = useRef(afterId);
+
+  useEffect(() => {
+    afterIdRef.current = afterId;
+  }, [afterId]);
+
   useEffect(() => {
     afterIdRef.current = afterId;
   }, [afterId]);
