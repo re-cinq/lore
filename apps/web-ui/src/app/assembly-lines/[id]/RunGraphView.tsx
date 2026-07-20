@@ -1,3 +1,8 @@
+"use client";
+
+// Client component: onSelectNode attaches an onClick, and a server component
+// cannot pass an event handler across the boundary. Harmless today because
+// page.tsx renders it without the prop, but #880 passes one.
 // The definition DAG for one run: declarative SVG, no IO, no state.
 //
 // Declarative rather than imperative (the d3 SpecGraphD3 shell next door is the
@@ -85,7 +90,7 @@ export default function RunGraphView({
   const interactive = onSelectNode !== undefined;
 
   return (
-    <section className={styles.figure}>
+    <section className={styles.panel}>
       <h2 className={styles.heading}>Graph</h2>
       <svg
         className={styles.svg}
@@ -101,7 +106,9 @@ export default function RunGraphView({
           return (
             <g key={edgeKey(edge)}>
               <path
-                className={[styles.edge, styles[edge.kind]].filter(Boolean).join(' ')}
+                className={[styles.edge, styles[edge.kind]]
+                  .filter(Boolean)
+                  .join(" ")}
                 data-edge={edgeKey(edge)}
                 data-kind={edge.kind}
                 d={edge.d}
@@ -124,6 +131,8 @@ export default function RunGraphView({
           const state = nodeStates[node.id];
           const visual = nodeStatusVisual(state?.status ?? IDLE_STATUS);
           const ceiling = attemptCeiling(definition, node.id);
+          // iteration is 0 until a node actually starts; a "0/2" badge on a
+          // pending node reads as a consumed attempt that never happened.
           const attempts =
             ceiling !== null && state?.iteration
               ? `${state.iteration}/${ceiling}`

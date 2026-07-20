@@ -14,7 +14,7 @@ import type {
   DefinitionNode,
 } from "./assembly-line-definition";
 import type { AssemblyLineRunNode } from "./assembly-line-runs";
-import { builtinDefinitions } from "./dag-layout.fixtures";
+import { builtinDefinitions } from "./builtin-definitions";
 
 export interface RunGraphDefinition {
   definition: AssemblyLineDefinition | null;

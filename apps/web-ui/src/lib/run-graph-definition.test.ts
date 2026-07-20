@@ -3,7 +3,7 @@ import { definitionForRun } from "./run-graph-definition";
 import {
   codeReviewDefinition,
   implementationDefinition,
-} from "./dag-layout.fixtures";
+} from "./builtin-definitions";
 import type { AssemblyLineRunNode } from "./assembly-line-runs";
 
 const row = (

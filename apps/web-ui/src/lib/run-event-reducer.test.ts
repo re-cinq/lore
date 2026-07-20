@@ -7,7 +7,7 @@ import {
 } from "./run-event-reducer";
 import type { RunStreamEvent } from "./run-stream-types";
 import type { AssemblyLineRunNode } from "./assembly-line-runs";
-import { implementationDefinition } from "./dag-layout.fixtures";
+import { implementationDefinition } from "./builtin-definitions";
 
 let nextId = 0;
 

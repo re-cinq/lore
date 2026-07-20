@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import RunGraphView from "./RunGraphView";
-import { implementationDefinition } from "@/lib/dag-layout.fixtures";
+import { implementationDefinition } from "@/lib/builtin-definitions";
 import { initialRunState } from "@/lib/run-event-reducer";
 import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
@@ -37,6 +37,14 @@ describe("RunGraphView structure", () => {
     );
 
     expect(container.querySelectorAll("[data-node]")).toHaveLength(7);
+  });
+
+  it("shows no attempt badge on a pending node whose edge declares iteration_max", () => {
+    const { container } = render(
+      <RunGraphView definition={implementationDefinition} nodeStates={states()} />,
+    );
+
+    expect(nodeEl(container, "implement").textContent).not.toContain("0/");
   });
 
   it("renders one path for each of the 10 implementation-definition edges", () => {

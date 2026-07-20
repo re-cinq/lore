@@ -8,7 +8,7 @@ import {
   implementationDefinition,
   codeReviewDefinition,
   builtinDefinitions,
-} from "./dag-layout.fixtures";
+} from "./builtin-definitions";
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 
 const twoNodeLine: AssemblyLineDefinition = {
