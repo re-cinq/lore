@@ -258,4 +258,21 @@ describe("live events", () => {
 
     expect(screen.getAllByText("Running").length).toBeGreaterThan(0);
   });
+
+  it("does not rebuild the EventSource when a live event updates afterId", async () => {
+    stubHistory([]);
+    useFakeEventSource();
+
+    renderPanel("running");
+    await settle();
+
+    await act(async () => {
+      FakeEventSource.instances[0].emit(
+        "agent-event",
+        eventRow({ id: "42", nodeId: "implement", eventType: "init" }),
+      );
+    });
+
+    expect(FakeEventSource.instances).toHaveLength(1);
+  });
 });

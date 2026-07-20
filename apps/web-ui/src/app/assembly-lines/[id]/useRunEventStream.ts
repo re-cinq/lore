@@ -37,6 +37,7 @@ export function useRunEventStream({
 }: RunEventStreamOptions): void {
   const onEventRef = useRef(onEvent);
   const onConnectionChangeRef = useRef(onConnectionChange);
+  const afterIdRef = useRef(afterId);
 
   // Declared before the socket effect so it has already run when that effect
   // fires. Refs may not be written during render (react-hooks/refs).
@@ -44,6 +45,10 @@ export function useRunEventStream({
     onEventRef.current = onEvent;
     onConnectionChangeRef.current = onConnectionChange;
   });
+
+  useEffect(() => {
+    afterIdRef.current = afterId;
+  }, [afterId]);
 
   useEffect(() => {
     if (!enabled || typeof EventSource === "undefined") {
@@ -71,7 +76,7 @@ export function useRunEventStream({
       onConnectionChangeRef.current(
         attempt === 0 ? "connecting" : "reconnecting",
       );
-      source = new EventSource(streamUrl(runId, afterId));
+      source = new EventSource(streamUrl(runId, afterIdRef.current));
       source.addEventListener("agent-event", handleMessage);
       source.addEventListener("catchup-complete", () => {
         attempt = 0;
@@ -99,5 +104,5 @@ export function useRunEventStream({
       }
       source?.close();
     };
-  }, [runId, afterId, enabled]);
+  }, [runId, enabled]);
 }
