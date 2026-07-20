@@ -97,6 +97,38 @@ describe("AgentEventBus", () => {
     expect(() => unsubscribe()).not.toThrow();
   });
 
+  it("keeps delivering to a later subscriber when a stale unsubscribe fires", () => {
+    const bus = new AgentEventBus();
+    const departed = bus.subscribe("line-a", vi.fn());
+
+    departed();
+    const current = vi.fn();
+
+    bus.subscribe("line-a", current);
+    departed();
+    bus.publish([row("line-a")]);
+
+    expect(current).toHaveBeenCalledWith([row("line-a")]);
+  });
+
+  it("keeps delivering to a later subscriber after the previous one overflowed", () => {
+    const bus = new AgentEventBus();
+    const unsubscribe = bus.subscribe("line-a", () => {
+      for (let i = 0; i <= MAX_BUFFERED_EVENTS; i++) {
+        bus.publish([row("line-a", `q${i}`)]);
+      }
+    });
+
+    bus.publish([row("line-a", "first")]);
+    const current = vi.fn();
+
+    bus.subscribe("line-a", current);
+    unsubscribe();
+    bus.publish([row("line-a", "after")]);
+
+    expect(current).toHaveBeenCalledWith([row("line-a", "after")]);
+  });
+
   it("rejects a subscriber past the per-line cap", () => {
     const bus = new AgentEventBus();
 

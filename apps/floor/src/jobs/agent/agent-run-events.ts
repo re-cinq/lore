@@ -90,7 +90,12 @@ function truncateToolInput(input: unknown): Record<string, unknown> {
       kept.__truncated__ = `${entries.length - index} input keys omitted`;
       break;
     }
-    kept[key] = typeof value === "string" ? trimmed : value;
+    // A structured value keeps its shape only while it fits; once trimmed, the
+    // trimmed STRING is what gets stored. Storing `value` here regardless would
+    // leave every object and array input — the largest ones — entirely
+    // unbounded, and `used` accounting for a size that was never written.
+    kept[key] =
+      typeof value === "string" || trimmed !== encoded ? trimmed : value;
     used += size;
   }
 
@@ -255,10 +260,10 @@ function rowsFromEnvelope(envelope: unknown): AgentRunEventInsert[] {
   const agentCrName = str(source?.agent);
 
   return rowsFromEvent(event).map((row) => ({
+    ...row,
     taskId,
     agentCrName,
     eventType: row.eventType as AgentRunEventType,
-    ...row,
   }));
 }
 

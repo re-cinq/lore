@@ -447,6 +447,49 @@ describe("parseAgentRunEvents", () => {
     expect(input.__truncated__).toBe("2 input keys omitted");
   });
 
+  it("truncates a structured tool input value at 1024 bytes", () => {
+    const rows = parseAgentRunEvents(
+      line(
+        assistant([
+          {
+            type: "tool_use",
+            id: "t",
+            name: "MultiEdit",
+            input: {
+              edits: Array.from({ length: 500 }, (_, i) => ({
+                old: "x".repeat(50),
+                new: "y".repeat(50),
+                i,
+              })),
+            },
+          },
+        ]),
+      ),
+    );
+    const input = rows[0].payload?.input as Record<string, unknown>;
+
+    expect(String(input.edits)).toContain("[truncated");
+    expect(Buffer.byteLength(JSON.stringify(input), "utf8")).toBeLessThan(4096);
+  });
+
+  it("keeps a structured tool input value intact when it fits", () => {
+    const rows = parseAgentRunEvents(
+      line(
+        assistant([
+          {
+            type: "tool_use",
+            id: "t",
+            name: "MultiEdit",
+            input: { edits: [{ old: "a", new: "b" }] },
+          },
+        ]),
+      ),
+    );
+    const input = rows[0].payload?.input as Record<string, unknown>;
+
+    expect(input.edits).toEqual([{ old: "a", new: "b" }]);
+  });
+
   it("caps summary at 200 characters", () => {
     const rows = parseAgentRunEvents(
       line(assistant([{ type: "text", text: "w".repeat(500) }])),

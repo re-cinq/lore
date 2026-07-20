@@ -101,7 +101,14 @@ export class AgentEventBus {
   ): void {
     subscribers.delete(subscriber);
 
-    if (subscribers.size === 0) {
+    // Identity check, not just emptiness: an unsubscribe closure captures the
+    // Set it was created against, and that Set may already have been evicted
+    // and replaced by a later subscriber's. Deleting on size alone would drop
+    // the CURRENT subscribers of the line — silently, and permanently.
+    if (
+      subscribers.size === 0 &&
+      this.lines.get(assemblyLineId) === subscribers
+    ) {
       this.lines.delete(assemblyLineId);
     }
   }
