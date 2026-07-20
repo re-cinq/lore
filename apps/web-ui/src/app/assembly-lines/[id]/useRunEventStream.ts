@@ -37,6 +37,9 @@ export function useRunEventStream({
 }: RunEventStreamOptions): void {
   const onEventRef = useRef(onEvent);
   const onConnectionChangeRef = useRef(onConnectionChange);
+  // afterId changes on EVERY live event, so it must stay OUT of the socket
+  // effect's deps: otherwise each event tore the EventSource down and rebuilt
+  // it, which replayed, delivered events, and changed afterId again.
   const afterIdRef = useRef(afterId);
 
   // Declared before the socket effect so it has already run when that effect
@@ -45,16 +48,6 @@ export function useRunEventStream({
     onEventRef.current = onEvent;
     onConnectionChangeRef.current = onConnectionChange;
   });
-
-  // afterId changes on EVERY live event. Holding it in a ref keeps it OUT of the
-  // effect's deps: otherwise each event tore the EventSource down and rebuilt it,
-  // which replayed, delivered events, and changed afterId again. Reconnects still
-  // read the freshest cursor because connect() reads .current at call time.
-  const afterIdRef = useRef(afterId);
-
-  useEffect(() => {
-    afterIdRef.current = afterId;
-  }, [afterId]);
 
   useEffect(() => {
     afterIdRef.current = afterId;
