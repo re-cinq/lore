@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { parseRunStreamEvent, type RunStreamEvent } from "./run-stream-types";
+import {
+  parseRunStreamEvent,
+  parseRunStreamRow,
+  type RunStreamEvent,
+} from "./run-stream-types";
 
 const wellFormed = {
   id: "42",
@@ -130,5 +134,30 @@ describe("parseRunStreamEvent", () => {
         createdAt: "x",
       },
     ]);
+  });
+});
+
+describe("parseRunStreamRow", () => {
+  it("parses a decoded row object into a RunStreamEvent", () => {
+    expect(parseRunStreamRow(wellFormed)).toEqual<RunStreamEvent>({
+      ...wellFormed,
+      eventType: "tool_call",
+    });
+  });
+
+  it("returns null for a decoded row without id", () => {
+    const { id: _id, ...withoutId } = wellFormed;
+
+    expect(parseRunStreamRow(withoutId)).toBeNull();
+  });
+
+  it("returns null for a decoded row with an unknown eventType", () => {
+    expect(
+      parseRunStreamRow({ ...wellFormed, eventType: "telepathy" }),
+    ).toBeNull();
+  });
+
+  it("returns null for a non-object row", () => {
+    expect(parseRunStreamRow("not-an-object")).toBeNull();
   });
 });

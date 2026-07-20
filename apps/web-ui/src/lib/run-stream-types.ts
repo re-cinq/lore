@@ -67,15 +67,20 @@ function stringList(value: unknown): string[] {
  * stream-json kind without breaking a deployed browser tab.
  */
 export function parseRunStreamEvent(raw: string): RunStreamEvent | null {
-  let parsed: unknown;
-
   try {
-    parsed = JSON.parse(raw);
+    return parseRunStreamRow(JSON.parse(raw));
   } catch {
     return null;
   }
+}
 
-  const body = record(parsed);
+/**
+ * The same validation over an already-decoded row. The REST history endpoint
+ * hands back parsed JSON objects, so re-stringifying them just to feed
+ * parseRunStreamEvent would be the only alternative. Same rules, same nulls.
+ */
+export function parseRunStreamRow(value: unknown): RunStreamEvent | null {
+  const body = record(value);
   const id = str(body.id);
   const taskId = str(body.taskId);
   const createdAt = str(body.createdAt);
