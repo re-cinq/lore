@@ -1,0 +1,84 @@
+.panel {
+  margin-bottom: 1.5rem;
+}
+.heading {
+  font-size: var(--fs-md);
+  margin-bottom: 0.5rem;
+}
+.svg {
+  width: 100%;
+  height: auto;
+  max-height: 26rem;
+  overflow: visible;
+}
+.empty {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  margin-bottom: 1.5rem;
+}
+
+.edge {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+.back,
+.self {
+  stroke-dasharray: 4 3;
+}
+.edgeLabel {
+  fill: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.node {
+  cursor: default;
+}
+.node[tabindex] {
+  cursor: pointer;
+}
+.node:focus-visible .box {
+  stroke-width: 3;
+  stroke: var(--info);
+}
+.box {
+  fill: var(--bg-surface);
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+.nodeId {
+  fill: var(--text);
+  font-size: var(--fs-sm);
+}
+.nodeStatus {
+  fill: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.idle .box {
+  stroke: var(--border);
+}
+.running .box {
+  stroke: var(--info);
+  fill: var(--info-bg);
+}
+.ok .box {
+  stroke: var(--success);
+  fill: var(--success-bg);
+}
+.err .box {
+  stroke: var(--danger);
+  fill: var(--danger-bg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .running .box {
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}

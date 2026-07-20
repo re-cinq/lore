@@ -6,7 +6,10 @@ import {
   fetchAssemblyLineRunNodes,
 } from "@/lib/assembly-line-runs";
 import { fetchTaskEvents, fetchLlmCalls } from "@/lib/task-runtime";
+import { definitionForRun } from "@/lib/run-graph-definition";
+import { initialRunState } from "@/lib/run-event-reducer";
 import AssemblyLineRunView from "./AssemblyLineRunView";
+import RunGraphView from "./RunGraphView";
 import NodePodLogs from "./NodePodLogs";
 import { TriggerReviewButton } from "./TriggerReviewButton";
 import EventTimeline from "@/app/tasks/[id]/EventTimeline";
@@ -46,6 +49,10 @@ export default async function AssemblyLineResolverPage({
           fetchLlmCalls(run.taskId),
         ])
       : [[], []];
+    const { definition, synthetic } = definitionForRun(
+      run.definitionName,
+      nodes,
+    );
 
     return (
       <>
@@ -53,6 +60,11 @@ export default async function AssemblyLineResolverPage({
         {run.definitionName === "code-review" && run.prNumber ? (
           <TriggerReviewButton repo={run.repo} prNumber={run.prNumber} />
         ) : null}
+        <RunGraphView
+          definition={definition}
+          nodeStates={initialRunState(definition, nodes).nodeStates}
+          showEdgeLabels={!synthetic}
+        />
         <NodePodLogs assemblyLineId={run.id} nodes={logNodes} />
         {run.taskId ? (
           <>
