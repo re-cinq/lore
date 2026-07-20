@@ -174,6 +174,7 @@ export function streamRunEvents(
     deliver(buffered.splice(0));
   })();
 
+  ready.catch(teardown);
   return { teardown, ready };
 }
 
