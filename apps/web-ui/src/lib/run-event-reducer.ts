@@ -19,7 +19,7 @@ export type NodeRunStatus = "idle" | "running" | "succeeded" | "failed";
 export interface NodeRunState {
   status: NodeRunStatus;
   iteration: number;
-  transcript: RunStreamEvent[];
+  readonly transcript: readonly RunStreamEvent[];
   /** Events evicted by the cap; non-zero once the transcript is partial. */
   droppedCount: number;
 }
@@ -40,12 +40,16 @@ export interface RunLiveState {
   timeline: TimelineEntry[];
 }
 
-const IDLE: NodeRunState = {
+// Shared sentinel: every unseen node returns this same object, so a mutation of
+// it would corrupt every idle node at once. Frozen deeply — Object.freeze is
+// shallow, and freezing only the wrapper would still leave transcript.push()
+// silently working, which is the exact failure this guards against.
+const IDLE: NodeRunState = Object.freeze({
   status: "idle",
   iteration: 0,
-  transcript: [],
+  transcript: Object.freeze([]),
   droppedCount: 0,
-};
+});
 
 /**
  * A walk row's outcome as a node status. A null outcome means the node is still
