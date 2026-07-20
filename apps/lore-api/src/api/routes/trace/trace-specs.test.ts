@@ -44,8 +44,12 @@ describe("GET /api/trace/specs", () => {
 
   it("returns the cross-repo spec list from Dgraph", async () => {
     const specs = [
-      { repo: "o/r", filePath: "specs/a/spec.md" },
-      { repo: "o/s", filePath: "specs/b/spec.md" },
+      {
+        repo: "o/r",
+        filePath: "specs/a/spec.md",
+        status: { status: "draft" as const, label: "Draft" },
+      },
+      { repo: "o/s", filePath: "specs/b/spec.md", status: null },
     ];
 
     vi.mocked(listAllSpecDocuments).mockResolvedValue(specs);

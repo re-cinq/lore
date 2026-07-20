@@ -43,8 +43,12 @@ describe("GET /api/trace/adrs", () => {
 
   it("returns the cross-repo ADR list from Dgraph", async () => {
     const adrs = [
-      { repo: "o/r", filePath: "adrs/ADR-001-x.md" },
-      { repo: "o/s", filePath: "adrs/ADR-002-y.md" },
+      {
+        repo: "o/r",
+        filePath: "adrs/ADR-001-x.md",
+        status: { status: "shipped" as const, label: "Accepted" },
+      },
+      { repo: "o/s", filePath: "adrs/ADR-002-y.md", status: null },
     ];
 
     vi.mocked(listAllAdrDocuments).mockResolvedValue(adrs);
