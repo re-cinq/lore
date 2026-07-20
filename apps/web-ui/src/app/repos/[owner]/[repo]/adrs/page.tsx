@@ -1,9 +1,6 @@
 export const dynamic = "force-dynamic";
 import { fetchAdrSummaries } from "@/lib/trace-api";
-import {
-  fetchDocStatusesFromGraph,
-  specStatusKey,
-} from "@/lib/spec-status-source";
+import { statusesByPath } from "@/lib/doc-statuses";
 import AdrListView from "./AdrListView";
 
 export default async function RepoAdrs({
@@ -16,19 +13,11 @@ export default async function RepoAdrs({
 
   // The spec-traceability graph is the source of truth — list each ADR as a card
   // summary (title/description parsed from its byte-exact source), not Postgres.
-  // Lifecycle statuses come from each ADR's frontmatter via the same source.
+  // Lifecycle statuses ride along on the same summaries call.
   const adrs = (await fetchAdrSummaries(fullName)).sort((a, b) =>
     a.filePath.localeCompare(b.filePath),
   );
-  const byRepoKey = await fetchDocStatusesFromGraph(
-    adrs.map((a) => ({ repo: fullName, filePath: a.filePath })),
-    "adr",
-  );
-  const statuses = Object.fromEntries(
-    adrs
-      .map((a) => [a.filePath, byRepoKey[specStatusKey(fullName, a.filePath)]])
-      .filter(([, info]) => info),
-  );
+  const statuses = statusesByPath(adrs);
 
   return (
     <div>

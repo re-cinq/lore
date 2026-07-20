@@ -55,7 +55,7 @@ function bucketOf(value: string): StatusBucket | null {
   return BUCKETS.find((candidate) => candidate.re.test(value))?.status ?? null;
 }
 
-function specTableStatusValue(content: string): string | null {
+function specTableStatusValueRaw(content: string): string | null {
   for (const line of content.split(/\r?\n/)) {
     const cells = line.split("|").map((cell) => cell.trim());
 
@@ -63,13 +63,17 @@ function specTableStatusValue(content: string): string | null {
       continue;
     }
 
-    return cells[2].replace(/\*/g, "").trim().toLowerCase();
+    return cells[2].replace(/\*/g, "").trim();
   }
 
   return null;
 }
 
-function adrFrontmatterStatusValue(content: string): string | null {
+function specTableStatusValue(content: string): string | null {
+  return specTableStatusValueRaw(content)?.toLowerCase() ?? null;
+}
+
+function adrFrontmatterStatusValueRaw(content: string): string | null {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 
   if (!match) {
@@ -80,11 +84,15 @@ function adrFrontmatterStatusValue(content: string): string | null {
     const keyValue = line.match(/^status\s*:\s*(.+?)\s*$/i);
 
     if (keyValue) {
-      return keyValue[1].replace(/["']/g, "").trim().toLowerCase();
+      return keyValue[1].replace(/["']/g, "").trim();
     }
   }
 
   return null;
+}
+
+function adrFrontmatterStatusValue(content: string): string | null {
+  return adrFrontmatterStatusValueRaw(content)?.toLowerCase() ?? null;
 }
 
 export function parseDocStatus(content: string, kind: DocKind): DocStatus {
@@ -94,6 +102,56 @@ export function parseDocStatus(content: string, kind: DocKind): DocStatus {
       : specTableStatusValue(content);
 
   return { status: value === null ? null : bucketOf(value) };
+}
+
+export interface DocStatusPill {
+  status: StatusBucket;
+  label: string;
+}
+
+const MAX_LABEL = 24;
+
+/** Trims a spec's `| Status |` cell to its leading phrase: "Shipped (v3) — supersedes v1" → "Shipped". */
+function pillLabel(raw: string): string {
+  const label = raw
+    .split(/\s+[—–-]\s+/)[0]
+    .split(" (")[0]
+    .trim();
+
+  return (label || raw).slice(0, MAX_LABEL);
+}
+
+/**
+ * Status + display label for the /specs and /adrs list pills. Separate from
+ * `parseDocStatus` (bucket only, lowercased) because the pill shows the doc's
+ * own casing. Computed API-side so the global viewers get statuses in their
+ * one list call instead of one source fetch per document.
+ */
+export function docStatusPill(
+  content: string,
+  kind: DocKind,
+): DocStatusPill | null {
+  const raw =
+    kind === "adr"
+      ? adrFrontmatterStatusValueRaw(content)
+      : specTableStatusValueRaw(content);
+
+  if (raw === null) {
+    return null;
+  }
+  const status = bucketOf(raw.toLowerCase());
+
+  if (status === null) {
+    return null;
+  }
+
+  return {
+    status,
+    label:
+      kind === "adr"
+        ? (raw.charAt(0).toUpperCase() + raw.slice(1)).slice(0, MAX_LABEL)
+        : pillLabel(raw),
+  };
 }
 
 /** Enforcement tier for a bucket: `rejected` and `retired` skip the rule (dead

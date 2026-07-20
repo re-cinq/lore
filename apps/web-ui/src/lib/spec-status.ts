@@ -1,9 +1,10 @@
-// Parses a doc's lifecycle status into a normalized bucket + display label.
-// Two source shapes feed the same buckets (in-sync mirror of the canonical
-// parser in libs/shared/src/spec-status.ts — web-ui cannot import lore-shared):
-//   - spec.md — the `| Status | ... |` header table row
-//   - ADR .md — YAML frontmatter `status: <value>`
-// Pure value-in/value-out — the markdown comes from the trace-graph source.
+// Lifecycle status types + the parsers the DETAIL pages still need locally
+// (web-ui cannot import lore-shared). List pages no longer parse anything: the
+// API now returns each doc's {status,label} with the list itself, via
+// `docStatusPill` in libs/shared/src/spec-status.ts — the canonical parser this
+// file mirrors.
+//   - parseSpecStatus  — spec.md `| Status | ... |` header row (spec detail)
+//   - statusInfoFromValue — a bare ADR frontmatter value (ADR detail)
 
 export type DocKind = "spec" | "adr";
 
@@ -82,24 +83,6 @@ export function parseSpecStatus(markdown: string): SpecStatusInfo | null {
   return null;
 }
 
-function adrFrontmatterStatusValue(markdown: string): string | null {
-  const frontmatter = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-
-  if (!frontmatter) {
-    return null;
-  }
-
-  for (const line of frontmatter[1].split(/\r?\n/)) {
-    const keyValue = line.match(/^status\s*:\s*(.+?)\s*$/i);
-
-    if (keyValue) {
-      return keyValue[1].replace(/["']/g, "").trim();
-    }
-  }
-
-  return null;
-}
-
 /** Bucket a bare status value (an ADR frontmatter `status:`) into pill info. */
 export function statusInfoFromValue(value: string): SpecStatusInfo | null {
   const bucket = BUCKETS.find((b) => b.re.test(value.toLowerCase()));
@@ -112,18 +95,6 @@ export function statusInfoFromValue(value: string): SpecStatusInfo | null {
     status: bucket.status,
     label: (value.charAt(0).toUpperCase() + value.slice(1)).slice(0, MAX_LABEL),
   };
-}
-
-export function parseDocStatus(
-  markdown: string,
-  kind: DocKind,
-): SpecStatusInfo | null {
-  if (kind === "spec") {
-    return parseSpecStatus(markdown);
-  }
-  const value = adrFrontmatterStatusValue(markdown);
-
-  return value === null ? null : statusInfoFromValue(value);
 }
 
 export type SpecStatusFilter = "all" | SpecStatus;
