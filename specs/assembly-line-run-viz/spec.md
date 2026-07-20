@@ -52,7 +52,7 @@ useful granularity.
 
 ### FR1 — Persistence
 
-- FR1.1. Every stream-json line POSTed to `/api/agent-events` is projected into one `pipeline.agent_run_events` row, not only the terminal `result` line. ([validated by `agent-run-events.test.ts:171`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L171), [`agent-run-events.test.ts:294`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L294), [`agent-run-events.test.ts:313`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L313))
+- FR1.1. Every stream-json line POSTed to `/api/agent-events` is projected into one `pipeline.agent_run_events` row, not only the terminal `result` line.
 
 - FR1.2. The canonical row contract is `AgentRunEventRow` with the fields `id` (a string-encoded bigint used as the stream cursor), `taskId`, `agentCrName`, `assemblyLineId`, `nodeId`, `iteration`, `eventType`, `toolName`, `toolUseId`, `isError`, `filePaths`, `summary`, `payload`, and `createdAt`. ([validated by `agent-run-events.test.ts:96`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L96), [`agent-run-events.test.ts:137`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L137))
 
