@@ -78,7 +78,7 @@ useful granularity.
 
 - FR1.10. The correlation lookup is served by a partial index on `pipeline.assembly_line_nodes (agent_cr_name)` where `agent_cr_name` is not null; that index does not exist today and is created by the migration that adds this table.
 
-- FR1.11. The `assemblyLineId`, `nodeId`, and `iteration` fields are nullable, because agent CRs dispatched for a plain task rather than an assembly-line node are named from the task id and resolve to no node. ([validated by `agent-run-events.test.ts:60`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L60))
+- FR1.11. The `assemblyLineId`, `nodeId`, and `iteration` fields are nullable, because agent CRs dispatched for a plain task rather than an assembly-line node are named from the task id and resolve to no node. ([validated by `agent-run-events.test.ts:60`](libs/shared/src/project/agent-run-events/agent-run-events.test.ts#L60), [validated by `run-event-reducer.test.ts:179`](apps/web-ui/src/lib/run-event-reducer.test.ts#L179), [`run-event-reducer.test.ts:188`](apps/web-ui/src/lib/run-event-reducer.test.ts#L188))
 
 - FR1.12. A double-wrapped envelope line of the shape `{source, event: {source, event}}` is projected rather than dropped.
 
@@ -110,15 +110,21 @@ useful granularity.
 
 - FR4.1. The run page renders the assembly-line definition graph as a DAG whose node states update live.
 
-- FR4.2. Node state is seeded from `pipeline.assembly_line_nodes` and running-versus-finished is derived from the per-node `init` and `result` events.
+- FR4.1a. The definition graph is laid out deterministically and without a layout dependency: a node sits one column right of its latest predecessor along the longest acyclic path, back-edges and self-loops are excluded from that layering so a retry loop cannot push its own target rightwards, a self-loop draws as a visible loop rather than a zero-length line, and a back-edge arcs below the node row rather than reading as another forward hop. ([validated by `dag-layout.test.ts:45`](apps/web-ui/src/lib/dag-layout.test.ts#L45), [`dag-layout.test.ts:59`](apps/web-ui/src/lib/dag-layout.test.ts#L59), [`dag-layout.test.ts:65`](apps/web-ui/src/lib/dag-layout.test.ts#L65), [`dag-layout.test.ts:71`](apps/web-ui/src/lib/dag-layout.test.ts#L71), [`dag-layout.test.ts:79`](apps/web-ui/src/lib/dag-layout.test.ts#L79), [`dag-layout.test.ts:85`](apps/web-ui/src/lib/dag-layout.test.ts#L85), [`dag-layout.test.ts:91`](apps/web-ui/src/lib/dag-layout.test.ts#L91), [`dag-layout.test.ts:97`](apps/web-ui/src/lib/dag-layout.test.ts#L97), [`dag-layout.test.ts:103`](apps/web-ui/src/lib/dag-layout.test.ts#L103), [`dag-layout.test.ts:118`](apps/web-ui/src/lib/dag-layout.test.ts#L118), [`dag-layout.test.ts:128`](apps/web-ui/src/lib/dag-layout.test.ts#L128), [`dag-layout.test.ts:138`](apps/web-ui/src/lib/dag-layout.test.ts#L138), [`dag-layout.test.ts:147`](apps/web-ui/src/lib/dag-layout.test.ts#L147), [`dag-layout.test.ts:153`](apps/web-ui/src/lib/dag-layout.test.ts#L153), [`dag-layout.test.ts:160`](apps/web-ui/src/lib/dag-layout.test.ts#L160), [`dag-layout.test.ts:172`](apps/web-ui/src/lib/dag-layout.test.ts#L172), [`dag-layout.test.ts:186`](apps/web-ui/src/lib/dag-layout.test.ts#L186), [`dag-layout.test.ts:204`](apps/web-ui/src/lib/dag-layout.test.ts#L204))
 
-- FR4.3. An `init` event for iteration N+1 resets a previously failed node to running.
+- FR4.2. Node state is seeded from `pipeline.assembly_line_nodes` and running-versus-finished is derived from the per-node `init` and `result` events. ([validated by `run-event-reducer.test.ts:51`](apps/web-ui/src/lib/run-event-reducer.test.ts#L51), [`run-event-reducer.test.ts:61`](apps/web-ui/src/lib/run-event-reducer.test.ts#L61), [`run-event-reducer.test.ts:69`](apps/web-ui/src/lib/run-event-reducer.test.ts#L69), [`run-event-reducer.test.ts:77`](apps/web-ui/src/lib/run-event-reducer.test.ts#L77), [`run-event-reducer.test.ts:91`](apps/web-ui/src/lib/run-event-reducer.test.ts#L91), [`run-event-reducer.test.ts:110`](apps/web-ui/src/lib/run-event-reducer.test.ts#L110), [`run-event-reducer.test.ts:121`](apps/web-ui/src/lib/run-event-reducer.test.ts#L121), [`run-event-reducer.test.ts:133`](apps/web-ui/src/lib/run-event-reducer.test.ts#L133), [`run-event-reducer.test.ts:142`](apps/web-ui/src/lib/run-event-reducer.test.ts#L142), [`run-event-reducer.test.ts:276`](apps/web-ui/src/lib/run-event-reducer.test.ts#L276))
 
-- FR4.4. The page renders a per-node transcript, a file-attention heatmap over `filePaths`, and a run timeline.
+- FR4.2a. A node presents in exactly four states — pending, running, succeeded, failed — each with one tone and one label, so a node can never claim a status the reducer cannot produce. ([validated by `run-node-status.test.ts:5`](apps/web-ui/src/lib/run-node-status.test.ts#L5), [`run-node-status.test.ts:12`](apps/web-ui/src/lib/run-node-status.test.ts#L12), [`run-node-status.test.ts:19`](apps/web-ui/src/lib/run-node-status.test.ts#L19), [`run-node-status.test.ts:26`](apps/web-ui/src/lib/run-node-status.test.ts#L26))
 
-- FR4.5. The client-side transcript is capped at 500 events per node; beyond the cap the oldest events are dropped from the rendered list, and the view states that older events were dropped rather than silently presenting a partial transcript as whole. The cap bounds browser memory for an unbounded run; 500 is a starting value chosen to exceed any observed node's event count, and moving it breaks no contract.
+- FR4.3. An `init` event for iteration N+1 resets a previously failed node to running. ([validated by `run-event-reducer.test.ts:151`](apps/web-ui/src/lib/run-event-reducer.test.ts#L151))
 
-- FR4.6. The client reducer applies each arriving event in constant time rather than rescanning accumulated state.
+- FR4.4. The page renders a per-node transcript, a file-attention heatmap over `filePaths`, and a run timeline. ([validated by `run-event-reducer.test.ts:167`](apps/web-ui/src/lib/run-event-reducer.test.ts#L167), [`run-event-reducer.test.ts:283`](apps/web-ui/src/lib/run-event-reducer.test.ts#L283), [`run-event-reducer.test.ts:292`](apps/web-ui/src/lib/run-event-reducer.test.ts#L292))
+
+- FR4.5. The client-side transcript is capped at 500 events per node; beyond the cap the oldest events are dropped from the rendered list, and the view states that older events were dropped rather than silently presenting a partial transcript as whole. The cap bounds browser memory for an unbounded run; 500 is a starting value chosen to exceed any observed node's event count, and moving it breaks no contract. ([validated by `run-event-reducer.test.ts:197`](apps/web-ui/src/lib/run-event-reducer.test.ts#L197), [`run-event-reducer.test.ts:201`](apps/web-ui/src/lib/run-event-reducer.test.ts#L201), [`run-event-reducer.test.ts:209`](apps/web-ui/src/lib/run-event-reducer.test.ts#L209))
+
+- FR4.6. The client reducer applies each arriving event in constant time rather than rescanning accumulated state. ([validated by `run-event-reducer.test.ts:253`](apps/web-ui/src/lib/run-event-reducer.test.ts#L253), [`run-event-reducer.test.ts:263`](apps/web-ui/src/lib/run-event-reducer.test.ts#L263), [`run-event-reducer.test.ts:312`](apps/web-ui/src/lib/run-event-reducer.test.ts#L312))
+
+- FR4.6a. Replay and the live stream share one reducer, so folding the first N events of a run yields exactly the state the live client held after its Nth event. ([validated by `run-event-reducer.test.ts:323`](apps/web-ui/src/lib/run-event-reducer.test.ts#L323), [`run-event-reducer.test.ts:338`](apps/web-ui/src/lib/run-event-reducer.test.ts#L338))
 
 - FR4.7. The web-ui reaches the Floor only through session-authenticated Next.js proxy routes, never directly from the browser.
 
@@ -126,7 +132,9 @@ useful granularity.
 
 - FR4.9. No component whose filename ends in `View`, `Card`, `Table`, `Section`, `Badge`, or `Row` constructs an `EventSource`, a `WebSocket`, or an `XMLHttpRequest`, nor imports `@/lib/db` or `@/lib/github`, because `lore/no-io-in-view` denylists all of them at those suffixes.
 
-- FR4.10. The `AgentRunEventRow` type is canonical in `libs/shared` and hand-mirrored in `apps/web-ui`, with a compile-time drift guard under `scripts/type-drift/` asserting the mirror carries every canonical key.
+- FR4.10. The `AgentRunEventRow` type is canonical in `libs/shared` and hand-mirrored in `apps/web-ui`, with a compile-time drift guard under `scripts/type-drift/` asserting the mirror carries every canonical key. ([validated by `run-stream-types.test.ts:22`](apps/web-ui/src/lib/run-stream-types.test.ts#L22), [`run-stream-types.test.ts:26`](apps/web-ui/src/lib/run-stream-types.test.ts#L26), [`run-stream-types.test.ts:62`](apps/web-ui/src/lib/run-stream-types.test.ts#L62), [`run-stream-types.test.ts:85`](apps/web-ui/src/lib/run-stream-types.test.ts#L85))
+
+- FR4.10a. The browser parses one SSE `data:` payload with a tolerant parser that yields nothing — never an exception — for malformed JSON, a non-object body, a missing identity field, or an event type it does not know. Dropping an unknown type silently is the forward-compatibility contract: the Floor may add a stream-json kind without breaking a deployed browser tab. ([validated by `run-stream-types.test.ts:32`](apps/web-ui/src/lib/run-stream-types.test.ts#L32), [`run-stream-types.test.ts:36`](apps/web-ui/src/lib/run-stream-types.test.ts#L36), [`run-stream-types.test.ts:44`](apps/web-ui/src/lib/run-stream-types.test.ts#L44), [`run-stream-types.test.ts:50`](apps/web-ui/src/lib/run-stream-types.test.ts#L50), [`run-stream-types.test.ts:93`](apps/web-ui/src/lib/run-stream-types.test.ts#L93))
 
 ### FR5 — Resilience
 
@@ -134,7 +142,7 @@ useful granularity.
 
 - FR5.2. A single malformed or unprojectable line never drops the rest of its batch.
 
-- FR5.3. A client that reconnects with a `Last-Event-ID` receives every event after that id with no gap and no duplicate.
+- FR5.3. A client that reconnects with a `Last-Event-ID` receives every event after that id with no gap and no duplicate. ([validated by `run-event-reducer.test.ts:224`](apps/web-ui/src/lib/run-event-reducer.test.ts#L224), [`run-event-reducer.test.ts:232`](apps/web-ui/src/lib/run-event-reducer.test.ts#L232), [`run-event-reducer.test.ts:242`](apps/web-ui/src/lib/run-event-reducer.test.ts#L242), [`run-event-reducer.test.ts:303`](apps/web-ui/src/lib/run-event-reducer.test.ts#L303))
 
 - FR5.4. A subscriber that cannot keep up with the live tail is disconnected rather than allowed to apply back-pressure to the Floor. The bound is the subscriber's own buffer: each subscription holds at most 1000 undelivered events, and on overflow the server drops the subscriber and closes the connection. Dropping is safe precisely because it is recoverable — the client's `EventSource` reconnects with its `Last-Event-ID` and FR5.3 replays the gap from the database, so a slow reader loses latency, never data. The buffer is what makes this bounded; an implementation that lets an unread subscriber grow the Floor's heap satisfies neither this FR nor FR5.1.
 

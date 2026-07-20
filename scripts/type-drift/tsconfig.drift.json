@@ -7,7 +7,11 @@
     "noEmit": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "types": []
+    "types": ["node"]
   },
-  "include": ["feature-types.drift.ts"]
+  "include": [
+    "feature-types.drift.ts",
+    "run-stream-types.drift.ts",
+    "assembly-line-definition.drift.ts"
+  ]
 }
