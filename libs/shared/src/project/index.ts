@@ -66,6 +66,14 @@ export type {
 export { AssemblyLines } from "./assembly-lines/assembly-lines.js";
 
 export type {
+  AgentRunEventsRepository,
+  AgentRunEventRow,
+  AgentRunEventInsert,
+  AgentRunEventNodeRef,
+  AgentRunEventType,
+} from "./agent-run-events/agent-run-events-port.js";
+
+export type {
   NotifyPort,
   NotifyLevel,
   NotifyResult,
