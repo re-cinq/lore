@@ -1,0 +1,164 @@
+---
+adr_number: 37
+title: "SSE for assembly-line run observability"
+status: draft
+date: 2026-07-17
+domains: [architecture, observability, floor, web-ui]
+---
+
+# ADR-037: SSE for assembly-line run observability
+
+This ADR adopts Server-Sent Events as the transport for live assembly-line run observability — the stack's first streaming transport — carried by an in-process pub/sub that is sound only under the Floor's pinned single replica, with PG LISTEN/NOTIFY named as the multi-replica escape hatch behind an unchanged subscribe API.
+
+## Context
+
+The ai-agent-subsystem supervisor POSTs the full claude stream-json run output to
+the Floor as NDJSON at `POST /api/agent-events`. The Floor's mapper
+(`apps/floor/src/jobs/agent/agent-events.ts`) keeps only the terminal `result`
+line as a `pipeline.llm_calls` cost row. `specs/assembly-line-run-viz/spec.md`
+specifies projecting the rest into `pipeline.agent_run_events` and rendering a
+run live.
+
+**The stream is not currently thrown away, and this ADR does not claim it is.**
+The route `apps/floor/src/delivery/http/routes/agent-events.ts` already calls
+`archiveAgentEvents(body, key)` in a fire-and-forget `archiveRaw` helper, writing
+the raw redacted NDJSON to GCS. Its own header comment describes it as "dormant
+until a bucket is set", and it carries a literal `TODO: we must update the infra
+to drop the logs after 30 days`. Any claim that this feature rescues discarded
+data is false; it adds a queryable, cursored projection alongside an existing
+write-only archive. The Alternatives section below answers "why not just read the
+archive?" directly, because an ADR that enshrined the wrong premise would
+mislead every later reader.
+
+Two constraints shape the decision:
+
+**The Floor is pinned to one replica, and that pin is an admitted limitation
+rather than a chosen architecture.**
+`infra/terraform/modules/gke-mcp/lore-platform/charts/floor-helm/values.yaml`
+sets `replicaCount: 1` and comments, in full: "Agent is a singleton (job
+processors don't tolerate two writers claiming the same task). Use a PDB to block
+Autopilot from evicting without warning, but keep replicas at 1 — HA at the agent
+layer requires lease coordination that doesn't exist yet." The chart also sets
+`podDisruptionBudget.minAvailable: 1`. Reading that comment as an endorsement of
+single-replica design would be a misreading; it is scheduled debt, and this ADR
+treats it as such.
+
+**Nothing in the stack streams today.** A search of `apps/floor/src`,
+`apps/web-ui/src`, and `libs` for `text/event-stream`, `new WebSocket`, and
+`new EventSource` returns zero hits; every live view is a 4–15 second
+`setInterval` poll. One false positive is worth naming so a later reader's grep
+does not conclude otherwise: `apps/floor/src/main-loop/event-names.ts:13` exports
+`type EventSource`, which is the event bus's source union (`github` / `cron` /
+`internal` / `kubernetes`) and has nothing to do with the browser API. Types
+introduced for this feature must not collide with that name.
+
+## Decision
+
+Run observability is delivered over Server-Sent Events at
+`GET /api/agent-events/stream/{assemblyLineId}`, with catch-up-then-live
+semantics keyed on a row-id cursor.
+
+The POST handler and the SSE subscribers are joined by an in-process pub/sub. A
+subscriber registers against an assembly-line id; the ingest path publishes each
+projected row to matching subscribers after the write commits.
+
+Reconnection is lossless by construction rather than by buffering: the browser
+resends `Last-Event-ID`, and the server replays from the database before
+attaching to the live tail. The bus is therefore best-effort and holds no
+backlog — durability lives in `pipeline.agent_run_events`, not in memory.
+
+A subscriber that cannot keep up is disconnected rather than allowed to apply
+back-pressure to the ingest path, which shares a process with the cost sink and
+the Floor's job loops.
+
+Both hops set `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`.
+
+The `AgentRunEventRow` type is canonical in `libs/shared` and hand-mirrored in
+`apps/web-ui`, with a type-only drift guard under `scripts/type-drift/`.
+
+The definition DAG is laid out and rendered by hand in SVG, with no new
+dependency.
+
+Polling remains the correct pattern for every non-streaming view; this decision
+introduces streaming for run observability only, and is not a licence to convert
+existing polled views.
+
+## Consequences
+
+The in-process bus is sound only while the Floor runs exactly one replica. A
+second replica would silently serve a subscriber from a process that never sees
+the other's writes, and the failure would look like a stalled UI rather than an
+error. This is a real coupling to the `replicaCount: 1` pin, and it is recorded
+here so that whoever lifts that pin — the same lease-coordination work the
+chart's comment defers — finds this ADR rather than discovering the coupling in
+production.
+
+The migration path is deliberately narrow: the bus's internals swap to PG
+LISTEN/NOTIFY behind the same subscribe API, and no route, handler, or client
+changes. Because the cursor and the durability already live in the table, a
+NOTIFY payload need only carry a row id.
+
+SSE costs one held HTTP connection per viewer. The Floor is not a
+high-concurrency front end, and the audience for a run page is small; the
+disconnect-slow-clients rule bounds the blast radius. Should held connections
+ever become the constraint, the same cursor supports falling back to polling
+`GET /api/agent-events/{assemblyLineId}` with no contract change.
+
+Cross-references: ADR-015 (webhook-driven review reactor) and its event-bus
+amendment own Floor-internal triggering through `pipeline.events`; this ADR owns
+browser transport and deliberately does not route through that bus, because a
+durable at-least-once substrate is the wrong tool for a best-effort live tail
+whose durability is the projection table. ADR-024 (ubiquitous language and
+execution model) governs the naming used here.
+
+## Alternatives
+
+**Read the existing GCS raw-NDJSON archive instead of projecting a table.**
+Rejected. The archive is dormant until a bucket is configured, is keyed by
+ingest timestamp rather than by run, has no cursor, and cannot be tailed — it
+supports post-hoc replay of a blob, not a live view or a resumable stream.
+Serving a run page from it would mean fetching and parsing whole NDJSON objects
+per view. It remains valuable as a raw audit substrate, and this feature does not
+change or retire it.
+
+**WebSocket.** Rejected. The traffic is unidirectional server-to-client; a
+WebSocket buys a full duplex channel nothing needs, in exchange for a protocol
+upgrade through the ingress, a heartbeat/reconnect state machine written by hand,
+and a client library or hand-rolled equivalent. SSE gets automatic browser
+reconnection and `Last-Event-ID` resumption for free, which is precisely the
+catch-up-then-live semantic the spec requires. Native `EventSource` needs no
+dependency.
+
+**Polling, as every other live view does.** Rejected for this view specifically.
+A per-tool-call transcript at a 4–15 second poll interval renders as jumps rather
+than as a stream, and closing the interval enough to feel live turns each viewer
+into a repeated whole-window query. The existing polled views stay polled.
+
+**A third-party SSE or realtime library.** Rejected. SSE framing is a handful of
+lines of text, `EventSource` is native, and this epic is explicitly zero-dep.
+
+**A `node_status` event type published alongside the run events.** Rejected. Node
+state already has a source of truth in `pipeline.assembly_line_nodes`, which the
+walk writes; a parallel status event would be a second source that drifts against
+it. The client seeds from the table and derives running-versus-finished from the
+per-node `init` and `result` events.
+
+**An off-the-shelf graph layout library for the DAG.** Rejected. Every assembly
+line definition in `libs/assembly-lines/src/assembly-lines/*.yaml` is at most 7
+nodes today — `implementation.yaml` is the largest at exactly 7 (implement,
+validate, push, review, address, retrospective, done), including an
+`implement → implement` self-loop and the `validate → implement` and
+`address → validate` back-edges, so the renderer must handle cycles but not
+scale. At that size a hand-rolled layered SVG layout is smaller than the adapter
+code a library would need. This is an observed bound, not one the layout
+enforces; a definition substantially larger than that is the trigger to revisit,
+and the fallback is a layout dependency confined to the renderer, not a change to
+the transport or the contract.
+
+**Sharing the `AgentRunEventRow` type by importing `libs/shared` into web-ui.**
+Rejected because it is not possible. As `scripts/type-drift/feature-types.drift.ts`
+records, `apps/web-ui` is excluded from the npm workspace and built in an isolated
+Docker context, and `@re-cinq/lore-shared` drags in the Anthropic SDK, dgraph, and
+tree-sitter. The established answer is a hand-mirror plus a type-only drift guard
+that fails `tsc --noEmit` the moment the canonical type gains a key the mirror
+lacks; this feature follows that pattern rather than inventing a second one.
