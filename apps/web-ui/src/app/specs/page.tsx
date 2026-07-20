@@ -19,9 +19,6 @@ export default async function SpecsPage() {
       <GlobalDocsView
         docs={specs}
         statuses={statuses}
-        hrefFor={(repo, filePath) =>
-          `/repos/${repo}/specs/${encodeURIComponent(filePath)}`
-        }
         emptyHint="No specs in the graph yet. Specs are projected automatically by CI on push to main."
         noMatchHint="No specs match this filter."
       />

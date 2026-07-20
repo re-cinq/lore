@@ -3,11 +3,8 @@ import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import GlobalDocsView from "./GlobalDocsView";
 
-const hrefFor = (repo: string, filePath: string) =>
-  `/repos/${repo}/specs/${encodeURIComponent(filePath)}`;
-
 describe("GlobalDocsView", () => {
-  it("groups docs by repo and links each path via hrefFor", () => {
+  it("groups docs by repo and links each path to the repo spec detail page", () => {
     render(
       <GlobalDocsView
         docs={[
@@ -15,7 +12,6 @@ describe("GlobalDocsView", () => {
           { repo: "re-cinq/lore", filePath: ".specify/spec.md" },
           { repo: "acme/widgets", filePath: "specs/x.md" },
         ]}
-        hrefFor={hrefFor}
         emptyHint="No specs in the graph yet."
         noMatchHint="No specs match this filter."
       />,
@@ -33,7 +29,6 @@ describe("GlobalDocsView", () => {
     render(
       <GlobalDocsView
         docs={[]}
-        hrefFor={hrefFor}
         emptyHint="No ADRs in the graph yet."
         noMatchHint="No ADRs match this filter."
       />,
@@ -58,7 +53,6 @@ describe("GlobalDocsView", () => {
             label: "Draft",
           },
         }}
-        hrefFor={hrefFor}
         emptyHint="No specs in the graph yet."
         noMatchHint="No specs match this filter."
       />,
@@ -81,7 +75,6 @@ describe("GlobalDocsView", () => {
             label: "Draft",
           },
         }}
-        hrefFor={hrefFor}
         emptyHint="No ADRs in the graph yet."
         noMatchHint="No ADRs match this filter."
       />,
@@ -100,7 +93,6 @@ describe("GlobalDocsView", () => {
           { repo: "re-cinq/lore", filePath: "specs/auth/spec.md" },
           { repo: "acme/widgets", filePath: "specs/pay/spec.md" },
         ]}
-        hrefFor={hrefFor}
         emptyHint="No specs in the graph yet."
         noMatchHint="No specs match this filter."
       />,
@@ -124,13 +116,28 @@ describe("GlobalDocsView", () => {
             label: "Draft",
           },
         }}
-        hrefFor={hrefFor}
         emptyHint="No ADRs in the graph yet."
         noMatchHint="No ADRs match this filter."
-        chipsKind="adr"
+        kind="adr"
       />,
     );
 
     expect(screen.getByText(/from the ADR's frontmatter/)).toBeTruthy();
+  });
+
+  it("links to the repo adrs detail page when kind is adr", () => {
+    render(
+      <GlobalDocsView
+        docs={[{ repo: "re-cinq/lore", filePath: "adrs/ADR-001-x.md" }]}
+        emptyHint="No ADRs in the graph yet."
+        noMatchHint="No ADRs match this filter."
+        kind="adr"
+      />,
+    );
+    const link = screen.getByText("adrs/ADR-001-x.md").closest("a");
+
+    expect(link?.getAttribute("href")).toBe(
+      `/repos/re-cinq/lore/adrs/${encodeURIComponent("adrs/ADR-001-x.md")}`,
+    );
   });
 });

@@ -19,12 +19,9 @@ export default async function AdrsPage() {
       <GlobalDocsView
         docs={adrs}
         statuses={statuses}
-        hrefFor={(repo, filePath) =>
-          `/repos/${repo}/adrs/${encodeURIComponent(filePath)}`
-        }
         emptyHint="No ADRs in the graph yet. ADRs are projected automatically by CI on push to main."
         noMatchHint="No ADRs match this filter."
-        chipsKind="adr"
+        kind="adr"
       />
     </div>
   );
