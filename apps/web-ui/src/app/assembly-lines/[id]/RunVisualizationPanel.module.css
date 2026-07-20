@@ -1,0 +1,43 @@
+.panel {
+  margin-block: 1.5rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.chip {
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.live {
+  color: var(--tone-ok-fg, #14663f);
+  background: var(--tone-ok-bg, #e6f6ed);
+  border-color: var(--tone-ok-border, #b7e2c8);
+}
+
+.connecting,
+.reconnecting {
+  color: var(--tone-running-fg, #7a5200);
+  background: var(--tone-running-bg, #fff5da);
+  border-color: var(--tone-running-border, #f0dca6);
+}
+
+.offline {
+  color: var(--tone-muted-fg, #5b6672);
+  background: var(--tone-muted-bg, #f0f2f5);
+  border-color: var(--tone-muted-border, #d8dde3);
+}
+
+.selected {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--fg-muted, #5b6672);
+}
