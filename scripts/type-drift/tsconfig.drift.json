@@ -7,7 +7,24 @@
     "noEmit": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@re-cinq/lore-shared": [
+        "../../libs/shared/src/index.ts"
+      ],
+      "@re-cinq/lore-shared/*": [
+        "../../libs/shared/src/*"
+      ],
+      "@re-cinq/lore-assembly-lines": [
+        "../../libs/assembly-lines/src/index.ts"
+      ],
+      "@re-cinq/lore-assembly-lines/*": [
+        "../../libs/assembly-lines/src/*"
+      ]
+    }
   },
   "include": [
     "feature-types.drift.ts",
