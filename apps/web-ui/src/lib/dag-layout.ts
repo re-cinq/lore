@@ -119,8 +119,10 @@ export function layerByLongestPath(
     indegree[node.id] = 0;
   }
 
+  const acyclicOut = new Map<string, DefinitionEdge[]>();
   for (const edge of acyclic) {
     indegree[edge.to] += 1;
+    acyclicOut.set(edge.from, [...(acyclicOut.get(edge.from) ?? []), edge]);
   }
 
   const queue = def.nodes
@@ -130,7 +132,7 @@ export function layerByLongestPath(
   for (let head = 0; head < queue.length; head += 1) {
     const id = queue[head];
 
-    for (const edge of acyclic.filter((e) => e.from === id)) {
+    for (const edge of acyclicOut.get(id) ?? []) {
       layers[edge.to] = Math.max(layers[edge.to], layers[id] + 1);
       indegree[edge.to] -= 1;
 
