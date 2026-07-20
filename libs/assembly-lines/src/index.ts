@@ -27,6 +27,7 @@ export {
   terminalErrorText,
   resultLine,
   eventLine,
+  unwrapAttribution,
 } from "./agent-output.js";
 
 export { ciOutcome, type CiConclusion } from "./github-action-handler.js";

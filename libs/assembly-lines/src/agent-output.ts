@@ -65,6 +65,51 @@ function isAttributedLine(value: unknown): value is AttributedLine {
   );
 }
 
+function attributionSource(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+/**
+ * The attribution envelope peeled off a subsystem line: the event it carries and
+ * the source that attributes it (null when the line is bare, or its source is
+ * not an object). The unwrap side of the envelope for both lanes — the
+ * `status.output` read path and the NDJSON telemetry sink (POST /api/agent-events).
+ */
+export function unwrapAttribution(value: unknown): {
+  source: Record<string, unknown> | null;
+  event: unknown;
+} {
+  if (!isAttributedLine(value)) {
+    return { source: null, event: value };
+  }
+
+  const source = attributionSource(value.source);
+  const event = value.event;
+
+  // TRANSITIONAL — the second peel only. Prod emits double-wrapped lines
+  // ({source, event: {source, event}}) on the sink lane, so the terminal result
+  // sits at .event.event and its cost row is dropped without it (#875).
+  // Deletion condition: remove once the ai-agent-subsystem wrapper enforces
+  // single-wrap at the source for the sink lane. subsystem#171 claims stdout
+  // already does — unverifiable from this repo, and it cannot be the whole story
+  // while nested lines still arrive, so the nesting either predates that guard
+  // or reaches the sink by another path. Confirm which before deleting.
+  // Deliberately bounded at two: a third layer is left intact as the event
+  // rather than peeled by a loop.
+  if (isAttributedLine(event)) {
+    const inner = attributionSource(event.source);
+
+    return {
+      source: source || inner ? { ...inner, ...source } : null,
+      event: event.event,
+    };
+  }
+
+  return { source, event };
+}
+
 /**
  * The agent text carried by the last terminal result line of an NDJSON stream.
  * Falls back to the raw input when the output is not an NDJSON stream, carries
