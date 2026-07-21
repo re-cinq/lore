@@ -145,17 +145,14 @@ export default function RunGraphView({
         <defs>
           <marker
             id="rgv-arrow"
-            markerWidth="8"
+            markerWidth="9"
             markerHeight="8"
-            refX="6.5"
-            refY="3.5"
+            refX="7"
+            refY="4"
             orient="auto-start-reverse"
             markerUnits="userSpaceOnUse"
           >
-            <path
-              className={styles.arrowHead}
-              d="M0.5 0.5 L6.5 3.5 L0.5 6.5 Z"
-            />
+            <path className={styles.arrowHead} d="M1 1 L7 4 L1 7 L2.6 4 Z" />
           </marker>
         </defs>
 
@@ -239,7 +236,7 @@ export default function RunGraphView({
                 y={node.y - NODE_HEIGHT / 2}
                 width={NODE_WIDTH}
                 height={NODE_HEIGHT}
-                rx={8}
+                rx={10}
               />
               <text
                 className={styles.nodeId}

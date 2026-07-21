@@ -65,7 +65,10 @@ export interface LayoutOptions {
 type ResolvedOptions = Required<LayoutOptions>;
 
 const DEFAULTS: ResolvedOptions = {
-  layerGap: 180,
+  // Wide enough that a condition label ("changes_requested", ~95px at 12px)
+  // fits in the gap between two adjacent nodes (layerGap - nodeWidth) instead
+  // of smearing across the boxes on either side.
+  layerGap: 240,
   rowGap: 96,
   nodeWidth: 132,
   nodeHeight: 48,
@@ -351,23 +354,30 @@ function pathFor(
   }
 
   const bend = opts.layerGap / 3;
-  // Fan parallel forward edges vertically: centre the group on the straight
-  // line, then spread siblings by a fixed gap so three review->done outcomes
-  // read as three arcs rather than one.
+  // Fan parallel forward edges onto their own ports: each sibling exits and
+  // enters at a distinct height on the node faces, so three review->done
+  // outcomes read as three separate parallel lines with three separate
+  // arrowheads instead of one tangle converging on a single point.
   const spread = fanOffset(edge);
+  const y0 = from.y + spread;
+  const y1 = to.y + spread;
 
   return [
-    `M ${from.x + halfW} ${from.y}`,
-    `C ${from.x + halfW + bend} ${from.y + spread}`,
-    `${to.x - halfW - bend} ${to.y + spread}`,
-    `${to.x - halfW} ${to.y}`,
+    `M ${from.x + halfW} ${y0}`,
+    `C ${from.x + halfW + bend} ${y0}`,
+    `${to.x - halfW - bend} ${y1}`,
+    `${to.x - halfW} ${y1}`,
   ].join(" ");
 }
 
-const FAN_GAP = 16;
-// Labels need more vertical room than the arcs: a ~12u label overprints its
-// neighbours at the 16u arc pitch (long conditions like `changes_requested`
-// collide), so labels stack at their own wider pitch, decoupled from the arcs.
+// Vertical pitch between sibling ports on a node face. Three upward-fanned
+// edges reach -2*FAN_GAP; at 12 that is -24, exactly the node's half-height, so
+// even the topmost port sits on the face rather than floating above the box.
+const FAN_GAP = 12;
+// Labels stack above the whole arc bundle at their own wider pitch: a ~12u
+// label needs more room than the 12u arc pitch, and interleaving labels between
+// arcs lets an arc strike through the label below it. Lifting the stack clear of
+// the topmost arc keeps every label legible and color-mapped to its line.
 const LABEL_GAP = 26;
 
 // Parallel edges fan UPWARD only (never below the straight line), so they stay
@@ -404,7 +414,13 @@ function labelPointFor(
     return { x: from.x, y: from.y - opts.nodeHeight };
   }
 
+  // Lift the whole stack above the topmost arc, then step each sibling up from
+  // there, so no label sits in the band between two arcs where a line crosses it.
+  const bundleLift = -((edge.parallelCount ?? 1) - 1) * FAN_GAP;
   const spread = fanOffset(edge, LABEL_GAP);
 
-  return { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 - 8 + spread };
+  return {
+    x: (from.x + to.x) / 2,
+    y: (from.y + to.y) / 2 + bundleLift - 8 + spread,
+  };
 }
