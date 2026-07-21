@@ -225,4 +225,25 @@ describe("layoutAssemblyLine", () => {
       expect(layoutAssemblyLine(def).edges).toHaveLength(def.edges.length);
     }
   });
+
+  it("returns a content box that contains every node box", () => {
+    const layout = layoutAssemblyLine(implementationDefinition);
+    const halfW = 132 / 2;
+    const halfH = 48 / 2;
+
+    for (const node of layout.nodes) {
+      expect(layout.contentBox.minX).toBeLessThanOrEqual(node.x - halfW);
+      expect(layout.contentBox.maxX).toBeGreaterThanOrEqual(node.x + halfW);
+      expect(layout.contentBox.minY).toBeLessThanOrEqual(node.y - halfH);
+      expect(layout.contentBox.maxY).toBeGreaterThanOrEqual(node.y + halfH);
+    }
+  });
+
+  it("returns a content box tight to a single node rather than the layer grid", () => {
+    const { contentBox } = layoutAssemblyLine(twoNodeLine);
+    const spanX = contentBox.maxX - contentBox.minX;
+
+    expect(spanX).toBeLessThan(layoutAssemblyLine(twoNodeLine).width);
+    expect(spanX).toBeGreaterThan(0);
+  });
 });

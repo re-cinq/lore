@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import AssemblyLineRunView from "./AssemblyLineRunView";
+import { implementationDefinition } from "@/lib/builtin-definitions";
 import type {
   AssemblyLineRun,
   AssemblyLineRunNode,
@@ -40,7 +41,13 @@ const node = (
 
 describe("AssemblyLineRunView", () => {
   it("renders the run header with definition, repo link and outcome", () => {
-    render(<AssemblyLineRunView run={run()} nodes={[node()]} />);
+    render(
+      <AssemblyLineRunView
+        run={run()}
+        nodes={[node()]}
+        definition={implementationDefinition}
+      />,
+    );
 
     expect(
       screen.getByRole("heading", { name: "code-review", level: 1 }),
@@ -57,6 +64,7 @@ describe("AssemblyLineRunView", () => {
       <AssemblyLineRunView
         run={run({ status: "failed", outcome: "error", reason: "no edge" })}
         nodes={[]}
+        definition={implementationDefinition}
       />,
     );
 
@@ -65,7 +73,11 @@ describe("AssemblyLineRunView", () => {
 
   it("links the backing task when task_id is set, omits it otherwise", () => {
     const { rerender } = render(
-      <AssemblyLineRunView run={run({ taskId: "task-9" })} nodes={[]} />,
+      <AssemblyLineRunView
+        run={run({ taskId: "task-9" })}
+        nodes={[]}
+        definition={implementationDefinition}
+      />,
     );
 
     expect(screen.getByRole("link", { name: "View task →" })).toHaveAttribute(
@@ -73,7 +85,13 @@ describe("AssemblyLineRunView", () => {
       "/tasks/task-9",
     );
 
-    rerender(<AssemblyLineRunView run={run({ taskId: null })} nodes={[]} />);
+    rerender(
+      <AssemblyLineRunView
+        run={run({ taskId: null })}
+        nodes={[]}
+        definition={implementationDefinition}
+      />,
+    );
     expect(
       screen.queryByRole("link", { name: "View task →" }),
     ).not.toBeInTheDocument();
@@ -87,6 +105,7 @@ describe("AssemblyLineRunView", () => {
           node(),
           node({ nodeId: "refine", iteration: 2, commitSha: "abc1234def" }),
         ]}
+        definition={implementationDefinition}
       />,
     );
 
@@ -101,8 +120,39 @@ describe("AssemblyLineRunView", () => {
     );
   });
 
+  it("shows a status pill and the forward branch a step took", () => {
+    render(
+      <AssemblyLineRunView
+        run={run()}
+        nodes={[node({ nodeId: "implement", outcome: "success" })]}
+        definition={implementationDefinition}
+      />,
+    );
+
+    expect(screen.getByText("Succeeded")).toBeInTheDocument();
+    expect(screen.getByText("success → validate")).toBeInTheDocument();
+  });
+
+  it("annotates a retry with a back arrow to the loop target", () => {
+    render(
+      <AssemblyLineRunView
+        run={run()}
+        nodes={[node({ nodeId: "validate", outcome: "failed" })]}
+        definition={implementationDefinition}
+      />,
+    );
+
+    expect(screen.getByText("failed ↩ implement")).toBeInTheDocument();
+  });
+
   it("renders the no-node-executions note for a zero-node run", () => {
-    render(<AssemblyLineRunView run={run()} nodes={[]} />);
+    render(
+      <AssemblyLineRunView
+        run={run()}
+        nodes={[]}
+        definition={implementationDefinition}
+      />,
+    );
 
     expect(
       screen.getByText("No node executions recorded."),
@@ -110,7 +160,13 @@ describe("AssemblyLineRunView", () => {
   });
 
   it("builds the PR link for a code-review run with no task", () => {
-    render(<AssemblyLineRunView run={run()} nodes={[]} />);
+    render(
+      <AssemblyLineRunView
+        run={run()}
+        nodes={[]}
+        definition={implementationDefinition}
+      />,
+    );
 
     expect(screen.getByRole("link", { name: "#7" })).toHaveAttribute(
       "href",

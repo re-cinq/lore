@@ -103,6 +103,7 @@ describe("toAssemblyLineRunNode", () => {
       agentCrName: "a1b2c3d4-implement",
       commitSha: "deadbeef",
       durationSeconds: 60,
+      startedAt: "2026-07-14T10:00:05Z",
     });
   });
 
