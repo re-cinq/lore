@@ -30,10 +30,12 @@ describe("parseAgentSink", () => {
   });
 
   it("skips viz projection entirely when run-event projection is off", () => {
-    const body = [
-      line(assistant([{ type: "text", text: "hi" }])),
-      line(result({ input_tokens: 10 })),
-    ].join("\n");
+    // Trailing newline exercises the no-remainder path of the line scanner.
+    const body =
+      [
+        line(assistant([{ type: "text", text: "hi" }])),
+        line(result({ input_tokens: 10 })),
+      ].join("\n") + "\n";
 
     const sink = parseAgentSink(body, false);
 
