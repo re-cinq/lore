@@ -21,6 +21,7 @@ import {
   replayTo,
 } from "@/lib/run-event-reducer";
 import { takenEdgeKeys } from "@/lib/run-taken-edges";
+import { deriveVisibleGraph, type RunData } from "@/lib/graph-view-model";
 import { parseRunStreamRow, type RunStreamEvent } from "@/lib/run-stream-types";
 import { toTranscriptRows } from "@/lib/transcript-rows";
 import FileHeatmapView from "./FileHeatmapView";
@@ -66,7 +67,6 @@ export default function RunVisualizationPanel({
   runStatus,
   startedAt,
   definition,
-  showEdgeLabels,
   nodes,
   repo,
   reason,
@@ -254,6 +254,44 @@ export default function RunVisualizationPanel({
     [definition, nodes],
   );
 
+  // Run data exists once the walk has visited a node — via a persisted row or a
+  // node that left idle on the live stream. Run mode is the default; "Show possible
+  // outcomes" flips to the definition view without disturbing it.
+  const participated = (s: {
+    status: string;
+    transcript: readonly unknown[];
+  }): boolean => s.status !== "idle" || s.transcript.length > 0;
+  const hasRunData =
+    nodes.length > 0 ||
+    Object.values(displayState.nodeStates).some(participated);
+  const [showOutcomes, setShowOutcomes] = useState(false);
+  const graphMode = hasRunData && !showOutcomes ? "run" : "definition";
+  const runData = useMemo<RunData>(() => {
+    const entries = Object.entries(displayState.nodeStates);
+
+    return {
+      // A node participated once it left idle (live stream) or has a walk row.
+      executed: new Set([
+        ...nodes.map((n) => n.nodeId),
+        ...entries.filter(([, s]) => participated(s)).map(([id]) => id),
+      ]),
+      verdicts: Object.fromEntries(entries.map(([id, s]) => [id, s.outcome])),
+      statuses: Object.fromEntries(entries.map(([id, s]) => [id, s.status])),
+      taken: takenEdges,
+      result:
+        runStatus === "failed"
+          ? "failed"
+          : runStatus === "finished"
+            ? "completed"
+            : null,
+    };
+  }, [nodes, displayState.nodeStates, takenEdges, runStatus]);
+  const visibleGraph = useMemo(
+    () =>
+      deriveVisibleGraph(definition, hasRunData ? runData : null, graphMode),
+    [definition, hasRunData, runData, graphMode],
+  );
+
   const onTranscriptScroll = useCallback(() => {
     const box = scrollRef.current;
 
@@ -314,12 +352,20 @@ export default function RunVisualizationPanel({
         </span>
       </div>
       <RunGraphView
+        graph={visibleGraph}
         definition={definition}
-        nodeStates={displayState.nodeStates}
-        showEdgeLabels={showEdgeLabels}
-        takenEdges={takenEdges}
         onSelectNode={setSelectedNodeId}
       />
+      {hasRunData ? (
+        <button
+          type="button"
+          className={styles.outcomesToggle}
+          aria-pressed={showOutcomes}
+          onClick={() => setShowOutcomes((s) => !s)}
+        >
+          {showOutcomes ? "Show executed path" : "Show possible outcomes"}
+        </button>
+      ) : null}
       {selectedNodeId ? (
         <RunNodeDetail
           nodeId={selectedNodeId}

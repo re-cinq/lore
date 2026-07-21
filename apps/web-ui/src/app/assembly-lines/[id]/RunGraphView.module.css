@@ -140,6 +140,65 @@
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
+/* Run mode: the verdict/result carried inside the node, color as an accent. */
+.statusLabel {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+/* Definition mode: the outcomes a source node can produce, listed inside it. */
+.possibleLabel {
+  fill: var(--text-muted);
+  font-size: var(--fs-2xs);
+}
+.outcomeRow {
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+.outOk {
+  fill: var(--success);
+}
+.outWarn {
+  fill: var(--warning);
+}
+.outErr {
+  fill: var(--danger);
+}
+.outInfo {
+  fill: var(--info);
+}
+.outNeutral {
+  fill: var(--text-muted);
+}
+
+/* Status glyphs — a colored disc with a white check / dash / cross / dot, so a
+   node's state never rests on color alone. */
+.iconOk {
+  fill: var(--success);
+}
+.iconWarn {
+  fill: var(--warning);
+}
+.iconErr {
+  fill: var(--danger);
+}
+.iconRunning {
+  fill: var(--info);
+}
+.iconIdle {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+.iconGlyph {
+  fill: none;
+  stroke: var(--bg-surface);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.iconInner {
+  fill: var(--bg-surface);
+}
 
 .idle .box {
   stroke: var(--border);

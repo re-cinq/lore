@@ -208,7 +208,7 @@ describe("history fold", () => {
     renderPanel("running");
     await settle();
 
-    expect(screen.getByText("implement")).toBeInTheDocument();
+    expect(screen.getByText("Implement")).toBeInTheDocument();
     expect(screen.getAllByText("Running").length).toBeGreaterThan(0);
   });
 });
@@ -221,7 +221,7 @@ describe("degradation", () => {
     renderPanel("running");
     await settle();
 
-    expect(screen.getByText("implement")).toBeInTheDocument();
+    expect(screen.getByText("Implement")).toBeInTheDocument();
     expect(screen.getByText("Offline")).toBeInTheDocument();
   });
 
@@ -239,7 +239,7 @@ describe("degradation", () => {
     renderPanel("running");
     await settle();
 
-    expect(screen.getByText("implement")).toBeInTheDocument();
+    expect(screen.getByText("Implement")).toBeInTheDocument();
     expect(FakeEventSource.instances).toHaveLength(0);
   });
 });
@@ -342,7 +342,29 @@ describe("node transcript drill-in", () => {
     stubHistory([]);
     useFakeEventSource();
 
-    renderPanel("running");
+    // A walk row makes the node participate (so it renders and is selectable)
+    // while its transcript stays empty.
+    render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        startedAt={null}
+        definition={definition}
+        showEdgeLabels
+        nodes={[
+          {
+            nodeId: "implement",
+            iteration: 1,
+            outcome: null,
+            agentCrName: null,
+            commitSha: null,
+            durationSeconds: null,
+          },
+        ]}
+        repo="re-cinq/lore"
+        reason={null}
+      />,
+    );
     await settle();
     await selectNode("implement");
 
@@ -523,7 +545,7 @@ describe("replay scrubber", () => {
     expect(screen.queryByRole("slider")).not.toBeInTheDocument();
   });
 
-  it("seeking to mid-run shows the running node as running and later nodes idle", async () => {
+  it("seeking to mid-run shows the running node and hides steps that have not run", async () => {
     stubHistory(runLoop);
     useFakeEventSource();
 
@@ -533,7 +555,8 @@ describe("replay scrubber", () => {
     await scrubTo(1);
 
     expect(nodeStatus(container, "implement")).toContain("Running");
-    expect(nodeStatus(container, "validate")).toContain("Terminal");
+    // validate has not participated at this cursor — run mode does not draw it.
+    expect(container.querySelector('[data-node="validate"]')).toBeNull();
   });
 
   it("moves the scrubber to the event a timeline tick seeks to", async () => {
@@ -559,13 +582,14 @@ describe("replay scrubber", () => {
     await settle();
     await scrubTo(1);
 
-    expect(nodeStatus(container, "validate")).toContain("Terminal");
+    expect(container.querySelector('[data-node="validate"]')).toBeNull();
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /back to live/i }));
     });
 
+    // Final state: implement carries its verdict, the terminal the run result.
     expect(nodeStatus(container, "implement")).toContain("Succeeded");
-    expect(nodeStatus(container, "validate")).toContain("Succeeded");
+    expect(nodeStatus(container, "validate")).toContain("Completed");
   });
 });

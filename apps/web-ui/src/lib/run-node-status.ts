@@ -43,6 +43,13 @@ export function outcomeVisual(outcome: string): NodeStatusVisual {
   return { tone: "ok", label: "Succeeded" };
 }
 
+/** The terminal's badge from the run's final result token. */
+export function resultVisual(result: string): NodeStatusVisual {
+  return result.includes("failed")
+    ? { tone: "err", label: "Failed" }
+    : { tone: "ok", label: "Completed" };
+}
+
 /** The node badge: the recorded verdict when the node has one (authoritative),
  *  otherwise its execution status (Pending while idle, Running in flight). This is
  *  what keeps a failed-verdict node from rendering as its clean process exit. */

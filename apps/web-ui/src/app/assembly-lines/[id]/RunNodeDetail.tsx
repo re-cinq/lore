@@ -11,6 +11,7 @@ import styles from "./RunNodeDetail.module.css";
 
 const PILL_CLASS: Record<NodeStatusTone, string> = {
   ok: styles.pillOk,
+  warn: styles.pillWarn,
   err: styles.pillErr,
   running: styles.pillRunning,
   idle: styles.pillIdle,
@@ -18,6 +19,7 @@ const PILL_CLASS: Record<NodeStatusTone, string> = {
 
 const WHY_CLASS: Record<NodeStatusTone, string> = {
   ok: styles.whyOk,
+  warn: styles.whyWarn,
   err: styles.whyErr,
   running: styles.whyRunning,
   idle: styles.whyIdle,

@@ -1,69 +1,67 @@
 "use client";
 
-// Client component: onSelectNode attaches an onClick, and a server component
-// cannot pass an event handler across the boundary. Harmless today because
-// page.tsx renders it without the prop, but #880 passes one.
-// The definition DAG for one run: declarative SVG, no IO, no state.
+// Renders a VisibleGraph — the mode-selected nodes and connectors from
+// graph-view-model. It never derives what executed; it maps the model to SVG and
+// nothing else (positions come from layoutAssemblyLine). Declarative so it renders
+// and asserts in jsdom.
 //
-// Declarative rather than imperative (the d3 SpecGraphD3 shell next door is the
-// counter-example) so it renders and asserts in jsdom and needs no coverage
-// exclusion. Every geometric decision already happened in layoutAssemblyLine —
-// this file maps its output to elements and nothing else.
+// Color lives inside nodes (verdict/result badges) and on branch connectors that
+// route to different steps; a plain executed hop is a neutral gray connector with
+// no label. Every node also carries its status as text, so meaning never rests on
+// color alone.
 
-import type {
-  AssemblyLineDefinition,
-  DefinitionEdgeCondition,
-} from "@/lib/assembly-line-definition";
+import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { Box, LayoutEdge } from "@/lib/dag-layout";
 import { layoutAssemblyLine } from "@/lib/dag-layout";
-import type { NodeRunState } from "@/lib/run-event-reducer";
-import { nodeRunVisual } from "@/lib/run-node-status";
+import {
+  outcomeTone,
+  type ConnectorTone,
+  type VisibleGraph,
+  type VisibleNode,
+} from "@/lib/graph-view-model";
+import {
+  nodeRunVisual,
+  outcomeVisual,
+  resultVisual,
+  type NodeStatusVisual,
+} from "@/lib/run-node-status";
 import styles from "./RunGraphView.module.css";
 
 const NODE_WIDTH = 132;
-const NODE_HEIGHT = 48;
+const BASE_NODE_HEIGHT = 48;
+const OUTCOME_ROW = 15;
+const OUTCOME_TOP = 14;
 const PADDING = 28;
-// A lone node's content box is tiny; width:100% would then blow it up to fill
-// the container. Floor the viewBox to a natural size and center the content in
-// it so a single step sits at a readable scale instead of stretched edge to edge.
 const MIN_VIEW_WIDTH = 480;
 const MIN_VIEW_HEIGHT = 200;
-const IDLE_STATUS = "idle" as const;
 
-const TONE_CLASS: Record<EdgeTone, string> = {
+const TONE_CLASS: Record<ConnectorTone, string> = {
   ok: styles.toneOk,
   warn: styles.toneWarn,
   err: styles.toneErr,
   neutral: styles.toneNeutral,
 };
 
+const OUTCOME_FILL: Record<ConnectorTone, string> = {
+  ok: styles.outOk,
+  warn: styles.outWarn,
+  err: styles.outErr,
+  neutral: styles.outNeutral,
+};
+
 export interface RunGraphViewProps {
+  graph: VisibleGraph;
+  /** Source definition — supplies layout entry/exit and the graph name. */
   definition: AssemblyLineDefinition | null;
-  nodeStates: Record<string, NodeRunState>;
-  /** Suppressed for a synthesized graph, whose conditions are a guess. */
-  showEdgeLabels?: boolean;
-  /**
-   * Keys (`${from}-${to}-${on}`) of the edges the run actually traversed. When
-   * non-empty the taken edges are drawn bold and the rest fade back; empty means
-   * a definition-only view, where every edge renders at full weight.
-   */
-  takenEdges?: ReadonlySet<string>;
   onSelectNode?: (nodeId: string) => void;
 }
 
-type EdgeTone = "ok" | "warn" | "err" | "neutral";
-
 interface FittedView {
   viewBox: string;
-  /** Natural px width, also the SVG's max-width so a small graph renders at
-   *  ~1:1 and centers rather than upscaling to fill the page. */
   width: number;
 }
 
-/** A padded viewBox around the content, floored to a natural size. Anchored to
- *  the content's left edge (a DAG reads left-to-right), and vertically centered;
- *  any slack from the min-width floor falls to the right, so a lone node sits at
- *  the left rather than marooned in the middle. */
+/** A padded viewBox around the content, floored to a natural size. */
 function fitView(box: Box): FittedView {
   const width = Math.max(box.maxX - box.minX + PADDING * 2, MIN_VIEW_WIDTH);
   const height = Math.max(box.maxY - box.minY + PADDING * 2, MIN_VIEW_HEIGHT);
@@ -75,48 +73,135 @@ function fitView(box: Box): FittedView {
   };
 }
 
-function edgeTone(on: DefinitionEdgeCondition): EdgeTone {
-  if (on === "success") {
-    return "ok";
+/** Uniform node height: taller in definition mode so a source node's outcome list
+ *  fits inside its box. Run and bare definition nodes stay the base height. */
+function nodeHeightFor(graph: VisibleGraph): number {
+  if (graph.mode !== "definition") {
+    return BASE_NODE_HEIGHT;
   }
 
-  if (on === "changes_requested") {
-    return "warn";
+  const rows = Math.max(0, ...graph.nodes.map((node) => node.outcomes.length));
+
+  return rows > 0
+    ? BASE_NODE_HEIGHT + OUTCOME_TOP + rows * OUTCOME_ROW
+    : BASE_NODE_HEIGHT;
+}
+
+/** A layout-shaped definition from the visible graph; connectors carry no
+ *  condition (structure only), so the layout never re-fans collapsed edges. */
+function toLayoutDefinition(
+  graph: VisibleGraph,
+  definition: AssemblyLineDefinition | null,
+): AssemblyLineDefinition {
+  return {
+    name: definition?.name ?? "workflow",
+    description: "",
+    version: 1,
+    entry: definition?.entry ?? graph.nodes[0]?.id ?? "",
+    exit: definition?.exit ?? "",
+    nodes: graph.nodes.map((node) => ({
+      id: node.id,
+      type: node.type,
+    })) as AssemblyLineDefinition["nodes"],
+    edges: graph.edges.map((edge) => ({
+      from: edge.from,
+      to: edge.to,
+      on: "always" as const,
+    })),
+  };
+}
+
+/** The run-mode badge for a node: the terminal shows the run result, an executed
+ *  node its verdict, and an in-flight one "Running". */
+function runBadge(node: VisibleNode): NodeStatusVisual {
+  if (node.result !== null) {
+    return resultVisual(node.result);
   }
 
-  return on === "failed" ? "err" : "neutral";
+  return nodeRunVisual(node.verdict, node.status);
 }
 
-/**
- * Attempt ceiling for a node: one more than the largest `iteration_max` on an
- * inbound edge, because the walk fails an edge only once the count exceeds that
- * max (libs/assembly-lines transition.ts). A node no edge limits has no ceiling
- * and therefore no badge.
- */
-function attemptCeiling(
-  definition: AssemblyLineDefinition,
-  nodeId: string,
-): number | null {
-  const maxima = definition.edges
-    .filter((edge) => edge.to === nodeId && edge.iteration_max !== undefined)
-    .map((edge) => edge.iteration_max as number);
+const ICON_FILL: Record<string, string | undefined> = {
+  ok: styles.iconOk,
+  warn: styles.iconWarn,
+  err: styles.iconErr,
+  running: styles.iconRunning,
+  idle: styles.iconIdle,
+  neutral: styles.iconIdle,
+};
 
-  return maxima.length === 0 ? null : Math.max(...maxima) + 1;
+const STATUS_FILL: Record<string, string | undefined> = {
+  ok: styles.outOk,
+  warn: styles.outWarn,
+  err: styles.outErr,
+  running: styles.outInfo,
+  idle: styles.outNeutral,
+  neutral: styles.outNeutral,
+};
+
+/** A small circular status glyph — check / dash / cross / dot — so a node's state
+ *  reads without relying on color. */
+function StatusIcon({
+  tone,
+  cx,
+  cy,
+  r = 8,
+}: {
+  tone: string;
+  cx: number;
+  cy: number;
+  r?: number;
+}) {
+  const s = r / 8;
+
+  return (
+    <g aria-hidden="true">
+      <circle
+        cx={cx}
+        cy={cy}
+        r={r}
+        className={ICON_FILL[tone] ?? styles.iconIdle}
+      />
+      {tone === "ok" ? (
+        <path
+          className={styles.iconGlyph}
+          d={`M ${cx - 3.6 * s} ${cy + 0.3 * s} L ${cx - 1.2 * s} ${cy + 2.8 * s} L ${cx + 3.8 * s} ${cy - 3 * s}`}
+        />
+      ) : null}
+      {tone === "err" ? (
+        <path
+          className={styles.iconGlyph}
+          d={`M ${cx - 2.8 * s} ${cy - 2.8 * s} L ${cx + 2.8 * s} ${cy + 2.8 * s} M ${cx + 2.8 * s} ${cy - 2.8 * s} L ${cx - 2.8 * s} ${cy + 2.8 * s}`}
+        />
+      ) : null}
+      {tone === "warn" ? (
+        <path
+          className={styles.iconGlyph}
+          d={`M ${cx - 3.2 * s} ${cy} L ${cx + 3.2 * s} ${cy}`}
+        />
+      ) : null}
+      {tone === "running" ? (
+        <circle cx={cx} cy={cy} r={2.4 * s} className={styles.iconInner} />
+      ) : null}
+    </g>
+  );
 }
 
-function edgeKey(edge: LayoutEdge): string {
-  return `${edge.from}-${edge.to}-${edge.on}`;
+function titleCase(id: string): string {
+  return id.charAt(0).toUpperCase() + id.slice(1);
 }
 
-/** The definition graph with per-node run status. Pure render. */
+function edgeMapKey(from: string, to: string): string {
+  return `${from}->${to}`;
+}
+
+/** The mode-selected workflow graph. Pure render of a VisibleGraph. */
 export default function RunGraphView({
+  graph,
   definition,
-  nodeStates,
-  showEdgeLabels = true,
-  takenEdges,
   onSelectNode,
 }: RunGraphViewProps) {
-  if (!definition || definition.nodes.length === 0) {
+  if (graph.nodes.length === 0) {
     return (
       <p className={styles.empty}>
         No assembly-line graph to show for this run.
@@ -124,20 +209,19 @@ export default function RunGraphView({
     );
   }
 
-  const layout = layoutAssemblyLine(definition);
+  const nodeHeight = nodeHeightFor(graph);
+  const layout = layoutAssemblyLine(toLayoutDefinition(graph, definition), {
+    nodeHeight,
+    rowGap: nodeHeight + 48,
+  });
   const view = fitView(layout.contentBox);
-  const titleId = `run-graph-title-${definition.name}`;
+  const titleId = `run-graph-title-${graph.mode}`;
   const interactive = onSelectNode !== undefined;
-  const hasTakenPath = (takenEdges?.size ?? 0) > 0;
-  const nodesWithOutgoing = new Set(definition.edges.map((edge) => edge.from));
-  // The run's overall result, read off the path it actually walked: any traversed
-  // `failed` edge means the run failed (mirrors the Floor's lineOutcomeFromVisits).
-  // A terminal reached by that path shows this result instead of a bland
-  // "Terminal", so a failed run never ends on a green box.
-  const takenLayoutEdges = hasTakenPath
-    ? layout.edges.filter((edge) => takenEdges?.has(edgeKey(edge)))
-    : [];
-  const runFailed = takenLayoutEdges.some((edge) => edge.on.includes("failed"));
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const edgeByPair = new Map(
+    graph.edges.map((edge) => [edgeMapKey(edge.from, edge.to), edge]),
+  );
+  const nodesWithOutgoing = new Set(graph.edges.map((edge) => edge.from));
 
   return (
     <section className={styles.panel}>
@@ -149,7 +233,7 @@ export default function RunGraphView({
         aria-labelledby={titleId}
         viewBox={view.viewBox}
       >
-        <title id={titleId}>{`Assembly line ${definition.name}`}</title>
+        <title id={titleId}>{`Workflow graph (${graph.mode})`}</title>
         <defs>
           <marker
             id="rgv-arrow"
@@ -164,28 +248,22 @@ export default function RunGraphView({
           </marker>
         </defs>
 
-        {layout.edges.map((edge) => {
-          const key = edgeKey(edge);
-          const isTaken = takenEdges?.has(key) ?? false;
-          const groupClass = !hasTakenPath
-            ? undefined
-            : isTaken
-              ? styles.taken
-              : styles.dim;
-          const toneClass = TONE_CLASS[edgeTone(edge.on)];
+        {layout.edges.map((edge: LayoutEdge) => {
+          const vm = edgeByPair.get(edgeMapKey(edge.from, edge.to));
+          const toneClass = TONE_CLASS[vm?.tone ?? "neutral"];
 
           return (
-            <g key={key} className={groupClass} data-taken={isTaken}>
+            <g key={edgeMapKey(edge.from, edge.to)}>
               <path
                 className={[styles.edge, styles[edge.kind], toneClass]
                   .filter(Boolean)
                   .join(" ")}
-                data-edge={key}
-                data-kind={edge.kind}
+                data-edge={edgeMapKey(edge.from, edge.to)}
+                data-tone={vm?.tone ?? "neutral"}
                 d={edge.d}
                 markerEnd="url(#rgv-arrow)"
               />
-              {showEdgeLabels ? (
+              {vm?.label ? (
                 <text
                   className={[styles.edgeLabel, toneClass]
                     .filter(Boolean)
@@ -194,7 +272,7 @@ export default function RunGraphView({
                   y={edge.labelY}
                   textAnchor="middle"
                 >
-                  {edge.on}
+                  {vm.label}
                 </text>
               ) : null}
             </g>
@@ -202,40 +280,32 @@ export default function RunGraphView({
         })}
 
         {layout.nodes.map((node) => {
-          const state = nodeStates[node.id];
+          const vm = nodeById.get(node.id);
           const isTerminal = !nodesWithOutgoing.has(node.id);
-          const reachedTerminal =
-            isTerminal && takenLayoutEdges.some((edge) => edge.to === node.id);
-          // A reached terminal reports the run result; every other node reports
-          // its own recorded verdict (never its clean process exit).
-          const visual = reachedTerminal
-            ? runFailed
-              ? { tone: "err" as const, label: "Failed" }
-              : { tone: "ok" as const, label: "Completed" }
-            : nodeRunVisual(
-                state?.outcome ?? null,
-                state?.status ?? IDLE_STATUS,
-              );
-          const statusLabel =
-            isTerminal && !reachedTerminal && visual.tone === "idle"
-              ? "Terminal"
-              : visual.label;
-          const ceiling = attemptCeiling(definition, node.id);
-          // iteration is 0 until a node actually starts; a "0/2" badge on a
-          // pending node reads as a consumed attempt that never happened.
-          const attempts =
-            ceiling !== null && state?.iteration
-              ? `${state.iteration}/${ceiling}`
-              : null;
+          const top = node.y - nodeHeight / 2;
+          const leftEdge = node.x - NODE_WIDTH / 2;
+          const title = titleCase(node.id);
+
+          const badge = graph.mode === "run" && vm ? runBadge(vm) : null;
+          const outcomes = vm?.outcomes ?? [];
+          const ariaLabel = badge
+            ? `${node.id} — ${badge.label}`
+            : outcomes.length > 0
+              ? `${node.id}, possible outcomes: ${outcomes
+                  .map((on) => outcomeVisual(on).label)
+                  .join(", ")}`
+              : isTerminal
+                ? `${node.id} — Terminal`
+                : node.id;
 
           return (
             <g
               key={node.id}
-              className={`${styles.node} ${styles[visual.tone]}`}
+              className={styles.node}
               data-node={node.id}
-              data-tone={visual.tone}
+              data-tone={badge?.tone ?? "idle"}
               role={interactive ? "button" : "group"}
-              aria-label={`${node.id} — ${statusLabel}`}
+              aria-label={ariaLabel}
               tabIndex={interactive ? 0 : undefined}
               onClick={interactive ? () => onSelectNode(node.id) : undefined}
               onKeyDown={
@@ -253,28 +323,107 @@ export default function RunGraphView({
             >
               <rect
                 className={styles.box}
-                x={node.x - NODE_WIDTH / 2}
-                y={node.y - NODE_HEIGHT / 2}
+                x={leftEdge}
+                y={top}
                 width={NODE_WIDTH}
-                height={NODE_HEIGHT}
+                height={nodeHeight}
                 rx={10}
               />
-              <text
-                className={styles.nodeId}
-                x={node.x}
-                y={node.y - 4}
-                textAnchor="middle"
-              >
-                {node.id}
-              </text>
-              <text
-                className={styles.nodeStatus}
-                x={node.x}
-                y={node.y + 12}
-                textAnchor="middle"
-              >
-                {attempts ? `${statusLabel} ${attempts}` : statusLabel}
-              </text>
+
+              {badge ? (
+                <>
+                  <StatusIcon
+                    tone={badge.tone}
+                    cx={leftEdge + 24}
+                    cy={node.y}
+                  />
+                  <text
+                    className={styles.nodeId}
+                    x={leftEdge + 40}
+                    y={node.y - 2}
+                    textAnchor="start"
+                  >
+                    {title}
+                  </text>
+                  <text
+                    className={[styles.statusLabel, STATUS_FILL[badge.tone]]
+                      .filter(Boolean)
+                      .join(" ")}
+                    x={leftEdge + 40}
+                    y={node.y + 13}
+                    textAnchor="start"
+                  >
+                    {badge.label}
+                  </text>
+                </>
+              ) : outcomes.length > 0 ? (
+                <>
+                  <text
+                    className={styles.nodeId}
+                    x={leftEdge + 16}
+                    y={top + 22}
+                    textAnchor="start"
+                  >
+                    {title}
+                  </text>
+                  <text
+                    className={styles.possibleLabel}
+                    x={leftEdge + 16}
+                    y={top + 38}
+                    textAnchor="start"
+                  >
+                    Possible outcomes:
+                  </text>
+                  {outcomes.map((on, index) => {
+                    const rowY = top + 55 + index * OUTCOME_ROW;
+
+                    return (
+                      <g key={on} data-outcome={on}>
+                        <StatusIcon
+                          tone={outcomeTone(on)}
+                          cx={leftEdge + 22}
+                          cy={rowY - 4}
+                          r={6}
+                        />
+                        <text
+                          className={[
+                            styles.outcomeRow,
+                            OUTCOME_FILL[outcomeTone(on)],
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
+                          x={leftEdge + 34}
+                          y={rowY}
+                          textAnchor="start"
+                        >
+                          {outcomeVisual(on).label}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </>
+              ) : (
+                <>
+                  <text
+                    className={styles.nodeId}
+                    x={node.x}
+                    y={isTerminal ? node.y - 4 : node.y + 4}
+                    textAnchor="middle"
+                  >
+                    {title}
+                  </text>
+                  {isTerminal ? (
+                    <text
+                      className={styles.nodeStatus}
+                      x={node.x}
+                      y={node.y + 12}
+                      textAnchor="middle"
+                    >
+                      Terminal
+                    </text>
+                  ) : null}
+                </>
+              )}
             </g>
           );
         })}
