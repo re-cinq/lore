@@ -69,7 +69,7 @@
 .failures {
   margin: 0.7rem 0 0;
   border: 1px solid var(--danger);
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
 }
 .failuresHead {

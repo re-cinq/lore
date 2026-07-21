@@ -220,7 +220,7 @@ describe("describeNode", () => {
 
     expect(detail.failures).toEqual([
       { tool: "Bash", detail: "npm test exited 1" },
-      { tool: "result", detail: "validation failed" },
+      { tool: "agent", detail: "validation failed" },
     ]);
   });
 
@@ -228,6 +228,28 @@ describe("describeNode", () => {
     const detail = describeNode({
       nodeId: "implement",
       state: state(),
+      row: row(),
+      definition: implementationDefinition,
+      reason: null,
+    });
+
+    expect(detail.failures).toEqual([]);
+  });
+
+  it("lists no errored steps on a succeeded node even when a retried tool call errored", () => {
+    const detail = describeNode({
+      nodeId: "implement",
+      state: state({
+        status: "succeeded",
+        transcript: [
+          event({
+            eventType: "tool_result",
+            toolName: "Bash",
+            isError: true,
+            summary: "transient flake",
+          }),
+        ],
+      }),
       row: row(),
       definition: implementationDefinition,
       reason: null,

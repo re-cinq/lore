@@ -84,7 +84,9 @@ function erroredSteps(state: NodeRunState | undefined): FailedStep[] {
   for (const event of state?.transcript ?? []) {
     if (event.isError && event.summary) {
       steps.push({
-        tool: event.toolName ?? event.eventType,
+        tool:
+          event.toolName ??
+          (event.eventType === "result" ? "agent" : event.eventType),
         detail: event.summary,
       });
     }
@@ -138,7 +140,9 @@ export function describeNode(input: NodeDetailInput): NodeDetail {
     tone: visual.tone,
     statusLabel,
     why: whyText(input, visual.tone, terminal, formatDuration(durationSeconds)),
-    failures: erroredSteps(input.state),
+    // Only a failed node lists errored steps: a succeeded node can carry errored
+    // tool calls it retried past, which are not the reason for anything.
+    failures: visual.tone === "err" ? erroredSteps(input.state) : [],
     files: uniqueFiles(input.state),
     eventCount: input.state?.transcript.length ?? 0,
     droppedCount: input.state?.droppedCount ?? 0,

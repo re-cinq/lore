@@ -108,7 +108,9 @@ describe("RunNodeDetail", () => {
     );
 
     expect(screen.getByText("Errored steps (2)")).toBeInTheDocument();
+    expect(screen.getByText("eslint")).toBeInTheDocument();
     expect(screen.getByText("2 problems")).toBeInTheDocument();
+    expect(screen.getByText("Bash")).toBeInTheDocument();
     expect(screen.getByText("tsc exited 2")).toBeInTheDocument();
   });
 });

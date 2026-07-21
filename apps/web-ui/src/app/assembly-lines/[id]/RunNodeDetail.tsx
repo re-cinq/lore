@@ -71,7 +71,7 @@ export default function RunNodeDetail(props: RunNodeDetailProps) {
           </div>
           <ul className={styles.failList}>
             {detail.failures.map((step, i) => (
-              <li key={`${step.tool}-${i}`} className={styles.failItem}>
+              <li key={i} className={styles.failItem}>
                 <span className={styles.failTool}>{step.tool}</span>
                 <span className={styles.failDetail}>{step.detail}</span>
               </li>
