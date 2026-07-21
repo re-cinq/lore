@@ -10,14 +10,25 @@ import { errorMessage } from "@re-cinq/lore-shared";
 import type { ServerRoute } from "@hapi/hapi";
 import { usage, agentRunEvents } from "../../../kernel/queues.js";
 import {
-  parseAgentEvents,
+  parseAgentSink,
   agentEventsArchiveKey,
   type LlmCallRow,
 } from "../../../jobs/agent/agent-events.js";
-import { parseAgentRunEvents } from "../../../jobs/agent/agent-run-events.js";
 import { agentEventBus } from "../../../jobs/agent/agent-event-bus.js";
 import { archiveAgentEvents } from "../../../jobs/agent/agent-events-store.js";
 import { rawBody } from "../raw-body.js";
+import type { AgentRunEventInsert } from "@re-cinq/lore-shared";
+
+/**
+ * Above this body size the run-visualization projection and the full-body GCS
+ * archive copy are skipped — cost accounting (the terminal `result` line) is
+ * still recorded. These are the only body-proportional allocations left after
+ * the single-pass parse, so bounding them keeps a pathological report from
+ * OOM-ing the single (replicaCount: 1) Floor replica at its 512Mi limit. The
+ * dropped viz is a nice-to-have; full fidelity remains in the raw NDJSON the
+ * agent subsystem streams, and cost/billing is unaffected.
+ */
+const MAX_VIZ_BODY_BYTES = 8 * 1024 * 1024;
 
 /**
  * Persist one cost row per agent run. A row whose task_id isn't in pipeline.tasks
@@ -66,11 +77,11 @@ function archiveRaw(body: string, rows: readonly LlmCallRow[]): void {
  * the whole correctness argument for the SSE catch-up. Skip-not-fail like
  * `recordAgentCosts`: a viz persistence failure must never 500 the cost sink.
  */
-async function recordRunEvents(rawNdjson: string): Promise<number> {
+async function recordRunEvents(
+  rows: readonly AgentRunEventInsert[],
+): Promise<number> {
   try {
-    const inserted = await agentRunEvents().insertBatch(
-      parseAgentRunEvents(rawNdjson),
-    );
+    const inserted = await agentRunEvents().insertBatch(rows);
 
     agentEventBus().publish(inserted);
 
@@ -90,19 +101,24 @@ export const agentEventsRoute: ServerRoute = {
     // A throw here becomes a 500 via hapi, and the request-tracing extension
     // records the exception on the request span — no per-handler try/catch.
     const rawNdjson = rawBody(request);
-    const rows = parseAgentEvents(rawNdjson);
-    const recorded = await recordAgentCosts(rows);
-    const vizRows = await recordRunEvents(rawNdjson);
+    const oversized = Buffer.byteLength(rawNdjson, "utf8") > MAX_VIZ_BODY_BYTES;
+    const { costRows, runEvents } = parseAgentSink(rawNdjson, !oversized);
+    const recorded = await recordAgentCosts(costRows);
+    const vizRows = oversized ? 0 : await recordRunEvents(runEvents);
 
     request.app.span?.setAttributes({
-      "agent_events.count": rows.length,
+      "agent_events.count": costRows.length,
       "agent_events.recorded": recorded,
       "agent_events.viz_rows": vizRows,
+      "agent_events.oversized": oversized,
     });
-    archiveRaw(rawNdjson, rows);
+
+    if (!oversized) {
+      archiveRaw(rawNdjson, costRows);
+    }
 
     return h
-      .response({ status: "ok", events: rows.length, recorded })
+      .response({ status: "ok", events: costRows.length, recorded })
       .code(200);
   },
 };
