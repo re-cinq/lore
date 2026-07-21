@@ -17,10 +17,19 @@ export interface NodeDetailInput {
   reason: string | null;
 }
 
+export interface FailedStep {
+  /** The tool that errored, or the event kind (e.g. `result`) when it carries no tool. */
+  tool: string;
+  detail: string;
+}
+
 export interface NodeDetail {
   tone: NodeStatusTone;
   statusLabel: string;
   why: string;
+  /** Every errored step in the node's transcript, in order — the full "why it
+   *  failed" trace behind the one-line `why`. Empty when nothing errored. */
+  failures: FailedStep[];
   files: string[];
   eventCount: number;
   droppedCount: number;
@@ -65,6 +74,25 @@ function failureSummary(state: NodeRunState | undefined): string | null {
   }
 
   return null;
+}
+
+/** Every errored step carrying a message, in order — the concrete causes (a
+ *  failed tool call, the agent's error verdict) behind the one-line why. */
+function erroredSteps(state: NodeRunState | undefined): FailedStep[] {
+  const steps: FailedStep[] = [];
+
+  for (const event of state?.transcript ?? []) {
+    if (event.isError && event.summary) {
+      steps.push({
+        tool:
+          event.toolName ??
+          (event.eventType === "result" ? "agent" : event.eventType),
+        detail: event.summary,
+      });
+    }
+  }
+
+  return steps;
 }
 
 function whyText(
@@ -112,6 +140,9 @@ export function describeNode(input: NodeDetailInput): NodeDetail {
     tone: visual.tone,
     statusLabel,
     why: whyText(input, visual.tone, terminal, formatDuration(durationSeconds)),
+    // Only a failed node lists errored steps: a succeeded node can carry errored
+    // tool calls it retried past, which are not the reason for anything.
+    failures: visual.tone === "err" ? erroredSteps(input.state) : [],
     files: uniqueFiles(input.state),
     eventCount: input.state?.transcript.length ?? 0,
     droppedCount: input.state?.droppedCount ?? 0,

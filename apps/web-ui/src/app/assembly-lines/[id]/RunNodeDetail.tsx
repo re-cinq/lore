@@ -64,6 +64,22 @@ export default function RunNodeDetail(props: RunNodeDetailProps) {
 
       <p className={`${styles.why} ${WHY_CLASS[detail.tone]}`}>{detail.why}</p>
 
+      {detail.failures.length > 0 ? (
+        <div className={styles.failures}>
+          <div className={styles.failuresHead}>
+            Errored steps ({detail.failures.length})
+          </div>
+          <ul className={styles.failList}>
+            {detail.failures.map((step, i) => (
+              <li key={i} className={styles.failItem}>
+                <span className={styles.failTool}>{step.tool}</span>
+                <span className={styles.failDetail}>{step.detail}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <dl className={styles.facts}>
         <Fact label="Attempt">{detail.iteration || "—"}</Fact>
         <Fact label="Duration">{detail.durationLabel}</Fact>
