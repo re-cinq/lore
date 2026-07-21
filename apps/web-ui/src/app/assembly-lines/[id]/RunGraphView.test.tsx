@@ -219,6 +219,42 @@ describe("RunGraphView node status", () => {
     expect(nodeEl(container, "implement")).toHaveTextContent("Failed");
   });
 
+  it("renders a changes_requested node as Changes requested with tone warn", () => {
+    const { container } = render(
+      <RunGraphView
+        definition={implementationDefinition}
+        nodeStates={states([row("review", { outcome: "changes_requested" })])}
+      />,
+    );
+
+    expect(nodeEl(container, "review").getAttribute("data-tone")).toBe("warn");
+    expect(nodeEl(container, "review")).toHaveTextContent("Changes requested");
+  });
+
+  it("shows the recorded failed verdict even when the pod exited clean", () => {
+    // The exact contradiction from the bug report: the event stream marked the
+    // node succeeded (process exit 0), but its recorded verdict is failed.
+    const { container } = render(
+      <RunGraphView
+        definition={implementationDefinition}
+        nodeStates={{
+          implement: {
+            status: "succeeded",
+            outcome: "failed",
+            iteration: 1,
+            transcript: [],
+            droppedCount: 0,
+          },
+        }}
+      />,
+    );
+
+    expect(nodeEl(container, "implement").getAttribute("data-tone")).toBe(
+      "err",
+    );
+    expect(nodeEl(container, "implement")).toHaveTextContent("Failed");
+  });
+
   it("renders a definition node with no visit row as Pending with tone idle", () => {
     const { container } = render(
       <RunGraphView
@@ -430,6 +466,33 @@ describe("RunGraphView terminal node", () => {
     );
 
     expect(nodeEl(container, "review")).toHaveTextContent("Pending");
+  });
+
+  it("labels a terminal reached by a failed edge with the run result Failed", () => {
+    const { container } = render(
+      <RunGraphView
+        definition={codeReviewDefinition}
+        nodeStates={{}}
+        takenEdges={new Set(["review-done-failed"])}
+      />,
+    );
+
+    expect(nodeEl(container, "done").getAttribute("data-tone")).toBe("err");
+    expect(nodeEl(container, "done")).toHaveTextContent("Failed");
+    expect(nodeEl(container, "done")).not.toHaveTextContent("Terminal");
+  });
+
+  it("labels a terminal reached without a failed edge Completed", () => {
+    const { container } = render(
+      <RunGraphView
+        definition={codeReviewDefinition}
+        nodeStates={{}}
+        takenEdges={new Set(["review-done-success"])}
+      />,
+    );
+
+    expect(nodeEl(container, "done").getAttribute("data-tone")).toBe("ok");
+    expect(nodeEl(container, "done")).toHaveTextContent("Completed");
   });
 });
 

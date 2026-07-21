@@ -17,7 +17,7 @@ import type {
 import type { Box, LayoutEdge } from "@/lib/dag-layout";
 import { layoutAssemblyLine } from "@/lib/dag-layout";
 import type { NodeRunState } from "@/lib/run-event-reducer";
-import { nodeStatusVisual } from "@/lib/run-node-status";
+import { nodeRunVisual } from "@/lib/run-node-status";
 import styles from "./RunGraphView.module.css";
 
 const NODE_WIDTH = 132;
@@ -130,6 +130,14 @@ export default function RunGraphView({
   const interactive = onSelectNode !== undefined;
   const hasTakenPath = (takenEdges?.size ?? 0) > 0;
   const nodesWithOutgoing = new Set(definition.edges.map((edge) => edge.from));
+  // The run's overall result, read off the path it actually walked: any traversed
+  // `failed` edge means the run failed (mirrors the Floor's lineOutcomeFromVisits).
+  // A terminal reached by that path shows this result instead of a bland
+  // "Terminal", so a failed run never ends on a green box.
+  const takenLayoutEdges = hasTakenPath
+    ? layout.edges.filter((edge) => takenEdges?.has(edgeKey(edge)))
+    : [];
+  const runFailed = takenLayoutEdges.some((edge) => edge.on.includes("failed"));
 
   return (
     <section className={styles.panel}>
@@ -195,10 +203,23 @@ export default function RunGraphView({
 
         {layout.nodes.map((node) => {
           const state = nodeStates[node.id];
-          const visual = nodeStatusVisual(state?.status ?? IDLE_STATUS);
           const isTerminal = !nodesWithOutgoing.has(node.id);
+          const reachedTerminal =
+            isTerminal && takenLayoutEdges.some((edge) => edge.to === node.id);
+          // A reached terminal reports the run result; every other node reports
+          // its own recorded verdict (never its clean process exit).
+          const visual = reachedTerminal
+            ? runFailed
+              ? { tone: "err" as const, label: "Failed" }
+              : { tone: "ok" as const, label: "Completed" }
+            : nodeRunVisual(
+                state?.outcome ?? null,
+                state?.status ?? IDLE_STATUS,
+              );
           const statusLabel =
-            isTerminal && visual.tone === "idle" ? "Terminal" : visual.label;
+            isTerminal && !reachedTerminal && visual.tone === "idle"
+              ? "Terminal"
+              : visual.label;
           const ceiling = attemptCeiling(definition, node.id);
           // iteration is 0 until a node actually starts; a "0/2" badge on a
           // pending node reads as a consumed attempt that never happened.

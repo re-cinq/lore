@@ -158,6 +158,13 @@
 .ok .nodeStatus {
   fill: var(--success);
 }
+.warn .box {
+  stroke: var(--warning);
+  fill: var(--warning-bg);
+}
+.warn .nodeStatus {
+  fill: var(--warning);
+}
 .err .box {
   stroke: var(--danger);
   fill: var(--danger-bg);
