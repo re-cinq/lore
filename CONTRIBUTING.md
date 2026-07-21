@@ -25,6 +25,43 @@ Use the `/lore-feature` skill to start or continue implementing a feature:
 
 It guides you through spec → plan → tasks → implementation interactively.
 
+## Working in a git worktree
+
+A worktree has no `node_modules` of its own. The usual workaround — symlinking
+each package's `node_modules` to the main checkout — has two traps that both
+produce *false green* results, so they are easy to miss.
+
+**`tsc` typechecks against the main checkout's build.** `@re-cinq/lore-shared`
+and its siblings resolve through `node_modules` (plain NodeNext — there is no
+`paths` mapping), so a symlinked `node_modules` sends TypeScript to the main
+checkout's `dist`. Vitest still sees your edited source, so tests pass and
+`tsc` passes — while validating your new code against *stale* types. A change
+to a shared interface then fails in CI, which builds each package fresh.
+
+Either give the worktree real dependencies:
+
+```bash
+npm install            # from the worktree root
+```
+
+or build the shared package inside the worktree and repoint the link at it:
+
+```bash
+npm run build --workspace=@re-cinq/lore-shared      # from the worktree
+MAIN=<absolute-path-to-your-main-checkout>
+ln -sfn "$PWD/libs/shared" "$MAIN/node_modules/@re-cinq/lore-shared"
+```
+
+If you take the second route, **restore the link when you are done** — it is
+shared state, and leaving it pointed at a worktree breaks the main checkout.
+
+**Symlinked `node_modules` is not covered by every ignore rule.** `.gitignore`
+entries written with a trailing slash (`dist/`, `build/`, `coverage/`) match
+directories only, so a *symlink* by that name is not ignored and `git add -A`
+will commit it. `node_modules` is listed without the slash for this reason. If
+you symlink anything else, add it to `.git/info/exclude` — that is local and
+untracked, so it does not affect anyone else.
+
 ## Code Conventions
 
 See [CLAUDE.md](CLAUDE.md) for full conventions. Quick summary:

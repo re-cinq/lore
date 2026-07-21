@@ -114,4 +114,5 @@ Use the `/lore-feature` skill to start or continue a feature — it guides you t
 - [Architecture](architecture.md) — how the components you're editing fit together.
 - [Scheduled Jobs](scheduled-jobs.md) — the recurring jobs the Floor runs.
 - [CONTRIBUTING.md](../../CONTRIBUTING.md) and [CLAUDE.md](../../CLAUDE.md) — PR checklist and full code conventions.
+- [Working in a git worktree](../../CONTRIBUTING.md#working-in-a-git-worktree) — the `tsc`-against-stale-`dist` and symlinked-`node_modules` traps, and how to avoid them.
 - [Back to README](../../README.md)
