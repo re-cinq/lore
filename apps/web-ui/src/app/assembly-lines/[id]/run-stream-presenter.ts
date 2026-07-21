@@ -2,6 +2,8 @@
 // EventSource hook are IO shells around this file: they open sockets and set
 // state, they do not choose. Same split as node-pod-logs-presenter next door.
 
+import type { RunStreamEvent } from "@/lib/run-stream-types";
+
 /** Matches the Floor's DEFAULT_LIMIT (agent-events-history.ts). */
 export const HISTORY_PAGE_LIMIT = 1000;
 
@@ -51,6 +53,47 @@ export function nextPageCursor(page: readonly { id: string }[]): string | null {
   return page.length < HISTORY_PAGE_LIMIT
     ? null
     : (page[page.length - 1]?.id ?? null);
+}
+
+/**
+ * The scrub cursor that INCLUDES the event with `id`. `replayTo` folds the first
+ * `cursor` events (a slice length), so an event at index i is applied at cursor
+ * i + 1 — the timeline hands the panel a string id, not an index, so the mapping
+ * lives here rather than at the call site. Null when no event carries that id.
+ */
+export function cursorForEventId(
+  events: readonly RunStreamEvent[],
+  id: string,
+): number | null {
+  const index = events.findIndex((event) => event.id === id);
+
+  return index === -1 ? null : index + 1;
+}
+
+export interface ScrubberPosition {
+  label: string;
+  timestamp: string | null;
+}
+
+/**
+ * The read-out for a scrub cursor: how many of how many events are applied, and
+ * the wall-clock time of the last applied event so the position reads as a
+ * moment in the run rather than a bare index. The cursor is clamped into
+ * `[0, events.length]` so an out-of-range value from a drag never indexes off
+ * the ends.
+ */
+export function scrubberPositionLabel(
+  events: readonly RunStreamEvent[],
+  cursor: number,
+): ScrubberPosition {
+  const total = events.length;
+  const clamped = Math.max(0, Math.min(cursor, total));
+  const last = clamped > 0 ? events[clamped - 1] : null;
+
+  return {
+    label: `event ${clamped} / ${total}`,
+    timestamp: last ? last.createdAt : null,
+  };
 }
 
 /** Exponential backoff, capped. Belt to the browser's own EventSource retry. */

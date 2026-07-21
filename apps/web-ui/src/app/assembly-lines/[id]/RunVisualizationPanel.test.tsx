@@ -473,3 +473,99 @@ describe("heatmap and timeline wiring", () => {
     }
   });
 });
+
+describe("replay scrubber", () => {
+  const runLoop = [
+    eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
+    eventRow({ id: "2", nodeId: "implement", eventType: "result" }),
+    eventRow({ id: "3", nodeId: "validate", eventType: "init" }),
+    eventRow({ id: "4", nodeId: "validate", eventType: "result" }),
+  ];
+
+  const nodeStatus = (container: HTMLElement, nodeId: string) =>
+    container.querySelector(`[data-node="${nodeId}"]`)?.textContent ?? "";
+
+  async function scrubTo(cursor: number) {
+    await act(async () => {
+      fireEvent.change(screen.getByRole("slider"), {
+        target: { value: String(cursor) },
+      });
+    });
+  }
+
+  it("shows the scrubber for a finished run with persisted events", async () => {
+    stubHistory([eventRow({ id: "1", eventType: "init" })]);
+    useFakeEventSource();
+
+    renderPanel("finished");
+    await settle();
+
+    expect(screen.getByRole("slider")).toBeInTheDocument();
+  });
+
+  it("hides the scrubber for a running run", async () => {
+    stubHistory([eventRow({ id: "1", eventType: "init" })]);
+    useFakeEventSource();
+
+    renderPanel("running");
+    await settle();
+
+    expect(screen.queryByRole("slider")).not.toBeInTheDocument();
+  });
+
+  it("hides the scrubber for a finished run with no persisted events", async () => {
+    stubHistory([]);
+    useFakeEventSource();
+
+    renderPanel("finished");
+    await settle();
+
+    expect(screen.queryByRole("slider")).not.toBeInTheDocument();
+  });
+
+  it("seeking to mid-run shows the running node as running and later nodes idle", async () => {
+    stubHistory(runLoop);
+    useFakeEventSource();
+
+    const { container } = renderPanel("finished");
+
+    await settle();
+    await scrubTo(1);
+
+    expect(nodeStatus(container, "implement")).toContain("Running");
+    expect(nodeStatus(container, "validate")).toContain("Terminal");
+  });
+
+  it("moves the scrubber to the event a timeline tick seeks to", async () => {
+    stubHistory(runLoop);
+    useFakeEventSource();
+
+    renderPanel("finished");
+    await settle();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTitle("validate init"));
+    });
+
+    expect(screen.getByRole("slider")).toHaveValue("3");
+  });
+
+  it("clears the replay cursor and restores the final state on back to live", async () => {
+    stubHistory(runLoop);
+    useFakeEventSource();
+
+    const { container } = renderPanel("finished");
+
+    await settle();
+    await scrubTo(1);
+
+    expect(nodeStatus(container, "validate")).toContain("Terminal");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /back to live/i }));
+    });
+
+    expect(nodeStatus(container, "implement")).toContain("Succeeded");
+    expect(nodeStatus(container, "validate")).toContain("Succeeded");
+  });
+});
