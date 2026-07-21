@@ -183,4 +183,56 @@ describe("describeNode", () => {
       outcomeLabel: "success",
     });
   });
+
+  it("collects every errored step with its tool and detail in order, skipping ones without a message", () => {
+    const detail = describeNode({
+      nodeId: "implement",
+      state: state({
+        status: "failed",
+        transcript: [
+          event({ eventType: "tool_call", toolName: "Bash" }),
+          event({
+            id: "2",
+            eventType: "tool_result",
+            toolName: "Bash",
+            isError: true,
+            summary: "npm test exited 1",
+          }),
+          event({
+            id: "3",
+            eventType: "tool_result",
+            toolName: "eslint",
+            isError: true,
+            summary: null,
+          }),
+          event({
+            id: "4",
+            eventType: "result",
+            isError: true,
+            summary: "validation failed",
+          }),
+        ],
+      }),
+      row: row({ outcome: "implement-failed" }),
+      definition: implementationDefinition,
+      reason: null,
+    });
+
+    expect(detail.failures).toEqual([
+      { tool: "Bash", detail: "npm test exited 1" },
+      { tool: "result", detail: "validation failed" },
+    ]);
+  });
+
+  it("leaves failures empty when nothing errored", () => {
+    const detail = describeNode({
+      nodeId: "implement",
+      state: state(),
+      row: row(),
+      definition: implementationDefinition,
+      reason: null,
+    });
+
+    expect(detail.failures).toEqual([]);
+  });
 });
