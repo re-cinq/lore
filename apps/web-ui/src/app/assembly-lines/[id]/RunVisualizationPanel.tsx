@@ -18,18 +18,21 @@ import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
 import { initialRunState, reduceRunEvent } from "@/lib/run-event-reducer";
 import { parseRunStreamRow, type RunStreamEvent } from "@/lib/run-stream-types";
 import { toTranscriptRows } from "@/lib/transcript-rows";
+import FileHeatmapView from "./FileHeatmapView";
 import NodeTranscriptView, {
   recallScroll,
   rememberScroll,
   shouldFollowTail,
 } from "./NodeTranscriptView";
 import RunGraphView from "./RunGraphView";
+import RunTimelineView from "./RunTimelineView";
 import styles from "./RunVisualizationPanel.module.css";
 import {
   connectionLabel,
   historyUrl,
   nextPageCursor,
   resolveStreamMode,
+  isTerminalRunStatus,
   type ConnectionState,
 } from "./run-stream-presenter";
 import { useRunEventStream } from "./useRunEventStream";
@@ -37,6 +40,7 @@ import { useRunEventStream } from "./useRunEventStream";
 export interface RunVisualizationPanelProps {
   runId: string;
   runStatus: string;
+  startedAt: string | null;
   definition: AssemblyLineDefinition | null;
   showEdgeLabels: boolean;
   nodes: readonly AssemblyLineRunNode[];
@@ -49,10 +53,28 @@ interface HistoryPage {
 export default function RunVisualizationPanel({
   runId,
   runStatus,
+  startedAt,
   definition,
   showEdgeLabels,
   nodes,
 }: RunVisualizationPanelProps) {
+  // The timeline's right edge is `now`. A stalled node emits no events, so without
+  // a clock it would freeze at the last tick and the stall would be invisible.
+  // Tick once a second while the run is live; a terminal run stops emitting and
+  // needs no moving edge.
+  const runIsLive = !isTerminalRunStatus(runStatus);
+  const [now, setNow] = useState(() => new Date().toISOString());
+
+  useEffect(() => {
+    if (!runIsLive) {
+      return;
+    }
+
+    const id = setInterval(() => setNow(new Date().toISOString()), 1000);
+
+    return () => clearInterval(id);
+  }, [runIsLive]);
+
   const [state, dispatch] = useReducer(reduceRunEvent, undefined, () =>
     initialRunState(definition, nodes),
   );
@@ -62,6 +84,7 @@ export default function RunVisualizationPanel({
   const [streamUnavailable, setStreamUnavailable] = useState(false);
   const [connection, setConnection] = useState<ConnectionState>("connecting");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [showAllFiles, setShowAllFiles] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   // Refs, not state: neither the remembered offsets nor the follow flag may
   // trigger a render — a scroll handler that re-rendered the transcript on every
@@ -143,6 +166,10 @@ export default function RunVisualizationPanel({
   });
 
   const onEvent = useCallback((event: RunStreamEvent) => dispatch(event), []);
+  const toggleShowAllFiles = useCallback(
+    () => setShowAllFiles((shown) => !shown),
+    [],
+  );
 
   useRunEventStream({
     runId,
@@ -241,6 +268,16 @@ export default function RunVisualizationPanel({
           />
         </div>
       ) : null}
+      <RunTimelineView
+        ticks={state.timeline}
+        runStartedAt={startedAt}
+        now={now}
+      />
+      <FileHeatmapView
+        touches={state.fileTouches}
+        showAll={showAllFiles}
+        onToggleShowAll={toggleShowAllFiles}
+      />
     </section>
   );
 }

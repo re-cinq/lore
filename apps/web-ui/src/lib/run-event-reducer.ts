@@ -10,6 +10,7 @@
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import type { AssemblyLineRunNode } from "./assembly-line-runs";
 import type { AgentRunEventType, RunStreamEvent } from "./run-stream-types";
+import { touchKind, type TouchCounts } from "./file-heatmap";
 
 /** Per-node rendered-transcript ceiling (spec FR4.5). */
 export const TRANSCRIPT_CAP = 500;
@@ -36,7 +37,7 @@ export interface RunLiveState {
   /** The newest applied event id — the SSE `Last-Event-ID` cursor. */
   lastEventId: string | null;
   nodeStates: Record<string, NodeRunState>;
-  fileTouches: Record<string, number>;
+  fileTouches: Record<string, TouchCounts>;
   timeline: TimelineEntry[];
 }
 
@@ -130,17 +131,25 @@ function appendCapped(
 }
 
 function withFileTouches(
-  touches: Record<string, number>,
+  touches: Record<string, TouchCounts>,
   paths: readonly string[],
-): Record<string, number> {
-  if (paths.length === 0) {
+  toolName: string | null,
+): Record<string, TouchCounts> {
+  const kind = touchKind(toolName);
+
+  if (kind === null || paths.length === 0) {
     return touches;
   }
 
   const next = { ...touches };
 
   for (const path of paths) {
-    next[path] = (next[path] ?? 0) + 1;
+    const prev = next[path] ?? { reads: 0, writes: 0 };
+
+    next[path] =
+      kind === "read"
+        ? { reads: prev.reads + 1, writes: prev.writes }
+        : { reads: prev.reads, writes: prev.writes + 1 };
   }
 
   return next;
@@ -192,7 +201,11 @@ export function reduceRunEvent(
         ...appendCapped(node, event),
       },
     },
-    fileTouches: withFileTouches(state.fileTouches, event.filePaths),
+    fileTouches: withFileTouches(
+      state.fileTouches,
+      event.filePaths,
+      event.toolName,
+    ),
     timeline: isLifecycle
       ? [
           ...state.timeline,
