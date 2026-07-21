@@ -36,8 +36,10 @@
   border-color: var(--tone-muted-border, #d8dde3);
 }
 
-.selected {
+.transcriptScroll {
   margin-top: 0.5rem;
-  font-size: 0.8rem;
-  color: var(--fg-muted, #5b6672);
+  max-height: 24rem;
+  overflow-y: auto;
+  border: 1px solid var(--tone-muted-border, #d8dde3);
+  border-radius: 6px;
 }
