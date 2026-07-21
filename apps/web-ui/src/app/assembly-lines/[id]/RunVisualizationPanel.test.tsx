@@ -401,3 +401,42 @@ describe("node transcript drill-in", () => {
     expect(screen.getByText("alpha")).toBeInTheDocument();
   });
 });
+
+describe("heatmap and timeline wiring", () => {
+  it("grows the file heatmap as tool call events stream in and mounts the timeline", async () => {
+    stubHistory([
+      eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
+      eventRow({
+        id: "2",
+        nodeId: "implement",
+        eventType: "tool_call",
+        toolName: "Edit",
+        filePaths: ["src/a.ts"],
+      }),
+    ]);
+    useFakeEventSource();
+
+    const { container } = renderPanel("running");
+
+    await settle();
+
+    expect(container.querySelectorAll("[data-path]")).toHaveLength(1);
+    expect(screen.getByText("src/a.ts")).toBeInTheDocument();
+    expect(container.querySelectorAll("[data-tone]").length).toBeGreaterThan(0);
+
+    await act(async () => {
+      FakeEventSource.instances[0].emit(
+        "agent-event",
+        eventRow({
+          id: "9",
+          nodeId: "implement",
+          eventType: "tool_call",
+          toolName: "Edit",
+          filePaths: ["src/b.ts"],
+        }),
+      );
+    });
+
+    expect(container.querySelectorAll("[data-path]")).toHaveLength(2);
+  });
+});

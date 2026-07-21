@@ -286,7 +286,7 @@ describe("reduceRunEvent", () => {
       event({ filePaths: ["src/a.ts"] }),
     ]);
 
-    expect(state.fileTouches).toEqual({ "src/a.ts": 2, "src/b.ts": 1 });
+    expect(state.fileTouches["src/a.ts"]).toEqual({ reads: 0, writes: 2 });
   });
 
   it("records only init and result events on the run timeline", () => {
@@ -342,5 +342,38 @@ describe("replayTo", () => {
     expect(replayTo(base, events).timeline).toEqual(
       replayTo(base, events, events.length).timeline,
     );
+  });
+});
+
+describe("fileTouches read/write intent", () => {
+  it("counts a Read as a read and an Edit as a write on the same path", () => {
+    const state = replayTo(initialRunState(null, []), [
+      event({ toolName: "Read", filePaths: ["src/a.ts"] }),
+      event({ toolName: "Edit", filePaths: ["src/a.ts"] }),
+    ]);
+
+    expect(state.fileTouches["src/a.ts"]).toEqual({ reads: 1, writes: 1 });
+  });
+
+  it("records no touch for a tool that is neither a read nor a write", () => {
+    const state = reduceRunEvent(
+      initialRunState(null, []),
+      event({ toolName: "Bash", filePaths: ["src/a.ts"] }),
+    );
+
+    expect(state.fileTouches).toEqual({});
+  });
+
+  it("tallies reads and writes per path across events", () => {
+    const state = replayTo(initialRunState(null, []), [
+      event({ toolName: "Read", filePaths: ["src/a.ts", "src/b.ts"] }),
+      event({ toolName: "Edit", filePaths: ["src/a.ts"] }),
+      event({ toolName: "Grep", filePaths: ["src/b.ts"] }),
+    ]);
+
+    expect(state.fileTouches).toEqual({
+      "src/a.ts": { reads: 1, writes: 1 },
+      "src/b.ts": { reads: 2, writes: 0 },
+    });
   });
 });

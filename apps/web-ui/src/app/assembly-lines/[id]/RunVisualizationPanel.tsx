@@ -18,12 +18,14 @@ import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
 import { initialRunState, reduceRunEvent } from "@/lib/run-event-reducer";
 import { parseRunStreamRow, type RunStreamEvent } from "@/lib/run-stream-types";
 import { toTranscriptRows } from "@/lib/transcript-rows";
+import FileHeatmapView from "./FileHeatmapView";
 import NodeTranscriptView, {
   recallScroll,
   rememberScroll,
   shouldFollowTail,
 } from "./NodeTranscriptView";
 import RunGraphView from "./RunGraphView";
+import RunTimelineView from "./RunTimelineView";
 import styles from "./RunVisualizationPanel.module.css";
 import {
   connectionLabel,
@@ -62,6 +64,7 @@ export default function RunVisualizationPanel({
   const [streamUnavailable, setStreamUnavailable] = useState(false);
   const [connection, setConnection] = useState<ConnectionState>("connecting");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [showAllFiles, setShowAllFiles] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   // Refs, not state: neither the remembered offsets nor the follow flag may
   // trigger a render — a scroll handler that re-rendered the transcript on every
@@ -143,6 +146,10 @@ export default function RunVisualizationPanel({
   });
 
   const onEvent = useCallback((event: RunStreamEvent) => dispatch(event), []);
+  const toggleShowAllFiles = useCallback(
+    () => setShowAllFiles((shown) => !shown),
+    [],
+  );
 
   useRunEventStream({
     runId,
@@ -241,6 +248,16 @@ export default function RunVisualizationPanel({
           />
         </div>
       ) : null}
+      <RunTimelineView
+        ticks={state.timeline}
+        runStartedAt={null}
+        now={new Date().toISOString()}
+      />
+      <FileHeatmapView
+        touches={state.fileTouches}
+        showAll={showAllFiles}
+        onToggleShowAll={toggleShowAllFiles}
+      />
     </section>
   );
 }
