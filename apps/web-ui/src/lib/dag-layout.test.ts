@@ -246,4 +246,13 @@ describe("layoutAssemblyLine", () => {
     expect(spanX).toBeLessThan(layoutAssemblyLine(twoNodeLine).width);
     expect(spanX).toBeGreaterThan(0);
   });
+
+  it("stacks parallel-edge labels far enough apart to clear the label font", () => {
+    const labels = layoutAssemblyLine(codeReviewDefinition)
+      .edges.map((e) => e.labelY)
+      .sort((a, b) => a - b);
+    const gaps = labels.slice(1).map((y, i) => y - labels[i]);
+
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(20);
+  });
 });
