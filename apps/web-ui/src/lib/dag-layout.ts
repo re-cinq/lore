@@ -22,6 +22,14 @@ export interface LayoutNode {
 
 export interface LayoutEdge extends ClassifiedEdge {
   d: string;
+  /** This edge's position among the edges sharing its from->to pair, and how
+   *  many share it. Parallel edges (e.g. code-review's three review->done
+   *  outcomes) are fanned apart by index so neither their paths nor their
+   *  labels overprint. */
+  parallelIndex: number;
+  parallelCount: number;
+  labelX: number;
+  labelY: number;
 }
 
 export interface GraphLayout {
@@ -207,10 +215,33 @@ export function layoutAssemblyLine(
     opts.nodeHeight / 2 +
     opts.arcDrop;
 
-  const edges: LayoutEdge[] = classifyEdges(def, layers).map((edge) => ({
-    ...edge,
-    d: pathFor(edge, byId, opts, floor),
-  }));
+  const classified = classifyEdges(def, layers);
+  const groupSize = new Map<string, number>();
+  const groupSeen = new Map<string, number>();
+
+  for (const edge of classified) {
+    const key = `${edge.from}->${edge.to}`;
+
+    groupSize.set(key, (groupSize.get(key) ?? 0) + 1);
+  }
+
+  const edges: LayoutEdge[] = classified.map((edge) => {
+    const key = `${edge.from}->${edge.to}`;
+    const parallelCount = groupSize.get(key) ?? 1;
+    const parallelIndex = groupSeen.get(key) ?? 0;
+
+    groupSeen.set(key, parallelIndex + 1);
+
+    const fan = { ...edge, parallelIndex, parallelCount };
+    const label = labelPointFor(fan, byId, opts);
+
+    return {
+      ...fan,
+      d: pathFor(fan, byId, opts, floor),
+      labelX: label.x,
+      labelY: label.y,
+    };
+  });
 
   return {
     nodes,
@@ -224,7 +255,7 @@ export function layoutAssemblyLine(
 }
 
 function pathFor(
-  edge: ClassifiedEdge,
+  edge: ClassifiedEdgeWithFan,
   byId: Map<string, LayoutNode>,
   opts: ResolvedOptions,
   floor: number,
@@ -260,11 +291,56 @@ function pathFor(
   }
 
   const bend = opts.layerGap / 3;
+  // Fan parallel forward edges vertically: centre the group on the straight
+  // line, then spread siblings by a fixed gap so three review->done outcomes
+  // read as three arcs rather than one.
+  const spread = fanOffset(edge);
 
   return [
     `M ${from.x + halfW} ${from.y}`,
-    `C ${from.x + halfW + bend} ${from.y}`,
-    `${to.x - halfW - bend} ${to.y}`,
+    `C ${from.x + halfW + bend} ${from.y + spread}`,
+    `${to.x - halfW - bend} ${to.y + spread}`,
     `${to.x - halfW} ${to.y}`,
   ].join(" ");
+}
+
+const FAN_GAP = 16;
+
+// Parallel edges fan UPWARD only (never below the straight line), so they stay
+// clear of the back-edge lane that runs beneath the row. index 0 sits on the
+// line; each later sibling lifts by one gap.
+function fanOffset(edge: ClassifiedEdgeWithFan): number {
+  const count = edge.parallelCount ?? 1;
+
+  if (count <= 1) {
+    return 0;
+  }
+
+  return -edge.parallelIndex * FAN_GAP;
+}
+
+interface ClassifiedEdgeWithFan extends ClassifiedEdge {
+  parallelIndex: number;
+  parallelCount: number;
+}
+
+function labelPointFor(
+  edge: ClassifiedEdgeWithFan,
+  byId: Map<string, LayoutNode>,
+  opts: ResolvedOptions,
+): { x: number; y: number } {
+  const from = byId.get(edge.from);
+  const to = byId.get(edge.to);
+
+  if (!from || !to) {
+    return { x: 0, y: 0 };
+  }
+
+  if (edge.kind === "self") {
+    return { x: from.x, y: from.y - opts.nodeHeight };
+  }
+
+  const spread = fanOffset(edge);
+
+  return { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 - 8 + spread };
 }

@@ -11,7 +11,7 @@
 // this file maps its output to elements and nothing else.
 
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
-import type { LayoutEdge, LayoutNode } from "@/lib/dag-layout";
+import type { LayoutEdge } from "@/lib/dag-layout";
 import { layoutAssemblyLine } from "@/lib/dag-layout";
 import type { NodeRunState } from "@/lib/run-event-reducer";
 import { nodeStatusVisual } from "@/lib/run-node-status";
@@ -51,24 +51,6 @@ function edgeKey(edge: LayoutEdge): string {
   return `${edge.from}-${edge.to}-${edge.on}`;
 }
 
-function labelPoint(
-  edge: LayoutEdge,
-  byId: Map<string, LayoutNode>,
-): { x: number; y: number } | null {
-  const from = byId.get(edge.from);
-  const to = byId.get(edge.to);
-
-  if (!from || !to) {
-    return null;
-  }
-
-  if (edge.kind === "self") {
-    return { x: from.x, y: from.y - NODE_HEIGHT };
-  }
-
-  return { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 - 8 };
-}
-
 /** The definition graph with per-node run status. Pure render. */
 export default function RunGraphView({
   definition,
@@ -85,7 +67,6 @@ export default function RunGraphView({
   }
 
   const layout = layoutAssemblyLine(definition);
-  const byId = new Map(layout.nodes.map((node) => [node.id, node]));
   const titleId = `run-graph-title-${definition.name}`;
   const interactive = onSelectNode !== undefined;
 
@@ -100,32 +81,28 @@ export default function RunGraphView({
       >
         <title id={titleId}>{`Assembly line ${definition.name}`}</title>
 
-        {layout.edges.map((edge) => {
-          const point = showEdgeLabels ? labelPoint(edge, byId) : null;
-
-          return (
-            <g key={edgeKey(edge)}>
-              <path
-                className={[styles.edge, styles[edge.kind]]
-                  .filter(Boolean)
-                  .join(" ")}
-                data-edge={edgeKey(edge)}
-                data-kind={edge.kind}
-                d={edge.d}
-              />
-              {point ? (
-                <text
-                  className={styles.edgeLabel}
-                  x={point.x}
-                  y={point.y}
-                  textAnchor="middle"
-                >
-                  {edge.on}
-                </text>
-              ) : null}
-            </g>
-          );
-        })}
+        {layout.edges.map((edge) => (
+          <g key={edgeKey(edge)}>
+            <path
+              className={[styles.edge, styles[edge.kind]]
+                .filter(Boolean)
+                .join(" ")}
+              data-edge={edgeKey(edge)}
+              data-kind={edge.kind}
+              d={edge.d}
+            />
+            {showEdgeLabels ? (
+              <text
+                className={styles.edgeLabel}
+                x={edge.labelX}
+                y={edge.labelY}
+                textAnchor="middle"
+              >
+                {edge.on}
+              </text>
+            ) : null}
+          </g>
+        ))}
 
         {layout.nodes.map((node) => {
           const state = nodeStates[node.id];

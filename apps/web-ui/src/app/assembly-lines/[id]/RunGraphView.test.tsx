@@ -3,7 +3,10 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import RunGraphView from "./RunGraphView";
-import { implementationDefinition } from "@/lib/builtin-definitions";
+import {
+  implementationDefinition,
+  codeReviewDefinition,
+} from "@/lib/builtin-definitions";
 import { initialRunState } from "@/lib/run-event-reducer";
 import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
@@ -144,6 +147,22 @@ describe("RunGraphView edge labels", () => {
     );
 
     expect(screen.getByText("changes_requested")).toBeInTheDocument();
+  });
+
+  it("renders the three parallel review-to-done labels at distinct y positions", () => {
+    render(
+      <RunGraphView
+        definition={codeReviewDefinition}
+        nodeStates={{}}
+        showEdgeLabels
+      />,
+    );
+
+    const ys = ["success", "changes_requested", "failed"].map((on) =>
+      screen.getByText(on).getAttribute("y"),
+    );
+
+    expect(new Set(ys).size).toBe(3);
   });
 
   it("renders no edge labels when showEdgeLabels is false", () => {
