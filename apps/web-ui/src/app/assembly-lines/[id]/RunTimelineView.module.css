@@ -1,0 +1,44 @@
+.timeline {
+  padding: var(--fs-2xs) 0;
+}
+
+.rail {
+  position: relative;
+  height: 14px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-pill);
+}
+
+.tick {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  cursor: default;
+  border: 1px solid var(--bg-surface);
+  border-radius: var(--radius-pill);
+  transform: translate(-50%, -50%);
+}
+
+button.tick {
+  cursor: pointer;
+}
+
+.start {
+  background: var(--info);
+}
+
+.finish {
+  background: var(--success);
+}
+
+.neutral {
+  background: var(--chart-neutral);
+}
+
+.empty {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}

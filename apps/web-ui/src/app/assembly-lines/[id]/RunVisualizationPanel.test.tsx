@@ -103,6 +103,7 @@ function renderPanel(runStatus: string) {
     <RunVisualizationPanel
       runId="run-1"
       runStatus={runStatus}
+      startedAt={null}
       definition={definition}
       showEdgeLabels
       nodes={[]}
@@ -399,5 +400,74 @@ describe("node transcript drill-in", () => {
     });
 
     expect(screen.getByText("alpha")).toBeInTheDocument();
+  });
+});
+
+describe("heatmap and timeline wiring", () => {
+  it("grows the file heatmap as tool call events stream in and mounts the timeline", async () => {
+    stubHistory([
+      eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
+      eventRow({
+        id: "2",
+        nodeId: "implement",
+        eventType: "tool_call",
+        toolName: "Edit",
+        filePaths: ["src/a.ts"],
+      }),
+    ]);
+    useFakeEventSource();
+
+    const { container } = renderPanel("running");
+
+    await settle();
+
+    expect(container.querySelectorAll("[data-path]")).toHaveLength(1);
+    expect(screen.getByText("src/a.ts")).toBeInTheDocument();
+    expect(container.querySelectorAll("[data-tone]").length).toBeGreaterThan(0);
+
+    await act(async () => {
+      FakeEventSource.instances[0].emit(
+        "agent-event",
+        eventRow({
+          id: "9",
+          nodeId: "implement",
+          eventType: "tool_call",
+          toolName: "Edit",
+          filePaths: ["src/b.ts"],
+        }),
+      );
+    });
+
+    expect(container.querySelectorAll("[data-path]")).toHaveLength(2);
+  });
+
+  it("ticks a live run's clock forward on an interval so a stalled timeline advances", () => {
+    vi.useFakeTimers();
+    const spy = vi.spyOn(globalThis, "setInterval");
+
+    try {
+      stubHistory([]);
+      renderPanel("running");
+
+      expect(spy).toHaveBeenCalledWith(expect.any(Function), 1000);
+    } finally {
+      spy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("starts no clock for a terminal run, which cannot stall", () => {
+    vi.useFakeTimers();
+    const spy = vi.spyOn(globalThis, "setInterval");
+
+    try {
+      stubHistory([]);
+      renderPanel("finished");
+
+      expect(spy).not.toHaveBeenCalledWith(expect.any(Function), 1000);
+    } finally {
+      spy.mockRestore();
+      vi.useRealTimers();
+    }
   });
 });
