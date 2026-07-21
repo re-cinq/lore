@@ -66,6 +66,51 @@
   border-left-color: var(--border);
   background: var(--bg-muted, transparent);
 }
+.failures {
+  margin: 0.7rem 0 0;
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.failuresHead {
+  padding: 0.35rem 0.7rem;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.failList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+.failItem {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.4rem 0.7rem;
+  border-top: 1px solid var(--border);
+  align-items: baseline;
+}
+.failItem:first-child {
+  border-top: none;
+}
+.failTool {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--danger);
+  font-weight: 600;
+}
+.failDetail {
+  font-size: var(--fs-sm);
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .facts {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
