@@ -49,6 +49,7 @@ export default function AssemblyLineRunsTable({
   const visibleRuns = showSkips
     ? runs
     : runs.filter((r) => !isCoordinationSkip(r));
+  const noVisibleRuns = visibleRuns.length === 0;
 
   return (
     <table className={styles.table}>
@@ -68,7 +69,14 @@ export default function AssemblyLineRunsTable({
         </tr>
       </thead>
       <tbody>
-        {visibleRuns.map((run) => {
+        {noVisibleRuns ? (
+          <tr>
+            <td colSpan={TABLE_COLUMNS} className={styles.empty}>
+              All runs are coordination skips — use the toggle below to reveal
+              them.
+            </td>
+          </tr>
+        ) : visibleRuns.map((run) => {
           const visual = runStatusVisual(run.status, run.outcome);
 
           return (

@@ -151,6 +151,24 @@ describe("AssemblyLineRunsTable", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows a placeholder row when all runs are coordination skips", () => {
+    render(
+      <AssemblyLineRunsTable
+        runs={[
+          run({ id: "skip-1", status: "finished", outcome: "lease_held" }),
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText(/All runs are coordination skips/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /coordination skip/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /implementation/i })).toBeNull();
+  });
+
   it("shows no toggle when there are no coordination skips", () => {
     render(<AssemblyLineRunsTable runs={[run()]} />);
 
