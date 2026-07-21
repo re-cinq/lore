@@ -1,5 +1,7 @@
 # Node.js
-node_modules/
+# No trailing slash: a worktree's node_modules is often a symlink, and a
+# trailing slash matches directories only (it would be committed otherwise).
+node_modules
 dist/
 build/
 *.log
