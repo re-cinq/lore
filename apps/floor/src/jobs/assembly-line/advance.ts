@@ -77,6 +77,19 @@ export function taskFromRow(row: AssemblyLineRecord): FloorAssemblyLineTask {
   };
 }
 
+// Definitions whose branch is a shared workspace, not a work identity. Every
+// comment on a PR rides the PR's head branch, so two of these lines on one branch
+// carry DISTINCT human comments — not the duplicate per-repo/per-commit work the
+// overlap guard exists to suppress (detect: detect/<def>/<repo>; ingest:
+// ingest/<kind>/<sha>, where the branch encodes the exact job). Guarding them would
+// drop the newer as lease_held and silently lose a comment, so they opt out. They
+// then run concurrently: comment-triage commits nothing, and a code-review-reply
+// push race fails loudly rather than a comment vanishing without a trace.
+const BRANCH_SHARED_WORKSPACE = new Set([
+  "comment-triage",
+  "code-review-reply",
+]);
+
 /** Re-derive the line's next step from its node rows and perform it: launch the next
  *  node CR, finish the row, or fail it. Safe to call redundantly — no-ops unless the
  *  replay says there is something to do. */
@@ -107,7 +120,11 @@ export async function advanceLine(
   // DETERMINISTICALLY-chosen winner — the one with the smaller row id — so at most
   // one side backs off (a naive "any other running" would make BOTH defer and skip
   // detection for the tick).
-  if (nodes.length === 0 && row.branch) {
+  if (
+    nodes.length === 0 &&
+    row.branch &&
+    !BRANCH_SHARED_WORKSPACE.has(row.definitionName)
+  ) {
     // Defer only to a strictly-older winner (earlier createdAt, ties broken by id):
     // the single oldest open row on the branch proceeds, all others defer. A stale
     // winner that never progresses is re-driven / failed by the reaper, so it can't
