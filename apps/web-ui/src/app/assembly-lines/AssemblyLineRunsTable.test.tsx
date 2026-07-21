@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import AssemblyLineRunsTable from "./AssemblyLineRunsTable";
 import type { AssemblyLineRun } from "@/lib/assembly-line-runs";
 
@@ -92,6 +92,69 @@ describe("AssemblyLineRunsTable", () => {
 
     expect(screen.getByText("Failed")).toBeInTheDocument();
     expect(screen.getByText("lint failed")).toBeInTheDocument();
+  });
+
+  it("hides lease_held coordination skips by default behind a labelled toggle", () => {
+    render(
+      <AssemblyLineRunsTable
+        runs={[
+          run({ id: "real-1", definitionName: "code-review" }),
+          run({
+            id: "skip-1",
+            definitionName: "comment-triage",
+            status: "finished",
+            outcome: "lease_held",
+          }),
+          run({
+            id: "skip-2",
+            definitionName: "comment-triage",
+            status: "finished",
+            outcome: "lease_held",
+          }),
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "code-review" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "comment-triage" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Show 2 coordination skips" }),
+    ).toBeInTheDocument();
+  });
+
+  it("reveals the skips when the toggle is clicked", () => {
+    render(
+      <AssemblyLineRunsTable
+        runs={[
+          run({ id: "real-1", definitionName: "code-review" }),
+          run({
+            id: "skip-1",
+            definitionName: "comment-triage",
+            status: "finished",
+            outcome: "lease_held",
+          }),
+        ]}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show 1 coordination skip" }),
+    );
+
+    expect(
+      screen.getByRole("link", { name: "comment-triage" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Hide 1 coordination skip" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no toggle when there are no coordination skips", () => {
+    render(<AssemblyLineRunsTable runs={[run()]} />);
+
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
   it("renders the PR link built from args.pr_number without a status badge (no task)", () => {
