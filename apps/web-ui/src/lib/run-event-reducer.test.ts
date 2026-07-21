@@ -377,3 +377,70 @@ describe("fileTouches read/write intent", () => {
     });
   });
 });
+
+describe("replayTo is replayable-from-zero", () => {
+  // A run that loops back through validate on a review's changes_requested:
+  // implement -> validate -> push -> review -> address -> validate (iteration 2).
+  // The loop is what makes the rewind meaningful — a node's status and iteration
+  // both move forward and must come back to exactly where they were.
+  const stream: RunStreamEvent[] = [
+    event({ id: "1", nodeId: "implement", iteration: 1, eventType: "init" }),
+    event({ id: "2", nodeId: "implement", iteration: 1, eventType: "result" }),
+    event({ id: "3", nodeId: "validate", iteration: 1, eventType: "init" }),
+    event({ id: "4", nodeId: "validate", iteration: 1, eventType: "result" }),
+    event({ id: "5", nodeId: "push", iteration: 1, eventType: "init" }),
+    event({ id: "6", nodeId: "push", iteration: 1, eventType: "result" }),
+    event({ id: "7", nodeId: "review", iteration: 1, eventType: "init" }),
+    event({ id: "8", nodeId: "review", iteration: 1, eventType: "result" }),
+    event({ id: "9", nodeId: "address", iteration: 1, eventType: "init" }),
+    event({ id: "10", nodeId: "address", iteration: 1, eventType: "result" }),
+    event({ id: "11", nodeId: "validate", iteration: 2, eventType: "init" }),
+    event({ id: "12", nodeId: "validate", iteration: 2, eventType: "result" }),
+  ];
+
+  const base = () => initialRunState(implementationDefinition, []);
+
+  it("rewinds to a state byte-identical to the first replay to that cursor", () => {
+    const atN = replayTo(base(), stream, 5);
+    const atM = replayTo(base(), stream, 11);
+    const rewound = replayTo(base(), stream, 5);
+
+    expect(rewound).toEqual(atN);
+    expect(atM).not.toEqual(atN);
+  });
+
+  it("shows validate running at iteration 1 mid-run and iteration 2 at the end", () => {
+    const midRun = replayTo(base(), stream, 3);
+    const end = replayTo(base(), stream, stream.length);
+
+    expect(midRun.nodeStates.validate).toMatchObject({
+      status: "running",
+      iteration: 1,
+    });
+    expect(end.nodeStates.validate).toMatchObject({
+      status: "succeeded",
+      iteration: 2,
+    });
+  });
+
+  it("leaves nodes past the cursor idle when replaying to mid-run", () => {
+    const midRun = replayTo(base(), stream, 5);
+
+    expect(midRun.nodeStates.push).toMatchObject({
+      status: "running",
+      iteration: 1,
+    });
+    expect(midRun.nodeStates.review.status).toBe("idle");
+    expect(midRun.nodeStates.done.status).toBe("idle");
+  });
+
+  it("replays to cursor 0 as the all-idle definition base", () => {
+    const atZero = replayTo(base(), stream, 0);
+
+    expect(atZero).toEqual(base());
+
+    for (const node of implementationDefinition.nodes) {
+      expect(atZero.nodeStates[node.id].status).toBe("idle");
+    }
+  });
+});

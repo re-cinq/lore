@@ -1,0 +1,20 @@
+.scrubber {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-2xs);
+  padding: var(--fs-2xs) 0;
+}
+
+.slider {
+  width: 100%;
+  cursor: pointer;
+}
+
+.position {
+  display: flex;
+  gap: var(--fs-xs);
+  align-items: baseline;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}

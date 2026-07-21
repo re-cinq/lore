@@ -15,7 +15,11 @@ import {
 } from "react";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
-import { initialRunState, reduceRunEvent } from "@/lib/run-event-reducer";
+import {
+  initialRunState,
+  reduceRunEvent,
+  replayTo,
+} from "@/lib/run-event-reducer";
 import { takenEdgeKeys } from "@/lib/run-taken-edges";
 import { parseRunStreamRow, type RunStreamEvent } from "@/lib/run-stream-types";
 import { toTranscriptRows } from "@/lib/transcript-rows";
@@ -25,15 +29,18 @@ import NodeTranscriptView, {
   rememberScroll,
   shouldFollowTail,
 } from "./NodeTranscriptView";
+import ReplayScrubberView from "./ReplayScrubberView";
 import RunGraphView from "./RunGraphView";
 import RunNodeDetail from "./RunNodeDetail";
 import RunTimelineView from "./RunTimelineView";
 import styles from "./RunVisualizationPanel.module.css";
 import {
   connectionLabel,
+  cursorForEventId,
   historyUrl,
   nextPageCursor,
   resolveStreamMode,
+  scrubberPositionLabel,
   isTerminalRunStatus,
   type ConnectionState,
 } from "./run-stream-presenter";
@@ -87,6 +94,11 @@ export default function RunVisualizationPanel({
   // The run history was folded FOR: comparing it to runId makes a stale gate
   // impossible by construction, where a boolean would need resetting.
   const [historyLoadedFor, setHistoryLoadedFor] = useState<string | null>(null);
+  // The ordered persisted events, retained only to drive the replay scrubber on
+  // a terminal run. A live run reads its state from the reducer and never scrubs.
+  const [historyEvents, setHistoryEvents] = useState<RunStreamEvent[]>([]);
+  // null = latest (the whole history / live end); a number = a scrub cursor.
+  const [replayCursor, setReplayCursor] = useState<number | null>(null);
   const [streamUnavailable, setStreamUnavailable] = useState(false);
   const [connection, setConnection] = useState<ConnectionState>("connecting");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -106,6 +118,7 @@ export default function RunVisualizationPanel({
 
     async function foldHistory() {
       let cursor = "0";
+      const collected: RunStreamEvent[] = [];
 
       try {
         for (;;) {
@@ -132,6 +145,7 @@ export default function RunVisualizationPanel({
 
             if (parsed !== null) {
               dispatch(parsed);
+              collected.push(parsed);
             }
           }
 
@@ -149,6 +163,7 @@ export default function RunVisualizationPanel({
         }
 
         if (!cancelled) {
+          setHistoryEvents(collected);
           setHistoryLoadedFor(runId);
         }
       } catch {
@@ -189,8 +204,47 @@ export default function RunVisualizationPanel({
     mode === "history-only" && connection !== "offline"
       ? "offline"
       : connection;
+
+  // A terminal run renders the state AS OF the scrub cursor by folding the
+  // persisted history through the SAME reducer live mode uses. The base is the
+  // all-idle definition state, never the visit-row seed: rewinding a node to
+  // idle is only possible when every status came from a replayed event. A live
+  // run keeps its reducer state and shows no scrubber.
+  const replayState = useMemo(
+    () =>
+      replayTo(
+        initialRunState(definition, []),
+        historyEvents,
+        replayCursor ?? historyEvents.length,
+      ),
+    [definition, historyEvents, replayCursor],
+  );
+  const displayState = runIsLive ? state : replayState;
+
+  const scrubberVisible =
+    isTerminalRunStatus(runStatus) && historyEvents.length > 0;
+  const replayPosition = scrubberPositionLabel(
+    historyEvents,
+    replayCursor ?? historyEvents.length,
+  );
+  const onCursorChange = useCallback(
+    (cursor: number) => setReplayCursor(cursor),
+    [],
+  );
+  const onBackToLive = useCallback(() => setReplayCursor(null), []);
+  const onSeek = useCallback(
+    (id: string) => {
+      const cursor = cursorForEventId(historyEvents, id);
+
+      if (cursor !== null) {
+        setReplayCursor(cursor);
+      }
+    },
+    [historyEvents],
+  );
+
   const selected =
-    selectedNodeId === null ? null : state.nodeStates[selectedNodeId];
+    selectedNodeId === null ? null : displayState.nodeStates[selectedNodeId];
   const rows = useMemo(
     () => (selected ? toTranscriptRows(selected.transcript) : []),
     [selected],
@@ -261,7 +315,7 @@ export default function RunVisualizationPanel({
       </div>
       <RunGraphView
         definition={definition}
-        nodeStates={state.nodeStates}
+        nodeStates={displayState.nodeStates}
         showEdgeLabels={showEdgeLabels}
         takenEdges={takenEdges}
         onSelectNode={setSelectedNodeId}
@@ -275,6 +329,24 @@ export default function RunVisualizationPanel({
           reason={reason}
           repo={repo}
         />
+      ) : null}
+      {scrubberVisible ? (
+        <div className={styles.replayControls}>
+          <ReplayScrubberView
+            eventCount={historyEvents.length}
+            cursor={replayCursor ?? historyEvents.length}
+            label={replayPosition.label}
+            timestamp={replayPosition.timestamp}
+            onCursorChange={onCursorChange}
+          />
+          <button
+            type="button"
+            className={styles.backToLive}
+            onClick={onBackToLive}
+          >
+            Back to live
+          </button>
+        </div>
       ) : null}
       {selected && selectedNodeId ? (
         <div
@@ -290,12 +362,13 @@ export default function RunVisualizationPanel({
         </div>
       ) : null}
       <RunTimelineView
-        ticks={state.timeline}
+        ticks={displayState.timeline}
         runStartedAt={startedAt}
         now={now}
+        onSeek={scrubberVisible ? onSeek : undefined}
       />
       <FileHeatmapView
-        touches={state.fileTouches}
+        touches={displayState.fileTouches}
         showAll={showAllFiles}
         onToggleShowAll={toggleShowAllFiles}
       />
