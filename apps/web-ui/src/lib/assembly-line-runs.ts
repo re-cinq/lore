@@ -62,6 +62,10 @@ export interface AssemblyLineRunNode {
   agentCrName: string | null;
   commitSha: string | null;
   durationSeconds: number | null;
+  /** When the node began — surfaced so a running node shows how long it has been
+   *  going instead of a bare "—". Optional so test doubles need not set it; the
+   *  DB mapper always does (the column is NOT NULL). */
+  startedAt?: string;
 }
 
 function durationSeconds(
@@ -116,6 +120,7 @@ export function toAssemblyLineRunNode(
     agentCrName: row.agent_cr_name,
     commitSha: row.commit_sha,
     durationSeconds: durationSeconds(row.started_at, row.finished_at),
+    startedAt: row.started_at,
   };
 }
 

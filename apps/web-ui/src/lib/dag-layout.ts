@@ -32,11 +32,24 @@ export interface LayoutEdge extends ClassifiedEdge {
   labelY: number;
 }
 
+export interface Box {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
 export interface GraphLayout {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
   width: number;
   height: number;
+  /**
+   * Tight bounds of everything drawn — node boxes, edge arcs, and labels. The
+   * view fits its viewBox to this so a one-node graph sits in a small frame
+   * instead of floating in a canvas sized for the whole layer grid.
+   */
+  contentBox: Box;
 }
 
 export interface LayoutOptions {
@@ -251,6 +264,53 @@ export function layoutAssemblyLine(
       Math.max(...nodes.map((n) => n.layer)) * opts.layerGap +
       opts.nodeWidth,
     height: floor + opts.arcDrop,
+    contentBox: contentBoxOf(nodes, edges, opts),
+  };
+}
+
+/** Every coordinate pair in a path's `d` — the curve stays within the hull of
+ *  these, so bounding by them bounds the arc. */
+function pointsOf(d: string): { x: number; y: number }[] {
+  const nums = (d.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
+  const points: { x: number; y: number }[] = [];
+
+  for (let i = 0; i + 1 < nums.length; i += 2) {
+    points.push({ x: nums[i], y: nums[i + 1] });
+  }
+
+  return points;
+}
+
+function contentBoxOf(
+  nodes: LayoutNode[],
+  edges: LayoutEdge[],
+  opts: ResolvedOptions,
+): Box {
+  const halfW = opts.nodeWidth / 2;
+  const halfH = opts.nodeHeight / 2;
+  const xs: number[] = [];
+  const ys: number[] = [];
+
+  for (const node of nodes) {
+    xs.push(node.x - halfW, node.x + halfW);
+    ys.push(node.y - halfH, node.y + halfH);
+  }
+
+  for (const edge of edges) {
+    for (const point of pointsOf(edge.d)) {
+      xs.push(point.x);
+      ys.push(point.y);
+    }
+
+    xs.push(edge.labelX);
+    ys.push(edge.labelY);
+  }
+
+  return {
+    minX: Math.min(...xs),
+    minY: Math.min(...ys),
+    maxX: Math.max(...xs),
+    maxY: Math.max(...ys),
   };
 }
 
