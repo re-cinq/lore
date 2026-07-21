@@ -248,7 +248,7 @@ function rowsFromEvent(ev: unknown): Partial<AgentRunEventInsert>[] {
   return ev.type === "result" ? [resultRow(ev)] : [];
 }
 
-function rowsFromEnvelope(envelope: unknown): AgentRunEventInsert[] {
+export function rowsFromEnvelope(envelope: unknown): AgentRunEventInsert[] {
   const { source, event } = unwrapAttribution(envelope);
   const taskId = str(source?.task);
 
@@ -267,9 +267,17 @@ function rowsFromEnvelope(envelope: unknown): AgentRunEventInsert[] {
   }));
 }
 
-/** Project the Agent NDJSON sink body into agent_run_events rows. Mirrors
- *  parseAgentEvents' tolerance: blank, unparseable and task-less lines are
- *  skipped and nothing throws — one malformed line must never drop a batch. */
+/** Upper bound on run-visualization rows one `/api/agent-events` POST may
+ *  project. Row payloads are already byte-capped; this bounds their COUNT so a
+ *  pathological run (tens of MB of stream-json in one body) cannot materialize
+ *  an unbounded row set and OOM the single (replicaCount: 1) Floor replica.
+ *  Beyond the cap, projection stops — full fidelity stays the GCS archive's job. */
+export const MAX_RUN_EVENTS_PER_BATCH = 10_000;
+
+/** Project the Agent NDJSON sink body into agent_run_events rows, bounded at
+ *  MAX_RUN_EVENTS_PER_BATCH. Mirrors parseAgentEvents' tolerance: blank,
+ *  unparseable and task-less lines are skipped and nothing throws — one
+ *  malformed line must never drop a batch. */
 export function parseAgentRunEvents(ndjson: string): AgentRunEventInsert[] {
   const rows: AgentRunEventInsert[] = [];
 
@@ -278,8 +286,17 @@ export function parseAgentRunEvents(ndjson: string): AgentRunEventInsert[] {
       continue;
     }
 
+    if (rows.length >= MAX_RUN_EVENTS_PER_BATCH) {
+      break;
+    }
+
     try {
-      rows.push(...rowsFromEnvelope(JSON.parse(line)));
+      for (const row of rowsFromEnvelope(JSON.parse(line))) {
+        if (rows.length >= MAX_RUN_EVENTS_PER_BATCH) {
+          break;
+        }
+        rows.push(row);
+      }
     } catch {
       continue;
     }

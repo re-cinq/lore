@@ -9,6 +9,11 @@
 // this mapper consumes unwrapAttribution and peels nothing of its own (#875).
 
 import { unwrapAttribution } from "@re-cinq/lore-assembly-lines";
+import type { AgentRunEventInsert } from "@re-cinq/lore-shared";
+import {
+  rowsFromEnvelope,
+  MAX_RUN_EVENTS_PER_BATCH,
+} from "./agent-run-events.js";
 
 export interface LlmCallRow {
   taskId: string;
@@ -62,12 +67,46 @@ function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
   };
 }
 
-/** Parse the Agent NDJSON sink body into llm_calls rows (skips blank, unparseable, and
- *  non-`result` lines, and lines with no resolvable task id). */
-export function parseAgentEvents(ndjson: string): LlmCallRow[] {
-  const rows: LlmCallRow[] = [];
+export interface AgentSink {
+  costRows: LlmCallRow[];
+  runEvents: AgentRunEventInsert[];
+}
 
-  for (const line of ndjson.split("\n")) {
+/** Yield each `\n`-delimited line without materializing the whole array.
+ *  `String.prototype.split` on a multi-MB body allocates a second copy of it in
+ *  line strings; iterating with sliced substrings keeps peak memory at ~one copy
+ *  of the body — the difference that lets a 25MB report parse under 512Mi. */
+function* lines(body: string): Generator<string> {
+  let start = 0;
+
+  for (let i = 0; i < body.length; i++) {
+    if (body.charCodeAt(i) === 10) {
+      yield body.slice(start, i);
+      start = i + 1;
+    }
+  }
+
+  if (start < body.length) {
+    yield body.slice(start);
+  }
+}
+
+/**
+ * Parse the Agent NDJSON sink body ONCE into the per-run llm_calls cost rows
+ * and, when `projectRunEvents`, the per-tool-call run-visualization rows (capped
+ * at MAX_RUN_EVENTS_PER_BATCH). Parsing each line a single time rather than once
+ * per projection, and streaming the split rather than arraying it, bound the
+ * peak memory a large body holds — the regression that OOM-looped the single
+ * Floor replica. Blank, unparseable and task-less lines are skipped; nothing throws.
+ */
+export function parseAgentSink(
+  ndjson: string,
+  projectRunEvents = true,
+): AgentSink {
+  const costRows: LlmCallRow[] = [];
+  const runEvents: AgentRunEventInsert[] = [];
+
+  for (const line of lines(ndjson)) {
     if (!line.trim()) {
       continue;
     }
@@ -78,14 +117,31 @@ export function parseAgentEvents(ndjson: string): LlmCallRow[] {
     } catch {
       continue;
     }
-    const row = rowFromEnvelope(envelope);
+    const costRow = rowFromEnvelope(envelope);
 
-    if (row) {
-      rows.push(row);
+    if (costRow) {
+      costRows.push(costRow);
+    }
+
+    if (!projectRunEvents || runEvents.length >= MAX_RUN_EVENTS_PER_BATCH) {
+      continue;
+    }
+
+    for (const runEvent of rowsFromEnvelope(envelope)) {
+      if (runEvents.length >= MAX_RUN_EVENTS_PER_BATCH) {
+        break;
+      }
+      runEvents.push(runEvent);
     }
   }
 
-  return rows;
+  return { costRows, runEvents };
+}
+
+/** The cost projection alone (skips blank, unparseable, and non-`result` lines,
+ *  and lines with no resolvable task id). */
+export function parseAgentEvents(ndjson: string): LlmCallRow[] {
+  return parseAgentSink(ndjson, false).costRows;
 }
 
 /** GCS object key for an archived raw NDJSON sink batch (#687). Partitioned by UTC
