@@ -103,6 +103,7 @@ function renderPanel(runStatus: string) {
     <RunVisualizationPanel
       runId="run-1"
       runStatus={runStatus}
+      startedAt={null}
       definition={definition}
       showEdgeLabels
       nodes={[]}
@@ -438,5 +439,35 @@ describe("heatmap and timeline wiring", () => {
     });
 
     expect(container.querySelectorAll("[data-path]")).toHaveLength(2);
+  });
+
+  it("ticks a live run's clock forward on an interval so a stalled timeline advances", () => {
+    vi.useFakeTimers();
+    const spy = vi.spyOn(globalThis, "setInterval");
+
+    try {
+      stubHistory([]);
+      renderPanel("running");
+
+      expect(spy).toHaveBeenCalledWith(expect.any(Function), 1000);
+    } finally {
+      spy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("starts no clock for a terminal run, which cannot stall", () => {
+    vi.useFakeTimers();
+    const spy = vi.spyOn(globalThis, "setInterval");
+
+    try {
+      stubHistory([]);
+      renderPanel("finished");
+
+      expect(spy).not.toHaveBeenCalledWith(expect.any(Function), 1000);
+    } finally {
+      spy.mockRestore();
+      vi.useRealTimers();
+    }
   });
 });

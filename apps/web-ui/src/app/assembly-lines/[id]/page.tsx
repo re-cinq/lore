@@ -62,6 +62,7 @@ export default async function AssemblyLineResolverPage({
         <RunVisualizationPanel
           runId={run.id}
           runStatus={run.status}
+          startedAt={run.startedAt}
           definition={definition}
           showEdgeLabels={!synthetic}
           nodes={nodes}
