@@ -150,6 +150,25 @@ describe("layoutAssemblyLine", () => {
     );
   });
 
+  it("fans the three parallel review-to-done edges onto distinct paths and labels", () => {
+    const edges = layoutAssemblyLine(codeReviewDefinition).edges.filter(
+      (e) => e.from === "review" && e.to === "done",
+    );
+
+    expect(edges).toHaveLength(3);
+    expect(new Set(edges.map((e) => e.d)).size).toBe(3);
+    expect(new Set(edges.map((e) => `${e.labelX},${e.labelY}`)).size).toBe(3);
+  });
+
+  it("gives a lone forward edge parallelCount 1 and index 0", () => {
+    const edge = layoutAssemblyLine(twoNodeLine).edges.find(
+      (e) => e.kind === "forward",
+    );
+
+    expect(edge?.parallelCount).toBe(1);
+    expect(edge?.parallelIndex).toBe(0);
+  });
+
   it("places a node at x proportional to its layer", () => {
     const layout = layoutAssemblyLine(twoNodeLine, { layerGap: 100 });
     const positions = Object.fromEntries(layout.nodes.map((n) => [n.id, n.x]));
