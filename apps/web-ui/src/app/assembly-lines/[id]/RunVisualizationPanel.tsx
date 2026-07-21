@@ -16,6 +16,7 @@ import {
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
 import { initialRunState, reduceRunEvent } from "@/lib/run-event-reducer";
+import { takenEdgeKeys } from "@/lib/run-taken-edges";
 import { parseRunStreamRow, type RunStreamEvent } from "@/lib/run-stream-types";
 import { toTranscriptRows } from "@/lib/transcript-rows";
 import FileHeatmapView from "./FileHeatmapView";
@@ -25,6 +26,7 @@ import NodeTranscriptView, {
   shouldFollowTail,
 } from "./NodeTranscriptView";
 import RunGraphView from "./RunGraphView";
+import RunNodeDetail from "./RunNodeDetail";
 import RunTimelineView from "./RunTimelineView";
 import styles from "./RunVisualizationPanel.module.css";
 import {
@@ -44,6 +46,8 @@ export interface RunVisualizationPanelProps {
   definition: AssemblyLineDefinition | null;
   showEdgeLabels: boolean;
   nodes: readonly AssemblyLineRunNode[];
+  repo: string;
+  reason: string | null;
 }
 
 interface HistoryPage {
@@ -57,6 +61,8 @@ export default function RunVisualizationPanel({
   definition,
   showEdgeLabels,
   nodes,
+  repo,
+  reason,
 }: RunVisualizationPanelProps) {
   // The timeline's right edge is `now`. A stalled node emits no events, so without
   // a clock it would freeze at the last tick and the stall would be invisible.
@@ -189,6 +195,10 @@ export default function RunVisualizationPanel({
     () => (selected ? toTranscriptRows(selected.transcript) : []),
     [selected],
   );
+  const takenEdges = useMemo(
+    () => takenEdgeKeys(definition, nodes),
+    [definition, nodes],
+  );
 
   const onTranscriptScroll = useCallback(() => {
     const box = scrollRef.current;
@@ -253,8 +263,19 @@ export default function RunVisualizationPanel({
         definition={definition}
         nodeStates={state.nodeStates}
         showEdgeLabels={showEdgeLabels}
+        takenEdges={takenEdges}
         onSelectNode={setSelectedNodeId}
       />
+      {selectedNodeId ? (
+        <RunNodeDetail
+          nodeId={selectedNodeId}
+          state={selected ?? undefined}
+          row={[...nodes].reverse().find((n) => n.nodeId === selectedNodeId)}
+          definition={definition}
+          reason={reason}
+          repo={repo}
+        />
+      ) : null}
       {selected && selectedNodeId ? (
         <div
           className={styles.transcriptScroll}

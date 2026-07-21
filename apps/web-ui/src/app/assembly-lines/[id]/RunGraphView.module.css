@@ -6,6 +6,7 @@
   margin-bottom: 0.5rem;
 }
 .svg {
+  display: block;
   width: 100%;
   height: auto;
   max-height: 26rem;
@@ -29,6 +30,44 @@
 .edgeLabel {
   fill: var(--text-muted);
   font-size: var(--fs-xs);
+}
+.arrowHead {
+  fill: context-stroke;
+}
+
+/* Edge condition as color: the branch's meaning is legible without reading the
+   label. Applied to both the path (stroke) and its label (fill). */
+.toneOk {
+  stroke: var(--success);
+  fill: var(--success);
+}
+.toneWarn {
+  stroke: var(--warning);
+  fill: var(--warning);
+}
+.toneErr {
+  stroke: var(--danger);
+  fill: var(--danger);
+}
+.toneNeutral {
+  stroke: var(--border);
+  fill: var(--text-muted);
+}
+.edge.toneOk,
+.edge.toneWarn,
+.edge.toneErr,
+.edge.toneNeutral {
+  fill: none;
+}
+
+/* Run overlay: the traversed branch is bold and solid, the rest fade back so the
+   path the run took reads at a glance. Absent (definition-only view) → neither. */
+.taken .edge {
+  stroke-width: 3;
+  stroke-dasharray: none;
+}
+.dim {
+  opacity: 0.3;
 }
 
 .node {

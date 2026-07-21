@@ -55,7 +55,7 @@ export default async function AssemblyLineResolverPage({
 
     return (
       <>
-        <AssemblyLineRunView run={run} nodes={nodes} />
+        <AssemblyLineRunView run={run} nodes={nodes} definition={definition} />
         {run.definitionName === "code-review" && run.prNumber ? (
           <TriggerReviewButton repo={run.repo} prNumber={run.prNumber} />
         ) : null}
@@ -66,6 +66,8 @@ export default async function AssemblyLineResolverPage({
           definition={definition}
           showEdgeLabels={!synthetic}
           nodes={nodes}
+          repo={run.repo}
+          reason={run.reason}
         />
         <NodePodLogs assemblyLineId={run.id} nodes={logNodes} />
         {run.taskId ? (

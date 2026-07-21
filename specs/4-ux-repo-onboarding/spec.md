@@ -402,7 +402,7 @@ every repo.
   run's PR from its task join or from `args.pr_number` for a code-review
   run without a task PR, maps a run with no task and no PR to null
   pr/creator/cost, and computes node and run durations (left null while
-  still running). ([validated by `assembly-line-runs.test.ts:29`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L29), [`assembly-line-runs.test.ts:42`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L42), [`assembly-line-runs.test.ts:62`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L62), [`assembly-line-runs.test.ts:79`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L79), [`assembly-line-runs.test.ts:88`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L88), [`assembly-line-runs.test.ts:109`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L109))
+  still running). ([validated by `assembly-line-runs.test.ts:29`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L29), [`assembly-line-runs.test.ts:42`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L42), [`assembly-line-runs.test.ts:62`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L62), [`assembly-line-runs.test.ts:79`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L79), [`assembly-line-runs.test.ts:88`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L88), [`assembly-line-runs.test.ts:110`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L110))
 
 ### FR-7: Shared UI Components
 

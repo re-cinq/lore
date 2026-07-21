@@ -376,6 +376,63 @@ describe("RunGraphView interaction", () => {
   });
 });
 
+describe("RunGraphView taken path", () => {
+  const edge = (container: HTMLElement, key: string) =>
+    container
+      .querySelector(`[data-edge="${key}"]`)
+      ?.parentElement?.getAttribute("data-taken");
+
+  it("marks the traversed edge taken and the parallel siblings not taken", () => {
+    const { container } = render(
+      <RunGraphView
+        definition={implementationDefinition}
+        nodeStates={states()}
+        takenEdges={new Set(["review-retrospective-success"])}
+      />,
+    );
+
+    expect(edge(container, "review-retrospective-success")).toBe("true");
+    expect(edge(container, "review-retrospective-failed")).toBe("false");
+  });
+
+  it("marks no edge taken when the taken set is empty", () => {
+    const { container } = render(
+      <RunGraphView
+        definition={implementationDefinition}
+        nodeStates={states()}
+        takenEdges={new Set()}
+      />,
+    );
+
+    expect(edge(container, "review-retrospective-success")).toBe("false");
+  });
+});
+
+describe("RunGraphView terminal node", () => {
+  it("labels an idle node with no outgoing edges Terminal rather than Pending", () => {
+    const { container } = render(
+      <RunGraphView
+        definition={implementationDefinition}
+        nodeStates={states()}
+      />,
+    );
+
+    expect(nodeEl(container, "done")).toHaveTextContent("Terminal");
+    expect(nodeEl(container, "done")).not.toHaveTextContent("Pending");
+  });
+
+  it("keeps a non-terminal idle node labelled Pending", () => {
+    const { container } = render(
+      <RunGraphView
+        definition={implementationDefinition}
+        nodeStates={states()}
+      />,
+    );
+
+    expect(nodeEl(container, "review")).toHaveTextContent("Pending");
+  });
+});
+
 describe("RunGraphView empty states", () => {
   it("renders an empty-state message for a null definition", () => {
     render(<RunGraphView definition={null} nodeStates={{}} />);
@@ -397,5 +454,45 @@ describe("RunGraphView empty states", () => {
     render(<RunGraphView definition={empty} nodeStates={{}} />);
 
     expect(screen.getByText(/no assembly-line graph/i)).toBeInTheDocument();
+  });
+});
+
+describe("RunGraphView sizing", () => {
+  it("caps the svg to a natural px max-width so a small graph is not upscaled to fill the page", () => {
+    const { container } = render(
+      <RunGraphView
+        definition={implementationDefinition}
+        nodeStates={states()}
+      />,
+    );
+
+    expect(container.querySelector("svg")?.style.maxWidth).toMatch(/^\d+px$/);
+  });
+
+  it("anchors a lone node to the left of the frame rather than centering it", () => {
+    const solo: AssemblyLineDefinition = {
+      name: "solo",
+      description: "",
+      version: 1,
+      entry: "only",
+      exit: "only",
+      nodes: [{ id: "only", type: "agent" }],
+      edges: [],
+    };
+    const { container } = render(
+      <RunGraphView definition={solo} nodeStates={{}} />,
+    );
+
+    const [minX, , width] = (
+      container.querySelector("svg")?.getAttribute("viewBox") ?? ""
+    )
+      .split(" ")
+      .map(Number);
+    const nodeLeft = Number(
+      container.querySelector('[data-node="only"] rect')?.getAttribute("x"),
+    );
+
+    // Node sits near the left edge (one padding in), not near the horizontal centre.
+    expect(nodeLeft - minX).toBeLessThan(width / 4);
   });
 });

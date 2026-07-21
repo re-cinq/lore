@@ -107,6 +107,8 @@ function renderPanel(runStatus: string) {
       definition={definition}
       showEdgeLabels
       nodes={[]}
+      repo="re-cinq/lore"
+      reason={null}
     />,
   );
 }
