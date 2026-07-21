@@ -365,18 +365,22 @@ function pathFor(
 }
 
 const FAN_GAP = 16;
+// Labels need more vertical room than the arcs: a ~12u label overprints its
+// neighbours at the 16u arc pitch (long conditions like `changes_requested`
+// collide), so labels stack at their own wider pitch, decoupled from the arcs.
+const LABEL_GAP = 26;
 
 // Parallel edges fan UPWARD only (never below the straight line), so they stay
 // clear of the back-edge lane that runs beneath the row. index 0 sits on the
 // line; each later sibling lifts by one gap.
-function fanOffset(edge: ClassifiedEdgeWithFan): number {
+function fanOffset(edge: ClassifiedEdgeWithFan, gap: number = FAN_GAP): number {
   const count = edge.parallelCount ?? 1;
 
   if (count <= 1) {
     return 0;
   }
 
-  return -edge.parallelIndex * FAN_GAP;
+  return -edge.parallelIndex * gap;
 }
 
 interface ClassifiedEdgeWithFan extends ClassifiedEdge {
@@ -400,7 +404,7 @@ function labelPointFor(
     return { x: from.x, y: from.y - opts.nodeHeight };
   }
 
-  const spread = fanOffset(edge);
+  const spread = fanOffset(edge, LABEL_GAP);
 
   return { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 - 8 + spread };
 }
