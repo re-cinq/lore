@@ -43,6 +43,14 @@ export class PullRequests {
     return this.pulls.createReview(this.repo, number, input);
   }
 
+  replyToReviewComment(
+    number: number,
+    commentId: number,
+    body: string,
+  ): Promise<void> {
+    return this.pulls.replyToReviewComment(this.repo, number, commentId, body);
+  }
+
   addLabel(number: number, label: string): Promise<void> {
     return this.pulls.addLabel(this.repo, number, label);
   }

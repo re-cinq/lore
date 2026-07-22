@@ -534,6 +534,24 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     });
   }
 
+  async replyToReviewComment(
+    repo: string,
+    number: number,
+    commentId: number,
+    body: string,
+  ): Promise<void> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+
+    await ok.rest.pulls.createReplyForReviewComment({
+      owner,
+      repo: name,
+      pull_number: number,
+      comment_id: commentId,
+      body,
+    });
+  }
+
   async addLabel(repo: string, number: number, label: string): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);

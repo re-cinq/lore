@@ -103,6 +103,15 @@ export interface PullRequestsPort {
     number: number,
     input: CreateReviewInput,
   ): Promise<void>;
+  /** Reply in-thread to a review comment (…/pulls/{n}/comments/{comment_id}/replies).
+   *  The code-review-refine node emits the reply text; the Floor posts it here
+   *  (the agent pod has no `gh`). */
+  replyToReviewComment(
+    repo: string,
+    number: number,
+    commentId: number,
+    body: string,
+  ): Promise<void>;
   addLabel(repo: string, number: number, label: string): Promise<void>;
   merge(repo: string, number: number, method?: MergeMethod): Promise<void>;
   open(

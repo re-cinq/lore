@@ -58,6 +58,7 @@ describe("Workspace", () => {
       comment: async () => {},
       review: async () => {},
       createReview: async () => {},
+      replyToReviewComment: async () => {},
       addLabel: async () => {},
       merge: async () => {},
       open: async (repo, branch, title) => {

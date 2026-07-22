@@ -21,6 +21,7 @@ function fakePulls(
       pulls.find((p) => p.repo === repo && p.number === number) ?? null,
     comment: async () => {},
     createReview: async () => {},
+    replyToReviewComment: async () => {},
     review: async () => {},
     addLabel: async () => {},
     merge: async (_repo, number, method) => {

@@ -779,7 +779,7 @@ share one persistence surface instead of inline SQL.
   ([validated by `repo-files.test.ts:53`](libs/shared/src/project/repo/repo-files.test.ts#L53), [`repo-files.test.ts:59`](libs/shared/src/project/repo/repo-files.test.ts#L59), [`repo-files.test.ts:65`](libs/shared/src/project/repo/repo-files.test.ts#L65))
 - FR-20.15: The `PullRequests` port lists only the repo's PRs, merges by
   number with the requested method, and exposes PR reads bound to the
-  repo and number. ([validated by `pull-requests.test.ts:68`](libs/shared/src/project/pulls/pull-requests.test.ts#L68), [`pull-requests.test.ts:104`](libs/shared/src/project/pulls/pull-requests.test.ts#L104), [`pull-requests.test.ts:113`](libs/shared/src/project/pulls/pull-requests.test.ts#L113))
+  repo and number. ([validated by `pull-requests.test.ts:70`](libs/shared/src/project/pulls/pull-requests.test.ts#L70), [`pull-requests.test.ts:106`](libs/shared/src/project/pulls/pull-requests.test.ts#L106), [`pull-requests.test.ts:115`](libs/shared/src/project/pulls/pull-requests.test.ts#L115))
 - FR-20.16: The `Issues` port returns the GitHubPort issues for the
   project's repo, creates an issue bound to the repo, and comments,
   closes, and labels by number bound to the repo. ([validated by `issues.test.ts:57`](libs/shared/src/project/issues/issues.test.ts#L57), [`issues.test.ts:101`](libs/shared/src/project/issues/issues.test.ts#L101), [`issues.test.ts:114`](libs/shared/src/project/issues/issues.test.ts#L114))
