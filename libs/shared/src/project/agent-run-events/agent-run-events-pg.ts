@@ -97,6 +97,10 @@ export class PgAgentRunEvents implements AgentRunEventsRepository {
          tool_use_id TEXT, is_error BOOLEAN, file_paths TEXT[], summary TEXT,
          payload JSONB
        )
+       -- CR names are unique per line (a revisited node's iteration gets its
+       -- own -<n> suffix), so the DESC tie-break only fires when two DIFFERENT
+       -- lines collide on their 12-hex id prefix + node id + iteration; the
+       -- newest node row wins then.
        LEFT JOIN LATERAL (
          SELECT node.assembly_line_id, node.node_id, node.iteration
          FROM pipeline.assembly_line_nodes node
