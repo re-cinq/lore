@@ -76,7 +76,8 @@ function ports() {
     comment: async (number, body) => {
       comments.push({ number, body });
     },
-    listFiles: async () => ["a.ts"],
+    getDiff: async () =>
+      ["--- a/a.ts", "+++ b/a.ts", "@@ -1 +1 @@", "-old", "+boom"].join("\n"),
   };
   const audit: AuditPort = {
     write: async (entry) => {
@@ -195,7 +196,7 @@ describe("postReviewFromNode", () => {
       comment: async () => {
         throw new Error("Resource not accessible by integration");
       },
-      listFiles: async () => [],
+      getDiff: async () => "",
     };
 
     await postReviewFromNode(row(), reviewNode, findingsText("approved"), {
@@ -224,7 +225,7 @@ describe("postReviewFromNode", () => {
       comment: async () => {
         throw new Error("boom");
       },
-      listFiles: async () => [],
+      getDiff: async () => "",
     };
 
     expect(

@@ -351,28 +351,38 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 
 ### `apps/floor/src/jobs/review/post-review.test.ts`
 
-- posts one COMMENT review with a rendered comment per in-diff finding and a summary. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L57))
-- partitions findings by the diff — a finding on a changed file stays inline, one on an untouched file folds into overflow. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L46))
-- A finding on a file outside the diff is folded into the review body, never posted inline, because one out-of-diff inline comment 422s the whole atomic review. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L95))
-- When the atomic review post is rejected, the whole review is delivered as one top-level comment rather than silently dropped. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L115))
-- posts when the output carries a REVIEW_FINDINGS block. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L132))
-- A bare `REVIEW_RESULT:APPROVED` with no findings block posts a visible approval review rather than staying silent. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L143))
-- does nothing when there is no findings block and no approval verdict. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L154))
-- The review node's findings are carried inside the Agent output envelope, so the raw stream parses to no findings and posts nothing — the review reaches a verdict while the PR receives silence. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L208))
-- Unwrapping the envelope first restores the agent text, and every finding is then posted as a review comment. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L217))
+- posts one COMMENT review with a rendered comment per in-diff finding and a summary. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L76))
+- partitions findings by diff hunk — a finding on a commentable line stays inline, one on an uninlineable line folds into overflow. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L61))
+- A finding on a line GitHub cannot inline (an unchanged line, or a file outside the diff) is folded into the review body, because one such inline comment 422s the whole atomic review. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L117))
+- When the atomic review post is rejected, the whole review is delivered as one top-level comment rather than silently dropped. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L137))
+- posts when the output carries a REVIEW_FINDINGS block. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L154))
+- A bare `REVIEW_RESULT:APPROVED` with no findings block posts a visible approval review rather than staying silent. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L165))
+- does nothing when there is no findings block and no approval verdict. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L176))
+- The review node's findings are carried inside the Agent output envelope, so the raw stream parses to no findings and posts nothing — the review reaches a verdict while the PR receives silence. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L230))
+- Unwrapping the envelope first restores the agent text, and every finding is then posted as a review comment. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L239))
+
+### `libs/shared/src/review/diff-hunks.test.ts`
+
+- Added and context lines are commentable on the right (new) side. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L25))
+- Removed and context lines are commentable on the left (old) side. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L37))
+- A line inside a hunk is commentable. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L51))
+- A line outside any hunk is not commentable. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L55))
+- A file not in the diff is not commentable. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L59))
+- A LEFT-side comment is checked against the left side, not the right. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L63))
+- A file deleted in the diff (`+++ /dev/null`) is uncommentable on either side. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L80))
 
 ### `apps/floor/src/jobs/assembly-line/node-terminal.test.ts`
 
-- A code-review node's findings are posted as one review against the line's PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L137))
-- A node that is not a code review posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L152))
-- A line carrying no `pr_number` posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L161))
-- A verdict that reaches no parseable findings MUST be audited as `review_findings_unparsed` rather than passing silently — that state is indistinguishable from a clean review at the PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L169))
-- A post that throws MUST be audited as `review_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L189))
-- A code-review-refine node emits its reply as a fenced `REVIEW_REPLY` block (the pod has no `gh`); the Floor posts it in-thread when the line carries an `in_reply_to_id`. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L249))
-- A refine reply with no thread id falls back to a plain PR comment. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L266))
-- A node that is not a refine node posts no reply. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L280))
-- A refine node that emits no reply block MUST be audited as `review_reply_unparsed` rather than passing silently. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L295))
-- A reply post that throws MUST be audited as `review_reply_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L316))
+- A code-review node's findings are posted as one review against the line's PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L138))
+- A node that is not a code review posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L153))
+- A line carrying no `pr_number` posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L162))
+- A verdict that reaches no parseable findings MUST be audited as `review_findings_unparsed` rather than passing silently — that state is indistinguishable from a clean review at the PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L170))
+- A post that throws MUST be audited as `review_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L190))
+- A code-review-refine node emits its reply as a fenced `REVIEW_REPLY` block (the pod has no `gh`); the Floor posts it in-thread when the line carries an `in_reply_to_id`. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L250))
+- A refine reply with no thread id falls back to a plain PR comment. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L267))
+- A node that is not a refine node posts no reply. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L281))
+- A refine node that emits no reply block MUST be audited as `review_reply_unparsed` rather than passing silently. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L296))
+- A reply post that throws MUST be audited as `review_reply_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L317))
 
 ### `apps/floor/src/listeners/github-map.test.ts`
 
