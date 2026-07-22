@@ -88,7 +88,7 @@ function nodeHeightFor(graph: VisibleGraph): number {
 }
 
 /** A layout-shaped definition from the visible graph; connectors carry no
- *  condition (structure only), so the layout never re-fans collapsed edges. */
+ *  condition (structure only). */
 function toLayoutDefinition(
   graph: VisibleGraph,
   definition: AssemblyLineDefinition | null,
@@ -263,18 +263,6 @@ export default function RunGraphView({
                 d={edge.d}
                 markerEnd="url(#rgv-arrow)"
               />
-              {vm?.label ? (
-                <text
-                  className={[styles.edgeLabel, toneClass]
-                    .filter(Boolean)
-                    .join(" ")}
-                  x={edge.labelX}
-                  y={edge.labelY}
-                  textAnchor="middle"
-                >
-                  {vm.label}
-                </text>
-              ) : null}
             </g>
           );
         })}

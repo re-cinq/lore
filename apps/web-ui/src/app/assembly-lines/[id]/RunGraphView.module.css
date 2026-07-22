@@ -34,54 +34,23 @@
 .self {
   stroke-dasharray: 5 4;
 }
-.edgeLabel {
-  fill: var(--text-muted);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  /* Knock the label out of any line it crosses: a surface-colored halo painted
-     under the glyphs keeps the condition legible without a solid chip. */
-  paint-order: stroke;
-  stroke: var(--bg-surface);
-  stroke-width: 2px;
-  stroke-linejoin: round;
-}
 .arrowHead {
   fill: context-stroke;
 }
 
-/* Edge condition as color: the branch's meaning is legible without reading the
-   label. Applied to both the path (stroke) and its label (fill). */
+/* Edge condition as color: the branch's meaning is legible without reading a
+   label. */
 .toneOk {
   stroke: var(--success);
-  fill: var(--success);
 }
 .toneWarn {
   stroke: var(--warning);
-  fill: var(--warning);
 }
 .toneErr {
   stroke: var(--danger);
-  fill: var(--danger);
 }
 .toneNeutral {
   stroke: var(--border);
-  fill: var(--text-muted);
-}
-.edge.toneOk,
-.edge.toneWarn,
-.edge.toneErr,
-.edge.toneNeutral {
-  fill: none;
-}
-/* Tone colors the label's fill; its stroke stays the surface halo. Two-class
-   specificity wins the tie against the tone rules above (which set stroke to the
-   tone color, meant for the path). */
-.edgeLabel.toneOk,
-.edgeLabel.toneWarn,
-.edgeLabel.toneErr,
-.edgeLabel.toneNeutral {
-  stroke: var(--bg-surface);
 }
 
 /* Hover an edge to bring it forward: thicken it and lift any run-dimming. */
