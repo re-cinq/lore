@@ -268,6 +268,23 @@ export default function RunVisualizationPanel({
   const graphMode = hasRunData && !showOutcomes ? "run" : "definition";
   const runData = useMemo<RunData>(() => {
     const entries = Object.entries(displayState.nodeStates);
+    // The verdict is the walk row's recorded outcome, latest iteration per node.
+    // It must come from the rows, not the reducer state: a replayed terminal run
+    // seeds its node states from events, which never carry the verdict, so a
+    // review that exited its pod cleanly with a failed verdict would otherwise
+    // read from its "succeeded" execution status instead of "failed".
+    const latest = new Map<string, (typeof nodes)[number]>();
+    for (const n of nodes) {
+      const prev = latest.get(n.nodeId);
+      if (!prev || n.iteration >= prev.iteration) {
+        latest.set(n.nodeId, n);
+      }
+    }
+    const rows = [...latest.values()];
+    // The run failed if any node's recorded outcome failed — mirrors the Floor's
+    // lineOutcomeFromVisits, so a code-review line that closes `finished` with a
+    // failed review still reports the run result as failed on its terminal.
+    const anyFailed = rows.some((n) => (n.outcome ?? "").includes("failed"));
 
     return {
       // A node participated once it left idle (live stream) or has a walk row.
@@ -275,15 +292,14 @@ export default function RunVisualizationPanel({
         ...nodes.map((n) => n.nodeId),
         ...entries.filter(([, s]) => participated(s)).map(([id]) => id),
       ]),
-      verdicts: Object.fromEntries(entries.map(([id, s]) => [id, s.outcome])),
+      verdicts: Object.fromEntries(rows.map((n) => [n.nodeId, n.outcome])),
       statuses: Object.fromEntries(entries.map(([id, s]) => [id, s.status])),
       taken: takenEdges,
-      result:
-        runStatus === "failed"
-          ? "failed"
-          : runStatus === "finished"
-            ? "completed"
-            : null,
+      result: anyFailed
+        ? "failed"
+        : isTerminalRunStatus(runStatus)
+          ? "completed"
+          : null,
     };
   }, [nodes, displayState.nodeStates, takenEdges, runStatus]);
   const visibleGraph = useMemo(
