@@ -1,7 +1,7 @@
 FROM node:22-slim AS builder
 WORKDIR /app
-COPY package.json ./
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci
 COPY . .
 # Git SHA of the deployed commit — surfaced at runtime via /api/version and the
 # sidebar version label so "is my merge live?" is answerable without spelunking
