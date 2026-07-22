@@ -129,7 +129,7 @@ describe("postReview", () => {
     expect(calls[0]?.input.comments).toHaveLength(1);
     expect(calls[0]?.input.comments[0]?.line).toBe(12);
     expect(calls[0]?.input.body).toContain(
-      "### Notes on files outside this diff",
+      "### Notes on lines outside changed hunks",
     );
     expect(calls[0]?.input.body).toContain("out-of-hunk note");
   });

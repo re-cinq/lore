@@ -65,3 +65,22 @@ describe("isCommentable", () => {
     expect(isCommentable(pos, "src/a.ts", 11, "RIGHT")).toBe(true);
   });
 });
+
+describe("commentablePositions on a deleted file", () => {
+  const deleted = [
+    "diff --git a/gone.ts b/gone.ts",
+    "deleted file mode 100644",
+    "--- a/gone.ts",
+    "+++ /dev/null",
+    "@@ -1,2 +0,0 @@",
+    "-const a = 1;",
+    "-const b = 2;",
+  ].join("\n");
+
+  it("tracks no positions — a +++ /dev/null target is uncommentable on either side", () => {
+    const pos = commentablePositions(deleted);
+
+    expect(pos.right.has("gone.ts")).toBe(false);
+    expect(pos.left.has("gone.ts")).toBe(false);
+  });
+});

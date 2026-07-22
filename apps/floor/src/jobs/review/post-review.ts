@@ -86,8 +86,8 @@ function renderOutOfDiff(finding: ReviewFinding): string {
   return `**\`${finding.path}:${finding.line}\`** — ${renderComment(finding)}`;
 }
 
-/** The review body: the standard summary, plus any out-of-diff findings that
- *  could not be posted as inline comments. */
+/** The review body: the standard summary, plus any findings on lines GitHub
+ *  cannot inline (out-of-hunk lines, or files outside the diff). */
 export function composeBody(
   output: ReviewOutput,
   overflow: ReviewFinding[],
@@ -99,13 +99,18 @@ export function composeBody(
   }
   const notes = overflow.map(renderOutOfDiff).join("\n\n");
 
-  return `${summary}\n\n### Notes on files outside this diff\n\n${notes}`;
+  return `${summary}\n\n### Notes on lines outside changed hunks\n\n${notes}`;
 }
+
+/** Marks a review that fell back from an inline post — a flat comment with no
+ *  inline annotations otherwise looks like an intentional body-only review. */
+const FALLBACK_NOTE =
+  "_Inline placement was rejected by GitHub, so this review is posted as a single comment._";
 
 /** The whole review as one top-level comment — the never-drop fallback for when
  *  the inline post is rejected (e.g. an out-of-hunk line 422). */
 function fallbackComment(output: ReviewOutput): string {
-  const summary = buildReviewSummary(output);
+  const summary = `${FALLBACK_NOTE}\n\n${buildReviewSummary(output)}`;
 
   if (output.findings.length === 0) {
     return summary;

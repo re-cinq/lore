@@ -17,10 +17,13 @@ export interface CommentablePositions {
 const HUNK = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
 
 function add(map: Map<string, Set<number>>, path: string, line: number): void {
-  const set = map.get(path) ?? new Set<number>();
+  let set = map.get(path);
 
+  if (!set) {
+    set = new Set<number>();
+    map.set(path, set);
+  }
   set.add(line);
-  map.set(path, set);
 }
 
 export function commentablePositions(diff: string): CommentablePositions {

@@ -369,6 +369,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 - A line outside any hunk is not commentable. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L55))
 - A file not in the diff is not commentable. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L59))
 - A LEFT-side comment is checked against the left side, not the right. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L63))
+- A file deleted in the diff (`+++ /dev/null`) is uncommentable on either side. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L80))
 
 ### `apps/floor/src/jobs/assembly-line/node-terminal.test.ts`
 
