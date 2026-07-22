@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   normalizeAgentStatus,
+  postReplyFromNode,
   postReviewFromNode,
   reviewNodeResultOverride,
+  type ReplyPoster,
 } from "./node-terminal.js";
 import type { ReviewPoster } from "../review/post-review.js";
 import type {
@@ -23,6 +25,36 @@ const plainNode: AssemblyLineNode = {
   type: "detect",
   job_ref: "x",
 };
+const refineNode: AssemblyLineNode = {
+  id: "reply",
+  type: "agent",
+  prompt_ref: "code-review-refine",
+};
+
+const replyText = (body: string) =>
+  ["```REVIEW_REPLY", body, "```", "REVIEW_RESULT:APPROVED"].join("\n");
+
+function replyPorts() {
+  const replies: Array<{ number: number; commentId: number; body: string }> =
+    [];
+  const comments: Array<{ number: number; body: string }> = [];
+  const entries: AuditLogEntry[] = [];
+  const poster: ReplyPoster = {
+    replyToReviewComment: async (number, commentId, body) => {
+      replies.push({ number, commentId, body });
+    },
+    comment: async (number, body) => {
+      comments.push({ number, body });
+    },
+  };
+  const audit: AuditPort = {
+    write: async (entry) => {
+      entries.push(entry);
+    },
+  };
+
+  return { poster, audit, replies, comments, entries };
+}
 
 const row = (args: Record<string, unknown> = { pr_number: 841 }) =>
   ({
@@ -197,6 +229,101 @@ describe("postReviewFromNode", () => {
     expect(
       await postReviewFromNode(row(), plainNode, findingsText("approved"), p),
     ).toBe("not_review");
+  });
+});
+
+describe("postReplyFromNode", () => {
+  it("posts the reply in-thread when the line carries in_reply_to_id", async () => {
+    const p = replyPorts();
+
+    const outcome = await postReplyFromNode(
+      row({ pr_number: 841, in_reply_to_id: 55 }),
+      refineNode,
+      replyText("Done — pushed a1b2c3d."),
+      p,
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.replies).toEqual([
+      { number: 841, commentId: 55, body: "Done — pushed a1b2c3d." },
+    ]);
+    expect(p.comments).toHaveLength(0);
+  });
+
+  it("falls back to a plain PR comment when no thread id is present", async () => {
+    const p = replyPorts();
+
+    await postReplyFromNode(
+      row({ pr_number: 841 }),
+      refineNode,
+      replyText("Answered."),
+      p,
+    );
+
+    expect(p.replies).toHaveLength(0);
+    expect(p.comments).toEqual([{ number: 841, body: "Answered." }]);
+  });
+
+  it("posts nothing for a node that is not a refine node", async () => {
+    const p = replyPorts();
+
+    const outcome = await postReplyFromNode(
+      row(),
+      reviewNode,
+      replyText("nope"),
+      p,
+    );
+
+    expect(outcome).toBe("not_reply");
+    expect(p.replies).toHaveLength(0);
+    expect(p.comments).toHaveLength(0);
+  });
+
+  it("audits a refine node that emitted no reply block", async () => {
+    const p = replyPorts();
+
+    const outcome = await postReplyFromNode(
+      row({ pr_number: 841, in_reply_to_id: 55 }),
+      refineNode,
+      "REVIEW_RESULT:APPROVED",
+      p,
+    );
+
+    expect(outcome).toBe("no_reply");
+    expect(p.replies).toHaveLength(0);
+    expect(p.entries).toMatchObject([
+      {
+        event_type: "review_reply_unparsed",
+        repo: "re-cinq/lore",
+        payload: { pr_number: 841 },
+      },
+    ]);
+  });
+
+  it("audits a reply post that throws instead of swallowing it", async () => {
+    const p = replyPorts();
+    const failing: ReplyPoster = {
+      replyToReviewComment: async () => {
+        throw new Error("Not Found");
+      },
+      comment: async () => {},
+    };
+
+    const outcome = await postReplyFromNode(
+      row({ pr_number: 841, in_reply_to_id: 55 }),
+      refineNode,
+      replyText("boom"),
+      { poster: failing, audit: p.audit },
+    );
+
+    expect(outcome).toBe("post_failed");
+    expect(p.entries).toMatchObject([
+      {
+        event_type: "review_reply_post_failed",
+        repo: "re-cinq/lore",
+        payload: { pr_number: 841, error: "Not Found" },
+      },
+    ]);
   });
 });
 

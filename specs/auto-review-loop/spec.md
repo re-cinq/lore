@@ -359,11 +359,16 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 
 ### `apps/floor/src/jobs/assembly-line/node-terminal.test.ts`
 
-- A code-review node's findings are posted as one review against the line's PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L100))
-- A node that is not a code review posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L115))
-- A line carrying no `pr_number` posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L124))
-- A verdict that reaches no parseable findings MUST be audited as `review_findings_unparsed` rather than passing silently — that state is indistinguishable from a clean review at the PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L132))
-- A post that throws MUST be audited as `review_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L152))
+- A code-review node's findings are posted as one review against the line's PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L132))
+- A node that is not a code review posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L147))
+- A line carrying no `pr_number` posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L156))
+- A verdict that reaches no parseable findings MUST be audited as `review_findings_unparsed` rather than passing silently — that state is indistinguishable from a clean review at the PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L164))
+- A post that throws MUST be audited as `review_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L184))
+- A code-review-refine node emits its reply as a fenced `REVIEW_REPLY` block (the pod has no `gh`); the Floor posts it in-thread when the line carries an `in_reply_to_id`. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L236))
+- A refine reply with no thread id falls back to a plain PR comment. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L253))
+- A node that is not a refine node posts no reply. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L267))
+- A refine node that emits no reply block MUST be audited as `review_reply_unparsed` rather than passing silently. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L282))
+- A reply post that throws MUST be audited as `review_reply_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L303))
 
 ### `apps/floor/src/listeners/github-map.test.ts`
 
@@ -414,9 +419,16 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 
 ### `libs/shared/src/project/pulls/pull-requests.test.ts`
 
-- lists only the repo's pull requests. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L69))
-- merges by number with the requested method bound to the repo. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L105))
-- exposes PR reads bound to the repo and number. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L114))
+- lists only the repo's pull requests. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L70))
+- merges by number with the requested method bound to the repo. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L106))
+- exposes PR reads bound to the repo and number. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L115))
+
+### `libs/shared/src/review/review-reply.test.ts`
+
+- A fenced `REVIEW_REPLY` block yields its trimmed markdown body. ([validated by](libs/shared/src/review/review-reply.test.ts#L8))
+- Multi-line markdown inside the block is preserved. ([validated by](libs/shared/src/review/review-reply.test.ts#L14))
+- An absent reply block yields null, so a formatting slip posts nothing rather than crashing the node. ([validated by](libs/shared/src/review/review-reply.test.ts#L20))
+- An empty reply block also yields null. ([validated by](libs/shared/src/review/review-reply.test.ts#L24))
 
 ### `libs/shared/src/project/repo/repo-files.test.ts`
 
