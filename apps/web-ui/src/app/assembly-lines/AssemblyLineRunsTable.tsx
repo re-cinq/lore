@@ -76,54 +76,58 @@ export default function AssemblyLineRunsTable({
               them.
             </td>
           </tr>
-        ) : visibleRuns.map((run) => {
-          const visual = runStatusVisual(run.status, run.outcome);
+        ) : (
+          visibleRuns.map((run) => {
+            const visual = runStatusVisual(run.status, run.outcome);
 
-          return (
-            <tr key={run.id}>
-              <td>
-                <Link href={`/assembly-lines/${run.id}`}>
-                  {run.definitionName}
-                </Link>
-                <span className={styles.subId}>#{run.id.substring(0, 8)}</span>
-              </td>
-              <td>
-                <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
-              </td>
-              <td className={styles.branch}>{run.branch ?? EM_DASH}</td>
-              <td>
-                <span
-                  className={`${styles.dot} ${styles[visual.tone]}`}
-                  aria-hidden="true"
-                />
-                {visual.label}
-                {run.status === "failed" && run.reason ? (
-                  <span className={styles.reason}>{run.reason}</span>
-                ) : null}
-              </td>
-              <td>
-                {run.prUrl && run.prNumber ? (
-                  <span className={styles.pr}>
-                    <a href={run.prUrl} target="_blank" rel="noreferrer">
-                      #{run.prNumber}
-                    </a>
-                    {run.taskId ? (
-                      <PRStatusBadgePanel taskId={run.taskId} />
-                    ) : null}
+            return (
+              <tr key={run.id}>
+                <td>
+                  <Link href={`/assembly-lines/${run.id}`}>
+                    {run.definitionName}
+                  </Link>
+                  <span className={styles.subId}>
+                    #{run.id.substring(0, 8)}
                   </span>
-                ) : (
-                  EM_DASH
-                )}
-              </td>
-              <td>{formatDuration(run.durationSeconds)}</td>
-              <td>{formatRelativeTime(run.startedAt ?? run.createdAt)}</td>
-              <td>{run.createdBy ? shortAgentId(run.createdBy) : EM_DASH}</td>
-              <td>
-                {run.costUsd !== null ? formatCost(run.costUsd) : EM_DASH}
-              </td>
-            </tr>
-          );
-        })}
+                </td>
+                <td>
+                  <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
+                </td>
+                <td className={styles.branch}>{run.branch ?? EM_DASH}</td>
+                <td>
+                  <span
+                    className={`${styles.dot} ${styles[visual.tone]}`}
+                    aria-hidden="true"
+                  />
+                  {visual.label}
+                  {run.status === "failed" && run.reason ? (
+                    <span className={styles.reason}>{run.reason}</span>
+                  ) : null}
+                </td>
+                <td>
+                  {run.prUrl && run.prNumber ? (
+                    <span className={styles.pr}>
+                      <a href={run.prUrl} target="_blank" rel="noreferrer">
+                        #{run.prNumber}
+                      </a>
+                      {run.taskId ? (
+                        <PRStatusBadgePanel taskId={run.taskId} />
+                      ) : null}
+                    </span>
+                  ) : (
+                    EM_DASH
+                  )}
+                </td>
+                <td>{formatDuration(run.durationSeconds)}</td>
+                <td>{formatRelativeTime(run.startedAt ?? run.createdAt)}</td>
+                <td>{run.createdBy ? shortAgentId(run.createdBy) : EM_DASH}</td>
+                <td>
+                  {run.costUsd !== null ? formatCost(run.costUsd) : EM_DASH}
+                </td>
+              </tr>
+            );
+          })
+        )}
       </tbody>
       {skipCount > 0 ? (
         <tfoot>
