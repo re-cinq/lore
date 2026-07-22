@@ -150,23 +150,12 @@ describe("layoutAssemblyLine", () => {
     );
   });
 
-  it("fans the three parallel review-to-done edges onto distinct paths and labels", () => {
-    const edges = layoutAssemblyLine(codeReviewDefinition).edges.filter(
-      (e) => e.from === "review" && e.to === "done",
-    );
-
-    expect(edges).toHaveLength(3);
-    expect(new Set(edges.map((e) => e.d)).size).toBe(3);
-    expect(new Set(edges.map((e) => `${e.labelX},${e.labelY}`)).size).toBe(3);
-  });
-
-  it("gives a lone forward edge parallelCount 1 and index 0", () => {
+  it("draws a lone forward edge level between the facing node ports", () => {
     const edge = layoutAssemblyLine(twoNodeLine).edges.find(
       (e) => e.kind === "forward",
     );
 
-    expect(edge?.parallelCount).toBe(1);
-    expect(edge?.parallelIndex).toBe(0);
+    expect(new Set(yValuesOf(edge?.d ?? "")).size).toBe(1);
   });
 
   it("places a node at x proportional to its layer", () => {
@@ -245,14 +234,5 @@ describe("layoutAssemblyLine", () => {
 
     expect(spanX).toBeLessThan(layoutAssemblyLine(twoNodeLine).width);
     expect(spanX).toBeGreaterThan(0);
-  });
-
-  it("stacks parallel-edge labels far enough apart to clear the label font", () => {
-    const labels = layoutAssemblyLine(codeReviewDefinition)
-      .edges.map((e) => e.labelY)
-      .sort((a, b) => a - b);
-    const gaps = labels.slice(1).map((y, i) => y - labels[i]);
-
-    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(20);
   });
 });

@@ -49,8 +49,6 @@ export interface VisibleEdge {
   from: string;
   to: string;
   tone: ConnectorTone;
-  /** null renders a plain connector with no label. */
-  label: string | null;
 }
 
 export interface VisibleGraph {
@@ -100,12 +98,7 @@ function definitionGraph(definition: AssemblyLineDefinition): VisibleGraph {
     );
 
     if (targets.length === 1) {
-      edges.push({
-        from: node.id,
-        to: targets[0],
-        tone: "neutral",
-        label: null,
-      });
+      edges.push({ from: node.id, to: targets[0], tone: "neutral" });
       continue;
     }
 
@@ -118,7 +111,6 @@ function definitionGraph(definition: AssemblyLineDefinition): VisibleGraph {
         from: node.id,
         to,
         tone: ons.length === 1 ? outcomeTone(ons[0]) : "neutral",
-        label: null,
       });
     }
   }
@@ -158,7 +150,7 @@ function runGraph(
     }
 
     seen.add(pair);
-    edges.push({ from: edge.from, to: edge.to, tone: "neutral", label: null });
+    edges.push({ from: edge.from, to: edge.to, tone: "neutral" });
   }
 
   const terminals = terminalIds(definition);
