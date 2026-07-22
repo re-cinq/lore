@@ -19,6 +19,13 @@ export type NodeRunStatus = "idle" | "running" | "succeeded" | "failed";
 
 export interface NodeRunState {
   status: NodeRunStatus;
+  /**
+   * The recorded verdict from the walk row (success / changes_requested / failed /
+   * <kind>-failed), or null while the node is in flight. Authoritative for the
+   * badge: unlike `status`, the event stream never overwrites it, so a review that
+   * exits 0 with a "failed" verdict can never masquerade as succeeded.
+   */
+  outcome: string | null;
   iteration: number;
   readonly transcript: readonly RunStreamEvent[];
   /** Events evicted by the cap; non-zero once the transcript is partial. */
@@ -47,6 +54,7 @@ export interface RunLiveState {
 // silently working, which is the exact failure this guards against.
 const IDLE: NodeRunState = Object.freeze({
   status: "idle",
+  outcome: null,
   iteration: 0,
   transcript: Object.freeze([]),
   droppedCount: 0,
@@ -88,6 +96,7 @@ export function initialRunState(
 
     nodeStates[row.nodeId] = {
       status: seedStatus(row.outcome),
+      outcome: row.outcome,
       iteration: row.iteration,
       transcript: [],
       droppedCount: 0,
@@ -197,6 +206,9 @@ export function reduceRunEvent(
       ...state.nodeStates,
       [event.nodeId]: {
         status: nextStatus(event, node.status),
+        // The verdict comes from the walk row, never the event stream: a benign
+        // `result` (pod exited 0) must not un-fail a node whose verdict failed.
+        outcome: node.outcome,
         iteration: event.iteration ?? node.iteration,
         ...appendCapped(node, event),
       },

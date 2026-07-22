@@ -1,498 +1,192 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import RunGraphView from "./RunGraphView";
 import {
-  implementationDefinition,
   codeReviewDefinition,
+  implementationDefinition,
 } from "@/lib/builtin-definitions";
-import { initialRunState } from "@/lib/run-event-reducer";
-import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
-import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
+import { deriveVisibleGraph, type RunData } from "@/lib/graph-view-model";
 
-const row = (
-  nodeId: string,
-  over: Partial<AssemblyLineRunNode> = {},
-): AssemblyLineRunNode => ({
-  nodeId,
-  iteration: 1,
-  outcome: "success",
-  agentCrName: null,
-  commitSha: null,
-  durationSeconds: null,
+const runData = (over: Partial<RunData> = {}): RunData => ({
+  executed: new Set<string>(),
+  verdicts: {},
+  statuses: {},
+  taken: new Set<string>(),
+  result: null,
   ...over,
 });
 
-const states = (rows: AssemblyLineRunNode[] = []) =>
-  initialRunState(implementationDefinition, rows).nodeStates;
+const failedReviewRun = runData({
+  executed: new Set(["review", "done"]),
+  verdicts: { review: "failed" },
+  taken: new Set(["review-done-failed"]),
+  result: "failed",
+});
 
 const nodeEl = (container: HTMLElement, id: string) =>
   container.querySelector(`[data-node="${id}"]`) as SVGGElement;
 
-describe("RunGraphView structure", () => {
-  it("renders one node for each of the 7 implementation-definition nodes", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-      />,
+const renderGraph = (
+  definition = codeReviewDefinition,
+  run: RunData | null = null,
+  mode: "run" | "definition" = "definition",
+) =>
+  render(
+    <RunGraphView
+      graph={deriveVisibleGraph(definition, run, mode)}
+      definition={definition}
+    />,
+  );
+
+describe("RunGraphView run mode", () => {
+  it("draws only the executed nodes and a single connector for a failed run", () => {
+    const { container } = renderGraph(
+      codeReviewDefinition,
+      failedReviewRun,
+      "run",
     );
 
-    expect(container.querySelectorAll("[data-node]")).toHaveLength(7);
+    expect(container.querySelectorAll("[data-node]")).toHaveLength(2);
+    expect(container.querySelectorAll("[data-edge]")).toHaveLength(1);
+    expect(nodeEl(container, "review")).toBeTruthy();
+    expect(nodeEl(container, "done")).toBeTruthy();
   });
 
-  it("shows no attempt badge on a pending node whose edge declares iteration_max", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-      />,
+  it("shows the verdict on the review node and the result on the terminal", () => {
+    const { container } = renderGraph(
+      codeReviewDefinition,
+      failedReviewRun,
+      "run",
     );
 
-    expect(nodeEl(container, "implement").textContent).not.toContain("0/");
+    expect(nodeEl(container, "review").getAttribute("data-tone")).toBe("err");
+    expect(nodeEl(container, "review")).toHaveTextContent("Failed");
+    expect(nodeEl(container, "done").getAttribute("data-tone")).toBe("err");
+    expect(nodeEl(container, "done")).toHaveTextContent("Failed");
   });
 
-  it("renders one path for each of the 10 implementation-definition edges", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-      />,
+  it("uses a neutral connector with no label in run mode", () => {
+    const { container } = renderGraph(
+      codeReviewDefinition,
+      failedReviewRun,
+      "run",
     );
+    const edge = container.querySelector("[data-edge]");
 
-    expect(container.querySelectorAll("path[data-edge]")).toHaveLength(10);
+    expect(edge?.getAttribute("data-tone")).toBe("neutral");
+    expect(container.querySelectorAll("text").length).toBeGreaterThan(0);
+    // no edge label text: the only texts are node ids and status labels
+    expect(container.textContent).not.toContain("success");
+    expect(container.textContent).not.toContain("changes_requested");
   });
 
-  it("renders both review-to-retrospective edges when success and failed share a path", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-      />,
-    );
+  it("does not draw the unused success or changes_requested paths", () => {
+    const successRun = runData({
+      executed: new Set(["review", "done"]),
+      verdicts: { review: "success" },
+      taken: new Set(["review-done-success"]),
+      result: "completed",
+    });
+    const { container } = renderGraph(codeReviewDefinition, successRun, "run");
 
-    expect(
-      container.querySelectorAll('[data-edge^="review-retrospective-"]'),
-    ).toHaveLength(2);
+    expect(container.querySelectorAll("[data-edge]")).toHaveLength(1);
+    expect(nodeEl(container, "review")).toHaveTextContent("Succeeded");
+    expect(nodeEl(container, "done")).toHaveTextContent("Completed");
   });
 
-  it("renders the implement self-loop with edge kind self", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-      />,
-    );
+  it("shows the changes_requested verdict in the review node", () => {
+    const changesRun = runData({
+      executed: new Set(["review", "done"]),
+      verdicts: { review: "changes_requested" },
+      taken: new Set(["review-done-changes_requested"]),
+      result: "completed",
+    });
+    const { container } = renderGraph(codeReviewDefinition, changesRun, "run");
 
-    expect(
-      container
-        .querySelector('[data-edge="implement-implement-failed"]')
-        ?.getAttribute("data-kind"),
-    ).toBe("self");
+    expect(nodeEl(container, "review").getAttribute("data-tone")).toBe("warn");
+    expect(nodeEl(container, "review")).toHaveTextContent("Changes requested");
   });
 
-  it("renders the validate-to-implement back edge with edge kind back", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-      />,
+  it("names each node with its status so meaning does not rest on color", () => {
+    const { container } = renderGraph(
+      codeReviewDefinition,
+      failedReviewRun,
+      "run",
     );
 
-    expect(
-      container
-        .querySelector('[data-edge="validate-implement-failed"]')
-        ?.getAttribute("data-kind"),
-    ).toBe("back");
-  });
-
-  it("renders a title naming the definition", () => {
-    render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-      />,
-    );
-
-    expect(
-      screen.getByRole("img", { name: /implementation/ }),
-    ).toBeInTheDocument();
-  });
-
-  it("renders a finite viewBox rather than a degenerate one", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-      />,
-    );
-
-    const viewBox = container.querySelector("svg")?.getAttribute("viewBox");
-
-    expect(viewBox?.split(" ").every((n) => Number.isFinite(Number(n)))).toBe(
-      true,
+    expect(nodeEl(container, "review").getAttribute("aria-label")).toBe(
+      "review — Failed",
     );
   });
 });
 
-describe("RunGraphView edge labels", () => {
-  it("renders the on-condition as the edge label when showEdgeLabels is true", () => {
-    render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-        showEdgeLabels
-      />,
+describe("RunGraphView definition mode", () => {
+  it("renders one connector and lists outcomes inside the source node", () => {
+    const { container } = renderGraph(codeReviewDefinition, null, "definition");
+
+    expect(container.querySelectorAll("[data-edge]")).toHaveLength(1);
+    const outcomes = [...container.querySelectorAll("[data-outcome]")].map(
+      (el) => el.getAttribute("data-outcome"),
     );
 
-    expect(screen.getByText("changes_requested")).toBeInTheDocument();
+    expect(outcomes).toEqual(["success", "changes_requested", "failed"]);
   });
 
-  it("renders the three parallel review-to-done labels at distinct y positions", () => {
-    render(
-      <RunGraphView
-        definition={codeReviewDefinition}
-        nodeStates={{}}
-        showEdgeLabels
-      />,
+  it("renders separate branches when outcomes lead to different nodes", () => {
+    const { container } = renderGraph(
+      implementationDefinition,
+      null,
+      "definition",
     );
+    const reviewEdges = [...container.querySelectorAll("[data-edge]")]
+      .map((el) => el.getAttribute("data-edge"))
+      .filter((k) => k?.startsWith("review->"));
 
-    const ys = ["success", "changes_requested", "failed"].map((on) =>
-      screen.getByText(on).getAttribute("y"),
-    );
-
-    expect(new Set(ys).size).toBe(3);
-  });
-
-  it("renders no edge labels when showEdgeLabels is false", () => {
-    render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-        showEdgeLabels={false}
-      />,
-    );
-
-    expect(screen.queryByText("changes_requested")).not.toBeInTheDocument();
-  });
-});
-
-describe("RunGraphView node status", () => {
-  it("renders a node with a null outcome as Running with tone running", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states([row("implement", { outcome: null })])}
-      />,
-    );
-
-    expect(nodeEl(container, "implement").getAttribute("data-tone")).toBe(
-      "running",
-    );
-    expect(nodeEl(container, "implement")).toHaveTextContent("Running");
-  });
-
-  it("renders a node with outcome success as Succeeded with tone ok", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states([row("validate")])}
-      />,
-    );
-
-    expect(nodeEl(container, "validate").getAttribute("data-tone")).toBe("ok");
-    expect(nodeEl(container, "validate")).toHaveTextContent("Succeeded");
-  });
-
-  it("renders a node with outcome implement-failed as Failed with tone err", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states([row("implement", { outcome: "implement-failed" })])}
-      />,
-    );
-
-    expect(nodeEl(container, "implement").getAttribute("data-tone")).toBe(
-      "err",
-    );
-    expect(nodeEl(container, "implement")).toHaveTextContent("Failed");
-  });
-
-  it("renders a definition node with no visit row as Pending with tone idle", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states([row("implement")])}
-      />,
-    );
-
-    expect(nodeEl(container, "review").getAttribute("data-tone")).toBe("idle");
-    expect(nodeEl(container, "review")).toHaveTextContent("Pending");
-  });
-
-  it("names each node with its id and status label so tone is never the only signal", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states([row("push")])}
-      />,
-    );
-
-    expect(nodeEl(container, "push").getAttribute("aria-label")).toBe(
-      "push — Succeeded",
+    expect(new Set(reviewEdges)).toEqual(
+      new Set(["review->retrospective", "review->address"]),
     );
   });
 
-  it("renders 2 of 3 as the attempt badge for iteration 2 on an iteration_max 2 edge", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states([row("address", { iteration: 2 })])}
-      />,
-    );
+  it("does not label the collapsed same-target connector", () => {
+    const { container } = renderGraph(codeReviewDefinition, null, "definition");
 
-    expect(nodeEl(container, "address")).toHaveTextContent("2/3");
-  });
+    expect(container.textContent).not.toContain("review->done");
+    // the connector carries no verdict label; outcomes live in the node instead
+    const edge = container.querySelector('[data-edge="review->done"]');
 
-  it("renders no attempt badge for a node whose inbound edges carry no iteration_max", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states([row("push", { iteration: 2 })])}
-      />,
-    );
-
-    expect(nodeEl(container, "push")).not.toHaveTextContent("2/");
+    expect(edge?.getAttribute("data-tone")).toBe("neutral");
   });
 });
 
 describe("RunGraphView interaction", () => {
-  it("focuses a node by keyboard tab when onSelectNode is supplied", async () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-        onSelectNode={vi.fn()}
-      />,
-    );
-
-    await userEvent.tab();
-
-    expect(document.activeElement).toBe(nodeEl(container, "implement"));
-  });
-
-  it("calls onSelectNode with the node id when Enter is pressed on a focused node", async () => {
-    const onSelectNode = vi.fn();
+  it("calls onSelectNode when a node is clicked", async () => {
+    const onSelect = vi.fn();
 
     render(
       <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-        onSelectNode={onSelectNode}
+        graph={deriveVisibleGraph(codeReviewDefinition, failedReviewRun, "run")}
+        definition={codeReviewDefinition}
+        onSelectNode={onSelect}
       />,
     );
 
-    await userEvent.tab();
+    await userEvent.click(
+      document.querySelector('[data-node="review"]') as Element,
+    );
 
-    await userEvent.keyboard("{Enter}");
-
-    expect(onSelectNode).toHaveBeenCalledWith("implement");
+    expect(onSelect).toHaveBeenCalledWith("review");
   });
 
-  it("calls onSelectNode with the node id when Space is pressed on a focused node", async () => {
-    const onSelectNode = vi.fn();
-
-    render(
+  it("renders an empty-state message for a graph with no nodes", () => {
+    const { getByText } = render(
       <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-        onSelectNode={onSelectNode}
+        graph={{ mode: "run", nodes: [], edges: [] }}
+        definition={null}
       />,
     );
 
-    await userEvent.tab();
-
-    await userEvent.keyboard(" ");
-
-    expect(onSelectNode).toHaveBeenCalledWith("implement");
-  });
-
-  it("ignores keys other than Enter and Space on a focused node", async () => {
-    const onSelectNode = vi.fn();
-
-    render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-        onSelectNode={onSelectNode}
-      />,
-    );
-
-    await userEvent.tab();
-
-    await userEvent.keyboard("x");
-
-    expect(onSelectNode).not.toHaveBeenCalled();
-  });
-
-  it("calls onSelectNode with the node id when a node is clicked", async () => {
-    const onSelectNode = vi.fn();
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-        onSelectNode={onSelectNode}
-      />,
-    );
-
-    await userEvent.click(nodeEl(container, "review"));
-
-    expect(onSelectNode).toHaveBeenCalledWith("review");
-  });
-
-  it("renders no tabbable node when onSelectNode is omitted", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-      />,
-    );
-
-    expect(container.querySelectorAll("[tabindex]")).toHaveLength(0);
-  });
-
-  it("does not call onSelectNode on click when onSelectNode is omitted", async () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-      />,
-    );
-
-    await userEvent.click(nodeEl(container, "review"));
-
-    expect(nodeEl(container, "review").getAttribute("role")).toBe("group");
-  });
-});
-
-describe("RunGraphView taken path", () => {
-  const edge = (container: HTMLElement, key: string) =>
-    container
-      .querySelector(`[data-edge="${key}"]`)
-      ?.parentElement?.getAttribute("data-taken");
-
-  it("marks the traversed edge taken and the parallel siblings not taken", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-        takenEdges={new Set(["review-retrospective-success"])}
-      />,
-    );
-
-    expect(edge(container, "review-retrospective-success")).toBe("true");
-    expect(edge(container, "review-retrospective-failed")).toBe("false");
-  });
-
-  it("marks no edge taken when the taken set is empty", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-        takenEdges={new Set()}
-      />,
-    );
-
-    expect(edge(container, "review-retrospective-success")).toBe("false");
-  });
-});
-
-describe("RunGraphView terminal node", () => {
-  it("labels an idle node with no outgoing edges Terminal rather than Pending", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-      />,
-    );
-
-    expect(nodeEl(container, "done")).toHaveTextContent("Terminal");
-    expect(nodeEl(container, "done")).not.toHaveTextContent("Pending");
-  });
-
-  it("keeps a non-terminal idle node labelled Pending", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-      />,
-    );
-
-    expect(nodeEl(container, "review")).toHaveTextContent("Pending");
-  });
-});
-
-describe("RunGraphView empty states", () => {
-  it("renders an empty-state message for a null definition", () => {
-    render(<RunGraphView definition={null} nodeStates={{}} />);
-
-    expect(screen.getByText(/no assembly-line graph/i)).toBeInTheDocument();
-  });
-
-  it("renders an empty-state message for a definition with zero nodes", () => {
-    const empty: AssemblyLineDefinition = {
-      name: "empty",
-      description: "",
-      version: 1,
-      entry: "",
-      exit: "",
-      nodes: [],
-      edges: [],
-    };
-
-    render(<RunGraphView definition={empty} nodeStates={{}} />);
-
-    expect(screen.getByText(/no assembly-line graph/i)).toBeInTheDocument();
-  });
-});
-
-describe("RunGraphView sizing", () => {
-  it("caps the svg to a natural px max-width so a small graph is not upscaled to fill the page", () => {
-    const { container } = render(
-      <RunGraphView
-        definition={implementationDefinition}
-        nodeStates={states()}
-      />,
-    );
-
-    expect(container.querySelector("svg")?.style.maxWidth).toMatch(/^\d+px$/);
-  });
-
-  it("anchors a lone node to the left of the frame rather than centering it", () => {
-    const solo: AssemblyLineDefinition = {
-      name: "solo",
-      description: "",
-      version: 1,
-      entry: "only",
-      exit: "only",
-      nodes: [{ id: "only", type: "agent" }],
-      edges: [],
-    };
-    const { container } = render(
-      <RunGraphView definition={solo} nodeStates={{}} />,
-    );
-
-    const [minX, , width] = (
-      container.querySelector("svg")?.getAttribute("viewBox") ?? ""
-    )
-      .split(" ")
-      .map(Number);
-    const nodeLeft = Number(
-      container.querySelector('[data-node="only"] rect')?.getAttribute("x"),
-    );
-
-    // Node sits near the left edge (one padding in), not near the horizontal centre.
-    expect(nodeLeft - minX).toBeLessThan(width / 4);
+    expect(getByText(/no assembly-line graph/i)).toBeInTheDocument();
   });
 });

@@ -65,7 +65,10 @@ export interface LayoutOptions {
 type ResolvedOptions = Required<LayoutOptions>;
 
 const DEFAULTS: ResolvedOptions = {
-  layerGap: 180,
+  // Wide enough that a condition label ("changes_requested", ~95px at 12px)
+  // fits in the gap between two adjacent nodes (layerGap - nodeWidth) instead
+  // of smearing across the boxes on either side.
+  layerGap: 240,
   rowGap: 96,
   nodeWidth: 132,
   nodeHeight: 48,
@@ -351,36 +354,46 @@ function pathFor(
   }
 
   const bend = opts.layerGap / 3;
-  // Fan parallel forward edges vertically: centre the group on the straight
-  // line, then spread siblings by a fixed gap so three review->done outcomes
-  // read as three arcs rather than one.
-  const spread = fanOffset(edge);
+  // Parallel forward edges exit and enter on their own ports (distinct heights on
+  // the node faces, so the arrowheads never pile up), then bow apart: the control
+  // points sit at the wider belly offset, splaying the arcs' middles so each has
+  // room to carry its own label. A lone edge (port 0) stays a straight line.
+  const port = fanOffset(edge);
+  const belly = port * BELLY_SCALE;
 
   return [
-    `M ${from.x + halfW} ${from.y}`,
-    `C ${from.x + halfW + bend} ${from.y + spread}`,
-    `${to.x - halfW - bend} ${to.y + spread}`,
-    `${to.x - halfW} ${to.y}`,
+    `M ${from.x + halfW} ${from.y + port}`,
+    `C ${from.x + halfW + bend} ${from.y + belly}`,
+    `${to.x - halfW - bend} ${to.y + belly}`,
+    `${to.x - halfW} ${to.y + port}`,
   ].join(" ");
 }
 
-const FAN_GAP = 16;
-// Labels need more vertical room than the arcs: a ~12u label overprints its
-// neighbours at the 16u arc pitch (long conditions like `changes_requested`
-// collide), so labels stack at their own wider pitch, decoupled from the arcs.
-const LABEL_GAP = 26;
+// Vertical pitch between sibling ports on a node face. Three upward-fanned
+// edges reach -2*FAN_GAP; at 12 that is -24, exactly the node's half-height, so
+// even the topmost port sits on the face rather than floating above the box.
+const FAN_GAP = 12;
+// The bellies (arc midpoints) fan wider than the ports so each arc carries its
+// own label: control points sit at FAN_GAP*BELLY_SCALE, spreading the midpoints
+// to ~FAN_GAP*7/4 (≈21u) apart — clear of the ~12u label height. Endpoints stay
+// on the face; only the middles splay.
+const BELLY_SCALE = 2;
+// Nudge the label baseline below the belly so the arc runs through the glyphs
+// (the paint-order-stroke halo knocks the line out), reading as a label ON the
+// arc rather than floating beside it.
+const LABEL_ON_ARC_NUDGE = 4;
 
 // Parallel edges fan UPWARD only (never below the straight line), so they stay
 // clear of the back-edge lane that runs beneath the row. index 0 sits on the
-// line; each later sibling lifts by one gap.
-function fanOffset(edge: ClassifiedEdgeWithFan, gap: number = FAN_GAP): number {
+// line; each later sibling lifts by one FAN_GAP.
+function fanOffset(edge: ClassifiedEdgeWithFan): number {
   const count = edge.parallelCount ?? 1;
 
   if (count <= 1) {
     return 0;
   }
 
-  return -edge.parallelIndex * gap;
+  return -edge.parallelIndex * FAN_GAP;
 }
 
 interface ClassifiedEdgeWithFan extends ClassifiedEdge {
@@ -404,7 +417,14 @@ function labelPointFor(
     return { x: from.x, y: from.y - opts.nodeHeight };
   }
 
-  const spread = fanOffset(edge, LABEL_GAP);
+  // Sit the label on its own arc at the belly (the curve's t=0.5 point, whose x
+  // is exactly the horizontal midpoint). The bellies are ~21u apart, so the
+  // labels clear each other; the halo handles the arc crossing each glyph.
+  const port = fanOffset(edge);
+  const bellyMid = (port + 3 * port * BELLY_SCALE) / 4;
 
-  return { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 - 8 + spread };
+  return {
+    x: (from.x + to.x) / 2,
+    y: (from.y + to.y) / 2 + bellyMid + LABEL_ON_ARC_NUDGE,
+  };
 }

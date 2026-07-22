@@ -6,7 +6,7 @@
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import type { AssemblyLineRunNode } from "./assembly-line-runs";
 import type { NodeRunState } from "./run-event-reducer";
-import { nodeStatusVisual, type NodeStatusTone } from "./run-node-status";
+import { nodeRunVisual, type NodeStatusTone } from "./run-node-status";
 import { formatDuration } from "./assembly-line-presenter";
 
 export interface NodeDetailInput {
@@ -116,6 +116,10 @@ function whyText(
     }`;
   }
 
+  if (tone === "warn") {
+    return `Ran ${noun} and requested changes in ${duration}.`;
+  }
+
   if (tone === "err") {
     return `Failed: ${failureSummary(input.state) ?? input.reason ?? `${noun} did not complete`}.`;
   }
@@ -128,8 +132,12 @@ function whyText(
 }
 
 export function describeNode(input: NodeDetailInput): NodeDetail {
-  const status = input.state?.status ?? "idle";
-  const visual = nodeStatusVisual(status);
+  // The verdict on the walk row is authoritative; the execution status only fills
+  // in while a node is still in flight (no recorded outcome yet).
+  const visual = nodeRunVisual(
+    input.row?.outcome ?? null,
+    input.state?.status ?? "idle",
+  );
   const terminal = isTerminal(input.definition, input.nodeId);
   const durationSeconds = input.row?.durationSeconds ?? null;
   const running = visual.tone === "running";

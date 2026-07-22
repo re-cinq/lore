@@ -30,6 +30,10 @@
   background: var(--success-bg);
   color: var(--success);
 }
+.pillWarn {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
 .pillErr {
   background: var(--danger-bg);
   color: var(--danger);
@@ -53,6 +57,10 @@
 .whyOk {
   border-left-color: var(--success);
   background: var(--success-bg);
+}
+.whyWarn {
+  border-left-color: var(--warning);
+  background: var(--warning-bg);
 }
 .whyErr {
   border-left-color: var(--danger);

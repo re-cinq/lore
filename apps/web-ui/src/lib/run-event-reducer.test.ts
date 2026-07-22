@@ -82,6 +82,7 @@ describe("initialRunState", () => {
     );
     expect(state.nodeStates.done).toEqual({
       status: "idle",
+      outcome: null,
       iteration: 0,
       transcript: [],
       droppedCount: 0,
@@ -146,6 +147,18 @@ describe("reduceRunEvent", () => {
     );
 
     expect(state.nodeStates.implement.status).toBe("failed");
+  });
+
+  it("keeps a failed verdict when a benign result event follows (pod exited clean)", () => {
+    const seeded = initialRunState(implementationDefinition, [
+      visitRow({ nodeId: "implement", outcome: "failed" }),
+    ]);
+    const state = reduceRunEvent(
+      seeded,
+      event({ eventType: "result", isError: false }),
+    );
+
+    expect(state.nodeStates.implement.outcome).toBe("failed");
   });
 
   it("resets a failed implement to running on an iteration 2 init", () => {
