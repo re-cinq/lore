@@ -647,6 +647,7 @@ describe("run-graph verdict on a finished run (regression)", () => {
         reason={'node "review" failed'}
       />,
     );
+
     await settle();
 
     expect(nodeTone(container, "review")).toBe("err");

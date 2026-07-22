@@ -274,8 +274,10 @@ export default function RunVisualizationPanel({
     // review that exited its pod cleanly with a failed verdict would otherwise
     // read from its "succeeded" execution status instead of "failed".
     const latest = new Map<string, (typeof nodes)[number]>();
+
     for (const n of nodes) {
       const prev = latest.get(n.nodeId);
+
       if (!prev || n.iteration >= prev.iteration) {
         latest.set(n.nodeId, n);
       }
