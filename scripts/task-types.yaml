@@ -147,14 +147,21 @@ task_types:
     prompt_template: |
       {description}
 
-      The task line above states the intent and the thread. Act on it:
-      - intent = address: implement the requested fix, commit it to the PR
-        branch (already checked out), then post a SHORT confirmation in the
-        review thread via `gh api` (…/pulls/<pr>/comments/<root_id>/replies).
-      - intent = answer: reply briefly in the review thread via `gh api`; do
-        NOT change code.
-      Read the thread being replied to (the in_reply_to id in the task) to
-      understand what "it" refers to before acting.
+      The PR branch is checked out at /workspace/target and the task line above
+      states the intent and the thread. Do NOT use `gh` and do NOT touch the
+      network (the pod has neither `gh` nor a GitHub token in the shell) — read
+      and commit locally, and let Lore post your reply.
+      - intent = address: implement the requested fix under /workspace/target
+        and commit it to the checked-out PR branch, e.g.
+        `git -C /workspace/target commit -am "<message>"`.
+      - intent = answer: do NOT change code.
+      The human's comment is quoted in the task above — act on that.
+
+      Emit your reply as a fenced block; Lore posts it in-thread for you:
+
+      ```REVIEW_REPLY
+      <short markdown reply>
+      ```
 
       Then output exactly one of:
       - REVIEW_RESULT:APPROVED

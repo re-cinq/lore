@@ -19,6 +19,7 @@ import {
 import type { AssemblyLineRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
 import { finishNodeAndAdvance, type AdvanceDeps } from "./advance.js";
 import { maybePostReview, type ReviewPoster } from "../review/post-review.js";
+import { parseReviewReply } from "@re-cinq/lore-shared/review/review-reply.js";
 import { publishPrCheck } from "./pr-check.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { writeAuditLog } from "../lib/audit.js";
@@ -84,6 +85,8 @@ export async function finishNodeTerminal(
 ): Promise<void> {
   const post = await postReviewFromNode(input.row, input.node, input.output);
 
+  await postReplyFromNode(input.row, input.node, input.output);
+
   await finishNodeAndAdvance(
     {
       assemblyLineId: input.row.id,
@@ -136,6 +139,95 @@ export async function postReviewFromNode(
     await writeAuditLog(
       {
         event_type: "review_post_failed",
+        repo: row.repo,
+        payload: {
+          pr_number: prNumber,
+          assembly_line_id: row.id,
+          error: message,
+        },
+      },
+      ports.audit,
+    );
+
+    return "post_failed";
+  }
+}
+
+/** The narrow PR surface the reply post touches — a light double in tests. */
+export interface ReplyPoster {
+  replyToReviewComment(
+    number: number,
+    commentId: number,
+    body: string,
+  ): Promise<void>;
+  comment(number: number, body: string): Promise<void>;
+}
+
+/** How the reply post went (mirrors {@link ReviewPostOutcome}). `no_reply` when
+ *  the refine node emitted no ` ```REVIEW_REPLY ` block; `not_reply` for any other
+ *  node. Reply posting is a side effect — it never overrides the node outcome
+ *  (the refine node's REVIEW_RESULT verdict drives success/failed). */
+export type ReplyPostOutcome =
+  "posted" | "no_reply" | "post_failed" | "not_reply";
+
+/**
+ * The code-review-refine node commits its fix (git + clone token) but cannot
+ * post to GitHub itself — the pod has no `gh`. It emits a fenced REVIEW_REPLY
+ * block; post it in-thread here (in_reply_to_id → the review-comment thread,
+ * else a plain PR comment). Absent block or a throw is audited, never fatal.
+ */
+export async function postReplyFromNode(
+  row: AssemblyLineRecord,
+  node: AssemblyLineNode,
+  output?: string,
+  ports: { poster?: ReplyPoster; audit?: AuditPort } = {},
+): Promise<ReplyPostOutcome> {
+  if (node.prompt_ref !== "code-review-refine") {
+    return "not_reply";
+  }
+  const prNumber = Number(row.args.pr_number) || 0;
+
+  if (!prNumber) {
+    return "not_reply";
+  }
+  const body = parseReviewReply(output ?? "");
+
+  if (!body) {
+    await writeAuditLog(
+      {
+        event_type: "review_reply_unparsed",
+        repo: row.repo,
+        payload: {
+          pr_number: prNumber,
+          assembly_line_id: row.id,
+          output_length: output?.length ?? 0,
+        },
+      },
+      ports.audit,
+    );
+
+    return "no_reply";
+  }
+  const inReplyTo =
+    Number(row.args.in_reply_to_id) || Number(row.args.comment_id) || 0;
+
+  try {
+    const pulls = ports.poster ?? (await projectFor(row.repo)).pulls;
+
+    if (inReplyTo > 0) {
+      await pulls.replyToReviewComment(prNumber, inReplyTo, body);
+    } else {
+      await pulls.comment(prNumber, body);
+    }
+
+    return "posted";
+  } catch (err) {
+    const message = (err as Error).message;
+
+    console.error("[code-review-refine] post reply failed:", message);
+    await writeAuditLog(
+      {
+        event_type: "review_reply_post_failed",
         repo: row.repo,
         payload: {
           pr_number: prNumber,
