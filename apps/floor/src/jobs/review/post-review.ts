@@ -22,29 +22,42 @@ import type {
   ReviewOutput,
 } from "@re-cinq/lore-shared/review/review-findings.js";
 import { parseReviewVerdict } from "@re-cinq/lore-assembly-lines";
+import {
+  isCommentable,
+  type CommentablePositions,
+} from "@re-cinq/lore-shared/review/diff-hunks.js";
 import type { CreateReviewInput } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 
 /** The narrow PR surface the poster touches — a light double in tests. */
 export interface ReviewPoster {
   createReview(number: number, input: CreateReviewInput): Promise<void>;
   comment(number: number, body: string): Promise<void>;
-  listFiles(number: number): Promise<string[]>;
+  getDiff(number: number): Promise<string>;
 }
 
 /**
- * Split findings by whether their file is in the PR diff. A finding on a file
- * the PR does not change can never be an inline comment — GitHub 422s the whole
- * atomic review over it — so it rides in the body instead.
+ * Split findings by whether their exact (path, line) is inside a diff hunk. Only
+ * a line GitHub will accept can be an inline comment — one that is not (a line in
+ * an unchanged region, or a file the PR does not touch) 422s the whole atomic
+ * review — so it rides in the body instead. Line-level, not file-level: a finding
+ * on a changed file but an unchanged line still cannot be inline.
  */
-export function partitionByDiff(
+export function partitionByHunks(
   findings: ReviewFinding[],
-  changedPaths: Set<string>,
+  positions: CommentablePositions,
 ): { inline: ReviewFinding[]; overflow: ReviewFinding[] } {
   const inline: ReviewFinding[] = [];
   const overflow: ReviewFinding[] = [];
 
   for (const finding of findings) {
-    (changedPaths.has(finding.path) ? inline : overflow).push(finding);
+    const commentable = isCommentable(
+      positions,
+      finding.path,
+      finding.line,
+      finding.side,
+    );
+
+    (commentable ? inline : overflow).push(finding);
   }
 
   return { inline, overflow };
@@ -106,9 +119,9 @@ export async function postReview(
   pulls: ReviewPoster,
   prNumber: number,
   output: ReviewOutput,
-  changedPaths: Set<string>,
+  positions: CommentablePositions,
 ): Promise<void> {
-  const { inline, overflow } = partitionByDiff(output.findings, changedPaths);
+  const { inline, overflow } = partitionByHunks(output.findings, positions);
 
   try {
     await pulls.createReview(prNumber, {
@@ -137,14 +150,14 @@ function approvedWithoutFindings(agentOutput: string): ReviewOutput | null {
 /**
  * Parse the review node's raw output and post the review. No-op (returns false)
  * when the output carries neither a valid `REVIEW_FINDINGS` block nor a bare
- * approval verdict. `changedPaths` is the PR's changed-file set, used to keep an
- * out-of-diff finding out of the inline comments array.
+ * approval verdict. `positions` are the diff's commentable lines, used to keep a
+ * finding on an uninlineable line out of the inline comments array.
  */
 export async function maybePostReview(
   pulls: ReviewPoster,
   prNumber: number,
   agentOutput: string,
-  changedPaths: Set<string>,
+  positions: CommentablePositions,
 ): Promise<boolean> {
   const output =
     parseReviewFindings(agentOutput) ?? approvedWithoutFindings(agentOutput);
@@ -152,7 +165,7 @@ export async function maybePostReview(
   if (!output) {
     return false;
   }
-  await postReview(pulls, prNumber, output, changedPaths);
+  await postReview(pulls, prNumber, output, positions);
 
   return true;
 }
