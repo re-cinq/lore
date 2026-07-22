@@ -123,7 +123,15 @@ export async function postReviewFromNode(
 
   try {
     const pulls = ports.poster ?? (await projectFor(row.repo)).pulls;
-    const posted = await maybePostReview(pulls, prNumber, output ?? "");
+    const changedPaths = new Set(
+      await pulls.listFiles(prNumber).catch(() => [] as string[]),
+    );
+    const posted = await maybePostReview(
+      pulls,
+      prNumber,
+      output ?? "",
+      changedPaths,
+    );
 
     if (!posted) {
       await auditUnparsedFindings(row, prNumber, output, ports);

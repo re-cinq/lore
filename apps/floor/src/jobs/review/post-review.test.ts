@@ -2,37 +2,64 @@ import { describe, it, expect } from "vitest";
 import {
   postReview,
   maybePostReview,
+  partitionByDiff,
   type ReviewPoster,
 } from "./post-review.js";
 import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
 import type { CreateReviewInput } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
-import type { ReviewOutput } from "@re-cinq/lore-shared/review/review-findings.js";
+import type {
+  ReviewFinding,
+  ReviewOutput,
+} from "@re-cinq/lore-shared/review/review-findings.js";
 
-function recorder() {
+function recorder(opts: { createReviewThrows?: boolean } = {}) {
   const calls: Array<{ number: number; input: CreateReviewInput }> = [];
+  const comments: Array<{ number: number; body: string }> = [];
+  const createReview = opts.createReviewThrows
+    ? async () => {
+        throw new Error("line must be part of the diff");
+      }
+    : async (number: number, input: CreateReviewInput) => {
+        calls.push({ number, input });
+      };
   const pulls: ReviewPoster = {
-    createReview: async (number, input) => {
-      calls.push({ number, input });
+    createReview,
+    comment: async (number, body) => {
+      comments.push({ number, body });
     },
+    listFiles: async () => [],
   };
 
-  return { pulls, calls };
+  return { pulls, calls, comments };
 }
 
+const finding = (over: Partial<ReviewFinding> = {}): ReviewFinding => ({
+  path: "src/a.ts",
+  line: 12,
+  label: "issue",
+  decoration: "blocking",
+  subject: "null deref",
+  ...over,
+});
+
+describe("partitionByDiff", () => {
+  it("keeps findings on changed files inline and folds the rest into overflow", () => {
+    const inDiff = finding({ path: "src/a.ts" });
+    const outOfDiff = finding({ path: "CLAUDE.md" });
+
+    expect(partitionByDiff([inDiff, outOfDiff], new Set(["src/a.ts"]))).toEqual(
+      { inline: [inDiff], overflow: [outOfDiff] },
+    );
+  });
+});
+
 describe("postReview", () => {
-  it("posts one COMMENT review with a rendered comment per finding and a summary", async () => {
+  it("posts one COMMENT review with a rendered comment per in-diff finding and a summary", async () => {
     const { pulls, calls } = recorder();
     const output: ReviewOutput = {
       verdict: "changes_requested",
       findings: [
-        {
-          path: "src/a.ts",
-          line: 12,
-          label: "issue",
-          decoration: "blocking",
-          subject: "null deref",
-          suggestion: "const x = y ?? 0;",
-        },
+        finding({ suggestion: "const x = y ?? 0;" }),
         {
           path: "src/b.ts",
           line: 3,
@@ -43,7 +70,7 @@ describe("postReview", () => {
       ],
     };
 
-    await postReview(pulls, 7, output);
+    await postReview(pulls, 7, output, new Set(["src/a.ts", "src/b.ts"]));
 
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
@@ -64,6 +91,41 @@ describe("postReview", () => {
       "### Lore review — Changes suggested",
     );
   });
+
+  it("folds a finding on a file outside the diff into the body, never inline (the 422 trap)", async () => {
+    const { pulls, calls } = recorder();
+    const output: ReviewOutput = {
+      verdict: "changes_requested",
+      findings: [
+        finding({ path: "src/a.ts", subject: "in-diff issue" }),
+        finding({ path: "CLAUDE.md", subject: "stale reference" }),
+      ],
+    };
+
+    await postReview(pulls, 7, output, new Set(["src/a.ts"]));
+
+    expect(calls[0]?.input.comments).toHaveLength(1);
+    expect(calls[0]?.input.comments[0]?.path).toBe("src/a.ts");
+    expect(calls[0]?.input.body).toContain(
+      "### Notes on files outside this diff",
+    );
+    expect(calls[0]?.input.body).toContain("CLAUDE.md");
+  });
+
+  it("falls back to one top-level comment when the atomic review post is rejected", async () => {
+    const { pulls, calls, comments } = recorder({ createReviewThrows: true });
+    const output: ReviewOutput = {
+      verdict: "changes_requested",
+      findings: [finding({ path: "src/a.ts", subject: "boom" })],
+    };
+
+    await postReview(pulls, 7, output, new Set(["src/a.ts"]));
+
+    expect(calls).toHaveLength(0);
+    expect(comments).toHaveLength(1);
+    expect(comments[0]).toMatchObject({ number: 7 });
+    expect(comments[0]?.body).toContain("boom");
+  });
 });
 
 describe("maybePostReview", () => {
@@ -74,16 +136,32 @@ describe("maybePostReview", () => {
       findings: [],
     })}\n\`\`\``;
 
-    expect(await maybePostReview(pulls, 7, output)).toBe(true);
+    expect(await maybePostReview(pulls, 7, output, new Set())).toBe(true);
     expect(calls).toHaveLength(1);
   });
 
-  it("does nothing when there is no findings block", async () => {
+  it("posts a visible approval review for a bare REVIEW_RESULT:APPROVED with no findings block", async () => {
     const { pulls, calls } = recorder();
 
-    expect(await maybePostReview(pulls, 7, "REVIEW_RESULT:APPROVED")).toBe(
-      false,
-    );
+    expect(
+      await maybePostReview(pulls, 7, "REVIEW_RESULT:APPROVED", new Set()),
+    ).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.input.comments).toHaveLength(0);
+    expect(calls[0]?.input.body).toContain("Approved");
+  });
+
+  it("does nothing when there is no findings block and no approval verdict", async () => {
+    const { pulls, calls } = recorder();
+
+    expect(
+      await maybePostReview(
+        pulls,
+        7,
+        "REVIEW_RESULT:CHANGES_REQUESTED:but no block",
+        new Set(),
+      ),
+    ).toBe(false);
     expect(calls).toHaveLength(0);
   });
 });
@@ -97,6 +175,7 @@ describe("maybePostReview", () => {
  * unwraps the envelope; only then does the poster see what the agent printed.
  */
 describe("maybePostReview on a real Agent status.output stream", () => {
+  const path = "tools/eslint-plugin-lore/rules/lib/intro-paragraph.mjs";
   const agentText = [
     "Now I have everything needed for a thorough review.",
     "",
@@ -106,7 +185,7 @@ describe("maybePostReview on a real Agent status.output stream", () => {
       summary: "One correctness bug lets structural lines pad the minimum.",
       findings: [
         {
-          path: "tools/eslint-plugin-lore/rules/lib/intro-paragraph.mjs",
+          path,
           line: 95,
           label: "issue",
           decoration: "blocking",
@@ -129,7 +208,9 @@ describe("maybePostReview on a real Agent status.output stream", () => {
   it("parses nothing from the raw NDJSON envelope", async () => {
     const { pulls, calls } = recorder();
 
-    expect(await maybePostReview(pulls, 841, ndjson)).toBe(false);
+    expect(await maybePostReview(pulls, 841, ndjson, new Set([path]))).toBe(
+      false,
+    );
     expect(calls).toHaveLength(0);
   });
 
@@ -137,15 +218,15 @@ describe("maybePostReview on a real Agent status.output stream", () => {
     const { pulls, calls } = recorder();
 
     expect(
-      await maybePostReview(pulls, 841, resultTextFromOutput(ndjson)),
+      await maybePostReview(
+        pulls,
+        841,
+        resultTextFromOutput(ndjson),
+        new Set([path]),
+      ),
     ).toBe(true);
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.input.comments).toMatchObject([
-      {
-        path: "tools/eslint-plugin-lore/rules/lib/intro-paragraph.mjs",
-        line: 95,
-      },
-    ]);
+    expect(calls[0]?.input.comments).toMatchObject([{ path, line: 95 }]);
     expect(calls[0]?.input.body).toContain("Changes suggested");
   });
 });
