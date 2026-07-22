@@ -20,7 +20,10 @@
 import Boom from "@hapi/boom";
 import { PassThrough } from "node:stream";
 import { agentRunEvents } from "../../../kernel/queues.js";
-import { agentEventBus } from "../../../jobs/agent/agent-event-bus.js";
+import {
+  agentEventBus,
+  MAX_BUFFERED_EVENTS,
+} from "../../../jobs/agent/agent-event-bus.js";
 import type { ServerRoute } from "@hapi/hapi";
 import type { AgentEventHandler } from "../../../jobs/agent/agent-event-bus.js";
 import type { AgentRunEventRow } from "@re-cinq/lore-shared";
@@ -106,6 +109,7 @@ export function streamRunEvents(
     for (const cleanup of cleanups.splice(0)) {
       cleanup();
     }
+    buffered.length = 0;
     stream.end();
   };
 
@@ -130,10 +134,23 @@ export function streamRunEvents(
     }
   };
 
+  // The bus's MAX_BUFFERED_EVENTS guard cannot protect this array: the bus
+  // drains a subscriber synchronously, so during catch-up its backlog sits
+  // HERE, not in the bus. Applying the same cap and the same recovery — end
+  // the response, let EventSource reconnect from Last-Event-ID and replay the
+  // gap — keeps a long replay against a hot line from growing the heap.
+  const buffer = (rows: AgentRunEventRow[]): void => {
+    buffered.push(...rows);
+
+    if (buffered.length > MAX_BUFFERED_EVENTS) {
+      teardown();
+    }
+  };
+
   cleanups.push(
     deps.bus.subscribe(
       deps.assemblyLineId,
-      (rows) => (live ? deliver(rows) : buffered.push(...rows)),
+      (rows) => (live ? deliver(rows) : buffer(rows)),
       teardown,
     ),
   );

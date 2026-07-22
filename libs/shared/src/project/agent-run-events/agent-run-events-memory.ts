@@ -7,6 +7,9 @@ import type {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+const byIdAscending = (a: AgentRunEventRow, b: AgentRunEventRow): number =>
+  BigInt(a.id) < BigInt(b.id) ? -1 : 1;
+
 /**
  * In-memory {@link AgentRunEventsRepository} — the behavioral spec for the
  * port. It reproduces the Pg adapter's observable contract without Postgres:
@@ -34,7 +37,10 @@ export class InMemoryAgentRunEvents implements AgentRunEventsRepository {
   async insertBatch(
     rows: readonly AgentRunEventInsert[],
   ): Promise<AgentRunEventRow[]> {
-    return rows.map((row) => this.persist(row));
+    // The Pg adapter returns id-ascending (`.sort(byIdAscending)`); sorting
+    // here too keeps that part of the contract explicit rather than a
+    // coincidence of sequential nextId assignment.
+    return rows.map((row) => this.persist(row)).sort(byIdAscending);
   }
 
   async listSince(
@@ -49,7 +55,7 @@ export class InMemoryAgentRunEvents implements AgentRunEventsRepository {
         (row) =>
           row.assemblyLineId === assemblyLineId && BigInt(row.id) > cursor,
       )
-      .sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1))
+      .sort(byIdAscending)
       .slice(0, limit);
   }
 
