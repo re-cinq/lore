@@ -8,7 +8,9 @@
     "lore-station": "dist/main.js"
   },
   "scripts": {
+    "prebuild": "node ../../scripts/preflight-worktree.mjs",
     "build": "tsc",
+    "pretest": "node ../../scripts/preflight-worktree.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

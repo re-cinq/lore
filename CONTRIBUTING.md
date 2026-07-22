@@ -31,6 +31,11 @@ A worktree has no `node_modules` of its own. The usual workaround — symlinking
 each package's `node_modules` to the main checkout — has two traps that both
 produce *false green* results, so they are easy to miss.
 
+A preflight check (`scripts/preflight-worktree.mjs`, run automatically before
+every package's `build` and `test`) fails loudly when `@re-cinq/lore-shared` or
+a sibling resolves outside the current worktree, with the two remedies below.
+It is a no-op in the main checkout and in CI.
+
 **`tsc` typechecks against the main checkout's build.** `@re-cinq/lore-shared`
 and its siblings resolve through `node_modules` (plain NodeNext — there is no
 `paths` mapping), so a symlinked `node_modules` sends TypeScript to the main

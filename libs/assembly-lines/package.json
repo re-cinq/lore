@@ -12,9 +12,11 @@
     }
   },
   "scripts": {
+    "prebuild": "node ../../scripts/preflight-worktree.mjs",
     "build": "tsc && npm run copy:assembly-lines",
     "copy:assembly-lines": "mkdir -p dist/assembly-lines && cp -f src/assembly-lines/*.yaml dist/assembly-lines/ 2>/dev/null || true",
     "dev": "tsc --watch",
+    "pretest": "node ../../scripts/preflight-worktree.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"

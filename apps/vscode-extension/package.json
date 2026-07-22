@@ -64,9 +64,11 @@
     }
   },
   "scripts": {
+    "prebuild": "node ../../scripts/preflight-worktree.mjs",
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",
+    "pretest": "node ../../scripts/preflight-worktree.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "vscode:prepublish": "node esbuild.mjs"
