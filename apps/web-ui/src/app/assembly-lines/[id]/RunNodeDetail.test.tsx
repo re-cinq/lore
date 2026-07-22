@@ -65,4 +65,53 @@ describe("RunNodeDetail", () => {
       screen.getByText("Terminal marker — the run ends here."),
     ).toBeInTheDocument();
   });
+
+  it("lists the errored steps of a failed node with their tool and detail", () => {
+    const erroredEvent = (
+      over: Partial<import("@/lib/run-stream-types").RunStreamEvent>,
+    ): import("@/lib/run-stream-types").RunStreamEvent => ({
+      id: "1",
+      taskId: "t",
+      agentCrName: "cr-1",
+      assemblyLineId: "al",
+      nodeId: "implement",
+      iteration: 1,
+      eventType: "tool_result",
+      toolName: null,
+      toolUseId: null,
+      isError: true,
+      filePaths: [],
+      summary: null,
+      payload: {},
+      createdAt: "2026-07-14T10:00:00Z",
+      ...over,
+    });
+
+    render(
+      <RunNodeDetail
+        nodeId="implement"
+        state={state({
+          status: "failed",
+          transcript: [
+            erroredEvent({ toolName: "eslint", summary: "2 problems" }),
+            erroredEvent({
+              id: "2",
+              toolName: "Bash",
+              summary: "tsc exited 2",
+            }),
+          ],
+        })}
+        row={row({ outcome: "implement-failed" })}
+        definition={implementationDefinition}
+        reason={null}
+        repo="re-cinq/lore"
+      />,
+    );
+
+    expect(screen.getByText("Errored steps (2)")).toBeInTheDocument();
+    expect(screen.getByText("eslint")).toBeInTheDocument();
+    expect(screen.getByText("2 problems")).toBeInTheDocument();
+    expect(screen.getByText("Bash")).toBeInTheDocument();
+    expect(screen.getByText("tsc exited 2")).toBeInTheDocument();
+  });
 });
