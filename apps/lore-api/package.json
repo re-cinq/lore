@@ -18,7 +18,7 @@
     "@re-cinq/lore-server-core": "*",
     "@re-cinq/agent-contracts": "^0.3.0",
     "@hapi/boom": "^10.0.1",
-    "@hapi/hapi": "^21.4.9",
+    "@hapi/hapi": "21.4.9",
     "@kubernetes/client-node": "^1.4.0",
     "@google-cloud/opentelemetry-cloud-monitoring-exporter": "^0.20.0",
     "@google-cloud/opentelemetry-cloud-trace-exporter": "^2.4.0",
