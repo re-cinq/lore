@@ -2,11 +2,11 @@ FROM node:22-slim AS builder
 WORKDIR /app
 
 # Workspace layout mirrors the repo so npm workspace symlinks resolve at runtime.
-COPY package.json package-lock.json ./
+COPY package.json ./
 COPY libs/shared/package.json ./libs/shared/
 COPY libs/assembly-lines/package.json ./libs/assembly-lines/
 COPY apps/lore-station/package.json ./apps/lore-station/
-RUN npm ci
+RUN npm install --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-assembly-lines --workspace=@re-cinq/lore-station
 
 COPY libs/shared/tsconfig.json ./libs/shared/
 COPY libs/shared/src ./libs/shared/src
