@@ -16,8 +16,10 @@
     }
   },
   "scripts": {
+    "prebuild": "node ../../scripts/preflight-worktree.mjs",
     "build": "tsc",
     "dev": "tsc --watch",
+    "pretest": "node ../../scripts/preflight-worktree.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
