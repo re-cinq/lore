@@ -68,10 +68,15 @@ const row = (args: Record<string, unknown> = { pr_number: 841 }) =>
 function ports() {
   const reviews: Array<{ number: number; input: CreateReviewInput }> = [];
   const entries: AuditLogEntry[] = [];
+  const comments: Array<{ number: number; body: string }> = [];
   const poster: ReviewPoster = {
     createReview: async (number, input) => {
       reviews.push({ number, input });
     },
+    comment: async (number, body) => {
+      comments.push({ number, body });
+    },
+    listFiles: async () => ["a.ts"],
   };
   const audit: AuditPort = {
     write: async (entry) => {
@@ -79,7 +84,7 @@ function ports() {
     },
   };
 
-  return { poster, audit, reviews, entries };
+  return { poster, audit, reviews, comments, entries };
 }
 
 const findingsText = (verdict: string) =>
@@ -181,12 +186,16 @@ describe("postReviewFromNode", () => {
     ]);
   });
 
-  it("audits a post that throws instead of swallowing it", async () => {
+  it("audits a total post failure (inline post and fallback comment both throw) instead of swallowing it", async () => {
     const p = ports();
     const failing: ReviewPoster = {
       createReview: async () => {
         throw new Error("Resource not accessible by integration");
       },
+      comment: async () => {
+        throw new Error("Resource not accessible by integration");
+      },
+      listFiles: async () => [],
     };
 
     await postReviewFromNode(row(), reviewNode, findingsText("approved"), {
@@ -212,6 +221,10 @@ describe("postReviewFromNode", () => {
       createReview: async () => {
         throw new Error("boom");
       },
+      comment: async () => {
+        throw new Error("boom");
+      },
+      listFiles: async () => [],
     };
 
     expect(
