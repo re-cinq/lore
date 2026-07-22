@@ -57,7 +57,7 @@ export interface LayoutOptions {
 type ResolvedOptions = Required<LayoutOptions>;
 
 const DEFAULTS: ResolvedOptions = {
-  layerGap: 240,  // wide enough for two adjacent node boxes plus clear space between them
+  layerGap: 240, // wide enough for two adjacent node boxes plus clear space between them
   rowGap: 96,
   nodeWidth: 132,
   nodeHeight: 48,
