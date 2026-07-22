@@ -2,15 +2,30 @@ import { describe, it, expect } from "vitest";
 import {
   postReview,
   maybePostReview,
-  partitionByDiff,
+  partitionByHunks,
   type ReviewPoster,
 } from "./post-review.js";
 import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
+import type { CommentablePositions } from "@re-cinq/lore-shared/review/diff-hunks.js";
 import type { CreateReviewInput } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import type {
   ReviewFinding,
   ReviewOutput,
 } from "@re-cinq/lore-shared/review/review-findings.js";
+
+/** Build commentable positions (right side) from (path, line) pairs. */
+function positions(...entries: Array<[string, number]>): CommentablePositions {
+  const right = new Map<string, Set<number>>();
+
+  for (const [path, line] of entries) {
+    const set = right.get(path) ?? new Set<number>();
+
+    set.add(line);
+    right.set(path, set);
+  }
+
+  return { right, left: new Map() };
+}
 
 function recorder(opts: { createReviewThrows?: boolean } = {}) {
   const calls: Array<{ number: number; input: CreateReviewInput }> = [];
@@ -27,7 +42,7 @@ function recorder(opts: { createReviewThrows?: boolean } = {}) {
     comment: async (number, body) => {
       comments.push({ number, body });
     },
-    listFiles: async () => [],
+    getDiff: async () => "",
   };
 
   return { pulls, calls, comments };
@@ -42,19 +57,23 @@ const finding = (over: Partial<ReviewFinding> = {}): ReviewFinding => ({
   ...over,
 });
 
-describe("partitionByDiff", () => {
-  it("keeps findings on changed files inline and folds the rest into overflow", () => {
-    const inDiff = finding({ path: "src/a.ts" });
-    const outOfDiff = finding({ path: "CLAUDE.md" });
+describe("partitionByHunks", () => {
+  it("keeps findings on commentable lines inline and folds the rest into overflow", () => {
+    const inHunk = finding({ path: "src/a.ts", line: 12 });
+    const outOfHunk = finding({ path: "src/a.ts", line: 99 });
+    const outOfDiff = finding({ path: "CLAUDE.md", line: 3 });
 
-    expect(partitionByDiff([inDiff, outOfDiff], new Set(["src/a.ts"]))).toEqual(
-      { inline: [inDiff], overflow: [outOfDiff] },
-    );
+    expect(
+      partitionByHunks(
+        [inHunk, outOfHunk, outOfDiff],
+        positions(["src/a.ts", 12]),
+      ),
+    ).toEqual({ inline: [inHunk], overflow: [outOfHunk, outOfDiff] });
   });
 });
 
 describe("postReview", () => {
-  it("posts one COMMENT review with a rendered comment per in-diff finding and a summary", async () => {
+  it("posts one COMMENT review with a rendered comment per commentable finding and a summary", async () => {
     const { pulls, calls } = recorder();
     const output: ReviewOutput = {
       verdict: "changes_requested",
@@ -70,7 +89,10 @@ describe("postReview", () => {
       ],
     };
 
-    await postReview(pulls, 7, output, new Set(["src/a.ts", "src/b.ts"]));
+    await postReview(pulls, 7, output, {
+      right: new Map([["src/a.ts", new Set([12])]]),
+      left: new Map([["src/b.ts", new Set([3])]]),
+    });
 
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
@@ -92,34 +114,34 @@ describe("postReview", () => {
     );
   });
 
-  it("folds a finding on a file outside the diff into the body, never inline (the 422 trap)", async () => {
+  it("folds a finding on an uninlineable line into the body, never inline (the 422 trap)", async () => {
     const { pulls, calls } = recorder();
     const output: ReviewOutput = {
       verdict: "changes_requested",
       findings: [
-        finding({ path: "src/a.ts", subject: "in-diff issue" }),
-        finding({ path: "CLAUDE.md", subject: "stale reference" }),
+        finding({ path: "src/a.ts", line: 12, subject: "in-hunk issue" }),
+        finding({ path: "src/a.ts", line: 99, subject: "out-of-hunk note" }),
       ],
     };
 
-    await postReview(pulls, 7, output, new Set(["src/a.ts"]));
+    await postReview(pulls, 7, output, positions(["src/a.ts", 12]));
 
     expect(calls[0]?.input.comments).toHaveLength(1);
-    expect(calls[0]?.input.comments[0]?.path).toBe("src/a.ts");
+    expect(calls[0]?.input.comments[0]?.line).toBe(12);
     expect(calls[0]?.input.body).toContain(
-      "### Notes on files outside this diff",
+      "### Notes on lines outside changed hunks",
     );
-    expect(calls[0]?.input.body).toContain("CLAUDE.md");
+    expect(calls[0]?.input.body).toContain("out-of-hunk note");
   });
 
   it("falls back to one top-level comment when the atomic review post is rejected", async () => {
     const { pulls, calls, comments } = recorder({ createReviewThrows: true });
     const output: ReviewOutput = {
       verdict: "changes_requested",
-      findings: [finding({ path: "src/a.ts", subject: "boom" })],
+      findings: [finding({ path: "src/a.ts", line: 12, subject: "boom" })],
     };
 
-    await postReview(pulls, 7, output, new Set(["src/a.ts"]));
+    await postReview(pulls, 7, output, positions(["src/a.ts", 12]));
 
     expect(calls).toHaveLength(0);
     expect(comments).toHaveLength(1);
@@ -136,7 +158,7 @@ describe("maybePostReview", () => {
       findings: [],
     })}\n\`\`\``;
 
-    expect(await maybePostReview(pulls, 7, output, new Set())).toBe(true);
+    expect(await maybePostReview(pulls, 7, output, positions())).toBe(true);
     expect(calls).toHaveLength(1);
   });
 
@@ -144,7 +166,7 @@ describe("maybePostReview", () => {
     const { pulls, calls } = recorder();
 
     expect(
-      await maybePostReview(pulls, 7, "REVIEW_RESULT:APPROVED", new Set()),
+      await maybePostReview(pulls, 7, "REVIEW_RESULT:APPROVED", positions()),
     ).toBe(true);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.input.comments).toHaveLength(0);
@@ -159,7 +181,7 @@ describe("maybePostReview", () => {
         pulls,
         7,
         "REVIEW_RESULT:CHANGES_REQUESTED:but no block",
-        new Set(),
+        positions(),
       ),
     ).toBe(false);
     expect(calls).toHaveLength(0);
@@ -208,9 +230,9 @@ describe("maybePostReview on a real Agent status.output stream", () => {
   it("parses nothing from the raw NDJSON envelope", async () => {
     const { pulls, calls } = recorder();
 
-    expect(await maybePostReview(pulls, 841, ndjson, new Set([path]))).toBe(
-      false,
-    );
+    expect(
+      await maybePostReview(pulls, 841, ndjson, positions([path, 95])),
+    ).toBe(false);
     expect(calls).toHaveLength(0);
   });
 
@@ -222,7 +244,7 @@ describe("maybePostReview on a real Agent status.output stream", () => {
         pulls,
         841,
         resultTextFromOutput(ndjson),
-        new Set([path]),
+        positions([path, 95]),
       ),
     ).toBe(true);
     expect(calls).toHaveLength(1);

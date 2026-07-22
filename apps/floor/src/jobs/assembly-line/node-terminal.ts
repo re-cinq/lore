@@ -20,6 +20,7 @@ import type { AssemblyLineRecord } from "@re-cinq/lore-shared/project/assembly-l
 import { finishNodeAndAdvance, type AdvanceDeps } from "./advance.js";
 import { maybePostReview, type ReviewPoster } from "../review/post-review.js";
 import { parseReviewReply } from "@re-cinq/lore-shared/review/review-reply.js";
+import { commentablePositions } from "@re-cinq/lore-shared/review/diff-hunks.js";
 import { publishPrCheck } from "./pr-check.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { writeAuditLog } from "../lib/audit.js";
@@ -123,14 +124,13 @@ export async function postReviewFromNode(
 
   try {
     const pulls = ports.poster ?? (await projectFor(row.repo)).pulls;
-    const changedPaths = new Set(
-      await pulls.listFiles(prNumber).catch(() => [] as string[]),
-    );
+    const diff = await pulls.getDiff(prNumber).catch(() => "");
+    const positions = commentablePositions(diff);
     const posted = await maybePostReview(
       pulls,
       prNumber,
       output ?? "",
-      changedPaths,
+      positions,
     );
 
     if (!posted) {
