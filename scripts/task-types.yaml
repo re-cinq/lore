@@ -97,6 +97,14 @@ task_types:
     prompt_template: |
       {description}
 
+      The PR branch is already checked out locally at /workspace/target. Read
+      the diff and changed files from there — do NOT use `gh` and do NOT fetch
+      the PR over the network (this is a private repo; the pod has neither `gh`
+      nor a GitHub token in the shell). Get the diff with:
+        git -C /workspace/target diff main...HEAD
+        git -C /workspace/target log main..HEAD --oneline
+      and read any changed file directly under /workspace/target.
+
       Review this pull request against the repo's conventions (CLAUDE.md),
       ADRs in adrs/, and any spec in specs/. Check correctness, type safety,
       security, and simplicity. Do NOT edit code and do NOT post comments
