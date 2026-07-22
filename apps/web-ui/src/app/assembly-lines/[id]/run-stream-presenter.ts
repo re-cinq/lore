@@ -10,6 +10,12 @@ export const HISTORY_PAGE_LIMIT = 1000;
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_CAP_MS = 30000;
 
+/** Consecutive stream failures tolerated before the session gives up on SSE. */
+export const STREAM_MAX_ATTEMPTS = 5;
+
+/** Cadence of the history-poll fallback once the stream has given up. */
+export const HISTORY_POLL_MS = 15000;
+
 /** `queued` and `running` can still emit; `finished` and `failed` cannot. */
 const TERMINAL_RUN_STATUSES: ReadonlySet<string> = new Set([
   "finished",
@@ -102,6 +108,23 @@ export function reconnectDelayMs(attempt: number): number {
     RECONNECT_CAP_MS,
     RECONNECT_BASE_MS * 2 ** Math.max(0, attempt - 1),
   );
+}
+
+export type ReconnectAction =
+  { kind: "retry"; delayMs: number } | { kind: "give-up" };
+
+/**
+ * What the stream hook does with consecutive failure number `attempt`: retry
+ * with backoff up to STREAM_MAX_ATTEMPTS, then give up for good. Giving up is
+ * terminal for the session — EventSource cannot read the proxy's status code,
+ * so a bounded attempt count is the only thing standing between a stream-only
+ * outage and a browser retrying forever. A successful open resets the count,
+ * so only consecutive failures walk toward the cliff.
+ */
+export function reconnectAction(attempt: number): ReconnectAction {
+  return attempt > STREAM_MAX_ATTEMPTS
+    ? { kind: "give-up" }
+    : { kind: "retry", delayMs: reconnectDelayMs(attempt) };
 }
 
 export function connectionLabel(state: ConnectionState): string {

@@ -80,6 +80,19 @@ export async function GET(
       { headers, signal: req.signal },
     );
 
+    // A Floor error (404/503) is a JSON error with the status preserved, never
+    // an empty `text/event-stream` — piping the error body as a stream made an
+    // outage indistinguishable from a network blip on the wire. EventSource
+    // cannot read the status either way; the client-side bounded give-up is
+    // what actually stops the retry storm. This keeps the wire truthful for
+    // every other client.
+    if (!upstream.ok) {
+      return NextResponse.json(
+        { error: `Floor stream unavailable (${upstream.status})` },
+        { status: upstream.status },
+      );
+    }
+
     return new Response(upstream.body, {
       status: upstream.status,
       headers: {

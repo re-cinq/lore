@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
   HISTORY_PAGE_LIMIT,
+  STREAM_MAX_ATTEMPTS,
   connectionLabel,
   cursorForEventId,
   historyUrl,
   isTerminalRunStatus,
   nextPageCursor,
+  reconnectAction,
   reconnectDelayMs,
   resolveStreamMode,
   scrubberPositionLabel,
@@ -240,5 +242,22 @@ describe("scrubberPositionLabel", () => {
       label: "event 0 / 3",
       timestamp: null,
     });
+  });
+});
+
+describe("reconnectAction", () => {
+  it.each([
+    [1, 1000],
+    [2, 2000],
+    [3, 4000],
+    [4, 8000],
+    [5, 16000],
+  ])("retries attempt %i after %i ms", (attempt, delayMs) => {
+    expect(reconnectAction(attempt)).toEqual({ kind: "retry", delayMs });
+  });
+
+  it("gives up on attempt 6, one past STREAM_MAX_ATTEMPTS", () => {
+    expect(STREAM_MAX_ATTEMPTS).toBe(5);
+    expect(reconnectAction(6)).toEqual({ kind: "give-up" });
   });
 });

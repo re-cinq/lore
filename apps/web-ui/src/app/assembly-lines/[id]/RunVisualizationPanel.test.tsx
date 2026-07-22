@@ -657,3 +657,211 @@ describe("run-graph verdict on a finished run (regression)", () => {
     expect(nodeText(container, "review")).not.toContain("Succeeded");
   });
 });
+
+describe("replay rewinds the run graph (regression)", () => {
+  // The finished #927 fixture WITH walk rows: the recorded verdicts exist from
+  // the first render, but scrubbing must gate them behind the replayed cursor.
+  const reviewNodes = [
+    {
+      nodeId: "review",
+      iteration: 1,
+      outcome: "failed",
+      agentCrName: null,
+      commitSha: null,
+      durationSeconds: 184,
+    },
+    {
+      nodeId: "done",
+      iteration: 1,
+      outcome: "success",
+      agentCrName: null,
+      commitSha: null,
+      durationSeconds: 1,
+    },
+  ];
+  const reviewHistory = [
+    eventRow({ id: "1", nodeId: "review", eventType: "init" }),
+    eventRow({
+      id: "2",
+      nodeId: "review",
+      eventType: "result",
+      isError: false,
+    }),
+    eventRow({ id: "3", nodeId: "done", eventType: "init" }),
+    eventRow({ id: "4", nodeId: "done", eventType: "result", isError: false }),
+  ];
+
+  function renderReviewRun() {
+    return render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="finished"
+        startedAt={null}
+        definition={codeReviewDefinition}
+        showEdgeLabels
+        nodes={reviewNodes}
+        repo="re-cinq/lore"
+        reason={'node "review" failed'}
+      />,
+    );
+  }
+
+  async function scrubTo(cursor: number) {
+    await act(async () => {
+      fireEvent.change(screen.getByRole("slider"), {
+        target: { value: String(cursor) },
+      });
+    });
+  }
+
+  const nodeText = (container: HTMLElement, id: string) =>
+    container.querySelector(`[data-node="${id}"]`)?.textContent ?? "";
+
+  it("shows no verdict badges, no nodes and no taken path at cursor zero", async () => {
+    stubHistory(reviewHistory);
+    useFakeEventSource();
+
+    const { container } = renderReviewRun();
+
+    await settle();
+    await scrubTo(0);
+
+    expect(container.querySelector('[data-node="review"]')).toBeNull();
+    expect(container.querySelector('[data-node="done"]')).toBeNull();
+    expect(container.querySelector("[data-edge]")).toBeNull();
+  });
+
+  it("holds the recorded verdict back while the node is still running at the cursor", async () => {
+    stubHistory(reviewHistory);
+    useFakeEventSource();
+
+    const { container } = renderReviewRun();
+
+    await settle();
+    await scrubTo(1);
+
+    expect(nodeText(container, "review")).toContain("Running");
+    expect(nodeText(container, "review")).not.toContain("Failed");
+    // Unreached at this cursor: no taken edge yet, so done is not drawn.
+    expect(container.querySelector('[data-node="done"]')).toBeNull();
+  });
+
+  it("shows the walk row's failed verdict, not the clean pod exit, once the result replays", async () => {
+    stubHistory(reviewHistory);
+    useFakeEventSource();
+
+    const { container } = renderReviewRun();
+
+    await settle();
+    await scrubTo(2);
+
+    expect(nodeText(container, "review")).toContain("Failed");
+    expect(nodeText(container, "review")).not.toContain("Succeeded");
+    expect(
+      container
+        .querySelector('[data-node="review"]')
+        ?.getAttribute("data-tone"),
+    ).toBe("err");
+  });
+
+  it("renders the max cursor identically to back to live", async () => {
+    stubHistory(reviewHistory);
+    useFakeEventSource();
+
+    const { container } = renderReviewRun();
+
+    await settle();
+    await scrubTo(reviewHistory.length);
+
+    const atMax = {
+      review: nodeText(container, "review"),
+      done: nodeText(container, "done"),
+    };
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /back to live/i }));
+    });
+
+    expect(atMax.review).toContain("Failed");
+    expect(atMax.done).toContain("Failed");
+    expect(atMax).toEqual({
+      review: nodeText(container, "review"),
+      done: nodeText(container, "done"),
+    });
+  });
+});
+
+describe("stream give-up and history polling", () => {
+  async function failStream(times: number) {
+    for (let i = 0; i < times; i++) {
+      const source =
+        FakeEventSource.instances[FakeEventSource.instances.length - 1];
+
+      await act(async () => {
+        source.onerror?.(new Event("error"));
+        vi.advanceTimersByTime(16000);
+      });
+    }
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("goes offline for good after six consecutive stream errors", async () => {
+    vi.useFakeTimers();
+    stubHistory([]);
+    useFakeEventSource();
+
+    renderPanel("running");
+    await settle();
+    await failStream(6);
+
+    expect(FakeEventSource.instances).toHaveLength(6);
+    expect(
+      FakeEventSource.instances[FakeEventSource.instances.length - 1].closed,
+    ).toBe(true);
+    expect(screen.getByText("Offline")).toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(60000);
+    });
+
+    expect(FakeEventSource.instances).toHaveLength(6);
+  });
+
+  it("polls the history proxy from the reducer cursor after giving up and applies new rows", async () => {
+    vi.useFakeTimers();
+    const fetchMock = stubHistory([
+      eventRow({ id: "5", nodeId: "implement", eventType: "init" }),
+    ]);
+
+    useFakeEventSource();
+
+    const { container } = renderPanel("running");
+
+    await settle();
+    await failStream(6);
+
+    expect(container.querySelector('[data-node="validate"]')).toBeNull();
+
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        events: [eventRow({ id: "6", nodeId: "validate", eventType: "init" })],
+      }),
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(15000);
+    });
+    await settle();
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain("after=5");
+    expect(
+      container.querySelector('[data-node="validate"]')?.textContent,
+    ).toContain("Running");
+  });
+});
