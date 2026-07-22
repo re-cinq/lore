@@ -22,14 +22,6 @@ export interface LayoutNode {
 
 export interface LayoutEdge extends ClassifiedEdge {
   d: string;
-  /** This edge's position among the edges sharing its from->to pair, and how
-   *  many share it. Parallel edges (e.g. code-review's three review->done
-   *  outcomes) are fanned apart by index so neither their paths nor their
-   *  labels overprint. */
-  parallelIndex: number;
-  parallelCount: number;
-  labelX: number;
-  labelY: number;
 }
 
 export interface Box {
@@ -45,9 +37,9 @@ export interface GraphLayout {
   width: number;
   height: number;
   /**
-   * Tight bounds of everything drawn — node boxes, edge arcs, and labels. The
-   * view fits its viewBox to this so a one-node graph sits in a small frame
-   * instead of floating in a canvas sized for the whole layer grid.
+   * Tight bounds of everything drawn — node boxes and edge arcs. The view fits
+   * its viewBox to this so a one-node graph sits in a small frame instead of
+   * floating in a canvas sized for the whole layer grid.
    */
   contentBox: Box;
 }
@@ -65,10 +57,7 @@ export interface LayoutOptions {
 type ResolvedOptions = Required<LayoutOptions>;
 
 const DEFAULTS: ResolvedOptions = {
-  // Wide enough that a condition label ("changes_requested", ~95px at 12px)
-  // fits in the gap between two adjacent nodes (layerGap - nodeWidth) instead
-  // of smearing across the boxes on either side.
-  layerGap: 240,
+  layerGap: 240, // a 132px node box plus 108px of connector air per column; shrinking it crowds the edge paths
   rowGap: 96,
   nodeWidth: 132,
   nodeHeight: 48,
@@ -231,33 +220,10 @@ export function layoutAssemblyLine(
     opts.nodeHeight / 2 +
     opts.arcDrop;
 
-  const classified = classifyEdges(def, layers);
-  const groupSize = new Map<string, number>();
-  const groupSeen = new Map<string, number>();
-
-  for (const edge of classified) {
-    const key = `${edge.from}->${edge.to}`;
-
-    groupSize.set(key, (groupSize.get(key) ?? 0) + 1);
-  }
-
-  const edges: LayoutEdge[] = classified.map((edge) => {
-    const key = `${edge.from}->${edge.to}`;
-    const parallelCount = groupSize.get(key) ?? 1;
-    const parallelIndex = groupSeen.get(key) ?? 0;
-
-    groupSeen.set(key, parallelIndex + 1);
-
-    const fan = { ...edge, parallelIndex, parallelCount };
-    const label = labelPointFor(fan, byId, opts);
-
-    return {
-      ...fan,
-      d: pathFor(fan, byId, opts, floor),
-      labelX: label.x,
-      labelY: label.y,
-    };
-  });
+  const edges: LayoutEdge[] = classifyEdges(def, layers).map((edge) => ({
+    ...edge,
+    d: pathFor(edge, byId, opts, floor),
+  }));
 
   return {
     nodes,
@@ -304,9 +270,6 @@ function contentBoxOf(
       xs.push(point.x);
       ys.push(point.y);
     }
-
-    xs.push(edge.labelX);
-    ys.push(edge.labelY);
   }
 
   return {
@@ -318,7 +281,7 @@ function contentBoxOf(
 }
 
 function pathFor(
-  edge: ClassifiedEdgeWithFan,
+  edge: ClassifiedEdge,
   byId: Map<string, LayoutNode>,
   opts: ResolvedOptions,
   floor: number,
@@ -354,77 +317,11 @@ function pathFor(
   }
 
   const bend = opts.layerGap / 3;
-  // Parallel forward edges exit and enter on their own ports (distinct heights on
-  // the node faces, so the arrowheads never pile up), then bow apart: the control
-  // points sit at the wider belly offset, splaying the arcs' middles so each has
-  // room to carry its own label. A lone edge (port 0) stays a straight line.
-  const port = fanOffset(edge);
-  const belly = port * BELLY_SCALE;
 
   return [
-    `M ${from.x + halfW} ${from.y + port}`,
-    `C ${from.x + halfW + bend} ${from.y + belly}`,
-    `${to.x - halfW - bend} ${to.y + belly}`,
-    `${to.x - halfW} ${to.y + port}`,
+    `M ${from.x + halfW} ${from.y}`,
+    `C ${from.x + halfW + bend} ${from.y}`,
+    `${to.x - halfW - bend} ${to.y}`,
+    `${to.x - halfW} ${to.y}`,
   ].join(" ");
-}
-
-// Vertical pitch between sibling ports on a node face. Three upward-fanned
-// edges reach -2*FAN_GAP; at 12 that is -24, exactly the node's half-height, so
-// even the topmost port sits on the face rather than floating above the box.
-const FAN_GAP = 12;
-// The bellies (arc midpoints) fan wider than the ports so each arc carries its
-// own label: control points sit at FAN_GAP*BELLY_SCALE, spreading the midpoints
-// to ~FAN_GAP*7/4 (≈21u) apart — clear of the ~12u label height. Endpoints stay
-// on the face; only the middles splay.
-const BELLY_SCALE = 2;
-// Nudge the label baseline below the belly so the arc runs through the glyphs
-// (the paint-order-stroke halo knocks the line out), reading as a label ON the
-// arc rather than floating beside it.
-const LABEL_ON_ARC_NUDGE = 4;
-
-// Parallel edges fan UPWARD only (never below the straight line), so they stay
-// clear of the back-edge lane that runs beneath the row. index 0 sits on the
-// line; each later sibling lifts by one FAN_GAP.
-function fanOffset(edge: ClassifiedEdgeWithFan): number {
-  const count = edge.parallelCount ?? 1;
-
-  if (count <= 1) {
-    return 0;
-  }
-
-  return -edge.parallelIndex * FAN_GAP;
-}
-
-interface ClassifiedEdgeWithFan extends ClassifiedEdge {
-  parallelIndex: number;
-  parallelCount: number;
-}
-
-function labelPointFor(
-  edge: ClassifiedEdgeWithFan,
-  byId: Map<string, LayoutNode>,
-  opts: ResolvedOptions,
-): { x: number; y: number } {
-  const from = byId.get(edge.from);
-  const to = byId.get(edge.to);
-
-  if (!from || !to) {
-    return { x: 0, y: 0 };
-  }
-
-  if (edge.kind === "self") {
-    return { x: from.x, y: from.y - opts.nodeHeight };
-  }
-
-  // Sit the label on its own arc at the belly (the curve's t=0.5 point, whose x
-  // is exactly the horizontal midpoint). The bellies are ~21u apart, so the
-  // labels clear each other; the halo handles the arc crossing each glyph.
-  const port = fanOffset(edge);
-  const bellyMid = (port + 3 * port * BELLY_SCALE) / 4;
-
-  return {
-    x: (from.x + to.x) / 2,
-    y: (from.y + to.y) / 2 + bellyMid + LABEL_ON_ARC_NUDGE,
-  };
 }

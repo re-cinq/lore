@@ -45,7 +45,7 @@ describe("deriveVisibleGraph run mode", () => {
 
     expect(graph.nodes.map((n) => n.id)).toEqual(["review", "done"]);
     expect(graph.edges).toEqual([
-      { from: "review", to: "done", tone: "neutral", label: null },
+      { from: "review", to: "done", tone: "neutral" },
     ]);
   });
 
@@ -62,7 +62,9 @@ describe("deriveVisibleGraph run mode", () => {
     );
 
     expect(graph.edges).toHaveLength(1);
-    expect(graph.edges.every((e) => e.label === null)).toBe(true);
+    expect(graph.edges).toEqual([
+      { from: "review", to: "done", tone: "neutral" },
+    ]);
   });
 
   it("carries the changes_requested verdict on the review node", () => {
@@ -108,7 +110,7 @@ describe("deriveVisibleGraph definition mode", () => {
     );
 
     expect(reviewToDone).toEqual([
-      { from: "review", to: "done", tone: "neutral", label: null },
+      { from: "review", to: "done", tone: "neutral" },
     ]);
     expect(graph.nodes.find((n) => n.id === "review")?.outcomes).toEqual([
       "success",
@@ -129,10 +131,9 @@ describe("deriveVisibleGraph definition mode", () => {
     expect(new Set(fromReview.map((e) => e.to))).toEqual(
       new Set(["retrospective", "address"]),
     );
-    // the changes_requested branch is color-coded (warn) with no connector label
+    // the changes_requested branch is color-coded (warn)
     expect(fromReview.find((e) => e.to === "address")).toMatchObject({
       tone: "warn",
-      label: null,
     });
     // outcomes are still listed inside the source node, never on the connector
     expect(graph.nodes.find((n) => n.id === "review")?.outcomes).toEqual([
