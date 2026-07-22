@@ -43,6 +43,26 @@ edges:
     on: always
 `);
 
+const commentTriageLike: AssemblyLine = parseAssemblyLine(`
+name: comment-triage
+description: classify a PR comment
+version: 1
+entry: triage
+exit: done
+nodes:
+  - id: triage
+    type: comment-triage
+  - id: done
+    type: retrospective
+edges:
+  - from: triage
+    to: done
+    on: success
+  - from: triage
+    to: done
+    on: failed
+`);
+
 function makeDeps(port: InMemoryAssemblyLines) {
   const launched: LoreTaskSpec[] = [];
   const cleaned: string[] = [];
@@ -51,7 +71,10 @@ function makeDeps(port: InMemoryAssemblyLines) {
   const deps: AdvanceDeps = {
     assemblyLines: port,
     definitions: async () =>
-      new Map<string, AssemblyLine>([["code-review", codeReviewLike]]),
+      new Map<string, AssemblyLine>([
+        ["code-review", codeReviewLike],
+        ["comment-triage", commentTriageLike],
+      ]),
     launch: async (spec) => {
       launched.push(spec);
     },
@@ -348,6 +371,35 @@ describe("advanceLine overlap guard (detect lines, lease parity)", () => {
     expect(await port.getById(older)).toMatchObject({ status: "running" });
     expect(launched).toHaveLength(1);
     void newer;
+  });
+
+  it("does not defer a newer comment-triage line on the same PR branch (distinct comments are not duplicates)", async () => {
+    const port = tickingPort();
+    const { deps, launched } = makeDeps(port);
+    const first = await port.start({
+      definitionName: "comment-triage",
+      repo: "o/r",
+      branch: "feat/pr-branch",
+      args: { comment_id: 1 },
+    });
+
+    await port.markRunning(first);
+    await advanceLine(first, deps);
+
+    const second = await port.start({
+      definitionName: "comment-triage",
+      repo: "o/r",
+      branch: "feat/pr-branch",
+      args: { comment_id: 2 },
+    });
+
+    await port.markRunning(second);
+    await advanceLine(second, deps);
+
+    // Both classify their own comment — neither is dropped as lease_held.
+    expect(await port.getById(first)).toMatchObject({ status: "running" });
+    expect(await port.getById(second)).toMatchObject({ status: "running" });
+    expect(launched).toHaveLength(2);
   });
 });
 

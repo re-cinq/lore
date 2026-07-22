@@ -211,3 +211,16 @@
   font-size: var(--fs-xs);
   color: var(--text-muted);
 }
+.skipToggle {
+  background: none;
+  border: none;
+  padding: 0.5rem 0;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.skipToggle:hover {
+  color: var(--text);
+}

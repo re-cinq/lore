@@ -3,6 +3,8 @@
 }
 .heading {
   font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
   margin-bottom: 0.5rem;
 }
 .svg {
@@ -21,15 +23,28 @@
 .edge {
   fill: none;
   stroke: var(--border);
-  stroke-width: 1.5;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition:
+    stroke-width var(--transition),
+    opacity var(--transition);
 }
 .back,
 .self {
-  stroke-dasharray: 4 3;
+  stroke-dasharray: 5 4;
 }
 .edgeLabel {
   fill: var(--text-muted);
   font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  /* Knock the label out of any line it crosses: a surface-colored halo painted
+     under the glyphs keeps the condition legible without a solid chip. */
+  paint-order: stroke;
+  stroke: var(--bg-surface);
+  stroke-width: 2px;
+  stroke-linejoin: round;
 }
 .arrowHead {
   fill: context-stroke;
@@ -59,15 +74,32 @@
 .edge.toneNeutral {
   fill: none;
 }
+/* Tone colors the label's fill; its stroke stays the surface halo. Two-class
+   specificity wins the tie against the tone rules above (which set stroke to the
+   tone color, meant for the path). */
+.edgeLabel.toneOk,
+.edgeLabel.toneWarn,
+.edgeLabel.toneErr,
+.edgeLabel.toneNeutral {
+  stroke: var(--bg-surface);
+}
+
+/* Hover an edge to bring it forward: thicken it and lift any run-dimming. */
+.edge:hover {
+  stroke-width: 3;
+}
+.dim .edge:hover {
+  opacity: 1;
+}
 
 /* Run overlay: the traversed branch is bold and solid, the rest fade back so the
    path the run took reads at a glance. Absent (definition-only view) → neither. */
 .taken .edge {
-  stroke-width: 3;
+  stroke-width: 3.5;
   stroke-dasharray: none;
 }
 .dim {
-  opacity: 0.3;
+  opacity: 0.28;
 }
 
 .node {
@@ -76,22 +108,96 @@
 .node[tabindex] {
   cursor: pointer;
 }
+.node:focus-visible {
+  outline: none;
+}
 .node:focus-visible .box {
-  stroke-width: 3;
+  stroke-width: 2.5;
   stroke: var(--info);
 }
 .box {
   fill: var(--bg-surface);
   stroke: var(--border);
   stroke-width: 1.5;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.12));
+  transition:
+    stroke var(--transition),
+    fill var(--transition);
+}
+.node[tabindex]:hover .box {
+  stroke: var(--border-hover);
 }
 .nodeId {
   fill: var(--text);
   font-size: var(--fs-sm);
+  font-weight: 650;
+  letter-spacing: -0.01em;
 }
 .nodeStatus {
   fill: var(--text-muted);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+/* Run mode: the verdict/result carried inside the node, color as an accent. */
+.statusLabel {
   font-size: var(--fs-xs);
+  font-weight: 600;
+}
+/* Definition mode: the outcomes a source node can produce, listed inside it. */
+.possibleLabel {
+  fill: var(--text-muted);
+  font-size: var(--fs-2xs);
+}
+.outcomeRow {
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+.outOk {
+  fill: var(--success);
+}
+.outWarn {
+  fill: var(--warning);
+}
+.outErr {
+  fill: var(--danger);
+}
+.outInfo {
+  fill: var(--info);
+}
+.outNeutral {
+  fill: var(--text-muted);
+}
+
+/* Status glyphs — a colored disc with a white check / dash / cross / dot, so a
+   node's state never rests on color alone. */
+.iconOk {
+  fill: var(--success);
+}
+.iconWarn {
+  fill: var(--warning);
+}
+.iconErr {
+  fill: var(--danger);
+}
+.iconRunning {
+  fill: var(--info);
+}
+.iconIdle {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+.iconGlyph {
+  fill: none;
+  stroke: var(--bg-surface);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.iconInner {
+  fill: var(--bg-surface);
 }
 
 .idle .box {
@@ -101,13 +207,29 @@
   stroke: var(--info);
   fill: var(--info-bg);
 }
+.running .nodeStatus {
+  fill: var(--info);
+}
 .ok .box {
   stroke: var(--success);
   fill: var(--success-bg);
 }
+.ok .nodeStatus {
+  fill: var(--success);
+}
+.warn .box {
+  stroke: var(--warning);
+  fill: var(--warning-bg);
+}
+.warn .nodeStatus {
+  fill: var(--warning);
+}
 .err .box {
   stroke: var(--danger);
   fill: var(--danger-bg);
+}
+.err .nodeStatus {
+  fill: var(--danger);
 }
 
 @media (prefers-reduced-motion: no-preference) {
