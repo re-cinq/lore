@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import RunVisualizationPanel from "./RunVisualizationPanel";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
+import { codeReviewDefinition } from "@/lib/builtin-definitions";
 import { HISTORY_PAGE_LIMIT } from "./run-stream-presenter";
 
 const definition: AssemblyLineDefinition = {
@@ -591,5 +592,68 @@ describe("replay scrubber", () => {
     // Final state: implement carries its verdict, the terminal the run result.
     expect(nodeStatus(container, "implement")).toContain("Succeeded");
     expect(nodeStatus(container, "validate")).toContain("Completed");
+  });
+});
+
+describe("run-graph verdict on a finished run (regression)", () => {
+  const nodeTone = (container: HTMLElement, id: string) =>
+    container.querySelector(`[data-node="${id}"]`)?.getAttribute("data-tone");
+  const nodeText = (container: HTMLElement, id: string) =>
+    container.querySelector(`[data-node="${id}"]`)?.textContent ?? "";
+
+  it("shows a failed review's verdict, not its clean pod exit, and a failed terminal", async () => {
+    // The exact production bug: a finished code-review run whose review pod
+    // exited 0 (a benign `result` event → status succeeded) but whose recorded
+    // verdict is failed. The verdict comes from the walk row, so the graph must
+    // read Failed, not the green execution status; the terminal shows the run
+    // result (Failed), not "Completed" derived from the `finished` status.
+    stubHistory([
+      eventRow({ id: "1", nodeId: "review", eventType: "init" }),
+      eventRow({
+        id: "2",
+        nodeId: "review",
+        eventType: "result",
+        isError: false,
+      }),
+    ]);
+    useFakeEventSource();
+
+    const { container } = render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="finished"
+        startedAt={null}
+        definition={codeReviewDefinition}
+        showEdgeLabels
+        nodes={[
+          {
+            nodeId: "review",
+            iteration: 1,
+            outcome: "failed",
+            agentCrName: null,
+            commitSha: null,
+            durationSeconds: 184,
+          },
+          {
+            nodeId: "done",
+            iteration: 1,
+            outcome: "success",
+            agentCrName: null,
+            commitSha: null,
+            durationSeconds: 1,
+          },
+        ]}
+        repo="re-cinq/lore"
+        reason={'node "review" failed'}
+      />,
+    );
+
+    await settle();
+
+    expect(nodeTone(container, "review")).toBe("err");
+    expect(nodeText(container, "review")).toContain("Failed");
+    expect(nodeTone(container, "done")).toBe("err");
+    expect(nodeText(container, "done")).toContain("Failed");
+    expect(nodeText(container, "review")).not.toContain("Succeeded");
   });
 });
