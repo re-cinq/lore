@@ -140,6 +140,9 @@ export function streamRunEvents(
   // the response, let EventSource reconnect from Last-Event-ID and replay the
   // gap — keeps a long replay against a hot line from growing the heap.
   const buffer = (rows: AgentRunEventRow[]): void => {
+    if (closed) {
+      return;
+    }
     buffered.push(...rows);
 
     if (buffered.length > MAX_BUFFERED_EVENTS) {

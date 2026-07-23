@@ -7,8 +7,16 @@ import type {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-const byIdAscending = (a: AgentRunEventRow, b: AgentRunEventRow): number =>
-  BigInt(a.id) < BigInt(b.id) ? -1 : 1;
+const byIdAscending = (a: AgentRunEventRow, b: AgentRunEventRow): number => {
+  const left = BigInt(a.id);
+  const right = BigInt(b.id);
+
+  if (left < right) {
+    return -1;
+  }
+
+  return left > right ? 1 : 0;
+};
 
 /**
  * In-memory {@link AgentRunEventsRepository} — the behavioral spec for the
