@@ -187,6 +187,42 @@ describe("postReviewFromNode", () => {
     ]);
   });
 
+  it("audits a fallback delivery as review_post_degraded while still reporting posted", async () => {
+    const p = ports();
+    const comments: Array<{ number: number; body: string }> = [];
+    const rejectingInline: ReviewPoster = {
+      createReview: async () => {
+        throw new Error("Validation Failed");
+      },
+      comment: async (number, body) => {
+        comments.push({ number, body });
+      },
+      getDiff: async () => "",
+    };
+
+    const outcome = await postReviewFromNode(
+      row(),
+      reviewNode,
+      findingsText("changes_requested"),
+      { poster: rejectingInline, audit: p.audit },
+    );
+
+    expect(outcome).toBe("posted");
+    expect(comments).toHaveLength(1);
+    expect(comments[0]?.body).toContain("boom");
+    expect(p.entries).toMatchObject([
+      {
+        event_type: "review_post_degraded",
+        repo: "re-cinq/lore",
+        payload: {
+          pr_number: 841,
+          assembly_line_id: "line-1",
+          error: "Validation Failed",
+        },
+      },
+    ]);
+  });
+
   it("audits a total post failure (inline post and fallback comment both throw) instead of swallowing it", async () => {
     const p = ports();
     const failing: ReviewPoster = {

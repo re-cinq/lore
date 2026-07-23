@@ -120,12 +120,18 @@ function fallbackComment(output: ReviewOutput): string {
   return `${summary}\n\n${all}`;
 }
 
+/** How the post was delivered. `fallback` means GitHub rejected the inline
+ *  review and the whole review went out as one top-level comment — the caller
+ *  audits it, because a silent downgrade is invisible at the PR. */
+export type ReviewPostDelivery =
+  { mode: "inline" } | { mode: "fallback"; error: string };
+
 export async function postReview(
   pulls: ReviewPoster,
   prNumber: number,
   output: ReviewOutput,
   positions: CommentablePositions,
-): Promise<void> {
+): Promise<ReviewPostDelivery> {
   const { inline, overflow } = partitionByHunks(output.findings, positions);
 
   try {
@@ -134,13 +140,19 @@ export async function postReview(
       body: composeBody(output, overflow),
       comments: inline.map(toReviewComment),
     });
+
+    return { mode: "inline" };
   } catch (err) {
     // The review post is atomic — one out-of-hunk line 422s all of it. Never
     // drop the review: deliver it whole as a single top-level comment.
+    const error = (err as Error).message;
+
     console.warn(
-      `[code-review] inline review rejected (${(err as Error).message}); posting as a top-level comment`,
+      `[code-review] inline review rejected (${error}); posting as a top-level comment`,
     );
     await pulls.comment(prNumber, fallbackComment(output));
+
+    return { mode: "fallback", error };
   }
 }
 
@@ -153,7 +165,7 @@ function approvedWithoutFindings(agentOutput: string): ReviewOutput | null {
 }
 
 /**
- * Parse the review node's raw output and post the review. No-op (returns false)
+ * Parse the review node's raw output and post the review. No-op (returns null)
  * when the output carries neither a valid `REVIEW_FINDINGS` block nor a bare
  * approval verdict. `positions` are the diff's commentable lines, used to keep a
  * finding on an uninlineable line out of the inline comments array.
@@ -163,14 +175,13 @@ export async function maybePostReview(
   prNumber: number,
   agentOutput: string,
   positions: CommentablePositions,
-): Promise<boolean> {
+): Promise<ReviewPostDelivery | null> {
   const output =
     parseReviewFindings(agentOutput) ?? approvedWithoutFindings(agentOutput);
 
   if (!output) {
-    return false;
+    return null;
   }
-  await postReview(pulls, prNumber, output, positions);
 
-  return true;
+  return postReview(pulls, prNumber, output, positions);
 }
