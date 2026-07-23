@@ -111,7 +111,7 @@ function latestNodeOutcomes(
   for (const node of nodes) {
     const prev = latest.get(node.nodeId);
 
-    if (!prev || node.iteration >= prev.iteration) {
+    if (!prev || node.iteration > prev.iteration) {
       latest.set(node.nodeId, node);
     }
   }

@@ -59,6 +59,14 @@ describe("assemblyLineCheck", () => {
     });
   });
 
+  it("keeps a running line in_progress even when a node already recorded changes_requested", () => {
+    expect(
+      assemblyLineCheck(line({ status: "running" }), [
+        nodeRow({ outcome: "changes_requested" }),
+      ]),
+    ).toMatchObject({ status: "in_progress" });
+  });
+
   it("maps a changes_requested line outcome to a neutral conclusion", () => {
     expect(
       assemblyLineCheck(

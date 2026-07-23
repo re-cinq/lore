@@ -147,14 +147,19 @@ async function publishStartCheck(assemblyLineId: string): Promise<void> {
         import("../../composition/project-boot.js"),
         import("./pr-check.js"),
       ]);
-    const [row, nodes] = await Promise.all([
-      assemblyLines().getById(assemblyLineId),
-      assemblyLines().listNodes(assemblyLineId),
-    ]);
+    const row = await assemblyLines().getById(assemblyLineId);
 
     if (!row || !(Number(row.args.pr_number) > 0)) {
       return;
     }
+    // Node rows only decide TERMINAL conclusions, so skip the query on the
+    // normal (queued/running) start path — but a redelivered start event can
+    // land after the line finished, and publishing with empty nodes there would
+    // overwrite a correct `neutral` (changes_requested) check with `success`.
+    const nodes =
+      row.status === "queued" || row.status === "running"
+        ? []
+        : await assemblyLines().listNodes(assemblyLineId);
     const project = await projectFor(row.repo);
 
     await publishPrCheck(project.repo, row, nodes, process.env.LORE_UI_URL);
