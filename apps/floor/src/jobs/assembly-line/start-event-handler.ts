@@ -147,14 +147,17 @@ async function publishStartCheck(assemblyLineId: string): Promise<void> {
         import("../../composition/project-boot.js"),
         import("./pr-check.js"),
       ]);
-    const row = await assemblyLines().getById(assemblyLineId);
+    const [row, nodes] = await Promise.all([
+      assemblyLines().getById(assemblyLineId),
+      assemblyLines().listNodes(assemblyLineId),
+    ]);
 
     if (!row || !(Number(row.args.pr_number) > 0)) {
       return;
     }
     const project = await projectFor(row.repo);
 
-    await publishPrCheck(project.repo, row, process.env.LORE_UI_URL);
+    await publishPrCheck(project.repo, row, nodes, process.env.LORE_UI_URL);
   } catch (err) {
     console.warn("[pr-check] start publish failed:", (err as Error).message);
   }

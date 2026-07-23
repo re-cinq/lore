@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { assemblyLineCheck } from "./pr-check.js";
-import type { AssemblyLineRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type {
+  AssemblyLineNodeRecord,
+  AssemblyLineRecord,
+} from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
 
 function line(over: Partial<AssemblyLineRecord>): AssemblyLineRecord {
   return {
@@ -20,40 +23,89 @@ function line(over: Partial<AssemblyLineRecord>): AssemblyLineRecord {
   };
 }
 
+function nodeRow(
+  over: Partial<AssemblyLineNodeRecord>,
+): AssemblyLineNodeRecord {
+  return {
+    id: "n-1",
+    assemblyLineId: "al-1",
+    nodeId: "review",
+    iteration: 1,
+    outcome: null,
+    agentCrName: null,
+    commitSha: null,
+    startedAt: new Date(0),
+    finishedAt: null,
+    ...over,
+  };
+}
+
 describe("assemblyLineCheck", () => {
   it("returns null when the line carries no pr_number", () => {
-    expect(assemblyLineCheck(line({ args: { head_sha: "abc" } }))).toBeNull();
+    expect(
+      assemblyLineCheck(line({ args: { head_sha: "abc" } }), []),
+    ).toBeNull();
   });
 
   it("returns null when the line carries no head_sha", () => {
-    expect(assemblyLineCheck(line({ args: { pr_number: 7 } }))).toBeNull();
+    expect(assemblyLineCheck(line({ args: { pr_number: 7 } }), [])).toBeNull();
   });
 
   it("maps a running line to an in_progress check named lore/<definition>", () => {
-    expect(assemblyLineCheck(line({ status: "running" }))).toMatchObject({
+    expect(assemblyLineCheck(line({ status: "running" }), [])).toMatchObject({
       headSha: "abc123",
       name: "lore/code-review",
       status: "in_progress",
     });
   });
 
-  it("maps a changes_requested outcome to a neutral conclusion", () => {
+  it("maps a changes_requested line outcome to a neutral conclusion", () => {
     expect(
       assemblyLineCheck(
         line({ status: "finished", outcome: "changes_requested" }),
+        [],
       ),
     ).toMatchObject({ status: "completed", conclusion: "neutral" });
   });
 
+  it("maps a completed line whose review node recorded changes_requested to a neutral conclusion", () => {
+    // The production bug (PR #938): the walk routes changes_requested → done, so
+    // the line closes with outcome "completed" and only the node row carries the
+    // verdict — the check must not read success/"Approved." from the line alone.
+    expect(
+      assemblyLineCheck(line({ status: "finished", outcome: "completed" }), [
+        nodeRow({ outcome: "changes_requested" }),
+        nodeRow({ id: "n-2", nodeId: "done", outcome: "success" }),
+      ]),
+    ).toMatchObject({ status: "completed", conclusion: "neutral" });
+  });
+
+  it("reads the latest iteration of a node, so a re-reviewed success wins over an earlier changes_requested", () => {
+    expect(
+      assemblyLineCheck(line({ status: "finished", outcome: "completed" }), [
+        nodeRow({ iteration: 1, outcome: "changes_requested" }),
+        nodeRow({ id: "n-2", iteration: 2, outcome: "success" }),
+      ]),
+    ).toMatchObject({ status: "completed", conclusion: "success" });
+  });
+
   it("maps a successful line to a success conclusion", () => {
     expect(
-      assemblyLineCheck(line({ status: "finished", outcome: "success" })),
+      assemblyLineCheck(line({ status: "finished", outcome: "success" }), []),
     ).toMatchObject({ status: "completed", conclusion: "success" });
   });
 
   it("maps a failed line to a failure conclusion", () => {
     expect(
-      assemblyLineCheck(line({ status: "failed", outcome: "error" })),
+      assemblyLineCheck(line({ status: "failed", outcome: "error" }), []),
+    ).toMatchObject({ status: "completed", conclusion: "failure" });
+  });
+
+  it("maps a failed line with a changes_requested node to a failure conclusion", () => {
+    expect(
+      assemblyLineCheck(line({ status: "failed", outcome: "error" }), [
+        nodeRow({ outcome: "changes_requested" }),
+      ]),
     ).toMatchObject({ status: "completed", conclusion: "failure" });
   });
 
@@ -65,6 +117,7 @@ describe("assemblyLineCheck", () => {
           outcome: "failed",
           reason: 'node "review" failed',
         }),
+        [],
       ),
     ).toMatchObject({
       status: "completed",
@@ -76,6 +129,7 @@ describe("assemblyLineCheck", () => {
   it("adds the @lore review re-run hint to a failed code-review line", () => {
     const check = assemblyLineCheck(
       line({ status: "finished", outcome: "failed" }),
+      [],
     );
 
     expect(check?.summary).toContain("@lore review");
@@ -83,13 +137,21 @@ describe("assemblyLineCheck", () => {
 
   it("maps a pr_closed outcome to a cancelled conclusion", () => {
     expect(
-      assemblyLineCheck(line({ status: "finished", outcome: "pr_closed" })),
+      assemblyLineCheck(line({ status: "finished", outcome: "pr_closed" }), []),
+    ).toMatchObject({ status: "completed", conclusion: "cancelled" });
+  });
+
+  it("maps a pr_closed line with a changes_requested node to a cancelled conclusion", () => {
+    expect(
+      assemblyLineCheck(line({ status: "finished", outcome: "pr_closed" }), [
+        nodeRow({ outcome: "changes_requested" }),
+      ]),
     ).toMatchObject({ status: "completed", conclusion: "cancelled" });
   });
 
   it("adds a details_url to the Lore UI when a uiUrl is given", () => {
     expect(
-      assemblyLineCheck(line({}), "https://lore.example.com"),
+      assemblyLineCheck(line({}), [], "https://lore.example.com"),
     ).toMatchObject({
       detailsUrl: "https://lore.example.com/assembly-lines/al-1",
     });

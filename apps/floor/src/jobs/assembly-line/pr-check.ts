@@ -1,6 +1,7 @@
 /**
- * Maps an assembly-line row to a GitHub check run, so any PR-linked line's live
- * state shows in the PR's checks section (with a details link to the Lore UI).
+ * Maps an assembly-line row (plus its node walk rows) to a GitHub check run, so
+ * any PR-linked line's live state shows in the PR's checks section (with a
+ * details link to the Lore UI).
  * Generic: keyed off `args.pr_number` + `args.head_sha`, so a `code-review`,
  * `comment-triage`, or any future PR-linked line all publish a check for free.
  *
@@ -9,7 +10,10 @@
  * satisfy it so the block lifts only when the review completes.
  */
 
-import type { AssemblyLineRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type {
+  AssemblyLineNodeRecord,
+  AssemblyLineRecord,
+} from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
 import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import { writeAuditLog } from "../lib/audit.js";
 
@@ -20,6 +24,7 @@ export interface CheckPublisher {
 
 export function assemblyLineCheck(
   line: AssemblyLineRecord,
+  nodes: readonly AssemblyLineNodeRecord[],
   uiUrl?: string,
 ): CheckRunInput | null {
   const prNumber = Number(line.args.pr_number);
@@ -44,12 +49,15 @@ export function assemblyLineCheck(
     };
   }
 
-  const { conclusion, summary } = terminal(line);
+  const { conclusion, summary } = terminal(line, nodes);
 
   return { ...base, status: "completed", conclusion, summary };
 }
 
-function terminal(line: AssemblyLineRecord): {
+function terminal(
+  line: AssemblyLineRecord,
+  nodes: readonly AssemblyLineNodeRecord[],
+): {
   conclusion: NonNullable<CheckRunInput["conclusion"]>;
   summary: string;
 } {
@@ -72,7 +80,19 @@ function terminal(line: AssemblyLineRecord): {
     };
   }
 
-  if (line.outcome === "changes_requested") {
+  if (line.outcome === "pr_closed") {
+    return { conclusion: "cancelled", summary: "PR closed." };
+  }
+
+  // The code-review walk routes `changes_requested` → done, so the LINE closes
+  // with outcome "completed" and only the review node's walk row keeps the
+  // verdict — read it from the node rows (latest iteration per node wins,
+  // mirroring the web-ui run graph), or the check reads "Approved." over a
+  // changes-requested review.
+  if (
+    line.outcome === "changes_requested" ||
+    latestNodeOutcomes(nodes).includes("changes_requested")
+  ) {
     return {
       conclusion: "neutral",
       summary:
@@ -80,20 +100,33 @@ function terminal(line: AssemblyLineRecord): {
     };
   }
 
-  if (line.outcome === "pr_closed") {
-    return { conclusion: "cancelled", summary: "PR closed." };
+  return { conclusion: "success", summary: "Approved." };
+}
+
+function latestNodeOutcomes(
+  nodes: readonly AssemblyLineNodeRecord[],
+): string[] {
+  const latest = new Map<string, AssemblyLineNodeRecord>();
+
+  for (const node of nodes) {
+    const prev = latest.get(node.nodeId);
+
+    if (!prev || node.iteration >= prev.iteration) {
+      latest.set(node.nodeId, node);
+    }
   }
 
-  return { conclusion: "success", summary: "Approved." };
+  return [...latest.values()].map((node) => node.outcome ?? "");
 }
 
 /** Best-effort publish — a check failure (e.g. missing `checks: write`) never fails the line. */
 export async function publishPrCheck(
   repo: CheckPublisher,
   line: AssemblyLineRecord,
+  nodes: readonly AssemblyLineNodeRecord[],
   uiUrl?: string,
 ): Promise<void> {
-  const check = assemblyLineCheck(line, uiUrl);
+  const check = assemblyLineCheck(line, nodes, uiUrl);
 
   if (!check) {
     return;
