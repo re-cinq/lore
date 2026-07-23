@@ -312,12 +312,15 @@ export async function publishCheck(
   assemblyLineId: string,
   deps: AdvanceDeps,
 ): Promise<void> {
-  const row = await deps.assemblyLines.getById(assemblyLineId);
+  const [row, nodes] = await Promise.all([
+    deps.assemblyLines.getById(assemblyLineId),
+    deps.assemblyLines.listNodes(assemblyLineId),
+  ]);
 
   if (!row || !(Number(row.args.pr_number) > 0)) {
     return;
   }
   const project = await projectFor(row.repo);
 
-  await publishPrCheck(project.repo, row, process.env.LORE_UI_URL);
+  await publishPrCheck(project.repo, row, nodes, process.env.LORE_UI_URL);
 }
