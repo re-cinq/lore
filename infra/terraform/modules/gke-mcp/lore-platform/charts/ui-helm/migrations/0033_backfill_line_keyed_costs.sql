@@ -31,7 +31,7 @@ SELECT are.task_id::uuid,
        are.created_at
   FROM pipeline.agent_run_events are
   JOIN pipeline.assembly_lines al
-    ON are.task_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ON are.task_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
    AND al.id = are.task_id::uuid
    AND al.task_id IS NULL
  WHERE are.event_type = 'result'
