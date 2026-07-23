@@ -36,6 +36,13 @@
   border-color: var(--tone-muted-border, #d8dde3);
 }
 
+/* Degraded but advancing: the history-poll fallback, not a dead stream. */
+.polling {
+  color: var(--tone-running-fg, #7a5200);
+  background: var(--tone-running-bg, #fff5da);
+  border-color: var(--tone-running-border, #f0dca6);
+}
+
 .replayControls {
   display: flex;
   gap: 0.75rem;

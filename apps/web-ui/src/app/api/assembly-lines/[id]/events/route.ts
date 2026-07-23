@@ -70,7 +70,7 @@ export async function GET(
     const query = forwarded.size === 0 ? "" : `?${forwarded}`;
     const upstream = await fetch(
       `${floorUrl}/api/agent-events/${encodeURIComponent(id)}${query}`,
-      { headers: { Authorization: `Bearer ${token}` } },
+      { headers: { Authorization: `Bearer ${token}` }, signal: req.signal },
     );
     const body = await upstream.text();
 

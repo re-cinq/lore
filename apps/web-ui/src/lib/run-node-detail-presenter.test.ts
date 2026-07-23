@@ -35,7 +35,6 @@ const event = (over: Partial<RunStreamEvent> = {}): RunStreamEvent => ({
 
 const state = (over: Partial<NodeRunState> = {}): NodeRunState => ({
   status: "succeeded",
-  outcome: null,
   iteration: 1,
   transcript: [],
   droppedCount: 0,
