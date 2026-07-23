@@ -284,7 +284,7 @@ and the webhook/verdict plumbing it rides on.
    only for a human comment on an open, non-draft PR with auto-review on; a reply on a closed PR is
    ignored. ([validated by `code-review.test.ts:112`](apps/floor/src/jobs/review/code-review.test.ts#L112), [`code-review.test.ts:209`](apps/floor/src/jobs/review/code-review.test.ts#L209), [`code-review.test.ts:195`](apps/floor/src/jobs/review/code-review.test.ts#L195))
 
-5. On PR close: `onClose` finishes any open code-review line for that PR with outcome `pr_closed`. ([validated by `code-review.test.ts:384`](apps/floor/src/jobs/review/code-review.test.ts#L384))
+5. On PR close: `onClose` finishes any open code-review line for that PR with outcome `pr_closed`. ([validated by `code-review.test.ts:402`](apps/floor/src/jobs/review/code-review.test.ts#L402))
 
 6. The GitHub webhook maps `pull_request.closed` to `github.pull_request.closed` carrying
    `merged`/`branch`/`merge_commit_sha`/`labels` — for both a merged and a closed-without-merge PR —
@@ -355,11 +355,12 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 - routes answer to a code-review-reply line with the answer intent. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L145))
 - composes the review body with inline comments carrying ids and locations. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L265))
 - returns an empty string for a review with neither body nor comments. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L294))
-- starts a code-review-reply line carrying the review body and its inline comments. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L309))
-- falls back to a generic description when the review carried no text. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L343))
-- ignores an approved review. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L360))
-- ignores the bot's own submitted review (loop guard). ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L371))
-- finishes any open code-review lines for the PR. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L384))
+- keeps the inline-comments header when the review has no body. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L298))
+- starts a code-review-reply line carrying the review body and its inline comments. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L327))
+- falls back to a generic description when the review carried no text. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L361))
+- ignores an approved review. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L378))
+- ignores the bot's own submitted review (loop guard). ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L389))
+- finishes any open code-review lines for the PR. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L402))
 
 ### `apps/floor/src/jobs/review/post-review.test.ts`
 

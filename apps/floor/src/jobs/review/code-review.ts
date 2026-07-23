@@ -184,9 +184,14 @@ export function reviewFeedback(
 
     return `- inline comment ${c.id} on ${where}: ${c.body}`;
   });
-  const parts = [body.trim(), lines.join("\n")].filter(Boolean);
+  const trimmed = body.trim();
 
-  return parts.join("\n\nInline comments:\n");
+  if (lines.length === 0) {
+    return trimmed;
+  }
+  const inline = `Inline comments:\n${lines.join("\n")}`;
+
+  return trimmed ? `${trimmed}\n\n${inline}` : inline;
 }
 
 /** The thread context threaded from a comment into the triage + follow-up lines. */
