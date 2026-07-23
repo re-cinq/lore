@@ -49,6 +49,9 @@ edges:
     to: implement
     on: failed
     iteration_max: 1
+  - from: implement
+    to: retrospective
+    on: changes_requested
   - from: validate
     to: push
     on: success

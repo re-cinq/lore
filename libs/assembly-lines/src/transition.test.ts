@@ -4,36 +4,36 @@ import { parseAssemblyLine, type AssemblyLine } from "./loader.js";
 import { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
 import type { StageOutcome } from "./node-types.js";
 
-const reviewLoop: AssemblyLine = parseAssemblyLine(`
-name: review-loop
-description: implement → validate → review → (changes → implement)
-version: 1
-entry: implement
-exit: done
-nodes:
-  - id: implement
-    type: agent
-  - id: validate
-    type: validate
-  - id: review
-    type: agent
-  - id: done
-    type: retrospective
-edges:
-  - from: implement
-    to: validate
-    on: success
-  - from: validate
-    to: review
-    on: success
-  - from: review
-    to: done
-    on: success
-  - from: review
-    to: implement
-    on: changes_requested
-    iteration_max: 2
-`);
+// Handcrafted rather than parseAssemblyLine: implement and validate
+// deliberately lack failed / changes_requested edges so the runtime
+// no-edge guard below stays exercisable — the loader now rejects a
+// definition whose producible outcomes are uncovered (#946), keeping
+// `nextTransition`'s no-edge failure as defense-in-depth for graphs
+// that never went through the loader.
+const reviewLoop: AssemblyLine = {
+  name: "review-loop",
+  description: "implement → validate → review → (changes → implement)",
+  version: 1,
+  entry: "implement",
+  exit: "done",
+  nodes: [
+    { id: "implement", type: "agent" },
+    { id: "validate", type: "validate" },
+    { id: "review", type: "agent" },
+    { id: "done", type: "retrospective" },
+  ],
+  edges: [
+    { from: "implement", to: "validate", on: "success" },
+    { from: "validate", to: "review", on: "success" },
+    { from: "review", to: "done", on: "success" },
+    {
+      from: "review",
+      to: "implement",
+      on: "changes_requested",
+      iteration_max: 2,
+    },
+  ],
+};
 
 // implementation.yaml's shape: an ALWAYS back-edge carrying iteration_max.
 const alwaysLoop: AssemblyLine = parseAssemblyLine(`

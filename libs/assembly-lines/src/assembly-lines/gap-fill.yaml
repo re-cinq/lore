@@ -33,9 +33,18 @@ edges:
   - from: draft
     to: validate
     on: success
+  - from: draft
+    to: retrospective
+    on: changes_requested
+  - from: draft
+    to: retrospective
+    on: failed
   - from: validate
     to: push
     on: success
+  - from: validate
+    to: retrospective
+    on: failed
   - from: push
     to: retrospective
     on: always
