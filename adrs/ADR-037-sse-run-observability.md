@@ -1,7 +1,7 @@
 ---
 adr_number: 37
 title: "SSE for assembly-line run observability"
-status: draft
+status: accepted
 date: 2026-07-17
 domains: [architecture, observability, floor, web-ui]
 ---
@@ -56,32 +56,28 @@ introduced for this feature must not collide with that name.
 
 Run observability is delivered over Server-Sent Events at
 `GET /api/agent-events/stream/{assemblyLineId}`, with catch-up-then-live
-semantics keyed on a row-id cursor.
+semantics keyed on a row-id cursor. ([validated by `agent-events-stream.test.ts:511`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L511), [`agent-events-stream.test.ts:167`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L167), [`agent-events-stream.test.ts:238`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L238))
 
-The POST handler and the SSE subscribers are joined by an in-process pub/sub. A
+The POST handler and the SSE subscribers are joined by an in-process pub/sub. ([validated by `agent-event-bus.test.ts:28`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L28)) A
 subscriber registers against an assembly-line id; the ingest path publishes each
-projected row to matching subscribers after the write commits.
+projected row to matching subscribers after the write commits. ([validated by `agent-event-bus.test.ts:41`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L41))
 
 Reconnection is lossless by construction rather than by buffering: the browser
 resends `Last-Event-ID`, and the server replays from the database before
-attaching to the live tail. The bus is therefore best-effort and holds no
-backlog — durability lives in `pipeline.agent_run_events`, not in memory.
+attaching to the live tail. ([validated by `agent-events-stream.test.ts:286`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L286), [`run-event-reducer.test.ts:224`](apps/web-ui/src/lib/run-event-reducer.test.ts#L224)) The bus is therefore best-effort and holds no
+backlog — durability lives in `pipeline.agent_run_events`, not in memory. ([validated by `agent-event-bus.test.ts:159`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L159))
 
 A subscriber that cannot keep up is disconnected rather than allowed to apply
 back-pressure to the ingest path, which shares a process with the cost sink and
-the Floor's job loops.
+the Floor's job loops. ([validated by `agent-event-bus.test.ts:187`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L187), [`agent-events-stream.test.ts:419`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L419))
 
-Both hops set `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`.
+Both hops set `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`. ([validated by `agent-events-stream.test.ts:511`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L511), [`route.test.ts:149`](apps/web-ui/src/app/api/assembly-lines/[id]/events/stream/route.test.ts#L149))
 
 The `AgentRunEventRow` type is canonical in `libs/shared` and hand-mirrored in
-`apps/web-ui`, with a type-only drift guard under `scripts/type-drift/`.
+`apps/web-ui`, with a type-only drift guard under `scripts/type-drift/`. ([validated by `run-stream-types.test.ts:26`](apps/web-ui/src/lib/run-stream-types.test.ts#L26), [`run-stream-types.test.ts:66`](apps/web-ui/src/lib/run-stream-types.test.ts#L66))
 
 The definition DAG is laid out and rendered by hand in SVG, with no new
-dependency.
-
-Polling remains the correct pattern for every non-streaming view; this decision
-introduces streaming for run observability only, and is not a licence to convert
-existing polled views.
+dependency. ([validated by `dag-layout.test.ts:45`](apps/web-ui/src/lib/dag-layout.test.ts#L45), [`dag-layout.test.ts:147`](apps/web-ui/src/lib/dag-layout.test.ts#L147))
 
 ## Consequences
 
@@ -103,6 +99,10 @@ high-concurrency front end, and the audience for a run page is small; the
 disconnect-slow-clients rule bounds the blast radius. Should held connections
 ever become the constraint, the same cursor supports falling back to polling
 `GET /api/agent-events/{assemblyLineId}` with no contract change.
+
+Polling remains the correct pattern for every non-streaming view; this decision
+introduces streaming for run observability only, and is not a licence to convert
+existing polled views.
 
 Cross-references: ADR-015 (webhook-driven review reactor) and its event-bus
 amendment own Floor-internal triggering through `pipeline.events`; this ADR owns
