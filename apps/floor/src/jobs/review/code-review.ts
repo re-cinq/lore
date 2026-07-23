@@ -92,6 +92,7 @@ export function routeTriagedComment(
         pr_number: ctx.pr_number,
         head_sha: ctx.head_sha,
         mode: "review",
+        actor: ctx.actor,
         description: reviewDescription(ctx.repo, ctx.pr_number, ctx.branch),
       },
     };
@@ -104,6 +105,7 @@ export function routeTriagedComment(
         ...thread,
         mode: "reply",
         intent: action,
+        actor: ctx.actor,
         description: replyDescription(action, ctx),
       },
     };
@@ -203,6 +205,9 @@ export interface CommentContext {
   comment_id: number;
   comment_body: string;
   in_reply_to_id?: number | null;
+  /** The human who triggered the line (commenter / reviewer) — surfaced as the
+   *  run list's "By" for task-less lines via args.actor. */
+  actor?: string;
 }
 
 /**
@@ -218,6 +223,7 @@ export async function startReview(
     prNumber: number;
     autoReview: boolean;
     forced?: boolean;
+    actor?: string;
   },
   uiUrl?: string,
 ): Promise<string | null> {
@@ -239,6 +245,7 @@ export async function startReview(
       pr_number: input.prNumber,
       mode: "review",
       head_sha: pr.headSha,
+      actor: input.actor ?? pr.author,
       description: reviewDescription(input.repo, input.prNumber, pr.branch),
     },
   });
@@ -300,7 +307,13 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     if (isReviewRequest(p.comment_body)) {
       await startReview(
         project,
-        { repo: p.repo, prNumber: p.pr_number, autoReview, forced: true },
+        {
+          repo: p.repo,
+          prNumber: p.pr_number,
+          autoReview,
+          forced: true,
+          actor: p.comment_author,
+        },
         deps.uiUrl(),
       );
 
@@ -348,6 +361,7 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
       head_sha: pr!.headSha,
       comment_id: 0,
       comment_body: feedback || "changes requested in a submitted review",
+      actor: author,
     };
     const route = routeTriagedComment("address", ctx)!;
 
@@ -397,6 +411,7 @@ function commentContext(p: CommentParams, pr: PullRef): CommentContext {
     comment_id: p.comment_id,
     comment_body: p.comment_body,
     in_reply_to_id: p.in_reply_to_id ?? null,
+    actor: p.comment_author,
   };
 }
 

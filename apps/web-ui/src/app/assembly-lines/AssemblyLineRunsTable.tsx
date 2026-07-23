@@ -32,8 +32,9 @@ export interface AssemblyLineRunsTableProps {
  * The one assembly-line table — per-attempt runs from pipeline.assembly_lines.
  * Data down, no actions up beyond a local toggle that reveals the hidden
  * coordination skips. Shared by the global list and the per-repo tab. PR link /
- * creator / cost come from the run's backing task (or args.pr_number for
- * code-review runs); em-dash when the run has no task.
+ * creator / cost come from the run's backing task; task-less runs (the
+ * webhook-driven family) fall back to args.pr_number / args.actor / the
+ * line-keyed llm_calls rows. Em-dash when a run has neither.
  */
 export default function AssemblyLineRunsTable({
   runs,
@@ -62,9 +63,11 @@ export default function AssemblyLineRunsTable({
           <th>PR</th>
           <th>Duration</th>
           <th>Started</th>
-          <th>By</th>
-          <th title="LLM cost of the backing task (shared across its run attempts)">
-            Cost (task)
+          <th title="Who triggered the run — the task creator, or the commenter/reviewer/PR author for webhook-driven lines">
+            By
+          </th>
+          <th title="LLM cost — the backing task's total (shared across its run attempts), or the run's own cost for task-less lines">
+            Cost
           </th>
         </tr>
       </thead>
