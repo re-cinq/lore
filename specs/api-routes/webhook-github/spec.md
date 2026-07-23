@@ -156,11 +156,11 @@ A merged spec PR parses tasks.md and syncs spec-tasks; a non-spec branch, an alr
 
 A `synchronize` pull_request triggers the review reactor; an unhandled action skips. ([validated by `github-map.test.ts:7`](apps/floor/src/listeners/github-map.test.ts#L7), [`github-map.test.ts:83`](apps/floor/src/listeners/github-map.test.ts#L83))
 
-A submitted review triggers both the review reactor and auto-merge; a non-submitted review skips; missing repo/pr returns 400. ([validated by `github-map.test.ts:95`](apps/floor/src/listeners/github-map.test.ts#L95))
+A submitted review triggers both the review reactor and auto-merge; a non-submitted review skips; missing repo/pr returns 400. ([validated by `github-map.test.ts:95`](apps/floor/src/listeners/github-map.test.ts#L95), [`github-map.test.ts:129`](apps/floor/src/listeners/github-map.test.ts#L129))
 
-A completed `check_run` / `check_suite` fans out auto-merge to every PR; a non-completed check and an empty PR list each skip. ([validated by `github-map.test.ts:189`](apps/floor/src/listeners/github-map.test.ts#L189), [`github-map.test.ts:212`](apps/floor/src/listeners/github-map.test.ts#L212))
+A completed `check_run` / `check_suite` fans out auto-merge to every PR; a non-completed check and an empty PR list each skip. ([validated by `github-map.test.ts:263`](apps/floor/src/listeners/github-map.test.ts#L263), [`github-map.test.ts:286`](apps/floor/src/listeners/github-map.test.ts#L286))
 
-A created PR comment triggers the review reactor; an edited comment and a non-PR comment skip. ([validated by `github-map.test.ts:112`](apps/floor/src/listeners/github-map.test.ts#L112), [`github-map.test.ts:136`](apps/floor/src/listeners/github-map.test.ts#L136))
+A created PR comment triggers the review reactor; an edited comment and a non-PR comment skip. ([validated by `github-map.test.ts:153`](apps/floor/src/listeners/github-map.test.ts#L153), [`github-map.test.ts:177`](apps/floor/src/listeners/github-map.test.ts#L177))
 
 A `lore`-labeled issue creates a task (type from issue labels) and labels the issue; a mismatched label, a duplicate, missing fields, a null pool, and a createTask failure each return their documented status. The duplicate guard excludes `failed`/`cancelled` tasks (a new task is allowed after the previous one failed), the dispatch decision reads `dispatch_label`/`auto_review` from `lore.repos.settings`, and the created task is linked to its issue via `issue_number`/`issue_url`. ([validated by `webhook.test.ts:61`](apps/lore-api/src/integration-tests/webhook.test.ts#L61), [`webhook.test.ts:79`](apps/lore-api/src/integration-tests/webhook.test.ts#L79), [`webhook.test.ts:91`](apps/lore-api/src/integration-tests/webhook.test.ts#L91))
 

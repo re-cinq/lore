@@ -4,6 +4,7 @@ import {
   isBotActor,
   isReviewRequest,
   routeTriagedComment,
+  reviewFeedback,
   decideReviewOnOpen,
   decideReviewOnReply,
   type CodeReviewDeps,
@@ -11,7 +12,10 @@ import {
 } from "./code-review.js";
 import { AssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines.js";
 import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
-import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import type {
+  PullRef,
+  ReviewComment,
+} from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 
 const REPO = "re-cinq/lore";
 
@@ -44,7 +48,11 @@ function ctx(over: Partial<CommentContext> = {}): CommentContext {
   };
 }
 
-function harness(pr: PullRef | null, autoReview = true) {
+function harness(
+  pr: PullRef | null,
+  autoReview = true,
+  reviewComments: ReviewComment[] = [],
+) {
   const port = new InMemoryAssemblyLines();
   const comments: Array<{ number: number; body: string }> = [];
   const project = {
@@ -53,6 +61,7 @@ function harness(pr: PullRef | null, autoReview = true) {
       comment: async (number: number, body: string) => {
         comments.push({ number, body });
       },
+      listComments: async () => reviewComments,
     },
     assemblyLines: new AssemblyLines(REPO, port),
   };
@@ -252,15 +261,122 @@ describe("onCommentTriaged", () => {
   });
 });
 
-describe("onReviewSubmitted", () => {
-  it("starts a code-review-reply line with the address intent", async () => {
-    const { port, handlers } = harness(openPr());
+describe("reviewFeedback", () => {
+  it("composes the review body with inline comments carrying ids and locations", () => {
+    expect(
+      reviewFeedback("please tighten this up", [
+        {
+          id: 11,
+          path: "src/a.ts",
+          line: 7,
+          body: "guard the null case",
+          user: "alice",
+          created_at: "2026-07-23",
+          review_id: 900,
+        },
+        {
+          id: 12,
+          path: "src/b.ts",
+          line: null,
+          body: "typo in the doc",
+          user: "alice",
+          created_at: "2026-07-23",
+          review_id: 900,
+        },
+      ]),
+    ).toEqual(
+      "please tighten this up\n\nInline comments:\n" +
+        "- inline comment 11 on src/a.ts:7: guard the null case\n" +
+        "- inline comment 12 on src/b.ts: typo in the doc",
+    );
+  });
 
-    await handlers.onReviewSubmitted({ repo: REPO, pr_number: 42 });
+  it("returns an empty string for a review with neither body nor comments", () => {
+    expect(reviewFeedback("", [])).toEqual("");
+  });
+});
+
+describe("onReviewSubmitted", () => {
+  const submitted = {
+    repo: REPO,
+    pr_number: 42,
+    review_id: 900,
+    review_state: "changes_requested",
+    review_author: "alice",
+    review_body: "please tighten this up",
+  };
+
+  it("starts a code-review-reply line carrying the review body and its inline comments", async () => {
+    const { port, handlers } = harness(openPr(), true, [
+      {
+        id: 11,
+        path: "src/a.ts",
+        line: 7,
+        body: "guard the null case",
+        user: "alice",
+        created_at: "2026-07-23",
+        review_id: 900,
+      },
+      {
+        id: 99,
+        path: "src/old.ts",
+        line: 1,
+        body: "from an earlier review",
+        user: "bob",
+        created_at: "2026-07-01",
+        review_id: 111,
+      },
+    ]);
+
+    await handlers.onReviewSubmitted(submitted);
 
     expect(port.rows).toMatchObject([
       { definitionName: "code-review-reply", args: { intent: "address" } },
     ]);
+    const description = String(port.rows[0]?.args?.description);
+
+    expect(description).toContain("please tighten this up");
+    expect(description).toContain("inline comment 11 on src/a.ts:7");
+    expect(description).not.toContain("from an earlier review");
+  });
+
+  it("falls back to a generic description when the review carried no text", async () => {
+    const { port, handlers } = harness(openPr());
+
+    await handlers.onReviewSubmitted({
+      ...submitted,
+      review_id: null,
+      review_body: "",
+    });
+
+    expect(port.rows).toMatchObject([
+      {
+        definitionName: "code-review-reply",
+        args: { comment_body: "changes requested in a submitted review" },
+      },
+    ]);
+  });
+
+  it("ignores an approved review", async () => {
+    const { port, handlers } = harness(openPr());
+
+    await handlers.onReviewSubmitted({
+      ...submitted,
+      review_state: "approved",
+    });
+
+    expect(port.rows).toHaveLength(0);
+  });
+
+  it("ignores the bot's own submitted review (loop guard)", async () => {
+    const { port, handlers } = harness(openPr());
+
+    await handlers.onReviewSubmitted({
+      ...submitted,
+      review_author: "lore-app[bot]",
+    });
+
+    expect(port.rows).toHaveLength(0);
   });
 });
 

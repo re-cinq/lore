@@ -57,6 +57,8 @@ export interface ReviewComment {
   body: string;
   user: string;
   created_at: string;
+  /** The submitted review this inline comment belongs to. Absent on legacy doubles. */
+  review_id?: number | null;
 }
 
 export interface IssueComment {
