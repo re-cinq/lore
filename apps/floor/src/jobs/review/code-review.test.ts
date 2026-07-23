@@ -294,6 +294,24 @@ describe("reviewFeedback", () => {
   it("returns an empty string for a review with neither body nor comments", () => {
     expect(reviewFeedback("", [])).toEqual("");
   });
+
+  it("keeps the inline-comments header when the review has no body", () => {
+    expect(
+      reviewFeedback("", [
+        {
+          id: 11,
+          path: "src/a.ts",
+          line: 7,
+          body: "guard the null case",
+          user: "alice",
+          created_at: "2026-07-23",
+          review_id: 900,
+        },
+      ]),
+    ).toEqual(
+      "Inline comments:\n- inline comment 11 on src/a.ts:7: guard the null case",
+    );
+  });
 });
 
 describe("onReviewSubmitted", () => {
