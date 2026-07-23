@@ -134,7 +134,7 @@ describe("assemblyLineReaperJob", () => {
     });
 
     await h.port.markRunning(id);
-    const crName = `${id.substring(0, 8)}-review`;
+    const crName = `${id.substring(0, 12)}-review`;
 
     await h.port.ensureNodeStart({
       assemblyLineId: id,
@@ -173,7 +173,7 @@ describe("assemblyLineReaperJob", () => {
       assemblyLineId: id,
       nodeId: "review",
       iteration: 1,
-      agentCrName: `${id.substring(0, 8)}-review`,
+      agentCrName: `${id.substring(0, 12)}-review`,
     });
     h.port.clock = clock;
 
