@@ -92,7 +92,41 @@ describe("mapGitHubEvent — pull_request", () => {
 });
 
 describe("mapGitHubEvent — review and comments", () => {
-  it("maps a submitted review to github.pull_request_review.submitted", () => {
+  it("maps a submitted review carrying the review id/state/author/body", () => {
+    expect(
+      mapGitHubEvent(
+        "pull_request_review",
+        {
+          ...REPO,
+          action: "submitted",
+          pull_request: { number: 5 },
+          review: {
+            id: 900,
+            state: "changes_requested",
+            user: { login: "alice" },
+            body: "please guard the null case",
+          },
+        },
+        "d5",
+      ),
+    ).toEqual([
+      {
+        eventName: "github.pull_request_review.submitted",
+        source: "github",
+        params: {
+          repo: "re-cinq/lore",
+          pr_number: 5,
+          review_id: 900,
+          review_state: "changes_requested",
+          review_author: "alice",
+          review_body: "please guard the null case",
+        },
+        dedupeKey: "github:d5",
+      },
+    ]);
+  });
+
+  it("maps a submitted review with no review block to empty review fields", () => {
     expect(
       mapGitHubEvent(
         "pull_request_review",
@@ -103,7 +137,14 @@ describe("mapGitHubEvent — review and comments", () => {
       {
         eventName: "github.pull_request_review.submitted",
         source: "github",
-        params: { repo: "re-cinq/lore", pr_number: 5 },
+        params: {
+          repo: "re-cinq/lore",
+          pr_number: 5,
+          review_id: null,
+          review_state: "",
+          review_author: "",
+          review_body: "",
+        },
         dedupeKey: "github:d5",
       },
     ]);

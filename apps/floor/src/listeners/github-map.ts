@@ -124,7 +124,14 @@ export function mapGitHubEvent(
       {
         eventName: "github.pull_request_review.submitted",
         source: "github",
-        params: { repo, pr_number: prNumber },
+        params: {
+          repo,
+          pr_number: prNumber,
+          review_id: payload.review?.id ?? null,
+          review_state: payload.review?.state ?? "",
+          review_author: payload.review?.user?.login ?? "",
+          review_body: payload.review?.body ?? "",
+        },
         dedupeKey: key,
       },
     ];

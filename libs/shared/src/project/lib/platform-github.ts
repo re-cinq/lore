@@ -658,6 +658,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       body: c.body,
       user: c.user?.login ?? "unknown",
       created_at: c.created_at,
+      review_id: c.pull_request_review_id ?? null,
     }));
   }
 

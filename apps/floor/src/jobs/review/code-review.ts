@@ -16,7 +16,10 @@
  */
 
 import type { EventHandler } from "../../main-loop/types.js";
-import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import type {
+  PullRef,
+  ReviewComment,
+} from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { REVIEW_HELP } from "@re-cinq/lore-shared/review/review-summary.js";
 import type { TriageAction } from "@re-cinq/lore-shared/review/comment-triage.js";
 import { projectFor } from "../../composition/project-boot.js";
@@ -132,6 +135,7 @@ export interface CodeReviewProject {
   pulls: {
     get(number: number): Promise<PullRef | null>;
     comment(number: number, body: string): Promise<void>;
+    listComments(number: number): Promise<ReviewComment[]>;
   };
   assemblyLines: {
     start(
@@ -158,6 +162,31 @@ interface CommentParams extends OpenParams {
   comment_author: string;
   comment_body: string;
   in_reply_to_id?: number | null;
+}
+interface ReviewSubmittedParams extends OpenParams {
+  review_id?: number | null;
+  review_state?: string;
+  review_author?: string;
+  review_body?: string;
+}
+
+/**
+ * The actual feedback of a submitted review: its body plus every inline comment
+ * (with ids so the reply agent can target each thread). Pure; empty when the
+ * review carried neither.
+ */
+export function reviewFeedback(
+  body: string,
+  comments: ReviewComment[],
+): string {
+  const lines = comments.map((c) => {
+    const where = c.line === null ? c.path : `${c.path}:${c.line}`;
+
+    return `- inline comment ${c.id} on ${where}: ${c.body}`;
+  });
+  const parts = [body.trim(), lines.join("\n")].filter(Boolean);
+
+  return parts.join("\n\nInline comments:\n");
 }
 
 /** The thread context threaded from a comment into the triage + follow-up lines. */
@@ -282,25 +311,38 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
   };
 
   const onReviewSubmitted: EventHandler = async (params) => {
-    const { repo, pr_number } = params as unknown as OpenParams;
-    const autoReview = await deps.autoReview(repo);
+    const p = params as unknown as ReviewSubmittedParams;
+    const autoReview = await deps.autoReview(p.repo);
 
     if (!autoReview) {
       return;
     }
-    const project = await deps.project(repo);
-    const pr = await project.pulls.get(pr_number);
 
-    if (!decideReviewOnReply({ autoReview, pr, commentAuthor: "" }).start) {
+    // Only a "request changes" review is a work order — approvals and comment
+    // reviews must not spawn an address line.
+    if ((p.review_state ?? "changes_requested") !== "changes_requested") {
       return;
     }
+    const project = await deps.project(p.repo);
+    const pr = await project.pulls.get(p.pr_number);
+    const author = p.review_author ?? "";
+
+    if (!decideReviewOnReply({ autoReview, pr, commentAuthor: author }).start) {
+      return;
+    }
+    const inline = p.review_id
+      ? (await project.pulls.listComments(p.pr_number)).filter(
+          (c) => c.review_id === p.review_id,
+        )
+      : [];
+    const feedback = reviewFeedback(p.review_body ?? "", inline);
     const ctx: CommentContext = {
-      repo,
-      pr_number,
+      repo: p.repo,
+      pr_number: p.pr_number,
       branch: pr!.branch,
       head_sha: pr!.headSha,
       comment_id: 0,
-      comment_body: "changes requested in a submitted review",
+      comment_body: feedback || "changes requested in a submitted review",
     };
     const route = routeTriagedComment("address", ctx)!;
 

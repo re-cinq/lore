@@ -437,6 +437,11 @@ spec:
     <short markdown reply>
     ```
 
+    If the task does not state a concrete requested change and you cannot
+    find one in the thread, do NOT guess or invent work: post one clarifying
+    question in the review thread and output
+    REVIEW_RESULT:CHANGES_REQUESTED:needs clarification.
+
     Then output exactly one of:
     - REVIEW_RESULT:APPROVED
     - REVIEW_RESULT:CHANGES_REQUESTED:<one-line summary of what remains>
