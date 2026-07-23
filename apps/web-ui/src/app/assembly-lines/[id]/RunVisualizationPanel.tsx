@@ -42,6 +42,7 @@ import {
   cursorForEventId,
   historyUrl,
   nextPageCursor,
+  resolveChipState,
   resolveStreamMode,
   scrubberPositionLabel,
   isTerminalRunStatus,
@@ -222,11 +223,11 @@ export default function RunVisualizationPanel({
     lastEventIdRef.current = state.lastEventId ?? "0";
   }, [state.lastEventId]);
 
-  const pollActive =
+  const streamFallbackPollActive =
     runIsLive && mode === "history-only" && historyLoadedFor === runId;
 
   useEffect(() => {
-    if (!pollActive) {
+    if (!streamFallbackPollActive) {
       return;
     }
 
@@ -262,7 +263,7 @@ export default function RunVisualizationPanel({
           }
         }
       } catch {
-        // The next tick retries; the chip already reads Offline.
+        // The next tick retries; the chip already reads Polling.
       } finally {
         inFlight = false;
       }
@@ -274,12 +275,13 @@ export default function RunVisualizationPanel({
       cancelled = true;
       clearInterval(id);
     };
-  }, [pollActive, runId]);
+  }, [streamFallbackPollActive, runId]);
 
-  const chipState: ConnectionState =
-    mode === "history-only" && connection !== "offline"
-      ? "offline"
-      : connection;
+  const chipState = resolveChipState({
+    mode,
+    connection,
+    fallbackPollActive: streamFallbackPollActive,
+  });
 
   // A terminal run renders the state AS OF the scrub cursor by folding the
   // persisted history through the SAME reducer live mode uses. The base is the

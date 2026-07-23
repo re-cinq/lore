@@ -25,6 +25,14 @@ const TERMINAL_RUN_STATUSES: ReadonlySet<string> = new Set([
 export type ConnectionState =
   "connecting" | "live" | "reconnecting" | "offline";
 
+/**
+ * What the connection chip renders: the stream states plus "polling", the
+ * degraded-but-advancing state of the history-poll fallback. Distinct from
+ * "offline" so a dead view (terminal run, or history also failed) and a view
+ * that still advances without a stream do not read the same.
+ */
+export type ChipState = ConnectionState | "polling";
+
 export type StreamMode = "live" | "history-only";
 
 export function historyUrl(runId: string, afterId: string): string {
@@ -127,7 +135,7 @@ export function reconnectAction(attempt: number): ReconnectAction {
     : { kind: "retry", delayMs: reconnectDelayMs(attempt) };
 }
 
-export function connectionLabel(state: ConnectionState): string {
+export function connectionLabel(state: ChipState): string {
   switch (state) {
     case "live":
       return "Live";
@@ -135,9 +143,33 @@ export function connectionLabel(state: ConnectionState): string {
       return "Connecting";
     case "reconnecting":
       return "Reconnecting";
+    case "polling":
+      return "Polling";
     default:
       return "Offline";
   }
+}
+
+/**
+ * The chip for the current stream mode. An active history-poll fallback reads
+ * "polling" — degraded, still advancing. Without it, history-only mode presents
+ * as offline whatever the hook last reported (a terminal run never streamed),
+ * and live mode passes the hook's own connection state through.
+ */
+export function resolveChipState(input: {
+  mode: StreamMode;
+  connection: ConnectionState;
+  fallbackPollActive: boolean;
+}): ChipState {
+  if (input.fallbackPollActive) {
+    return "polling";
+  }
+
+  if (input.mode === "history-only" && input.connection !== "offline") {
+    return "offline";
+  }
+
+  return input.connection;
 }
 
 /**

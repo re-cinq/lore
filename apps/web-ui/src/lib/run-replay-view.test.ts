@@ -104,6 +104,16 @@ describe("completedRowsAt", () => {
 
     expect(completedRowsAt([first, second], states)).toEqual([first]);
   });
+
+  it("excludes a row when the node state is idle at a higher iteration", () => {
+    // Reachable: the reducer stamps `iteration` on every event but a
+    // non-lifecycle event leaves status idle, so a node whose init never
+    // replayed can sit idle past a row's iteration having completed nothing.
+    const rows = [row({ iteration: 1, outcome: "failed" })];
+    const states = { implement: nodeState({ status: "idle", iteration: 2 }) };
+
+    expect(completedRowsAt(rows, states)).toEqual([]);
+  });
 });
 
 describe("replayRunData", () => {

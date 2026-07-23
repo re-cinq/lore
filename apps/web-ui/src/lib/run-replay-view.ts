@@ -38,7 +38,10 @@ function rowCompleted(
   state: NodeRunState | undefined,
   row: AssemblyLineRunNode,
 ): boolean {
-  if (!state) {
+  // An idle node has completed nothing, whatever iteration a replayed
+  // non-lifecycle event stamped on it (the reducer raises `iteration` on every
+  // event but only leaves "idle" on an init) — so idle never releases a row.
+  if (!state || state.status === "idle") {
     return false;
   }
 

@@ -9,6 +9,7 @@ import {
   nextPageCursor,
   reconnectAction,
   reconnectDelayMs,
+  resolveChipState,
   resolveStreamMode,
   scrubberPositionLabel,
   streamUrl,
@@ -259,5 +260,41 @@ describe("reconnectAction", () => {
   it("gives up on attempt 6, one past STREAM_MAX_ATTEMPTS", () => {
     expect(STREAM_MAX_ATTEMPTS).toBe(5);
     expect(reconnectAction(6)).toEqual({ kind: "give-up" });
+  });
+});
+
+describe("resolveChipState", () => {
+  it("returns polling while the history-poll fallback is active", () => {
+    expect(
+      resolveChipState({
+        mode: "history-only",
+        connection: "offline",
+        fallbackPollActive: true,
+      }),
+    ).toBe("polling");
+  });
+
+  it("returns offline for history-only mode without an active fallback poll", () => {
+    expect(
+      resolveChipState({
+        mode: "history-only",
+        connection: "connecting",
+        fallbackPollActive: false,
+      }),
+    ).toBe("offline");
+  });
+
+  it("passes the hook's connection state through in live mode", () => {
+    expect(
+      resolveChipState({
+        mode: "live",
+        connection: "reconnecting",
+        fallbackPollActive: false,
+      }),
+    ).toBe("reconnecting");
+  });
+
+  it("labels the polling chip state Polling", () => {
+    expect(connectionLabel("polling")).toBe("Polling");
   });
 });

@@ -808,7 +808,7 @@ describe("stream give-up and history polling", () => {
     vi.useRealTimers();
   });
 
-  it("goes offline for good after six consecutive stream errors", async () => {
+  it("gives up the stream after six consecutive errors and degrades to Polling", async () => {
     vi.useFakeTimers();
     stubHistory([]);
     useFakeEventSource();
@@ -821,7 +821,7 @@ describe("stream give-up and history polling", () => {
     expect(
       FakeEventSource.instances[FakeEventSource.instances.length - 1].closed,
     ).toBe(true);
-    expect(screen.getByText("Offline")).toBeInTheDocument();
+    expect(screen.getByText("Polling")).toBeInTheDocument();
 
     await act(async () => {
       vi.advanceTimersByTime(60000);
