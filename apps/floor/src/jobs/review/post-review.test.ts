@@ -141,8 +141,17 @@ describe("postReview", () => {
       findings: [finding({ path: "src/a.ts", line: 12, subject: "boom" })],
     };
 
-    await postReview(pulls, 7, output, positions(["src/a.ts", 12]));
+    const delivery = await postReview(
+      pulls,
+      7,
+      output,
+      positions(["src/a.ts", 12]),
+    );
 
+    expect(delivery).toEqual({
+      mode: "fallback",
+      error: "line must be part of the diff",
+    });
     expect(calls).toHaveLength(0);
     expect(comments).toHaveLength(1);
     expect(comments[0]).toMatchObject({ number: 7 });
@@ -158,7 +167,9 @@ describe("maybePostReview", () => {
       findings: [],
     })}\n\`\`\``;
 
-    expect(await maybePostReview(pulls, 7, output, positions())).toBe(true);
+    expect(await maybePostReview(pulls, 7, output, positions())).toEqual({
+      mode: "inline",
+    });
     expect(calls).toHaveLength(1);
   });
 
@@ -167,7 +178,7 @@ describe("maybePostReview", () => {
 
     expect(
       await maybePostReview(pulls, 7, "REVIEW_RESULT:APPROVED", positions()),
-    ).toBe(true);
+    ).toEqual({ mode: "inline" });
     expect(calls).toHaveLength(1);
     expect(calls[0]?.input.comments).toHaveLength(0);
     expect(calls[0]?.input.body).toContain("Approved");
@@ -183,7 +194,7 @@ describe("maybePostReview", () => {
         "REVIEW_RESULT:CHANGES_REQUESTED:but no block",
         positions(),
       ),
-    ).toBe(false);
+    ).toBeNull();
     expect(calls).toHaveLength(0);
   });
 });
@@ -232,7 +243,7 @@ describe("maybePostReview on a real Agent status.output stream", () => {
 
     expect(
       await maybePostReview(pulls, 841, ndjson, positions([path, 95])),
-    ).toBe(false);
+    ).toBeNull();
     expect(calls).toHaveLength(0);
   });
 
@@ -246,7 +257,7 @@ describe("maybePostReview on a real Agent status.output stream", () => {
         resultTextFromOutput(ndjson),
         positions([path, 95]),
       ),
-    ).toBe(true);
+    ).toEqual({ mode: "inline" });
     expect(calls).toHaveLength(1);
     expect(calls[0]?.input.comments).toMatchObject([{ path, line: 95 }]);
     expect(calls[0]?.input.body).toContain("Changes suggested");
