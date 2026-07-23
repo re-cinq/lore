@@ -139,6 +139,10 @@ export async function postReviewFromNode(
       return "no_findings";
     }
 
+    if (posted.mode === "fallback") {
+      await auditFallbackPost(row, prNumber, posted.error, ports);
+    }
+
     return "posted";
   } catch (err) {
     const message = (err as Error).message;
@@ -248,6 +252,30 @@ export async function postReplyFromNode(
 
     return "post_failed";
   }
+}
+
+/** The review reached the PR, but as a top-level comment after GitHub rejected
+ *  the inline post — the never-drop fallback. Nothing was lost, but a silent
+ *  downgrade is invisible at the PR, so it gets an audit row like its siblings
+ *  `review_findings_unparsed` and `review_post_failed`. */
+async function auditFallbackPost(
+  row: AssemblyLineRecord,
+  prNumber: number,
+  error: string,
+  ports: ReviewPorts,
+): Promise<void> {
+  await writeAuditLog(
+    {
+      event_type: "review_post_degraded",
+      repo: row.repo,
+      payload: {
+        pr_number: prNumber,
+        assembly_line_id: row.id,
+        error,
+      },
+    },
+    ports.audit,
+  );
 }
 
 /** The exact state that produced the outage: a verdict was reached, no findings
