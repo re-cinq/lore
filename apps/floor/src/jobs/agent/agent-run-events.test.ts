@@ -1,15 +1,18 @@
 import { describe, it, expect } from "vitest";
 import {
-  parseAgentRunEvents,
   filePathsFromToolInput,
   truncateForStorage,
 } from "./agent-run-events.js";
-import { parseAgentEvents } from "./agent-events.js";
+import { parseAgentSink } from "./agent-events.js";
+import type { AgentRunEventInsert } from "@re-cinq/lore-shared";
 
 const SOURCE = { task: "task-uuid-1", agent: "abcd1234-review" };
 
 const line = (event: unknown, source: unknown = SOURCE): string =>
   JSON.stringify({ source, event });
+
+const parseRunEvents = (ndjson: string): AgentRunEventInsert[] =>
+  parseAgentSink(ndjson).runEvents;
 
 const assistant = (content: unknown[]): unknown => ({
   type: "assistant",
@@ -21,9 +24,9 @@ const user = (content: unknown[]): unknown => ({
   message: { content },
 });
 
-describe("parseAgentRunEvents", () => {
+describe("run-event projection through parseAgentSink", () => {
   it("maps a station result line with no usage field to a result row", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line({
         type: "result",
         subtype: "success",
@@ -42,7 +45,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("emits one row per assistant content block", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(
         assistant([
           { type: "text", text: "planning" },
@@ -60,7 +63,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("maps a text block to a message row with summary only and empty payload", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(assistant([{ type: "text", text: "planning the change" }])),
     );
 
@@ -72,7 +75,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("maps a thinking block to a thinking row with summary only and empty payload", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(assistant([{ type: "thinking", thinking: "weighing options" }])),
     );
 
@@ -84,7 +87,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("drops an assistant content block of an unrecognised type", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(assistant([{ type: "image", source: "..." }])),
     );
 
@@ -92,7 +95,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("maps a tool_use block to a tool_call row carrying toolName, toolUseId and extracted filePaths", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(
         assistant([
           {
@@ -116,7 +119,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("returns empty filePaths for a Bash tool_use and summarises its command", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(
         assistant([
           {
@@ -136,7 +139,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("summarises a tool_use with neither file path nor command as the tool name", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(assistant([{ type: "tool_use", id: "tu-9", name: "TodoWrite" }])),
     );
 
@@ -144,7 +147,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("maps a tool_result block to a tool_result row with isError from the error flag", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(
         user([
           {
@@ -167,7 +170,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("maps a successful tool_result with array content to a joined payload", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(
         user([
           {
@@ -187,15 +190,13 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("drops a user content block that is not a tool_result", () => {
-    const rows = parseAgentRunEvents(
-      line(user([{ type: "text", text: "hi" }])),
-    );
+    const rows = parseRunEvents(line(user([{ type: "text", text: "hi" }])));
 
     expect(rows).toEqual([]);
   });
 
   it("maps a system init line to an init row summarising model and tool count", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line({
         type: "system",
         subtype: "init",
@@ -212,21 +213,19 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("summarises an init line with no model or tools as unknown with zero tools", () => {
-    const rows = parseAgentRunEvents(line({ type: "system", subtype: "init" }));
+    const rows = parseRunEvents(line({ type: "system", subtype: "init" }));
 
     expect(rows[0]).toMatchObject({ summary: "init unknown (0 tools)" });
   });
 
   it("drops a system line whose subtype is not init", () => {
-    const rows = parseAgentRunEvents(
-      line({ type: "system", subtype: "compact" }),
-    );
+    const rows = parseRunEvents(line({ type: "system", subtype: "compact" }));
 
     expect(rows).toEqual([]);
   });
 
   it("summarises a result line with its subtype, duration and cost", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line({
         type: "result",
         subtype: "success",
@@ -244,29 +243,29 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("drops a line of an unrecognised type silently", () => {
-    expect(parseAgentRunEvents(line({ type: "tomorrows_type" }))).toEqual([]);
+    expect(parseRunEvents(line({ type: "tomorrows_type" }))).toEqual([]);
   });
 
   it("drops an assistant line whose message content is not an array", () => {
     expect(
-      parseAgentRunEvents(line({ type: "assistant", message: { content: 7 } })),
+      parseRunEvents(line({ type: "assistant", message: { content: 7 } })),
     ).toEqual([]);
   });
 
   it("drops a line whose unwrapped event is not an object", () => {
-    expect(parseAgentRunEvents(line("just a string"))).toEqual([]);
+    expect(parseRunEvents(line("just a string"))).toEqual([]);
   });
 
   it("drops an assistant content block that is not an object", () => {
-    expect(parseAgentRunEvents(line(assistant(["oops", 7])))).toEqual([]);
+    expect(parseRunEvents(line(assistant(["oops", 7])))).toEqual([]);
   });
 
   it("drops a user content block that is not an object", () => {
-    expect(parseAgentRunEvents(line(user(["oops"])))).toEqual([]);
+    expect(parseRunEvents(line(user(["oops"])))).toEqual([]);
   });
 
   it("stores empty content for a tool_result whose content is neither string nor array", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(user([{ type: "tool_result", tool_use_id: "t", content: 7 }])),
     );
 
@@ -274,7 +273,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("ignores non-text blocks inside an array tool_result content", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(
         user([
           { type: "tool_result", tool_use_id: "t", content: ["raw", { a: 1 }] },
@@ -286,7 +285,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("names an unnamed tool_use unknown and records a null toolUseId", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(assistant([{ type: "tool_use", input: {} }])),
     );
 
@@ -298,19 +297,19 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("summarises a text block with no text as an empty summary", () => {
-    const rows = parseAgentRunEvents(line(assistant([{ type: "text" }])));
+    const rows = parseRunEvents(line(assistant([{ type: "text" }])));
 
     expect(rows[0].summary).toBe("");
   });
 
   it("summarises a thinking block with no thinking text as an empty summary", () => {
-    const rows = parseAgentRunEvents(line(assistant([{ type: "thinking" }])));
+    const rows = parseRunEvents(line(assistant([{ type: "thinking" }])));
 
     expect(rows[0].summary).toBe("");
   });
 
   it("keeps a non-string tool input value verbatim while budgeting its encoded size", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(
         assistant([
           {
@@ -327,7 +326,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("budgets an unserialisable tool input value as empty", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(
         assistant([
           { type: "tool_use", id: "t", name: "Edit", input: { skip: null } },
@@ -339,7 +338,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("drops a tool_use whose input is not an object to an empty payload input", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(
         assistant([
           { type: "tool_use", id: "t", name: "Bash", input: "not an object" },
@@ -351,25 +350,17 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("drops an assistant line carrying no message object", () => {
-    expect(parseAgentRunEvents(line({ type: "assistant" }))).toEqual([]);
-  });
-
-  it("skips an unparseable line without throwing", () => {
-    expect(parseAgentRunEvents("{not json\n")).toEqual([]);
-  });
-
-  it("skips blank lines", () => {
-    expect(parseAgentRunEvents("\n  \n")).toEqual([]);
+    expect(parseRunEvents(line({ type: "assistant" }))).toEqual([]);
   });
 
   it("skips a line with no resolvable task id", () => {
-    expect(
-      parseAgentRunEvents(line({ type: "result" }, { agent: "a" })),
-    ).toEqual([]);
+    expect(parseRunEvents(line({ type: "result" }, { agent: "a" }))).toEqual(
+      [],
+    );
   });
 
   it("records a null agentCrName when the envelope carries no agent", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line({ type: "result" }, { task: "task-uuid-1" }),
     );
 
@@ -377,7 +368,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("reads the event out of a double-wrapped attribution envelope", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       JSON.stringify({
         source: SOURCE,
         event: {
@@ -394,7 +385,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("truncates tool_result content at 2048 bytes and marks the truncation in the payload", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(
         user([
           { type: "tool_result", tool_use_id: "t", content: "x".repeat(5000) },
@@ -409,7 +400,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("truncates each tool input value at 1024 bytes", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(
         assistant([
           {
@@ -429,7 +420,7 @@ describe("parseAgentRunEvents", () => {
 
   it("drops trailing tool input keys once the whole input exceeds 4096 bytes", () => {
     const big = "z".repeat(1000);
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(
         assistant([
           {
@@ -448,7 +439,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("truncates a structured tool input value at 1024 bytes", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(
         assistant([
           {
@@ -473,7 +464,7 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("keeps a structured tool input value intact when it fits", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(
         assistant([
           {
@@ -491,14 +482,14 @@ describe("parseAgentRunEvents", () => {
   });
 
   it("caps summary at 200 characters", () => {
-    const rows = parseAgentRunEvents(
+    const rows = parseRunEvents(
       line(assistant([{ type: "text", text: "w".repeat(500) }])),
     );
 
     expect(rows[0].summary).toHaveLength(200);
   });
 
-  it("leaves parseAgentEvents cost rows unchanged for the same body", () => {
+  it("projects a mixed body into both cost rows and run-event rows in one pass", () => {
     const body = [
       line({ type: "system", subtype: "init", model: "m", tools: [] }),
       line(assistant([{ type: "text", text: "hi" }])),
@@ -512,7 +503,9 @@ describe("parseAgentRunEvents", () => {
       }),
     ].join("\n");
 
-    expect(parseAgentEvents(body)).toEqual([
+    const sink = parseAgentSink(body);
+
+    expect(sink.costRows).toEqual([
       {
         taskId: "task-uuid-1",
         model: "claude-opus-4",
@@ -522,7 +515,7 @@ describe("parseAgentRunEvents", () => {
         durationMs: 99,
       },
     ]);
-    expect(parseAgentRunEvents(body)).toHaveLength(3);
+    expect(sink.runEvents).toHaveLength(3);
   });
 });
 

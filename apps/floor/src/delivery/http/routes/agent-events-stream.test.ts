@@ -9,6 +9,7 @@ import {
   streamRunEvents,
   agentEventsStreamRoute,
 } from "./agent-events-stream.js";
+import { MAX_BUFFERED_EVENTS } from "../../../jobs/agent/agent-event-bus.js";
 import type { AgentEventHandler } from "../../../jobs/agent/agent-event-bus.js";
 import type { AgentRunEventRow } from "@re-cinq/lore-shared";
 
@@ -384,6 +385,35 @@ describe("streamRunEvents", () => {
 
     expect(stream.writableEnded).toBe(true);
     expect(bus.count()).toBe(0);
+  });
+
+  it("ends the stream when rows buffered during catch-up exceed the bus cap", async () => {
+    const stream = new PassThrough();
+    const text = collect(stream);
+    const bus = fakeBus();
+    const seeded = pagedEvents([row("1")]);
+    const burst = Array.from({ length: MAX_BUFFERED_EVENTS + 1 }, (_, i) =>
+      row(String(100 + i)),
+    );
+    const { ready } = streamRunEvents(stream, {
+      assemblyLineId: "line-1",
+      after: "0",
+      events: {
+        listSince: async (line, after, limit) => {
+          bus.publish(burst);
+
+          return seeded.listSince(line, after, limit);
+        },
+      },
+      bus,
+    });
+
+    await ready;
+    await flush();
+
+    expect(stream.writableEnded).toBe(true);
+    expect(bus.count()).toBe(0);
+    expect(text()).not.toContain("catchup-complete");
   });
 
   it("ends the stream when the bus drops the subscriber on overflow", async () => {
