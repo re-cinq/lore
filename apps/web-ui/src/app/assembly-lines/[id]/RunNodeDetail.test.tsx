@@ -18,7 +18,6 @@ const row = (over: Partial<AssemblyLineRunNode> = {}): AssemblyLineRunNode => ({
 
 const state = (over: Partial<NodeRunState> = {}): NodeRunState => ({
   status: "succeeded",
-  outcome: null,
   iteration: 1,
   transcript: [],
   droppedCount: 0,

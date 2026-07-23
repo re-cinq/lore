@@ -123,6 +123,15 @@ describe("upstream proxying", () => {
     expect(String(fetchMock.mock.calls[0][0])).not.toContain("?");
   });
 
+  it("passes the request signal to the upstream fetch", async () => {
+    authorized();
+    const req = new Request("http://ui/x");
+
+    await GET(req, { params });
+
+    expect(fetchMock.mock.calls[0][1].signal).toBe(req.signal);
+  });
+
   it("returns the Floor status and body verbatim", async () => {
     authorized();
     fetchMock.mockResolvedValue(

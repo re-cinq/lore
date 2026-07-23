@@ -165,21 +165,28 @@ describe("anti-buffering headers (FR4.8)", () => {
 });
 
 describe("upstream failures", () => {
-  it("returns 503 when the Floor is at subscriber capacity", async () => {
+  it("returns 503 as a JSON error, not an event stream, at Floor subscriber capacity", async () => {
     authorized();
     fetchMock.mockResolvedValue(sseResponse(503));
 
-    expect((await GET(new Request("http://ui/x"), { params })).status).toBe(
-      503,
-    );
+    const res = await GET(new Request("http://ui/x"), { params });
+
+    expect(res.status).toBe(503);
+    expect(res.headers.get("Content-Type")).toContain("application/json");
+    expect(res.headers.get("X-Accel-Buffering")).toBeNull();
+    expect(await res.json()).toEqual({
+      error: "Floor stream unavailable (503)",
+    });
   });
 
-  it("returns 404 when the Floor has no stream route", async () => {
+  it("returns 404 as a JSON error when the Floor has no stream route", async () => {
     authorized();
     fetchMock.mockResolvedValue(sseResponse(404));
 
-    expect((await GET(new Request("http://ui/x"), { params })).status).toBe(
-      404,
-    );
+    const res = await GET(new Request("http://ui/x"), { params });
+
+    expect(res.status).toBe(404);
+    expect(res.headers.get("Content-Type")).toContain("application/json");
+    expect(res.headers.get("X-Accel-Buffering")).toBeNull();
   });
 });

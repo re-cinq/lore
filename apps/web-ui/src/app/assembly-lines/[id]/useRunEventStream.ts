@@ -10,7 +10,7 @@ import {
   type RunStreamEvent,
 } from "@/lib/run-stream-types";
 import type { ConnectionState } from "./run-stream-presenter";
-import { reconnectDelayMs, streamUrl } from "./run-stream-presenter";
+import { reconnectAction, streamUrl } from "./run-stream-presenter";
 
 export interface RunEventStreamOptions {
   runId: string;
@@ -92,8 +92,20 @@ export function useRunEventStream({
       source.onerror = () => {
         source?.close();
         attempt += 1;
+
+        const action = reconnectAction(attempt);
+
+        // Terminal for this session: no timer is scheduled, so a stream-only
+        // outage stops here instead of hammering the proxy forever. The caller
+        // reacts to "offline" by dropping to history-only mode.
+        if (action.kind === "give-up") {
+          onConnectionChangeRef.current("offline");
+
+          return;
+        }
+
         onConnectionChangeRef.current("reconnecting");
-        retryTimer = setTimeout(connect, reconnectDelayMs(attempt));
+        retryTimer = setTimeout(connect, action.delayMs);
       };
     };
 

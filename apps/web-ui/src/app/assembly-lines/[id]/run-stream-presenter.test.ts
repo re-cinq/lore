@@ -1,12 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
   HISTORY_PAGE_LIMIT,
+  STREAM_MAX_ATTEMPTS,
   connectionLabel,
   cursorForEventId,
   historyUrl,
   isTerminalRunStatus,
   nextPageCursor,
+  reconnectAction,
   reconnectDelayMs,
+  resolveChipState,
   resolveStreamMode,
   scrubberPositionLabel,
   streamUrl,
@@ -240,5 +243,58 @@ describe("scrubberPositionLabel", () => {
       label: "event 0 / 3",
       timestamp: null,
     });
+  });
+});
+
+describe("reconnectAction", () => {
+  it.each([
+    [1, 1000],
+    [2, 2000],
+    [3, 4000],
+    [4, 8000],
+    [5, 16000],
+  ])("retries attempt %i after %i ms", (attempt, delayMs) => {
+    expect(reconnectAction(attempt)).toEqual({ kind: "retry", delayMs });
+  });
+
+  it("gives up on attempt 6, one past STREAM_MAX_ATTEMPTS", () => {
+    expect(STREAM_MAX_ATTEMPTS).toBe(5);
+    expect(reconnectAction(6)).toEqual({ kind: "give-up" });
+  });
+});
+
+describe("resolveChipState", () => {
+  it("returns polling while the history-poll fallback is active", () => {
+    expect(
+      resolveChipState({
+        mode: "history-only",
+        connection: "offline",
+        fallbackPollActive: true,
+      }),
+    ).toBe("polling");
+  });
+
+  it("returns offline for history-only mode without an active fallback poll", () => {
+    expect(
+      resolveChipState({
+        mode: "history-only",
+        connection: "connecting",
+        fallbackPollActive: false,
+      }),
+    ).toBe("offline");
+  });
+
+  it("passes the hook's connection state through in live mode", () => {
+    expect(
+      resolveChipState({
+        mode: "live",
+        connection: "reconnecting",
+        fallbackPollActive: false,
+      }),
+    ).toBe("reconnecting");
+  });
+
+  it("labels the polling chip state Polling", () => {
+    expect(connectionLabel("polling")).toBe("Polling");
   });
 });

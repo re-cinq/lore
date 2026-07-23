@@ -21,6 +21,7 @@ import {
   replayTo,
 } from "@/lib/run-event-reducer";
 import { takenEdgeKeys } from "@/lib/run-taken-edges";
+import { latestRowByNode, replayRunData } from "@/lib/run-replay-view";
 import { deriveVisibleGraph, type RunData } from "@/lib/graph-view-model";
 import { parseRunStreamRow, type RunStreamEvent } from "@/lib/run-stream-types";
 import { toTranscriptRows } from "@/lib/transcript-rows";
@@ -36,10 +37,12 @@ import RunNodeDetail from "./RunNodeDetail";
 import RunTimelineView from "./RunTimelineView";
 import styles from "./RunVisualizationPanel.module.css";
 import {
+  HISTORY_POLL_MS,
   connectionLabel,
   cursorForEventId,
   historyUrl,
   nextPageCursor,
+  resolveChipState,
   resolveStreamMode,
   scrubberPositionLabel,
   isTerminalRunStatus,
@@ -191,19 +194,94 @@ export default function RunVisualizationPanel({
     () => setShowAllFiles((shown) => !shown),
     [],
   );
+  // "offline" from the hook means it gave up for good (STREAM_MAX_ATTEMPTS
+  // consecutive failures). Marking the stream unavailable flips the mode to
+  // history-only, which disables the hook and hands the run to the poll below.
+  const onConnectionChange = useCallback((next: ConnectionState) => {
+    setConnection(next);
+
+    if (next === "offline") {
+      setStreamUnavailable(true);
+    }
+  }, []);
 
   useRunEventStream({
     runId,
     afterId: state.lastEventId ?? "0",
     enabled: mode === "live" && historyLoadedFor === runId,
     onEvent,
-    onConnectionChange: setConnection,
+    onConnectionChange,
   });
 
-  const chipState: ConnectionState =
-    mode === "history-only" && connection !== "offline"
-      ? "offline"
-      : connection;
+  // The degraded path for a live run without a stream: poll the history proxy
+  // from the reducer's own cursor. The cursor rides in a ref so a poll result
+  // does not restart the interval, and the reducer's id de-duplication makes an
+  // overlap with already-applied events a no-op.
+  const lastEventIdRef = useRef(state.lastEventId ?? "0");
+
+  useEffect(() => {
+    lastEventIdRef.current = state.lastEventId ?? "0";
+  }, [state.lastEventId]);
+
+  const streamFallbackPollActive =
+    runIsLive && mode === "history-only" && historyLoadedFor === runId;
+
+  useEffect(() => {
+    if (!streamFallbackPollActive) {
+      return;
+    }
+
+    let cancelled = false;
+    let inFlight = false;
+
+    async function poll() {
+      if (inFlight) {
+        return;
+      }
+
+      inFlight = true;
+
+      try {
+        const res = await fetch(historyUrl(runId, lastEventIdRef.current));
+
+        if (!res.ok || cancelled) {
+          return;
+        }
+
+        const body = (await res.json()) as HistoryPage;
+        const rows = Array.isArray(body.events) ? body.events : [];
+
+        if (cancelled) {
+          return;
+        }
+
+        for (const row of rows) {
+          const parsed = parseRunStreamRow(row);
+
+          if (parsed !== null) {
+            dispatch(parsed);
+          }
+        }
+      } catch {
+        // The next tick retries; the chip already reads Polling.
+      } finally {
+        inFlight = false;
+      }
+    }
+
+    const id = setInterval(() => void poll(), HISTORY_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [streamFallbackPollActive, runId]);
+
+  const chipState = resolveChipState({
+    mode,
+    connection,
+    fallbackPollActive: streamFallbackPollActive,
+  });
 
   // A terminal run renders the state AS OF the scrub cursor by folding the
   // persisted history through the SAME reducer live mode uses. The base is the
@@ -266,23 +344,27 @@ export default function RunVisualizationPanel({
     Object.values(displayState.nodeStates).some(participated);
   const [showOutcomes, setShowOutcomes] = useState(false);
   const graphMode = hasRunData && !showOutcomes ? "run" : "definition";
+  const latestRows = useMemo(() => latestRowByNode(nodes), [nodes]);
+  // Mid-scrub only: the cursor sits strictly before the history's end, so the
+  // slider's right end stays byte-identical to Back to live — nodes with walk
+  // rows but no events (a `done` terminal) keep their verdict at max cursor.
+  const replayActive =
+    !runIsLive && replayCursor !== null && replayCursor < historyEvents.length;
   const runData = useMemo<RunData>(() => {
+    // Mid-replay, the walk rows are gated behind the replayed reducer state: a
+    // recorded verdict shows only once the cursor has applied that
+    // node-iteration's result event, and the taken path grows with the cursor.
+    if (replayActive) {
+      return replayRunData(definition, nodes, displayState.nodeStates);
+    }
+
     const entries = Object.entries(displayState.nodeStates);
     // The verdict is the walk row's recorded outcome, latest iteration per node.
     // It must come from the rows, not the reducer state: a replayed terminal run
     // seeds its node states from events, which never carry the verdict, so a
     // review that exited its pod cleanly with a failed verdict would otherwise
     // read from its "succeeded" execution status instead of "failed".
-    const latest = new Map<string, (typeof nodes)[number]>();
-
-    for (const n of nodes) {
-      const prev = latest.get(n.nodeId);
-
-      if (!prev || n.iteration >= prev.iteration) {
-        latest.set(n.nodeId, n);
-      }
-    }
-    const rows = [...latest.values()];
+    const rows = [...latestRows.values()];
     // The run failed if any node's recorded outcome failed — mirrors the Floor's
     // lineOutcomeFromVisits, so a code-review line that closes `finished` with a
     // failed review still reports the run result as failed on its terminal.
@@ -303,7 +385,15 @@ export default function RunVisualizationPanel({
           ? "completed"
           : null,
     };
-  }, [nodes, displayState.nodeStates, takenEdges, runStatus]);
+  }, [
+    replayActive,
+    definition,
+    nodes,
+    latestRows,
+    displayState.nodeStates,
+    takenEdges,
+    runStatus,
+  ]);
   const visibleGraph = useMemo(
     () =>
       deriveVisibleGraph(definition, hasRunData ? runData : null, graphMode),
@@ -388,7 +478,7 @@ export default function RunVisualizationPanel({
         <RunNodeDetail
           nodeId={selectedNodeId}
           state={selected ?? undefined}
-          row={[...nodes].reverse().find((n) => n.nodeId === selectedNodeId)}
+          row={latestRows.get(selectedNodeId)}
           definition={definition}
           reason={reason}
           repo={repo}
