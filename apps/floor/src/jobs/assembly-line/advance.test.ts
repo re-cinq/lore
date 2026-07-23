@@ -121,7 +121,7 @@ describe("advanceLine", () => {
 
     expect(launched).toHaveLength(1);
     expect(launched[0]).toMatchObject({
-      name: `${id.substring(0, 8)}-review`,
+      name: `${id.substring(0, 12)}-review`,
       taskType: "code-review",
       prompt: "code-review::Review pull request #7",
       branch: "feat/x",
@@ -252,8 +252,8 @@ describe("advanceLine revisited-node iteration (fresh CR per iteration)", () => 
       ["review", 2],
     ]);
     expect(launched.map((l) => l.name)).toEqual([
-      `${id.substring(0, 8)}-review`,
-      `${id.substring(0, 8)}-review-2`,
+      `${id.substring(0, 12)}-review`,
+      `${id.substring(0, 12)}-review-2`,
     ]);
   });
 });
@@ -279,7 +279,7 @@ describe("finishNodeAndAdvance", () => {
       ["refine", null],
     ]);
     expect(launched.at(-1)).toMatchObject({
-      name: `${id.substring(0, 8)}-refine`,
+      name: `${id.substring(0, 12)}-refine`,
     });
   });
 

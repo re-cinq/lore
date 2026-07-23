@@ -33,7 +33,7 @@ describe("nodeAgentSpec", () => {
       targetRepo: "re-cinq/lore",
       branch: "lore/impl-abcdef12",
       model: "claude-sonnet-4-6",
-      name: "a1b2c3d4-implement",
+      name: "a1b2c3d4e5f6-implement",
       extraLabels: {
         "lore.re-cinq.com/assembly-line-id": "a1b2c3d4e5f6a7b8",
         "lore.re-cinq.com/node-id": "implement",
@@ -41,7 +41,7 @@ describe("nodeAgentSpec", () => {
       },
     });
     expect(nodeAgentName(task.assemblyLineId, "review")).toBe(
-      "a1b2c3d4-review",
+      "a1b2c3d4e5f6-review",
     );
   });
 
@@ -55,16 +55,16 @@ describe("nodeAgentSpec", () => {
     // Iteration 1 keeps the bare name (back-compat); a revisit (iteration>1) gets a
     // distinct name + label so it runs a fresh pod, not a 409-reuse of the prior CR.
     expect(nodeAgentName(task.assemblyLineId, "review", 2)).toBe(
-      "a1b2c3d4-review-2",
+      "a1b2c3d4e5f6-review-2",
     );
     const spec = nodeAgentSpec({ id: "review", type: "agent" }, task, "p", 2);
 
-    expect(spec.name).toBe("a1b2c3d4-review-2");
+    expect(spec.name).toBe("a1b2c3d4e5f6-review-2");
     expect(spec.extraLabels?.["lore.re-cinq.com/node-iteration"]).toBe("2");
   });
 
   it("labels the CR with the full assembly-line id, node id and iteration (event-driven transitions)", () => {
-    // The CR name only carries an 8-char prefix; the labels carry the full uuid so
+    // The CR name only carries a 12-char prefix; the labels carry the full uuid so
     // the k8s watch can map a terminal node CR back to its (line, node, iteration).
     expect(
       nodeAgentSpec({ id: "implement", type: "agent" }, task, "p").extraLabels,

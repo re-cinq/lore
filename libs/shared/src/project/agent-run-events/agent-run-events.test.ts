@@ -416,3 +416,34 @@ describe("PgAgentRunEvents adapter", () => {
     expect(calls[0]?.params).toEqual([14]);
   });
 });
+
+describe("InMemoryAgentRunEvents cross-line CR-name collision", () => {
+  it("attributes the event to the newest node row when two lines collide on agent_cr_name (#907)", async () => {
+    // Two DIFFERENT assembly lines whose uuids share their 12-hex prefix run
+    // the same node at the same iteration, producing identical CR names.
+    const repo = new InMemoryAgentRunEvents();
+
+    repo.registerNode({
+      agentCrName: "a1b2c3d4e5f6-implement",
+      assemblyLineId: "a1b2c3d4-e5f6-4000-8000-000000000001",
+      nodeId: "implement",
+      iteration: 1,
+    });
+    repo.registerNode({
+      agentCrName: "a1b2c3d4e5f6-implement",
+      assemblyLineId: "a1b2c3d4-e5f6-4000-8000-000000000002",
+      nodeId: "implement",
+      iteration: 1,
+    });
+
+    const [row] = await repo.insertBatch([
+      insert({ agentCrName: "a1b2c3d4e5f6-implement" }),
+    ]);
+
+    expect(row).toMatchObject({
+      assemblyLineId: "a1b2c3d4-e5f6-4000-8000-000000000002",
+      nodeId: "implement",
+      iteration: 1,
+    });
+  });
+});

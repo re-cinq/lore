@@ -26,19 +26,21 @@ export interface FloorAssemblyLineTask {
 /** Distinct Agent CR name per (attempt, node, ITERATION): two runs of one task never
  *  collide on a CR, and a REVISITED node (iteration>1) runs a fresh pod rather than
  *  409-reusing the prior iteration's terminal CR. Iteration 1 keeps the bare
- *  `<id8>-<nodeId>` form (back-compat); revisits append `-<iteration>`.
+ *  `<id12>-<nodeId>` form; revisits append `-<iteration>`. The 12-hex (48-bit)
+ *  prefix is also the telemetry correlation key (#907): two DIFFERENT lines only
+ *  collide on a CR name when their uuids share all 12 leading hex chars.
  *  The CR spec still carries the taskId — the watcher/reaper probe by task-id label. */
 export function nodeAgentName(
   assemblyLineId: string,
   nodeId: string,
   iteration = 1,
 ): string {
-  const base = `${assemblyLineId.substring(0, 8)}-${nodeId}`;
+  const base = `${assemblyLineId.substring(0, 12)}-${nodeId}`;
 
   return iteration > 1 ? `${base}-${iteration}` : base;
 }
 
-/** The CR name only carries an 8-char prefix; these labels carry the full identity
+/** The CR name only carries a 12-char prefix; these labels carry the full identity
  *  so the k8s watch maps a terminal node CR back to its (line, node, iteration). */
 export const ASSEMBLY_LINE_ID_LABEL = "lore.re-cinq.com/assembly-line-id";
 export const NODE_ID_LABEL = "lore.re-cinq.com/node-id";

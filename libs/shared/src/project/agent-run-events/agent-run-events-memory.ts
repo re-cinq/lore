@@ -10,7 +10,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 /**
  * In-memory {@link AgentRunEventsRepository} — the behavioral spec for the
  * port. It reproduces the Pg adapter's observable contract without Postgres:
- * write-time correlation (newest matching node wins, as the adapter's
+ * write-time correlation (last registered node wins, as the adapter's
  * `ORDER BY node.id DESC LIMIT 1` does), string-encoded ids compared
  * numerically, ascending capped reads, and horizon pruning.
  *
@@ -94,6 +94,10 @@ export class InMemoryAgentRunEvents implements AgentRunEventsRepository {
       return undefined;
     }
 
+    // CR names are unique per line (a revisited node's iteration gets its own
+    // -<n> suffix), so multiple matches only occur when two DIFFERENT lines
+    // collide on their 12-hex id prefix + node id + iteration; the newest node
+    // row wins then, mirroring the Pg adapter's `ORDER BY node.id DESC LIMIT 1`.
     const matches = this.nodes.filter(
       (node) => node.agentCrName === agentCrName,
     );

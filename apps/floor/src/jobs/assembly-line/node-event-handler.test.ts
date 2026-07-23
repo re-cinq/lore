@@ -70,7 +70,7 @@ async function reviewInFlight(h: ReturnType<typeof harness>) {
   });
 
   await h.port.markRunning(id);
-  const crName = `${id.substring(0, 8)}-review`;
+  const crName = `${id.substring(0, 12)}-review`;
 
   await h.port.ensureNodeStart({
     assemblyLineId: id,
@@ -105,7 +105,7 @@ describe("createNodeEventHandler", () => {
       ["review", "changes_requested"],
       ["refine", null],
     ]);
-    expect(h.launched.at(-1)?.name).toBe(`${id.substring(0, 8)}-refine`);
+    expect(h.launched.at(-1)?.name).toBe(`${id.substring(0, 12)}-refine`);
   });
 
   it("fires the billing alert with the repo + node type when a node CR fails", async () => {
