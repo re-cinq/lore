@@ -11,6 +11,11 @@ on:
       # fix lived in shared/ only, so the server never rebuilt and prod stayed broken).
       - 'libs/shared/**'
       - 'libs/server-core/**'
+      # The lore-code-trace Go binary is baked into this image and served at
+      # /dist — a binary-only change must rebuild + redeploy, or every repo's
+      # CI keeps downloading the old binary (rediscovered 2026-07-24: the
+      # 5xx-retry fix merged but never shipped until an unrelated rebuild).
+      - 'apps/lore-code-trace/**'
       # Chart or workflow changes need a redeploy too — without this,
       # a chart-only PR merges to main and nothing redeploys, leaving
       # the cluster on old code forever (rediscovered 2026-04-29).
@@ -28,6 +33,7 @@ on:
       - 'apps/lore-api/**'
       - 'libs/shared/**'
       - 'libs/server-core/**'
+      - 'apps/lore-code-trace/**'
       - 'infra/terraform/modules/gke-mcp/lore-platform/charts/lore-api-helm/**'
       - 'infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml'
       - 'infra/terraform/modules/gke-mcp/lore-platform/values.yaml'
