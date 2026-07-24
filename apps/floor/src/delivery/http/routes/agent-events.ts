@@ -33,7 +33,11 @@ import type {
 
 /** Low-cardinality anomaly kinds; a union so a typo fails to compile. */
 type AnomalyKind =
-  "cost_uncorrelated" | "cost_failed" | "run_events_failed" | "archive_failed";
+  | "cost_uncorrelated"
+  | "cost_failed"
+  | "run_events_failed"
+  | "archive_failed"
+  | "archive_shed";
 
 /** Counts ingest anomalies so a silent problem shows on a dashboard. No-op
  *  until the OTEL SDK is registered (otel-init), so free in tests. */
@@ -132,10 +136,30 @@ export function costDegradedAudit(s: CostIngestSummary): AuditLogEntry | null {
 }
 
 /**
+ * Each in-flight archive pins the raw body plus its redacted copy (≤2× the 8MB
+ * viz cap) until GCS resolves, so unbounded fire-and-forget stacked ~16MB per
+ * concurrent POST and OOM-crash-looped the 512Mi Floor the first time the
+ * bucket env was set (2026-07-24). Beyond this many concurrent uploads the
+ * body is shed — counted, cost ingestion untouched, and the run's own raw
+ * stream still exists on the agent-subsystem side.
+ */
+const MAX_ARCHIVES_IN_FLIGHT = 2;
+let archivesInFlight = 0;
+
+/**
  * Archive the raw NDJSON for replay (redacted, dormant until a bucket is set).
- * Fire-and-forget: a failed archive must never fail cost-row ingestion.
+ * Fire-and-forget behind a small in-flight bound: a failed or shed archive
+ * must never fail cost-row ingestion.
  */
 function archiveRaw(body: string, rows: readonly LlmCallRow[]): void {
+  if (archivesInFlight >= MAX_ARCHIVES_IN_FLIGHT) {
+    countAnomaly("archive_shed");
+    console.warn(
+      `[floor] events archive shed: ${archivesInFlight} uploads already in flight`,
+    );
+
+    return;
+  }
   const key = agentEventsArchiveKey(
     new Date().toISOString(),
     rows.map((r) => r.taskId),
@@ -143,11 +167,15 @@ function archiveRaw(body: string, rows: readonly LlmCallRow[]): void {
 
   // Retention is handled by the task-logs bucket's log_retention_days lifecycle
   // rule (the bucket LORE_AGENT_EVENTS_BUCKET points at); no app-side pruning.
-  // TODO: we should use here a ProxyPromise that wraps the promise and logs errors. This way we can avoid using try/catch here.
-  void archiveAgentEvents(body, key).catch((err) => {
-    countAnomaly("archive_failed");
-    console.warn(`[floor] events archive skipped: ${errorMessage(err)}`);
-  });
+  archivesInFlight++;
+  void archiveAgentEvents(body, key)
+    .catch((err) => {
+      countAnomaly("archive_failed");
+      console.warn(`[floor] events archive skipped: ${errorMessage(err)}`);
+    })
+    .finally(() => {
+      archivesInFlight--;
+    });
 }
 
 /**
