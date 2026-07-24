@@ -77,7 +77,7 @@ describe("SpendView", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: "Billed cost by model",
+        name: "Billed cost by model — This month",
         level: 2,
       }),
     ).toBeInTheDocument();
@@ -89,13 +89,13 @@ describe("SpendView", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: "Lore-computed cost by repo",
+        name: "Lore-computed cost by repo — This month",
         level: 2,
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: "Lore-computed cost by task type",
+        name: "Lore-computed cost by task type — This month",
         level: 2,
       }),
     ).toBeInTheDocument();
@@ -136,7 +136,7 @@ describe("SpendView", () => {
 
   it("renders billed-cost-by-model rows including the (non-token) fallback label", () => {
     render(<SpendView {...populated} />);
-    const table = tableByHeading("Billed cost by model");
+    const table = tableByHeading("Billed cost by model — This month");
 
     expect(within(table).getByText("claude-opus-4")).toBeInTheDocument();
     expect(within(table).getByText("(non-token)")).toBeInTheDocument();
@@ -165,7 +165,7 @@ describe("SpendView", () => {
 
   it("renders lore-computed cost by repo rows with task counts", () => {
     render(<SpendView {...populated} />);
-    const table = tableByHeading("Lore-computed cost by repo");
+    const table = tableByHeading("Lore-computed cost by repo — This month");
 
     expect(within(table).getByText("re-cinq/lore")).toBeInTheDocument();
     expect(within(table).getByText("re-cinq/other")).toBeInTheDocument();
@@ -175,7 +175,9 @@ describe("SpendView", () => {
 
   it("renders lore-computed cost by task type rows with badges", () => {
     render(<SpendView {...populated} />);
-    const table = tableByHeading("Lore-computed cost by task type");
+    const table = tableByHeading(
+      "Lore-computed cost by task type — This month",
+    );
 
     expect(within(table).getByText("implementation")).toBeInTheDocument();
     expect(within(table).getByText("review")).toBeInTheDocument();

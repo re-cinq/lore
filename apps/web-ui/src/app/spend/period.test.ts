@@ -7,9 +7,9 @@ describe("resolveSpendPeriod", () => {
     expect(resolveSpendPeriod("90d").label).toBe("Last 90 days");
   });
 
-  it("defaults to this month for an unknown, missing, or null value", () => {
+  it("defaults to this month for an unknown or missing value", () => {
     expect(resolveSpendPeriod(undefined).key).toBe("month");
-    expect(resolveSpendPeriod(null).key).toBe("month");
+    expect(resolveSpendPeriod("").key).toBe("month");
     expect(resolveSpendPeriod("bogus").key).toBe("month");
   });
 
