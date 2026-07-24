@@ -4,11 +4,20 @@
 const ELLIPSIS = "…";
 const EM_DASH = "—";
 
-/** Format a USD cost to four decimals; non-finite input renders as $0.0000. */
+/** Format a USD cost for a table cell: `$0` for a zero/non-finite cost, `<$0.01`
+ *  for a sub-cent amount, two decimals otherwise. */
 export function formatCost(usd: number | null | undefined): string {
   const value = typeof usd === "number" && Number.isFinite(usd) ? usd : 0;
 
-  return `$${value.toFixed(4)}`;
+  if (value === 0) {
+    return "$0";
+  }
+
+  if (value < 0.01) {
+    return "<$0.01";
+  }
+
+  return `$${value.toFixed(2)}`;
 }
 
 /** Shorten an agent id to `len` chars, appending an ellipsis when clipped. */

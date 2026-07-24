@@ -7,32 +7,32 @@ import {
 } from "./task-presenter";
 
 describe("formatCost", () => {
-  it("returns $0.0000 for zero", () => {
-    expect(formatCost(0)).toBe("$0.0000");
+  it("returns $0 for zero", () => {
+    expect(formatCost(0)).toBe("$0");
   });
 
-  it("formats a multi-cent value to four decimals", () => {
-    expect(formatCost(5.1897)).toBe("$5.1897");
+  it("formats a multi-cent value to two decimals", () => {
+    expect(formatCost(5.1897)).toBe("$5.19");
   });
 
-  it("rounds a long fraction to four decimals", () => {
-    expect(formatCost(0.123456)).toBe("$0.1235");
+  it("rounds a long fraction to two decimals", () => {
+    expect(formatCost(0.128)).toBe("$0.13");
   });
 
-  it("rounds a sub-thousandth value up to $0.0001", () => {
-    expect(formatCost(0.00005)).toBe("$0.0001");
+  it("returns <$0.01 for a sub-cent value", () => {
+    expect(formatCost(0.00005)).toBe("<$0.01");
   });
 
-  it("returns $0.0000 for null", () => {
-    expect(formatCost(null)).toBe("$0.0000");
+  it("returns $0 for null", () => {
+    expect(formatCost(null)).toBe("$0");
   });
 
-  it("returns $0.0000 for undefined", () => {
-    expect(formatCost(undefined)).toBe("$0.0000");
+  it("returns $0 for undefined", () => {
+    expect(formatCost(undefined)).toBe("$0");
   });
 
-  it("returns $0.0000 for NaN", () => {
-    expect(formatCost(NaN)).toBe("$0.0000");
+  it("returns $0 for NaN", () => {
+    expect(formatCost(NaN)).toBe("$0");
   });
 });
 
