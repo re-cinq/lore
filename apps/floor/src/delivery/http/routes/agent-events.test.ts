@@ -5,10 +5,12 @@ import { agentEventBus } from "../../../jobs/agent/agent-event-bus.js";
 
 const logLlmCall = vi.fn();
 const insertBatch = vi.fn();
+const write = vi.fn();
 
 vi.mock("../../../kernel/queues.js", () => ({
   usage: () => ({ logLlmCall }),
   agentRunEvents: () => ({ insertBatch }),
+  auditLog: () => ({ write }),
 }));
 
 const ORIG = process.env.LORE_AGENT_INTERNAL_TOKEN;
@@ -87,8 +89,9 @@ describe("POST /api/agent-events", () => {
 describe("POST /api/agent-events persistence", () => {
   beforeEach(() => {
     process.env.LORE_AGENT_INTERNAL_TOKEN = "internal-secret";
-    logLlmCall.mockReset().mockResolvedValue(undefined);
+    logLlmCall.mockReset().mockResolvedValue({ correlated: true });
     insertBatch.mockReset().mockResolvedValue([insertedRow("line-a")]);
+    write.mockReset().mockResolvedValue(undefined);
   });
 
   it("returns 200 with recorded counts and publishes the inserted rows after the insert resolves", async () => {
@@ -133,5 +136,39 @@ describe("POST /api/agent-events persistence", () => {
     unsubscribe();
 
     expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("writes a cost-degraded audit row when a cost row is uncorrelated", async () => {
+    logLlmCall.mockResolvedValue({ correlated: false });
+
+    const res = await post(RESULT_LINE);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.result).toEqual({ status: "ok", events: 1, recorded: 1 });
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(write.mock.calls[0]?.[0]).toMatchObject({
+      event_type: "agent_events_cost_degraded",
+      task_id: "task-uuid-1",
+      payload: { recorded: 1, uncorrelated: 1, failed: 0 },
+    });
+  });
+
+  it("writes a cost-degraded audit row when a cost insert throws", async () => {
+    logLlmCall.mockRejectedValue(new Error("pg down"));
+
+    const res = await post(RESULT_LINE);
+
+    expect(res.result).toEqual({ status: "ok", events: 1, recorded: 0 });
+    expect(write.mock.calls[0]?.[0]).toMatchObject({
+      event_type: "agent_events_cost_degraded",
+      payload: { recorded: 0, uncorrelated: 0, failed: 1 },
+    });
+  });
+
+  it("writes no audit row when every cost row correlates", async () => {
+    const res = await post(RESULT_LINE);
+
+    expect(res.result).toEqual({ status: "ok", events: 1, recorded: 1 });
+    expect(write).not.toHaveBeenCalled();
   });
 });

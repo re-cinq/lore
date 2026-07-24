@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { PgUsage } from "./usage-pg.js";
 import type { PgPool } from "../../memory-store.js";
 
-function fakePool(): {
+function fakePool(returnRows: unknown[] = []): {
   pool: PgPool;
   calls: Array<{ text: string; params?: unknown[] }>;
 } {
@@ -11,7 +11,7 @@ function fakePool(): {
     async query<T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> {
       calls.push({ text, params });
 
-      return { rows: [] };
+      return { rows: returnRows as T[] };
     },
   };
 
@@ -64,6 +64,36 @@ describe("PgUsage adapter", () => {
     );
     expect(calls[0]?.params?.[0]).toBe("d6f1c2a0-0000-0000-0000-000000000000");
     expect(calls[0]?.params?.[5]).toBe(0.5);
+  });
+
+  it("reports correlated true when the RETURNING row says so", async () => {
+    const { pool } = fakePool([{ correlated: true }]);
+
+    const result = await new PgUsage(pool).logLlmCall({
+      taskId: "d6f1c2a0-0000-0000-0000-000000000000",
+      jobName: "agent",
+      model: "m",
+      inputTokens: 1,
+      outputTokens: 2,
+      durationMs: 10,
+    });
+
+    expect(result).toEqual({ correlated: true });
+  });
+
+  it("reports correlated false when the id matched neither table", async () => {
+    const { pool } = fakePool([{ correlated: false }]);
+
+    const result = await new PgUsage(pool).logLlmCall({
+      taskId: "00000000-0000-0000-0000-000000000000",
+      jobName: "agent",
+      model: "m",
+      inputTokens: 1,
+      outputTokens: 2,
+      durationMs: 10,
+    });
+
+    expect(result).toEqual({ correlated: false });
   });
 
   it("returns today and total llm_call counts", async () => {

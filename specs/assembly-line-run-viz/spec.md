@@ -179,11 +179,13 @@ useful granularity.
 
 ### FR5 — Resilience
 
-- FR5.1. A failure to persist visualization rows never fails the request; `POST /api/agent-events` continues to return success and to record its cost rows. ([validated by `agent-events.test.ts:94`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L94), [`agent-events.test.ts:109`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L109), [`agent-events.test.ts:119`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L119), [`agent-events.test.ts:127`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L127))
+- FR5.1. A failure to persist visualization rows never fails the request; `POST /api/agent-events` continues to return success and to record its cost rows. ([validated by `agent-events.test.ts:97`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L97), [`agent-events.test.ts:112`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L112), [`agent-events.test.ts:122`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L122), [`agent-events.test.ts:130`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L130))
 
 - FR5.2. A single malformed or unprojectable line never drops the rest of its batch. ([validated by `agent-events.test.ts:77`](apps/floor/src/jobs/agent/agent-events.test.ts#L77))
 
 - FR5.3. A client that reconnects with a `Last-Event-ID` receives every event after that id with no gap and no duplicate. ([validated by `run-event-reducer.test.ts:224`](apps/web-ui/src/lib/run-event-reducer.test.ts#L224), [`run-event-reducer.test.ts:232`](apps/web-ui/src/lib/run-event-reducer.test.ts#L232), [`run-event-reducer.test.ts:242`](apps/web-ui/src/lib/run-event-reducer.test.ts#L242), [`run-event-reducer.test.ts:303`](apps/web-ui/src/lib/run-event-reducer.test.ts#L303))
+
+- FR5.4. Cost-row anomalies never fail the request: an id matching neither a task nor a line stores an uncorrelated row, and an insert error is skipped — both are surfaced via a metric and one `agent_events_cost_degraded` audit row per degraded batch rather than dropped silently (#945). ([validated by `agent-events.test.ts:141`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L141), [`agent-events.test.ts:156`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L156), [`agent-events.test.ts:168`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L168))
 
 - FR5.5. Above a body-size threshold, a `POST /api/agent-events` records its cost rows but skips the run-visualization projection and the full-body archive copy — the two body-proportional allocations — so a pathological report cannot OOM the single Floor replica. The projection is parsed in a single pass that can omit run events entirely for the cost-only path. ([validated by `agent-sink.test.ts:32`](apps/floor/src/jobs/agent/agent-sink.test.ts#L32), [`agent-events-oversized.test.ts:47`](apps/floor/src/delivery/http/routes/agent-events-oversized.test.ts#L47))
 
