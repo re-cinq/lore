@@ -122,7 +122,7 @@ export default function SpendView({
       )}
 
       {/* Authoritative breakdowns */}
-      <h2>Billed cost by model</h2>
+      <h2>Billed cost by model — {period.label}</h2>
       <table>
         <thead>
           <tr>
@@ -183,7 +183,7 @@ export default function SpendView({
       </table>
 
       {/* Lore-attributed breakdowns */}
-      <h2>Lore-computed cost by repo</h2>
+      <h2>Lore-computed cost by repo — {period.label}</h2>
       <table>
         <thead>
           <tr>
@@ -210,7 +210,7 @@ export default function SpendView({
         </tbody>
       </table>
 
-      <h2>Lore-computed cost by task type</h2>
+      <h2>Lore-computed cost by task type — {period.label}</h2>
       <table>
         <thead>
           <tr>

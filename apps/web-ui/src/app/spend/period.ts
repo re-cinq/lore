@@ -20,6 +20,7 @@ const PERIODS: Record<SpendPeriodKey, SpendPeriod> = {
     key: "week",
     label: "This week",
     short: "Week",
+    // date_trunc('week') is ISO — the week starts Monday, not Sunday.
     floorSql: "date_trunc('week', current_date)",
   },
   month: {
@@ -58,8 +59,6 @@ export const SPEND_PERIODS: SpendPeriod[] = [
 ];
 
 /** Resolve a raw `?period=` value to a known period, defaulting to this month. */
-export function resolveSpendPeriod(
-  raw: string | undefined | null,
-): SpendPeriod {
-  return (raw != null && PERIODS[raw as SpendPeriodKey]) || PERIODS.month;
+export function resolveSpendPeriod(raw: string | undefined): SpendPeriod {
+  return (raw && PERIODS[raw as SpendPeriodKey]) || PERIODS.month;
 }
