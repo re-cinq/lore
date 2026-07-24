@@ -2,6 +2,9 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import SpendView, { type SpendViewProps, type OrgMtdRow } from "./SpendView";
+import { resolveSpendPeriod } from "./period";
+
+const monthPeriod = resolveSpendPeriod("month");
 
 const usd = (n: number) =>
   Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
@@ -25,6 +28,7 @@ const orgMtd: OrgMtdRow = {
 };
 
 const populated: SpendViewProps = {
+  period: monthPeriod,
   orgMtd,
   orgAvailable: true,
   orgByModel: [
@@ -52,6 +56,7 @@ const populated: SpendViewProps = {
 };
 
 const empty: SpendViewProps = {
+  period: monthPeriod,
   orgMtd: { billed_usd: 0, input_tokens: 0, output_tokens: 0, as_of: null },
   orgAvailable: false,
   orgByModel: [],
@@ -68,32 +73,47 @@ describe("SpendView", () => {
       screen.getByRole("heading", { name: "Claude API Spend", level: 1 }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Month to Date", level: 2 }),
+      screen.getByRole("heading", { name: "Totals — This month", level: 2 }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: "Billed Cost by Model (MTD)",
+        name: "Billed cost by model",
         level: 2,
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: "Daily Billed Cost (This Month)",
+        name: "Daily billed cost — This month",
         level: 2,
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: "Lore-Computed Cost by Repo (MTD)",
+        name: "Lore-computed cost by repo",
         level: 2,
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: "Lore-Computed Cost by Task Type (MTD)",
+        name: "Lore-computed cost by task type",
         level: 2,
       }),
     ).toBeInTheDocument();
+  });
+
+  it("renders the period selector with the active period marked", () => {
+    render(<SpendView {...populated} />);
+    const nav = screen.getByRole("navigation", { name: "Spend period" });
+
+    for (const label of ["Week", "Month", "30 days", "90 days", "All"]) {
+      expect(
+        within(nav).getByRole("link", { name: label }),
+      ).toBeInTheDocument();
+    }
+    const active = within(nav).getByRole("link", { name: "Month" });
+
+    expect(active).toHaveAttribute("aria-current", "page");
+    expect(active).toHaveAttribute("href", "/spend?period=month");
   });
 
   it("shows billed cost, computed cost, and token totals when org data is available", () => {
@@ -116,7 +136,7 @@ describe("SpendView", () => {
 
   it("renders billed-cost-by-model rows including the (non-token) fallback label", () => {
     render(<SpendView {...populated} />);
-    const table = tableByHeading("Billed Cost by Model (MTD)");
+    const table = tableByHeading("Billed cost by model");
 
     expect(within(table).getByText("claude-opus-4")).toBeInTheDocument();
     expect(within(table).getByText("(non-token)")).toBeInTheDocument();
@@ -131,7 +151,7 @@ describe("SpendView", () => {
 
   it("renders daily billed cost rows with localized dates", () => {
     render(<SpendView {...populated} />);
-    const table = tableByHeading("Daily Billed Cost (This Month)");
+    const table = tableByHeading("Daily billed cost — This month");
 
     expect(
       within(table).getByText(new Date("2026-06-04").toLocaleDateString()),
@@ -145,7 +165,7 @@ describe("SpendView", () => {
 
   it("renders lore-computed cost by repo rows with task counts", () => {
     render(<SpendView {...populated} />);
-    const table = tableByHeading("Lore-Computed Cost by Repo (MTD)");
+    const table = tableByHeading("Lore-computed cost by repo");
 
     expect(within(table).getByText("re-cinq/lore")).toBeInTheDocument();
     expect(within(table).getByText("re-cinq/other")).toBeInTheDocument();
@@ -155,7 +175,7 @@ describe("SpendView", () => {
 
   it("renders lore-computed cost by task type rows with badges", () => {
     render(<SpendView {...populated} />);
-    const table = tableByHeading("Lore-Computed Cost by Task Type (MTD)");
+    const table = tableByHeading("Lore-computed cost by task type");
 
     expect(within(table).getByText("implementation")).toBeInTheDocument();
     expect(within(table).getByText("review")).toBeInTheDocument();
