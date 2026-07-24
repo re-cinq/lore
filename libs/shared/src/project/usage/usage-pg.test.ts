@@ -42,6 +42,30 @@ describe("PgUsage adapter", () => {
     ]);
   });
 
+  it("routes the incoming id to task_id or assembly_line_id at insert", async () => {
+    const { pool, calls } = fakePool();
+
+    await new PgUsage(pool).logLlmCall({
+      taskId: "d6f1c2a0-0000-0000-0000-000000000000",
+      jobName: "agent",
+      model: "claude-sonnet-4-6",
+      inputTokens: 1,
+      outputTokens: 2,
+      costUsd: 0.5,
+      durationMs: 10,
+    });
+
+    expect(calls[0]?.text).toContain("assembly_line_id");
+    expect(calls[0]?.text).toContain(
+      "LEFT JOIN pipeline.tasks t ON t.id = g.given",
+    );
+    expect(calls[0]?.text).toContain(
+      "LEFT JOIN pipeline.assembly_lines al ON al.id = g.given AND t.id IS NULL",
+    );
+    expect(calls[0]?.params?.[0]).toBe("d6f1c2a0-0000-0000-0000-000000000000");
+    expect(calls[0]?.params?.[5]).toBe(0.5);
+  });
+
   it("returns today and total llm_call counts", async () => {
     const pool: PgPool = {
       async query<T>(text: string): Promise<{ rows: T[] }> {

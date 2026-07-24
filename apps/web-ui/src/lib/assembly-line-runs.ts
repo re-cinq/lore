@@ -5,9 +5,9 @@
 // cost live on pipeline.tasks, joined via task_id. Task-less runs (code-review,
 // comment-triage — the webhook-driven family) fall back to args.pr_number for the
 // PR link, args.actor (the triggering commenter/reviewer/PR author) for the
-// creator, and their llm_calls rows keyed by the assembly-line id for cost — the
-// Floor launches their pods with TASK_ID = the line id (advance.ts), which is why
-// the cost lateral joins on COALESCE(task_id, id).
+// creator, and their llm_calls rows carry the assembly-line id in
+// assembly_line_id (migration 0032) for cost. The cost lateral prefers that
+// column and falls back to task_id for rows predating it.
 
 import { queryAllowMissing } from "./db";
 
@@ -141,7 +141,10 @@ const RUN_SELECT = `
     LEFT JOIN LATERAL (
       SELECT SUM(lc.cost_usd)::float AS cost_usd
         FROM pipeline.llm_calls lc
-       WHERE lc.task_id = COALESCE(al.task_id, al.id)
+       WHERE lc.assembly_line_id = al.id
+          OR (lc.assembly_line_id IS NULL
+              AND al.task_id IS NOT NULL
+              AND lc.task_id = al.task_id)
     ) cost ON true`;
 
 /** The run list, filterable by status and repo (both SQL-side). Empty on pre-0025 DBs. */

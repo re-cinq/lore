@@ -14,10 +14,18 @@ export class PgUsage implements UsagePort {
   constructor(private readonly pool: PgPool) {}
 
   async logLlmCall(record: LlmCallRecord): Promise<void> {
+    // A task-less line's pod posts its cost keyed by the assembly-line id (the
+    // `taskId ?? row.id` fallback in advance.ts). Route the id to task_id when
+    // it is a task and to assembly_line_id when it is a line — write-time
+    // correlation mirroring agent-run-events-pg. An id in neither table keeps
+    // the row uncorrelated (both null) rather than failing the FK.
     await this.pool.query(
       `INSERT INTO pipeline.llm_calls
-         (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+         (task_id, assembly_line_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
+       SELECT t.id, al.id, $2, $3, $4, $5, $6, $7
+         FROM (SELECT $1::uuid AS given) g
+         LEFT JOIN pipeline.tasks t ON t.id = g.given
+         LEFT JOIN pipeline.assembly_lines al ON al.id = g.given AND t.id IS NULL`,
       [
         record.taskId ?? null,
         record.jobName,
