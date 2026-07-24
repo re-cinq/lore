@@ -60,7 +60,7 @@ describe("RepoTasksView", () => {
       />,
     );
 
-    expect(screen.getByText("$1.5000")).toBeInTheDocument();
+    expect(screen.getByText("$1.50")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "implementation" }),
     ).toHaveAttribute(

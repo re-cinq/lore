@@ -211,6 +211,15 @@
   font-size: var(--fs-xs);
   color: var(--text-muted);
 }
+/* A branch name can be a long, unbreakable commit-SHA path; cap it so it never
+   forces the table into horizontal scroll. Full value stays in the title. */
+.branchText {
+  display: inline-block;
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .skipToggle {
   background: none;
   border: none;

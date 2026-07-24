@@ -197,4 +197,19 @@ describe("AssemblyLineRunsTable", () => {
     // No backing task → PRStatusBadgePanel is not rendered, so no fetch fires.
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  it("renders an em dash for a null branch", () => {
+    render(<AssemblyLineRunsTable runs={[run({ branch: null })]} />);
+
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("keeps the full branch name in the title attribute", () => {
+    const branch =
+      "ingest/test-report/1883314dcd3d9c0008c2dcbea876c552d77c6b02";
+
+    render(<AssemblyLineRunsTable runs={[run({ branch })]} />);
+
+    expect(screen.getByTitle(branch)).toHaveTextContent(branch);
+  });
 });

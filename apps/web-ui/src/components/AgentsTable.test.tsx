@@ -177,14 +177,14 @@ describe("AgentsTable rows", () => {
     const table = screen.getByRole("table");
 
     expect(within(table).getByText("99")).toBeInTheDocument();
-    expect(within(table).getByText("$0.0000")).toBeInTheDocument();
+    expect(within(table).getByText("$0")).toBeInTheDocument();
   });
 
-  it("renders the Task badge and four-decimal cost for a revealed task agent", () => {
+  it("renders the Task badge and cost for a revealed task agent", () => {
     render(<AgentsTable agents={[task({ cost_usd: 1.5 })]} />);
     fireEvent.click(screen.getByRole("button", { name: /Show task agents/ }));
     expect(screen.getByText("Task")).toHaveClass("badge");
-    expect(screen.getByText("$1.5000")).toBeInTheDocument();
+    expect(screen.getByText("$1.50")).toBeInTheDocument();
   });
 
   it("falls back to unknown creator and an em dash when last_active is null", () => {
