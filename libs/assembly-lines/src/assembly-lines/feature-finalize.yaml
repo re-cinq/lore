@@ -26,6 +26,12 @@ edges:
   - from: write
     to: push
     on: success
+  - from: write
+    to: done
+    on: changes_requested
+  - from: write
+    to: done
+    on: failed
   - from: push
     to: done
     on: always

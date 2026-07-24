@@ -212,7 +212,7 @@ nodes:
 edges:
   - from: review
     to: done
-    on: success
+    on: always
   - from: review
     to: review
     on: changes_requested
@@ -425,7 +425,7 @@ describe("advanceLine job_runs bookkeeping (detect lines)", () => {
   it("fails the args.job_run_id run when the line fails", async () => {
     const successOnly: AssemblyLine = parseAssemblyLine(`
 name: detect-like
-description: detect → done, no failed edge
+description: detect → done, every outcome routes to done
 version: 1
 entry: detect-node
 exit: done
@@ -438,7 +438,7 @@ nodes:
 edges:
   - from: detect-node
     to: done
-    on: success
+    on: always
 `);
     const port = new InMemoryAssemblyLines();
     const { deps, jobRuns } = makeDeps(port);
@@ -457,7 +457,7 @@ edges:
     await port.finishNodeOnce(port.nodes[0]!.id, "failed");
     await advanceLine(id, deps);
 
-    expect(await port.getById(id)).toMatchObject({ status: "failed" });
+    expect(await port.getById(id)).toMatchObject({ outcome: "failed" });
     expect(jobRuns.at(-1)).toContain("fail:jr-1:");
   });
 

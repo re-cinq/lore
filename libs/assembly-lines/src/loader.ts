@@ -66,6 +66,46 @@ export type AssemblyLineEdge = z.infer<typeof EdgeSchema>;
 export type AssemblyLine = z.infer<typeof AssemblyLineSchema>;
 export type EdgeConditionValue = z.infer<typeof EdgeCondition>;
 
+// The outcomes each node type can produce at runtime (`stationNodeOutcome`,
+// specs/6-dark-factory/contracts/station-contract.md): every type yields
+// `failed` on an infrastructure failure (CR phase Failed, station timeout) and
+// `success` as the fallback; only agent output carries the LORE_NODE_RESULT /
+// REVIEW_RESULT verdict lines that yield `changes_requested` (the builtin
+// stations in apps/lore-station never emit it).
+const PRODUCIBLE_OUTCOMES: Record<
+  z.infer<typeof NodeType>,
+  readonly EdgeConditionValue[]
+> = {
+  agent: ["success", "changes_requested", "failed"],
+  validate: ["success", "failed"],
+  gate: ["success", "failed"],
+  retrospective: ["success", "failed"],
+  github_action: ["success", "failed"],
+  detect: ["success", "failed"],
+  "comment-triage": ["success", "failed"],
+  ingest: ["success", "failed"],
+};
+
+/** Producible outcomes of `node` with no matching edge, under `selectEdge`
+ *  semantics: an `always` edge covers every outcome. Empty for the exit node. */
+export function uncoveredOutcomes(
+  wf: AssemblyLine,
+  node: AssemblyLineNode,
+): EdgeConditionValue[] {
+  if (node.id === wf.exit) {
+    return [];
+  }
+  const covered = new Set(
+    wf.edges.filter((e) => e.from === node.id).map((e) => e.on),
+  );
+
+  if (covered.has("always")) {
+    return [];
+  }
+
+  return PRODUCIBLE_OUTCOMES[node.type].filter((o) => !covered.has(o));
+}
+
 export class AssemblyLineLoadError extends Error {
   constructor(
     message: string,
@@ -82,7 +122,8 @@ export class AssemblyLineLoadError extends Error {
  * Parse and fully validate an assembly line definition. Throws
  * {@link AssemblyLineLoadError} on malformed YAML, schema violation,
  * dangling node references, unreachable nodes, terminal-only-on-exit
- * violations, or back-edges without `iteration_max`.
+ * violations, producible outcomes with no matching edge, or back-edges
+ * without `iteration_max`.
  */
 export function parseAssemblyLine(
   yamlSrc: string,
@@ -229,6 +270,21 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
       n.type !== "detect" || n.job_ref,
       Error,
       `detect node "${n.id}" requires job_ref`,
+    );
+  }
+
+  // Every outcome a node can produce must route somewhere — an uncovered
+  // outcome would otherwise crash the walk at runtime (`nextTransition`'s
+  // no-edge failure) instead of failing here at load.
+  for (const n of wf.nodes) {
+    const missing = uncoveredOutcomes(wf, n);
+
+    enforceTrue(
+      missing.length === 0,
+      loadError,
+      `node "${n.id}" in assembly line "${wf.name}" has no edge for producible outcome(s) ${missing
+        .map((o) => `"${o}"`)
+        .join(", ")}`,
     );
   }
 
