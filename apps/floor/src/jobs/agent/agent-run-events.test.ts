@@ -508,6 +508,7 @@ describe("run-event projection through parseAgentSink", () => {
     expect(sink.costRows).toEqual([
       {
         taskId: "task-uuid-1",
+        agentCrName: "abcd1234-review",
         model: "claude-opus-4",
         inputTokens: 10,
         outputTokens: 2,

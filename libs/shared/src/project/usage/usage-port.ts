@@ -4,6 +4,10 @@
  */
 export interface LlmCallRecord {
   taskId?: string | null;
+  /** The Agent CR name (`source.agent`). When it resolves to an
+   *  `assembly_line_nodes` row, the cost lands on that exact assembly-line
+   *  attempt — giving task-backed runs per-attempt cost (#947). */
+  agentCrName?: string | null;
   jobName: string;
   model: string;
   inputTokens: number;

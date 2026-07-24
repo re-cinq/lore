@@ -25,6 +25,7 @@ describe("parseAgentEvents", () => {
     expect(parseAgentEvents(ndjson)).toEqual([
       {
         taskId: "task-uuid-1",
+        agentCrName: "agent-abc",
         model: "claude-sonnet-4-6",
         inputTokens: 1200,
         outputTokens: 340,
@@ -103,6 +104,7 @@ describe("parseAgentEvents", () => {
     expect(parseAgentEvents(ndjson)).toEqual([
       {
         taskId: "task-uuid-1",
+        agentCrName: "agent-abc",
         model: "claude-sonnet-4-6",
         inputTokens: 1200,
         outputTokens: 340,
