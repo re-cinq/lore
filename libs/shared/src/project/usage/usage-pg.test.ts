@@ -145,4 +145,22 @@ describe("PgUsage adapter", () => {
     expect(calls[0]?.text).toContain("assembly_line_id");
     expect(calls[0]?.params?.[0]).toBeNull();
   });
+
+  it("passes a null CR through the lateral when agentCrName is omitted", async () => {
+    const { pool, calls } = fakePool();
+
+    await new PgUsage(pool).logLlmCall({
+      taskId: "d6f1c2a0-0000-0000-0000-000000000000",
+      jobName: "agent",
+      model: "m",
+      inputTokens: 1,
+      outputTokens: 2,
+      durationMs: 10,
+    });
+
+    // The lateral clause is still emitted; a null CR simply resolves no node
+    // and COALESCE falls back to al.id (verified against Postgres, not here).
+    expect(calls[0]?.text).toContain("n.agent_cr_name = g.cr");
+    expect(calls[0]?.params?.[1]).toBeNull();
+  });
 });

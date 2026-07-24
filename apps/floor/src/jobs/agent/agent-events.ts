@@ -16,6 +16,8 @@ import {
 } from "./agent-run-events.js";
 
 export interface LlmCallRow {
+  /** Always non-empty — rowFromEnvelope returns null when the envelope carries
+   *  no task id, so a row never reaches the sink with a blank taskId. */
   taskId: string;
   /** `source.agent` (the Agent CR name) — resolves to the exact assembly-line
    *  attempt at ingest, giving task-backed runs per-attempt cost (#947). Null

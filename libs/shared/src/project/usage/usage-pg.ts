@@ -22,8 +22,11 @@ export class PgUsage implements UsagePort {
     //                      task-backed run gets per-attempt cost, #947); falls
     //                      back to the given id when it is itself a line id (the
     //                      task-less pods that post `taskId ?? row.id`, #943).
-    // An id/CR matching nothing keeps the row uncorrelated (both null) rather
-    // than failing the FK; RETURNING reports that so the sink can surface it (#945).
+    // A null CR compares as NULL under `n.agent_cr_name = g.cr` (never true), so
+    // the lateral yields no row and COALESCE falls through to al.id — the intended
+    // no-op, same as agent-run-events-pg. An id/CR matching nothing keeps the row
+    // uncorrelated (both null) rather than failing the FK; RETURNING reports that
+    // so the sink can surface it (#945).
     const { rows } = await this.pool.query<{ correlated: boolean }>(
       `INSERT INTO pipeline.llm_calls
          (task_id, assembly_line_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
