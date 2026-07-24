@@ -101,7 +101,10 @@ export function isBillingError(text: string | null | undefined): boolean {
 const failureKind = (node: AssemblyLineNode): string =>
   node.type === "agent" ? "agent" : "station";
 
-/** Map a terminal Agent status to the node outcome (see precedence above). */
+/** Map a terminal Agent status to the node outcome (see precedence above).
+ *  The set of outcomes this can return per node type is mirrored by
+ *  PRODUCIBLE_OUTCOMES in loader.ts (the load-time edge-coverage check) — keep
+ *  the two in sync when adding an outcome. */
 export function stationNodeOutcome(
   node: AssemblyLineNode,
   status: AgentNodeStatus,

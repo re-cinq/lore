@@ -4,7 +4,10 @@ import * as path from "node:path";
 import {
   parseAssemblyLine,
   loadAssemblyLineDir,
+  uncoveredOutcomes,
   AssemblyLineLoadError,
+  type AssemblyLine,
+  type EdgeConditionValue,
 } from "./loader.js";
 
 const linearAssemblyLine = `
@@ -547,7 +550,12 @@ edges:
     on: failed
 `);
 
-    expect(wf.edges.map((e) => e.on).sort()).toEqual(["failed", "success"]);
+    expect(
+      wf.edges
+        .filter((e) => e.from === "detect")
+        .map((e) => e.on)
+        .sort(),
+    ).toEqual(["failed", "success"]);
   });
 
   it("accepts an agent node whose outcomes are covered by an always edge", () => {
@@ -593,5 +601,46 @@ edges:
 `);
 
     expect(wf.exit).toBe("done");
+  });
+});
+
+describe("uncoveredOutcomes", () => {
+  // Handcrafted (not parseAssemblyLine): the partial-coverage case is exactly
+  // what the loader now rejects, so the object cannot be built by parsing.
+  const agentToExit = (on: EdgeConditionValue): AssemblyLine => ({
+    name: "x",
+    description: "d",
+    version: 1,
+    entry: "a",
+    exit: "done",
+    nodes: [
+      { id: "a", type: "agent" },
+      { id: "done", type: "retrospective" },
+    ],
+    edges: [{ from: "a", to: "done", on }],
+  });
+
+  it("returns empty for the exit node", () => {
+    const wf = agentToExit("always");
+    const exit = wf.nodes.find((n) => n.id === wf.exit)!;
+
+    expect(uncoveredOutcomes(wf, exit)).toEqual([]);
+  });
+
+  it("returns empty when an always edge covers the node", () => {
+    const wf = agentToExit("always");
+    const a = wf.nodes.find((n) => n.id === "a")!;
+
+    expect(uncoveredOutcomes(wf, a)).toEqual([]);
+  });
+
+  it("returns the missing outcomes for a partially covered agent node", () => {
+    const wf = agentToExit("success");
+    const a = wf.nodes.find((n) => n.id === "a")!;
+
+    expect(uncoveredOutcomes(wf, a).sort()).toEqual([
+      "changes_requested",
+      "failed",
+    ]);
   });
 });

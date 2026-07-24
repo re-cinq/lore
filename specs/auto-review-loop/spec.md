@@ -415,9 +415,9 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 
 ### `libs/assembly-lines/src/loader.test.ts`
 
-- code-review is a suggestion-only review→done graph (no refine/auto-commit). ([validated by](libs/assembly-lines/src/loader.test.ts#L366))
-- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L414))
-- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L447))
+- code-review is a suggestion-only review→done graph (no refine/auto-commit). ([validated by](libs/assembly-lines/src/loader.test.ts#L369))
+- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L417))
+- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L450))
 
 ### `libs/shared/src/project/assembly-lines/assembly-lines.test.ts`
 
