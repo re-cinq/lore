@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { SPEND_PERIODS, type SpendPeriod } from "./period";
 import styles from "./SpendView.module.css";
 
 export interface OrgMtdRow {
@@ -32,6 +34,7 @@ export interface LoreByTaskTypeRow {
 }
 
 export interface SpendViewProps {
+  period: SpendPeriod;
   orgMtd: OrgMtdRow;
   orgAvailable: boolean;
   orgByModel: OrgByModelRow[];
@@ -45,6 +48,7 @@ const usd = (n: number) =>
   Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
 
 export default function SpendView({
+  period,
   orgMtd,
   orgAvailable,
   orgByModel,
@@ -57,8 +61,21 @@ export default function SpendView({
     <div>
       <h1>Claude API Spend</h1>
 
-      {/* Month-to-date totals */}
-      <h2>Month to Date</h2>
+      <nav className={styles.periods} aria-label="Spend period">
+        {SPEND_PERIODS.map((it) => (
+          <Link
+            key={it.key}
+            href={`/spend?period=${it.key}`}
+            aria-current={it.key === period.key ? "page" : undefined}
+            className={`${styles.period} ${it.key === period.key ? styles.periodActive : ""}`}
+          >
+            {it.short}
+          </Link>
+        ))}
+      </nav>
+
+      {/* Period totals */}
+      <h2>Totals — {period.label}</h2>
       <div className={styles.cards}>
         <div className={`spec-card ${styles.card}`}>
           <div className="meta">Billed cost (Anthropic)</div>
@@ -105,7 +122,7 @@ export default function SpendView({
       )}
 
       {/* Authoritative breakdowns */}
-      <h2>Billed Cost by Model (MTD)</h2>
+      <h2>Billed cost by model</h2>
       <table>
         <thead>
           <tr>
@@ -140,7 +157,7 @@ export default function SpendView({
         </tbody>
       </table>
 
-      <h2>Daily Billed Cost (This Month)</h2>
+      <h2>Daily billed cost — {period.label}</h2>
       <table>
         <thead>
           <tr>
@@ -166,7 +183,7 @@ export default function SpendView({
       </table>
 
       {/* Lore-attributed breakdowns */}
-      <h2>Lore-Computed Cost by Repo (MTD)</h2>
+      <h2>Lore-computed cost by repo</h2>
       <table>
         <thead>
           <tr>
@@ -193,7 +210,7 @@ export default function SpendView({
         </tbody>
       </table>
 
-      <h2>Lore-Computed Cost by Task Type (MTD)</h2>
+      <h2>Lore-computed cost by task type</h2>
       <table>
         <thead>
           <tr>

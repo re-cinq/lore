@@ -45,3 +45,29 @@
 .center {
   text-align: center;
 }
+
+.periods {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 20px;
+}
+
+.period {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  color: inherit;
+  font-size: var(--fs-sm);
+}
+
+.period:hover {
+  border-color: var(--border-hover);
+}
+
+.periodActive {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
