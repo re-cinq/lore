@@ -96,7 +96,15 @@ export default function AssemblyLineRunsTable({
                 <td>
                   <Link href={`/repos/${run.repo}`}>{run.repo}</Link>
                 </td>
-                <td className={styles.branch}>{run.branch ?? EM_DASH}</td>
+                <td className={styles.branch}>
+                  {run.branch ? (
+                    <span className={styles.branchText} title={run.branch}>
+                      {run.branch}
+                    </span>
+                  ) : (
+                    EM_DASH
+                  )}
+                </td>
                 <td>
                   <span
                     className={`${styles.dot} ${styles[visual.tone]}`}
