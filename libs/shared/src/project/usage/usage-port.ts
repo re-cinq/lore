@@ -19,8 +19,16 @@ export interface ProcessedCounts {
   total: number;
 }
 
+/** Outcome of persisting one cost row. */
+export interface LlmCallResult {
+  /** True when the row landed on a task or an assembly line; false when the
+   *  incoming id matched neither, so the row is stored uncorrelated (both
+   *  columns null). The ingest sink surfaces the false case (issue #945). */
+  correlated: boolean;
+}
+
 /** The LLM-usage accounting surface. */
 export interface UsagePort {
-  logLlmCall(record: LlmCallRecord): Promise<void>;
+  logLlmCall(record: LlmCallRecord): Promise<LlmCallResult>;
   processedCounts(): Promise<ProcessedCounts>;
 }

@@ -2,6 +2,7 @@ import type { PgPool } from "../../memory-store.js";
 import type {
   UsagePort,
   LlmCallRecord,
+  LlmCallResult,
   ProcessedCounts,
 } from "./usage-port.js";
 
@@ -13,21 +14,21 @@ import type {
 export class PgUsage implements UsagePort {
   constructor(private readonly pool: PgPool) {}
 
-  async logLlmCall(record: LlmCallRecord): Promise<void> {
+  async logLlmCall(record: LlmCallRecord): Promise<LlmCallResult> {
     // A task-less line's pod posts its cost keyed by the assembly-line id (the
     // `taskId ?? row.id` fallback in advance.ts). Route the id to task_id when
     // it is a task and to assembly_line_id when it is a line — write-time
     // correlation mirroring agent-run-events-pg. An id in neither table keeps
-    // the row uncorrelated (both null) rather than failing the FK. Pre-0032 an
-    // unknown id threw an FK violation that recordAgentCosts logged; that signal
-    // is now silent here — surfacing uncorrelated rows is issue #945's scope.
-    await this.pool.query(
+    // the row uncorrelated (both null) rather than failing the FK, and RETURNING
+    // reports that so the ingest sink can surface it (issue #945).
+    const { rows } = await this.pool.query<{ correlated: boolean }>(
       `INSERT INTO pipeline.llm_calls
          (task_id, assembly_line_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
        SELECT t.id, al.id, $2, $3, $4, $5, $6, $7
          FROM (SELECT $1::uuid AS given) g
          LEFT JOIN pipeline.tasks t ON t.id = g.given
-         LEFT JOIN pipeline.assembly_lines al ON al.id = g.given AND t.id IS NULL`,
+         LEFT JOIN pipeline.assembly_lines al ON al.id = g.given AND t.id IS NULL
+       RETURNING (task_id IS NOT NULL OR assembly_line_id IS NOT NULL) AS correlated`,
       [
         record.taskId ?? null,
         record.jobName,
@@ -38,6 +39,8 @@ export class PgUsage implements UsagePort {
         record.durationMs,
       ],
     );
+
+    return { correlated: rows[0]?.correlated ?? false };
   }
 
   async processedCounts(): Promise<ProcessedCounts> {
