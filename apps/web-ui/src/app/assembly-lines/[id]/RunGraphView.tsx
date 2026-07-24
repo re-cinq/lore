@@ -27,7 +27,7 @@ import {
 } from "@/lib/run-node-status";
 import styles from "./RunGraphView.module.css";
 
-const NODE_WIDTH = 132;
+const NODE_WIDTH = 176;
 const BASE_NODE_HEIGHT = 48;
 const OUTCOME_ROW = 15;
 const OUTCOME_TOP = 14;
@@ -211,6 +211,7 @@ export default function RunGraphView({
 
   const nodeHeight = nodeHeightFor(graph);
   const layout = layoutAssemblyLine(toLayoutDefinition(graph, definition), {
+    nodeWidth: NODE_WIDTH,
     nodeHeight,
     rowGap: nodeHeight + 48,
   });
