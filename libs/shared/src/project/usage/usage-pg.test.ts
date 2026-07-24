@@ -33,6 +33,7 @@ describe("PgUsage adapter", () => {
     expect(calls[0]?.text).toContain("INSERT INTO pipeline.llm_calls");
     expect(calls[0]?.params).toEqual([
       null,
+      null,
       "claude-code",
       "claude-sonnet-4-6",
       100,
@@ -42,11 +43,12 @@ describe("PgUsage adapter", () => {
     ]);
   });
 
-  it("routes the incoming id to task_id or assembly_line_id at insert", async () => {
+  it("routes the id to task_id and resolves assembly_line_id from the CR name at insert", async () => {
     const { pool, calls } = fakePool();
 
     await new PgUsage(pool).logLlmCall({
       taskId: "d6f1c2a0-0000-0000-0000-000000000000",
+      agentCrName: "abc12345-review",
       jobName: "agent",
       model: "claude-sonnet-4-6",
       inputTokens: 1,
@@ -55,15 +57,17 @@ describe("PgUsage adapter", () => {
       durationMs: 10,
     });
 
-    expect(calls[0]?.text).toContain("assembly_line_id");
     expect(calls[0]?.text).toContain(
       "LEFT JOIN pipeline.tasks t ON t.id = g.given",
     );
     expect(calls[0]?.text).toContain(
       "LEFT JOIN pipeline.assembly_lines al ON al.id = g.given AND t.id IS NULL",
     );
+    expect(calls[0]?.text).toContain("n.agent_cr_name = g.cr");
+    expect(calls[0]?.text).toContain("COALESCE(node.assembly_line_id, al.id)");
     expect(calls[0]?.params?.[0]).toBe("d6f1c2a0-0000-0000-0000-000000000000");
-    expect(calls[0]?.params?.[5]).toBe(0.5);
+    expect(calls[0]?.params?.[1]).toBe("abc12345-review");
+    expect(calls[0]?.params?.[6]).toBe(0.5);
   });
 
   it("reports correlated true when the RETURNING row says so", async () => {
@@ -140,5 +144,23 @@ describe("PgUsage adapter", () => {
 
     expect(calls[0]?.text).toContain("assembly_line_id");
     expect(calls[0]?.params?.[0]).toBeNull();
+  });
+
+  it("passes a null CR through the lateral when agentCrName is omitted", async () => {
+    const { pool, calls } = fakePool();
+
+    await new PgUsage(pool).logLlmCall({
+      taskId: "d6f1c2a0-0000-0000-0000-000000000000",
+      jobName: "agent",
+      model: "m",
+      inputTokens: 1,
+      outputTokens: 2,
+      durationMs: 10,
+    });
+
+    // The lateral clause is still emitted; a null CR simply resolves no node
+    // and COALESCE falls back to al.id (verified against Postgres, not here).
+    expect(calls[0]?.text).toContain("n.agent_cr_name = g.cr");
+    expect(calls[0]?.params?.[1]).toBeNull();
   });
 });

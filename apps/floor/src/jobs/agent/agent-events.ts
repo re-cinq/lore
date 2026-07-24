@@ -16,7 +16,13 @@ import {
 } from "./agent-run-events.js";
 
 export interface LlmCallRow {
+  /** Always non-empty — rowFromEnvelope returns null when the envelope carries
+   *  no task id, so a row never reaches the sink with a blank taskId. */
   taskId: string;
+  /** `source.agent` (the Agent CR name) — resolves to the exact assembly-line
+   *  attempt at ingest, giving task-backed runs per-attempt cost (#947). Null
+   *  when the pod sent no agent attribution. */
+  agentCrName: string | null;
   model: string;
   inputTokens: number;
   outputTokens: number;
@@ -59,6 +65,7 @@ function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
 
   return {
     taskId,
+    agentCrName: typeof source?.agent === "string" ? source.agent : null,
     model: resultModel(ev),
     inputTokens: num(ev.usage.input_tokens),
     outputTokens: num(ev.usage.output_tokens),
