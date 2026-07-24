@@ -18,3 +18,6 @@ edges:
   - from: detect
     to: done
     on: success
+  - from: detect
+    to: done
+    on: failed

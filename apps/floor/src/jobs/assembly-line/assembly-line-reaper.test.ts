@@ -30,7 +30,7 @@ edges:
     on: success
   - from: review
     to: done
-    on: failed
+    on: always
 `);
 
 const MIN = 60_000;

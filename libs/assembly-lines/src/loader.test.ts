@@ -4,7 +4,10 @@ import * as path from "node:path";
 import {
   parseAssemblyLine,
   loadAssemblyLineDir,
+  uncoveredOutcomes,
   AssemblyLineLoadError,
+  type AssemblyLine,
+  type EdgeConditionValue,
 } from "./loader.js";
 
 const linearAssemblyLine = `
@@ -25,7 +28,7 @@ nodes:
 edges:
   - from: a
     to: b
-    on: success
+    on: always
   - from: b
     to: c
     on: always
@@ -160,7 +163,7 @@ nodes:
 edges:
   - from: a
     to: b
-    on: success
+    on: always
   - from: b
     to: a
     on: failed
@@ -188,7 +191,7 @@ nodes:
 edges:
   - from: a
     to: b
-    on: success
+    on: always
   - from: b
     to: a
     on: failed
@@ -219,7 +222,7 @@ nodes:
 edges:
   - from: detect
     to: done
-    on: success
+    on: always
 `);
 
     expect(wf.nodes.find((n) => n.id === "detect")).toMatchObject({
@@ -243,7 +246,7 @@ nodes:
 edges:
   - from: ingest
     to: done
-    on: success
+    on: always
 `);
 
     expect(wf.nodes.find((n) => n.id === "ingest")).toMatchObject({
@@ -269,7 +272,7 @@ nodes:
 edges:
   - from: check
     to: done
-    on: success
+    on: always
 `);
 
     expect(wf.nodes.find((n) => n.id === "check")).toMatchObject({
@@ -448,5 +451,196 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
     const stat = await fs.stat(assemblyLinesDir);
 
     expect(stat.isDirectory()).toBe(true);
+  });
+});
+
+describe("parseAssemblyLine outcome coverage", () => {
+  it('rejects a detect node with no edge for producible outcome "failed"', () => {
+    expect(() =>
+      parseAssemblyLine(`
+name: gap-detect
+description: d
+version: 1
+entry: detect
+exit: done
+nodes:
+  - id: detect
+    type: detect
+    job_ref: gap_detection
+  - id: done
+    type: retrospective
+edges:
+  - from: detect
+    to: done
+    on: success
+`),
+    ).toThrow(
+      'node "detect" in assembly line "gap-detect" has no edge for producible outcome(s) "failed"',
+    );
+  });
+
+  it('rejects an agent node covering only success and failed with a "changes_requested" message', () => {
+    expect(() =>
+      parseAssemblyLine(`
+name: review-line
+description: d
+version: 1
+entry: review
+exit: done
+nodes:
+  - id: review
+    type: agent
+  - id: done
+    type: retrospective
+edges:
+  - from: review
+    to: done
+    on: success
+  - from: review
+    to: done
+    on: failed
+`),
+    ).toThrow(
+      'node "review" in assembly line "review-line" has no edge for producible outcome(s) "changes_requested"',
+    );
+  });
+
+  it("lists every uncovered outcome for an agent node with only a success edge", () => {
+    expect(() =>
+      parseAssemblyLine(`
+name: x
+description: d
+version: 1
+entry: a
+exit: done
+nodes:
+  - id: a
+    type: agent
+  - id: done
+    type: retrospective
+edges:
+  - from: a
+    to: done
+    on: success
+`),
+    ).toThrow(
+      'node "a" in assembly line "x" has no edge for producible outcome(s) "changes_requested", "failed"',
+    );
+  });
+
+  it("accepts a detect node with explicit success and failed edges", () => {
+    const wf = parseAssemblyLine(`
+name: gap-detect
+description: d
+version: 1
+entry: detect
+exit: done
+nodes:
+  - id: detect
+    type: detect
+    job_ref: gap_detection
+  - id: done
+    type: retrospective
+edges:
+  - from: detect
+    to: done
+    on: success
+  - from: detect
+    to: done
+    on: failed
+`);
+
+    expect(
+      wf.edges
+        .filter((e) => e.from === "detect")
+        .map((e) => e.on)
+        .sort(),
+    ).toEqual(["failed", "success"]);
+  });
+
+  it("accepts an agent node whose outcomes are covered by an always edge", () => {
+    const wf = parseAssemblyLine(`
+name: x
+description: d
+version: 1
+entry: a
+exit: done
+nodes:
+  - id: a
+    type: agent
+  - id: done
+    type: retrospective
+edges:
+  - from: a
+    to: done
+    on: always
+`);
+
+    expect(wf.edges).toEqual([{ from: "a", to: "done", on: "always" }]);
+  });
+
+  it("requires no coverage on the exit node (terminal, no outgoing edges)", () => {
+    const wf = parseAssemblyLine(`
+name: x
+description: d
+version: 1
+entry: a
+exit: done
+nodes:
+  - id: a
+    type: validate
+  - id: done
+    type: retrospective
+edges:
+  - from: a
+    to: done
+    on: success
+  - from: a
+    to: done
+    on: failed
+`);
+
+    expect(wf.exit).toBe("done");
+  });
+});
+
+describe("uncoveredOutcomes", () => {
+  // Handcrafted (not parseAssemblyLine): the partial-coverage case is exactly
+  // what the loader now rejects, so the object cannot be built by parsing.
+  const agentToExit = (on: EdgeConditionValue): AssemblyLine => ({
+    name: "x",
+    description: "d",
+    version: 1,
+    entry: "a",
+    exit: "done",
+    nodes: [
+      { id: "a", type: "agent" },
+      { id: "done", type: "retrospective" },
+    ],
+    edges: [{ from: "a", to: "done", on }],
+  });
+
+  it("returns empty for the exit node", () => {
+    const wf = agentToExit("always");
+    const exit = wf.nodes.find((n) => n.id === wf.exit)!;
+
+    expect(uncoveredOutcomes(wf, exit)).toEqual([]);
+  });
+
+  it("returns empty when an always edge covers the node", () => {
+    const wf = agentToExit("always");
+    const a = wf.nodes.find((n) => n.id === "a")!;
+
+    expect(uncoveredOutcomes(wf, a)).toEqual([]);
+  });
+
+  it("returns the missing outcomes for a partially covered agent node", () => {
+    const wf = agentToExit("success");
+    const a = wf.nodes.find((n) => n.id === "a")!;
+
+    expect(uncoveredOutcomes(wf, a).sort()).toEqual([
+      "changes_requested",
+      "failed",
+    ]);
   });
 });
