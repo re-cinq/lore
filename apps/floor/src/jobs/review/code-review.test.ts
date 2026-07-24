@@ -44,6 +44,7 @@ function ctx(over: Partial<CommentContext> = {}): CommentContext {
     comment_id: 7,
     comment_body: "ok, fix it",
     in_reply_to_id: 5,
+    actor: "alice",
     ...over,
   };
 }
@@ -131,14 +132,19 @@ describe("routeTriagedComment", () => {
   it("routes review to a code-review line", () => {
     expect(routeTriagedComment("review", ctx())).toMatchObject({
       definition: "code-review",
-      args: { pr_number: 42, mode: "review" },
+      args: { pr_number: 42, mode: "review", actor: "alice" },
     });
   });
 
   it("routes address to a code-review-reply line with the address intent + thread", () => {
     expect(routeTriagedComment("address", ctx())).toMatchObject({
       definition: "code-review-reply",
-      args: { intent: "address", comment_id: 7, in_reply_to_id: 5 },
+      args: {
+        intent: "address",
+        comment_id: 7,
+        in_reply_to_id: 5,
+        actor: "alice",
+      },
     });
   });
 
@@ -163,7 +169,12 @@ describe("onTrigger", () => {
     expect(port.rows).toMatchObject([
       {
         definitionName: "code-review",
-        args: { pr_number: 42, mode: "review", head_sha: "abc123" },
+        args: {
+          pr_number: 42,
+          mode: "review",
+          head_sha: "abc123",
+          actor: "alice",
+        },
       },
     ]);
     expect(comments[0]?.body).toContain(`/assembly-lines/${port.rows[0]?.id}`);
@@ -203,7 +214,9 @@ describe("onComment", () => {
       comment_body: "@lore review please",
     });
 
-    expect(port.rows).toMatchObject([{ definitionName: "code-review" }]);
+    expect(port.rows).toMatchObject([
+      { definitionName: "code-review", args: { actor: "alice" } },
+    ]);
   });
 
   it("starts a comment-triage line for a non-keyword comment", async () => {
@@ -221,7 +234,7 @@ describe("onComment", () => {
     expect(port.rows).toMatchObject([
       {
         definitionName: "comment-triage",
-        args: { comment_id: 7, in_reply_to_id: 5 },
+        args: { comment_id: 7, in_reply_to_id: 5, actor: "alice" },
       },
     ]);
   });
@@ -349,7 +362,10 @@ describe("onReviewSubmitted", () => {
     await handlers.onReviewSubmitted(submitted);
 
     expect(port.rows).toMatchObject([
-      { definitionName: "code-review-reply", args: { intent: "address" } },
+      {
+        definitionName: "code-review-reply",
+        args: { intent: "address", actor: "alice" },
+      },
     ]);
     const description = String(port.rows[0]?.args?.description);
 

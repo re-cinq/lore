@@ -2,8 +2,12 @@
 // per-attempt execution records that are THE "assembly line" in the UI. The old
 // task-chain grouping (the retired lib/assembly-lines.ts) is gone; the list, the
 // per-repo tab, and the run detail page all read through here. PR link / creator /
-// cost live on pipeline.tasks, joined via task_id (code-review runs have no task,
-// so they fall back to args.pr_number for the PR link).
+// cost live on pipeline.tasks, joined via task_id. Task-less runs (code-review,
+// comment-triage — the webhook-driven family) fall back to args.pr_number for the
+// PR link, args.actor (the triggering commenter/reviewer/PR author) for the
+// creator, and their llm_calls rows carry the assembly-line id in
+// assembly_line_id (migration 0032) for cost. The cost lateral prefers that
+// column and falls back to task_id for rows predating it.
 
 import { queryAllowMissing } from "./db";
 
@@ -129,14 +133,18 @@ const RUN_SELECT = `
          al.status, al.outcome, al.reason,
          al.created_at, al.started_at, al.finished_at,
          (al.args->>'pr_number')::int AS args_pr_number,
-         t.pr_url, t.pr_number AS task_pr_number, t.created_by,
+         t.pr_url, t.pr_number AS task_pr_number,
+         COALESCE(t.created_by, al.args->>'actor') AS created_by,
          cost.cost_usd
     FROM pipeline.assembly_lines al
     LEFT JOIN pipeline.tasks t ON t.id = al.task_id
     LEFT JOIN LATERAL (
       SELECT SUM(lc.cost_usd)::float AS cost_usd
         FROM pipeline.llm_calls lc
-       WHERE lc.task_id = al.task_id
+       WHERE lc.assembly_line_id = al.id
+          OR (lc.assembly_line_id IS NULL
+              AND al.task_id IS NOT NULL
+              AND lc.task_id = al.task_id)
     ) cost ON true`;
 
 /** The run list, filterable by status and repo (both SQL-side). Empty on pre-0025 DBs. */

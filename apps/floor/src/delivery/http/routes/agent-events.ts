@@ -2,9 +2,11 @@ import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * POST /api/agent-events — the ai-agent-subsystem (ADR-031 D8) POSTs its run
  * output as NDJSON. The terminal `result` line of each run maps to a
- * pipeline.llm_calls row for cost accounting. A row whose task_id isn't in
- * pipeline.tasks (FK) is skipped, not failed, so one bad line never drops the
- * batch. Bearer-authed on LORE_AGENT_INTERNAL_TOKEN (internal-token strategy).
+ * pipeline.llm_calls row for cost accounting. task_id is the pod's TASK_ID —
+ * the backing task, or the assembly-line id for task-less lines (migration
+ * 0032 dropped the tasks FK so those rows persist). A row that still fails to
+ * insert is skipped, not failed, so one bad line never drops the batch.
+ * Bearer-authed on LORE_AGENT_INTERNAL_TOKEN (internal-token strategy).
  */
 
 import type { ServerRoute } from "@hapi/hapi";
@@ -31,9 +33,9 @@ import type { AgentRunEventInsert } from "@re-cinq/lore-shared";
 const MAX_VIZ_BODY_BYTES = 8 * 1024 * 1024;
 
 /**
- * Persist one cost row per agent run. A row whose task_id isn't in pipeline.tasks
- * (FK) is skipped — not failed — so one bad line never drops the batch. Returns
- * how many rows were persisted.
+ * Persist one cost row per agent run. A row that fails to insert is skipped —
+ * not failed — so one bad line never drops the batch. Returns how many rows
+ * were persisted.
  */
 /// This function must be part of one of the ports from the shared package. It is not a good idea to have this function here in the floor app. It should be part of the usage port.
 async function recordAgentCosts(rows: readonly LlmCallRow[]): Promise<number> {
