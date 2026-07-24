@@ -94,4 +94,21 @@ describe("PgUsage adapter", () => {
       total: 0,
     });
   });
+
+  it("passes a null id through the routing insert when taskId is null", async () => {
+    const { pool, calls } = fakePool();
+
+    await new PgUsage(pool).logLlmCall({
+      taskId: null,
+      jobName: "agent",
+      model: "claude-sonnet-4-6",
+      inputTokens: 1,
+      outputTokens: 2,
+      costUsd: 0.5,
+      durationMs: 10,
+    });
+
+    expect(calls[0]?.text).toContain("assembly_line_id");
+    expect(calls[0]?.params?.[0]).toBeNull();
+  });
 });

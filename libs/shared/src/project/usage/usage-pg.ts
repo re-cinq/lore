@@ -18,7 +18,9 @@ export class PgUsage implements UsagePort {
     // `taskId ?? row.id` fallback in advance.ts). Route the id to task_id when
     // it is a task and to assembly_line_id when it is a line — write-time
     // correlation mirroring agent-run-events-pg. An id in neither table keeps
-    // the row uncorrelated (both null) rather than failing the FK.
+    // the row uncorrelated (both null) rather than failing the FK. Pre-0032 an
+    // unknown id threw an FK violation that recordAgentCosts logged; that signal
+    // is now silent here — surfacing uncorrelated rows is issue #945's scope.
     await this.pool.query(
       `INSERT INTO pipeline.llm_calls
          (task_id, assembly_line_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)

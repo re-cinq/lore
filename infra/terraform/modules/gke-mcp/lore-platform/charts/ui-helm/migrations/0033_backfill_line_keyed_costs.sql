@@ -31,9 +31,12 @@ SELECT NULL,
        COALESCE((are.payload->>'durationMs')::int, 0),
        are.created_at
   FROM pipeline.agent_run_events are
+  -- Compare the line id as text (al.id::text is canonical lowercase) against the
+  -- lowercased event task_id. This never casts an arbitrary task_id string to
+  -- uuid, so a non-uuid id can't throw mid-backfill and wedge the deploy hook;
+  -- a non-matching id simply joins nothing.
   JOIN pipeline.assembly_lines al
-    ON are.task_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-   AND al.id = are.task_id::uuid
+    ON al.id::text = lower(are.task_id)
    AND al.task_id IS NULL
  WHERE are.event_type = 'result'
    AND NOT EXISTS (
