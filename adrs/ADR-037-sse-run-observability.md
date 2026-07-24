@@ -22,9 +22,10 @@ run live.
 **The stream is not currently thrown away, and this ADR does not claim it is.**
 The route `apps/floor/src/delivery/http/routes/agent-events.ts` already calls
 `archiveAgentEvents(body, key)` in a fire-and-forget `archiveRaw` helper, writing
-the raw redacted NDJSON to GCS. Its own header comment describes it as "dormant
-until a bucket is set", and it carries a literal `TODO: we must update the infra
-to drop the logs after 30 days`. Any claim that this feature rescues discarded
+the raw redacted NDJSON to GCS. The bucket is configured via
+`LORE_AGENT_EVENTS_BUCKET` (the task-logs bucket, whose `log_retention_days`
+lifecycle prunes the objects); before that env var was set the archive was a
+silent no-op. Any claim that this feature rescues discarded
 data is false; it adds a queryable, cursored projection alongside an existing
 write-only archive. The Alternatives section below answers "why not just read the
 archive?" directly, because an ADR that enshrined the wrong premise would
@@ -114,8 +115,8 @@ execution model) governs the naming used here.
 ## Alternatives
 
 **Read the existing GCS raw-NDJSON archive instead of projecting a table.**
-Rejected. The archive is dormant until a bucket is configured, is keyed by
-ingest timestamp rather than by run, has no cursor, and cannot be tailed — it
+Rejected. The archive is keyed by ingest timestamp rather than by run, has no
+cursor, and cannot be tailed — it
 supports post-hoc replay of a blob, not a live view or a resumable stream.
 Serving a run page from it would mean fetching and parsing whole NDJSON objects
 per view. It remains valuable as a raw audit substrate, and this feature does not
