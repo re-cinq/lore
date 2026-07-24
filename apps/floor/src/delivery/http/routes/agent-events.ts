@@ -31,10 +31,12 @@ import type {
   LlmCallResult,
 } from "@re-cinq/lore-shared/project/usage/usage-port.js";
 
+/** Low-cardinality anomaly kinds; a union so a typo fails to compile. */
+type AnomalyKind =
+  "cost_uncorrelated" | "cost_failed" | "run_events_failed" | "archive_failed";
+
 /** Counts ingest anomalies so a silent problem shows on a dashboard. No-op
- *  until the OTEL SDK is registered (otel-init), so free in tests. `kind` is
- *  low-cardinality: cost_uncorrelated | cost_failed | run_events_failed |
- *  archive_failed. */
+ *  until the OTEL SDK is registered (otel-init), so free in tests. */
 const anomalyCounter = metrics
   .getMeter("lore-floor")
   .createCounter("lore.agent_events.anomalies", {
@@ -42,7 +44,7 @@ const anomalyCounter = metrics
       "Agent-events ingest anomalies: uncorrelated/failed cost rows, viz/archive failures",
   });
 
-function countAnomaly(kind: string, n = 1): void {
+function countAnomaly(kind: AnomalyKind, n = 1): void {
   if (n > 0) {
     anomalyCounter.add(n, { kind });
   }
@@ -188,7 +190,14 @@ export const agentEventsRoute: ServerRoute = {
     const audit = costDegradedAudit(cost);
 
     if (audit) {
-      await writeAuditLog(audit);
+      // A failed audit write must not 500 the endpoint — a degraded batch still
+      // succeeds (FR5.6); losing the audit row is strictly better than dropping
+      // the whole ingest.
+      await writeAuditLog(audit).catch((err) =>
+        console.warn(
+          `[floor] cost-degraded audit write skipped: ${errorMessage(err)}`,
+        ),
+      );
     }
 
     request.app.span?.setAttributes({

@@ -171,4 +171,14 @@ describe("POST /api/agent-events persistence", () => {
     expect(res.result).toEqual({ status: "ok", events: 1, recorded: 1 });
     expect(write).not.toHaveBeenCalled();
   });
+
+  it("does not 500 when the audit write throws", async () => {
+    logLlmCall.mockResolvedValue({ correlated: false });
+    write.mockRejectedValue(new Error("audit db down"));
+
+    const res = await post(RESULT_LINE);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.result).toEqual({ status: "ok", events: 1, recorded: 1 });
+  });
 });
