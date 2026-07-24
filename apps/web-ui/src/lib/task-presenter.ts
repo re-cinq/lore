@@ -9,7 +9,7 @@ const EM_DASH = "—";
 export function formatCost(usd: number | null | undefined): string {
   const value = typeof usd === "number" && Number.isFinite(usd) ? usd : 0;
 
-  if (value === 0) {
+  if (value <= 0) {
     return "$0";
   }
 

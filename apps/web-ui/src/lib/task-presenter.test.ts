@@ -34,6 +34,14 @@ describe("formatCost", () => {
   it("returns $0 for NaN", () => {
     expect(formatCost(NaN)).toBe("$0");
   });
+
+  it("returns $0.01 for exactly one cent", () => {
+    expect(formatCost(0.01)).toBe("$0.01");
+  });
+
+  it("returns $0 for a negative value", () => {
+    expect(formatCost(-5)).toBe("$0");
+  });
 });
 
 describe("shortAgentId", () => {

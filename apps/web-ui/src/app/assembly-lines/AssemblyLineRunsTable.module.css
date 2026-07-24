@@ -219,7 +219,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  vertical-align: middle;
 }
 .skipToggle {
   background: none;
