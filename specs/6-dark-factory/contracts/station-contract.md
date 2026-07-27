@@ -1,9 +1,9 @@
 # Contract: Station images
 
 How a container becomes an assembly-line **station** — a pod that runs exactly one
-non-agent node (validate, detect, gate, retrospective, github_action, or a custom
-type) dispatched by the Floor as an Agent CR on the ai-agent-subsystem (ADR-031
-amendment). The builtin stations implement this contract in
+non-agent node (validate, detect, gate, retrospective, github_action,
+comment-triage, ingest, or a custom type) dispatched by the Floor as an Agent CR
+on the ai-agent-subsystem (ADR-031 amendment). The builtin stations implement this contract in
 `apps/lore-station/` (image `ghcr.io/re-cinq/lore-station`); any external image
 honoring it plugs in the same way.
 
@@ -43,7 +43,7 @@ Produced by the Floor's `nodeStationSpec`
 
 | Var | Source | Meaning |
 |---|---|---|
-| `AGENT_NAME` | subsystem | The CR name, `<assemblyLineId:8>-<nodeId>` |
+| `AGENT_NAME` | subsystem | The CR name, `<assemblyLineId:12>-<nodeId>` (`-<iteration>` appended on revisits) |
 | `TASK_ID`, `TARGET_REPO`, `BRANCH_NAME` | subsystem | Run identity |
 | `WORKSPACE_DIR` | subsystem | Default `/workspace`; the target repo's branch is cloned at `$WORKSPACE_DIR/target` by the init container |
 | `LORE_API_URL` | recipe env | The Lore API — ALL data access goes through it (pods have no Postgres, D7) |
@@ -63,8 +63,11 @@ terminal detection keys on it, and its `result` text lands in
 - `outcome`: `success` | `changes_requested` | `failed`. **`failed` is a normal
   result** — it routes the assembly line's `failed` edge; exit 0 with
   `is_error:false`.
-- `extras`: optional string→string map, merged into the stage commit's trailers
-  (keep it under ~1 KB total; long detail belongs in the log lines, not extras).
+- `extras`: optional string→string map returned to the Floor alongside the
+  outcome (stage commits were retired with the in-process walk — extras are NOT
+  persisted as trailers). Specific keys drive routing: e.g. the comment-triage
+  station's `action` selects the follow-up line. Keep it under ~1 KB total; long
+  detail belongs in the log lines, not extras.
 - Infrastructure failures (can't parse input, dependency unreachable): emit
   `{"type":"result","is_error":true,"result":"<message>"}` and exit non-zero →
   the CR goes `Failed` → the Floor maps it to `failed` +
