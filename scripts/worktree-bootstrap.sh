@@ -28,6 +28,25 @@ if [[ ! -f package-lock.json ]]; then
   exit 0
 fi
 
+lock="$root/.lore-bootstrap.lock"
+tries=0
+
+until mkdir "$lock" 2>/dev/null; do
+  tries=$((tries + 1))
+
+  if [[ $tries -eq 1 ]]; then
+    say "worktree-bootstrap: another run holds $lock — waiting"
+  fi
+
+  if [[ $tries -gt 120 ]]; then
+    say "worktree-bootstrap: lock stale after 10 minutes — taking over"
+    rmdir "$lock" 2>/dev/null || true
+  fi
+
+  sleep 5
+done
+trap 'rmdir "$lock"' EXIT
+
 if [[ ! -d node_modules ]]; then
   say "worktree-bootstrap: installing dependencies in $root (npm ci, first run only)"
   npm ci --no-audit --no-fund

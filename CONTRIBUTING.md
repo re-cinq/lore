@@ -49,12 +49,18 @@ scripts/worktree-bootstrap.sh   # npm ci + build libs/{shared,assembly-lines,ser
 ```
 
 Claude Code sessions run it automatically via the SessionStart hook in
-`.claude/settings.json`; run it yourself in worktrees created by hand. It is
-idempotent — on a bootstrapped checkout it is an instant no-op.
+`.claude/settings.json` — but only when the checkout has no `node_modules`
+yet, i.e. exactly once, on the first session in a fresh worktree. Sessions in
+a bootstrapped checkout skip it entirely. Run it yourself in worktrees created
+by hand. It is idempotent and guarded by a lock (`.lore-bootstrap.lock/`), so
+concurrent sessions in the same fresh worktree wait instead of racing
+`npm ci`.
 
 One caveat remains: `tsc` resolves workspace libs through their built `dist`.
 After editing `libs/*/src`, rerun `scripts/worktree-bootstrap.sh` (it rebuilds
-only stale libs) before trusting a package-level `npx tsc --noEmit`.
+only stale libs — the hook does not fire again) before trusting a
+package-level `npx tsc --noEmit`. When in doubt, `npm run build` rebuilds
+everything.
 
 Do **not** symlink a worktree's `node_modules` to the main checkout, and do
 not repoint the main checkout's `@re-cinq/*` links at a worktree — both

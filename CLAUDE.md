@@ -323,11 +323,11 @@ migration-added tables exist locally (local dev has no Helm hook).
 Git worktrees: run `scripts/worktree-bootstrap.sh` once per worktree — it
 installs `node_modules` and builds the workspace libs so `eslint`/`tsc`
 resolve inside the worktree instead of escaping to the main checkout's
-(possibly stale) install (#950). Claude Code sessions run it automatically via
-the `.claude/settings.json` SessionStart hook; it is idempotent and an instant
-no-op on a bootstrapped checkout. After editing `libs/*/src`, rerun it so
-package-level `tsc --noEmit` sees the fresh types (vitest reads source, tsc
-reads `dist`).
+(possibly stale) install (#950). The `.claude/settings.json` SessionStart hook
+runs it automatically, but only when the checkout has no `node_modules` yet —
+first session in a fresh worktree, never again after. After editing
+`libs/*/src`, rerun it yourself so package-level `tsc --noEmit` sees the fresh
+types (vitest reads source, tsc reads `dist`).
 
 ## GKE Deployment
 
