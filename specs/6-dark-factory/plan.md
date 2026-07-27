@@ -1,5 +1,11 @@
 # Implementation Plan: Dark Factory Mode
 
+> **Historical artifact.** This plan describes the design as of 2026-04 (supervisor process,
+> `executeAssemblyLine` walker, `workflows/` under `agent/src/`). Execution has since moved twice:
+> onto Agent CRs (ADR-031, `specs/floor-on-ai-subsystem/`) and then to the event-driven walk
+> (`nextTransition` + `advance.ts`; spec FR6.7–FR6.10). `spec.md`'s restated FRs are the current
+> truth; read this plan for the original decomposition, not current module paths.
+
 | Field     | Value                                       |
 |-----------|---------------------------------------------|
 | Feature   | Dark Factory Mode                           |
