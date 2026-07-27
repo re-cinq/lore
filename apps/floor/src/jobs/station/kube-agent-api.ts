@@ -63,7 +63,7 @@ export class KubeAgentApi implements AgentApi {
     }
   }
 
-  /** The status of one Agent CR by name (the per-node Agent, `<id8>-<nodeId>`), as the
+  /** The status of one Agent CR by name (the per-node Agent, `<id12>-<nodeId>`), as the
    *  graph handler's poll expects. Null when the CR doesn't exist yet (404). */
   async getStatus(name: string): Promise<AgentNodeStatus | null> {
     const api = await this.customObjects();

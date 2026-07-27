@@ -1,5 +1,5 @@
 // Live per-node pod logs, read on-demand from the cluster (never persisted).
-// An assembly-line node's Agent CR (`<id8>-<nodeId>`) carries `status.jobName`;
+// An assembly-line node's Agent CR (`<id12>-<nodeId>`) carries `status.jobName`;
 // that Job's pod is `job-name=<jobName>`, and its stdout is the agent's live
 // output (tool calls, messages, result). Logs vanish when the pod is
 // garbage-collected — callers surface `available:false` rather than an error.

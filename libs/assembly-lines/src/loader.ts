@@ -22,7 +22,7 @@ const EdgeCondition = z.enum([
 ]);
 
 const NodeSchema = z.object({
-  // Node ids are embedded in the Agent CR NAME (`<id8>-<nodeId>`, DNS-1123) and
+  // Node ids are embedded in the Agent CR NAME (`<id12>-<nodeId>`, DNS-1123) and
   // in a CR LABEL VALUE, so they must be DNS-label-safe: lowercase alnum + hyphen,
   // no leading/trailing hyphen, no underscore, and short enough to fit both. A
   // looser id (`retry_`, trailing `-`) would pass the loader and die at CR-create

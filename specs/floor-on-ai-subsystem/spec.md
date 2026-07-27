@@ -16,6 +16,16 @@ This spec retires Lore's bespoke LoreTask CRD execution path and moves all Floor
 > `Agent` CR / pod; non-LLM "station" nodes (validate/gate/retrospective/`github_action`/detect/custom)
 > run via a new `exec` vendor. Folded into the Solution, D9, the architecture, File Changes, and AC15–21.
 
+> **Revised again late 2026-07 (cutover complete):** the LoreTask path, its cluster gate, and the
+> two-gate `decideExecutionBackend` routing are gone — every task runs on Agent CRs. The Floor-side
+> `executeAssemblyLine` walker this spec introduced was itself retired: the walk is now event-driven
+> (`nextTransition` replays `pipeline.assembly_line_nodes`; `advance.ts` drives it per node-CR terminal
+> event — `specs/6-dark-factory/spec.md` FR6.7–FR6.10), so there is no in-Floor walker process, no
+> branch-lease heartbeat, and no stage-trailer resume. The in-process JSON-supervisor for
+> gap-fill/runbook was also removed: gap-fill runs on the Floor AssemblyLine, runbook as a single
+> Agent CR. Read the walker-era mechanics below (D4, the architecture sketch, AC11) as the state at
+> cutover time, restated where noted.
+
 ## Problem Statement
 
 Lore executes coding tasks today via a bespoke `LoreTask` CRD → `loretask-controller` → a
@@ -44,11 +54,13 @@ cluster. The Lore-specific glue is **relocated Floor-side** and stays determinis
   `LoreTask` CRs; a two-gate flag routes tasks during a graded, reversible cutover.
 - A Floor-side **`agent-watcher`** (replacing `loretask-watcher`) computes changed files, reads the
   **GitHub Actions** CI gate, opens the PR (`Lore-Task` footer), auto-merges, and escalates.
-- The **assembly line** (`libs/assembly-lines` `executeAssemblyLine`) runs in the Floor; **every node
+- The **assembly line** (`libs/assembly-lines`) is walked by the Floor; **every node
   dispatches one `Agent` CR** — AI nodes run `claude`; non-AI **station** nodes
   (validate/gate/retrospective/detect) run the deterministic `lore-station` image via the subsystem's
-  `exec` vendor; a `github-action` node references the repo's GitHub Actions — with the lease
-  heartbeated while a node runs.
+  `exec` vendor; a `github-action` node references the repo's GitHub Actions. *(Originally an
+  in-process `executeAssemblyLine` walker with a heartbeated branch lease; since the late-2026-07
+  restatement the walk is event-driven — `nextTransition` over the persisted node rows, no walker
+  process, no lease.)*
 - The recipe **schema + client are generated from the subsystem's D structs** into a published
   code-API package (`@re-cinq/agent-contracts`, subsystem v0.3.0) that the Floor and UI import.
 - Secrets, context hydration, networking, and observability **reuse the existing setup** (ESO
@@ -64,7 +76,7 @@ The cutover is reversible (both controllers run in parallel behind a flag); `Lor
 | **D1** Substrate | Production runs on the **D standalone** `ai-agent-subsystem` (`agents.re-cinq.com` / `ai-agents`); the in-tree TS `k8s/` PoC is **deleted** | One signed, mature substrate; no two half-built copies |
 | **D2** Source of truth | The **CRDs are authoritative**; the web UI edits YAML → applies to k8s; ADR-030's Postgres recipe store retired; schema + client **generated from D** into `@re-cinq/agent-contracts` | The cluster object is the truth; the contract can't drift |
 | **D3** Validation | Non-AI assembly line steps **reference GitHub Actions**; the Floor gates on the run **conclusion** | The engine runs `claude` directly; GitHub runs the repo's real toolchain — deterministic, no toolchain in the Floor |
-| **D4** Assembly line | `executeAssemblyLine` runs **Floor-side**; an agent-node dispatches one `Agent` CR + awaits status; **lease heartbeated** while waiting | The assembly-line engine is process-agnostic; lease/resume/`iteration_max` are branch-centric |
+| **D4** Assembly line | The walk runs **Floor-side**; each node dispatches one `Agent` CR. *(As locked: an in-process `executeAssemblyLine` awaiting status under a heartbeated lease. Superseded by the event-driven walk — `nextTransition` re-derives the next step from `pipeline.assembly_line_nodes` on each node-CR terminal event; no awaiting process, no lease — 6-dark-factory FR6.9.)* | The assembly-line engine is process-agnostic; resume/`iteration_max` derive from persisted state |
 | **D5** Context hydration | Floor injects context into `Agent.spec.parameters`; code recipes also wire the Lore MCP server | Turn-1 context, deterministic, no in-pod network dependency |
 | **D6** Secrets | **Inherit** the existing GCP Secret Manager remoteRefs via ESO into `agent-secrets`; per-task GitHub App token PATCHed in and removed on terminal | No new secret material; short-lived, least-privilege; no org PAT |
 | **D7** Networking | Self-hydration + telemetry over the **public LB**; run pods **drop direct Postgres** | The run-pod NetworkPolicy blocks RFC1918/metadata; DB-less pods shrink blast radius |
@@ -74,7 +86,8 @@ The cutover is reversible (both controllers run in parallel behind a flag); `Lor
 ## Architecture (target data-flow, one `implementation` task)
 
 ```
-pending task ─► Floor coordinator (executeAssemblyLine in the Floor; branch lease)
+pending task ─► Floor coordinator (event-driven walk: start handler launches the entry node,
+                each node-CR terminal event advances via nextTransition over the node rows)
   ├─ implement (AI node) ─► AgentBackend creates an Agent CR ─► ai-agent-subsystem controller
   │                          (init clones repo + installs claude) ─► supervisor runs claude --print
   │                          ─► edits + commits (Lore-* trailers) + pushes ─► status: Succeeded
@@ -168,9 +181,11 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
     `.event.event` still yields its cost row. That peel MUST be bounded at two levels rather than
     looping, so a third envelope layer is left intact as the event and yields no row. ([validated by `agent-events.test.ts:14`](apps/floor/src/jobs/agent/agent-events.test.ts#L14), [`agent-events.test.ts:38`](apps/floor/src/jobs/agent/agent-events.test.ts#L38), [`agent-events.test.ts:50`](apps/floor/src/jobs/agent/agent-events.test.ts#L50), [`agent-events.test.ts:61`](apps/floor/src/jobs/agent/agent-events.test.ts#L61), [`agent-events.test.ts:71`](apps/floor/src/jobs/agent/agent-events.test.ts#L71), [`agent-events.test.ts:78`](apps/floor/src/jobs/agent/agent-events.test.ts#L78), [`agent-events.test.ts:141`](apps/floor/src/jobs/agent/agent-events.test.ts#L141), [`agent-events.test.ts:159`](apps/floor/src/jobs/agent/agent-events.test.ts#L159), [`agent-events.test.ts:167`](apps/floor/src/jobs/agent/agent-events.test.ts#L167), [`agent-events.test.ts:64`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L64), [`agent-events.test.ts:76`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L76), [`agent-events.test.ts:141`](apps/floor/src/jobs/agent/agent-events.test.ts#L141), [`agent-events.test.ts:167`](apps/floor/src/jobs/agent/agent-events.test.ts#L167), [`agent-events.test.ts:130`](apps/floor/src/jobs/agent/agent-events.test.ts#L130), [`agent-output.test.ts:183`](libs/assembly-lines/src/agent-output.test.ts#L183), [`agent-output.test.ts:189`](libs/assembly-lines/src/agent-output.test.ts#L189), [`agent-output.test.ts:198`](libs/assembly-lines/src/agent-output.test.ts#L198), [`agent-output.test.ts:213`](libs/assembly-lines/src/agent-output.test.ts#L213), [`agent-output.test.ts:222`](libs/assembly-lines/src/agent-output.test.ts#L222), [`agent-output.test.ts:231`](libs/assembly-lines/src/agent-output.test.ts#L231), [`agent-output.test.ts:242`](libs/assembly-lines/src/agent-output.test.ts#L242), [`agent-output.test.ts:253`](libs/assembly-lines/src/agent-output.test.ts#L253), [`agent-output.test.ts:259`](libs/assembly-lines/src/agent-output.test.ts#L259), [`agent-events.test.ts:90`](apps/floor/src/jobs/agent/agent-events.test.ts#L90), [`agent-events.test.ts:117`](apps/floor/src/jobs/agent/agent-events.test.ts#L117); implemented by [`agent-output.ts:80`](libs/assembly-lines/src/agent-output.ts#L80))
 
-11. `createAgentNodeHandler` maps an `Agent`'s terminal status to a node outcome
-    (`success`/`failed`/`changes_requested`); the branch lease is heartbeated across a long node and
-    is not reaped while the node runs; a forced Floor restart resumes from the last stage trailer.
+11. *(restated late 2026-07)* A node CR's terminal status maps to a node outcome
+    (`success`/`failed`/`changes_requested`) via `stationNodeOutcome` in the Floor's node-event
+    handler; a forced Floor restart loses nothing because the walk is derived from the persisted
+    `pipeline.assembly_line_nodes` rows, not held in memory — the original lease-heartbeat +
+    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:34`](libs/assembly-lines/src/node-outcome.test.ts#L34), [`advance.test.ts:106`](apps/floor/src/jobs/assembly-line/advance.test.ts#L134))
 12. A `github-action` assembly line node dispatches the referenced GitHub Actions run and gates on its
     conclusion.
 13. The cutover is reversible: flipping the cluster gate off routes new tasks back to LoreTask with
@@ -206,7 +221,9 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
 
 19. Cutover complete: every non-agent node on the Floor-assembly-line path dispatches a station
     (no `LORE_STATION_NODES` flag, no in-process node handlers on that path); the in-process
-    supervisor path (gap-fill/runbook) is untouched. ([validated by every non-agent node dispatches a station CR](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L113))
+    supervisor path (gap-fill/runbook), untouched at cutover time, has since been removed too —
+    gap-fill runs on the Floor AssemblyLine and runbook as a single Agent CR, both via
+    `handleClaudeCodeTask` with no Floor-side clone or App token. ([validated by every non-agent node dispatches a station CR](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L113))
 
 20. `scripts/task-types.yaml` `stations:` seeds `def-<type>` AgentDefinition/Station pairs (exec
     model, `{station_input}` prompt, lore-station image via `.Values.stationImage`, deadline
@@ -234,7 +251,9 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
 
 ## Out of scope
 
-- `feature-decompose` and `graph-ingest` stay in-process (no pod) and are not migrated.
+- `feature-decompose` stays in-process (no pod) and is not migrated. *(graph-ingest was also out of
+  scope here, but the whole `internal.ingest.*` family has since moved onto detect-shaped assembly
+  lines with an `ingest` station — see `specs/ingest-station/`; no in-process dgraph writer remains.)*
 - The `StationDefinition` Postgres record and compute sizing (ADR-030 §5 follow-up) — the Station's
   `PodTemplateSpec` already carries image/compute.
 
