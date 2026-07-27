@@ -14,10 +14,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import {
-  linksForStatements,
-  resolveLinkPath,
-} from "@re-cinq/lore-shared/spec-link-parser.js";
+import { linksForStatements, resolveLinkPath } from "./lore-shared.mjs";
 
 /** @typedef {{ lines: Set<number>, wholeFile: boolean }} LinkEntry */
 

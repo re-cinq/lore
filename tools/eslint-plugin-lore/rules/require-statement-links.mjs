@@ -18,8 +18,8 @@
 import {
   parseDocStatus,
   statusTier,
-} from "@re-cinq/lore-shared/spec-status.js";
-import { unlinkedTestableStatements } from "@re-cinq/lore-shared/spec-status-coverage.js";
+  unlinkedTestableStatements,
+} from "./lib/lore-shared.mjs";
 import { docKind } from "./lib/doc-kind.mjs";
 
 const EXCERPT_MAX = 60;
