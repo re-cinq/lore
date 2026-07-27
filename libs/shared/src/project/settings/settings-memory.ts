@@ -148,6 +148,14 @@ export class InMemorySettings implements SettingsPort {
     }
   }
 
+  async clearOnboardingPrUrl(id: string): Promise<void> {
+    const row = this.repos.find((r) => r.id === id);
+
+    if (row) {
+      row.onboarding_pr_url = null;
+    }
+  }
+
   async setOnboardingPrUrl(repo: string, url: string): Promise<void> {
     const row = this.row(repo);
 

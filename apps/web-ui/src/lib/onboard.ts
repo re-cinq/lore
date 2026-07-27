@@ -3,9 +3,14 @@ import {
   decideOnboard,
   onboardLockKey,
   onboardTaskDescription,
+  toOnboardState,
   IN_FLIGHT_TASK_STATUSES,
+  ONBOARD_IN_FLIGHT_TASK_SQL,
+  ONBOARD_REPO_STATE_SQL,
   type OnboardBlock,
+  type OnboardRepoRow,
   type OnboardState,
+  type OnboardTaskRow,
 } from "./onboard-guard";
 
 export type OnboardTaskResult =
@@ -26,29 +31,13 @@ async function readOnboardState(
   tx: QueryFn,
   fullName: string,
 ): Promise<OnboardState> {
-  const repoRows = await tx<{
-    onboarding_pr_merged: boolean;
-    onboarding_pr_url: string | null;
-  }>(
-    `SELECT onboarding_pr_merged, onboarding_pr_url
-     FROM lore.repos WHERE full_name = $1`,
-    [fullName],
-  );
-  const taskRows = await tx<{ id: string }>(
-    `SELECT id FROM pipeline.tasks
-     WHERE target_repo = $1 AND task_type = 'onboard' AND status = ANY($2::text[])
-     ORDER BY created_at DESC LIMIT 1`,
-    [fullName, IN_FLIGHT_TASK_STATUSES],
-  );
-  const merged = repoRows[0]?.onboarding_pr_merged === true;
+  const repoRows = await tx<OnboardRepoRow>(ONBOARD_REPO_STATE_SQL, [fullName]);
+  const taskRows = await tx<OnboardTaskRow>(ONBOARD_IN_FLIGHT_TASK_SQL, [
+    fullName,
+    [...IN_FLIGHT_TASK_STATUSES],
+  ]);
 
-  return {
-    onboardingPrMerged: merged,
-    openOnboardingPrUrl: merged
-      ? null
-      : (repoRows[0]?.onboarding_pr_url ?? null),
-    inFlightTaskId: taskRows[0]?.id ?? null,
-  };
+  return toOnboardState(repoRows[0], taskRows[0]);
 }
 
 /**

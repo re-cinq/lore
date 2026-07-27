@@ -208,3 +208,14 @@ describe("lore_get_pipeline_status proxy error-code selection", () => {
     );
   });
 });
+
+describe("lore_create_pipeline_task onboard refusal", () => {
+  it("refuses task_type onboard and names lore_onboard_repo instead", async () => {
+    const result = await handlers["lore_create_pipeline_task"]({
+      description: "onboard our new service",
+      task_type: "onboard",
+    });
+
+    expect(result.content[0].text).toContain("lore_onboard_repo");
+  });
+});

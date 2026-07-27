@@ -22,6 +22,13 @@ const post = (body: unknown, pool: unknown) =>
     payload: JSON.stringify(body),
   });
 
+const onboarded = {
+  repo_id: "repo-1",
+  task_id: "task-1",
+  status: "onboarding-agent-spawned",
+  webhook: { ok: true, hookId: 1, created: true },
+} as const;
+
 describe("POST /api/onboard", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
@@ -45,10 +52,10 @@ describe("POST /api/onboard", () => {
   });
 
   it("returns 200 with the onboard result", async () => {
-    vi.mocked(onboardRepo).mockResolvedValue({ ok: true } as any);
+    vi.mocked(onboardRepo).mockResolvedValue(onboarded);
     const res = await post({ repo: "o/r" }, makePool());
 
-    expect(res.result).toEqual({ ok: true });
+    expect(res.result).toMatchObject({ repo_id: "repo-1", task_id: "task-1" });
   });
 
   it("returns 409 with the reason when the guard blocks the submission", async () => {
@@ -64,7 +71,7 @@ describe("POST /api/onboard", () => {
   });
 
   it("passes reonboard through to onboardRepo", async () => {
-    vi.mocked(onboardRepo).mockResolvedValue({ ok: true } as any);
+    vi.mocked(onboardRepo).mockResolvedValue(onboarded);
     await post({ repo: "o/r", reonboard: true }, makePool());
 
     expect(onboardRepo).toHaveBeenCalledWith(expect.anything(), "o/r", {

@@ -92,7 +92,7 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
         .boolean()
         .optional()
         .describe(
-          "Repair pass over an already-onboarded repo: regenerates only the scaffolding it is missing. Still refused while an onboard task is in flight.",
+          "Repair pass over an already-onboarded repo: regenerates only the scaffolding it is missing. Still refused while an onboard task is in flight or its onboarding PR is open.",
         ),
     },
     async ({ full_name, reonboard }) => {
@@ -111,6 +111,14 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
 
       if (proxied.reason === "denied") {
         return deniedError("lore_onboard_repo", proxied.detail);
+      }
+
+      // A 409 is the guard refusing a duplicate: an authoritative answer about
+      // existing state, not an outage. Return the server's body verbatim so the
+      // caller keeps `blocked` and the in-flight `task_id` — enough to poll that
+      // task or pass reonboard — instead of being told to retry a healthy API.
+      if (proxied.status === 409 && proxied.body) {
+        return { content: [{ type: "text" as const, text: proxied.body }] };
       }
 
       return unreachableError("lore_onboard_repo", proxied.detail);

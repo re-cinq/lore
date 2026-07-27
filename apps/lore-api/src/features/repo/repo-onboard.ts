@@ -1,12 +1,18 @@
 import type { Pool, PoolClient } from "pg";
 import {
+  createPipelineTask,
   decideOnboard,
   errorMessage,
   onboardLockKey,
   onboardTaskDescription,
+  toOnboardState,
   IN_FLIGHT_TASK_STATUSES,
+  ONBOARD_IN_FLIGHT_TASK_SQL,
+  ONBOARD_REPO_STATE_SQL,
   type OnboardBlock,
+  type OnboardRepoRow,
   type OnboardState,
+  type OnboardTaskRow,
 } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
@@ -165,26 +171,84 @@ async function readOnboardState(
   client: PoolClient,
   fullName: string,
 ): Promise<OnboardState> {
-  const { rows: repoRows } = await client.query(
-    `SELECT onboarding_pr_merged, onboarding_pr_url
-     FROM lore.repos WHERE full_name = $1`,
+  const { rows: repoRows } = await client.query<OnboardRepoRow>(
+    ONBOARD_REPO_STATE_SQL,
     [fullName],
   );
-  const { rows: taskRows } = await client.query(
-    `SELECT id FROM pipeline.tasks
-     WHERE target_repo = $1 AND task_type = 'onboard' AND status = ANY($2::text[])
-     ORDER BY created_at DESC LIMIT 1`,
-    [fullName, IN_FLIGHT_TASK_STATUSES],
+  const { rows: taskRows } = await client.query<OnboardTaskRow>(
+    ONBOARD_IN_FLIGHT_TASK_SQL,
+    [fullName, [...IN_FLIGHT_TASK_STATUSES]],
   );
-  const merged = repoRows[0]?.onboarding_pr_merged === true;
 
-  return {
-    onboardingPrMerged: merged,
-    openOnboardingPrUrl: merged
-      ? null
-      : (repoRows[0]?.onboarding_pr_url ?? null),
-    inFlightTaskId: taskRows[0]?.id ?? null,
-  };
+  return toOnboardState(repoRows[0], taskRows[0]);
+}
+
+/** What the guarded transaction produced: the two ids, or the refusal. */
+type OnboardWrite = { repoId: string; taskId: string } | OnboardBlockedResult;
+
+/**
+ * Runs the guard and, when it clears, both writes — the `lore.repos` upsert and
+ * the onboard task — inside ONE transaction on ONE connection, holding the
+ * per-repo advisory lock throughout.
+ *
+ * Both properties matter. Sharing the connection keeps a single onboard from
+ * needing two pooled connections at once, which would deadlock the pool once
+ * concurrent submissions reach its size (every waiter holds a connection while
+ * blocked on the lock). Sharing the transaction keeps the failure truthful: a
+ * task committed on its own connection could outlive a rolled-back repos row
+ * and then block every retry as "in flight".
+ */
+async function writeOnboard(
+  client: PoolClient,
+  fullName: string,
+  owner: string,
+  name: string,
+  options: { reonboard?: boolean },
+): Promise<OnboardWrite> {
+  await client.query("BEGIN");
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+    onboardLockKey(fullName),
+  ]);
+
+  const decision = decideOnboard(
+    fullName,
+    await readOnboardState(client, fullName),
+    options,
+  );
+
+  if (!decision.allowed) {
+    await client.query("ROLLBACK");
+    console.log(
+      `[onboard] Refused ${fullName} (${decision.block}): ${decision.message}`,
+    );
+
+    return {
+      blocked: decision.block,
+      error: decision.message,
+      task_id: decision.taskId,
+    };
+  }
+
+  // Upsert first: the task's trust gate reads this row, and re-onboarding
+  // refreshes the timestamp.
+  const { rows } = await client.query<{ id: string }>(
+    `INSERT INTO lore.repos (owner, name, full_name)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (full_name) DO UPDATE SET onboarded_at = now()
+       RETURNING id`,
+    [owner, name, fullName],
+  );
+  const task = await createPipelineTask(client, {
+    description: onboardTaskDescription(fullName),
+    taskType: "onboard",
+    targetRepo: fullName,
+    createdBy: "onboard-system",
+    contextBundle: { repo: fullName },
+  });
+
+  await client.query("COMMIT");
+
+  return { repoId: rows[0].id, taskId: task.task_id };
 }
 
 /**
@@ -197,9 +261,9 @@ async function readOnboardState(
  * one with an onboard task in flight is refused rather than given a second task
  * (each task files its own Issue and races its own PR — see issue #968). Pass
  * `reonboard` for the deliberate repair path, which may run against an
- * onboarded repo but still never doubles up on one in flight. The read and the
- * write share one transaction holding a per-repo advisory lock, so concurrent
- * submissions produce at most one task.
+ * onboarded repo but never against one still mid-onboarding. The read and both
+ * writes share one transaction holding a per-repo advisory lock, so concurrent
+ * submissions produce at most one task and a failure queues nothing.
  */
 export async function onboardRepo(
   pool: Pool,
@@ -215,64 +279,19 @@ export async function onboardRepo(
   );
 
   const client = await pool.connect();
-  let repoId: string;
-  let taskId: string;
+  let written: OnboardWrite;
 
   try {
-    await client.query("BEGIN");
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
-      onboardLockKey(fullName),
-    ]);
-
-    const decision = decideOnboard(
-      fullName,
-      await readOnboardState(client, fullName),
-      options,
-    );
-
-    if (!decision.allowed) {
-      await client.query("ROLLBACK");
-      console.log(
-        `[onboard] Refused ${fullName} (${decision.block}): ${decision.message}`,
-      );
-
-      return {
-        blocked: decision.block,
-        error: decision.message,
-        task_id: decision.taskId,
-      };
-    }
-
-    // Create the pipeline task on its own connection — it commits immediately,
-    // and the advisory lock keeps the next submitter blocked until this
-    // transaction commits, by which time the task row is visible to its read.
-    const { createTask } =
-      await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
-    const result = await createTask(
-      onboardTaskDescription(fullName),
-      "onboard",
-      fullName, // target_repo
-      "onboard-system",
-      { repo: fullName },
-    );
-
-    // Insert into repos table (upsert — re-onboarding refreshes the timestamp)
-    const { rows } = await client.query(
-      `INSERT INTO lore.repos (owner, name, full_name)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (full_name) DO UPDATE SET onboarded_at = now()
-       RETURNING id`,
-      [owner, name, fullName],
-    );
-
-    await client.query("COMMIT");
-    repoId = rows[0].id;
-    taskId = result.task_id;
+    written = await writeOnboard(client, fullName, owner, name, options);
   } catch (err) {
     await client.query("ROLLBACK").catch(() => undefined);
     throw err;
   } finally {
     client.release();
+  }
+
+  if ("blocked" in written) {
+    return written;
   }
 
   // Point the repo's GitHub webhook at the Floor ingress WITH the HMAC secret so
@@ -291,8 +310,8 @@ export async function onboardRepo(
   }
 
   return {
-    repo_id: repoId,
-    task_id: taskId,
+    repo_id: written.repoId,
+    task_id: written.taskId,
     status: "onboarding-agent-spawned",
     webhook,
   };

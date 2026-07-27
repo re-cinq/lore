@@ -140,6 +140,18 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
         if (!description?.trim()) {
           return h.response({ error: "description is required" }).code(400);
         }
+
+        // Onboarding is guarded (duplicate onboard tasks each file their own
+        // Issue and race their own PR — #968), and the guard lives in the
+        // /api/onboard transaction. Refuse here rather than route around it.
+        if (task_type === "onboard") {
+          return h
+            .response({
+              error:
+                "onboard tasks are created via POST /api/onboard, which guards against duplicates",
+            })
+            .code(400);
+        }
         const validTypes = getTaskTypes();
         const resolvedType = validTypes.includes(task_type || "")
           ? task_type

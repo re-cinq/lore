@@ -163,7 +163,7 @@ The system MUST maintain a registry of onboarded repos.
 - FR-1.2: Repos populated from GitHub App installation (which repos
   the App has access to).
 - FR-1.3: Repo list shown as the home page of the UI.
-- FR-1.4: MCP tool `lore_list_repos` returns all onboarded repos. ([validated by `repo-tools.test.ts:115`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L115))
+- FR-1.4: MCP tool `lore_list_repos` returns all onboarded repos. ([validated by `repo-tools.test.ts:164`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L164))
 
 ### FR-2: Repo Onboarding via PR
 
@@ -183,7 +183,7 @@ The system MUST onboard new repos by creating a PR.
   content, counting only the repos where a PR was actually opened and
   tolerating per-repo failures/nulls. ([validated by `actions.test.ts:26`](apps/web-ui/src/app/actions.test.ts#L26), [`actions.test.ts:50`](apps/web-ui/src/app/actions.test.ts#L50))
 - FR-2.5: Tracks the onboarding PR in the pipeline (status: pending
-  until merged). ([validated by `onboard.test.ts:39`](apps/web-ui/src/lib/onboard.test.ts#L39))
+  until merged). ([validated by `onboard.test.ts:70`](apps/web-ui/src/lib/onboard.test.ts#L70))
 - FR-2.6: After merge, adds repo to the registry and triggers
   initial ingestion; re-onboarding creates an onboard task and
   redirects to the new task page (or back to the repo when none is

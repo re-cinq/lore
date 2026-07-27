@@ -3,6 +3,8 @@ import {
   decideOnboard,
   onboardLockKey,
   onboardTaskDescription,
+  toOnboardState,
+  IN_FLIGHT_TASK_STATUSES,
   type OnboardState,
 } from "./onboard-guard.js";
 
@@ -68,6 +70,62 @@ describe("decideOnboard", () => {
       allowed: false,
       block: "pr-open",
       message: expect.stringContaining("https://github.com/o/r/pull/7"),
+    });
+  });
+
+  it("blocks pr-open even for an explicit reonboard", () => {
+    expect(
+      decideOnboard(
+        "o/r",
+        { ...clear, openOnboardingPrUrl: "https://github.com/o/r/pull/7" },
+        { reonboard: true },
+      ),
+    ).toMatchObject({ allowed: false, block: "pr-open", taskId: null });
+  });
+});
+
+describe("IN_FLIGHT_TASK_STATUSES", () => {
+  it("covers every status an onboard task holds before it terminates", () => {
+    expect(IN_FLIGHT_TASK_STATUSES).toEqual([
+      "pending",
+      "queued",
+      "awaiting_approval",
+      "running",
+      "running-local",
+      "review",
+      "pr-created",
+    ]);
+  });
+});
+
+describe("toOnboardState", () => {
+  it("reads a missing repo row as not onboarded with nothing in flight", () => {
+    expect(toOnboardState(undefined, undefined)).toEqual(clear);
+  });
+
+  it("masks the onboarding PR url once that PR merged", () => {
+    expect(
+      toOnboardState(
+        { onboarding_pr_merged: true, onboarding_pr_url: "https://x/pull/1" },
+        undefined,
+      ),
+    ).toEqual({
+      onboardingPrMerged: true,
+      openOnboardingPrUrl: null,
+      inFlightTaskId: null,
+    });
+  });
+
+  it("keeps the onboarding PR url while that PR is unmerged", () => {
+    expect(
+      toOnboardState(
+        { onboarding_pr_merged: false, onboarding_pr_url: "https://x/pull/1" },
+        { id: "task-3" },
+      ),
+    ).toEqual({
+      onboardingPrMerged: false,
+      openOnboardingPrUrl: "https://x/pull/1",
+      inFlightTaskId: "task-3",
     });
   });
 });

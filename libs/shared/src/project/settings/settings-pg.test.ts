@@ -91,4 +91,16 @@ describe("PgSettings", () => {
       { kind: "var", args: ["re-cinq/lore", "LORE_INGEST_URL", "https://api"] },
     ]);
   });
+
+  it("nulls the onboarding PR url by row id when that PR closed unmerged", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const store = new PgSettings(fakePool(capture, []), fakeWriter([]));
+
+    await store.clearOnboardingPrUrl("repo-7");
+
+    expect(capture[0]).toMatchObject({
+      text: expect.stringContaining("SET onboarding_pr_url = NULL"),
+      params: ["repo-7"],
+    });
+  });
 });

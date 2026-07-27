@@ -106,15 +106,25 @@ export async function mergeCheckJob(): Promise<string> {
 
       const [, owner, repoName, prNumber] = match;
       const fullName = `${owner}/${repoName}`;
+      const number = parseInt(prNumber, 10);
+      const project = await projectFor(fullName);
 
-      const merged = await projectFor(fullName).then((p) =>
-        p.pulls.isMerged(parseInt(prNumber, 10)),
-      );
-
-      if (merged) {
+      if (await project.pulls.isMerged(number)) {
         await settings().markOnboardingMergedById(repo.id);
         mergedCount++;
         console.log(`[job] merge-check: ${repo.full_name} PR merged`);
+        continue;
+      }
+
+      // Closed without merging — the usual outcome when the scaffolding came
+      // out wrong. The url no longer describes an onboarding in progress, and
+      // leaving it set would refuse every later submission for this repo as
+      // "pr-open" forever, since nothing else ever clears it (#968).
+      if (await project.pulls.isClosed(number)) {
+        await settings().clearOnboardingPrUrl(repo.id);
+        console.log(
+          `[job] merge-check: ${repo.full_name} onboarding PR closed unmerged — cleared`,
+        );
       }
     } catch (err) {
       console.error(

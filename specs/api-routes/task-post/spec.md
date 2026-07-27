@@ -136,15 +136,15 @@ A `retry` action returns the `retryTask` result verbatim. ([validated by `retrie
 
 A `cancel` action returns `{ ok: true, task_id }`. ([validated by `cancels a task`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L64))
 
-A `cancel` action issues the guarded `pipeline.tasks` UPDATE with the task id. ([validated by `cancel issues the guarded tasks UPDATE with the task_id`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L206))
+A `cancel` action issues the guarded `pipeline.tasks` UPDATE with the task id. ([validated by `cancel issues the guarded tasks UPDATE with the task_id`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L216))
 
 `set-priority` with `immediate` echoes `immediate`. ([validated by `sets immediate priority`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L73))
 
 `set-priority` with any other value normalizes to `normal`. ([validated by `normalizes a non-immediate priority`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L89))
 
-`set-priority` updates only `pending` tasks with the resolved priority. ([validated by `set-priority updates only pending tasks with the resolved priority`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L220))
+`set-priority` updates only `pending` tasks with the resolved priority. ([validated by `set-priority updates only pending tasks with the resolved priority`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L230))
 
-`set-priority` missing `priority` falls through to the create branch and 400s on the missing description. ([validated by `set-priority without a priority falls through to create and 400s`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L234))
+`set-priority` missing `priority` falls through to the create branch and 400s on the missing description. ([validated by `set-priority without a priority falls through to create and 400s`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L244))
 
 A status update with `pr_url` and `error` returns the status envelope and writes all three columns. ([validated by `updates status with pr_url and error`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L101))
 

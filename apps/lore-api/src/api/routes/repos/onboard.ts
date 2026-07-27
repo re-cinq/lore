@@ -12,7 +12,8 @@ const OnboardBody = z.object({
     .string()
     .includes("/", { message: "required: repo (owner/name format)" }),
   /** Deliberate repair pass over an already-onboarded repo (regenerates only
-   *  the scaffolding it is missing). Never bypasses the in-flight guard. */
+   *  the scaffolding it is missing). Waives only the already-onboarded block —
+   *  never the in-flight or open-PR one. */
   reonboard: z.boolean().optional(),
 });
 
