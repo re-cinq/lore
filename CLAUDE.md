@@ -320,6 +320,15 @@ filename order, per-file single transaction, skip-if-applied — so
 migration-added tables exist locally (local dev has no Helm hook).
 `npm start` runs it automatically after Postgres is ready.
 
+Git worktrees: run `scripts/worktree-bootstrap.sh` once per worktree — it
+installs `node_modules` and builds the workspace libs so `eslint`/`tsc`
+resolve inside the worktree instead of escaping to the main checkout's
+(possibly stale) install (#950). The `.claude/settings.json` SessionStart hook
+runs it automatically, but only when the checkout has no `node_modules` yet —
+first session in a fresh worktree, never again after. After editing
+`libs/*/src`, rerun it yourself so package-level `tsc --noEmit` sees the fresh
+types (vitest reads source, tsc reads `dist`).
+
 ## GKE Deployment
 
 Four services on GKE:

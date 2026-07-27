@@ -27,40 +27,48 @@ It guides you through spec → plan → tasks → implementation interactively.
 
 ## Working in a git worktree
 
-A worktree has no `node_modules` of its own. The usual workaround — symlinking
-each package's `node_modules` to the main checkout — has two traps that both
-produce *false green* results, so they are easy to miss.
+A fresh worktree has no `node_modules` and no built workspace libs, so module
+resolution walks up out of the worktree into the main checkout's (possibly
+stale) install. The symptom mutates with whatever that install happens to be
+missing ([#950](https://github.com/re-cinq/lore/issues/950)):
 
-**`tsc` typechecks against the main checkout's build.** `@re-cinq/lore-shared`
-and its siblings resolve through `node_modules` (plain NodeNext — there is no
-`paths` mapping), so a symlinked `node_modules` sends TypeScript to the main
-checkout's `dist`. Vitest still sees your edited source, so tests pass and
-`tsc` passes — while validating your new code against *stale* types. A change
-to a shared interface then fails in CI, which builds each package fresh.
+- **`npx eslint` crashes on load.** The repo eslint plugin imports
+  `@re-cinq/lore-shared` (a *built* workspace lib), so a missing install or
+  unbuilt `libs/shared/dist` fails the whole run — as does any dependency the
+  escaped-to install lacks (e.g. `@eslint/markdown`).
+- **`tsc` typechecks against the main checkout's build.** `@re-cinq/lore-shared`
+  and its siblings resolve through `node_modules` (plain NodeNext — no `paths`
+  mapping) to the main checkout's `dist`. Vitest still sees your edited source,
+  so tests pass and `tsc` passes — while validating against *stale* types
+  (false green; CI then fails because it builds each package fresh).
 
-Either give the worktree real dependencies:
-
-```bash
-npm install            # from the worktree root
-```
-
-or build the shared package inside the worktree and repoint the link at it:
+Bootstrap the worktree once:
 
 ```bash
-npm run build --workspace=@re-cinq/lore-shared      # from the worktree
-MAIN=<absolute-path-to-your-main-checkout>
-ln -sfn "$PWD/libs/shared" "$MAIN/node_modules/@re-cinq/lore-shared"
+scripts/worktree-bootstrap.sh   # npm ci + build libs/{shared,assembly-lines,server-core}
 ```
 
-If you take the second route, **restore the link when you are done** — it is
-shared state, and leaving it pointed at a worktree breaks the main checkout.
+Claude Code sessions run it automatically via the SessionStart hook in
+`.claude/settings.json` — but only when the checkout has no `node_modules`
+yet, i.e. exactly once, on the first session in a fresh worktree. Sessions in
+a bootstrapped checkout skip it entirely. Run it yourself in worktrees created
+by hand. It is idempotent and guarded by a lock (`.lore-bootstrap.lock/`), so
+concurrent sessions in the same fresh worktree wait instead of racing
+`npm ci`.
 
-**Symlinked `node_modules` is not covered by every ignore rule.** `.gitignore`
-entries written with a trailing slash (`dist/`, `build/`, `coverage/`) match
-directories only, so a *symlink* by that name is not ignored and `git add -A`
-will commit it. `node_modules` is listed without the slash for this reason. If
-you symlink anything else, add it to `.git/info/exclude` — that is local and
-untracked, so it does not affect anyone else.
+One caveat remains: `tsc` resolves workspace libs through their built `dist`.
+After editing `libs/*/src`, rerun `scripts/worktree-bootstrap.sh` (it rebuilds
+the stale libs plus their dependents, in dependency order — the hook does not
+fire again) before trusting a package-level `npx tsc --noEmit`. When in doubt,
+`npm run build` rebuilds everything.
+
+Do **not** symlink a worktree's `node_modules` to the main checkout, and do
+not repoint the main checkout's `@re-cinq/*` links at a worktree — both
+reintroduce the stale-resolution disease, the second for every other checkout
+on the machine. If you do symlink something, note that `.gitignore` entries
+with a trailing slash (`dist/`, `coverage/`) match directories only — a
+*symlink* by that name is not ignored and `git add -A` will commit it; add it
+to `.git/info/exclude`, which stays local and untracked.
 
 ## Code Conventions
 

@@ -47,6 +47,7 @@ next-env.d.ts
 # Claude Code
 .claude/worktrees/
 .claude/tsc-cache/
+.lore-bootstrap.lock/
 
 # Lore local runner — per-task ephemeral state, not for commit
 .lore-task.json
