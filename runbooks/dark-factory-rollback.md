@@ -8,12 +8,49 @@ auto-merge across all repos.
 
 Severity: P2 (per-repo) or P1 (cluster-wide).
 
+## The substrate you are rolling back on
+
+Since the ADR-031 cutover there is no LoreTask CRD, no
+`lore-claude-runner` image, and no `LORE_DARK_FACTORY_CLUSTER_ENABLED`
+cluster gate. What exists instead:
+
+- Every task and every assembly-line node runs as an **`Agent` custom
+  resource** (`agents.re-cinq.com/v1alpha1`) in the **`ai-agents`**
+  namespace, executed by the ai-agent-subsystem controller.
+- The walk is **event-driven on the Floor**: state lives in
+  `pipeline.assembly_lines` + `pipeline.assembly_line_nodes`; terminal
+  CR phases emit `kubernetes.agent_node.*` events, handled by
+  `apps/floor/src/jobs/assembly-line/node-event-handler.ts` and driven
+  through `advance.ts`; a
+  per-minute reaper (`cron.assembly_line_reaper.tick`) resolves
+  dropped events, relaunches missing CRs, and times out stuck nodes.
+- **Merge authority is Floor-side only** — auto-merge never runs in a
+  pod. Stopping the Floor stops all merges immediately.
+- The only dark-factory switch is the per-repo
+  `lore.repos.settings.dark_factory.enabled` field, behind the
+  two-key gate.
+
 ## Pre-flight checks
 
 Before disabling, snapshot the current state for forensics:
 
 ```bash
-# Active leases (if any tasks are in flight)
+# Open assembly lines and their in-flight nodes
+psql "$LORE_DB_URL" -c "
+  SELECT al.id, al.definition_name, al.repo, al.branch, al.status,
+         n.node_id, n.iteration, n.agent_cr_name, n.started_at
+    FROM pipeline.assembly_lines al
+    LEFT JOIN pipeline.assembly_line_nodes n
+      ON n.assembly_line_id = al.id AND n.finished_at IS NULL
+   WHERE al.status IN ('queued', 'running')
+   ORDER BY al.created_at;
+"
+
+# Live Agent CRs (one per running node or single-CR task)
+kubectl get agents.agents.re-cinq.com -n ai-agents \
+  -L lore.re-cinq.com/task-id,lore.re-cinq.com/assembly-line-id,lore.re-cinq.com/node-id
+
+# Active branch leases (if any tasks are in flight)
 psql "$LORE_DB_URL" -c "SELECT * FROM pipeline.task_leases;"
 
 # Last 50 auto-merge decisions
@@ -27,10 +64,18 @@ psql "$LORE_DB_URL" -c "
 
 # Last 50 settings changes
 psql "$LORE_DB_URL" -c "
-  SELECT created_at, repo, actor, payload->>'field_paths_changed'
+  SELECT created_at, repo, actor, payload->'field_paths_changed'
     FROM pipeline.audit_log
    WHERE event_type = 'dark_factory_setting_changed'
    ORDER BY created_at DESC LIMIT 50;
+"
+
+# Event-loop health: anything dead-lettered during the incident window?
+psql "$LORE_DB_URL" -c "
+  SELECT event_name, status, count(*)
+    FROM pipeline.events
+   WHERE status IN ('failed', 'dead')
+   GROUP BY 1, 2 ORDER BY 3 DESC;
 "
 ```
 
@@ -41,9 +86,11 @@ have the audit trail.
 
 ### Step 1: Disable dark mode
 
-The toggle is a privileged field — requires the two-key ceremony.
-Skip the ceremony only if you have a clear cluster-incident
-authorization to bypass.
+Any change to `enabled` is a privileged field — it requires the
+two-key ceremony (admin-scoped token + an open PR labeled
+`dark-factory-approval`, label applied by a CODEOWNER of the repo's
+`CLAUDE.md`). Skip the ceremony only via the cluster-wide SQL path
+below, with explicit incident authorization.
 
 ```bash
 # Open the approval PR
@@ -54,36 +101,82 @@ gh pr create --repo "$REPO" \
 # CODEOWNER applies the label
 gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label dark-factory-approval
 
-# Disable
+# Disable (route: apps/lore-api/src/api/routes/dark-factory/dark-factory.ts)
 curl -X PUT "$LORE_API_URL/api/repos/$REPO/settings/dark-factory" \
   -H "Authorization: Bearer $LORE_TOKEN" \
   -H "X-Lore-Approval-PR: $REPO#$PR_NUMBER" \
+  -H "Content-Type: application/json" \
   -d '{"enabled": false}'
 ```
 
-Effect: all subsequent task creations on this repo see legacy
-posture (Issue per task, no auto-merge, every PR awaits human
-review). In-flight tasks complete on their original flow per FR4.4.
+The route merges the patch over the existing `dark_factory` block in a
+transaction and writes the `dark_factory_setting_changed` audit entry
+itself (including the ceremony evidence) — no manual audit insert
+needed on this path.
 
-### Step 2: Reconcile in-flight tasks
+Effect: tasks created after the flip see legacy posture (Issue per
+task, no auto-merge, every PR awaits human review). In-flight tasks
+complete on their original flow per FR4.4 — but auto-merge is
+evaluated Floor-side at decision time, so any PR that has not merged
+yet stays open for a human.
+
+**How to verify the flip took.** Look for the *absence* of new
+`auto_merge_decision` rows for the repo, not for a `deferred:` row.
+`tryAutoMergeForCompletedTask`
+(`apps/floor/src/jobs/merge/auto-merge-trigger.ts`) returns early on
+`settings.enabled === false`, deliberately *before* `evaluateAndMerge`,
+so a disabled repo writes no audit row at all — the
+`deferred:dark_mode_off` outcome exists in the enum but is unreachable
+on the production path. A repo that keeps emitting `auto_merge_decision`
+rows after the flip has not actually been disabled; re-check the PUT
+response and the settings row.
+
+### Step 2: Reconcile in-flight work
 
 ```bash
-# List active leases for this repo
+# Open assembly lines for this repo, with their open node and CR name
 psql "$LORE_DB_URL" -c "
-  SELECT tl.branch_name, tl.holder, tl.expires_at, t.id AS task_id, t.status
-    FROM pipeline.task_leases tl
-    JOIN pipeline.tasks t ON t.id = tl.task_id
-   WHERE t.target_repo = '$REPO';
+  SELECT al.id, al.definition_name, al.branch, al.status,
+         n.node_id, n.agent_cr_name, n.started_at
+    FROM pipeline.assembly_lines al
+    LEFT JOIN pipeline.assembly_line_nodes n
+      ON n.assembly_line_id = al.id AND n.finished_at IS NULL
+   WHERE al.repo = '$REPO' AND al.status IN ('queued', 'running');
 "
 ```
 
-Three options for in-flight tasks:
+Options per in-flight line:
 
 | State | Action |
 |---|---|
-| Lease held, work in progress | Let it complete on legacy flow (FR4.4 — already enforced) |
-| Lease held but stuck (>10 min idle) | Wait for TTL expiry; reaper deletes the row 5 min after expiry. Or force-release via `DELETE FROM pipeline.task_leases WHERE branch_name = $1 AND holder = $2;` (named holder only) |
-| PR open, awaiting auto-merge | The PR will not auto-merge after disable. Either close it manually or let a human review and merge |
+| Line running, node healthy | Let it complete on its original flow (FR4.4). Auto-merge is skipped after the disable; the PR waits for a human |
+| Node stuck | Do nothing — the per-minute reaper times it out at the node's `timeout_minutes` (+2 min buffer, default 60 min), records the node `failed` and fails the line with reason `node "<nodeId>" failed`. The `<kind>-timeout` wording appears only in the Floor pod log, never in `pipeline.assembly_lines.reason` — do not query for it |
+| Line must be halted NOW | Follow the halt procedure below — order matters |
+| PR open, awaiting auto-merge | It will not merge — the auto-merge trigger short-circuits on a disabled repo and writes no audit row. Close it manually or let a human review and merge |
+| Stale branch lease | The lease reaper (`cron.lease_reaper.tick`, every minute) deletes leases >5 min past expiry and writes a `lease_expired` audit entry. Force-release only a named row: `DELETE FROM pipeline.task_leases WHERE branch_name = $1;` |
+
+**Halting a running line.** Mark the DB row terminal FIRST, then
+delete the CR. The reaper relaunches missing CRs for open nodes every
+minute — delete the CR first and it comes back:
+
+```bash
+# 1. Take the line out of the reaper's sweep (it only touches queued/running rows)
+psql "$LORE_DB_URL" -c "
+  UPDATE pipeline.assembly_lines
+     SET status = 'failed', outcome = 'error',
+         reason = 'manual halt: <ticket>', finished_at = now()
+   WHERE id = '$ASSEMBLY_LINE_ID' AND status IN ('queued', 'running');
+"
+
+# 2. Kill the in-flight pod
+kubectl delete agents.agents.re-cinq.com "$AGENT_CR_NAME" -n ai-agents
+
+# 3. Cancel the backing task so nothing re-dispatches it
+curl -X POST "$LORE_API_URL/api/task" \
+  -H "Authorization: Bearer $LORE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"action\": \"cancel\", \"task_id\": \"$TASK_ID\"}"
+```
 
 ### Step 3: Verify
 
@@ -92,10 +185,18 @@ Three options for in-flight tasks:
 # PR awaits human review.
 curl -X POST "$LORE_API_URL/api/task" \
   -H "Authorization: Bearer $LORE_TOKEN" \
-  -d "{\"task_type\":\"gap-fill\",\"target_repo\":\"$REPO\",\"description\":\"Smoke test post-rollback\"}"
+  -H "Content-Type: application/json" \
+  -d "{\"task_type\": \"gap-fill\", \"target_repo\": \"$REPO\", \"description\": \"Smoke test post-rollback\"}"
 
 # Within 5 min: Issue should exist
 gh issue list --repo "$REPO" --label lore-managed --limit 5
+
+# And no auto_merge_decision with outcome 'merged' after the flip
+psql "$LORE_DB_URL" -c "
+  SELECT created_at, payload->>'outcome' FROM pipeline.audit_log
+   WHERE event_type = 'auto_merge_decision' AND repo = '$REPO'
+   ORDER BY created_at DESC LIMIT 10;
+"
 ```
 
 If the Issue exists and the PR is open without auto-merging,
@@ -106,8 +207,25 @@ rollback is complete.
 When dark mode must be disabled across every onboarded repo
 (suspected cluster-wide bug, uncontrolled auto-merge incident):
 
+### Step 0 (optional, worst case): stop the Floor
+
+Merge authority lives only in the Floor process. Scaling it to zero
+halts every auto-merge, every line advance, and every reaper tick
+immediately; in-flight Agent pods finish but nothing consumes their
+results until scale-up. State is durable (`pipeline.events`,
+`pipeline.assembly_lines`) — the reaper reconciles everything on
+restart, so this is safe to do first and think second:
+
 ```bash
-# Bulk-disable all dark-mode repos.
+kubectl scale deployment/lore-floor -n lore-floor --replicas=0
+```
+
+Scale back to 1 after the settings are fixed (the chart pins
+`replicaCount: 1` — do not scale higher, per ADR-037).
+
+### Step 1: bulk-disable all dark-mode repos
+
+```bash
 psql "$LORE_DB_URL" -c "
   UPDATE lore.repos
      SET settings = jsonb_set(
@@ -120,17 +238,18 @@ psql "$LORE_DB_URL" -c "
 ```
 
 This bypasses the two-key ceremony — only do this with explicit
-incident authorization. Write an incident audit entry afterward:
+incident authorization. Write an incident audit entry afterward
+(the SQL path does not write one for you, unlike the API route):
 
 ```bash
 psql "$LORE_DB_URL" -c "
-  INSERT INTO pipeline.audit_log (event_type, payload)
+  INSERT INTO pipeline.audit_log (event_type, actor, payload)
   VALUES (
     'dark_factory_setting_changed',
+    '<your name>',
     jsonb_build_object(
-      'field_paths_changed', '[bulk_rollback]'::jsonb,
+      'field_paths_changed', '[\"enabled (bulk rollback)\"]'::jsonb,
       'reason', 'incident: <ticket>',
-      'authorized_by', '<your name>',
       'two_key_bypassed', true
     )
   );
@@ -140,141 +259,71 @@ psql "$LORE_DB_URL" -c "
 Notify Slack `#lore-escalation`:
 
 ```
-🚨 Dark Factory cluster-wide rollback executed.
+Dark Factory cluster-wide rollback executed.
 Reason: <ticket>
 Authorized by: <name>
 Affected repos: <count>
+```
+
+### Step 2: drain in-flight work
+
+With `enabled = false` everywhere, in-flight lines finish but nothing
+auto-merges — and no `auto_merge_decision` rows are written at all
+(see "How to verify the flip took" above). If lines must be killed, use
+the per-line halt procedure above (DB row first, then CR). To sweep
+all live pods after failing their rows:
+
+```bash
+kubectl get agents.agents.re-cinq.com -n ai-agents
+# then, per CR you have already failed in the DB:
+kubectl delete agents.agents.re-cinq.com <name> -n ai-agents
 ```
 
 ## Recovery (re-enabling dark mode)
 
 After the incident is resolved and post-mortem complete:
 
-1. Re-run the two-key ceremony per repo (do not bulk re-enable).
-2. Start with the lowest-trust repo (`docs`).
-3. Watch the dashboard for 24 hours.
-4. Promote the next trust tier only after green.
+1. Confirm the event loop is clean: no `pipeline.events` rows stuck in
+   `processing`, and triage anything in `dead`.
+2. Re-run the two-key ceremony per repo via the PUT route (do not
+   bulk re-enable via SQL — the route's audit trail is the record).
+3. Start with the lowest-trust repo (`docs`).
+4. Watch the dashboard and `auto_merge_decision` audit entries for
+   24 hours.
+5. Promote the next trust tier only after green.
 
-## Cluster path enablement
+## Pilot rollout (enabling a new repo)
 
-The cluster-side dark-factory path (impl / general / review tasks
-running through `/app/dist/supervisor/runner-cli.js` inside Job pods)
-is gated by **two** independent switches:
-
-1. **Per-repo:** `lore.repos.settings.dark_factory.enabled = true`
-   (set via the settings UI / API). Without this, the repo gets the
-   legacy flow regardless.
-2. **Cluster-wide:** `LORE_DARK_FACTORY_CLUSTER_ENABLED=true` on the
-   agent deployment env (helm `values.yaml`). Without this, the worker
-   refuses to forward `darkFactoryWorkflow` to the LoreTask CR — the
-   pod runs the legacy `claude --print` path even for dark-mode repos.
-
-The cluster-wide gate exists because the cluster path needs the agent
-build present at `/app/dist/` in the claude-runner image. If the helm
-flag flipped before the image had `dist/`, every Job pod would fail at
-the first line of the dark-factory branch in `entrypoint.sh`.
-
-### Rollout procedure
-
-#### Step 0 — verify the image is ready
-
-```bash
-# Pull the most recent claude-runner tag
-IMAGE=ghcr.io/re-cinq/lore-claude-runner:latest
-docker pull "$IMAGE"
-
-# Both must succeed:
-docker run --rm --entrypoint sh "$IMAGE" -c \
-  'test -f /app/dist/supervisor/runner-cli.js && ls /app/libs/runner/dist/workflows/*.yaml'
-```
-
-If either check fails, the image build pipeline (PR #311 onward) didn't
-ship the agent dist or workflow YAMLs. Stop — fix the image before
-flipping the flag.
-
-#### Step 1 — flip the cluster flag (no per-repo change yet)
-
-> ⚠️ **Not a no-op for repos already on PR #308's in-agent docs path.**
-> Any repo with `dark_factory.enabled = true` today (i.e. repos
-> piloted via the in-agent supervisor for `gap-fill` / `runbook`)
-> will start routing **impl / general / review** tasks through the
-> cluster supervisor on their next task. If you don't want that yet,
-> set `dark_factory.enabled = false` on those repos *before* flipping
-> the cluster gate, then re-enable per-repo as part of step 2's soak.
-
-Pre-check which repos are about to shift:
-
-```bash
-psql "$LORE_DB_URL" -c "
-  SELECT full_name FROM lore.repos
-   WHERE settings->'dark_factory'->>'enabled' = 'true';
-"
-```
-
-```bash
-helm upgrade --reuse-values lore-floor ./infra/terraform/modules/gke-mcp/floor-helm \
-  --namespace lore-floor \
-  --set-string env.LORE_DARK_FACTORY_CLUSTER_ENABLED=true
-kubectl rollout status deployment/lore-floor -n lore-floor --timeout=5m
-```
-
-`--set-string` (not `--set`) — helm's `--set` parses `=true` as a
-YAML bool, which K8s rejects with `must be a string` for env values.
-
-`--timeout=5m` — agent cold-start covers image pull (~1.6GB after
-PR #311), DB pool init, scheduler boot, webhook subscriber registration.
-2 minutes is on the edge under cluster-autoscaler scenarios where a
-new node has to spin up; false rollout failures during a sensitive
-flag flip are the worst possible signal.
-
-While the rollout is in progress, tail logs in another shell for at
-least 30 s after `Available: True` to catch immediate startup
-failures (bad image, missing env, etc.) before proceeding to step 2:
-
-```bash
-kubectl logs deployment/lore-floor -n lore-floor -f --tail=200
-```
-
-For repos that already had `dark_factory.enabled = true`, confirm the
-shift by watching for `[runner-cli] Starting dark-factory supervisor`
-in pod logs on their next impl/general/review task.
-
-#### Step 2 — pick a pilot repo
+### Step 1 — pick a pilot repo
 
 Choose a repo that:
 
 - Has CLAUDE.md, AGENTS.md, and a CODEOWNERS file (so escalation
-  routing works).
+  routing and the two-key ceremony work).
 - Has been onboarded to Lore for at least 7 days (so memory + facts
   have warmed).
 - Has at least one human reviewer who can intercept misbehavior fast.
 - **Not** a production-critical repo (auth / payments / billing).
 
-Enable dark mode on it. If the repo already had a partial
-`dark_factory` config (e.g. `notify` set during the in-agent pilot),
-**do not clobber it** — `jsonb_set(..., '{dark_factory}', $new)`
-replaces the whole subobject. Confirm what's there first, then merge:
+Enable via the API route, not raw SQL — the route merges the patch
+over any existing `dark_factory` fields inside a transaction (no
+clobber risk) and records the ceremony. Check what is there first:
 
-```sql
--- Check first
-SELECT settings->'dark_factory' FROM lore.repos
- WHERE full_name = 'org/pilot-repo';
+```bash
+curl -s "$LORE_API_URL/api/repos/$REPO/settings/dark-factory" \
+  -H "Authorization: Bearer $LORE_TOKEN"
 
--- Merge (preserves any prior fields like notify, create_issue, etc.)
-UPDATE lore.repos
-SET settings = COALESCE(settings, '{}'::jsonb) ||
-  jsonb_build_object(
-    'dark_factory',
-    COALESCE(settings->'dark_factory', '{}'::jsonb) ||
-      '{"enabled": true, "auto_merge": {"min_trust": "docs"}}'::jsonb
-  )
-WHERE full_name = 'org/pilot-repo';
+curl -X PUT "$LORE_API_URL/api/repos/$REPO/settings/dark-factory" \
+  -H "Authorization: Bearer $LORE_TOKEN" \
+  -H "X-Lore-Approval-PR: $REPO#$PR_NUMBER" \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": true, "auto_merge": {"min_trust": "docs"}}'
 ```
 
 Or via the settings UI: navigate to the repo, toggle "Dark factory
-mode" → on.
+mode" → on (the UI walks the same two-key ceremony).
 
-#### Step 3 — soak for 7 days
+### Step 2 — soak for 7 days
 
 Watch:
 
@@ -293,48 +342,40 @@ Watch:
 
 - **Escalation Issues** labelled `needs-human-help` — should be rare
   (< 1 per 50 tasks).
-- **Cluster-pod failures** —
-  `kubectl get loretasks -n lore-floor -l lore.re-cinq.com/dark-factory=true`,
-  then `kubectl describe` any in `Failed` state.
+- **Failed lines and CRs** —
 
-#### Step 4 — ramp
+  ```bash
+  psql "$LORE_DB_URL" -c "
+    SELECT id, definition_name, outcome, reason FROM pipeline.assembly_lines
+     WHERE repo = 'org/pilot-repo' AND status = 'failed'
+     ORDER BY created_at DESC LIMIT 20;
+  "
+  # Filter client-side: the Agent CRD declares no selectableFields, so
+  # `--field-selector status.phase=Failed` is rejected by the apiserver
+  # ("field label not supported"). Phase is an additionalPrinterColumn.
+  kubectl get agents.agents.re-cinq.com -n ai-agents \
+    -o jsonpath='{range .items[?(@.status.phase=="Failed")]}{.metadata.name}{"\n"}{end}'
+  ```
+
+### Step 3 — ramp
 
 Promote the pilot repo's `auto_merge.min_trust` one tier at a time
 (`docs` → `tests` → `implementation` → `full`), waiting at least
 3 successful merges at each tier (the auto-promotion logic lives in
-`agent/src/jobs/merge-check.ts:213`; threshold via
+`apps/floor/src/jobs/merge/merge-check.ts`; threshold via
 `lore.repos.settings.trust.auto_promote_threshold`, default 3).
 
-Once two repos have soaked at `implementation` for 7 days each, flip
-the helm default:
-
-```yaml
-# values.yaml
-env:
-  LORE_DARK_FACTORY_CLUSTER_ENABLED: "true"  # was "false"
-```
-
-Bake-in is the operational signal that the cluster path is the new
-default for opted-in repos.
-
-### Rollback at any step
-
-To unflip the cluster gate:
-
-```bash
-helm upgrade --reuse-values lore-floor ./infra/terraform/modules/gke-mcp/floor-helm \
-  --namespace lore-floor \
-  --set-string env.LORE_DARK_FACTORY_CLUSTER_ENABLED=false
-```
-
-In-flight Job pods finish (they're already running the cluster
-supervisor). New tasks route through the legacy path immediately.
-
-To unflip a single repo's dark mode, see "Per-repo rollback" above.
+Note: `auto_merge.paths` changes and downgrading `require_green_ci` /
+`require_bot_approval` to false are two-key fields — each needs its
+own approval PR. Raising `min_trust` is admin-scope only.
 
 ## Related
 
 - ADR-016 — Dark Factory mode decision
-- spec at `specs/6-dark-factory/spec.md`
+- ADR-031 — the ai-agent-subsystem cutover (why LoreTask commands are gone)
+- spec at `specs/6-dark-factory/spec.md` (FR6.7–FR6.10: the event-driven walk)
 - quickstart scenarios at `specs/6-dark-factory/quickstart.md`
-- contract at `specs/6-dark-factory/contracts/dark-factory-settings.md`
+- settings route spec at `specs/api-routes/dark-factory-settings/spec.md`
+  (schema + two-key field list in
+  `apps/lore-api/src/features/dark-factory/dark-factory-settings.ts`)
+- station contract at `specs/6-dark-factory/contracts/station-contract.md`
