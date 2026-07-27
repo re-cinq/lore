@@ -18,7 +18,7 @@
  */
 
 import path from "node:path";
-import { isTestFile } from "@re-cinq/lore-shared/test-paths.js";
+import { isTestFile } from "./lib/lore-shared.mjs";
 import {
   buildLinkIndex,
   corpusExists,

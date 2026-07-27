@@ -12,14 +12,12 @@
  */
 
 import {
-  parseDocStatus,
-  statusTier,
-} from "@re-cinq/lore-shared/spec-status.js";
-import {
   coverageTier,
   expectedStatus,
+  parseDocStatus,
   statementCoverage,
-} from "@re-cinq/lore-shared/spec-status-coverage.js";
+  statusTier,
+} from "./lore-shared.mjs";
 
 /**
  * @typedef {{ reason: "untagged", line: number }} UntaggedMismatch
@@ -51,7 +49,9 @@ function statusLine(content, kind) {
   if (!/^---\r?\n([\s\S]*?)\r?\n---/.test(content)) {
     return null;
   }
-  const index = lines.findIndex((line) => /^status\s*:\s*(.+?)\s*$/i.test(line));
+  const index = lines.findIndex((line) =>
+    /^status\s*:\s*(.+?)\s*$/i.test(line),
+  );
 
   return index === -1 ? null : index + 1;
 }

@@ -23,15 +23,15 @@
  * to write; a human writes it.
  */
 
-import { statusLabel } from "@re-cinq/lore-shared/spec-status-coverage.js";
+import { statusLabel } from "./lib/lore-shared.mjs";
 import { docKind } from "./lib/doc-kind.mjs";
 import { statusMismatch } from "./lib/status-coverage.mjs";
 
 const CORPUS = { spec: "spec", adr: "ADR" };
 
 const REQUIREMENT = {
-  spec: 'Add a `| Status | Draft |` row to the header table (one of Draft / In Progress / Shipped / Rejected / Retired).',
-  adr: 'Add `status: draft` to the YAML frontmatter (one of draft / in progress / shipped / rejected / retired).',
+  spec: "Add a `| Status | Draft |` row to the header table (one of Draft / In Progress / Shipped / Rejected / Retired).",
+  adr: "Add `status: draft` to the YAML frontmatter (one of draft / in progress / shipped / rejected / retired).",
 };
 
 export default {
