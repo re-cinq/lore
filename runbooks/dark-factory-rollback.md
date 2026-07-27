@@ -19,8 +19,9 @@ cluster gate. What exists instead:
   namespace, executed by the ai-agent-subsystem controller.
 - The walk is **event-driven on the Floor**: state lives in
   `pipeline.assembly_lines` + `pipeline.assembly_line_nodes`; terminal
-  CR phases emit `kubernetes.agent_node.*` events that
-  `apps/floor/src/jobs/assembly-line/advance.ts` consumes; a
+  CR phases emit `kubernetes.agent_node.*` events, handled by
+  `apps/floor/src/jobs/assembly-line/node-event-handler.ts` and driven
+  through `advance.ts`; a
   per-minute reaper (`cron.assembly_line_reaper.tick`) resolves
   dropped events, relaunches missing CRs, and times out stuck nodes.
 - **Merge authority is Floor-side only** — auto-merge never runs in a
@@ -63,7 +64,7 @@ psql "$LORE_DB_URL" -c "
 
 # Last 50 settings changes
 psql "$LORE_DB_URL" -c "
-  SELECT created_at, repo, actor, payload->'changed'
+  SELECT created_at, repo, actor, payload->'field_paths_changed'
     FROM pipeline.audit_log
    WHERE event_type = 'dark_factory_setting_changed'
    ORDER BY created_at DESC LIMIT 50;
@@ -117,7 +118,18 @@ Effect: tasks created after the flip see legacy posture (Issue per
 task, no auto-merge, every PR awaits human review). In-flight tasks
 complete on their original flow per FR4.4 — but auto-merge is
 evaluated Floor-side at decision time, so any PR that has not merged
-yet will now record `deferred:dark_mode_off` and wait for a human.
+yet stays open for a human.
+
+**How to verify the flip took.** Look for the *absence* of new
+`auto_merge_decision` rows for the repo, not for a `deferred:` row.
+`tryAutoMergeForCompletedTask`
+(`apps/floor/src/jobs/merge/auto-merge-trigger.ts`) returns early on
+`settings.enabled === false`, deliberately *before* `evaluateAndMerge`,
+so a disabled repo writes no audit row at all — the
+`deferred:dark_mode_off` outcome exists in the enum but is unreachable
+on the production path. A repo that keeps emitting `auto_merge_decision`
+rows after the flip has not actually been disabled; re-check the PUT
+response and the settings row.
 
 ### Step 2: Reconcile in-flight work
 
@@ -137,10 +149,10 @@ Options per in-flight line:
 
 | State | Action |
 |---|---|
-| Line running, node healthy | Let it complete on its original flow (FR4.4). Auto-merge will defer after the disable; the PR waits for a human |
-| Node stuck | Do nothing — the per-minute reaper times it out at the node's `timeout_minutes` (+2 min buffer, default 60 min) and fails the line with `<kind>-timeout` |
+| Line running, node healthy | Let it complete on its original flow (FR4.4). Auto-merge is skipped after the disable; the PR waits for a human |
+| Node stuck | Do nothing — the per-minute reaper times it out at the node's `timeout_minutes` (+2 min buffer, default 60 min), records the node `failed` and fails the line with reason `node "<nodeId>" failed`. The `<kind>-timeout` wording appears only in the Floor pod log, never in `pipeline.assembly_lines.reason` — do not query for it |
 | Line must be halted NOW | Follow the halt procedure below — order matters |
-| PR open, awaiting auto-merge | It will not merge (`deferred:dark_mode_off`). Close it manually or let a human review and merge |
+| PR open, awaiting auto-merge | It will not merge — the auto-merge trigger short-circuits on a disabled repo and writes no audit row. Close it manually or let a human review and merge |
 | Stale branch lease | The lease reaper (`cron.lease_reaper.tick`, every minute) deletes leases >5 min past expiry and writes a `lease_expired` audit entry. Force-release only a named row: `DELETE FROM pipeline.task_leases WHERE branch_name = $1;` |
 
 **Halting a running line.** Mark the DB row terminal FIRST, then
@@ -236,7 +248,7 @@ psql "$LORE_DB_URL" -c "
     'dark_factory_setting_changed',
     '<your name>',
     jsonb_build_object(
-      'changed', '[\"enabled (bulk rollback)\"]'::jsonb,
+      'field_paths_changed', '[\"enabled (bulk rollback)\"]'::jsonb,
       'reason', 'incident: <ticket>',
       'two_key_bypassed', true
     )
@@ -256,7 +268,8 @@ Affected repos: <count>
 ### Step 2: drain in-flight work
 
 With `enabled = false` everywhere, in-flight lines finish but nothing
-auto-merges (`deferred:dark_mode_off`). If lines must be killed, use
+auto-merges — and no `auto_merge_decision` rows are written at all
+(see "How to verify the flip took" above). If lines must be killed, use
 the per-line halt procedure above (DB row first, then CR). To sweep
 all live pods after failing their rows:
 
@@ -337,8 +350,11 @@ Watch:
      WHERE repo = 'org/pilot-repo' AND status = 'failed'
      ORDER BY created_at DESC LIMIT 20;
   "
+  # Filter client-side: the Agent CRD declares no selectableFields, so
+  # `--field-selector status.phase=Failed` is rejected by the apiserver
+  # ("field label not supported"). Phase is an additionalPrinterColumn.
   kubectl get agents.agents.re-cinq.com -n ai-agents \
-    --field-selector status.phase=Failed
+    -o jsonpath='{range .items[?(@.status.phase=="Failed")]}{.metadata.name}{"\n"}{end}'
   ```
 
 ### Step 3 — ramp
@@ -359,5 +375,7 @@ own approval PR. Raising `min_trust` is admin-scope only.
 - ADR-031 — the ai-agent-subsystem cutover (why LoreTask commands are gone)
 - spec at `specs/6-dark-factory/spec.md` (FR6.7–FR6.10: the event-driven walk)
 - quickstart scenarios at `specs/6-dark-factory/quickstart.md`
-- contract at `specs/6-dark-factory/contracts/dark-factory-settings.md`
+- settings route spec at `specs/api-routes/dark-factory-settings/spec.md`
+  (schema + two-key field list in
+  `apps/lore-api/src/features/dark-factory/dark-factory-settings.ts`)
 - station contract at `specs/6-dark-factory/contracts/station-contract.md`
