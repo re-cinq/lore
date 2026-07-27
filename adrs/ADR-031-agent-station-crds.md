@@ -101,7 +101,8 @@ is the liveness bound for timeouts, unlaunched nodes, and dropped events. There 
 process, no clone, no branch lease, and no stage commits on this path: the walk state IS
 `pipeline.assembly_line_nodes` (FR6.9), `iteration_max` is enforced by replaying the rows
 (`nextTransition`), and pod-death survivability is inherent. CR names key on the per-attempt
-assemblyLineId (`<assemblyLineId:8>-<nodeId>`, FR6.5) so two attempts of one task never collide;
+assemblyLineId (`<assemblyLineId:12>-<nodeId>`, with `-<iteration>` appended on revisits, FR6.5)
+so two attempts of one task never collide;
 the CR spec keeps `taskId` for the watcher/reaper label probes and adds the full
 `assembly-line-id`/`node-id` labels the event mapping reads.
 

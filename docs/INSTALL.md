@@ -67,7 +67,7 @@ This creates:
 - GCS bucket for task logs (CMEK encrypted, 30-day retention)
 - KMS key ring + crypto key
 - Helm releases: Floor, MCP Server
-- LoreTask CRD + controller deployment
+- ai-agent-subsystem: the `Agent` / `Station` / `AgentDefinition` CRDs + agent-controller (`ai-agents` namespace)
 - Web UI deployment + ingress
 - ConfigMaps for task-types.yaml
 
@@ -177,8 +177,8 @@ The token is also prompted for interactively on first install. Re-run
 # Check deployments
 kubectl get deployments -A | grep lore
 
-# Check CRD
-kubectl get crd loretasks.lore.re-cinq.com
+# Check CRDs (ai-agent-subsystem)
+kubectl get crd agents.agents.re-cinq.com stations.agents.re-cinq.com agentdefinitions.agents.re-cinq.com
 
 # Check logs bucket
 gcloud storage ls gs://lore-task-logs-YOUR_PROJECT_ID/

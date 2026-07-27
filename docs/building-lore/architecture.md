@@ -25,8 +25,8 @@ flowchart TB
     subgraph gke["GKE cluster"]
         MCP["MCP server<br/>(Streamable HTTP)"]
         AGENT["Floor<br/>worker + scheduler + HTTP :8080"]
-        CTRL["LoreTask controller"]
-        POD["Ephemeral Job pods<br/>(claude-runner image)"]
+        CTRL["agent-controller<br/>(ai-agent-subsystem, ai-agents ns)"]
+        POD["Agent CR pods<br/>(one per assembly-line node)"]
         UI["Web UI (Next.js)"]
         DB[("PostgreSQL + pgvector<br/>chunks · memory · pipeline")]
     end
@@ -62,10 +62,10 @@ flowchart TB
     Q --> W["Agent worker<br/>polls every 10s"]
     W --> TYPE{"task_type?"}
     TYPE -->|"feature-request / onboard"| LLM["Direct Anthropic API<br/>generate spec / docs"]
-    TYPE -->|"implementation / review / general"| CR["Create LoreTask CR"]
-    CR --> CTRL["LoreTask controller"]
-    CTRL --> POD["Job pod:<br/>clone → Claude Code →<br/>validate (lint/typecheck) →<br/>commit → push"]
-    POD --> WATCH["loretask_watcher (1m)"]
+    TYPE -->|"implementation / review / general"| CR["Start assembly line:<br/>one Agent CR per node"]
+    CR --> CTRL["agent-controller<br/>(ai-agent-subsystem)"]
+    CTRL --> POD["Agent pod: clone → Claude Code →<br/>commit → push<br/>validate / gate: lore-station pods"]
+    POD --> WATCH["k8s watch →<br/>agent-watcher"]
     LLM --> PR["Open PR (GitHub App)"]
     WATCH --> PR
     PR --> REVIEW{"auto_review?"}
@@ -87,7 +87,7 @@ flowchart LR
         J1["merge_check · 1m"]
         J2["approval_check · 1m"]
         J3["review_reactor · hourly Mon-Fri (webhook safety net)"]
-        J4["loretask_watcher · 1m"]
+        J4["agent_watcher_reconcile · 1m (k8s-watch safety net)"]
         J5["spec_task_executor · 1m"]
         J6["stale_task_check · hourly"]
     end
@@ -116,8 +116,8 @@ The full job registry — every schedule and what it does — is in [Scheduled J
 | Component | What it does |
 |-----------|-------------|
 | **MCP Server** | Serves org context to Claude Code via the MCP protocol. Hybrid search (vector + BM25). Agent memory. Task CRUD. Push-triggered ingest API. Per-client scoped tokens. Rate-limited. |
-| **Floor** | Processes pipeline tasks. Calls the Claude API for simple tasks; delegates complex tasks (implementation) to ephemeral Job pods via the LoreTask CRD. Runs the scheduled maintenance jobs. Creates PRs via the GitHub App. Every task automatically opens a GitHub Issue on the target repo so developers see what Lore is doing without checking the dashboard; Issues are updated on status changes and closed when the PR is created. |
-| **LoreTask Controller** | Watches LoreTask custom resources and spawns ephemeral K8s Job pods with the claude-runner image. Each Job pod clones the target repo, runs Claude Code, commits, and pushes. Tasks survive agent deploys and run in parallel with full isolation. Pods run as non-root with dropped capabilities and an egress-restricted NetworkPolicy. |
+| **Floor** | Processes pipeline tasks. Calls the Claude API for simple tasks; dispatches complex tasks (implementation) as `Agent` CRs on the ai-agent-subsystem — one pod per assembly-line node, advanced by the event-driven walk. Runs the scheduled maintenance jobs. Creates PRs via the GitHub App. Every task automatically opens a GitHub Issue on the target repo so developers see what Lore is doing without checking the dashboard; Issues are updated on status changes and closed when the PR is created. |
+| **ai-agent-subsystem** | The external agent-controller (`ai-agents` namespace) watches `Agent` custom resources (→ `Station` PodTemplate → `AgentDefinition` recipe) and stamps an ephemeral Job pod per run. Agent pods clone the target repo, run Claude Code, commit, and push; deterministic nodes (validate/gate/retrospective/detect) run the `lore-station` image via the `exec` vendor. Tasks survive Floor deploys and run in parallel with full isolation. Pods run as non-root with dropped capabilities and an egress-restricted NetworkPolicy. |
 | **Web UI** | Next.js dashboard with GitHub OAuth. Repo-centric view. One-click onboarding. Pipeline monitoring. Analytics dashboard. Global settings. |
 | **PostgreSQL** | CloudNativePG with pgvector. Schema-per-team isolation. HNSW indexes for vector search, GIN for keyword. |
 | **GitHub App** | Reads repo content for onboarding. Creates branches, commits, and PRs. Sets Actions secrets for ingest automation. |
@@ -157,8 +157,8 @@ The Floor chooses an execution mode based on the task type configured in `task-t
 | Mode | When | How |
 |------|------|-----|
 | **API call** | Onboarding, runbooks, gap-fill, review, review-reactor fixes | Direct `@anthropic-ai/sdk` call to Claude Haiku. Fast, lightweight. Plain text in, plain text out. |
-| **Claude Code (ephemeral Job)** | Implementation, refactoring, complex analysis | Creates a LoreTask CR → controller spawns an ephemeral K8s Job pod with the claude-runner image. Full tool access, isolated resources, survives agent deploys. |
-| **Multi-agent** | Large implementation tasks | Multiple LoreTask Jobs run in parallel, each on a different part of the task (e.g. one agent per file or module). Results merge into a single PR. |
+| **Claude Code (Agent CR)** | Implementation, refactoring, complex analysis | Creates an `Agent` CR (or, for task types with a workflow, a Floor-driven assembly line: one CR per node) → the ai-agent-subsystem controller spawns an ephemeral, isolated pod per run. Full tool access, isolated resources, survives Floor deploys. |
+| **Multi-agent** | Large implementation tasks | Multiple Agent CRs run in parallel, each on a different part of the task (e.g. one agent per file or module). Results merge into a single PR. |
 | **Feature request** | PM intent | Fetches repo context, generates spec/data-model/tasks as individual files. Each artifact gets its own focused LLM call. |
 | **Local runner** | Developer says "run locally" | Background `claude --print` in an isolated git worktree on the developer's machine. Uses the Claude Code subscription — zero API cost. Non-blocking; PR created via `gh`. |
 
@@ -176,7 +176,7 @@ Lore can run as a **dark software factory**: autonomous operation as the default
 - **Issues become an exception surface.** Created only for approval gates, escalations (`needs-human-help`), or repos that explicitly opted into `create_issue: always`. Cross-reference is via the `Lore-Task: <uuid>` trailer in the PR body.
 - **Two-key auth on privileged settings.** Toggling `enabled` or modifying `auto_merge.paths` requires admin scope **and** an open PR labeled `dark-factory-approval` by a CODEOWNER of the affected repo's `CLAUDE.md`.
 
-Enablement is gated twice — per-repo and cluster-wide — so the Helm flag can't get ahead of the claude-runner image. Operators turning it on should read the enablement steps in the [Platform Engineer Guide](../using-lore/platform-engineer.md#dark-factory-mode). The full design is in ADR-016 and `specs/6-dark-factory/`; rollout and rollback live in `runbooks/dark-factory-rollback.md`.
+Enablement is a single per-repo gate (`dark_factory.enabled`, itself a two-key privileged change); the legacy cluster-wide gate went away with the LoreTask path in the ADR-031 cutover. Operators turning it on should read the enablement steps in the [Platform Engineer Guide](../using-lore/platform-engineer.md#dark-factory-mode). The full design is in ADR-016 and `specs/6-dark-factory/`; rollout and rollback live in `runbooks/dark-factory-rollback.md`.
 
 ---
 
