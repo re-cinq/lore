@@ -52,21 +52,32 @@ if [[ ! -d node_modules ]]; then
   npm ci --no-audit --no-fund
 fi
 
+# Dependency order: assembly-lines and server-core both import shared, so a
+# stale lib forces a rebuild of everything after it in this list too.
 libs=(libs/shared libs/assembly-lines libs/server-core)
+workspaces=(@re-cinq/lore-shared @re-cinq/lore-assembly-lines @re-cinq/lore-server-core)
 stale=()
+first_stale=-1
 
-for lib in "${libs[@]}"; do
+for i in "${!libs[@]}"; do
+  lib=${libs[$i]}
   built="$lib/dist/index.js"
 
   if [[ ! -f $built || -n "$(find "$lib/src" -newer "$built" -print -quit)" ]]; then
     stale+=("$lib")
+
+    if [[ $first_stale -lt 0 ]]; then
+      first_stale=$i
+    fi
   fi
 done
 
-if [[ ${#stale[@]} -gt 0 ]]; then
-  say "worktree-bootstrap: building workspace libs (stale: ${stale[*]})"
-  npm run build --workspace=@re-cinq/lore-shared
-  npm run build --workspace=@re-cinq/lore-assembly-lines
-  npm run build --workspace=@re-cinq/lore-server-core
+if [[ $first_stale -ge 0 ]]; then
+  say "worktree-bootstrap: rebuilding ${workspaces[*]:$first_stale} (stale: ${stale[*]})"
+
+  for workspace in "${workspaces[@]:$first_stale}"; do
+    npm run build --workspace="$workspace"
+  done
+
   say "worktree-bootstrap: done — eslint and tsc now resolve inside $root"
 fi

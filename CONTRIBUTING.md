@@ -58,9 +58,9 @@ concurrent sessions in the same fresh worktree wait instead of racing
 
 One caveat remains: `tsc` resolves workspace libs through their built `dist`.
 After editing `libs/*/src`, rerun `scripts/worktree-bootstrap.sh` (it rebuilds
-only stale libs — the hook does not fire again) before trusting a
-package-level `npx tsc --noEmit`. When in doubt, `npm run build` rebuilds
-everything.
+the stale libs plus their dependents, in dependency order — the hook does not
+fire again) before trusting a package-level `npx tsc --noEmit`. When in doubt,
+`npm run build` rebuilds everything.
 
 Do **not** symlink a worktree's `node_modules` to the main checkout, and do
 not repoint the main checkout's `@re-cinq/*` links at a worktree — both
