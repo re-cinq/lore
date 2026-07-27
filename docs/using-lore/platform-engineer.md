@@ -8,7 +8,7 @@ If you're standing up Lore for the first time, deploy the backend first, then co
 
 ## Tasks via the Web UI or API
 
-A product owner or platform engineer creates a task through the dashboard. The Floor processes it — either via a direct API call (simple tasks) or by delegating to ephemeral Job pods through the LoreTask CRD (complex tasks).
+A product owner or platform engineer creates a task through the dashboard. The Floor processes it — either via a direct API call (simple tasks) or by dispatching `Agent` CRs on the ai-agent-subsystem in the `ai-agents` namespace (complex tasks; one pod per assembly-line node, advanced by the event-driven Floor walk).
 
 <p align="center"><img src="../../badges/flow2-webui.svg" width="600" alt="Tasks via Web UI or API" /></p>
 
@@ -134,14 +134,9 @@ Developers then use `/lore` in those channels — see the [Developer Guide](deve
 
 ## Dark Factory mode
 
-Dark Factory mode lets a repo run autonomously by default, with humans only at intent definition and stage-gate validation. Enabling it for a repo requires **two** independent switches:
+Dark Factory mode lets a repo run autonomously by default, with humans only at intent definition and stage-gate validation. Enabling it for a repo is a single per-repo switch — `lore.repos.settings.dark_factory.enabled = true` via the settings UI / API. Toggling it is a privileged change guarded by two-key authorization: admin scope **plus** an open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`.
 
-| Gate | Where | Purpose |
-|------|-------|---------|
-| Per-repo | `lore.repos.settings.dark_factory.enabled = true` | Repo opts in via the settings UI / API |
-| Cluster | `LORE_DARK_FACTORY_CLUSTER_ENABLED=true` on the Floor deployment env | Permits the worker to forward dark-mode workflows to the LoreTask CRD path |
-
-The cluster gate exists so the Helm flag can't get ahead of the claude-runner image — the cluster supervisor needs `/app/dist/supervisor/runner-cli.js` and `/app/libs/assembly-lines/dist/assembly-lines/*.yaml` baked in. Both gates default to **off** for existing repos, so there's no behavior change at migration.
+All tasks execute on the ai-agent-subsystem (`Agent` CRs in the `ai-agents` namespace) regardless of mode; the legacy LoreTask path and its `LORE_DARK_FACTORY_CLUSTER_ENABLED` cluster gate were removed in the ADR-031 cutover. The setting defaults to **off**, so there's no behavior change for existing repos.
 
 Rollout, rollback, the pilot procedure, and audit-log queries live in `runbooks/dark-factory-rollback.md`. For the full design — branch-as-state, auto-merge gates, two-key authorization — see the [Architecture reference](../building-lore/architecture.md#dark-factory-mode), ADR-016, and `specs/6-dark-factory/`.
 

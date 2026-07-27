@@ -29,7 +29,7 @@ The `description` is the long, self-disambiguating text an LLM reads to choose t
 
 **Bearer auth on `/api/*`.** Every HTTP API route the proxy targets enforces bearer-token validation before dispatch (`LORE_INGEST_TOKEN` full-access, or a scoped token from `pipeline.api_tokens`). The proxy helpers (`proxyToApi` / `proxyGetApi` / `proxyMemory` in `deps.ts`) attach the token, retry retriable statuses (`408/429/5xx`) with backoff `[200, 600, 1800]ms`, and classify outcomes as `ok` / `not_configured` / `unreachable` / `denied`. A `denied` (401/403) is never served from stale cache; an `unreachable` outage may fall back to a stale cached copy. `unreachable` and `denied` are surfaced as explicit error text (`unreachableError` / `deniedError`) rather than silently writing local state that would diverge from the org-wide DB.
 
-**Local trust boundary.** Tools that execute arbitrary shell in your checkout — `lore_list_tests`, `lore_run_test` — and the whole local-runner family run only in a trusted sandbox (dev machine, CI, or claude-runner pod). On the shared cluster server (`LORE_DB_HOST` set) the spec-trace local tools refuse and return *"Test commands run only in a trusted sandbox — run in CI or locally."*
+**Local trust boundary.** Tools that execute arbitrary shell in your checkout — `lore_list_tests`, `lore_run_test` — and the whole local-runner family run only in a trusted sandbox (dev machine, CI, or an agent pod on the ai-agent-subsystem). On the shared cluster server (`LORE_DB_HOST` set) the spec-trace local tools refuse and return *"Test commands run only in a trusted sandbox — run in CI or locally."*
 
 ---
 
