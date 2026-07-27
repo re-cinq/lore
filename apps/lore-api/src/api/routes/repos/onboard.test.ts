@@ -51,6 +51,27 @@ describe("POST /api/onboard", () => {
     expect(res.result).toEqual({ ok: true });
   });
 
+  it("returns 409 with the reason when the guard blocks the submission", async () => {
+    vi.mocked(onboardRepo).mockResolvedValue({
+      blocked: "already-onboarded",
+      error: "o/r is already onboarded.",
+      task_id: null,
+    });
+    const res = await post({ repo: "o/r" }, makePool());
+
+    expect(res.statusCode).toBe(409);
+    expect(res.result).toMatchObject({ blocked: "already-onboarded" });
+  });
+
+  it("passes reonboard through to onboardRepo", async () => {
+    vi.mocked(onboardRepo).mockResolvedValue({ ok: true } as any);
+    await post({ repo: "o/r", reonboard: true }, makePool());
+
+    expect(onboardRepo).toHaveBeenCalledWith(expect.anything(), "o/r", {
+      reonboard: true,
+    });
+  });
+
   it("returns 500 when onboardRepo throws", async () => {
     vi.mocked(onboardRepo).mockRejectedValue(new Error("onboard fail"));
     const res = await post({ repo: "o/r" }, makePool());

@@ -83,14 +83,23 @@ export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
 
   server.tool(
     "lore_onboard_repo",
-    `Registers a new GitHub repo with Lore and spawns an onboard pipeline task that authors CLAUDE.md/AGENTS.md/PR-template and opens a PR asynchronously; returns { repo_id, task_id, status }. Re-onboarding an existing repo refreshes onboarded_at. Instead: to list repos use lore_list_repos; to push files into an already-onboarded repo use lore_ingest_files.`,
+    `Registers a new GitHub repo with Lore and spawns an onboard pipeline task that authors CLAUDE.md/AGENTS.md/PR-template and opens a PR asynchronously; returns { repo_id, task_id, status }. Refuses (HTTP 409) when the repo is already onboarded, still has its onboarding PR open, or already has an onboard task in flight — pass reonboard to regenerate missing scaffolding for an onboarded repo. Instead: to list repos use lore_list_repos; to push files into an already-onboarded repo use lore_ingest_files.`,
     {
       full_name: z
         .string()
         .describe('"owner/repo" format; both segments must be non-empty.'),
+      reonboard: z
+        .boolean()
+        .optional()
+        .describe(
+          "Repair pass over an already-onboarded repo: regenerates only the scaffolding it is missing. Still refused while an onboard task is in flight.",
+        ),
     },
-    async ({ full_name }) => {
-      const proxied = await proxyToApi("/api/onboard", { repo: full_name });
+    async ({ full_name, reonboard }) => {
+      const proxied = await proxyToApi("/api/onboard", {
+        repo: full_name,
+        reonboard,
+      });
 
       if (proxied.ok) {
         return { content: [{ type: "text" as const, text: proxied.body }] };

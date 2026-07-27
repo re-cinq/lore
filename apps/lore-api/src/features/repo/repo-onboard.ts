@@ -1,5 +1,13 @@
-import type { Pool } from "pg";
-import { errorMessage } from "@re-cinq/lore-shared";
+import type { Pool, PoolClient } from "pg";
+import {
+  decideOnboard,
+  errorMessage,
+  onboardLockKey,
+  onboardTaskDescription,
+  IN_FLIGHT_TASK_STATUSES,
+  type OnboardBlock,
+  type OnboardState,
+} from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Repo onboarding module.
@@ -141,16 +149,63 @@ export interface OnboardResult {
   webhook: EnsureFloorWebhookResult;
 }
 
+/** Returned instead of `OnboardResult` when the guard refuses the submission. */
+export interface OnboardBlockedResult {
+  blocked: OnboardBlock;
+  error: string;
+  /** The onboard task already in flight, when that is the reason. */
+  task_id: string | null;
+}
+
+/**
+ * Reads the repo's onboarding state on `client`, which must already hold the
+ * per-repo advisory lock so the read cannot go stale before the write.
+ */
+async function readOnboardState(
+  client: PoolClient,
+  fullName: string,
+): Promise<OnboardState> {
+  const { rows: repoRows } = await client.query(
+    `SELECT onboarding_pr_merged, onboarding_pr_url
+     FROM lore.repos WHERE full_name = $1`,
+    [fullName],
+  );
+  const { rows: taskRows } = await client.query(
+    `SELECT id FROM pipeline.tasks
+     WHERE target_repo = $1 AND task_type = 'onboard' AND status = ANY($2::text[])
+     ORDER BY created_at DESC LIMIT 1`,
+    [fullName, IN_FLIGHT_TASK_STATUSES],
+  );
+  const merged = repoRows[0]?.onboarding_pr_merged === true;
+
+  return {
+    onboardingPrMerged: merged,
+    openOnboardingPrUrl: merged
+      ? null
+      : (repoRows[0]?.onboarding_pr_url ?? null),
+    inFlightTaskId: taskRows[0]?.id ?? null,
+  };
+}
+
 /**
  * Onboards a repo by inserting it into lore.repos and submitting an
  * "onboard" task to the Lore Agent pipeline. The agent will inspect the repo,
  * understand its tech stack, and generate a customized CLAUDE.md plus
  * supporting files — then open a single onboarding PR.
+ *
+ * Guarded: an already-onboarded repo, one with an onboarding PR still open, or
+ * one with an onboard task in flight is refused rather than given a second task
+ * (each task files its own Issue and races its own PR — see issue #968). Pass
+ * `reonboard` for the deliberate repair path, which may run against an
+ * onboarded repo but still never doubles up on one in flight. The read and the
+ * write share one transaction holding a per-repo advisory lock, so concurrent
+ * submissions produce at most one task.
  */
 export async function onboardRepo(
   pool: Pool,
   fullName: string,
-): Promise<OnboardResult> {
+  options: { reonboard?: boolean } = {},
+): Promise<OnboardResult | OnboardBlockedResult> {
   const [owner, name] = fullName.split("/");
 
   enforceTrue(
@@ -159,25 +214,66 @@ export async function onboardRepo(
     `Invalid repo full_name: "${fullName}". Expected "owner/repo" format.`,
   );
 
-  // Insert into repos table (upsert — re-onboarding refreshes the timestamp)
-  const { rows } = await pool.query(
-    `INSERT INTO lore.repos (owner, name, full_name)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (full_name) DO UPDATE SET onboarded_at = now()
-     RETURNING id`,
-    [owner, name, fullName],
-  );
+  const client = await pool.connect();
+  let repoId: string;
+  let taskId: string;
 
-  // Create a pipeline task for the onboarding agent
-  const { createTask } =
-    await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
-  const result = await createTask(
-    fullName, // description is the repo name
-    "onboard",
-    fullName, // target_repo
-    "onboard-system",
-    { repo: fullName },
-  );
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+      onboardLockKey(fullName),
+    ]);
+
+    const decision = decideOnboard(
+      fullName,
+      await readOnboardState(client, fullName),
+      options,
+    );
+
+    if (!decision.allowed) {
+      await client.query("ROLLBACK");
+      console.log(
+        `[onboard] Refused ${fullName} (${decision.block}): ${decision.message}`,
+      );
+
+      return {
+        blocked: decision.block,
+        error: decision.message,
+        task_id: decision.taskId,
+      };
+    }
+
+    // Create the pipeline task on its own connection — it commits immediately,
+    // and the advisory lock keeps the next submitter blocked until this
+    // transaction commits, by which time the task row is visible to its read.
+    const { createTask } =
+      await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
+    const result = await createTask(
+      onboardTaskDescription(fullName),
+      "onboard",
+      fullName, // target_repo
+      "onboard-system",
+      { repo: fullName },
+    );
+
+    // Insert into repos table (upsert — re-onboarding refreshes the timestamp)
+    const { rows } = await client.query(
+      `INSERT INTO lore.repos (owner, name, full_name)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (full_name) DO UPDATE SET onboarded_at = now()
+       RETURNING id`,
+      [owner, name, fullName],
+    );
+
+    await client.query("COMMIT");
+    repoId = rows[0].id;
+    taskId = result.task_id;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
 
   // Point the repo's GitHub webhook at the Floor ingress WITH the HMAC secret so
   // events flow once the App is installed — without it, deliveries 401. Best-effort:
@@ -195,8 +291,8 @@ export async function onboardRepo(
   }
 
   return {
-    repo_id: rows[0].id,
-    task_id: result.task_id,
+    repo_id: repoId,
+    task_id: taskId,
     status: "onboarding-agent-spawned",
     webhook,
   };
