@@ -54,11 +54,11 @@ This feature is not an island — it sits on top of the existing pipeline, graph
 and spec machinery and feeds the rest of the system.
 
 - **Task-to-Agent Pipeline (`graveyard/specs/3-task-agent-pipeline`).** `feature-planning`
-  and `feature-finalize` are two new task types on the existing pipeline. Planning
-  is a no-mutation LLM→JSON round run in-process (ADR-027); finalize writes files
-  and pushes, so it runs as a Station on the LoreTask CRD → Job pod →
-  loretask-watcher path. No new orchestration runtime; it reuses task creation,
-  the pod lifecycle, and PR creation.
+  and `feature-finalize` are two new task types on the existing pipeline. *(As designed,
+  planning ran in-process and finalize on the LoreTask CRD path; since the ADR-031 cutover
+  both run their own assembly-line definitions on the Station backend — see FR-2.2 for the
+  current routing.)* No new orchestration runtime; it reuses task creation, the pod
+  lifecycle, and PR creation.
 - **Feature-request task type (`specs/3`).** This feature is the interactive,
   multi-round successor to one-shot `feature-request`: same end artifact (a
   `spec.md` PR following repo conventions), but with a human in the loop, a
@@ -209,7 +209,7 @@ The system MUST analyze a feature prompt in the context of the whole project.
 - FR-2.1: **+ Feature** opens a page where the author submits a free-text prompt; submit creates a draft feature row and kicks a `feature-planning` task. ([validated by handleFeaturesRoute creates a draft and kicks round 1](apps/lore-api/src/api/routes/features/features.test.ts#L87))
 
 The submitted title and prompt are trimmed and required, capped at 256 and 8000 characters respectively, and rejected with a `ValidationError` otherwise — the route echoes this as a `400 { error: "title and prompt are required" }` before touching the project. ([validated by `feature-input.test.ts:9`](libs/shared/src/feature-planning/feature-input.test.ts#L9), [`feature-input.test.ts:18`](libs/shared/src/feature-planning/feature-input.test.ts#L18), [`feature-input.test.ts:24`](libs/shared/src/feature-planning/feature-input.test.ts#L24), [`feature-input.test.ts:30`](libs/shared/src/feature-planning/feature-input.test.ts#L30), [`feature-input.test.ts:36`](libs/shared/src/feature-planning/feature-input.test.ts#L36), [handleFeaturesRoute rejects a blank-title create with 400](apps/lore-api/src/api/routes/features/features.test.ts#L107))
-- FR-2.2: A planning round is a single LLM→JSON call with no repo mutation, so `feature-planning` runs **in-process** in the worker (ADR-027) rather than in a Job pod; `feature-finalize` — which writes files and pushes a branch — runs as a Station. Neither path depends on dark-factory enablement.
+- FR-2.2: *(restated late 2026-07)* Both task types run their own assembly line on the Station backend regardless of dark-factory enablement — the worker always forwards the definition name for them, so `feature-planning` runs its single `analyze` agent node (no commit or PR — the pod posts the GapResult back to the features API) and `feature-finalize` runs `write → push` (one Agent CR per node); the original in-process handlers survive only behind the explicit `LORE_STATION_BACKEND=inprocess` escape hatch for a dev machine without Docker or credentials ([impl](apps/floor/src/jobs/task/worker.ts))
 - FR-2.3: The planning round receives the feature id and iteration; the hydrated context includes the full feature timeline (prior rounds' results + per-section answers) ahead of the assembled project context. Round one wraps the title and user prompt and omits the draft spec; later rounds render each prior section's content, the author's per-section comment, and each follow-up question with its asked text and answer (or an unanswered marker). ([validated by composePlanningPrompt renders the prior timeline](libs/shared/src/feature-planning/planning-prompt.test.ts#L34), [`planning-prompt.test.ts:21`](libs/shared/src/feature-planning/planning-prompt.test.ts#L21), [`planning-prompt.test.ts:59`](libs/shared/src/feature-planning/planning-prompt.test.ts#L59), [`planning-prompt.test.ts:71`](libs/shared/src/feature-planning/planning-prompt.test.ts#L71))
 - FR-2.4: The planning prompt and model resolve from the `feature-planning` agent definition — an editable org default, overridable per project — rather than a hardcoded constant. ([validated by agent-defs serves PLANNING_INSTRUCTIONS for feature-planning](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L83))
 - FR-2.5: The planning round bills org credentials (`ANTHROPIC_API_KEY`) by default; a developer's local Claude subscription is used only with explicit opt-in (`LORE_STATION_ALLOW_PERSONAL_AUTH`), never silently.

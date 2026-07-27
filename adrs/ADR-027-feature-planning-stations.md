@@ -12,8 +12,12 @@ This ADR runs feature planning and finalize as interactive Stations, persists fe
 
 > **Mechanism update ([ADR-031](./ADR-031-agent-station-crds.md)).** "Stations" survive as
 > a first-class concept — they are now the ai-agent-subsystem `Station` CRs, not the
-> `LoreTask` backend. Feature planning/finalize still run in-process for the lightweight
-> path; the cluster path is the new substrate.
+> `LoreTask` backend. Both task types now run their own assembly-line definitions
+> (`feature-planning.yaml`: a single `analyze` agent node; `feature-finalize.yaml`:
+> `write → push`) on the Station backend, one Agent CR per node, regardless of
+> dark-factory enablement. The in-process handlers this ADR describes survive only
+> behind the explicit `LORE_STATION_BACKEND=inprocess` escape hatch (a dev machine
+> without Docker/credentials).
 
 ## Context
 
