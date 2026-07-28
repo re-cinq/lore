@@ -163,7 +163,7 @@ The system MUST maintain a registry of onboarded repos.
 - FR-1.2: Repos populated from GitHub App installation (which repos
   the App has access to).
 - FR-1.3: Repo list shown as the home page of the UI.
-- FR-1.4: MCP tool `lore_list_repos` returns all onboarded repos. ([validated by `repo-tools.test.ts:115`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L115))
+- FR-1.4: MCP tool `lore_list_repos` returns all onboarded repos. ([validated by `repo-tools.test.ts:164`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L164))
 
 ### FR-2: Repo Onboarding via PR
 
@@ -183,12 +183,14 @@ The system MUST onboard new repos by creating a PR.
   content, counting only the repos where a PR was actually opened and
   tolerating per-repo failures/nulls. ([validated by `actions.test.ts:26`](apps/web-ui/src/app/actions.test.ts#L26), [`actions.test.ts:50`](apps/web-ui/src/app/actions.test.ts#L50))
 - FR-2.5: Tracks the onboarding PR in the pipeline (status: pending
-  until merged). ([validated by `onboard.test.ts:11`](apps/web-ui/src/lib/onboard.test.ts#L11))
+  until merged). ([validated by `onboard.test.ts:70`](apps/web-ui/src/lib/onboard.test.ts#L70))
 - FR-2.6: After merge, adds repo to the registry and triggers
   initial ingestion; re-onboarding creates an onboard task and
   redirects to the new task page (or back to the repo when none is
   created), and the fix-ingest control re-triggers ingestion for
-  misaligned repos with a singular/plural PR label. ([validated by `actions.test.ts:22`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L22), [`actions.test.ts:31`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L31), [`FixIngestButton.test.tsx:13`](apps/web-ui/src/components/FixIngestButton.test.tsx#L13), [`FixIngestButton.test.tsx:21`](apps/web-ui/src/components/FixIngestButton.test.tsx#L21), [`FixIngestButton.test.tsx:40`](apps/web-ui/src/components/FixIngestButton.test.tsx#L40))
+  misaligned repos with a singular/plural PR label; a re-onboard raised while
+  the previous pass is still running lands on that in-flight task instead of
+  queueing a duplicate. ([validated by `actions.test.ts:22`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L22), [`actions.test.ts:33`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L33), [`actions.test.ts:46`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L46), [`FixIngestButton.test.tsx:13`](apps/web-ui/src/components/FixIngestButton.test.tsx#L13), [`FixIngestButton.test.tsx:21`](apps/web-ui/src/components/FixIngestButton.test.tsx#L21), [`FixIngestButton.test.tsx:40`](apps/web-ui/src/components/FixIngestButton.test.tsx#L40))
 
 ### FR-3: Repo-Centric UI Layout
 

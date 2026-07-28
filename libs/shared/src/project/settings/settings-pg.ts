@@ -160,6 +160,13 @@ export class PgSettings implements SettingsPort {
     );
   }
 
+  async clearOnboardingPrUrl(id: string): Promise<void> {
+    await this.pool.query(
+      "UPDATE lore.repos SET onboarding_pr_url = NULL WHERE id = $1",
+      [id],
+    );
+  }
+
   async setOnboardingPrUrl(repo: string, url: string): Promise<void> {
     await this.pool.query(
       "UPDATE lore.repos SET onboarding_pr_url = $1 WHERE full_name = $2",

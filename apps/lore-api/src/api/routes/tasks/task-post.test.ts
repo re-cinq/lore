@@ -203,6 +203,16 @@ describe("POST /api/task", () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it("refuses task_type onboard and points at the guarded onboard route", async () => {
+    const res = await post({ description: "onboard us", task_type: "onboard" });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.result).toMatchObject({
+      error: expect.stringContaining("/api/onboard"),
+    });
+    expect(createTask).not.toHaveBeenCalled();
+  });
+
   it("cancel issues the guarded tasks UPDATE with the task_id", async () => {
     const pool = makePool();
 

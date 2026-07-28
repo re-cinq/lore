@@ -14,10 +14,11 @@ vi.mock("@re-cinq/lore-server-core/features/repo/repo-detect.js", () => ({
 vi.mock("./deps.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./deps.js")>()),
   proxyGetApi: vi.fn(),
+  proxyToApi: vi.fn(),
 }));
 
 import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
-import { proxyGetApi } from "./deps.js";
+import { proxyGetApi, proxyToApi } from "./deps.js";
 import { registerRepoTools } from "./repo-tools.js";
 import type { ToolDeps } from "./deps.js";
 
@@ -85,6 +86,54 @@ describe("lore_ingest_files", () => {
     expect(result.content[0].text).toEqual(
       "Ingestion requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.",
     );
+  });
+});
+
+describe("lore_onboard_repo", () => {
+  it("returns the guard's refusal body verbatim on a 409", async () => {
+    const body = JSON.stringify({
+      blocked: "in-flight",
+      error: "re-cinq/x is already in flight",
+      task_id: "task-9",
+    });
+
+    vi.mocked(proxyToApi).mockResolvedValue({
+      ok: false,
+      reason: "unreachable",
+      detail: "HTTP 409 Conflict: re-cinq/x is already in flight",
+      status: 409,
+      body,
+    });
+    const handler = handlerFor("lore_onboard_repo", () => null);
+    const result = await handler({ full_name: "re-cinq/x" });
+
+    // Not the "unreachable ... check the GKE pods and retry" copy: a refusal is
+    // an answer about state, and the caller needs task_id to poll instead.
+    expect(result.content[0].text).toBe(body);
+  });
+
+  it("still reports a genuine outage as unreachable", async () => {
+    vi.mocked(proxyToApi).mockResolvedValue({
+      ok: false,
+      reason: "unreachable",
+      detail: "request timed out (15s)",
+    });
+    const handler = handlerFor("lore_onboard_repo", () => null);
+    const result = await handler({ full_name: "re-cinq/x" });
+
+    expect(result.content[0].text).toContain("Lore API unreachable");
+  });
+
+  it("passes reonboard through to the API", async () => {
+    vi.mocked(proxyToApi).mockResolvedValue({ ok: true, body: "{}" });
+    const handler = handlerFor("lore_onboard_repo", () => null);
+
+    await handler({ full_name: "re-cinq/x", reonboard: true });
+
+    expect(proxyToApi).toHaveBeenCalledWith("/api/onboard", {
+      repo: "re-cinq/x",
+      reonboard: true,
+    });
   });
 });
 

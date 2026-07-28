@@ -364,6 +364,20 @@ export {
   type KubeConfigLoader,
 } from "./kube-config.js";
 export { prFooter } from "./pr-body.js";
+export {
+  decideOnboard,
+  onboardLockKey,
+  onboardTaskDescription,
+  toOnboardState,
+  IN_FLIGHT_TASK_STATUSES,
+  ONBOARD_REPO_STATE_SQL,
+  ONBOARD_IN_FLIGHT_TASK_SQL,
+  type OnboardState,
+  type OnboardBlock,
+  type OnboardDecision,
+  type OnboardRepoRow,
+  type OnboardTaskRow,
+} from "./onboard-guard.js";
 // Branch-lease backends (Slice 3) — the agent supervisor imports these until
 // it moves to the runner package and switches to project.leases (Slice 4).
 export {

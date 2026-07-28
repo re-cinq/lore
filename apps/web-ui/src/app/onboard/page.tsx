@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { query, withTransaction } from "@/lib/db";
+import { query } from "@/lib/db";
 import { checkRepoAccess } from "@/lib/github";
 import { createOnboardTask } from "@/lib/onboard";
 import { revalidatePath } from "next/cache";
@@ -22,18 +22,7 @@ async function onboardRepo(
     };
   }
 
-  const [owner, name] = fullName.split("/");
-
   try {
-    const existing = await query(
-      `SELECT id FROM lore.repos WHERE full_name = $1`,
-      [fullName],
-    );
-
-    if (existing.length > 0) {
-      return { error: `${fullName} is already onboarded.`, fullName };
-    }
-
     if ((await checkRepoAccess(fullName)) === "not-found") {
       return {
         error: `${fullName} was not found on GitHub — check the owner and repo name, and that the Lore GitHub App has access to it.`,
@@ -41,17 +30,14 @@ async function onboardRepo(
       };
     }
 
-    // One transaction: a repos row without its task would make a retry
-    // silently hit the already-onboarded path, and a task without its repos
-    // row would make a retry queue a second onboard agent. Atomicity also
-    // keeps the returned error truthful — on failure, nothing was queued.
-    await withTransaction(async (tx) => {
-      await createOnboardTask(fullName, tx);
-      await tx(
-        `INSERT INTO lore.repos (owner, name, full_name) VALUES ($1, $2, $3) ON CONFLICT (full_name) DO NOTHING`,
-        [owner, name, fullName],
-      );
-    });
+    const result = await createOnboardTask(fullName);
+
+    // Already onboarded / PR still open / task in flight: report it instead of
+    // filing a duplicate task, which would open its own Issue and race its own
+    // PR against the one already in progress.
+    if (!result.ok) {
+      return { error: result.message, fullName };
+    }
   } catch (err) {
     // pg errors carry infrastructure detail (hosts, users) that an onboarding
     // form must not disclose — log the real error, return a generic message.

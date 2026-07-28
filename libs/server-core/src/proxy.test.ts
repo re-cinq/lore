@@ -131,4 +131,26 @@ describe("proxy client result mapping", () => {
     });
     expect(spy).toHaveBeenCalledTimes(1);
   });
+
+  it("carries the status and raw body of a non-retriable 4xx", async () => {
+    const body = JSON.stringify({
+      blocked: "in-flight",
+      error: "o/r is already in flight",
+      task_id: "task-9",
+    });
+    const spy = fetchReturning({
+      ok: false,
+      status: 409,
+      statusText: "Conflict",
+      text: async () => body,
+    });
+
+    global.fetch = spy as typeof fetch;
+    expect(await proxyToApi("/api/onboard", {})).toMatchObject({
+      ok: false,
+      reason: "unreachable",
+      status: 409,
+      body,
+    });
+  });
 });

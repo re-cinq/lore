@@ -51,7 +51,7 @@ The tool takes no parameters — the schema object is `{}`.
    COALESCE(tc.task_count, 0)::int AS task_count`, ordered by `r.onboarded_at
    DESC`.
 3. **Empty guard** — if the result array is empty, return the literal text
-   `"No repos onboarded yet. Use lore_onboard_repo to add one."` ([validated by `repo-tools.test.ts:128`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L128))
+   `"No repos onboarded yet. Use lore_onboard_repo to add one."` ([validated by `repo-tools.test.ts:177`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L177))
 
 4. **Success envelope** — return `JSON.stringify(repos, null, 2)`.
 5. Any thrown error is caught and returned as `"Error listing repos: {message}"`.
@@ -83,7 +83,7 @@ unit seam — the empty and populated branches need a live DB.)*
 
 When repos are served over the API proxy, the handler pages in 100-row windows —
 walking `offset` by 100 until every row is fetched — and merges them into one
-array carrying the reported `total`. ([validated by `pages through repos beyond the 100-row API cap`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L92))
+array carrying the reported `total`. ([validated by `pages through repos beyond the 100-row API cap`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L141))
 
 The `/api/repos` HTTP route (the proxy source) pages the repo list: it returns 503 when no pool, defaults to `limit 100` / `offset 0` (clamping an over-max limit to 100 and applying the offset), rejects a negative offset with 400, and returns 500 when the query throws — echoing `total`/`limit`/`offset` alongside the rows. ([validated by GET /api/repos returns 503 when pool is null](apps/lore-api/src/api/routes/repos/repos.test.ts#L30), [`repos.test.ts:36`](apps/lore-api/src/api/routes/repos/repos.test.ts#L36), [`repos.test.ts:55`](apps/lore-api/src/api/routes/repos/repos.test.ts#L55), [`repos.test.ts:67`](apps/lore-api/src/api/routes/repos/repos.test.ts#L67), [`repos.test.ts:73`](apps/lore-api/src/api/routes/repos/repos.test.ts#L73))
 
