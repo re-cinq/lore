@@ -525,9 +525,12 @@ The system MUST gate task types per-repo based on demonstrated
 reliability.
 
 - FR-15.1: `settings.trust.level` controls which task types are
-  allowed: `docs` (gap-fill/runbook), `tests` (+review),
+  allowed: `docs` (gap-fill/runbook/onboard + feature-planning/
+  feature-finalize per ADR-027), `tests` (+review),
   `implementation` (+implementation/feature-request/general),
-  `full` (all).
+  `full` (all). `onboard` is allowed at every tier — it produces a
+  docs-only scaffolding PR and duplicate protection lives in its own
+  route's guard, not the trust ladder. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/pipeline-tasks.trust.test.ts#L37), [`still refuses an implementation task at trust level docs`](libs/shared/src/pipeline-tasks.trust.test.ts#L52))
 - FR-15.2: Auto-promotes after 3 successful merges at the current
   level. Defaults to `implementation` for backward compatibility.
 
