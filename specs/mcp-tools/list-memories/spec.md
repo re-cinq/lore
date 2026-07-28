@@ -42,7 +42,7 @@ Lists memory keys for the current repo (newest-first, paginated), returning {mem
 
 1. Resolve `repo = detectCurrentRepo() || undefined`.
 2. **DB path** — if `isMemoryDbAvailable()`: call `listMemories(agent_id, limit,
-   offset, repo)` ([handler](../../../apps/mcp-server/src/features/memory/memory.ts#L198)). Inside the handler the **scope precedence** is:
+   offset, repo)` ([handler](../../../libs/server-core/src/features/memory/memory.ts#L216)). Inside the handler the **scope precedence** is:
    - `repo` present → `filter = "repo = $1 AND"`, params `[repo, limit,
      offset]`.
    - else `agentId` present → `filter = "agent_id = $1 AND"`, params
@@ -77,7 +77,7 @@ version, created_at, ttl_seconds, has_facts }`; the proxied body; the
 ## Dependencies & side effects
 
 - `detectCurrentRepo()`, `isMemoryDbAvailable()`, `resolveAgentId()`.
-- Handler `listMemories` ([memory.ts](../../../apps/mcp-server/src/features/memory/memory.ts#L198)).
+- Handler `listMemories` ([memory.ts](../../../libs/server-core/src/features/memory/memory.ts#L216)).
 - `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L98)); `listMemoriesFile` (offline).
 - Tables: `memory.memories` (read), `memory.facts` (EXISTS subquery), `memory.audit_log` (insert).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.

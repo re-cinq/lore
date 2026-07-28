@@ -43,10 +43,10 @@ Returns an agent's combined health and learning statistics as JSON (memory_count
    proxy/file path).
 2. `agent = resolveAgentId(agent_id)`; `dbPoolRef = getPool()`.
 3. Run three queries via `Promise.all`:
-   - `agentHealth(agent_id)` ([handler](../../../apps/mcp-server/src/features/memory/memory.ts#L304)) → `{ agent_id, memory_count,
+   - `agentHealth(agent_id)` ([handler](../../../libs/server-core/src/features/memory/memory.ts#L408)) → `{ agent_id, memory_count,
      last_active, snapshot_count }` from `memory.memories` (active) +
      `memory.snapshots`.
-   - `agentStats(agent_id)` ([handler](../../../apps/mcp-server/src/features/memory/memory.ts#L315)) → `{ agent_id, total_memories,
+   - `agentStats(agent_id)` ([handler](../../../libs/server-core/src/features/memory/memory.ts#L423)) → `{ agent_id, total_memories,
      total_facts, active_facts, invalidated_facts, total_searches,
      shared_pools_created }`. `active`/`invalidated` split on `f.valid_to IS
      NULL`; `total_searches` counts `memory.audit_log` rows with
@@ -78,7 +78,7 @@ PostgreSQL-required text, or `"Error fetching agent stats: {message}"`.
 ## Dependencies & side effects
 
 - `isMemoryDbAvailable()`, `getPool()`, `resolveAgentId()`.
-- Handlers `agentHealth` ([memory.ts](../../../apps/mcp-server/src/features/memory/memory.ts#L304)) + `agentStats` ([memory.ts](../../../apps/mcp-server/src/features/memory/memory.ts#L315)).
+- Handlers `agentHealth` ([memory.ts](../../../libs/server-core/src/features/memory/memory.ts#L408)) + `agentStats` ([memory.ts](../../../libs/server-core/src/features/memory/memory.ts#L423)).
 - Tables (read-only): `memory.memories`, `memory.facts`, `memory.snapshots`, `memory.audit_log`, `memory.shared_pools`, `memory.episodes`.
 - Env: `LORE_DB_HOST`.
 - No writes (read-only aggregation).

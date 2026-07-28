@@ -47,7 +47,7 @@ Returns one pipeline task's full record (status + ordered event timeline) as JSO
      returns `deniedError`; any other non-2xx returns `"Remote error: {statusText}"`;
      on success return the pretty-printed (`JSON.stringify(…, null, 2)`) response body.
    - **DB mode (`LORE_DB_HOST` set)** — call `getTask(task_id)`
-     ([handler wrapper](../../../apps/mcp-server/src/features/pipeline/pipeline.ts#L35)).
+     ([handler wrapper](../../../libs/server-core/src/features/pipeline/pipeline.ts#L41)).
 2. **Shared CRUD** ([`getTask`](../../../libs/shared/src/pipeline-tasks.ts#L107)) — `SELECT * FROM
    pipeline.tasks WHERE id = $1`; if no row, return `null`; otherwise `SELECT *
    FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at` and return

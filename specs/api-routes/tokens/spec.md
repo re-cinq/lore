@@ -26,11 +26,11 @@ creation, and listing returns metadata only.
 
 Registered with a path-only matcher (`url === "/api/tokens"`, both verbs route
 here; method is resolved inside the handler)
-([registration](../../../apps/mcp-server/src/api/routes/index.ts#L70)).
+([registration](../../../apps/lore-api/src/server/build-server.ts#L110)).
 
 - **Auth**: `admin` scope, enforced by the dispatcher *before* the handler runs.
   `getRequiredScope("/api/tokens")` returns `"admin"` from the `ROUTE_SCOPES`
-  prefix map ([scope map](../../../apps/mcp-server/src/api/routes/auth.ts#L55)). A
+  prefix map ([scope map](../../../apps/lore-api/src/api/routes/tokens/tokens.ts#L42)). A
   read/write token is rejected with `403 { error: "insufficient scope" }`; an
   `admin`-scoped token or the legacy `LORE_INGEST_TOKEN` passes.
 
@@ -104,7 +104,7 @@ allowed"`, the `"lore_"` token prefix, the `created_by` literal `"admin"`.
 
 ## Dependencies & side effects
 
-- Handler: `handleTokens` ([code](../../../apps/mcp-server/src/api/routes/tokens.ts#L7)).
+- Handler: `handleTokens` ([code](../../../apps/lore-api/src/api/routes/tokens/tokens.ts#L32)).
 - DB table `pipeline.api_tokens` (columns: `id, name, token_hash, scopes,
   created_by, expires_at, last_used, revoked_at, created_at`): GET reads,
   create INSERTs, revoke UPDATEs `revoked_at`.

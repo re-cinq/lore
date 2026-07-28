@@ -64,7 +64,7 @@ Ingests one raw uncurated text blob as a deduplicated episode; returns {status: 
    6. New insert → `episodeId = rows[0].id`. Fire two best-effort async jobs
       (do not block the response):
       - `extractFactsFromEpisode(episodeId, content, agent, dbPoolRef)`
-        ([facts](../../../apps/mcp-server/src/features/memory/facts.ts#L213)) — LLM extract (≤10 facts via `parseFacts`), embed each,
+        ([facts](../../../libs/server-core/src/features/memory/facts.ts#L260)) — LLM extract (≤10 facts via `parseFacts`), embed each,
         `INSERT INTO memory.facts (episode_id, …)`, then
         `invalidateContradictions` (cosine ≥ `LORE_FACT_SIMILARITY_THRESHOLD`
         default 0.92 sets `valid_to`/`invalidated_by` + writes
@@ -72,7 +72,7 @@ Ingests one raw uncurated text blob as a deduplicated episode; returns {status: 
       - `repoFromRef = ref.match(/^([^#]+)/)?.[1] || null`; `graphLlmCall =
         createGraphLlmCall(dbPoolRef)`; `extractAndUpdateGraph(dbPoolRef,
         content, repoFromRef, episodeId, null, graphLlmCall)`
-        ([graph](../../../apps/mcp-server/src/features/memory/graph.ts#L119)) — upsert entities + temporally-invalidating
+        ([graph](../../../libs/server-core/src/features/memory/graph.ts#L134)) — upsert entities + temporally-invalidating
         edge upserts. `.catch` logs a warning.
    7. `INSERT INTO memory.audit_log (agent_id, operation='lore_write_episode',
       metadata={episode_id, source, ref})` (best-effort `.catch`).
@@ -91,7 +91,7 @@ ingested."}`; the proxied body; the `unreachableError` message; the
 
 - `getPool()`, `isMemoryDbAvailable()`, `resolveAgentId()`, `sanitizeContent`
   (`redactSecrets`), `getQueryEmbedding()`, `createGraphLlmCall`.
-- Async: `extractFactsFromEpisode` ([facts.ts](../../../apps/mcp-server/src/features/memory/facts.ts#L213)), `extractAndUpdateGraph` ([graph.ts](../../../apps/mcp-server/src/features/memory/graph.ts#L119)).
+- Async: `extractFactsFromEpisode` ([facts.ts](../../../libs/server-core/src/features/memory/facts.ts#L260)), `extractAndUpdateGraph` ([graph.ts](../../../libs/server-core/src/features/memory/graph.ts#L134)).
 - `proxyToApi` / `unreachableError` ([deps.ts](apps/mcp-server/src/mcp/tools/deps.ts#L62)).
 - Tables: `memory.episodes` (insert, idempotent on `(agent_id, content_hash)`), `memory.facts` + `memory.fact_conflicts` (async), `memory.entities` + `memory.edges` (async), `memory.audit_log` (insert).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`, `LORE_FACT_SIMILARITY_THRESHOLD`, LLM provider env (`LORE_LLM_PROVIDER` / `LORE_FACT_LLM`).

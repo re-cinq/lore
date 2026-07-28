@@ -41,7 +41,7 @@ Fetches live PR state from GitHub and returns a derived computed_status (merged 
 ## Behavior
 
 1. Dynamically import and call `fetchPrStatus(repo, pr_number)`
-   ([github fetch + status derivation](../../../apps/mcp-server/src/platform/github-client.ts#L109)).
+   ([github fetch + status derivation](../../../apps/lore-api/src/platform/github-client.ts#L186)).
 2. **Credential gate** — `fetchPrStatus` resolves `getGitHubToken()`; if null it
    returns `null` and the handler returns
    `"GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN."`

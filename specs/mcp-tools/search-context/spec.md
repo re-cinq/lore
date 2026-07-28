@@ -47,7 +47,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
    log `"[lore] lore_search_context: auto-detected repo {repo}"` to stderr (advisory).
 2. **DB path** — if `isDbAvailable()`:
    1. `schema = team || "org_shared"`; `results = hybridSearch(query, schema, limit)`
-      ([hybridSearch](../../../apps/mcp-server/src/platform/db.ts#L120) — HNSW vector +
+      ([hybridSearch](../../../libs/server-core/src/platform/db.ts#L143) — HNSW vector +
       BM25, fused by RRF).
    2. If `results` is empty **and** `team` is set and `team !== "org_shared"`,
       retry `hybridSearch(query, "org_shared", limit)` (fall back to org corpus).

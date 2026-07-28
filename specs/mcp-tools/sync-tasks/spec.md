@@ -49,7 +49,7 @@ Parses a speckit tasks.md and idempotently upserts each checklist item as a spec
 3. `parseTasks(tasks_markdown)` (from `@re-cinq/lore-shared`). If the parse
    yields zero tasks, return `"No tasks found in the provided markdown."`.
 4. Delegate to `syncTasksToDb(pool, resolvedRepo, spec_slug, parsed)`
-   ([handler](../../../apps/mcp-server/src/features/pipeline/tasks.ts#L20)). For each parsed task it:
+   ([handler](../../../libs/server-core/src/features/pipeline/tasks.ts#L24)). For each parsed task it:
    1. Builds `title = "{specTaskId}: {description}"` and a `metadata` object
       (`spec_task_id`, `depends_on`, `spec_slug`, `parallelizable`, `phase`,
       `file_path`); `status = 'completed'` if the checkbox was ticked, else `'pending'`.

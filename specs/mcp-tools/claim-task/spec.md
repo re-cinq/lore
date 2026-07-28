@@ -42,7 +42,7 @@ Atomically locks one 'pending' spec-task (flips it to 'running') so exactly one 
 1. `getPool()`. If null, return `"lore_claim_task requires PostgreSQL (LORE_DB_HOST not set)."`.
 2. Resolve `agent_id || resolveAgentId()` (env / `~/.lore/agent-id` / generated).
 3. Delegate to `claimTask(pool, task_id, resolvedAgent)`
-   ([handler](../../../apps/mcp-server/src/features/pipeline/tasks.ts#L114)). It:
+   ([handler](../../../libs/server-core/src/features/pipeline/tasks.ts#L29)). It:
    1. `pool.connect()` → `BEGIN`.
    2. `SELECT id FROM pipeline.tasks WHERE id = $1 AND status = 'pending' FOR UPDATE SKIP LOCKED`.
    3. If no row → `ROLLBACK`, release, return `false`.

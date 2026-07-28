@@ -41,7 +41,7 @@ Soft-deletes a memory by key (hides it from read/list/search; version history is
 ## Behavior
 
 1. **DB path** — if `isMemoryDbAvailable()`: call `deleteMemory(key, agent_id)`
-   ([handler](../../../apps/mcp-server/src/features/memory/memory.ts#L183)). Inside the handler:
+   ([handler](../../../libs/server-core/src/features/memory/memory.ts#L199)). Inside the handler:
    - `agent = resolveAgentId(agent_id)`.
    - `UPDATE memory.memories SET is_deleted = TRUE WHERE agent_id = $1 AND key =
      $2` — flips the flag for every version row of that agent+key. Note: scope
@@ -68,7 +68,7 @@ path), the proxied body, the `unreachableError` message, or
 ## Dependencies & side effects
 
 - `isMemoryDbAvailable()`, `resolveAgentId()`.
-- Handler `deleteMemory` ([memory.ts](../../../apps/mcp-server/src/features/memory/memory.ts#L183)).
+- Handler `deleteMemory` ([memory.ts](../../../libs/server-core/src/features/memory/memory.ts#L199)).
 - `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L98)); `deleteMemoryFile` (offline).
 - Tables: `memory.memories` (update `is_deleted`), `memory.audit_log` (insert). `memory.memory_versions` untouched.
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.

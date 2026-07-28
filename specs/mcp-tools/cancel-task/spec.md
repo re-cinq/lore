@@ -41,7 +41,7 @@ Cancels a server-side pipeline task, flipping it to 'cancelled' and best-effort 
 
 1. **DB gate** — if `process.env.LORE_DB_HOST` is unset, return
    `"Pipeline requires PostgreSQL (LORE_DB_HOST not set)."` (no stdio proxy for cancel).
-2. Call `cancelTask(task_id)` ([handler wrapper](../../../apps/mcp-server/src/features/pipeline/pipeline.ts#L41)).
+2. Call `cancelTask(task_id)` ([handler wrapper](../../../libs/server-core/src/features/pipeline/pipeline.ts#L62)).
 3. **Shared CRUD** ([`cancelTask`](../../../libs/shared/src/pipeline-tasks.ts#L195)):
    1. `getTask(pool, taskId)` (SELECT row + events); if `null`, throw `"Task not found"`.
    2. If `status ∈ {merged, failed, cancelled}`, throw `"Cannot cancel task in {status} state"`.

@@ -26,12 +26,12 @@ hook's payload shape and its skip/duplicate semantics.
 ## Interface
 
 Registered as `exact("/api/session-summary", "POST")`
-([registration](../../../apps/mcp-server/src/api/routes/index.ts#L63)), dispatched by
+([registration](../../../apps/lore-api/src/server/build-server.ts#L99)), dispatched by
 `handleApiRoute` after the rate-limit + bearer-scope gates.
 
 - **Method + path**: `POST /api/session-summary`
 - **Auth scope**: `write` — `ROUTE_SCOPES["/api/session-summary"] = "write"`
-  ([scope map](../../../apps/mcp-server/src/api/routes/auth.ts#L46)). Bearer required;
+  ([scope map](../../../apps/lore-api/src/api/routes/memory/session-summary.ts#L29)). Bearer required;
   `admin` satisfies, `read`-only does not.
 - **Rate bucket**: `default` (200/min).
 
@@ -161,5 +161,5 @@ seam mocks both and asserts only the trigger/skip/swallow contract.)*
 - Episode lifecycle (decay, consolidation).
 - Token issuance and the scope schema.
 
-Code: handler [`handleSessionSummary`](../../../apps/mcp-server/src/api/routes/memory.ts#L89)
-(IMPLEMENTED_BY); route [registration](../../../apps/mcp-server/src/api/routes/index.ts#L63).
+Code: handler [`handleSessionSummary`](../../../apps/lore-api/src/api/routes/memory/session-summary.ts#L24)
+(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/server/build-server.ts#L99).

@@ -112,7 +112,7 @@ A throwing `ingestFiles` returns 500 with the error message. ([validated by `ret
 
 The post-200 spec-coverage-validate fan-out is resilient: it is a no-op when there is no pool and swallows insert errors so a flaky DB never breaks the already-written ingest response. ([validated by `spec-coverage-validate-trigger.test.ts:32`](apps/lore-api/src/api/routes/spec-coverage-validate-trigger.test.ts#L32), [validated by `spec-coverage-validate-trigger.test.ts:38`](apps/lore-api/src/api/routes/spec-coverage-validate-trigger.test.ts#L38))
 
-The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/mcp-server/src/api/routes/index.ts#L57), [implemented by](../../../apps/mcp-server/src/api/routes/ingest.ts#L8))
+The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/lore-api/src/server/build-server.ts#L100), [implemented by](../../../apps/lore-api/src/api/routes/ingest/ingest.ts#L21))
 
 A `files` entry may be a bare path string or a `{path, content}` object; the two are distinguished by type and the path is extracted from either form. ([validated by IngestFile distinguishes path strings from content objects](apps/lore-api/src/features/spec-trace/ingest.test.ts#L53), [`ingest.test.ts:62`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L62))
 
