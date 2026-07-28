@@ -76,11 +76,16 @@ case). **Never throws** — every path returns text.
 
 ## Acceptance Criteria
 
-The `/api/onboard` route returns 503 when the pool is null. ([validated by `onboard.test.ts:35`](apps/lore-api/src/api/routes/repos/onboard.test.ts#L35))
+The `/api/onboard` route returns 503 when the pool is null. ([validated by `onboard.test.ts:42`](apps/lore-api/src/api/routes/repos/onboard.test.ts#L42))
 
-The route returns 400 for a malformed (`owner/repo`-less) repo argument. ([validated by `onboard.test.ts:41`](apps/lore-api/src/api/routes/repos/onboard.test.ts#L41))
+The route returns 400 for a malformed (`owner/repo`-less) repo argument. ([validated by `onboard.test.ts:48`](apps/lore-api/src/api/routes/repos/onboard.test.ts#L48))
 
-A well-formed repo returns the onboard result on 200. ([validated by `onboard.test.ts:47`](apps/lore-api/src/api/routes/repos/onboard.test.ts#L47))
+A well-formed repo returns the onboard result on 200. ([validated by `onboard.test.ts:54`](apps/lore-api/src/api/routes/repos/onboard.test.ts#L54))
+
+A 409 from the route is the guard refusing a duplicate, not an outage: the tool
+returns the refusal body verbatim so the caller keeps `blocked` and the in-flight
+`task_id`, while a genuine transport failure still reports as unreachable. The
+`reonboard` flag is passed straight through. ([validated by `returns the guard's refusal body verbatim on a 409`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L93), [`still reports a genuine outage as unreachable`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L115), [`passes reonboard through to the API`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L127))
 
 The MCP-tool wrapper's own `LORE_DB_HOST` gate and JSON-envelope framing reuse
 the same `onboardRepo` handler the route covers. *(untested: the tool wrapper has

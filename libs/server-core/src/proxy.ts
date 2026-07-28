@@ -27,7 +27,16 @@ import {
 export type ProxyResult =
   | { ok: true; body: string }
   | { ok: false; reason: "not_configured" }
-  | { ok: false; reason: "unreachable"; detail: string }
+  | {
+      ok: false;
+      reason: "unreachable";
+      detail: string;
+      /** Set only for a non-retriable HTTP response, so a caller can tell an
+       *  authoritative refusal (e.g. a 409 conflict) from a real outage. */
+      status?: number;
+      /** That response's raw body, when it had one. */
+      body?: string;
+    }
   | { ok: false; reason: "denied"; detail: string };
 
 export const PROXY_RETRY_DELAYS_MS = [200, 600, 1800]; // ~2.6s total budget before giving up
@@ -121,18 +130,23 @@ export async function proxyToApi(
 
       if (!isRetriableStatus(res.status)) {
         // 4xx (validation / config gap) — retrying won't help. Surface the
-        // server's message so the caller sees the cause, not just the status.
-        const detail = errorBodyDetail(
-          res.status,
-          res.statusText,
-          await readErrorBody(res),
-        );
+        // server's message so the caller sees the cause, not just the status,
+        // and carry the status + body so a caller can recognise an
+        // authoritative refusal instead of reporting it as an outage.
+        const errorBody = await readErrorBody(res);
+        const detail = errorBodyDetail(res.status, res.statusText, errorBody);
 
         console.error(
           `[lore-mcp] proxy ${endpoint} failed (${detail}); not retrying`,
         );
 
-        return { ok: false, reason: "unreachable", detail };
+        return {
+          ok: false,
+          reason: "unreachable",
+          detail,
+          status: res.status,
+          body: errorBody,
+        };
       }
     } catch (err) {
       lastDetail =

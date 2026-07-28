@@ -20,16 +20,36 @@ beforeEach(() => {
 
 describe("reonboard", () => {
   it("creates an onboard task and redirects to the new task page", async () => {
-    createOnboardTask.mockResolvedValue("task-9");
+    createOnboardTask.mockResolvedValue({ ok: true, taskId: "task-9" });
 
     await reonboard("re-cinq/x");
 
-    expect(createOnboardTask).toHaveBeenCalledWith("re-cinq/x");
+    expect(createOnboardTask).toHaveBeenCalledWith("re-cinq/x", {
+      reonboard: true,
+    });
     expect(redirect).toHaveBeenCalledWith("/tasks/task-9");
   });
 
+  it("redirects to the in-flight task instead of queueing a duplicate", async () => {
+    createOnboardTask.mockResolvedValue({
+      ok: false,
+      block: "in-flight",
+      message: "already in flight",
+      taskId: "task-running",
+    });
+
+    await reonboard("re-cinq/x");
+
+    expect(redirect).toHaveBeenCalledWith("/tasks/task-running");
+  });
+
   it("redirects back to the repo page when no task is created", async () => {
-    createOnboardTask.mockResolvedValue(null);
+    createOnboardTask.mockResolvedValue({
+      ok: false,
+      block: "pr-open",
+      message: "PR open",
+      taskId: null,
+    });
 
     await reonboard("re-cinq/x");
 

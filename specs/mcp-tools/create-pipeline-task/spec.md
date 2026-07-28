@@ -119,6 +119,10 @@ A description over 10000 chars is rejected by the input schema (and, on the DB
 path, by the shared CRUD).
 ([validated by `rejects a task description over 10000 chars`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L106))
 
+`task_type: "onboard"` is refused before the local/remote split and the caller is
+pointed at `lore_onboard_repo`, whose transaction holds the duplicate-onboard
+guard. ([validated by `refuses task_type onboard and names lore_onboard_repo instead`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L213))
+
 ## Out of Scope
 
 - Task execution (handled by the lore-agent service).

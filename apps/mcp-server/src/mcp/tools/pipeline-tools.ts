@@ -67,7 +67,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         .string()
         .default("general")
         .describe(
-          "feature-request | onboard | general | runbook | implementation | gap-fill | review. Unknown values fall back to 'general'.",
+          "feature-request | general | runbook | implementation | gap-fill | review. Unknown values fall back to 'general'. 'onboard' is refused here — use lore_onboard_repo, which guards against duplicate onboarding.",
         ),
       target_repo: z
         .string()
@@ -105,6 +105,20 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
       context,
     }) => {
       try {
+        // Onboarding is guarded against duplicates inside lore_onboard_repo's
+        // transaction (#968); creating one here would route around that guard.
+        // Refused before the local/remote split so neither path can slip past.
+        if (task_type === "onboard") {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: "Onboard tasks are not created here — use lore_onboard_repo, which refuses a repo that is already onboarded or has an onboard task in flight.",
+              },
+            ],
+          };
+        }
+
         // Auto-detect repo from git remote if not specified
         const resolvedRepo = target_repo || detectCurrentRepo() || undefined;
 

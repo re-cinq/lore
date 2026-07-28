@@ -103,6 +103,10 @@ On a 2xx response the proxy returns `ok` with the upstream body serialized to a 
 11. **AC11** Finished-job log reads (`lore_get_task_logs`, `lore_get_job_logs`)
     are cached only when the response reports `complete: true`, with a 24h TTL. ([implemented by `completeOnly`](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L22), [`ttlSeconds: 86400`](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L377), [`ttlSeconds: 86400`](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L431))
 
+11a. **AC11a** A non-retriable 4xx carries its status and raw body back to the
+    caller, so an authoritative refusal (a 409 conflict) can be told apart from an
+    outage instead of being reported as "unreachable, retry". ([validated by `carries the status and raw body of a non-retriable 4xx`](libs/server-core/src/proxy.test.ts#L135))
+
 12. **AC12** The cache is derived, never authority: a missing or corrupt entry
     degrades to a network re-fetch (never an error or wrong answer), and cache
     files are owner-only (`0600`) under an owner-only (`0700`) directory. ([validated by `proxy-cache.test.ts:82`](libs/server-core/src/platform/proxy-cache.test.ts#L82), [`writeJson`](apps/mcp-server/src/platform/proxy-cache.ts#L75))

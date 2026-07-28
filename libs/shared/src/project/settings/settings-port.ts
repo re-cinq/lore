@@ -49,6 +49,12 @@ export interface SettingsPort {
   pendingOnboardingRepos(): Promise<PendingOnboardingRepo[]>;
   /** Mark a repo's onboarding PR merged (+ stamp last_ingested_at), keyed by row id. */
   markOnboardingMergedById(id: string): Promise<void>;
+  /**
+   * Forget a repo's onboarding PR url, keyed by row id. Used when that PR was
+   * closed without merging: the onboard guard reads a non-null url as "an
+   * onboarding is still in progress", so a stale one blocks the repo forever.
+   */
+  clearOnboardingPrUrl(id: string): Promise<void>;
   /** Set the onboarding PR url for a repo. */
   setOnboardingPrUrl(repo: string, url: string): Promise<void>;
   /** Increment the repo's outcome_stats (merged_count, total_files_changed, total_hours_to_merge). */
