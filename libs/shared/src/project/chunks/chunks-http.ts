@@ -150,6 +150,7 @@ export class ChunksHttp implements ChunksPort {
     _schema: string,
     _repo: string,
     _filePaths: string[],
+    _minAgeDays: number,
   ): Promise<number> {
     throw new Error(WRITE_ONLY_FLOOR);
   }

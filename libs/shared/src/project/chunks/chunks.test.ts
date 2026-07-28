@@ -247,13 +247,14 @@ describe("PgChunks adapter", () => {
     expect(calls[0]?.params).toEqual(["octo/repo"]);
   });
 
-  it("re-stamps reindex-owned chunks preserving within-file order and returns the row count", async () => {
+  it("re-stamps reindex-owned chunks preserving within-file order, gated to files past the age floor", async () => {
     const { pool, calls } = fakePool({ rows: [{ id: "1" }, { id: "2" }] });
 
     const touched = await new PgChunks(pool).touchChunksForFiles(
       "platform",
       "octo/repo",
       ["specs/a.md"],
+      30,
     );
 
     expect(touched).toBe(2);
@@ -264,7 +265,10 @@ describe("PgChunks adapter", () => {
     expect(calls[0]?.text).toContain(
       "metadata->>'ingested_by' = 'reindex-job'",
     );
-    expect(calls[0]?.params).toEqual(["octo/repo", ["specs/a.md"]]);
+    expect(calls[0]?.text).toContain(
+      "HAVING min(ingested_at) < NOW() - ($3 || ' days')::interval",
+    );
+    expect(calls[0]?.params).toEqual(["octo/repo", ["specs/a.md"], "30"]);
   });
 
   it("prunes reindex-owned chunks of vanished files and returns the row count", async () => {
@@ -288,7 +292,12 @@ describe("PgChunks adapter", () => {
     const { pool } = fakePool();
 
     await expect(
-      new PgChunks(pool).touchChunksForFiles("a; DROP TABLE", "octo/repo", []),
+      new PgChunks(pool).touchChunksForFiles(
+        "a; DROP TABLE",
+        "octo/repo",
+        [],
+        30,
+      ),
     ).rejects.toThrow(new Error('Invalid schema name: "a; DROP TABLE"'));
   });
 });
@@ -428,7 +437,7 @@ describe("InMemoryChunks double", () => {
     expect(await chunks.staleChunkCount("octo/repo", 90)).toBe(1);
   });
 
-  it("lists, touches and prunes only reindex-owned rows", async () => {
+  it("lists, touches and prunes only reindex-owned rows, skipping freshly verified files", async () => {
     const old = new Date(Date.now() - 100 * 86_400_000).toISOString();
     const chunks = new InMemoryChunks();
 
@@ -455,13 +464,24 @@ describe("InMemoryChunks double", () => {
     ).toEqual(["specs/gone.md", "specs/kept.md"]);
 
     expect(
-      await chunks.touchChunksForFiles("platform", "octo/repo", [
-        "specs/kept.md",
-        "specs/api.md",
-      ]),
+      await chunks.touchChunksForFiles(
+        "platform",
+        "octo/repo",
+        ["specs/kept.md", "specs/api.md"],
+        30,
+      ),
     ).toBe(1);
     expect(chunks.rows[0]!.ingestedAt).not.toBe(old);
     expect(chunks.rows[2]!.ingestedAt).toBe(old);
+
+    expect(
+      await chunks.touchChunksForFiles(
+        "platform",
+        "octo/repo",
+        ["specs/kept.md"],
+        30,
+      ),
+    ).toBe(0);
 
     expect(
       await chunks.pruneChunksForFiles("platform", "octo/repo", [

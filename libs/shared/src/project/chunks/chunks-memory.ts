@@ -264,11 +264,25 @@ export class InMemoryChunks implements ChunksPort {
     schema: string,
     repo: string,
     filePaths: string[],
+    minAgeDays: number,
   ): Promise<number> {
     enforceSchema(schema);
     const paths = new Set(filePaths);
-    const targets = this.reindexOwnedForRepo(schema, repo).filter((row) =>
+    const cutoff = Date.now() - minAgeDays * 86_400_000;
+    const named = this.reindexOwnedForRepo(schema, repo).filter((row) =>
       paths.has(row.filePath),
+    );
+    const oldestByFile = new Map<string, number>();
+
+    for (const row of named) {
+      const stamp = new Date(row.ingestedAt).getTime();
+      const oldest = oldestByFile.get(row.filePath);
+
+      oldestByFile.set(row.filePath, Math.min(stamp, oldest ?? stamp));
+    }
+
+    const targets = named.filter(
+      (row) => (oldestByFile.get(row.filePath) ?? Infinity) < cutoff,
     );
     const now = new Date().toISOString();
 

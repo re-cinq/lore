@@ -160,12 +160,17 @@ export interface ChunksPort {
   /**
    * Re-stamp `ingested_at` to now on the repo's reindex-owned chunks whose
    * `file_path` is in `filePaths`, preserving within-file relative order (spec
-   * reassembly sorts same-file chunks by `ingested_at`). Returns rows updated.
+   * reassembly sorts same-file chunks by `ingested_at`). Only files whose
+   * oldest chunk is more than `minAgeDays` old are re-stamped — whole files at
+   * a time, so the ordering invariant holds — keeping steady-state nights from
+   * rewriting every row (each rewrite copies the embedding into a new row
+   * version). Returns rows updated.
    */
   touchChunksForFiles(
     schema: string,
     repo: string,
     filePaths: string[],
+    minAgeDays: number,
   ): Promise<number>;
 
   /**

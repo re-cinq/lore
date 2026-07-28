@@ -11,7 +11,11 @@ Every run ends with a verification pass (`verify.ts`): reindex-owned chunks
 repo tree get `ingested_at` re-stamped; orphans of deleted files are pruned.
 This keeps gap-detect's `staleChunkCount` clearable — a non-zero count means
 reindex has not verified the repo in that window, not that files are unchanged.
-A failed or empty tree fetch skips the pass (no touch, no prune).
+Re-stamping is gated to files unverified for 30+ days (whole files at a time,
+preserving within-file order), so steady-state nights rewrite nothing. A
+failed, empty, or truncated tree fetch skips the pass (no touch, no prune) —
+`listTree` throws on GitHub's ~100k-entry truncation rather than let a partial
+list read as mass deletion.
 
 - **Entry point:** `index.ts` → `reindexJob()`
 - **Job name:** `context_reindex` — `npm run job -- context_reindex`

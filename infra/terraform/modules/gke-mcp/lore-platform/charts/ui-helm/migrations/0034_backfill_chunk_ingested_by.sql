@@ -6,11 +6,17 @@
 -- metadata->>'ingested_by' = 'reindex-job'. Rows ingested before that marker
 -- was stamped have no ingested_by at all, so without a backfill they would be
 -- invisible to both the count and the verification pass until their file next
--- changes. Only rows whose file_path falls inside the reindex seed scope
--- (CLAUDE.md / AGENTS.md exact, adrs/ specs/ .specify/ prefixes — the only
--- paths reindex ever ingests) are stamped; API- and UI-ingested rows keep
--- their existing provenance because the filter also requires ingested_by to
--- be absent.
+-- changes. Only rows whose file_path falls inside the reindex SEED scope
+-- (CLAUDE.md / AGENTS.md exact, adrs/ specs/ .specify/ prefixes) are stamped.
+-- That is deliberately narrower than everything reindex ever wrote: the
+-- incremental path ingests any classifiable changed file (code, runbooks/,
+-- other .md/.yaml), so legacy rows outside seed scope stay unstamped and
+-- remain invisible to the stale count and the verification pass. Widening the
+-- filter is not safe — provenance-less rows outside seed scope include
+-- non-reindex writers (e.g. the UI's tasks/ui-created chunks), and adopting
+-- one of those marks it for pruning since its "file" is not in the repo tree.
+-- API- and UI-ingested rows keep their existing provenance because the filter
+-- also requires ingested_by to be absent.
 --
 -- Same all-schemas loop as 0011: pg_catalog discovery (privilege-filtered
 -- information_schema would hide schemas), per-schema subtransaction, and

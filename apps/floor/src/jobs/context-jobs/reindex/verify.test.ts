@@ -101,4 +101,33 @@ describe("verifyRepoChunks", () => {
     expect(chunks.rows).toHaveLength(3);
     expect(chunks.rows.every((row) => row.ingestedAt === OLD)).toBe(true);
   });
+
+  it("leaves files verified within the 30-day age floor un-stamped", async () => {
+    const fresh = new Date().toISOString();
+    const chunks = seededChunks();
+
+    chunks.rows.push({
+      id: "4",
+      schema: SCHEMA,
+      content: "fresh",
+      contentType: "spec",
+      team: SCHEMA,
+      repo: REPO,
+      filePath: "specs/fresh.md",
+      metadata: { ingested_by: "reindex-job" },
+      embedding: null,
+      ingestedAt: fresh,
+    });
+
+    const result = await verifyRepoChunks(chunks, SCHEMA, REPO, [
+      "specs/kept.md",
+      "specs/gone.md",
+      "specs/fresh.md",
+    ]);
+
+    expect(result).toEqual({ touched: 2, pruned: 0 });
+    expect(
+      chunks.rows.find((row) => row.filePath === "specs/fresh.md")?.ingestedAt,
+    ).toBe(fresh);
+  });
 });

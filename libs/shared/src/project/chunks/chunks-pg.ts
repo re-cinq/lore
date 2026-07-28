@@ -287,14 +287,23 @@ export class PgChunks implements ChunksPort {
     schema: string,
     repo: string,
     filePaths: string[],
+    minAgeDays: number,
   ): Promise<number> {
     enforceSchema(schema);
     const { rows } = await this.pool.query(
-      `WITH ranked AS (
+      `WITH due AS (
+         SELECT file_path
+         FROM ${schema}.chunks
+         WHERE repo = $1 AND file_path = ANY($2::text[])
+           AND metadata->>'ingested_by' = 'reindex-job'
+         GROUP BY file_path
+         HAVING min(ingested_at) < NOW() - ($3 || ' days')::interval
+       ),
+       ranked AS (
          SELECT id,
                 row_number() OVER (PARTITION BY file_path ORDER BY ingested_at, id) AS rn
          FROM ${schema}.chunks
-         WHERE repo = $1 AND file_path = ANY($2::text[])
+         WHERE repo = $1 AND file_path IN (SELECT file_path FROM due)
            AND metadata->>'ingested_by' = 'reindex-job'
        )
        UPDATE ${schema}.chunks c
@@ -302,7 +311,7 @@ export class PgChunks implements ChunksPort {
        FROM ranked
        WHERE c.id = ranked.id
        RETURNING c.id`,
-      [repo, filePaths],
+      [repo, filePaths, String(minAgeDays)],
     );
 
     return rows.length;
