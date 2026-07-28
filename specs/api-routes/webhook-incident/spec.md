@@ -25,11 +25,11 @@ handler** — the body shape is the only gate (`repo` must resolve).
 
 ## Interface
 
-Registered in the route table ([registration](../../../apps/mcp-server/src/api/routes/index.ts#L69)).
+Registered in the route table ([registration](../../../apps/lore-api/src/server/build-server.ts#L106)).
 
 - **Method + path**: `POST /api/webhook/incident`
 - **Auth**: none at the handler. The router exempts `/api/webhook/*` from
-  bearer-scope auth ([auth exemption](../../../apps/mcp-server/src/api/routes/index.ts#L100))
+  bearer-scope auth ([auth exemption](../../../apps/lore-api/src/api/routes/webhooks/webhook-incident.ts#L137))
   and applies the `webhook` rate-limit bucket. There is no signature check —
   the only required field is a resolvable repo.
 - **Request body** (JSON) — either a direct entry or a provider envelope:

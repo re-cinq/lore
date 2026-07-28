@@ -26,14 +26,14 @@ an ordered timeline, and overlays PR state + lease state.
 
 Registered as `pattern(/^\/api\/tasks\/[^/]+\/timeline(\?|$)/, "GET")` →
 `handleTaskTimeline(req, res, pool)`
-([registration](../../../apps/mcp-server/src/api/routes/index.ts#L57),
-[handler](../../../apps/mcp-server/src/api/routes/task-timeline.ts#L62)). Placed
+([registration](../../../apps/lore-api/src/server/build-server.ts#L91),
+[handler](../../../apps/lore-api/src/api/routes/tasks/task-timeline.ts#L66)). Placed
 **before** the broad `prefix("/api/tasks", "GET")` list route so the timeline
 regex wins.
 
 - **Method + path**: `GET /api/tasks/:id/timeline` (`:id` is `[^/]+`, URL-decoded).
 - **Auth scope**: `read`. No `SCOPE_OVERRIDES` match; first `ROUTE_SCOPES` prefix
-  is `/api/tasks` → `"read"` ([scope map](../../../apps/mcp-server/src/api/routes/auth.ts#L40)).
+  is `/api/tasks` → `"read"` ([scope map](../../../apps/lore-api/src/api/routes/tasks/task-timeline.ts#L70)).
   Rate-limit bucket `task` (60/min).
 - **Request**: path param only; no body, no query (a `?…` suffix is tolerated by
   the matcher but ignored).
@@ -80,7 +80,7 @@ duration_ms, summary, extras? }`. Degenerate 200s add `pending: "no_branch"`
    3. Any other thrown error logs `"[timeline] listCommits failed:"` →
       `500 { error: "github_api" }`.
 7. **Fold** — `buildTimeline(commitsApi, task.created_at)`
-   ([pure fn](../../../apps/mcp-server/src/api/routes/task-timeline.ts#L33)):
+   ([pure fn](../../../apps/lore-api/src/api/routes/tasks/task-timeline.ts#L29)):
    reverse the newest-first GitHub list to chronological; for each commit parse
    `parseTrailers(message)` and skip commits with none; emit a `TimelineCommit`
    with `outcome = extras["Lore-Outcome"] ?? "success"`,

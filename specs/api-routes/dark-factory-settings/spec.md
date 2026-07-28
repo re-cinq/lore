@@ -29,17 +29,17 @@ mutation in the audit log.
 Registered with a path-only matcher
 (`/^\/api\/repos\/[^/]+\/[^/]+\/settings\/dark-factory(\?|$)/`, both verbs route
 in; method resolved inside)
-([registration](../../../apps/mcp-server/src/api/routes/index.ts#L71)).
+([registration](../../../apps/lore-api/src/server/build-server.ts#L111)).
 
 - **Auth (key 1)**: `admin` scope. `getRequiredScope` matches the
   `SCOPE_OVERRIDES` entry before the generic prefix map, so this route demands
   `admin` (not the `read` a bare `/api/repos/...` prefix would imply)
-  ([override](../../../apps/mcp-server/src/api/routes/auth.ts#L62)). Enforced by the
+  ([override](../../../apps/lore-api/src/api/routes/dark-factory/dark-factory.ts#L36)). Enforced by the
   dispatcher before the handler.
 - **Auth (key 2)**: the two-key ceremony, applied *inside* the handler only when
   `twoKeyFieldsTouched(patch)` is non-empty (PUT). Driven by the
   `X-Lore-Approval-PR` header and `verifyApproval`
-  ([authz](../../../apps/mcp-server/src/features/dark-factory/dark-factory-authz.ts#L69)).
+  ([authz](../../../apps/lore-api/src/features/dark-factory/dark-factory-authz.ts#L73)).
 - **Path params**: `owner`, `repo` — URL-decoded, joined as `owner/repo`.
 
 ### `GET` — resolved settings
@@ -143,7 +143,7 @@ the header `X-Lore-Approval-PR`.
 ## Dependencies & side effects
 
 - Handler: `handleDarkFactorySettingsRoute`
-  ([code](../../../apps/mcp-server/src/api/routes/dark-factory.ts#L16)).
+  ([code](../../../apps/lore-api/src/api/routes/dark-factory/dark-factory.ts#L19)).
 - `projectFor(repo).settings.resolveOrNull()` (GET read path).
 - `parseDarkFactorySettings` / `twoKeyFieldsTouched` from
   `features/dark-factory/dark-factory-settings.ts`.

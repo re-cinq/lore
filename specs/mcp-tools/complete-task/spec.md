@@ -41,7 +41,7 @@ Marks a claimed ('running') spec-task as 'completed' and returns which dependent
 
 1. `getPool()`. If null, return `"lore_complete_task requires PostgreSQL (LORE_DB_HOST not set)."`.
 2. Delegate to `completeTask(pool, task_id)`
-   ([handler](../../../apps/mcp-server/src/features/pipeline/tasks.ts#L162)). It:
+   ([handler](../../../libs/server-core/src/features/pipeline/tasks.ts#L51)). It:
    1. `SELECT id, status, context_bundle, target_repo FROM pipeline.tasks WHERE id = $1`. If no row → `{ completed: false, unblocked: [] }`.
    2. If `status !== 'running'` → `{ completed: false, unblocked: [] }` (no write).
    3. `UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`.

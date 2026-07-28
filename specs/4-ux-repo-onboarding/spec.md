@@ -279,11 +279,12 @@ The system MUST reorganize the UI around repos.
   match, and a path-or-lifecycle sort ordering unstatused docs last
   without mutating the input — surfaced on both tabs through shared
   search/sort controls whose card lists narrow and reorder accordingly. ([validated by `doc-filter:23`](apps/web-ui/src/lib/doc-filter.test.ts#L23), [`doc-filter:30`](apps/web-ui/src/lib/doc-filter.test.ts#L30), [`doc-filter:34`](apps/web-ui/src/lib/doc-filter.test.ts#L34), [`doc-filter:40`](apps/web-ui/src/lib/doc-filter.test.ts#L40), [`doc-filter:46`](apps/web-ui/src/lib/doc-filter.test.ts#L46), [`doc-filter:55`](apps/web-ui/src/lib/doc-filter.test.ts#L55), [`doc-filter:63`](apps/web-ui/src/lib/doc-filter.test.ts#L63), [`doc-filter:67`](apps/web-ui/src/lib/doc-filter.test.ts#L67), [`doc-filter:83`](apps/web-ui/src/lib/doc-filter.test.ts#L83), [`DocListControls:7`](apps/web-ui/src/components/DocListControls.test.tsx#L7), [`DocListControls:18`](apps/web-ui/src/components/DocListControls.test.tsx#L18), [`DocListControls:36`](apps/web-ui/src/components/DocListControls.test.tsx#L36), [`SpecListView:96`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecListView.test.tsx#L96), [`SpecListView:125`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecListView.test.tsx#L125))
-- FR-3.17: Doc lifecycle statuses for the list pages are read from the
-  graph's byte-exact sources by a kind-aware lookup — spec kind fetches
-  only `spec.md` files, adr kind fetches every path, batched ten at a
-  time, omitting entries whose fetch fails or whose status is
-  unparseable. ([validated by `spec-status-source:20`](apps/web-ui/src/lib/spec-status-source.test.ts#L20), [`spec-status-source:40`](apps/web-ui/src/lib/spec-status-source.test.ts#L40), [`spec-status-source:66`](apps/web-ui/src/lib/spec-status-source.test.ts#L66), [`spec-status-source:89`](apps/web-ui/src/lib/spec-status-source.test.ts#L89))
+- FR-3.17: Doc lifecycle statuses for the list pages ride the list API
+  response itself — each doc's `{status, label}` pill is derived
+  server-side by the canonical kind-aware `docStatusPill` parser (the
+  `| Status |` header row for the spec kind, the frontmatter `status:`
+  value for the adr kind), and entries whose status is missing or
+  unparseable get no pill. ([validated by `spec-status:363`](libs/shared/src/spec-status.test.ts#L363), [`spec-status:322`](libs/shared/src/spec-status.test.ts#L322), [`spec-status:353`](libs/shared/src/spec-status.test.ts#L353), [`spec-status:359`](libs/shared/src/spec-status.test.ts#L359))
 - FR-3.18: The ADR detail page strips the leading YAML frontmatter from
   the rendered source (a minimal YAML-lite parser: scalars, quoted
   scalars, flow and block lists; a later `---` is a horizontal rule; the

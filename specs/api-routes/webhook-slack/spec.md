@@ -25,7 +25,7 @@ task. All replies are Slack message JSON (`response_type` + `text`).
 
 ## Interface
 
-Registered in the route table ([registration](../../../apps/mcp-server/src/api/routes/index.ts#L65)).
+Registered in the route table ([registration](../../../apps/lore-api/src/server/build-server.ts#L105)).
 
 - **Method + path**: `POST /api/webhook/slack`
 - **Auth**: HMAC SHA-256 + replay window. Handler reads
@@ -34,7 +34,7 @@ Registered in the route table ([registration](../../../apps/mcp-server/src/api/r
   `verifySlackSignature(secret, ts, sig, rawBody)` recomputes
   `v0=hex(hmac(secret, "v0:{ts}:{rawBody}"))` and constant-time compares. The
   router does not apply bearer-scope auth to `/api/webhook/*`
-  ([auth exemption](../../../apps/mcp-server/src/api/routes/index.ts#L100)); rate
+  ([auth exemption](../../../apps/lore-api/src/api/routes/webhooks/webhook-slack.ts#L29)); rate
   limiting uses the `webhook` bucket.
 - **Request body** (raw, URL-encoded form): Slack slash-command params —
   `text`, `channel_id`, `user_name`, and for the URL handshake `type`,

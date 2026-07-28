@@ -27,15 +27,15 @@ The local runner reports progress back through the same endpoint with an
 
 Registered as `exact("/api/task", "POST")` →
 `handleTaskPost(req, res, pool)`
-([registration](../../../apps/mcp-server/src/api/routes/index.ts#L60),
-[handler](../../../apps/mcp-server/src/api/routes/tasks.ts#L30)). Ordered **after**
+([registration](../../../apps/lore-api/src/server/build-server.ts#L95),
+[handler](../../../apps/lore-api/src/api/routes/tasks/task-post.ts#L32)). Ordered **after**
 the `by-pr` / `timeline` / `/api/tasks` GET routes; method `POST` + exact path
 `/api/task` is the only way in.
 
 - **Method + path**: `POST /api/task`
 - **Auth scope**: `task`. `getRequiredScope` finds no `SCOPE_OVERRIDES` match and
   the first `ROUTE_SCOPES` prefix hit is `/api/task` → `"task"`
-  ([scope map](../../../apps/mcp-server/src/api/routes/auth.ts#L47)). The legacy
+  ([scope map](../../../apps/lore-api/src/api/routes/tasks/task-post.ts#L37)). The legacy
   `LORE_INGEST_TOKEN` and any `admin`-scoped token also pass. Rate-limit bucket
   is `task` (60/min).
 - **Body**: JSON object. The `action` field is the discriminator.

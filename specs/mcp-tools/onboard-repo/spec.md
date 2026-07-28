@@ -42,7 +42,7 @@ Registers a new GitHub repo with Lore and spawns an onboard pipeline task that a
 1. **Availability gate** — if `process.env.LORE_DB_HOST` is unset, return the
    literal text `"Repo onboarding requires PostgreSQL (LORE_DB_HOST not set)."`
 2. Call `onboardRepo(getPool()!, full_name)`
-   ([handler](../../../apps/mcp-server/src/features/repo/repo-onboard.ts#L124)):
+   ([handler](../../../apps/lore-api/src/features/repo/repo-onboard.ts#L256)):
    1. Split `full_name` on `/`. If either `owner` or `name` is empty, throw
       `Invalid repo full_name: "{fullName}". Expected "owner/repo" format.`
    2. Upsert into `lore.repos (owner, name, full_name)` with

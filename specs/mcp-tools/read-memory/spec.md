@@ -43,7 +43,7 @@ Fetches one memory by its exact key and returns the stored row as JSON (latest v
 1. Normalize `version`: `"all"` stays `"all"`; a non-empty string → `Number(version)`;
    omitted → `undefined`.
 2. **DB path** — if `isMemoryDbAvailable()`: call
-   `readMemory(key, agent_id, ver)` ([handler](../../../apps/mcp-server/src/features/memory/memory.ts#L131)). Inside the handler
+   `readMemory(key, agent_id, ver)` ([handler](../../../libs/server-core/src/features/memory/memory.ts#L141)). Inside the handler
    (`agent = resolveAgentId(agent_id)`):
    - **`version === 'all'`** → `SELECT mv.version, mv.value, mv.created_at FROM
      memory.memory_versions mv JOIN memory.memories m ON m.id = mv.memory_id
@@ -75,7 +75,7 @@ proxied body, the `unreachableError` message, or
 ## Dependencies & side effects
 
 - `isMemoryDbAvailable()`, `resolveAgentId()`.
-- Handler `readMemory` ([memory.ts](../../../apps/mcp-server/src/features/memory/memory.ts#L131)).
+- Handler `readMemory` ([memory.ts](../../../libs/server-core/src/features/memory/memory.ts#L141)).
 - `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L98)); `readMemoryFile` (offline).
 - Tables: `memory.memories` (read), `memory.memory_versions` (read), `memory.audit_log` (insert).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.

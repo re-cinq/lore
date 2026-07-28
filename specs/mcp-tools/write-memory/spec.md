@@ -49,7 +49,7 @@ Stores one curated key/value memory (versioned, repo-scoped when a repo is detec
 2. Compute `embedding = await getQueryEmbedding(value)` (Vertex; may be null).
 3. **DB path** — if `isMemoryDbAvailable()`:
    1. Call `writeMemory(key, value, agent_id, ttl, embedding || undefined, repo)`
-      ([handler](../../../apps/mcp-server/src/features/memory/memory.ts#L49)). Inside the handler:
+      ([handler](../../../libs/server-core/src/features/memory/memory.ts#L53)). Inside the handler:
       - Resolve `agent = resolveAgentId(agent_id)`. Set `expiresAt` SQL to
         `now() + interval '{ttl} seconds'` when `ttl` is set, else null.
       - **Lookup scope**: when `repo` is present, match on `repo`; otherwise on
@@ -69,7 +69,7 @@ Stores one curated key/value memory (versioned, repo-scoped when a repo is detec
    2. **If `extract_facts`** — dynamically `import("memory.js")`, grab
       `getMemoryPool()`, `SELECT id FROM memory.memories WHERE key = $1 AND
       (repo = $2 OR agent_id = $3) ORDER BY version DESC LIMIT 1`, and on a hit
-      fire `extractFacts(id, value, pool)` ([facts](../../../apps/mcp-server/src/features/memory/facts.ts#L152))
+      fire `extractFacts(id, value, pool)` ([facts](../../../libs/server-core/src/features/memory/facts.ts#L176))
       fire-and-forget (`.catch(() => {})`). Does **not** block the response.
    3. Return `JSON.stringify(result)` as text.
 4. **Proxy path** — DB unavailable: `proxyMemory("write", { key, value,
@@ -92,7 +92,7 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
 ## Dependencies & side effects
 
 - `detectCurrentRepo()`, `getQueryEmbedding()` (Vertex), `isMemoryDbAvailable()`.
-- Handler `writeMemory` ([memory.ts](../../../apps/mcp-server/src/features/memory/memory.ts#L49)); `extractFacts` (async).
+- Handler `writeMemory` ([memory.ts](../../../libs/server-core/src/features/memory/memory.ts#L53)); `extractFacts` (async).
 - `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L98)); `writeMemoryFile` (offline).
 - Tables: `memory.memories` (insert/update), `memory.memory_versions` (insert), `memory.audit_log` (insert), `memory.facts` (async via `extract_facts`).
 - Env: `LORE_DB_HOST` (DB availability), `LORE_API_URL` + `LORE_INGEST_TOKEN` (proxy).

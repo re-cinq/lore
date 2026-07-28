@@ -25,15 +25,16 @@ HTTP response only reports what was dispatched or skipped.
 
 ## Interface
 
-Registered in the route table ([registration](../../../apps/mcp-server/src/api/routes/index.ts#L64)).
+Registered in the route table ([registration](../../../apps/floor/src/delivery/http/routes/github-webhook.ts#L30)).
 
 - **Method + path**: `POST /api/webhook/github`
 - **Auth**: HMAC SHA-256. Handler reads `LORE_WEBHOOK_SECRET` and the
   `X-Hub-Signature-256` header; `verifyGitHubSignature(secret, sig, rawBody)`
   recomputes `sha256=hex(hmac(secret, rawBody))` and constant-time compares.
   The router does **not** apply bearer-scope auth to `/api/webhook/*`
-  ([auth exemption](../../../apps/mcp-server/src/api/routes/index.ts#L100)). Rate
-  limiting uses the `webhook` bucket ([bucket](../../../apps/mcp-server/src/api/routes/index.ts#L89)).
+  ([auth exemption](../../../apps/floor/src/delivery/http/routes/github-webhook.ts#L33)). The
+  Floor ingress applies no rate-limit bucket; it bounds deliveries at GitHub's
+  25 MB payload cap instead ([body cap](../../../apps/floor/src/delivery/http/server.ts#L29)).
 - **Request body** (raw, signed): a GitHub webhook JSON payload. Dispatched by
   `X-GitHub-Event`:
   - `pull_request` — `{action, repository.full_name, pull_request:{number, merged, merge_commit_sha, head.ref, labels[]}}`.

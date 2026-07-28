@@ -66,7 +66,7 @@ Enqueues a new server-side pipeline task and returns its UUID and a pickup hint.
    - **DB mode (`LORE_DB_HOST` set)** — `validTypes = getTaskTypes()`;
      `resolvedType = validTypes.includes(task_type) ? task_type : "general"`.
      Call `createTask(desc, resolvedType, resolvedRepo, "mcp", context || undefined, priority, group_id)`
-     ([handler wrapper](../../../apps/mcp-server/src/features/pipeline/pipeline.ts#L48)).
+     ([handler wrapper](../../../libs/server-core/src/features/pipeline/pipeline.ts#L71)).
 4. **Shared CRUD** ([`createTask`](../../../libs/shared/src/pipeline-tasks.ts#L35)) — rejects descriptions
    over 10000 chars; when a repo is set, `SELECT settings FROM lore.repos WHERE full_name = $1`
    and enforce the trust gate (`settings.trust.level` → allowed task types; a

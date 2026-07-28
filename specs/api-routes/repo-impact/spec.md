@@ -26,8 +26,8 @@ diff's changed ranges and returns the `ImpactReport` plus pre-shaped Checks-API
 
 - **Method + path**: `POST /api/repos/:owner/:repo/impact`
   (regex `^/api/repos/[^/]+/[^/]+/impact(\?|$)`).
-  Implemented by the [route registration](../../../apps/mcp-server/src/api/routes/index.ts#L74)
-  dispatching to the [`handleImpactRoute` handler](../../../apps/mcp-server/src/api/routes/impact.ts#L35).
+  Implemented by the [route registration](../../../apps/lore-api/src/server/build-server.ts#L116)
+  dispatching to the [`handleImpactRoute` handler](../../../apps/lore-api/src/api/routes/impact/impact.ts#L48).
 - **Auth scope**: `write`. Matched by `SCOPE_OVERRIDES`
   (`/api/repos/[^/]+/[^/]+/impact(\?|$|/)` → `write`). The write scope reflects
   the privileged ingest surface, **not** test execution — a graph read is not

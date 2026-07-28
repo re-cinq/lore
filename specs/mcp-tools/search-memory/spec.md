@@ -46,7 +46,7 @@ Semantic (vector + keyword) search across org-wide memories and extracted facts;
 
 1. **DB path** — if `isMemoryDbAvailable()`: call `searchMemories(getPool(),
    query, agent_id, pool, limit, include_invalidated, graph_augment)`
-   ([handler](../../../apps/mcp-server/src/features/memory/memory-search.ts#L4), re-export of
+   ([handler](../../../libs/server-core/src/features/memory/memory-search.ts#L4), re-export of
    `@re-cinq/lore-shared/project/knowledge/memory-search`). The engine:
    1. Resolve `agent` (or null) and, when `pool` given, resolve its `pool_id`
       via `SELECT id FROM memory.shared_pools WHERE name = $1`. **Missing pool →
@@ -94,7 +94,7 @@ A single MCP text content block. Pretty-printed JSON array of
 ## Dependencies & side effects
 
 - `isMemoryDbAvailable()`, `getPool()`.
-- Engine `searchMemories` ([memory-search.ts](../../../apps/mcp-server/src/features/memory/memory-search.ts#L4)); ranking core `rrfMerge` / `diversify` in `@re-cinq/lore-shared`.
+- Engine `searchMemories` ([memory-search.ts](../../../libs/server-core/src/features/memory/memory-search.ts#L4)); ranking core `rrfMerge` / `diversify` in `@re-cinq/lore-shared`.
 - `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L98)); `searchMemoryFile` (offline).
 - Tables: `memory.memories`, `memory.facts`, `memory.shared_pools`, `memory.entities`, `memory.edges` (reads); `memory.facts` / `memory.memories` (retrieval-strengthening updates); `memory.audit_log` (insert, `operation='search'`).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
