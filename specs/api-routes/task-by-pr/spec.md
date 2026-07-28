@@ -25,14 +25,14 @@ API and parses the trailer out of the PR body, then the head commit.
 
 Registered as `pattern(/^\/api\/tasks\/by-pr\/[^/]+\/[^/]+\/[0-9]+(\?|$)/, "GET")`
 → `handleTaskByPr(req, res, pool)`
-([registration](../../../apps/mcp-server/src/api/routes/index.ts#L58),
-[handler](../../../apps/mcp-server/src/api/routes/task-timeline.ts#L213)). Placed
+([registration](../../../apps/lore-api/src/server/build-server.ts#L92),
+[handler](../../../apps/lore-api/src/api/routes/tasks/task-by-pr.ts#L9)). Placed
 **before** the broad `/api/tasks` GET list route. `:n` is constrained to digits.
 
 - **Method + path**: `GET /api/tasks/by-pr/:owner/:repo/:n`. `owner` / `repo` are
   `[^/]+` (URL-decoded); `n` is parsed with `parseInt(…, 10)`.
 - **Auth scope**: `read` (same `/api/tasks` prefix as the list/timeline routes,
-  [scope map](../../../apps/mcp-server/src/api/routes/auth.ts#L40)). Rate-limit bucket
+  [scope map](../../../apps/lore-api/src/api/routes/tasks/task-by-pr.ts#L13)). Rate-limit bucket
   `task` (60/min).
 - **Request**: path params only.
 

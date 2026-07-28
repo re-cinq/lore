@@ -24,14 +24,14 @@ canonical GCS object per task (`{repo}/{task_id}/output.log`). The companion
 
 Registered as `exact("/api/task-logs", "POST")` →
 `handleTaskLogs(req, res)`
-([registration](../../../apps/mcp-server/src/api/routes/index.ts#L66),
-[handler](../../../apps/mcp-server/src/api/routes/logs.ts#L4)). The pool is **not**
+([registration](../../../apps/lore-api/src/server/build-server.ts#L96),
+[handler](../../../apps/lore-api/src/api/routes/tasks/task-logs.ts#L30)). The pool is **not**
 passed to this handler — it takes only `(req, res)`.
 
 - **Method + path**: `POST /api/task-logs`.
 - **Auth scope**: `write`. No `SCOPE_OVERRIDES` match; first `ROUTE_SCOPES` prefix
   is `/api/task-logs` → `"write"`
-  ([scope map](../../../apps/mcp-server/src/api/routes/auth.ts#L50)). Note the
+  ([scope map](../../../apps/lore-api/src/api/routes/tasks/task-logs.ts#L35)). Note the
   `/api/task-logs` entry precedes the `/api/task` entry as a longer prefix is
   checked, but `startsWith` order in the map puts `/api/task` (`task`) earlier —
   the GET sibling shares `write`. Rate-limit bucket `task` (the URL starts with

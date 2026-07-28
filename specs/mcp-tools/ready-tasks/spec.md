@@ -43,7 +43,7 @@ Lists spec-tasks that are 'pending' AND whose every dependency has completed —
    `"Could not detect repo. Specify repo parameter."`.
 2. `getPool()`. If null, return `"lore_ready_tasks requires PostgreSQL (LORE_DB_HOST not set)."`.
 3. Delegate to `getReadyTasks(pool, resolvedRepo)`
-   ([handler](../../../apps/mcp-server/src/features/pipeline/tasks.ts#L85)). It runs a single query
+   ([handler](../../../libs/server-core/src/features/pipeline/tasks.ts#L24)). It runs a single query
    selecting `id, description, status, context_bundle, agent_id` from
    `pipeline.tasks` where `task_type = 'spec-task'`, `target_repo = $1`,
    `status = 'pending'`, and a correlated `NOT EXISTS` over each

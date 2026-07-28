@@ -26,13 +26,13 @@ two-field response, upgraded to a full diagnostic payload when authenticated.
 
 Registered as the first entry in the route table, matched on path only
 (`url === "/healthz"`, method-agnostic)
-([registration](../../../apps/mcp-server/src/api/routes/index.ts#L51)).
+([registration](../../../apps/lore-api/src/server/build-server.ts#L82)).
 
 - **Method + path**: `GET /healthz` (the matcher ignores method; any verb on
   `/healthz` dispatches here).
 - **Auth**: none. The dispatcher exempts `/healthz` from both the rate limiter
   (`url !== "/healthz"` gate) and the bearer-token gate (`authExempt`)
-  ([dispatch gates](../../../apps/mcp-server/src/api/routes/index.ts#L88)).
+  ([dispatch gates](../../../apps/lore-api/src/server/build-server.ts#L146)).
 - **Request**: no body, no required query params. An optional
   `Authorization: Bearer <token>` header upgrades the response.
 - **Response**:
@@ -78,7 +78,7 @@ Registered as the first entry in the route table, matched on path only
 
 ## Dependencies & side effects
 
-- Handler: `handleHealthz` ([code](../../../apps/mcp-server/src/api/routes/health.ts#L7)).
+- Handler: `handleHealthz` ([code](../../../apps/lore-api/src/api/routes/healthz/healthz.ts#L14)).
 - `getHealthStatus()` from `platform/db.ts` (read-only connectivity probe).
 - `validateClientToken(pool, bearer, "read")` from `auth.ts` (a *successful* DB
   validation issues an `UPDATE pipeline.api_tokens SET last_used = now()` as a

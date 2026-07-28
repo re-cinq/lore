@@ -49,7 +49,7 @@ Lists pipeline tasks newest-first as JSON, optionally filtered by status. Genera
      `["pending","queued","running","pr-created","review","merged","failed","cancelled"]`;
      an invalid value returns `"invalid status: {status}. Valid values: {list}"`.
      Then call `listTasks(status, min(limit, 100))`
-     ([handler wrapper](../../../apps/mcp-server/src/features/pipeline/pipeline.ts#L36)).
+     ([handler wrapper](../../../libs/server-core/src/features/pipeline/pipeline.ts#L45)).
 2. **Shared CRUD** ([`listTasks`](../../../libs/shared/src/pipeline-tasks.ts#L117)) — `SELECT id,
    description, task_type, status, target_repo, agent_id, pr_url, created_by,
    created_at, updated_at FROM pipeline.tasks [WHERE status = $1] ORDER BY

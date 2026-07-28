@@ -41,7 +41,7 @@ Re-runs a failed or escalated task by cloning it into a new pipeline task linked
 1. **DB gate** — if `process.env.LORE_DB_HOST` is unset, return
    `"Pipeline requires PostgreSQL (LORE_DB_HOST not set)."` (no stdio proxy for retry).
 2. Dynamically import `retryTask` and call `retryTask(task_id)`
-   ([handler wrapper](../../../apps/mcp-server/src/features/pipeline/pipeline.ts#L111)).
+   ([handler wrapper](../../../libs/server-core/src/features/pipeline/pipeline.ts#L154)).
 3. **Shared CRUD** ([`retryTask`](../../../libs/shared/src/pipeline-tasks.ts#L90)):
    1. `getTask(pool, taskId)`; if `null`, throw `"Task not found"`.
    2. If `status ∉ {failed, needs-human-help}`, throw

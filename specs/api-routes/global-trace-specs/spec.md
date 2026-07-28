@@ -25,8 +25,8 @@ an empty viewer rather than an error.
 
 - **Method + path**: `GET /api/trace/specs`
   (regex `^/api/trace/specs(\?|$)`).
-  Implemented by the [route registration](../../../apps/mcp-server/src/api/routes/index.ts#L76)
-  dispatching to the [`handleGlobalTraceSpecs` handler](../../../apps/mcp-server/src/api/routes/trace.ts#L8).
+  Implemented by the [route registration](../../../apps/lore-api/src/server/build-server.ts#L121)
+  dispatching to the [`handleGlobalTraceSpecs` handler](../../../apps/lore-api/src/api/routes/trace/trace-specs.ts#L6).
 - **Auth scope**: `read` (the default — no `SCOPE_OVERRIDES` or `ROUTE_SCOPES`
   entry matches `/api/trace/specs`).
 - **Rate bucket**: `default` (200/min).

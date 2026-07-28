@@ -43,7 +43,7 @@ The tool takes no parameters — the schema object is `{}`.
 1. **Availability gate** — if `process.env.LORE_DB_HOST` is unset, return the
    literal text `"Repo management requires PostgreSQL (LORE_DB_HOST not set)."`
 2. Call `getOnboardedReposWithCounts(getPool()!)`
-   ([handler](../../../apps/mcp-server/src/features/repo/repo-onboard.ts#L80)), which runs a
+   ([handler](../../../apps/lore-api/src/features/repo/repo-onboard.ts#L104)), which runs a
    single `SELECT` over `lore.repos r LEFT JOIN (SELECT target_repo, COUNT(*) AS
    task_count FROM pipeline.tasks GROUP BY target_repo) tc ON tc.target_repo =
    r.full_name`, projecting `id, owner, name, full_name, team, onboarded_at,

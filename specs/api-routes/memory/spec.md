@@ -27,12 +27,12 @@ object on every validation or runtime failure.
 ## Interface
 
 Registered in the route table as `exact("/api/memory", "POST")`
-([registration](../../../apps/mcp-server/src/api/routes/index.ts#L61)), dispatched by
+([registration](../../../apps/lore-api/src/server/build-server.ts#L97)), dispatched by
 `handleApiRoute` after the cross-cutting rate-limit + bearer-scope gates.
 
 - **Method + path**: `POST /api/memory`
 - **Auth scope**: `write` — `ROUTE_SCOPES["/api/memory"] = "write"`
-  ([scope map](../../../apps/mcp-server/src/api/routes/auth.ts#L44)). No
+  ([scope map](../../../apps/lore-api/src/api/routes/memory/memory.ts#L77)). No
   `SCOPE_OVERRIDES` entry applies. A bearer token is mandatory (the route is not
   auth-exempt); `admin` scope satisfies it, `read`-only does not.
 - **Rate bucket**: `default` (200/min) — the URL is neither `/api/webhook/*` nor
@@ -195,5 +195,5 @@ contract.)*
 - The file-store layout under `~/.lore/memory/`.
 - Token issuance and the scope schema (`/api/tokens`).
 
-Code: handler [`handleMemory`](../../../apps/mcp-server/src/api/routes/memory.ts#L14)
-(IMPLEMENTED_BY); route [registration](../../../apps/mcp-server/src/api/routes/index.ts#L61).
+Code: handler [`handleMemory`](../../../apps/lore-api/src/api/routes/memory/memory.ts#L72)
+(IMPLEMENTED_BY); route [registration](../../../apps/lore-api/src/server/build-server.ts#L97).

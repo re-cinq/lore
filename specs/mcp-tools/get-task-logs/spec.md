@@ -39,7 +39,7 @@ Fetches raw execution output for one pipeline task (by UUID), returning {logs, n
 
 ## Behavior
 
-1. **Task lookup** — `getTask(task_id)` ([task lookup](../../../apps/mcp-server/src/features/pipeline/pipeline.ts#L35));
+1. **Task lookup** — `getTask(task_id)` ([task lookup](../../../libs/server-core/src/features/pipeline/pipeline.ts#L41));
    if `null`, return `"Task not found: {task_id}"`. `repo = task.target_repo`.
 2. **Transport branch on `process.env.LORE_DB_HOST`:**
    - **stdio mode (no `LORE_DB_HOST`)** — if `LORE_API_URL` + `LORE_INGEST_TOKEN`

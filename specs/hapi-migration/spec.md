@@ -29,11 +29,11 @@ That design has quietly accrued costs:
   mis-ordered insert silently shadows a route. There is no framework to catch it.
 - **Cross-cutting concerns are hand-wired and duplicated.** Bearer-scope auth,
   the sliding-window rate limiter, and the 1 MB body cap live as imperative
-  blocks inside [`handleApiRoute`](../../apps/lore-api/src/api/routes/index.ts#L102)
+  blocks inside [`handleApiRoute`](https://github.com/re-cinq/lore/blob/85d151c9b39efa0f8d701a659638284daa6c946a/apps/lore-api/src/api/routes/index.ts#L102)
   and are partly re-implemented in
-  [`http.ts`](../../apps/lore-api/src/api/routes/http.ts) (`readJsonBody` caps
+  [`http.ts`](https://github.com/re-cinq/lore/blob/85d151c9b39efa0f8d701a659638284daa6c946a/apps/lore-api/src/api/routes/http.ts) (`readJsonBody` caps
   the body a *second* time). Scope requirements live in a parallel URL→scope map
-  ([`auth.ts`](../../apps/lore-api/src/api/routes/auth.ts)) that must be kept in
+  ([`auth.ts`](https://github.com/re-cinq/lore/blob/85d151c9b39efa0f8d701a659638284daa6c946a/apps/lore-api/src/api/routes/auth.ts)) that must be kept in
   lockstep with the route table by hand.
 - **Handlers own plumbing they should not.** Each one parses its own URL, reads
   its own body, sets its own headers, and stringifies its own JSON. The domain

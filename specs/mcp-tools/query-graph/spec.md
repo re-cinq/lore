@@ -55,7 +55,7 @@ Reads the live knowledge graph and returns typed relationship edges {entity, ent
    side is `handleGraph` (`GET /api/graph`, `read` scope) calling the same
    `queryLiveGraph`.
 2. Call `queryLiveGraph(getPool(), entity, relation_type, repo,
-   include_invalidated)` ([handler](../../../apps/mcp-server/src/features/memory/graph.ts#L165), re-export of `@re-cinq/lore-shared`):
+   include_invalidated)` ([handler](../../../libs/server-core/src/features/memory/graph.ts#L200), re-export of `@re-cinq/lore-shared`):
    - `validFilter = include_invalidated ? "" : "AND e.valid_to IS NULL"`.
    - **`entity` given** → UNION ALL of an **outgoing** leg (`LOWER(s.name) =
      LOWER($1)`) and an **incoming** leg (`LOWER(t.name) = LOWER($1)`), each
@@ -71,7 +71,7 @@ Reads the live knowledge graph and returns typed relationship edges {entity, ent
 5. Any thrown error → `"Error querying graph: {message}"`.
 
 **Graph population** is owned by `lore_write_episode` →
-`extractAndUpdateGraph` ([graph.ts](../../../apps/mcp-server/src/features/memory/graph.ts#L119)): entities are upserted
+`extractAndUpdateGraph` ([graph.ts](../../../libs/server-core/src/features/memory/graph.ts#L134)): entities are upserted
 (`ON CONFLICT (name, entity_type, COALESCE(repo,''))`); an edge with the same
 source+relation but a different target sets the prior edge's `valid_to`; an
 exact already-valid edge is skipped.
@@ -87,7 +87,7 @@ A single MCP text content block. One of: pretty-printed JSON array of
 ## Dependencies & side effects
 
 - `isMemoryDbAvailable()`, `getPool()`, `trackLatency('lore_query_graph', …)`.
-- Query handler `queryLiveGraph` ([graph.ts](../../../apps/mcp-server/src/features/memory/graph.ts#L165)); population via `extractAndUpdateGraph` ([graph.ts](../../../apps/mcp-server/src/features/memory/graph.ts#L119)).
+- Query handler `queryLiveGraph` ([graph.ts](../../../libs/server-core/src/features/memory/graph.ts#L200)); population via `extractAndUpdateGraph` ([graph.ts](../../../libs/server-core/src/features/memory/graph.ts#L134)).
 - Tables: `memory.entities` + `memory.edges` (read); `memory.audit_log` (latency insert via `trackLatency`).
 - Env: `LORE_DB_HOST` (direct DB) **or** `LORE_API_URL` + `LORE_INGEST_TOKEN`
   (remote proxy via `GET /api/graph`).
