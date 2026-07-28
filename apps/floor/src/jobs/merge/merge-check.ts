@@ -108,8 +108,16 @@ export async function mergeCheckJob(): Promise<string> {
       const fullName = `${owner}/${repoName}`;
       const number = parseInt(prNumber, 10);
       const project = await projectFor(fullName);
+      const pr = await project.pulls.get(number);
 
-      if (await project.pulls.isMerged(number)) {
+      if (!pr) {
+        console.log(
+          `[job] merge-check: could not read PR for ${repo.full_name} — skipped`,
+        );
+        continue;
+      }
+
+      if (pr.state === "merged") {
         await settings().markOnboardingMergedById(repo.id);
         mergedCount++;
         console.log(`[job] merge-check: ${repo.full_name} PR merged`);
@@ -120,7 +128,7 @@ export async function mergeCheckJob(): Promise<string> {
       // out wrong. The url no longer describes an onboarding in progress, and
       // leaving it set would refuse every later submission for this repo as
       // "pr-open" forever, since nothing else ever clears it (#968).
-      if (await project.pulls.isClosed(number)) {
+      if (pr.state === "closed") {
         await settings().clearOnboardingPrUrl(repo.id);
         console.log(
           `[job] merge-check: ${repo.full_name} onboarding PR closed unmerged — cleared`,
@@ -143,8 +151,16 @@ export async function mergeCheckJob(): Promise<string> {
   for (const task of tasks) {
     try {
       const project = await projectFor(task.target_repo);
+      const pr = await project.pulls.get(task.pr_number);
 
-      if (await project.pulls.isMerged(task.pr_number)) {
+      if (!pr) {
+        console.log(
+          `[job] merge-check: could not read PR #${task.pr_number} for task ${task.id} — skipped`,
+        );
+        continue;
+      }
+
+      if (pr.state === "merged") {
         await handleMergedTask(project, task);
         tasksMerged++;
         console.log(
@@ -154,7 +170,7 @@ export async function mergeCheckJob(): Promise<string> {
       }
 
       // Closed-without-merge is a rejection signal.
-      if (await project.pulls.isClosed(task.pr_number)) {
+      if (pr.state === "closed") {
         await handleRejectedTask(task);
         tasksClosed++;
         console.log(
@@ -264,6 +280,20 @@ async function handleMergedTask(
   await taskStore().recordEvent(task.id, "pr-created", "merged", {
     merged_by: "merge-check",
   });
+
+  // Backstop for the repo sweep: if the onboarding PR closed and was later
+  // reopened, the sweep already cleared onboarding_pr_url and dropped the repo
+  // — the task (which keeps its pr_url) is then the only path that still sees
+  // the merge, and without this the repo is never marked onboarded.
+  if (task.task_type === "onboard" && task.target_repo) {
+    try {
+      await settings().markOnboardingMergedByRepo(task.target_repo);
+    } catch (err) {
+      console.error(
+        `[job] merge-check: onboarding mark failed for ${task.target_repo}: ${errorMessage(err)}`,
+      );
+    }
+  }
 
   // spec-status-upkeep (FR1): when this merge completes a feature's task group,
   // flip the spec's status header to Implemented and mark the feature done.

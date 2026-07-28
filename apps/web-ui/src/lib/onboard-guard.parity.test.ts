@@ -11,11 +11,14 @@ import * as canonical from "../../../../libs/shared/src/onboard-guard";
 // drift this test exists to catch.
 const STATES = [false, true].flatMap((onboardingPrMerged) =>
   [null, "https://github.com/o/r/pull/7"].flatMap((openOnboardingPrUrl) =>
-    [null, "task-1"].map((inFlightTaskId) => ({
-      onboardingPrMerged,
-      openOnboardingPrUrl,
-      inFlightTaskId,
-    })),
+    [null, "task-1"].flatMap((inFlightTaskId) =>
+      [false, true].map((ingested) => ({
+        onboardingPrMerged,
+        openOnboardingPrUrl,
+        inFlightTaskId,
+        ingested,
+      })),
+    ),
   ),
 );
 
@@ -25,6 +28,8 @@ const REPO_ROWS = [
   { onboarding_pr_merged: true, onboarding_pr_url: null },
   { onboarding_pr_merged: false, onboarding_pr_url: "https://x/pull/1" },
   { onboarding_pr_merged: true, onboarding_pr_url: "https://x/pull/1" },
+  { last_ingested_at: "2026-01-01T00:00:00Z" },
+  { onboarding_pr_merged: false, last_ingested_at: null },
 ];
 
 describe("onboard-guard parity (web-ui mirror vs shared canonical)", () => {

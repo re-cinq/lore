@@ -111,6 +111,17 @@ describe("createOnboardTask", () => {
     expect(wrote()).toBe(false);
   });
 
+  it("blocks an ingested legacy row whose merged flag was never set", async () => {
+    txReturning({
+      repoRows: [{ last_ingested_at: "2026-01-01T00:00:00Z" }],
+    });
+
+    const result = await createOnboardTask("re-cinq/x");
+
+    expect(result).toMatchObject({ ok: false, block: "already-onboarded" });
+    expect(wrote()).toBe(false);
+  });
+
   it("blocks in-flight and returns the running task id", async () => {
     txReturning({
       repoRows: [{ onboarding_pr_merged: false, onboarding_pr_url: null }],

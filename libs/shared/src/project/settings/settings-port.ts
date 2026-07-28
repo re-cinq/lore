@@ -50,6 +50,12 @@ export interface SettingsPort {
   /** Mark a repo's onboarding PR merged (+ stamp last_ingested_at), keyed by row id. */
   markOnboardingMergedById(id: string): Promise<void>;
   /**
+   * Same, keyed by full name. Redundant backstop used when an onboard *task's*
+   * PR merges: if the repo sweep already cleared `onboarding_pr_url` (the PR
+   * closed and was later reopened), the repo would otherwise never be marked.
+   */
+  markOnboardingMergedByRepo(repo: string): Promise<void>;
+  /**
    * Forget a repo's onboarding PR url, keyed by row id. Used when that PR was
    * closed without merging: the onboard guard reads a non-null url as "an
    * onboarding is still in progress", so a stale one blocks the repo forever.

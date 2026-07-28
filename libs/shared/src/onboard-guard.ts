@@ -34,12 +34,18 @@ export const IN_FLIGHT_TASK_STATUSES = [
 ] as const;
 
 /** Reads the onboarding columns for one repo. `$1` = full name. */
-export const ONBOARD_REPO_STATE_SQL = `SELECT onboarding_pr_merged, onboarding_pr_url
+export const ONBOARD_REPO_STATE_SQL = `SELECT onboarding_pr_merged, onboarding_pr_url, last_ingested_at
      FROM lore.repos WHERE full_name = $1`;
 
-/** Newest in-flight onboard task for one repo. `$1` = full name, `$2` = statuses. */
+/**
+ * Newest in-flight onboard task for one repo. `$1` = full name, `$2` = statuses.
+ * A `pr-created` task with no recorded PR is excluded: merge-check finds tasks
+ * to terminalize by `pr_number`/`pr_url`, so such a task can never leave
+ * `pr-created` — counting it in-flight would block the repo forever.
+ */
 export const ONBOARD_IN_FLIGHT_TASK_SQL = `SELECT id FROM pipeline.tasks
      WHERE target_repo = $1 AND task_type = 'onboard' AND status = ANY($2::text[])
+       AND (status != 'pr-created' OR pr_url IS NOT NULL)
      ORDER BY created_at DESC LIMIT 1`;
 
 /** Onboarding state of one repo, read from `lore.repos` + `pipeline.tasks`. */
@@ -50,6 +56,12 @@ export interface OnboardState {
   openOnboardingPrUrl: string | null;
   /** Id of an in-flight `onboard` task for this repo, if one exists. */
   inFlightTaskId: string | null;
+  /**
+   * Whether the repo's content was ever ingested. Ingestion only runs after an
+   * onboarding merged, so an ingested repo is onboarded de facto even when its
+   * row predates `onboarding_pr_merged` tracking and the flag was never set.
+   */
+  ingested: boolean;
 }
 
 export type OnboardBlock = "in-flight" | "already-onboarded" | "pr-open";
@@ -68,6 +80,7 @@ export type OnboardDecision =
 export interface OnboardRepoRow {
   onboarding_pr_merged?: boolean | null;
   onboarding_pr_url?: string | null;
+  last_ingested_at?: string | Date | null;
 }
 
 /** The `pipeline.tasks` row shape `ONBOARD_IN_FLIGHT_TASK_SQL` returns. */
@@ -91,6 +104,7 @@ export function toOnboardState(
     onboardingPrMerged: merged,
     openOnboardingPrUrl: merged ? null : (repoRow?.onboarding_pr_url ?? null),
     inFlightTaskId: taskRow?.id ?? null,
+    ingested: repoRow?.last_ingested_at != null,
   };
 }
 
@@ -154,7 +168,11 @@ export function decideOnboard(
     return { allowed: true };
   }
 
-  if (state.onboardingPrMerged) {
+  // `ingested` counts as onboarded too: rows that predate onboarding_pr_merged
+  // tracking never had the flag set, but ingested content proves an onboarding
+  // completed — without this, exactly the legacy repos that motivated #968
+  // would still read as a clear board.
+  if (state.onboardingPrMerged || state.ingested) {
     return {
       allowed: false,
       block: "already-onboarded",

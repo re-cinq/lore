@@ -160,6 +160,15 @@ export class PgSettings implements SettingsPort {
     );
   }
 
+  async markOnboardingMergedByRepo(repo: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE lore.repos
+          SET onboarding_pr_merged = true, last_ingested_at = now()
+        WHERE full_name = $1`,
+      [repo],
+    );
+  }
+
   async clearOnboardingPrUrl(id: string): Promise<void> {
     await this.pool.query(
       "UPDATE lore.repos SET onboarding_pr_url = NULL WHERE id = $1",

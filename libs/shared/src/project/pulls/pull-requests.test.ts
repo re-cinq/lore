@@ -49,8 +49,6 @@ function fakePulls(
     listComments: async () => [],
     listIssueComments: async () => [],
     listCommits: async () => [{ sha: "abc", message: "feat", date: "t" }],
-    isMerged: async (_repo, number) => number === 7,
-    isClosed: async () => false,
     getStats: async () => ({
       files_changed: 1,
       additions: 2,
@@ -125,7 +123,5 @@ describe("PullRequests", () => {
         submitted_at: "t",
       },
     ]);
-    expect(await facade.isMerged(7)).toBe(true);
-    expect(await facade.isMerged(3)).toBe(false);
   });
 });

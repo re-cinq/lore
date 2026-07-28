@@ -5,6 +5,7 @@ import {
   onboardTaskDescription,
   toOnboardState,
   IN_FLIGHT_TASK_STATUSES,
+  ONBOARD_IN_FLIGHT_TASK_SQL,
   type OnboardState,
 } from "./onboard-guard.js";
 
@@ -12,6 +13,7 @@ const clear: OnboardState = {
   onboardingPrMerged: false,
   openOnboardingPrUrl: null,
   inFlightTaskId: null,
+  ingested: false,
 };
 
 describe("decideOnboard", () => {
@@ -60,6 +62,19 @@ describe("decideOnboard", () => {
     ).toEqual({ allowed: true });
   });
 
+  it("blocks already-onboarded for an ingested repo whose merged flag was never set", () => {
+    expect(decideOnboard("o/r", { ...clear, ingested: true })).toMatchObject({
+      allowed: false,
+      block: "already-onboarded",
+    });
+  });
+
+  it("allows an ingested repo when reonboard is requested", () => {
+    expect(
+      decideOnboard("o/r", { ...clear, ingested: true }, { reonboard: true }),
+    ).toEqual({ allowed: true });
+  });
+
   it("blocks pr-open when an unmerged onboarding PR exists", () => {
     expect(
       decideOnboard("o/r", {
@@ -98,6 +113,14 @@ describe("IN_FLIGHT_TASK_STATUSES", () => {
   });
 });
 
+describe("ONBOARD_IN_FLIGHT_TASK_SQL", () => {
+  it("excludes a pr-created task with no recorded PR from the in-flight set", () => {
+    expect(ONBOARD_IN_FLIGHT_TASK_SQL).toContain(
+      "status != 'pr-created' OR pr_url IS NOT NULL",
+    );
+  });
+});
+
 describe("toOnboardState", () => {
   it("reads a missing repo row as not onboarded with nothing in flight", () => {
     expect(toOnboardState(undefined, undefined)).toEqual(clear);
@@ -113,6 +136,7 @@ describe("toOnboardState", () => {
       onboardingPrMerged: true,
       openOnboardingPrUrl: null,
       inFlightTaskId: null,
+      ingested: false,
     });
   });
 
@@ -126,7 +150,14 @@ describe("toOnboardState", () => {
       onboardingPrMerged: false,
       openOnboardingPrUrl: "https://x/pull/1",
       inFlightTaskId: "task-3",
+      ingested: false,
     });
+  });
+
+  it("reads a set last_ingested_at as ingested", () => {
+    expect(
+      toOnboardState({ last_ingested_at: "2026-01-01T00:00:00Z" }, undefined),
+    ).toEqual({ ...clear, ingested: true });
   });
 });
 

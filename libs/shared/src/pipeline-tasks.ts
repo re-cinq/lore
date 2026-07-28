@@ -14,12 +14,17 @@ import type { PgPool } from "./memory-store.js";
 // Feature planning + finalize produce only analysis and a spec-doc PR (no code),
 // so they are allowed from the docs tier up (ADR-027 / specs/7-feature-planning).
 const FEATURE_PLANNING = ["feature-planning", "feature-finalize"];
+// Onboarding is allowed at every tier: it produces a docs-only scaffolding PR
+// and is gated against duplicates by its own dedicated guard (onboard-guard.ts).
+// Restricting it to `full` only 500s the reonboard repair path on repos the
+// trust ladder has auto-promoted below that.
 const TRUST_LEVELS: Record<string, string[]> = {
-  docs: ["gap-fill", "runbook", ...FEATURE_PLANNING],
-  tests: ["gap-fill", "runbook", "review", ...FEATURE_PLANNING],
+  docs: ["gap-fill", "runbook", "onboard", ...FEATURE_PLANNING],
+  tests: ["gap-fill", "runbook", "onboard", "review", ...FEATURE_PLANNING],
   implementation: [
     "gap-fill",
     "runbook",
+    "onboard",
     "review",
     "implementation",
     "feature-request",

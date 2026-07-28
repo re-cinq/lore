@@ -92,6 +92,18 @@ describe("PgSettings", () => {
     ]);
   });
 
+  it("marks onboarding merged by full name for the onboard-task backstop", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const store = new PgSettings(fakePool(capture, []), fakeWriter([]));
+
+    await store.markOnboardingMergedByRepo("o/r");
+
+    expect(capture[0]).toMatchObject({
+      text: expect.stringContaining("SET onboarding_pr_merged = true"),
+      params: ["o/r"],
+    });
+  });
+
   it("nulls the onboarding PR url by row id when that PR closed unmerged", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
     const store = new PgSettings(fakePool(capture, []), fakeWriter([]));

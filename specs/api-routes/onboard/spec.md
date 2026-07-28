@@ -75,11 +75,20 @@ submissions serialize and the later one sees the earlier one's task. ([validated
 Inside the lock the shared `decideOnboard`
 ([guard](../../../libs/shared/src/onboard-guard.ts)) refuses a submission whose
 repo already has an onboard task in flight, has merged its onboarding PR, or has
-one still open. ([validated by `blocks an already-onboarded repo without creating a task`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L169), [`blocks a repo with an onboard task in flight and names that task`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L180))
+one still open. ([validated by `blocks an already-onboarded repo without creating a task`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L169), [`blocks a repo with an onboard task in flight and names that task`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L190))
+
+A repo whose content was ever ingested counts as onboarded even when its row
+predates `onboarding_pr_merged` tracking and the flag was never set — ingestion
+only runs after an onboarding merged, so legacy rows cannot read as a clear
+board. ([validated by `blocks an ingested legacy row whose merged flag was never set`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L180))
 
 The `pr-open` block is self-healing: `lore.repos.onboarding_pr_url` is set when the
 onboarding PR opens and cleared by the Floor's merge-check when that PR is closed
-without merging, so a rejected onboarding does not refuse the repo forever. ([validated by `nulls the onboarding PR url by row id when that PR closed unmerged`](libs/shared/src/project/settings/settings-pg.test.ts#L95))
+without merging, so a rejected onboarding does not refuse the repo forever. ([validated by `nulls the onboarding PR url by row id when that PR closed unmerged`](libs/shared/src/project/settings/settings-pg.test.ts#L107))
+
+If a cleared PR is later reopened and merged, the repo sweep no longer sees it —
+so when an onboard *task's* PR merges, merge-check redundantly marks the repo
+onboarded by full name. ([validated by `marks onboarding merged by full name for the onboard-task backstop`](libs/shared/src/project/settings/settings-pg.test.ts#L95))
 
 The web-ui onboard form and the repo-page re-onboard button take the same lock
 through their own mirror of the guard, which decides identically. ([validated by `takes the per-repo advisory lock before reading the guard state`](apps/web-ui/src/lib/onboard.test.ts#L56), [`shares the advisory-lock key so both apps serialize on it`](apps/web-ui/src/lib/onboard-guard.parity.test.ts#L47))
@@ -116,11 +125,11 @@ The route is registered as an exact `POST /api/onboard` match. ([implemented by]
 
 `onboardRepo` takes the per-repo advisory lock before reading the guard state and gives the task a description rather than the bare repo name. ([validated by `takes the per-repo advisory lock before reading the guard state`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L99), [`sends a described task instead of the bare repo name`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L138))
 
-`onboardRepo` creates no task and skips the webhook ensure for an already-onboarded repo, blocks a repo with an onboard task in flight while naming that task, and blocks a repo whose onboarding PR is still open while naming the PR. ([validated by `blocks an already-onboarded repo without creating a task`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L169), [`blocks a repo with an onboard task in flight and names that task`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L180), [`blocks a repo whose onboarding PR is still open`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L191))
+`onboardRepo` creates no task and skips the webhook ensure for an already-onboarded repo, blocks a repo with an onboard task in flight while naming that task, and blocks a repo whose onboarding PR is still open while naming the PR. ([validated by `blocks an already-onboarded repo without creating a task`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L169), [`blocks a repo with an onboard task in flight and names that task`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L190), [`blocks a repo whose onboarding PR is still open`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L201))
 
-A `reonboard` submission is queued for an already-onboarded repo but still refused while an onboard task is in flight. ([validated by `creates a task for an onboarded repo when reonboard is requested`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L223), [`still blocks reonboard while an onboard task is in flight`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L237))
+A `reonboard` submission is queued for an already-onboarded repo but still refused while an onboard task is in flight. ([validated by `creates a task for an onboarded repo when reonboard is requested`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L233), [`still blocks reonboard while an onboard task is in flight`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L247))
 
-`reonboard` waives only the already-onboarded block; a repo whose onboarding PR is still open is refused, because a repair pass there would put a second agent on scaffolding the first one is still writing. ([validated by `blocks reonboard while the onboarding PR is still open`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L208))
+`reonboard` waives only the already-onboarded block; a repo whose onboarding PR is still open is refused, because a repair pass there would put a second agent on scaffolding the first one is still writing. ([validated by `blocks reonboard while the onboarding PR is still open`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L218))
 
 `onboardRepo` takes one pooled connection and commits both the onboard task and the `lore.repos` row inside the single transaction that holds the lock — a second connection for the task would deadlock the pool once concurrent submissions reach its size, and a task committed outside the transaction would survive the rollback and then block every retry as in-flight. A failing write rolls back, creates nothing, and skips the webhook ensure. ([validated by `commits the task and the repos row on the one locked connection`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L120), [`rolls back and creates nothing when a write fails`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L155))
 

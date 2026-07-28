@@ -79,8 +79,6 @@ describe("Workspace", () => {
       listComments: async () => [],
       listIssueComments: async () => [],
       listCommits: async () => [],
-      isMerged: async () => false,
-      isClosed: async () => false,
       getStats: async () => ({
         files_changed: 0,
         additions: 0,

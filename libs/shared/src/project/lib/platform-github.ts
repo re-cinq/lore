@@ -704,30 +704,6 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     }));
   }
 
-  async isMerged(repo: string, number: number): Promise<boolean> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const { data } = await ok.rest.pulls.get({
-      owner,
-      repo: name,
-      pull_number: number,
-    });
-
-    return data.merged;
-  }
-
-  async isClosed(repo: string, number: number): Promise<boolean> {
-    const ok = await this.octo();
-    const [owner, name] = split(repo);
-    const { data } = await ok.rest.pulls.get({
-      owner,
-      repo: name,
-      pull_number: number,
-    });
-
-    return data.state === "closed" && !data.merged;
-  }
-
   async getStats(repo: string, number: number): Promise<PullStats> {
     const ok = await this.octo();
     const [owner, name] = split(repo);

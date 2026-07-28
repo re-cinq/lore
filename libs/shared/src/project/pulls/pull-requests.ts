@@ -89,14 +89,6 @@ export class PullRequests {
     return this.pulls.listCommits(this.repo, number);
   }
 
-  isMerged(number: number): Promise<boolean> {
-    return this.pulls.isMerged(this.repo, number);
-  }
-
-  isClosed(number: number): Promise<boolean> {
-    return this.pulls.isClosed(this.repo, number);
-  }
-
   getStats(number: number): Promise<PullStats> {
     return this.pulls.getStats(this.repo, number);
   }

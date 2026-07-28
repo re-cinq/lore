@@ -148,6 +148,15 @@ export class InMemorySettings implements SettingsPort {
     }
   }
 
+  async markOnboardingMergedByRepo(repo: string): Promise<void> {
+    const row = this.repos.find((r) => r.full_name === repo);
+
+    if (row) {
+      row.onboarding_pr_merged = true;
+      row.last_ingested_at = new Date();
+    }
+  }
+
   async clearOnboardingPrUrl(id: string): Promise<void> {
     const row = this.repos.find((r) => r.id === id);
 

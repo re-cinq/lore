@@ -123,6 +123,11 @@ path, by the shared CRUD).
 pointed at `lore_onboard_repo`, whose transaction holds the duplicate-onboard
 guard. ([validated by `refuses task_type onboard and names lore_onboard_repo instead`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L213))
 
+The shared trust gate allows `onboard` at every trust tier — it produces a
+docs-only scaffolding PR and is guarded against duplicates by its own route, so
+restricting it to `full` would only break the reonboard repair path on
+auto-promoted repos — while a genuinely disallowed type is still refused. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/pipeline-tasks.trust.test.ts#L37), [`still refuses an implementation task at trust level docs`](libs/shared/src/pipeline-tasks.trust.test.ts#L52))
+
 ## Out of Scope
 
 - Task execution (handled by the lore-agent service).

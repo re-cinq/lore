@@ -130,8 +130,6 @@ export interface PullRequestsPort {
   listComments(repo: string, number: number): Promise<ReviewComment[]>;
   listIssueComments(repo: string, number: number): Promise<IssueComment[]>;
   listCommits(repo: string, number: number): Promise<PullCommit[]>;
-  isMerged(repo: string, number: number): Promise<boolean>;
-  isClosed(repo: string, number: number): Promise<boolean>;
   getStats(repo: string, number: number): Promise<PullStats>;
   /** Number of files that differ between two refs (compare-commits). The agent-watcher
    *  uses this for the no-changes vs PR decision — `Agent.status` carries no changedFiles. */

@@ -177,6 +177,16 @@ describe("onboardRepo", () => {
     expect(ensureFloorWebhook).not.toHaveBeenCalled();
   });
 
+  it("blocks an ingested legacy row whose merged flag was never set", async () => {
+    const { pool } = poolWith({
+      repoRows: [{ last_ingested_at: "2026-01-01T00:00:00Z" }],
+    });
+    const result = await onboardRepo(pool, "o/r");
+
+    expect(result).toMatchObject({ blocked: "already-onboarded" });
+    expect(createPipelineTask).not.toHaveBeenCalled();
+  });
+
   it("blocks a repo with an onboard task in flight and names that task", async () => {
     const { pool } = poolWith({ taskRows: [{ id: "task-running" }] });
     const result = await onboardRepo(pool, "o/r");
