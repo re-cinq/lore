@@ -101,7 +101,7 @@ export interface ChunksPort {
   /** `SELECT COUNT(*) FROM org_shared.chunks WHERE team = $1` */
   countChunksByTeam(team: string): Promise<number>;
 
-  // ── org_shared reads for the detection jobs (spec-drift / gap-detect) ──
+  // ── org_shared reads for the spec-drift detection job ──
   // These read `org_shared.chunks` per repo; the pod-side HTTP adapter maps them
   // to `GET /api/repos/:o/:r/chunks?content_type=…`, so a station never needs a DB.
 
@@ -111,10 +111,14 @@ export interface ChunksPort {
   /** Code symbols for a repo (`content_type = 'code'`, `metadata->>'symbol_name'` set). */
   codeSymbols(repo: string): Promise<CodeSymbolRow[]>;
 
+  // ── the coverage + gap-detect jobs read the repo's RESOLVED schema (team
+  //    schema, else org_shared — where reindex actually wrote the repo's
+  //    chunks), so these are repo-scoped and the adapter resolves the schema. ──
+
   /**
-   * True when the repo has at least one chunk of `contentType`, optionally with a
-   * `file_path LIKE '%<fileSuffix>'`. Backs gap-detect's missing-CLAUDE.md / ADR /
-   * spec existence checks.
+   * True when the repo has at least one chunk of `contentType` in its resolved
+   * schema, optionally with a `file_path LIKE '%<fileSuffix>'`. Backs
+   * gap-detect's missing-CLAUDE.md / ADR / spec existence checks.
    */
   hasChunk(
     repo: string,
@@ -122,12 +126,15 @@ export interface ChunksPort {
     fileSuffix?: string,
   ): Promise<boolean>;
 
-  /** Count of the repo's chunks last ingested more than `olderThanDays` ago (stale-content gap). */
+  /**
+   * Count of the repo's reindex-owned chunks (`metadata->>'ingested_by' =
+   * 'reindex-job'`) in its resolved schema whose `ingested_at` is more than
+   * `olderThanDays` old (stale-content gap). The reindex verification pass
+   * re-stamps `ingested_at` on every successful run, so a non-zero count means
+   * reindex has not verified the repo recently — not merely that its files are
+   * unchanged.
+   */
   staleChunkCount(repo: string, olderThanDays: number): Promise<number>;
-
-  // ── the coverage jobs read the repo's RESOLVED schema (team schema, else
-  //    org_shared — where reindex actually wrote the repo's chunks), so these
-  //    are repo-scoped and the adapter resolves the schema. ──
 
   /** Spec chunks (with ingest stamp) for a repo, from its resolved schema. */
   specChunksWithIngest(repo: string): Promise<SpecChunkWithIngest[]>;
@@ -140,4 +147,34 @@ export interface ChunksPort {
 
   /** Code chunks (content + metadata + embedding) for a repo, from its resolved schema (backfill). */
   codeChunksForBackfill(repo: string): Promise<CodeChunkFull[]>;
+
+  // ── Floor-only reindex verification surface. The nightly reindex re-stamps
+  //    chunks whose files still exist in the repo tree and prunes orphans of
+  //    deleted files, restricted to rows it wrote itself
+  //    (`metadata->>'ingested_by' = 'reindex-job'`). The station HTTP adapter
+  //    throws on all three. ──
+
+  /** Distinct `file_path`s of the repo's reindex-owned chunks in `${schema}.chunks`. */
+  reindexOwnedFilePaths(schema: string, repo: string): Promise<string[]>;
+
+  /**
+   * Re-stamp `ingested_at` to now on the repo's reindex-owned chunks whose
+   * `file_path` is in `filePaths`, preserving within-file relative order (spec
+   * reassembly sorts same-file chunks by `ingested_at`). Returns rows updated.
+   */
+  touchChunksForFiles(
+    schema: string,
+    repo: string,
+    filePaths: string[],
+  ): Promise<number>;
+
+  /**
+   * Delete the repo's reindex-owned chunks whose `file_path` is in `filePaths`
+   * (orphans of files deleted from the repo). Returns rows deleted.
+   */
+  pruneChunksForFiles(
+    schema: string,
+    repo: string,
+    filePaths: string[],
+  ): Promise<number>;
 }

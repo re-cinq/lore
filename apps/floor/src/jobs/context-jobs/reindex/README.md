@@ -6,6 +6,14 @@ from exact files (CLAUDE.md, AGENTS.md) plus prefixes (`adrs/`, `specs/`,
 since `last_ingested_at`. Per file: classify → chunk → embed → upsert into the
 repo's team schema (falling back to `org_shared`).
 
+Every run ends with a verification pass (`verify.ts`): reindex-owned chunks
+(`metadata->>'ingested_by' = 'reindex-job'`) whose files still exist in the
+repo tree get `ingested_at` re-stamped; orphans of deleted files are pruned.
+This keeps gap-detect's `staleChunkCount` clearable — a non-zero count means
+reindex has not verified the repo in that window, not that files are unchanged.
+A failed or empty tree fetch skips the pass (no touch, no prune).
+
 - **Entry point:** `index.ts` → `reindexJob()`
 - **Job name:** `context_reindex` — `npm run job -- context_reindex`
-- **Tests:** `reindex-seed.test.ts` (covers the pure `selectSeedFiles` helper)
+- **Tests:** `reindex-seed.test.ts` (pure `selectSeedFiles` helper),
+  `verify.test.ts` (verification pass against the in-memory chunks double)

@@ -4,16 +4,20 @@ import { InMemoryChunks } from "./chunks-memory.js";
 import type { ChunkInsert } from "./chunks-port.js";
 import type { PgPool } from "../../memory-store.js";
 
-function fakePool(result: { rows: any[] } = { rows: [] }): {
+/** Results are consumed in order per query; the last one is sticky, so
+ *  single-result callers keep working and resolved-schema methods (team
+ *  lookup → schemaExists → real query) can script a sequence. */
+function fakePool(...results: Array<{ rows: any[] }>): {
   pool: PgPool;
   calls: Array<{ text: string; params?: unknown[] }>;
 } {
   const calls: Array<{ text: string; params?: unknown[] }> = [];
+  const queue = [...results];
   const pool: PgPool = {
     async query<T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> {
       calls.push({ text, params });
 
-      return result;
+      return queue.length > 1 ? queue.shift()! : (queue[0] ?? { rows: [] });
     },
   };
 
@@ -26,8 +30,13 @@ const sampleChunk: ChunkInsert = {
   team: "platform",
   repo: "octo/repo",
   filePath: "specs/spec.md",
-  metadata: { chunk_index: 0, ingestedBy: "reindex-job" },
+  metadata: { chunk_index: 0, ingested_by: "reindex-job" },
 };
+
+const teamSchemaLookup = [
+  { rows: [{ team: "platform" }] },
+  { rows: [{ schema_name: "platform" }] },
+];
 
 describe("PgChunks adapter", () => {
   it("returns true when information_schema lists the schema", async () => {
@@ -82,7 +91,7 @@ describe("PgChunks adapter", () => {
       "platform",
       "octo/repo",
       "specs/spec.md",
-      JSON.stringify({ chunk_index: 0, ingestedBy: "reindex-job" }),
+      JSON.stringify({ chunk_index: 0, ingested_by: "reindex-job" }),
     ]);
   });
 
@@ -178,21 +187,109 @@ describe("PgChunks adapter", () => {
     expect(calls[0]?.params).toEqual(["octo/repo"]);
   });
 
-  it("checks chunk existence by content type and optional file suffix", async () => {
-    const { pool, calls } = fakePool({ rows: [{ id: "1" }] });
+  it("checks chunk existence in the repo's team schema", async () => {
+    const { pool, calls } = fakePool(...teamSchemaLookup, {
+      rows: [{ id: "1" }],
+    });
 
     expect(
       await new PgChunks(pool).hasChunk("octo/repo", "doc", "CLAUDE.md"),
     ).toBe(true);
-    expect(calls[0]?.text).toContain("file_path LIKE");
-    expect(calls[0]?.params).toEqual(["octo/repo", "doc", "%CLAUDE.md"]);
+    expect(calls[2]?.text).toContain("FROM platform.chunks");
+    expect(calls[2]?.text).not.toContain("org_shared");
+    expect(calls[2]?.text).toContain("file_path LIKE");
+    expect(calls[2]?.params).toEqual(["octo/repo", "doc", "%CLAUDE.md"]);
   });
 
-  it("counts stale chunks older than N days", async () => {
-    const { pool, calls } = fakePool({ rows: [{ count: "13" }] });
+  it("falls back to org_shared for chunk existence when the repo has no team", async () => {
+    const { pool, calls } = fakePool({ rows: [] }, { rows: [{ id: "1" }] });
+
+    expect(await new PgChunks(pool).hasChunk("octo/repo", "adr")).toBe(true);
+    expect(calls[1]?.text).toContain("FROM org_shared.chunks");
+    expect(calls[1]?.params).toEqual(["octo/repo", "adr"]);
+  });
+
+  it("counts stale reindex-owned chunks in the repo's team schema", async () => {
+    const { pool, calls } = fakePool(...teamSchemaLookup, {
+      rows: [{ count: "13" }],
+    });
 
     expect(await new PgChunks(pool).staleChunkCount("octo/repo", 90)).toBe(13);
-    expect(calls[0]?.params).toEqual(["octo/repo", "90"]);
+    expect(calls[2]?.text).toContain("FROM platform.chunks");
+    expect(calls[2]?.text).not.toContain("org_shared");
+    expect(calls[2]?.text).toContain(
+      "metadata->>'ingested_by' = 'reindex-job'",
+    );
+    expect(calls[2]?.params).toEqual(["octo/repo", "90"]);
+  });
+
+  it("counts stale chunks from org_shared when the repo has no team", async () => {
+    const { pool, calls } = fakePool({ rows: [] }, { rows: [{ count: "2" }] });
+
+    expect(await new PgChunks(pool).staleChunkCount("octo/repo", 90)).toBe(2);
+    expect(calls[1]?.text).toContain("FROM org_shared.chunks");
+  });
+
+  it("lists distinct reindex-owned file paths in an interpolated schema", async () => {
+    const { pool, calls } = fakePool({
+      rows: [{ file_path: "specs/a.md" }, { file_path: "CLAUDE.md" }],
+    });
+
+    expect(
+      await new PgChunks(pool).reindexOwnedFilePaths("platform", "octo/repo"),
+    ).toEqual(["specs/a.md", "CLAUDE.md"]);
+    expect(calls[0]?.text).toContain(
+      "SELECT DISTINCT file_path FROM platform.chunks",
+    );
+    expect(calls[0]?.text).toContain(
+      "metadata->>'ingested_by' = 'reindex-job'",
+    );
+    expect(calls[0]?.params).toEqual(["octo/repo"]);
+  });
+
+  it("re-stamps reindex-owned chunks preserving within-file order and returns the row count", async () => {
+    const { pool, calls } = fakePool({ rows: [{ id: "1" }, { id: "2" }] });
+
+    const touched = await new PgChunks(pool).touchChunksForFiles(
+      "platform",
+      "octo/repo",
+      ["specs/a.md"],
+    );
+
+    expect(touched).toBe(2);
+    expect(calls[0]?.text).toContain(
+      "row_number() OVER (PARTITION BY file_path ORDER BY ingested_at, id)",
+    );
+    expect(calls[0]?.text).toContain("UPDATE platform.chunks");
+    expect(calls[0]?.text).toContain(
+      "metadata->>'ingested_by' = 'reindex-job'",
+    );
+    expect(calls[0]?.params).toEqual(["octo/repo", ["specs/a.md"]]);
+  });
+
+  it("prunes reindex-owned chunks of vanished files and returns the row count", async () => {
+    const { pool, calls } = fakePool({ rows: [{ id: "9" }] });
+
+    const pruned = await new PgChunks(pool).pruneChunksForFiles(
+      "platform",
+      "octo/repo",
+      ["specs/gone.md"],
+    );
+
+    expect(pruned).toBe(1);
+    expect(calls[0]?.text).toContain("DELETE FROM platform.chunks");
+    expect(calls[0]?.text).toContain(
+      "metadata->>'ingested_by' = 'reindex-job'",
+    );
+    expect(calls[0]?.params).toEqual(["octo/repo", ["specs/gone.md"]]);
+  });
+
+  it("rejects a schema name carrying an injection payload on the verification surface", async () => {
+    const { pool } = fakePool();
+
+    await expect(
+      new PgChunks(pool).touchChunksForFiles("a; DROP TABLE", "octo/repo", []),
+    ).rejects.toThrow(new Error('Invalid schema name: "a; DROP TABLE"'));
   });
 });
 
@@ -298,10 +395,10 @@ describe("InMemoryChunks double", () => {
     ]);
   });
 
-  it("reports chunk existence by content type and file suffix", async () => {
+  it("reports chunk existence from whichever schema holds the repo's rows", async () => {
     const chunks = new InMemoryChunks();
 
-    await chunks.insertChunk("org_shared", {
+    await chunks.insertChunk("platform", {
       ...sampleChunk,
       contentType: "doc",
       filePath: "docs/CLAUDE.md",
@@ -312,16 +409,69 @@ describe("InMemoryChunks double", () => {
     expect(await chunks.hasChunk("octo/repo", "adr")).toBe(false);
   });
 
-  it("counts stale chunks by ingestedAt age", async () => {
+  it("counts stale reindex-owned chunks and ignores api-ingested rows", async () => {
     const old = new Date(Date.now() - 100 * 86_400_000).toISOString();
     const fresh = new Date().toISOString();
     const chunks = new InMemoryChunks();
 
-    await chunks.insertChunk("org_shared", { ...sampleChunk, filePath: "a" });
-    await chunks.insertChunk("org_shared", { ...sampleChunk, filePath: "b" });
+    await chunks.insertChunk("platform", { ...sampleChunk, filePath: "a" });
+    await chunks.insertChunk("platform", { ...sampleChunk, filePath: "b" });
+    await chunks.insertChunk("platform", {
+      ...sampleChunk,
+      filePath: "c",
+      metadata: { ingested_by: "api" },
+    });
     chunks.rows[0]!.ingestedAt = old;
     chunks.rows[1]!.ingestedAt = fresh;
+    chunks.rows[2]!.ingestedAt = old;
 
     expect(await chunks.staleChunkCount("octo/repo", 90)).toBe(1);
+  });
+
+  it("lists, touches and prunes only reindex-owned rows", async () => {
+    const old = new Date(Date.now() - 100 * 86_400_000).toISOString();
+    const chunks = new InMemoryChunks();
+
+    await chunks.insertChunk("platform", {
+      ...sampleChunk,
+      filePath: "specs/kept.md",
+    });
+    await chunks.insertChunk("platform", {
+      ...sampleChunk,
+      filePath: "specs/gone.md",
+    });
+    await chunks.insertChunk("platform", {
+      ...sampleChunk,
+      filePath: "specs/api.md",
+      metadata: { ingested_by: "api" },
+    });
+
+    for (const row of chunks.rows) {
+      row.ingestedAt = old;
+    }
+
+    expect(
+      (await chunks.reindexOwnedFilePaths("platform", "octo/repo")).sort(),
+    ).toEqual(["specs/gone.md", "specs/kept.md"]);
+
+    expect(
+      await chunks.touchChunksForFiles("platform", "octo/repo", [
+        "specs/kept.md",
+        "specs/api.md",
+      ]),
+    ).toBe(1);
+    expect(chunks.rows[0]!.ingestedAt).not.toBe(old);
+    expect(chunks.rows[2]!.ingestedAt).toBe(old);
+
+    expect(
+      await chunks.pruneChunksForFiles("platform", "octo/repo", [
+        "specs/gone.md",
+        "specs/api.md",
+      ]),
+    ).toBe(1);
+    expect(chunks.rows.map((row) => row.filePath).sort()).toEqual([
+      "specs/api.md",
+      "specs/kept.md",
+    ]);
   });
 });
