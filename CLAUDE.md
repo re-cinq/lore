@@ -494,10 +494,13 @@ migration `0018`; both `runner-cli` and `handle-feature-planning` resolve it
 by name rather than hardcoding.
 
 **Progressive trust**: `settings.trust.level` controls which task
-types are allowed per repo: docs (gap-fill/runbook), tests (+review),
-implementation (+implementation/feature-request/general), full (all).
-Auto-promotes after 3 successful merges at current level. Defaults
-to `implementation` for backward compatibility.
+types are allowed per repo: docs (gap-fill/runbook/onboard +
+feature-planning/feature-finalize), tests (+review), implementation
+(+implementation/feature-request/general), full (all). `onboard` is
+allowed at every tier — duplicate protection lives in the onboard
+route's own guard, not the trust ladder. Auto-promotes after 3
+successful merges at current level. Defaults to `implementation`
+for backward compatibility.
 
 **Task groups**: `task_group_id` on pipeline tasks coordinates
 multi-repo features. `lore_create_pipeline_task` accepts `group_id`.
