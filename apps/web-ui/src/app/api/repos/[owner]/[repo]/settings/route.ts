@@ -35,8 +35,8 @@ export async function POST(
     const body = await request.json();
 
     // Verify the repo exists
-    const existing = await queryOne(
-      `SELECT full_name FROM lore.repos WHERE full_name = $1`,
+    const existing = await queryOne<{ full_name: string; team: string | null }>(
+      `SELECT full_name, team FROM lore.repos WHERE full_name = $1`,
       [fullName],
     );
 
@@ -74,6 +74,27 @@ export async function POST(
       `UPDATE lore.repos SET ${updates.join(", ")} WHERE full_name = $${paramIdx}`,
       values,
     );
+
+    // A changed team re-points the repo's chunk-schema resolution, stranding
+    // any legacy org_shared rows. Signal the Floor (event shape mirrors the
+    // canonical insertEvent in @re-cinq/lore-shared events.ts — web-ui does
+    // not import the workspace lib) so it relocates them immediately; the
+    // nightly reindex remains the safety net, so a failed insert degrades to
+    // that instead of failing the settings write that already happened.
+    if (body.team !== undefined && (body.team || null) !== existing.team) {
+      try {
+        await query(
+          `INSERT INTO pipeline.events (event_name, source, params, repo)
+           VALUES ('internal.repo.team_changed', 'internal', $1::jsonb, $2)`,
+          [JSON.stringify({ repo: fullName }), fullName],
+        );
+      } catch (err) {
+        console.error(
+          `[settings] team_changed event insert failed for ${fullName} (nightly reindex will relocate):`,
+          err,
+        );
+      }
+    }
 
     const updated = await queryOne(
       `SELECT full_name, team, settings FROM lore.repos WHERE full_name = $1`,
