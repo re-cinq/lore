@@ -67,6 +67,7 @@ export function buildRegistry(): Map<string, EventHandler> {
 
     // ── Internal (mcp-server post-ingest) ──
     ["internal.ingest.spec_trace", internal.specTrace],
+    ["internal.repo.team_changed", internal.repoTeamChanged],
     // FR5 (specs/ingest-station): the post-ingest validate rides the SAME detect
     // tick as the weekly cron — params.repo narrows it, the core runs in a
     // station pod, never inline in the Floor.
