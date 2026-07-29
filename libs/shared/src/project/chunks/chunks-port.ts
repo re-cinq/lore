@@ -186,4 +186,26 @@ export interface ChunksPort {
     repo: string,
     filePaths: string[],
   ): Promise<number>;
+
+  /**
+   * MOVE the repo's legacy rows out of `org_shared.chunks` into
+   * `${schema}.chunks` (the runtime mirror of migration 0035, issue #979 —
+   * a repo whose team schema comes into existence after ingestion would
+   * otherwise leave its history stranded and invisible to every resolved-schema
+   * read). Per-FILE dedupe: files already present in the target keep their
+   * fresh copy and the stale org_shared rows are dropped; files absent move
+   * wholesale, preserving id, embedding, and `ingested_at`, rewriting `team`
+   * to the target schema, stamping `metadata.migrated_from = 'org_shared'`,
+   * and adopting provenance-less rows with a classifyFile content type
+   * (`doc`/`code`/`adr`/`spec`) via `ingested_by = 'reindex-job'`. Copy and
+   * delete share one statement/snapshot — never a delete without a copy.
+   * Idempotent; a clean repo is a no-op. Throws when `schema` is
+   * `org_shared` — self-relocation would dedupe every row against itself and
+   * delete the repo's chunks outright. Returns rows moved and rows removed
+   * from org_shared (`dropped - moved` = stale duplicates discarded).
+   */
+  relocateLegacyChunks(
+    schema: string,
+    repo: string,
+  ): Promise<{ moved: number; dropped: number }>;
 }

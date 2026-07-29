@@ -161,4 +161,10 @@ export class ChunksHttp implements ChunksPort {
   ): Promise<number> {
     throw new Error(WRITE_ONLY_FLOOR);
   }
+  async relocateLegacyChunks(
+    _schema: string,
+    _repo: string,
+  ): Promise<{ moved: number; dropped: number }> {
+    throw new Error(WRITE_ONLY_FLOOR);
+  }
 }

@@ -101,5 +101,8 @@ describe("ChunksHttp", () => {
     await expect(http.insertChunk("s", {} as never)).rejects.toThrow(
       /Floor-only/,
     );
+    await expect(http.relocateLegacyChunks("s", "o/r")).rejects.toThrow(
+      /Floor-only/,
+    );
   });
 });

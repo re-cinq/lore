@@ -332,4 +332,59 @@ export class InMemoryChunks implements ChunksPort {
 
     return before - this.rows.length;
   }
+
+  async relocateLegacyChunks(
+    schema: string,
+    repo: string,
+  ): Promise<{ moved: number; dropped: number }> {
+    enforceSchema(schema);
+    enforceTrue(
+      schema !== "org_shared",
+      Error,
+      "relocateLegacyChunks target must not be org_shared",
+    );
+    // Snapshot the target BEFORE moving anything — the Pg statement's dedupe
+    // probes all see the pre-statement target state, so a multi-chunk file
+    // moves wholesale rather than deduping against its own first chunk.
+    const target = this.rows.filter(
+      (row) => row.schema === schema && row.repo === repo,
+    );
+    const targetFiles = new Set(target.map((row) => row.filePath));
+    const targetIds = new Set(target.map((row) => row.id));
+    const legacy = this.rows.filter(
+      (row) => row.schema === "org_shared" && row.repo === repo,
+    );
+    const dropIds = new Set<string>();
+    let moved = 0;
+
+    for (const row of legacy) {
+      if (targetFiles.has(row.filePath) || targetIds.has(row.id)) {
+        dropIds.add(row.id);
+        continue;
+      }
+      const adopt =
+        row.metadata.ingested_by == null &&
+        ["doc", "code", "adr", "spec"].includes(row.contentType);
+
+      row.schema = schema;
+      row.team = schema;
+      row.metadata = {
+        ...row.metadata,
+        migrated_from: "org_shared",
+        ...(adopt ? { ingested_by: "reindex-job" } : {}),
+      };
+      moved++;
+    }
+
+    this.rows = this.rows.filter(
+      (row) =>
+        !(
+          row.schema === "org_shared" &&
+          row.repo === repo &&
+          dropIds.has(row.id)
+        ),
+    );
+
+    return { moved, dropped: moved + dropIds.size };
+  }
 }
