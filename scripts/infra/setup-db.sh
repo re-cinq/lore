@@ -121,6 +121,13 @@ kubectl exec -n "$NAMESPACE" lore-db-1 -- psql -U postgres -d lore -c "
       EXECUTE format('
         CREATE INDEX IF NOT EXISTS %I_chunks_search_idx
         ON %I.chunks USING GIN (search_tsv)', s, s);
+      -- The runtime role reindexes whichever schema a repo resolves to:
+      -- per-file re-ingest DELETEs before INSERTing, embedding writes and the
+      -- verification sweep UPDATE, orphan pruning DELETEs. A schema granted
+      -- less (e.g. only the 0035 migration minimum) fails every write the
+      -- moment a repo's team resolves there.
+      EXECUTE format('
+        GRANT SELECT, INSERT, UPDATE, DELETE ON %I.chunks TO lore', s);
     END LOOP;
   END\$\$;
 
