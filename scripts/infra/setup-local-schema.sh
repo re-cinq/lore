@@ -118,6 +118,11 @@ done
 docker exec -i "$CONTAINER" psql -U postgres -d lore -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
 GRANT CREATE ON DATABASE lore TO lore;
 GRANT CREATE, USAGE ON SCHEMA lore, payments, platform, mobile, data, org_shared TO lore;
+-- Runtime chunk DML (mirrors setup-db.sh): reindex DELETEs before re-INSERTing
+-- a file, UPDATEs embeddings and verification stamps, and DELETEs orphans in
+-- whichever schema a repo resolves to.
+GRANT SELECT, INSERT, UPDATE, DELETE
+  ON payments.chunks, platform.chunks, mobile.chunks, data.chunks, org_shared.chunks TO lore;
 -- web-ui connects as lore_ui and reads lore.* tables (e.g. lore.features,
 -- lore.agent_definitions) granted by migrations; it needs schema USAGE too. In
 -- the cluster lore_ui already has it; mirror that locally.

@@ -176,3 +176,22 @@ sweep prunes owned chunks of deleted files in each repo's *resolved* schema —
 for org_shared-resident repos that is `DELETE ON org_shared.chunks` — so a
 blanket revoke can break the sweep; narrow only what your runtime role mapping
 provably does not use.
+
+### Runtime chunk DML — a team schema that hosts a resolved repo needs the full set
+
+The 0035 minimum above is migration-scoped. The moment a repo's team
+*resolves* to a schema, the nightly reindex writes there as `lore`: per-file
+re-ingest DELETEs before INSERTing, embedding writes and the verification
+re-stamp UPDATE, and orphan pruning DELETEs. A schema holding only the
+migration minimum fails every one of those with `permission denied for table
+chunks` (per-file errors + a failed verification pass in the reindex log; the
+job continues, nothing is corrupted, but the repo is never re-ingested or
+verified). Fresh clusters get the full set from `setup-db.sh` /
+`setup-local-schema.sh`; for clusters provisioned before that line, grant once
+via the usual local socket (shown for `platform` — repeat per schema that
+gains a resolved repo):
+
+```
+kubectl exec -n lore-db lore-db-1 -c postgres -- \
+  psql -d lore -c "GRANT SELECT, INSERT, UPDATE, DELETE ON platform.chunks TO lore;"
+```
