@@ -223,6 +223,18 @@ via `ingested_by = 'reindex-job'`; rows with a non-classifiable `content_type`
 (pseudo-path writers such as `rule` / `pull_request`) are relocated but remain
 unowned ([validated by `migration-0035.test.ts:45`](apps/lore-api/src/features/agents/migration-0035.test.ts#L45))
 
+The relocation is also self-healing at runtime (the migration handles the
+past; this handles the future): the nightly reindex opens every
+team-resolved per-repo pass by relocating any rows still stranded in
+`org_shared.chunks` (so a team assigned after ingestion converges within one
+night regardless of how the column was written), and a team change made
+through the settings route emits `internal.repo.team_changed`, whose Floor
+handler relocates immediately — the same port method
+(`relocateLegacyChunks`, FR-20.21) behind both. Only the
+`org_shared → team` direction is automated; clearing a team or moving
+between two team schemas still strands rows in the old schema and remains a
+manual operation.
+
 The relocation's guarantees:
 
 - The loop targets only real team schemas resolved from `lore.repos`, never

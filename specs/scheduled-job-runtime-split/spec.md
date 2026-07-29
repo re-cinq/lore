@@ -270,6 +270,11 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    tree are pruned, api-ingested chunks are never touched or pruned, an empty tree skips the
    sweep entirely, and re-stamping skips files verified within the last 30 days to keep
    steady-state nights from rewriting every row. ([validated by `verify.test.ts:55`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L55), [`verify.test.ts:69`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L69), [`verify.test.ts:83`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L83), [`verify.test.ts:95`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L95), [`verify.test.ts:105`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L105))
+   - Each team-resolved per-repo pass also begins with legacy relocation (issue #979, FR-20.21
+     in `specs/1-lore-platform/spec.md`): before counting the repo's chunks — so a newly
+     team-resolved repo adopts its history instead of reading as empty and re-seeding — any rows
+     the repo still holds in `org_shared.chunks` move into its resolved schema, non-fatally, and
+     the org_shared-resolved pass skips relocation entirely ([validated by `chunks.test.ts:672`](libs/shared/src/project/chunks/chunks.test.ts#L672), [`chunks.test.ts:735`](libs/shared/src/project/chunks/chunks.test.ts#L735), [`chunks.test.ts:746`](libs/shared/src/project/chunks/chunks.test.ts#L746))
 
 ## File Changes
 

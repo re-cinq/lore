@@ -864,6 +864,17 @@ share one persistence surface instead of inline SQL.
     relocation target in every adapter — self-relocation would dedupe
     rows against themselves and delete them ([validated by `chunks.test.ts:735`](libs/shared/src/project/chunks/chunks.test.ts#L735), [`chunks.test.ts:746`](libs/shared/src/project/chunks/chunks.test.ts#L746), [`chunks.test.ts:758`](libs/shared/src/project/chunks/chunks.test.ts#L758))
   - The station HTTP adapter refuses relocation as Floor-only ([validated by `chunks-http.test.ts:94`](libs/shared/src/project/chunks/chunks-http.test.ts#L94))
+  - The web-ui settings route emits one `internal.repo.team_changed` event
+    only when a POST actually changes the team value (settings-only updates
+    and same-value posts emit nothing; clearing a team normalizes empty
+    string to null), and a failed event insert degrades to the nightly
+    relocation instead of failing the settings write ([validated by `route.test.ts:39`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L39), [`route.test.ts:55`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L55), [`route.test.ts:63`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L63), [`route.test.ts:71`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L71), [`route.test.ts:79`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L79))
+  - The Floor's `team_changed` handler re-reads the team from `lore.repos`
+    rather than trusting the event payload, resolves it through the uncached
+    single-sourced `chunkSchemaOrOrgShared` (never the per-repo memoized
+    resolver, which would serve the pre-change schema for its TTL), no-ops
+    when resolution falls back to `org_shared`, and lets a relocation error
+    propagate so the event loop retries the idempotent move ([validated by `repo-team-changed.test.ts:47`](apps/floor/src/jobs/repo-team-changed.test.ts#L47), [`repo-team-changed.test.ts:66`](apps/floor/src/jobs/repo-team-changed.test.ts#L66), [`repo-team-changed.test.ts:81`](apps/floor/src/jobs/repo-team-changed.test.ts#L81), [`repo-team-changed.test.ts:89`](apps/floor/src/jobs/repo-team-changed.test.ts#L89), [`repo-team-changed.test.ts:102`](apps/floor/src/jobs/repo-team-changed.test.ts#L102))
 
 ## Non-Functional Requirements
 
