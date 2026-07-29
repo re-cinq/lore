@@ -129,3 +129,24 @@ never backfilled onto clusters bootstrapped earlier.
     psql -d lore -c "GRANT SELECT ON ALL TABLES IN SCHEMA data TO lore;
                      ALTER DEFAULT PRIVILEGES IN SCHEMA data GRANT SELECT ON TABLES TO lore;"
   ```
+
+### 0035 — legacy org_shared chunk relocation needs a one-time DML grant
+
+`0035_migrate_legacy_org_shared_chunks.sql` moves rows between chunk tables the
+`lore` runner does not own (`org_shared.chunks` → each team schema's `chunks`),
+so it needs `SELECT`/`INSERT` on the targets and `SELECT`/`DELETE` on
+`org_shared` — beyond the schema-level `CREATE/USAGE` handoff above. Without
+the grant the migration does **not** fail: it catches `insufficient_privilege`
+per repo and skips with a `NOTICE`, leaving the legacy rows in place. **Check
+the deploy log for `skip repo ... insufficient privilege` lines**; if present,
+apply the grant once via the same local socket used for `data.chunks` above,
+then re-apply the file by hand (the tracking table already records it, so a
+redeploy will not re-run it):
+
+```
+kubectl exec -n lore-db lore-db-1 -c postgres -- \
+  psql -d lore -c "GRANT SELECT, INSERT, DELETE ON ALL TABLES IN SCHEMA org_shared, payments, platform, mobile, data TO lore;"
+```
+
+The migration is idempotent (per-file dedupe guard + `ON CONFLICT (id) DO
+NOTHING`), so re-running it after the grant is safe.
