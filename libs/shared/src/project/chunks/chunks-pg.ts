@@ -29,9 +29,9 @@ function enforceSchema(schema: string): void {
 /**
  * Postgres-backed {@link ChunksPort}. SQL is lifted byte-for-byte from the
  * Floor reindex / context-core-builder jobs. Every `${schema}` query validates
- * the schema name first; only `distinctTeams`/`countChunksByTeam`/`specChunks`/
- * `codeSymbols` still read the fixed `org_shared.chunks` table — the repo-scoped
- * detection reads resolve the repo's schema like the coverage reads do.
+ * the schema name first; only `distinctTeams`/`countChunksByTeam` still read
+ * the fixed `org_shared.chunks` table — every repo-scoped detection read
+ * resolves the repo's schema like the coverage reads do.
  */
 export class PgChunks implements ChunksPort {
   constructor(private readonly pool: PgPool) {}
@@ -119,9 +119,10 @@ export class PgChunks implements ChunksPort {
   }
 
   async specChunks(repo: string): Promise<SpecChunkRow[]> {
+    const schema = await this.resolveSchemaForRepo(repo);
     const { rows } = await this.pool.query(
       `SELECT id, repo, file_path, content
-       FROM org_shared.chunks
+       FROM ${schema}.chunks
        WHERE content_type = 'spec' AND repo = $1
        ORDER BY file_path`,
       [repo],
@@ -136,11 +137,12 @@ export class PgChunks implements ChunksPort {
   }
 
   async codeSymbols(repo: string): Promise<CodeSymbolRow[]> {
+    const schema = await this.resolveSchemaForRepo(repo);
     const { rows } = await this.pool.query(
       `SELECT metadata->>'symbol_name' AS symbol_name,
               metadata->>'symbol_type' AS symbol_type,
               file_path
-       FROM org_shared.chunks
+       FROM ${schema}.chunks
        WHERE repo = $1
          AND content_type = 'code'
          AND metadata->>'symbol_name' IS NOT NULL`,
