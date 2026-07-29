@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 
 // Static guard on migration 0035's content (the live apply + fixture run
 // against a throwaway Postgres in .github/workflows/migrations.yml). Catches
@@ -9,9 +8,9 @@ import { resolve } from "node:path";
 // or removal of the insufficient_privilege skip.
 
 const sql = readFileSync(
-  resolve(
-    process.cwd(),
-    "../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0035_migrate_legacy_org_shared_chunks.sql",
+  new URL(
+    "../../../../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0035_migrate_legacy_org_shared_chunks.sql",
+    import.meta.url,
   ),
   "utf-8",
 );

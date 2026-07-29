@@ -54,8 +54,8 @@
 DO $$
 DECLARE
   r RECORD;
-  moved INTEGER;
-  dropped INTEGER;
+  moved BIGINT;
+  dropped BIGINT;
 BEGIN
   FOR r IN
     SELECT rep.full_name, rep.team

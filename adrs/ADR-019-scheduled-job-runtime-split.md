@@ -221,21 +221,21 @@ repo's resolved team schema, and — where their `content_type` is one
 `classifyFile()` can return (`doc`/`code`/`adr`/`spec`) — adopted by the sweep
 via `ingested_by = 'reindex-job'`; rows with a non-classifiable `content_type`
 (pseudo-path writers such as `rule` / `pull_request`) are relocated but remain
-unowned ([validated by `migration-0035.test.ts:46`](apps/lore-api/src/features/agents/migration-0035.test.ts#L46))
+unowned ([validated by `migration-0035.test.ts:45`](apps/lore-api/src/features/agents/migration-0035.test.ts#L45))
 
 The relocation's guarantees:
 
 - The loop targets only real team schemas resolved from `lore.repos`, never
-  `org_shared` itself ([validated by `migration-0035.test.ts:67`](apps/lore-api/src/features/agents/migration-0035.test.ts#L67))
+  `org_shared` itself ([validated by `migration-0035.test.ts:66`](apps/lore-api/src/features/agents/migration-0035.test.ts#L66))
 - A file already fresh in the target schema keeps its team-schema copy; only
-  files absent from the target move, guarded per repo + file_path ([validated by `migration-0035.test.ts:20`](apps/lore-api/src/features/agents/migration-0035.test.ts#L20))
+  files absent from the target move, guarded per repo + file_path ([validated by `migration-0035.test.ts:19`](apps/lore-api/src/features/agents/migration-0035.test.ts#L19))
 - Copy and delete run as one statement sharing one snapshot, and the delete
   removes only copied rows or stale duplicates — never a delete without a
-  copy ([validated by `migration-0035.test.ts:27`](apps/lore-api/src/features/agents/migration-0035.test.ts#L27))
-- The generated `search_tsv` column is omitted from the INSERT list ([validated by `migration-0035.test.ts:37`](apps/lore-api/src/features/agents/migration-0035.test.ts#L37))
-- Schema, repo, and team values are interpolated only via `format %I`/`%L` ([validated by `migration-0035.test.ts:52`](apps/lore-api/src/features/agents/migration-0035.test.ts#L52))
+  copy ([validated by `migration-0035.test.ts:26`](apps/lore-api/src/features/agents/migration-0035.test.ts#L26))
+- The generated `search_tsv` column is omitted from the INSERT list ([validated by `migration-0035.test.ts:36`](apps/lore-api/src/features/agents/migration-0035.test.ts#L36))
+- Schema, repo, and team values are interpolated only via `format %I`/`%L` ([validated by `migration-0035.test.ts:51`](apps/lore-api/src/features/agents/migration-0035.test.ts#L51))
 - Repos the `lore` runner cannot write are skipped with a NOTICE instead of
-  failing the deploy ([validated by `migration-0035.test.ts:62`](apps/lore-api/src/features/agents/migration-0035.test.ts#L62))
+  failing the deploy ([validated by `migration-0035.test.ts:61`](apps/lore-api/src/features/agents/migration-0035.test.ts#L61))
 
 Api-owned orphans of deleted files are still never pruned by anything —
 closing that needs a GitHub tree read and belongs in the reindex `verify.ts`
