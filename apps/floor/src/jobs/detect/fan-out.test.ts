@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
-import { createDetectTickHandler, detectBranchName } from "./fan-out.js";
+import {
+  activeSpecRepos,
+  chunkSchemas,
+  createDetectTickHandler,
+  detectBranchName,
+  specRepos,
+  specReposSql,
+} from "./fan-out.js";
 
 function fakeJobRuns() {
   const started: string[] = [];
@@ -136,5 +143,99 @@ describe("createDetectTickHandler", () => {
     expect(failed).toEqual([
       { runId: "jr-1", reason: expect.stringContaining("db down") },
     ]);
+  });
+});
+
+function fakeQuery(byCall: unknown[][]) {
+  const calls: Array<{ text: string; params?: unknown[] }> = [];
+  let call = 0;
+  const q = async <T>(text: string, params?: unknown[]): Promise<T[]> => {
+    calls.push({ text, params });
+
+    return (byCall[call++] ?? []) as T[];
+  };
+
+  return { calls, q };
+}
+
+describe("chunkSchemas", () => {
+  it("always includes org_shared alongside the provisioned team schemas", async () => {
+    const { calls, q } = fakeQuery([
+      [{ table_schema: "platform" }, { table_schema: "data" }],
+    ]);
+
+    expect(await chunkSchemas(q)).toEqual(["org_shared", "platform", "data"]);
+    expect(calls[0]?.text).toContain("information_schema.tables");
+    expect(calls[0]?.text).toContain("table_name = 'chunks'");
+    expect(calls[0]?.text).toContain("SELECT team FROM lore.repos");
+  });
+
+  it("drops team names that fail the schema-name gate", async () => {
+    const { q } = fakeQuery([
+      [
+        { table_schema: "platform" },
+        { table_schema: "bad; DROP TABLE lore.repos" },
+        { table_schema: "Upper" },
+      ],
+    ]);
+
+    expect(await chunkSchemas(q)).toEqual(["org_shared", "platform"]);
+  });
+});
+
+describe("specReposSql", () => {
+  it("unions the chunks table of every given schema", () => {
+    const sql = specReposSql(["org_shared", "platform"], { activeOnly: false });
+
+    expect(sql).toContain("FROM org_shared.chunks");
+    expect(sql).toContain("FROM platform.chunks");
+    expect(sql).toContain("UNION ALL");
+  });
+
+  it("activeOnly gates each repo on a code chunk inside the activity window", () => {
+    const sql = specReposSql(["org_shared"], { activeOnly: true });
+
+    expect(sql).toContain("content_type IN ('spec', 'code')");
+    expect(sql).toContain("HAVING bool_or(content_type = 'spec')");
+    expect(sql).toContain(
+      "bool_or(content_type = 'code' AND ingested_at > now() - ($1 || ' days')::interval)",
+    );
+  });
+
+  it("without activeOnly scans spec chunks only and takes no parameters", () => {
+    const sql = specReposSql(["org_shared", "platform"], { activeOnly: false });
+
+    expect(sql).toContain("content_type = 'spec'");
+    expect(sql).not.toContain("'code'");
+    expect(sql).not.toContain("$1");
+  });
+});
+
+describe("activeSpecRepos", () => {
+  it("returns a team-schema repo with no org_shared rows and passes the 7-day window", async () => {
+    const { calls, q } = fakeQuery([
+      [{ table_schema: "platform" }],
+      [{ repo: "re-cinq/app" }],
+    ]);
+
+    expect(await activeSpecRepos(q)).toEqual(["re-cinq/app"]);
+    expect(calls[1]?.text).toContain("FROM platform.chunks");
+    expect(calls[1]?.text).toContain("FROM org_shared.chunks");
+    expect(calls[1]?.params).toEqual(["7"]);
+  });
+});
+
+describe("specRepos", () => {
+  it("issues one union over all chunk schemas grouped by repo", async () => {
+    const { calls, q } = fakeQuery([
+      [{ table_schema: "platform" }],
+      [{ repo: "re-cinq/lore" }],
+    ]);
+
+    expect(await specRepos(q)).toEqual(["re-cinq/lore"]);
+    expect(calls[1]?.text).toContain("FROM platform.chunks");
+    expect(calls[1]?.text).toContain("FROM org_shared.chunks");
+    expect(calls[1]?.text).toContain("GROUP BY repo");
+    expect(calls[1]?.params).toBeUndefined();
   });
 });

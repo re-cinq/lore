@@ -1,10 +1,12 @@
 // Layer-3 handlers for the detection-family `cron.<job>.tick` events. A tick
-// fans out one assembly-line start per target repo; each start event is then
-// claimed independently by the loop (per-repo retry + dead-letter), and the
-// branch-keyed overlap guard in advanceLine defers concurrent duplicates
-// (lease parity). A mid-loop failure lets the loop retry the whole tick —
-// re-starting an already-started repo is acceptable because detection runs
-// are idempotent and overlap-guarded.
+// fans out one assembly-line start per target repo; targets are enumerated
+// across every provisioned chunk schema (team schemas plus org_shared), since
+// a repo's chunks live in its team schema when one is provisioned. Each start
+// event is then claimed independently by the loop (per-repo retry +
+// dead-letter), and the branch-keyed overlap guard in advanceLine defers
+// concurrent duplicates (lease parity). A mid-loop failure lets the loop
+// retry the whole tick — re-starting an already-started repo is acceptable
+// because detection runs are idempotent and overlap-guarded.
 //
 // Manual trigger (documented in specs/scheduled-job-runtime-split):
 //   INSERT INTO pipeline.events (event_name, source, params)
@@ -40,24 +42,64 @@ async function builtinJobRef(definitionName: string): Promise<string> {
 /** Days since the last code-chunk ingest for a repo to count as active. */
 const ACTIVITY_WINDOW_DAYS = 7;
 
-/** Repos with specs that also shipped code inside the activity window. */
-const ACTIVE_SPEC_REPOS_SQL = `
-  SELECT DISTINCT c.repo
-  FROM org_shared.chunks c
-  WHERE c.content_type = 'spec'
-    AND EXISTS (
-      SELECT 1 FROM org_shared.chunks a
-      WHERE a.repo = c.repo
-        AND a.content_type = 'code'
-        AND a.ingested_at > now() - ($1 || ' days')::interval
-    )
-  ORDER BY c.repo`;
+/** Injection gate for schema names interpolated into UNION ALL SQL. */
+const SCHEMA_RE = /^[a-z][a-z0-9_]{0,62}$/;
 
-const SPEC_REPOS_SQL = `
-  SELECT DISTINCT repo
-  FROM org_shared.chunks
-  WHERE content_type = 'spec'
+const CHUNK_SCHEMAS_SQL = `
+  SELECT table_schema
+  FROM information_schema.tables
+  WHERE table_name = 'chunks'
+    AND table_schema IN (SELECT team FROM lore.repos WHERE team IS NOT NULL)`;
+
+type QueryFn = <T>(text: string, params?: unknown[]) => Promise<T[]>;
+
+/** Every provisioned chunk schema (team schemas ∪ org_shared), RE-validated. */
+export async function chunkSchemas(q: QueryFn = query): Promise<string[]> {
+  const rows = await q<{ table_schema: string }>(CHUNK_SCHEMAS_SQL);
+  const teamSchemas = rows
+    .map((r) => r.table_schema)
+    .filter((s) => SCHEMA_RE.test(s));
+
+  return [...new Set(["org_shared", ...teamSchemas])];
+}
+
+/** One grouped UNION ALL over every chunk schema; activeOnly additionally
+ *  requires a code chunk ingested inside the activity window ($1 in days). */
+export function specReposSql(
+  schemas: string[],
+  opts: { activeOnly: boolean },
+): string {
+  const safeSchemas = schemas.filter((s) => SCHEMA_RE.test(s));
+
+  enforceTrue(
+    safeSchemas.length > 0,
+    Error,
+    "specReposSql needs at least one valid chunk schema",
+  );
+
+  const chunkFilter = opts.activeOnly
+    ? `content_type IN ('spec', 'code')`
+    : `content_type = 'spec'`;
+  const union = safeSchemas
+    .map(
+      (s) =>
+        `SELECT repo, content_type, ingested_at FROM ${s}.chunks WHERE ${chunkFilter}`,
+    )
+    .join("\n    UNION ALL\n    ");
+  const activityGate = opts.activeOnly
+    ? `
+  HAVING bool_or(content_type = 'spec')
+    AND bool_or(content_type = 'code' AND ingested_at > now() - ($1 || ' days')::interval)`
+    : "";
+
+  return `
+  SELECT repo FROM (
+    ${union}
+  ) c
+  WHERE repo IS NOT NULL
+  GROUP BY repo${activityGate}
   ORDER BY repo`;
+}
 
 const ONBOARDED_REPOS_SQL = `
   SELECT full_name AS repo
@@ -65,15 +107,26 @@ const ONBOARDED_REPOS_SQL = `
   WHERE onboarding_pr_merged = true
   ORDER BY full_name`;
 
-const activeSpecRepos = async (): Promise<string[]> =>
-  (
-    await query<{ repo: string }>(ACTIVE_SPEC_REPOS_SQL, [
-      String(ACTIVITY_WINDOW_DAYS),
-    ])
-  ).map((r) => r.repo);
+export const activeSpecRepos = async (
+  q: QueryFn = query,
+): Promise<string[]> => {
+  const schemas = await chunkSchemas(q);
+  const rows = await q<{ repo: string }>(
+    specReposSql(schemas, { activeOnly: true }),
+    [String(ACTIVITY_WINDOW_DAYS)],
+  );
 
-const specRepos = async (): Promise<string[]> =>
-  (await query<{ repo: string }>(SPEC_REPOS_SQL)).map((r) => r.repo);
+  return rows.map((r) => r.repo);
+};
+
+export const specRepos = async (q: QueryFn = query): Promise<string[]> => {
+  const schemas = await chunkSchemas(q);
+  const rows = await q<{ repo: string }>(
+    specReposSql(schemas, { activeOnly: false }),
+  );
+
+  return rows.map((r) => r.repo);
+};
 
 const onboardedRepos = async (): Promise<string[]> =>
   (await query<{ repo: string }>(ONBOARDED_REPOS_SQL)).map((r) => r.repo);
