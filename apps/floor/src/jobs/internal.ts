@@ -5,14 +5,17 @@
  */
 
 import { createDgraphClient } from "@re-cinq/lore-shared";
+import {
+  chunkSchemaOrOrgShared,
+  ORG_SHARED_SCHEMA,
+} from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { dispatchSpecTrace } from "./spec-trace/spec-trace-dispatch.js";
 import { projectFor } from "../composition/project-boot.js";
 import { insertEvent } from "../main-loop/store.js";
+import { getPool } from "../kernel/db.js";
 import { assemblyLines, chunks, settings } from "../kernel/queues.js";
 import { writeAuditLog } from "./lib/audit.js";
 import type { EventHandler } from "../main-loop/types.js";
-
-const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
 
 /**
  * `internal.repo.team_changed` — a settings write re-pointed the repo's chunk
@@ -21,14 +24,20 @@ const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
  * waiting for the nightly reindex (which remains the safety net for team
  * changes made outside the settings route). Re-reads the team from
  * `lore.repos` rather than trusting the event payload, so a stale or replayed
- * event relocates against the current state. Covers the org_shared → team
- * direction only.
+ * event relocates against the current state, and resolves it through the
+ * uncached `chunkSchemaOrOrgShared` (the per-repo memoized resolver would
+ * serve the pre-change schema for its TTL). A relocation error propagates on
+ * purpose: relocation is idempotent, so the event loop's retry/backoff and
+ * dead-letter give transient failures another shot and permanent ones
+ * visibility — the nightly reindex stays the ultimate net either way. Covers
+ * the org_shared → team direction only.
  */
 export const repoTeamChanged: EventHandler = async (params) => {
   const { repo } = params as { repo: string };
   const team = await settings().team(repo);
+  const schema = await chunkSchemaOrOrgShared(getPool(), team);
 
-  if (!team || !SCHEMA_RE.test(team) || team === "org_shared") {
+  if (schema === ORG_SHARED_SCHEMA) {
     console.log(
       `[events] team_changed for ${repo}: resolves to org_shared, nothing to relocate`,
     );
@@ -36,19 +45,11 @@ export const repoTeamChanged: EventHandler = async (params) => {
     return;
   }
 
-  if (!(await chunks().schemaExists(team))) {
-    console.log(
-      `[events] team_changed for ${repo}: schema "${team}" not provisioned, resolution falls back to org_shared`,
-    );
-
-    return;
-  }
-
-  const { moved, dropped } = await chunks().relocateLegacyChunks(team, repo);
+  const { moved, dropped } = await chunks().relocateLegacyChunks(schema, repo);
 
   if (dropped > 0) {
     console.log(
-      `[events] team_changed for ${repo}: relocated ${moved} legacy org_shared chunks into ${team} (${dropped - moved} stale duplicates dropped)`,
+      `[events] team_changed for ${repo}: relocated ${moved} legacy org_shared chunks into ${schema} (${dropped - moved} stale duplicates dropped)`,
     );
   }
 };

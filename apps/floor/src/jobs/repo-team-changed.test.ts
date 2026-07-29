@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const team = vi.fn<(repo: string) => Promise<string | null>>();
-const schemaExists = vi.fn<(schema: string) => Promise<boolean>>();
+const chunkSchemaOrOrgShared =
+  vi.fn<
+    (pool: unknown, candidate: string | null | undefined) => Promise<string>
+  >();
 const relocateLegacyChunks =
   vi.fn<
     (
@@ -12,15 +15,27 @@ const relocateLegacyChunks =
 
 vi.mock("../kernel/queues.js", () => ({
   settings: () => ({ team }),
-  chunks: () => ({ schemaExists, relocateLegacyChunks }),
+  chunks: () => ({ relocateLegacyChunks }),
   assemblyLines: () => ({}),
+}));
+
+vi.mock("../kernel/db.js", () => ({
+  getPool: () => ({}),
+}));
+
+vi.mock("@re-cinq/lore-shared/project/chunks/chunk-schema.js", () => ({
+  ORG_SHARED_SCHEMA: "org_shared",
+  chunkSchemaOrOrgShared: (
+    pool: unknown,
+    candidate: string | null | undefined,
+  ) => chunkSchemaOrOrgShared(pool, candidate),
 }));
 
 const { repoTeamChanged } = await import("./internal.js");
 
 beforeEach(() => {
   team.mockReset().mockResolvedValue("platform");
-  schemaExists.mockReset().mockResolvedValue(true);
+  chunkSchemaOrOrgShared.mockReset().mockResolvedValue("platform");
   relocateLegacyChunks.mockReset().mockResolvedValue({ moved: 0, dropped: 0 });
   vi.spyOn(console, "log").mockImplementation(() => {});
 });
@@ -30,43 +45,48 @@ afterEach(() => {
 });
 
 describe("repoTeamChanged", () => {
-  it("relocates legacy chunks into the provisioned team schema read from lore.repos", async () => {
+  it("relocates legacy chunks into the schema resolved from the team read from lore.repos", async () => {
     relocateLegacyChunks.mockResolvedValue({ moved: 5, dropped: 7 });
 
     await repoTeamChanged({ repo: "re-cinq/lore" });
 
     expect(team).toHaveBeenCalledWith("re-cinq/lore");
+    expect(chunkSchemaOrOrgShared).toHaveBeenCalledWith(
+      expect.anything(),
+      "platform",
+    );
     expect(relocateLegacyChunks).toHaveBeenCalledWith(
       "platform",
       "re-cinq/lore",
     );
   });
 
-  it("does nothing when the repo has no team", async () => {
+  it("does nothing when resolution falls back to org_shared", async () => {
+    chunkSchemaOrOrgShared.mockResolvedValue("org_shared");
+
+    await repoTeamChanged({ repo: "re-cinq/lore" });
+
+    expect(relocateLegacyChunks).not.toHaveBeenCalled();
+  });
+
+  it("passes an unprovisioned or null team through the resolver rather than gating locally", async () => {
     team.mockResolvedValue(null);
+    chunkSchemaOrOrgShared.mockResolvedValue("org_shared");
 
     await repoTeamChanged({ repo: "re-cinq/lore" });
 
+    expect(chunkSchemaOrOrgShared).toHaveBeenCalledWith(
+      expect.anything(),
+      null,
+    );
     expect(relocateLegacyChunks).not.toHaveBeenCalled();
   });
 
-  it("does nothing when the team is org_shared or injection-shaped", async () => {
-    team.mockResolvedValueOnce("org_shared");
-    await repoTeamChanged({ repo: "re-cinq/lore" });
+  it("propagates a relocation error so the event loop retries the idempotent move", async () => {
+    relocateLegacyChunks.mockRejectedValue(new Error("connection reset"));
 
-    team.mockResolvedValueOnce("a; DROP TABLE");
-    await repoTeamChanged({ repo: "re-cinq/lore" });
-
-    expect(relocateLegacyChunks).not.toHaveBeenCalled();
-  });
-
-  it("does nothing when the team schema is not provisioned", async () => {
-    team.mockResolvedValue("infra");
-    schemaExists.mockResolvedValue(false);
-
-    await repoTeamChanged({ repo: "re-cinq/lore" });
-
-    expect(schemaExists).toHaveBeenCalledWith("infra");
-    expect(relocateLegacyChunks).not.toHaveBeenCalled();
+    await expect(repoTeamChanged({ repo: "re-cinq/lore" })).rejects.toThrow(
+      "connection reset",
+    );
   });
 });

@@ -870,8 +870,11 @@ share one persistence surface instead of inline SQL.
     string to null), and a failed event insert degrades to the nightly
     relocation instead of failing the settings write ([validated by `route.test.ts:39`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L39), [`route.test.ts:55`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L55), [`route.test.ts:63`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L63), [`route.test.ts:71`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L71), [`route.test.ts:79`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L79))
   - The Floor's `team_changed` handler re-reads the team from `lore.repos`
-    rather than trusting the event payload and relocates only when the team
-    is a provisioned, schema-safe name other than `org_shared` ([validated by `repo-team-changed.test.ts:33`](apps/floor/src/jobs/repo-team-changed.test.ts#L33), [`repo-team-changed.test.ts:45`](apps/floor/src/jobs/repo-team-changed.test.ts#L45), [`repo-team-changed.test.ts:53`](apps/floor/src/jobs/repo-team-changed.test.ts#L53), [`repo-team-changed.test.ts:63`](apps/floor/src/jobs/repo-team-changed.test.ts#L63))
+    rather than trusting the event payload, resolves it through the uncached
+    single-sourced `chunkSchemaOrOrgShared` (never the per-repo memoized
+    resolver, which would serve the pre-change schema for its TTL), no-ops
+    when resolution falls back to `org_shared`, and lets a relocation error
+    propagate so the event loop retries the idempotent move ([validated by `repo-team-changed.test.ts:48`](apps/floor/src/jobs/repo-team-changed.test.ts#L48), [`repo-team-changed.test.ts:64`](apps/floor/src/jobs/repo-team-changed.test.ts#L64), [`repo-team-changed.test.ts:72`](apps/floor/src/jobs/repo-team-changed.test.ts#L72), [`repo-team-changed.test.ts:85`](apps/floor/src/jobs/repo-team-changed.test.ts#L85))
 
 ## Non-Functional Requirements
 
