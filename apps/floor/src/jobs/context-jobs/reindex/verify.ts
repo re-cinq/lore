@@ -3,6 +3,9 @@ import type { ChunksPort } from "@re-cinq/lore-shared";
 export interface VerifyResult {
   touched: number;
   pruned: number;
+  /** Distinct file paths whose chunks were pruned — the caller's audit trail;
+   *  a hard DELETE leaves no other record of what vanished. */
+  prunedFiles: string[];
 }
 
 /** Files whose oldest chunk was stamped within this many days are skipped by
@@ -28,7 +31,7 @@ export async function verifyRepoChunks(
   treePaths: string[],
 ): Promise<VerifyResult> {
   if (treePaths.length === 0) {
-    return { touched: 0, pruned: 0 };
+    return { touched: 0, pruned: 0, prunedFiles: [] };
   }
 
   const owned = await port.reindexOwnedFilePaths(schema, repo);
@@ -50,5 +53,5 @@ export async function verifyRepoChunks(
       ? await port.pruneChunksForFiles(schema, repo, missing)
       : 0;
 
-  return { touched, pruned };
+  return { touched, pruned, prunedFiles: pruned > 0 ? missing : [] };
 }

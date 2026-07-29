@@ -62,7 +62,7 @@ describe("verifyRepoChunks", () => {
       "README.md",
     ]);
 
-    expect(result).toEqual({ touched: 1, pruned: 0 });
+    expect(result).toEqual({ touched: 1, pruned: 0, prunedFiles: [] });
     expect(await chunks.staleChunkCount(REPO, 90)).toBe(0);
   });
 
@@ -73,7 +73,11 @@ describe("verifyRepoChunks", () => {
       "specs/kept.md",
     ]);
 
-    expect(result).toEqual({ touched: 1, pruned: 1 });
+    expect(result).toEqual({
+      touched: 1,
+      pruned: 1,
+      prunedFiles: ["specs/gone.md"],
+    });
     expect(chunks.rows.map((row) => row.filePath).sort()).toEqual([
       "specs/api-owned.md",
       "specs/kept.md",
@@ -97,7 +101,7 @@ describe("verifyRepoChunks", () => {
 
     const result = await verifyRepoChunks(chunks, SCHEMA, REPO, []);
 
-    expect(result).toEqual({ touched: 0, pruned: 0 });
+    expect(result).toEqual({ touched: 0, pruned: 0, prunedFiles: [] });
     expect(chunks.rows).toHaveLength(3);
     expect(chunks.rows.every((row) => row.ingestedAt === OLD)).toBe(true);
   });
@@ -125,7 +129,7 @@ describe("verifyRepoChunks", () => {
       "specs/fresh.md",
     ]);
 
-    expect(result).toEqual({ touched: 2, pruned: 0 });
+    expect(result).toEqual({ touched: 2, pruned: 0, prunedFiles: [] });
     expect(
       chunks.rows.find((row) => row.filePath === "specs/fresh.md")?.ingestedAt,
     ).toBe(fresh);
