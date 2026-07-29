@@ -668,7 +668,11 @@ async function runBackfillForSpec(
   codeChunks: TestChunk[],
 ): Promise<SpecBackfillSummary> {
   const content = reassembleSpec(
-    chunks.map((c) => ({ content: c.content, ingested_at: c.ingestedAt })),
+    chunks.map((c) => ({
+      content: c.content,
+      ingested_at: c.ingestedAt,
+      chunk_index: c.chunkIndex,
+    })),
   );
   const statements = segmentStatements(content);
   const classifications = await classifyAllStatements(specPath, statements);

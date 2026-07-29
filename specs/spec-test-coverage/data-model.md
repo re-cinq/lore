@@ -163,7 +163,7 @@ CREATE TABLE IF NOT EXISTS {schema}.spec_coverage_runs (
 ```
 
 - `title` / `summary` are derived server-side from the reassembled spec
-  content via the pure helpers in `web-ui/src/lib/spec-summary.ts`.
+  content via the pure helpers in `libs/shared/src/spec-summary.ts`.
 - `coverage` drives the `CoverageBar`: segment widths are over
   `testable + untestable` (all statements); the headline KPI is
   `covered / testable`.

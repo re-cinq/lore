@@ -28,12 +28,15 @@ export interface CodeSymbolRow {
   filePath: string;
 }
 
-/** A spec chunk with its ingest stamp (coverage jobs reassemble + resolve links). */
+/** A spec chunk with its ingest stamp (coverage jobs reassemble + resolve links).
+ * `chunkIndex` is `(metadata->>'chunk_index')::int` — the chunker's document
+ * position, null on legacy rows ingested before the chunker stamped it. */
 export interface SpecChunkWithIngest {
   repo: string;
   filePath: string;
   content: string;
   ingestedAt: string | Date;
+  chunkIndex: number | null;
 }
 
 /** A test-code chunk's line range (`metadata.start_line`/`end_line`) for link resolution. */
@@ -135,13 +138,15 @@ export interface ChunksPort {
    */
   staleChunkCount(repo: string, olderThanDays: number): Promise<number>;
 
-  /** Spec chunks (with ingest stamp) for a repo, from its resolved schema. */
+  /** Spec chunks (with ingest stamp) for a repo, from its resolved schema,
+   * ordered `file_path, (metadata->>'chunk_index')::int NULLS LAST, ingested_at, id`. */
   specChunksWithIngest(repo: string): Promise<SpecChunkWithIngest[]>;
 
   /** Test-code chunk line ranges for a repo, from its resolved schema. */
   testChunkRanges(repo: string): Promise<TestChunkRange[]>;
 
-  /** Spec chunks with embeddings for a repo, from its resolved schema (backfill). */
+  /** Spec chunks with embeddings for a repo, from its resolved schema
+   * (backfill), same `chunk_index NULLS LAST` ordering as {@link specChunksWithIngest}. */
   specChunksForBackfill(repo: string): Promise<SpecChunkWithEmbedding[]>;
 
   /** Code chunks (content + metadata + embedding) for a repo, from its resolved schema (backfill). */
@@ -157,13 +162,13 @@ export interface ChunksPort {
   reindexOwnedFilePaths(schema: string, repo: string): Promise<string[]>;
 
   /**
-   * Re-stamp `ingested_at` to now on the repo's reindex-owned chunks whose
-   * `file_path` is in `filePaths`, preserving within-file relative order (spec
-   * reassembly sorts same-file chunks by `ingested_at`). Only files whose
-   * oldest chunk is more than `minAgeDays` old are re-stamped — whole files at
-   * a time, so the ordering invariant holds — keeping steady-state nights from
-   * rewriting every row (each rewrite copies the embedding into a new row
-   * version). Returns rows updated.
+   * Re-stamp `ingested_at` to `NOW()` on the repo's reindex-owned chunks whose
+   * `file_path` is in `filePaths`. Only files whose oldest chunk is more than
+   * `minAgeDays` old are re-stamped — whole files at a time — keeping
+   * steady-state nights from rewriting every row (each rewrite copies the
+   * embedding into a new row version). Spec reassembly orders same-file chunks
+   * by `metadata.chunk_index`, so one shared timestamp per sweep is safe.
+   * Returns rows updated.
    */
   touchChunksForFiles(
     schema: string,

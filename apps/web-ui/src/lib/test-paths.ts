@@ -2,7 +2,8 @@
  * In-sync mirror of `shared/src/test-paths.ts`. web-ui is not a
  * workspace member, so it can't import from `@re-cinq/lore-shared`
  * directly. Keep both copies in step. See web-ui/CLAUDE.md and the
- * comment on `lib/spec-summary.ts` for the established mirror pattern.
+ * comment on `lib/dark-factory-resolve.ts` for the established mirror
+ * pattern.
  */
 
 // Anchoring policy: the trailing language patterns are extension-anchored

@@ -1,8 +1,7 @@
 /**
  * Pure helpers for deriving a human title + summary from a spec's markdown,
  * and for reassembling a spec from its stored chunks. Canonical home: the
- * spec-coverage API (mcp-server) imports these via @re-cinq/lore-shared. The
- * web-ui keeps its own mirror (it is not a workspace member), kept in sync.
+ * spec-coverage API (mcp-server) imports these via @re-cinq/lore-shared.
  */
 
 const TITLE_PREFIX_RE =
@@ -76,15 +75,26 @@ export function extractSummary(content: string, maxLength = 280): string {
 interface SpecChunk {
   content: string;
   ingested_at: string | Date;
+  chunk_index?: number | null;
 }
 
-/** Joins a spec's chunks in ingest order, de-duplicating identical content
- * (re-ingests create new rows rather than upserting). */
+/** Joins a spec's chunks in `metadata.chunk_index` order — the chunker stamps
+ * it on every chunk — falling back to ingest order for legacy chunks without
+ * one (sorted last), de-duplicating identical content (re-ingests create new
+ * rows rather than upserting). */
 export function reassembleSpec(chunks: SpecChunk[]): string {
-  const ordered = [...chunks].sort(
-    (a, b) =>
-      new Date(a.ingested_at).getTime() - new Date(b.ingested_at).getTime(),
-  );
+  const ordered = [...chunks].sort((a, b) => {
+    const aIndex = a.chunk_index ?? Number.POSITIVE_INFINITY;
+    const bIndex = b.chunk_index ?? Number.POSITIVE_INFINITY;
+
+    if (aIndex !== bIndex) {
+      return aIndex < bIndex ? -1 : 1;
+    }
+
+    return (
+      new Date(a.ingested_at).getTime() - new Date(b.ingested_at).getTime()
+    );
+  });
   const seen = new Set<string>();
   const parts: string[] = [];
 
