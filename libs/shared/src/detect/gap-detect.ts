@@ -29,7 +29,9 @@ export interface GapDetectOptions {
  * 1. Missing CLAUDE.md (doc chunk with a `%CLAUDE.md` path)
  * 2. Missing ADRs (0 adr chunks)
  * 3. Missing specs (0 spec chunks)
- * 4. Stale content (chunks not re-ingested in >90 days)
+ * 4. Stale content (reindex-owned chunks not verified in >90 days — the
+ *    nightly reindex verification pass re-stamps chunks whose files still
+ *    exist, so this fires only when reindex has stopped covering the repo)
  */
 export async function gapDetectJob(opts: GapDetectOptions): Promise<string> {
   const repo = opts.repoFilter;
@@ -87,7 +89,7 @@ async function detectGaps(
       gaps.push({
         repo,
         type: "stale-content",
-        detail: `${repo} has ${staleCount} chunks not re-ingested in >${STALE_DAYS} days`,
+        detail: `${repo} has ${staleCount} chunks not verified by reindex in >${STALE_DAYS} days`,
       });
     }
   } catch (err) {

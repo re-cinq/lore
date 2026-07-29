@@ -29,7 +29,9 @@ function enforceSchema(schema: string): void {
 /**
  * Postgres-backed {@link ChunksPort}. SQL is lifted byte-for-byte from the
  * Floor reindex / context-core-builder jobs. Every `${schema}` query validates
- * the schema name first; the `org_shared.chunks` reads use a fixed table name.
+ * the schema name first; only `distinctTeams`/`countChunksByTeam`/`specChunks`/
+ * `codeSymbols` still read the fixed `org_shared.chunks` table — the repo-scoped
+ * detection reads resolve the repo's schema like the coverage reads do.
  */
 export class PgChunks implements ChunksPort {
   constructor(private readonly pool: PgPool) {}
@@ -157,8 +159,9 @@ export class PgChunks implements ChunksPort {
     contentType: string,
     fileSuffix?: string,
   ): Promise<boolean> {
+    const schema = await this.resolveSchemaForRepo(repo);
     const { rows } = await this.pool.query(
-      `SELECT id FROM org_shared.chunks
+      `SELECT id FROM ${schema}.chunks
        WHERE repo = $1 AND content_type = $2
          ${fileSuffix ? "AND file_path LIKE $3" : ""}
        LIMIT 1`,
@@ -169,10 +172,12 @@ export class PgChunks implements ChunksPort {
   }
 
   async staleChunkCount(repo: string, olderThanDays: number): Promise<number> {
+    const schema = await this.resolveSchemaForRepo(repo);
     const { rows } = await this.pool.query(
-      `SELECT COUNT(*) AS count FROM org_shared.chunks
+      `SELECT COUNT(*) AS count FROM ${schema}.chunks
        WHERE repo = $1
-         AND ingested_at < NOW() - ($2 || ' days')::interval`,
+         AND ingested_at < NOW() - ($2 || ' days')::interval
+         AND metadata->>'ingested_by' = 'reindex-job'`,
       [repo, String(olderThanDays)],
     );
 
@@ -265,5 +270,67 @@ export class PgChunks implements ChunksPort {
       metadata: (r.metadata as Record<string, unknown> | null) ?? null,
       embedding: r.embedding,
     }));
+  }
+
+  async reindexOwnedFilePaths(schema: string, repo: string): Promise<string[]> {
+    enforceSchema(schema);
+    const { rows } = await this.pool.query(
+      `SELECT DISTINCT file_path FROM ${schema}.chunks
+       WHERE repo = $1 AND metadata->>'ingested_by' = 'reindex-job'`,
+      [repo],
+    );
+
+    return rows.map((r) => r.file_path as string);
+  }
+
+  async touchChunksForFiles(
+    schema: string,
+    repo: string,
+    filePaths: string[],
+    minAgeDays: number,
+  ): Promise<number> {
+    enforceSchema(schema);
+    const { rows } = await this.pool.query(
+      `WITH due AS (
+         SELECT file_path
+         FROM ${schema}.chunks
+         WHERE repo = $1 AND file_path = ANY($2::text[])
+           AND metadata->>'ingested_by' = 'reindex-job'
+         GROUP BY file_path
+         HAVING min(ingested_at) < NOW() - ($3 || ' days')::interval
+       ),
+       ranked AS (
+         SELECT id,
+                row_number() OVER (PARTITION BY file_path ORDER BY ingested_at, id) AS rn
+         FROM ${schema}.chunks
+         WHERE repo = $1 AND file_path IN (SELECT file_path FROM due)
+           AND metadata->>'ingested_by' = 'reindex-job'
+       )
+       UPDATE ${schema}.chunks c
+       SET ingested_at = NOW() + make_interval(secs => ranked.rn * 0.001)
+       FROM ranked
+       WHERE c.id = ranked.id
+       RETURNING c.id`,
+      [repo, filePaths, String(minAgeDays)],
+    );
+
+    return rows.length;
+  }
+
+  async pruneChunksForFiles(
+    schema: string,
+    repo: string,
+    filePaths: string[],
+  ): Promise<number> {
+    enforceSchema(schema);
+    const { rows } = await this.pool.query(
+      `DELETE FROM ${schema}.chunks
+       WHERE repo = $1 AND file_path = ANY($2::text[])
+         AND metadata->>'ingested_by' = 'reindex-job'
+       RETURNING id`,
+      [repo, filePaths],
+    );
+
+    return rows.length;
   }
 }

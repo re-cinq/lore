@@ -16,6 +16,7 @@ const state: {
   labelError?: { status?: number };
   reviewCall?: Record<string, unknown>;
   prData?: Record<string, unknown>;
+  treeData?: Record<string, unknown>;
 } = { files: [], checkRuns: [], token: "" };
 
 vi.mock("octokit", () => ({
@@ -34,6 +35,7 @@ vi.mock("octokit", () => ({
         },
       },
       checks: { listForRef: async () => state.checkRuns },
+      git: { getTree: async () => ({ data: state.treeData }) },
       issues: {
         createLabel: async () => {
           if (state.labelError) {
@@ -69,6 +71,7 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     state.labelError = undefined;
     state.reviewCall = undefined;
     state.prData = undefined;
+    state.treeData = undefined;
   });
   afterEach(() => vi.clearAllMocks());
 
@@ -160,5 +163,30 @@ describe("PlatformGitHub paginated reads + helpers", () => {
       headSha: "deadbeef",
       branch: "feat/x",
     });
+  });
+
+  it("listTree throws instead of returning a truncated tree", async () => {
+    state.treeData = {
+      truncated: true,
+      tree: [{ type: "blob", path: "specs/a.md" }],
+    };
+
+    await expect(gh().listTree("re-cinq/lore", "main")).rejects.toThrow(
+      new Error(
+        "Recursive tree fetch for re-cinq/lore was truncated by GitHub — refusing to return a partial file list",
+      ),
+    );
+  });
+
+  it("listTree returns blob paths from a complete tree", async () => {
+    state.treeData = {
+      truncated: false,
+      tree: [
+        { type: "blob", path: "specs/a.md" },
+        { type: "tree", path: "specs" },
+      ],
+    };
+
+    expect(await gh().listTree("re-cinq/lore", "main")).toEqual(["specs/a.md"]);
   });
 });

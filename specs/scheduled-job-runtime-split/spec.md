@@ -258,6 +258,14 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    without enumerating when a single repo is given, starts nothing when there are no target repos, and
    fails the just-created job_run (before rethrowing) if `assemblyLines.start` throws. ([validated by `fan-out.test.ts:26`](apps/floor/src/jobs/detect/fan-out.test.ts#L26), [`fan-out.test.ts:34`](apps/floor/src/jobs/detect/fan-out.test.ts#L34), [`fan-out.test.ts:81`](apps/floor/src/jobs/detect/fan-out.test.ts#L81), [`fan-out.test.ts:104`](apps/floor/src/jobs/detect/fan-out.test.ts#L104), [`fan-out.test.ts:120`](apps/floor/src/jobs/detect/fan-out.test.ts#L120))
 
+11. `context_reindex` ends every per-repo pass with a verification sweep (ADR-019 amendment
+   2026-07, issue #967 — `ingested_at` on reindex-owned rows now means "last verified against the
+   repo tree"): reindex-owned chunks (`ingested_by = 'reindex-job'`) whose files still exist in the repo
+   tree get `ingested_at` re-stamped so the stale count clears, chunks of files missing from the
+   tree are pruned, api-ingested chunks are never touched or pruned, an empty tree skips the
+   sweep entirely, and re-stamping skips files verified within the last 30 days (whole files at a
+   time, so within-file order survives) to keep steady-state nights from rewriting every row. ([validated by `verify.test.ts:55`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L55), [`verify.test.ts:69`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L69), [`verify.test.ts:83`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L83), [`verify.test.ts:95`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L95), [`verify.test.ts:105`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L105))
+
 ## File Changes
 
 | File | Change |

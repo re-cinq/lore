@@ -439,11 +439,11 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 
 ### `libs/shared/src/project/lib/platform-github.test.ts`
 
-- exposes the github port name. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L57))
-- createLabels swallows a 422 (already exists) and continues. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L112))
-- createLabels rethrows a non-422 error. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L119))
-- createReview posts one review with the mapped comments array. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L126))
-- get exposes the PR head sha as headSha. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L149))
+- exposes the github port name. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L59))
+- createLabels swallows a 422 (already exists) and continues. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L115))
+- createLabels rethrows a non-422 error. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L122))
+- createReview posts one review with the mapped comments array. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L129))
+- get exposes the PR head sha as headSha. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L152))
 
 ### `libs/shared/src/project/pulls/pull-requests.test.ts`
 
