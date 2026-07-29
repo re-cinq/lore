@@ -134,19 +134,45 @@ never backfilled onto clusters bootstrapped earlier.
 
 `0035_migrate_legacy_org_shared_chunks.sql` moves rows between chunk tables the
 `lore` runner does not own (`org_shared.chunks` → each team schema's `chunks`),
-so it needs `SELECT`/`INSERT` on the targets and `SELECT`/`DELETE` on
-`org_shared` — beyond the schema-level `CREATE/USAGE` handoff above. Without
-the grant the migration does **not** fail: it catches `insufficient_privilege`
-per repo and skips with a `NOTICE`, leaving the legacy rows in place. **Check
-the deploy log for `skip repo ... insufficient privilege` lines**; if present,
+so beyond the schema-level `CREATE/USAGE` handoff above it needs exactly:
+`SELECT, DELETE` on `org_shared.chunks` (SELECT because the copy reads it and
+the DELETE's WHERE reads column values; never INSERT) and `SELECT, INSERT` on
+each *target* `<team>.chunks` (SELECT for the dedupe probes; never
+DELETE/UPDATE — `ON CONFLICT DO NOTHING` updates nothing). Without the grant
+the migration does **not** fail: it catches `insufficient_privilege` per repo
+and skips with a `NOTICE`, leaving the legacy rows in place. **Check the
+deploy log for `skip repo ... insufficient privilege` lines**; if present,
 apply the grant once via the same local socket used for `data.chunks` above,
 then re-apply the file by hand (the tracking table already records it, so a
-redeploy will not re-run it):
+redeploy will not re-run it).
+
+The exact-minimum grant, derived per target the same way the migration
+resolves them (the CI fixture in `.github/workflows/migrations.yml` runs with
+precisely this set, proving it sufficient):
 
 ```
-kubectl exec -n lore-db lore-db-1 -c postgres -- \
-  psql -d lore -c "GRANT SELECT, INSERT, DELETE ON ALL TABLES IN SCHEMA org_shared, payments, platform, mobile, data TO lore;"
+kubectl exec -n lore-db lore-db-1 -c postgres -- psql -d lore -c "
+  GRANT SELECT, DELETE ON org_shared.chunks TO lore;
+  DO \$\$
+  DECLARE r RECORD;
+  BEGIN
+    FOR r IN
+      SELECT DISTINCT rep.team
+      FROM lore.repos rep
+      JOIN pg_catalog.pg_namespace n ON n.nspname = rep.team
+      JOIN pg_catalog.pg_class c
+        ON c.relnamespace = n.oid AND c.relname = 'chunks' AND c.relkind = 'r'
+      WHERE rep.team ~ '^[a-z][a-z0-9_]{0,62}\$' AND rep.team <> 'org_shared'
+    LOOP
+      EXECUTE format('GRANT SELECT, INSERT ON %I.chunks TO lore', r.team);
+    END LOOP;
+  END\$\$;"
 ```
 
 The migration is idempotent (per-file dedupe guard + `ON CONFLICT (id) DO
-NOTHING`), so re-running it after the grant is safe.
+NOTHING`), so re-running it after the grant is safe. Before revoking anything
+afterwards, note the runtime overlaps with this set: the reindex verification
+sweep prunes owned chunks of deleted files in each repo's *resolved* schema —
+for org_shared-resident repos that is `DELETE ON org_shared.chunks` — so a
+blanket revoke can break the sweep; narrow only what your runtime role mapping
+provably does not use.

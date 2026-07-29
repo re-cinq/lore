@@ -81,9 +81,9 @@ jobs:
             END IF;
           END $$;
           SQL
-          echo "[migrate] granting DML per migrations/README.md, then re-applying 0035 as role lore"
+          echo "[migrate] granting the exact-minimum DML per migrations/README.md, then re-applying 0035 as role lore"
           docker exec -i "$LORE_PG_CONTAINER" psql -U postgres -d lore -v ON_ERROR_STOP=1 \
-            -c "GRANT SELECT, INSERT, DELETE ON ALL TABLES IN SCHEMA org_shared, platform, payments, mobile, data TO lore;"
+            -c "GRANT SELECT, DELETE ON org_shared.chunks TO lore; GRANT SELECT, INSERT ON platform.chunks TO lore;"
           docker exec -i "$LORE_PG_CONTAINER" psql -U lore -d lore -v ON_ERROR_STOP=1 --single-transaction -f - \
             < "$MIGRATIONS_DIR/0035_migrate_legacy_org_shared_chunks.sql"
           docker exec -i "$LORE_PG_CONTAINER" psql -U postgres -d lore -v ON_ERROR_STOP=1 <<'SQL'
