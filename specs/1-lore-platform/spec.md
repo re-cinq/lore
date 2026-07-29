@@ -849,6 +849,21 @@ share one persistence surface instead of inline SQL.
   the schema enumeration lists every provisioned `chunks` schema,
   dropping regex-unsafe names and always including `org_shared` exactly
   once. ([validated by `chunk-schema.test.ts:29`](libs/shared/src/project/chunks/chunk-schema.test.ts#L29), [`chunk-schema.test.ts:37`](libs/shared/src/project/chunks/chunk-schema.test.ts#L37), [`chunk-schema.test.ts:43`](libs/shared/src/project/chunks/chunk-schema.test.ts#L43), [`chunk-schema.test.ts:50`](libs/shared/src/project/chunks/chunk-schema.test.ts#L50), [`chunk-schema.test.ts:59`](libs/shared/src/project/chunks/chunk-schema.test.ts#L59), [`chunk-schema.test.ts:68`](libs/shared/src/project/chunks/chunk-schema.test.ts#L68), [`chunk-schema.test.ts:80`](libs/shared/src/project/chunks/chunk-schema.test.ts#L80), [`chunk-schema.test.ts:89`](libs/shared/src/project/chunks/chunk-schema.test.ts#L89), [`chunk-schema.test.ts:97`](libs/shared/src/project/chunks/chunk-schema.test.ts#L97), [`chunk-schema.test.ts:112`](libs/shared/src/project/chunks/chunk-schema.test.ts#L112), [`chunk-schema.test.ts:125`](libs/shared/src/project/chunks/chunk-schema.test.ts#L125), [`chunk-schema.test.ts:152`](libs/shared/src/project/chunks/chunk-schema.test.ts#L152), [`chunk-schema.test.ts:165`](libs/shared/src/project/chunks/chunk-schema.test.ts#L165))
+- FR-20.21: Legacy chunk relocation is self-healing: the nightly reindex,
+  before counting a team-resolved repo's chunks, MOVEs any rows the repo
+  still holds in `org_shared.chunks` into its resolved schema — per-file
+  dedupe keeps a file already fresh in the target and drops its stale
+  org_shared duplicates, files absent from the target relocate wholesale
+  preserving id, embedding, and `ingested_at`, rewriting `team`, stamping
+  `metadata.migrated_from` ([validated by `chunks.test.ts:672`](libs/shared/src/project/chunks/chunks.test.ts#L672), [`chunks.test.ts:689`](libs/shared/src/project/chunks/chunks.test.ts#L689), [`chunks.test.ts:722`](libs/shared/src/project/chunks/chunks.test.ts#L722))
+  - Provenance-less rows with a classifyFile content type are adopted via
+    `ingested_by = 'reindex-job'`; other content types relocate unowned ([validated by `chunks.test.ts:672`](libs/shared/src/project/chunks/chunks.test.ts#L672), [`chunks.test.ts:712`](libs/shared/src/project/chunks/chunks.test.ts#L712))
+  - The Pg adapter issues copy and delete as one statement (shared
+    snapshot, insert before delete, repo and team as bind parameters),
+    a clean repo is a zero no-op, and `org_shared` is rejected as a
+    relocation target in every adapter — self-relocation would dedupe
+    rows against themselves and delete them ([validated by `chunks.test.ts:735`](libs/shared/src/project/chunks/chunks.test.ts#L735), [`chunks.test.ts:746`](libs/shared/src/project/chunks/chunks.test.ts#L746), [`chunks.test.ts:758`](libs/shared/src/project/chunks/chunks.test.ts#L758))
+  - The station HTTP adapter refuses relocation as Floor-only ([validated by `chunks-http.test.ts:94`](libs/shared/src/project/chunks/chunks-http.test.ts#L94))
 
 ## Non-Functional Requirements
 

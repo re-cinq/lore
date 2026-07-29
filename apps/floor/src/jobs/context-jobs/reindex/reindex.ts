@@ -171,6 +171,29 @@ export async function reindexJob(): Promise<string> {
         continue;
       }
 
+      // Relocate legacy org_shared rows into the resolved schema BEFORE the
+      // chunk count below — a newly team-resolved repo must adopt its history
+      // rather than read as empty and trigger a full re-seed. No-op when
+      // clean; non-fatal like the verification pass.
+      if (schema !== "org_shared") {
+        try {
+          const { moved, dropped } = await chunks().relocateLegacyChunks(
+            schema,
+            repo.full_name,
+          );
+
+          if (dropped > 0) {
+            console.log(
+              `[job] Relocated ${moved} legacy org_shared chunks into ${schema} for ${repo.full_name} (${dropped - moved} stale duplicates dropped)`,
+            );
+          }
+        } catch (err) {
+          console.error(
+            `[job] Legacy chunk relocation failed for ${repo.full_name}: ${errorMessage(err)}`,
+          );
+        }
+      }
+
       // Determine which files to process
       // If repo has zero chunks, always do a full seed (handles failed first ingestion)
       const hasChunks =
