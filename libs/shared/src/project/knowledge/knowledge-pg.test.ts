@@ -68,11 +68,12 @@ describe("PgKnowledge", () => {
     ]);
   });
 
-  it("resolves the team schema then lists specs from its chunks", async () => {
+  it("resolves the provisioned team schema then lists specs from its chunks", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
     const pg = new PgKnowledge(
       fakePool(capture, [
         [{ team: "platform" }],
+        [{ table_schema: "platform" }],
         [{ file_path: "specs/x/spec.md" }],
       ]),
     );
@@ -80,7 +81,8 @@ describe("PgKnowledge", () => {
     const specs = await pg.listSpecs("re-cinq/lore");
 
     expect(capture[0].text).toContain("SELECT team FROM lore.repos");
-    expect(capture[1].text).toContain("FROM platform.chunks");
+    expect(capture[1].text).toContain("table_name = 'chunks'");
+    expect(capture[2].text).toContain("FROM platform.chunks");
     expect(specs).toEqual([
       { path: "specs/x/spec.md", title: "specs/x/spec.md" },
     ]);
@@ -93,6 +95,18 @@ describe("PgKnowledge", () => {
     await pg.listAdrs("re-cinq/lore");
 
     expect(capture[1].text).toContain("FROM org_shared.chunks");
+  });
+
+  it("falls back to org_shared when the team schema is not provisioned", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const pg = new PgKnowledge(
+      fakePool(capture, [[{ team: "growth" }], [], []]),
+    );
+
+    await pg.listAdrs("re-cinq/lore");
+
+    expect(capture[1].text).toContain("table_name = 'chunks'");
+    expect(capture[2].text).toContain("FROM org_shared.chunks");
   });
 
   it("assembles repo context through the relocated engine, bound to the repo", async () => {

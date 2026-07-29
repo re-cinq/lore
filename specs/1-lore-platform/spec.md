@@ -834,6 +834,18 @@ share one persistence surface instead of inline SQL.
   non-resumable with the given content type (passing `cacheControl`
   through as file metadata) and returns the object content as utf-8, null
   when the object is absent or the storage call throws. ([validated by `archive-gcs.test.ts:38`](libs/shared/src/project/archive/archive-gcs.test.ts#L38), [`archive-gcs.test.ts:55`](libs/shared/src/project/archive/archive-gcs.test.ts#L55), [`archive-gcs.test.ts:73`](libs/shared/src/project/archive/archive-gcs.test.ts#L73), [`archive-gcs.test.ts:83`](libs/shared/src/project/archive/archive-gcs.test.ts#L83), [`archive-gcs.test.ts:92`](libs/shared/src/project/archive/archive-gcs.test.ts#L92))
+- FR-20.20: Chunk-schema resolution is single-sourced in the shared
+  `chunk-schema` module: a candidate schema name is kept only when it is
+  regex-safe and provisioned (an invalid, injection-shaped, or absent
+  name falls back to `org_shared` without an existence check, and
+  `org_shared` itself short-circuits); a repo resolves through
+  `lore.repos.team` to its provisioned team schema, else `org_shared`
+  (no team, or an unprovisioned team schema, both fall back); the
+  resolution is memoized per pool so concurrent readers share one
+  lookup, pools stay isolated, and a failed lookup is never cached; and
+  the schema enumeration lists every provisioned `chunks` schema,
+  dropping regex-unsafe names and always including `org_shared` exactly
+  once. ([validated by `chunk-schema.test.ts:29`](libs/shared/src/project/chunks/chunk-schema.test.ts#L29), [`chunk-schema.test.ts:37`](libs/shared/src/project/chunks/chunk-schema.test.ts#L37), [`chunk-schema.test.ts:43`](libs/shared/src/project/chunks/chunk-schema.test.ts#L43), [`chunk-schema.test.ts:50`](libs/shared/src/project/chunks/chunk-schema.test.ts#L50), [`chunk-schema.test.ts:59`](libs/shared/src/project/chunks/chunk-schema.test.ts#L59), [`chunk-schema.test.ts:68`](libs/shared/src/project/chunks/chunk-schema.test.ts#L68), [`chunk-schema.test.ts:80`](libs/shared/src/project/chunks/chunk-schema.test.ts#L80), [`chunk-schema.test.ts:89`](libs/shared/src/project/chunks/chunk-schema.test.ts#L89), [`chunk-schema.test.ts:97`](libs/shared/src/project/chunks/chunk-schema.test.ts#L97), [`chunk-schema.test.ts:112`](libs/shared/src/project/chunks/chunk-schema.test.ts#L112), [`chunk-schema.test.ts:125`](libs/shared/src/project/chunks/chunk-schema.test.ts#L125), [`chunk-schema.test.ts:152`](libs/shared/src/project/chunks/chunk-schema.test.ts#L152), [`chunk-schema.test.ts:165`](libs/shared/src/project/chunks/chunk-schema.test.ts#L165))
 
 ## Non-Functional Requirements
 

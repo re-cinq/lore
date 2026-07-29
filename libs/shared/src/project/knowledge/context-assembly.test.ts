@@ -6,6 +6,7 @@ vi.mock("../../embeddings/embedding-service.js", () => ({
 
 import { getQueryEmbedding } from "../../embeddings/embedding-service.js";
 import {
+  fetchers,
   fitItemsToBudget,
   hybridChunkItems,
   extractKeyTerms,
@@ -192,29 +193,43 @@ describe("fitItemsToBudget per-document cap", () => {
   });
 });
 
+/** Results are consumed in order per query; the last one is sticky (the
+ *  chunks.test.ts fakePool style). */
+function fakePool(...results: Array<{ rows: any[] }>): {
+  pool: Parameters<typeof hybridChunkItems>[0];
+  calls: Array<{ text: string; params?: unknown[] }>;
+} {
+  const calls: Array<{ text: string; params?: unknown[] }> = [];
+  const queue = [...results];
+
+  return {
+    calls,
+    pool: {
+      async query<T>(text: string, params?: unknown[]): Promise<{ rows: T[] }> {
+        calls.push({ text, params });
+
+        return queue.length > 1 ? queue.shift()! : (queue[0] ?? { rows: [] });
+      },
+    },
+  };
+}
+
 describe("hybridChunkItems", () => {
   it("retrieves chunks bound to the repo + content types (keyword path when no embedding)", async () => {
     vi.mocked(getQueryEmbedding).mockResolvedValueOnce(null);
-    const calls: Array<{ text: string; params?: unknown[] }> = [];
-    const pool = {
-      query: async <T>(
-        text: string,
-        params?: unknown[],
-      ): Promise<{ rows: T[] }> => {
-        calls.push({ text, params });
-
-        return {
-          rows: [
-            {
-              content: "export function parseSettingsForm() {}",
-              file_path: "web-ui/src/lib/settings-form.ts",
-              content_type: "code",
-              score: 0.42,
-            },
-          ] as T[],
-        };
+    const { pool, calls } = fakePool(
+      { rows: [] },
+      {
+        rows: [
+          {
+            content: "export function parseSettingsForm() {}",
+            file_path: "web-ui/src/lib/settings-form.ts",
+            content_type: "code",
+            score: 0.42,
+          },
+        ],
       },
-    };
+    );
 
     const items = await hybridChunkItems(
       pool,
@@ -224,8 +239,10 @@ describe("hybridChunkItems", () => {
       6,
     );
 
-    expect(calls[0].params?.[0]).toBe("re-cinq/lore");
-    expect(calls[0].params).toContainEqual(["code"]);
+    expect(calls[0].text).toContain("SELECT team FROM lore.repos");
+    expect(calls[1].text).toContain("FROM org_shared.chunks");
+    expect(calls[1].params?.[0]).toBe("re-cinq/lore");
+    expect(calls[1].params).toContainEqual(["code"]);
     expect(items[0]).toMatchObject({
       source_path: "web-ui/src/lib/settings-form.ts",
       content_type: "code",
@@ -233,33 +250,91 @@ describe("hybridChunkItems", () => {
     expect(items[0].text).toContain("parseSettingsForm");
   });
 
+  it("reads from the repo's provisioned team schema instead of org_shared", async () => {
+    vi.mocked(getQueryEmbedding).mockResolvedValueOnce(null);
+    const { pool, calls } = fakePool(
+      { rows: [{ team: "platform" }] },
+      { rows: [{ table_schema: "platform" }] },
+      {
+        rows: [
+          {
+            content: "spec text",
+            file_path: "specs/a/spec.md",
+            content_type: "spec",
+            score: 0.5,
+          },
+        ],
+      },
+    );
+
+    await hybridChunkItems(pool, "q", "re-cinq/lore", ["doc", "spec"], 5);
+
+    expect(calls[2].text).toContain("FROM platform.chunks");
+    expect(calls[2].text).not.toContain("org_shared");
+  });
+
   it("uses a vector+keyword RRF query when an embedding is available", async () => {
     vi.mocked(getQueryEmbedding).mockResolvedValueOnce([0.1, 0.2, 0.3]);
-    const calls: Array<{ text: string; params?: unknown[] }> = [];
-    const pool = {
-      query: async <T>(
-        text: string,
-        params?: unknown[],
-      ): Promise<{ rows: T[] }> => {
-        calls.push({ text, params });
-
-        return {
-          rows: [
-            {
-              content: "code",
-              file_path: "a.ts",
-              content_type: "code",
-              score: 0.5,
-            },
-          ] as T[],
-        };
+    const { pool, calls } = fakePool(
+      { rows: [] },
+      {
+        rows: [
+          {
+            content: "code",
+            file_path: "a.ts",
+            content_type: "code",
+            score: 0.5,
+          },
+        ],
       },
-    };
+    );
 
     await hybridChunkItems(pool, "q", "re-cinq/lore", ["code"], 6);
 
-    expect(calls[0].text).toContain("embedding <=>");
-    expect(calls[0].params).toContainEqual("[0.1,0.2,0.3]");
+    expect(calls[1].text).toContain("embedding <=>");
+    expect(calls[1].params).toContainEqual("[0.1,0.2,0.3]");
+  });
+
+  it("cross_repo unions linked-repo matches across every provisioned chunk schema", async () => {
+    const portable = "error handling pattern convention gotcha";
+    const { pool, calls } = fakePool(
+      { rows: [{ settings: { cross_repo_repos: ["octo/linked"] } }] },
+      { rows: [{ table_schema: "platform" }] },
+      {
+        rows: [
+          {
+            content: portable,
+            repo: "octo/linked",
+            file_path: "a.md",
+            score: 0.4,
+          },
+        ],
+      },
+    );
+
+    const res = await fetchers.cross_repo(pool, "q", "re-cinq/lore");
+
+    expect(calls[2].text).toContain("FROM platform.chunks");
+    expect(calls[2].text).toContain("FROM org_shared.chunks");
+    expect(calls[2].text).toContain("UNION ALL");
+    expect(calls[2].text).toContain("repo = ANY($1)");
+    expect(calls[2].params).toEqual([["octo/linked"], "q"]);
+    expect(res.status).toBe("ok");
+    expect(res.items[0]).toMatchObject({ repo: "octo/linked", text: portable });
+  });
+
+  it("cross_repo without linked repos searches other repos across all schemas", async () => {
+    const { pool, calls } = fakePool(
+      { rows: [{ settings: null }] },
+      { rows: [{ table_schema: "platform" }] },
+      { rows: [] },
+    );
+
+    const res = await fetchers.cross_repo(pool, "q", "re-cinq/lore");
+
+    expect(calls[2].text).toContain("repo != $1");
+    expect(calls[2].params).toEqual(["re-cinq/lore", "q"]);
+    expect(res).toEqual({ items: [], status: "empty" });
   });
 
   it("normalizes scores so the top result is 1.0 and the rest are fractions", async () => {

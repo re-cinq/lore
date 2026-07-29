@@ -47,8 +47,11 @@ Use this when you want chunk-level evidence or the exact wording of a convention
    log `"[lore] lore_search_context: auto-detected repo {repo}"` to stderr (advisory).
 2. **DB path** — if `isDbAvailable()`:
    1. `schema = team || "org_shared"`; `results = hybridSearch(query, schema, limit)`
-      ([hybridSearch](../../../libs/server-core/src/platform/db.ts#L143) — HNSW vector +
-      BM25, fused by RRF).
+      ([hybridSearch](../../../libs/server-core/src/platform/db.ts#L109) — HNSW vector +
+      BM25, fused by RRF). `hybridSearch` resolves the schema dynamically via the
+      shared `chunkSchemaOrOrgShared`: a provisioned team schema is searched
+      directly; an unknown, unprovisioned, or injection-shaped name falls back to
+      `org_shared` (no static schema allow-list).
    2. If `results` is empty **and** `team` is set and `team !== "org_shared"`,
       retry `hybridSearch(query, "org_shared", limit)` (fall back to org corpus).
    3. `traceRetrieval({ query, namespace: schema, topScore: results[0]?.rrf_score || 0, resultCount })`.
@@ -95,10 +98,16 @@ A `team` scopes the search to that team subtree. ([validated by `scopes the sear
 
 An unknown team yields a path-not-found error. ([validated by `returns a path-not-found error for an unknown team`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L118))
 
-The DB (hybrid-search) branch is exercised only against live Postgres + Vertex
-embeddings. *(untested: `hybridSearch` requires a live pgvector store and the
-result-formatting is inline in the handler with no extractable seam; the
-file-fallback branch above is fully covered.)*
+`hybridSearch` searches a provisioned team schema directly. ([validated by `searches a provisioned team schema directly`](libs/server-core/src/platform/db.test.ts#L30))
+
+`hybridSearch` falls back to `org_shared` for an unprovisioned schema. ([validated by `falls back to org_shared for an unprovisioned schema`](libs/server-core/src/platform/db.test.ts#L47))
+
+`hybridSearch` falls back to `org_shared` for an injection-shaped schema name without an existence check. ([validated by `falls back to org_shared for an injection-shaped schema without an existence check`](libs/server-core/src/platform/db.test.ts#L60))
+
+The DB branch's ranking quality is exercised only against live Postgres + Vertex
+embeddings. *(untested beyond schema resolution: the RRF result-formatting is
+inline in the handler with no extractable seam; the file-fallback branch above
+is fully covered.)*
 
 ## Out of Scope
 
