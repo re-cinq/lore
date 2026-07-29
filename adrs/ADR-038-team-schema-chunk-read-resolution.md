@@ -1,7 +1,7 @@
 ---
 adr_number: 38
 title: "Team-schema resolution for every repo-scoped chunk read"
-status: accepted
+status: draft
 date: 2026-07-29
 domains: [context, ingestion, db, floor]
 ---
