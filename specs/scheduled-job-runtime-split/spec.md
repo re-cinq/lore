@@ -256,7 +256,12 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    overlap-guard key), the handler pre-creates a `pipeline.job_runs` row (`<job_ref>:<repo>`) and
    starts one line per target repo with that branch + `args.job_run_id`, restricts to `params.repo`
    without enumerating when a single repo is given, starts nothing when there are no target repos, and
-   fails the just-created job_run (before rethrowing) if `assemblyLines.start` throws. ([validated by `fan-out.test.ts:26`](apps/floor/src/jobs/detect/fan-out.test.ts#L26), [`fan-out.test.ts:34`](apps/floor/src/jobs/detect/fan-out.test.ts#L34), [`fan-out.test.ts:81`](apps/floor/src/jobs/detect/fan-out.test.ts#L81), [`fan-out.test.ts:104`](apps/floor/src/jobs/detect/fan-out.test.ts#L104), [`fan-out.test.ts:120`](apps/floor/src/jobs/detect/fan-out.test.ts#L120))
+   fails the just-created job_run (before rethrowing) if `assemblyLines.start` throws. The spec-scoped
+   target lists (`activeSpecRepos`/`specRepos`) enumerate repos across every provisioned chunk schema
+   (team schemas ∪ org_shared), not a fixed org_shared: the schema list intersects
+   `information_schema` with `lore.repos.team` behind a schema-name injection gate, one grouped
+   UNION ALL query spans all schemas, and the active variant gates each repo on a code chunk
+   ingested inside the 7-day activity window. ([validated by `fan-out.test.ts:33`](apps/floor/src/jobs/detect/fan-out.test.ts#L33), [`fan-out.test.ts:41`](apps/floor/src/jobs/detect/fan-out.test.ts#L41), [`fan-out.test.ts:88`](apps/floor/src/jobs/detect/fan-out.test.ts#L88), [`fan-out.test.ts:111`](apps/floor/src/jobs/detect/fan-out.test.ts#L111), [`fan-out.test.ts:127`](apps/floor/src/jobs/detect/fan-out.test.ts#L127), [`fan-out.test.ts:162`](apps/floor/src/jobs/detect/fan-out.test.ts#L162), [`fan-out.test.ts:173`](apps/floor/src/jobs/detect/fan-out.test.ts#L173), [`fan-out.test.ts:187`](apps/floor/src/jobs/detect/fan-out.test.ts#L187), [`fan-out.test.ts:195`](apps/floor/src/jobs/detect/fan-out.test.ts#L195), [`fan-out.test.ts:205`](apps/floor/src/jobs/detect/fan-out.test.ts#L205), [`fan-out.test.ts:215`](apps/floor/src/jobs/detect/fan-out.test.ts#L215), [`fan-out.test.ts:229`](apps/floor/src/jobs/detect/fan-out.test.ts#L229))
 
 11. `context_reindex` ends every per-repo pass with a verification sweep (ADR-019 amendment
    2026-07, issue #967 — `ingested_at` on reindex-owned rows now means "last verified against the
