@@ -651,3 +651,128 @@ describe("InMemoryChunks double", () => {
     ]);
   });
 });
+
+describe("relocateLegacyChunks", () => {
+  const legacyRow = (
+    over: Partial<(typeof InMemoryChunks.prototype.rows)[0]>,
+  ) => ({
+    id: over.id ?? "legacy-1",
+    schema: "org_shared",
+    content: "legacy content",
+    contentType: "doc",
+    team: "org_shared",
+    repo: "octo/repo",
+    filePath: "docs/x.md",
+    metadata: {},
+    embedding: "[0.5]",
+    ingestedAt: "2025-01-01T00:00:00.000Z",
+    ...over,
+  });
+
+  it("moves a non-duplicated legacy row keeping id and embedding, rewrites team, stamps migrated_from, adopts classifiable rows", async () => {
+    const chunks = new InMemoryChunks([legacyRow({})]);
+
+    expect(await chunks.relocateLegacyChunks("platform", "octo/repo")).toEqual({
+      moved: 1,
+      dropped: 1,
+    });
+    expect(chunks.rows[0]).toMatchObject({
+      id: "legacy-1",
+      schema: "platform",
+      team: "platform",
+      embedding: "[0.5]",
+      ingestedAt: "2025-01-01T00:00:00.000Z",
+      metadata: { migrated_from: "org_shared", ingested_by: "reindex-job" },
+    });
+  });
+
+  it("keeps the fresh target copy and drops the stale org_shared duplicate of the same file", async () => {
+    const chunks = new InMemoryChunks([
+      legacyRow({ id: "stale", filePath: "specs/spec.md" }),
+      legacyRow({
+        id: "fresh",
+        schema: "platform",
+        team: "platform",
+        filePath: "specs/spec.md",
+        content: "fresh content",
+      }),
+    ]);
+
+    expect(await chunks.relocateLegacyChunks("platform", "octo/repo")).toEqual({
+      moved: 0,
+      dropped: 1,
+    });
+    expect(chunks.rows).toHaveLength(1);
+    expect(chunks.rows[0]).toMatchObject({
+      id: "fresh",
+      content: "fresh content",
+    });
+  });
+
+  it("relocates a rule row without adopting it into reindex ownership", async () => {
+    const chunks = new InMemoryChunks([
+      legacyRow({ contentType: "rule", filePath: "rules/conventions" }),
+    ]);
+
+    await chunks.relocateLegacyChunks("platform", "octo/repo");
+
+    expect(chunks.rows[0]!.metadata).toEqual({ migrated_from: "org_shared" });
+  });
+
+  it("moves every chunk of a multi-chunk file instead of deduping against its own first chunk", async () => {
+    const chunks = new InMemoryChunks([
+      legacyRow({ id: "c1", filePath: "specs/big.md" }),
+      legacyRow({ id: "c2", filePath: "specs/big.md" }),
+    ]);
+
+    expect(await chunks.relocateLegacyChunks("platform", "octo/repo")).toEqual({
+      moved: 2,
+      dropped: 2,
+    });
+    expect(chunks.rows.every((row) => row.schema === "platform")).toBe(true);
+  });
+
+  it("returns zeros on a clean repo and on a second run", async () => {
+    const chunks = new InMemoryChunks([legacyRow({})]);
+
+    await chunks.relocateLegacyChunks("platform", "octo/repo");
+
+    expect(await chunks.relocateLegacyChunks("platform", "octo/repo")).toEqual({
+      moved: 0,
+      dropped: 0,
+    });
+  });
+
+  it("rejects org_shared as the relocation target in both adapters", async () => {
+    await expect(
+      new InMemoryChunks().relocateLegacyChunks("org_shared", "octo/repo"),
+    ).rejects.toThrow(/must not be org_shared/);
+    await expect(
+      new PgChunks(fakePool({ rows: [] }).pool).relocateLegacyChunks(
+        "org_shared",
+        "octo/repo",
+      ),
+    ).rejects.toThrow(/must not be org_shared/);
+  });
+
+  it("issues one statement with the insert before the delete and repo/schema as parameters", async () => {
+    const { pool, calls } = fakePool({
+      rows: [{ moved: "2", dropped: "3" }],
+    });
+
+    expect(
+      await new PgChunks(pool).relocateLegacyChunks("platform", "octo/repo"),
+    ).toEqual({ moved: 2, dropped: 3 });
+    expect(calls).toHaveLength(1);
+
+    const sql = calls[0]!.text;
+
+    expect(calls[0]!.params).toEqual(["octo/repo", "platform"]);
+    expect(sql.indexOf("INSERT INTO platform.chunks")).toBeGreaterThan(-1);
+    expect(sql.indexOf("DELETE FROM org_shared.chunks")).toBeGreaterThan(
+      sql.indexOf("INSERT INTO platform.chunks"),
+    );
+    expect(sql).toContain("ON CONFLICT (id) DO NOTHING");
+    expect(sql).not.toContain("search_tsv");
+  });
+});

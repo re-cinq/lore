@@ -321,4 +321,60 @@ export class PgChunks implements ChunksPort {
 
     return rows.length;
   }
+
+  async relocateLegacyChunks(
+    schema: string,
+    repo: string,
+  ): Promise<{ moved: number; dropped: number }> {
+    enforceSchema(schema);
+    enforceTrue(
+      schema !== "org_shared",
+      Error,
+      "relocateLegacyChunks target must not be org_shared",
+    );
+    const { rows } = await this.pool.query(
+      `WITH moved AS (
+         INSERT INTO ${schema}.chunks
+           (id, content, embedding, content_type, team, repo, file_path,
+            author, ingested_at, metadata)
+         SELECT o.id, o.content, o.embedding, o.content_type, $2, o.repo,
+           o.file_path, o.author, o.ingested_at,
+           coalesce(o.metadata, '{}'::jsonb)
+             || jsonb_build_object('migrated_from', 'org_shared')
+             || CASE
+                  WHEN o.metadata->>'ingested_by' IS NULL
+                    AND o.content_type IN ('doc', 'code', 'adr', 'spec')
+                  THEN '{"ingested_by": "reindex-job"}'::jsonb
+                  ELSE '{}'::jsonb
+                END
+         FROM org_shared.chunks o
+         WHERE o.repo = $1
+           AND NOT EXISTS (
+             SELECT 1 FROM ${schema}.chunks t
+             WHERE t.repo = o.repo AND t.file_path = o.file_path
+           )
+         ON CONFLICT (id) DO NOTHING
+         RETURNING id
+       ),
+       dropped AS (
+         DELETE FROM org_shared.chunks o
+         WHERE o.repo = $1
+           AND (o.id IN (SELECT id FROM moved)
+                OR EXISTS (
+                  SELECT 1 FROM ${schema}.chunks t
+                  WHERE t.repo = o.repo
+                    AND (t.file_path = o.file_path OR t.id = o.id)
+                ))
+         RETURNING id
+       )
+       SELECT (SELECT count(*) FROM moved)::text AS moved,
+              (SELECT count(*) FROM dropped)::text AS dropped`,
+      [repo, schema],
+    );
+
+    return {
+      moved: Number(rows[0]?.moved || 0),
+      dropped: Number(rows[0]?.dropped || 0),
+    };
+  }
 }
