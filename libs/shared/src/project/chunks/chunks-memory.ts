@@ -135,14 +135,8 @@ export class InMemoryChunks implements ChunksPort {
     ).length;
   }
 
-  private orgSharedForRepo(repo: string): ChunkRow[] {
-    return this.rows.filter(
-      (row) => row.schema === "org_shared" && row.repo === repo,
-    );
-  }
-
   async specChunks(repo: string): Promise<SpecChunkRow[]> {
-    return this.orgSharedForRepo(repo)
+    return this.forRepo(repo)
       .filter((row) => row.contentType === "spec")
       .sort((a, b) => a.filePath.localeCompare(b.filePath))
       .map((row) => ({
@@ -154,7 +148,7 @@ export class InMemoryChunks implements ChunksPort {
   }
 
   async codeSymbols(repo: string): Promise<CodeSymbolRow[]> {
-    return this.orgSharedForRepo(repo)
+    return this.forRepo(repo)
       .filter(
         (row) =>
           row.contentType === "code" &&

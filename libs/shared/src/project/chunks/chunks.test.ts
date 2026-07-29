@@ -150,8 +150,8 @@ describe("PgChunks adapter", () => {
     ).rejects.toThrow(new Error('Invalid schema name: "a; DROP TABLE"'));
   });
 
-  it("reads a repo's spec chunks from org_shared", async () => {
-    const { pool, calls } = fakePool({
+  it("reads a repo's spec chunks from its team schema", async () => {
+    const { pool, calls } = fakePool(...teamSchemaLookup, {
       rows: [
         { id: "1", repo: "octo/repo", file_path: "specs/s.md", content: "x" },
       ],
@@ -162,13 +162,33 @@ describe("PgChunks adapter", () => {
     expect(specs).toEqual([
       { id: "1", repo: "octo/repo", filePath: "specs/s.md", content: "x" },
     ]);
-    expect(calls[0]?.text).toContain("FROM org_shared.chunks");
-    expect(calls[0]?.text).toContain("content_type = 'spec'");
-    expect(calls[0]?.params).toEqual(["octo/repo"]);
+    expect(calls[2]?.text).toContain("FROM platform.chunks");
+    expect(calls[2]?.text).not.toContain("org_shared");
+    expect(calls[2]?.text).toContain("content_type = 'spec'");
+    expect(calls[2]?.params).toEqual(["octo/repo"]);
   });
 
-  it("reads a repo's code symbols from org_shared", async () => {
-    const { pool, calls } = fakePool({
+  it("reads spec chunks from org_shared when the repo has no team", async () => {
+    const { pool, calls } = fakePool(
+      { rows: [] },
+      {
+        rows: [
+          { id: "1", repo: "octo/repo", file_path: "specs/s.md", content: "x" },
+        ],
+      },
+    );
+
+    const specs = await new PgChunks(pool).specChunks("octo/repo");
+
+    expect(specs).toEqual([
+      { id: "1", repo: "octo/repo", filePath: "specs/s.md", content: "x" },
+    ]);
+    expect(calls[1]?.text).toContain("FROM org_shared.chunks");
+    expect(calls[1]?.params).toEqual(["octo/repo"]);
+  });
+
+  it("reads a repo's code symbols from its team schema", async () => {
+    const { pool, calls } = fakePool(...teamSchemaLookup, {
       rows: [
         {
           symbol_name: "runDetect",
@@ -183,8 +203,33 @@ describe("PgChunks adapter", () => {
     expect(symbols).toEqual([
       { symbolName: "runDetect", symbolType: "function", filePath: "a.ts" },
     ]);
-    expect(calls[0]?.text).toContain("symbol_name");
-    expect(calls[0]?.params).toEqual(["octo/repo"]);
+    expect(calls[2]?.text).toContain("FROM platform.chunks");
+    expect(calls[2]?.text).not.toContain("org_shared");
+    expect(calls[2]?.text).toContain("symbol_name");
+    expect(calls[2]?.params).toEqual(["octo/repo"]);
+  });
+
+  it("reads code symbols from org_shared when the repo has no team", async () => {
+    const { pool, calls } = fakePool(
+      { rows: [] },
+      {
+        rows: [
+          {
+            symbol_name: "runDetect",
+            symbol_type: "function",
+            file_path: "a.ts",
+          },
+        ],
+      },
+    );
+
+    const symbols = await new PgChunks(pool).codeSymbols("octo/repo");
+
+    expect(symbols).toEqual([
+      { symbolName: "runDetect", symbolType: "function", filePath: "a.ts" },
+    ]);
+    expect(calls[1]?.text).toContain("FROM org_shared.chunks");
+    expect(calls[1]?.params).toEqual(["octo/repo"]);
   });
 
   it("checks chunk existence in the repo's team schema", async () => {
@@ -375,21 +420,21 @@ describe("InMemoryChunks double", () => {
     ).rejects.toThrow(new Error('Invalid schema name: "a; DROP TABLE"'));
   });
 
-  it("reads spec chunks and code symbols for a repo from org_shared", async () => {
+  it("reads spec chunks and code symbols from whichever schema holds the repo's rows", async () => {
     const chunks = new InMemoryChunks();
 
-    await chunks.insertChunk("org_shared", {
+    await chunks.insertChunk("platform", {
       ...sampleChunk,
       contentType: "spec",
       filePath: "specs/s.md",
     });
-    await chunks.insertChunk("org_shared", {
+    await chunks.insertChunk("platform", {
       ...sampleChunk,
       contentType: "code",
       filePath: "a.ts",
       metadata: { symbol_name: "runDetect", symbol_type: "function" },
     });
-    await chunks.insertChunk("org_shared", {
+    await chunks.insertChunk("platform", {
       ...sampleChunk,
       contentType: "code",
       filePath: "b.ts",
