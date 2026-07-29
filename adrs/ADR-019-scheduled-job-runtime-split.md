@@ -1,7 +1,7 @@
 ---
 adr_number: 19
 title: "Scheduled job runtime split: in-process scheduler ↔ K8s CronJobs"
-status: draft
+status: in progress
 date: 2026-06-02
 domains: [agent, scheduling, infra, k8s]
 supersedes: "Scheduling decision in 5-lore-agent (Problem #5, FR-6, SC#2)"
@@ -215,8 +215,30 @@ redefines the semantics rather than restoring any prior intent:
 - An empty tree skips the sweep, and `listTree` throws on GitHub's recursive
   truncation flag — a partial file list must never read as mass deletion.
 
-**Accepted / follow-ups.** Legacy pre-provenance rows outside seed scope stay
-invisible to the count and the sweep until their file next changes; api-owned
-orphans of deleted files are never pruned by anything. Spec statements:
-FR-10.8 / FR-20.6 in `specs/1-lore-platform/spec.md`, statement 11 in
-`specs/scheduled-job-runtime-split/spec.md`.
+**Accepted / follow-ups.** Legacy pre-provenance rows outside seed scope are
+relocated by migration 0035 (issue #979) from `org_shared.chunks` into each
+repo's resolved team schema, and — where their `content_type` is one
+`classifyFile()` can return (`doc`/`code`/`adr`/`spec`) — adopted by the sweep
+via `ingested_by = 'reindex-job'`; rows with a non-classifiable `content_type`
+(pseudo-path writers such as `rule` / `pull_request`) are relocated but remain
+unowned ([validated by `migration-0035.test.ts:45`](apps/lore-api/src/features/agents/migration-0035.test.ts#L45))
+
+The relocation's guarantees:
+
+- The loop targets only real team schemas resolved from `lore.repos`, never
+  `org_shared` itself ([validated by `migration-0035.test.ts:66`](apps/lore-api/src/features/agents/migration-0035.test.ts#L66))
+- A file already fresh in the target schema keeps its team-schema copy; only
+  files absent from the target move, guarded per repo + file_path ([validated by `migration-0035.test.ts:19`](apps/lore-api/src/features/agents/migration-0035.test.ts#L19))
+- Copy and delete run as one statement sharing one snapshot, and the delete
+  removes only copied rows or stale duplicates — never a delete without a
+  copy ([validated by `migration-0035.test.ts:26`](apps/lore-api/src/features/agents/migration-0035.test.ts#L26))
+- The generated `search_tsv` column is omitted from the INSERT list ([validated by `migration-0035.test.ts:36`](apps/lore-api/src/features/agents/migration-0035.test.ts#L36))
+- Schema, repo, and team values are interpolated only via `format %I`/`%L` ([validated by `migration-0035.test.ts:51`](apps/lore-api/src/features/agents/migration-0035.test.ts#L51))
+- Repos the `lore` runner cannot write are skipped with a NOTICE instead of
+  failing the deploy ([validated by `migration-0035.test.ts:61`](apps/lore-api/src/features/agents/migration-0035.test.ts#L61))
+
+Api-owned orphans of deleted files are still never pruned by anything —
+closing that needs a GitHub tree read and belongs in the reindex `verify.ts`
+sweep as a follow-up (widen the prune to `ingested_by = 'api'`). Spec
+statements: FR-10.8 / FR-20.6 in `specs/1-lore-platform/spec.md`, statement 11
+in `specs/scheduled-job-runtime-split/spec.md`.
