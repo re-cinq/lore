@@ -49,7 +49,7 @@ export const repoTeamChanged: EventHandler = async (params) => {
 
   if (dropped > 0) {
     console.log(
-      `[events] team_changed for ${repo}: relocated ${moved} legacy org_shared chunks into ${schema} (${dropped - moved} stale duplicates dropped)`,
+      `[events] team_changed for ${repo}: moved ${moved} of ${dropped} legacy org_shared rows into ${schema} (rest were stale duplicates of files already in the target)`,
     );
   }
 };

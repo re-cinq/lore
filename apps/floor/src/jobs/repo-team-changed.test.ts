@@ -16,7 +16,6 @@ const relocateLegacyChunks =
 vi.mock("../kernel/queues.js", () => ({
   settings: () => ({ team }),
   chunks: () => ({ relocateLegacyChunks }),
-  assemblyLines: () => ({}),
 }));
 
 vi.mock("../kernel/db.js", () => ({
@@ -59,6 +58,24 @@ describe("repoTeamChanged", () => {
       "platform",
       "re-cinq/lore",
     );
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining("moved 5 of 7 legacy org_shared rows"),
+    );
+  });
+
+  it("logs when only stale duplicates were dropped and stays silent on a clean repo", async () => {
+    relocateLegacyChunks.mockResolvedValueOnce({ moved: 0, dropped: 2 });
+    await repoTeamChanged({ repo: "re-cinq/lore" });
+
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining("moved 0 of 2 legacy org_shared rows"),
+    );
+
+    vi.mocked(console.log).mockClear();
+    await repoTeamChanged({ repo: "re-cinq/lore" });
+
+    expect(relocateLegacyChunks).toHaveBeenCalledTimes(2);
+    expect(console.log).not.toHaveBeenCalled();
   });
 
   it("does nothing when resolution falls back to org_shared", async () => {
