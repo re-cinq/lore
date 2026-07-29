@@ -70,7 +70,35 @@ describe("extractSummary", () => {
 });
 
 describe("reassembleSpec", () => {
-  it("joins chunk contents in order", () => {
+  it("orders chunks with identical ingested_at by chunk_index", () => {
+    const chunks = [
+      { content: "part two", ingested_at: "2026-01-01", chunk_index: 1 },
+      { content: "part one", ingested_at: "2026-01-01", chunk_index: 0 },
+    ];
+
+    expect(reassembleSpec(chunks)).toBe("part one\n\npart two");
+  });
+
+  it("orders by chunk_index over a contradicting ingested_at", () => {
+    const chunks = [
+      { content: "part two", ingested_at: "2026-01-01", chunk_index: 1 },
+      { content: "part one", ingested_at: "2026-01-02", chunk_index: 0 },
+    ];
+
+    expect(reassembleSpec(chunks)).toBe("part one\n\npart two");
+  });
+
+  it("sorts chunks without chunk_index last, among themselves by ingested_at", () => {
+    const chunks = [
+      { content: "legacy two", ingested_at: "2026-01-04" },
+      { content: "indexed", ingested_at: "2026-01-05", chunk_index: 0 },
+      { content: "legacy one", ingested_at: "2026-01-03", chunk_index: null },
+    ];
+
+    expect(reassembleSpec(chunks)).toBe("indexed\n\nlegacy one\n\nlegacy two");
+  });
+
+  it("joins chunks without any chunk_index in ingest order", () => {
     const chunks = [
       { content: "part two", ingested_at: "2026-01-02" },
       { content: "part one", ingested_at: "2026-01-01" },
@@ -81,8 +109,8 @@ describe("reassembleSpec", () => {
 
   it("deduplicates identical chunk contents", () => {
     const chunks = [
-      { content: "same", ingested_at: "2026-01-01" },
-      { content: "same", ingested_at: "2026-01-02" },
+      { content: "same", ingested_at: "2026-01-01", chunk_index: 0 },
+      { content: "same", ingested_at: "2026-01-02", chunk_index: 1 },
     ];
 
     expect(reassembleSpec(chunks)).toBe("same");

@@ -85,8 +85,8 @@ segments, breaking the decode logic.
 = 'spec'`, matching the list page — source code (`content_type = 'code'`),
 ADRs, docs, and tasks are **not** shown; a non-spec path returns "Not Found".
 It then reuses the **same render pipeline as the per-repo detail page**:
-`reassembleSpec` → `deriveCoverageFromMarkdown` → `CoverageBar` +
-`SpecDetails` (imported from `app/repos/[owner]/[repo]/specs/SpecDetails`),
+`fetchTraceSource` + `fetchTraceDocument` (lib/trace-api) → `SpecDocument`
+(imported from `app/repos/[owner]/[repo]/specs/[...path]/SpecDocument`),
 so the global view shows the markdown with the coverage bar and
 statement-level coloring, not a raw `<pre>` dump. Because the global view
 spans every team schema, chunks are grouped by `repo` and each group

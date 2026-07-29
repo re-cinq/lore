@@ -208,8 +208,8 @@ redefines the semantics rather than restoring any prior intent:
   marker onto legacy seed-scope rows only — deliberately narrower than
   everything reindex ever wrote, because provenance-less rows outside seed
   scope include non-reindex writers whose "files" are not in the repo tree.
-- Re-stamps move whole files at a time with per-file rank-millisecond offsets,
-  preserving the `ingested_at` ordering spec reassembly depends on.
+- Spec reassembly keys off `metadata.chunk_index` (issue #978), so re-stamps
+  may move a whole file to one shared `NOW()` timestamp.
 - A 30-day file-level age gate keeps steady-state nights from rewriting every
   row (each rewrite copies the embedding into a new MVCC row version).
 - An empty tree skips the sweep, and `listTree` throws on GitHub's recursive

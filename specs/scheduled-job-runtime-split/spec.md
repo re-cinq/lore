@@ -268,8 +268,8 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    repo tree"): reindex-owned chunks (`ingested_by = 'reindex-job'`) whose files still exist in the repo
    tree get `ingested_at` re-stamped so the stale count clears, chunks of files missing from the
    tree are pruned, api-ingested chunks are never touched or pruned, an empty tree skips the
-   sweep entirely, and re-stamping skips files verified within the last 30 days (whole files at a
-   time, so within-file order survives) to keep steady-state nights from rewriting every row. ([validated by `verify.test.ts:55`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L55), [`verify.test.ts:69`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L69), [`verify.test.ts:83`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L83), [`verify.test.ts:95`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L95), [`verify.test.ts:105`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L105))
+   sweep entirely, and re-stamping skips files verified within the last 30 days to keep
+   steady-state nights from rewriting every row. ([validated by `verify.test.ts:55`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L55), [`verify.test.ts:69`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L69), [`verify.test.ts:83`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L83), [`verify.test.ts:95`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L95), [`verify.test.ts:105`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L105))
 
 ## File Changes
 
