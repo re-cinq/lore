@@ -1,6 +1,7 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import { projectFor } from "../../../composition/project-boot.js";
 import { chunks, settings } from "../../../kernel/queues.js";
+import { writeAuditLog } from "../../lib/audit.js";
 import {
   chunkFile,
   classifyFile,
@@ -16,6 +17,11 @@ const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
  *  spec.md`) are covered — not just the flat `.specify/spec.md` convention. */
 const SEED_EXACT = new Set(["CLAUDE.md", "AGENTS.md"]);
 const SEED_PREFIXES = ["adrs/", "specs/", ".specify/"];
+
+/** Audit rows cap the recorded pruned-path list so a mass prune (thousands of
+ *  orphans after a restructure) cannot write a megabyte payload; the full
+ *  count is always recorded. */
+const AUDIT_PRUNED_PATHS_CAP = 500;
 
 /** Filters a full repo file tree down to the seed set: supported content
  *  types (per classifyFile) that live under a seed root. Pure — unit-tested
@@ -241,7 +247,7 @@ export async function reindexJob(): Promise<string> {
       // on the next successful night.
       try {
         treePaths ??= await getTree(repo.full_name);
-        const { touched, pruned } = await verifyRepoChunks(
+        const { touched, pruned, prunedFiles } = await verifyRepoChunks(
           chunks(),
           schema,
           repo.full_name,
@@ -251,6 +257,24 @@ export async function reindexJob(): Promise<string> {
         console.log(
           `[job] Verified ${repo.full_name}: ${touched} chunks re-stamped, ${pruned} orphaned chunks pruned`,
         );
+
+        if (pruned > 0) {
+          await writeAuditLog({
+            event_type: "reindex_prune",
+            repo: repo.full_name,
+            payload: {
+              schema,
+              pruned_rows: pruned,
+              file_count: prunedFiles.length,
+              file_paths: prunedFiles.slice(0, AUDIT_PRUNED_PATHS_CAP),
+              truncated: prunedFiles.length > AUDIT_PRUNED_PATHS_CAP,
+            },
+          }).catch((err) =>
+            console.error(
+              `[job] Prune audit write failed for ${repo.full_name}: ${errorMessage(err)}`,
+            ),
+          );
+        }
       } catch (err) {
         console.error(
           `[job] Verification pass failed for ${repo.full_name}: ${errorMessage(err)}`,
