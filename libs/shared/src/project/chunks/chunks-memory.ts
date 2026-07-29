@@ -38,6 +38,28 @@ function enforceSchema(schema: string): void {
   );
 }
 
+function chunkIndexOf(row: ChunkRow): number | null {
+  return (row.metadata.chunk_index as number | undefined) ?? null;
+}
+
+/** Mirrors the Pg adapter's spec-read ordering: `file_path, chunk_index NULLS
+ * LAST, ingested_at`. */
+function specDocumentOrder(a: ChunkRow, b: ChunkRow): number {
+  const pathDelta = a.filePath.localeCompare(b.filePath);
+
+  if (pathDelta !== 0) {
+    return pathDelta;
+  }
+  const aIndex = chunkIndexOf(a) ?? Number.POSITIVE_INFINITY;
+  const bIndex = chunkIndexOf(b) ?? Number.POSITIVE_INFINITY;
+
+  if (aIndex !== bIndex) {
+    return aIndex < bIndex ? -1 : 1;
+  }
+
+  return new Date(a.ingestedAt).getTime() - new Date(b.ingestedAt).getTime();
+}
+
 /**
  * In-memory {@link ChunksPort}: the behavioral spec of the Pg adapter over an
  * array of rows keyed by (schema, repo, file_path, id). Lets the reindex /
@@ -192,12 +214,13 @@ export class InMemoryChunks implements ChunksPort {
   async specChunksWithIngest(repo: string): Promise<SpecChunkWithIngest[]> {
     return this.forRepo(repo)
       .filter((row) => row.contentType === "spec")
-      .sort((a, b) => a.filePath.localeCompare(b.filePath))
+      .sort(specDocumentOrder)
       .map((row) => ({
         repo: row.repo,
         filePath: row.filePath,
         content: row.content,
         ingestedAt: row.ingestedAt,
+        chunkIndex: chunkIndexOf(row),
       }));
   }
 
@@ -214,12 +237,13 @@ export class InMemoryChunks implements ChunksPort {
   async specChunksForBackfill(repo: string): Promise<SpecChunkWithEmbedding[]> {
     return this.forRepo(repo)
       .filter((row) => row.contentType === "spec")
-      .sort((a, b) => a.filePath.localeCompare(b.filePath))
+      .sort(specDocumentOrder)
       .map((row) => ({
         repo: row.repo,
         filePath: row.filePath,
         content: row.content,
         ingestedAt: row.ingestedAt,
+        chunkIndex: chunkIndexOf(row),
         embedding: row.embedding,
       }));
   }

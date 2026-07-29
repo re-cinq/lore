@@ -112,7 +112,7 @@ walkthrough) was deferred under v2 and is now superseded by T128.
 #### v2 — Phase 3 — API
 
 - [x] T011 Add `GET /api/repos/:owner/:repo/spec-coverage` handler in `mcp-server/src/routes.ts`: resolve schema, join `spec_test_links` ⨝ spec chunks, reassemble title/summary, compose source URLs, return payload (read scope, bearer auth)
-- [x] T012 [P] Add pure `parseSpecTitle()` + `extractSummary()` + `reassembleSpec()` — canonical in `shared/src/spec-summary.ts` (used by API), mirrored in `web-ui/src/lib/spec-summary.ts` (used by page); unit tests both sides
+- [x] T012 [P] Add pure `parseSpecTitle()` + `extractSummary()` + `reassembleSpec()` — canonical in `shared/src/spec-summary.ts` (used by API), mirrored in `web-ui/src/lib/spec-summary.ts` (used by page); unit tests both sides (the web-ui mirror was later removed in #978 — nothing imported it)
 
 #### v2 — Phase 4 — Web UI
 

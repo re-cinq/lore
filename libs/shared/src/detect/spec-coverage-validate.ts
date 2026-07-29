@@ -245,7 +245,11 @@ export async function validateSpecCoverageJob(
   for (const [specPath, chunks] of specsByPath(specs)) {
     totalSpecs++;
     const content = reassembleSpec(
-      chunks.map((c) => ({ content: c.content, ingested_at: c.ingestedAt })),
+      chunks.map((c) => ({
+        content: c.content,
+        ingested_at: c.ingestedAt,
+        chunk_index: c.chunkIndex,
+      })),
     );
 
     broken.push(...collectBrokenLinks(specPath, content, testChunks));

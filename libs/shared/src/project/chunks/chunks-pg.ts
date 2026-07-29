@@ -194,10 +194,11 @@ export class PgChunks implements ChunksPort {
   async specChunksWithIngest(repo: string): Promise<SpecChunkWithIngest[]> {
     const schema = await this.resolveSchemaForRepo(repo);
     const { rows } = await this.pool.query(
-      `SELECT repo, file_path, content, ingested_at
+      `SELECT repo, file_path, content, ingested_at,
+              (metadata->>'chunk_index')::int AS chunk_index
        FROM ${schema}.chunks
        WHERE content_type = 'spec' AND repo = $1
-       ORDER BY file_path, ingested_at`,
+       ORDER BY file_path, (metadata->>'chunk_index')::int NULLS LAST, ingested_at, id`,
       [repo],
     );
 
@@ -206,6 +207,7 @@ export class PgChunks implements ChunksPort {
       filePath: r.file_path as string,
       content: r.content as string,
       ingestedAt: r.ingested_at as string | Date,
+      chunkIndex: (r.chunk_index as number | null) ?? null,
     }));
   }
 
@@ -230,10 +232,11 @@ export class PgChunks implements ChunksPort {
   async specChunksForBackfill(repo: string): Promise<SpecChunkWithEmbedding[]> {
     const schema = await this.resolveSchemaForRepo(repo);
     const { rows } = await this.pool.query(
-      `SELECT repo, file_path, content, ingested_at, embedding
+      `SELECT repo, file_path, content, ingested_at, embedding,
+              (metadata->>'chunk_index')::int AS chunk_index
        FROM ${schema}.chunks
        WHERE content_type = 'spec' AND repo = $1
-       ORDER BY file_path, ingested_at`,
+       ORDER BY file_path, (metadata->>'chunk_index')::int NULLS LAST, ingested_at, id`,
       [repo],
     );
 
@@ -242,6 +245,7 @@ export class PgChunks implements ChunksPort {
       filePath: r.file_path as string,
       content: r.content as string,
       ingestedAt: r.ingested_at as string | Date,
+      chunkIndex: (r.chunk_index as number | null) ?? null,
       embedding: r.embedding,
     }));
   }
@@ -289,18 +293,11 @@ export class PgChunks implements ChunksPort {
            AND metadata->>'ingested_by' = 'reindex-job'
          GROUP BY file_path
          HAVING min(ingested_at) < NOW() - ($3 || ' days')::interval
-       ),
-       ranked AS (
-         SELECT id,
-                row_number() OVER (PARTITION BY file_path ORDER BY ingested_at, id) AS rn
-         FROM ${schema}.chunks
-         WHERE repo = $1 AND file_path IN (SELECT file_path FROM due)
-           AND metadata->>'ingested_by' = 'reindex-job'
        )
        UPDATE ${schema}.chunks c
-       SET ingested_at = NOW() + make_interval(secs => ranked.rn * 0.001)
-       FROM ranked
-       WHERE c.id = ranked.id
+       SET ingested_at = NOW()
+       WHERE c.repo = $1 AND c.file_path IN (SELECT file_path FROM due)
+         AND c.metadata->>'ingested_by' = 'reindex-job'
        RETURNING c.id`,
       [repo, filePaths, String(minAgeDays)],
     );

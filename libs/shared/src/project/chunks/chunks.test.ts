@@ -292,7 +292,7 @@ describe("PgChunks adapter", () => {
     expect(calls[0]?.params).toEqual(["octo/repo"]);
   });
 
-  it("re-stamps reindex-owned chunks preserving within-file order, gated to files past the age floor", async () => {
+  it("re-stamps reindex-owned chunks gated to files past the age floor", async () => {
     const { pool, calls } = fakePool({ rows: [{ id: "1" }, { id: "2" }] });
 
     const touched = await new PgChunks(pool).touchChunksForFiles(
@@ -303,9 +303,8 @@ describe("PgChunks adapter", () => {
     );
 
     expect(touched).toBe(2);
-    expect(calls[0]?.text).toContain(
-      "row_number() OVER (PARTITION BY file_path ORDER BY ingested_at, id)",
-    );
+    expect(calls[0]?.text).toContain("SET ingested_at = NOW()");
+    expect(calls[0]?.text).not.toContain("make_interval");
     expect(calls[0]?.text).toContain("UPDATE platform.chunks");
     expect(calls[0]?.text).toContain(
       "metadata->>'ingested_by' = 'reindex-job'",
@@ -314,6 +313,82 @@ describe("PgChunks adapter", () => {
       "HAVING min(ingested_at) < NOW() - ($3 || ' days')::interval",
     );
     expect(calls[0]?.params).toEqual(["octo/repo", ["specs/a.md"], "30"]);
+  });
+
+  it("reads spec chunks with chunk_index in document order from the team schema", async () => {
+    const { pool, calls } = fakePool(...teamSchemaLookup, {
+      rows: [
+        {
+          repo: "octo/repo",
+          file_path: "specs/s.md",
+          content: "part one",
+          ingested_at: "2026-01-01",
+          chunk_index: 0,
+        },
+        {
+          repo: "octo/repo",
+          file_path: "specs/s.md",
+          content: "legacy",
+          ingested_at: "2026-01-01",
+          chunk_index: null,
+        },
+      ],
+    });
+
+    const specs = await new PgChunks(pool).specChunksWithIngest("octo/repo");
+
+    expect(specs).toEqual([
+      {
+        repo: "octo/repo",
+        filePath: "specs/s.md",
+        content: "part one",
+        ingestedAt: "2026-01-01",
+        chunkIndex: 0,
+      },
+      {
+        repo: "octo/repo",
+        filePath: "specs/s.md",
+        content: "legacy",
+        ingestedAt: "2026-01-01",
+        chunkIndex: null,
+      },
+    ]);
+    expect(calls[2]?.text).toContain("(metadata->>'chunk_index')::int");
+    expect(calls[2]?.text).toContain(
+      "ORDER BY file_path, (metadata->>'chunk_index')::int NULLS LAST, ingested_at, id",
+    );
+  });
+
+  it("reads backfill spec chunks with chunk_index ordering and the embedding", async () => {
+    const { pool, calls } = fakePool(...teamSchemaLookup, {
+      rows: [
+        {
+          repo: "octo/repo",
+          file_path: "specs/s.md",
+          content: "part one",
+          ingested_at: "2026-01-01",
+          chunk_index: 0,
+          embedding: "[0.1,0.2]",
+        },
+      ],
+    });
+
+    const specs = await new PgChunks(pool).specChunksForBackfill("octo/repo");
+
+    expect(specs).toEqual([
+      {
+        repo: "octo/repo",
+        filePath: "specs/s.md",
+        content: "part one",
+        ingestedAt: "2026-01-01",
+        chunkIndex: 0,
+        embedding: "[0.1,0.2]",
+      },
+    ]);
+    expect(calls[2]?.text).toContain("(metadata->>'chunk_index')::int");
+    expect(calls[2]?.text).toContain(
+      "ORDER BY file_path, (metadata->>'chunk_index')::int NULLS LAST, ingested_at, id",
+    );
   });
 
   it("prunes reindex-owned chunks of vanished files and returns the row count", async () => {
@@ -461,6 +536,42 @@ describe("InMemoryChunks double", () => {
     expect(await chunks.hasChunk("octo/repo", "doc", "CLAUDE.md")).toBe(true);
     expect(await chunks.hasChunk("octo/repo", "doc", "AGENTS.md")).toBe(false);
     expect(await chunks.hasChunk("octo/repo", "adr")).toBe(false);
+  });
+
+  it("returns spec chunks with equal ingest stamps in chunk_index order", async () => {
+    const chunks = new InMemoryChunks();
+
+    await chunks.insertChunk("platform", {
+      ...sampleChunk,
+      content: "part three",
+      metadata: { chunk_index: 2 },
+    });
+    await chunks.insertChunk("platform", {
+      ...sampleChunk,
+      content: "part one",
+      metadata: { chunk_index: 0 },
+    });
+    await chunks.insertChunk("platform", {
+      ...sampleChunk,
+      content: "part two",
+      metadata: { chunk_index: 1 },
+    });
+    const stamp = new Date().toISOString();
+
+    for (const row of chunks.rows) {
+      row.ingestedAt = stamp;
+    }
+
+    expect(await chunks.specChunksWithIngest("octo/repo")).toMatchObject([
+      { content: "part one", chunkIndex: 0 },
+      { content: "part two", chunkIndex: 1 },
+      { content: "part three", chunkIndex: 2 },
+    ]);
+    expect(await chunks.specChunksForBackfill("octo/repo")).toMatchObject([
+      { content: "part one", chunkIndex: 0 },
+      { content: "part two", chunkIndex: 1 },
+      { content: "part three", chunkIndex: 2 },
+    ]);
   });
 
   it("counts stale reindex-owned chunks and ignores api-ingested rows", async () => {
