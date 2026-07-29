@@ -1,5 +1,6 @@
 import { enforceTrue } from "../../lib/enforce.js";
 import type { PgPool } from "../../memory-store.js";
+import { resolveChunkSchemaForRepo } from "./chunk-schema.js";
 import type {
   ChunksPort,
   ChunkInsert,
@@ -184,20 +185,8 @@ export class PgChunks implements ChunksPort {
     return parseInt((rows[0]?.count as string) || "0", 10);
   }
 
-  /** The schema reindex wrote this repo's chunks to: its team schema when one
-   *  exists, else `org_shared` (mirrors the reindex job's resolveSchema). */
-  private async resolveSchemaForRepo(repo: string): Promise<string> {
-    const { rows } = await this.pool.query(
-      "SELECT team FROM lore.repos WHERE full_name = $1",
-      [repo],
-    );
-    const team = rows[0]?.team as string | undefined;
-
-    if (team && SCHEMA_RE.test(team) && (await this.schemaExists(team))) {
-      return team;
-    }
-
-    return "org_shared";
+  private resolveSchemaForRepo(repo: string): Promise<string> {
+    return resolveChunkSchemaForRepo(this.pool, repo);
   }
 
   async specChunksWithIngest(repo: string): Promise<SpecChunkWithIngest[]> {

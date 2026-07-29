@@ -86,20 +86,20 @@ The block projects into context items — one per statement, prefixed with its
 `[signal]`, the spec path/section, the statement text, its governing ADR
 labels, and its coupling tests — scored by signal so `violated` outranks
 `untested`.
-([validated by `formats each statement with its signal, ADRs, and tests; violated outscores untested`](libs/shared/src/project/knowledge/context-assembly.test.ts#L46))
+([validated by `formats each statement with its signal, ADRs, and tests; violated outscores untested`](libs/shared/src/project/knowledge/context-assembly.test.ts#L47))
 
 The `coupling` source is **fail-soft**: it returns `disabled` (no items) when no
 graph client is wired (`LORE_DGRAPH_HTTP` unset), so the rest of assembly is
 unaffected.
-([validated by `returns disabled when no graph client is wired`](libs/shared/src/project/knowledge/context-assembly.test.ts#L75))
+([validated by `returns disabled when no graph client is wired`](libs/shared/src/project/knowledge/context-assembly.test.ts#L76))
 
 When a graph client is present, the source reads the repo's coupled statements
 and projects them into items.
-([validated by `projects coupled statements from the graph into items`](libs/shared/src/project/knowledge/context-assembly.test.ts#L82))
+([validated by `projects coupled statements from the graph into items`](libs/shared/src/project/knowledge/context-assembly.test.ts#L83))
 
 An empty `GraphContextBlock` projects to an empty item list, contributing nothing
 to the assembly.
-([validated by `returns an empty list for an empty block`](libs/shared/src/project/knowledge/context-assembly.test.ts#L62))
+([validated by `returns an empty list for an empty block`](libs/shared/src/project/knowledge/context-assembly.test.ts#L63))
 
 The `coupling` source is wired into the `implementation` and `review` templates;
 the `/api/context` handler constructs the (possibly-null) Dgraph client via
