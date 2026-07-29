@@ -172,7 +172,7 @@ export class InMemoryChunks implements ChunksPort {
     contentType: string,
     fileSuffix?: string,
   ): Promise<boolean> {
-    return this.orgSharedForRepo(repo).some(
+    return this.forRepo(repo).some(
       (row) =>
         row.contentType === contentType &&
         (!fileSuffix || row.filePath.endsWith(fileSuffix)),
@@ -182,8 +182,10 @@ export class InMemoryChunks implements ChunksPort {
   async staleChunkCount(repo: string, olderThanDays: number): Promise<number> {
     const cutoff = Date.now() - olderThanDays * 86_400_000;
 
-    return this.orgSharedForRepo(repo).filter(
-      (row) => new Date(row.ingestedAt).getTime() < cutoff,
+    return this.forRepo(repo).filter(
+      (row) =>
+        row.metadata.ingested_by === "reindex-job" &&
+        new Date(row.ingestedAt).getTime() < cutoff,
     ).length;
   }
 
@@ -237,5 +239,79 @@ export class InMemoryChunks implements ChunksPort {
         metadata: row.metadata,
         embedding: row.embedding,
       }));
+  }
+
+  private reindexOwnedForRepo(schema: string, repo: string): ChunkRow[] {
+    return this.rows.filter(
+      (row) =>
+        row.schema === schema &&
+        row.repo === repo &&
+        row.metadata.ingested_by === "reindex-job",
+    );
+  }
+
+  async reindexOwnedFilePaths(schema: string, repo: string): Promise<string[]> {
+    enforceSchema(schema);
+
+    return Array.from(
+      new Set(
+        this.reindexOwnedForRepo(schema, repo).map((row) => row.filePath),
+      ),
+    );
+  }
+
+  async touchChunksForFiles(
+    schema: string,
+    repo: string,
+    filePaths: string[],
+    minAgeDays: number,
+  ): Promise<number> {
+    enforceSchema(schema);
+    const paths = new Set(filePaths);
+    const cutoff = Date.now() - minAgeDays * 86_400_000;
+    const named = this.reindexOwnedForRepo(schema, repo).filter((row) =>
+      paths.has(row.filePath),
+    );
+    const oldestByFile = new Map<string, number>();
+
+    for (const row of named) {
+      const stamp = new Date(row.ingestedAt).getTime();
+      const oldest = oldestByFile.get(row.filePath);
+
+      oldestByFile.set(row.filePath, Math.min(stamp, oldest ?? stamp));
+    }
+
+    const targets = named.filter(
+      (row) => (oldestByFile.get(row.filePath) ?? Infinity) < cutoff,
+    );
+    const now = new Date().toISOString();
+
+    for (const row of targets) {
+      row.ingestedAt = now;
+    }
+
+    return targets.length;
+  }
+
+  async pruneChunksForFiles(
+    schema: string,
+    repo: string,
+    filePaths: string[],
+  ): Promise<number> {
+    enforceSchema(schema);
+    const paths = new Set(filePaths);
+    const before = this.rows.length;
+
+    this.rows = this.rows.filter(
+      (row) =>
+        !(
+          row.schema === schema &&
+          row.repo === repo &&
+          row.metadata.ingested_by === "reindex-job" &&
+          paths.has(row.filePath)
+        ),
+    );
+
+    return before - this.rows.length;
   }
 }

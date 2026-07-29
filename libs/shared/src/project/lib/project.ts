@@ -108,7 +108,7 @@ export class Project {
     return new TraceView(this.fullName, this.port<TracePort>("trace"));
   }
 
-  /** Vector-store chunk reads for detection runs (org_shared per repo). */
+  /** Vector-store chunk reads for detection runs (repo's resolved schema). */
   get chunks(): ChunkStore {
     return new ChunkStore(this.fullName, this.port<ChunksPort>("chunks"));
   }

@@ -140,4 +140,25 @@ export class ChunksHttp implements ChunksPort {
   async countChunksByTeam(_team: string): Promise<number> {
     throw new Error(WRITE_ONLY_FLOOR);
   }
+  async reindexOwnedFilePaths(
+    _schema: string,
+    _repo: string,
+  ): Promise<string[]> {
+    throw new Error(WRITE_ONLY_FLOOR);
+  }
+  async touchChunksForFiles(
+    _schema: string,
+    _repo: string,
+    _filePaths: string[],
+    _minAgeDays: number,
+  ): Promise<number> {
+    throw new Error(WRITE_ONLY_FLOOR);
+  }
+  async pruneChunksForFiles(
+    _schema: string,
+    _repo: string,
+    _filePaths: string[],
+  ): Promise<number> {
+    throw new Error(WRITE_ONLY_FLOOR);
+  }
 }

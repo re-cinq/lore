@@ -7,6 +7,7 @@ import {
   buildIngestedChunkMetadata,
   getQueryEmbedding,
 } from "@re-cinq/lore-shared";
+import { verifyRepoChunks } from "./verify.js";
 
 const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
 
@@ -68,12 +69,10 @@ async function getChangedFiles(
   return Array.from(paths);
 }
 
-// ── Seed files for first-time repos ─────────────────────────────────
+// ── Repo tree fetch (seed selection + verification pass) ────────────
 
-async function getSeedFiles(fullName: string): Promise<string[]> {
-  const tree = await projectFor(fullName).then((p) => p.repo.tree());
-
-  return selectSeedFiles(tree);
+async function getTree(fullName: string): Promise<string[]> {
+  return projectFor(fullName).then((p) => p.repo.tree());
 }
 
 // ── Ingest a single file ────────────────────────────────────────────
@@ -178,6 +177,7 @@ export async function reindexJob(): Promise<string> {
         (await chunks().countChunks(schema, repo.full_name)) > 0;
 
       let filePaths: string[];
+      let treePaths: string[] | null = null;
 
       if (repo.last_ingested_at && hasChunks) {
         filePaths = await getChangedFiles(
@@ -185,34 +185,53 @@ export async function reindexJob(): Promise<string> {
           repo.last_ingested_at,
         );
       } else {
-        filePaths = await getSeedFiles(repo.full_name);
+        treePaths = await getTree(repo.full_name);
+        filePaths = selectSeedFiles(treePaths);
       }
-
-      if (filePaths.length === 0) {
-        console.log(`[job] No files to reindex for ${repo.full_name}`);
-        // Still update timestamp so we don't re-check the same window
-        await settings().markIngested(repo.full_name);
-        continue;
-      }
-
-      console.log(
-        `[job] Processing ${filePaths.length} files for ${repo.full_name}`,
-      );
 
       let repoFileCount = 0;
 
-      for (const filePath of filePaths) {
-        try {
-          const ingested = await ingestFile(filePath, repo.full_name, schema);
+      if (filePaths.length === 0) {
+        console.log(`[job] No files to reindex for ${repo.full_name}`);
+      } else {
+        console.log(
+          `[job] Processing ${filePaths.length} files for ${repo.full_name}`,
+        );
 
-          if (ingested) {
-            repoFileCount++;
+        for (const filePath of filePaths) {
+          try {
+            const ingested = await ingestFile(filePath, repo.full_name, schema);
+
+            if (ingested) {
+              repoFileCount++;
+            }
+          } catch (err) {
+            console.error(
+              `[job] Error processing ${repo.full_name}:${filePath}: ${errorMessage(err)}`,
+            );
           }
-        } catch (err) {
-          console.error(
-            `[job] Error processing ${repo.full_name}:${filePath}: ${errorMessage(err)}`,
-          );
         }
+      }
+
+      // Verification pass: re-stamp reindex-owned chunks whose files still
+      // exist, prune orphans of deleted files. Non-fatal — staleness clears
+      // on the next successful night.
+      try {
+        treePaths ??= await getTree(repo.full_name);
+        const { touched, pruned } = await verifyRepoChunks(
+          chunks(),
+          schema,
+          repo.full_name,
+          treePaths,
+        );
+
+        console.log(
+          `[job] Verified ${repo.full_name}: ${touched} chunks re-stamped, ${pruned} orphaned chunks pruned`,
+        );
+      } catch (err) {
+        console.error(
+          `[job] Verification pass failed for ${repo.full_name}: ${errorMessage(err)}`,
+        );
       }
 
       // Update last_ingested_at

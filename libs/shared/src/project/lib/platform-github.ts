@@ -1,4 +1,5 @@
 import type { Octokit } from "octokit";
+import { enforceTrue } from "../../lib/enforce.js";
 import type {
   GitHubPort,
   IssueRef,
@@ -124,13 +125,21 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
     const branch = ref ?? (await this.defaultBranch(repo));
     // getTree is not a paginated endpoint (it returns the full recursive tree, truncated
-    // only past ~100k entries) — leave it as a single call.
+    // only past ~100k entries) — leave it as a single call. A truncated tree
+    // must throw, not return: the reindex verification pass prunes chunks of
+    // files absent from this list, so a partial list reads as mass deletion.
     const { data } = await ok.rest.git.getTree({
       owner,
       repo: name,
       tree_sha: branch,
       recursive: "true",
     });
+
+    enforceTrue(
+      !data.truncated,
+      Error,
+      `Recursive tree fetch for ${repo} was truncated by GitHub — refusing to return a partial file list`,
+    );
 
     return (data.tree ?? [])
       .filter((e) => e.type === "blob" && typeof e.path === "string")

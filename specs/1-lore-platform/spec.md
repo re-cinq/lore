@@ -423,6 +423,21 @@ The system MUST automatically identify and address knowledge gaps.
   assigned to the relevant team.
 - FR-10.5: Human review required before any auto-drafted content is
   merged.
+- FR-10.6: The per-repo `gap-detect` job skips repos that are not
+  onboarded. ([validated by `gap-detect.test.ts:105`](libs/shared/src/detect/gap-detect.test.ts#L105))
+- FR-10.7: It checks the repo's resolved-schema chunks for a CLAUDE.md
+  doc chunk, ADR chunks, and spec chunks — filing a `gap-fill` task per
+  missing kind, and none when all are present.
+  ([validated by `gap-detect.test.ts:114`](libs/shared/src/detect/gap-detect.test.ts#L114), [`gap-detect.test.ts:123`](libs/shared/src/detect/gap-detect.test.ts#L123))
+- FR-10.8: It files a stale-content `gap-fill` task only when more than
+  10 reindex-owned chunks have gone unverified for over 90 days;
+  api-ingested chunks never count toward the stale floor (semantics per
+  the ADR-019 2026-07 verification-sweep amendment: a non-zero count
+  means reindex has stopped covering the repo, not that files are
+  unchanged).
+  ([validated by `gap-detect.test.ts:135`](libs/shared/src/detect/gap-detect.test.ts#L135), [`gap-detect.test.ts:152`](libs/shared/src/detect/gap-detect.test.ts#L152), [`gap-detect.test.ts:163`](libs/shared/src/detect/gap-detect.test.ts#L163))
+- FR-10.9: An in-flight or failed matching `gap-fill` task suppresses a
+  duplicate filing. ([validated by `gap-detect.test.ts:175`](libs/shared/src/detect/gap-detect.test.ts#L175))
 
 ### FR-11: Live Knowledge Graph (Phase 1+)
 
@@ -723,10 +738,16 @@ share one persistence surface instead of inline SQL.
   `information_schema`, counts/inserts/deletes chunks within an
   interpolated (injection-rejecting) schema, sets the caller-formatted
   embedding vector, reads a repo's spec chunks and code symbols from
-  `org_shared`, checks chunk existence by content type and optional file
-  suffix, counts stale chunks by ingest age, and returns distinct teams
-  with per-team `org_shared` counts (defaulting a missing count to zero).
-  ([validated by `chunks.test.ts:33`](libs/shared/src/project/chunks/chunks.test.ts#L33), [`chunks.test.ts:41`](libs/shared/src/project/chunks/chunks.test.ts#L41), [`chunks.test.ts:47`](libs/shared/src/project/chunks/chunks.test.ts#L47), [`chunks.test.ts:57`](libs/shared/src/project/chunks/chunks.test.ts#L57), [`chunks.test.ts:72`](libs/shared/src/project/chunks/chunks.test.ts#L72), [`chunks.test.ts:89`](libs/shared/src/project/chunks/chunks.test.ts#L89), [`chunks.test.ts:97`](libs/shared/src/project/chunks/chunks.test.ts#L97), [`chunks.test.ts:108`](libs/shared/src/project/chunks/chunks.test.ts#L108), [`chunks.test.ts:122`](libs/shared/src/project/chunks/chunks.test.ts#L122), [`chunks.test.ts:130`](libs/shared/src/project/chunks/chunks.test.ts#L130), [`chunks.test.ts:136`](libs/shared/src/project/chunks/chunks.test.ts#L136), [`chunks.test.ts:144`](libs/shared/src/project/chunks/chunks.test.ts#L144), [`chunks.test.ts:161`](libs/shared/src/project/chunks/chunks.test.ts#L161), [`chunks.test.ts:181`](libs/shared/src/project/chunks/chunks.test.ts#L181), [`chunks.test.ts:191`](libs/shared/src/project/chunks/chunks.test.ts#L191), [`chunks.test.ts:200`](libs/shared/src/project/chunks/chunks.test.ts#L200), [`chunks.test.ts:211`](libs/shared/src/project/chunks/chunks.test.ts#L211), [`chunks.test.ts:226`](libs/shared/src/project/chunks/chunks.test.ts#L226), [`chunks.test.ts:235`](libs/shared/src/project/chunks/chunks.test.ts#L235), [`chunks.test.ts:242`](libs/shared/src/project/chunks/chunks.test.ts#L242), [`chunks.test.ts:264`](libs/shared/src/project/chunks/chunks.test.ts#L264), [`chunks.test.ts:272`](libs/shared/src/project/chunks/chunks.test.ts#L272), [`chunks.test.ts:301`](libs/shared/src/project/chunks/chunks.test.ts#L301), [`chunks.test.ts:315`](libs/shared/src/project/chunks/chunks.test.ts#L315))
+  `org_shared`, resolves the repo's team schema (falling back to
+  `org_shared`) for chunk-existence checks and for the stale count —
+  which covers only reindex-owned rows (`ingested_by = 'reindex-job'`)
+  so the nightly verification pass can clear it — lists, re-stamps
+  (preserving within-file order, gated to whole files whose oldest
+  chunk is past a caller-supplied age floor so steady-state nights
+  rewrite nothing), and prunes reindex-owned chunks by file path for
+  that pass, and returns distinct teams with per-team `org_shared`
+  counts (defaulting a missing count to zero).
+  ([validated by `chunks.test.ts:42`](libs/shared/src/project/chunks/chunks.test.ts#L42), [`chunks.test.ts:50`](libs/shared/src/project/chunks/chunks.test.ts#L50), [`chunks.test.ts:56`](libs/shared/src/project/chunks/chunks.test.ts#L56), [`chunks.test.ts:66`](libs/shared/src/project/chunks/chunks.test.ts#L66), [`chunks.test.ts:81`](libs/shared/src/project/chunks/chunks.test.ts#L81), [`chunks.test.ts:98`](libs/shared/src/project/chunks/chunks.test.ts#L98), [`chunks.test.ts:106`](libs/shared/src/project/chunks/chunks.test.ts#L106), [`chunks.test.ts:117`](libs/shared/src/project/chunks/chunks.test.ts#L117), [`chunks.test.ts:131`](libs/shared/src/project/chunks/chunks.test.ts#L131), [`chunks.test.ts:139`](libs/shared/src/project/chunks/chunks.test.ts#L139), [`chunks.test.ts:145`](libs/shared/src/project/chunks/chunks.test.ts#L145), [`chunks.test.ts:153`](libs/shared/src/project/chunks/chunks.test.ts#L153), [`chunks.test.ts:170`](libs/shared/src/project/chunks/chunks.test.ts#L170), [`chunks.test.ts:190`](libs/shared/src/project/chunks/chunks.test.ts#L190), [`chunks.test.ts:204`](libs/shared/src/project/chunks/chunks.test.ts#L204), [`chunks.test.ts:212`](libs/shared/src/project/chunks/chunks.test.ts#L212), [`chunks.test.ts:226`](libs/shared/src/project/chunks/chunks.test.ts#L226), [`chunks.test.ts:233`](libs/shared/src/project/chunks/chunks.test.ts#L233), [`chunks.test.ts:250`](libs/shared/src/project/chunks/chunks.test.ts#L250), [`chunks.test.ts:274`](libs/shared/src/project/chunks/chunks.test.ts#L274), [`chunks.test.ts:291`](libs/shared/src/project/chunks/chunks.test.ts#L291), [`chunks.test.ts:306`](libs/shared/src/project/chunks/chunks.test.ts#L306), [`chunks.test.ts:317`](libs/shared/src/project/chunks/chunks.test.ts#L317), [`chunks.test.ts:332`](libs/shared/src/project/chunks/chunks.test.ts#L332), [`chunks.test.ts:341`](libs/shared/src/project/chunks/chunks.test.ts#L341), [`chunks.test.ts:348`](libs/shared/src/project/chunks/chunks.test.ts#L348), [`chunks.test.ts:370`](libs/shared/src/project/chunks/chunks.test.ts#L370), [`chunks.test.ts:378`](libs/shared/src/project/chunks/chunks.test.ts#L378), [`chunks.test.ts:407`](libs/shared/src/project/chunks/chunks.test.ts#L407), [`chunks.test.ts:421`](libs/shared/src/project/chunks/chunks.test.ts#L421), [`chunks.test.ts:440`](libs/shared/src/project/chunks/chunks.test.ts#L440))
 - FR-20.7: The HTTP `Chunks` adapter reads spec chunks (and backfill
   chunks with embeddings) from the repo-scoped API with a bearer token,
   maps `hasChunk`/`staleChunkCount` to their query endpoints, and throws
