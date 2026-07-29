@@ -431,7 +431,10 @@ The system MUST automatically identify and address knowledge gaps.
   ([validated by `gap-detect.test.ts:114`](libs/shared/src/detect/gap-detect.test.ts#L114), [`gap-detect.test.ts:123`](libs/shared/src/detect/gap-detect.test.ts#L123))
 - FR-10.8: It files a stale-content `gap-fill` task only when more than
   10 reindex-owned chunks have gone unverified for over 90 days;
-  api-ingested chunks never count toward the stale floor.
+  api-ingested chunks never count toward the stale floor (semantics per
+  the ADR-019 2026-07 verification-sweep amendment: a non-zero count
+  means reindex has stopped covering the repo, not that files are
+  unchanged).
   ([validated by `gap-detect.test.ts:135`](libs/shared/src/detect/gap-detect.test.ts#L135), [`gap-detect.test.ts:152`](libs/shared/src/detect/gap-detect.test.ts#L152), [`gap-detect.test.ts:163`](libs/shared/src/detect/gap-detect.test.ts#L163))
 - FR-10.9: An in-flight or failed matching `gap-fill` task suppresses a
   duplicate filing. ([validated by `gap-detect.test.ts:175`](libs/shared/src/detect/gap-detect.test.ts#L175))

@@ -179,3 +179,44 @@ The heavy batch jobs (`context_reindex`, `eval_runner`, `context_core_builder`,
 as K8s CronJobs — the carve-out still holds where runs are org-wide, memory-heavy,
 or hours long. The detection pattern (`detect` node + tick fan-out) is the
 intended porting path for any of them that can be made per-repo.
+
+## Amendment (2026-07): `context_reindex` verification sweep — `ingested_at` becomes a verification stamp (issue #967)
+
+`gap_detection`'s stale-content signal was born broken and no prior ADR or spec
+ever specified it: the count read a hardcoded `org_shared.chunks` while the
+very same commit's reindex already resolved per-team schemas, and incremental
+reindex never re-stamped unchanged files — so "chunks not re-ingested in >90
+days" was the permanent steady state of every stable doc, and gap-detect
+re-filed the same un-completable `gap-fill` task weekly, forever.
+
+**Decision.** Every per-repo `context_reindex` pass now ends with a
+verification sweep (`apps/floor/src/jobs/context-jobs/reindex/verify.ts`):
+chunks the reindex job owns whose files still exist in the repo tree get
+`ingested_at` re-stamped; owned chunks of deleted files are pruned. This
+redefines the semantics rather than restoring any prior intent:
+
+- For reindex-owned rows, `ingested_at` means **"last verified against the
+  repo tree"**, not "last content change".
+- `staleChunkCount` counts only reindex-owned rows in the repo's **resolved**
+  schema; a count past the floor means **reindex has stopped covering the
+  repo** (broken job, dropped repo) — an actionable, clearable signal.
+
+**Boundaries and guards.**
+
+- Ownership is `metadata->>'ingested_by' = 'reindex-job'`. API- and UI-ingested
+  chunks are never counted, touched, or pruned. Migration 0034 backfills the
+  marker onto legacy seed-scope rows only — deliberately narrower than
+  everything reindex ever wrote, because provenance-less rows outside seed
+  scope include non-reindex writers whose "files" are not in the repo tree.
+- Re-stamps move whole files at a time with per-file rank-millisecond offsets,
+  preserving the `ingested_at` ordering spec reassembly depends on.
+- A 30-day file-level age gate keeps steady-state nights from rewriting every
+  row (each rewrite copies the embedding into a new MVCC row version).
+- An empty tree skips the sweep, and `listTree` throws on GitHub's recursive
+  truncation flag — a partial file list must never read as mass deletion.
+
+**Accepted / follow-ups.** Legacy pre-provenance rows outside seed scope stay
+invisible to the count and the sweep until their file next changes; api-owned
+orphans of deleted files are never pruned by anything. Spec statements:
+FR-10.8 / FR-20.6 in `specs/1-lore-platform/spec.md`, statement 11 in
+`specs/scheduled-job-runtime-split/spec.md`.
