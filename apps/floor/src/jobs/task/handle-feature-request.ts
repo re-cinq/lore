@@ -8,8 +8,9 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
  * and task breakdown — following the target repo's conventions.
  */
 
-import { query } from "../../kernel/db.js";
+import { getPool, query } from "../../kernel/db.js";
 import { Llm } from "@re-cinq/lore-shared";
+import { resolveChunkSchemaForRepo } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { writeEpisode } from "../lib/episode-writer.js";
@@ -50,8 +51,9 @@ export async function handleFeatureRequest(
   let existingSpecExample = "";
 
   try {
+    const schema = await resolveChunkSchemaForRepo(getPool(), targetRepo);
     const specs = await query(
-      `SELECT content FROM org_shared.chunks WHERE repo = $1 AND content_type = 'spec' LIMIT 1`,
+      `SELECT content FROM ${schema}.chunks WHERE repo = $1 AND content_type = 'spec' LIMIT 1`,
       [targetRepo],
     );
 

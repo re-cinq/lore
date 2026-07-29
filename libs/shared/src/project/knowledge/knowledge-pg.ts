@@ -1,4 +1,5 @@
 import type { PgPool } from "../../memory-store.js";
+import { resolveChunkSchemaForRepo } from "../chunks/chunk-schema.js";
 import { queryLiveGraph, type LiveGraphResult } from "./live-graph.js";
 import { assembleContext as runAssembleContext } from "./context-assembly.js";
 import type {
@@ -7,12 +8,11 @@ import type {
   DocRef,
 } from "./knowledge-port.js";
 
-const SCHEMA_RE = /^[a-z_][a-z0-9_]*$/;
-
 /**
  * KnowledgePort over Postgres. queryLiveGraph is relocated from
  * mcp-server/src/graph.ts; listSpecs/listAdrs read the repo's team-schema chunks
- * (schema resolution relocated from web-ui/src/lib/db.ts getRepoSchema).
+ * (resolved via the shared chunk-schema module, so an unprovisioned team falls
+ * back to org_shared instead of querying a missing schema).
  * assembleContext is the heavy template module — wired once it is relocated;
  * queryTrace mirrors the current spec-traceability stub.
  */
@@ -56,7 +56,7 @@ export class PgKnowledge implements KnowledgePort {
     repo: string,
     contentType: "spec" | "adr",
   ): Promise<DocRef[]> {
-    const schema = await this.resolveSchema(repo);
+    const schema = await resolveChunkSchemaForRepo(this.pool, repo);
     const { rows } = await this.pool.query<{ file_path: string }>(
       `SELECT DISTINCT file_path FROM ${schema}.chunks
         WHERE content_type = $1 AND repo = $2 AND file_path LIKE '%.md'
@@ -65,15 +65,5 @@ export class PgKnowledge implements KnowledgePort {
     );
 
     return rows.map((r) => ({ path: r.file_path, title: r.file_path }));
-  }
-
-  private async resolveSchema(repo: string): Promise<string> {
-    const { rows } = await this.pool.query(
-      "SELECT team FROM lore.repos WHERE full_name = $1",
-      [repo],
-    );
-    const team = (rows[0]?.team as string | null) ?? "";
-
-    return SCHEMA_RE.test(team) ? team : "org_shared";
   }
 }

@@ -58,8 +58,10 @@ Always `200` (success or empty) or `500` (engine throw). JSON only.
    2. Write 200 `{ text: result.text || null, sections: result.sections,
       trace: result.trace }`. Empty/falsy text is coerced to `null`.
 3. **Chunk-join path** (no query, or no pool):
-   1. If `repo` **and** `pool` are present, `SELECT content, content_type,
-      file_path FROM org_shared.chunks WHERE repo = $1 AND content_type IN
+   1. If `repo` **and** `pool` are present, resolve the repo's chunk schema
+      (provisioned team schema, else `org_shared`) via the shared
+      `resolveChunkSchemaForRepo`, then `SELECT content, content_type,
+      file_path FROM {schema}.chunks WHERE repo = $1 AND content_type IN
       ('doc','adr','spec') ORDER BY content_type, ingested_at DESC`. Collect
       each row's `content` into `parts` — whole chunks only, until the next
       chunk (plus separator) would exceed `max_tokens * 4` chars. Unbounded,
@@ -80,7 +82,8 @@ Always `200` (success or empty) or `500` (engine throw). JSON only.
 
 - `assembleContext` (`features/context/context-assembly.ts`) — RRF retrieval +
   XML emission over PostgreSQL, optional Vertex embeddings.
-- DB read: `org_shared.chunks` (chunk-join path).
+- DB read: the repo's resolved chunk schema — team schema when provisioned,
+  else `org_shared` (chunk-join path).
 - Auth env `LORE_INGEST_TOKEN`, `pipeline.api_tokens` (dispatcher).
 - No writes; no fan-out. (`assembleContext` may write a latency audit row.)
 
@@ -94,7 +97,7 @@ The max-tokens budget defaults to 8000 when `max_tokens` is absent or non-numeri
 
 Cross-repo search is enabled from the repo's `settings.cross_repo` when the `cross_repo` param is not set. ([validated by `context.test.ts:104`](apps/lore-api/src/api/routes/context/context.test.ts#L104))
 
-An unknown `template` name is rejected with 400. ([validated by `context.test.ts:190`](apps/lore-api/src/api/routes/context/context.test.ts#L190))
+An unknown `template` name is rejected with 400. ([validated by `context.test.ts:206`](apps/lore-api/src/api/routes/context/context.test.ts#L206))
 
 `debug=1` is forwarded as the engine's debug flag and the trace is returned in the envelope. ([validated by `context.test.ts:41`](apps/lore-api/src/api/routes/context/context.test.ts#L41))
 
@@ -102,13 +105,15 @@ Empty engine text is coerced to `null`. ([validated by `context.test.ts:118`](ap
 
 No query but a repo + pool joins the matching chunks with the `---` separator. ([validated by `context.test.ts:128`](apps/lore-api/src/api/routes/context/context.test.ts#L128))
 
-The no-query chunk join keeps whole chunks until the `max_tokens * 4` char budget is hit (default 8000 tokens, server-capped at 128000), never the whole table; the first chunk is always included even when it alone exceeds the budget. ([validated by `context.test.ts:139`](apps/lore-api/src/api/routes/context/context.test.ts#L139), [validated by `context.test.ts:156`](apps/lore-api/src/api/routes/context/context.test.ts#L156), [validated by `context.test.ts:95`](apps/lore-api/src/api/routes/context/context.test.ts#L95))
+The no-query chunk join reads from the repo's provisioned team schema, falling back to `org_shared`. ([validated by `joins the no-query chunks from the repo's provisioned team schema`](apps/lore-api/src/api/routes/context/context.test.ts#L139))
 
-An empty chunk set returns `{ text: null }`. ([validated by `context.test.ts:168`](apps/lore-api/src/api/routes/context/context.test.ts#L168))
+The no-query chunk join keeps whole chunks until the `max_tokens * 4` char budget is hit (default 8000 tokens, server-capped at 128000), never the whole table; the first chunk is always included even when it alone exceeds the budget. ([validated by `context.test.ts:155`](apps/lore-api/src/api/routes/context/context.test.ts#L155), [validated by `context.test.ts:172`](apps/lore-api/src/api/routes/context/context.test.ts#L172), [validated by `context.test.ts:95`](apps/lore-api/src/api/routes/context/context.test.ts#L95))
 
-Neither query nor repo returns `{ text: null }`. ([validated by `context.test.ts:177`](apps/lore-api/src/api/routes/context/context.test.ts#L177))
+An empty chunk set returns `{ text: null }`. ([validated by `context.test.ts:184`](apps/lore-api/src/api/routes/context/context.test.ts#L184))
 
-A throwing engine returns 500. ([validated by `context.test.ts:183`](apps/lore-api/src/api/routes/context/context.test.ts#L183))
+Neither query nor repo returns `{ text: null }`. ([validated by `context.test.ts:193`](apps/lore-api/src/api/routes/context/context.test.ts#L193))
+
+A throwing engine returns 500. ([validated by `context.test.ts:199`](apps/lore-api/src/api/routes/context/context.test.ts#L199))
 
 The route is registered as a `GET /api/context` prefix match. ([implemented by](../../../apps/lore-api/src/server/build-server.ts#L87), [implemented by](../../../apps/lore-api/src/api/routes/context/context.ts#L42))
 

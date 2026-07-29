@@ -2,6 +2,7 @@ import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { createDgraphClient } from "@re-cinq/lore-shared";
+import { resolveChunkSchemaForRepo } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 import { resolveCrossRepo } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
 import { z } from "zod";
@@ -91,8 +92,9 @@ export function contextRoute(getPool: () => Pool | null): ServerRoute {
         const parts: string[] = [];
 
         if (repo && pool) {
+          const schema = await resolveChunkSchemaForRepo(pool, repo);
           const { rows } = await pool.query(
-            `SELECT content, content_type, file_path FROM org_shared.chunks
+            `SELECT content, content_type, file_path FROM ${schema}.chunks
              WHERE repo = $1 AND content_type IN ('doc', 'adr', 'spec')
              ORDER BY content_type, ingested_at DESC`,
             [repo],

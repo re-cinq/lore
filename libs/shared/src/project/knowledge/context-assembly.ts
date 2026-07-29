@@ -24,6 +24,10 @@ import {
 } from "../../spec-trace/graph-context.js";
 import type { DgraphClientPort, PgPool } from "../../memory-store.js";
 import {
+  listChunkSchemas,
+  resolveChunkSchemaForRepo,
+} from "../chunks/chunk-schema.js";
+import {
   dedupeItems,
   serializeContext,
   type SourceItem,
@@ -409,7 +413,8 @@ export async function fetchCouplingSource(
   }
 }
 
-/** Hybrid Reciprocal-Rank-Fusion retrieval over `org_shared.chunks` for a repo +
+/** Hybrid Reciprocal-Rank-Fusion retrieval over the repo's resolved chunk
+ *  schema (team schema when provisioned, else `org_shared`) for a repo +
  *  content types. Combines a pgvector cosine leg with a BM25 (`ts_rank`) leg —
  *  the same RRF that powers `search_context` — so a natural-language query
  *  surfaces semantically-relevant chunks (incl. code), not just keyword overlap.
@@ -439,7 +444,10 @@ export async function hybridChunkItems(
   contentTypes: string[],
   limit: number,
 ): Promise<SourceItem[]> {
-  const embedding = await getQueryEmbedding(query);
+  const [embedding, schema] = await Promise.all([
+    getQueryEmbedding(query),
+    resolveChunkSchemaForRepo(pool, repo),
+  ]);
   // The keyword leg searches the query's distinctive terms (OR'd) rather than the
   // whole paragraph, which would AND every filler word and match almost nothing.
   const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
@@ -461,14 +469,14 @@ export async function hybridChunkItems(
       `WITH vec AS (
          SELECT id, content, file_path, content_type, ingested_at,
                 ROW_NUMBER() OVER (ORDER BY embedding <=> $2::vector) AS r
-         FROM org_shared.chunks
+         FROM ${schema}.chunks
          WHERE repo = $1 AND content_type = ANY($3) AND embedding IS NOT NULL
          LIMIT 20
        ),
        kw AS (
          SELECT id, content, file_path, content_type, ingested_at,
                 ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, websearch_to_tsquery('english', $4)) DESC) AS r
-         FROM org_shared.chunks
+         FROM ${schema}.chunks
          WHERE repo = $1 AND content_type = ANY($3)
            AND search_tsv @@ websearch_to_tsquery('english', $4)
          LIMIT 20
@@ -490,7 +498,7 @@ export async function hybridChunkItems(
   const { rows } = await pool.query<ChunkRow>(
     `SELECT content, file_path, content_type, ingested_at,
             ts_rank(search_tsv, websearch_to_tsquery('english', $2)) AS score
-     FROM org_shared.chunks
+     FROM ${schema}.chunks
      WHERE repo = $1 AND content_type = ANY($3)
      ORDER BY score DESC NULLS LAST, ingested_at DESC LIMIT $4`,
     [repo, keywordQuery, contentTypes, limit],
@@ -508,7 +516,9 @@ type SourceFetcher = (
   agentId?: string,
 ) => Promise<FetchResult>;
 
-const fetchers: Record<string, SourceFetcher> = {
+/** Exported for unit tests (the cross_repo union has no shipped template
+ *  section to drive it through assembleContext). */
+export const fetchers: Record<string, SourceFetcher> = {
   // Repo conventions: docs + specs (ADRs are their own section). Hybrid
   // vector+keyword ranking so a natural-language query matches on meaning, not
   // just term overlap (which floated unrelated web-ui specs to the top).
@@ -692,8 +702,9 @@ const fetchers: Record<string, SourceFetcher> = {
     }
 
     try {
+      const schema = await resolveChunkSchemaForRepo(pool, repo);
       const { rows } = await pool.query<ChunkRow>(
-        `SELECT content, file_path FROM org_shared.chunks
+        `SELECT content, file_path FROM ${schema}.chunks
          WHERE repo = $1 AND content_type = 'rule'
          ORDER BY file_path`,
         [repo],
@@ -740,35 +751,31 @@ const fetchers: Record<string, SourceFetcher> = {
     }
 
     try {
-      const { rows: repoRows } = await pool.query<{
-        settings: { cross_repo_repos?: string[] } | null;
-      }>(`SELECT settings FROM lore.repos WHERE full_name = $1`, [repo]);
+      const [{ rows: repoRows }, schemas] = await Promise.all([
+        pool.query<{ settings: { cross_repo_repos?: string[] } | null }>(
+          `SELECT settings FROM lore.repos WHERE full_name = $1`,
+          [repo],
+        ),
+        listChunkSchemas(pool),
+      ]);
       const linkedRepos: string[] =
         repoRows[0]?.settings?.cross_repo_repos || [];
 
-      let rows: ChunkRow[];
-
-      if (linkedRepos.length > 0) {
-        const result = await pool.query<ChunkRow>(
+      // Linked repos may live in any team schema, so the search spans every
+      // provisioned chunk schema plus org_shared.
+      const repoFilter =
+        linkedRepos.length > 0 ? "repo = ANY($1)" : "repo != $1";
+      const branches = schemas.map(
+        (schema) =>
           `SELECT content, repo, file_path, ts_rank(search_tsv, plainto_tsquery($2)) AS score
-           FROM org_shared.chunks
-           WHERE repo = ANY($1) AND search_tsv @@ plainto_tsquery($2)
-           ORDER BY score DESC LIMIT 5`,
-          [linkedRepos, query],
-        );
-
-        rows = result.rows;
-      } else {
-        const result = await pool.query<ChunkRow>(
-          `SELECT content, repo, file_path, ts_rank(search_tsv, plainto_tsquery($2)) AS score
-           FROM org_shared.chunks
-           WHERE repo != $1 AND search_tsv @@ plainto_tsquery($2)
-           ORDER BY score DESC LIMIT 5`,
-          [repo, query],
-        );
-
-        rows = result.rows;
-      }
+           FROM ${schema}.chunks
+           WHERE ${repoFilter} AND search_tsv @@ plainto_tsquery($2)`,
+      );
+      const { rows } = await pool.query<ChunkRow>(
+        `SELECT content, repo, file_path, score FROM (${branches.join(" UNION ALL ")}) AS matches
+         ORDER BY score DESC LIMIT 5`,
+        [linkedRepos.length > 0 ? linkedRepos : repo, query],
+      );
 
       if (rows.length === 0) {
         return { items: [], status: "empty" };

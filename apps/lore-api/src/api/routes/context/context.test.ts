@@ -136,6 +136,22 @@ describe("GET /api/context", () => {
     expect(res.result).toEqual({ text: "A\n\n---\n\nB" });
   });
 
+  it("joins the no-query chunks from the repo's provisioned team schema", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ team: "platform" }] })
+      .mockResolvedValueOnce({ rows: [{ schema_name: "platform" }] })
+      .mockResolvedValueOnce({ rows: [{ content: "A" }] });
+    const res = await get(pool, "/api/context?repo=o/r");
+
+    expect(pool.query.mock.calls[0][0]).toContain(
+      "SELECT team FROM lore.repos",
+    );
+    expect(pool.query.mock.calls[2][0]).toContain("FROM platform.chunks");
+    expect(res.result).toEqual({ text: "A" });
+  });
+
   it("caps the no-query chunk join at max_tokens*4 chars — whole chunks kept until the budget is hit", async () => {
     const pool = makePool();
 
