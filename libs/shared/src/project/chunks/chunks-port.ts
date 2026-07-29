@@ -13,7 +13,7 @@ export interface ChunkInsert {
   metadata: Record<string, unknown>;
 }
 
-/** A spec-chunk read row (`org_shared.chunks` where `content_type = 'spec'`). */
+/** A spec-chunk read row (the repo's resolved schema, `content_type = 'spec'`). */
 export interface SpecChunkRow {
   id: string;
   repo: string;
@@ -60,9 +60,10 @@ export interface CodeChunkFull {
  * The vector-store `chunks` surface. Two table families live behind it:
  * schema-per-team `{schema}.chunks` (the `${schema}` name is interpolated, so
  * the Pg adapter validates it against `SCHEMA_RE` first) and the fixed
- * `org_shared.chunks` shared schema (no interpolation). Single-sourced out of
- * the Floor reindex / context-core-builder jobs so the kernel never reaches a
- * pg pool for chunk reads/writes directly.
+ * `org_shared.chunks` shared schema (no interpolation — only the team
+ * aggregates read it directly). Single-sourced out of the Floor reindex /
+ * context-core-builder jobs so the kernel never reaches a pg pool for chunk
+ * reads/writes directly.
  */
 export interface ChunksPort {
   /** `SELECT schema_name FROM information_schema.schemata WHERE schema_name = $1` */
@@ -101,19 +102,17 @@ export interface ChunksPort {
   /** `SELECT COUNT(*) FROM org_shared.chunks WHERE team = $1` */
   countChunksByTeam(team: string): Promise<number>;
 
-  // ── org_shared reads for the spec-drift detection job ──
-  // These read `org_shared.chunks` per repo; the pod-side HTTP adapter maps them
-  // to `GET /api/repos/:o/:r/chunks?content_type=…`, so a station never needs a DB.
+  // ── the detection (spec-drift, gap-detect) + coverage jobs read the repo's
+  //    RESOLVED schema (team schema, else org_shared — where reindex actually
+  //    wrote the repo's chunks), so these are repo-scoped and the adapter
+  //    resolves the schema. The pod-side HTTP adapter maps specChunks/codeSymbols
+  //    to `GET /api/repos/:o/:r/chunks?content_type=…`, so a station never needs a DB. ──
 
-  /** Spec chunks for a repo (`content_type = 'spec'`), ordered by file path. */
+  /** Spec chunks for a repo (`content_type = 'spec'`) from its resolved schema, ordered by file path. */
   specChunks(repo: string): Promise<SpecChunkRow[]>;
 
-  /** Code symbols for a repo (`content_type = 'code'`, `metadata->>'symbol_name'` set). */
+  /** Code symbols for a repo (`content_type = 'code'`, `metadata->>'symbol_name'` set), from its resolved schema. */
   codeSymbols(repo: string): Promise<CodeSymbolRow[]>;
-
-  // ── the coverage + gap-detect jobs read the repo's RESOLVED schema (team
-  //    schema, else org_shared — where reindex actually wrote the repo's
-  //    chunks), so these are repo-scoped and the adapter resolves the schema. ──
 
   /**
    * True when the repo has at least one chunk of `contentType` in its resolved
