@@ -70,6 +70,10 @@ BEGIN
       )', s);
     EXECUTE format('CREATE INDEX IF NOT EXISTS %I_chunks_embedding_idx ON %I.chunks USING hnsw (embedding vector_cosine_ops)', s, s);
     EXECUTE format('CREATE INDEX IF NOT EXISTS %I_chunks_search_idx ON %I.chunks USING GIN (search_tsv)', s, s);
+    -- Mirrors setup-db.sh: runtime reindex needs full DML on whichever team
+    -- schema a repo resolves to (re-ingest DELETEs before INSERTing, embedding
+    -- and verification stamps UPDATE, orphan pruning DELETEs).
+    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON %I.chunks TO lore', s);
   END LOOP;
 END $$;
 SQL
