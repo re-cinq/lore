@@ -146,6 +146,14 @@ export class ChunksHttp implements ChunksPort {
   ): Promise<string[]> {
     throw new Error(WRITE_ONLY_FLOOR);
   }
+  async staleChunkerFiles(
+    _schema: string,
+    _repo: string,
+    _version: number,
+    _limit: number,
+  ): Promise<string[]> {
+    throw new Error(WRITE_ONLY_FLOOR);
+  }
   async touchChunksForFiles(
     _schema: string,
     _repo: string,

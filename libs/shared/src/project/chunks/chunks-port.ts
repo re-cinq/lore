@@ -162,6 +162,20 @@ export interface ChunksPort {
   reindexOwnedFilePaths(schema: string, repo: string): Promise<string[]>;
 
   /**
+   * Distinct `file_path`s of the repo's code chunks in `${schema}.chunks`
+   * whose `metadata->>'chunker_version'` is absent or older than `version`,
+   * ordered by path and capped at `limit`. The reindex heal sweep re-ingests
+   * these so a chunker upgrade propagates to files that never change; the cap
+   * self-throttles the one-time re-embed across nightly runs.
+   */
+  staleChunkerFiles(
+    schema: string,
+    repo: string,
+    version: number,
+    limit: number,
+  ): Promise<string[]>;
+
+  /**
    * Re-stamp `ingested_at` to `NOW()` on the repo's reindex-owned chunks whose
    * `file_path` is in `filePaths`. Only files whose oldest chunk is more than
    * `minAgeDays` old are re-stamped — whole files at a time — keeping

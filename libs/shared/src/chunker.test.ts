@@ -123,13 +123,13 @@ describe("chunkFile code AST chunking", () => {
     expect(method?.metadata.symbol_type).toBe("function");
   });
 
-  it("returns the whole file as one chunk when the code has no top-level declarations", async () => {
-    const source = "console.log('side effect only');\n";
+  it("returns one whole-file chunk with line ranges when the code has no top-level declarations", async () => {
+    const source = "// config sentinel\n// nothing declared here\n";
 
     const chunks = await chunkFile(source, "script.ts", "code");
 
     expect(chunks).toHaveLength(1);
-    expect(chunks[0].content).toBe(source);
+    expect(chunks[0].metadata).toMatchObject({ start_line: 1, end_line: 2 });
   });
 });
 
@@ -236,5 +236,82 @@ describe("buildIngestedChunkMetadata", () => {
       ingested_by: "reindex-job",
     });
     expect("commit" in meta).toBe(false);
+  });
+
+  it("stamps chunker_version 2 on every ingest", async () => {
+    const [chunk] = await chunkFile("Versioned.", "notes.md", "doc");
+
+    const meta = buildIngestedChunkMetadata(chunk, {
+      filePath: "notes.md",
+      ingestedBy: "api",
+    });
+
+    expect(meta).toMatchObject({ chunker_version: 2 });
+  });
+});
+
+describe("chunkFile top-level call statements", () => {
+  it("chunks a describe call with its line range and the title as symbol name", async () => {
+    const source = [
+      "import { describe, it } from 'vitest';",
+      "",
+      "describe('PgTaskQueue', () => {",
+      "  it('claims the oldest pending task', () => {});",
+      "});",
+    ].join("\n");
+
+    const chunks = await chunkFile(source, "queue.test.ts", "code");
+    const call = chunks.find((c) => c.metadata.symbol_type === "call");
+
+    expect(call?.metadata).toMatchObject({
+      symbol_name: "PgTaskQueue",
+      start_line: 3,
+      end_line: 5,
+    });
+  });
+
+  it("names a call with no string argument after its callee", async () => {
+    const source = "run();\n";
+
+    const chunks = await chunkFile(source, "side.ts", "code");
+
+    expect(chunks[0].metadata).toMatchObject({
+      symbol_name: "run",
+      symbol_type: "call",
+      start_line: 1,
+      end_line: 1,
+    });
+  });
+
+  it("names a non-test call after its callee path, not its string argument", async () => {
+    const source = "app.use('/api', handler);\n";
+
+    const chunks = await chunkFile(source, "server.ts", "code");
+
+    expect(chunks[0].metadata).toMatchObject({
+      symbol_name: "app.use",
+      symbol_type: "call",
+    });
+  });
+
+  it("chunks a non-call expression statement with line ranges but no symbol fields", async () => {
+    const source = "'use strict';\n";
+
+    const chunks = await chunkFile(source, "legacy.js", "code");
+
+    expect(chunks[0].metadata).toMatchObject({ start_line: 1, end_line: 1 });
+    expect(chunks[0].metadata.symbol_name).toBeUndefined();
+    expect(chunks[0].metadata.symbol_type).toBeUndefined();
+  });
+
+  it("strips interpolations from a template-literal describe title", async () => {
+    const source = "describe(`${impl} adapter contract`, () => {});\n";
+
+    const chunks = await chunkFile(source, "contract.test.ts", "code");
+
+    expect(chunks[0].metadata).toMatchObject({
+      symbol_name: "adapter contract",
+      symbol_type: "call",
+    });
   });
 });

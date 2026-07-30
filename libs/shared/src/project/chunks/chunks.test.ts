@@ -776,3 +776,113 @@ describe("relocateLegacyChunks", () => {
     expect(sql).not.toContain("search_tsv");
   });
 });
+
+describe("staleChunkerFiles", () => {
+  it("returns distinct code file paths below the version, sorted and capped", async () => {
+    const chunks = new InMemoryChunks();
+    const codeChunk = { ...sampleChunk, contentType: "code" };
+
+    await chunks.insertChunk("platform", {
+      ...codeChunk,
+      filePath: "src/b.test.ts",
+      metadata: { chunk_index: 0 },
+    });
+    await chunks.insertChunk("platform", {
+      ...codeChunk,
+      filePath: "src/b.test.ts",
+      metadata: { chunk_index: 1, chunker_version: 1 },
+    });
+    await chunks.insertChunk("platform", {
+      ...codeChunk,
+      filePath: "src/a.test.ts",
+      metadata: { chunk_index: 0, chunker_version: 1 },
+    });
+    await chunks.insertChunk("platform", {
+      ...codeChunk,
+      filePath: "src/current.ts",
+      metadata: { chunk_index: 0, chunker_version: 2 },
+    });
+    await chunks.insertChunk("platform", {
+      ...codeChunk,
+      contentType: "spec",
+      filePath: "specs/old.md",
+      metadata: { chunk_index: 0 },
+    });
+
+    expect(
+      await chunks.staleChunkerFiles("platform", "octo/repo", 2, 10),
+    ).toEqual(["src/a.test.ts", "src/b.test.ts"]);
+    expect(
+      await chunks.staleChunkerFiles("platform", "octo/repo", 2, 1),
+    ).toEqual(["src/a.test.ts"]);
+  });
+
+  it("queries code chunks below the version with the cap as a parameter", async () => {
+    const { pool, calls } = fakePool({
+      rows: [{ file_path: "src/a.test.ts" }],
+    });
+
+    expect(
+      await new PgChunks(pool).staleChunkerFiles(
+        "platform",
+        "octo/repo",
+        2,
+        200,
+      ),
+    ).toEqual(["src/a.test.ts"]);
+
+    const sql = calls[0]!.text;
+
+    expect(calls[0]!.params).toEqual(["octo/repo", 2, 200]);
+    expect(sql).toContain("content_type = 'code'");
+    expect(sql).toContain(
+      "COALESCE((metadata->>'chunker_version')::int, 0) < $2",
+    );
+    expect(sql).toContain("LIMIT $3");
+  });
+});
+
+describe("codeSymbols call exclusion", () => {
+  it("excludes call-typed chunks so describe titles never enter the symbol surface", async () => {
+    const chunks = new InMemoryChunks();
+
+    await chunks.insertChunk("platform", {
+      ...sampleChunk,
+      contentType: "code",
+      filePath: "src/queue.ts",
+      metadata: {
+        chunk_index: 0,
+        symbol_name: "PgTaskQueue",
+        symbol_type: "class",
+      },
+    });
+    await chunks.insertChunk("platform", {
+      ...sampleChunk,
+      contentType: "code",
+      filePath: "src/queue.test.ts",
+      metadata: {
+        chunk_index: 0,
+        symbol_name: "PgTaskQueue",
+        symbol_type: "call",
+      },
+    });
+
+    expect(await chunks.codeSymbols("octo/repo")).toEqual([
+      {
+        symbolName: "PgTaskQueue",
+        symbolType: "class",
+        filePath: "src/queue.ts",
+      },
+    ]);
+  });
+
+  it("filters symbol_type call in the SQL read", async () => {
+    const { pool, calls } = fakePool(...teamSchemaLookup, { rows: [] });
+
+    await new PgChunks(pool).codeSymbols("octo/repo");
+
+    expect(calls[2]?.text).toContain(
+      "metadata->>'symbol_type' IS DISTINCT FROM 'call'",
+    );
+  });
+});

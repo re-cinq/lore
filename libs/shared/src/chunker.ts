@@ -17,7 +17,7 @@ export interface Chunk {
   content: string;
   metadata: {
     symbol_name?: string;
-    symbol_type?: string; // 'function' | 'class' | 'method' | 'interface' | 'type' | 'export'
+    symbol_type?: string; // 'function' | 'class' | 'method' | 'interface' | 'type' | 'export' | 'call'
     start_line?: number;
     end_line?: number;
     section_title?: string;
@@ -25,6 +25,12 @@ export interface Chunk {
     content_hash?: string;
   };
 }
+
+/** Bumped whenever chunking output changes shape for existing content, so the
+ * nightly reindex can spot files chunked by an older chunker and re-ingest
+ * them. v2: top-level expression statements (describe blocks) become chunks
+ * and every code chunk carries start_line/end_line. */
+export const CHUNKER_VERSION = 2;
 
 // ── Lazy parser + grammar cache ──────────────────────────────────────
 
@@ -55,6 +61,9 @@ const TS_DECLARATIONS = new Set([
   "export_statement",
   "lexical_declaration",
   "variable_declaration",
+  // Top-level calls like describe(...) — without this, vitest test bodies
+  // are dropped from ingestion entirely (issue #995).
+  "expression_statement",
 ]);
 const JS_DECLARATIONS = new Set([
   "function_declaration",
@@ -62,6 +71,7 @@ const JS_DECLARATIONS = new Set([
   "export_statement",
   "lexical_declaration",
   "variable_declaration",
+  "expression_statement",
 ]);
 const DECLARATION_TYPES: Record<string, Set<string>> = {
   ".ts": TS_DECLARATIONS,
@@ -90,6 +100,12 @@ function wholeFileChunk(
   extra?: Partial<Chunk["metadata"]>,
 ): Chunk[] {
   return [{ content, metadata: { chunk_index: 0, ...extra } }];
+}
+
+/** Line count of the file's real content — a trailing newline terminates the
+ * last line rather than opening a phantom empty one. */
+function lineCount(content: string): number {
+  return content.replace(/\n$/, "").split("\n").length;
 }
 
 async function initParser(): Promise<void> {
@@ -178,6 +194,107 @@ function inferSymbolType(nodeType: string): string {
   return "export";
 }
 
+/** Base identifier of a possibly chained or curried callee — `describe` in
+ * `describe.each([...])('title', …)`. */
+function rootCalleeName(callee: Parser.SyntaxNode | null): string | undefined {
+  let node = callee;
+
+  while (node) {
+    if (node.type === "identifier") {
+      return node.text;
+    }
+
+    if (node.type === "member_expression") {
+      node = node.childForFieldName("object");
+      continue;
+    }
+
+    if (node.type === "call_expression") {
+      node = node.childForFieldName("function");
+      continue;
+    }
+
+    return undefined;
+  }
+
+  return undefined;
+}
+
+/** Test-runner macros whose first string argument names the block — the one
+ * call family whose title is a meaningful symbol name. Skipped/focused
+ * variants (`xdescribe`, `fit`, …) are distinct identifiers; chained forms
+ * (`describe.skip`, `test.only`, `describe.each`) already unwrap to the root. */
+const TEST_CALL_ROOTS = new Set([
+  "describe",
+  "it",
+  "test",
+  "suite",
+  "xdescribe",
+  "xit",
+  "xtest",
+  "fdescribe",
+  "fit",
+  "ftest",
+]);
+
+/** Name a test-macro call after its first string argument
+ * (`describe("PgTaskQueue", …)` → `PgTaskQueue`), with template-literal
+ * interpolations stripped; any other call after its callee path when that is
+ * a plain identifier or member chain (`console.log(…)` → `console.log`),
+ * undefined otherwise (IIFEs). */
+function callSymbolName(call: Parser.SyntaxNode): string | undefined {
+  const callee = call.childForFieldName("function");
+  const root = rootCalleeName(callee);
+
+  if (root !== undefined && TEST_CALL_ROOTS.has(root)) {
+    const args = call.childForFieldName("arguments");
+    const firstString = args?.namedChildren.find(
+      (a) => a.type === "string" || a.type === "template_string",
+    );
+    const title = firstString?.text
+      .slice(1, -1)
+      .replace(/\$\{[^}]*\}/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (title !== undefined && title.length > 0) {
+      return title;
+    }
+  }
+
+  const isPlainCallee =
+    callee?.type === "identifier" || callee?.type === "member_expression";
+
+  return isPlainCallee ? callee.text : undefined;
+}
+
+interface SymbolInfo {
+  name?: string;
+  type?: string;
+}
+
+/** Symbol metadata for a top-level node. A statement wrapping a call gets
+ * `type: "call"` + the call-derived name; other expression statements carry
+ * no symbol fields (so they never enter the codeSymbols surface). */
+function symbolInfo(node: Parser.SyntaxNode): SymbolInfo {
+  if (node.type !== "expression_statement") {
+    const rawType = inferSymbolType(node.type);
+
+    return {
+      name: extractSymbolName(node),
+      type: refineSymbolType(node, rawType),
+    };
+  }
+
+  const call = node.namedChildren.find((c) => c.type === "call_expression");
+
+  if (!call) {
+    return {};
+  }
+
+  return { name: callSymbolName(call), type: "call" };
+}
+
 function extractSymbolName(node: Parser.SyntaxNode): string | undefined {
   // Direct name child
   const nameNode = node.childForFieldName("name");
@@ -262,7 +379,10 @@ function chunkCodeAST(
 
   if (decls.length === 0) {
     // No declarations found -- return whole file as one chunk
-    return wholeFileChunk(content);
+    return wholeFileChunk(content, {
+      start_line: 1,
+      end_line: lineCount(content),
+    });
   }
 
   const chunks: Chunk[] = [];
@@ -318,15 +438,13 @@ function chunkCodeAST(
     }
 
     const chunkContent = lines.slice(startLine, decl.endRow + 1).join("\n");
-    const symbolName = extractSymbolName(decl.node);
-    const rawType = inferSymbolType(decl.node.type);
-    const symbolType = refineSymbolType(decl.node, rawType);
+    const symbol = symbolInfo(decl.node);
 
     chunks.push({
       content: chunkContent,
       metadata: {
-        symbol_name: symbolName,
-        symbol_type: symbolType,
+        symbol_name: symbol.name,
+        symbol_type: symbol.type,
         start_line: startLine + 1, // 1-based
         end_line: decl.endRow + 1, // 1-based
         chunk_index: chunkIndex++,
@@ -463,6 +581,7 @@ export function buildIngestedChunkMetadata(
     ...chunk.metadata,
     file_path: opts.filePath,
     ingested_by: opts.ingestedBy,
+    chunker_version: CHUNKER_VERSION,
     ...(opts.commit !== undefined ? { commit: opts.commit } : {}),
   };
 }
@@ -497,7 +616,12 @@ async function chunkFileRaw(
     const tree = p.parse(content);
     const chunks = chunkCodeAST(tree, content, ext);
 
-    return chunks.length > 0 ? chunks : wholeFileChunk(content);
+    return chunks.length > 0
+      ? chunks
+      : wholeFileChunk(content, {
+          start_line: 1,
+          end_line: lineCount(content),
+        });
   } catch (err) {
     console.error(
       `[chunker] AST parse failed for ${filePath}, falling back to sliding window:`,
