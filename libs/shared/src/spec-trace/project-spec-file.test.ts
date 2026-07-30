@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
+import { findRepoRoot } from "../lib/repo-root.js";
 import { randomUUID, createHash } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import {
@@ -31,10 +32,8 @@ import { recomputeFile } from "./recompute-spec-file.js";
  */
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
-// vitest cwd is the `agent/` package root, so `..` resolves to the repo root.
-const REPO_ROOT = join(process.cwd(), "..");
 const APPLIER = join(
-  REPO_ROOT,
+  findRepoRoot(),
   "scripts",
   "infra",
   "setup-spec-trace-schema.sh",
