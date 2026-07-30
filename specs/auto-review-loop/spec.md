@@ -319,12 +319,13 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 - maps a changes_requested line outcome to a neutral conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L70))
 - maps a completed line whose review node recorded changes_requested to a neutral conclusion — the walk routes `changes_requested → done`, so only the node walk row carries the verdict. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L79))
 - reads the latest iteration of a node, so a re-reviewed success wins over an earlier changes_requested. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L91))
-- maps a successful line to a success conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L100))
+- maps a completed line to a success conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L100))
 - maps a failed line to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L106))
 - maps a failed line with a changes_requested node to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L112))
 - maps a pr_closed outcome to a cancelled conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L146))
 - maps a pr_closed line with a changes_requested node to a cancelled conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L152))
 - adds a details_url to the Lore UI when a uiUrl is given. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L160))
+- maps an iteration_max outcome to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L168))
 
 ### `apps/floor/src/jobs/merge/auto-merge.test.ts`
 
