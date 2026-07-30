@@ -70,11 +70,18 @@ export async function gcOrphanChunks(
       // shape means the chunk is still owned, unless every owner is excluded.
       const node = (res.data?.node?.[0] ?? {}) as Record<string, unknown>;
       const isCountedOwner = (value: unknown): boolean => {
-        if (typeof value !== "object" || value === null) {
+        if (value == null) {
           return false;
         }
 
-        return "uid" in value && !excludeOwnerUids.has(String(value.uid));
+        if (typeof value !== "object" || !("uid" in value)) {
+          // Fail safe: an owner value whose uid is unreadable still counts —
+          // only an identified uid may be discounted, and wrongly discounting
+          // one would delete a still-owned chunk permanently.
+          return true;
+        }
+
+        return !excludeOwnerUids.has(String(value.uid));
       };
       const isOwned = (value: unknown): boolean =>
         Array.isArray(value)

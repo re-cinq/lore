@@ -117,6 +117,8 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
           statements(func: eq(Statement.repo, $repo)) { uid }
           acs(func: eq(AcceptanceCriterion.repo, $repo)) { uid }
           links(func: eq(TraceLink.repo, $repo)) { uid }
+          chunks(func: eq(TestChunk.repo, $repo)) { uid }
+          codeChunks(func: eq(CodeChunk.repo, $repo)) { uid }
         }`,
         { $repo: repo },
       );

@@ -113,8 +113,9 @@ const SPEC_SUBTREE_QUERY = `query q($xid: string, $repo: string) {
  * Reads the Spec subtree slated for deletion: the Spec uid, every child uid
  * (Statements, Sections, AcceptanceCriteria, their TraceLinks), the Repo root
  * uid, the owning Feature uid, and the link-target chunk uids for GC.
- * Runs inside the caller's txn so the final delete can re-read and mutate in
- * one transaction. Returns null when no such Spec exists.
+ * Called both in a read-only txn (to obtain the GC inputs) and inside the
+ * final mutating txn (the fresh-uid staleness guard). Returns null when no
+ * such Spec exists.
  */
 async function querySpecSubtree(
   txn: DgraphTxn,
@@ -192,6 +193,8 @@ export async function deleteSpecSubtree(
   // The ownership queries see the doomed Statements/ACs still alive, so their
   // uids are excluded: a chunk owned ONLY by this spec's children is orphaned,
   // while one still validated by another doc, or carrying coverage, survives.
+  // childUids also carries Section/TraceLink uids — a harmless superset, since
+  // those types never appear as chunk owner-edge results.
   const doomedOwners = new Set(doomed.childUids);
 
   await gcOrphanChunks(
