@@ -123,8 +123,7 @@ export const assemblyLineStart: EventHandler = async (params) => {
     definitions: loadBuiltinAssemblyLines,
     advance: async (assemblyLineId) =>
       advanceLine(assemblyLineId, await productionNodeEventDeps()),
-    notifyFailure: (row, outcome, reason) =>
-      notifyLineFailure(row, outcome, reason),
+    notifyFailure: notifyLineFailure,
   });
 
   await handler(params);

@@ -56,11 +56,25 @@ export function lineOutcomeFromVisits(visits: NodeVisit[]): {
   outcome: "completed" | "failed";
   reason?: string;
 } {
-  const failed = visits.find((v) => v.outcome === "failed");
+  const failed = visits.find((v) => visitFailed(v.outcome));
 
   return failed
     ? { outcome: "failed", reason: `node "${failed.nodeId}" failed` }
     : { outcome: "completed" };
+}
+
+function visitFailed(outcome: StageOutcome | null): boolean {
+  if (outcome === null) {
+    return false;
+  }
+
+  switch (outcome) {
+    case "failed":
+      return true;
+    case "success":
+    case "changes_requested":
+      return false;
+  }
 }
 
 /** The walk task shape, derived from the persisted row instead of an in-memory task. */

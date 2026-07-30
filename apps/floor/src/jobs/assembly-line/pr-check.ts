@@ -16,6 +16,7 @@ import type {
 } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
 import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import { writeAuditLog } from "../lib/audit.js";
+import { isFailureOutcome } from "./notify-failure.js";
 
 /** The repo-bound surface the publisher writes through (project.repo). */
 export interface CheckPublisher {
@@ -62,12 +63,9 @@ function terminal(
   summary: string;
 } {
   // `outcome: "failed"` closes the row as `finished` (only "error" flips the
-  // status), so keying on status alone would render a failed walk as "Approved."
-  if (
-    line.status === "failed" ||
-    line.outcome === "error" ||
-    line.outcome === "failed"
-  ) {
+  // status), so key on the outcome, not the status: any non-benign outcome
+  // (failed, error, iteration_max, ...) publishes a red check.
+  if (isFailureOutcome(line.outcome ?? "")) {
     const why = line.reason ? ` — ${line.reason}` : "";
     const rerunHint =
       line.definitionName === "code-review"
