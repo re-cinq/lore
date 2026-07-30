@@ -163,8 +163,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     resolvePrompt: buildPrompt,
     cleanupToken: cleanupPerTaskToken,
     jobRuns: jobRuns(),
-    notifyFailure: (row, outcome, reason) =>
-      notifyLineFailure(row, outcome, reason),
+    notifyFailure: notifyLineFailure,
     readAgentStatus: (name) => kubeApi.getStatus(name),
     alertBilling: async (repo, nodeType, status) => {
       await maybeAlertBilling(repo, nodeType, status, {

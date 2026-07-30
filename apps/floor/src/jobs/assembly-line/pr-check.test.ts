@@ -97,9 +97,9 @@ describe("assemblyLineCheck", () => {
     ).toMatchObject({ status: "completed", conclusion: "success" });
   });
 
-  it("maps a successful line to a success conclusion", () => {
+  it("maps a completed line to a success conclusion", () => {
     expect(
-      assemblyLineCheck(line({ status: "finished", outcome: "success" }), []),
+      assemblyLineCheck(line({ status: "finished", outcome: "completed" }), []),
     ).toMatchObject({ status: "completed", conclusion: "success" });
   });
 
@@ -163,5 +163,14 @@ describe("assemblyLineCheck", () => {
     ).toMatchObject({
       detailsUrl: "https://lore.example.com/assembly-lines/al-1",
     });
+  });
+
+  it("maps an iteration_max outcome to a failure conclusion", () => {
+    expect(
+      assemblyLineCheck(
+        line({ status: "finished", outcome: "iteration_max" }),
+        [],
+      ),
+    ).toMatchObject({ status: "completed", conclusion: "failure" });
   });
 });
