@@ -27,9 +27,16 @@ else
   fail "healthz: $HEALTH"
 fi
 
-# 2. Repo status
+# 2. Repo status — retried for the same reason as healthz: right after a rolling
+# deploy the DB behind this endpoint can stall briefly (migration hook + startup
+# reconcile), and a single shot false-failed an otherwise-healthy deploy.
 echo "[smoke] Repo status..."
-REPO_STATUS=$(curl -sf --max-time 5 -H "Authorization: Bearer $TOKEN" "$API_URL/api/repo-status?repo=re-cinq/lore" 2>/dev/null || echo "")
+REPO_STATUS=""
+for _ in $(seq 1 5); do
+  REPO_STATUS=$(curl -sf --max-time 5 -H "Authorization: Bearer $TOKEN" "$API_URL/api/repo-status?repo=re-cinq/lore" 2>/dev/null || echo "")
+  echo "$REPO_STATUS" | jq -e '.onboarded == true' >/dev/null 2>&1 && break
+  sleep 3
+done
 if echo "$REPO_STATUS" | jq -e '.onboarded == true' >/dev/null 2>&1; then
   pass "repo-status"
 else
