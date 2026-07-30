@@ -208,7 +208,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     await projectSpecFile(
       repo,
       specPath,
-      "# Feature Specification: Widget Service\n\n## Success Criteria\n\n1. Onboarding a new repo produces a\n   PR within 5 minutes\n",
+      "# Feature Specification: Widget Service\n\n## Requirements\n\n1. Onboarding a new repo produces a\n   PR within 5 minutes\n",
       dgraphClient,
       async () => null,
     );
@@ -247,7 +247,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     await projectSpecFile(
       repo,
       specPath,
-      "# Feature Specification: Widget Service\n\n## Success Criteria\n\n1. Onboarding a new repo produces a\n   PR within 5 minutes\n",
+      "# Feature Specification: Widget Service\n\n## Requirements\n\n1. Onboarding a new repo produces a\n   PR within 5 minutes\n",
       dgraphClient,
       async () => null,
     );
@@ -510,7 +510,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     await projectSpecFile(
       repo,
       specPath,
-      "# Feature Specification: Widget Service\n\n## Success Criteria\n\n1. Onboarding a new repo produces a PR within 5 minutes\n",
+      "# Feature Specification: Widget Service\n\n## Requirements\n\n1. Onboarding a new repo produces a PR within 5 minutes\n",
       dgraphClient,
       async () => null,
     );
@@ -696,5 +696,48 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
         "TestSuite.name": "Outer",
       },
     });
+  });
+
+  it("links an acceptance criterion via AcceptanceCriterion.validated_by when a descriptor sentence-matches it", async () => {
+    const repo = `test-report/${randomUUID()}`;
+
+    createdRepo = repo;
+    const specPath = "specs/example/spec.md";
+
+    await projectSpecFile(
+      repo,
+      specPath,
+      "# Feature Specification: Widget Service\n\n## Acceptance Criteria\n\n1. Rollback completes within one minute\n",
+      dgraphClient,
+      async () => null,
+    );
+
+    const report = {
+      tests: [
+        {
+          id: "shared/x.test.ts",
+          name: "Widget Service | Rollback completes within one minute | rollback",
+          file: "shared/x.test.ts",
+        },
+      ],
+      results: [],
+    };
+
+    await ingestTestReport(dgraphClient, repo, report);
+
+    const data = (await readGraph(
+      `query q($xid: string) {
+        ac(func: eq(AcceptanceCriterion.xid, $xid)) {
+          AcceptanceCriterion.validated_by { TestChunk.xid }
+        }
+      }`,
+      { $xid: `${repo}|${specPath}|ac|0` },
+    )) as {
+      ac?: { "AcceptanceCriterion.validated_by"?: Record<string, unknown>[] }[];
+    };
+
+    expect(data.ac?.[0]?.["AcceptanceCriterion.validated_by"]).toEqual([
+      { "TestChunk.xid": `${repo}|shared/x.test.ts` },
+    ]);
   });
 });

@@ -40,13 +40,23 @@ function toVecLiteral(embedding: unknown): string | undefined {
 }
 
 /**
+ * `similar_to` searches the whole index and cannot pre-filter, so the repo
+ * `@filter` runs on the global top-k: other repos' chunks consume slots and can
+ * starve same-repo candidates entirely. Over-fetching widens the net before the
+ * filter; the caller truncates back to `k`.
+ */
+const ANN_OVERFETCH = 10;
+
+/**
  * Runs a `similar_to` ANN over one node type's embedding predicate and returns
- * the `k` nearest nodes' xids, filtered to `repo` (derived `<Type>.repo` predicate,
- * e.g. `CodeChunk.embedding` → `CodeChunk.repo`). `embeddingPredicate`/`xidPredicate`
- * are fixed, code-supplied schema names (e.g. `CodeChunk.embedding`/`CodeChunk.xid`),
- * never user input, so inlining `k` into the query is safe. Shared per-predicate ANN:
- * `suggestCandidates` calls it once with `CodeChunk.*` and once with `TestChunk.*`
- * and merges the results.
+ * the nearest same-`repo` nodes' xids, nearest-first (over-fetches
+ * `k * ANN_OVERFETCH` globally, then filters to `repo` via the derived
+ * `<Type>.repo` predicate, e.g. `CodeChunk.embedding` → `CodeChunk.repo`).
+ * `embeddingPredicate`/`xidPredicate` are fixed, code-supplied schema names
+ * (e.g. `CodeChunk.embedding`/`CodeChunk.xid`), never user input, so inlining
+ * the fetch size into the query is safe. Shared per-predicate ANN:
+ * `suggestCandidates` calls it once with `CodeChunk.*` and once with
+ * `TestChunk.*` and merges the results.
  */
 async function nearestByVector(
   dgraph: DgraphClientPort,
@@ -60,7 +70,7 @@ async function nearestByVector(
 
   return withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(
-      `query q($vec: string, $repo: string){ near(func: similar_to(${embeddingPredicate}, ${k}, $vec)) @filter(eq(${repoPredicate}, $repo)){ ${xidPredicate} } }`,
+      `query q($vec: string, $repo: string){ near(func: similar_to(${embeddingPredicate}, ${k * ANN_OVERFETCH}, $vec)) @filter(eq(${repoPredicate}, $repo)){ ${xidPredicate} } }`,
       { $vec: vecLiteral, $repo: repo },
     );
     const rows =
@@ -147,8 +157,11 @@ export async function suggestCandidates(
     ),
   ]);
 
+  const nearestUnlinked = (xids: string[]) =>
+    xids.filter((xid) => !linkedXids.has(xid)).slice(0, k);
+
   return [
-    ...codeXids.map((xid) => ({ xid, kind: "code" as const })),
-    ...testXids.map((xid) => ({ xid, kind: "test" as const })),
-  ].filter((candidate) => !linkedXids.has(candidate.xid));
+    ...nearestUnlinked(codeXids).map((xid) => ({ xid, kind: "code" as const })),
+    ...nearestUnlinked(testXids).map((xid) => ({ xid, kind: "test" as const })),
+  ];
 }
