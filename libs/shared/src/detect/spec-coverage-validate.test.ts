@@ -241,3 +241,50 @@ describe("hasOpenLinkRotIssue", () => {
     expect(hasOpenLinkRotIssue([])).toBe(false);
   });
 });
+
+describe("resolveTestLink with range-less chunks", () => {
+  it("passes a line link when the file's chunks carry no line ranges", () => {
+    const out = resolveTestLink(ref("src/x.test.ts", 42), [
+      chunk("src/x.test.ts", null, null),
+    ]);
+
+    expect(out).toEqual({ ok: true });
+  });
+
+  it("judges against the ranged chunks when ranged and range-less coexist", () => {
+    const out = resolveTestLink(ref("src/x.test.ts", 200), [
+      chunk("src/x.test.ts", null, null),
+      chunk("src/x.test.ts", 30, 50),
+    ]);
+
+    expect(out).toEqual({ ok: false, reason: "line-out-of-range" });
+  });
+});
+
+describe("formatBrokenLinksReport heading elision", () => {
+  it("skips a spec heading whose bullets were all elided by the budget", () => {
+    const broken: BrokenLink[] = [
+      {
+        spec_path: "specs/a/spec.md",
+        statement_text: "Returns the expected value.",
+        link: { label: "test", path: "src/x.test.ts", line: 10 },
+        reason: "line-out-of-range",
+      },
+      {
+        spec_path: "specs/huge/spec.md",
+        statement_text: "Oversized.",
+        link: {
+          label: "test",
+          path: `src/${"x".repeat(70_000)}.test.ts`,
+          line: 1,
+        },
+        reason: "file-missing",
+      },
+    ];
+    const body = formatBrokenLinksReport(broken);
+
+    expect(body).toContain("### `specs/a/spec.md`");
+    expect(body).not.toContain("specs/huge/spec.md");
+    expect(body).toMatch(/…and 1 more broken link\(s\) truncated/);
+  });
+});

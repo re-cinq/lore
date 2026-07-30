@@ -7,6 +7,8 @@ import {
   classifyFile,
   buildIngestedChunkMetadata,
   getQueryEmbedding,
+  CHUNKER_VERSION,
+  type ChunksPort,
 } from "@re-cinq/lore-shared";
 import { verifyRepoChunks } from "./verify.js";
 
@@ -22,6 +24,14 @@ const SEED_PREFIXES = ["adrs/", "specs/", ".specify/"];
  *  orphans after a restructure) cannot write a megabyte payload; the full
  *  count is always recorded. */
 const AUDIT_PRUNED_PATHS_CAP = 500;
+
+/** Per-repo, per-run cap on the chunker-upgrade heal sweep, so a version bump
+ *  re-embeds the org's code chunks across a few nights instead of one giant
+ *  run. Healed files stamp the current version and drop out of the query.
+ *  A query cap, not a healed-count cap: stale files the changed-file loop
+ *  already re-ingested this run occupy slots and are then skipped — the
+ *  shortfall heals the next night. Intentional, to keep the query cheap. */
+const HEAL_FILES_PER_RUN = 200;
 
 /** Filters a full repo file tree down to the seed set: supported content
  *  types (per classifyFile) that live under a seed root. Pure — unit-tested
@@ -79,6 +89,59 @@ async function getChangedFiles(
 
 async function getTree(fullName: string): Promise<string[]> {
   return projectFor(fullName).then((p) => p.repo.tree());
+}
+
+// ── Chunker-upgrade heal sweep ──────────────────────────────────────
+
+/** Re-ingest code files whose stored chunks predate the current
+ * CHUNKER_VERSION, skipping files this run already processed. A file the
+ * ingest declines (classifyFile no longer supports its path) has its chunks
+ * deleted instead — no current ingest path would recreate them, and leaving
+ * them would wedge the sweep's capped query on the same files every night.
+ * Per-file failures are logged and skipped; returns files healed. Unit-tested
+ * with the in-memory chunks double in reindex-heal.test.ts. */
+export async function healStaleChunkerFiles(
+  port: Pick<ChunksPort, "staleChunkerFiles" | "deleteChunksForFile">,
+  schema: string,
+  repo: string,
+  alreadyProcessed: Set<string>,
+  ingest: (filePath: string) => Promise<boolean>,
+): Promise<number> {
+  const staleFiles = (
+    await port.staleChunkerFiles(
+      schema,
+      repo,
+      CHUNKER_VERSION,
+      HEAL_FILES_PER_RUN,
+    )
+  ).filter((filePath) => !alreadyProcessed.has(filePath));
+
+  let healed = 0;
+
+  for (const filePath of staleFiles) {
+    try {
+      if (await ingest(filePath)) {
+        healed++;
+        continue;
+      }
+      await port.deleteChunksForFile(schema, filePath, repo);
+      console.log(
+        `[job] Heal pruned chunks of unclassifiable ${repo}:${filePath}`,
+      );
+    } catch (err) {
+      console.error(
+        `[job] Heal error ${repo}:${filePath}: ${errorMessage(err)}`,
+      );
+    }
+  }
+
+  if (healed > 0) {
+    console.log(
+      `[job] Healed ${healed} pre-v${CHUNKER_VERSION}-chunker files for ${repo}`,
+    );
+  }
+
+  return healed;
 }
 
 // ── Ingest a single file ────────────────────────────────────────────
@@ -240,6 +303,24 @@ export async function reindexJob(): Promise<string> {
             );
           }
         }
+      }
+
+      // Chunker-upgrade heal: re-ingest code files whose stored chunks predate
+      // CHUNKER_VERSION, so chunking fixes reach files that never change
+      // (issue #995: pre-v2 chunks dropped test bodies and line ranges).
+      // Non-fatal; the cap spreads the one-time re-embed across nights.
+      try {
+        repoFileCount += await healStaleChunkerFiles(
+          chunks(),
+          schema,
+          repo.full_name,
+          new Set(filePaths),
+          (filePath) => ingestFile(filePath, repo.full_name, schema),
+        );
+      } catch (err) {
+        console.error(
+          `[job] Chunker heal sweep failed for ${repo.full_name}: ${errorMessage(err)}`,
+        );
       }
 
       // Verification pass: re-stamp reindex-owned chunks whose files still

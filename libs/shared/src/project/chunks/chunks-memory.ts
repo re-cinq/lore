@@ -176,6 +176,7 @@ export class InMemoryChunks implements ChunksPort {
           row.contentType === "code" &&
           typeof row.metadata.symbol_name === "string",
       )
+      .filter((row) => row.metadata.symbol_type !== "call")
       .map((row) => ({
         symbolName: row.metadata.symbol_name as string,
         symbolType: (row.metadata.symbol_type as string | undefined) ?? null,
@@ -276,6 +277,26 @@ export class InMemoryChunks implements ChunksPort {
         this.reindexOwnedForRepo(schema, repo).map((row) => row.filePath),
       ),
     );
+  }
+
+  async staleChunkerFiles(
+    schema: string,
+    repo: string,
+    version: number,
+    limit: number,
+  ): Promise<string[]> {
+    enforceSchema(schema);
+    const stale = this.rows.filter(
+      (row) =>
+        row.schema === schema &&
+        row.repo === repo &&
+        row.contentType === "code" &&
+        ((row.metadata.chunker_version as number | undefined) ?? 0) < version,
+    );
+
+    return Array.from(new Set(stale.map((row) => row.filePath)))
+      .sort()
+      .slice(0, limit);
   }
 
   async touchChunksForFiles(

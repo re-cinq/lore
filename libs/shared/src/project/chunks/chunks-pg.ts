@@ -146,7 +146,8 @@ export class PgChunks implements ChunksPort {
        FROM ${schema}.chunks
        WHERE repo = $1
          AND content_type = 'code'
-         AND metadata->>'symbol_name' IS NOT NULL`,
+         AND metadata->>'symbol_name' IS NOT NULL
+         AND metadata->>'symbol_type' IS DISTINCT FROM 'call'`,
       [repo],
     );
 
@@ -273,6 +274,25 @@ export class PgChunks implements ChunksPort {
       `SELECT DISTINCT file_path FROM ${schema}.chunks
        WHERE repo = $1 AND metadata->>'ingested_by' = 'reindex-job'`,
       [repo],
+    );
+
+    return rows.map((r) => r.file_path as string);
+  }
+
+  async staleChunkerFiles(
+    schema: string,
+    repo: string,
+    version: number,
+    limit: number,
+  ): Promise<string[]> {
+    enforceSchema(schema);
+    const { rows } = await this.pool.query(
+      `SELECT DISTINCT file_path FROM ${schema}.chunks
+       WHERE repo = $1 AND content_type = 'code'
+         AND COALESCE((metadata->>'chunker_version')::int, 0) < $2
+       ORDER BY file_path
+       LIMIT $3`,
+      [repo, version, limit],
     );
 
     return rows.map((r) => r.file_path as string);
