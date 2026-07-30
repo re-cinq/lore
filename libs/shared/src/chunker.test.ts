@@ -303,4 +303,15 @@ describe("chunkFile top-level call statements", () => {
     expect(chunks[0].metadata.symbol_name).toBeUndefined();
     expect(chunks[0].metadata.symbol_type).toBeUndefined();
   });
+
+  it("strips interpolations from a template-literal describe title", async () => {
+    const source = "describe(`${impl} adapter contract`, () => {});\n";
+
+    const chunks = await chunkFile(source, "contract.test.ts", "code");
+
+    expect(chunks[0].metadata).toMatchObject({
+      symbol_name: "adapter contract",
+      symbol_type: "call",
+    });
+  });
 });

@@ -27,7 +27,10 @@ const AUDIT_PRUNED_PATHS_CAP = 500;
 
 /** Per-repo, per-run cap on the chunker-upgrade heal sweep, so a version bump
  *  re-embeds the org's code chunks across a few nights instead of one giant
- *  run. Healed files stamp the current version and drop out of the query. */
+ *  run. Healed files stamp the current version and drop out of the query.
+ *  A query cap, not a healed-count cap: stale files the changed-file loop
+ *  already re-ingested this run occupy slots and are then skipped — the
+ *  shortfall heals the next night. Intentional, to keep the query cheap. */
 const HEAL_FILES_PER_RUN = 200;
 
 /** Filters a full repo file tree down to the seed set: supported content

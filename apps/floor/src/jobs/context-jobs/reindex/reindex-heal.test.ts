@@ -19,7 +19,7 @@ function codeRow(id: string, filePath: string, chunkerVersion?: number) {
         ? { ingested_by: "reindex-job" }
         : { ingested_by: "reindex-job", chunker_version: chunkerVersion },
     embedding: null,
-    ingestedAt: new Date().toISOString(),
+    ingestedAt: "2024-01-01T00:00:00.000Z",
   };
 }
 

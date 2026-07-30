@@ -221,13 +221,27 @@ function rootCalleeName(callee: Parser.SyntaxNode | null): string | undefined {
 }
 
 /** Test-runner macros whose first string argument names the block — the one
- * call family whose title is a meaningful symbol name. */
-const TEST_CALL_ROOTS = new Set(["describe", "it", "test", "suite"]);
+ * call family whose title is a meaningful symbol name. Skipped/focused
+ * variants (`xdescribe`, `fit`, …) are distinct identifiers; chained forms
+ * (`describe.skip`, `test.only`, `describe.each`) already unwrap to the root. */
+const TEST_CALL_ROOTS = new Set([
+  "describe",
+  "it",
+  "test",
+  "suite",
+  "xdescribe",
+  "xit",
+  "xtest",
+  "fdescribe",
+  "fit",
+  "ftest",
+]);
 
 /** Name a test-macro call after its first string argument
- * (`describe("PgTaskQueue", …)` → `PgTaskQueue`); any other call after its
- * callee path when that is a plain identifier or member chain
- * (`console.log(…)` → `console.log`), undefined otherwise (IIFEs). */
+ * (`describe("PgTaskQueue", …)` → `PgTaskQueue`), with template-literal
+ * interpolations stripped; any other call after its callee path when that is
+ * a plain identifier or member chain (`console.log(…)` → `console.log`),
+ * undefined otherwise (IIFEs). */
 function callSymbolName(call: Parser.SyntaxNode): string | undefined {
   const callee = call.childForFieldName("function");
   const root = rootCalleeName(callee);
@@ -237,9 +251,14 @@ function callSymbolName(call: Parser.SyntaxNode): string | undefined {
     const firstString = args?.namedChildren.find(
       (a) => a.type === "string" || a.type === "template_string",
     );
+    const title = firstString?.text
+      .slice(1, -1)
+      .replace(/\$\{[^}]*\}/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
 
-    if (firstString) {
-      return firstString.text.slice(1, -1);
+    if (title !== undefined && title.length > 0) {
+      return title;
     }
   }
 
