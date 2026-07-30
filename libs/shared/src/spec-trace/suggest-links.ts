@@ -117,6 +117,12 @@ async function readStatementContext(
   });
 }
 
+/**
+ * AcceptanceCriterion xids carry an `|ac|` segment (`repo|path|ac|N`) that
+ * Statement xids (`repo|path|N`) never do.
+ */
+const AC_XID_TAIL = /\|ac\|\d+$/;
+
 export async function suggestCandidates(
   dgraph: DgraphClientPort,
   statementXid: string,
@@ -126,6 +132,14 @@ export async function suggestCandidates(
     Number.isInteger(k),
     Error,
     `suggestCandidates: k must be an integer, got ${k}`,
+  );
+  // Suggestions are Statement-only (spec-traceability-graph statement 10):
+  // readStatementContext queries Statement.xid, so an AcceptanceCriterion xid
+  // would silently resolve to no embedding and an empty result. Fail loud instead.
+  enforceTrue(
+    !AC_XID_TAIL.test(statementXid),
+    Error,
+    `suggestCandidates: ${statementXid} is an AcceptanceCriterion xid — suggestions target Statements only`,
   );
 
   const { vecLiteral, linkedXids } = await readStatementContext(

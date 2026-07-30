@@ -740,4 +740,46 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { "TestChunk.xid": `${repo}|shared/x.test.ts` },
     ]);
   });
+
+  it("marks an acceptance criterion violated with a reason naming the failing test via the sentence path", async () => {
+    const repo = `test-report/${randomUUID()}`;
+
+    createdRepo = repo;
+    const specPath = "specs/example/spec.md";
+
+    await projectSpecFile(
+      repo,
+      specPath,
+      "# Feature Specification: Widget Service\n\n## Acceptance Criteria\n\n1. Rollback completes within one minute\n",
+      dgraphClient,
+      async () => null,
+    );
+
+    const report = {
+      tests: [
+        {
+          id: "shared/x.test.ts",
+          name: "Widget Service | Rollback completes within one minute | rollback",
+          file: "shared/x.test.ts",
+        },
+      ],
+      results: [{ id: "shared/x.test.ts", passed: false, covered: [] }],
+    };
+
+    await ingestTestReport(dgraphClient, repo, report);
+
+    const data = (await readGraph(
+      `query q($xid: string) {
+        ac(func: eq(AcceptanceCriterion.xid, $xid)) {
+          AcceptanceCriterion.violated AcceptanceCriterion.violation_reason
+        }
+      }`,
+      { $xid: `${repo}|${specPath}|ac|0` },
+    )) as { ac?: Record<string, unknown>[] };
+
+    expect(data.ac?.[0]?.["AcceptanceCriterion.violated"]).toBe(true);
+    expect(data.ac?.[0]?.["AcceptanceCriterion.violation_reason"]).toContain(
+      "rollback",
+    );
+  });
 });

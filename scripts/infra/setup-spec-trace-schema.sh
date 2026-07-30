@@ -332,12 +332,15 @@ while :; do
   RESP="$(curl -sS -X POST "${DGRAPH_HTTP}/alter" --data-binary "$SCHEMA" 2>/dev/null)" \
     || fail "could not reach Dgraph at ${DGRAPH_HTTP} — is it up? ('npm run dgraph:up' or 'npm run services:up')"
 
-  case "$RESP" in
-    *'"code":"Success"'*)
+  # Dgraph error strings vary in casing across versions — fold before matching.
+  RESP_LC="$(printf '%s' "$RESP" | tr '[:upper:]' '[:lower:]')"
+
+  case "$RESP_LC" in
+    *'"code":"success"'*)
       log "Dgraph spec-traceability schema applied (idempotent)."
       break
       ;;
-    *'Pending transactions found'* | *'errIndexingInProgress'* | *'indexing in progress'* | *'operation is already running'*)
+    *'pending transactions found'* | *'errindexinginprogress'* | *'indexing in progress'* | *'operation is already running'*)
       [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ] && fail "Dgraph still busy after ${MAX_ATTEMPTS} attempts: $RESP"
       log "Dgraph busy (attempt ${ATTEMPT}/${MAX_ATTEMPTS}) — retrying in 2s ..."
       sleep 2
