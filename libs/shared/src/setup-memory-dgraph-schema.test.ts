@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
+import { findRepoRoot } from "./lib/repo-root.js";
 
 /**
  * T003 — the memory Dgraph schema applier
@@ -12,10 +13,8 @@ import { join } from "node:path";
  */
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
-// vitest cwd is the `shared/` package root (src and dist runs alike).
-const REPO_ROOT = join(process.cwd(), "..");
 const APPLIER = join(
-  REPO_ROOT,
+  findRepoRoot(),
   "scripts",
   "infra",
   "setup-memory-dgraph-schema.sh",

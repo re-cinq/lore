@@ -32,7 +32,6 @@ import { recomputeFile } from "./recompute-spec-file.js";
  */
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
-// findRepoRoot walks up from the package cwd to the repo-root scripts/ dir.
 const APPLIER = join(
   findRepoRoot(),
   "scripts",
