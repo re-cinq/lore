@@ -26,3 +26,8 @@ export type {
   TaggedRunResult,
   TestDescriptor,
 } from "../test-report.js";
+
+/** A Dgraph query result entry carrying just a node uid. */
+export interface UidRef {
+  uid: string;
+}

@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { findRepoRoot } from "../lib/repo-root.js";
+import type { DgraphClientPort } from "./deps.js";
 import * as dgraph from "dgraph-js-http";
 import {
   selectPruneCandidates,
@@ -334,5 +335,260 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     expect(await listGraphDocPaths(dgraphClient, "ADR", repo)).toEqual([
       "adrs/ADR-001.md",
     ]);
+  });
+
+  /** Wraps the real client so the Nth mutate (or one matched on its nquads)
+   *  throws — simulating a crash/Dgraph error mid-prune. The injected error is
+   *  not a txn-abort, so `withTxn`'s backoff propagates it unretried. */
+  function portFailingOnMutate(
+    base: DgraphClientPort,
+    shouldFail: (deleteNquads: string, index: number) => boolean,
+  ): DgraphClientPort {
+    let mutateIndex = 0;
+
+    return {
+      newTxn: () => {
+        const txn = base.newTxn();
+
+        return {
+          queryWithVars: (query, vars) => txn.queryWithVars(query, vars),
+          mutate: async (req) => {
+            const index = mutateIndex;
+
+            mutateIndex += 1;
+
+            if (!shouldFail(req.deleteNquads ?? "", index)) {
+              return txn.mutate(req);
+            }
+
+            throw new Error("injected dgraph failure");
+          },
+          discard: () => txn.discard(),
+        };
+      },
+    };
+  }
+
+  async function countTestChunks(repo: string, file: string): Promise<number> {
+    const data = (await readGraph(
+      `query q($x: string) { chunk(func: eq(TestChunk.xid, $x)) { uid } }`,
+      { $x: `${repo}|${file}` },
+    )) as { chunk?: unknown[] };
+
+    return data.chunk?.length ?? 0;
+  }
+
+  it("a failure before any node delete leaves the spec listed and a re-run completes the cleanup", async () => {
+    const repo = `test-prune/${randomUUID()}`;
+
+    createdRepo = repo;
+    const specPath = "specs/dead/spec.md";
+
+    await projectSpecFile(
+      repo,
+      specPath,
+      "# D\n\n## Overview\n\n- Solo ([validated by](src/solo.test.ts#L2))\n",
+      dgraphClient,
+    );
+
+    const failing = portFailingOnMutate(
+      dgraphClient,
+      (_nquads, index) => index === 0,
+    );
+
+    await expect(deleteSpecSubtree(failing, repo, specPath)).rejects.toThrow(
+      new Error("injected dgraph failure"),
+    );
+
+    expect(await listGraphDocPaths(dgraphClient, "Spec", repo)).toEqual([
+      specPath,
+    ]);
+    expect(await countTestChunks(repo, "src/solo.test.ts")).toBe(1);
+
+    await deleteSpecSubtree(dgraphClient, repo, specPath);
+
+    expect(await countRepoNodes(repo, specPath)).toEqual({
+      spec: 0,
+      blocks: 0,
+    });
+    expect(await countTestChunks(repo, "src/solo.test.ts")).toBe(0);
+    expect(await listGraphDocPaths(dgraphClient, "Spec", repo)).toEqual([]);
+    const feature = (await readGraph(
+      `query q($fx: string) { feature(func: eq(Feature.xid, $fx)) { uid } }`,
+      { $fx: `${repo}|specs/dead` },
+    )) as { feature?: unknown[] };
+
+    expect(feature.feature?.length ?? 0).toBe(0);
+  });
+
+  it("a failure on the final spec delete keeps the spec as a prune candidate and a re-run removes it", async () => {
+    const repo = `test-prune/${randomUUID()}`;
+
+    createdRepo = repo;
+    const specPath = "specs/dead/spec.md";
+
+    await projectSpecFile(
+      repo,
+      specPath,
+      "# D\n\n## Overview\n\n- Solo ([validated by](src/solo.test.ts#L2))\n",
+      dgraphClient,
+    );
+
+    const failing = portFailingOnMutate(dgraphClient, (nquads) =>
+      nquads.includes("<Repo.specs>"),
+    );
+
+    await expect(deleteSpecSubtree(failing, repo, specPath)).rejects.toThrow(
+      new Error("injected dgraph failure"),
+    );
+
+    expect(await listGraphDocPaths(dgraphClient, "Spec", repo)).toEqual([
+      specPath,
+    ]);
+    expect(await countRepoNodes(repo, specPath)).toEqual({
+      spec: 1,
+      blocks: 0,
+    });
+    expect(await countTestChunks(repo, "src/solo.test.ts")).toBe(0);
+
+    await deleteSpecSubtree(dgraphClient, repo, specPath);
+
+    expect(await countRepoNodes(repo, specPath)).toEqual({
+      spec: 0,
+      blocks: 0,
+    });
+    expect(await listGraphDocPaths(dgraphClient, "Spec", repo)).toEqual([]);
+  });
+
+  it("a failure on the final ADR delete keeps the ADR listed and a re-run removes it and its blocks", async () => {
+    const repo = `test-prune/${randomUUID()}`;
+
+    createdRepo = repo;
+    const adrPath = "adrs/ADR-099-dead.md";
+
+    await projectAdrFile(
+      repo,
+      adrPath,
+      "# ADR-099\n\nRetired.\n",
+      dgraphClient,
+    );
+
+    const failing = portFailingOnMutate(dgraphClient, (nquads) =>
+      nquads.includes("<Repo.adrs>"),
+    );
+
+    await expect(deleteAdrSubtree(failing, repo, adrPath)).rejects.toThrow(
+      new Error("injected dgraph failure"),
+    );
+
+    expect(await listGraphDocPaths(dgraphClient, "ADR", repo)).toEqual([
+      adrPath,
+    ]);
+
+    await deleteAdrSubtree(dgraphClient, repo, adrPath);
+
+    const data = (await readGraph(
+      `query q($xid: string, $fp: string, $repo: string) {
+        adr(func: eq(ADR.xid, $xid)) { uid }
+        blocks(func: eq(Block.file_path, $fp)) @filter(eq(Block.repo, $repo)) { uid }
+      }`,
+      { $xid: `${repo}|${adrPath}`, $fp: adrPath, $repo: repo },
+    )) as { adr?: unknown[]; blocks?: unknown[] };
+
+    expect({
+      adr: data.adr?.length ?? 0,
+      blocks: data.blocks?.length ?? 0,
+    }).toEqual({ adr: 0, blocks: 0 });
+    expect(await listGraphDocPaths(dgraphClient, "ADR", repo)).toEqual([]);
+  });
+
+  it("deleteAdrSubtree removes an AcceptanceCriterion's trace_links back-edge when its TraceLink targets the ADR", async () => {
+    const repo = `test-prune/${randomUUID()}`;
+
+    createdRepo = repo;
+    const adrPath = "adrs/ADR-042-target.md";
+
+    await projectAdrFile(
+      repo,
+      adrPath,
+      "# ADR-042\n\nDecision.\n",
+      dgraphClient,
+    );
+
+    const adrData = (await readGraph(
+      `query q($xid: string) { adr(func: eq(ADR.xid, $xid)) { uid } }`,
+      { $xid: `${repo}|${adrPath}` },
+    )) as { adr?: Array<{ uid: string }> };
+    const adrUid = adrData.adr?.[0]?.uid ?? "";
+
+    expect(adrUid).not.toBe("");
+
+    const acXid = `${repo}|specs/x/spec.md|ac|0`;
+    const linkXid = `${repo}|manual-link|0`;
+    const txn = dgraphClient.newTxn();
+
+    try {
+      await txn.mutate({
+        setJson: {
+          uid: "_:ac",
+          "dgraph.type": "AcceptanceCriterion",
+          "AcceptanceCriterion.xid": acXid,
+          "AcceptanceCriterion.repo": repo,
+          "AcceptanceCriterion.trace_links": [
+            {
+              uid: "_:link",
+              "dgraph.type": "TraceLink",
+              "TraceLink.xid": linkXid,
+              "TraceLink.repo": repo,
+              "TraceLink.target": { uid: adrUid },
+            },
+          ],
+        },
+        commitNow: true,
+      });
+    } finally {
+      await txn.discard().catch(() => {});
+    }
+
+    await deleteAdrSubtree(dgraphClient, repo, adrPath);
+
+    const data = (await readGraph(
+      `query q($ax: string, $lx: string) {
+        ac(func: eq(AcceptanceCriterion.xid, $ax)) { uid links: AcceptanceCriterion.trace_links { uid } }
+        link(func: eq(TraceLink.xid, $lx)) { uid }
+      }`,
+      { $ax: acXid, $lx: linkXid },
+    )) as { ac?: Array<{ links?: unknown[] }>; link?: unknown[] };
+
+    expect({
+      link: data.link?.length ?? 0,
+      ac: data.ac?.length,
+      acLinks: data.ac?.[0]?.links ?? [],
+    }).toEqual({ link: 0, ac: 1, acLinks: [] });
+  });
+
+  it("keeps a TestChunk whose only other owner is another spec's AcceptanceCriterion", async () => {
+    const repo = `test-prune/${randomUUID()}`;
+
+    createdRepo = repo;
+    const deadPath = "specs/dead/spec.md";
+    const alivePath = "specs/alive/spec.md";
+
+    await projectSpecFile(
+      repo,
+      deadPath,
+      "# D\n\n## Overview\n\n- Shared ([validated by](src/shared.test.ts#L1))\n",
+      dgraphClient,
+    );
+    await projectSpecFile(
+      repo,
+      alivePath,
+      "# A\n\n## Acceptance Criteria\n\n1. Also shared ([validated by](src/shared.test.ts#L9))\n",
+      dgraphClient,
+    );
+
+    await deleteSpecSubtree(dgraphClient, repo, deadPath);
+
+    expect(await countTestChunks(repo, "src/shared.test.ts")).toBe(1);
   });
 });

@@ -5,7 +5,10 @@
  * still owns them. Shared by `project-spec-file` (spec-link drops) and
  * `ingest-coverage` (coverage-range drops) so the ownership rules live in one
  * place. Reads owners AFTER the edge replace, so a still-shared chunk reports its
- * remaining owners and survives.
+ * remaining owners and survives. Callers that must GC BEFORE deleting the
+ * dropping owners (whole-file prune keeps its doc node alive as the crash-resume
+ * anchor until cleanup completes) pass those owners in `excludeOwnerUids` so the
+ * ownership query discounts them instead of requiring their prior deletion.
  */
 
 import type { DgraphClientPort } from "./deps.js";
@@ -17,9 +20,20 @@ type GcNodeType = "TestChunk" | "CodeChunk" | "File";
 /** Reverse/forward edges that, if present, mean a node is still owned and must not be GC'd. */
 const CHUNK_OWNER_EDGES: Record<GcNodeType, string[]> = {
   // TestChunk.coverage (forward) means coverage is attached to this file-scoped
-  // node — it outlives any single spec link and must not be GC'd.
-  TestChunk: ["~Statement.validated_by", "TestChunk.coverage"],
-  CodeChunk: ["~Statement.implemented_by", "~Coverage.covers"],
+  // node — it outlives any single spec link and must not be GC'd. Both link
+  // owners count: `projectLinkEdges` writes `validated_by`/`implemented_by`
+  // from Statements AND AcceptanceCriteria, so a chunk whose only surviving
+  // owner is another spec's AC must survive too.
+  TestChunk: [
+    "~Statement.validated_by",
+    "~AcceptanceCriterion.validated_by",
+    "TestChunk.coverage",
+  ],
+  CodeChunk: [
+    "~Statement.implemented_by",
+    "~AcceptanceCriterion.implemented_by",
+    "~Coverage.covers",
+  ],
   // A coverage-source File is owned by any Coverage still covering it.
   File: ["~Coverage.covers"],
 };
@@ -27,13 +41,16 @@ const CHUNK_OWNER_EDGES: Record<GcNodeType, string[]> = {
 /**
  * Deletes each chunk in `previousUids` no longer in `currentUids` AND no longer
  * owned by any {@link CHUNK_OWNER_EDGES} edge. Call AFTER replacing the dropping
- * owner's edge so the ownership query sees the post-drop state.
+ * owner's edge so the ownership query sees the post-drop state — or pass the
+ * soon-to-be-deleted owners in `excludeOwnerUids` to GC before their deletion
+ * with the same ownership answer.
  */
 export async function gcOrphanChunks(
   dgraph: DgraphClientPort,
   nodeType: GcNodeType,
   previousUids: string[],
   currentUids: string[],
+  excludeOwnerUids: Set<string> = new Set(),
 ): Promise<void> {
   const current = new Set(currentUids);
   const dropped = previousUids.filter((uid) => !current.has(uid));
@@ -50,10 +67,19 @@ export async function gcOrphanChunks(
       );
       // A `[uid]` edge comes back as an array; a single-cardinality `uid` edge
       // (e.g. TestChunk.coverage) comes back as a bare object — either present
-      // shape means the chunk is still owned.
+      // shape means the chunk is still owned, unless every owner is excluded.
       const node = (res.data?.node?.[0] ?? {}) as Record<string, unknown>;
+      const isCountedOwner = (value: unknown): boolean => {
+        if (typeof value !== "object" || value === null) {
+          return false;
+        }
+
+        return "uid" in value && !excludeOwnerUids.has(String(value.uid));
+      };
       const isOwned = (value: unknown): boolean =>
-        Array.isArray(value) ? value.length > 0 : value != null;
+        Array.isArray(value)
+          ? value.some(isCountedOwner)
+          : isCountedOwner(value);
 
       return ownerEdges.some((_, index) => isOwned(node[`owner${index}`]));
     });
