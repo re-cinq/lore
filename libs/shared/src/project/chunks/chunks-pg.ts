@@ -146,7 +146,8 @@ export class PgChunks implements ChunksPort {
        FROM ${schema}.chunks
        WHERE repo = $1
          AND content_type = 'code'
-         AND metadata->>'symbol_name' IS NOT NULL`,
+         AND metadata->>'symbol_name' IS NOT NULL
+         AND metadata->>'symbol_type' IS DISTINCT FROM 'call'`,
       [repo],
     );
 

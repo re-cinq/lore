@@ -39,7 +39,11 @@ describe("healStaleChunkerFiles", () => {
       SCHEMA,
       REPO,
       new Set(),
-      async (filePath) => ingested.push(filePath),
+      async (filePath) => {
+        ingested.push(filePath);
+
+        return true;
+      },
     );
 
     expect(healed).toBe(2);
@@ -57,7 +61,11 @@ describe("healStaleChunkerFiles", () => {
       SCHEMA,
       REPO,
       new Set(["src/stale.test.ts"]),
-      async (filePath) => ingested.push(filePath),
+      async (filePath) => {
+        ingested.push(filePath);
+
+        return true;
+      },
     );
 
     expect(healed).toBe(0);
@@ -80,9 +88,27 @@ describe("healStaleChunkerFiles", () => {
       (filePath) =>
         filePath === "src/bad.ts"
           ? Promise.reject(new Error("boom"))
-          : Promise.resolve(),
+          : Promise.resolve(true),
     );
 
     expect(healed).toBe(1);
+  });
+
+  it("deletes the chunks of a file the ingest declines so the sweep converges", async () => {
+    const chunks = new InMemoryChunks([], new Set([SCHEMA]));
+
+    chunks.rows.push(codeRow("1", "graveyard/dead.ts", 1));
+
+    const healed = await healStaleChunkerFiles(
+      chunks,
+      SCHEMA,
+      REPO,
+      new Set(),
+      async () => false,
+    );
+
+    expect(healed).toBe(0);
+    expect(chunks.rows).toEqual([]);
+    expect(await chunks.staleChunkerFiles(SCHEMA, REPO, 2, 10)).toEqual([]);
   });
 });

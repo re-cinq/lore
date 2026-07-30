@@ -841,3 +841,48 @@ describe("staleChunkerFiles", () => {
     expect(sql).toContain("LIMIT $3");
   });
 });
+
+describe("codeSymbols call exclusion", () => {
+  it("excludes call-typed chunks so describe titles never enter the symbol surface", async () => {
+    const chunks = new InMemoryChunks();
+
+    await chunks.insertChunk("platform", {
+      ...sampleChunk,
+      contentType: "code",
+      filePath: "src/queue.ts",
+      metadata: {
+        chunk_index: 0,
+        symbol_name: "PgTaskQueue",
+        symbol_type: "class",
+      },
+    });
+    await chunks.insertChunk("platform", {
+      ...sampleChunk,
+      contentType: "code",
+      filePath: "src/queue.test.ts",
+      metadata: {
+        chunk_index: 0,
+        symbol_name: "PgTaskQueue",
+        symbol_type: "call",
+      },
+    });
+
+    expect(await chunks.codeSymbols("octo/repo")).toEqual([
+      {
+        symbolName: "PgTaskQueue",
+        symbolType: "class",
+        filePath: "src/queue.ts",
+      },
+    ]);
+  });
+
+  it("filters symbol_type call in the SQL read", async () => {
+    const { pool, calls } = fakePool(...teamSchemaLookup, { rows: [] });
+
+    await new PgChunks(pool).codeSymbols("octo/repo");
+
+    expect(calls[2]?.text).toContain(
+      "metadata->>'symbol_type' IS DISTINCT FROM 'call'",
+    );
+  });
+});

@@ -129,7 +129,7 @@ describe("chunkFile code AST chunking", () => {
     const chunks = await chunkFile(source, "script.ts", "code");
 
     expect(chunks).toHaveLength(1);
-    expect(chunks[0].metadata).toMatchObject({ start_line: 1, end_line: 3 });
+    expect(chunks[0].metadata).toMatchObject({ start_line: 1, end_line: 2 });
   });
 });
 
@@ -281,5 +281,26 @@ describe("chunkFile top-level call statements", () => {
       start_line: 1,
       end_line: 1,
     });
+  });
+
+  it("names a non-test call after its callee path, not its string argument", async () => {
+    const source = "app.use('/api', handler);\n";
+
+    const chunks = await chunkFile(source, "server.ts", "code");
+
+    expect(chunks[0].metadata).toMatchObject({
+      symbol_name: "app.use",
+      symbol_type: "call",
+    });
+  });
+
+  it("chunks a non-call expression statement with line ranges but no symbol fields", async () => {
+    const source = "'use strict';\n";
+
+    const chunks = await chunkFile(source, "legacy.js", "code");
+
+    expect(chunks[0].metadata).toMatchObject({ start_line: 1, end_line: 1 });
+    expect(chunks[0].metadata.symbol_name).toBeUndefined();
+    expect(chunks[0].metadata.symbol_type).toBeUndefined();
   });
 });

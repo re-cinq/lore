@@ -176,6 +176,7 @@ export class InMemoryChunks implements ChunksPort {
           row.contentType === "code" &&
           typeof row.metadata.symbol_name === "string",
       )
+      .filter((row) => row.metadata.symbol_type !== "call")
       .map((row) => ({
         symbolName: row.metadata.symbol_name as string,
         symbolType: (row.metadata.symbol_type as string | undefined) ?? null,

@@ -91,15 +91,18 @@ async function getTree(fullName: string): Promise<string[]> {
 // ── Chunker-upgrade heal sweep ──────────────────────────────────────
 
 /** Re-ingest code files whose stored chunks predate the current
- * CHUNKER_VERSION, skipping files this run already processed. Per-file
- * failures are logged and skipped; returns files healed. Unit-tested with the
- * in-memory chunks double in reindex-heal.test.ts. */
+ * CHUNKER_VERSION, skipping files this run already processed. A file the
+ * ingest declines (classifyFile no longer supports its path) has its chunks
+ * deleted instead — no current ingest path would recreate them, and leaving
+ * them would wedge the sweep's capped query on the same files every night.
+ * Per-file failures are logged and skipped; returns files healed. Unit-tested
+ * with the in-memory chunks double in reindex-heal.test.ts. */
 export async function healStaleChunkerFiles(
-  port: Pick<ChunksPort, "staleChunkerFiles">,
+  port: Pick<ChunksPort, "staleChunkerFiles" | "deleteChunksForFile">,
   schema: string,
   repo: string,
   alreadyProcessed: Set<string>,
-  ingest: (filePath: string) => Promise<unknown>,
+  ingest: (filePath: string) => Promise<boolean>,
 ): Promise<number> {
   const staleFiles = (
     await port.staleChunkerFiles(
@@ -114,8 +117,14 @@ export async function healStaleChunkerFiles(
 
   for (const filePath of staleFiles) {
     try {
-      await ingest(filePath);
-      healed++;
+      if (await ingest(filePath)) {
+        healed++;
+        continue;
+      }
+      await port.deleteChunksForFile(schema, filePath, repo);
+      console.log(
+        `[job] Heal pruned chunks of unclassifiable ${repo}:${filePath}`,
+      );
     } catch (err) {
       console.error(
         `[job] Heal error ${repo}:${filePath}: ${errorMessage(err)}`,

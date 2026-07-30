@@ -282,10 +282,12 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    - Each pass also runs a chunker-upgrade heal sweep (issue #995): `staleChunkerFiles` returns
      the repo's distinct code file paths whose chunks carry a `metadata.chunker_version` older
      than the current `CHUNKER_VERSION` (absent counts as 0), sorted and capped, and the sweep
-     re-ingests them — skipping files the changed-file loop already processed this run and
-     logging past per-file ingest failures — so chunking fixes reach files that never change,
-     with the per-run cap spreading the one-time re-embed across nights
-     ([validated by `chunks.test.ts:781`](libs/shared/src/project/chunks/chunks.test.ts#L781), [`chunks.test.ts:820`](libs/shared/src/project/chunks/chunks.test.ts#L820), [`reindex-heal.test.ts:27`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L27), [`reindex-heal.test.ts:49`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L49), [`reindex-heal.test.ts:67`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L67))
+     re-ingests them — skipping files the changed-file loop already processed this run, logging
+     past per-file ingest failures, and deleting the chunks of a file the ingest declines
+     (classifyFile no longer supports its path) so the capped query converges instead of
+     re-selecting the same wedged files nightly — so chunking fixes reach files that never
+     change, with the per-run cap spreading the one-time re-embed across nights
+     ([validated by `chunks.test.ts:781`](libs/shared/src/project/chunks/chunks.test.ts#L781), [`chunks.test.ts:820`](libs/shared/src/project/chunks/chunks.test.ts#L820), [`reindex-heal.test.ts:27`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L27), [`reindex-heal.test.ts:53`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L53), [`reindex-heal.test.ts:75`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L75), [`reindex-heal.test.ts:97`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L97))
 
 ## File Changes
 
