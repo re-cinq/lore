@@ -64,12 +64,19 @@ export function resolveTestLink(
   if (link.line === null) {
     return { ok: true };
   }
-  const covers = matching.some(
+  const ranged = matching.filter(
+    (c) => c.start_line !== null && c.end_line !== null,
+  );
+
+  // A file whose chunks carry no line ranges (pre-v2 chunker output) gives
+  // us nothing to judge the line against — unverifiable is not broken.
+  if (ranged.length === 0) {
+    return { ok: true };
+  }
+  const covers = ranged.some(
     (c) =>
-      c.start_line !== null &&
-      c.end_line !== null &&
-      c.start_line <= (link.line as number) &&
-      (link.line as number) <= c.end_line,
+      (c.start_line as number) <= (link.line as number) &&
+      (link.line as number) <= (c.end_line as number),
   );
 
   return covers ? { ok: true } : { ok: false, reason: "line-out-of-range" };
@@ -143,23 +150,29 @@ export function formatBrokenLinksReport(broken: BrokenLink[]): string {
       elided += list.length;
       continue;
     }
-    lines.push(heading);
-    lines.push("");
-    budget += heading.length + 2;
+
+    const bullets: string[] = [];
+    let sectionBudget = budget + heading.length + 2;
 
     for (const b of list) {
       const where = `\`${b.link.path}${b.link.line ? `:${b.link.line}` : ""}\``;
       const bullet = `- **${b.reason}** ${where} — referenced by: _${truncate(b.statement_text, 80)}_`;
 
-      if (budget + bullet.length > MAX_ISSUE_BODY) {
+      if (sectionBudget + bullet.length > MAX_ISSUE_BODY) {
         elided += 1;
         continue;
       }
-      lines.push(bullet);
-      budget += bullet.length + 1;
+      bullets.push(bullet);
+      sectionBudget += bullet.length + 1;
     }
-    lines.push("");
-    budget += 1;
+
+    // Every bullet was elided — a dangling empty heading would misread as a
+    // clean spec, so skip the section entirely.
+    if (bullets.length === 0) {
+      continue;
+    }
+    lines.push(heading, "", ...bullets, "");
+    budget = sectionBudget + 1;
   }
 
   if (elided > 0) {

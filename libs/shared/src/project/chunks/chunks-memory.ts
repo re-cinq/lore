@@ -278,6 +278,26 @@ export class InMemoryChunks implements ChunksPort {
     );
   }
 
+  async staleChunkerFiles(
+    schema: string,
+    repo: string,
+    version: number,
+    limit: number,
+  ): Promise<string[]> {
+    enforceSchema(schema);
+    const stale = this.rows.filter(
+      (row) =>
+        row.schema === schema &&
+        row.repo === repo &&
+        row.contentType === "code" &&
+        ((row.metadata.chunker_version as number | undefined) ?? 0) < version,
+    );
+
+    return Array.from(new Set(stale.map((row) => row.filePath)))
+      .sort()
+      .slice(0, limit);
+  }
+
   async touchChunksForFiles(
     schema: string,
     repo: string,

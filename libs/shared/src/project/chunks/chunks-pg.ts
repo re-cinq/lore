@@ -278,6 +278,25 @@ export class PgChunks implements ChunksPort {
     return rows.map((r) => r.file_path as string);
   }
 
+  async staleChunkerFiles(
+    schema: string,
+    repo: string,
+    version: number,
+    limit: number,
+  ): Promise<string[]> {
+    enforceSchema(schema);
+    const { rows } = await this.pool.query(
+      `SELECT DISTINCT file_path FROM ${schema}.chunks
+       WHERE repo = $1 AND content_type = 'code'
+         AND COALESCE((metadata->>'chunker_version')::int, 0) < $2
+       ORDER BY file_path
+       LIMIT $3`,
+      [repo, version, limit],
+    );
+
+    return rows.map((r) => r.file_path as string);
+  }
+
   async touchChunksForFiles(
     schema: string,
     repo: string,

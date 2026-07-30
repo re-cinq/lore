@@ -17,7 +17,7 @@ export interface Chunk {
   content: string;
   metadata: {
     symbol_name?: string;
-    symbol_type?: string; // 'function' | 'class' | 'method' | 'interface' | 'type' | 'export'
+    symbol_type?: string; // 'function' | 'class' | 'method' | 'interface' | 'type' | 'export' | 'call'
     start_line?: number;
     end_line?: number;
     section_title?: string;
@@ -25,6 +25,12 @@ export interface Chunk {
     content_hash?: string;
   };
 }
+
+/** Bumped whenever chunking output changes shape for existing content, so the
+ * nightly reindex can spot files chunked by an older chunker and re-ingest
+ * them. v2: top-level expression statements (describe blocks) become chunks
+ * and every code chunk carries start_line/end_line. */
+export const CHUNKER_VERSION = 2;
 
 // ── Lazy parser + grammar cache ──────────────────────────────────────
 
@@ -55,6 +61,9 @@ const TS_DECLARATIONS = new Set([
   "export_statement",
   "lexical_declaration",
   "variable_declaration",
+  // Top-level calls like describe(...) — without this, vitest test bodies
+  // are dropped from ingestion entirely (issue #995).
+  "expression_statement",
 ]);
 const JS_DECLARATIONS = new Set([
   "function_declaration",
@@ -62,6 +71,7 @@ const JS_DECLARATIONS = new Set([
   "export_statement",
   "lexical_declaration",
   "variable_declaration",
+  "expression_statement",
 ]);
 const DECLARATION_TYPES: Record<string, Set<string>> = {
   ".ts": TS_DECLARATIONS,
@@ -175,7 +185,33 @@ function inferSymbolType(nodeType: string): string {
     return "function";
   } // could be class too, refined below
 
+  if (nodeType === "expression_statement") {
+    return "call";
+  }
+
   return "export";
+}
+
+/** Name a top-level call statement after its first string argument
+ * (`describe("PgTaskQueue", …)` → `PgTaskQueue`), falling back to the callee
+ * (`describe`). Returns undefined for non-call expression statements. */
+function extractCallName(node: Parser.SyntaxNode): string | undefined {
+  const call = node.namedChildren.find((c) => c.type === "call_expression");
+
+  if (!call) {
+    return undefined;
+  }
+
+  const args = call.childForFieldName("arguments");
+  const firstString = args?.namedChildren.find(
+    (a) => a.type === "string" || a.type === "template_string",
+  );
+
+  if (firstString) {
+    return firstString.text.slice(1, -1);
+  }
+
+  return call.childForFieldName("function")?.text;
 }
 
 function extractSymbolName(node: Parser.SyntaxNode): string | undefined {
@@ -184,6 +220,10 @@ function extractSymbolName(node: Parser.SyntaxNode): string | undefined {
 
   if (nameNode) {
     return nameNode.text;
+  }
+
+  if (node.type === "expression_statement") {
+    return extractCallName(node);
   }
 
   // export_statement wraps a declaration
@@ -262,7 +302,7 @@ function chunkCodeAST(
 
   if (decls.length === 0) {
     // No declarations found -- return whole file as one chunk
-    return wholeFileChunk(content);
+    return wholeFileChunk(content, { start_line: 1, end_line: lines.length });
   }
 
   const chunks: Chunk[] = [];
@@ -463,6 +503,7 @@ export function buildIngestedChunkMetadata(
     ...chunk.metadata,
     file_path: opts.filePath,
     ingested_by: opts.ingestedBy,
+    chunker_version: CHUNKER_VERSION,
     ...(opts.commit !== undefined ? { commit: opts.commit } : {}),
   };
 }
@@ -497,7 +538,12 @@ async function chunkFileRaw(
     const tree = p.parse(content);
     const chunks = chunkCodeAST(tree, content, ext);
 
-    return chunks.length > 0 ? chunks : wholeFileChunk(content);
+    return chunks.length > 0
+      ? chunks
+      : wholeFileChunk(content, {
+          start_line: 1,
+          end_line: content.split("\n").length,
+        });
   } catch (err) {
     console.error(
       `[chunker] AST parse failed for ${filePath}, falling back to sliding window:`,

@@ -776,3 +776,68 @@ describe("relocateLegacyChunks", () => {
     expect(sql).not.toContain("search_tsv");
   });
 });
+
+describe("staleChunkerFiles", () => {
+  it("returns distinct code file paths below the version, sorted and capped", async () => {
+    const chunks = new InMemoryChunks();
+    const codeChunk = { ...sampleChunk, contentType: "code" };
+
+    await chunks.insertChunk("platform", {
+      ...codeChunk,
+      filePath: "src/b.test.ts",
+      metadata: { chunk_index: 0 },
+    });
+    await chunks.insertChunk("platform", {
+      ...codeChunk,
+      filePath: "src/b.test.ts",
+      metadata: { chunk_index: 1, chunker_version: 1 },
+    });
+    await chunks.insertChunk("platform", {
+      ...codeChunk,
+      filePath: "src/a.test.ts",
+      metadata: { chunk_index: 0, chunker_version: 1 },
+    });
+    await chunks.insertChunk("platform", {
+      ...codeChunk,
+      filePath: "src/current.ts",
+      metadata: { chunk_index: 0, chunker_version: 2 },
+    });
+    await chunks.insertChunk("platform", {
+      ...codeChunk,
+      contentType: "spec",
+      filePath: "specs/old.md",
+      metadata: { chunk_index: 0 },
+    });
+
+    expect(
+      await chunks.staleChunkerFiles("platform", "octo/repo", 2, 10),
+    ).toEqual(["src/a.test.ts", "src/b.test.ts"]);
+    expect(
+      await chunks.staleChunkerFiles("platform", "octo/repo", 2, 1),
+    ).toEqual(["src/a.test.ts"]);
+  });
+
+  it("queries code chunks below the version with the cap as a parameter", async () => {
+    const { pool, calls } = fakePool({
+      rows: [{ file_path: "src/a.test.ts" }],
+    });
+
+    expect(
+      await new PgChunks(pool).staleChunkerFiles(
+        "platform",
+        "octo/repo",
+        2,
+        200,
+      ),
+    ).toEqual(["src/a.test.ts"]);
+
+    const sql = calls[0]!.text;
+
+    expect(calls[0]!.params).toEqual(["octo/repo", 2, 200]);
+    expect(sql).toContain("content_type = 'code'");
+    expect(sql).toContain(
+      "COALESCE((metadata->>'chunker_version')::int, 0) < $2",
+    );
+    expect(sql).toContain("LIMIT $3");
+  });
+});

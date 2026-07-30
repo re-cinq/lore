@@ -18,6 +18,7 @@ export {
 export {
   chunkFile,
   buildIngestedChunkMetadata,
+  CHUNKER_VERSION,
   type Chunk,
 } from "./chunker.js";
 export { redactSecrets } from "./redact.js";
