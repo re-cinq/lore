@@ -102,7 +102,7 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const content =
-      "# Feature Specification: Widget Service\n\n## Success Criteria\n\n1. Onboarding a new repo produces a\n   PR within 5 minutes\n";
+      "# Feature Specification: Widget Service\n\n## Requirements\n\n1. Onboarding a new repo produces a\n   PR within 5 minutes\n";
 
     await projectSpecFile(
       repo,
@@ -130,7 +130,7 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
     await projectSpecFile(
       repo,
       "specs/example/spec.md",
-      "# Feature Specification: Widget Service\n\n## Success Criteria\n\n1. A real criterion.\n",
+      "# Feature Specification: Widget Service\n\n## Requirements\n\n1. A real criterion.\n",
       dgraphClient,
       async () => null,
     );
@@ -142,5 +142,44 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
     });
 
     expect(matched).toEqual([]);
+  });
+
+  it("resolves an acceptance-criteria sentence to the AcceptanceCriterion uid", async () => {
+    const repo = `test-sent/${randomUUID()}`;
+
+    createdRepo = repo;
+    const filePath = "specs/example/spec.md";
+
+    await projectSpecFile(
+      repo,
+      filePath,
+      "# Feature Specification: Widget Service\n\n## Acceptance Criteria\n\n1. Rollback completes within one minute\n",
+      dgraphClient,
+      async () => null,
+    );
+
+    const matched = await resolveSentenceLink(dgraphClient, repo, {
+      spec: "Widget Service",
+      sentence: "Rollback completes within one minute",
+      label: "rollback",
+    });
+
+    const txn = dgraphClient.newTxn();
+    let expectedUid: string | undefined;
+
+    try {
+      const res = await txn.queryWithVars(
+        `query q($xid: string) { n(func: eq(AcceptanceCriterion.xid, $xid)) { uid } }`,
+        { $xid: `${repo}|${filePath}|ac|0` },
+      );
+
+      expectedUid = (res.data as { n?: { uid: string }[] }).n?.[0]?.uid;
+    } finally {
+      await txn.discard().catch(() => {});
+    }
+
+    expect(matched).toEqual([
+      { uid: expectedUid, nodeType: "AcceptanceCriterion" },
+    ]);
   });
 });

@@ -320,11 +320,31 @@ type TraceLink {
 DQL
 )
 
-log "Applying spec-traceability Dgraph schema to ${DGRAPH_HTTP}/alter ..."
-RESP="$(curl -fsS -X POST "${DGRAPH_HTTP}/alter" --data-binary "$SCHEMA" 2>/dev/null)" \
-  || fail "could not reach Dgraph at ${DGRAPH_HTTP} — is it up? ('npm run dgraph:up' or 'npm run services:up')"
+# Concurrent appliers (parallel test suites, parallel CI jobs) make Dgraph
+# reject /alter transiently ("Pending transactions found", indexing in
+# progress); the apply is idempotent, so retry until the cluster is free.
+MAX_ATTEMPTS=10
 
-case "$RESP" in
-  *'"code":"Success"'*) log "Dgraph spec-traceability schema applied (idempotent)." ;;
-  *) fail "Dgraph rejected the schema: $RESP" ;;
-esac
+log "Applying spec-traceability Dgraph schema to ${DGRAPH_HTTP}/alter ..."
+ATTEMPT=0
+while :; do
+  ATTEMPT=$((ATTEMPT + 1))
+  RESP="$(curl -sS -X POST "${DGRAPH_HTTP}/alter" --data-binary "$SCHEMA" 2>/dev/null)" \
+    || fail "could not reach Dgraph at ${DGRAPH_HTTP} — is it up? ('npm run dgraph:up' or 'npm run services:up')"
+
+  # Dgraph error strings vary in casing across versions — fold before matching.
+  RESP_LC="$(printf '%s' "$RESP" | tr '[:upper:]' '[:lower:]')"
+
+  case "$RESP_LC" in
+    *'"code":"success"'*)
+      log "Dgraph spec-traceability schema applied (idempotent)."
+      break
+      ;;
+    *'pending transactions found'* | *'errindexinginprogress'* | *'indexing in progress'* | *'operation is already running'*)
+      [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ] && fail "Dgraph still busy after ${MAX_ATTEMPTS} attempts: $RESP"
+      log "Dgraph busy (attempt ${ATTEMPT}/${MAX_ATTEMPTS}) — retrying in 2s ..."
+      sleep 2
+      ;;
+    *) fail "Dgraph rejected the schema: $RESP" ;;
+  esac
+done

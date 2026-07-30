@@ -276,4 +276,55 @@ describe.skipIf(!reachable)("suggestCandidates (live Dgraph)", () => {
 
     expect(candidates).toEqual([]);
   });
+
+  it("returns the repo-A chunk when 40 identical-embedding repo-B chunks flood the ANN top-k", async () => {
+    const repoA = `test-suggest/${randomUUID()}`;
+    const repoB = `test-suggest/${randomUUID()}`;
+    const statementXid = `${repoA}|specs/x/spec.md|0`;
+
+    createdRepo = repoA;
+    createdStatementXid = statementXid;
+    createdExtraRepos = [repoB];
+
+    // 40 repo-B chunks + 1 repo-A chunk, all identical: an un-overfetched
+    // similar_to top-5 is (near-)certainly all repo-B, so the repo @filter
+    // would starve repo A to an empty result. 41 total stays within the
+    // k * ANN_OVERFETCH = 50 fetch window, so repo A's chunk must survive.
+    const floodChunks = Array.from({ length: 40 }, (_, i) => ({
+      "dgraph.type": "CodeChunk",
+      "CodeChunk.xid": `${repoB}|cc${i}`,
+      "CodeChunk.repo": repoB,
+      "CodeChunk.file_path": `b${i}.ts`,
+      "CodeChunk.embedding": lit(unit(5)),
+    }));
+
+    const txn = dgraphClient.newTxn();
+
+    try {
+      await txn.mutate({
+        setJson: [
+          ...floodChunks,
+          {
+            "dgraph.type": "CodeChunk",
+            "CodeChunk.xid": `${repoA}|ccA`,
+            "CodeChunk.repo": repoA,
+            "CodeChunk.file_path": "a.ts",
+            "CodeChunk.embedding": lit(unit(5)),
+          },
+          {
+            "dgraph.type": "Statement",
+            "Statement.xid": statementXid,
+            "Statement.embedding": lit(unit(5)),
+          },
+        ],
+        commitNow: true,
+      });
+    } finally {
+      await txn.discard().catch(() => {});
+    }
+
+    const candidates = await suggestCandidates(dgraphClient, statementXid, 5);
+
+    expect(candidates).toEqual([{ xid: `${repoA}|ccA`, kind: "code" }]);
+  });
 });
