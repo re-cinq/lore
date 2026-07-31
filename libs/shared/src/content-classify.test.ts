@@ -83,4 +83,20 @@ describe("classifyFile", () => {
     expect(classifyFile("logo.png")).toBeNull();
     expect(classifyFile("data.bin")).toBeNull();
   });
+
+  it("returns null for every file under a fixtures/ or __fixtures__/ segment", () => {
+    expect(
+      classifyFile(
+        "tools/eslint-plugin-lore/rules/fixtures/require-spec-link/specs/foo/spec.md",
+      ),
+    ).toBeNull();
+    expect(classifyFile("libs/shared/src/__fixtures__/sample.ts")).toBeNull();
+    expect(classifyFile("__fixtures__/sample.ts")).toBeNull();
+    expect(classifyFile("fixtures/adrs/ADR-001.md")).toBeNull();
+  });
+
+  it("classifies a path merely containing the word fixtures normally", () => {
+    expect(classifyFile("specs/fixtures-handling/spec.md")).toBe("spec");
+    expect(classifyFile("src/fixtures-loader.ts")).toBe("code");
+  });
 });

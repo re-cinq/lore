@@ -23,6 +23,12 @@ export function classifyFile(path: string): ContentType | null {
     return null;
   }
 
+  // Test fixtures are props, not content: a fixture spec's deliberately-fake
+  // links would reach the spec-link validator as real rot (issue #1015).
+  if (/(?:^|\/)(?:fixtures|__fixtures__)\//.test(path)) {
+    return null;
+  }
+
   if (BINARY_RE.test(path)) {
     return null;
   }
