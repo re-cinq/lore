@@ -24,6 +24,20 @@ import type {
 } from "../pulls/pull-requests-port.js";
 
 /**
+ * The `octokit` meta-package bundles plugin-retry, which retries 5xx/ambiguous
+ * failures without regard for idempotency — a POST GitHub committed but
+ * answered with an error gets re-created seconds later, below every
+ * application-level dedupe (#1017: duplicate reviews under one run marker).
+ * Spread into every non-idempotent call so mutations never blind-retry; where
+ * a mutation retry is genuinely wanted it belongs at the application layer as
+ * probe-then-retry (see reviewAlreadyPosted in post-review.ts). Reads keep the
+ * default retry. plugin-throttling's single rate-limit retry stays enabled for
+ * mutations: a rate-limited request is rejected before processing, so
+ * re-sending it cannot duplicate anything.
+ */
+const NO_RETRY = { request: { retries: 0 } } as const;
+
+/**
  * One GitHub adapter satisfying BOTH GitHubPort and PullRequestsPort. Auth is
  * the App-or-token resolution relocated from mcp-server/src/github-client.ts;
  * the REST calls are relocated from agent/src/github.ts. octokit is imported
@@ -233,6 +247,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const ok = await this.octo();
     const [owner, name] = split(repo);
     const { data } = await ok.rest.issues.create({
+      ...NO_RETRY,
       owner,
       repo: name,
       title,
@@ -260,6 +275,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     for (const label of labels) {
       try {
         await ok.rest.issues.createLabel({
+          ...NO_RETRY,
           owner,
           repo: name,
           name: label.name,
@@ -283,6 +299,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
 
     await ok.rest.issues.createComment({
+      ...NO_RETRY,
       owner,
       repo: name,
       issue_number: number,
@@ -299,6 +316,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
 
     await ok.rest.issues.update({
+      ...NO_RETRY,
       owner,
       repo: name,
       issue_number: number,
@@ -316,6 +334,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
 
     await ok.rest.issues.addLabels({
+      ...NO_RETRY,
       owner,
       repo: name,
       issue_number: number,
@@ -333,6 +352,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
     try {
       await ok.rest.issues.removeLabel({
+        ...NO_RETRY,
         owner,
         repo: name,
         issue_number: number,
@@ -358,6 +378,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
     try {
       await ok.rest.git.createRef({
+        ...NO_RETRY,
         owner,
         repo: name,
         ref: `refs/heads/${branch}`,
@@ -366,11 +387,13 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     } catch (err) {
       if ((err as { status?: number }).status === 422) {
         await ok.rest.git.deleteRef({
+          ...NO_RETRY,
           owner,
           repo: name,
           ref: `heads/${branch}`,
         });
         await ok.rest.git.createRef({
+          ...NO_RETRY,
           owner,
           repo: name,
           ref: `refs/heads/${branch}`,
@@ -411,6 +434,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       }
     }
     await ok.rest.repos.createOrUpdateFileContents({
+      ...NO_RETRY,
       owner,
       repo: name,
       path,
@@ -441,6 +465,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
     if (existing) {
       await ok.rest.checks.update({
+        ...NO_RETRY,
         owner,
         repo: name,
         check_run_id: existing.id,
@@ -450,6 +475,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       return;
     }
     await ok.rest.checks.create({
+      ...NO_RETRY,
       owner,
       repo: name,
       name: input.name,
@@ -495,6 +521,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
 
     await ok.rest.issues.createComment({
+      ...NO_RETRY,
       owner,
       repo: name,
       issue_number: number,
@@ -512,6 +539,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
 
     await ok.rest.pulls.createReview({
+      ...NO_RETRY,
       owner,
       repo: name,
       pull_number: number,
@@ -529,6 +557,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
 
     await ok.rest.pulls.createReview({
+      ...NO_RETRY,
       owner,
       repo: name,
       pull_number: number,
@@ -553,6 +582,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
 
     await ok.rest.pulls.createReplyForReviewComment({
+      ...NO_RETRY,
       owner,
       repo: name,
       pull_number: number,
@@ -566,6 +596,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
 
     await ok.rest.issues.addLabels({
+      ...NO_RETRY,
       owner,
       repo: name,
       issue_number: number,
@@ -582,6 +613,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
 
     await ok.rest.pulls.merge({
+      ...NO_RETRY,
       owner,
       repo: name,
       pull_number: number,
@@ -600,6 +632,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const ok = await this.octo();
     const [owner, name] = split(repo);
     const { data } = await ok.rest.pulls.create({
+      ...NO_RETRY,
       owner,
       repo: name,
       title,
@@ -610,6 +643,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
     if (labels.length > 0) {
       await ok.rest.issues.addLabels({
+        ...NO_RETRY,
         owner,
         repo: name,
         issue_number: data.number,
@@ -845,6 +879,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
     try {
       await ok.rest.actions.updateRepoVariable({
+        ...NO_RETRY,
         owner,
         repo: repoName,
         name,
@@ -852,6 +887,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       });
     } catch {
       await ok.rest.actions.createRepoVariable({
+        ...NO_RETRY,
         owner,
         repo: repoName,
         name,
@@ -889,6 +925,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     );
 
     await ok.rest.actions.createOrUpdateRepoSecret({
+      ...NO_RETRY,
       owner,
       repo: repoName,
       secret_name: name,
