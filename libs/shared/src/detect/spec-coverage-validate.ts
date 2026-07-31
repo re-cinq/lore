@@ -161,7 +161,7 @@ export function collectBrokenLinks(
       out.push({
         spec_path: specPath,
         statement_text: statement.text,
-        link,
+        link: { ...link, path: resolveLinkPath(link.path, specPath) },
         reason: "non-trailing-link",
       });
     }
