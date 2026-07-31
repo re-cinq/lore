@@ -40,6 +40,8 @@ describe("PgUsage adapter", () => {
       250,
       0,
       1500,
+      "success",
+      null,
     ]);
   });
 
@@ -162,5 +164,24 @@ describe("PgUsage adapter", () => {
     // and COALESCE falls back to al.id (verified against Postgres, not here).
     expect(calls[0]?.text).toContain("n.agent_cr_name = g.cr");
     expect(calls[0]?.params?.[1]).toBeNull();
+  });
+
+  it("writes status failed and the error message through the routing insert", async () => {
+    const { pool, calls } = fakePool();
+
+    await new PgUsage(pool).logLlmCall({
+      taskId: "d6f1c2a0-0000-0000-0000-000000000000",
+      jobName: "auto-curation",
+      model: "claude-haiku-4-5-20251001",
+      inputTokens: 0,
+      outputTokens: 0,
+      durationMs: 42,
+      status: "failed",
+      error: "credit balance too low",
+    });
+
+    expect(calls[0]?.text).toContain("status, error");
+    expect(calls[0]?.params?.[8]).toBe("failed");
+    expect(calls[0]?.params?.[9]).toBe("credit balance too low");
   });
 });

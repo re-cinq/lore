@@ -1,6 +1,7 @@
 import { initOtel, shutdownOtel } from "./otel-init.js";
 import { Llm } from "@re-cinq/lore-shared";
-import { initPool, getPool } from "./kernel/db.js";
+import { initPool } from "./kernel/db.js";
+import { usage } from "./kernel/queues.js";
 import { loadTaskTypes } from "./kernel/config.js";
 import { recoverStaleTasks, startWorker } from "./jobs/task/worker.js";
 import {
@@ -28,7 +29,7 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => void shutdownOtel());
 
   initPool();
-  Llm.configure({ costPool: getPool() });
+  Llm.configure({ usage: usage() });
   console.log("[floor] Platform: github (via project facade)");
 
   try {

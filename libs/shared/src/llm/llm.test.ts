@@ -42,4 +42,19 @@ describe("Llm singleton", () => {
     // it rebuilds a real provider, not the pinned stub.
     expect(["anthropic", "cli"]).toContain(Llm.instance.vendor);
   });
+
+  it("reports usageConfigured true after configure with a port and false after clearing", () => {
+    expect(Llm.usageConfigured).toBe(false);
+
+    Llm.configure({
+      usage: {
+        logLlmCall: async () => ({ correlated: true }),
+        processedCounts: async () => ({ today: 0, total: 0 }),
+      },
+    });
+    expect(Llm.usageConfigured).toBe(true);
+
+    Llm.configure({});
+    expect(Llm.usageConfigured).toBe(false);
+  });
 });
