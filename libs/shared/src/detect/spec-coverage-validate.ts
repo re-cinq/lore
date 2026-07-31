@@ -28,6 +28,7 @@ import {
   linksForStatements,
   findMisplacedCoverageLinks,
   reassembleSpec,
+  resolveLinkPath,
   type TestLinkRef,
   type Project,
   type SpecChunkWithIngest,
@@ -137,13 +138,20 @@ export function collectBrokenLinks(
 
   for (const { statement, testLinks } of linksForStatements(content)) {
     for (const link of testLinks) {
-      const r = resolveTestLink(link, chunks, specIngestedAt);
+      // Chunk file_paths are repo-root-relative; a `../` href is relative to
+      // the spec's directory (GitHub-render semantics), so canonicalize before
+      // matching — a raw `../` path can never equal a chunk path.
+      const resolved: TestLinkRef = {
+        ...link,
+        path: resolveLinkPath(link.path, specPath),
+      };
+      const r = resolveTestLink(resolved, chunks, specIngestedAt);
 
       if (!r.ok) {
         out.push({
           spec_path: specPath,
           statement_text: statement.text,
-          link,
+          link: resolved,
           reason: r.reason,
         });
       }
@@ -153,7 +161,7 @@ export function collectBrokenLinks(
       out.push({
         spec_path: specPath,
         statement_text: statement.text,
-        link,
+        link: { ...link, path: resolveLinkPath(link.path, specPath) },
         reason: "non-trailing-link",
       });
     }
