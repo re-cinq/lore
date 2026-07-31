@@ -44,6 +44,10 @@ export interface TestChunkRange {
   filePath: string;
   startLine: number | null;
   endLine: number | null;
+  /** When the chunk row was last ingested/verified — lets the validate job
+   * tell index lag (file re-chunked before the spec linking into it) apart
+   * from genuine anchor rot. */
+  ingestedAt: string | Date | null;
 }
 
 /** A spec chunk carrying its raw embedding (backfill similarity selection). */
