@@ -539,7 +539,7 @@ The system MUST detect when specifications diverge from implementation.
   `codeSymbols` read excludes `symbol_type = 'call'` chunks, so a test
   file's `describe` title can never satisfy the drift heuristic's
   known-symbol check for a deleted declaration.
-  ([validated by `chunks.test.ts:153`](libs/shared/src/project/chunks/chunks.test.ts#L153), [`chunks.test.ts:171`](libs/shared/src/project/chunks/chunks.test.ts#L171), [`chunks.test.ts:190`](libs/shared/src/project/chunks/chunks.test.ts#L190), [`chunks.test.ts:212`](libs/shared/src/project/chunks/chunks.test.ts#L212), [`chunks.test.ts:846`](libs/shared/src/project/chunks/chunks.test.ts#L846), [`chunks.test.ts:879`](libs/shared/src/project/chunks/chunks.test.ts#L879))
+  ([validated by `chunks.test.ts:153`](libs/shared/src/project/chunks/chunks.test.ts#L153), [`chunks.test.ts:171`](libs/shared/src/project/chunks/chunks.test.ts#L171), [`chunks.test.ts:190`](libs/shared/src/project/chunks/chunks.test.ts#L190), [`chunks.test.ts:212`](libs/shared/src/project/chunks/chunks.test.ts#L212), [`chunks.test.ts:887`](libs/shared/src/project/chunks/chunks.test.ts#L887), [`chunks.test.ts:920`](libs/shared/src/project/chunks/chunks.test.ts#L920))
 
 ### FR-15: Progressive Trust (Phase 1)
 

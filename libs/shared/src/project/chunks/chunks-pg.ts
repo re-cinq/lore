@@ -279,6 +279,17 @@ export class PgChunks implements ChunksPort {
     return rows.map((r) => r.file_path as string);
   }
 
+  async chunkedFilePaths(schema: string, repo: string): Promise<string[]> {
+    enforceSchema(schema);
+    const { rows } = await this.pool.query(
+      `SELECT DISTINCT file_path FROM ${schema}.chunks
+       WHERE repo = $1`,
+      [repo],
+    );
+
+    return rows.map((r) => r.file_path as string);
+  }
+
   async staleChunkerFiles(
     schema: string,
     repo: string,

@@ -842,6 +842,47 @@ describe("staleChunkerFiles", () => {
   });
 });
 
+describe("chunkedFilePaths", () => {
+  it("returns distinct file paths across every owner and content type", async () => {
+    const chunks = new InMemoryChunks();
+
+    await chunks.insertChunk("platform", sampleChunk);
+    await chunks.insertChunk("platform", sampleChunk);
+    await chunks.insertChunk("platform", {
+      ...sampleChunk,
+      contentType: "code",
+      filePath: "src/api-owned.ts",
+      metadata: { chunk_index: 0, ingested_by: "api" },
+    });
+    await chunks.insertChunk("platform", {
+      ...sampleChunk,
+      repo: "octo/other",
+      filePath: "src/other-repo.ts",
+    });
+
+    expect(
+      (await chunks.chunkedFilePaths("platform", "octo/repo")).sort(),
+    ).toEqual(["specs/spec.md", "src/api-owned.ts"]);
+  });
+
+  it("queries distinct file paths filtered only by repo", async () => {
+    const { pool, calls } = fakePool({
+      rows: [{ file_path: "src/a.ts" }],
+    });
+
+    expect(
+      await new PgChunks(pool).chunkedFilePaths("platform", "octo/repo"),
+    ).toEqual(["src/a.ts"]);
+
+    const sql = calls[0]!.text;
+
+    expect(calls[0]!.params).toEqual(["octo/repo"]);
+    expect(sql).toContain("SELECT DISTINCT file_path FROM platform.chunks");
+    expect(sql).not.toContain("ingested_by");
+    expect(sql).not.toContain("content_type");
+  });
+});
+
 describe("codeSymbols call exclusion", () => {
   it("excludes call-typed chunks so describe titles never enter the symbol surface", async () => {
     const chunks = new InMemoryChunks();
