@@ -84,9 +84,9 @@ The tool returns the CI-or-local refusal without running the run command when
 `LORE_DB_HOST` is set. ([validated by `returns the CI-or-local refusal without running the run command on the cluster`](apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L111))
 
 The null-manifest precondition shares its branch with `listTestsTool` and is
-covered there. *(untested for `runTestTool` specifically: no dedicated
-null-manifest case exists for the run path; the identical guard on the list path
-is [validated by `reports no manifest declared when the manifest is null on a local sandbox`](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L127).)*
+covered there — no dedicated null-manifest case exists for the run path, but the
+identical guard on the list path is validated.
+([validated by `reports no manifest declared when the manifest is null on a local sandbox`](apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L82))
 
 `runTestsRun` substitutes the selector into the run command before executing.
 ([validated by `substitutes the selector into the run command before executing`](apps/mcp-server/src/features/spec-trace/spec-trace-tools.test.ts#L163))
