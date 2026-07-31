@@ -409,6 +409,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 
 - emits the classified action in LORE_NODE_RESULT extras. ([validated by](apps/lore-station/src/stations/comment-triage.test.ts#L22))
 - defaults to ignore when classification fails. ([validated by](apps/lore-station/src/stations/comment-triage.test.ts#L41))
+- reports the classification call's usage on the node result, so the cost sink records the triage spend. ([validated by](apps/lore-station/src/stations/comment-triage.test.ts#L51))
 
 ### `apps/web-ui/src/app/assembly-lines/[id]/TriggerReviewButton.test.tsx`
 
@@ -470,6 +471,8 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): first re
 - returns the action the model chose. ([validated by](libs/shared/src/review/comment-triage.test.ts#L9))
 - defaults to ignore when the model returns an unknown action. ([validated by](libs/shared/src/review/comment-triage.test.ts#L24))
 - passes the replied-to comment into the prompt for a reply. ([validated by](libs/shared/src/review/comment-triage.test.ts#L32))
+- returns the classification call's usage for the station cost report. ([validated by](libs/shared/src/review/comment-triage.test.ts#L49))
+- returns no usage when the model call throws. ([validated by](libs/shared/src/review/comment-triage.test.ts#L71))
 
 ### `libs/shared/src/review/conventional-comment.test.ts`
 

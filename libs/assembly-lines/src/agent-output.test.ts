@@ -341,3 +341,47 @@ describe("eventLine", () => {
     );
   });
 });
+
+describe("resultLine LLM usage", () => {
+  const usage = {
+    inputTokens: 812,
+    outputTokens: 41,
+    costUsd: 0.0008,
+    durationMs: 950,
+    model: "claude-haiku-4-5-20251001",
+  };
+
+  it("lifts reported usage onto the terminal line as the cost sink's claude-style fields", () => {
+    const event = JSON.parse(
+      resultLine({ outcome: "success", extras: { action: "answer" }, usage }),
+    );
+
+    expect(event).toMatchObject({
+      type: "result",
+      is_error: false,
+      model: "claude-haiku-4-5-20251001",
+      usage: { input_tokens: 812, output_tokens: 41 },
+      total_cost_usd: 0.0008,
+      duration_ms: 950,
+    });
+  });
+
+  it("keeps usage out of the LORE_NODE_RESULT payload", () => {
+    const event = JSON.parse(
+      resultLine({ outcome: "success", extras: {}, usage }),
+    );
+
+    expect(parseNodeResult(event.result)).toEqual({
+      outcome: "success",
+      extras: {},
+    });
+  });
+
+  it("emits a usage-less terminal line unchanged when the node reported none", () => {
+    expect(JSON.parse(resultLine({ outcome: "success", extras: {} }))).toEqual({
+      type: "result",
+      is_error: false,
+      result: 'LORE_NODE_RESULT: {"outcome":"success","extras":{}}',
+    });
+  });
+});

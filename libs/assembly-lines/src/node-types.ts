@@ -7,10 +7,31 @@ import type { AssemblyLineNode } from "./loader.js";
 
 export type StageOutcome = "success" | "changes_requested" | "failed";
 
+/**
+ * LLM usage a station reports for cost accounting — exactly the fields the
+ * `/api/agent-events` cost sink reads off a terminal result event. Structurally
+ * a subset of the shared `LlmUsage`, so a station can assign one directly.
+ * Cache tokens are deliberately absent: the provider already folds them into
+ * `costUsd`, and the sink's `LlmCallRow` does not track them separately.
+ */
+export interface NodeLlmUsage {
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  durationMs: number;
+  model: string;
+}
+
 export interface NodeResult {
   outcome: StageOutcome;
   /** Free-form extras (e.g. `Lore-Cost-Tokens`, `Lore-Validation-Status`). */
   extras?: Record<string, string>;
+  /**
+   * LLM usage of the node's own model calls (stations without Postgres report
+   * cost this way). `resultLine` lifts it onto the terminal line's claude-style
+   * envelope fields; it is never serialized into the LORE_NODE_RESULT payload.
+   */
+  usage?: NodeLlmUsage;
 }
 
 export interface NodeContext {

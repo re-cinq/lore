@@ -18,7 +18,7 @@ describe("classifyComment", () => {
         prNumber: 7,
         originalComment: "issue: null deref here",
       }),
-    ).toEqual({ action: "address", reason: "approved the fix" });
+    ).toMatchObject({ action: "address", reason: "approved the fix" });
   });
 
   it("defaults to ignore when the model returns an unknown action", async () => {
@@ -44,5 +44,39 @@ describe("classifyComment", () => {
     });
 
     expect(fake.calls[0]?.prompt).toContain("issue: guard the null");
+  });
+
+  it("returns the classification call's usage for the station cost report", async () => {
+    Llm.setInstance(
+      new FakeLlm({
+        data: { action: "answer", reason: "question" },
+        usage: { inputTokens: 812, outputTokens: 41, costUsd: 0.0008 },
+      }),
+    );
+
+    const decision = await classifyComment({
+      body: "why this?",
+      isReply: false,
+      prNumber: 7,
+    });
+
+    expect(decision.usage).toMatchObject({
+      inputTokens: 812,
+      outputTokens: 41,
+      costUsd: 0.0008,
+      model: "fake",
+    });
+  });
+
+  it("returns no usage when the model call throws", async () => {
+    Llm.setInstance({
+      vendor: "throwing",
+      complete: () => Promise.reject(new Error("down")),
+      completeWithTool: () => Promise.reject(new Error("down")),
+    });
+
+    expect(
+      await classifyComment({ body: "hm", isReply: false, prNumber: 7 }),
+    ).toEqual({ action: "ignore", reason: "triage failed" });
   });
 });

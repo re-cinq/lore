@@ -40,7 +40,7 @@ feature specs.
 
 - **FR — CliProvider:** shells out to `claude -p` with the combined system+user prompt and `--output-format text`, returning trimmed stdout tagged as the `claude-cli` model. ([validated by `cli-provider.test.ts:10`](libs/shared/src/llm/cli-provider.test.ts#L10))
 
-- **FR — FakeLlm:** the shared test double returns its canned `complete` text with zeroed usage, returns its canned `completeWithTool` data, and records every request it received. ([validated by `fake-llm.test.ts:6`](libs/shared/src/llm/fake-llm.test.ts#L6), [`fake-llm.test.ts:20`](libs/shared/src/llm/fake-llm.test.ts#L20), [`fake-llm.test.ts:33`](libs/shared/src/llm/fake-llm.test.ts#L33))
+- **FR — FakeLlm:** the shared test double returns its canned `complete` text with zeroed usage by default (a canned partial usage overlays the zeros), returns its canned `completeWithTool` data, and records every request it received. ([validated by `fake-llm.test.ts:6`](libs/shared/src/llm/fake-llm.test.ts#L6), [`fake-llm.test.ts:20`](libs/shared/src/llm/fake-llm.test.ts#L20), [`fake-llm.test.ts:33`](libs/shared/src/llm/fake-llm.test.ts#L33), [`fake-llm.test.ts:40`](libs/shared/src/llm/fake-llm.test.ts#L40))
 
 - **FR — OpenAiProvider:** posts system+user messages to the OpenAI chat-completions endpoint at temperature 0 and extracts the choice content. ([validated by `openai-provider.test.ts:6`](libs/shared/src/llm/openai-provider.test.ts#L6))
 

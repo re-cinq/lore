@@ -24,5 +24,6 @@ export async function runCommentTriageStation(
       action: decision.action,
       "Lore-Triage": decision.reason.slice(0, 200),
     },
+    usage: decision.usage,
   };
 }
