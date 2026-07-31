@@ -18,7 +18,11 @@ import {
 } from "@re-cinq/lore-assembly-lines";
 import type { AssemblyLineRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
 import { finishNodeAndAdvance, type AdvanceDeps } from "./advance.js";
-import { maybePostReview, type ReviewPoster } from "../review/post-review.js";
+import {
+  maybePostReview,
+  reviewRunMarker,
+  type ReviewPoster,
+} from "../review/post-review.js";
 import { parseReviewReply } from "@re-cinq/lore-shared/review/review-reply.js";
 import { commentablePositions } from "@re-cinq/lore-shared/review/diff-hunks.js";
 import { publishPrCheck } from "./pr-check.js";
@@ -49,16 +53,24 @@ export interface NodeTerminalInput {
   output?: string;
 }
 
-/** Ports the review post writes through; production resolves both from the repo. */
+/** Ports the review post writes through (production resolves both from the
+ *  repo), plus the node visit's iteration — it keys the per-run dedupe marker,
+ *  so a revisited review node still posts while a redelivery does not. An
+ *  unknown iteration skips marker and probe entirely (fail open): guessing `1`
+ *  would let iteration 1's marker suppress a revisit's real review, and the CAS
+ *  treats undefined as "newest open visit", not "first". */
 export interface ReviewPorts {
   poster?: ReviewPoster;
   audit?: AuditPort;
+  iteration?: number;
 }
 
 /** How the review post went — the walk converts the outage shape into an honest
- *  node failure so the generic failure notification catches it. */
+ *  node failure so the generic failure notification catches it. `already_posted`
+ *  means the probe found this run's marker on the PR (a redelivered terminal
+ *  event or an event-vs-reaper race) and nothing was re-posted. */
 export type ReviewPostOutcome =
-  "posted" | "no_findings" | "post_failed" | "not_review";
+  "posted" | "already_posted" | "no_findings" | "post_failed" | "not_review";
 
 /**
  * The outage shape: the review produced neither findings nor a verdict (e.g. the
@@ -84,7 +96,9 @@ export async function finishNodeTerminal(
   input: NodeTerminalInput,
   deps: AdvanceDeps,
 ): Promise<void> {
-  const post = await postReviewFromNode(input.row, input.node, input.output);
+  const post = await postReviewFromNode(input.row, input.node, input.output, {
+    iteration: input.iteration,
+  });
 
   await postReplyFromNode(input.row, input.node, input.output);
 
@@ -124,6 +138,10 @@ export async function postReviewFromNode(
 
   try {
     const pulls = ports.poster ?? (await projectFor(row.repo)).pulls;
+    const marker =
+      ports.iteration === undefined
+        ? undefined
+        : reviewRunMarker(row.id, node.id, ports.iteration);
     const diff = await pulls.getDiff(prNumber).catch(() => "");
     const positions = commentablePositions(diff);
     const posted = await maybePostReview(
@@ -131,12 +149,19 @@ export async function postReviewFromNode(
       prNumber,
       output ?? "",
       positions,
+      marker,
     );
 
     if (!posted) {
       await auditUnparsedFindings(row, prNumber, output, ports);
 
       return "no_findings";
+    }
+
+    if (posted.mode === "deduped") {
+      await auditDedupedPost(row, prNumber, posted.marker, ports);
+
+      return "already_posted";
     }
 
     if (posted.mode === "fallback") {
@@ -252,6 +277,29 @@ export async function postReplyFromNode(
 
     return "post_failed";
   }
+}
+
+/** The redelivery that #870 exists for: this run's marker is already on the PR,
+ *  so the post was skipped. Audited so a dedupe firing is visible next to the
+ *  duplicate it prevented. */
+async function auditDedupedPost(
+  row: AssemblyLineRecord,
+  prNumber: number,
+  marker: string,
+  ports: ReviewPorts,
+): Promise<void> {
+  await writeAuditLog(
+    {
+      event_type: "review_post_deduped",
+      repo: row.repo,
+      payload: {
+        pr_number: prNumber,
+        assembly_line_id: row.id,
+        marker,
+      },
+    },
+    ports.audit,
+  );
 }
 
 /** The review reached the PR, but as a top-level comment after GitHub rejected

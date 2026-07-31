@@ -418,3 +418,160 @@ describe("reviewNodeResultOverride", () => {
     expect(result).toEqual({ outcome: "success" });
   });
 });
+
+describe("postReviewFromNode dedupe (#870)", () => {
+  const marker = "<!-- lore-review-run: line-1/review/1 -->";
+
+  function probingPorts(reviewBodies: string[], commentBodies: string[]) {
+    const p = ports();
+    const poster: ReviewPoster = {
+      ...p.poster,
+      listReviews: async () =>
+        reviewBodies.map((body) => ({
+          id: 1,
+          state: "COMMENTED",
+          body,
+          user: "lore-agent[bot]",
+          submitted_at: "2026-07-30T00:00:00Z",
+        })),
+      listIssueComments: async () =>
+        commentBodies.map((body) => ({
+          body,
+          user: "lore-agent[bot]",
+          created_at: "2026-07-30T00:00:00Z",
+        })),
+    };
+
+    return { ...p, poster };
+  }
+
+  it("skips the post and audits review_post_deduped when this run's marker is already in a review", async () => {
+    const p = probingPorts([`### Lore review — Approved\n\n${marker}`], []);
+
+    const outcome = await postReviewFromNode(
+      row(),
+      reviewNode,
+      findingsText("changes_requested"),
+      { ...p, iteration: 1 },
+    );
+
+    expect(outcome).toBe("already_posted");
+    expect(p.reviews).toHaveLength(0);
+    expect(p.entries).toMatchObject([
+      {
+        event_type: "review_post_deduped",
+        repo: "re-cinq/lore",
+        payload: { pr_number: 841, assembly_line_id: "line-1", marker },
+      },
+    ]);
+  });
+
+  it("skips the post when the marker rode a fallback comment instead of a review", async () => {
+    const p = probingPorts([], [`fallback review\n\n${marker}`]);
+
+    const outcome = await postReviewFromNode(
+      row(),
+      reviewNode,
+      findingsText("approved"),
+      { ...p, iteration: 1 },
+    );
+
+    expect(outcome).toBe("already_posted");
+    expect(p.reviews).toHaveLength(0);
+  });
+
+  it("posts a marker-stamped review when the PR carries only another run's marker", async () => {
+    const p = probingPorts(
+      ["### Lore review\n\n<!-- lore-review-run: line-0/review/1 -->"],
+      [],
+    );
+
+    const outcome = await postReviewFromNode(
+      row(),
+      reviewNode,
+      findingsText("changes_requested"),
+      { ...p, iteration: 1 },
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.reviews).toHaveLength(1);
+    expect(p.reviews[0]?.input.body).toContain(marker);
+  });
+
+  it("keys the marker on the iteration so a revisited review node still posts", async () => {
+    const p = probingPorts([`### Lore review\n\n${marker}`], []);
+
+    const outcome = await postReviewFromNode(
+      row(),
+      reviewNode,
+      findingsText("changes_requested"),
+      { ...p, iteration: 2 },
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.reviews[0]?.input.body).toContain(
+      "<!-- lore-review-run: line-1/review/2 -->",
+    );
+  });
+
+  it("posts anyway when the probe throws (fail-open, never drop the review)", async () => {
+    const p = ports();
+    const poster: ReviewPoster = {
+      ...p.poster,
+      listReviews: async () => {
+        throw new Error("API rate limited");
+      },
+      listIssueComments: async () => [],
+    };
+
+    const outcome = await postReviewFromNode(
+      row(),
+      reviewNode,
+      findingsText("approved"),
+      { ...p, poster, iteration: 1 },
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.reviews).toHaveLength(1);
+  });
+});
+
+describe("reviewNodeResultOverride on a deduped post", () => {
+  it("keeps the result when the review was already posted by the first delivery", () => {
+    const result = reviewNodeResultOverride("already_posted", undefined, {
+      outcome: "changes_requested",
+    });
+
+    expect(result).toEqual({ outcome: "changes_requested" });
+  });
+});
+
+describe("postReviewFromNode without a known iteration", () => {
+  it("skips probe and marker and posts anyway when the iteration is unknown", async () => {
+    const p = ports();
+    const poster: ReviewPoster = {
+      ...p.poster,
+      listReviews: async () => [
+        {
+          id: 1,
+          state: "COMMENTED",
+          body: "### Lore review\n\n<!-- lore-review-run: line-1/review/1 -->",
+          user: "lore-agent[bot]",
+          submitted_at: "2026-07-30T00:00:00Z",
+        },
+      ],
+      listIssueComments: async () => [],
+    };
+
+    const outcome = await postReviewFromNode(
+      row(),
+      reviewNode,
+      findingsText("changes_requested"),
+      { ...p, poster },
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.reviews).toHaveLength(1);
+    expect(p.reviews[0]?.input.body).not.toContain("lore-review-run");
+  });
+});

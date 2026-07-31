@@ -26,13 +26,41 @@ import {
   isCommentable,
   type CommentablePositions,
 } from "@re-cinq/lore-shared/review/diff-hunks.js";
-import type { CreateReviewInput } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import type {
+  CreateReviewInput,
+  IssueComment,
+  PullReview,
+} from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 
-/** The narrow PR surface the poster touches — a light double in tests. */
+/** The narrow PR surface the poster touches — a light double in tests. The two
+ *  reads back the dedupe probe; they are optional because a poster without them
+ *  simply skips the probe (the guard fails open — a rare duplicate beats a
+ *  dropped review). */
 export interface ReviewPoster {
   createReview(number: number, input: CreateReviewInput): Promise<void>;
   comment(number: number, body: string): Promise<void>;
   getDiff(number: number): Promise<string>;
+  listReviews?(number: number): Promise<PullReview[]>;
+  listIssueComments?(number: number): Promise<IssueComment[]>;
+}
+
+/**
+ * Invisible per-run identity stamped into every posted review (inline body and
+ * fallback comment alike), keyed per iteration so a legitimate revisit still
+ * posts. The post runs BEFORE the node-outcome CAS (post-then-transition, spec
+ * 6-dark-factory FR6.11), so a redelivered terminal event re-executes it; the
+ * probe for this marker is what makes the re-execution a no-op (#870).
+ */
+export function reviewRunMarker(
+  assemblyLineId: string,
+  nodeId: string,
+  iteration: number,
+): string {
+  return `<!-- lore-review-run: ${assemblyLineId}/${nodeId}/${iteration} -->`;
+}
+
+function withMarker(body: string, marker?: string): string {
+  return marker ? `${body}\n\n${marker}` : body;
 }
 
 /**
@@ -103,7 +131,11 @@ export function composeBody(
 }
 
 /** Marks a review that fell back from an inline post — a flat comment with no
- *  inline annotations otherwise looks like an intentional body-only review. */
+ *  inline annotations otherwise looks like an intentional body-only review.
+ *  The dedupe probe reads fallback comments back through `listIssueComments`,
+ *  whose adapter drops bot-noise comments by prefix (`PR created:` / `Agent ` /
+ *  `Task ` in platform-github) — a preamble starting with one of those prefixes
+ *  would silently kill fallback dedupe. */
 const FALLBACK_NOTE =
   "_Inline placement was rejected by GitHub, so this review is posted as a single comment._";
 
@@ -122,22 +154,26 @@ function fallbackComment(output: ReviewOutput): string {
 
 /** How the post was delivered. `fallback` means GitHub rejected the inline
  *  review and the whole review went out as one top-level comment — the caller
- *  audits it, because a silent downgrade is invisible at the PR. */
+ *  audits it, because a silent downgrade is invisible at the PR. `deduped`
+ *  means this run's marker was already on the PR and nothing was re-posted. */
 export type ReviewPostDelivery =
-  { mode: "inline" } | { mode: "fallback"; error: string };
+  | { mode: "inline" }
+  | { mode: "fallback"; error: string }
+  | { mode: "deduped"; marker: string };
 
 export async function postReview(
   pulls: ReviewPoster,
   prNumber: number,
   output: ReviewOutput,
   positions: CommentablePositions,
+  marker?: string,
 ): Promise<ReviewPostDelivery> {
   const { inline, overflow } = partitionByHunks(output.findings, positions);
 
   try {
     await pulls.createReview(prNumber, {
       event: "COMMENT",
-      body: composeBody(output, overflow),
+      body: withMarker(composeBody(output, overflow), marker),
       comments: inline.map(toReviewComment),
     });
 
@@ -150,7 +186,7 @@ export async function postReview(
     console.warn(
       `[code-review] inline review rejected (${error}); posting as a top-level comment`,
     );
-    await pulls.comment(prNumber, fallbackComment(output));
+    await pulls.comment(prNumber, withMarker(fallbackComment(output), marker));
 
     return { mode: "fallback", error };
   }
@@ -168,13 +204,17 @@ function approvedWithoutFindings(agentOutput: string): ReviewOutput | null {
  * Parse the review node's raw output and post the review. No-op (returns null)
  * when the output carries neither a valid `REVIEW_FINDINGS` block nor a bare
  * approval verdict. `positions` are the diff's commentable lines, used to keep a
- * finding on an uninlineable line out of the inline comments array.
+ * finding on an uninlineable line out of the inline comments array. With a
+ * `marker`, the dedupe probe runs after the parse — a run that would post
+ * nothing never spends the paginated reads — and immediately before the post,
+ * keeping the check-then-act window as small as the probe latency itself.
  */
 export async function maybePostReview(
   pulls: ReviewPoster,
   prNumber: number,
   agentOutput: string,
   positions: CommentablePositions,
+  marker?: string,
 ): Promise<ReviewPostDelivery | null> {
   const output =
     parseReviewFindings(agentOutput) ?? approvedWithoutFindings(agentOutput);
@@ -183,5 +223,44 @@ export async function maybePostReview(
     return null;
   }
 
-  return postReview(pulls, prNumber, output, positions);
+  if (marker && (await reviewAlreadyPosted(pulls, prNumber, marker))) {
+    return { mode: "deduped", marker };
+  }
+
+  return postReview(pulls, prNumber, output, positions, marker);
+}
+
+/**
+ * Whether this run's review already reached the PR — through either delivery
+ * shape (inline review or fallback comment). Best-effort: a poster without the
+ * read surface, or a probe that throws, reports "not posted" so the review is
+ * never dropped by its own guard; the residual cost is a duplicate exactly as
+ * rare as the probe outage.
+ */
+export async function reviewAlreadyPosted(
+  pulls: ReviewPoster,
+  prNumber: number,
+  marker: string,
+): Promise<boolean> {
+  if (!pulls.listReviews || !pulls.listIssueComments) {
+    return false;
+  }
+
+  try {
+    const [reviews, comments] = await Promise.all([
+      pulls.listReviews(prNumber),
+      pulls.listIssueComments(prNumber),
+    ]);
+
+    return (
+      reviews.some((review) => review.body.includes(marker)) ||
+      comments.some((comment) => comment.body.includes(marker))
+    );
+  } catch (err) {
+    console.warn(
+      `[code-review] dedupe probe failed (${(err as Error).message}); posting anyway`,
+    );
+
+    return false;
+  }
 }
