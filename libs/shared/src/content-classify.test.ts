@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyFile } from "./content-classify.js";
+import { classifyFile, dropIngestExcluded } from "./content-classify.js";
 
 describe("classifyFile", () => {
   it("classifies CLAUDE.md / AGENTS.md / CODEOWNERS as doc", () => {
@@ -98,5 +98,39 @@ describe("classifyFile", () => {
   it("classifies a path merely containing the word fixtures normally", () => {
     expect(classifyFile("specs/fixtures-handling/spec.md")).toBe("spec");
     expect(classifyFile("src/fixtures-loader.ts")).toBe("code");
+  });
+});
+
+describe("dropIngestExcluded", () => {
+  it("drops rows under fixtures/, __fixtures__/ and graveyard/ paths", () => {
+    const rows = [
+      {
+        filePath:
+          "tools/eslint-plugin-lore/rules/fixtures/require-spec-link/specs/foo/spec.md",
+      },
+      { filePath: "libs/shared/src/__fixtures__/sample.test.ts" },
+      { filePath: "graveyard/old-spec.md" },
+    ];
+
+    expect(dropIngestExcluded(rows)).toEqual([]);
+  });
+
+  it("keeps spec and test rows on ingestible paths", () => {
+    const rows = [
+      { filePath: "specs/spec-test-coverage/spec.md" },
+      { filePath: "libs/shared/src/content-classify.test.ts" },
+      { filePath: "specs/fixtures-handling/spec.md" },
+    ];
+
+    expect(dropIngestExcluded(rows)).toEqual(rows);
+  });
+
+  it("drops rows with binary file extensions", () => {
+    const rows = [
+      { filePath: "assets/logo.png" },
+      { filePath: "docs/report.pdf" },
+    ];
+
+    expect(dropIngestExcluded(rows)).toEqual([]);
   });
 });

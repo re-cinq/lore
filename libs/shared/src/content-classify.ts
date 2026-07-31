@@ -64,3 +64,19 @@ export function classifyFile(path: string): ContentType | null {
 
   return null;
 }
+
+/**
+ * Read-side twin of {@link classifyFile} for chunk consumers: drops rows whose
+ * path classifyFile returns null for (graveyard, fixtures, binaries,
+ * unrecognised extensions). Chunks ingested before an exclusion was added
+ * linger in `{schema}.chunks` until the manual operator purge runs, and
+ * without this filter that stale debris keeps resurfacing as detect findings
+ * (issue #1018 — fixture spec links reported as rot after the #1016 ingest
+ * fix). Any future exclusion added to classifyFile is inherited here
+ * automatically.
+ */
+export function dropIngestExcluded<T extends { filePath: string }>(
+  rows: T[],
+): T[] {
+  return rows.filter((r) => classifyFile(r.filePath) !== null);
+}
