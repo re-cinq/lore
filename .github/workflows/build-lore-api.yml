@@ -25,7 +25,7 @@ on:
       - '.github/workflows/build-lore-api.yml'
       # task-types.yaml ships to the cluster as the lore-api ConfigMap via
       # deploy-lore-platform.sh --set-file — a prompt edit must redeploy or
-      # pods serve stale prompts (rediscovered 2026-07-17).
+      # pods serve stale prompts (incident history in deploy-lore-platform.sh; #866).
       - 'scripts/task-types.yaml'
       - 'scripts/ci/deploy-lore-platform.sh'
   pull_request:
@@ -39,7 +39,6 @@ on:
       - 'infra/terraform/modules/gke-mcp/lore-platform/values.yaml'
       - '.github/workflows/build-lore-api.yml'
       - 'scripts/task-types.yaml'
-      - 'scripts/ci/deploy-lore-platform.sh'
   workflow_dispatch:
 
 # Cancel in-progress runs when a new commit lands on the same ref —
