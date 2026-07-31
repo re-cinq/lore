@@ -46,10 +46,16 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   the standard event-driven walk, per-node timeout, and reaper. With the line
   starter wired, the Floor's spec-trace dispatch routes docs kinds to
   `assemblyLines().start("ingest", …)`. The line's `branch` is ONLY the
-  overlap-guard lease key, `ingest/<kind>/<ref>` — the specs/adrs/test-report
-  lines of one push must not take each other's lease (a bare `branch=<sha>`
-  closed all but one of every push's lines as `finished/lease_held`,
-  2026-07-17); the pod clones at `args.ref` (full clone + `git checkout <ref>`),
+  overlap-guard lease key, `ingest/<kind>/<ref>[/<chunk>]` — the
+  specs/adrs/test-report lines of one push must not take each other's lease (a
+  bare `branch=<sha>` closed all but one of every push's lines as
+  `finished/lease_held`, 2026-07-17), and chunked work leases per chunk: a
+  payload kind appends its scheduling event's id and a force pass's
+  per-directory child appends its glob, because sibling chunks are distinct
+  units of work — a bare `(kind, ref)` key closed every test-report chunk after
+  the first as `lease_held` while the first still ran, silently dropping all
+  but one ~512 KB chunk of each push's report (2026-07-31); the pod clones at
+  `args.ref` (full clone + `git checkout <ref>`),
   which the node spec builders prefer over the lease key for the CR's branch and
   `station_input.branch`. `kind`/`ref`/`glob`/`force` thread as string args into
   `station_input.params` and the event marks done; convergence, retry, and
@@ -66,7 +72,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   triage/github_action) set `clone: false`, because their line branch is a
   synthetic lease key (`detect/<definition>/<repo>`) that `git checkout` cannot
   resolve, and a forced clone would fail their init.
-  ([validated by `spec-trace-dispatch:35`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L35), [`spec-trace-dispatch:65`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L65), [`floor-assembly-line:179`](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L179), [`floor-assembly-line:163`](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L163), [`agent-backend:201`](apps/floor/src/jobs/station/agent-backend.test.ts#L201), [`per-task-token:64`](apps/floor/src/jobs/station/per-task-token.test.ts#L64), [`per-task-token:70`](apps/floor/src/jobs/station/per-task-token.test.ts#L70), [`loader:231`](libs/assembly-lines/src/loader.test.ts#L234); implemented by [`spec-trace-dispatch.ts:71`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.ts#L71), [`ingest.yaml:1`](libs/assembly-lines/src/assembly-lines/ingest.yaml#L1))
+  ([validated by `spec-trace-dispatch:35`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L35), [`spec-trace-dispatch:65`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L65), [`spec-trace-dispatch:170`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L170), [`spec-trace-dispatch:214`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L214), [`floor-assembly-line:179`](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L179), [`floor-assembly-line:163`](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L163), [`agent-backend:201`](apps/floor/src/jobs/station/agent-backend.test.ts#L201), [`per-task-token:64`](apps/floor/src/jobs/station/per-task-token.test.ts#L64), [`per-task-token:70`](apps/floor/src/jobs/station/per-task-token.test.ts#L70), [`loader:231`](libs/assembly-lines/src/loader.test.ts#L234); implemented by [`spec-trace-dispatch.ts:71`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.ts#L71), [`ingest.yaml:1`](libs/assembly-lines/src/assembly-lines/ingest.yaml#L1))
 
 - **FR3 — payload transport.** `station_input` carries kind + a payload *reference*,
   never an inline test-report body: report payloads reach ~1 MB (the HTTP body
@@ -75,7 +81,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   back from `GET /api/repos/:o/:r/events/:id/payload` (read scope, repo must match
   the row) and runs `ingestSpecTrace`; docs kinds need only `{commit, glob, force}`
   inline.
-  ([validated by `ingest.test.ts:202`](apps/lore-station/src/stations/ingest.test.ts#L202), [`ingest.test.ts:228`](apps/lore-station/src/stations/ingest.test.ts#L228), [`event-payload.test.ts:35`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L35), [`event-payload.test.ts:48`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L48), [`event-payload.test.ts:58`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L58), [`spec-trace-dispatch:170`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L170), [`loop.test.ts:110`](apps/floor/src/main-loop/loop.test.ts#L110); implemented by [`event-payload.ts:14`](apps/lore-api/src/api/routes/ingest/event-payload.ts#L14))
+  ([validated by `ingest.test.ts:202`](apps/lore-station/src/stations/ingest.test.ts#L202), [`ingest.test.ts:228`](apps/lore-station/src/stations/ingest.test.ts#L228), [`event-payload.test.ts:35`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L35), [`event-payload.test.ts:48`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L48), [`event-payload.test.ts:58`](apps/lore-api/src/api/routes/ingest/event-payload.test.ts#L58), [`spec-trace-dispatch:193`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L193), [`loop.test.ts:110`](apps/floor/src/main-loop/loop.test.ts#L110); implemented by [`event-payload.ts:14`](apps/lore-api/src/api/routes/ingest/event-payload.ts#L14))
 
 - **FR4 — network policy + pod providers.** A label-scoped NetworkPolicy
   (`ingest-station-egress`, selecting the `lore.re-cinq.com/dgraph-egress`
@@ -125,7 +131,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   force-pass self-chunking tree listing, and the spec_trace handler no longer
   needs a dgraph client at all (the `LORE_DGRAPH_HTTP` check remains only as
   the feature gate).
-  ([validated by `spec-trace-dispatch:86`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L86), [`spec-trace-dispatch:191`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L191), [`spec-trace-dispatch:205`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L205), [`loop.test.ts:152`](apps/floor/src/main-loop/loop.test.ts#L152); implemented by [`loop.ts:53`](apps/floor/src/main-loop/loop.ts#L53), [`internal.ts:18`](apps/floor/src/jobs/internal.ts#L18))
+  ([validated by `spec-trace-dispatch:86`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L86), [`spec-trace-dispatch:237`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L237), [`spec-trace-dispatch:251`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L251), [`loop.test.ts:152`](apps/floor/src/main-loop/loop.test.ts#L152); implemented by [`loop.ts:53`](apps/floor/src/main-loop/loop.ts#L53), [`internal.ts:18`](apps/floor/src/jobs/internal.ts#L18))
 
 - **FR7 — catalog.** A `def-ingest` recipe is seeded like the other builtins
   (`scripts/task-types.yaml` `stations:` → gen-catalog + migration), with
