@@ -3,6 +3,8 @@ import {
   postReview,
   maybePostReview,
   partitionByHunks,
+  reviewAlreadyPosted,
+  reviewRunMarker,
   type ReviewPoster,
 } from "./post-review.js";
 import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
@@ -261,5 +263,166 @@ describe("maybePostReview on a real Agent status.output stream", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]?.input.comments).toMatchObject([{ path, line: 95 }]);
     expect(calls[0]?.input.body).toContain("Changes suggested");
+  });
+});
+
+describe("review run marker (#870 dedupe)", () => {
+  const output: ReviewOutput = {
+    verdict: "changes_requested",
+    findings: [finding({ path: "src/a.ts", line: 12, subject: "boom" })],
+  };
+  const marker = reviewRunMarker("line-1", "review", 1);
+
+  it("renders the assembly line id, node id and iteration as an invisible HTML comment", () => {
+    expect(marker).toBe("<!-- lore-review-run: line-1/review/1 -->");
+  });
+
+  it("stamps the marker into the inline review body", async () => {
+    const { pulls, calls } = recorder();
+
+    await postReview(pulls, 7, output, positions(["src/a.ts", 12]), marker);
+
+    expect(calls[0]?.input.body).toContain(marker);
+  });
+
+  it("stamps the marker into the fallback comment when the inline post is rejected", async () => {
+    const { pulls, comments } = recorder({ createReviewThrows: true });
+
+    await postReview(pulls, 7, output, positions(["src/a.ts", 12]), marker);
+
+    expect(comments[0]?.body).toContain(marker);
+  });
+
+  it("posts an unmarked body when no marker is given", async () => {
+    const { pulls, calls } = recorder();
+
+    await postReview(pulls, 7, output, positions(["src/a.ts", 12]));
+
+    expect(calls[0]?.input.body).not.toContain("lore-review-run");
+  });
+});
+
+describe("reviewAlreadyPosted", () => {
+  const marker = reviewRunMarker("line-1", "review", 1);
+  const review = (body: string) => ({
+    id: 1,
+    state: "COMMENTED",
+    body,
+    user: "lore-agent[bot]",
+    submitted_at: "2026-07-30T00:00:00Z",
+  });
+  const issueComment = (body: string) => ({
+    body,
+    user: "lore-agent[bot]",
+    created_at: "2026-07-30T00:00:00Z",
+  });
+  const probing = (reviews: string[], comments: string[]): ReviewPoster => ({
+    ...recorder().pulls,
+    listReviews: async () => reviews.map(review),
+    listIssueComments: async () => comments.map(issueComment),
+  });
+
+  it("finds this run's marker in an existing review body", async () => {
+    const pulls = probing([`### Lore review\n\n${marker}`], []);
+
+    expect(await reviewAlreadyPosted(pulls, 7, marker)).toBe(true);
+  });
+
+  it("finds this run's marker in an existing issue comment (fallback delivery)", async () => {
+    const pulls = probing([], [`fallback review\n\n${marker}`]);
+
+    expect(await reviewAlreadyPosted(pulls, 7, marker)).toBe(true);
+  });
+
+  it("reports not posted when the PR carries only another run's marker", async () => {
+    const other = reviewRunMarker("line-2", "review", 1);
+    const pulls = probing([`### Lore review\n\n${other}`], []);
+
+    expect(await reviewAlreadyPosted(pulls, 7, marker)).toBe(false);
+  });
+
+  it("reports not posted when the poster has no read surface", async () => {
+    expect(await reviewAlreadyPosted(recorder().pulls, 7, marker)).toBe(false);
+  });
+
+  it("reports not posted when the probe throws (fail-open, never drop the review)", async () => {
+    const pulls: ReviewPoster = {
+      ...recorder().pulls,
+      listReviews: async () => {
+        throw new Error("API rate limited");
+      },
+      listIssueComments: async () => [],
+    };
+
+    expect(await reviewAlreadyPosted(pulls, 7, marker)).toBe(false);
+  });
+});
+
+describe("maybePostReview dedupe", () => {
+  const marker = reviewRunMarker("line-1", "review", 1);
+  const findings = `\`\`\`REVIEW_FINDINGS\n${JSON.stringify({
+    verdict: "approved",
+    findings: [],
+  })}\n\`\`\``;
+
+  it("reports deduped without posting when this run's marker is already on the PR", async () => {
+    const { pulls, calls, comments } = recorder();
+    const probing: ReviewPoster = {
+      ...pulls,
+      listReviews: async () => [
+        {
+          id: 1,
+          state: "COMMENTED",
+          body: `### Lore review\n\n${marker}`,
+          user: "lore-agent[bot]",
+          submitted_at: "2026-07-30T00:00:00Z",
+        },
+      ],
+      listIssueComments: async () => [],
+    };
+
+    expect(
+      await maybePostReview(probing, 7, findings, positions(), marker),
+    ).toEqual({ mode: "deduped", marker });
+    expect(calls).toHaveLength(0);
+    expect(comments).toHaveLength(0);
+  });
+
+  it("skips the probe reads entirely when the output parses to nothing", async () => {
+    const probes: string[] = [];
+    const probing: ReviewPoster = {
+      ...recorder().pulls,
+      listReviews: async () => {
+        probes.push("reviews");
+
+        return [];
+      },
+      listIssueComments: async () => {
+        probes.push("comments");
+
+        return [];
+      },
+    };
+
+    expect(
+      await maybePostReview(probing, 7, "no block here", positions(), marker),
+    ).toBeNull();
+    expect(probes).toEqual([]);
+  });
+});
+
+describe("fallback preamble vs the issue-comment adapter filter", () => {
+  it("starts the fallback comment with the note prefix the adapter never filters", async () => {
+    const { pulls, comments } = recorder({ createReviewThrows: true });
+
+    await postReview(
+      pulls,
+      7,
+      { verdict: "approved", findings: [], summary: "s" },
+      positions(),
+      reviewRunMarker("line-1", "review", 1),
+    );
+
+    expect(comments[0]?.body).toMatch(/^_Inline placement/);
   });
 });
