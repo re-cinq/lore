@@ -29,6 +29,10 @@ import { publishPrCheck } from "./pr-check.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { writeAuditLog } from "../lib/audit.js";
 import type { AuditPort } from "@re-cinq/lore-shared/project/audit/audit-port.js";
+import type {
+  IssueComment,
+  ReviewComment,
+} from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 
 /**
  * Unwrap the Agent output envelope so every text parser downstream reads the
@@ -100,7 +104,9 @@ export async function finishNodeTerminal(
     iteration: input.iteration,
   });
 
-  await postReplyFromNode(input.row, input.node, input.output);
+  await postReplyFromNode(input.row, input.node, input.output, {
+    iteration: input.iteration,
+  });
 
   await finishNodeAndAdvance(
     {
@@ -190,7 +196,10 @@ export async function postReviewFromNode(
   }
 }
 
-/** The narrow PR surface the reply post touches — a light double in tests. */
+/** The narrow PR surface the reply post touches — a light double in tests. The
+ *  two reads back the dedupe probe; they are optional because a poster without
+ *  them simply skips the probe (the guard fails open — a rare duplicate beats a
+ *  dropped reply). */
 export interface ReplyPoster {
   replyToReviewComment(
     number: number,
@@ -198,14 +207,46 @@ export interface ReplyPoster {
     body: string,
   ): Promise<void>;
   comment(number: number, body: string): Promise<void>;
+  listComments?(number: number): Promise<ReviewComment[]>;
+  listIssueComments?(number: number): Promise<IssueComment[]>;
+}
+
+/** Ports the reply post writes through (production resolves both from the
+ *  repo), plus the node visit's iteration — same contract as
+ *  {@link ReviewPorts}: it keys the per-run dedupe marker, so a revisited
+ *  refine node still posts while a redelivery does not, and an unknown
+ *  iteration skips marker and probe entirely (fail open) rather than guessing
+ *  `1`, which could let a first post suppress a revisit's real reply. */
+export interface ReplyPorts {
+  poster?: ReplyPoster;
+  audit?: AuditPort;
+  iteration?: number;
 }
 
 /** How the reply post went (mirrors {@link ReviewPostOutcome}). `no_reply` when
  *  the refine node emitted no ` ```REVIEW_REPLY ` block; `not_reply` for any other
- *  node. Reply posting is a side effect — it never overrides the node outcome
- *  (the refine node's REVIEW_RESULT verdict drives success/failed). */
+ *  node; `already_posted` when the probe found this run's marker on the PR (a
+ *  redelivered terminal event or an event-vs-reaper race) and nothing was
+ *  re-posted. Reply posting is a side effect — it never overrides the node
+ *  outcome (the refine node's REVIEW_RESULT verdict drives success/failed). */
 export type ReplyPostOutcome =
-  "posted" | "no_reply" | "post_failed" | "not_reply";
+  "posted" | "already_posted" | "no_reply" | "post_failed" | "not_reply";
+
+/**
+ * Invisible per-run identity appended to every posted reply (in-thread and
+ * plain-comment delivery alike), keyed per iteration so a legitimate revisit
+ * still posts. Mirrors {@link reviewRunMarker}: the reply post also runs BEFORE
+ * the node-outcome CAS (post-then-transition, spec 6-dark-factory FR6.11), so a
+ * redelivered terminal event re-executes it; the probe for this marker is what
+ * makes the re-execution a no-op (#1004).
+ */
+export function replyRunMarker(
+  assemblyLineId: string,
+  nodeId: string,
+  iteration: number,
+): string {
+  return `<!-- lore-reply-run: ${assemblyLineId}/${nodeId}/${iteration} -->`;
+}
 
 /**
  * The code-review-refine node commits its fix (git + clone token) but cannot
@@ -217,7 +258,7 @@ export async function postReplyFromNode(
   row: AssemblyLineRecord,
   node: AssemblyLineNode,
   output?: string,
-  ports: { poster?: ReplyPoster; audit?: AuditPort } = {},
+  ports: ReplyPorts = {},
 ): Promise<ReplyPostOutcome> {
   if (node.prompt_ref !== "code-review-refine") {
     return "not_reply";
@@ -247,14 +288,30 @@ export async function postReplyFromNode(
   }
   const inReplyTo =
     Number(row.args.in_reply_to_id) || Number(row.args.comment_id) || 0;
+  const marker =
+    ports.iteration === undefined
+      ? undefined
+      : replyRunMarker(row.id, node.id, ports.iteration);
 
   try {
     const pulls = ports.poster ?? (await projectFor(row.repo)).pulls;
 
+    if (marker && (await replyAlreadyPosted(pulls, prNumber, marker))) {
+      await auditDedupedReply(row, prNumber, marker, ports);
+
+      return "already_posted";
+    }
+    // The marker rides at the END of the body because the body is agent-authored:
+    // a reply opening with a prefix platform-github's `listIssueComments` filter
+    // drops (`PR created:` / `Agent ` / `Task `) is invisible to the plain-comment
+    // probe — the accepted residual (cf. FALLBACK_NOTE in ../review/post-review.js,
+    // where the preamble is ours to pin; here it is not).
+    const stamped = marker ? `${body}\n\n${marker}` : body;
+
     if (inReplyTo > 0) {
-      await pulls.replyToReviewComment(prNumber, inReplyTo, body);
+      await pulls.replyToReviewComment(prNumber, inReplyTo, stamped);
     } else {
-      await pulls.comment(prNumber, body);
+      await pulls.comment(prNumber, stamped);
     }
 
     return "posted";
@@ -277,6 +334,63 @@ export async function postReplyFromNode(
 
     return "post_failed";
   }
+}
+
+/**
+ * Whether this run's reply already reached the PR — through either delivery
+ * shape (review-comment thread or plain PR comment). Best-effort like the
+ * review post's probe: a poster without the read surface, or a probe that
+ * throws, reports "not posted" so the reply is never dropped by its own guard;
+ * the residual cost is a duplicate exactly as rare as the probe outage.
+ */
+async function replyAlreadyPosted(
+  pulls: ReplyPoster,
+  prNumber: number,
+  marker: string,
+): Promise<boolean> {
+  if (!pulls.listComments || !pulls.listIssueComments) {
+    return false;
+  }
+
+  try {
+    const [threads, comments] = await Promise.all([
+      pulls.listComments(prNumber),
+      pulls.listIssueComments(prNumber),
+    ]);
+
+    return (
+      threads.some((thread) => thread.body.includes(marker)) ||
+      comments.some((comment) => comment.body.includes(marker))
+    );
+  } catch (err) {
+    console.warn(
+      `[code-review-refine] reply dedupe probe failed (${(err as Error).message}); posting anyway`,
+    );
+
+    return false;
+  }
+}
+
+/** The reply-side twin of `review_post_deduped` (#1004): this run's marker is
+ *  already on the PR, so the reply post was skipped. */
+async function auditDedupedReply(
+  row: AssemblyLineRecord,
+  prNumber: number,
+  marker: string,
+  ports: ReplyPorts,
+): Promise<void> {
+  await writeAuditLog(
+    {
+      event_type: "review_reply_post_deduped",
+      repo: row.repo,
+      payload: {
+        pr_number: prNumber,
+        assembly_line_id: row.id,
+        marker,
+      },
+    },
+    ports.audit,
+  );
 }
 
 /** The redelivery that #870 exists for: this run's marker is already on the PR,

@@ -575,3 +575,195 @@ describe("postReviewFromNode without a known iteration", () => {
     expect(p.reviews[0]?.input.body).not.toContain("lore-review-run");
   });
 });
+
+describe("postReplyFromNode dedupe (#1004)", () => {
+  const marker = "<!-- lore-reply-run: line-1/reply/1 -->";
+
+  function probingReplyPorts(threadBodies: string[], commentBodies: string[]) {
+    const p = replyPorts();
+    const poster: ReplyPoster = {
+      ...p.poster,
+      listComments: async () =>
+        threadBodies.map((body, i) => ({
+          id: i + 1,
+          path: "a.ts",
+          line: 1,
+          body,
+          user: "lore-agent[bot]",
+          created_at: "2026-07-31T00:00:00Z",
+        })),
+      listIssueComments: async () =>
+        commentBodies.map((body) => ({
+          body,
+          user: "lore-agent[bot]",
+          created_at: "2026-07-31T00:00:00Z",
+        })),
+    };
+
+    return { ...p, poster };
+  }
+
+  it("skips the in-thread post and audits review_reply_post_deduped when this run's marker is already in the thread", async () => {
+    const p = probingReplyPorts([`Done — pushed a1b2c3d.\n\n${marker}`], []);
+
+    const outcome = await postReplyFromNode(
+      row({ pr_number: 841, in_reply_to_id: 55 }),
+      refineNode,
+      replyText("Done — pushed a1b2c3d."),
+      { ...p, iteration: 1 },
+    );
+
+    expect(outcome).toBe("already_posted");
+    expect(p.replies).toHaveLength(0);
+    expect(p.comments).toHaveLength(0);
+    expect(p.entries).toMatchObject([
+      {
+        event_type: "review_reply_post_deduped",
+        repo: "re-cinq/lore",
+        payload: { pr_number: 841, assembly_line_id: "line-1", marker },
+      },
+    ]);
+  });
+
+  it("skips the post when the marker rode a plain PR comment (fallback delivery)", async () => {
+    const p = probingReplyPorts([], [`Answered.\n\n${marker}`]);
+
+    const outcome = await postReplyFromNode(
+      row({ pr_number: 841 }),
+      refineNode,
+      replyText("Answered."),
+      { ...p, iteration: 1 },
+    );
+
+    expect(outcome).toBe("already_posted");
+    expect(p.comments).toHaveLength(0);
+  });
+
+  it("posts a reply with the marker appended after the body when the PR carries only another run's marker", async () => {
+    const p = probingReplyPorts(
+      ["Done.\n\n<!-- lore-reply-run: line-0/reply/1 -->"],
+      [],
+    );
+
+    const outcome = await postReplyFromNode(
+      row({ pr_number: 841, in_reply_to_id: 55 }),
+      refineNode,
+      replyText("Done — pushed a1b2c3d."),
+      { ...p, iteration: 1 },
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.replies).toEqual([
+      {
+        number: 841,
+        commentId: 55,
+        body: `Done — pushed a1b2c3d.\n\n${marker}`,
+      },
+    ]);
+  });
+
+  it("keys the marker on the iteration so a revisited refine node still posts", async () => {
+    const p = probingReplyPorts([`Done.\n\n${marker}`], []);
+
+    const outcome = await postReplyFromNode(
+      row({ pr_number: 841, in_reply_to_id: 55 }),
+      refineNode,
+      replyText("Round two."),
+      { ...p, iteration: 2 },
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.replies[0]?.body).toContain(
+      "<!-- lore-reply-run: line-1/reply/2 -->",
+    );
+  });
+
+  it("posts anyway when the probe throws (fail-open, never drop the reply)", async () => {
+    const p = replyPorts();
+    const poster: ReplyPoster = {
+      ...p.poster,
+      listComments: async () => {
+        throw new Error("API rate limited");
+      },
+      listIssueComments: async () => [],
+    };
+
+    const outcome = await postReplyFromNode(
+      row({ pr_number: 841, in_reply_to_id: 55 }),
+      refineNode,
+      replyText("Still here."),
+      { ...p, poster, iteration: 1 },
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.replies).toHaveLength(1);
+  });
+
+  it("keeps an adapter-filtered opening prefix on the body itself — the marker never leads the comment", async () => {
+    const p = probingReplyPorts([], []);
+
+    await postReplyFromNode(
+      row({ pr_number: 841 }),
+      refineNode,
+      replyText("Agent run finished; no code change needed."),
+      { ...p, iteration: 1 },
+    );
+
+    expect(p.comments[0]?.body).toMatch(/^Agent run finished/);
+    expect(p.comments[0]?.body).toMatch(/ -->$/);
+  });
+});
+
+describe("postReplyFromNode without the probe surface", () => {
+  it("stamps the marker but skips the probe when the poster has no read surface", async () => {
+    const p = replyPorts();
+
+    const outcome = await postReplyFromNode(
+      row({ pr_number: 841, in_reply_to_id: 55 }),
+      refineNode,
+      replyText("Done."),
+      { ...p, iteration: 1 },
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.replies[0]?.body).toBe(
+      "Done.\n\n<!-- lore-reply-run: line-1/reply/1 -->",
+    );
+  });
+});
+
+describe("postReplyFromNode without a known iteration", () => {
+  it("skips probe and marker and posts anyway when the iteration is unknown", async () => {
+    const p = probingUnknownIteration();
+
+    const outcome = await postReplyFromNode(
+      row({ pr_number: 841, in_reply_to_id: 55 }),
+      refineNode,
+      replyText("Done."),
+      p,
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.replies[0]?.body).toBe("Done.");
+  });
+
+  function probingUnknownIteration() {
+    const p = replyPorts();
+    const poster: ReplyPoster = {
+      ...p.poster,
+      listComments: async () => [
+        {
+          id: 1,
+          path: "a.ts",
+          line: 1,
+          body: "Done.\n\n<!-- lore-reply-run: line-1/reply/1 -->",
+          user: "lore-agent[bot]",
+          created_at: "2026-07-31T00:00:00Z",
+        },
+      ],
+      listIssueComments: async () => [],
+    };
+
+    return { ...p, poster };
+  }
+});
