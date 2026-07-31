@@ -288,3 +288,69 @@ describe("formatBrokenLinksReport heading elision", () => {
     expect(body).toMatch(/…and 1 more broken link\(s\) truncated/);
   });
 });
+
+describe("collectBrokenLinks non-trailing false positives", () => {
+  const chunks: ChunkLineRange[] = [chunk("src/x.test.ts", 30, 50)];
+
+  it("does not flag an intra-doc anchor link in a non-trailing parenthetical", () => {
+    const md =
+      "## A\n\nSee the matrix ([acceptance criteria](#acceptance-criteria)) below. ([t](src/x.test.ts#L42))\n";
+
+    expect(collectBrokenLinks("specs/x/spec.md", md, chunks)).toEqual([]);
+  });
+
+  it("does not flag an absolute URL in a non-trailing parenthetical, even one containing .test.", () => {
+    const md =
+      "## A\n\nUpstream ([hapi](https://hapi.dev)) and a blob ([code](https://github.com/o/r/blob/sha/src/x.test.ts#L42)) mid-prose. ([t](src/x.test.ts#L42))\n";
+
+    expect(collectBrokenLinks("specs/x/spec.md", md, chunks)).toEqual([]);
+  });
+
+  it("does not flag the path/to placeholder paths spec prose uses to document the convention", () => {
+    const md =
+      "## A\n\nLinks look like ([label](path/to/test.ts#L42)) or ([label](path/to/file.test.ts)) or ([label](path#Lline)) in prose. ([t](src/x.test.ts#L42))\n";
+
+    expect(collectBrokenLinks("specs/x/spec.md", md, chunks)).toEqual([]);
+  });
+
+  it("does not flag an <owner>-style template URL in a non-trailing parenthetical", () => {
+    const md =
+      "## A\n\nBody contains ([git log](https://github.com/<owner>/<repo>/commits/<branch>)) as a template. ([t](src/x.test.ts#L42))\n";
+
+    expect(collectBrokenLinks("specs/x/spec.md", md, chunks)).toEqual([]);
+  });
+
+  it("does not flag a mid-prose source-file reference link", () => {
+    const md =
+      "## A\n\nRegistered as exact ([registration](../../apps/api/src/server/build-server.ts#L98)) in the table. ([t](src/x.test.ts#L42))\n";
+
+    expect(collectBrokenLinks("specs/x/spec.md", md, chunks)).toEqual([]);
+  });
+
+  it("does not flag a test link quoted inside an inline code span", () => {
+    const md =
+      "## A\n\n- An author who writes `It [does the thing](src/other.test.ts#L42).` mid-statement also gets the wrap. ([t](src/x.test.ts#L42))\n";
+
+    expect(collectBrokenLinks("specs/x/spec.md", md, chunks)).toEqual([]);
+  });
+
+  it("does not fuse a prose bracket with the trailing parenthetical's first link", () => {
+    const md =
+      "## A\n\n- Rejects hours outside the `[start, end)` window and falls back on invalid env. ([t](src/x.test.ts#L42))\n";
+
+    expect(collectBrokenLinks("specs/x/spec.md", md, chunks)).toEqual([]);
+  });
+
+  it("still flags a genuine test-file link buried mid-sentence as non-trailing-link", () => {
+    const md = "## A\n\n- Returns ([t](src/x.test.ts#L42)) the value\n";
+
+    expect(collectBrokenLinks("specs/x/spec.md", md, chunks)).toEqual([
+      {
+        spec_path: "specs/x/spec.md",
+        statement_text: "Returns ([t](src/x.test.ts#L42)) the value",
+        link: { label: "t", path: "src/x.test.ts", line: 42 },
+        reason: "non-trailing-link",
+      },
+    ]);
+  });
+});

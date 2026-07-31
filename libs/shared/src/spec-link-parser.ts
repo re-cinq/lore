@@ -173,25 +173,37 @@ export function parseCodeLinksInStatement(statement: string): CodeLinkRef[] {
   );
 }
 
-/** Find would-be coverage links (test or source, not prose docs) that sit
- * in a NON-trailing parenthetical, where the trailing-only parsers silently
- * ignore them. Used by the validate cron to warn authors about misplaced
- * links. */
+/** An href that can never be a repo-relative test path: an absolute URL
+ * (`https://…`, or any `scheme:` form) or one of the placeholder shapes spec
+ * prose uses to DOCUMENT the link convention itself (`path/to/test.ts`,
+ * `<owner>`-style template segments). Intra-doc anchors (`#section`) fail
+ * `isTestFile` on their own and need no extra rule. */
+const NON_REPO_PATH_RE = /^[a-z][a-z0-9+.-]*:|^path(\/|#|$)|[<>]/i;
+
+/** Find would-be VALIDATED_BY test links that sit in a NON-trailing
+ * parenthetical, where the trailing-only parsers silently ignore them. Used
+ * by the validate cron to warn authors about misplaced links. Only links
+ * whose path is a real-looking test file are flagged: mid-prose references
+ * to source files, prose docs, intra-doc anchors, absolute URLs, and
+ * placeholder paths are legitimate spec prose, not misplaced coverage.
+ * The scan covers only the text BEFORE the trailing parenthetical — a
+ * `[...` bracket in prose would otherwise fuse with the trailing paren's
+ * first real link into one bogus cross-boundary match — and inline code
+ * spans are stripped first, since a link quoted in backticks never renders
+ * as a link. */
 export function findMisplacedCoverageLinks(statement: string): SpecLinkRef[] {
   const span = findTrailingParenSpan(statement);
   const trailingOpen = span ? span.open : statement.length;
+  const scannable = statement.slice(0, trailingOpen).replace(/`[^`]*`/g, "");
 
   const refs: SpecLinkRef[] = [];
 
-  for (const match of statement.matchAll(LINK_INSIDE_PAREN_RE)) {
-    if ((match.index ?? 0) >= trailingOpen) {
-      continue;
-    } // in/after the trailing paren — fine
+  for (const match of scannable.matchAll(LINK_INSIDE_PAREN_RE)) {
     const ref = linkRefFromMatch(match);
 
-    if (isDocFile(ref.path)) {
+    if (!isTestFile(ref.path) || NON_REPO_PATH_RE.test(ref.path)) {
       continue;
-    } // prose doc link, not a coverage link
+    }
     refs.push(ref);
   }
 
