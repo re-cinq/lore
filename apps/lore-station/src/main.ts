@@ -7,7 +7,9 @@
 // exit 1 with is_error for infrastructure failures.
 
 import { join } from "node:path";
+import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { parseStationInput, type StationInput } from "./input.js";
+import { UsageTrackingLlm } from "./llm-usage-tracker.js";
 import { resultLine, eventLine } from "@re-cinq/lore-assembly-lines";
 import { runValidateStation, type StationEnv } from "./stations/validate.js";
 import { runGateStation } from "./stations/gate.js";
@@ -18,7 +20,7 @@ import { runCommentTriageStation } from "./stations/comment-triage.js";
 import { runIngestStation } from "./stations/ingest.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 
-type StationRunner = (
+export type StationRunner = (
   input: StationInput,
   env: StationEnv,
 ) => Promise<NodeResult>;
@@ -38,22 +40,38 @@ export async function runStation(
   type: string,
   inputJson: string,
   env: StationEnv,
+  runners: Record<string, StationRunner> = stations,
 ): Promise<{ line: string; exitCode: number }> {
+  const runner = runners[type];
+
+  if (!runner) {
+    return {
+      line: resultLine(null, `unknown station type "${type}"`),
+      exitCode: 1,
+    };
+  }
+
+  // Every model call the runner makes — however deep — is summed for the
+  // terminal line's cost report; an explicit NodeResult.usage wins, and an
+  // infrastructure failure still reports the spend made before it.
+  const tracker = new UsageTrackingLlm(Llm.instance);
+
+  Llm.setInstance(tracker);
+
   try {
-    const runner = stations[type];
-
-    if (!runner) {
-      return {
-        line: resultLine(null, `unknown station type "${type}"`),
-        exitCode: 1,
-      };
-    }
-
     const result = await runner(parseStationInput(inputJson), env);
 
-    return { line: resultLine(result), exitCode: 0 };
+    return {
+      line: resultLine(result, undefined, result.usage ?? tracker.totalUsage()),
+      exitCode: 0,
+    };
   } catch (err) {
-    return { line: resultLine(null, (err as Error).message), exitCode: 1 };
+    return {
+      line: resultLine(null, (err as Error).message, tracker.totalUsage()),
+      exitCode: 1,
+    };
+  } finally {
+    Llm.setInstance(tracker.inner);
   }
 }
 
