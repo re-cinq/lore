@@ -587,4 +587,12 @@ describe("station log-line projection", () => {
 
     expect(parseRunEvents(ndjson)).toEqual([]);
   });
+
+  it("truncates a log message longer than 200 chars to the summary cap", () => {
+    const rows = parseRunEvents(
+      line({ type: "log", message: "x".repeat(300) }),
+    );
+
+    expect(rows[0].summary).toHaveLength(200);
+  });
 });

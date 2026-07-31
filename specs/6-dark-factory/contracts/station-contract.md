@@ -86,7 +86,7 @@ terminal detection keys on it, and its `result` text lands in
   `Lore-Validation-Status: station-failed`.
 - Anything the pod prints before the terminal line is log stream
   (`{"type":"log","message":"..."}` recommended). Log lines are projected into
-  the run transcript as `message` events (run-viz FR1.9) — for a station they
+  the run transcript as `message` events (run-viz FR1.8b) — for a station they
   are the only transcript content besides the terminal result, so emit one per
   meaningful phase. Raw non-JSON stdout reaches the pod logs but never the
   transcript.

@@ -46,7 +46,7 @@ export async function runDetectStation(
   console.log(eventLine(`detect ${jobRef} on ${input.repo}`));
   const summary = await detector(input.repo, makeProject(input.repo));
 
-  console.log(eventLine(summary));
+  console.log(eventLine(summary.slice(0, DETECT_SUMMARY_MAX)));
 
   return {
     outcome: "success",
