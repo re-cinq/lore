@@ -44,9 +44,19 @@ export interface SpecTraceDispatchDeps {
   eventId?: string;
 }
 
-/** The ingest line's overlap-guard key: one lease per (kind, ref). */
-function ingestLineBranch(kind: string, ref: string): string {
-  return `ingest/${kind}/${ref}`;
+/** The ingest line's overlap-guard key: one lease per unit of WORK, not per
+ *  commit. Chunked work — a posted test-report/coverage chunk (identified by
+ *  its scheduling event) or a force pass's per-directory glob — carries its
+ *  chunk identity in the key: under a bare (kind, ref) key every chunk after
+ *  the first deferred as lease_held while the first still ran, silently
+ *  dropping all but ~1 of 40 test-report chunks per push (2026-07-31).
+ *  Duplicate drives of the SAME chunk still share a lease and dedupe, and an
+ *  unchunked docs push keeps the (kind, ref) lease so a double webhook
+ *  delivery never runs the whole-repo projection twice. */
+function ingestLineBranch(kind: string, ref: string, chunk?: string): string {
+  const base = `ingest/${kind}/${ref}`;
+
+  return chunk ? `${base}/${chunk}` : base;
 }
 
 function routedResult(
@@ -133,8 +143,10 @@ export async function dispatchSpecTrace(
       // The line's branch is the overlap-guard lease key: per kind, so the
       // specs/adrs/test-report lines of one push never take each other's lease
       // (branch=<sha> alone closed all but one of every push's lines as
-      // lease_held, 2026-07-17). The pod clones at args.ref.
-      branch: ingestLineBranch(kind, ref),
+      // lease_held, 2026-07-17), and per glob for a force pass's per-directory
+      // chunks, which are sibling units of work, not duplicates. The pod
+      // clones at args.ref.
+      branch: ingestLineBranch(kind, ref, p.glob),
       args: {
         kind,
         ref,
@@ -171,10 +183,14 @@ export async function dispatchSpecTrace(
   );
   const p = (payload ?? {}) as RepoReadPayload;
   const ref = p.commit || p.branch || "main";
+  // The lease key carries the scheduling event's id: each POSTed chunk of one
+  // commit's report is DISTINCT data (specs/ingest-station: one pod per event
+  // payload), so chunks must never take each other's lease — only a re-drive
+  // of the same event dedupes.
   const lineId = await deps.startLine!({
     definitionName: "ingest",
     repo,
-    branch: ingestLineBranch(kind, ref),
+    branch: ingestLineBranch(kind, ref, deps.eventId),
     args: { kind, ref, payload_event_id: deps.eventId },
   });
 
