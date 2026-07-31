@@ -233,14 +233,14 @@ export type ReplyPostOutcome =
   "posted" | "already_posted" | "no_reply" | "post_failed" | "not_reply";
 
 /**
- * Invisible per-run identity appended to every posted reply (in-thread and
+ * Invisible per-run identity leading every posted reply (in-thread and
  * plain-comment delivery alike), keyed per iteration so a legitimate revisit
  * still posts. Mirrors {@link reviewRunMarker}: the reply post also runs BEFORE
  * the node-outcome CAS (post-then-transition, spec 6-dark-factory FR6.11), so a
  * redelivered terminal event re-executes it; the probe for this marker is what
  * makes the re-execution a no-op (#1004).
  */
-export function replyRunMarker(
+function replyRunMarker(
   assemblyLineId: string,
   nodeId: string,
   iteration: number,
@@ -301,12 +301,12 @@ export async function postReplyFromNode(
 
       return "already_posted";
     }
-    // The marker rides at the END of the body because the body is agent-authored:
-    // a reply opening with a prefix platform-github's `listIssueComments` filter
-    // drops (`PR created:` / `Agent ` / `Task `) is invisible to the plain-comment
-    // probe — the accepted residual (cf. FALLBACK_NOTE in ../review/post-review.js,
-    // where the preamble is ours to pin; here it is not).
-    const stamped = marker ? `${body}\n\n${marker}` : body;
+    // The marker LEADS the comment because the body is agent-authored: trailing
+    // it would let a reply opening with a prefix platform-github's
+    // `listIssueComments` filter drops (`PR created:` / `Agent ` / `Task `) hide
+    // the fallback comment from the probe (cf. FALLBACK_NOTE in
+    // ../review/post-review.js, where the preamble is ours to pin; here it is not).
+    const stamped = marker ? `${marker}\n\n${body}` : body;
 
     if (inReplyTo > 0) {
       await pulls.replyToReviewComment(prNumber, inReplyTo, stamped);

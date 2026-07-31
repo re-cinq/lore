@@ -604,7 +604,7 @@ describe("postReplyFromNode dedupe (#1004)", () => {
   }
 
   it("skips the in-thread post and audits review_reply_post_deduped when this run's marker is already in the thread", async () => {
-    const p = probingReplyPorts([`Done — pushed a1b2c3d.\n\n${marker}`], []);
+    const p = probingReplyPorts([`${marker}\n\nDone — pushed a1b2c3d.`], []);
 
     const outcome = await postReplyFromNode(
       row({ pr_number: 841, in_reply_to_id: 55 }),
@@ -626,7 +626,7 @@ describe("postReplyFromNode dedupe (#1004)", () => {
   });
 
   it("skips the post when the marker rode a plain PR comment (fallback delivery)", async () => {
-    const p = probingReplyPorts([], [`Answered.\n\n${marker}`]);
+    const p = probingReplyPorts([], [`${marker}\n\nAnswered.`]);
 
     const outcome = await postReplyFromNode(
       row({ pr_number: 841 }),
@@ -639,9 +639,9 @@ describe("postReplyFromNode dedupe (#1004)", () => {
     expect(p.comments).toHaveLength(0);
   });
 
-  it("posts a reply with the marker appended after the body when the PR carries only another run's marker", async () => {
+  it("posts a reply with the marker leading the body when the PR carries only another run's marker", async () => {
     const p = probingReplyPorts(
-      ["Done.\n\n<!-- lore-reply-run: line-0/reply/1 -->"],
+      ["<!-- lore-reply-run: line-0/reply/1 -->\n\nDone."],
       [],
     );
 
@@ -657,13 +657,13 @@ describe("postReplyFromNode dedupe (#1004)", () => {
       {
         number: 841,
         commentId: 55,
-        body: `Done — pushed a1b2c3d.\n\n${marker}`,
+        body: `${marker}\n\nDone — pushed a1b2c3d.`,
       },
     ]);
   });
 
   it("keys the marker on the iteration so a revisited refine node still posts", async () => {
-    const p = probingReplyPorts([`Done.\n\n${marker}`], []);
+    const p = probingReplyPorts([`${marker}\n\nDone.`], []);
 
     const outcome = await postReplyFromNode(
       row({ pr_number: 841, in_reply_to_id: 55 }),
@@ -699,7 +699,7 @@ describe("postReplyFromNode dedupe (#1004)", () => {
     expect(p.replies).toHaveLength(1);
   });
 
-  it("keeps an adapter-filtered opening prefix on the body itself — the marker never leads the comment", async () => {
+  it("leads the comment with the marker so an adapter-filtered opening prefix cannot hide it from the probe", async () => {
     const p = probingReplyPorts([], []);
 
     await postReplyFromNode(
@@ -709,8 +709,8 @@ describe("postReplyFromNode dedupe (#1004)", () => {
       { ...p, iteration: 1 },
     );
 
-    expect(p.comments[0]?.body).toMatch(/^Agent run finished/);
-    expect(p.comments[0]?.body).toMatch(/ -->$/);
+    expect(p.comments[0]?.body).toMatch(/^<!-- lore-reply-run/);
+    expect(p.comments[0]?.body).toContain("Agent run finished");
   });
 });
 
@@ -727,7 +727,7 @@ describe("postReplyFromNode without the probe surface", () => {
 
     expect(outcome).toBe("posted");
     expect(p.replies[0]?.body).toBe(
-      "Done.\n\n<!-- lore-reply-run: line-1/reply/1 -->",
+      "<!-- lore-reply-run: line-1/reply/1 -->\n\nDone.",
     );
   });
 });
@@ -756,7 +756,7 @@ describe("postReplyFromNode without a known iteration", () => {
           id: 1,
           path: "a.ts",
           line: 1,
-          body: "Done.\n\n<!-- lore-reply-run: line-1/reply/1 -->",
+          body: "<!-- lore-reply-run: line-1/reply/1 -->\n\nDone.",
           user: "lore-agent[bot]",
           created_at: "2026-07-31T00:00:00Z",
         },
