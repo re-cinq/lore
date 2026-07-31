@@ -124,4 +124,13 @@ describe("dropIngestExcluded", () => {
 
     expect(dropIngestExcluded(rows)).toEqual(rows);
   });
+
+  it("drops rows with binary file extensions", () => {
+    const rows = [
+      { filePath: "assets/logo.png" },
+      { filePath: "docs/report.pdf" },
+    ];
+
+    expect(dropIngestExcluded(rows)).toEqual([]);
+  });
 });
