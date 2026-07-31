@@ -11,6 +11,8 @@ export type StageOutcome = "success" | "changes_requested" | "failed";
  * LLM usage a station reports for cost accounting — exactly the fields the
  * `/api/agent-events` cost sink reads off a terminal result event. Structurally
  * a subset of the shared `LlmUsage`, so a station can assign one directly.
+ * Cache tokens are deliberately absent: the provider already folds them into
+ * `costUsd`, and the sink's `LlmCallRow` does not track them separately.
  */
 export interface NodeLlmUsage {
   inputTokens: number;

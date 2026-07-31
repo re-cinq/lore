@@ -206,7 +206,7 @@ describe("parseAgentEvents on a station terminal line", () => {
     ]);
   });
 
-  it("yields no cost row for a station result line without usage", () => {
+  it("yields no cost row for a station result line whose envelope carries no usage field", () => {
     const stationLine = resultLine({ outcome: "success", extras: {} });
 
     expect(parseAgentEvents(line(src, JSON.parse(stationLine)))).toEqual([]);
