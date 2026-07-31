@@ -217,7 +217,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
     `is_error:true` so the CR fails, and MUST refuse (enforce-throw) to wrap a payload that is
     already a wrapped agent output line — the envelope is applied exactly once, never nested.
     `eventLine` emits the non-terminal log events the result scan skips over.
-    ([validated by parseNodeResult tests](libs/assembly-lines/src/node-outcome.test.ts#L20), [`agent-output.test.ts:270`](libs/assembly-lines/src/agent-output.test.ts#L270), [`agent-output.test.ts:281`](libs/assembly-lines/src/agent-output.test.ts#L281), [`agent-output.test.ts:293`](libs/assembly-lines/src/agent-output.test.ts#L293), [`agent-output.test.ts:301`](libs/assembly-lines/src/agent-output.test.ts#L301), [`agent-output.test.ts:311`](libs/assembly-lines/src/agent-output.test.ts#L311), [`agent-output.test.ts:319`](libs/assembly-lines/src/agent-output.test.ts#L319), [`agent-output.test.ts:329`](libs/assembly-lines/src/agent-output.test.ts#L329); implemented by [`agent-output.ts:179`](libs/assembly-lines/src/agent-output.ts#L179))
+    ([validated by parseNodeResult tests](libs/assembly-lines/src/node-outcome.test.ts#L20), [`agent-output.test.ts:270`](libs/assembly-lines/src/agent-output.test.ts#L270), [`agent-output.test.ts:281`](libs/assembly-lines/src/agent-output.test.ts#L281), [`agent-output.test.ts:293`](libs/assembly-lines/src/agent-output.test.ts#L293), [`agent-output.test.ts:301`](libs/assembly-lines/src/agent-output.test.ts#L301), [`agent-output.test.ts:311`](libs/assembly-lines/src/agent-output.test.ts#L311), [`agent-output.test.ts:319`](libs/assembly-lines/src/agent-output.test.ts#L319), [`agent-output.test.ts:329`](libs/assembly-lines/src/agent-output.test.ts#L329); implemented by [`agent-output.ts:180`](libs/assembly-lines/src/agent-output.ts#L180))
 
 19. Cutover complete: every non-agent node on the Floor-assembly-line path dispatches a station
     (no `LORE_STATION_NODES` flag, no in-process node handlers on that path); the in-process
@@ -257,7 +257,19 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
     assembly-line attempt via the CR name — which is how the run list's Cost column covers
     station-only lines. The usage rides the envelope only, never the `LORE_NODE_RESULT` payload; a
     usage-less terminal line stays byte-identical to the pre-usage envelope, and a failed
-    classification reports no usage. ([validated by `agent-output.test.ts:354`](libs/assembly-lines/src/agent-output.test.ts#L354), [`agent-output.test.ts:369`](libs/assembly-lines/src/agent-output.test.ts#L369), [`agent-output.test.ts:380`](libs/assembly-lines/src/agent-output.test.ts#L380), [`agent-events.test.ts:176`](apps/floor/src/jobs/agent/agent-events.test.ts#L176), [`agent-events.test.ts:209`](apps/floor/src/jobs/agent/agent-events.test.ts#L209), [`comment-triage.test.ts:51`](apps/lore-station/src/stations/comment-triage.test.ts#L51), [`comment-triage.test.ts:49`](libs/shared/src/review/comment-triage.test.ts#L49), [`comment-triage.test.ts:71`](libs/shared/src/review/comment-triage.test.ts#L71); implemented by [`agent-output.ts:179`](libs/assembly-lines/src/agent-output.ts#L179))
+    classification reports no usage. ([validated by `agent-output.test.ts:354`](libs/assembly-lines/src/agent-output.test.ts#L354), [`agent-output.test.ts:369`](libs/assembly-lines/src/agent-output.test.ts#L369), [`agent-output.test.ts:380`](libs/assembly-lines/src/agent-output.test.ts#L380), [`agent-events.test.ts:176`](apps/floor/src/jobs/agent/agent-events.test.ts#L176), [`agent-events.test.ts:209`](apps/floor/src/jobs/agent/agent-events.test.ts#L209), [`comment-triage.test.ts:51`](apps/lore-station/src/stations/comment-triage.test.ts#L51), [`comment-triage.test.ts:49`](libs/shared/src/review/comment-triage.test.ts#L49), [`comment-triage.test.ts:71`](libs/shared/src/review/comment-triage.test.ts#L71); implemented by [`agent-output.ts:180`](libs/assembly-lines/src/agent-output.ts#L180))
+
+24. *(added 2026-07-31)* Station LLM usage is captured **generically**: `runStation` wraps the
+    process-wide `Llm` in a usage-tracking decorator around every runner, so a station whose model
+    calls happen too deep to thread a `NodeResult.usage` by hand (the detect family's
+    spec-coverage-backfill judge inside `@re-cinq/lore-shared/detect`) still reports the summed
+    spend on its terminal line. An explicit `NodeResult.usage` wins over the tracker's sum; an
+    infrastructure-failure line still carries the spend made before the throw; a runner that makes
+    no model calls emits the usage-less envelope unchanged; and the wrapped provider is restored
+    after the run. The two cost transports are code-enforced exclusive: when the process has a
+    configured UsagePort (`Llm.usageConfigured` — the per-call transport), `runStation` installs no
+    tracker and suppresses all terminal-line usage, explicit `NodeResult.usage` included, so the
+    same call is never counted by both. ([validated by `main.test.ts:22`](apps/lore-station/src/main.test.ts#L22), [`main.test.ts:56`](apps/lore-station/src/main.test.ts#L56), [`main.test.ts:89`](apps/lore-station/src/main.test.ts#L89), [`main.test.ts:113`](apps/lore-station/src/main.test.ts#L113), [`main.test.ts:128`](apps/lore-station/src/main.test.ts#L128), [`main.test.ts:142`](apps/lore-station/src/main.test.ts#L142); implemented by [`llm-usage-tracker.ts:17`](apps/lore-station/src/llm-usage-tracker.ts#L17))
 
 ## Out of scope
 
