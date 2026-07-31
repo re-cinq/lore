@@ -91,6 +91,7 @@ describe("classifyFile", () => {
       ),
     ).toBeNull();
     expect(classifyFile("libs/shared/src/__fixtures__/sample.ts")).toBeNull();
+    expect(classifyFile("__fixtures__/sample.ts")).toBeNull();
     expect(classifyFile("fixtures/adrs/ADR-001.md")).toBeNull();
   });
 
