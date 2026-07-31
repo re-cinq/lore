@@ -410,3 +410,19 @@ describe("maybePostReview dedupe", () => {
     expect(probes).toEqual([]);
   });
 });
+
+describe("fallback preamble vs the issue-comment adapter filter", () => {
+  it("starts the fallback comment with the note prefix the adapter never filters", async () => {
+    const { pulls, comments } = recorder({ createReviewThrows: true });
+
+    await postReview(
+      pulls,
+      7,
+      { verdict: "approved", findings: [], summary: "s" },
+      positions(),
+      reviewRunMarker("line-1", "review", 1),
+    );
+
+    expect(comments[0]?.body).toMatch(/^_Inline placement/);
+  });
+});
