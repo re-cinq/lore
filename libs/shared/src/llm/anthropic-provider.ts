@@ -131,7 +131,7 @@ export class AnthropicProvider implements LlmProvider {
 
     if (result && !result.correlated && req.taskId) {
       console.warn(
-        `[llm] cost row uncorrelated: id ${req.taskId} matched no task or assembly line`,
+        `[llm] cost row uncorrelated: id ${req.taskId} matched no pipeline.tasks or pipeline.assembly_lines row`,
       );
     }
   }
@@ -145,7 +145,7 @@ export class AnthropicProvider implements LlmProvider {
     if (!this.opts.usage) {
       return;
     }
-    await this.opts.usage
+    const result = await this.opts.usage
       .logLlmCall({
         taskId: req.taskId || null,
         jobName: req.jobName || null,
@@ -157,7 +157,13 @@ export class AnthropicProvider implements LlmProvider {
         status: "failed",
         error: message,
       })
-      .catch(() => {});
+      .catch(() => null);
+
+    if (result && !result.correlated && req.taskId) {
+      console.warn(
+        `[llm] failed-call cost row uncorrelated: id ${req.taskId} matched no pipeline.tasks or pipeline.assembly_lines row`,
+      );
+    }
   }
 
   async complete(req: LlmCompleteRequest): Promise<LlmCompletion> {
