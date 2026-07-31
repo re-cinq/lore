@@ -47,4 +47,24 @@ describe("runCommentTriageStation", () => {
 
     expect(result.extras?.action).toBe("ignore");
   });
+
+  it("reports the classification call's usage on the node result for the cost sink", async () => {
+    Llm.setInstance(
+      new FakeLlm({
+        data: { action: "answer", reason: "question" },
+        usage: { inputTokens: 812, outputTokens: 41, costUsd: 0.0008 },
+      }),
+    );
+
+    const result = await runCommentTriageStation(
+      input({ comment_body: "why this?", pr_number: "42" }),
+    );
+
+    expect(result.usage).toMatchObject({
+      inputTokens: 812,
+      outputTokens: 41,
+      costUsd: 0.0008,
+      model: "fake",
+    });
+  });
 });

@@ -10,6 +10,7 @@
 export {
   type StageOutcome,
   type NodeResult,
+  type NodeLlmUsage,
   type NodeContext,
   type NodeHandler,
 } from "./node-types.js";
