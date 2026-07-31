@@ -33,6 +33,12 @@ const AUDIT_PRUNED_PATHS_CAP = 500;
  *  shortfall heals the next night. Intentional, to keep the query cheap. */
 const HEAL_FILES_PER_RUN = 200;
 
+/** Per-repo, per-run cap on the never-ingested backfill sweep (mirrors
+ *  HEAL_FILES_PER_RUN), so onboarding a large repo — or closing issue #999's
+ *  204-file gap — spreads the ingest+embed cost across nights. Backfilled
+ *  files gain chunks and drop out of the tree-vs-chunks diff. */
+export const BACKFILL_FILES_PER_RUN = 200;
+
 /** Filters a full repo file tree down to the seed set: supported content
  *  types (per classifyFile) that live under a seed root. Pure — unit-tested
  *  in reindex-seed.test.ts. */
@@ -142,6 +148,60 @@ export async function healStaleChunkerFiles(
   }
 
   return healed;
+}
+
+// ── Never-ingested backfill sweep ───────────────────────────────────
+
+/** Ingest classifyFile-supported files present in the repo tree but absent
+ * from the chunks table (issue #999: the full seed is docs-only and the
+ * changed-file path only sees post-onboarding commits, so files that predate
+ * ingestion — or fell through a commit-listing gap — never enter the DB, and
+ * the chunker heal sweep only re-ingests files that already have chunks).
+ * Absence is judged against ALL of the repo's chunks regardless of owner, so
+ * api/ui-ingested files are never re-ingested. Sorted then capped, so an
+ * oversized gap drains deterministically across nightly runs. Per-file
+ * failures are logged and skipped; returns files backfilled. Unit-tested with
+ * the in-memory chunks double in reindex-backfill.test.ts. */
+export async function backfillUningestedFiles(
+  port: Pick<ChunksPort, "chunkedFilePaths">,
+  schema: string,
+  repo: string,
+  treePaths: string[],
+  alreadyProcessed: Set<string>,
+  ingest: (filePath: string) => Promise<boolean>,
+): Promise<number> {
+  const chunked = new Set(await port.chunkedFilePaths(schema, repo));
+  const missing = treePaths
+    .filter(
+      (path) =>
+        classifyFile(path) !== null &&
+        !chunked.has(path) &&
+        !alreadyProcessed.has(path),
+    )
+    .sort()
+    .slice(0, BACKFILL_FILES_PER_RUN);
+
+  let backfilled = 0;
+
+  for (const filePath of missing) {
+    try {
+      if (await ingest(filePath)) {
+        backfilled++;
+      }
+    } catch (err) {
+      console.error(
+        `[job] Backfill error ${repo}:${filePath}: ${errorMessage(err)}`,
+      );
+    }
+  }
+
+  if (backfilled > 0) {
+    console.log(
+      `[job] Backfilled ${backfilled} never-ingested files for ${repo}`,
+    );
+  }
+
+  return backfilled;
 }
 
 // ── Ingest a single file ────────────────────────────────────────────
@@ -359,6 +419,25 @@ export async function reindexJob(): Promise<string> {
       } catch (err) {
         console.error(
           `[job] Verification pass failed for ${repo.full_name}: ${errorMessage(err)}`,
+        );
+      }
+
+      // Backfill sweep: ingest supported files present in the tree but absent
+      // from the chunks table (issue #999). Non-fatal; the cap drains an
+      // oversized gap across nights.
+      try {
+        treePaths ??= await getTree(repo.full_name);
+        repoFileCount += await backfillUningestedFiles(
+          chunks(),
+          schema,
+          repo.full_name,
+          treePaths,
+          new Set(filePaths),
+          (filePath) => ingestFile(filePath, repo.full_name, schema),
+        );
+      } catch (err) {
+        console.error(
+          `[job] Backfill sweep failed for ${repo.full_name}: ${errorMessage(err)}`,
         );
       }
 
