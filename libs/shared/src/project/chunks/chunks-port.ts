@@ -162,6 +162,15 @@ export interface ChunksPort {
   reindexOwnedFilePaths(schema: string, repo: string): Promise<string[]>;
 
   /**
+   * Distinct `file_path`s of ALL the repo's chunks in `${schema}.chunks`,
+   * regardless of `ingested_by` or content type. The reindex backfill sweep
+   * diffs the repo tree against this set to find files that never ingested
+   * (issue #999); including api/ui-ingested rows keeps the sweep from
+   * re-ingesting — and thereby re-owning — files other writers already cover.
+   */
+  chunkedFilePaths(schema: string, repo: string): Promise<string[]>;
+
+  /**
    * Distinct `file_path`s of the repo's code chunks in `${schema}.chunks`
    * whose `metadata->>'chunker_version'` is absent or older than `version`,
    * ordered by path and capped at `limit`. The reindex heal sweep re-ingests

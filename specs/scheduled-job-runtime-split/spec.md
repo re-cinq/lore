@@ -288,6 +288,15 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
      re-selecting the same wedged files nightly — so chunking fixes reach files that never
      change, with the per-run cap spreading the one-time re-embed across nights
      ([validated by `chunks.test.ts:781`](libs/shared/src/project/chunks/chunks.test.ts#L781), [`chunks.test.ts:820`](libs/shared/src/project/chunks/chunks.test.ts#L820), [`reindex-heal.test.ts:27`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L27), [`reindex-heal.test.ts:53`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L53), [`reindex-heal.test.ts:75`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L75), [`reindex-heal.test.ts:97`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L97))
+   - Each pass ends with a never-ingested backfill sweep (issue #999): the repo tree is diffed
+     against `chunkedFilePaths` — the distinct file paths holding ANY chunk regardless of owner or
+     content type, so api/ui-ingested files are never re-ingested and re-owned — and the
+     classifyFile-supported files with no chunks are ingested, sorted then capped at 200 per repo
+     per run so an oversized gap (a docs-only full seed plus a changed-file path that only sees
+     post-onboarding commits leaves pre-existing code files permanently unindexed) drains
+     deterministically across nights, skipping files the changed-file loop already processed this
+     run, logging past per-file ingest failures, and counting only files the ingest accepted
+     ([validated by `chunks.test.ts:846`](libs/shared/src/project/chunks/chunks.test.ts#L846), [`chunks.test.ts:868`](libs/shared/src/project/chunks/chunks.test.ts#L868), [`reindex-backfill.test.ts:24`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L24), [`reindex-backfill.test.ts:57`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L57), [`reindex-backfill.test.ts:78`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L78), [`reindex-backfill.test.ts:103`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L103), [`reindex-backfill.test.ts:121`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L121))
 
 ## File Changes
 

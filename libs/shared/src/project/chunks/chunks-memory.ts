@@ -279,6 +279,18 @@ export class InMemoryChunks implements ChunksPort {
     );
   }
 
+  async chunkedFilePaths(schema: string, repo: string): Promise<string[]> {
+    enforceSchema(schema);
+
+    return Array.from(
+      new Set(
+        this.rows
+          .filter((row) => row.schema === schema && row.repo === repo)
+          .map((row) => row.filePath),
+      ),
+    );
+  }
+
   async staleChunkerFiles(
     schema: string,
     repo: string,
