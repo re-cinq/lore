@@ -37,6 +37,10 @@ export interface ChunkLineRange {
   file_path: string;
   start_line: number | null;
   end_line: number | null;
+  /** When the chunk was last ingested/verified. Optional so the pure helpers
+   * stay usable without freshness data — absent means "unknown", which keeps
+   * the strict pre-freshness judgment. */
+  ingested_at?: string | Date | null;
 }
 
 export type BrokenLinkReason =
@@ -54,6 +58,7 @@ export interface BrokenLink {
 export function resolveTestLink(
   link: TestLinkRef,
   chunks: ChunkLineRange[],
+  specIngestedAt?: string | Date | null,
 ): { ok: true } | { ok: false; reason: BrokenLinkReason } {
   const matching = chunks.filter((c) => c.file_path === link.path);
 
@@ -79,19 +84,60 @@ export function resolveTestLink(
       (link.line as number) <= (c.end_line as number),
   );
 
-  return covers ? { ok: true } : { ok: false, reason: "line-out-of-range" };
+  if (covers) {
+    return { ok: true };
+  }
+
+  if (isIndexLagShaped(link.line, ranged, specIngestedAt)) {
+    return { ok: true };
+  }
+
+  return { ok: false, reason: "line-out-of-range" };
+}
+
+/** A line past the file's LAST ranged line, on chunks ingested BEFORE the
+ * spec that carries the link, is index lag rather than rot: tests are
+ * appended at file end by convention, so a spec linking a just-added test
+ * points past the old EOF until reindex re-chunks the file (and the capped
+ * sweep can lag by days). Unverifiable-lag is not broken — the daily rerun
+ * re-judges once the test chunks catch up to the spec. A stale anchor on a
+ * FRESH index (or one landing in a mid-file gap) still flags. */
+function isIndexLagShaped(
+  line: number,
+  ranged: ChunkLineRange[],
+  specIngestedAt: string | Date | null | undefined,
+): boolean {
+  if (specIngestedAt == null) {
+    return false;
+  }
+  const maxEnd = Math.max(...ranged.map((c) => c.end_line as number));
+
+  if (line <= maxEnd) {
+    return false;
+  }
+  const stamps = ranged
+    .map((c) => c.ingested_at)
+    .filter((t): t is string | Date => t != null)
+    .map((t) => new Date(t).getTime());
+
+  if (stamps.length === 0) {
+    return false;
+  }
+
+  return Math.max(...stamps) < new Date(specIngestedAt).getTime();
 }
 
 export function collectBrokenLinks(
   specPath: string,
   content: string,
   chunks: ChunkLineRange[],
+  specIngestedAt?: string | Date | null,
 ): BrokenLink[] {
   const out: BrokenLink[] = [];
 
   for (const { statement, testLinks } of linksForStatements(content)) {
     for (const link of testLinks) {
-      const r = resolveTestLink(link, chunks);
+      const r = resolveTestLink(link, chunks, specIngestedAt);
 
       if (!r.ok) {
         out.push({
@@ -230,6 +276,22 @@ function specsByPath(
   return byPath;
 }
 
+/** Newest ingest stamp across a spec's chunks — the freshness of the links it
+ * carries, compared against test-chunk stamps to spot index lag. */
+function latestIngest(chunks: SpecChunkWithIngest[]): string | Date | null {
+  const stamps = chunks
+    .map((c) => c.ingestedAt)
+    .filter((t): t is string | Date => t != null);
+
+  if (stamps.length === 0) {
+    return null;
+  }
+
+  return stamps.reduce((a, b) =>
+    new Date(a).getTime() >= new Date(b).getTime() ? a : b,
+  );
+}
+
 export async function validateSpecCoverageJob(
   opts: ValidateOptions,
 ): Promise<string> {
@@ -250,6 +312,7 @@ export async function validateSpecCoverageJob(
     file_path: c.filePath,
     start_line: c.startLine,
     end_line: c.endLine,
+    ingested_at: c.ingestedAt,
   }));
 
   const broken: BrokenLink[] = [];
@@ -265,7 +328,14 @@ export async function validateSpecCoverageJob(
       })),
     );
 
-    broken.push(...collectBrokenLinks(specPath, content, testChunks));
+    broken.push(
+      ...collectBrokenLinks(
+        specPath,
+        content,
+        testChunks,
+        latestIngest(chunks),
+      ),
+    );
   }
 
   let reportsOpened = 0;
