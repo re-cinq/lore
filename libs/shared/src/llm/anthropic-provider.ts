@@ -3,12 +3,14 @@ import { enforceTrue } from "../lib/enforce.js";
  * Anthropic provider — the proven `callLLM`/`callLLMWithTool` logic (relocated
  * from agent/src/platform/anthropic.ts) wrapped behind {@link LlmProvider}.
  * Prompt caching, cost computation, retries and `pipeline.llm_calls` logging are
- * preserved; the only seam change is the cost-tracking pool, now injected
- * (via `Llm.configure`) instead of imported — absent → logging is skipped.
+ * preserved; cost logging goes through an injected {@link UsagePort} (via
+ * `Llm.configure`) so every row rides the 0032-aware routing SQL — a caller
+ * passing an assembly-line id as `taskId` lands on `assembly_line_id` instead
+ * of being FK-rejected. Port absent → logging is skipped.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
-import type { PgPool } from "../memory-store.js";
+import type { UsagePort } from "../project/usage/usage-port.js";
 import type {
   LlmCompleteRequest,
   LlmCompletion,
@@ -92,7 +94,7 @@ function computeCost(
 
 export interface AnthropicProviderOptions {
   model?: string;
-  costPool?: PgPool;
+  usage?: UsagePort;
 }
 
 export class AnthropicProvider implements LlmProvider {
@@ -112,24 +114,26 @@ export class AnthropicProvider implements LlmProvider {
     costUsd: number,
     durationMs: number,
   ): Promise<void> {
-    if (!this.opts.costPool) {
+    if (!this.opts.usage) {
       return;
     }
-    await this.opts.costPool
-      .query(
-        `INSERT INTO pipeline.llm_calls (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [
-          req.taskId || null,
-          req.jobName || null,
-          model,
-          inputTokens,
-          outputTokens,
-          costUsd,
-          durationMs,
-        ],
-      )
-      .catch(() => {});
+    const result = await this.opts.usage
+      .logLlmCall({
+        taskId: req.taskId || null,
+        jobName: req.jobName || null,
+        model,
+        inputTokens,
+        outputTokens,
+        costUsd,
+        durationMs,
+      })
+      .catch(() => null);
+
+    if (result && !result.correlated && req.taskId) {
+      console.warn(
+        `[llm] cost row uncorrelated: id ${req.taskId} matched no task or assembly line`,
+      );
+    }
   }
 
   private async recordFailedCall(
@@ -138,15 +142,21 @@ export class AnthropicProvider implements LlmProvider {
     durationMs: number,
     message: string,
   ): Promise<void> {
-    if (!this.opts.costPool) {
+    if (!this.opts.usage) {
       return;
     }
-    await this.opts.costPool
-      .query(
-        `INSERT INTO pipeline.llm_calls (task_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms, status, error)
-         VALUES ($1, $2, $3, 0, 0, 0, $4, 'failed', $5)`,
-        [req.taskId || null, req.jobName || null, model, durationMs, message],
-      )
+    await this.opts.usage
+      .logLlmCall({
+        taskId: req.taskId || null,
+        jobName: req.jobName || null,
+        model,
+        inputTokens: 0,
+        outputTokens: 0,
+        costUsd: 0,
+        durationMs,
+        status: "failed",
+        error: message,
+      })
       .catch(() => {});
   }
 

@@ -5,6 +5,7 @@ import { setPool } from "@re-cinq/lore-server-core/platform/db.js";
 import { setMemoryPool } from "@re-cinq/lore-server-core/features/memory/memory.js";
 import { setPipelinePool } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { Llm } from "@re-cinq/lore-shared";
+import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { loadTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
 import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 import { startHttpServer } from "./server/http-server.js";
@@ -31,7 +32,7 @@ async function main() {
     setPool(dbPool);
     setMemoryPool(dbPool);
     setPipelinePool(dbPool);
-    Llm.configure({ costPool: dbPool });
+    Llm.configure({ usage: new PgUsage(dbPool) });
     state.pool = dbPool;
     console.error(`[lore-api] Database mode: PostgreSQL at ${dbHost}`);
   } else {
