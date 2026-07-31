@@ -217,7 +217,8 @@ export class PgChunks implements ChunksPort {
     const { rows } = await this.pool.query(
       `SELECT file_path,
               (metadata->>'start_line')::int AS start_line,
-              (metadata->>'end_line')::int   AS end_line
+              (metadata->>'end_line')::int   AS end_line,
+              ingested_at
        FROM ${schema}.chunks
        WHERE repo = $1 AND content_type = 'code'`,
       [repo],
@@ -227,6 +228,7 @@ export class PgChunks implements ChunksPort {
       filePath: r.file_path as string,
       startLine: (r.start_line as number | null) ?? null,
       endLine: (r.end_line as number | null) ?? null,
+      ingestedAt: (r.ingested_at as string | Date | null) ?? null,
     }));
   }
 

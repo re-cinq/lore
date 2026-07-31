@@ -354,3 +354,75 @@ describe("collectBrokenLinks non-trailing false positives", () => {
     ]);
   });
 });
+
+describe("resolveTestLink index-lag suppression", () => {
+  const staleChunk = (
+    file_path: string,
+    start_line: number,
+    end_line: number,
+    ingested_at: string,
+  ): ChunkLineRange => ({ file_path, start_line, end_line, ingested_at });
+
+  it("passes a line past the last chunk end when the file's chunks predate the spec", () => {
+    const out = resolveTestLink(
+      ref("src/x.test.ts", 120),
+      [staleChunk("src/x.test.ts", 1, 100, "2026-07-29T03:00:00Z")],
+      "2026-07-30T03:00:00Z",
+    );
+
+    expect(out).toEqual({ ok: true });
+  });
+
+  it("flags line-out-of-range past the last chunk end when the file's chunks are fresher than the spec", () => {
+    const out = resolveTestLink(
+      ref("src/x.test.ts", 120),
+      [staleChunk("src/x.test.ts", 1, 100, "2026-07-31T03:00:00Z")],
+      "2026-07-30T03:00:00Z",
+    );
+
+    expect(out).toEqual({ ok: false, reason: "line-out-of-range" });
+  });
+
+  it("flags a line in a mid-file gap even when the file's chunks predate the spec", () => {
+    const out = resolveTestLink(
+      ref("src/x.test.ts", 55),
+      [
+        staleChunk("src/x.test.ts", 1, 50, "2026-07-29T03:00:00Z"),
+        staleChunk("src/x.test.ts", 60, 100, "2026-07-29T03:00:00Z"),
+      ],
+      "2026-07-30T03:00:00Z",
+    );
+
+    expect(out).toEqual({ ok: false, reason: "line-out-of-range" });
+  });
+
+  it("flags line-out-of-range past the last chunk end when no spec ingest stamp is given", () => {
+    const out = resolveTestLink(ref("src/x.test.ts", 120), [
+      staleChunk("src/x.test.ts", 1, 100, "2026-07-29T03:00:00Z"),
+    ]);
+
+    expect(out).toEqual({ ok: false, reason: "line-out-of-range" });
+  });
+
+  it("flags line-out-of-range past the last chunk end when the file's chunks carry no ingest stamps", () => {
+    const out = resolveTestLink(
+      ref("src/x.test.ts", 120),
+      [chunk("src/x.test.ts", 1, 100)],
+      "2026-07-30T03:00:00Z",
+    );
+
+    expect(out).toEqual({ ok: false, reason: "line-out-of-range" });
+  });
+
+  it("passes collectBrokenLinks a spec ingest stamp so past-EOF links on older chunks are suppressed", () => {
+    const md = "## A\n\n- Works. ([t](src/x.test.ts#L120))\n";
+    const out = collectBrokenLinks(
+      "specs/x/spec.md",
+      md,
+      [staleChunk("src/x.test.ts", 1, 100, "2026-07-29T03:00:00Z")],
+      "2026-07-30T03:00:00Z",
+    );
+
+    expect(out).toEqual([]);
+  });
+});
