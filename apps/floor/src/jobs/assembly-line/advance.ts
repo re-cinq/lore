@@ -95,7 +95,9 @@ export function taskFromRow(row: AssemblyLineRecord): FloorAssemblyLineTask {
 // comment on a PR rides the PR's head branch, so two of these lines on one branch
 // carry DISTINCT human comments — not the duplicate per-repo/per-commit work the
 // overlap guard exists to suppress (detect: detect/<def>/<repo>; ingest:
-// ingest/<kind>/<sha>, where the branch encodes the exact job). Guarding them would
+// ingest/<kind>/<sha>[/<chunk>], where the branch encodes the exact unit of
+// work — chunked ingest carries its chunk identity precisely so sibling chunks
+// never read as duplicates here). Guarding them would
 // drop the newer as lease_held and silently lose a comment, so they opt out. They
 // then run concurrently: comment-triage commits nothing, and a code-review-reply
 // push race fails loudly rather than a comment vanishing without a trace.

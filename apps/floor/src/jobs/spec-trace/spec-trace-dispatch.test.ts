@@ -167,6 +167,29 @@ describe("dispatchSpecTrace", () => {
     expect(started).toHaveLength(1);
   });
 
+  it("force chunks of one commit lease per glob, so sibling directories never defer to each other", async () => {
+    const { started, startLine } = startLineRecorder();
+    const f = fakeProjectFor();
+
+    await dispatchSpecTrace(
+      "re-cinq/lore",
+      "specs",
+      { commit: "abc123", force: true, glob: "specs/auth/" },
+      { projectFor: f.projectFor, startLine },
+    );
+    await dispatchSpecTrace(
+      "re-cinq/lore",
+      "specs",
+      { commit: "abc123", force: true, glob: "specs/billing/" },
+      { projectFor: f.projectFor, startLine },
+    );
+
+    expect(started.map((s) => s.branch)).toEqual([
+      "ingest/specs/abc123/specs/auth/",
+      "ingest/specs/abc123/specs/billing/",
+    ]);
+  });
+
   it("routes a payload kind to the ingest line by event reference", async () => {
     const { started, startLine } = startLineRecorder();
     const f = fakeProjectFor();
@@ -181,11 +204,34 @@ describe("dispatchSpecTrace", () => {
       {
         definitionName: "ingest",
         repo: "re-cinq/lore",
-        branch: "ingest/test-report/abc123",
+        branch: "ingest/test-report/abc123/4711",
         args: { kind: "test-report", ref: "abc123", payload_event_id: "4711" },
       },
     ]);
     expect(result.logLine).toContain("ingest line a1b2c3d4");
+  });
+
+  it("test-report chunks of one commit lease per event, so chunk 2 of 40 never defers to chunk 1", async () => {
+    const { started, startLine } = startLineRecorder();
+    const f = fakeProjectFor();
+
+    await dispatchSpecTrace(
+      "re-cinq/lore",
+      "test-report",
+      { commit: "abc123", tests: [] },
+      { projectFor: f.projectFor, eventId: "4711", startLine },
+    );
+    await dispatchSpecTrace(
+      "re-cinq/lore",
+      "test-report",
+      { commit: "abc123", tests: [] },
+      { projectFor: f.projectFor, eventId: "4712", startLine },
+    );
+
+    expect(started.map((s) => s.branch)).toEqual([
+      "ingest/test-report/abc123/4711",
+      "ingest/test-report/abc123/4712",
+    ]);
   });
 
   it("a payload kind without the scheduling event's id is a config error — the pod can only fetch the body by reference", async () => {
