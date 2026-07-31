@@ -272,6 +272,7 @@ export {
   parseCodeLinksInStatement,
   linksForStatements,
   findMisplacedCoverageLinks,
+  resolveLinkPath,
   type SpecLinkRef,
   type TestLinkRef,
   type CodeLinkRef,

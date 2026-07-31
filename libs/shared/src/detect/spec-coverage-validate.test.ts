@@ -426,3 +426,36 @@ describe("resolveTestLink index-lag suppression", () => {
     expect(out).toEqual([]);
   });
 });
+
+describe("collectBrokenLinks spec-directory-relative hrefs", () => {
+  const chunks: ChunkLineRange[] = [chunk("apps/api/src/x.test.ts", 30, 50)];
+
+  it("resolves a ../-relative trailing link against the spec's directory before matching chunks", () => {
+    const md =
+      "## A\n\n- Does the thing. ([t](../../apps/api/src/x.test.ts#L42))\n";
+
+    expect(collectBrokenLinks("specs/x/spec.md", md, chunks)).toEqual([]);
+  });
+
+  it("reports the resolved repo-root-relative path when a ../-relative link's file has no chunks", () => {
+    const md =
+      "## A\n\n- Does the thing. ([t](../../apps/api/src/gone.test.ts#L42))\n";
+
+    expect(collectBrokenLinks("specs/x/spec.md", md, chunks)).toEqual([
+      {
+        spec_path: "specs/x/spec.md",
+        statement_text:
+          "Does the thing. ([t](../../apps/api/src/gone.test.ts#L42))",
+        link: { label: "t", path: "apps/api/src/gone.test.ts", line: 42 },
+        reason: "file-missing",
+      },
+    ]);
+  });
+
+  it("resolves a ./-prefixed repo-root-relative trailing link unchanged", () => {
+    const md =
+      "## A\n\n- Does the thing. ([t](./apps/api/src/x.test.ts#L42))\n";
+
+    expect(collectBrokenLinks("specs/x/spec.md", md, chunks)).toEqual([]);
+  });
+});
