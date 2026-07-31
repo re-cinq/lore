@@ -17,7 +17,7 @@ import {
   type DgraphClientPort,
   type IngestGraphSummary,
 } from "@re-cinq/lore-shared";
-import type { NodeResult } from "@re-cinq/lore-assembly-lines";
+import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "../input.js";
 
 // Derived, not parallel: INGEST_KINDS holds exactly the file-projectable doc
@@ -172,6 +172,7 @@ export async function runIngestStation(
     Error,
     `ingest station: no ingest handler for kind "${kind}"`,
   );
+  console.log(eventLine(`ingest ${kind} for ${input.repo}`));
   const workspaceDir =
     deps.workspaceDir ??
     join(process.env.WORKSPACE_DIR ?? "/workspace", "target");
@@ -195,12 +196,13 @@ export async function runIngestStation(
       deps.fetchPayload ?? ((id: string) => fetchPayloadFromApi(input.repo, id))
     )(eventId!);
     const outcome = await ingestSpecTrace(dgraph!, input.repo, kind!, payload);
+    const summaryLine = `validated_by=${outcome.validatedBy} violated=${outcome.violated} coverage_nodes=${outcome.coverageNodes} covers_edges=${outcome.coversEdges} test_chunks=${outcome.testChunks}`;
+
+    console.log(eventLine(`ingest ${kind} complete: ${summaryLine}`));
 
     return {
       outcome: "success",
-      extras: {
-        "Lore-Ingest-Summary": `validated_by=${outcome.validatedBy} violated=${outcome.violated} coverage_nodes=${outcome.coverageNodes} covers_edges=${outcome.coversEdges} test_chunks=${outcome.testChunks}`,
-      },
+      extras: { "Lore-Ingest-Summary": summaryLine },
     };
   }
 
@@ -220,10 +222,16 @@ export async function runIngestStation(
     },
   );
 
+  const extras = summaryExtras(summary);
+
+  console.log(
+    eventLine(`ingest ${kind} complete: ${extras["Lore-Ingest-Summary"]}`),
+  );
+
   // Partial failure routes the line's failed edge — never a silent success
   // with files missing (same contract as the Floor handler it replaces).
   return {
     outcome: summary.failed > 0 ? "failed" : "success",
-    extras: summaryExtras(summary),
+    extras,
   };
 }
