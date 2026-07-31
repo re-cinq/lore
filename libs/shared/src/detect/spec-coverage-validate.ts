@@ -25,6 +25,7 @@
  */
 
 import {
+  dropIngestExcluded,
   linksForStatements,
   findMisplacedCoverageLinks,
   reassembleSpec,
@@ -306,7 +307,11 @@ export async function validateSpecCoverageJob(
   const repo = opts.repoFilter;
   const project = opts.project;
 
-  const specs = await project.chunks.specChunksWithIngest();
+  // Both reads pass through dropIngestExcluded: chunks whose paths today's
+  // ingest policy refuses (fixtures, graveyard) may still linger in the DB
+  // from before the exclusion existed, and their deliberately-fake links must
+  // not surface as rot (issue #1018).
+  const specs = dropIngestExcluded(await project.chunks.specChunksWithIngest());
 
   if (specs.length === 0) {
     console.log(`[job] spec-coverage-validate: no specs for ${repo}`);
@@ -314,8 +319,8 @@ export async function validateSpecCoverageJob(
     return "No specs found";
   }
 
-  const testChunks: ChunkLineRange[] = (
-    await project.chunks.testChunkRanges()
+  const testChunks: ChunkLineRange[] = dropIngestExcluded(
+    await project.chunks.testChunkRanges(),
   ).map((c) => ({
     file_path: c.filePath,
     start_line: c.startLine,

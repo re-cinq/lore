@@ -16,6 +16,7 @@
  */
 
 import {
+  dropIngestExcluded,
   parseTestLinksInStatement,
   segmentStatements,
   buildIntroOrdinals,
@@ -574,7 +575,11 @@ export async function specCoverageBackfillJob(
   const repo = opts.repoFilter;
   const project = opts.project;
 
-  const specRows = await project.chunks.specChunksForBackfill();
+  // Skip chunks today's ingest policy refuses (fixtures, graveyard): stale
+  // pre-exclusion debris must not receive suggested links (issue #1018).
+  const specRows = dropIngestExcluded(
+    await project.chunks.specChunksForBackfill(),
+  );
   const specs = opts.specPathFilter
     ? specRows.filter((s) => s.filePath === opts.specPathFilter)
     : specRows;
@@ -641,7 +646,7 @@ export async function specCoverageBackfillJob(
 }
 
 async function buildTestChunks(project: Project): Promise<TestChunk[]> {
-  const rows = await project.chunks.codeChunksForBackfill();
+  const rows = dropIngestExcluded(await project.chunks.codeChunksForBackfill());
 
   return rows
     .filter((r) => isTestFile(r.filePath))
