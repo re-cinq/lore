@@ -34,4 +34,12 @@ export class Llm {
     usage = opts.usage;
     current = null;
   }
+
+  /** True when a UsagePort was configured — the per-call cost transport is
+   *  active in this process. The station runner checks this before installing
+   *  its terminal-line usage tracker, so the same call is never cost-counted
+   *  by both transports. */
+  static get usageConfigured(): boolean {
+    return usage !== undefined;
+  }
 }
