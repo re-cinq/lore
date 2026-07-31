@@ -245,6 +245,18 @@ function rowsFromEvent(ev: unknown): Partial<AgentRunEventInsert>[] {
       .filter((row): row is Partial<AgentRunEventInsert> => row !== null);
   }
 
+  // The station contract's progress lines (eventLine in agent-output.ts).
+  // Stations emit no claude stream, so without these their transcript would
+  // hold nothing but the terminal result. Projected as "message" rows — the
+  // existing prose kind — rather than a seventh event type.
+  if (ev.type === "log") {
+    const message = str(ev.message);
+
+    return message
+      ? [{ eventType: "message", summary: cap(message), payload: {} }]
+      : [];
+  }
+
   return ev.type === "result" ? [resultRow(ev)] : [];
 }
 

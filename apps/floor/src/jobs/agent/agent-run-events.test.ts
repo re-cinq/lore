@@ -561,3 +561,30 @@ describe("truncateForStorage", () => {
     );
   });
 });
+
+describe("station log-line projection", () => {
+  it("projects a station log line to a message row", () => {
+    const rows = parseRunEvents(
+      line({ type: "log", message: "lore-station detect starting" }),
+    );
+
+    expect(rows).toEqual([
+      {
+        taskId: "task-uuid-1",
+        agentCrName: "abcd1234-review",
+        eventType: "message",
+        summary: "lore-station detect starting",
+        payload: {},
+      },
+    ]);
+  });
+
+  it("projects no row for a log line without a string message", () => {
+    const ndjson = [
+      line({ type: "log" }),
+      line({ type: "log", message: 42 }),
+    ].join("\n");
+
+    expect(parseRunEvents(ndjson)).toEqual([]);
+  });
+});

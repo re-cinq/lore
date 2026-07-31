@@ -17,7 +17,7 @@ import {
   type DgraphClientPort,
   type IngestGraphSummary,
 } from "@re-cinq/lore-shared";
-import type { NodeResult } from "@re-cinq/lore-assembly-lines";
+import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "../input.js";
 
 // Derived, not parallel: INGEST_KINDS holds exactly the file-projectable doc
@@ -172,6 +172,7 @@ export async function runIngestStation(
     Error,
     `ingest station: no ingest handler for kind "${kind}"`,
   );
+  console.log(eventLine(`ingest ${kind} for ${input.repo}`));
   const workspaceDir =
     deps.workspaceDir ??
     join(process.env.WORKSPACE_DIR ?? "/workspace", "target");

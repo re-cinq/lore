@@ -13,7 +13,7 @@ import {
   specCoverageBackfillJob,
 } from "@re-cinq/lore-shared/detect/index.js";
 import { createStationProject, type Project } from "@re-cinq/lore-shared";
-import type { NodeResult } from "@re-cinq/lore-assembly-lines";
+import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "../input.js";
 import type { StationEnv } from "./validate.js";
 
@@ -43,7 +43,10 @@ export async function runDetectStation(
     Error,
     `detect station: no detector for job_ref "${jobRef}"`,
   );
+  console.log(eventLine(`detect ${jobRef} on ${input.repo}`));
   const summary = await detector(input.repo, makeProject(input.repo));
+
+  console.log(eventLine(summary));
 
   return {
     outcome: "success",
