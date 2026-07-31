@@ -266,7 +266,10 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
     spend on its terminal line. An explicit `NodeResult.usage` wins over the tracker's sum; an
     infrastructure-failure line still carries the spend made before the throw; a runner that makes
     no model calls emits the usage-less envelope unchanged; and the wrapped provider is restored
-    after the run. ([validated by `main.test.ts:22`](apps/lore-station/src/main.test.ts#L22), [`main.test.ts:56`](apps/lore-station/src/main.test.ts#L56), [`main.test.ts:89`](apps/lore-station/src/main.test.ts#L89), [`main.test.ts:113`](apps/lore-station/src/main.test.ts#L113), [`main.test.ts:128`](apps/lore-station/src/main.test.ts#L128); implemented by [`llm-usage-tracker.ts:17`](apps/lore-station/src/llm-usage-tracker.ts#L17))
+    after the run. The two cost transports are code-enforced exclusive: when the process has a
+    configured UsagePort (`Llm.usageConfigured` — the per-call transport), `runStation` installs no
+    tracker and suppresses all terminal-line usage, explicit `NodeResult.usage` included, so the
+    same call is never counted by both. ([validated by `main.test.ts:22`](apps/lore-station/src/main.test.ts#L22), [`main.test.ts:56`](apps/lore-station/src/main.test.ts#L56), [`main.test.ts:89`](apps/lore-station/src/main.test.ts#L89), [`main.test.ts:113`](apps/lore-station/src/main.test.ts#L113), [`main.test.ts:128`](apps/lore-station/src/main.test.ts#L128), [`main.test.ts:142`](apps/lore-station/src/main.test.ts#L142); implemented by [`llm-usage-tracker.ts:17`](apps/lore-station/src/llm-usage-tracker.ts#L17))
 
 ## Out of scope
 

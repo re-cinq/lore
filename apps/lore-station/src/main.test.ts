@@ -16,7 +16,7 @@ const inputJson = JSON.stringify({
 
 const runners = (runner: StationRunner) => ({ fake: runner });
 
-afterEach(() => Llm.reset());
+afterEach(() => Llm.configure({}));
 
 describe("runStation LLM usage tracking", () => {
   it("sums a runner's untracked model calls onto the terminal line", async () => {
@@ -137,5 +137,50 @@ describe("runStation LLM usage tracking", () => {
     );
 
     expect(Llm.instance).toBe(fake);
+  });
+
+  it("suppresses all terminal-line usage when a UsagePort is configured (per-call transport active)", async () => {
+    Llm.configure({
+      usage: {
+        logLlmCall: async () => ({ correlated: true }),
+        processedCounts: async () => ({ today: 0, total: 0 }),
+      },
+    });
+
+    const fake = new FakeLlm({
+      text: "ok",
+      usage: { inputTokens: 100, costUsd: 0.001 },
+    });
+
+    Llm.setInstance(fake);
+
+    const { line, exitCode } = await runStation(
+      "fake",
+      inputJson,
+      env,
+      runners(async () => {
+        await Llm.instance.complete({ prompt: "a" });
+
+        return {
+          outcome: "success",
+          extras: {},
+          usage: {
+            inputTokens: 7,
+            outputTokens: 3,
+            costUsd: 0.5,
+            durationMs: 9,
+            model: "explicit",
+          },
+        };
+      }),
+    );
+
+    expect(Llm.instance).toBe(fake);
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(line)).toEqual({
+      type: "result",
+      is_error: false,
+      result: 'LORE_NODE_RESULT: {"outcome":"success","extras":{}}',
+    });
   });
 });

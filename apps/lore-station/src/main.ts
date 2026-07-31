@@ -54,12 +54,31 @@ export async function runStation(
   // Every model call the runner makes — however deep — is summed for the
   // terminal line's cost report; an explicit NodeResult.usage wins, and an
   // infrastructure failure still reports the spend made before it.
-  const tracker = new UsageTrackingLlm(Llm.instance);
+  //
+  // Exception: a process with a configured UsagePort (Llm.usageConfigured)
+  // already writes one pipeline.llm_calls row per call — the other cost
+  // transport. Reporting usage on the terminal line too (tracker sum OR the
+  // runner's explicit NodeResult.usage, which derives from the same calls)
+  // would count the same spend twice at the cost sink, so the line carries
+  // none of it.
+  const tracker = Llm.usageConfigured
+    ? null
+    : new UsageTrackingLlm(Llm.instance);
 
-  Llm.setInstance(tracker);
+  if (tracker) {
+    Llm.setInstance(tracker);
+  } else {
+    console.warn(
+      "[station] UsagePort configured — per-call cost logging is active; terminal-line usage is suppressed to avoid double-counting",
+    );
+  }
 
   try {
     const result = await runner(parseStationInput(inputJson), env);
+
+    if (!tracker) {
+      return { line: resultLine({ ...result, usage: undefined }), exitCode: 0 };
+    }
 
     return {
       line: resultLine(result, undefined, result.usage ?? tracker.totalUsage()),
@@ -67,11 +86,13 @@ export async function runStation(
     };
   } catch (err) {
     return {
-      line: resultLine(null, (err as Error).message, tracker.totalUsage()),
+      line: resultLine(null, (err as Error).message, tracker?.totalUsage()),
       exitCode: 1,
     };
   } finally {
-    Llm.setInstance(tracker.inner);
+    if (tracker) {
+      Llm.setInstance(tracker.inner);
+    }
   }
 }
 
