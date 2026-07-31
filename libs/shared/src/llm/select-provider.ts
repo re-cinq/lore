@@ -6,7 +6,7 @@
  */
 
 import type { LlmProvider } from "./llm-provider.js";
-import type { PgPool } from "../memory-store.js";
+import type { UsagePort } from "../project/usage/usage-port.js";
 import { AnthropicProvider } from "./anthropic-provider.js";
 import { OpenAiProvider } from "./openai-provider.js";
 import { OllamaProvider } from "./ollama-provider.js";
@@ -14,7 +14,7 @@ import { CliProvider } from "./cli-provider.js";
 
 export function selectProvider(
   env: NodeJS.ProcessEnv,
-  opts: { costPool?: PgPool } = {},
+  opts: { usage?: UsagePort } = {},
 ): LlmProvider {
   const vendor = (
     env.LORE_LLM_PROVIDER ||
@@ -43,7 +43,7 @@ export function selectProvider(
 
       return new AnthropicProvider({
         model: env.ANTHROPIC_MODEL,
-        costPool: opts.costPool,
+        usage: opts.usage,
       });
   }
 }

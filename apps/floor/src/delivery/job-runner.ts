@@ -8,7 +8,8 @@
  * scheduler), and exits 0 / non-zero based on outcome.
  */
 
-import { initPool, getPool } from "../kernel/db.js";
+import { initPool } from "../kernel/db.js";
+import { usage } from "../kernel/queues.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { anthropicCostSyncJob } from "../jobs/cost/anthropic-cost-sync/index.js";
 import { contextCoreBuilderJob } from "../jobs/context-jobs/context-core-builder/index.js";
@@ -112,7 +113,7 @@ export async function runJobByName(jobName: string): Promise<number> {
   }
 
   initPool();
-  Llm.configure({ costPool: getPool() });
+  Llm.configure({ usage: usage() });
   // Jobs reach GitHub/repo via the project facade (projectFor → createProject),
   // which builds its GitHub adapter from env on demand — no startup wiring needed.
 

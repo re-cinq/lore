@@ -8,13 +8,16 @@ export interface LlmCallRecord {
    *  `assembly_line_nodes` row, the cost lands on that exact assembly-line
    *  attempt — giving task-backed runs per-attempt cost (#947). */
   agentCrName?: string | null;
-  jobName: string;
+  jobName?: string | null;
   model: string;
   inputTokens: number;
   outputTokens: number;
   /** Defaults to 0 when the provider tracks cost internally (e.g. Claude Code). */
   costUsd?: number;
   durationMs: number;
+  /** Defaults to "success"; a failed API call records "failed" + `error`. */
+  status?: "success" | "failed";
+  error?: string | null;
 }
 
 /** Today's and all-time `pipeline.llm_calls` row counts (health readout). */
