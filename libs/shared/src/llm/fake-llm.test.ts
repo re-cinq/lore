@@ -36,4 +36,23 @@ describe("FakeLlm", () => {
     await fake.complete({ prompt: "the-prompt", jobName: "j" });
     expect(fake.calls).toEqual([{ prompt: "the-prompt", jobName: "j" }]);
   });
+
+  it("overlays canned usage on the zeroed defaults", async () => {
+    const result = await new FakeLlm({
+      data: { matches: true },
+      usage: { inputTokens: 812, costUsd: 0.0008 },
+    }).completeWithTool({
+      prompt: "x",
+      toolName: "t",
+      toolDescription: "d",
+      toolSchema: {},
+    });
+
+    expect(result).toMatchObject({
+      inputTokens: 812,
+      costUsd: 0.0008,
+      outputTokens: 0,
+      model: "fake",
+    });
+  });
 });

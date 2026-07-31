@@ -10,6 +10,7 @@
  */
 
 import { Llm } from "../llm/llm.js";
+import type { LlmUsage } from "../llm/llm-provider.js";
 
 export type TriageAction = "review" | "address" | "answer" | "ignore";
 
@@ -26,6 +27,11 @@ export interface CommentContext {
 export interface TriageDecision {
   action: TriageAction;
   reason: string;
+  /**
+   * Usage of the classification call, for the station's cost report. Absent
+   * when triage failed — the throw means no billable completion arrived.
+   */
+  usage?: LlmUsage;
 }
 
 const ACTIONS: TriageAction[] = ["review", "address", "answer", "ignore"];
@@ -51,7 +57,7 @@ export async function classifyComment(
   ctx: CommentContext,
 ): Promise<TriageDecision> {
   try {
-    const { data } = await Llm.instance.completeWithTool<{
+    const { data, ...usage } = await Llm.instance.completeWithTool<{
       action?: string;
       reason?: string;
     }>({
@@ -67,6 +73,7 @@ export async function classifyComment(
     return {
       action: isAction(data?.action) ? data.action : "ignore",
       reason: data?.reason ?? "",
+      usage,
     };
   } catch {
     return { action: "ignore", reason: "triage failed" };

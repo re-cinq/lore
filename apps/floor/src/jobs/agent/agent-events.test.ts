@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { resultLine } from "@re-cinq/lore-assembly-lines";
 import { parseAgentEvents, agentEventsArchiveKey } from "./agent-events.js";
 
 const line = (source: unknown, event: unknown): string =>
@@ -168,5 +169,46 @@ describe("agentEventsArchiveKey", () => {
     expect(agentEventsArchiveKey("2026-06-29T22:45:01.123Z", [])).toBe(
       "__agent_events__/2026-06-29/2026-06-29T22-45-01-123Z-unknown.ndjson",
     );
+  });
+});
+
+describe("parseAgentEvents on a station terminal line", () => {
+  it("maps a station result line carrying usage to one llm_calls row", () => {
+    const stationLine = resultLine({
+      outcome: "success",
+      extras: { action: "answer" },
+      usage: {
+        inputTokens: 812,
+        outputTokens: 41,
+        costUsd: 0.0008,
+        durationMs: 950,
+        model: "claude-haiku-4-5-20251001",
+      },
+    });
+
+    expect(
+      parseAgentEvents(
+        line(
+          { task: "al-uuid-1", agent: "abc123-triage" },
+          JSON.parse(stationLine),
+        ),
+      ),
+    ).toEqual([
+      {
+        taskId: "al-uuid-1",
+        agentCrName: "abc123-triage",
+        model: "claude-haiku-4-5-20251001",
+        inputTokens: 812,
+        outputTokens: 41,
+        costUsd: 0.0008,
+        durationMs: 950,
+      },
+    ]);
+  });
+
+  it("yields no cost row for a station result line without usage", () => {
+    const stationLine = resultLine({ outcome: "success", extras: {} });
+
+    expect(parseAgentEvents(line(src, JSON.parse(stationLine)))).toEqual([]);
   });
 });

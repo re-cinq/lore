@@ -13,7 +13,7 @@
 // newline (the ```REVIEW_FINDINGS block) does not.
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import type { NodeResult } from "./node-types.js";
+import type { NodeResult, NodeLlmUsage } from "./node-types.js";
 
 interface ResultLine {
   type: string;
@@ -194,10 +194,34 @@ export function resultLine(
     type: "result",
     is_error: result === null,
     result: payload,
+    ...usageFields(result?.usage),
   });
 }
 
 /** Progress lines for the log sinks (anything non-terminal). */
 export function eventLine(message: string): string {
   return JSON.stringify({ type: "log", message });
+}
+
+/**
+ * Reported node LLM usage as the claude-style fields the `/api/agent-events`
+ * cost sink reads off a terminal result event (`usage` + `total_cost_usd` +
+ * `duration_ms` + `model`) — how a Postgres-less station pod gets a
+ * `pipeline.llm_calls` row. Empty when the node reported no usage, keeping
+ * usage-less terminal lines byte-identical to the pre-usage envelope.
+ */
+function usageFields(usage?: NodeLlmUsage): Record<string, unknown> {
+  if (!usage) {
+    return {};
+  }
+
+  return {
+    model: usage.model,
+    usage: {
+      input_tokens: usage.inputTokens,
+      output_tokens: usage.outputTokens,
+    },
+    total_cost_usd: usage.costUsd,
+    duration_ms: usage.durationMs,
+  };
 }
