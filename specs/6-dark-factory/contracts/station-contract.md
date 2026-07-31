@@ -68,14 +68,18 @@ terminal detection keys on it, and its `result` text lands in
   persisted as trailers). Specific keys drive routing: e.g. the comment-triage
   station's `action` selects the follow-up line. Keep it under ~1 KB total; long
   detail belongs in the log lines, not extras.
-- LLM usage (stations that make their own model calls, e.g. comment-triage):
-  report it on the `NodeResult.usage` field — `resultLine` lifts it onto the
-  terminal line as the claude-style envelope fields the `/api/agent-events`
-  cost sink reads (`model`, `usage.{input_tokens,output_tokens}`,
-  `total_cost_usd`, `duration_ms`), yielding the run's `pipeline.llm_calls`
-  row. Pods have no Postgres (D7); this is the only cost-reporting path. The
-  usage never appears inside the `LORE_NODE_RESULT` payload, and omitting it
-  leaves the terminal line byte-identical to the shape above.
+- LLM usage (stations that make their own model calls, e.g. comment-triage or
+  the spec-coverage-backfill judge): captured automatically — `runStation`
+  wraps the process-wide `Llm` in a usage-tracking decorator, sums every call
+  the runner makes, and `resultLine` lifts the total onto the terminal line as
+  the claude-style envelope fields the `/api/agent-events` cost sink reads
+  (`model`, `usage.{input_tokens,output_tokens}`, `total_cost_usd`,
+  `duration_ms`), yielding the run's `pipeline.llm_calls` row. An explicit
+  `NodeResult.usage` overrides the tracker's sum, and an infrastructure
+  failure still reports the spend made before it. Pods have no Postgres (D7);
+  this is the only cost-reporting path. The usage never appears inside the
+  `LORE_NODE_RESULT` payload, and a run with no model calls leaves the
+  terminal line byte-identical to the shape above.
 - Infrastructure failures (can't parse input, dependency unreachable): emit
   `{"type":"result","is_error":true,"result":"<message>"}` and exit non-zero →
   the CR goes `Failed` → the Floor maps it to `failed` +

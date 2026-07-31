@@ -174,11 +174,13 @@ function isWrappedAgentOutput(text: string): boolean {
  * The terminal NDJSON line a station emits. A NodeResult (including outcome
  * "failed" — a normal result that routes the failed edge) emits
  * `is_error:false`; pass `null` + an error message for infrastructure
- * failures, which fail the CR itself.
+ * failures, which fail the CR itself. `usage` wins over `result.usage` and
+ * also rides error lines, so a failed run's partial spend is still recorded.
  */
 export function resultLine(
   result: NodeResult | null,
   errorMessage?: string,
+  usage?: NodeLlmUsage,
 ): string {
   const payload = result
     ? `LORE_NODE_RESULT: ${JSON.stringify({ outcome: result.outcome, extras: result.extras ?? {} })}`
@@ -194,7 +196,7 @@ export function resultLine(
     type: "result",
     is_error: result === null,
     result: payload,
-    ...usageFields(result?.usage),
+    ...usageFields(usage ?? result?.usage),
   });
 }
 
