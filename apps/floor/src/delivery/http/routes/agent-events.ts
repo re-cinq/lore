@@ -59,7 +59,7 @@ function countAnomaly(kind: AnomalyKind, n = 1): void {
  * archive copy are skipped — cost accounting (the terminal `result` line) is
  * still recorded. These are the only body-proportional allocations left after
  * the single-pass parse, so bounding them keeps a pathological report from
- * OOM-ing the single (replicaCount: 1) Floor replica at its 512Mi limit. The
+ * OOM-ing the single (replicaCount: 1) Floor replica at its memory limit. The
  * dropped viz is a nice-to-have; full fidelity remains in the raw NDJSON the
  * agent subsystem streams, and cost/billing is unaffected.
  */
@@ -138,7 +138,7 @@ export function costDegradedAudit(s: CostIngestSummary): AuditLogEntry | null {
 /**
  * Each in-flight archive pins the raw body plus its redacted copy (≤2× the 8MB
  * viz cap) until GCS resolves, so unbounded fire-and-forget stacked ~16MB per
- * concurrent POST and OOM-crash-looped the 512Mi Floor the first time the
+ * concurrent POST and OOM-crash-looped the then-512Mi Floor the first time the
  * bucket env was set (2026-07-24). Beyond this many concurrent uploads the
  * body is shed — counted, cost ingestion untouched, and the run's own raw
  * stream still exists on the agent-subsystem side.
