@@ -65,11 +65,11 @@ export default async function SearchPage({
         return {
           sql: `SELECT c.file_path as key, substring(c.content, 1, 300) as value,
                        'ingestion' as agent_id,
-                       ts_rank(to_tsvector('english', c.content), plainto_tsquery($${offset})) as score,
+                       ts_rank(c.search_tsv, websearch_to_tsquery('english', $${offset})) as score,
                        'chunk' as source,
                        c.repo as repo
                 FROM ${schema}.chunks c
-                WHERE to_tsvector('english', c.content) @@ plainto_tsquery($${offset})
+                WHERE c.search_tsv @@ websearch_to_tsquery('english', $${offset})
                   ${repoFilter}`,
           params: repo ? [q, repo] : [q],
         };
