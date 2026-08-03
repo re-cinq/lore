@@ -17,7 +17,7 @@ const pool = new Pool({
   password: process.env.LORE_DB_PASSWORD,
   // The repo overview fires its independent queries concurrently (#1030), so a
   // handful of simultaneous viewers would saturate a 10-connection pool.
-  max: parseInt(process.env.LORE_DB_POOL_MAX || "20"),
+  max: parseInt(process.env.LORE_DB_POOL_MAX || "20", 10),
 });
 
 export async function query<T = Record<string, unknown>>(

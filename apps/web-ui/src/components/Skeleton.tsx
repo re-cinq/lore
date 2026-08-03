@@ -10,6 +10,6 @@ export default function Skeleton({
   style?: CSSProperties;
 }) {
   return (
-    <div className="skeleton" style={{ width, height, ...style }} aria-hidden />
+    <div className="skeleton" style={{ ...style, width, height }} aria-hidden />
   );
 }
