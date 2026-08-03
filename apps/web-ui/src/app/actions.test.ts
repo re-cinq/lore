@@ -16,6 +16,7 @@ import {
   LORE_INGEST_WORKFLOW_PATH,
   LORE_INGEST_WORKFLOW_CONTENT,
 } from "@/lib/ingest-workflow";
+import { getIngestStatuses } from "@/lib/ingest-status-cache";
 
 beforeEach(() => {
   openIngestWorkflowPR.mockReset();
@@ -60,5 +61,16 @@ describe("fixIngestWorkflows", () => {
     ]);
 
     expect(result).toEqual({ opened: 1, prs: ["https://gh/a/1"] });
+  });
+
+  it("evicts cached ingest statuses so the revalidated page refetches", async () => {
+    openIngestWorkflowPR.mockResolvedValueOnce(null);
+    const fetchStatus = vi.fn(() => Promise.resolve("aligned" as const));
+
+    await getIngestStatuses(["re-cinq/a"], fetchStatus);
+    await fixIngestWorkflows(["re-cinq/a"]);
+    await getIngestStatuses(["re-cinq/a"], fetchStatus);
+
+    expect(fetchStatus).toHaveBeenCalledTimes(2);
   });
 });
