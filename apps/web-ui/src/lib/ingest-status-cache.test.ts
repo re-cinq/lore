@@ -54,7 +54,7 @@ describe("getIngestStatuses", () => {
     let clock = 1000;
 
     await getIngestStatuses(["acme/api"], fetch, () => clock);
-    clock += INGEST_STATUS_TTL_MS + 1;
+    clock += INGEST_STATUS_TTL_MS;
     await getIngestStatuses(["acme/api"], fetch, () => clock);
 
     expect(fetch).toHaveBeenCalledTimes(2);

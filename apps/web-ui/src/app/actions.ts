@@ -5,6 +5,7 @@ import {
   LORE_INGEST_WORKFLOW_PATH,
   LORE_INGEST_WORKFLOW_CONTENT,
 } from "@/lib/ingest-workflow";
+import { clearIngestStatusCache } from "@/lib/ingest-status-cache";
 import { revalidatePath } from "next/cache";
 
 /**
@@ -28,6 +29,7 @@ export async function fixIngestWorkflows(
   );
   const prs = results.filter((url): url is string => url !== null);
 
+  clearIngestStatusCache();
   revalidatePath("/");
 
   return { opened: prs.length, prs };

@@ -180,8 +180,10 @@ The system MUST onboard new repos by creating a PR.
 - FR-2.3: Commits onboarding files: CLAUDE.md, AGENTS.md, PR
   template, workflows.
 - FR-2.4: Opens a PR per repo with the canonical onboarding path and
-  content, counting only the repos where a PR was actually opened and
-  tolerating per-repo failures/nulls. ([validated by `actions.test.ts:26`](apps/web-ui/src/app/actions.test.ts#L26), [`actions.test.ts:50`](apps/web-ui/src/app/actions.test.ts#L50))
+  content, counting only the repos where a PR was actually opened,
+  tolerating per-repo failures/nulls, and evicting the cached
+  ingest-workflow statuses before revalidating so the re-rendered page
+  refetches them ([validated by `actions.test.ts:27`](apps/web-ui/src/app/actions.test.ts#L27), [`actions.test.ts:51`](apps/web-ui/src/app/actions.test.ts#L51), [`actions.test.ts:66`](apps/web-ui/src/app/actions.test.ts#L66))
 - FR-2.5: Tracks the onboarding PR in the pipeline (status: pending
   until merged). ([validated by `onboard.test.ts:70`](apps/web-ui/src/lib/onboard.test.ts#L70))
 - FR-2.6: After merge, adds repo to the registry and triggers
