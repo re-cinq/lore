@@ -4,6 +4,8 @@ import { useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
+import { markdownSanitizeSchema } from "@/lib/markdown-sanitize";
 import type { Root, Text, Element, ElementContent, RootContent } from "hast";
 import { type TestLinkRef } from "@/lib/spec-link-parser";
 import { resolveHref } from "@/lib/github-links";
@@ -438,7 +440,10 @@ export default function SpecDetails({
     setHover(null);
   }
 
-  const rehypePlugins = plugin ? [rehypeRaw, plugin] : [rehypeRaw];
+  const sanitize = [rehypeSanitize, markdownSanitizeSchema] as const;
+  const rehypePlugins = plugin
+    ? [rehypeRaw, sanitize, plugin]
+    : [rehypeRaw, sanitize];
   const hovered = hover ? statementsByOrdinal.get(hover.ordinal) : null;
 
   // Rewrite repo-relative markdown links (test links, ADR/doc refs) to GitHub

@@ -107,4 +107,80 @@ describe("ChunkBody", () => {
     expect(link).not.toBeNull();
     expect(link?.getAttribute("target")).toBeNull();
   });
+
+  it("strips an injected script element from a doc chunk instead of rendering it", () => {
+    const { container } = render(
+      <ChunkBody
+        content={"intro <script>window.hacked = true;</script> outro"}
+        contentType="doc"
+        filePath="docs/a.md"
+        repo="re-cinq/lore"
+      />,
+    );
+
+    expect(container.querySelector("script")).toBeNull();
+    expect(container.textContent).not.toContain("window.hacked");
+    expect(container.textContent).toContain("intro");
+    expect(container.textContent).toContain("outro");
+  });
+
+  it("removes an onerror handler from raw img HTML in a doc chunk", () => {
+    const { container } = render(
+      <ChunkBody
+        content={
+          '<img src="https://example.com/x.png" onerror="window.hacked = true" />'
+        }
+        contentType="doc"
+        filePath="docs/a.md"
+        repo="re-cinq/lore"
+      />,
+    );
+    const img = container.querySelector("img");
+
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute("onerror")).toBeNull();
+    expect(img?.getAttribute("src")).toEqual("https://example.com/x.png");
+  });
+
+  it("still highlights a fenced code block in a doc chunk after sanitizing", () => {
+    const { container } = render(
+      <ChunkBody
+        content={"```typescript\nconst n: number = 1;\n```"}
+        contentType="doc"
+        filePath="docs/a.md"
+        repo="re-cinq/lore"
+      />,
+    );
+    const code = container.querySelector("code.hljs");
+
+    expect(code).not.toBeNull();
+    expect(code?.className).toContain("language-typescript");
+  });
+
+  it("renders a GFM table in a doc chunk through the sanitizer", () => {
+    const { container } = render(
+      <ChunkBody
+        content={"| A | B |\n| - | - |\n| 1 | 2 |"}
+        contentType="doc"
+        filePath="docs/a.md"
+        repo="re-cinq/lore"
+      />,
+    );
+
+    expect(container.querySelector("table")).not.toBeNull();
+    expect(container.querySelector("td")?.textContent).toEqual("1");
+  });
+
+  it("drops an injected svg element carrying an onload handler from a doc chunk", () => {
+    const { container } = render(
+      <ChunkBody
+        content={'<svg onload="window.hacked = true"><circle r="9" /></svg>'}
+        contentType="doc"
+        filePath="docs/a.md"
+        repo="re-cinq/lore"
+      />,
+    );
+
+    expect(container.querySelector("svg")).toBeNull();
+  });
 });
