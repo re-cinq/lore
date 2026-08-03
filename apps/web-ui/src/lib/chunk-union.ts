@@ -14,6 +14,19 @@ const enforcePositiveInteger = (limit: number): void => {
   }
 };
 
+const SAFE_ORDER_TERM_RE = /^[a-z_][a-z0-9_]*(\s+(ASC|DESC))?$/i;
+
+const enforceOrderByTerms = (orderBy: string): void => {
+  const safe = orderBy
+    .split(",")
+    .map((term) => term.trim())
+    .every((term) => SAFE_ORDER_TERM_RE.test(term));
+
+  if (!safe) {
+    throw new Error(`chunk-union orderBy contains an unsafe term: ${orderBy}`);
+  }
+};
+
 /**
  * Build a UNION ALL query across chunk schemas. With `order`, each branch is
  * wrapped as `(SELECT ... ORDER BY ... LIMIT n)` so Postgres prunes per schema
@@ -21,9 +34,10 @@ const enforcePositiveInteger = (limit: number): void => {
  * global top-N — equivalent to sorting the full union, without fetching it.
  *
  * `order.orderBy` and each branch's sql are interpolated: callers pass trusted
- * literals only (same trust model as the schema interpolation in `selectFn`);
- * `order.limit` is enforced as a positive integer. Returns null when there are
- * no schemas to query.
+ * literals only (same trust model as the schema interpolation in `selectFn`).
+ * `order.limit` is enforced as a positive integer and `order.orderBy` as
+ * comma-separated `column [ASC|DESC]` terms before any SQL is built. Returns
+ * null when there are no schemas to query.
  */
 export function buildChunkUnionQuery(
   schemas: string[],
@@ -33,6 +47,7 @@ export function buildChunkUnionQuery(
 ): { sql: string; params: unknown[] } | null {
   if (order) {
     enforcePositiveInteger(order.limit);
+    enforceOrderByTerms(order.orderBy);
   }
   const parts: string[] = [];
   const allParams: unknown[] = [...baseParams];

@@ -79,4 +79,31 @@ describe("buildChunkUnionQuery", () => {
       }),
     ).toThrow(new Error("chunk-union limit must be a positive integer: 1.5"));
   });
+
+  it("throws on an orderBy term that is not column [ASC|DESC]", () => {
+    expect(() =>
+      buildChunkUnionQuery(["platform"], selectByType, [], {
+        orderBy: "score; DROP TABLE chunks",
+        limit: 20,
+      }),
+    ).toThrow(
+      new Error(
+        "chunk-union orderBy contains an unsafe term: score; DROP TABLE chunks",
+      ),
+    );
+  });
+
+  it("accepts comma-separated orderBy terms with directions", () => {
+    const result = buildChunkUnionQuery(["platform"], selectByType, [], {
+      orderBy: "ingested_at DESC, id DESC",
+      limit: 50,
+    });
+
+    expect(result).toEqual({
+      sql:
+        "(SELECT id FROM platform.chunks WHERE content_type = $1 ORDER BY ingested_at DESC, id DESC LIMIT 50)" +
+        " ORDER BY ingested_at DESC, id DESC LIMIT 50",
+      params: ["task"],
+    });
+  });
 });
