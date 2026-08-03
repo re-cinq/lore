@@ -20,25 +20,41 @@ jobs:
           echo "$SPEC" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      # PR-controlled values (title, branch) come from env so they are never
+      # interpolated into the shell command, and jq JSON-encodes them so they
+      # cannot break out of the request body either.
       - name: Create pipeline task
+        env:
+          LORE_MCP_ENDPOINT: ${{ secrets.LORE_MCP_ENDPOINT }}
+          PR_NUMBER: ${{ github.event.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          HEAD_REF: ${{ github.head_ref }}
+          REPO: ${{ github.repository }}
+        # shell: bash enables pipefail, so a jq failure is not masked by curl.
+        shell: bash
         run: |
-          curl -sf -X POST "${{ secrets.LORE_MCP_ENDPOINT }}/mcp" \
-            -H 'Content-Type: application/json' \
-            -H 'Accept: application/json, text/event-stream' \
-            -d '{
-              "jsonrpc": "2.0",
-              "id": 1,
-              "method": "tools/call",
-              "params": {
-                "name": "lore_create_pipeline_task",
-                "arguments": {
-                  "description": "Implement spec from PR #${{ github.event.number }}: ${{ github.event.pull_request.title }}",
-                  "task_type": "implementation",
-                  "target_repo": "${{ github.repository }}",
-                  "context": {
-                    "spec_file": true,
-                    "branch": "${{ github.head_ref }}"
+          jq -n \
+            --arg description "Implement spec from PR #${PR_NUMBER}: ${PR_TITLE}" \
+            --arg repo "$REPO" \
+            --arg branch "$HEAD_REF" \
+            '{
+              jsonrpc: "2.0",
+              id: 1,
+              method: "tools/call",
+              params: {
+                name: "lore_create_pipeline_task",
+                arguments: {
+                  description: $description,
+                  task_type: "implementation",
+                  target_repo: $repo,
+                  context: {
+                    spec_file: true,
+                    branch: $branch
                   }
                 }
               }
-            }' || echo "Warning: Could not reach Lore MCP endpoint"
+            }' \
+          | curl -sf -X POST "$LORE_MCP_ENDPOINT/mcp" \
+              -H 'Content-Type: application/json' \
+              -H 'Accept: application/json, text/event-stream' \
+              -d @- || echo "Warning: Could not reach Lore MCP endpoint"
