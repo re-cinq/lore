@@ -1,0 +1,11 @@
+# Build-context hygiene for the three images built with context `.`
+# (apps/{lore-api,floor,lore-station}/Dockerfile). Keeps installed deps, git
+# history, local DB data, and worktree checkouts out of the daemon upload —
+# nothing here is COPY'd by any Dockerfile.
+**/node_modules
+.git
+**/.next
+.lore-*data
+**/coverage
+**/.env*
+.claude/worktrees

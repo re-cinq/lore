@@ -4,11 +4,11 @@ WORKDIR /app
 # Copy workspace root + package.jsons. The in-image layout mirrors the repo
 # (apps/ + libs/) so the npm workspace symlinks
 # node_modules/@re-cinq/lore-{shared,server-core} → ../../libs/* resolve at runtime.
-COPY package.json ./
+COPY package.json package-lock.json ./
 COPY libs/shared/package.json ./libs/shared/
 COPY libs/server-core/package.json ./libs/server-core/
 COPY apps/lore-api/package.json ./apps/lore-api/
-RUN npm install --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-server-core --workspace=@re-cinq/lore-api
+RUN npm ci --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-server-core --workspace=@re-cinq/lore-api
 
 # Build shared
 COPY libs/shared/tsconfig.json ./libs/shared/
