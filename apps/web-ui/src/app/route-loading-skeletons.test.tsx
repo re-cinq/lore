@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import HomeLoading from "./loading";
-import RepoOverviewLoading from "./repos/[owner]/[repo]/loading";
+import RootLoading from "./loading";
+import RepoLoading from "./repos/[owner]/[repo]/loading";
 import SearchLoading from "./search/loading";
 import ContextLoading from "./context/loading";
 
 const routes: Array<[string, React.ComponentType, string]> = [
-  ["home", HomeLoading, "Loading repositories"],
-  ["repo overview", RepoOverviewLoading, "Loading repository overview"],
+  ["root", RootLoading, "Loading"],
+  ["repo", RepoLoading, "Loading repository"],
   ["search", SearchLoading, "Loading search"],
   ["context", ContextLoading, "Loading context"],
 ];

@@ -106,6 +106,7 @@ export default async function RepoOverview({
   // secret is fetched (admin-scoped) only when the hook needs setting up by
   // hand — revealed so it can be pasted into GitHub alongside the URL, never
   // reaching the client for an already-wired repo.
+  const webhookNeedsSetup = webhook !== null && webhook.state !== "configured";
   const [contextCount, conventionRows, webhookSecret] = await Promise.all([
     queryOne<{ count: number }>(
       `SELECT count(*)::int as count FROM ${schema}.chunks WHERE repo = $1`,
@@ -115,7 +116,7 @@ export default async function RepoOverview({
       `SELECT DISTINCT file_path FROM ${schema}.chunks WHERE repo = $1 AND file_path IN ('AGENTS.md','CLAUDE.md')`,
       [fullName],
     ).catch(() => []),
-    webhook && webhook.state !== "configured"
+    webhookNeedsSetup
       ? getWebhookSecret(fullName).catch(() => null)
       : Promise.resolve(null),
   ]);
@@ -128,10 +129,9 @@ export default async function RepoOverview({
     developerCount: localMcpRow?.devs ?? 0,
     lastActivity: iso(localMcpRow?.last),
   };
-  const webhookWithSecret =
-    webhook && webhook.state !== "configured"
-      ? { ...webhook, secret: webhookSecret ?? undefined }
-      : webhook;
+  const webhookWithSecret = webhookNeedsSetup
+    ? { ...webhook, secret: webhookSecret ?? undefined }
+    : webhook;
 
   const enrollmentChecks = computeEnrollmentChecks({
     onboarded: !!repoInfo,

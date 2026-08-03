@@ -1,8 +1,11 @@
 import Skeleton from "@/components/Skeleton";
 
-export default function RepoOverviewLoading() {
+// Fallback for the whole repo segment: tab subroutes (tasks, specs, settings,
+// events, ...) have no closer loading.tsx, so the label and shape stay
+// tab-neutral — cards and rows, no overview-specific text.
+export default function RepoLoading() {
   return (
-    <div role="status" aria-label="Loading repository overview">
+    <div role="status" aria-label="Loading repository">
       <div className="spec-card">
         {Array.from({ length: 4 }, (_, i) => (
           <Skeleton
