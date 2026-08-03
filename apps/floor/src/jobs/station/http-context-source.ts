@@ -1,11 +1,14 @@
 // Live ContextSource (ADR-031 D5): fetches assembled Lore context from the
 // context-assembly API (the same /api/context the runner used) so a dispatched
-// Agent starts warm. Thin IO seam — excluded from coverage; the parameter injection
-// it feeds is tested in agent-backend. Returns undefined (agent runs cold) on any
-// failure or when the API is unconfigured, so hydration is best-effort.
+// Agent starts warm. Returns undefined (agent runs cold) on any failure or when
+// the API is unconfigured, so hydration is best-effort — but failures are logged,
+// since a silently cold agent only shows up as degraded output (#1026).
 
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import type { ContextSource } from "./agent-backend.js";
+
+const FETCH_TIMEOUT_MS = 15_000;
 
 export class HttpContextSource implements ContextSource {
   async assemble(spec: LoreTaskSpec): Promise<string | undefined> {
@@ -24,15 +27,32 @@ export class HttpContextSource implements ContextSource {
     try {
       const res = await fetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
 
       if (!res.ok) {
+        console.warn(
+          `[floor] context assembly failed for ${spec.targetRepo} at ${url} (HTTP ${res.status}); agent runs cold. query=${JSON.stringify(query)}`,
+        );
+
         return undefined;
       }
       const data = (await res.json()) as { text?: string };
 
-      return data.text || undefined;
-    } catch {
+      if (!data.text?.trim()) {
+        console.warn(
+          `[floor] context assembly returned no text for ${spec.targetRepo}; agent runs cold. query=${JSON.stringify(query)}`,
+        );
+
+        return undefined;
+      }
+
+      return data.text;
+    } catch (err) {
+      console.warn(
+        `[floor] context assembly fetch failed for ${spec.targetRepo} at ${url}: ${errorMessage(err)}; agent runs cold. query=${JSON.stringify(query)}`,
+      );
+
       return undefined;
     }
   }
