@@ -12,7 +12,10 @@ import { defaultSchema } from "rehype-sanitize";
  * statement `<mark data-ordinal>` wrappers) so the decoration survives.
  *
  * The only extension over GitHub's defaultSchema is the presentational
- * `<mark>` tag, which READMEs legitimately hand-write.
+ * `<mark>` tag, which READMEs legitimately hand-write. Its attributes are
+ * deliberately NOT extended: user-authored marks keep only the global
+ * allowlist (no `class`, no `data-*`), so repo content cannot spoof
+ * SpecDetails' `<mark data-ordinal>` statement wrappers.
  */
 export const markdownSanitizeSchema = {
   ...defaultSchema,

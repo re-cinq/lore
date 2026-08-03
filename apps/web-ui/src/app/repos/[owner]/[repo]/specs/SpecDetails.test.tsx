@@ -410,7 +410,7 @@ describe("SpecDetails sanitization", () => {
     const link = container.querySelector("a");
 
     expect(link?.textContent).toEqual("bad");
-    expect(link?.getAttribute("href") ?? "").not.toContain("javascript:");
+    expect(link?.getAttribute("href") ?? "").not.toMatch(/javascript:/i);
   });
 
   it("drops an injected svg element carrying an onload handler from the spec body", () => {

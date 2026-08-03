@@ -218,7 +218,7 @@ describe("ReadmeBox", () => {
     const link = container.querySelector("a");
 
     expect(link?.textContent).toBe("click me");
-    expect(link?.getAttribute("href") ?? "").not.toContain("javascript:");
+    expect(link?.getAttribute("href") ?? "").not.toMatch(/javascript:/i);
   });
 
   it("strips a javascript: href from a raw HTML anchor", () => {
@@ -229,7 +229,7 @@ describe("ReadmeBox", () => {
     const link = container.querySelector("a");
 
     expect(link?.textContent).toBe("raw link");
-    expect(link?.getAttribute("href") ?? "").not.toContain("javascript:");
+    expect(link?.getAttribute("href") ?? "").not.toMatch(/javascript:/i);
   });
 
   it("drops an injected iframe element entirely", () => {
