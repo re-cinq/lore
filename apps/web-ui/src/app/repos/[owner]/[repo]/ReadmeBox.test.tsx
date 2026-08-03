@@ -185,6 +185,73 @@ describe("ReadmeBox", () => {
     );
   });
 
+  it("strips an injected script element instead of rendering it", () => {
+    const md = "before <script>window.hacked = true;</script> after";
+    const { container } = render(
+      <ReadmeBox markdown={md} rawBaseUrl={rawBaseUrl} htmlUrl={htmlUrl} />,
+    );
+
+    expect(container.querySelector("script")).toBeNull();
+    expect(container.textContent).not.toContain("window.hacked");
+    expect(container.textContent).toContain("before");
+    expect(container.textContent).toContain("after");
+  });
+
+  it("removes an onerror handler from raw img HTML but keeps the image", () => {
+    const md =
+      '<img src="docs/logo.png" alt="logo" onerror="window.hacked = true" />';
+    const { container } = render(
+      <ReadmeBox markdown={md} rawBaseUrl={rawBaseUrl} htmlUrl={htmlUrl} />,
+    );
+    const img = container.querySelector("img");
+
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute("onerror")).toBeNull();
+    expect(img?.getAttribute("alt")).toBe("logo");
+  });
+
+  it("strips a javascript: href from a markdown link but keeps the label", () => {
+    const md = "[click me](javascript:alert(1))";
+    const { container } = render(
+      <ReadmeBox markdown={md} rawBaseUrl={rawBaseUrl} htmlUrl={htmlUrl} />,
+    );
+    const link = container.querySelector("a");
+
+    expect(link?.textContent).toBe("click me");
+    expect(link?.getAttribute("href") ?? "").not.toContain("javascript:");
+  });
+
+  it("strips a javascript: href from a raw HTML anchor", () => {
+    const md = '<a href="javascript:alert(1)">raw link</a>';
+    const { container } = render(
+      <ReadmeBox markdown={md} rawBaseUrl={rawBaseUrl} htmlUrl={htmlUrl} />,
+    );
+    const link = container.querySelector("a");
+
+    expect(link?.textContent).toBe("raw link");
+    expect(link?.getAttribute("href") ?? "").not.toContain("javascript:");
+  });
+
+  it("drops an injected iframe element entirely", () => {
+    const md = '<iframe src="https://evil.example/"></iframe>';
+    const { container } = render(
+      <ReadmeBox markdown={md} rawBaseUrl={rawBaseUrl} htmlUrl={htmlUrl} />,
+    );
+
+    expect(container.querySelector("iframe")).toBeNull();
+  });
+
+  it("renders a GFM task-list checkbox through the sanitizer", () => {
+    const md = "- [x] done item\n- [ ] open item";
+    const { container } = render(
+      <ReadmeBox markdown={md} rawBaseUrl={rawBaseUrl} htmlUrl={htmlUrl} />,
+    );
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+
+    expect(checkboxes).toHaveLength(2);
+    expect((checkboxes[0] as HTMLInputElement).checked).toBe(true);
+  });
+
   it("renders nothing visible for empty markdown and shows no button", () => {
     const { container } = render(
       <ReadmeBox markdown="" rawBaseUrl={rawBaseUrl} htmlUrl={htmlUrl} />,

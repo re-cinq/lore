@@ -4,7 +4,9 @@ import { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
 import rehypeHighlight from "rehype-highlight";
+import { markdownSanitizeSchema } from "@/lib/markdown-sanitize";
 import { resolveHref, blobUrl } from "@/lib/github-links";
 import { languageForPath, fenceFor } from "@/lib/code-lang";
 import { chunkHeader, type ChunkMeta } from "@/lib/chunk-presenter";
@@ -77,7 +79,7 @@ export default function ChunkBody({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rehypePlugins: any[] = isCode
     ? [rehypeHighlight]
-    : [rehypeRaw, rehypeHighlight];
+    : [rehypeRaw, [rehypeSanitize, markdownSanitizeSchema], rehypeHighlight];
 
   const headerLabel = chunkHeader(contentType, metadata);
   const ghHref = blobUrl(

@@ -374,3 +374,42 @@ describe("resolveHref", () => {
     });
   });
 });
+
+describe("SpecDetails sanitization", () => {
+  it("strips an injected script element while still wrapping the statement", () => {
+    const md =
+      "## Acceptance Criteria\n\n<script>window.hacked = true;</script>\n\n- Claims a pending task.\n";
+    const statements = [
+      stmt({
+        ordinal: 0,
+        text: "Claims a pending task.",
+        kind: "list-item",
+        state: "untested",
+      }),
+    ];
+    const { container } = renderSpec(md, statements);
+
+    expect(container.querySelector("script")).toBeNull();
+    expect(container.textContent).not.toContain("window.hacked");
+    expect(container.querySelector('mark[data-ordinal="0"]')).not.toBeNull();
+  });
+
+  it("removes an onerror handler from raw img HTML in the spec body", () => {
+    const md =
+      '## Overview\n\n<img src="https://example.com/x.png" onerror="window.hacked = true" />\n';
+    const { container } = renderSpec(md, []);
+    const img = container.querySelector("img");
+
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute("onerror")).toBeNull();
+  });
+
+  it("strips a javascript: href from a raw HTML anchor in the spec body", () => {
+    const md = '## Overview\n\n<a href="javascript:alert(1)">bad</a>\n';
+    const { container } = renderSpec(md, []);
+    const link = container.querySelector("a");
+
+    expect(link?.textContent).toEqual("bad");
+    expect(link?.getAttribute("href") ?? "").not.toContain("javascript:");
+  });
+});
