@@ -74,10 +74,9 @@ export default async function SearchPage({
           params: repo ? [q, repo] : [q],
         };
       },
+      [],
+      { orderBy: "score DESC", limit: 20 },
     );
-
-    chunkResults.sort((a, b) => b.score - a.score);
-    chunkResults.splice(20);
 
     // Merge and sort by score descending, capped at 30
     const allResults = [...memoryResults, ...factResults, ...chunkResults];

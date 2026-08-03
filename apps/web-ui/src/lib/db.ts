@@ -1,5 +1,13 @@
 import { Pool } from "pg";
 import { SCHEMA_RE, ORG_SHARED_SCHEMA, pickSchema } from "./repo-schema";
+import {
+  buildChunkUnionQuery,
+  type ChunkSelectFn,
+  type ChunkUnionOrder,
+} from "./chunk-union";
+import { memoizeWithTtl } from "./ttl-memo";
+
+const SCHEMA_CATALOG_TTL_MS = 30_000;
 
 const pool = new Pool({
   host: process.env.LORE_DB_HOST || "localhost",
@@ -91,9 +99,10 @@ export async function queryAllowMissing<T = Record<string, unknown>>(
 /**
  * Schemas that actually have a `chunks` table, read from the catalog. This is
  * the source of truth for "does this team's schema exist" — `lore.repos.team`
- * is free-text and can name a schema that was never provisioned.
+ * is free-text and can name a schema that was never provisioned. Memoized for
+ * 30s: the schema set only changes on team/repo onboarding.
  */
-export async function listChunkSchemas(): Promise<string[]> {
+export const listChunkSchemas = memoizeWithTtl(async (): Promise<string[]> => {
   const { rows } = await pool.query(
     `SELECT table_schema FROM information_schema.tables
       WHERE table_name = 'chunks' AND table_schema ~ '^[a-z][a-z0-9_]{0,62}$'`,
@@ -102,10 +111,14 @@ export async function listChunkSchemas(): Promise<string[]> {
   return rows
     .map((r) => r.table_schema as string)
     .filter((s: string) => SCHEMA_RE.test(s));
-}
+}, SCHEMA_CATALOG_TTL_MS);
 
-/** Returns all schemas to search for chunks (referenced, provisioned team schemas + org_shared). */
-export async function getChunkSchemas(): Promise<string[]> {
+/**
+ * Returns all schemas to search for chunks (referenced, provisioned team
+ * schemas + org_shared). Memoized for 30s on top of the already-memoized
+ * `listChunkSchemas`, so worst-case catalog staleness is ~2x the TTL.
+ */
+export const getChunkSchemas = memoizeWithTtl(async (): Promise<string[]> => {
   const { rows } = await pool.query(
     `SELECT DISTINCT team FROM lore.repos WHERE team IS NOT NULL AND team ~ '^[a-z][a-z0-9_]{0,62}$'`,
   );
@@ -119,7 +132,7 @@ export async function getChunkSchemas(): Promise<string[]> {
   }
 
   return schemas;
-}
+}, SCHEMA_CATALOG_TTL_MS);
 
 /** Resolve the chunk schema for a given repo (provisioned team schema or org_shared fallback). */
 export async function getRepoSchema(fullName: string): Promise<string> {
@@ -156,30 +169,22 @@ export async function getRepoSchemaAndTeam(
  * Build a UNION ALL across all chunk schemas.
  * `selectFn` receives a schema name and returns the SELECT statement for that schema.
  * Caller is responsible for safe schema interpolation (schemas are validated against SCHEMA_RE).
+ * With `order`, ORDER BY + LIMIT are pushed into every union branch and onto
+ * the union itself (see `buildChunkUnionQuery`), so only the global top-N rows
+ * leave the database.
  */
 export async function queryAllChunks<T = Record<string, unknown>>(
-  selectFn: (
-    schema: string,
-    paramOffset: number,
-  ) => { sql: string; params: unknown[] },
+  selectFn: ChunkSelectFn,
   baseParams: unknown[] = [],
+  order?: ChunkUnionOrder,
 ): Promise<T[]> {
   const schemas = await getChunkSchemas();
-  const parts: string[] = [];
-  const allParams: unknown[] = [...baseParams];
+  const union = buildChunkUnionQuery(schemas, selectFn, baseParams, order);
 
-  for (const schema of schemas) {
-    const { sql, params } = selectFn(schema, allParams.length + 1);
-
-    parts.push(sql);
-    allParams.push(...params);
-  }
-
-  if (parts.length === 0) {
+  if (union === null) {
     return [];
   }
-  const unionSql = parts.join(" UNION ALL ");
-  const { rows } = await pool.query(unionSql, allParams);
+  const { rows } = await pool.query(union.sql, union.params);
 
   return rows as T[];
 }
