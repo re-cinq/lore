@@ -2,7 +2,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import TaskLogs from "./TaskLogs";
+import TaskRefreshProvider from "./TaskRefreshProvider";
 import { SAMPLE_LOG, TOOL_USE_BASH } from "@/lib/agent-log-entries.fixtures";
+
+// The coordinated interval now lives in TaskRefreshProvider, so timer-driven
+// tests render inside it (taskStatus "done" keeps run discovery off; jsdom has
+// no EventSource, so the provider stays in poll mode).
+function renderWithRefresh(ui: React.ReactElement) {
+  return render(
+    <TaskRefreshProvider taskId="t1" taskStatus="done" runs={[]}>
+      {ui}
+    </TaskRefreshProvider>,
+  );
+}
 
 // jsdom does not implement scrollIntoView; the auto-scroll effect calls it on every logs change.
 beforeEach(() => {
@@ -212,11 +224,11 @@ describe("TaskLogs", () => {
     expect(container.querySelector('span[class*="pulse"]')).not.toBeNull();
     // 2048 bytes / 1024 = 2.0 KB received.
     expect(
-      screen.getByText(/Polling every 5s — 2\.0 KB received/),
+      screen.getByText(/Auto-refreshing — 2\.0 KB received/),
     ).toBeInTheDocument();
   });
 
-  it("shows the bare polling note when running with zero bytes received", async () => {
+  it("shows the bare refresh note when running with zero bytes received", async () => {
     vi.stubGlobal(
       "fetch",
       vi
@@ -228,9 +240,9 @@ describe("TaskLogs", () => {
     render(<TaskLogs taskId="t1" initialStatus="running" />);
     await settle();
 
-    const note = screen.getByText("Polling every 5s");
+    const note = screen.getByText("Auto-refreshing");
 
-    expect(note.textContent).toBe("Polling every 5s");
+    expect(note.textContent).toBe("Auto-refreshing");
   });
 
   it("appends new content using the offset URL once totalSize is known and status is running", async () => {
@@ -363,7 +375,7 @@ describe("TaskLogs", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<TaskLogs taskId="t1" initialStatus="running" />);
+    renderWithRefresh(<TaskLogs taskId="t1" initialStatus="running" />);
     await settle();
 
     expect(
@@ -474,14 +486,14 @@ describe("TaskLogs", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<TaskLogs taskId="t1" initialStatus="running" />);
+    renderWithRefresh(<TaskLogs taskId="t1" initialStatus="running" />);
     await settle();
     expect(
       screen.getByText("Failed to load logs: HTTP 500"),
     ).toBeInTheDocument();
 
     await act(async () => {
-      vi.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(10_000);
     });
     await settle();
 
@@ -499,7 +511,7 @@ describe("TaskLogs", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    const { unmount } = render(
+    const { unmount } = renderWithRefresh(
       <TaskLogs taskId="t1" initialStatus="running" />,
     );
 
@@ -509,7 +521,7 @@ describe("TaskLogs", () => {
     expect(baseline).toBeGreaterThan(0);
 
     await act(async () => {
-      vi.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(10_000);
     });
     await settle();
     // The interval fired at least one additional poll.
@@ -535,7 +547,7 @@ describe("TaskLogs", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
+    renderWithRefresh(<TaskLogs taskId="t1" initialStatus="succeeded" />);
     await settle();
     const settledCalls = fetchMock.mock.calls.length;
 
@@ -543,7 +555,7 @@ describe("TaskLogs", () => {
       vi.advanceTimersByTime(60000);
     });
     await settle();
-    // No interval is scheduled for a non-active status → call count is frozen.
+    // The panel reports inactive for a non-active status → call count is frozen.
     expect(fetchMock.mock.calls.length).toBe(settledCalls);
   });
 
@@ -591,19 +603,19 @@ describe("TaskLogs", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<TaskLogs taskId="t1" initialStatus="running" />);
+    renderWithRefresh(<TaskLogs taskId="t1" initialStatus="running" />);
     await settle();
     expect(screen.queryByText("Completed")).not.toBeInTheDocument();
-    expect(screen.getByText(/Polling every 5s/)).toBeInTheDocument();
+    expect(screen.getByText(/Auto-refreshing/)).toBeInTheDocument();
 
     await act(async () => {
-      vi.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(10_000);
     });
     await settle();
 
     expect(screen.getByText("Completed")).toBeInTheDocument();
-    // Now terminal → the polling note disappears.
-    expect(screen.queryByText(/Polling every 5s/)).not.toBeInTheDocument();
+    // Now terminal → the refresh note disappears.
+    expect(screen.queryByText(/Auto-refreshing/)).not.toBeInTheDocument();
   });
 
   it("renders the sample NDJSON as formatted entries by default", async () => {

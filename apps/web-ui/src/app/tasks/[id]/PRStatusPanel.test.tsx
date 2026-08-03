@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act, waitFor } from "@testing-library/react";
 import PRStatusPanel from "./PRStatusPanel";
+import TaskRefreshProvider from "./TaskRefreshProvider";
 
 // Icon pulls in ThemeProvider via useTheme(); stub it out — this test is about
 // the polling, not the icons (those are covered by PRStatusCard's own test).
@@ -42,6 +43,29 @@ async function renderSettled(props: { taskId: string; prUrl: string }) {
 
   await act(async () => {
     view = render(<PRStatusPanel {...props} />);
+  });
+  await act(async () => {
+    await Promise.resolve();
+  });
+
+  return view!;
+}
+
+// The coordinated interval now lives in TaskRefreshProvider, so timer-driven
+// tests render inside it (taskStatus "done" keeps run discovery off; jsdom has
+// no EventSource, so the provider stays in poll mode).
+async function renderSettledWithRefresh(props: {
+  taskId: string;
+  prUrl: string;
+}) {
+  let view: ReturnType<typeof render>;
+
+  await act(async () => {
+    view = render(
+      <TaskRefreshProvider taskId={props.taskId} taskStatus="done" runs={[]}>
+        <PRStatusPanel {...props} />
+      </TaskRefreshProvider>,
+    );
   });
   await act(async () => {
     await Promise.resolve();
@@ -142,11 +166,14 @@ describe("PRStatusPanel", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    await renderSettled({ taskId: "task-1", prUrl: "https://gh/pr/1" });
+    await renderSettledWithRefresh({
+      taskId: "task-1",
+      prUrl: "https://gh/pr/1",
+    });
     expect(screen.getByText("#42 Add the widget")).toBeInTheDocument();
 
     await act(async () => {
-      vi.advanceTimersByTime(15_000);
+      vi.advanceTimersByTime(10_000);
       await Promise.resolve();
     });
 
@@ -164,11 +191,14 @@ describe("PRStatusPanel", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    await renderSettled({ taskId: "task-1", prUrl: "https://gh/pr/1" });
+    await renderSettledWithRefresh({
+      taskId: "task-1",
+      prUrl: "https://gh/pr/1",
+    });
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      vi.advanceTimersByTime(15_000);
+      vi.advanceTimersByTime(10_000);
       await Promise.resolve();
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
