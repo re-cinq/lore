@@ -412,4 +412,12 @@ describe("SpecDetails sanitization", () => {
     expect(link?.textContent).toEqual("bad");
     expect(link?.getAttribute("href") ?? "").not.toContain("javascript:");
   });
+
+  it("drops an injected svg element carrying an onload handler from the spec body", () => {
+    const md =
+      '## Overview\n\n<svg onload="window.hacked = true"><circle r="9" /></svg>\n';
+    const { container } = renderSpec(md, []);
+
+    expect(container.querySelector("svg")).toBeNull();
+  });
 });

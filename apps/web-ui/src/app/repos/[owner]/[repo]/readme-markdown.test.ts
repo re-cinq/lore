@@ -16,10 +16,8 @@ describe("resolveUrl", () => {
     );
   });
 
-  it("returns a data uri unchanged", () => {
-    expect(resolveUrl("data:image/png;base64,AAAA", base)).toBe(
-      "data:image/png;base64,AAAA",
-    );
+  it("returns an empty string for a data uri", () => {
+    expect(resolveUrl("data:image/png;base64,AAAA", base)).toBe("");
   });
 
   it("returns an in-page anchor unchanged", () => {
@@ -60,5 +58,15 @@ describe("splitBlocks", () => {
 
   it("returns an empty array for all-whitespace input", () => {
     expect(splitBlocks("   \n\n  \n")).toEqual([]);
+  });
+});
+
+describe("resolveUrl scheme blocking", () => {
+  it("returns an empty string for a javascript url", () => {
+    expect(resolveUrl("javascript:alert(1)", base)).toBe("");
+  });
+
+  it("returns an empty string for a vbscript url even with an empty base", () => {
+    expect(resolveUrl("vbscript:msgbox(1)", "")).toBe("");
   });
 });

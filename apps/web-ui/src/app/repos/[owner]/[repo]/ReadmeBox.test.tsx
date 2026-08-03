@@ -261,4 +261,13 @@ describe("ReadmeBox", () => {
     expect(container.querySelector("button")).toBeNull();
     expect(container.querySelector("h1")).toBeNull();
   });
+
+  it("drops an injected svg element carrying an onload handler", () => {
+    const md = '<svg onload="window.hacked = true"><circle r="9" /></svg>';
+    const { container } = render(
+      <ReadmeBox markdown={md} rawBaseUrl={rawBaseUrl} htmlUrl={htmlUrl} />,
+    );
+
+    expect(container.querySelector("svg")).toBeNull();
+  });
 });

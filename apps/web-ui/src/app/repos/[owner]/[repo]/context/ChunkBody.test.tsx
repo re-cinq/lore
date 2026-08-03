@@ -170,4 +170,17 @@ describe("ChunkBody", () => {
     expect(container.querySelector("table")).not.toBeNull();
     expect(container.querySelector("td")?.textContent).toEqual("1");
   });
+
+  it("drops an injected svg element carrying an onload handler from a doc chunk", () => {
+    const { container } = render(
+      <ChunkBody
+        content={'<svg onload="window.hacked = true"><circle r="9" /></svg>'}
+        contentType="doc"
+        filePath="docs/a.md"
+        repo="re-cinq/lore"
+      />,
+    );
+
+    expect(container.querySelector("svg")).toBeNull();
+  });
 });
