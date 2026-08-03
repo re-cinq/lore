@@ -125,12 +125,14 @@ async function advance(ms: number) {
 
 beforeEach(() => {
   vi.useFakeTimers();
+  // The default discovery response keeps an attached run-1 attached (the
+  // attached-run re-check hits this endpoint on every tick).
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ runs: [] }),
+      json: async () => ({ runs: [liveRun()] }),
     }),
   );
 });
@@ -304,7 +306,7 @@ describe("event-triggered refreshes", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
-  it("refreshes on an event after the min gap and throttles the next one", async () => {
+  it("refreshes immediately past the gap and coalesces a burst into one trailing refresh", async () => {
     useFakeEventSource();
     const refresh = vi.fn();
 
@@ -323,13 +325,11 @@ describe("event-triggered refreshes", () => {
     await advance(1_000);
     await act(async () => {
       FakeEventSource.instances[0].emit("agent-event", streamEvent("2"));
+      FakeEventSource.instances[0].emit("agent-event", streamEvent("3"));
     });
     expect(refresh).toHaveBeenCalledTimes(1);
 
-    await advance(3_000);
-    await act(async () => {
-      FakeEventSource.instances[0].emit("agent-event", streamEvent("3"));
-    });
+    await advance(2_000);
     expect(refresh).toHaveBeenCalledTimes(2);
   });
 
@@ -411,29 +411,60 @@ describe("run discovery", () => {
     );
   });
 
-  it("stops hitting the runs endpoint once a run is attached", async () => {
+  it("detaches and returns to coordinated polling when the attached run turns terminal", async () => {
     useFakeEventSource();
+    const refresh = vi.fn();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ runs: [liveRun({ id: "run-9" })] }),
+      json: async () => ({ runs: [liveRun({ status: "finished" })] }),
     });
 
     vi.stubGlobal("fetch", fetchMock);
     renderProvider({
-      taskStatus: "pending",
-      runs: [],
+      runs: [liveRun()],
+      probes: [{ refresh, active: true, label: "a" }],
+    });
+    await flush();
+    expect(FakeEventSource.instances).toHaveLength(1);
+
+    await advance(COORDINATED_POLL_MS);
+    expect(FakeEventSource.instances[0].closed).toBe(true);
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    await advance(COORDINATED_POLL_MS);
+    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(FakeEventSource.instances).toHaveLength(1);
+  });
+
+  it("attaches a retry's fresh run in place of a finished one", async () => {
+    useFakeEventSource();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        runs: [
+          liveRun({ id: "run-1", status: "finished" }),
+          liveRun({ id: "run-2", created_at: "2026-08-01T12:00:00Z" }),
+        ],
+      }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    renderProvider({
+      runs: [liveRun()],
       probes: [{ refresh: vi.fn(), active: true, label: "a" }],
     });
     await flush();
-    await advance(COORDINATED_POLL_MS);
+    expect(FakeEventSource.instances).toHaveLength(1);
+
     await advance(COORDINATED_POLL_MS);
 
-    const runsCalls = fetchMock.mock.calls.filter(([url]) =>
-      String(url).endsWith("/runs"),
+    expect(FakeEventSource.instances[0].closed).toBe(true);
+    expect(FakeEventSource.instances).toHaveLength(2);
+    expect(FakeEventSource.instances[1].url).toBe(
+      "/api/assembly-lines/run-2/events/stream",
     );
-
-    expect(runsCalls).toHaveLength(1);
   });
 
   it("does not discover for a task in a terminal status", async () => {

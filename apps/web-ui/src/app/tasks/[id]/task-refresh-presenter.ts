@@ -21,11 +21,15 @@ export const STREAM_HEARTBEAT_POLL_MS = 30_000;
 /** Min gap between event-triggered refreshes; absorbs the catch-up replay burst. */
 export const EVENT_REFRESH_MIN_GAP_MS = 3_000;
 
-/** The task-page projection of a pipeline.assembly_lines row. */
+/**
+ * The task-page projection of a pipeline.assembly_lines row. `created_at` is a
+ * Date when the rows come off the server component's pg query (RSC serializes
+ * Date as Date) and a string when they come off the JSON discovery route.
+ */
 export interface LiveRunCandidate {
   id: string;
   status: string;
-  created_at: string;
+  created_at: string | Date;
 }
 
 /**
@@ -35,7 +39,10 @@ export interface LiveRunCandidate {
 export function pickLiveRun(runs: readonly LiveRunCandidate[]): string | null {
   const live = runs
     .filter((run) => !isTerminalRunStatus(run.status))
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
 
   return live[0]?.id ?? null;
 }
@@ -87,12 +94,17 @@ export function refreshIntervalMs(
   return COORDINATED_POLL_MS;
 }
 
-/** Gate for event-triggered refreshes: at most one per EVENT_REFRESH_MIN_GAP_MS. */
-export function shouldRefreshOnEvent(
+/**
+ * How long an event-triggered refresh must wait: 0 means refresh now, a
+ * positive delay means schedule a trailing refresh at the window boundary so
+ * a burst's final events (typically the outcome writes) never wait for the
+ * heartbeat. At most one refresh per EVENT_REFRESH_MIN_GAP_MS either way.
+ */
+export function eventRefreshDelayMs(
   lastRefreshAtMs: number,
   nowMs: number,
-): boolean {
-  return nowMs - lastRefreshAtMs >= EVENT_REFRESH_MIN_GAP_MS;
+): number {
+  return Math.max(0, EVENT_REFRESH_MIN_GAP_MS - (nowMs - lastRefreshAtMs));
 }
 
 /**
@@ -118,19 +130,23 @@ const DISPATCHABLE_TASK_STATUSES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Whether the coordinator should keep asking /api/tasks/:id/runs for a run to
- * stream from: only while none is attached, some panel still wants data, and
- * the task can still be dispatched. Once a run attaches or the task settles,
- * discovery stops for good.
+ * Whether the coordinator should check /api/tasks/:id/runs on this tick.
+ * While a run is attached the check re-reads its recorded status, so a
+ * finished run detaches (back to 10s polling) and a retry's fresh attempt can
+ * take its place — a live stream never closes on its own, so without this the
+ * attachment would be sticky for the tab's life. Unattached, the check runs
+ * only while the task status can still mint a run. No active panel, no check.
  */
 export function runDiscoveryActive(input: {
   liveRunId: string | null;
   taskStatus: string;
   anyPanelActive: boolean;
 }): boolean {
+  if (!input.anyPanelActive) {
+    return false;
+  }
+
   return (
-    input.liveRunId === null &&
-    input.anyPanelActive &&
-    DISPATCHABLE_TASK_STATUSES.has(input.taskStatus)
+    input.liveRunId !== null || DISPATCHABLE_TASK_STATUSES.has(input.taskStatus)
   );
 }

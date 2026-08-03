@@ -3,12 +3,12 @@ import {
   COORDINATED_POLL_MS,
   EVENT_REFRESH_MIN_GAP_MS,
   STREAM_HEARTBEAT_POLL_MS,
+  eventRefreshDelayMs,
   maxEventId,
   pickLiveRun,
   refreshIntervalMs,
   resolveRefreshDriver,
   runDiscoveryActive,
-  shouldRefreshOnEvent,
   type LiveRunCandidate,
 } from "./task-refresh-presenter";
 
@@ -68,6 +68,23 @@ describe("pickLiveRun", () => {
 
   it("accepts a queued run as live", () => {
     expect(pickLiveRun([run({ id: "q", status: "queued" })])).toBe("q");
+  });
+
+  it("sorts rows whose created_at is a Date object", () => {
+    expect(
+      pickLiveRun([
+        run({
+          id: "stale",
+          status: "running",
+          created_at: new Date("2026-08-01T09:00:00Z"),
+        }),
+        run({
+          id: "fresh",
+          status: "running",
+          created_at: new Date("2026-08-01T11:00:00Z"),
+        }),
+      ]),
+    ).toBe("fresh");
   });
 });
 
@@ -152,19 +169,21 @@ describe("refreshIntervalMs", () => {
   });
 });
 
-describe("shouldRefreshOnEvent", () => {
-  it("returns false when the last refresh was 1s ago", () => {
-    expect(shouldRefreshOnEvent(10_000, 11_000)).toBe(false);
+describe("eventRefreshDelayMs", () => {
+  it("returns the remaining window when the last refresh was 1s ago", () => {
+    expect(eventRefreshDelayMs(10_000, 11_000)).toBe(
+      EVENT_REFRESH_MIN_GAP_MS - 1_000,
+    );
   });
 
-  it("returns true exactly at the min gap", () => {
-    expect(
-      shouldRefreshOnEvent(10_000, 10_000 + EVENT_REFRESH_MIN_GAP_MS),
-    ).toBe(true);
+  it("returns 0 exactly at the min gap", () => {
+    expect(eventRefreshDelayMs(10_000, 10_000 + EVENT_REFRESH_MIN_GAP_MS)).toBe(
+      0,
+    );
   });
 
-  it("returns true when the gap exceeds the minimum", () => {
-    expect(shouldRefreshOnEvent(0, EVENT_REFRESH_MIN_GAP_MS + 1)).toBe(true);
+  it("returns 0 when the gap exceeds the minimum", () => {
+    expect(eventRefreshDelayMs(0, EVENT_REFRESH_MIN_GAP_MS + 1)).toBe(0);
   });
 });
 
@@ -199,17 +218,27 @@ describe("runDiscoveryActive", () => {
     ).toBe(true);
   });
 
-  it("returns false once a live run is attached", () => {
+  it("returns true while a run is attached so its terminality is re-checked", () => {
     expect(
       runDiscoveryActive({
         liveRunId: "run-1",
         taskStatus: "running",
         anyPanelActive: true,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it("returns false for a terminal task status", () => {
+  it("returns true for an attached run even on a terminal task status", () => {
+    expect(
+      runDiscoveryActive({
+        liveRunId: "run-1",
+        taskStatus: "failed",
+        anyPanelActive: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("returns false for a terminal task status with no attached run", () => {
     expect(
       runDiscoveryActive({
         liveRunId: null,

@@ -24,12 +24,12 @@ import type { ConnectionState } from "@/app/assembly-lines/[id]/run-stream-prese
 import { useRunEventStream } from "@/app/assembly-lines/[id]/useRunEventStream";
 import type { RunStreamEvent } from "@/lib/run-stream-types";
 import {
+  eventRefreshDelayMs,
   maxEventId,
   pickLiveRun,
   refreshIntervalMs,
   resolveRefreshDriver,
   runDiscoveryActive,
-  shouldRefreshOnEvent,
   type LiveRunCandidate,
 } from "./task-refresh-presenter";
 
@@ -97,7 +97,9 @@ export default function TaskRefreshProvider({
   const [connection, setConnection] = useState<ConnectionState>("connecting");
   const [afterId, setAfterId] = useState("0");
   const lastRefreshAtRef = useRef(0);
+  const trailingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeIdsRef = useRef(activeIds);
+  const liveRunIdRef = useRef(liveRunId);
 
   // Seeded at mount (an effect — Date.now during render is impure): the panels
   // just fetched on their own mount effects, so the stream's catch-up replay
@@ -107,9 +109,22 @@ export default function TaskRefreshProvider({
     lastRefreshAtRef.current = Date.now();
   }, []);
 
+  useEffect(
+    () => () => {
+      if (trailingTimerRef.current !== null) {
+        clearTimeout(trailingTimerRef.current);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     activeIdsRef.current = activeIds;
   }, [activeIds]);
+
+  useEffect(() => {
+    liveRunIdRef.current = liveRunId;
+  }, [liveRunId]);
 
   const register = useCallback((id: string, refresh: Refresh) => {
     registryRef.current.set(id, refresh);
@@ -162,13 +177,29 @@ export default function TaskRefreshProvider({
     anyPanelActive,
   });
 
+  // Immediate refresh past the throttle window; inside it, one trailing
+  // refresh at the boundary so a burst's final events (the outcome writes)
+  // never wait for the heartbeat.
   const onEvent = useCallback(
     (event: RunStreamEvent) => {
       setAfterId((prev) => maxEventId(prev, event.id));
 
-      if (shouldRefreshOnEvent(lastRefreshAtRef.current, Date.now())) {
+      const delayMs = eventRefreshDelayMs(lastRefreshAtRef.current, Date.now());
+
+      if (delayMs === 0) {
         refreshAll();
+
+        return;
       }
+
+      if (trailingTimerRef.current !== null) {
+        return;
+      }
+
+      trailingTimerRef.current = setTimeout(() => {
+        trailingTimerRef.current = null;
+        refreshAll();
+      }, delayMs);
     },
     [refreshAll],
   );
@@ -210,7 +241,12 @@ export default function TaskRefreshProvider({
     }
 
     let inFlight = false;
+    let cancelled = false;
 
+    // Re-read the recorded run rows: attach a fresh live run, detach when the
+    // attached one turned terminal (a live stream never closes on its own),
+    // and give a replacement run a clean stream chance even after a prior
+    // give-up latched streamUnavailable.
     async function discoverRun() {
       if (inFlight) {
         return;
@@ -226,6 +262,11 @@ export default function TaskRefreshProvider({
         }
 
         const body = (await res.json()) as { runs?: unknown[] };
+
+        if (cancelled) {
+          return;
+        }
+
         const candidates = (Array.isArray(body.runs) ? body.runs : []).filter(
           (row): row is LiveRunCandidate => {
             const r = row as Partial<LiveRunCandidate> | null;
@@ -239,9 +280,16 @@ export default function TaskRefreshProvider({
         );
         const found = pickLiveRun(candidates);
 
-        if (found !== null) {
-          setLiveRunId(found);
+        if (found === liveRunIdRef.current) {
+          return;
         }
+
+        if (found !== null) {
+          setStreamUnavailable(false);
+          setConnection("connecting");
+        }
+
+        setLiveRunId(found);
       } catch {
         // The next tick retries.
       } finally {
@@ -257,7 +305,10 @@ export default function TaskRefreshProvider({
       }
     }, intervalMs);
 
-    return () => clearInterval(handle);
+    return () => {
+      cancelled = true;
+      clearInterval(handle);
+    };
   }, [intervalMs, taskId, refreshAll]);
 
   const live = driver === "stream" && connection === "live";
