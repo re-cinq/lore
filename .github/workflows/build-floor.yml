@@ -116,7 +116,7 @@ jobs:
       # lore-db-password in terraform vs lore-floor-db-password chart default).
       - name: Deploy floor into the umbrella release
         run: |
-          yq -o=json '{"lore-floor": {"resources": .resources}}' \
+          yq -o=json '{"lore-floor": {"resources": .resources, "cronJobDefaults": {"resources": .cronJobDefaults.resources}}}' \
             infra/terraform/modules/gke-mcp/lore-platform/charts/floor-helm/values.yaml \
             > /tmp/floor-overlay.json
           bash scripts/ci/deploy-lore-platform.sh lore-floor "${{ needs.build.outputs.image_tag }}" lore-floor lore-floor "" /tmp/floor-overlay.json
