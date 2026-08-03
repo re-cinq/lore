@@ -32,17 +32,25 @@ export class HttpContextSource implements ContextSource {
 
       if (!res.ok) {
         console.warn(
-          `[floor] context assembly failed for ${spec.targetRepo} (HTTP ${res.status}); agent runs cold. query="${query}"`,
+          `[floor] context assembly failed for ${spec.targetRepo} (HTTP ${res.status}); agent runs cold. query=${JSON.stringify(query)}`,
         );
 
         return undefined;
       }
       const data = (await res.json()) as { text?: string };
 
-      return data.text || undefined;
+      if (!data.text) {
+        console.warn(
+          `[floor] context assembly returned no text for ${spec.targetRepo}; agent runs cold. query=${JSON.stringify(query)}`,
+        );
+
+        return undefined;
+      }
+
+      return data.text;
     } catch (err) {
       console.warn(
-        `[floor] context assembly fetch failed for ${spec.targetRepo}: ${errorMessage(err)}; agent runs cold. query="${query}"`,
+        `[floor] context assembly fetch failed for ${spec.targetRepo}: ${errorMessage(err)}; agent runs cold. query=${JSON.stringify(query)}`,
       );
 
       return undefined;

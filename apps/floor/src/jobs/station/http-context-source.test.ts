@@ -131,12 +131,14 @@ describe("HttpContextSource.assemble", () => {
     );
   });
 
-  it("returns undefined when the response carries an empty text", async () => {
+  it("returns undefined and warns when the response carries an empty text", async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse({ text: "" }));
 
     vi.stubGlobal("fetch", fetchMock);
 
     expect(await new HttpContextSource().assemble(spec)).toBeUndefined();
-    expect(warnSpy).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("returned no text"),
+    );
   });
 });
