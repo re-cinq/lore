@@ -104,8 +104,22 @@ jobs:
       # Serialize on Helm's release lock (retry while another service's deploy
       # holds it) instead of a GitHub concurrency group, which would cancel the
       # middle of 3 simultaneous deploys. See the script header.
+      #
+      # The resources block is passed as a -f overlay so it outranks the
+      # release's stored user-supplied values — the release carries a legacy
+      # lore-floor block that shadows values.yaml resource edits under
+      # --reset-then-reuse-values (2026-08-03: the #1024 memory bump deployed
+      # green and changed nothing, same class as the 2026-07-16 ai-agents
+      # incident). Deliberately NARROW — only .resources, unlike the ai-agents
+      # full-file overlay: a full lore-floor overlay would clobber the
+      # terraform-supplied env and secret names (e.g. dbPasswordSecret is
+      # lore-db-password in terraform vs lore-floor-db-password chart default).
       - name: Deploy floor into the umbrella release
-        run: bash scripts/ci/deploy-lore-platform.sh lore-floor "${{ needs.build.outputs.image_tag }}" lore-floor lore-floor
+        run: |
+          yq -o=json '{"lore-floor": {"resources": .resources, "cronJobDefaults": {"resources": .cronJobDefaults.resources}}}' \
+            infra/terraform/modules/gke-mcp/lore-platform/charts/floor-helm/values.yaml \
+            > /tmp/floor-overlay.json
+          bash scripts/ci/deploy-lore-platform.sh lore-floor "${{ needs.build.outputs.image_tag }}" lore-floor lore-floor "" /tmp/floor-overlay.json
 
   smoke:
     needs: deploy
