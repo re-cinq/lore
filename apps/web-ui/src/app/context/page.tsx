@@ -25,25 +25,28 @@ export default async function ContextPage({
     ...new Set(typeRows.map((r) => r.content_type).filter(Boolean)),
   ];
 
-  const allChunks = await queryAllChunks<RankedChunk>((schema, offset) => ({
-    sql: `SELECT id, file_path, content_type, repo, metadata,
+  const allChunks = await queryAllChunks<RankedChunk>(
+    (schema, offset) => ({
+      sql: `SELECT id, file_path, content_type, repo, metadata,
                  substring(content, 1, 300) as content, ingested_at,
                  CASE WHEN $${offset + 1}::text IS NULL THEN 0
                       ELSE ts_rank(search_tsv, websearch_to_tsquery('english', $${offset + 1})) END as rank
           FROM ${schema}.chunks
           WHERE ($${offset}::text IS NULL OR content_type = $${offset})
             AND ($${offset + 1}::text IS NULL OR search_tsv @@ websearch_to_tsquery('english', $${offset + 1}))`,
-    params: [type || null, q || null],
-  }));
+      params: [type || null, q || null],
+    }),
+    [],
+    {
+      orderBy: q ? "rank DESC, id DESC" : "ingested_at DESC, id DESC",
+      limit: 50,
+    },
+  );
 
-  const chunks = allChunks
-    .sort((a, b) =>
-      q
-        ? b.rank - a.rank
-        : new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime(),
-    )
-    .slice(0, 50)
-    .map((c) => ({ ...c, content: previewBlock(c.content, c.content_type) }));
+  const chunks = allChunks.map((c) => ({
+    ...c,
+    content: previewBlock(c.content, c.content_type),
+  }));
 
   return <ContextView type={type} q={q} types={types} chunks={chunks} />;
 }

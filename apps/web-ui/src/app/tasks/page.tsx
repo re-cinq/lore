@@ -36,18 +36,16 @@ async function createTask(formData: FormData) {
 }
 
 export default async function TasksPage() {
-  const allTasks = await queryAllChunks<Task>((schema) => ({
-    sql: `SELECT id, content, content_type, metadata, ingested_at
+  const tasks = await queryAllChunks<Task>(
+    (schema) => ({
+      sql: `SELECT id, content, content_type, metadata, ingested_at
             FROM ${schema}.chunks
             WHERE content_type = 'task'`,
-    params: [],
-  }));
-  const tasks = allTasks
-    .sort(
-      (a, b) =>
-        new Date(b.ingested_at).getTime() - new Date(a.ingested_at).getTime(),
-    )
-    .slice(0, 50);
+      params: [],
+    }),
+    [],
+    { orderBy: "ingested_at DESC, id DESC", limit: 50 },
+  );
 
   const recentActivity = await query<AuditEntry>(`
     SELECT agent_id, operation, memory_key, metadata, created_at
