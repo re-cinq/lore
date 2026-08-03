@@ -271,6 +271,14 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
     tracker and suppresses all terminal-line usage, explicit `NodeResult.usage` included, so the
     same call is never counted by both. ([validated by `main.test.ts:22`](apps/lore-station/src/main.test.ts#L22), [`main.test.ts:56`](apps/lore-station/src/main.test.ts#L56), [`main.test.ts:89`](apps/lore-station/src/main.test.ts#L89), [`main.test.ts:113`](apps/lore-station/src/main.test.ts#L113), [`main.test.ts:128`](apps/lore-station/src/main.test.ts#L128), [`main.test.ts:142`](apps/lore-station/src/main.test.ts#L142); implemented by [`llm-usage-tracker.ts:17`](apps/lore-station/src/llm-usage-tracker.ts#L17))
 
+25. *(added 2026-08-03, #1026)* `HttpContextSource.assemble` (D5 hydration) is fail-soft but never
+    silent: it returns undefined without fetching when the API is unconfigured, returns the
+    assembled text on success, sends the bearer header when a token is configured, and bounds the
+    fetch with a 15s `AbortSignal.timeout`; a non-ok response, a fetch/timeout error, or an empty
+    payload each yield undefined (the agent runs cold) after a `console.warn` carrying the HTTP
+    status or error message plus the repo and query
+    ([validated by `http-context-source.test.ts:33`](apps/floor/src/jobs/station/http-context-source.test.ts#L33), [`http-context-source.test.ts:44`](apps/floor/src/jobs/station/http-context-source.test.ts#L44), [`http-context-source.test.ts:60`](apps/floor/src/jobs/station/http-context-source.test.ts#L60), [`http-context-source.test.ts:77`](apps/floor/src/jobs/station/http-context-source.test.ts#L77), [`http-context-source.test.ts:89`](apps/floor/src/jobs/station/http-context-source.test.ts#L89), [`http-context-source.test.ts:105`](apps/floor/src/jobs/station/http-context-source.test.ts#L105), [`http-context-source.test.ts:119`](apps/floor/src/jobs/station/http-context-source.test.ts#L119), [`http-context-source.test.ts:134`](apps/floor/src/jobs/station/http-context-source.test.ts#L134); implemented by [`http-context-source.ts:28`](apps/floor/src/jobs/station/http-context-source.ts#L28))
+
 ## Out of scope
 
 - `feature-decompose` stays in-process (no pod) and is not migrated. *(graph-ingest was also out of
