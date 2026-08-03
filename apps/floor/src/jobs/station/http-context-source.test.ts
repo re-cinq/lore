@@ -96,6 +96,7 @@ describe("HttpContextSource.assemble", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     expect(await new HttpContextSource().assemble(spec)).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("HTTP 503"));
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining("re-cinq/lore"),
@@ -108,6 +109,7 @@ describe("HttpContextSource.assemble", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     expect(await new HttpContextSource().assemble(spec)).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining("ECONNREFUSED"),
     );
@@ -139,6 +141,45 @@ describe("HttpContextSource.assemble", () => {
     expect(await new HttpContextSource().assemble(spec)).toBeUndefined();
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining("returned no text"),
+    );
+  });
+
+  it("returns undefined and warns when the response carries a whitespace-only text", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse({ text: "   \n" }));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await new HttpContextSource().assemble(spec)).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("returned no text"),
+    );
+  });
+
+  it("returns undefined and warns when the response carries no text field", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse({}));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await new HttpContextSource().assemble(spec)).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("returned no text"),
+    );
+  });
+
+  it("returns undefined and warns when the 2xx body is not valid JSON", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async (): Promise<unknown> => {
+        throw new SyntaxError("Unexpected token < in JSON");
+      },
+    } as Response);
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await new HttpContextSource().assemble(spec)).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Unexpected token"),
     );
   });
 });
