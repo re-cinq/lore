@@ -46,11 +46,11 @@ describe("InMemoryUsage.logLlmCall", () => {
     expect(usage.rows[0]).toMatchObject({ assembly_line_id: "line-new" });
   });
 
-  it("stores an uncorrelated row with both ids null instead of rejecting it", async () => {
+  it("stores an unknown-but-valid uuid uncorrelated, both ids null, instead of rejecting it", async () => {
     const usage = new InMemoryUsage();
     const result = await usage.logLlmCall({
       ...CALL,
-      taskId: "nowhere",
+      taskId: "00000000-0000-4000-8000-000000000000",
       agentCrName: "cr-unknown",
     });
 

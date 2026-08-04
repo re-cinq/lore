@@ -194,9 +194,23 @@ export class InMemoryTaskStore implements TaskStorePort {
     const matching = this.tasks
       .filter((t) => !status || t.status === status)
       .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+    // listTasks selects the 10-column TaskListRow subset, not SELECT * —
+    // fields outside it (context_bundle, priority, …) are absent in Pg too.
+    const rows = matching.slice(0, limit).map((t) => ({
+      id: t.id,
+      description: t.description ?? "",
+      task_type: t.task_type ?? "",
+      status: t.status ?? "",
+      target_repo: t.target_repo ?? null,
+      agent_id: t.agent_id ?? null,
+      pr_url: t.pr_url ?? null,
+      created_by: t.created_by ?? "",
+      created_at: t.created_at ?? "",
+      updated_at: t.updated_at ?? "",
+    }));
 
     return {
-      tasks: matching.slice(0, limit) as unknown as PipelineTask[],
+      tasks: rows as unknown as PipelineTask[],
       total: matching.length,
     };
   }

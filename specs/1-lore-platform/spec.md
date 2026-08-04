@@ -905,9 +905,11 @@ share one persistence surface instead of inline SQL.
   correlation as its behavioral spec: a seeded task id lands on `task_id`;
   a non-task id that matches a seeded assembly line falls back to
   `assembly_line_id`; an agent CR name resolves to the LAST registered
-  node (the `ORDER BY n.id DESC LIMIT 1` lateral); an id/CR matching
-  nothing stores the row uncorrelated (both ids null) instead of rejecting
-  it; the write defaults (cost 0, status success, null error) apply; and
+  node (the `ORDER BY n.id DESC LIMIT 1` lateral); an unknown-but-valid
+  uuid with an unmatched CR stores the row uncorrelated (both ids null)
+  instead of rejecting it — a non-uuid id is out of contract, erroring in
+  Pg's `::uuid` cast; the write defaults (cost 0, status success, null
+  error) apply; and
   `processedCounts` splits today (past local midnight) from total.
   ([validated by `usage-memory.test.ts:12`](libs/shared/src/project/usage/usage-memory.test.ts#L12), [`usage-memory.test.ts:25`](libs/shared/src/project/usage/usage-memory.test.ts#L25), [`usage-memory.test.ts:38`](libs/shared/src/project/usage/usage-memory.test.ts#L38), [`usage-memory.test.ts:49`](libs/shared/src/project/usage/usage-memory.test.ts#L49), [`usage-memory.test.ts:65`](libs/shared/src/project/usage/usage-memory.test.ts#L65), [`usage-memory.test.ts:79`](libs/shared/src/project/usage/usage-memory.test.ts#L79))
 - FR-20.19: The `Archive` GCS port saves to `<bucket>/<key>`

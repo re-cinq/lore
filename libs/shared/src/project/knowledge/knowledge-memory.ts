@@ -1,8 +1,9 @@
 import type { LiveGraphResult } from "./live-graph.js";
-import type {
-  KnowledgePort,
-  AssembledContext,
-  DocRef,
+import {
+  TRACE_NOT_DEPLOYED_MESSAGE,
+  type KnowledgePort,
+  type AssembledContext,
+  type DocRef,
 } from "./knowledge-port.js";
 
 /** A seeded chunk row the doc listings read (`{schema}.chunks` in Pg). */
@@ -46,21 +47,21 @@ export class InMemoryKnowledge implements KnowledgePort {
     _repo: string,
     term?: string,
   ): Promise<LiveGraphResult[]> {
-    if (term === undefined) {
+    // An empty/absent term takes the all-edges branch, like Pg's `if (entity)`.
+    if (!term) {
       return [...this.graph];
     }
 
-    // Mirrors the entity branch: case-insensitive EXACT name match.
+    // Approximates the entity branch as a case-insensitive EXACT name match
+    // over the seeded result rows (the Pg query also walks the incoming leg,
+    // repo-scopes, orders by valid_from, and limits — seed accordingly).
     return this.graph.filter(
       (r) => r.entity.toLowerCase() === term.toLowerCase(),
     );
   }
 
   queryTrace(_repo: string, _query: string): Promise<string> {
-    // Byte-identical to the Pg stub — callers branch on this sentence.
-    return Promise.resolve(
-      "Trace queries are not yet available: the spec-traceability graph projection is not deployed in this build.",
-    );
+    return Promise.resolve(TRACE_NOT_DEPLOYED_MESSAGE);
   }
 
   listSpecs(repo: string): Promise<DocRef[]> {

@@ -59,6 +59,8 @@ export class InMemoryUsage implements UsagePort {
   }
 
   async logLlmCall(record: LlmCallRecord): Promise<LlmCallResult> {
+    // Not modeled: Pg casts the given id with `::uuid`, so a NON-uuid string
+    // errors there rather than storing uncorrelated. Seed valid uuids.
     const given = record.taskId ?? null;
     const taskId = given !== null && this.taskIds.has(given) ? given : null;
     // The lateral join is independent of the task join; a NULL CR matches no
