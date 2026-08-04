@@ -75,6 +75,12 @@ const ABBREVIATIONS = new Set([
   "v4",
 ]);
 
+/** A trailing `([label](target))` markdown-link parenthetical belongs to the
+ * sentence it follows, not the next one. Keeps v3 inline coverage links
+ * (`Statement. ([validated by …](path#Lnn))`, see spec-link-parser.ts) attached
+ * so they survive segmentation and form graph edges. */
+const TRAILING_LINK_PARENTHETICAL = /^\(\[[^\]]*\]\(/;
+
 function isListItem(line: string): boolean {
   return /^\s*(?:[-*+]\s+|\d+\.\s+)/.test(line);
 }
@@ -133,6 +139,10 @@ function splitSentences(text: string): string[] {
     const nextCh = flat[j];
 
     if (!/[A-Z([0-9]/.test(nextCh)) {
+      continue;
+    }
+
+    if (TRAILING_LINK_PARENTHETICAL.test(flat.slice(j))) {
       continue;
     }
 
