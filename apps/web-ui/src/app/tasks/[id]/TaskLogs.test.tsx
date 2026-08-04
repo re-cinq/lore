@@ -748,7 +748,8 @@ describe("TaskLogs", () => {
     // Regression: the mount fetch was keyed on fetchLogs identity, which changes
     // whenever totalSize/status settle — every growing response re-fired the
     // "initial" effect, doubling requests. The run-once effect must not re-fire.
-    vi.useFakeTimers();
+    // Rendered without the provider: the inert context guarantees zero refresh
+    // ticks, so the assertion isolates the mount effect completely.
     const fetchMock = vi
       .fn()
       .mockResolvedValue(
