@@ -159,8 +159,13 @@ if (settings.systemPromptSuffix) {
 }
 settings.systemPromptSuffix = (settings.systemPromptSuffix || "") + lorePrompt;
 
-// Session summary reminder on stop
-if (!hasHook(settings.hooks, "Stop", "Save session learnings")) {
+// Session summary reminder on stop. The guard needle is the [lore:stop-learnings]
+// tag, not the human-readable message, so rewording the message cannot silently
+// break idempotency. Untagged variants from older installs are removed first so
+// they don't linger next to the tagged one.
+removeHooksMatching(settings.hooks, "Stop", /\[lore\] Save session learnings/);
+
+if (!hasHook(settings.hooks, "Stop", "lore:stop-learnings")) {
   if (!Array.isArray(settings.hooks.Stop)) {
     settings.hooks.Stop = [];
   }
@@ -170,7 +175,7 @@ if (!hasHook(settings.hooks, "Stop", "Save session learnings")) {
       {
         type: "command",
         command:
-          "echo '[lore] Save session learnings: call lore_write_memory with a summary of decisions, patterns, and corrections from this session.'",
+          "echo '[lore:stop-learnings] Save session learnings: call lore_write_memory with a summary of decisions, patterns, and corrections from this session.'",
       },
     ],
   });
