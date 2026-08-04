@@ -29,6 +29,10 @@ async function main() {
       password: process.env.LORE_DB_PASSWORD,
     });
 
+    dbPool.on("error", (err) => {
+      console.error("[lore-api] pg pool error (idle client):", err);
+    });
+
     setPool(dbPool);
     setMemoryPool(dbPool);
     setPipelinePool(dbPool);
