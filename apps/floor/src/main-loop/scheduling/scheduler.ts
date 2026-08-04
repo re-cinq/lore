@@ -10,6 +10,7 @@ export interface JobDef {
 
 const jobs = new Map<string, JobDef>();
 const running = new Set<string>();
+const lastRuns = new Map<string, string>();
 
 export function registerJob(
   name: string,
@@ -26,6 +27,15 @@ export async function startScheduler(): Promise<void> {
 }
 
 async function tick(): Promise<void> {
+  await runDueJobs("job");
+}
+
+async function checkMissedRuns(): Promise<void> {
+  console.log("[scheduler] Checking for missed runs");
+  await runDueJobs("missed run");
+}
+
+async function runDueJobs(label: string): Promise<void> {
   for (const job of jobs.values()) {
     if (running.has(job.name)) {
       continue;
@@ -42,7 +52,7 @@ async function tick(): Promise<void> {
         await runJob(job);
       }
     } catch (err) {
-      console.error(`[scheduler] Error checking job ${job.name}:`, err);
+      console.error(`[scheduler] Error checking ${label} ${job.name}:`, err);
     }
   }
 }
@@ -51,10 +61,10 @@ async function runJob(job: JobDef): Promise<void> {
   running.add(job.name);
   const start = Date.now();
   let status = "completed";
-
-  const runId = await startJobRun(job.name);
+  let runId: string | null = null;
 
   try {
+    runId = await startJobRun(job.name);
     const result = await job.handler();
 
     await completeJobRun(runId, result);
@@ -62,39 +72,17 @@ async function runJob(job: JobDef): Promise<void> {
     status = "failed";
     const message = err instanceof Error ? err.message : String(err);
 
-    await failJobRun(runId, message);
+    if (runId) {
+      await failJobRun(runId, message);
+    } else {
+      console.error(`[scheduler] Failed to start run for ${job.name}:`, err);
+    }
   } finally {
     running.delete(job.name);
+    lastRuns.set(job.name, new Date(start).toISOString());
     const durationMs = Date.now() - start;
 
     console.log(`[scheduler] Job ${job.name}: ${status} (${durationMs}ms)`);
-  }
-}
-
-async function checkMissedRuns(): Promise<void> {
-  console.log("[scheduler] Checking for missed runs");
-
-  for (const job of jobs.values()) {
-    if (running.has(job.name)) {
-      continue;
-    }
-
-    try {
-      const interval = cronParser.parseExpression(job.cron);
-      const prev = interval.prev().toDate();
-
-      const last = await jobRuns().lastRun(job.name);
-      const lastRun = last?.startedAt ?? null;
-
-      if (!lastRun || lastRun < prev) {
-        await runJob(job);
-      }
-    } catch (err) {
-      console.error(
-        `[scheduler] Error checking missed run for ${job.name}:`,
-        err,
-      );
-    }
   }
 }
 
@@ -113,7 +101,7 @@ export function getJobStatus(): Record<
       const nextRun = interval.next().toDate().toISOString();
 
       result[job.name] = {
-        lastRun: null, // populated async by callers if needed
+        lastRun: lastRuns.get(job.name) ?? null,
         status: running.has(job.name) ? "running" : "idle",
         nextRun,
       };
