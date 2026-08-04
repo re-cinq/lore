@@ -47,8 +47,7 @@ function jsonResponse(
 }
 
 // Flush the pending fetch().then() microtask chain so the state setters run inside act().
-// Several `.then` hops chain (fetch -> res -> res.json -> setState), and a settled
-// status/totalSize change re-fires the initial-fetch effect, so loop until quiet.
+// Several `.then` hops chain (fetch -> res -> res.json -> setState), so loop until quiet.
 async function settle() {
   for (let i = 0; i < 8; i++) {
     await act(async () => {
@@ -274,12 +273,18 @@ describe("TaskLogs", () => {
       );
     });
 
+    vi.useFakeTimers();
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<TaskLogs taskId="job9" initialStatus="running" />);
+    renderWithRefresh(<TaskLogs taskId="job9" initialStatus="running" />);
     await settle();
 
-    // The settled effect chain fires the offset fetch (totalSize 11 + running), which appends.
+    // The coordinator's poll fires the offset fetch (totalSize 11 + running), which appends.
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+    });
+    await settle();
+
     expect(offsetCalls(fetchMock)).toContain("/api/tasks/job9/logs?offset=11");
     expect(screen.getByText("first-chunk-second")).toBeInTheDocument();
   });
@@ -297,9 +302,14 @@ describe("TaskLogs", () => {
       );
     });
 
+    vi.useFakeTimers();
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<TaskLogs taskId="t1" initialStatus="running" />);
+    renderWithRefresh(<TaskLogs taskId="t1" initialStatus="running" />);
+    await settle();
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+    });
     await settle();
 
     expect(offsetCalls(fetchMock).length).toBeGreaterThan(0);
@@ -333,9 +343,14 @@ describe("TaskLogs", () => {
       );
     });
 
+    vi.useFakeTimers();
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<TaskLogs taskId="t1" initialStatus="running" />);
+    renderWithRefresh(<TaskLogs taskId="t1" initialStatus="running" />);
+    await settle();
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+    });
     await settle();
 
     expect(offsetCalls(fetchMock).length).toBeGreaterThan(0);
@@ -581,8 +596,8 @@ describe("TaskLogs", () => {
     const fetchMock = vi.fn().mockImplementation(() => {
       phase += 1;
 
-      // First two settled calls keep it running; after the poll, report pr-created.
-      if (phase <= 2) {
+      // The single mount fetch keeps it running; after the poll, report pr-created.
+      if (phase <= 1) {
         return Promise.resolve(
           jsonResponse({
             logs: "working...",
@@ -695,9 +710,14 @@ describe("TaskLogs", () => {
       );
     });
 
+    vi.useFakeTimers();
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<TaskLogs taskId="t1" initialStatus="running" />);
+    renderWithRefresh(<TaskLogs taskId="t1" initialStatus="running" />);
+    await settle();
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+    });
     await settle();
 
     expect(offsetCalls(fetchMock).length).toBeGreaterThan(0);
@@ -722,5 +742,26 @@ describe("TaskLogs", () => {
     expect(
       screen.queryByRole("button", { name: "Raw" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("issues exactly one mount fetch even when the response changes totalSize and status", async () => {
+    // Regression: the mount fetch was keyed on fetchLogs identity, which changes
+    // whenever totalSize/status settle — every growing response re-fired the
+    // "initial" effect, doubling requests. The run-once effect must not re-fire.
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ logs: "grow", status: "running", totalSize: 4 }),
+      );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TaskLogs taskId="t1" initialStatus="queued" />);
+    await settle();
+
+    // totalSize 0→4 and status queued→running both settled; still a single fetch.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/t1/logs");
   });
 });
