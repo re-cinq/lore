@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import TimelineView, { type TimelineResponse } from "./TimelineView";
+import { useCoordinatedRefresh } from "./TaskRefreshProvider";
 
 const ACTIVE_STATES = new Set(["pending", "running", "queued", "review"]);
-const POLL_INTERVAL_MS = 10_000;
 
 /**
- * Client container for TimelineView — polls the stage timeline on mount and
- * while a non-terminal stage is in flight, threading data / loading / error
- * down to the pure view.
+ * Client container for TimelineView — fetches the stage timeline on mount and
+ * re-fetches on the page coordinator's ticks while a non-terminal stage is in
+ * flight, threading data / loading / error down to the pure view.
  */
 export default function TimelinePanel({
   taskId,
@@ -48,8 +48,9 @@ export default function TimelinePanel({
     void fetchTimeline();
   }, [fetchTimeline]);
 
-  // Once we have data, poll only while a non-terminal stage is in flight (and the
-  // PR isn't merged/closed). Before the first fetch, fall back to the initial status.
+  // Once we have data, keep refreshing only while a non-terminal stage is in
+  // flight (and the PR isn't merged/closed). Before the first fetch, fall back
+  // to the initial status.
   const stillActive = data
     ? Boolean(data.current_stage) &&
       data.current_stage !== "retrospective" &&
@@ -58,14 +59,7 @@ export default function TimelinePanel({
       data.pr_state !== "closed"
     : ACTIVE_STATES.has(initialStatus);
 
-  useEffect(() => {
-    if (!stillActive) {
-      return;
-    }
-    const handle = setInterval(() => void fetchTimeline(), POLL_INTERVAL_MS);
-
-    return () => clearInterval(handle);
-  }, [fetchTimeline, stillActive]);
+  useCoordinatedRefresh(fetchTimeline, stillActive);
 
   return <TimelineView data={data} loading={loading} error={error} />;
 }

@@ -670,10 +670,10 @@ fed by IO `*Panel` containers that own fetching and polling.
 - FR-19.9: The timeline container fetches `/api/tasks/<id>/timeline`,
   rendering loading, error (non-ok response or rejected fetch), and
   resolved states, clears a prior error after a later successful poll,
-  polls on a 10-second interval while the task is active (driven by
-  `initialStatus` or a still-active `current_stage`), does not poll for
-  a terminal status whose stage is `retrospective`, and stops fetching
-  after unmount. ([validated by `TimelinePanel.test.tsx:70`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L70), [`TimelinePanel.test.tsx:91`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L91), [`TimelinePanel.test.tsx:101`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L101), [`TimelinePanel.test.tsx:111`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L111), [`TimelinePanel.test.tsx:124`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L124), [`TimelinePanel.test.tsx:136`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L136), [`TimelinePanel.test.tsx:156`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L156), [`TimelinePanel.test.tsx:181`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L181), [`TimelinePanel.test.tsx:199`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L199), [`TimelinePanel.test.tsx:222`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L222))
+  refreshes on the page coordinator's ticks while the task is active
+  (driven by `initialStatus` or a still-active `current_stage`), reports
+  inactive for a terminal status whose stage is `retrospective` so no
+  ticks reach it, and stops fetching after unmount. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L82), [`TimelinePanel.test.tsx:103`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L103), [`TimelinePanel.test.tsx:113`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L113), [`TimelinePanel.test.tsx:123`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L123), [`TimelinePanel.test.tsx:136`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L136), [`TimelinePanel.test.tsx:148`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L148), [`TimelinePanel.test.tsx:168`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L168), [`TimelinePanel.test.tsx:193`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L193), [`TimelinePanel.test.tsx:211`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L211), [`TimelinePanel.test.tsx:234`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L234))
 - FR-19.10: The pure PR status card shows a loading placeholder until
   details arrive, an "unavailable" fallback with a "View on GitHub" link
   when only an error is present, keeps the loaded details on screen even
@@ -687,8 +687,52 @@ fed by IO `*Panel` containers that own fetching and polling.
 - FR-19.11: The PR status container fetches `/api/tasks/<id>/pr-status`
   and renders the card, surfaces the unavailable fallback on an error
   payload or a rejected fetch, refetches when the task id changes, does
-  not fetch after unmount, keeps the loaded details when a later poll
-  fails, and stops polling after a failed poll. ([validated by `PRStatusPanel.test.tsx:60`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L60), [`PRStatusPanel.test.tsx:70`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L70), [`PRStatusPanel.test.tsx:83`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L83), [`PRStatusPanel.test.tsx:99`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L99), [`PRStatusPanel.test.tsx:115`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L115), [`PRStatusPanel.test.tsx:133`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L133), [`PRStatusPanel.test.tsx:158`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L158))
+  not fetch after unmount, keeps the loaded details when a later
+  refresh fails, and reports inactive after a failed refresh so the
+  coordinator stops re-fetching it. ([validated by `PRStatusPanel.test.tsx:84`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L84), [`PRStatusPanel.test.tsx:94`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L94), [`PRStatusPanel.test.tsx:107`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L107), [`PRStatusPanel.test.tsx:123`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L123), [`PRStatusPanel.test.tsx:139`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L139), [`PRStatusPanel.test.tsx:157`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L157), [`PRStatusPanel.test.tsx:185`](apps/web-ui/src/app/tasks/[id]/PRStatusPanel.test.tsx#L185))
+
+- FR-19.12: The task-refresh presenter makes every scheduling decision
+  as pure functions: the live run is the newest non-terminal
+  `pipeline.assembly_lines` attempt (empty, all-terminal, and unsorted
+  inputs handled; `queued` counts as live; `created_at` sorts correctly
+  whether it arrives as a string or a Date); the refresh driver is
+  `idle` with no active panel, `poll` without a live run, without
+  EventSource, or after the stream gives up, and `stream` otherwise;
+  the interval is null when idle, a 30-second heartbeat on a live
+  stream, and the 10-second coordinated cadence otherwise (including
+  while the stream is still connecting or reconnecting);
+  event-triggered refreshes wait out the remainder of the 3-second
+  window (zero delay at or past the boundary); the stream cursor folds
+  numerically (ids past MAX_SAFE_INTEGER compare correctly, non-numeric
+  candidates keep the cursor); and the runs check stays active while a
+  run is attached (so its terminality is re-read, task status
+  regardless) or, unattached, while the task status can still mint a
+  run — never with no active panel. ([validated by `task-refresh-presenter.test.ts:25`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L25), [`task-refresh-presenter.test.ts:29`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L29), [`task-refresh-presenter.test.ts:38`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L38), [`task-refresh-presenter.test.ts:47`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L47), [`task-refresh-presenter.test.ts:69`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L69), [`task-refresh-presenter.test.ts:73`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L73), [`task-refresh-presenter.test.ts:92`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L92), [`task-refresh-presenter.test.ts:103`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L103), [`task-refresh-presenter.test.ts:114`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L114), [`task-refresh-presenter.test.ts:125`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L125), [`task-refresh-presenter.test.ts:136`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L136), [`task-refresh-presenter.test.ts:149`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L149), [`task-refresh-presenter.test.ts:153`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L153), [`task-refresh-presenter.test.ts:157`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L157), [`task-refresh-presenter.test.ts:161`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L161), [`task-refresh-presenter.test.ts:167`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L167), [`task-refresh-presenter.test.ts:173`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L173), [`task-refresh-presenter.test.ts:179`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L179), [`task-refresh-presenter.test.ts:185`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L185), [`task-refresh-presenter.test.ts:191`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L191), [`task-refresh-presenter.test.ts:195`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L195), [`task-refresh-presenter.test.ts:199`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L199), [`task-refresh-presenter.test.ts:203`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L203), [`task-refresh-presenter.test.ts:211`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L211), [`task-refresh-presenter.test.ts:221`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L221), [`task-refresh-presenter.test.ts:231`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L231), [`task-refresh-presenter.test.ts:241`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L241), [`task-refresh-presenter.test.ts:251`](apps/web-ui/src/app/tasks/[id]/task-refresh-presenter.test.ts#L251))
+- FR-19.13: The task-refresh provider is the page's single scheduler:
+  it never ticks with no active panel, stops when the last panel goes
+  inactive or on unmount, and a panel without a provider ancestor never
+  auto-refreshes; a tick refreshes active panels and skips inactive
+  ones; a running run at mount opens exactly one EventSource on the
+  run's stream proxy — none when every run is terminal or no panel is
+  active, and the socket closes when the page goes idle;
+  catchup-complete flips the `live` flag panels render from; the
+  catch-up replay burst triggers no immediate refresh wave, an event
+  past the window refreshes at once, and a burst inside it coalesces
+  into one trailing refresh at the window boundary; the interval slows
+  to the heartbeat while the stream is live and returns to coordinated
+  polling after the stream's bounded give-up; a run minted after mount
+  is discovered via `/api/tasks/<id>/runs` on poll ticks and attaches
+  the stream — never for a terminal task status with nothing attached,
+  and a discovery response with no live run keeps polling; and the
+  attached run's recorded status is re-checked on ticks, detaching a
+  finished run back to coordinated polling and attaching a retry's
+  fresh run in its place. ([validated by `TaskRefreshProvider.test.tsx:147`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L147), [`TaskRefreshProvider.test.tsx:157`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L157), [`TaskRefreshProvider.test.tsx:177`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L177), [`TaskRefreshProvider.test.tsx:193`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L193), [`TaskRefreshProvider.test.tsx:206`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L206), [`TaskRefreshProvider.test.tsx:218`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L218), [`TaskRefreshProvider.test.tsx:232`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L232), [`TaskRefreshProvider.test.tsx:243`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L243), [`TaskRefreshProvider.test.tsx:254`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L254), [`TaskRefreshProvider.test.tsx:269`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L269), [`TaskRefreshProvider.test.tsx:288`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L288), [`TaskRefreshProvider.test.tsx:309`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L309), [`TaskRefreshProvider.test.tsx:336`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L336), [`TaskRefreshProvider.test.tsx:357`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L357), [`TaskRefreshProvider.test.tsx:388`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L388), [`TaskRefreshProvider.test.tsx:414`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L414), [`TaskRefreshProvider.test.tsx:440`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L440), [`TaskRefreshProvider.test.tsx:470`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L470), [`TaskRefreshProvider.test.tsx:489`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L489))
+- FR-19.14: `GET /api/tasks/[id]/runs` serves the task's per-attempt
+  run rows newest first from `pipeline.assembly_lines`, behind the
+  timeline route's auth ladder (401 without a session, 404 for an
+  unknown task, 403 without repo access), returning an empty list on
+  pre-0025 databases, exporting `force-dynamic`, and mapping a thrown
+  lookup to a 500. ([validated by `route.test.ts:31`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L31), [`route.test.ts:36`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L36), [`route.test.ts:45`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L45), [`route.test.ts:54`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L54), [`route.test.ts:67`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L67), [`route.test.ts:92`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L92), [`route.test.ts:103`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L103), [`route.test.ts:111`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L111))
 
 ### FR-20: Project Facade Ports (Phase 1)
 
