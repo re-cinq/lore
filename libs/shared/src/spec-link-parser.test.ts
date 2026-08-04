@@ -207,4 +207,52 @@ describe("findMisplacedCoverageLinks", () => {
 
     expect(out).toEqual([]);
   });
+
+  it("ignores a non-trailing intra-doc anchor link", () => {
+    const out = findMisplacedCoverageLinks(
+      "See the matrix ([criteria](#acceptance-criteria)) below. End.",
+    );
+
+    expect(out).toEqual([]);
+  });
+
+  it("ignores a non-trailing absolute URL, even one containing .test.", () => {
+    const out = findMisplacedCoverageLinks(
+      "A blob ([code](https://github.com/o/r/blob/sha/src/x.test.ts#L42)) mid-prose. End.",
+    );
+
+    expect(out).toEqual([]);
+  });
+
+  it("ignores path/to placeholder and <owner>-style template paths", () => {
+    const out = findMisplacedCoverageLinks(
+      "Written as ([label](path/to/file.test.ts)) or ([log](https://github.com/<owner>/<repo>/commits/<branch>)) in prose. End.",
+    );
+
+    expect(out).toEqual([]);
+  });
+
+  it("ignores a non-trailing source-file reference link", () => {
+    const out = findMisplacedCoverageLinks(
+      "Registered ([registration](apps/api/src/server/build-server.ts#L98)) in the table. End.",
+    );
+
+    expect(out).toEqual([]);
+  });
+
+  it("ignores a test link quoted inside an inline code span", () => {
+    const out = findMisplacedCoverageLinks(
+      "An author writing `It [does](src/x.test.ts#L42).` mid-statement is fine. End.",
+    );
+
+    expect(out).toEqual([]);
+  });
+
+  it("does not fuse a prose bracket with the trailing parenthetical's first link", () => {
+    const out = findMisplacedCoverageLinks(
+      "Rejects hours outside the `[start, end)` window. ([t](src/x.test.ts#L42))",
+    );
+
+    expect(out).toEqual([]);
+  });
 });

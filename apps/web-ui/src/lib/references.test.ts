@@ -47,4 +47,24 @@ describe("parseReferences", () => {
   it("does not treat a version number as a file", () => {
     expect(parseReferences("v1.2.3", ctx)).toEqual([{ text: "v1.2.3" }]);
   });
+
+  it("never linkifies inside an inline code span", () => {
+    expect(parseReferences("run `cat src/a.ts` now", ctx)).toEqual([
+      { text: "run " },
+      { text: "`cat src/a.ts`" },
+      { text: " now" },
+    ]);
+  });
+
+  it("leaves an existing markdown link and a bare URL untouched", () => {
+    expect(
+      parseReferences("see [t](src/a.ts) or https://x.dev/a.md end", ctx),
+    ).toEqual([
+      { text: "see " },
+      { text: "[t](src/a.ts)" },
+      { text: " or " },
+      { text: "https://x.dev/a.md" },
+      { text: " end" },
+    ]);
+  });
 });

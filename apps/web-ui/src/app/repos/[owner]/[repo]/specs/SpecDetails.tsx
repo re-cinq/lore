@@ -7,7 +7,7 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import { markdownSanitizeSchema } from "@/lib/markdown-sanitize";
 import type { Root, Text, Element, ElementContent, RootContent } from "hast";
-import { type TestLinkRef } from "@/lib/spec-link-parser";
+import { type TestLinkRef } from "@/lib/trace-types";
 import { resolveHref } from "@/lib/github-links";
 import readme from "../ReadmeBox.module.css";
 import styles from "./SpecDetails.module.css";
@@ -49,14 +49,50 @@ export interface StatementInfo {
 /** A v3 statement may end with a trailing markdown test-link paren that
  * react-markdown breaks into an `<a>` element — so the raw statement text
  * won't be a contiguous text node. Strip the trailing paren so the matcher
- * can still find the prefix as a plain text node. */
+ * can still find the prefix as a plain text node. Markdown links contain
+ * `()` themselves, so a naive regex misses a parenthesized link target —
+ * mirror the shared parser's `findTrailingParenSpan`
+ * (libs/shared/src/spec-link-parser.ts): walk backward past trailing
+ * whitespace/periods counting paren depth, and strip only a parenthetical
+ * that holds at least one markdown link (a prose paren renders as plain
+ * text and must stay in the matcher). */
 function matcherText(statementText: string): string {
-  return statementText
-    .replace(
-      /\s*\(\s*\[[^\]]+\]\([^)]+\)(?:\s*,\s*\[[^\]]+\]\([^)]+\))*\s*\)\s*\.?\s*$/,
-      "",
-    )
-    .trim();
+  let end = statementText.length;
+
+  while (end > 0 && /[\s.]/.test(statementText[end - 1])) {
+    end--;
+  }
+
+  if (end === 0 || statementText[end - 1] !== ")") {
+    return statementText.trim();
+  }
+
+  let depth = 1;
+
+  for (let i = end - 2; i >= 0; i--) {
+    const c = statementText[i];
+
+    if (c === ")") {
+      depth++;
+      continue;
+    }
+
+    if (c !== "(") {
+      continue;
+    }
+    depth--;
+
+    if (depth > 0) {
+      continue;
+    }
+    const inner = statementText.slice(i + 1, end - 1);
+
+    return /\[[^\]]+\]\([^)]*\)/.test(inner)
+      ? statementText.slice(0, i).trim()
+      : statementText.trim();
+  }
+
+  return statementText.trim();
 }
 
 /** Reduce a statement's markdown to the plain text react-markdown renders:
