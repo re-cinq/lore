@@ -55,7 +55,10 @@ export interface StatementInfo {
  * (libs/shared/src/spec-link-parser.ts): walk backward past trailing
  * whitespace/periods counting paren depth, and strip only a parenthetical
  * that holds at least one markdown link (a prose paren renders as plain
- * text and must stay in the matcher). */
+ * text and must stay in the matcher). Accepted unguarded runtime copy:
+ * runtime code cannot ride the parity-test pattern (that needs a test-file
+ * relative import), so lockstep with the shared scanner is held only by
+ * the behavioral fixtures in SpecDetails.test.tsx. */
 function matcherText(statementText: string): string {
   let end = statementText.length;
 
