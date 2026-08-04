@@ -29,6 +29,14 @@ returns 200/`ok` when the DB is connected or no DB is configured, and 503/`error
 only when a configured DB is unreachable — the Floor's own `/healthz` returning
 the `{status:"error", reason:"database connection failed"}` body in that case. ([validated by `healthz.test.ts:14`](apps/mcp-server/src/platform/healthz.test.ts#L14), [`healthz.test.ts:22`](apps/mcp-server/src/platform/healthz.test.ts#L22), [`healthz.test.ts:40`](apps/mcp-server/src/platform/healthz.test.ts#L40), [`healthz.test.ts:61`](apps/mcp-server/src/platform/healthz.test.ts#L61), [`healthz.test.ts:74`](apps/mcp-server/src/platform/healthz.test.ts#L74), [`healthz.test.ts:97`](apps/mcp-server/src/platform/healthz.test.ts#L97), [`health.test.ts:5`](apps/floor/src/delivery/http/routes/health.test.ts#L5))
 
+### Database pool resilience
+
+Every long-lived `pg` pool (the Floor kernel pool, the lore-api pool, the web-ui
+pool) attaches an `error` listener at construction, so an idle-client failure
+(backend restart, network blip) is logged with the app's `[db]`/`[lore-api]`
+prefix instead of surfacing as an uncaught exception that kills the
+process. ([validated by `db.test.ts:12`](apps/floor/src/kernel/db.test.ts#L12))
+
 ### GitHub client
 
 `deriveComputedStatus` derives a PR's rollup status by precedence: merged, then
