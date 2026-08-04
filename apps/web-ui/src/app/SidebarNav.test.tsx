@@ -37,6 +37,8 @@ import SidebarNav from "./SidebarNav";
 // cluster (Repos + global views) then the Insights group.
 const PRIMARY_LINKS = [
   { href: "/", label: "Repos" },
+  { href: "/assembly-lines", label: "Assembly Lines" },
+  { href: "/agents", label: "Agents" },
   { href: "/search", label: "Search" },
   { href: "/audit", label: "Audit" },
   { href: "/pools", label: "Pools" },
