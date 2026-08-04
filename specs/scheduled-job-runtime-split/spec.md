@@ -226,6 +226,16 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    `__job_runs__/<job>/<runId>/output.log` key, and both `completeJobRun` and `failJobRun` persist
    the `log_path` when provided. ([validated by `log-storage.test.ts:42`](apps/floor/src/main-loop/scheduling/log-storage.test.ts#L42), [`job-run.test.ts:31`](apps/floor/src/main-loop/scheduling/job-run.test.ts#L31), [`log-storage.test.ts:10`](apps/floor/src/main-loop/scheduling/log-storage.test.ts#L10), [`job-run.test.ts:64`](apps/floor/src/main-loop/scheduling/job-run.test.ts#L64))
 
+1c. The in-process scheduler clears a job's in-flight marker on every failure
+   path: a rejected `startJobRun` (`pipeline.job_runs` insert failure) is logged
+   without a phantom `failJobRun` call and the job runs again on the next tick
+   instead of staying wedged for the process lifetime; a handler failure passes
+   its message to `failJobRun` and likewise leaves the job re-eligible; a
+   successful run passes the handler result to `completeJobRun`; and
+   `getJobStatus` reports `idle` plus the in-memory last-attempt timestamp
+   (`null` before the first attempt in this process).
+   ([validated by `scheduler.test.ts:42`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L42), [`scheduler.test.ts:66`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L66), [`scheduler.test.ts:78`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L78), [`scheduler.test.ts:94`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L94), [`scheduler.test.ts:110`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L110), [`scheduler.test.ts:125`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L125))
+
 2. Ten CronJobs exist, one per batch job, with schedules exactly matching the
    prior in-process schedules.
 3. CronJob pods carry the same env vars, secret refs, and service account as the
