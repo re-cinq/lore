@@ -34,8 +34,10 @@ the `{status:"error", reason:"database connection failed"}` body in that case. (
 Every long-lived `pg` pool (the Floor kernel pool, the lore-api pool, the web-ui
 pool) attaches an `error` listener at construction, so an idle-client failure
 (backend restart, network blip) is logged with the app's `[db]`/`[lore-api]`
-prefix instead of surfacing as an uncaught exception that kills the
-process. ([validated by `db.test.ts:12`](apps/floor/src/kernel/db.test.ts#L12))
+prefix instead of surfacing as an uncaught exception that kills the process; the
+Floor pool is the test-validated exemplar, and the lore-api and web-ui pools
+attach the identical inline handler at their own construction
+sites. ([validated by `db.test.ts:16`](apps/floor/src/kernel/db.test.ts#L16))
 
 ### GitHub client
 
