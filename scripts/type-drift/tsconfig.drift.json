@@ -22,6 +22,7 @@
     "feature-types.drift.ts",
     "run-stream-types.drift.ts",
     "assembly-line-definition.drift.ts",
-    "spec-status.drift.ts"
+    "spec-status.drift.ts",
+    "trace-types.drift.ts"
   ]
 }

@@ -90,7 +90,7 @@ function matcherText(statementText: string): string {
     }
     const inner = statementText.slice(i + 1, end - 1);
 
-    return /\[[^\]]+\]\([^)]*\)/.test(inner)
+    return /\[[^\]]+\]\([^)]+\)/.test(inner)
       ? statementText.slice(0, i).trim()
       : statementText.trim();
   }
