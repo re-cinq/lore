@@ -20,6 +20,10 @@ const pool = new Pool({
   max: parseInt(process.env.LORE_DB_POOL_MAX || "20", 10),
 });
 
+pool.on("error", (err) => {
+  console.error("[db] pg pool error (idle client):", err);
+});
+
 export async function query<T = Record<string, unknown>>(
   text: string,
   params?: unknown[],

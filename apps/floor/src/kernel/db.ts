@@ -13,6 +13,10 @@ export function initPool(): pg.Pool {
     max: 5,
   });
 
+  pool.on("error", (err) => {
+    console.error("[db] pg pool error (idle client):", err);
+  });
+
   return pool;
 }
 
