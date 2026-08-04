@@ -938,6 +938,21 @@ pre {
   .route-loading-spinner { animation-duration: 1.6s; }
 }
 
+/* Skeleton placeholder blocks for route-level loading.tsx files. Sized by the
+   consumer via inline style; token-driven so it tracks theme/scheme. */
+.skeleton {
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
 /* --- Repo grid --- */
 .repo-grid {
   display: grid;
