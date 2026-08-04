@@ -23,7 +23,10 @@ const ISSUE_SRC = "#(\\d+)";
 const UUID_SRC = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
 // Spans to leave verbatim: inline code, existing markdown links, bare URLs.
-const PROTECT_SRC = "`[^`]+`|\\[[^\\]]*\\]\\([^)]*\\)|https?:\\/\\/[^\\s)]+";
+// Link targets may contain one balanced paren pair (wiki-style urls, paths);
+// the disjoint alternatives keep the pattern backtracking-safe.
+const PROTECT_SRC =
+  "`[^`]+`|\\[[^\\]]*\\]\\((?:[^()]|\\([^()]*\\))*\\)|https?:\\/\\/[^\\s)]+";
 
 const SCAN_SRC = `(?<file>${FILE_SRC})|(?<issue>${ISSUE_SRC})|(?<uuid>${UUID_SRC})`;
 

@@ -20,6 +20,7 @@ const FIXTURES = [
   "v1.2.3 is not a file",
   "inside `code src/a.ts #42` nothing links",
   "an existing [link](src/a.ts) stays untouched",
+  "a [link](specs/a_(draft)/spec.md) with target parens stays whole",
   "a bare https://github.com/re-cinq/lore/blob/main/src/a.ts survives",
   `mixed: src/a.ts, #12, ${uuid}, \`x/y.md\`, [t](z.md), end`,
 ];
