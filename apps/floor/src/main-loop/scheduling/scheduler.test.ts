@@ -72,10 +72,11 @@ describe("runJob via startScheduler", () => {
     registerJob("eval_runner", "* * * * *", handler);
     await startScheduler();
 
+    expect(startJobRun).toHaveBeenCalledWith("eval_runner");
     expect(failJobRun).not.toHaveBeenCalled();
   });
 
-  it("passes the handler failure to failJobRun and reruns the job next tick", async () => {
+  it("passes the handler failure to failJobRun and leaves the job re-eligible", async () => {
     const handler = vi
       .fn<() => Promise<string>>()
       .mockRejectedValue(new Error("boom"));
