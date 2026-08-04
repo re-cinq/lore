@@ -83,11 +83,17 @@ export default function TaskLogs({
     }
   }, [taskId, status, totalSize, accessDenied]);
 
-  // Initial fetch
+  const latestFetchLogs = useRef(fetchLogs);
+
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount; state is set inside the async fetch
-    void fetchLogs();
+    latestFetchLogs.current = fetchLogs;
   }, [fetchLogs]);
+
+  // Initial fetch — once on mount; the ref keeps fetchLogs identity churn
+  // (status/totalSize updates) from re-firing this effect
+  useEffect(() => {
+    void latestFetchLogs.current();
+  }, []);
 
   // Re-fetch on the page coordinator's ticks while running
   const { live } = useCoordinatedRefresh(
