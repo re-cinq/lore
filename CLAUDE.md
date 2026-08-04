@@ -113,8 +113,8 @@ status pill — a stale header misreports the org's backlog.
 - `web-ui/src/app/specs/page.tsx` — global cross-repo spec browser; queries all schemas via `queryAllChunks`, filters `content_type = 'spec'`, shows 50 most-recent with per-repo filter buttons; not in the sidebar nav (only reachable via repo pages or direct URL)
 - `web-ui/src/app/specs/[...path]/page.tsx` — spec detail view; `[...path]` catch-all reconstructs the file path; breadcrumb label reads "Context" (differs from list page label "Specifications"); shows all chunks matching that `file_path` across all schemas
 - `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` — per-repo spec view; scoped to one team schema; includes a server action form (`addSpec`) that inserts spec chunks directly into `{schema}.chunks` with `content_type = 'spec'`; shows 30 most-recent
-- `web-ui/src/app/assembly-lines/[id]/TaskLogs.tsx` — live Job log viewer (polls every 5s)
-- `web-ui/src/app/assembly-lines/[id]/PRStatusCard.tsx` — live PR status card
+- `web-ui/src/app/tasks/[id]/TaskLogs.tsx` — live Job log viewer on the task detail page
+- `web-ui/src/app/tasks/[id]/PRStatusCard.tsx` — live PR status card
 - `apps/floor/src/jobs/review/review-reactor.ts` — addresses reviewer feedback (`reviewReactorJob` = cron path, `runReviewReactorForPR` = webhook path)
 - `libs/shared/src/business-hours.ts` — IANA-TZ-aware gate used by safety crons
 - `apps/floor/src/delivery/http/server.ts` (+ `routes/health.ts`) — the Floor HTTP server: `POST /api/webhook/github` (the GitHub webhook ingress, HMAC-verified, maps→inserts `github.*` events), the `/api/agent-events` NDJSON cost sink, `GET /api/agent-events/stream/{assemblyLineId}` (the run-viz SSE stream), `GET /api/agent-events/{assemblyLineId}` (run-event history), `GET /api/assembly-line-definitions/{name}`, and `/healthz`. The old `/api/trigger/*` fan-out endpoints were replaced by the event bus (`apps/floor/src/{listeners,main-loop,jobs}/`): listeners insert into `pipeline.events`, the loop dispatches to handlers. spec-coverage validate / spec-trace now run as `internal.ingest.*` event handlers (mcp-server inserts the events post-ingest via the shared `insertEvent`).
@@ -487,7 +487,8 @@ overrides for any task type: `model`, `timeout_minutes`,
 (`prompt`, `model`, `timeout_minutes`, `image`) resolved by name via
 `project.agentDefs.resolve(name)` — `project` row (per-repo override) →
 `project_id IS NULL` row (org default) → `task-types.yaml`/code. Edited in
-the `/agents` UI. `feature-planning` is a first-class agent here: its prompt
+the `/repos/[owner]/[repo]/agents` UI (the global `/agents` page is a
+read-only activity list). `feature-planning` is a first-class agent here: its prompt
 is the `PLANNING_INSTRUCTIONS` constant (the offline/code fallback, served by
 `AgentDefsYaml`) and the org-default row's prompt is seeded from it by
 migration `0018`; both `runner-cli` and `handle-feature-planning` resolve it
