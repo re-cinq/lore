@@ -4,7 +4,8 @@ name: Infra validation
 # with resource assertions, lint + template the lore-platform umbrella (all
 # five vendored subcharts), and fmt/validate every Terraform root. The
 # scripts/ paths listed below are exactly the files Terraform file() and the
-# umbrella's --set-file reach outside infra/.
+# umbrella's --set-file reach outside infra/, plus the deploy script whose
+# helm flags check-lore-platform-render.sh mirrors.
 
 on:
   pull_request:
@@ -12,18 +13,26 @@ on:
       - 'infra/**'
       - 'scripts/check-ai-agents-render.sh'
       - 'scripts/check-lore-platform-render.sh'
+      - 'scripts/ci/deploy-lore-platform.sh'
       - 'scripts/task-types.yaml'
       - 'scripts/infra/setup-memory-dgraph-schema.sh'
       - 'scripts/infra/setup-spec-trace-schema.sh'
       - '.github/workflows/helm-render.yml'
   workflow_dispatch:
 
+concurrency:
+  group: infra-validation-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
 jobs:
   ai-agents-render:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: azure/setup-helm@v4
       - name: Render + assert resources
         run: ./scripts/check-ai-agents-render.sh
@@ -32,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: azure/setup-helm@v4
       - name: Lint + render umbrella chart
         run: ./scripts/check-lore-platform-render.sh
@@ -40,22 +49,29 @@ jobs:
   terraform-validate:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.tf-plugin-cache
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: hashicorp/setup-terraform@v3
       - name: terraform fmt
         run: terraform fmt -check -recursive -diff infra/terraform
       - name: terraform validate (all roots)
         # Three independent roots: the main config plus two standalone module
         # roots nothing references via a module block (gke-mcp is the cluster
-        # bootstrap root). A shared plugin cache downloads each provider once.
+        # bootstrap root). The roots have no committed .terraform.lock.hcl
+        # (gitignored repo-wide), so the shared plugin cache needs the
+        # MAY_BREAK override to be consulted at all — without it each root
+        # re-downloads every provider. Every root runs even if an earlier one
+        # fails, so one CI run reports all broken roots.
+        env:
+          TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.tf-plugin-cache
+          TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE: '1'
         run: |
           mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          fail=0
           for dir in infra/terraform infra/terraform/modules/gke-mcp infra/terraform/modules/lore-db; do
             echo "::group::validate $dir"
-            terraform -chdir="$dir" init -backend=false -input=false
-            terraform -chdir="$dir" validate
+            terraform -chdir="$dir" init -backend=false -input=false || fail=1
+            terraform -chdir="$dir" validate || fail=1
             echo "::endgroup::"
           done
+          exit "$fail"

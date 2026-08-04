@@ -6,8 +6,10 @@
 #   1. defaults      — the chart as checked out; every subchart must emit
 #                      resources (# Source: paths use chart NAMES, not dirs)
 #   2. deploy flags  — the exact flags scripts/ci/deploy-lore-platform.sh
-#                      passes on every deploy (this one disables the lore-db
-#                      ownership-reconciler, so only the exit code is asserted)
+#                      passes on every deploy (keep the two in sync): the
+#                      --set-file task-types content must reach the rendered
+#                      ConfigMaps and the disabled lore-db ownership-reconciler
+#                      must NOT render
 # Regenerate/inspect locally with:
 #
 #   helm template lore-platform \
@@ -49,10 +51,42 @@ if [ "$fail" -ne 0 ]; then
 fi
 
 echo "[lore] helm template (deploy-lore-platform.sh flags)"
-helm template lore-platform "$chart" \
+deploy_out="$(helm template lore-platform "$chart" \
 	--namespace lore-floor --include-crds \
 	--set-file lore-floor.taskTypesConfig="$repo/scripts/task-types.yaml" \
 	--set-file lore-api.taskTypesConfig="$repo/scripts/task-types.yaml" \
-	--set lore-db-helm.ownershipReconciler.enabled=false >/dev/null
+	--set lore-db-helm.ownershipReconciler.enabled=false)"
 
+# --set-file silently sets keys nothing reads (the templates default it to "").
+# Assert the task-types content actually landed in each consuming ConfigMap —
+# a chart-side rename of the values key would otherwise deploy them empty
+# (the 2026-07-17 frozen-ConfigMap incident class). Scoped per document: the
+# ai-agents catalog also mentions task-type names, so a render-wide grep
+# would false-positive.
+config_map_doc() {
+	awk -v src="# Source: lore-platform/charts/$1/templates/configmap.yaml" \
+		'$0 == src {p=1; next} /^# Source: /{p=0} p' <<<"$deploy_out"
+}
+for sub in lore-floor lore-api; do
+	# Capture first: piping into grep -q would SIGPIPE awk mid-stream and
+	# pipefail would report the successful match as a failure.
+	doc="$(config_map_doc "$sub")"
+	if grep -q "feature-request" <<<"$doc"; then
+		echo "  ok: task-types content reaches the $sub ConfigMap"
+	else
+		echo "  MISSING: task-types content in the $sub ConfigMap (values key drift?)" >&2
+		fail=1
+	fi
+done
+if grep -q "lore-db-ownership-reconciler" <<<"$deploy_out"; then
+	echo "  UNEXPECTED: ownership-reconciler rendered despite enabled=false" >&2
+	fail=1
+else
+	echo "  ok: ownership-reconciler absent when disabled"
+fi
+
+if [ "$fail" -ne 0 ]; then
+	echo "lore-platform umbrella render check FAILED" >&2
+	exit 1
+fi
 echo "lore-platform umbrella renders with all five subcharts."
