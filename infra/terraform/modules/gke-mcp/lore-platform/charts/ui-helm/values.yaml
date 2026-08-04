@@ -34,6 +34,9 @@ env:
   LORE_DB_PORT: "5432"
   LORE_DB_NAME: lore
   LORE_DB_USER: lore
+  # pg pool cap for the UI's connection pool (src/lib/db.ts). Matches the code
+  # default; exposed here so it's tunable via standard deploy.
+  LORE_DB_POOL_MAX: "20"
   # In-cluster MCP server URL — the /api/pipeline/[id]/timeline route proxies
   # here for the commit-walk + trailer parsing. Stays inside the cluster
   # rather than hairpinning through the public ingress.

@@ -455,6 +455,11 @@ The app is built from a shared set of presentational components.
   fallback — showing the error message (a generic fallback when it has
   none) and wiring the reset callback through to a Try-again button —
   for both the per-route and the global-error boundary. ([validated by `RouteError.test.tsx:7`](apps/web-ui/src/components/RouteError.test.tsx#L7), [`RouteError.test.tsx:14`](apps/web-ui/src/components/RouteError.test.tsx#L14), [`RouteError.test.tsx:19`](apps/web-ui/src/components/RouteError.test.tsx#L19), [`route-error-boundaries.test.tsx:28`](apps/web-ui/src/app/route-error-boundaries.test.tsx#L28), [`route-error-boundaries.test.tsx:37`](apps/web-ui/src/app/route-error-boundaries.test.tsx#L37), [validated by `renders the RouteError fallback for the %s boundary`](apps/web-ui/src/app/route-error-boundaries.test.tsx#L18))
+- FR-7.8: Navigating to the home, repo-overview, search and context
+  routes shows an immediate route-level loading skeleton — a labeled
+  status region of pulsing placeholder blocks mirroring each page's
+  layout — instead of freezing on the previous page while the server
+  component fetches. ([validated by `renders a labeled status region of skeleton blocks for the %s route`](apps/web-ui/src/app/route-loading-skeletons.test.tsx#L17))
 
 ## Non-Functional Requirements
 

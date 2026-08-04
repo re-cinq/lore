@@ -50,7 +50,8 @@ export interface EnrollmentInput {
   /** GitHub webhook → Floor status, or null when not fetched. */
   webhook: WebhookCheck | null;
   localMcp: { developerCount: number; lastActivity: string | null };
-  now: number;
+  /** Reference timestamp for staleness math — injectable for tests, defaults to Date.now(). */
+  now?: number;
 }
 
 const STALE_MS = 7 * 86_400_000;
@@ -67,7 +68,8 @@ function daysAgo(now: number, iso: string): string {
   return d <= 0 ? "today" : `${d}d ago`;
 }
 
-export function computeEnrollmentChecks(input: EnrollmentInput): Check[] {
+export function computeEnrollmentChecks(rawInput: EnrollmentInput): Check[] {
+  const input = { ...rawInput, now: rawInput.now ?? Date.now() };
   const checks: Check[] = [];
 
   checks.push({
