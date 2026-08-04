@@ -1,6 +1,7 @@
 import type { PgPool } from "../../memory-store.js";
 import type { GapResult } from "../../feature-planning/gap-result.js";
 import {
+  PATCH_COLUMNS,
   slugifyFeatureTitle,
   type FeaturesPort,
   type Feature,
@@ -11,16 +12,6 @@ import {
   type FeaturePatch,
   type CreateFeatureInput,
 } from "./features-port.js";
-
-/** Columns a {@link FeaturePatch} may set, in a fixed order for stable params. */
-const PATCH_COLUMNS: (keyof FeaturePatch)[] = [
-  "draft_spec_md",
-  "spec_path",
-  "spec_pr_url",
-  "spec_pr_number",
-  "issue_number",
-  "issue_url",
-];
 
 /**
  * Postgres-backed {@link FeaturesPort} over `lore.features` +

@@ -73,6 +73,20 @@ export interface FeaturePatch {
   issue_url?: string;
 }
 
+/**
+ * Columns a {@link FeaturePatch} may set, in a fixed order for stable params.
+ * Shared by the Pg adapter (dynamic SQL) and the in-memory double so both apply
+ * exactly the same patch surface.
+ */
+export const PATCH_COLUMNS: (keyof FeaturePatch)[] = [
+  "draft_spec_md",
+  "spec_path",
+  "spec_pr_url",
+  "spec_pr_number",
+  "issue_number",
+  "issue_url",
+];
+
 export interface FeaturesPort {
   /** Insert a draft feature (status `draft`); slug + path derived from title. */
   create(repo: string, input: CreateFeatureInput): Promise<Feature>;

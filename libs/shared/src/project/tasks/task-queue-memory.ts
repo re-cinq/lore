@@ -1,5 +1,5 @@
 import type { PipelineTask } from "../../types.js";
-import { unblockedBy } from "./task-queue-port.js";
+import { enforceSettableTaskColumns, unblockedBy } from "./task-queue-port.js";
 import type {
   TaskQueueRepository,
   RecoverableTask,
@@ -361,6 +361,9 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     taskId: string,
     columns: Record<string, unknown>,
   ): Promise<void> {
+    // Same allowlist gate as the Pg adapter — a typo'd column must not pass
+    // tests against this double while no-oping in prod.
+    enforceSettableTaskColumns(columns);
     const task = this.tasks.find((t) => t.id === taskId);
 
     if (!task) {
