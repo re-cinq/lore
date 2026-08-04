@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { parseAgentLog } from "@/lib/agent-log-entries";
 import LogEntriesView from "@/components/LogEntriesView";
 import LogFormatToggle from "@/components/LogFormatToggle";
+import { useCoordinatedRefresh } from "./TaskRefreshProvider";
 import styles from "./TaskLogs.module.css";
 
 interface LogsResponse {
@@ -14,7 +15,6 @@ interface LogsResponse {
 }
 
 const ACTIVE_STATES = new Set(["running"]);
-const POLL_INTERVAL_MS = 5_000;
 
 export default function TaskLogs({
   taskId,
@@ -89,15 +89,11 @@ export default function TaskLogs({
     void fetchLogs();
   }, [fetchLogs]);
 
-  // Poll while running
-  useEffect(() => {
-    if (!ACTIVE_STATES.has(status) || accessDenied) {
-      return;
-    }
-    const id = setInterval(() => void fetchLogs(), POLL_INTERVAL_MS);
-
-    return () => clearInterval(id);
-  }, [fetchLogs, status, accessDenied]);
+  // Re-fetch on the page coordinator's ticks while running
+  const { live } = useCoordinatedRefresh(
+    fetchLogs,
+    ACTIVE_STATES.has(status) && !accessDenied,
+  );
 
   // Auto-scroll to bottom when logs update
   useEffect(() => {
@@ -160,7 +156,7 @@ export default function TaskLogs({
 
       {isRunning && !accessDenied && (
         <p className={`meta ${styles.polling}`}>
-          Polling every 5s
+          {live ? "Live" : "Auto-refreshing"}
           {totalSize > 0
             ? ` — ${(totalSize / 1024).toFixed(1)} KB received`
             : ""}

@@ -11,6 +11,18 @@ vi.mock("@/components/Icon", () => ({
 }));
 
 import TimelinePanel from "./TimelinePanel";
+import TaskRefreshProvider from "./TaskRefreshProvider";
+
+// The coordinated interval now lives in TaskRefreshProvider, so timer-driven
+// tests render inside it (taskStatus "done" keeps run discovery off; jsdom has
+// no EventSource, so the provider stays in poll mode).
+function renderWithRefresh(ui: React.ReactElement) {
+  return render(
+    <TaskRefreshProvider taskId="t1" taskStatus="done" runs={[]}>
+      {ui}
+    </TaskRefreshProvider>,
+  );
+}
 
 function jsonResponse(payload: unknown, status = 200) {
   return {
@@ -141,7 +153,7 @@ describe("TimelinePanel", () => {
       );
 
     vi.stubGlobal("fetch", fetchMock);
-    render(<TimelinePanel taskId="t1" initialStatus="done" />);
+    renderWithRefresh(<TimelinePanel taskId="t1" initialStatus="done" />);
     await flush();
 
     const settled = fetchMock.mock.calls.length;
@@ -161,7 +173,7 @@ describe("TimelinePanel", () => {
       );
 
     vi.stubGlobal("fetch", fetchMock);
-    render(<TimelinePanel taskId="t1" initialStatus="running" />);
+    renderWithRefresh(<TimelinePanel taskId="t1" initialStatus="running" />);
     await flush();
 
     const settled = fetchMock.mock.calls.length;
@@ -186,7 +198,7 @@ describe("TimelinePanel", () => {
       );
 
     vi.stubGlobal("fetch", fetchMock);
-    render(<TimelinePanel taskId="t1" initialStatus="done" />);
+    renderWithRefresh(<TimelinePanel taskId="t1" initialStatus="done" />);
     await flush();
 
     await act(async () => {
@@ -204,7 +216,7 @@ describe("TimelinePanel", () => {
       );
 
     vi.stubGlobal("fetch", fetchMock);
-    const { unmount } = render(
+    const { unmount } = renderWithRefresh(
       <TimelinePanel taskId="t1" initialStatus="running" />,
     );
 
@@ -230,7 +242,7 @@ describe("TimelinePanel", () => {
       );
 
     vi.stubGlobal("fetch", fetchMock);
-    render(<TimelinePanel taskId="t1" initialStatus="running" />);
+    renderWithRefresh(<TimelinePanel taskId="t1" initialStatus="running" />);
     await flush();
 
     expect(

@@ -91,11 +91,11 @@ is already stored in LoreTask `status.output` and transferred to
 
 ## Acceptance Criteria
 
-1. Running task shows live logs in pipeline detail page. ([validated by `TaskLogs.test.tsx:93`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L93))
+1. Running task shows live logs in pipeline detail page. ([validated by `TaskLogs.test.tsx:105`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L105))
 
-2. Logs update every 5s while task is running. ([validated by `TaskLogs.test.tsx:492`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L492))
+2. Logs update on the task page's coordinated refresh (10s poll, or stream-driven when the task has a live assembly-line run) while the task is running. ([validated by `TaskLogs.test.tsx:504`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L504))
 
-3. Completed/failed tasks show final output. ([validated by `TaskLogs.test.tsx:528`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L528))
+3. Completed/failed tasks show final output. ([validated by `TaskLogs.test.tsx:540`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L540))
 
 4. No kubectl access needed to see what the agent is doing
 
@@ -103,19 +103,19 @@ is already stored in LoreTask `status.output` and transferred to
 
 ### TaskLogs viewer
 
-The initial fetch requests the bare logs URL with no `offset` query; a non-active (terminal) status never takes the offset branch. ([validated by `TaskLogs.test.tsx:76`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L76))
+The initial fetch requests the bare logs URL with no `offset` query; a non-active (terminal) status never takes the offset branch. ([validated by `TaskLogs.test.tsx:88`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L88))
 
-Before any logs resolve — or when the server returns null logs — the viewer shows the placeholder "Logs will appear when the agent starts.", and the "Agent Output" heading always renders. ([validated by `TaskLogs.test.tsx:55`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L55), [validated by `TaskLogs.test.tsx:550`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L550))
+Before any logs resolve — or when the server returns null logs — the viewer shows the placeholder "Logs will appear when the agent starts.", and the "Agent Output" heading always renders. ([validated by `TaskLogs.test.tsx:67`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L67), [validated by `TaskLogs.test.tsx:562`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L562))
 
-Status maps to a badge: "Completed" for succeeded/pr-created/merged, "In Review" for review, "Failed" for failed/cancelled; a running task that later reports completion transitions from the polling note to the Completed badge. ([validated by `TaskLogs.test.tsx:113`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L113), [validated by `TaskLogs.test.tsx:127`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L127), [validated by `TaskLogs.test.tsx:141`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L141), [validated by `TaskLogs.test.tsx:155`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L155), [validated by `TaskLogs.test.tsx:169`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L169), [validated by `TaskLogs.test.tsx:183`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L183), [validated by `TaskLogs.test.tsx:566`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L566))
+Status maps to a badge: "Completed" for succeeded/pr-created/merged, "In Review" for review, "Failed" for failed/cancelled; a running task that later reports completion transitions from the polling note to the Completed badge. ([validated by `TaskLogs.test.tsx:125`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L125), [validated by `TaskLogs.test.tsx:139`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L139), [validated by `TaskLogs.test.tsx:153`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L153), [validated by `TaskLogs.test.tsx:167`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L167), [validated by `TaskLogs.test.tsx:181`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L181), [validated by `TaskLogs.test.tsx:195`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L195), [validated by `TaskLogs.test.tsx:578`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L578))
 
-While running, the viewer renders a pulse indicator and a "Polling every 5s — N.N KB received" note, collapsing to a bare "Polling every 5s" when zero bytes have been received. ([validated by `TaskLogs.test.tsx:197`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L197), [validated by `TaskLogs.test.tsx:219`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L219))
+While running, the viewer renders a pulse indicator and a refresh note — "Live" when the run event stream is attached, "Auto-refreshing" otherwise — suffixed with "— N.N KB received" once bytes have arrived and bare at zero bytes. ([validated by `TaskLogs.test.tsx:209`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L209), [validated by `TaskLogs.test.tsx:231`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L231))
 
-Once totalSize is known and the task is running, incremental polls use the `?offset=` URL and append the returned tail; an empty offset delta is not appended and does not blank the head chunk, and a still-null buffer coalesces to "" before the first appended tail. ([validated by `TaskLogs.test.tsx:236`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L236), [validated by `TaskLogs.test.tsx:275`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L275), [validated by `TaskLogs.test.tsx:298`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L298))
+Once totalSize is known and the task is running, incremental polls use the `?offset=` URL and append the returned tail; an empty offset delta is not appended and does not blank the head chunk, and a still-null buffer coalesces to "" before the first appended tail. ([validated by `TaskLogs.test.tsx:248`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L248), [validated by `TaskLogs.test.tsx:287`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L287), [validated by `TaskLogs.test.tsx:310`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L310))
 
-The full (non-offset) fetch path replaces the log buffer entirely. ([validated by `TaskLogs.test.tsx:334`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L334))
+The full (non-offset) fetch path replaces the log buffer entirely. ([validated by `TaskLogs.test.tsx:346`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L346))
 
-Fetch failures surface distinct messages: a 403 renders the access-denied message and stops polling, a 401 renders the sign-in message, any other non-ok response renders an "HTTP <code>" message, a thrown fetch renders the rejection message, and a later successful fetch clears the error. ([validated by `TaskLogs.test.tsx:353`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L353), [validated by `TaskLogs.test.tsx:388`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L388), [validated by `TaskLogs.test.tsx:410`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L410), [validated by `TaskLogs.test.tsx:430`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L430), [validated by `TaskLogs.test.tsx:447`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L447))
+Fetch failures surface distinct messages: a 403 renders the access-denied message and stops polling, a 401 renders the sign-in message, any other non-ok response renders an "HTTP <code>" message, a thrown fetch renders the rejection message, and a later successful fetch clears the error. ([validated by `TaskLogs.test.tsx:365`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L365), [validated by `TaskLogs.test.tsx:400`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L400), [validated by `TaskLogs.test.tsx:422`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L422), [validated by `TaskLogs.test.tsx:442`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L442), [validated by `TaskLogs.test.tsx:459`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L459))
 
 ### Readable transcript rendering (2026-07)
 
@@ -171,11 +171,11 @@ The Raw/Formatted toggle marks the active option via aria-pressed and reports ch
 
 #### Viewer integration
 
-The task log viewer renders the parsed transcript by default — tool lines, one counter per ticker run, the result footer — with no raw JSON visible. ([validated by `TaskLogs.test.tsx:609`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L609))
+The task log viewer renders the parsed transcript by default — tool lines, one counter per ticker run, the result footer — with no raw JSON visible. ([validated by `TaskLogs.test.tsx:621`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L621))
 
-Clicking Raw shows the verbatim blob and clicking Formatted restores the transcript; the toggle is hidden until logs arrive. ([validated by `TaskLogs.test.tsx:634`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L634), [validated by `TaskLogs.test.tsx:697`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L697))
+Clicking Raw shows the verbatim blob and clicking Formatted restores the transcript; the toggle is hidden until logs arrive. ([validated by `TaskLogs.test.tsx:646`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L646), [validated by `TaskLogs.test.tsx:709`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L709))
 
-A JSON line split across an offset poll is classified once the completing chunk arrives, leaving no dangling raw fragment. ([validated by `TaskLogs.test.tsx:659`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L659))
+A JSON line split across an offset poll is classified once the completing chunk arrives, leaving no dangling raw fragment. ([validated by `TaskLogs.test.tsx:671`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L671))
 
 An opened assembly-line pod-log panel renders the same formatted transcript, switches to the raw blob via the toggle, and keeps the `(no output yet)` placeholder for empty logs. ([validated by `NodePodLogs.test.tsx:72`](apps/web-ui/src/app/assembly-lines/[id]/NodePodLogs.test.tsx#L72), [validated by `NodePodLogs.test.tsx:91`](apps/web-ui/src/app/assembly-lines/[id]/NodePodLogs.test.tsx#L91), [validated by `NodePodLogs.test.tsx:110`](apps/web-ui/src/app/assembly-lines/[id]/NodePodLogs.test.tsx#L110))
 
