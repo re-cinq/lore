@@ -97,7 +97,7 @@ if (!settings.hooks) {
 }
 
 // Context sync on session start
-if (!hasHook(settings.hooks, "SessionStart", "Context synced")) {
+if (!hasHook(settings.hooks, "SessionStart", "lore-merge-settings")) {
   if (!Array.isArray(settings.hooks.SessionStart)) {
     settings.hooks.SessionStart = [];
   }
@@ -160,7 +160,7 @@ if (settings.systemPromptSuffix) {
 settings.systemPromptSuffix = (settings.systemPromptSuffix || "") + lorePrompt;
 
 // Session summary reminder on stop
-if (!hasHook(settings.hooks, "Stop", "session-summary")) {
+if (!hasHook(settings.hooks, "Stop", "Save session learnings")) {
   if (!Array.isArray(settings.hooks.Stop)) {
     settings.hooks.Stop = [];
   }
@@ -179,7 +179,7 @@ if (!hasHook(settings.hooks, "Stop", "session-summary")) {
 // Auto-episode: capture session summary on stop via API
 // The MCP server dumps ~/.lore/last-session.json on exit with tool call stats.
 // This hook reads it and POSTs to /api/session-summary for fact extraction.
-if (!hasHook(settings.hooks, "Stop", "session-summary")) {
+if (!hasHook(settings.hooks, "Stop", "api/session-summary")) {
   settings.hooks.Stop.push({
     matcher: "",
     hooks: [
