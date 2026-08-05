@@ -252,6 +252,151 @@
   --chart-neutral: #848cb5;
 }
 
+/* ============================================================ CHICAGO ===== */
+/* Windows-98 look (98.css): silver bevels, navy title bars, MS Sans Serif.     */
+/* The raised/sunken 3D edge is the identity — expressed via the bevel-primitive */
+/* colors (per scheme, below) and the box-shadow formulas here. The actual bevel */
+/* application onto components lives in chicago.css (globals.css stays flat).     */
+
+[data-theme-family='chicago'] {
+  /* Tahoma is the metric-compatible successor to MS Sans Serif and ships on
+     Windows; the stack degrades to the platform UI sans elsewhere. */
+  --font-ui: Tahoma, 'MS Sans Serif', 'Segoe UI', sans-serif;
+  --font-sans: var(--font-ui);
+  --font-mono: 'Fixedsys', ui-monospace, 'Courier New', monospace;
+  --font-heading: var(--font-ui);
+
+  /* Compact shell scale (~8pt MS Sans Serif). */
+  --fs-2xs: 11px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 12px;
+  --fs-md: 15px;
+  --fs-lg: 18px;
+  --fs-xl: 24px;
+
+  --radius-sm: 0;
+  --radius: 0;
+  --radius-lg: 0;
+  --radius-pill: 0;
+
+  --glass-blur: none;
+
+  /* 98.css bevel formulas — reference the per-scheme primitives below. */
+  --border-raised-outer: inset -1px -1px var(--window-frame),
+    inset 1px 1px var(--button-highlight);
+  --border-raised-inner: inset -2px -2px var(--button-shadow),
+    inset 2px 2px var(--button-face);
+  --border-sunken-outer: inset -1px -1px var(--button-highlight),
+    inset 1px 1px var(--window-frame);
+  --border-sunken-inner: inset -2px -2px var(--button-face),
+    inset 2px 2px var(--button-shadow);
+}
+
+[data-theme-family='chicago'][data-color-scheme='light'] {
+  --color-scheme: light;
+
+  --bg: #008080; /* teal desktop */
+  --bg-surface: #c0c0c0; /* silver control face */
+  --bg-hover: #cac6be;
+  --bg-elevated: #c0c0c0;
+
+  --border: #808080;
+  --border-hover: #0a0a0a;
+  --focus-ring: #000080;
+
+  --text: #222222;
+  --text-muted: #808080;
+  --text-on-accent: #ffffff;
+
+  --accent: #000080; /* navy title bar */
+  --accent-hover: #1084d0;
+
+  --success: #008000;
+  --warning: #808000;
+  --danger: #800000;
+  --info: #000080;
+  --success-bg: #dfe4df;
+  --warning-bg: #e6e3cf;
+  --danger-bg: #e8d3d3;
+  --info-bg: #d3d6e4;
+
+  --shadow: none; /* bevels ARE the depth — no drop shadows in Win98 */
+  --shadow-lg: none;
+
+  --glass-bg: #c0c0c0;
+  --glass-border: #808080;
+
+  /* Bevel primitives (the 4 Win98 3D-edge colors). */
+  --button-highlight: #ffffff;
+  --button-face: #dfdfdf;
+  --button-shadow: #808080;
+  --window-frame: #0a0a0a;
+
+  /* VGA-16 chart palette. */
+  --chart-feature: #800080;
+  --chart-spec: #000080;
+  --chart-section: #008080;
+  --chart-statement: #0000ff;
+  --chart-criterion: #008080;
+  --chart-test: #008000;
+  --chart-code: #800000;
+  --chart-adr: #808000;
+  --chart-neutral: #808080;
+}
+
+[data-theme-family='chicago'][data-color-scheme='dark'] {
+  --color-scheme: dark; /* Win98 "High Contrast Black" accessibility scheme */
+
+  --bg: #000000;
+  --bg-surface: #1a1a1a;
+  --bg-hover: #2a2a2a;
+  --bg-elevated: #1a1a1a;
+
+  --border: #808080;
+  --border-hover: #ffffff;
+  --focus-ring: #ffff00;
+
+  --text: #ffffff;
+  --text-muted: #a0a0a0;
+  --text-on-accent: #000000;
+
+  --accent: #40a4ff;
+  --accent-hover: #66b8ff;
+
+  --success: #00e000;
+  --warning: #ffd000;
+  --danger: #ff5555;
+  --info: #40a4ff;
+  --success-bg: #0e2a0e;
+  --warning-bg: #2a2410;
+  --danger-bg: #2e1414;
+  --info-bg: #11233f;
+
+  --shadow: none;
+  --shadow-lg: none;
+
+  --glass-bg: #1a1a1a;
+  --glass-border: #808080;
+
+  /* Bevel primitives shifted for the dark face. */
+  --button-highlight: #dfdfdf;
+  --button-face: #1a1a1a;
+  --button-shadow: #808080;
+  --window-frame: #000000;
+
+  /* High-contrast chart palette. */
+  --chart-feature: #ff55ff;
+  --chart-spec: #8080ff;
+  --chart-section: #55ffff;
+  --chart-statement: #40a4ff;
+  --chart-criterion: #55ffff;
+  --chart-test: #55ff55;
+  --chart-code: #ff8855;
+  --chart-adr: #ffff55;
+  --chart-neutral: #a0a0a0;
+}
+
 /* When the user or OS asks for less transparency (or backdrop-filter is
  * unsupported), fall back to opaque surfaces for every family. */
 @media (prefers-reduced-transparency: reduce) {

@@ -24,8 +24,8 @@ of files, and nothing followed the OS light/dark preference.
 
 A token-driven theming system with **two theme families**, each with
 **light + dark variants and OS auto-switching**, its own font, and its own
-icon set ([token parity per family](apps/web-ui/src/app/theme-tokens.test.ts#L59), [icon set per family](apps/web-ui/src/components/Icon.test.tsx#L58)). The current dark-only look is
-replaced ([now light + dark per family](apps/web-ui/src/app/theme-tokens.test.ts#L59)).
+icon set ([token parity per family](apps/web-ui/src/app/theme-tokens.test.ts#L66), [icon set per family](apps/web-ui/src/components/Icon.test.tsx#L58)). The current dark-only look is
+replaced ([now light + dark per family](apps/web-ui/src/app/theme-tokens.test.ts#L66)).
 
 - **Elegant** — Figma-like. `Inter` font, rounded corners, soft shadows, and a
   subtle frosted-glass feel (translucent + `backdrop-filter` blur) on elevated
@@ -61,8 +61,8 @@ OS preference ([auto resolves to dark](apps/web-ui/src/lib/theme/ThemeProvider.t
 - `types.ts`, `theme-core.ts` — pure, unit-tested: `resolveColorScheme()`
   (an explicit `light`/`dark` pref wins over the system flag, `auto` follows
   it), `parseFamily()` / `parseSchemePref()` (pass valid values through, fall
-  back to the default on garbage or `null`), storage-key + default constants. ([light pref wins](apps/web-ui/src/lib/theme/theme-core.test.ts#L12), [dark pref wins](apps/web-ui/src/lib/theme/theme-core.test.ts#L17), [auto follows system](apps/web-ui/src/lib/theme/theme-core.test.ts#L22), [parseFamily passthrough](apps/web-ui/src/lib/theme/theme-core.test.ts#L29), [parseFamily fallback](apps/web-ui/src/lib/theme/theme-core.test.ts#L34), [parseSchemePref passthrough](apps/web-ui/src/lib/theme/theme-core.test.ts#L41), [parseSchemePref fallback](apps/web-ui/src/lib/theme/theme-core.test.ts#L47))
-- `theme-core.test.ts` — resolver/parser cases + icon-map key-parity test ([validated by `theme-core.test.ts:54`](apps/web-ui/src/lib/theme/theme-core.test.ts#L54)).
+  back to the default on garbage or `null`), storage-key + default constants. ([light pref wins](apps/web-ui/src/lib/theme/theme-core.test.ts#L12), [dark pref wins](apps/web-ui/src/lib/theme/theme-core.test.ts#L17), [auto follows system](apps/web-ui/src/lib/theme/theme-core.test.ts#L22), [parseFamily passthrough](apps/web-ui/src/lib/theme/theme-core.test.ts#L29), [parseFamily fallback](apps/web-ui/src/lib/theme/theme-core.test.ts#L35), [parseSchemePref passthrough](apps/web-ui/src/lib/theme/theme-core.test.ts#L42), [parseSchemePref fallback](apps/web-ui/src/lib/theme/theme-core.test.ts#L48))
+- `theme-core.test.ts` — resolver/parser cases + icon-map key-parity test ([validated by `theme-core.test.ts:54`](apps/web-ui/src/lib/theme/theme-core.test.ts#L55)).
 - `fonts.ts` — Inter + IBM Plex Mono (`next/font/google`) and self-hosted
   GohuFont (`next/font/local`) as CSS variables.
 - `theme-script.ts` — `THEME_SCRIPT` blocking IIFE (FOUC prevention; also seeds
@@ -79,12 +79,12 @@ is missing or unrecognized; it then writes both data attributes plus the
 
 `useTheme()` throws a descriptive error when called outside a `ThemeProvider`. ([validated by `ThemeProvider.test.tsx:365`](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L365))
 
-**New — `web-ui/src/app/theme.css`** — the token source of truth ([validated by `theme-tokens.test.ts:59`](apps/web-ui/src/app/theme-tokens.test.ts#L59)). Family-level
+**New — `web-ui/src/app/theme.css`** — the token source of truth ([validated by `theme-tokens.test.ts:59`](apps/web-ui/src/app/theme-tokens.test.ts#L66)). Family-level
 blocks hold shape/type/glass tokens (`--radius*`, `--fs-*` type scale,
 `--glass-blur`); four `[data-theme-family][data-color-scheme]` blocks hold
 colors (`--bg*`, `--border*`, `--text*`, `--accent*`, status `--success/warning/
 danger/info` + `-bg`, `--shadow*`, `--glass-bg/border`, `--color-scheme`).
-`prefers-reduced-transparency` and a `@supports` fallback drop glass to opaque ([token blocks per family×scheme](apps/web-ui/src/app/theme-tokens.test.ts#L64)).
+`prefers-reduced-transparency` and a `@supports` fallback drop glass to opaque ([token blocks per family×scheme](apps/web-ui/src/app/theme-tokens.test.ts#L72)).
 
 **New — `web-ui/src/components/`** — `icon-map.ts` (semantic `IconName` →
 per-family Iconify name, offline via `@iconify-json/*`), `Icon.tsx`,
@@ -108,13 +108,13 @@ The `Icon` component defaults its width and height to 16 when no size is given
 alongside the iconify base classes (and none when omitted), exposes an
 `aria-label` when one is passed (marking the glyph aria-hidden and label-less
 otherwise), and applies the -0.125em baseline alignment only when `inline` is
-set. ([validated by `Icon.test.tsx:69`](apps/web-ui/src/components/Icon.test.tsx#L69), [`Icon.test.tsx:76`](apps/web-ui/src/components/Icon.test.tsx#L76), [`Icon.test.tsx:87`](apps/web-ui/src/components/Icon.test.tsx#L87), [`Icon.test.tsx:96`](apps/web-ui/src/components/Icon.test.tsx#L96), [`Icon.test.tsx:107`](apps/web-ui/src/components/Icon.test.tsx#L107), [`Icon.test.tsx:117`](apps/web-ui/src/components/Icon.test.tsx#L117), [`Icon.test.tsx:127`](apps/web-ui/src/components/Icon.test.tsx#L127), [`Icon.test.tsx:135`](apps/web-ui/src/components/Icon.test.tsx#L135))
+set. ([validated by `Icon.test.tsx:69`](apps/web-ui/src/components/Icon.test.tsx#L81), [`Icon.test.tsx:76`](apps/web-ui/src/components/Icon.test.tsx#L88), [`Icon.test.tsx:87`](apps/web-ui/src/components/Icon.test.tsx#L99), [`Icon.test.tsx:96`](apps/web-ui/src/components/Icon.test.tsx#L108), [`Icon.test.tsx:107`](apps/web-ui/src/components/Icon.test.tsx#L119), [`Icon.test.tsx:117`](apps/web-ui/src/components/Icon.test.tsx#L129), [`Icon.test.tsx:127`](apps/web-ui/src/components/Icon.test.tsx#L139), [`Icon.test.tsx:135`](apps/web-ui/src/components/Icon.test.tsx#L147))
 
 ### Type Scale
 
-`--fs-xs … --fs-xl` defined per family ([micro-label size per family](apps/web-ui/src/app/theme-tokens.test.ts#L86)). Retro pins every body size to 14px
+`--fs-xs … --fs-xl` defined per family ([micro-label size per family](apps/web-ui/src/app/theme-tokens.test.ts#L97)). Retro pins every body size to 14px
 because GohuFont is a bitmap crisp only at its native 14px grid; Elegant is
-xs 12 / base 16 / xl 25 ([retro pins body sizes to 14px](apps/web-ui/src/app/theme-tokens.test.ts#L75)). No font-size literal remains in `src/`.
+xs 12 / base 16 / xl 25 ([retro pins body sizes to 14px](apps/web-ui/src/app/theme-tokens.test.ts#L86)). No font-size literal remains in `src/`.
 
 ## Out of Scope
 
@@ -123,7 +123,7 @@ xs 12 / base 16 / xl 25 ([retro pins body sizes to 14px](apps/web-ui/src/app/the
 
 ## Verification
 
-- `npm test` — 30 tests pass (theme-core resolver/parsers + icon-map key parity). ([validated by `theme-core.test.ts:54`](apps/web-ui/src/lib/theme/theme-core.test.ts#L54))
+- `npm test` — 30 tests pass (theme-core resolver/parsers + icon-map key parity). ([validated by `theme-core.test.ts:54`](apps/web-ui/src/lib/theme/theme-core.test.ts#L55))
 - `npx tsc --noEmit` — clean. `npm run build` — succeeds; `/_not-found`
   prerenders static; `next/font` + Iconify offline registration compile.
 - Regression greps return zero: no hex/`rgb()`/named-color literals and no
@@ -145,4 +145,27 @@ xs 12 / base 16 / xl 25 ([retro pins body sizes to 14px](apps/web-ui/src/app/the
   hues). `SpecGraphD3` resolves tokens to literals per render for canvas and
   `d3.interpolateRgb` (which cannot consume `var()`); SVG keeps raw `var()`
   references. The lifecycle palette in `feature-status.ts` now returns token
-  strings. ([validated by `feature-status.test.ts:9`](apps/web-ui/src/app/repos/[owner]/[repo]/features/feature-status.test.ts#L9), [chart tokens per family](apps/web-ui/src/app/theme-tokens.test.ts#L64), [canvas literal resolution](apps/web-ui/src/lib/theme-token-resolve.test.ts#L23))
+  strings. ([validated by `feature-status.test.ts:9`](apps/web-ui/src/app/repos/[owner]/[repo]/features/feature-status.test.ts#L9), [chart tokens per family](apps/web-ui/src/app/theme-tokens.test.ts#L72), [canvas literal resolution](apps/web-ui/src/lib/theme-token-resolve.test.ts#L23))
+- **2026-08-05 — Classic (Chicago) family.** Added a third theme family,
+  `chicago` — a Windows-98 look (per [98.css](https://jdan.github.io/98.css/)):
+  silver `#c0c0c0` beveled surfaces, navy `#000080` title bars, Tahoma / MS Sans
+  Serif type, square corners, and no drop shadows (the raised/sunken 3D edge is
+  the depth). It rides the existing family/scheme machinery unchanged —
+  registered across the same four enumeration sites as the other families (the
+  `types.ts` union, `parseFamily`, the FOUC allow-list in `theme-script.ts`, and
+  the `ThemeSwitcher` `FAMILIES` picker, labelled "Classic"), with matching
+  light/dark token parity, a per-scheme chart palette (as Retro), and icon-map
+  key parity, all covered by the existing `theme-tokens` / `theme-core` contract
+  tests now extended to the third family. Tokens live in three
+  `[data-theme-family='chicago']` blocks in `theme.css` (family shape + bevel
+  formulas, then per-scheme colors); the `dark` scheme is Win98's "High Contrast
+  Black" so the light/dark toggle stays meaningful for an inherently light OS
+  look. The 3D bevel — which a flat `--border` color cannot express — is a set of
+  bevel-primitive tokens (`--button-highlight/face/shadow`, `--window-frame`)
+  plus `--border-raised-*` / `--border-sunken-*` box-shadow formulas, applied to
+  the high-traffic components (buttons, fields, cards, sidebar, tabs, focus) in a
+  new `web-ui/src/app/chicago.css` — the one sanctioned exception to globals.css's
+  token-only rule, scoped under `[data-theme-family='chicago']` and imported
+  after `globals.css` so it stays inert for the other families. Icons reuse the
+  Pixelarticons set, whose blocky glyphs read as period-correct chrome next to
+  the beveled controls. ([validated by `Icon.test.tsx:67`](apps/web-ui/src/components/Icon.test.tsx#L67))
