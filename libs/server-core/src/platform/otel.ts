@@ -9,6 +9,11 @@
 import { trace, metrics } from "@opentelemetry/api";
 
 const GAP_THRESHOLD = 0.72;
+
+export function isGapCandidate(topScore: number): boolean {
+  return topScore < GAP_THRESHOLD;
+}
+
 const tracer = trace.getTracer("lore");
 const meter = metrics.getMeter("lore");
 const retrievalHistogram = meter.createHistogram("lore.retrieval.score", {
@@ -114,7 +119,7 @@ export function traceRetrieval(params: {
     "lore.namespace": params.namespace,
     "lore.top_score": params.topScore,
     "lore.result_count": params.resultCount,
-    "lore.gap_candidate": params.topScore < GAP_THRESHOLD,
+    "lore.gap_candidate": isGapCandidate(params.topScore),
   });
   span.end();
 
@@ -123,7 +128,7 @@ export function traceRetrieval(params: {
   });
   retrievalCounter.add(1, { namespace: params.namespace });
 
-  if (params.topScore < GAP_THRESHOLD) {
+  if (isGapCandidate(params.topScore)) {
     gapCounter.add(1, { namespace: params.namespace });
   }
 }

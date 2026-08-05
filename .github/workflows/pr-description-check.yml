@@ -38,12 +38,12 @@ jobs:
             FAILED=1
           fi
 
-          # --- Check "## Alternatives rejected" section ---
-          ALT_CONTENT=$(echo "$BODY" | sed -n '/^## Alternatives rejected/,/^## /{ /^## /d; p; }')
+          # --- Check "## Alternatives Considered" section ---
+          ALT_CONTENT=$(echo "$BODY" | sed -n '/^## Alternatives Considered/,/^## /{ /^## /d; p; }')
           ALT_STRIPPED=$(echo "$ALT_CONTENT" | sed 's/<!--.*-->//g' | tr -d '[:space:]')
 
           if [ -z "$ALT_STRIPPED" ]; then
-            WARNINGS="${WARNINGS}MISSING: '## Alternatives rejected' section is empty or missing. Describe what you considered and why you rejected it.\n"
+            WARNINGS="${WARNINGS}MISSING: '## Alternatives Considered' section is empty or missing. Describe what you considered and why you rejected it.\n"
             FAILED=1
           fi
 

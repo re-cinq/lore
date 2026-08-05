@@ -34,7 +34,7 @@ const COST_PER_CACHE_READ_TOKEN = COST_PER_INPUT_TOKEN * 0.1;
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 const DEFAULT_MAX_TOKENS = 8192;
 
-function buildCacheableSystem(
+export function buildCacheableSystem(
   systemPrompt: string,
   jobName?: string,
 ): Anthropic.TextBlockParam[] {
@@ -47,7 +47,7 @@ function buildCacheableSystem(
   ];
 }
 
-function buildCacheableTools(
+export function buildCacheableTools(
   toolName: string,
   toolDescription: string,
   toolSchema: Anthropic.Tool.InputSchema,
@@ -78,7 +78,7 @@ function formatBreakLogTag(a: CacheBreakAnalysis): string {
   }
 }
 
-function computeCost(
+export function computeCost(
   inputTokens: number,
   outputTokens: number,
   cacheCreationTokens: number,
