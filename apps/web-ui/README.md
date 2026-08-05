@@ -13,8 +13,9 @@ own lockfile, not an npm-workspace member.
 
 - **Repo views** (`/repos/[owner]/[repo]`) — overview, tasks, specs, context,
   ADRs, graph, settings, plus self-service onboarding.
-- **Pipeline** (`/pipeline`) — task list and live detail (logs, PR status,
-  stage timeline).
+- **Assembly Lines** (`/assembly-lines`) — cross-repo run list and live run
+  detail; task detail lives at `/tasks/[id]` (logs, PR status, stage
+  timeline). Legacy `/pipeline` URLs redirect here.
 - **Cross-repo** — global specs viewer, semantic search, knowledge-graph
   explorer, episodes, gaps, analytics/spend, audit log, memory pools.
 - **API routes** (`src/app/api/`) — pipeline actions, repo context/settings,

@@ -5,6 +5,9 @@ on:
     paths:
       - '.specify/**'
 
+permissions:
+  contents: read
+
 jobs:
   trigger-agent:
     runs-on: ubuntu-latest

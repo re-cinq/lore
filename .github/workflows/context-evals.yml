@@ -14,6 +14,11 @@ on:
   # is added later and we want to confirm evals work without a content PR.
   workflow_dispatch:
 
+# Read-only token. The 2026-08-04 supply-chain incident (#1062) exfiltrated the
+# default read/write GITHUB_TOKEN from this job and pushed malware to main.
+permissions:
+  contents: read
+
 jobs:
   evals:
     runs-on: ubuntu-latest
@@ -22,14 +27,19 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          # No later step needs git credentials — don't leave the token in
+          # .git/config where any npm install script can read it (#1062).
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: "22"
 
+      # Pinned + --ignore-scripts (#1062): an unpinned, script-running global
+      # install is how the malicious keyv/cacheable versions executed in CI.
       - name: Install promptfoo
-        run: npm install -g promptfoo
+        run: npm install -g promptfoo@0.121.20 --ignore-scripts
 
       - name: Determine changed teams
         id: teams

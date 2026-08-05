@@ -35,7 +35,7 @@ beforeEach(() => {
 });
 
 describe("ThemeSwitcher", () => {
-  it("renders both family options and all three appearance options", () => {
+  it("renders all three family options and all three appearance options", () => {
     render(<ThemeSwitcher />);
 
     expect(screen.getByText("Theme")).toBeInTheDocument();
@@ -43,6 +43,7 @@ describe("ThemeSwitcher", () => {
 
     expect(screen.getByRole("radio", { name: "Elegant" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Retro" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Classic" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Light" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Auto" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Dark" })).toBeInTheDocument();

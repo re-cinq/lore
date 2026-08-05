@@ -42,6 +42,13 @@ const retroLight = tokensOf(
 const retroDark = tokensOf(
   "[data-theme-family='retro'][data-color-scheme='dark']",
 );
+const chicagoFamily = tokensOf("[data-theme-family='chicago'] {");
+const chicagoLight = tokensOf(
+  "[data-theme-family='chicago'][data-color-scheme='light']",
+);
+const chicagoDark = tokensOf(
+  "[data-theme-family='chicago'][data-color-scheme='dark']",
+);
 
 const CHART_TOKENS = [
   "--chart-feature",
@@ -59,9 +66,10 @@ describe("theme.css token contract", () => {
   it("defines the same color token names in the light and dark blocks of each family", () => {
     expect([...elegantDark].sort()).toEqual([...elegantLight].sort());
     expect([...retroDark].sort()).toEqual([...retroLight].sort());
+    expect([...chicagoDark].sort()).toEqual([...chicagoLight].sort());
   });
 
-  it("defines the chart palette once at the elegant family level and per scheme for retro", () => {
+  it("defines the chart palette once at the elegant family level and per scheme for retro and chicago", () => {
     for (const token of CHART_TOKENS) {
       expect(elegantFamily).toContain(token);
       expect(elegantLight).not.toContain(token);
@@ -69,6 +77,9 @@ describe("theme.css token contract", () => {
       expect(retroDark).toContain(token);
       expect(retroLight).toContain(token);
       expect(retroFamily).not.toContain(token);
+      expect(chicagoDark).toContain(token);
+      expect(chicagoLight).toContain(token);
+      expect(chicagoFamily).not.toContain(token);
     }
   });
 

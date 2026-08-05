@@ -1,4 +1,4 @@
-export type ThemeFamily = "elegant" | "retro";
+export type ThemeFamily = "elegant" | "retro" | "chicago";
 
 export type ColorSchemePref = "light" | "dark" | "auto";
 

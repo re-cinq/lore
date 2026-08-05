@@ -85,6 +85,9 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
   # scripts/task-types.yaml said back then (2026-07-17: every code-review ran
   # with the pre-#840 gh-based prompt and posted nothing).
   # No --wait (Autopilot wedges on it); rollout is gated by kubectl below.
+  # Keep the --set/--set-file flags in sync with
+  # scripts/check-lore-platform-render.sh, which renders with these exact
+  # flags in CI so template breakage surfaces before deploy.
   if helm upgrade --install lore-platform "$CHART" \
       --namespace "$HOME_NS" \
       "${tag_set[@]}" \

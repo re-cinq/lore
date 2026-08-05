@@ -63,6 +63,18 @@ describe("Icon icon-family mapping", () => {
       "iconify--pixelarticons",
     );
   });
+
+  it.each(ALL_NAMES)(
+    "renders the pixelarticons glyph for the chicago family: %s",
+    (name) => {
+      const expected = ICONS.chicago[name];
+
+      expect(expected.startsWith("pixelarticons:")).toBe(true);
+      expect(svgOf(name, "chicago").getAttribute("class")).toContain(
+        "iconify--pixelarticons",
+      );
+    },
+  );
 });
 
 describe("Icon size prop", () => {

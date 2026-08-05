@@ -9,6 +9,7 @@ import styles from "./ThemeSwitcher.module.css";
 const FAMILIES: { value: ThemeFamily; label: string }[] = [
   { value: "elegant", label: "Elegant" },
   { value: "retro", label: "Retro" },
+  { value: "chicago", label: "Classic" },
 ];
 
 const SCHEMES: { value: ColorSchemePref; label: string; icon: IconName }[] = [
