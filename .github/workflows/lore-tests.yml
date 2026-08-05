@@ -23,6 +23,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -31,10 +33,13 @@ jobs:
       # The manifest's list/run scripts (node shared/scripts/trace/*.mjs) need the
       # deps + the built shared dist. mcp no longer builds here — the Go binary
       # replaces the trace:run-tests CLI.
+      # --ignore-scripts (#1062): dep lifecycle scripts were the supply-chain
+      # execution vector; nothing in the tree needs them (esbuild's binary comes
+      # via optionalDependencies).
       - name: Install deps
         run: |
-          npm ci
-          npm install --prefix apps/web-ui
+          npm ci --ignore-scripts
+          npm install --prefix apps/web-ui --ignore-scripts
 
       - name: Build trace tooling
         run: npm run build -w @re-cinq/lore-shared

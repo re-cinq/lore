@@ -31,6 +31,8 @@ jobs:
       MIGRATIONS_DIR: infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Start Postgres (pgvector) as a named docker container
         run: |
