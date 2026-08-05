@@ -29,6 +29,7 @@ describe("parseFamily", () => {
   it("passes through valid families", () => {
     expect(parseFamily("elegant")).toBe("elegant");
     expect(parseFamily("retro")).toBe("retro");
+    expect(parseFamily("chicago")).toBe("chicago");
   });
 
   it("falls back to default on garbage or null", () => {
@@ -51,9 +52,10 @@ describe("parseSchemePref", () => {
 });
 
 describe("ICONS", () => {
-  it("defines the same icon names for both families", () => {
-    expect(Object.keys(ICONS.elegant).sort()).toEqual(
-      Object.keys(ICONS.retro).sort(),
-    );
+  it("defines the same icon names across all families", () => {
+    const names = Object.keys(ICONS.elegant).sort();
+
+    expect(Object.keys(ICONS.retro).sort()).toEqual(names);
+    expect(Object.keys(ICONS.chicago).sort()).toEqual(names);
   });
 });

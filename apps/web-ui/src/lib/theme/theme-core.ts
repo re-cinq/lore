@@ -18,7 +18,9 @@ export function resolveColorScheme(
 }
 
 export function parseFamily(raw: string | null): ThemeFamily {
-  return raw === "elegant" || raw === "retro" ? raw : DEFAULT_FAMILY;
+  return raw === "elegant" || raw === "retro" || raw === "chicago"
+    ? raw
+    : DEFAULT_FAMILY;
 }
 
 export function parseSchemePref(raw: string | null): ColorSchemePref {

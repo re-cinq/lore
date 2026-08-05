@@ -7,7 +7,7 @@ export const THEME_SCRIPT = `
 (function(){
   try {
     var f = localStorage.getItem('${FAMILY_KEY}');
-    if (f !== 'elegant' && f !== 'retro') f = 'elegant';
+    if (f !== 'elegant' && f !== 'retro' && f !== 'chicago') f = 'elegant';
     var s = localStorage.getItem('${SCHEME_KEY}');
     if (s !== 'light' && s !== 'dark' && s !== 'auto') s = 'auto';
     var resolved = s === 'auto'

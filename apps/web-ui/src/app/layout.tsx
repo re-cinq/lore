@@ -10,6 +10,7 @@ import { THEME_SCRIPT } from "@/lib/theme/theme-script";
 import "./theme.css";
 import "highlight.js/styles/github.css";
 import "./globals.css";
+import "./chicago.css";
 
 export const metadata: Metadata = {
   title: "Lore",
