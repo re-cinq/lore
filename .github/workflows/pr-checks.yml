@@ -44,7 +44,7 @@ jobs:
       # --ignore-scripts (#1062): dep lifecycle scripts were the supply-chain
       # execution vector; nothing in the tree needs them.
       - name: Install deps
-        run: npm ci --ignore-scripts && npm install --prefix apps/web-ui --ignore-scripts
+        run: npm ci --ignore-scripts && npm ci --prefix apps/web-ui --ignore-scripts
 
       # eslint-plugin-lore's require-spec-link rule imports the compiled
       # @re-cinq/lore-shared at config load, so shared must be built before any
@@ -112,7 +112,7 @@ jobs:
           # web-ui is NOT an npm workspace — it has its own lockfile and does
           # not depend on @re-cinq/lore-shared. Install and test in-place.
           - name: web-ui
-            install: npm install --prefix apps/web-ui --ignore-scripts
+            install: npm ci --prefix apps/web-ui --ignore-scripts
             # Run with coverage so the vitest.config.ts thresholds gate CI.
             test: npm run test:coverage --prefix apps/web-ui
           # Type-mirror drift guard. web-ui can't import @re-cinq/lore-shared, so it
@@ -131,7 +131,7 @@ jobs:
           # Build shared first: the flat config loads the lore plugin, whose
           # require-spec-link rule imports @re-cinq/lore-shared/dist at config load.
           - name: lint-web-ui
-            install: npm install --ignore-scripts && npm install --prefix apps/web-ui --ignore-scripts
+            install: npm ci --ignore-scripts && npm ci --prefix apps/web-ui --ignore-scripts
             build: npm run build -w @re-cinq/lore-shared
             test: npx eslint apps/web-ui
 
@@ -146,7 +146,7 @@ jobs:
           node-version: 22
 
       - name: Install deps
-        run: ${{ matrix.install || 'npm install --ignore-scripts' }}
+        run: ${{ matrix.install || 'npm ci --ignore-scripts' }}
 
       - name: Build shared
         if: ${{ matrix.build }}

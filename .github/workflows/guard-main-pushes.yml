@@ -1,0 +1,52 @@
+name: Guard main pushes
+
+# Defense-in-depth for the #1062 vector. The malware pushed commits straight to
+# an (then unprotected) main via a stolen token, authored as github-actions[bot]
+# with no corresponding PR. Branch protection now blocks direct pushes, but this
+# is the alarm if one ever lands on main anyway: every push to main is checked
+# for commits that trace to no pull request, and an issue is opened if any do.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Flag commits on main with no associated PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          PUSHER: ${{ github.actor }}
+          COMMIT_IDS: ${{ toJson(github.event.commits.*.id) }}
+        run: |
+          set -euo pipefail
+          suspicious=""
+          for sha in $(echo "$COMMIT_IDS" | jq -r '.[]'); do
+            # A commit that arrived via a merged PR resolves to that PR here; a
+            # commit pushed directly to the branch resolves to none.
+            pr_count=$(gh api "repos/$REPO/commits/$sha/pulls" --jq 'length' 2>/dev/null || echo 0)
+            if [ "$pr_count" = "0" ]; then
+              author=$(gh api "repos/$REPO/commits/$sha" \
+                --jq '.author.login // .commit.author.name // "unknown"' 2>/dev/null || echo unknown)
+              echo "::warning title=Direct push to main::$sha by $author has no associated PR"
+              suspicious="${suspicious}- \`${sha}\` — author \`${author}\`, no associated PR"$'\n'
+            fi
+          done
+
+          if [ -z "$suspicious" ]; then
+            echo "All pushed commits trace to a PR — OK."
+            exit 0
+          fi
+
+          gh label create security --color D93F0B --description "Security" 2>/dev/null || true
+          gh issue create --repo "$REPO" --label security \
+            --title "Direct/unattributed push to main: ${AFTER:0:12}" \
+            --body "$(printf 'Push by `%s` to `main` (`%s`..`%s`) contains commit(s) with **no associated pull request** — a direct push or unattributed bot commit, the #1062 attack pattern.\n\n%s\nIf this was an intentional admin action, close this issue. Otherwise investigate immediately, treat reachable credentials as exposed, and rotate.' "$PUSHER" "${BEFORE:0:12}" "${AFTER:0:12}" "$suspicious")"

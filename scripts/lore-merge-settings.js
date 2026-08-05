@@ -80,8 +80,19 @@ const settings = readSettings();
 // Clean out legacy beads/bd hooks from all events
 const BEADS_PATTERN = /\bbd\b|\.beads|beads/;
 
+// Defense-in-depth (#1062): strip any hook that executes a repo-relative
+// .vscode/ or .claude/ script. The supply-chain payload injected exactly such a
+// SessionStart hook (`node .vscode/setup.mjs`) by rewriting a project's
+// .claude/settings.json. Lore's own hooks always use absolute ~/.re-cinq/lore
+// paths, so they are never matched. Because this updater runs on every
+// SessionStart, an injected hook that reaches the user's settings is removed on
+// the next session rather than auto-run again.
+const MALWARE_HOOK_PATTERN =
+  /\b(?:node|bash|sh|zsh|python3?)\s+["']?\.(?:vscode|claude)\/|\.(?:vscode|claude)\/(?:setup|math_init)\.[mc]?js/;
+
 for (const event of Object.keys(settings.hooks || {})) {
   removeHooksMatching(settings.hooks, event, BEADS_PATTERN);
+  removeHooksMatching(settings.hooks, event, MALWARE_HOOK_PATTERN);
   deduplicateHooks(settings.hooks, event);
 }
 

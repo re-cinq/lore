@@ -45,7 +45,7 @@ jobs:
           node-version: 22
 
       - name: Install deps
-        run: npm install --ignore-scripts
+        run: npm ci --ignore-scripts
 
       # The integration suite imports lore-api's real route tree, which pulls in
       # the compiled @re-cinq/lore-shared + @re-cinq/lore-server-core via package

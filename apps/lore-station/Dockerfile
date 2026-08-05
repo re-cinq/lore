@@ -6,7 +6,7 @@ COPY package.json package-lock.json ./
 COPY libs/shared/package.json ./libs/shared/
 COPY libs/assembly-lines/package.json ./libs/assembly-lines/
 COPY apps/lore-station/package.json ./apps/lore-station/
-RUN npm ci --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-assembly-lines --workspace=@re-cinq/lore-station
+RUN npm ci --ignore-scripts --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-assembly-lines --workspace=@re-cinq/lore-station
 
 COPY libs/shared/tsconfig.json ./libs/shared/
 COPY libs/shared/src ./libs/shared/src
