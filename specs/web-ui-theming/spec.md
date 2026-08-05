@@ -1,4 +1,4 @@
-# Feature Specification: Web UI Theming (Elegant + Retro families)
+# Feature Specification: Web UI Theming (Elegant, Retro, and Classic families)
 
 | Field    | Value                                         |
 |----------|-----------------------------------------------|
@@ -22,7 +22,7 @@ of files, and nothing followed the OS light/dark preference.
 
 ## Solution
 
-A token-driven theming system with **two theme families**, each with
+A token-driven theming system with **three theme families**, each with
 **light + dark variants and OS auto-switching**, its own font, and its own
 icon set ([token parity per family](apps/web-ui/src/app/theme-tokens.test.ts#L66), [icon set per family](apps/web-ui/src/components/Icon.test.tsx#L58)). The current dark-only look is
 replaced ([now light + dark per family](apps/web-ui/src/app/theme-tokens.test.ts#L66)).
@@ -40,7 +40,7 @@ replaced ([now light + dark per family](apps/web-ui/src/app/theme-tokens.test.ts
 ### Architecture
 
 ```
-<html data-theme-family="elegant|retro" data-color-scheme="light|dark">
+<html data-theme-family="elegant|retro|chicago" data-color-scheme="light|dark">
    ↑ set before first paint by an inline <script> (no FOUC)
    ↑ kept in sync by ThemeProvider (React context)
 
@@ -89,7 +89,7 @@ danger/info` + `-bg`, `--shadow*`, `--glass-bg/border`, `--color-scheme`).
 **New — `web-ui/src/components/`** — `icon-map.ts` (semantic `IconName` →
 per-family Iconify name, offline via `@iconify-json/*`), `Icon.tsx`,
 `ThemeSwitcher.tsx` (+ module CSS): a Family text toggle and a Light/Auto/Dark
-square icon-only toggle, accessible radio groups ([both toggles](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L38), [accessible radios](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L59)). Mounted on `/settings` only.
+square icon-only toggle, accessible radio groups ([both toggles](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L38), [accessible radios](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L60)). Mounted on `/settings` only.
 
 **Edited** — `layout.tsx` (fonts on `<html>`, inline script, provider, import
 `theme.css` before `globals.css`); `globals.css` fully tokenized (color, radius,
@@ -101,7 +101,7 @@ swapped to tokens.
 
 The `ThemeSwitcher` maps each appearance option to its icon (sun / monitor / moon),
 marks the active family label and the active appearance label as selected, and
-calls `setFamily` / `setScheme` when one of the inactive radios is chosen. ([validated by `ThemeSwitcher.test.tsx:51`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L51), [`ThemeSwitcher.test.tsx:74`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L74), [`ThemeSwitcher.test.tsx:88`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L88), [`ThemeSwitcher.test.tsx:103`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L103), [`ThemeSwitcher.test.tsx:116`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L116), [`ThemeSwitcher.test.tsx:125`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L125), [`ThemeSwitcher.test.tsx:136`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L136))
+calls `setFamily` / `setScheme` when one of the inactive radios is chosen. ([validated by `ThemeSwitcher.test.tsx:51`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L52), [`ThemeSwitcher.test.tsx:74`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L75), [`ThemeSwitcher.test.tsx:88`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L89), [`ThemeSwitcher.test.tsx:103`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L104), [`ThemeSwitcher.test.tsx:116`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L117), [`ThemeSwitcher.test.tsx:125`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L126), [`ThemeSwitcher.test.tsx:136`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L137))
 
 The `Icon` component defaults its width and height to 16 when no size is given
 (using the provided size for both otherwise), appends a custom `className`

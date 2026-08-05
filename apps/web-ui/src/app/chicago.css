@@ -33,7 +33,9 @@
 
 [data-theme-family='chicago'] button:active {
   box-shadow: var(--border-sunken-outer), var(--border-sunken-inner);
-  /* the classic 1px content shove on press — box size is unchanged */
+  /* Classic 1px content shove on press: +1 top/left, -1 bottom/right applied to
+     the globals.css button padding (8px 16px), so total box size is unchanged.
+     Keep in sync if that base padding changes. */
   padding: 9px 15px 7px 17px;
 }
 
@@ -44,7 +46,7 @@
 [data-theme-family='chicago'] .spec-card input,
 [data-theme-family='chicago'] .spec-card select,
 [data-theme-family='chicago'] .spec-card textarea {
-  background: #ffffff;
+  background: var(--field-bg);
   color: var(--text);
   border: none;
   border-radius: 0;
@@ -102,6 +104,6 @@
 [data-theme-family='chicago'] select:focus-visible,
 [data-theme-family='chicago'] textarea:focus-visible,
 [data-theme-family='chicago'] [tabindex]:focus-visible {
-  outline: 1px dotted var(--window-frame);
+  outline: 1px dotted var(--focus-ring);
   outline-offset: -4px;
 }

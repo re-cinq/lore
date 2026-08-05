@@ -332,6 +332,7 @@
   --button-face: #dfdfdf;
   --button-shadow: #808080;
   --window-frame: #0a0a0a;
+  --field-bg: #ffffff; /* editable text wells are white in the light scheme */
 
   /* VGA-16 chart palette. */
   --chart-feature: #800080;
@@ -384,6 +385,7 @@
   --button-face: #1a1a1a;
   --button-shadow: #808080;
   --window-frame: #000000;
+  --field-bg: #000000; /* black wells + white text for High Contrast Black */
 
   /* High-contrast chart palette. */
   --chart-feature: #ff55ff;
