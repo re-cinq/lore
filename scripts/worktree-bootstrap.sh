@@ -49,7 +49,9 @@ trap 'rmdir "$lock"' EXIT
 
 if [[ ! -d node_modules ]]; then
   say "worktree-bootstrap: installing dependencies in $root (npm ci, first run only)"
-  npm ci --no-audit --no-fund
+  # --ignore-scripts: dependency lifecycle scripts are the #1062 supply-chain
+  # vector; the workspace libs build via the explicit `npm run build` steps below.
+  npm ci --ignore-scripts --no-audit --no-fund
 fi
 
 # Dependency order: assembly-lines and server-core both import shared, so a
