@@ -920,13 +920,15 @@ export async function assembleContext(
       } else {
         const lastIngestedAt = rows[0].last_ingested_at;
 
-        freshnessState = computeFreshness(lastIngestedAt, new Date());
+        const now = new Date();
+
+        freshnessState = computeFreshness(lastIngestedAt, now);
 
         if (freshnessState === "never-ingested") {
           freshnessWarning = `> ⚠ **Context may be stale** — this repo has never been ingested. Run \`lore_ingest_files\` or wait for the nightly reindex.\n\n`;
         } else if (freshnessState === "stale" && lastIngestedAt) {
           const days = Math.floor(
-            (Date.now() - new Date(lastIngestedAt).getTime()) / 86400000,
+            (now.getTime() - new Date(lastIngestedAt).getTime()) / 86400000,
           );
 
           freshnessWarning = `> ⚠ **Context may be stale** — last ingested ${days} days ago.\n\n`;

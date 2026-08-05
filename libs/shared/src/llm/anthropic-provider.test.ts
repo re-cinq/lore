@@ -23,6 +23,12 @@ describe("buildCacheableSystem", () => {
   });
 
   it("uses the 1h breakpoint for a default-eligible job", () => {
+    // getCacheControl latches LORE_CACHE_1H_JOBS at module load; an overriding
+    // env would make the default-eligible 1h path unreachable, so skip rather
+    // than fail spuriously (CI runs with the var unset).
+    if (process.env.LORE_CACHE_1H_JOBS !== undefined) {
+      return;
+    }
     const blocks = buildCacheableSystem("system prompt", "auto-curation");
 
     expect(blocks[0].cache_control).toEqual({ type: "ephemeral", ttl: "1h" });

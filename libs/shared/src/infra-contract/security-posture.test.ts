@@ -31,6 +31,12 @@ function findRepoRoot(startUrl: string): string {
 }
 
 function read(file: string): string {
+  enforceTrue(
+    existsSync(file),
+    Error,
+    `security-posture: expected infra manifest is missing — ${file}`,
+  );
+
   return readFileSync(file, "utf8");
 }
 

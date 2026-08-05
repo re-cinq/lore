@@ -298,7 +298,7 @@ The system MUST provide a single-command install experience. ([validated by `ins
   correct state. ([validated by `install-contract.test.mjs:117`](scripts/install-contract.test.mjs#L117), [`install-contract.test.mjs:130`](scripts/install-contract.test.mjs#L130), [`install-contract.test.mjs:156`](scripts/install-contract.test.mjs#L156))
 - FR-3.3: Install script works without pre-cloning the repository. ([validated by `install-contract.test.mjs:26`](scripts/install-contract.test.mjs#L26), [`install-contract.test.mjs:39`](scripts/install-contract.test.mjs#L39))
 - FR-3.4: Settings merge (via helper script) appends platform hooks
-  without overwriting personal developer hooks. ([validated by `lore-merge-settings.test.mjs:25`](scripts/lore-merge-settings.test.mjs#L25), [`lore-merge-settings.test.mjs:38`](scripts/lore-merge-settings.test.mjs#L38))
+  without overwriting personal developer hooks. ([validated by `lore-merge-settings.test.mjs:25`](scripts/lore-merge-settings.test.mjs#L25), [`lore-merge-settings.test.mjs:41`](scripts/lore-merge-settings.test.mjs#L41))
 - Decision: the `lore-doctor` health-check script tests all connections and
   prints clear pass/fail with fix instructions for each.
 
@@ -565,7 +565,7 @@ API calls to reduce token cost (ADR-015, added 2026-04-17). ([validated by `prom
   breakpoints per request — one on the system prompt block
   (`buildCacheableSystem`), one on the tool schema block
   (`buildCacheableTools`) — so a tool-schema edit cannot bust the system
-  cache and vice versa. ([validated by `anthropic-provider.test.ts:13`](libs/shared/src/llm/anthropic-provider.test.ts#L13), [`anthropic-provider.test.ts:33`](libs/shared/src/llm/anthropic-provider.test.ts#L33), [`anthropic-provider.test.ts:49`](libs/shared/src/llm/anthropic-provider.test.ts#L49))
+  cache and vice versa. ([validated by `anthropic-provider.test.ts:13`](libs/shared/src/llm/anthropic-provider.test.ts#L13), [`anthropic-provider.test.ts:39`](libs/shared/src/llm/anthropic-provider.test.ts#L39), [`anthropic-provider.test.ts:55`](libs/shared/src/llm/anthropic-provider.test.ts#L55))
 - FR-16.2: `getCacheControl(jobName)` from `agent/src/lib/prompt-cache.ts`
   returns `{type: "ephemeral", ttl: "1h"}` for jobs in the
   `LORE_CACHE_1H_JOBS` allowlist and `{type: "ephemeral"}` (5-min)
@@ -580,7 +580,7 @@ API calls to reduce token cost (ADR-015, added 2026-04-17). ([validated by `prom
   break:ttl(Nm)`. ([validated by `prompt-cache.test.ts:123`](libs/shared/src/llm/prompt-cache.test.ts#L123), [`prompt-cache.test.ts:129`](libs/shared/src/llm/prompt-cache.test.ts#L129))
 - FR-16.5: `response.usage.cache_creation_input_tokens` and
   `cache_read_input_tokens` feed cost accounting (1.25× writes,
-  0.1× reads). ([validated by `anthropic-provider.test.ts:73`](libs/shared/src/llm/anthropic-provider.test.ts#L73), [`anthropic-provider.test.ts:81`](libs/shared/src/llm/anthropic-provider.test.ts#L81), [`anthropic-provider.test.ts:89`](libs/shared/src/llm/anthropic-provider.test.ts#L89))
+  0.1× reads). ([validated by `anthropic-provider.test.ts:79`](libs/shared/src/llm/anthropic-provider.test.ts#L79), [`anthropic-provider.test.ts:87`](libs/shared/src/llm/anthropic-provider.test.ts#L87), [`anthropic-provider.test.ts:95`](libs/shared/src/llm/anthropic-provider.test.ts#L95))
 - Decision: MCP-server raw fetch call sites (fact extraction, graph
   extraction) have static prefixes below Haiku's 2048-token cache
   minimum — caching is not applied there.
@@ -928,9 +928,9 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
 
 ### NFR-1: Security
 
-- No long-lived credentials anywhere in the system. ([validated by `security-posture.test.ts:103`](libs/shared/src/infra-contract/security-posture.test.ts#L103), [`security-posture.test.ts:124`](libs/shared/src/infra-contract/security-posture.test.ts#L124))
-- Workload Identity for all GKE workloads. ([validated by `security-posture.test.ts:95`](libs/shared/src/infra-contract/security-posture.test.ts#L95))
-- Workload Identity Federation for GitHub Actions. ([validated by `security-posture.test.ts:120`](libs/shared/src/infra-contract/security-posture.test.ts#L120), [`security-posture.test.ts:124`](libs/shared/src/infra-contract/security-posture.test.ts#L124))
+- No long-lived credentials anywhere in the system. ([validated by `security-posture.test.ts:109`](libs/shared/src/infra-contract/security-posture.test.ts#L109), [`security-posture.test.ts:130`](libs/shared/src/infra-contract/security-posture.test.ts#L130))
+- Workload Identity for all GKE workloads. ([validated by `security-posture.test.ts:101`](libs/shared/src/infra-contract/security-posture.test.ts#L101))
+- Workload Identity Federation for GitHub Actions. ([validated by `security-posture.test.ts:126`](libs/shared/src/infra-contract/security-posture.test.ts#L126), [`security-posture.test.ts:130`](libs/shared/src/infra-contract/security-posture.test.ts#L130))
 - Schema-per-team isolation in the vector store. ([validated by `chunks.test.ts:153`](libs/shared/src/project/chunks/chunks.test.ts#L153), [`chunks.test.ts:171`](libs/shared/src/project/chunks/chunks.test.ts#L171))
 - Secret and PII redaction runs at ingest time and on every memory write:
   `sanitizeContent()` / `redactSecrets()` strip API keys, JWTs, private keys,
@@ -941,7 +941,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   and per-client scoped tokens with SHA-256 hashes. ([validated by `auth.test.ts:58`](apps/lore-api/src/api/routes/auth.test.ts#L58), [`bearer-scope.test.ts:45`](apps/lore-api/src/server/plugins/bearer-scope.test.ts#L45))
 - Job pods run as non-root (uid 1000), drop all Linux capabilities,
   disallow privilege escalation. NetworkPolicy restricts egress to
-  DNS + HTTPS + internal Lore API only. ([validated by `security-posture.test.ts:67`](libs/shared/src/infra-contract/security-posture.test.ts#L67), [`security-posture.test.ts:72`](libs/shared/src/infra-contract/security-posture.test.ts#L72), [`security-posture.test.ts:80`](libs/shared/src/infra-contract/security-posture.test.ts#L80), [`security-posture.test.ts:86`](libs/shared/src/infra-contract/security-posture.test.ts#L86))
+  DNS + HTTPS + internal Lore API only. ([validated by `security-posture.test.ts:73`](libs/shared/src/infra-contract/security-posture.test.ts#L73), [`security-posture.test.ts:78`](libs/shared/src/infra-contract/security-posture.test.ts#L78), [`security-posture.test.ts:86`](libs/shared/src/infra-contract/security-posture.test.ts#L86), [`security-posture.test.ts:92`](libs/shared/src/infra-contract/security-posture.test.ts#L92))
 - Rate limiting: 30/min webhooks, 60/min task ops, 200/min other
   (in-memory sliding window). 1 MB body size limit. ([validated by `rate-limit.test.ts:42`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L42), [`auth.test.ts:19`](apps/lore-api/src/api/routes/auth.test.ts#L19), [`webhook-incident.test.ts:144`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L144))
 - Slack indexing opt-in per channel only; DMs never indexed. ([validated by `notify-slack.test.ts:16`](libs/shared/src/project/notify/notify-slack.test.ts#L16), [`notify-decision.test.ts:35`](libs/shared/src/project/notify/notify-decision.test.ts#L35))
