@@ -75,6 +75,10 @@ export function hasLeadParagraph(content, kind) {
   const region = introRegion(content, kind);
 
   let paragraph = [];
+  // A blockquote is lazily continued by wrapped lines that drop the leading `>`;
+  // the quote runs until a blank line. Such a continuation is quote structure,
+  // not a lead paragraph, so track the state to keep it out of the prose.
+  let inBlockquote = false;
 
   const meetsMinimum = () => {
     const text = paragraph.join(" ").replace(/\s+/g, " ").trim();
@@ -83,10 +87,19 @@ export function hasLeadParagraph(content, kind) {
   };
 
   for (const line of region) {
+    const trimmed = line.trim();
+
+    if (trimmed === "") {
+      inBlockquote = false;
+    } else if (trimmed.startsWith(">")) {
+      inBlockquote = true;
+    }
+    const isLazyBlockquoteLine = inBlockquote && !trimmed.startsWith(">");
+
     // Only prose accumulates. A blank or structural line closes the current
     // paragraph — it must never pad a too-short intro toward the minimum.
-    if (isProseLine(line)) {
-      paragraph.push(line.trim());
+    if (!isLazyBlockquoteLine && isProseLine(line)) {
+      paragraph.push(trimmed);
       continue;
     }
 

@@ -11,6 +11,11 @@
 | Phase 0 Target    | 3-4 working days                           |
 | Full Stack Target | 6-8 weeks                                  |
 
+Lore is shared context infrastructure for Claude Code: one install command
+gives every developer full organizational awareness — conventions, ADRs, team
+patterns, PR history, and task state — served automatically from a central
+context repository rather than loaded by hand each session.
+
 > **Note (2026-04-13):** This spec has been updated to reflect the shipped
 > implementation. Several technology choices changed after the initial spec:
 > Beads + Dolt replaced by pipeline tasks in PostgreSQL (ADR-009), the
@@ -26,7 +31,7 @@
 > (8K default, 16K for research), and additional MCP tools shipped. A
 > stuck-task terminal-state recovery mechanism was also added. All changes
 > are reflected in FR-13 and the new FR-16 and FR-17 below (the MCP tool
-surface now lives in `specs/mcp-tools/`).
+> surface now lives in `specs/mcp-tools/`).
 
 ## Problem Statement
 

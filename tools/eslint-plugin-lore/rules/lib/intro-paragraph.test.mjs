@@ -173,3 +173,24 @@ test("spec whose only intro-region prose is an ordered list item fails", () => {
 test("spec whose only intro-region prose is a + list item fails", () => {
   assert.equal(hasLeadParagraph(specPlusListIntro, "spec"), false);
 });
+
+// A Note blockquote whose wrapped last line dropped its leading `>` is a lazy
+// continuation of the quote, not a lead paragraph — a line-based check must not
+// mistake it for prose.
+const specLazyBlockquoteContinuation = [
+  "# Feature Specification: Widgets",
+  "",
+  "| Field | Value |",
+  "|---|---|",
+  "| Status | Draft |",
+  "",
+  "> **Note:** this blockquote wraps across several lines and the author",
+  "> dropped the leading marker on the very last continuation line, so it",
+  "reads as prose to a check that only inspects one line at a time.",
+  "",
+  "## Problem Statement",
+].join("\n");
+
+test("spec whose only intro-region prose is a lazy blockquote continuation fails", () => {
+  assert.equal(hasLeadParagraph(specLazyBlockquoteContinuation, "spec"), false);
+});
