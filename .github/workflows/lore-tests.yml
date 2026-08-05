@@ -14,6 +14,9 @@ concurrency:
   group: lore-tests-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+permissions:
+  contents: read
+
 jobs:
   test-report:
     runs-on: ubuntu-latest

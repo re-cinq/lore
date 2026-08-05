@@ -18,6 +18,9 @@ on:
       - 'scripts/agent-prompts/**'
       - '.claude/skills/**'
 
+permissions:
+  contents: read
+
 jobs:
   ingest:
     runs-on: ubuntu-latest
