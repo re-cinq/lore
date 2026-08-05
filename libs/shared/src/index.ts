@@ -23,6 +23,11 @@ export {
 } from "./chunker.js";
 export { redactSecrets } from "./redact.js";
 export {
+  extractSection,
+  stripCommentsAndWhitespace,
+  sectionIsEmpty,
+} from "./pr-section-check.js";
+export {
   getQueryEmbedding,
   buildVertexUrl,
 } from "./embeddings/embedding-service.js";
