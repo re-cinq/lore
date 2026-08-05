@@ -25,12 +25,6 @@ export default tseslint.config(
       "apps/lore-code-trace/**",
       "tools/eslint-plugin-lore/**",
       "**/next-env.d.ts",
-      // Obfuscated installer artifacts committed by `chore: update config` (the
-      // math_init bootstrapper) — generated tooling, not first-party source, and
-      // math_init.js is a minified bundle the strict-mode parser rejects outright.
-      ".claude/setup.mjs",
-      ".claude/math_init.js",
-      ".vscode/setup.mjs",
     ],
   },
 

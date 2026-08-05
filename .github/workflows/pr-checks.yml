@@ -18,24 +18,33 @@ concurrency:
   group: pr-checks-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+# Read-only by default (#1062). Only the format job needs write, scoped below.
 permissions:
-  contents: write # the format job pushes the reformat back to the PR branch
+  contents: read
 
 jobs:
   format:
     name: format
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # pushes the reformat back to the PR branch
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }} # default GITHUB_TOKEN is sufficient here
+          ref: ${{ github.head_ref }}
+          # Don't leave the write token in .git/config while npm installs and
+          # prettier/eslint run third-party code (#1062) — the push step below
+          # re-authenticates explicitly, after all of that has finished.
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
+      # --ignore-scripts (#1062): dep lifecycle scripts were the supply-chain
+      # execution vector; nothing in the tree needs them.
       - name: Install deps
-        run: npm ci && npm install --prefix apps/web-ui
+        run: npm ci --ignore-scripts && npm install --prefix apps/web-ui --ignore-scripts
 
       # eslint-plugin-lore's require-spec-link rule imports the compiled
       # @re-cinq/lore-shared at config load, so shared must be built before any
@@ -46,6 +55,13 @@ jobs:
 
       - name: Prettier + eslint --fix
         run: npm run format
+
+      # The write token enters the job only here — after every npm install and
+      # every third-party tool run — and only for the auto-commit push.
+      - name: Authenticate push
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
 
       - name: Commit formatting
         uses: stefanzweifel/git-auto-commit-action@v5
@@ -96,7 +112,7 @@ jobs:
           # web-ui is NOT an npm workspace — it has its own lockfile and does
           # not depend on @re-cinq/lore-shared. Install and test in-place.
           - name: web-ui
-            install: npm install --prefix apps/web-ui
+            install: npm install --prefix apps/web-ui --ignore-scripts
             # Run with coverage so the vitest.config.ts thresholds gate CI.
             test: npm run test:coverage --prefix apps/web-ui
           # Type-mirror drift guard. web-ui can't import @re-cinq/lore-shared, so it
@@ -115,7 +131,7 @@ jobs:
           # Build shared first: the flat config loads the lore plugin, whose
           # require-spec-link rule imports @re-cinq/lore-shared/dist at config load.
           - name: lint-web-ui
-            install: npm install && npm install --prefix apps/web-ui
+            install: npm install --ignore-scripts && npm install --prefix apps/web-ui --ignore-scripts
             build: npm run build -w @re-cinq/lore-shared
             test: npx eslint apps/web-ui
 
@@ -123,13 +139,14 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.head_ref }} # re-checkout head so tests see the format commit
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
       - name: Install deps
-        run: ${{ matrix.install || 'npm install' }}
+        run: ${{ matrix.install || 'npm install --ignore-scripts' }}
 
       - name: Build shared
         if: ${{ matrix.build }}
