@@ -166,10 +166,16 @@ test("runs the install steps in the documented order", () => {
   ];
   const runSection = script.slice(script.indexOf("# --- Run all steps"));
   const positions = order.map((step) => runSection.indexOf(`\n${step}\n`));
+
   assert.ok(
     positions.every((p) => p !== -1),
     "every documented step is invoked in the run block",
   );
   const sorted = [...positions].sort((a, b) => a - b);
-  assert.deepEqual(positions, sorted, "steps are invoked in the documented order");
+
+  assert.deepEqual(
+    positions,
+    sorted,
+    "steps are invoked in the documented order",
+  );
 });

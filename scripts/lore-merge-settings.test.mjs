@@ -28,7 +28,10 @@ test("merge leaves an existing personal SessionStart hook untouched", () => {
   // The lore hook is absent, so the installer adds it rather than overwriting.
   assert.equal(hasHook(hooks, "SessionStart", "lore-merge-settings"), false);
   // The personal hook is recognized and survives the dedup cleanup pass.
-  assert.equal(hasHook(hooks, "SessionStart", "my personal session hook"), true);
+  assert.equal(
+    hasHook(hooks, "SessionStart", "my personal session hook"),
+    true,
+  );
 
   deduplicateHooks(hooks, "SessionStart");
 

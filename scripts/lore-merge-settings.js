@@ -178,7 +178,11 @@ IMPORTANT: You have the Lore MCP server (lore-context). Follow these rules stric
   // tag, not the human-readable message, so rewording the message cannot silently
   // break idempotency. Untagged variants from older installs are removed first so
   // they don't linger next to the tagged one.
-  removeHooksMatching(settings.hooks, "Stop", /\[lore\] Save session learnings/);
+  removeHooksMatching(
+    settings.hooks,
+    "Stop",
+    /\[lore\] Save session learnings/,
+  );
 
   if (!hasHook(settings.hooks, "Stop", "lore:stop-learnings")) {
     if (!Array.isArray(settings.hooks.Stop)) {
