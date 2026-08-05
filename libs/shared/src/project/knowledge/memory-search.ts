@@ -293,7 +293,7 @@ async function keywordSearchFacts(
 
 // ── Retrieval strengthening ─────────────────────────────────────────
 
-async function strengthenRetrievals(
+export async function strengthenRetrievals(
   pool: PgPool,
   results: MemorySearchResult[],
 ): Promise<void> {
