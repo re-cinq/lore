@@ -869,6 +869,21 @@ const STATUS_REASON: Record<FetchStatus, string> = {
   disabled: "source disabled",
 };
 
+const STALE_AGE_MS = 7 * 86400000;
+
+export function computeFreshness(
+  lastIngestedAt: Date | string | null,
+  now: Date,
+): "fresh" | "stale" | "never-ingested" {
+  if (!lastIngestedAt) {
+    return "never-ingested";
+  }
+
+  const age = now.getTime() - new Date(lastIngestedAt).getTime();
+
+  return age > STALE_AGE_MS ? "stale" : "fresh";
+}
+
 export async function assembleContext(
   pool: PgPool,
   query: string,
@@ -902,19 +917,21 @@ export async function assembleContext(
       if (rows.length === 0) {
         freshnessState = "first-run";
         freshnessWarning = `> **Welcome to Lore!** This repo is not yet onboarded.\n> Suggested actions:\n> 1. Call \`lore_onboard_repo\` to generate CLAUDE.md and register the repo\n> 2. Call \`lore_ingest_files\` to manually add specific files\n> 3. Call \`lore_search_memory\` to check if others have left learnings\n\n`;
-      } else if (!rows[0].last_ingested_at) {
-        freshnessState = "never-ingested";
-        freshnessWarning = `> ⚠ **Context may be stale** — this repo has never been ingested. Run \`lore_ingest_files\` or wait for the nightly reindex.\n\n`;
       } else {
-        const age = Date.now() - new Date(rows[0].last_ingested_at).getTime();
+        const lastIngestedAt = rows[0].last_ingested_at;
 
-        if (age > 7 * 86400000) {
-          const days = Math.floor(age / 86400000);
+        const now = new Date();
 
-          freshnessState = "stale";
+        freshnessState = computeFreshness(lastIngestedAt, now);
+
+        if (freshnessState === "never-ingested") {
+          freshnessWarning = `> ⚠ **Context may be stale** — this repo has never been ingested. Run \`lore_ingest_files\` or wait for the nightly reindex.\n\n`;
+        } else if (freshnessState === "stale" && lastIngestedAt) {
+          const days = Math.floor(
+            (now.getTime() - new Date(lastIngestedAt).getTime()) / 86400000,
+          );
+
           freshnessWarning = `> ⚠ **Context may be stale** — last ingested ${days} days ago.\n\n`;
-        } else {
-          freshnessState = "fresh";
         }
       }
     } catch {
