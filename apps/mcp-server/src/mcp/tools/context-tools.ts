@@ -21,6 +21,7 @@ import {
   unreachableError,
   deniedError,
 } from "./deps.js";
+import { updateBanner } from "../../features/update/mcp-update.js";
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
 
@@ -275,8 +276,12 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
             );
 
             if (proxied.ok) {
+              const banner = await updateBanner();
+
               return {
-                content: [{ type: "text" as const, text: proxied.body }],
+                content: [
+                  { type: "text" as const, text: banner + proxied.body },
+                ],
               };
             }
 
@@ -324,8 +329,12 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
           }
           const meta = `<!-- context: template=${template}, sections=${result.sections.length}, tokens=${result.sections.reduce((s, r) => s + r.tokens, 0)} -->\n\n`;
 
+          const banner = await updateBanner();
+
           return {
-            content: [{ type: "text" as const, text: meta + result.text }],
+            content: [
+              { type: "text" as const, text: banner + meta + result.text },
+            ],
           };
         } catch (err) {
           return {

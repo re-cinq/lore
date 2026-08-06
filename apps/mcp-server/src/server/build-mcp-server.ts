@@ -8,6 +8,7 @@ import { registerUsageTools } from "../mcp/tools/usage-tools.js";
 import { registerSpecTraceTools } from "../mcp/tools/spec-trace-tools.js";
 import { registerLocalRunnerTools } from "../mcp/tools/local-runner-tools.local.js";
 import { registerSpecTraceLocalTools } from "../mcp/tools/spec-trace-tools.local.js";
+import { registerUpdateTools } from "../mcp/tools/update-tools.js";
 
 /**
  * Conventions that hold for every lore_ tool. Stated once here instead of
@@ -41,6 +42,7 @@ export function buildMcpServer(deps: ToolDeps): McpServer {
   registerRepoTools(server, deps);
   registerLocalRunnerTools(server, deps);
   registerSpecTraceLocalTools(server, deps);
+  registerUpdateTools(server, deps);
 
   return server;
 }
