@@ -70,11 +70,14 @@ exception requires escalation.
 
 Three coordinated changes deliver this vision:
 
-1. **Branch as durable state.** Every workflow phase ends with a
-   commit carrying structured trailers (`Lore-Stage:`,
-   `Lore-Iteration:`, `Lore-Task:`). The branch is the audit trail.
-   A supervisor pod that dies resumes by reading `git log` on the
-   branch — no database checkpoints, no CR status sync, no parallel
+1. **Durable state (branch-as-state → DB-as-state, restated 2026-07).**
+   Every workflow phase ends with a commit carrying structured trailers
+   (`Lore-Stage:`, `Lore-Iteration:`, `Lore-Task:`) — the audit
+   substrate, emitted unconditionally on all Lore-authored commits.
+   Under the event-driven walk (ADR-031) the durable state is the
+   `pipeline.assembly_line_nodes` rows, not the git log: a Floor pod
+   that dies leaves no line stranded because transitions re-derive from
+   the persisted node rows (FR1.2) — no CR status sync, no parallel
    ledger.
 
 2. **Workflow as declarative graph.** The implicit chain
@@ -82,8 +85,8 @@ Three coordinated changes deliver this vision:
    externalized into a YAML/DOT-style directed graph: nodes are
    stages (agent prompts, validation steps, gate checks), edges
    carry conditions on commit / CI / review outcomes. New flows are
-   new graphs, not new code paths. The local runner and the GKE
-   supervisor interpret the same graph.
+   new graphs, not new code paths. The local runner and the Floor's
+   event-driven walk share the same graph definition.
 
 3. **Human gates are opt-out, not opt-in.** A per-repo `dark_factory`
    setting block flips the defaults: GitHub Issues are created only
@@ -95,9 +98,9 @@ Three coordinated changes deliver this vision:
    — gates which paths qualify for auto-merge.
 
 The feature is observable end-to-end: every task's lifecycle is
-reconstructable from the branch's commit history, every auto-merge
-records the trust decision in the audit log, and every escalation
-produces an Issue with full context attached.
+reconstructable from the persisted node rows and audit log, every
+auto-merge records the trust decision in the audit log, and every
+escalation produces an Issue with full context attached.
 
 ## Clarifications
 
@@ -327,7 +330,7 @@ ADR-031; the FRs carry the reconciled behaviour.)
 - **FR3.3b** The auto-merge decision engine (`evaluateAutoMerge`) MUST squash-merge only when every gate passes and otherwise defer with a specific reason — `dark_mode_off` (overrides everything), `no_changes` (empty PR, checked before the path allowlist), `human_review`, `ci_failed` (only when `require_green_ci`), `bot_changes_requested`, `path_outside_allowlist`, `trust_too_low` (including a repo with no trust set) — and it reports CI/bot-review status in the decision inputs. The trigger wrapper (`evaluateAndMerge`) resolves the PR via the facade-backed policy lookup (no direct octokit) and no-ops without writing an audit row for an orphaned task (no `target_repo`), a `dark_factory.enabled:false` or null-settings repo, or a not-yet-created PR, invoking the merge only when dark mode is on and a PR exists, and propagating merge errors to the caller. ([validated by `auto-merge.test.ts:31`](apps/floor/src/jobs/merge/auto-merge.test.ts#L31), [`auto-merge.test.ts:40`](apps/floor/src/jobs/merge/auto-merge.test.ts#L40), [`auto-merge.test.ts:46`](apps/floor/src/jobs/merge/auto-merge.test.ts#L46), [`auto-merge.test.ts:52`](apps/floor/src/jobs/merge/auto-merge.test.ts#L52), [`auto-merge.test.ts:58`](apps/floor/src/jobs/merge/auto-merge.test.ts#L58), [`auto-merge.test.ts:64`](apps/floor/src/jobs/merge/auto-merge.test.ts#L64), [`auto-merge.test.ts:75`](apps/floor/src/jobs/merge/auto-merge.test.ts#L75), [`auto-merge.test.ts:81`](apps/floor/src/jobs/merge/auto-merge.test.ts#L81), [`auto-merge.test.ts:89`](apps/floor/src/jobs/merge/auto-merge.test.ts#L89), [`auto-merge.test.ts:100`](apps/floor/src/jobs/merge/auto-merge.test.ts#L100), [`auto-merge.test.ts:106`](apps/floor/src/jobs/merge/auto-merge.test.ts#L106), [`auto-merge.test.ts:132`](apps/floor/src/jobs/merge/auto-merge.test.ts#L132), [`auto-merge.test.ts:138`](apps/floor/src/jobs/merge/auto-merge.test.ts#L138), [`auto-merge-trigger.test.ts:50`](apps/floor/src/jobs/merge/auto-merge-trigger.test.ts#L50), [`auto-merge-trigger.test.ts:58`](apps/floor/src/jobs/merge/auto-merge-trigger.test.ts#L58), [`auto-merge-trigger.test.ts:67`](apps/floor/src/jobs/merge/auto-merge-trigger.test.ts#L67), [`auto-merge-trigger.test.ts:75`](apps/floor/src/jobs/merge/auto-merge-trigger.test.ts#L75), [`auto-merge-trigger.test.ts:86`](apps/floor/src/jobs/merge/auto-merge-trigger.test.ts#L86), [`auto-merge-trigger.test.ts:133`](apps/floor/src/jobs/merge/auto-merge-trigger.test.ts#L133), [`auto-merge-trigger.test.ts:143`](apps/floor/src/jobs/merge/auto-merge-trigger.test.ts#L143); implemented by [`auto-merge.ts:60`](apps/floor/src/jobs/merge/auto-merge.ts#L64))
 - **FR3.4** Sub-setting `review` MUST support `trust_based | always | never`. Default when dark-mode-on: `trust_based`. When `trust_based` is active and a PR's changed paths are *outside* the configured `auto_merge.paths` allowlist, the bot MUST post its inline review comments and verdict and then stop; the PR remains open awaiting human merge. Time-based "no-objection" auto-merge is explicitly out of scope for v1. ([validated by `dark-factory.test.ts:182`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L182), [`dark-factory.test.ts:104`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L104), [`dark-factory.test.ts:111`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L111), [`dark-factory.test.ts:128`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L128), [`dark-factory.test.ts:137`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L137), [`dark-factory.test.ts:146`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L146), [`dark-factory.test.ts:155`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L155), [`dark-factory.test.ts:164`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L164), [`dark-factory.test.ts:173`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L173); implemented by [`dark-factory.ts:100`](apps/floor/src/jobs/dark-factory/dark-factory.ts#L101))
 - **FR3.5** Sub-setting `notify` MUST support a list of channels: `escalation`, `watched`, `all`. Default when dark-mode-on: `[escalation]`. ([validated by `notify.test.ts:27`](libs/shared/src/project/notify/notify.test.ts#L27), [`notify.test.ts:40`](libs/shared/src/project/notify/notify.test.ts#L40), [`notify-decision.test.ts:10`](libs/shared/src/project/notify/notify-decision.test.ts#L10), [`notify-decision.test.ts:17`](libs/shared/src/project/notify/notify-decision.test.ts#L17), [`notify-decision.test.ts:24`](libs/shared/src/project/notify/notify-decision.test.ts#L24), [`notify-decision.test.ts:35`](libs/shared/src/project/notify/notify-decision.test.ts#L35), [`notify-slack.test.ts:16`](libs/shared/src/project/notify/notify-slack.test.ts#L16), [`notify-slack.test.ts:30`](libs/shared/src/project/notify/notify-slack.test.ts#L30); implemented by [`notify-decision.ts:13`](libs/shared/src/project/notify/notify-decision.ts#L13))
-- **FR3.6** Per-task overrides at creation time MUST be able to force `human_review: required` or `with_issue: true` for a single task without changing repo settings. ([validated by `dark-factory.test.ts:11`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L11), [`dark-factory.test.ts:128`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L128))
+- **FR3.6** Per-task overrides at creation time MUST be able to force `human_review: required` or `with_issue: true` for a single task without changing repo settings. (The `notify: completion` per-task override listed in the original draft was not built in v1 — per-task notify control is deferred; repo-level `notify` channels remain the mechanism.) ([validated by `dark-factory.test.ts:11`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L11), [`dark-factory.test.ts:128`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L128))
 - **FR3.7** Auto-merge decisions MUST be recorded in the audit log with the rule that justified them (path matched, trust level, CI status, bot-approval). ([validated by `audit.test.ts:6`](apps/floor/src/jobs/lib/audit.test.ts#L6), [`auto-merge.test.ts:119`](apps/floor/src/jobs/merge/auto-merge.test.ts#L119), [`audit.test.ts:23`](libs/shared/src/project/audit/audit.test.ts#L23), [`audit.test.ts:44`](libs/shared/src/project/audit/audit.test.ts#L44), [`audit-memory.test.ts:5`](libs/shared/src/project/audit/audit-memory.test.ts#L5); implemented by [`auto-merge.ts:60`](apps/floor/src/jobs/merge/auto-merge.ts#L64), [`audit.ts:9`](apps/floor/src/jobs/lib/audit.ts#L9))
 - **FR3.8** Issues created on escalation MUST contain: task description, branch link, failing phase output (if any), diagnostic from the supervisor, and links to contributing facts/memories. ([validated by `escalation.test.ts:45`](apps/floor/src/jobs/platform/escalation.test.ts#L45), [`escalation.test.ts:65`](apps/floor/src/jobs/platform/escalation.test.ts#L65), [`escalation.test.ts:87`](apps/floor/src/jobs/platform/escalation.test.ts#L87), [`escalation.test.ts:114`](apps/floor/src/jobs/platform/escalation.test.ts#L114), [`escalation.test.ts:132`](apps/floor/src/jobs/platform/escalation.test.ts#L132), [`escalation.test.ts:162`](apps/floor/src/jobs/platform/escalation.test.ts#L162), [`escalation.test.ts:202`](apps/floor/src/jobs/platform/escalation.test.ts#L202), [`infra-failure.test.ts:23`](apps/floor/src/jobs/platform/infra-failure.test.ts#L23); implemented by [`escalation.ts:65`](apps/floor/src/jobs/platform/escalation.ts#L76))
 - **FR3.9** Authorization on `dark_factory.*` settings MUST be tiered. Privileged changes — toggling `dark_factory.enabled` and modifying `dark_factory.auto_merge.paths` — MUST require both an admin-scope API token and a CODEOWNERS approval recorded in the audit log (a labeled PR against the settings, or an equivalent ceremony surfaced via the web-ui). Lighter sub-settings (`notify`, `create_issue`, `review`, `auto_merge.min_trust`, `auto_merge.require_*`) MAY be changed with admin scope alone. Every mutation, regardless of tier, MUST write an audit_log entry naming the actor, the previous value, the new value, and the authorization path used. ([validated by `dark-factory.test.ts:250`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L250), [`dark-factory-settings.test.ts:108`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L108), [`dark-factory-settings.test.ts:113`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L113), [`dark-factory-settings.test.ts:119`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L119), [`dark-factory-settings.test.ts:128`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L128), [`dark-factory-settings.test.ts:137`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L137), [`dark-factory-settings.test.ts:147`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L147), [`dark-factory-settings.test.ts:206`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L206), [`dark-factory-settings.test.ts:215`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L215), [`dark-factory.test.ts:178`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L178), [`dark-factory.test.ts:197`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L197), [`dark-factory.test.ts:239`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L239), [`dark-factory.test.ts:258`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L258), [`dark-factory.test.ts:351`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L351); implemented by [`dark-factory-authz.ts:69`](apps/lore-api/src/features/dark-factory/dark-factory-authz.ts#L73), [`dark-factory-settings.ts:63`](apps/lore-api/src/features/dark-factory/dark-factory-settings.ts#L63))
@@ -408,7 +411,7 @@ inline on each FR above (`validated by` / `implemented by`).
 | FR3.7 Auto-merge audit record | 1, 3 | SC5, SC7 |
 | FR3.8 Escalation Issue content | 5 | SC4 |
 | FR3.9 Two-key settings authz | (settings change) | SC7 |
-| FR4.1–4.4 Migration & compatibility | 6 | SC8 |
+| FR4.1, FR4.3 Migration & compatibility (FR4.2/4.4 architectural — see Decision) | 6 | SC8 |
 | FR5.1 Observability via NDJSON→OTEL + auto-merge span (restated) | 2 | SC2 |
 | FR5.2 Repo dashboard | 7 | — |
 | FR5.3 Timeline + `Lore-Task:` resolver | 7 | SC5 |
@@ -420,7 +423,7 @@ unit-testable assertions — the underlying behaviours are validated via the FRs
 above (e.g. SC7 ← FR3.3/3.7 path-allowlist, SC2 ← FR1.2/1.6 replay).
 
 **SC1 — Handover reduction**
-For implementation tasks, **the count of distinct ephemeral Job pods per task drops from ≥ 4 to ≤ 2** (one supervisor + at most one webhook-triggered continuation), measured over a 7-day window after dark mode is enabled on a representative repo.
+For implementation tasks, **the old 4+ CR / Issue / comment handoff chain per task collapses** — the event-driven walk dispatches one Agent/station CR per node with no cross-pod handover ledger — measured over a 7-day window after dark mode is enabled on a representative repo.
 
 **SC2 — Pod-death survivability**
 *(restated 2026-07)* **A Floor pod dying at ANY point leaves no assembly line stranded**: there is no walker process — transitions are event-driven over persisted node rows (FR6.9), so already-recorded nodes are never re-executed, in-flight Agent CRs keep running and their terminal events (or the FR6.10 reaper) advance the line on the next Floor instance. Measured by `kubectl rollout restart` during canary runs across all node types.
@@ -475,7 +478,7 @@ All other principles remain intact. Specifically preserved:
 - Web-ui pipeline page is acceptable as the canonical "where's my task" surface for non-engineer stakeholders. PMs already have access.
 - _(Superseded 2026-07)_ The original branch-as-state assumptions — that in-flight branches are never human-rebased, and that supervisor pods can cheaply read git history at startup — no longer bind: under the event-driven walk (ADR-031) resume derives from `pipeline.assembly_line_nodes` rows, not git history, so there is no supervisor and no git-log resume to protect.
 
-## Background: Dependencies
+## Dependencies (Background)
 
 - The progressive-trust system (`settings.trust.level`) — already shipped.
 - The audit_log infrastructure — already shipped.
