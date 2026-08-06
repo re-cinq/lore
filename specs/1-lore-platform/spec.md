@@ -460,12 +460,12 @@ live knowledge graph. ([validated by `graph.test.ts:49`](libs/server-core/src/fe
 - FR-11.4: Facts carry temporal validity (`valid_from`/`valid_to`),
   confidence tiers (`verified` / `observed` / `inferred` / `stale`),
   and retrieval metadata (`retrieval_count`, `last_retrieved_at`,
-  `half_life_days`). ([validated by `facts.test.ts:148`](libs/server-core/src/features/memory/facts.test.ts#L148), [`memory-ranking.test.ts:162`](libs/shared/src/memory-ranking.test.ts#L162))
+  `half_life_days`). ([validated by `facts.test.ts:105`](libs/server-core/src/features/memory/facts.test.ts#L105), [`memory-ranking.test.ts:162`](libs/shared/src/memory-ranking.test.ts#L162))
 - FR-11.5: Contradiction detection: when a new fact has cosine
   similarity ≥ 0.92 to an existing one, the old fact is invalidated
   and a conflict record written to `memory.fact_conflicts`. Context
   assembly prefixes `[CONFLICT]` on facts with recent (7-day)
-  conflicts. ([validated by `facts.test.ts:148`](libs/server-core/src/features/memory/facts.test.ts#L148), [`facts.test.ts:181`](libs/server-core/src/features/memory/facts.test.ts#L181))
+  conflicts. ([validated by `facts.test.ts:105`](libs/server-core/src/features/memory/facts.test.ts#L105), [`facts.test.ts:138`](libs/server-core/src/features/memory/facts.test.ts#L138))
 
 ### FR-12: Intelligent Memory Lifecycle (Phase 1)
 

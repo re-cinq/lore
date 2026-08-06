@@ -17,6 +17,17 @@ on:
       - '.specify/**'
       - 'scripts/agent-prompts/**'
       - '.claude/skills/**'
+  # Manual lever: a push-to-main can silently fail to dispatch (a dropped GitHub
+  # delivery leaves the ingested copy — and every derived spec-status pill —
+  # stale until the next push). Dispatch re-ingests on demand: an empty `files`
+  # input re-projects every tracked doc path (full refresh); a JSON array
+  # re-ingests just those files.
+  workflow_dispatch:
+    inputs:
+      files:
+        description: 'JSON array of files to ingest; empty = re-ingest all tracked doc paths'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -32,8 +43,24 @@ jobs:
 
       - name: Get changed files
         id: changes
+        env:
+          INPUT_FILES: ${{ github.event.inputs.files }}
         run: |
-          FILES=$(git diff --name-only HEAD~1 HEAD | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -n "${INPUT_FILES}" ]; then
+              FILES="${INPUT_FILES}"
+            else
+              # Full refresh: every tracked doc path in the tree (not a push diff),
+              # so a manual run re-projects stale statuses regardless of what the
+              # last commit touched.
+              FILES=$(git ls-files -- \
+                CLAUDE.md AGENTS.md adrs runbooks specs teams .specify \
+                scripts/agent-prompts .claude/skills \
+                | jq -R -s -c 'split("\n") | map(select(. != ""))')
+            fi
+          else
+            FILES=$(git diff --name-only HEAD~1 HEAD | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          fi
           echo "files=$FILES" >> "$GITHUB_OUTPUT"
 
       - name: Submit to Lore ingest API
