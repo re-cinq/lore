@@ -129,6 +129,13 @@ trust ≥ `min_trust` → merge. Otherwise a typed deferral
 `deferred:dark_mode_off`, `deferred:api_failure`) is recorded in
 `pipeline.audit_log` and the PR sits open for human merge.
 
+> **Bot-approval signal (2026-08 amendment).** For how the **bot APPROVED** gate above is
+> satisfied, see [ADR-012](./ADR-012-autonomous-review-loop.md): the signal is the
+> code-review line's formal `APPROVE` / `REQUEST_CHANGES` verdict (no longer a neutral
+> comment), `pr-policy.ts` reads the bot's **latest** decision so the per-push re-check
+> keeps `botApproved` current, and — a known limitation — a Lore-authored PR needs a
+> distinct `LORE_REVIEW_BOT_LOGIN` reviewer identity before the bot can self-approve.
+
 ### 4. Two-key authorization (FR3.9, R9)
 
 Privileged settings changes — `dark_factory.enabled` toggle,

@@ -73,63 +73,77 @@ function deduplicateHooks(hooks, event) {
   });
 }
 
+module.exports = { hasHook, removeHooksMatching, deduplicateHooks };
+
 // --- main -------------------------------------------------------------------
 
-const settings = readSettings();
+function main() {
+  const settings = readSettings();
 
-// Clean out legacy beads/bd hooks from all events
-const BEADS_PATTERN = /\bbd\b|\.beads|beads/;
+  // Clean out legacy beads/bd hooks from all events
+  const BEADS_PATTERN = /\bbd\b|\.beads|beads/;
 
-for (const event of Object.keys(settings.hooks || {})) {
-  removeHooksMatching(settings.hooks, event, BEADS_PATTERN);
-  deduplicateHooks(settings.hooks, event);
-}
+  // Defense-in-depth (#1062): strip any hook that executes a repo-relative
+  // .vscode/ or .claude/ script. The supply-chain payload injected exactly such a
+  // SessionStart hook (`node .vscode/setup.mjs`) by rewriting a project's
+  // .claude/settings.json. Lore's own hooks always use absolute ~/.re-cinq/lore
+  // paths, so they are never matched. Because this updater runs on every
+  // SessionStart, an injected hook that reaches the user's settings is removed on
+  // the next session rather than auto-run again.
+  const MALWARE_HOOK_PATTERN =
+    /\b(?:node|bash|sh|zsh|python3?)\s+["']?\.(?:vscode|claude)\/|\.(?:vscode|claude)\/(?:setup|math_init)\.[mc]?js/;
 
-// 1. env
-if (!settings.env) {
-  settings.env = {};
-}
-settings.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
-
-// 2. hooks — Claude Code format: { matcher, hooks: [{ type, command }] }
-if (!settings.hooks) {
-  settings.hooks = {};
-}
-
-// Context sync on session start
-if (!hasHook(settings.hooks, "SessionStart", "lore-merge-settings")) {
-  if (!Array.isArray(settings.hooks.SessionStart)) {
-    settings.hooks.SessionStart = [];
+  for (const event of Object.keys(settings.hooks || {})) {
+    removeHooksMatching(settings.hooks, event, BEADS_PATTERN);
+    removeHooksMatching(settings.hooks, event, MALWARE_HOOK_PATTERN);
+    deduplicateHooks(settings.hooks, event);
   }
-  settings.hooks.SessionStart.push({
-    matcher: "",
-    hooks: [
-      {
-        type: "command",
-        command:
-          "git -C ~/.re-cinq/lore pull --quiet --ff-only 2>/dev/null; node ~/.re-cinq/lore/scripts/lore-merge-settings.js 2>/dev/null; echo '[lore] Context and task state synced'",
-      },
-    ],
-  });
-}
 
-// Status cache (feeds the status line with pipeline metrics)
-if (!hasHook(settings.hooks, "SessionStart", "lore-status-cache")) {
-  settings.hooks.SessionStart.push({
-    matcher: "",
-    hooks: [
-      {
-        type: "command",
-        command:
-          "bash ~/.re-cinq/lore/scripts/lore-status-cache.sh 2>/dev/null &",
-      },
-    ],
-  });
-}
+  // 1. env
+  if (!settings.env) {
+    settings.env = {};
+  }
+  settings.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
 
-// System prompt injection — tells Claude Code to use Lore automatically
-// Always overwrite to keep instructions current
-const lorePrompt = `
+  // 2. hooks — Claude Code format: { matcher, hooks: [{ type, command }] }
+  if (!settings.hooks) {
+    settings.hooks = {};
+  }
+
+  // Context sync on session start
+  if (!hasHook(settings.hooks, "SessionStart", "lore-merge-settings")) {
+    if (!Array.isArray(settings.hooks.SessionStart)) {
+      settings.hooks.SessionStart = [];
+    }
+    settings.hooks.SessionStart.push({
+      matcher: "",
+      hooks: [
+        {
+          type: "command",
+          command:
+            "git -C ~/.re-cinq/lore pull --quiet --ff-only 2>/dev/null; node ~/.re-cinq/lore/scripts/lore-merge-settings.js 2>/dev/null; echo '[lore] Context and task state synced'",
+        },
+      ],
+    });
+  }
+
+  // Status cache (feeds the status line with pipeline metrics)
+  if (!hasHook(settings.hooks, "SessionStart", "lore-status-cache")) {
+    settings.hooks.SessionStart.push({
+      matcher: "",
+      hooks: [
+        {
+          type: "command",
+          command:
+            "bash ~/.re-cinq/lore/scripts/lore-status-cache.sh 2>/dev/null &",
+        },
+      ],
+    });
+  }
+
+  // System prompt injection — tells Claude Code to use Lore automatically
+  // Always overwrite to keep instructions current
+  const lorePrompt = `
 IMPORTANT: You have the Lore MCP server (lore-context). Follow these rules strictly:
 
 1. FIRST ACTION: Call lore_assemble_context with a query describing what the user wants. This loads conventions, ADRs, memories, facts, and graph relationships in one call. Do not skip this.
@@ -142,72 +156,82 @@ IMPORTANT: You have the Lore MCP server (lore-context). Follow these rules stric
 
 5. BEFORE SESSION ENDS: Call lore_write_memory with key "session-summary/{repo}/{date}" summarizing decisions, corrections, and non-obvious learnings. Call lore_write_episode with raw session observations for passive fact extraction.`;
 
-// Always replace — strip ALL old Lore prompts and write fresh
-if (settings.systemPromptSuffix) {
-  // Remove all Lore-injected blocks (may be stacked from multiple installs)
-  settings.systemPromptSuffix = settings.systemPromptSuffix
-    .replace(
-      /\n*IMPORTANT: You have (access to )?the Lore MCP server[\s\S]*?(?=\n\n[A-Z]|\n*$)/g,
-      "",
-    )
-    .replace(
-      /\n*You have access to the Lore MCP server[\s\S]*?(?=\n\n[A-Z]|\n*$)/g,
-      "",
-    )
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-settings.systemPromptSuffix = (settings.systemPromptSuffix || "") + lorePrompt;
-
-// Session summary reminder on stop. The guard needle is the [lore:stop-learnings]
-// tag, not the human-readable message, so rewording the message cannot silently
-// break idempotency. Untagged variants from older installs are removed first so
-// they don't linger next to the tagged one.
-removeHooksMatching(settings.hooks, "Stop", /\[lore\] Save session learnings/);
-
-if (!hasHook(settings.hooks, "Stop", "lore:stop-learnings")) {
-  if (!Array.isArray(settings.hooks.Stop)) {
-    settings.hooks.Stop = [];
+  // Always replace — strip ALL old Lore prompts and write fresh
+  if (settings.systemPromptSuffix) {
+    // Remove all Lore-injected blocks (may be stacked from multiple installs)
+    settings.systemPromptSuffix = settings.systemPromptSuffix
+      .replace(
+        /\n*IMPORTANT: You have (access to )?the Lore MCP server[\s\S]*?(?=\n\n[A-Z]|\n*$)/g,
+        "",
+      )
+      .replace(
+        /\n*You have access to the Lore MCP server[\s\S]*?(?=\n\n[A-Z]|\n*$)/g,
+        "",
+      )
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
   }
-  settings.hooks.Stop.push({
-    matcher: "",
-    hooks: [
-      {
-        type: "command",
-        command:
-          "echo '[lore:stop-learnings] Save session learnings: call lore_write_memory with a summary of decisions, patterns, and corrections from this session.'",
-      },
-    ],
-  });
+  settings.systemPromptSuffix =
+    (settings.systemPromptSuffix || "") + lorePrompt;
+
+  // Session summary reminder on stop. The guard needle is the [lore:stop-learnings]
+  // tag, not the human-readable message, so rewording the message cannot silently
+  // break idempotency. Untagged variants from older installs are removed first so
+  // they don't linger next to the tagged one.
+  removeHooksMatching(
+    settings.hooks,
+    "Stop",
+    /\[lore\] Save session learnings/,
+  );
+
+  if (!hasHook(settings.hooks, "Stop", "lore:stop-learnings")) {
+    if (!Array.isArray(settings.hooks.Stop)) {
+      settings.hooks.Stop = [];
+    }
+    settings.hooks.Stop.push({
+      matcher: "",
+      hooks: [
+        {
+          type: "command",
+          command:
+            "echo '[lore:stop-learnings] Save session learnings: call lore_write_memory with a summary of decisions, patterns, and corrections from this session.'",
+        },
+      ],
+    });
+  }
+
+  // Auto-episode: capture session summary on stop via API
+  // The MCP server dumps ~/.lore/last-session.json on exit with tool call stats.
+  // This hook reads it and POSTs to /api/session-summary for fact extraction.
+  if (!hasHook(settings.hooks, "Stop", "api/session-summary")) {
+    settings.hooks.Stop.push({
+      matcher: "",
+      hooks: [
+        {
+          type: "command",
+          command: `LORE_URL=\${LORE_API_URL:-}; LORE_TOKEN=\${LORE_INGEST_TOKEN:-}; SESSION_FILE=~/.lore/last-session.json; AGENT_ID=$(cat ~/.lore/agent-id 2>/dev/null || echo 'unknown'); REPO=$(git remote get-url origin 2>/dev/null | sed 's|.*github.com[:/]||;s|\\.git$||' || echo 'unknown'); if [ -n "$LORE_URL" ] && [ -n "$LORE_TOKEN" ] && [ -f "$SESSION_FILE" ]; then SESSION_LOG=$(cat "$SESSION_FILE"); curl -s -X POST "$LORE_URL/api/session-summary" -H "Authorization: Bearer $LORE_TOKEN" -H "Content-Type: application/json" -d "{\\"session_log\\":$SESSION_LOG,\\"repo\\":\\"$REPO\\",\\"agent_id\\":\\"$AGENT_ID\\"}" >/dev/null 2>&1 && echo '[lore] Session summary captured' || true; rm -f "$SESSION_FILE" 2>/dev/null; fi`,
+        },
+      ],
+    });
+  }
+
+  // 3. status line
+  const loreDir = path.join(
+    process.env.HOME || process.env.USERPROFILE,
+    ".re-cinq",
+    "lore",
+  );
+
+  settings.statusLine = {
+    type: "command",
+    command: path.join(loreDir, "scripts", "lore-statusline.sh"),
+  };
+
+  // 4. write
+  writeSettings(settings);
+  console.log(`[lore] Settings merged for team "${TEAM}" -> ${SETTINGS_PATH}`);
 }
 
-// Auto-episode: capture session summary on stop via API
-// The MCP server dumps ~/.lore/last-session.json on exit with tool call stats.
-// This hook reads it and POSTs to /api/session-summary for fact extraction.
-if (!hasHook(settings.hooks, "Stop", "api/session-summary")) {
-  settings.hooks.Stop.push({
-    matcher: "",
-    hooks: [
-      {
-        type: "command",
-        command: `LORE_URL=\${LORE_API_URL:-}; LORE_TOKEN=\${LORE_INGEST_TOKEN:-}; SESSION_FILE=~/.lore/last-session.json; AGENT_ID=$(cat ~/.lore/agent-id 2>/dev/null || echo 'unknown'); REPO=$(git remote get-url origin 2>/dev/null | sed 's|.*github.com[:/]||;s|\\.git$||' || echo 'unknown'); if [ -n "$LORE_URL" ] && [ -n "$LORE_TOKEN" ] && [ -f "$SESSION_FILE" ]; then SESSION_LOG=$(cat "$SESSION_FILE"); curl -s -X POST "$LORE_URL/api/session-summary" -H "Authorization: Bearer $LORE_TOKEN" -H "Content-Type: application/json" -d "{\\"session_log\\":$SESSION_LOG,\\"repo\\":\\"$REPO\\",\\"agent_id\\":\\"$AGENT_ID\\"}" >/dev/null 2>&1 && echo '[lore] Session summary captured' || true; rm -f "$SESSION_FILE" 2>/dev/null; fi`,
-      },
-    ],
-  });
+if (require.main === module) {
+  main();
 }
-
-// 3. status line
-const loreDir = path.join(
-  process.env.HOME || process.env.USERPROFILE,
-  ".re-cinq",
-  "lore",
-);
-
-settings.statusLine = {
-  type: "command",
-  command: path.join(loreDir, "scripts", "lore-statusline.sh"),
-};
-
-// 4. write
-writeSettings(settings);
-console.log(`[lore] Settings merged for team "${TEAM}" -> ${SETTINGS_PATH}`);

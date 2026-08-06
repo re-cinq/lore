@@ -1,12 +1,13 @@
 # Schema migrations
 
 Incremental, ordered DDL applied to the `lore-db` (CNPG) database on **every
-Helm deploy** of this chart, via a `pre-install,pre-upgrade` hook Job
-(`templates/migrate-job.yaml`). Both deploy paths use this chart, so both run
-the hook:
+Helm deploy** of the `lore-platform` umbrella, via this `ui-helm` subchart's
+`pre-install,pre-upgrade` hook Job (`templates/migrate-job.yaml`). Both deploy
+paths deploy the umbrella release, so both run the hook:
 
-- GitHub Actions — `helm upgrade --install lore-ui ./terraform/modules/gke-mcp/ui-helm`
-- Terraform — `helm_release.lore_ui`
+- GitHub Actions — `scripts/ci/deploy-lore-platform.sh` (run by the
+  floor/lore-api/ui build workflows on merge to main)
+- Terraform — `helm_release.lore_platform`
 
 Unlike the baseline `scripts/infra/setup-*-schema.sh` scripts (run once by an
 operator when first provisioning a cluster), these run on each deploy and are
@@ -21,12 +22,13 @@ before-hook-creation`); the tracking table makes already-applied migrations a
 fast no-op. `helm upgrade --wait` blocks until the hook succeeds; a failing
 migration fails the deploy.
 
-The Job connects as `lore`, which owns the database (`terraform/lore-db.tf`
+The Job connects as `lore`, which owns the database (`infra/terraform/lore-db.tf`
 initdb `owner`), using the chart's existing `dbPasswordSecret` — the same
 secret the UI connects with. Because `lore` owns its schemas, DDL and `GRANT`
 need no superuser; `enableSuperuserAccess` stays at CNPG's secure default. The
 only superuser step (`CREATE EXTENSION vector`) runs once at cluster bootstrap,
-not here. Disable with `--set migrations.enabled=false`.
+not here. Disable with `--set lore-ui.migrations.enabled=false` (the value key is
+nested under the `lore-ui` subchart in the umbrella release).
 
 For clusters provisioned before `owner` was `lore` (where `postgres` still owns
 the `lore` schema), hand the schema to `lore` once via the primary pod's local
@@ -50,7 +52,7 @@ kubectl exec -n lore-db -it lore-db-1 -c postgres -- \
    END $$`). The tracking table applies each file once; idempotency keeps
    re-runs and partial states safe.
 3. `GRANT` to `lore` for anything the app reads (web-ui connects as `lore`).
-4. Deploy the UI chart (CI on merge to main, or `terraform apply`).
+4. Deploy the `lore-platform` umbrella (CI on merge to main, or `terraform apply`).
 
 ### DDL inside the `pipeline` schema
 

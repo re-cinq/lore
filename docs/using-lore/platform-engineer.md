@@ -55,7 +55,7 @@ After the PR merges, the agent automatically configures ingest secrets so contex
 **Web UI** (`LORE_UI_DOMAIN`):
 
 - The **Pipeline** page shows all tasks with status, PR links, and live PR state badges
-- The **task detail** page streams live agent output in a terminal-style log viewer (polls every 5s while running)
+- The **task detail** page streams live agent output in a terminal-style log viewer (polls every 10s while running)
 - The **repo** view shows context, active tasks, and memory for each repo
 - The **search** page queries across all onboarded repos
 

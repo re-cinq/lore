@@ -25,7 +25,7 @@ echo ""
 # 1. MCP adapter entry point (local stdio; proxies to the Lore API)
 check "MCP adapter built" \
   test -f "$LORE_DIR/apps/mcp-server/dist/index.js" || \
-  echo "     Fix: cd $LORE_DIR && npm install && npm run build -w @re-cinq/lore-shared -w @re-cinq/lore-server-core -w @re-cinq/lore-mcp"
+  echo "     Fix: cd $LORE_DIR && npm ci --ignore-scripts && npm run build -w @re-cinq/lore-shared -w @re-cinq/lore-server-core -w @re-cinq/lore-mcp"
 
 # 2. specify CLI (optional — warn but don't count as failure)
 if command -v specify >/dev/null 2>&1; then

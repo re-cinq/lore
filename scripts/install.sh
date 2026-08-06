@@ -59,7 +59,10 @@ build_mcp_server() {
   cd "$LORE_DIR"
   if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock.json ] 2>/dev/null; then
     echo "[lore] Installing workspace dependencies ..."
-    npm ci --silent 2>&1 || npm install --silent 2>&1 || { echo "[lore] Error: npm install failed. Try: cd $LORE_DIR && npm install"; return 1; }
+    # --ignore-scripts: never run dependency lifecycle scripts during install/update
+    # (the #1062 supply-chain vector). Lore's own workspaces build via the explicit
+    # `npm run build` below, which --ignore-scripts does not affect.
+    npm ci --ignore-scripts --silent 2>&1 || npm install --ignore-scripts --silent 2>&1 || { echo "[lore] Error: npm install failed. Try: cd $LORE_DIR && npm ci --ignore-scripts"; return 1; }
   fi
   echo "[lore] Building shared + server-core + MCP adapter ..."
   npm run build -w @re-cinq/lore-shared -w @re-cinq/lore-server-core -w @re-cinq/lore-mcp 2>&1 || { echo "[lore] Error: build failed."; return 1; }
@@ -186,7 +189,7 @@ install_agentdb() {
   CURRENT_STEP="AgentDB local cache"
   # Auto-install if npm is available — no prompt needed
   if command -v npx &>/dev/null && ! command -v agentdb &>/dev/null; then
-    npm install -g agentdb --silent 2>/dev/null || true
+    npm install -g agentdb --ignore-scripts --silent 2>/dev/null || true
   fi
 }
 

@@ -213,4 +213,49 @@ describe("resolvePrForTaskFromDb", () => {
       humanChangesRequested: false,
     });
   });
+
+  it("reports botApproved false when the bot's latest review requests changes after an earlier approval", async () => {
+    const result = await resolvePrForTaskFromDb(
+      "t1",
+      settings,
+      deps(task({}), {
+        reviews: [
+          { state: "APPROVED", user: "lore-agent[bot]" },
+          { state: "CHANGES_REQUESTED", user: "lore-agent[bot]" },
+        ],
+      }),
+    );
+
+    expect(result?.policy.botApproved).toBe(false);
+  });
+
+  it("reports botApproved true when the bot's latest review approves after an earlier changes-requested", async () => {
+    const result = await resolvePrForTaskFromDb(
+      "t1",
+      settings,
+      deps(task({}), {
+        reviews: [
+          { state: "CHANGES_REQUESTED", user: "lore-agent[bot]" },
+          { state: "APPROVED", user: "lore-agent[bot]" },
+        ],
+      }),
+    );
+
+    expect(result?.policy.botApproved).toBe(true);
+  });
+
+  it("ignores a trailing bot COMMENT review when deciding botApproved", async () => {
+    const result = await resolvePrForTaskFromDb(
+      "t1",
+      settings,
+      deps(task({}), {
+        reviews: [
+          { state: "APPROVED", user: "lore-agent[bot]" },
+          { state: "COMMENTED", user: "lore-agent[bot]" },
+        ],
+      }),
+    );
+
+    expect(result?.policy.botApproved).toBe(true);
+  });
 });

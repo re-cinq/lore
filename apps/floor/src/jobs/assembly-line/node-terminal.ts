@@ -121,6 +121,11 @@ export async function finishNodeTerminal(
   await publishCheck(input.row.id, deps);
 }
 
+/** Prompt refs whose nodes emit the REVIEW_FINDINGS + REVIEW_RESULT contract the
+ *  deterministic poster renders as a formal review: the deep review on PR open and
+ *  the fast re-check on every push. Both post through the same path. */
+const REVIEW_PROMPT_REFS = new Set(["code-review", "code-review-recheck"]);
+
 /**
  * A review node emits structured findings instead of posting them itself; render
  * and post them here. A review that computes findings and posts nothing is the
@@ -133,7 +138,7 @@ export async function postReviewFromNode(
   output?: string,
   ports: ReviewPorts = {},
 ): Promise<ReviewPostOutcome> {
-  if (node.prompt_ref !== "code-review") {
+  if (!REVIEW_PROMPT_REFS.has(node.prompt_ref ?? "")) {
     return "not_review";
   }
   const prNumber = Number(row.args.pr_number) || 0;

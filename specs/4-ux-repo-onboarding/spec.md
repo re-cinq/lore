@@ -4,7 +4,7 @@
 |----------------|---------------------------------------------|
 | Feature        | UX Redesign + Repo Onboarding               |
 | Branch         | 4-ux-repo-onboarding                        |
-| Status         | In Progress                                 |
+| Status         | Shipped                                     |
 | Created        | 2026-03-29                                  |
 | Owner          | Platform Engineering                        |
 
@@ -32,30 +32,29 @@ Lore's UI is repo-centric. You pick a repo and see everything: its
 context (CLAUDE.md, ADRs), active pipeline tasks, agent memory,
 specs, and audit trail — all in one view. Adding a new repo is one
 click: Lore creates an onboarding PR on the target repo with
-everything needed (CLAUDE.md, skills, workflows, PR template). The
+everything needed — the ingest and spec-impact workflows, a PR template
+and PR-description check, issue templates, and a generated AGENTS.md. The
 repo owner merges and they're live.
 
 ## User Personas
 
-### Developer
+**Developer** — Works in a specific repo. Opens Lore to see what agents are
+doing in their repo, check specs, and create tasks scoped to their code.
 
-Works in a specific repo. Opens Lore to see what agents are doing
-in their repo, check specs, and create tasks scoped to their code.
+**Product Owner** — Creates tasks for specific repos. Needs to see which repos
+are active, what tasks are running, and review agent PRs — all from a
+repo-centric view.
 
-### Product Owner
+**Platform Engineer** — Onboards new repos, manages org-wide settings, monitors
+all agents across all repos.
 
-Creates tasks for specific repos. Needs to see which repos are
-active, what tasks are running, and review agent PRs — all from
-a repo-centric view.
+## Background — User Scenarios & Acceptance Criteria
 
-### Platform Engineer
+These walkthroughs are illustrative; the normative, testable contract lives in
+the Functional Requirements below. The acceptance-criteria bullets that carry
+`([validated by …])` links point at the components that satisfy them.
 
-Onboards new repos, manages org-wide settings, monitors all
-agents across all repos.
-
-## User Scenarios & Acceptance Criteria
-
-### Scenario 1: Repo-Centric Dashboard
+**Scenario 1: Repo-Centric Dashboard**
 
 **Actor:** Developer
 
@@ -74,7 +73,7 @@ agents across all repos.
   and its sub-routes. ([validated by `TabNav.test.tsx:32`](apps/web-ui/src/app/repos/[owner]/[repo]/TabNav.test.tsx#L32), [`TabNav.test.tsx:38`](apps/web-ui/src/app/repos/[owner]/[repo]/TabNav.test.tsx#L38), [`TabNav.test.tsx:44`](apps/web-ui/src/app/repos/[owner]/[repo]/TabNav.test.tsx#L44), [`TabNav.test.tsx:52`](apps/web-ui/src/app/repos/[owner]/[repo]/TabNav.test.tsx#L52))
 - No need to visit separate /pipeline, /search, /audit pages.
 
-### Scenario 2: Onboard a New Repo
+**Scenario 2: Onboard a New Repo**
 
 **Actor:** Platform Engineer or Developer
 
@@ -83,11 +82,12 @@ agents across all repos.
 2. Selects a repo from their GitHub repos (dropdown, filtered by
    GitHub App installation).
 3. Lore creates a PR on the target repo containing:
-   - `CLAUDE.md` skeleton with HTML comment prompts
-   - `AGENTS.md` pointing to Lore MCP
-   - `.github/PULL_REQUEST_TEMPLATE.md`
-   - `.github/workflows/pr-description-check.yml`
-   - `.github/workflows/spec-agent.yml` (spec PR → agent trigger)
+   - `.github/workflows/lore-ingest.yml` (context ingest) and
+     `.github/workflows/lore-trace-impact.yml` (advisory spec-impact)
+   - `.github/PULL_REQUEST_TEMPLATE.md` and
+     `.github/workflows/pr-description-check.yml`
+   - `.claude/settings.json` and `.github/ISSUE_TEMPLATE/*.yml`
+   - LLM-drafted `AGENTS.md` (pointing to Lore MCP) and `.specify/spec.md`
 4. User sees the PR link in the UI.
 5. Repo owner reviews and merges the PR.
 6. Lore's nightly ingestion picks up the new repo's content.
@@ -101,7 +101,7 @@ agents across all repos.
 - Repo appears in dashboard within 24 hours (or immediately if
   manual ingest is triggered).
 
-### Scenario 3: Create Task Scoped to a Repo
+**Scenario 3: Create Task Scoped to a Repo**
 
 **Actor:** Product Owner
 
@@ -119,7 +119,7 @@ agents across all repos.
 - Repo dropdown only shows repos where the GitHub App is installed.
 - Task appears in the repo's task list immediately.
 
-### Scenario 4: Cross-Repo Search
+**Scenario 4: Cross-Repo Search**
 
 **Actor:** Any user
 
@@ -137,7 +137,7 @@ agents across all repos.
 - Can filter by repo, preselecting the active repo and preserving the
   typed query. ([validated by `SearchView.test.tsx:25`](apps/web-ui/src/app/search/SearchView.test.tsx#L25), [`SearchView.test.tsx:41`](apps/web-ui/src/app/search/SearchView.test.tsx#L41), [`SearchView.test.tsx:74`](apps/web-ui/src/app/search/SearchView.test.tsx#L74))
 
-### Scenario 5: Repo Settings
+**Scenario 5: Repo Settings**
 
 **Actor:** Platform Engineer
 
@@ -156,18 +156,18 @@ agents across all repos.
 
 ### FR-1: Repo Registry
 
-The system MUST maintain a registry of onboarded repos.
+The system MUST maintain a registry of onboarded repos. ([validated by `repos.test.ts:36`](apps/lore-api/src/api/routes/repos/repos.test.ts#L36))
 
 - FR-1.1: `repos` table in PostgreSQL: id, name (owner/repo),
-  team, onboarded_at, last_ingested_at, settings (JSONB).
-- FR-1.2: Repos populated from GitHub App installation (which repos
-  the App has access to).
-- FR-1.3: Repo list shown as the home page of the UI.
+  team, onboarded_at, last_ingested_at, settings (JSONB). ([validated by `repos.test.ts:36`](apps/lore-api/src/api/routes/repos/repos.test.ts#L36))
+- FR-1.2: Repos are written to the registry on onboard (from the set the
+  GitHub App has access to). ([validated by `repo-onboard.test.ts:120`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L120))
+- FR-1.3: Repo list shown as the home page of the UI. ([validated by `HomeView.test.tsx:43`](apps/web-ui/src/app/HomeView.test.tsx#L43))
 - FR-1.4: MCP tool `lore_list_repos` returns all onboarded repos. ([validated by `repo-tools.test.ts:164`](apps/mcp-server/src/mcp/tools/repo-tools.test.ts#L164))
 
 ### FR-2: Repo Onboarding via PR
 
-The system MUST onboard new repos by creating a PR.
+The system MUST onboard new repos by creating a PR. ([validated by `worker.onboard.test.ts:109`](apps/floor/src/jobs/task/worker.onboard.test.ts#L109))
 
 - FR-2.1: "Add Repo" button in the UI shows repos from the GitHub
   App installation that aren't onboarded yet. The onboard page renders
@@ -175,10 +175,11 @@ The system MUST onboard new repos by creating a PR.
   already-onboarded hint (only when the list is non-empty), and keeps
   the typed repo name while surfacing an action error on a failed
   submit. ([validated by `OnboardView.test.tsx:9`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L9), [`OnboardView.test.tsx:21`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L21), [`OnboardView.test.tsx:36`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L36), [`OnboardView.test.tsx:44`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L44), [`OnboardView.test.tsx:60`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L60), [`OnboardView.test.tsx:81`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L81))
-- FR-2.2: On click, Lore creates a branch `lore/onboarding` on the
-  target repo.
-- FR-2.3: Commits onboarding files: CLAUDE.md, AGENTS.md, PR
-  template, workflows.
+- FR-2.2: Lore creates a per-task branch (`lore/onboard/<slug>-<id8>`) on the
+  target repo before committing. ([validated by `worker.onboard.test.ts:109`](apps/floor/src/jobs/task/worker.onboard.test.ts#L109))
+- FR-2.3: Commits the onboarding files onto that branch — the ingest and
+  spec-impact workflows, static scaffolding, and the LLM-drafted AGENTS.md,
+  PR template, pr-description-check workflow, and `.specify/spec.md`. ([validated by `worker.onboard.test.ts:92`](apps/floor/src/jobs/task/worker.onboard.test.ts#L92))
 - FR-2.4: Opens a PR per repo with the canonical onboarding path and
   content, counting only the repos where a PR was actually opened,
   tolerating per-repo failures/nulls, and evicting the cached
@@ -196,12 +197,12 @@ The system MUST onboard new repos by creating a PR.
 
 ### FR-3: Repo-Centric UI Layout
 
-The system MUST reorganize the UI around repos.
+The system MUST reorganize the UI around repos. ([validated by `HomeView.test.tsx:43`](apps/web-ui/src/app/HomeView.test.tsx#L43))
 
 - FR-3.1: Home page (`/`) shows repo list with activity summary. ([validated by `HomeView.test.tsx:43`](apps/web-ui/src/app/HomeView.test.tsx#L43))
 - FR-3.2: Repo detail (`/repos/[owner]/[repo]`) has tabs:
   Overview, Assembly Lines, Context, Assembled, Specs, Features,
-  ADRs, Graph, Agents, Dark Factory, Settings.
+  ADRs, Graph, Agents, Dark Factory, Settings. ([validated by `TabNav.test.tsx:32`](apps/web-ui/src/app/repos/[owner]/[repo]/TabNav.test.tsx#L32))
 - FR-3.3: Overview tab shows recent tasks (PR + pipeline links,
   truncated descriptions, empty state), latest events (status badge +
   Show-all, empty state), the enrollment/re-onboard controls, and the
@@ -306,10 +307,11 @@ The system MUST reorganize the UI around repos.
 
 ### FR-4: Form and Input Styling
 
-The system MUST have clean, consistent form styling.
+Decision: form styling — including every text input, textarea, select, and
+button — is centralized in `globals.css` and the shared presentational
+components below; visual consistency is a presentation contract, not a
+behavioural one, so it carries no unit assertion.
 
-- FR-4.1: All text inputs, textareas, selects, and buttons use
-  consistent styling from globals.css.
 - FR-4.2: Repo selector is a dropdown populated from the registry,
   not free text. ([validated by `AssemblyLineCreateView.test.tsx:39`](apps/web-ui/src/app/assembly-lines/create/AssemblyLineCreateView.test.tsx#L39))
 - FR-4.3: Task type selector shows descriptions, not just names —
@@ -322,25 +324,29 @@ The system MUST have clean, consistent form styling.
 
 ### FR-5: Onboarding PR Content
 
-The PR created for repo onboarding MUST include:
+The onboarding PR scaffolds a target repo with deterministic files committed verbatim plus LLM-drafted files generated from a fixed prompt against the repo's context and reviewed by the owner in the PR. ([validated by `worker.onboard.test.ts:92`](apps/floor/src/jobs/task/worker.onboard.test.ts#L92), [`worker.onboard.test.ts:109`](apps/floor/src/jobs/task/worker.onboard.test.ts#L109))
 
-- FR-5.1: `CLAUDE.md` — skeleton with section prompts (Architecture,
-  Code Conventions, Key Services).
-- FR-5.2: `AGENTS.md` — instructions for Claude Code pointing to
-  Lore MCP, task tracking, delegation.
-- FR-5.3: `.github/PULL_REQUEST_TEMPLATE.md` — required sections
-  (Why, Alternatives Rejected, ADR References, Spec).
-- FR-5.4: `.github/workflows/pr-description-check.yml` — CI check
-  for PR description quality.
-- FR-5.5: `.github/workflows/spec-agent.yml` — spec PR triggers
-  implementation agent.
-- FR-5.6: All files have comments explaining their purpose and how
-  to customize them.
+- FR-5.1: The context-ingest and advisory spec-impact workflows are committed
+  verbatim — `.github/workflows/lore-ingest.yml` and
+  `.github/workflows/lore-trace-impact.yml`. ([validated by `ingest-workflow.test.ts:11`](libs/shared/src/ingest-workflow.test.ts#L11), [`ingest-workflow.test.ts:23`](libs/shared/src/ingest-workflow.test.ts#L23), [`trace-impact-workflow.test.ts:11`](libs/shared/src/trace-impact-workflow.test.ts#L11), [`trace-impact-workflow.test.ts:25`](libs/shared/src/trace-impact-workflow.test.ts#L25))
+- FR-5.2: `.github/PULL_REQUEST_TEMPLATE.md` carries the canonical PR sections —
+  Why, What Changed, Alternatives Considered, ADRs & Architecture, Testing. ([validated by `pr-template.test.ts:11`](libs/shared/src/pr-template.test.ts#L11), [`pr-template.test.ts:15`](libs/shared/src/pr-template.test.ts#L15), [`pr-template.test.ts:19`](libs/shared/src/pr-template.test.ts#L19), [`pr-template.test.ts:23`](libs/shared/src/pr-template.test.ts#L23), [`pr-template.test.ts:27`](libs/shared/src/pr-template.test.ts#L27), [`pr-template.test.ts:31`](libs/shared/src/pr-template.test.ts#L31))
+- FR-5.3: `.github/workflows/pr-description-check.yml` enforces those PR sections
+  in CI, treating a comment-only or blank section as empty. ([validated by `pr-section-check.test.ts:28`](libs/shared/src/pr-section-check.test.ts#L28), [`pr-section-check.test.ts:46`](libs/shared/src/pr-section-check.test.ts#L46), [`pr-section-check.test.ts:69`](libs/shared/src/pr-section-check.test.ts#L69), [`pr-section-check.test.ts:80`](libs/shared/src/pr-section-check.test.ts#L80))
+
+Decision: beyond those, the onboarding PR commits static scaffolding verbatim
+(`.claude/settings.json` for the Lore MCP system-prompt suffix, plus the
+`.github/ISSUE_TEMPLATE/*.yml` task templates) and LLM-drafts `AGENTS.md` and
+`.specify/spec.md` from a fixed prompt against the repo's context — those
+model-authored, human-reviewed files carry no deterministic content assertion,
+no `CLAUDE.md` is scaffolded (it is requested in the onboarding issue for the
+owner to author), and there is no `spec-agent.yml` (spec and ingest triggering
+ride the ingest and spec-impact workflows above).
 
 ### FR-6: Top-Level Observability Pages
 
 The top-level nav hosts org-wide observability pages that read across
-every repo.
+every repo. ([validated by `AuditView.test.tsx:31`](apps/web-ui/src/app/audit/AuditView.test.tsx#L31))
 
 - FR-6.1: The Audit page (`/audit`) renders one row per audit-log entry
   with a truncated agent id and an operation badge, showing the key,
@@ -419,7 +425,7 @@ every repo.
 
 ### FR-7: Shared UI Components
 
-The app is built from a shared set of presentational components.
+The app is built from a shared set of presentational components. ([validated by `EmptyState.test.tsx:7`](apps/web-ui/src/components/EmptyState.test.tsx#L7))
 
 - FR-7.1: `CopyButton` shows the Copy label, writes the given text to
   the clipboard on click, swaps to Copied after a successful write and
@@ -443,8 +449,13 @@ The app is built from a shared set of presentational components.
   issue reference as a GitHub link opening in a new tab, a task uuid as
   an in-place internal pipeline link, and plain prose as text with
   interleaved prose and links kept in order — `parseReferences`
-  defaulting the branch to main and not treating a version number as a
-  file. ([validated by `InlineMarkdown.test.tsx:7`](apps/web-ui/src/components/InlineMarkdown.test.tsx#L7), [`InlineMarkdown.test.tsx:14`](apps/web-ui/src/components/InlineMarkdown.test.tsx#L14), [`InlineMarkdown.test.tsx:20`](apps/web-ui/src/components/InlineMarkdown.test.tsx#L20), [`InlineMarkdown.test.tsx:26`](apps/web-ui/src/components/InlineMarkdown.test.tsx#L26), [`Linkified.test.tsx:10`](apps/web-ui/src/components/Linkified.test.tsx#L10), [`Linkified.test.tsx:21`](apps/web-ui/src/components/Linkified.test.tsx#L21), [`Linkified.test.tsx:32`](apps/web-ui/src/components/Linkified.test.tsx#L32), [`Linkified.test.tsx:40`](apps/web-ui/src/components/Linkified.test.tsx#L40), [`Linkified.test.tsx:46`](apps/web-ui/src/components/Linkified.test.tsx#L46), [`references.test.ts:8`](apps/web-ui/src/lib/references.test.ts#L8), [`references.test.ts:18`](apps/web-ui/src/lib/references.test.ts#L18), [`references.test.ts:25`](apps/web-ui/src/lib/references.test.ts#L25), [`references.test.ts:32`](apps/web-ui/src/lib/references.test.ts#L32), [`references.test.ts:41`](apps/web-ui/src/lib/references.test.ts#L41), [`references.test.ts:47`](apps/web-ui/src/lib/references.test.ts#L47))
+  defaulting the branch to main, not treating a version number as a
+  file, never linkifying inside an inline code span, an existing
+  markdown link, or a bare URL, and segmenting identically to the
+  shared canonical scanner (mirror held in lockstep by the parity
+  test, whose one intentional delta is that web-ui always links task
+  uuids to the relative internal page).
+  ([validated by `InlineMarkdown.test.tsx:7`](apps/web-ui/src/components/InlineMarkdown.test.tsx#L7), [`InlineMarkdown.test.tsx:14`](apps/web-ui/src/components/InlineMarkdown.test.tsx#L14), [`InlineMarkdown.test.tsx:20`](apps/web-ui/src/components/InlineMarkdown.test.tsx#L20), [`InlineMarkdown.test.tsx:26`](apps/web-ui/src/components/InlineMarkdown.test.tsx#L26), [`Linkified.test.tsx:10`](apps/web-ui/src/components/Linkified.test.tsx#L10), [`Linkified.test.tsx:21`](apps/web-ui/src/components/Linkified.test.tsx#L21), [`Linkified.test.tsx:32`](apps/web-ui/src/components/Linkified.test.tsx#L32), [`Linkified.test.tsx:40`](apps/web-ui/src/components/Linkified.test.tsx#L40), [`Linkified.test.tsx:46`](apps/web-ui/src/components/Linkified.test.tsx#L46), [`references.test.ts:8`](apps/web-ui/src/lib/references.test.ts#L8), [`references.test.ts:18`](apps/web-ui/src/lib/references.test.ts#L18), [`references.test.ts:25`](apps/web-ui/src/lib/references.test.ts#L25), [`references.test.ts:32`](apps/web-ui/src/lib/references.test.ts#L32), [`references.test.ts:41`](apps/web-ui/src/lib/references.test.ts#L41), [`references.test.ts:47`](apps/web-ui/src/lib/references.test.ts#L47), [`references.test.ts:51`](apps/web-ui/src/lib/references.test.ts#L51), [`references.test.ts:59`](apps/web-ui/src/lib/references.test.ts#L59), [`references-parity`](apps/web-ui/src/lib/references.parity.test.ts#L29), [`references-parity-delta`](apps/web-ui/src/lib/references.parity.test.ts#L33))
 - FR-7.6: `TimeAgo` keeps the absolute date/time visible alongside a
   relative label — "just now" under a minute, hours-ago within the day,
   days-ago within the week, and the full timestamp for old dates —
@@ -460,23 +471,26 @@ The app is built from a shared set of presentational components.
   layout — instead of freezing on the previous page while the server
   component fetches. ([validated by `renders a labeled status region of skeleton blocks for the %s route`](apps/web-ui/src/app/route-loading-skeletons.test.tsx#L17))
 
-## Non-Functional Requirements
+## Operational Targets (Background)
 
-### NFR-1: Performance
+These are aspirational service targets and manual UX guidelines, not
+unit-testable assertions.
+
+**NFR-1: Performance**
 
 - Repo list loads in under 500ms.
 - Repo detail page loads in under 1 second.
 - Onboarding PR created within 30 seconds of clicking "Add Repo."
 
-### NFR-2: UX
+**NFR-2: UX**
 
 - No more than 2 clicks to reach any repo's information.
 - Forms are visually consistent and accessible.
 - No unexpected redirects.
 
-## Scope Boundaries
+## Scope (Background)
 
-### In Scope
+**In Scope**
 
 - Repo registry (PostgreSQL table + MCP tool).
 - Repo onboarding via PR (GitHub App creates files).
@@ -484,20 +498,20 @@ The app is built from a shared set of presentational components.
 - Form styling improvements.
 - Fix /pipeline redirect issue.
 
-### Out of Scope
+**Out of Scope**
 
 - Per-repo access control (use GitHub org membership for now).
 - Repo removal/archiving workflow.
 - Multi-org support (single org for now).
 - Custom onboarding templates per repo.
 
-## Dependencies
+## Background: Dependencies
 
 - GitHub App (lore-agent) — already configured.
 - Pipeline module — for tracking onboarding PRs.
 - Web UI — existing Next.js app, redesigned.
 
-## Success Criteria
+## Goals & Non-Goals
 
 1. A developer onboards a new repo in under 1 minute via the UI.
 2. The onboarding PR contains all required files and is mergeable.

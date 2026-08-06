@@ -29,6 +29,7 @@ import {
 import type {
   CreateReviewInput,
   IssueComment,
+  PRReviewEvent,
   PullReview,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 
@@ -99,6 +100,14 @@ function renderComment(finding: ReviewFinding): string {
     discussion: finding.discussion,
     suggestion: finding.suggestion,
   }).render();
+}
+
+/** The formal GitHub review event carrying the node's verdict. Always submitted
+ *  (no suggestion-only COMMENT): an approved verdict APPROVEs, everything else
+ *  REQUEST_CHANGES — the signal auto-merge's bot-approval gate reads. The same
+ *  review carries the inline findings, so one post delivers both. */
+function reviewEvent(output: ReviewOutput): PRReviewEvent {
+  return output.verdict === "approved" ? "APPROVE" : "REQUEST_CHANGES";
 }
 
 function toReviewComment(finding: ReviewFinding) {
@@ -172,7 +181,7 @@ export async function postReview(
 
   try {
     await pulls.createReview(prNumber, {
-      event: "COMMENT",
+      event: reviewEvent(output),
       body: withMarker(composeBody(output, overflow), marker),
       comments: inline.map(toReviewComment),
     });

@@ -22,7 +22,7 @@ only at decision points.
 ### Entry B: New feature (no spec yet)
 
 1. Ask: "What do you want to build? Short description — what and why."
-2. Load repo context via `get_context` (Lore MCP) to understand conventions.
+2. Load repo context via `lore_assemble_context` (Lore MCP) to understand conventions.
 3. Create the feature directory: `specs/{slug}/`
 4. Write `specs/{slug}/spec.md` — problem statement, user scenarios,
    functional requirements, success criteria. Match the style of existing

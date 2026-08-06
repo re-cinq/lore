@@ -5,6 +5,17 @@
 
 export type TraceStatementState = "tested" | "untested" | "narrative";
 
+/** A resolved `[label](path#Lline)` test link on a statement, the shape
+ * `toStatementInfo` builds for SpecDetails. Mirrors shared `SpecLinkRef`
+ * (libs/shared/src/spec-link-parser.ts). */
+export interface TestLinkRef {
+  label: string;
+  /** Repo-relative file path, leading slash stripped. */
+  path: string;
+  /** Line number from a `#L42` anchor, or null when absent. */
+  line: number | null;
+}
+
 export interface TraceLinkRef {
   kind: "test" | "code" | "adr";
   label: string;

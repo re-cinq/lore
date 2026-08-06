@@ -23,13 +23,16 @@ Closes the review loop by automatically running an agent review after an impleme
 > the **sole reviewer** (the legacy `review-reactor` was retired). The engagement is an
 > **event choreography** (wiring in [`code-review.ts`](../apps/floor/src/jobs/review/code-review.ts)):
 >
-> - **Triggers.** A **first** review runs on `opened` / `reopened` / `ready_for_review` /
->   `synchronize` — first-review-only (`hasReviewedPr`), so pushes after the first don't
->   re-review. Re-review is an explicit `@lore review` comment (or the manual
->   `POST /api/review/start` button). It posts a how-to "review started" comment.
-> - **Reviews are suggestion-only.** The `review` node emits **structured findings**
->   (`REVIEW_FINDINGS`) + a verdict; the Floor renders them as **Conventional Comments**
->   (with ` ```suggestion ` blocks) and posts ONE review. It never commits.
+> - **Triggers.** A **first, deep** review runs on `opened` / `reopened` /
+>   `ready_for_review` / the first `synchronize` (`hasReviewedPr`). Every **later push**
+>   starts the fast `code-review-recheck` line instead (2026-08 amendment below), so the
+>   verdict tracks the fix; an explicit `@lore review` still forces a full re-review. The
+>   first review posts a how-to "review started" comment; the re-check posts none.
+> - **Reviews submit a formal verdict** (2026-08 amendment). The `review` node emits
+>   **structured findings** (`REVIEW_FINDINGS`) + a verdict; the Floor renders them as
+>   **Conventional Comments** (with ` ```suggestion ` blocks) and posts ONE review whose
+>   GitHub event **is** the verdict — `APPROVE` or `REQUEST_CHANGES`, no longer a neutral
+>   `COMMENT`. It still never commits.
 > - **Comments are triaged.** Every non-keyword human comment starts the `comment-triage`
 >   line — a cheap Haiku station classifies it (review / address / answer / ignore) and the
 >   Floor routes it: `address` → a `code-review-reply` line commits the approved fix,
@@ -43,6 +46,30 @@ Closes the review loop by automatically running an agent review after an impleme
 > Loop-prevention stays load-bearing: bot-authored PRs and bot comments (`…[bot]`) are
 > skipped so the review never re-triggers on its own output. The reused gate is
 > `shouldAutoReview()`.
+
+> **Formal verdict + two-phase review (2026-08 amendment).** Two coupled changes close the
+> merge loop:
+>
+> 1. **Formal `APPROVE` / `REQUEST_CHANGES`, always on.** The single posted review now
+>    carries the verdict as its GitHub review event for **every** repo (not the
+>    suggestion-only `COMMENT` of the original design), so it satisfies branch-protection
+>    "require approvals" and the dark-factory `require_bot_approval` gate
+>    ([ADR-016](./ADR-016-dark-factory-mode.md)). Derived in
+>    [`post-review.ts`](../apps/floor/src/jobs/review/post-review.ts) from the
+>    already-parsed `output.verdict`; the inline findings ride the same review.
+> 2. **A fast re-check on every push.** After the deep review, each new push starts the
+>    cheap Haiku `code-review-recheck` line
+>    ([`code-review-recheck.yaml`](../libs/assembly-lines/src/assembly-lines/code-review-recheck.yaml)),
+>    which re-decides the verdict on the updated diff and re-submits it. Auto-merge reads
+>    the bot's **latest** decision, so a later `REQUEST_CHANGES` overrides an earlier
+>    `APPROVE` and vice-versa
+>    ([`pr-policy.ts`](../apps/floor/src/jobs/platform/pr-policy.ts)).
+>
+> **Self-approval limit.** GitHub 422s when the review author is the PR author, so the bot
+> cannot `APPROVE` its **own** PR; that post degrades to a plain comment and auto-merge
+> stays deferred. Fully autonomous self-approval on Lore-authored PRs requires the reviewer
+> to run as a **distinct GitHub App identity** from the author (`LORE_REVIEW_BOT_LOGIN`) —
+> deployment config, not code.
 
 ## Context
 

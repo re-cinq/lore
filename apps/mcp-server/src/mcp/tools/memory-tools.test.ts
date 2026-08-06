@@ -78,3 +78,26 @@ describe("lore_query_graph remote proxy (no local DB)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("lore_agent_stats (no local DB)", () => {
+  it("returns the requires-PostgreSQL message when no pool is configured", async () => {
+    const { registerMemoryTools } = await import("./memory-tools.js");
+    const handlers: Record<string, ToolHandler> = {};
+    const fakeServer = {
+      tool(
+        name: string,
+        _desc: string,
+        _schema: unknown,
+        handler: ToolHandler,
+      ) {
+        handlers[name] = handler;
+      },
+    };
+
+    registerMemoryTools(fakeServer as never, { getPool: () => null });
+
+    const result = await handlers["lore_agent_stats"]({});
+
+    expect(result.content[0].text).toMatch(/requires PostgreSQL/);
+  });
+});

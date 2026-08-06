@@ -12,7 +12,7 @@ PR history, and task state.
   Lore API (`LORE_API_URL`). Lean install: no pg/octokit/GCS/OTel-SDK. Three core
   tools: `lore_assemble_context`, `lore_search_context`, `lore_search_memory`,
   plus pipeline delegation, the local task runner, and 30+ tools total.
-- **`apps/lore-api`** (`src/index.ts` + `server/http-server.ts`) — the remote
+- **`apps/lore-api`** (`src/index.ts` + `src/server/http-server.ts`) — the remote
   HTTPS REST backend (`/api/*`) on GKE. Routes are organized one folder per
   endpoint under `src/api/routes/`; the DB/GitHub/GCS/tree-sitter work lives here.
   No MCP — it is a plain REST API.
@@ -66,10 +66,10 @@ status pill — a stale header misreports the org's backlog.
 
 ## Key Components
 
-- `mcp-server/` — the MCP server (TypeScript)
-- `mcp-server/src/routes.ts` — HTTP API route handlers (extracted from index.ts). Includes `/api/repos/:o/:r/settings/dark-factory` (GET/PUT, two-key authZ on privileged fields), `/api/tasks/:uuid/timeline`, `/api/tasks/by-pr/:o/:r/:n` (PR↔task resolver)
-- `mcp-server/src/dark-factory-settings.ts` — Zod schema + `resolveSettings()` defaults + `twoKeyFieldsTouched()` for the privileged-field gate
-- `mcp-server/src/dark-factory-authz.ts` — `verifyApproval()` runs the CODEOWNERS-approval-PR ceremony (open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`)
+- `apps/mcp-server/` — the MCP server (TypeScript)
+- `apps/lore-api/src/api/routes.ts` — barrel for the HTTP API layer; the native hapi routes are registered by `apps/lore-api/src/server/build-server.ts`, one folder per endpoint under `apps/lore-api/src/api/routes/` — e.g. `routes/dark-factory/dark-factory.ts` (GET/PUT `/api/repos/:o/:r/settings/dark-factory`, two-key authZ on privileged fields via `routes/two-key.ts`), `routes/tasks/task-timeline.ts` (`/api/tasks/:uuid/timeline`), `routes/tasks/task-by-pr.ts` (the PR↔task resolver)
+- `apps/lore-api/src/features/dark-factory/dark-factory-settings.ts` — Zod schema + `resolveSettings()` defaults + `twoKeyFieldsTouched()` for the privileged-field gate
+- `apps/lore-api/src/features/dark-factory/dark-factory-authz.ts` — `verifyApproval()` runs the CODEOWNERS-approval-PR ceremony (open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`)
 - `libs/shared/src/project/leases/lease-backends.ts` — `DbLeaseBackend` (Postgres CTE-based atomic acquire with takeover detection) + `FileLeaseBackend` (worktree mode under `~/.lore/leases/`) sharing a `LeaseBackend` interface (FR1.6)
 - `libs/assembly-lines/src/transition.ts` — `nextTransition()`: the pure replay that derives the walk's next step (launch / await / finish / fail) purely from the persisted `pipeline.assembly_line_nodes` rows + the definition graph (exact edge + `iteration_max` accounting via `selectEdge`). The event-driven walk (`apps/floor/src/jobs/assembly-line/advance.ts`) is its Floor-side driver; the old in-process `executeAssemblyLine` (stage commits, branch-trailer resume, per-node lease) was retired in the cutover (spec 6-dark-factory FR6.9)
 - `libs/assembly-lines/src/loader.ts` — Zod schema for assembly line YAML, cycle detection (DFS coloring; back-edges require `iteration_max`), reachability check; nodes carry optional `station_ref` (custom station image) + `timeout_minutes`, and detect nodes require `job_ref`
@@ -86,15 +86,15 @@ status pill — a stale header misreports the org's backlog.
 - `libs/shared/src/project/notify/notify.ts` — `decideNotify()` filters notifications by `dark_factory.notify` channel list
 - `apps/floor/src/jobs/lib/audit.ts` — `writeAuditLog()` writer for the new `pipeline.audit_log` table
 - `libs/shared/src/pr-body.ts` — `prFooter()` composes the standard `Lore-Task: <uuid>` (+ optional `Refs #N`) PR-body footer used by every Lore-authored PR
-- `shared/src/commit-trailers.ts` — `formatTrailers()` / `parseTrailers()` / `lastStageOnBranch()` exported via `@re-cinq/lore-shared`. Trailers are emitted unconditionally on every Lore-authored commit regardless of dark-mode setting (audit substrate for both modes)
+- `libs/shared/src/commit-trailers.ts` — `formatTrailers()` / `parseTrailers()` / `lastStageOnBranch()` exported via `@re-cinq/lore-shared`. Trailers are emitted unconditionally on every Lore-authored commit regardless of dark-mode setting (audit substrate for both modes)
 - `libs/shared/src/project/tasks/task-queue-{port,pg,memory}.ts` — `TaskQueueRepository`: the org-wide (repo-agnostic) `pipeline.tasks` claim/sweep mechanics single-sourced out of Floor — `claimNextPending` (worker poll, immediate-first + 30s grace), `findRecoverable`/`findStaleRunning` (crash-recovery + safety-net sweeps), `findReadySpecTasks`/`countRunningSpecTasksByGroup`/`claimSpecTask` (spec-task DAG dispatch). Pg adapter + InMemory double (the behavioral spec) + colocated tests. Repo-scoped task *record* ops stay on `project.tasks`
 - `libs/shared/src/project/events/event-queue-{port,pg,memory}.ts` — `EventQueueRepository`: the `pipeline.events` consume side (`claimBatch` with `FOR UPDATE SKIP LOCKED`, `markDone`/`markFailed`/`markDead`, `reapStuck`, `pruneHandled`); `insert` delegates to the shared `events.ts insertEvent`. The Floor event **loop/registry/scheduler** stay in `apps/floor/src/main-loop/`; only the SQL moved
 - `libs/shared/src/project/agent-run-events/agent-run-events-{port,pg,memory}.ts` — `AgentRunEventsRepository`: the `pipeline.agent_run_events` per-tool-call agent telemetry behind the live run visualization (`specs/assembly-line-run-viz`, ADR-037). Three methods — `insertBatch` (the ingest write, which resolves `agent_cr_name` → `assembly_line_id`/`node_id`/`iteration` against `pipeline.assembly_line_nodes` at write time via a `LEFT JOIN LATERAL`, newest node wins, and keeps an uncorrelated row rather than dropping it), `listSince` (the SSE catch-up read, scoped to one line and a cursor) and `pruneOld` (the retention reap). `AgentRunEventRow.id` is a string-encoded bigint — it outgrows `Number.MAX_SAFE_INTEGER` and doubles as the SSE `Last-Event-ID` cursor, so it is never narrowed to a JS number. Table + the correlation index come from migration `0031_agent_run_events.sql` (no FKs, deliberately: skip-not-fail ingest must never drop a batch). Bound Floor-side as the lazy `agentRunEvents()` singleton in `apps/floor/src/kernel/queues.ts`
 - `libs/shared/src/project/leases/lease-backends.ts` — `LeaseBackend` gained `reapExpired(cutoff)` (Db DELETE…RETURNING with OTEL span, File scan, `InMemoryLeaseReaper` double) so the lease-reaper goes through `project.leases` instead of a Floor-local repo
 - `apps/floor/src/kernel/queues.ts` — Floor-side lazy singletons binding the agent pool to the shared `Pg…` adapters (lazy because `getPool()` requires `initPool()` first). All Floor DB access goes through these (cross-repo/no-repo jobs) or `projectFor(repo)` (repo-scoped); inline `query()` SQL was extracted into `@re-cinq/lore-shared/project/*` ports (ADR-024 "Floor data access"). Singletons: `taskQueue`/`taskStore` (pipeline.tasks queue + record ops, incl. `setStatusIf` CAS / `setColumns` / `insertTask` gate-free), `eventQueue`, `leaseBackend`, `auditLog`, `usage` (llm_calls), `settings` (lore.repos record ops), `jobRuns`, `evalRuns`, `cost`, `contextCore`, `research`, `baseline`, `chunks`, `memoryLifecycle` (memory.* decay/feedback/episodes). Deleted the Floor-local `kernel/repositories/*`. Remaining inline-SQL holdouts (chunk-content reads in spec-coverage/gap-detect/spec-drift, global lore.settings/lore.features) are a Phase-2 knowledge-read port
-- `web-ui/src/app/tasks/[id]/Timeline.tsx` — client component, vertical stage-commit timeline with node-type icons, outcome badges, lease indicator. Polls `/api/tasks/:id/timeline` every 10s while task is in flight
-- `mcp-server/src/github-client.ts` — consolidated GitHub auth (App + token fallback)
-- `mcp-server/src/local-runner.ts` — local task runner (worktrees, background Claude Code). Guards against pushing to the wrong repo via `validateRepoMatch(taskRepo, cwdRepo)` at spawn time; skips PR creation if `git diff --cached --name-only` is empty after stage. Task state lives in `~/.lore/local-tasks.json` only — never inside the worktree.
+- `apps/web-ui/src/app/tasks/[id]/TimelinePanel.tsx` (+ `TimelineView.tsx`) — client container + pure presentational view for the vertical stage-commit timeline (node-type icons, outcome badges, lease indicator). `TimelinePanel` fetches `/api/tasks/:id/timeline` on mount and re-fetches on the page refresh coordinator's ticks while a non-terminal stage is in flight
+- `apps/lore-api/src/platform/github-client.ts` — consolidated GitHub auth (App + token fallback)
+- `apps/mcp-server/src/mcp/tools/local-runner-tools.local.ts` — local task runner (worktrees, background Claude Code). Guards against pushing to the wrong repo via `validateRepoMatch(taskRepo, cwdRepo)` at spawn time; skips PR creation if `git diff --cached --name-only` is empty after stage. Task state lives in `~/.lore/local-tasks.json` only — never inside the worktree.
 - `scripts/` — install.sh, lore-doctor, lore-init, glue scripts
 - `scripts/infra/` — setup-db.sh, setup-schedulers.sh, generate-embeddings.sh
 - `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/` — ordered, idempotent `NNNN_*.sql` applied to `lore-db` on every deploy by a `pre-install,pre-upgrade` Helm hook Job (`lore-platform/charts/ui-helm/templates/migrate-{job,configmap}.yaml`), tracked in `lore.schema_migrations`, connecting as `lore` (the DB owner — no superuser needed) via the chart's `dbPasswordSecret`. Runs on both deploy paths (CI `helm upgrade` of the umbrella and terraform `helm_release.lore_platform`). The hook now fires on every umbrella upgrade regardless of which service changed; it is idempotent (skip-if-applied) so re-running on a floor/mcp deploy is a no-op. Baseline schema still comes from `setup-*-schema.sh`; incremental changes go here.
@@ -108,31 +108,30 @@ status pill — a stale header misreports the org's backlog.
 - `teams/` — per-team CLAUDE.md files
 - `libs/shared/src/project/lib/github-port.ts` — the `GitHubPort` / `PullRequestsPort` the Project facade reads through (branch, commit, PR, issue, repo content). The old floor `CodePlatform`/`GitHubPlatform` were removed once floor consolidated onto this shared surface.
 - `libs/shared/src/project/lib/platform-github.ts` — the single octokit adapter implementing both ports (App-or-token auth, paginated reads, `getInstallationToken`); the only production octokit importer. Floor's duplicate adapter was deleted.
-- `web-ui/src/lib/github.ts` — GitHub App client for web-ui (PR status fetching)
-- `web-ui/src/lib/db.ts` — PostgreSQL pool + cross-schema helpers: `query`, `queryOne`, `getRepoSchema`, `getRepoSchemaAndTeam`, `queryAllChunks` (UNION ALL across all team schemas + `org_shared`)
-- `web-ui/src/app/specs/page.tsx` — global cross-repo spec browser; queries all schemas via `queryAllChunks`, filters `content_type = 'spec'`, shows 50 most-recent with per-repo filter buttons; not in the sidebar nav (only reachable via repo pages or direct URL)
-- `web-ui/src/app/specs/[...path]/page.tsx` — spec detail view; `[...path]` catch-all reconstructs the file path; breadcrumb label reads "Context" (differs from list page label "Specifications"); shows all chunks matching that `file_path` across all schemas
-- `web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` — per-repo spec view; scoped to one team schema; includes a server action form (`addSpec`) that inserts spec chunks directly into `{schema}.chunks` with `content_type = 'spec'`; shows 30 most-recent
-- `web-ui/src/app/tasks/[id]/TaskLogs.tsx` — live Job log viewer on the task detail page
-- `web-ui/src/app/tasks/[id]/PRStatusCard.tsx` — live PR status card
-- `apps/floor/src/jobs/review/review-reactor.ts` — addresses reviewer feedback (`reviewReactorJob` = cron path, `runReviewReactorForPR` = webhook path)
+- `apps/web-ui/src/lib/github.ts` — GitHub App client for web-ui (PR status fetching)
+- `apps/web-ui/src/lib/db.ts` — PostgreSQL pool + cross-schema helpers: `query`, `queryOne`, `getRepoSchema`, `getRepoSchemaAndTeam`, `queryAllChunks` (UNION ALL across all team schemas + `org_shared`)
+- `apps/web-ui/src/app/specs/page.tsx` — global cross-repo spec browser; reads the spec-traceability graph via `src/lib/trace-api` (`fetchAllSpecs`), renders `GlobalDocsView` linking each entry to the per-repo detail page; not the `chunks` table. Not in the sidebar nav (reachable via repo pages or direct URL)
+- `apps/web-ui/src/app/specs/[...path]/page.tsx` — global spec detail view; `[...path]` catch-all reconstructs the `encodeURIComponent`-encoded file path (single segment); renders one `SpecDocument` per repo holding that path (markdown from `fetchTraceSource`, statement overlay from `fetchTraceDocument`); breadcrumb reads "Specs"; empty state instead of a 404 when the path has no graph data
+- `apps/web-ui/src/app/repos/[owner]/[repo]/specs/page.tsx` — per-repo spec list via `SpecListView`, sourced from `fetchSpecSummaries`; each entry links to the per-repo detail page. Specs are projected into the graph by CI on push to `main` — no manual "add spec" write path, no `{schema}.chunks` writes
+- `apps/web-ui/src/app/tasks/[id]/TaskLogs.tsx` — live Job log viewer on the task detail page
+- `apps/web-ui/src/app/tasks/[id]/PRStatusCard.tsx` — live PR status card
 - `libs/shared/src/business-hours.ts` — IANA-TZ-aware gate used by safety crons
 - `apps/floor/src/delivery/http/server.ts` (+ `routes/health.ts`) — the Floor HTTP server: `POST /api/webhook/github` (the GitHub webhook ingress, HMAC-verified, maps→inserts `github.*` events), the `/api/agent-events` NDJSON cost sink, `GET /api/agent-events/stream/{assemblyLineId}` (the run-viz SSE stream), `GET /api/agent-events/{assemblyLineId}` (run-event history), `GET /api/assembly-line-definitions/{name}`, and `/healthz`. The old `/api/trigger/*` fan-out endpoints were replaced by the event bus (`apps/floor/src/{listeners,main-loop,jobs}/`): listeners insert into `pipeline.events`, the loop dispatches to handlers. spec-coverage validate / spec-trace now run as `internal.ingest.*` event handlers (mcp-server inserts the events post-ingest via the shared `insertEvent`).
-- **`spec-test-coverage` v3 (2026-06-02):** source of truth for spec→test links is markdown inside `spec.md` — `Statement. ([validated by name](path/to/test.ts#L42))` at end of each statement. The web UI parses + colors them at render time via `web-ui/src/lib/spec-coverage-derive.ts` (`segmentStatements` → `classifyByHeuristic` → `parseTestLinksInStatement`); no DB linker tables (`spec_statements` / `spec_test_links` / `spec_coverage_runs` dropped in migration 0008). Three write-paths:
+- **`spec-test-coverage` v3 (2026-06-02):** source of truth for spec→test links is markdown inside `spec.md` — `Statement. ([validated by name](path/to/test.ts#L42))` at end of each statement. The web UI renders them from the traceability graph: `lib/trace-api.ts` fetches the `/trace` document, `lib/trace-statement-info.ts` adapts its statements, and `SpecDetails.tsx` colors them (the parsing itself lives in `libs/shared/src/spec-{segment,link-parser}.ts`); no DB linker tables (`spec_statements` / `spec_test_links` / `spec_coverage_runs` dropped in migration 0008). Three write-paths:
   - **Authors hand-write the links** (free; just edit `spec.md`).
   - **`/lore-suggest-links`** (subscription-billed, on-demand, single-spec) — Claude Code skill that walks through the same judge pipeline locally and opens a PR against the spec's repo. See `specs/local-link-suggester/`. Subscription tokens, no API spend.
   - **`spec-coverage-backfill`** (`ANTHROPIC_API_KEY`-billed, weekly Mon 11:00 UTC via `cron.spec_coverage_backfill.tick` → one per-repo assembly line; ADR-019 amendment) — finds testable un-linked statements via the v2 judge pipeline, opens a PR per spec with `proposeLinkInsertions` adding the inline parentheticals.
 
-  Plus the validate pass via `apps/floor/src/jobs/spec-trace/spec-coverage-validate.ts` (daily + post-ingest, resolves links, files `spec-link-rot` issues on broken links). See `specs/spec-test-coverage/`.
-- `mcp-server/src/context-assembly.ts` — context assembly with YAML templates
-- `mcp-server/templates/` — YAML context assembly templates (default, review, implementation, research)
-- `mcp-server/src/repo-validation.ts` — deterministic validation (lint/typecheck detection for Node/Go/Python/Rust)
-- `mcp-server/src/repo-validation-cli.ts` — CLI wrapper for validation in K8s Job pods
+  Plus the validate pass via `libs/shared/src/detect/spec-coverage-validate.ts` (daily + post-ingest, resolves links, files `spec-link-rot` issues on broken links). See `specs/spec-test-coverage/`.
+- `libs/server-core/src/features/context/context-assembly.ts` — context assembly with YAML templates
+- `libs/server-core/templates/` — YAML context assembly templates (default, review, implementation, research)
+- `libs/shared/src/repo-validation/repo-validation.ts` — deterministic validation (lint/typecheck detection for Node/Go/Python/Rust)
+- `apps/lore-api/src/features/repo/repo-validation-cli.ts` — CLI wrapper for validation in K8s Job pods
 - `scripts/slack-app-manifest.yaml` — Slack app manifest for /lore slash command
 - `apps/floor/src/jobs/lib/episode-writer.ts` — shared episode writer with Haiku-driven auto-curation
 - `libs/shared/src/llm/prompt-cache.ts` — `getCacheControl(jobName)` (ephemeral + optional `ttl: "1h"`), `computeCachePrefixHash` (djb2 over system + tool schemas), `analyzeCacheBreak` (in-memory per-job tracker classifying hit / first-call / prompt-changed / ttl-expired)
 - `apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.ts` — importance decay (eviction) + fact consolidation (pattern extraction)
-- `mcp-server/src/session-tracker.ts` — passive session tracking (tool calls, ring buffer, exit dump)
+- `libs/server-core/src/platform/session-tracker.ts` — passive session tracking (tool calls, ring buffer, exit dump)
 - `evals/` — PromptFoo eval configs per team
 
 ## Test Interface (project-test-interface)
@@ -148,7 +147,7 @@ descriptors), `run` (takes one test via the `{selector}` placeholder, prints
 `{passed, covered:[{file,startLine,endLine}]}` or an lcov/cobertura report),
 `coverage_format` (`lcov|cobertura|json`), `cwd` (monorepo subdir). Polyglot
 repos declare a list. Absent manifest → graceful fallback to pattern
-detection + bulk upload. Schema/loader: `shared/src/test-command-manifest.ts`
+detection + bulk upload. Schema/loader: `libs/shared/src/test-command-manifest.ts`
 (`resolveTestCommandManifest`, `decideTestInterfaceCheck`, `isManifestDeclared`).
 
 **Ingest endpoints** (write-scope bearer auth). Each fires a fire-and-forget
@@ -165,16 +164,16 @@ three (specs/adrs/tests) is a pipeline task.
 - `POST /api/repos/:o/:r/ingest-graph` — `{kinds[], commit, force?}`. Docs-only:
   `specs`/`adrs` fire the spec-trace trigger per kind (no task); any other kind is
   rejected `400` (test projection is CI-only via the lore-code-trace binary).
-  Scope `write`. `mcp-server/src/api/routes/ingest-graph.ts`.
+  Scope `write`. `apps/lore-api/src/api/routes/ingest/ingest-graph.ts`.
 - **Test ingest = the Floor `ci-tests` hook** (the old mcp `/test-report` + `/coverage`
   routes were removed in the cutover). The `lore-code-trace` binary runs the repo's suite
   in CI and POSTs `{repo, commit, branch, tests[], results[]}` to `POST /api/webhook/ci-tests`
-  on the Floor server (`apps/floor/src/listeners/ci-tests.ts`, bearer `LORE_INGEST_TOKEN`),
+  on the Floor server (`apps/floor/src/listeners/ci-tests-map.ts`, bearer `LORE_INGEST_TOKEN`),
   which emits `internal.ingest.spec_trace` (kind `test-report`) → `ingestTestReport`. The
   binary parses json / lcov (incl. `TN:`) / cobertura to canonical ranges itself
   (`apps/lore-code-trace/coverage.go`) — the server never parses coverage.
 
-**MCP tools** (`mcp-server/src/index.ts` → `mcp-server/src/spec-trace-tools.ts`):
+**MCP tools** (`apps/mcp-server/src/index.ts` → `apps/mcp-server/src/mcp/tools/spec-trace-tools.ts`):
 `lore_list_tests` / `lore_run_test` (run the manifest commands in the **caller's local
 sandbox**) and `query_trace` (live graph reads — proxies `GET /trace/document`,
 formats coverage + validated_by/violated). **Trust boundary**: execution only in a trusted sandbox (local dev /
@@ -340,7 +339,7 @@ Five service workloads on GKE (one umbrella chart, `lore-platform`):
 
 All secrets managed by External Secrets Operator (ESO) pulling from
 GCP Secret Manager. Single `terraform apply` deploys everything.
-See `terraform/` for the full configuration.
+See `infra/terraform/` for the full configuration.
 
 Deploy requires `secrets.tfvars` (copy from `secrets.tfvars.example`)
 plus four variables passed on the command line or in the file:
@@ -351,7 +350,7 @@ plus four variables passed on the command line or in the file:
 - `github_org` — GitHub organization name
 
 ```bash
-cd terraform && terraform apply \
+cd infra/terraform && terraform apply \
   -var-file=secrets.tfvars \
   -var='lore_api_url=https://lore-api.example.com' \
   -var='lore_ui_url=https://lore.example.com' \
@@ -617,7 +616,7 @@ MCP tool's `max_tokens` parameter default is also 8K.
 - Optional approval gates: tasks can require a human to add an `approved` label on the GitHub Issue before processing. Configured via settings UI or `lore.settings` table.
 
 **Dark Factory mode** (per-repo, off by default; ADR-016):
-- `lore.repos.settings.dark_factory` block: `enabled`, `create_issue`, `auto_merge.{paths,min_trust,require_*}`, `review`, `notify`. Schema in `mcp-server/src/dark-factory-settings.ts`; defaults in `resolveSettings()`. Canonical types + resolver live in `@re-cinq/lore-shared` (`shared/src/dark-factory-settings.ts`) so floor + mcp-server share one source.
+- `lore.repos.settings.dark_factory` block: `enabled`, `create_issue`, `auto_merge.{paths,min_trust,require_*}`, `review`, `notify`. Schema in `apps/lore-api/src/features/dark-factory/dark-factory-settings.ts`; defaults in `resolveSettings()`. Canonical types + resolver live in `@re-cinq/lore-shared` (`libs/shared/src/dark-factory-settings.ts`) so floor + lore-api share one source.
 - **Enablement.** Per-repo `dark_factory.enabled = true` turns on dark mode for impl/general/review tasks. All tasks execute on the ai-agent-subsystem (agent-cr); the legacy LoreTask path and its cluster gate were removed (ADR-031).
 - Privileged changes (`enabled` toggle, `auto_merge.paths`, downgrade of `require_*` to false) need two-key authorization: admin scope + an open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md` (`dark-factory-authz.ts`).
 - Branch-as-state: every workflow phase commits with `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers; the supervisor reads `git log` to resume after pod death.

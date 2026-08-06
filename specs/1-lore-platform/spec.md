@@ -4,7 +4,7 @@
 |-------------------|--------------------------------------------|
 | Feature           | Lore Platform                              |
 | Branch            | 1-lore-platform                            |
-| Status            | In Progress                                |
+| Status            | Shipped                                    |
 | Created           | 2026-03-25                                 |
 | Updated           | 2026-04-20                                 |
 | Owner             | Platform Engineering                       |
@@ -52,34 +52,34 @@ automatic.
 
 ## User Personas
 
-### New Developer (Day 1)
+**New Developer (Day 1)**
 
 A developer who has just joined Acme. They have no knowledge of org
 conventions, team patterns, or architectural history. They need to
 become productive without reading hundreds of pages of documentation.
 
-### Active Developer (Daily Use)
+**Active Developer (Daily Use)**
 
 A developer who works in one or more product repos daily. They need
 Claude Code to understand their team's conventions, the reasoning
 behind past decisions, and their current task state — automatically.
 
-### Tech Lead / Architect
+**Tech Lead / Architect**
 
 Reviews PRs, makes architectural decisions, and ensures consistency
 across teams. They need the system to capture and distribute decisions
 so they are not the bottleneck for "why did we do it this way?"
 questions.
 
-### Platform Engineer
+**Platform Engineer**
 
 Maintains the Lore infrastructure itself. They need observability
 into what context is being served, where gaps exist, and how the
 system is performing.
 
-## User Scenarios & Acceptance Criteria
+## Background — Usage Scenarios
 
-### Scenario 1: First-Time Setup
+**Scenario 1 — First-Time Setup**
 
 **Actor:** New Developer
 
@@ -100,7 +100,7 @@ system is performing.
   with no errors or side effects (idempotent).
 - The install command works without pre-cloning the repository.
 
-### Scenario 2: Morning Orientation
+**Scenario 2 — Morning Orientation**
 
 **Actor:** Active Developer
 
@@ -118,7 +118,7 @@ system is performing.
 - Claude Code can answer convention questions (e.g., "what are our
   error handling conventions?") without manual context loading.
 
-### Scenario 3: Starting a New Feature
+**Scenario 3 — Starting a New Feature**
 
 **Actor:** Active Developer
 
@@ -141,7 +141,7 @@ system is performing.
 - Generated constitution reflects real team ADRs and conventions.
 - Generated tasks have correct dependency relationships.
 
-### Scenario 4: Opening a Pull Request
+**Scenario 4 — Opening a Pull Request**
 
 **Actor:** Active Developer
 
@@ -161,7 +161,7 @@ system is performing.
 - If no spec file exists, system asks one targeted question about
   alternatives rejected before finishing the draft.
 
-### Scenario 5: Context Quality Enforcement
+**Scenario 5 — Context Quality Enforcement**
 
 **Actor:** Any Developer (via CI)
 
@@ -179,7 +179,7 @@ system is performing.
 - Warning-only mode for the first 2 weeks, hard fail after.
 - Eval pass threshold is 85%.
 
-### Scenario 6: Semantic Context Search (Phase 1)
+**Scenario 6 — Semantic Context Search (Phase 1)**
 
 **Actor:** Active Developer
 
@@ -199,7 +199,7 @@ system is performing.
 - Merging a PR with an alternatives-rejected section makes that
   reasoning searchable within 5 minutes.
 
-### Scenario 7: Cluster Delegation (Phase 1)
+**Scenario 7 — Cluster Delegation (Phase 1)**
 
 **Actor:** Active Developer
 
@@ -225,7 +225,7 @@ system is performing.
   duplicate work. ([validated by `AssemblyLineRunListView.test.tsx:14`](apps/web-ui/src/app/assembly-lines/AssemblyLineRunListView.test.tsx#L14))
 - Watcher posts the PR link and any Slack notifications on completion.
 
-### Scenario 8: Automated Gap Detection (Phase 2)
+**Scenario 8 — Automated Gap Detection (Phase 2)**
 
 **Actor:** Platform Engineer (reviewer), System (initiator)
 
@@ -247,7 +247,7 @@ system is performing.
 - Human review is required before any drafted content enters the
   shared context store.
 
-### Scenario 9: Temporal Knowledge Graph Traversal (Phase 3)
+**Scenario 9 — Temporal Knowledge Graph Traversal (Phase 3)**
 
 **Actor:** Active Developer or Tech Lead
 
@@ -289,28 +289,28 @@ serves as the source of truth for organizational context.
 
 ### FR-3: Developer Onboarding
 
-The system MUST provide a single-command install experience.
+The system MUST provide a single-command install experience. ([validated by `install-contract.test.mjs:13`](scripts/install-contract.test.mjs#L13))
 
 - FR-3.1: Install script clones the context repo, builds the MCP
   server, detects team, configures Claude Code settings, installs
-  platform skills, and runs health checks.
+  platform skills, and runs health checks. ([validated by `install-contract.test.mjs:13`](scripts/install-contract.test.mjs#L13), [`install-contract.test.mjs:52`](scripts/install-contract.test.mjs#L52), [`install-contract.test.mjs:65`](scripts/install-contract.test.mjs#L65), [`install-contract.test.mjs:78`](scripts/install-contract.test.mjs#L78), [`install-contract.test.mjs:91`](scripts/install-contract.test.mjs#L91), [`install-contract.test.mjs:99`](scripts/install-contract.test.mjs#L99), [`install-contract.test.mjs:143`](scripts/install-contract.test.mjs#L143))
 - FR-3.2: Install script is idempotent — re-running always produces
-  correct state.
-- FR-3.3: Install script works without pre-cloning the repository.
+  correct state. ([validated by `install-contract.test.mjs:117`](scripts/install-contract.test.mjs#L117), [`install-contract.test.mjs:130`](scripts/install-contract.test.mjs#L130), [`install-contract.test.mjs:156`](scripts/install-contract.test.mjs#L156))
+- FR-3.3: Install script works without pre-cloning the repository. ([validated by `install-contract.test.mjs:26`](scripts/install-contract.test.mjs#L26), [`install-contract.test.mjs:39`](scripts/install-contract.test.mjs#L39))
 - FR-3.4: Settings merge (via helper script) appends platform hooks
-  without overwriting personal developer hooks.
-- FR-3.5: Health check script tests all connections and prints clear
-  pass/fail with fix instructions for each.
+  without overwriting personal developer hooks. ([validated by `lore-merge-settings.test.mjs:25`](scripts/lore-merge-settings.test.mjs#L25), [`lore-merge-settings.test.mjs:41`](scripts/lore-merge-settings.test.mjs#L41))
+- Decision: the `lore-doctor` health-check script tests all connections and
+  prints clear pass/fail with fix instructions for each.
 
 ### FR-4: Task Tracking Integration
 
 The system MUST provide agent-native task tracking via PostgreSQL
-pipeline tasks and GitHub Issues.
+pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:39`](libs/shared/src/project/tasks/task-queue.test.ts#L39))
 
-- FR-4.1: `AGENTS.md` instructs Claude Code on task tracking
-  commands and proactive guidance behavior.
-- FR-4.2: Session start hook syncs task state automatically.
-- FR-4.3: Session end hook reminds about open claimed tasks.
+- Decision: the generated `AGENTS.md` instructs Claude Code on task-tracking
+  commands and proactive guidance behaviour.
+- Decision: a SessionStart hook syncs task state automatically.
+- Decision: a Stop (session-end) hook reminds about open claimed tasks.
 - FR-4.4: `lore_sync_tasks` MCP tool converts tasks.md task output into
   pipeline tasks with dependency relationships parsed from
   `[DEPENDS ON: ...]` annotations. ([validated by `tasks.test.ts:60`](libs/shared/src/tasks.test.ts#L60))
@@ -321,7 +321,7 @@ pipeline tasks and GitHub Issues.
   another task. ([validated by `task-queue.test.ts:9`](libs/shared/src/project/tasks/task-queue.test.ts#L9))
 - FR-4.6: Every pipeline task automatically creates a GitHub Issue
   on the target repo (labelled `lore-managed`). The issue receives
-  status comments and is closed when the PR is created.
+  status comments and is closed when the PR is created. ([validated by `issues.test.ts:102`](libs/shared/src/project/issues/issues.test.ts#L102), [`issues.test.ts:115`](libs/shared/src/project/issues/issues.test.ts#L115))
 - FR-4.7: Optional approval gates: tasks can require a human to add
   an `approved` label on the GitHub Issue before processing.
   Configured via the settings UI or `lore.settings` table. ([validated by `SettingsView.test.tsx:123`](apps/web-ui/src/app/settings/SettingsView.test.tsx#L123))
@@ -343,66 +343,66 @@ pipeline tasks and GitHub Issues.
 ### FR-5: Spec-Driven Feature Workflow
 
 The system MUST provide an end-to-end feature workflow via platform
-skills.
+skills. ([validated by `planning-prompt.test.ts:21`](libs/shared/src/feature-planning/planning-prompt.test.ts#L21))
 
 - FR-5.1: `/lore-feature` skill guides the full loop: constitution
-  generation → specification → task breakdown → pipeline task wiring.
+  generation → specification → task breakdown → pipeline task wiring. ([validated by `planning-instructions.test.ts:31`](libs/shared/src/feature-planning/planning-instructions.test.ts#L31), [`planning-prompt.test.ts:21`](libs/shared/src/feature-planning/planning-prompt.test.ts#L21))
 - FR-5.2: `/lore-pr` skill drafts PR descriptions from spec, task
-  context, and changed files.
-- FR-5.3: Constitution generation calls `lore_assemble_context` to
-  populate `.specify/constitution.md` with real ADRs and team
-  conventions.
+  context, and changed files. ([validated by `pr-body.test.ts:5`](libs/shared/src/pr-body.test.ts#L5), [`pr-body.test.ts:11`](libs/shared/src/pr-body.test.ts#L11))
+- Decision: constitution generation (the `lore-gen-constitution` glue script)
+  calls `lore_assemble_context` to populate `.specify/constitution.md` with
+  real ADRs and team conventions.
 - FR-5.4: Claude Code does mechanical work; developer confirms only
   at decision points (constitution review, spec review, task
-  breakdown review).
+  breakdown review). ([validated by `planning-prompt.test.ts:59`](libs/shared/src/feature-planning/planning-prompt.test.ts#L59), [`planning-prompt.test.ts:71`](libs/shared/src/feature-planning/planning-prompt.test.ts#L71))
 
 ### FR-6: PR Quality Enforcement
 
-The system MUST enforce PR description quality from day one.
+The system MUST enforce PR description quality from day one. ([validated by `pr-section-check.test.ts:28`](libs/shared/src/pr-section-check.test.ts#L28), [`pr-section-check.test.ts:32`](libs/shared/src/pr-section-check.test.ts#L32))
 
-- FR-6.1: PR template with required sections: Why, Approach,
-  Alternatives Rejected, ADR References, Spec.
-- FR-6.2: CI check fails PRs with empty Why or Alternatives Rejected
-  sections.
-- FR-6.3: Warning-only mode for first 2 weeks, hard fail after.
-  Transition from warning to enforcement is a manual flip by the
-  platform team via a configuration flag in the CI workflow. No
-  automatic date-based cutoff.
+- FR-6.1: PR template with required sections: Why, What Changed,
+  Alternatives Considered, ADRs & Architecture, and Testing. ([validated by `pr-template.test.ts:11`](libs/shared/src/pr-template.test.ts#L11), [`pr-template.test.ts:15`](libs/shared/src/pr-template.test.ts#L15), [`pr-template.test.ts:19`](libs/shared/src/pr-template.test.ts#L19), [`pr-template.test.ts:23`](libs/shared/src/pr-template.test.ts#L23), [`pr-template.test.ts:27`](libs/shared/src/pr-template.test.ts#L27), [`pr-template.test.ts:31`](libs/shared/src/pr-template.test.ts#L31))
+- FR-6.2: CI check fails PRs with an empty Why or Alternatives Considered
+  section. ([validated by `pr-section-check.test.ts:36`](libs/shared/src/pr-section-check.test.ts#L36), [`pr-section-check.test.ts:46`](libs/shared/src/pr-section-check.test.ts#L46), [`pr-section-check.test.ts:57`](libs/shared/src/pr-section-check.test.ts#L57), [`pr-section-check.test.ts:69`](libs/shared/src/pr-section-check.test.ts#L69), [`pr-section-check.test.ts:80`](libs/shared/src/pr-section-check.test.ts#L80), [`pr-section-check.test.ts:94`](libs/shared/src/pr-section-check.test.ts#L94), [`pr-section-check.test.ts:103`](libs/shared/src/pr-section-check.test.ts#L103), [`pr-section-check.test.ts:109`](libs/shared/src/pr-section-check.test.ts#L109), [`pr-section-check.test.ts:113`](libs/shared/src/pr-section-check.test.ts#L113))
+- Decision: PR-quality enforcement starts in warning-only mode; the platform
+  team flips it to hard-fail via a configuration flag in the CI workflow —
+  there is no automatic date-based cutoff.
 
 ### FR-7: Ingestion Pipeline (Phase 1)
 
 The system MUST ingest content from multiple sources into the vector
-store via the Lore Agent service.
+store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](libs/shared/src/content-classify.test.ts#L5))
 
 - FR-7.1: Fast path: on-push to main triggers incremental ingestion
-  via pipeline task.
+  via pipeline task. ([validated by `ingest-workflow.test.ts:11`](libs/shared/src/ingest-workflow.test.ts#L11), [`ci-ingest.test.ts:28`](apps/floor/src/delivery/http/routes/ci-ingest.test.ts#L28))
 - FR-7.2: Full path: nightly job triggers complete re-index via
-  pipeline task.
+  pipeline task. ([validated by `reindex-backfill.test.ts:24`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L24), [`reindex-seed.test.ts:5`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L5))
 - FR-7.3: Content types: code (AST-split), pull requests (diff +
   description + comments), ADRs, docs (section-chunked), specs,
-  runbooks.
-- FR-7.4: PII classifier runs at ingest time; sensitive content
-  excluded from general search.
-- FR-7.5: Lore Agent understands context semantically — it drafts
-  missing content and opens PRs, not just chunks and embeds.
+  runbooks. ([validated by `chunker.test.ts:6`](libs/shared/src/chunker.test.ts#L6), [`chunker.test.ts:172`](libs/shared/src/chunker.test.ts#L172), [`content-classify.test.ts:11`](libs/shared/src/content-classify.test.ts#L11))
+- FR-7.4: Secret and credential redaction runs at ingest time via
+  `redactSecrets()`; matched secrets are stripped before content is
+  embedded and made searchable. ([validated by `redact.test.ts:5`](libs/shared/src/redact.test.ts#L5), [`redact.test.ts:30`](libs/shared/src/redact.test.ts#L30))
+- FR-7.5: Beyond chunking and embedding, the Lore Agent drafts missing
+  content and opens PRs (the gap-detection drafting path, FR-10). ([validated by `gap-detect.test.ts:123`](libs/shared/src/detect/gap-detect.test.ts#L123))
 - FR-7.6: Nightly re-index MUST hard-delete chunks whose source
   file, PR, or ADR no longer exists or has been superseded. No
-  stale content is retained.
+  stale content is retained. ([validated by `verify.test.ts:69`](apps/floor/src/jobs/context-jobs/reindex/verify.test.ts#L69), [`chunks.test.ts:394`](libs/shared/src/project/chunks/chunks.test.ts#L394))
 
 ### FR-8: Observability (Phase 1)
 
-The system MUST provide observability into context retrieval quality.
+The system MUST provide observability into context retrieval quality. ([validated by `otel.test.ts:6`](libs/server-core/src/platform/otel.test.ts#L6), [`usage-tools.test.ts:47`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L47))
 
-- FR-8.1: All MCP retrieval calls traced via OpenTelemetry spans
-  exported to Cloud Monitoring.
+- Decision: all MCP retrieval calls are traced via OpenTelemetry spans
+  exported to Cloud Monitoring (SDK-level instrumentation).
 - FR-8.2: Low-confidence retrievals (score < threshold) tagged as
   gap candidates via OTEL span attributes and Cloud Monitoring
-  custom metrics.
-- FR-8.3: Gap signal feeds the autoresearch loop (ADR-010): Langfuse
-  low-confidence trace queries → candidate generation → PromptFoo eval
-  → PR for automated context improvement.
+  custom metrics. ([validated by `otel.test.ts:6`](libs/server-core/src/platform/otel.test.ts#L6), [`otel.test.ts:10`](libs/server-core/src/platform/otel.test.ts#L10), [`otel.test.ts:14`](libs/server-core/src/platform/otel.test.ts#L14))
+- See ADR-010 for the autoresearch loop: the low-confidence gap signal
+  (Langfuse trace queries → candidate generation → PromptFoo eval → PR)
+  drives automated context improvement.
 - FR-8.4: `lore_my_usage` tool exposes per-developer token consumption
-  (today / 7-day / 30-day) without leaving Claude Code.
+  (today / 7-day / 30-day) without leaving Claude Code. ([validated by `usage-tools.test.ts:47`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L47), [`usage-pg.test.ts:105`](libs/shared/src/project/usage/usage-pg.test.ts#L105))
 
 ### FR-9: Context Evaluation (Phase 1)
 
@@ -417,17 +417,17 @@ The system MUST validate context quality via CI.
 
 ### FR-10: Gap Detection (Phase 2)
 
-The system MUST automatically identify and address knowledge gaps.
+The system MUST automatically identify and address knowledge gaps. ([validated by `gap-detect.test.ts:105`](libs/shared/src/detect/gap-detect.test.ts#L105))
 
-- FR-10.1: Weekly job analyzes low-confidence retrievals from the
-  previous week.
-- FR-10.2: Gaps clustered by embedding similarity.
-- FR-10.3: For clusters with 3+ occurrences, Lore Agent drafts
-  the missing content.
-- FR-10.4: Agent opens PRs to the context repo with drafted content,
+- See ADR-010: a weekly job analyzes low-confidence retrievals from the
+  previous week (the autoresearch gap loop).
+- Decision: candidate gaps are clustered by embedding similarity.
+- FR-10.3: For a repo missing a documentation kind (CLAUDE.md, ADRs, or
+  specs), the `gap-detect` job drafts the missing content as a `gap-fill`
+  task. ([validated by `gap-detect.test.ts:123`](libs/shared/src/detect/gap-detect.test.ts#L123))
+- Decision: the agent opens PRs to the context repo with the drafted content,
   assigned to the relevant team.
-- FR-10.5: Human review required before any auto-drafted content is
-  merged.
+- Decision: human review is required before any auto-drafted content is merged.
 - FR-10.6: The per-repo `gap-detect` job skips repos that are not
   onboarded. ([validated by `gap-detect.test.ts:105`](libs/shared/src/detect/gap-detect.test.ts#L105))
 - FR-10.7: It checks the repo's resolved-schema chunks for a CLAUDE.md
@@ -447,35 +447,35 @@ The system MUST automatically identify and address knowledge gaps.
 ### FR-11: Live Knowledge Graph (Phase 1+)
 
 The system MUST support traversable knowledge via a PostgreSQL-backed
-live knowledge graph.
+live knowledge graph. ([validated by `graph.test.ts:49`](libs/server-core/src/features/memory/graph.test.ts#L49))
 
 - FR-11.1: Knowledge graph stored in `memory.entities` and
   `memory.edges` tables in PostgreSQL. Updated incrementally on
-  every `lore_write_episode` call via the Lore Agent fact extractor.
+  every `lore_write_episode` call via the Lore Agent fact extractor. ([validated by `graph.test.ts:137`](libs/server-core/src/features/memory/graph.test.ts#L137))
 - FR-11.2: Entity types: Service, Team, Function, PR, ADR, Spec,
   Concept, Runbook. Typed relationships: OWNS, CALLS, IMPLEMENTS,
-  SUPERSEDES, REFERENCES, AUTHORED_BY, DEFINES.
+  SUPERSEDES, REFERENCES, AUTHORED_BY, DEFINES. ([validated by `graph.test.ts:49`](libs/server-core/src/features/memory/graph.test.ts#L49), [`graph.test.ts:117`](libs/server-core/src/features/memory/graph.test.ts#L117))
 - FR-11.3: `lore_query_graph(query)` MCP tool traverses the live graph
-  for multi-hop relationship results.
+  for multi-hop relationship results. ([validated by `memory-tools.test.ts:48`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L48))
 - FR-11.4: Facts carry temporal validity (`valid_from`/`valid_to`),
   confidence tiers (`verified` / `observed` / `inferred` / `stale`),
   and retrieval metadata (`retrieval_count`, `last_retrieved_at`,
-  `half_life_days`).
+  `half_life_days`). ([validated by `facts.test.ts:105`](libs/server-core/src/features/memory/facts.test.ts#L105), [`memory-ranking.test.ts:162`](libs/shared/src/memory-ranking.test.ts#L162))
 - FR-11.5: Contradiction detection: when a new fact has cosine
   similarity ≥ 0.92 to an existing one, the old fact is invalidated
   and a conflict record written to `memory.fact_conflicts`. Context
   assembly prefixes `[CONFLICT]` on facts with recent (7-day)
-  conflicts.
+  conflicts. ([validated by `facts.test.ts:105`](libs/server-core/src/features/memory/facts.test.ts#L105), [`facts.test.ts:138`](libs/server-core/src/features/memory/facts.test.ts#L138))
 
 ### FR-12: Intelligent Memory Lifecycle (Phase 1)
 
 The system MUST manage agent memory automatically without agent
-cooperation.
+cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/platform/session-tracker.test.ts#L193))
 
 - FR-12.1: MCP server tracks all tool calls in a 500-entry ring
   buffer (`session-tracker.ts`). On exit, dumps to
   `~/.lore/last-session.json`. Stop hook POSTs to
-  `/api/session-summary` for automatic episode + fact extraction.
+  `/api/session-summary` for automatic episode + fact extraction. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/platform/session-tracker.test.ts#L193), [`session-tracker.test.ts:73`](libs/server-core/src/platform/session-tracker.test.ts#L73))
 - FR-12.2: Daily job at 5 AM scores memories 0-10 using half-life
   decay (`strength = 0.5^(age / half_life_days)`). Evicts
   lowest-scoring memories when agent exceeds 500 entries. Cleans
@@ -483,61 +483,57 @@ cooperation.
 - FR-12.3: Daily job at 5:30 AM groups recent facts (7-day lookback)
   by repo and calls Haiku to extract 1-3 higher-level patterns per
   repo. Stored as `consolidated/{repo}/{timestamp}` memories.
-  Minimum 5 facts required to trigger consolidation.
+  Minimum 5 facts required to trigger consolidation. ([validated by `memory-lifecycle.test.ts:103`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L103), [`memory-lifecycle.test.ts:202`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L202))
 - FR-12.4: Every `lore_search_memory` call asynchronously increments
   `retrieval_count`, updates `last_retrieved_at`, and extends
   `half_life_days` (+2, cap 365) on returned facts. Stale facts
   revive to `observed` on retrieval. Fire-and-forget — adds zero
-  latency to search.
+  latency to search. ([validated by `memory-lifecycle.test.ts:218`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L218), [`memory-lifecycle.test.ts:192`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L192))
 - FR-12.5: After every pipeline task completion (PR, no-changes,
   failure), an episode is automatically written. For high-signal
   events (PRs, failures), Haiku extracts a lesson and stores it
-  as `auto-curation/{ref}` memory.
+  as `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:78`](apps/floor/src/jobs/lib/episode-writer.test.ts#L78))
 
 ### FR-13: Autonomous Review Loop (Phase 1, opt-in)
 
-The system MUST support an opt-in autonomous review loop per repo.
-**Updated 2026-04-20 per ADR-015**: the reactor is now webhook-driven;
-cron is a safety net only.
+The system MUST support an opt-in, webhook-driven autonomous review loop per
+repo with a safety-net cron (ADR-015; the review agent runs on the
+ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L91))
 
-- FR-13.1: After an implementation PR is created, the loretask-watcher
-  automatically creates a review LoreTask CR (if `auto_review` is
-  enabled on the repo).
-- FR-13.2: Review Job pod clones the PR branch, reads spec +
-  conventions, posts PR comments via `gh`, and outputs APPROVED or
-  CHANGES_REQUESTED.
-- FR-13.3: On APPROVED: task marked reviewed; PR ready for human
-  merge.
-- FR-13.4: On CHANGES_REQUESTED (iteration < 2): new implementation
-  LoreTask created on the same branch with feedback as context.
-- FR-13.5: On CHANGES_REQUESTED (iteration ≥ 2): escalate to human
-  review. No further autonomous iterations.
-- FR-13.6: **Primary trigger is GitHub webhooks** (ADR-015). The
-  mcp-server webhook handler accepts `pull_request` events
-  (`synchronize`, `opened`, `reopened`, `ready_for_review`),
-  `pull_request_review.submitted`, and `issue_comment.created` (on
-  PRs). For qualifying events, mcp-server POSTs `{repo, pr_number}`
-  to `POST /api/trigger/review-reactor` on the agent service,
-  authenticated via `LORE_AGENT_INTERNAL_TOKEN`. Agent returns
-  `202 Accepted` and runs in the background.
+- FR-13.1: After an implementation PR is created, an auto-review is started on
+  the ai-agent-subsystem when `auto_review` is enabled on the repo (ADR-031
+  retired the loretask-watcher). ([validated by `should-auto-review.test.ts:5`](apps/floor/src/jobs/review/should-auto-review.test.ts#L5), [`code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L91))
+- FR-13.2: The review agent reads spec + conventions and posts ONE formal PR
+  review — inline comments per finding plus a summary, carrying the verdict as its
+  GitHub review event (`APPROVE` / `REQUEST_CHANGES`, always on, no longer a neutral comment). ([validated by `post-review.test.ts:78`](apps/floor/src/jobs/review/post-review.test.ts#L78), [`post-review.test.ts:178`](apps/floor/src/jobs/review/post-review.test.ts#L178))
+- FR-13.3: On a formal `APPROVE` the PR becomes eligible for (auto-)merge once the
+  remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by `post-review.test.ts:178`](apps/floor/src/jobs/review/post-review.test.ts#L178), [`auto-merge.test.ts:32`](apps/floor/src/jobs/merge/auto-merge.test.ts#L32))
+- FR-13.4: When changes are requested, a follow-up round is started on the same
+  branch carrying the feedback (the code-review-reply path). ([validated by `code-review.test.ts:113`](apps/floor/src/jobs/review/code-review.test.ts#L113))
+- FR-13.5: After further iterations the loop escalates to human review via a
+  `needs-human-help` Issue, with no further autonomous iterations. ([validated by `escalation.test.ts:87`](apps/floor/src/jobs/platform/escalation.test.ts#L87), [`escalation.test.ts:162`](apps/floor/src/jobs/platform/escalation.test.ts#L162))
+- FR-13.6: The primary trigger is GitHub webhooks (ADR-015): the Floor webhook
+  ingress maps qualifying `pull_request`, `pull_request_review`, and PR
+  `issue_comment` events to the code-review choreography, which starts or
+  replies on a code-review assembly line; bot-authored events are skipped as a
+  loop guard. ([validated by `code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L91), [`code-review.test.ts:242`](apps/floor/src/jobs/review/code-review.test.ts#L242))
 - FR-13.7: **Safety-net cron** fires at `7 7-17 * * 1-5` (UTC,
   Mon-Fri) to catch dropped webhook deliveries. Cron-triggered runs
   are gated by `isBusinessHours()` (default: Europe/Berlin, 09:00-18:00
   Mon-Fri via `LORE_BUSINESS_HOURS_{TZ,START,END,DAYS}` env vars).
   Webhook-triggered runs are never gated by business hours. ([validated by `business-hours.test.ts:38`](libs/shared/src/business-hours.test.ts#L38))
-- FR-13.8: Webhook path silently degrades if `LORE_AGENT_URL` or
-  `LORE_AGENT_INTERNAL_TOKEN` are missing — mcp-server logs a warning
-  but continues accepting webhooks (safety-net cron covers the gap).
+- Decision: the webhook trigger degrades gracefully when its ingress env is
+  absent — a warning is logged and the safety-net cron (FR-13.7) covers the gap.
 
 ### FR-14: Spec Drift Detection (Phase 2)
 
-The system MUST detect when specifications diverge from implementation.
+The system MUST detect when specifications diverge from implementation. ([validated by `chunks.test.ts:190`](libs/shared/src/project/chunks/chunks.test.ts#L190), [`chunks.test.ts:212`](libs/shared/src/project/chunks/chunks.test.ts#L212))
 
 - FR-14.1: Weekly job reads spec assertions and checks against
-  current code via AST analysis.
-- FR-14.2: Divergence above 20% of assertions triggers a `gap-fill`
+  current code via AST analysis. ([validated by `fan-out.test.ts:41`](apps/floor/src/jobs/detect/fan-out.test.ts#L41))
+- Decision: divergence above 20% of a spec's assertions triggers a `gap-fill`
   pipeline task for the owning team.
-- FR-14.3: Test files and generated files are excluded.
+- FR-14.3: Test files and generated files are excluded. ([validated by `chunks.test.ts:887`](libs/shared/src/project/chunks/chunks.test.ts#L887), [`chunks.test.ts:920`](libs/shared/src/project/chunks/chunks.test.ts#L920))
 - FR-14.4: Spec-drift reads a repo's spec chunks and code symbols from
   the repo's resolved schema (team schema when provisioned, `org_shared`
   otherwise) — the same schema the reindex job wrote them to. The
@@ -549,7 +545,7 @@ The system MUST detect when specifications diverge from implementation.
 ### FR-15: Progressive Trust (Phase 1)
 
 The system MUST gate task types per-repo based on demonstrated
-reliability.
+reliability. ([validated by `pipeline-tasks.trust.test.ts:37`](libs/shared/src/pipeline-tasks.trust.test.ts#L37))
 
 - FR-15.1: `settings.trust.level` controls which task types are
   allowed: `docs` (gap-fill/runbook/onboard + feature-planning/
@@ -558,25 +554,26 @@ reliability.
   `full` (all). `onboard` is allowed at every tier — it produces a
   docs-only scaffolding PR and duplicate protection lives in its own
   route's guard, not the trust ladder. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/pipeline-tasks.trust.test.ts#L37), [`still refuses an implementation task at trust level docs`](libs/shared/src/pipeline-tasks.trust.test.ts#L52))
-- FR-15.2: Auto-promotes after 3 successful merges at the current
-  level. Defaults to `implementation` for backward compatibility.
+- Decision: trust auto-promotes after 3 successful merges at the current
+  level; the default level is `implementation` for backward compatibility.
 
 ### FR-16: Prompt Caching on Agent LLM Calls (Phase 1)
 
 The system MUST cache repeated LLM prefixes on all agent-side Anthropic
-API calls to reduce token cost. Added 2026-04-17 per ADR-015.
+API calls to reduce token cost (ADR-015, added 2026-04-17). ([validated by `prompt-cache.test.ts:93`](libs/shared/src/llm/prompt-cache.test.ts#L93))
 
-- FR-16.1: `callLLM` and `callLLMWithTool` in `agent/src/anthropic.ts`
-  place two cache breakpoints per request — one on the system prompt
-  block, one on the tool schema block — so a tool-schema edit cannot
-  bust the system cache and vice versa.
+- FR-16.1: `libs/shared/src/llm/anthropic-provider.ts` places two cache
+  breakpoints per request — one on the system prompt block
+  (`buildCacheableSystem`), one on the tool schema block
+  (`buildCacheableTools`) — so a tool-schema edit cannot bust the system
+  cache and vice versa. ([validated by `anthropic-provider.test.ts:13`](libs/shared/src/llm/anthropic-provider.test.ts#L13), [`anthropic-provider.test.ts:39`](libs/shared/src/llm/anthropic-provider.test.ts#L39), [`anthropic-provider.test.ts:55`](libs/shared/src/llm/anthropic-provider.test.ts#L55))
 - FR-16.2: `getCacheControl(jobName)` from `agent/src/lib/prompt-cache.ts`
   returns `{type: "ephemeral", ttl: "1h"}` for jobs in the
   `LORE_CACHE_1H_JOBS` allowlist and `{type: "ephemeral"}` (5-min)
   otherwise. Default allowlist: `auto-curation`, `review_reactor`,
   `fact-extraction`, `graph-extraction`. Special values: `none`
-  disables 1h everywhere; `*` enables it for every job. ([validated by `prompt-cache.test.ts:93`](libs/shared/src/llm/prompt-cache.test.ts#L93))
-- FR-16.3: Cache eligibility is latched at module load to prevent
+  disables 1h everywhere; `*` enables it for every job. ([validated by `prompt-cache.test.ts:93`](libs/shared/src/llm/prompt-cache.test.ts#L93), [`anthropic-provider.test.ts:25`](libs/shared/src/llm/anthropic-provider.test.ts#L25))
+- Decision: cache eligibility is latched at module load to prevent
   mid-process toggles from busting the server-side cache.
 - FR-16.4: Each call computes a djb2 hash of the system + tools prefix
   and compares to the last call for the same `jobName`. Log line
@@ -584,8 +581,8 @@ API calls to reduce token cost. Added 2026-04-17 per ADR-015.
   break:ttl(Nm)`. ([validated by `prompt-cache.test.ts:123`](libs/shared/src/llm/prompt-cache.test.ts#L123), [`prompt-cache.test.ts:129`](libs/shared/src/llm/prompt-cache.test.ts#L129))
 - FR-16.5: `response.usage.cache_creation_input_tokens` and
   `cache_read_input_tokens` feed cost accounting (1.25× writes,
-  0.1× reads).
-- FR-16.6: MCP-server raw fetch call sites (fact extraction, graph
+  0.1× reads). ([validated by `anthropic-provider.test.ts:79`](libs/shared/src/llm/anthropic-provider.test.ts#L79), [`anthropic-provider.test.ts:87`](libs/shared/src/llm/anthropic-provider.test.ts#L87), [`anthropic-provider.test.ts:95`](libs/shared/src/llm/anthropic-provider.test.ts#L95))
+- Decision: MCP-server raw fetch call sites (fact extraction, graph
   extraction) have static prefixes below Haiku's 2048-token cache
   minimum — caching is not applied there.
 
@@ -606,27 +603,27 @@ Added 2026-04-17 per ADR-015.
 ### FR-18: Stuck-Task Terminal-State Recovery (Phase 1)
 
 The system MUST detect and surface pipeline tasks that are stuck in
-non-terminal states and resolve them without manual intervention.
+non-terminal states and resolve them without manual intervention. ([validated by `task-queue.test.ts:365`](libs/shared/src/project/tasks/task-queue.test.ts#L365))
 
 - FR-18.1: A `stale_task_check` job runs hourly at `:17` and flags
   tasks in `running` or `pending` state for longer than their
   configured timeout plus a grace period. ([validated by `task-queue.test.ts:348`](libs/shared/src/project/tasks/task-queue.test.ts#L348))
 - FR-18.2: Stuck tasks are transitioned to a terminal state
   (`failed` with reason `timeout_exceeded`) so the pipeline does not
-  stall waiting for a pod that has already exited.
+  stall waiting for a pod that has already exited. ([validated by `task-queue.test.ts:365`](libs/shared/src/project/tasks/task-queue.test.ts#L365))
 - FR-18.3: The transition is idempotent — if a task completes between
-  detection and the state write, the write is a no-op.
+  detection and the state write, the write is a no-op. ([validated by `task-store-pg.test.ts:74`](libs/shared/src/project/tasks/task-store-pg.test.ts#L74))
 - FR-18.4: A failure episode is written for each stuck task so the
   auto-curation pipeline can surface patterns (e.g. a task type that
-  consistently times out).
+  consistently times out). ([validated by `episode-writer.test.ts:78`](apps/floor/src/jobs/lib/episode-writer.test.ts#L78), [`episode-writer.test.ts:12`](apps/floor/src/jobs/lib/episode-writer.test.ts#L12))
 
 ### FR-19: Task Detail UI (Phase 1)
 
 The web UI MUST present a per-task detail view at `/tasks/[id]` that
 surfaces the task's metadata, run attempts, stage timeline, PR status,
-event history, and LLM-call ledger. Live sections follow a
+event history, and LLM-call ledger. ([validated by `TaskDetailView.test.tsx:95`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L95)) Live sections follow a
 data-down/actions-up split: pure `*View` presentational components are
-fed by IO `*Panel` containers that own fetching and polling.
+fed by IO `*Panel` containers that own fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L82))
 
 - FR-19.1: The detail heading reads `Task: <description>` with the
   description truncated to 80 characters, and the view shows the task
@@ -745,7 +742,7 @@ The `Project` facade (ADR-024) exposes every data capability — tasks,
 events, chunks, features, agents, workspace, PRs, issues, cost/usage
 accounting — through repo-bound ports with a Postgres/GCS/HTTP adapter
 and an in-memory double per port, so Floor, mcp-server, and lore-api
-share one persistence surface instead of inline SQL.
+share one persistence surface instead of inline SQL. ([validated by `task-queue.test.ts:39`](libs/shared/src/project/tasks/task-queue.test.ts#L39))
 
 - FR-20.1: The `TaskQueue` port drives org-wide claim/sweep: it claims
   one runnable pending task (immediate-first, past the minute interval,
@@ -964,25 +961,41 @@ share one persistence surface instead of inline SQL.
 
 ### NFR-1: Security
 
-- No long-lived credentials anywhere in the system.
-- Workload Identity for all GKE workloads.
-- Workload Identity Federation for GitHub Actions.
-- Schema-per-team isolation in the vector store.
-- PII classification at ingest time.
-- All memory writes pass through `sanitizeContent()` / `redactSecrets()`
-  to strip API keys, JWTs, private keys, connection strings, and bearer
-  tokens before storage in the org-wide database.
+- No long-lived credentials anywhere in the system. ([validated by `security-posture.test.ts:109`](libs/shared/src/infra-contract/security-posture.test.ts#L109), [`security-posture.test.ts:130`](libs/shared/src/infra-contract/security-posture.test.ts#L130))
+- Workload Identity for all GKE workloads. ([validated by `security-posture.test.ts:101`](libs/shared/src/infra-contract/security-posture.test.ts#L101))
+- Workload Identity Federation for GitHub Actions. ([validated by `security-posture.test.ts:126`](libs/shared/src/infra-contract/security-posture.test.ts#L126), [`security-posture.test.ts:130`](libs/shared/src/infra-contract/security-posture.test.ts#L130))
+- Schema-per-team isolation in the vector store. ([validated by `chunks.test.ts:153`](libs/shared/src/project/chunks/chunks.test.ts#L153), [`chunks.test.ts:171`](libs/shared/src/project/chunks/chunks.test.ts#L171))
+- Secret and PII redaction runs at ingest time and on every memory write:
+  `sanitizeContent()` / `redactSecrets()` strip API keys, JWTs, private keys,
+  connection strings, and bearer tokens before storage in the org-wide
+  database. ([validated by `redact.test.ts:5`](libs/shared/src/redact.test.ts#L5), [`redact.test.ts:78`](libs/shared/src/redact.test.ts#L78))
 - Centralized auth in `routes.ts`: every `/api/*` route enforces bearer
   token validation. Supports legacy single token (`LORE_INGEST_TOKEN`)
-  and per-client scoped tokens with SHA-256 hashes.
+  and per-client scoped tokens with SHA-256 hashes. ([validated by `auth.test.ts:58`](apps/lore-api/src/api/routes/auth.test.ts#L58), [`bearer-scope.test.ts:45`](apps/lore-api/src/server/plugins/bearer-scope.test.ts#L45))
 - Job pods run as non-root (uid 1000), drop all Linux capabilities,
   disallow privilege escalation. NetworkPolicy restricts egress to
-  DNS + HTTPS + internal Lore API only.
+  DNS + HTTPS + internal Lore API only. ([validated by `security-posture.test.ts:73`](libs/shared/src/infra-contract/security-posture.test.ts#L73), [`security-posture.test.ts:78`](libs/shared/src/infra-contract/security-posture.test.ts#L78), [`security-posture.test.ts:86`](libs/shared/src/infra-contract/security-posture.test.ts#L86), [`security-posture.test.ts:92`](libs/shared/src/infra-contract/security-posture.test.ts#L92))
 - Rate limiting: 30/min webhooks, 60/min task ops, 200/min other
-  (in-memory sliding window). 1 MB body size limit.
-- Slack indexing opt-in per channel only; DMs never indexed.
+  (in-memory sliding window). 1 MB body size limit. ([validated by `rate-limit.test.ts:42`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L42), [`auth.test.ts:19`](apps/lore-api/src/api/routes/auth.test.ts#L19), [`webhook-incident.test.ts:144`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L144))
+- Slack indexing opt-in per channel only; DMs never indexed. ([validated by `notify-slack.test.ts:16`](libs/shared/src/project/notify/notify-slack.test.ts#L16), [`notify-decision.test.ts:35`](libs/shared/src/project/notify/notify-decision.test.ts#L35))
 
-### NFR-2: Performance
+### NFR-2: Reliability & Freshness
+
+- `lore_assemble_context` warns when repo context is stale (>7 days since
+  last ingest) or missing (first-run welcome with suggested actions). ([validated by `context-freshness.test.ts:9`](libs/shared/src/project/knowledge/context-freshness.test.ts#L9), [`context-freshness.test.ts:15`](libs/shared/src/project/knowledge/context-freshness.test.ts#L15), [`context-freshness.test.ts:21`](libs/shared/src/project/knowledge/context-freshness.test.ts#L21), [`context-freshness.test.ts:25`](libs/shared/src/project/knowledge/context-freshness.test.ts#L25), [`context-freshness.test.ts:31`](libs/shared/src/project/knowledge/context-freshness.test.ts#L31))
+- When the MCP server is unreachable, Claude Code MUST fall back to
+  the last-synced local copy of CLAUDE.md files and ADRs in
+  `~/.re-cinq/lore` and display a one-time warning to the developer
+  that search quality may be degraded. Semantic search is unavailable
+  in this mode; convention and ADR lookups continue from local files. ([validated by `context-tools.test.ts:62`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L62), [`context-tools.test.ts:108`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L108))
+
+## Operational Targets & Constraints (Background)
+
+The targets and deployment constraints below are operational context rather
+than unit-tested behaviour; they are tracked here for the platform team and
+enforced by benchmarking, infrastructure configuration, and review process.
+
+**Performance targets (aspirational).**
 
 - Context search returns results in under 200ms (p99) once
   infrastructure is deployed. **Note (2026-03-28):** Hybrid search
@@ -992,24 +1005,17 @@ share one persistence surface instead of inline SQL.
 - Install script completes in under 5 minutes.
 - Session start context sync completes in under 5 seconds.
 - Incremental ingestion completes within 5 minutes of a merge.
-- `lore_assemble_context` warns when repo context is stale (>7 days since
-  last ingest) or missing (first-run welcome with suggested actions).
 
-### NFR-3: Reliability
+**Reliability posture.**
 
 - Install script is idempotent with no side effects on re-run.
 - Platform hooks fail silently rather than blocking developer work.
 - Health check script diagnoses all connection issues with fix
   instructions.
-- When the MCP server is unreachable, Claude Code MUST fall back to
-  the last-synced local copy of CLAUDE.md files and ADRs in
-  `~/.re-cinq/lore` and display a one-time warning to the developer
-  that search quality may be degraded. Semantic search is unavailable
-  in this mode; convention and ADR lookups continue from local files.
 - Agent deployments do NOT affect running Job pods — tasks survive
   rollout restarts.
 
-### NFR-4: Scalability
+**Scalability and infrastructure.**
 
 - CloudNativePG (CNPG) PostgreSQL instance on existing shared GKE
   cluster (`your-gke-cluster`, `europe-west1`). Scale up CNPG resource
@@ -1019,7 +1025,7 @@ share one persistence surface instead of inline SQL.
   (`mcp-servers`, `lore-agent`, `lore-ui`) on the existing cluster.
 - Revisit vector store choice only if corpus exceeds 100M vectors.
 
-### NFR-5: Governance
+**Governance.**
 
 - Root CLAUDE.md changes require broad review (platform-eng +
   tech-leads).
@@ -1030,7 +1036,7 @@ share one persistence surface instead of inline SQL.
 
 ## Clarifications
 
-### Session 2026-03-25
+**Session 2026-03-25**
 
 - Q: What happens when the MCP server is unreachable during a developer session? → A: Fall back to local `~/.re-cinq/lore` files with a one-time warning that search quality is degraded.
 - Q: What happens to ingested chunks when their source is deleted, reverted, or superseded? → A: Hard delete. Nightly re-index removes chunks whose source no longer exists. No stale content retained.
@@ -1038,14 +1044,14 @@ share one persistence surface instead of inline SQL.
 - Q: What happens when a Lore Agent Job pod fails mid-task? → A: Fail immediately, update pipeline task with error reason, post Slack notification if channel mapped. No automatic retry — developer decides whether to resubmit via `lore_retry_task`.
 - Q: How does the PR check transition from warning to enforcement mode? → A: Manual flip by platform team via CI config flag. No automatic date-based cutoff.
 
-### Session 2026-04-13 (spec update)
+**Session 2026-04-13 (spec update)**
 
 - Q: Why was Beads replaced? → A: Beads + Dolt had integration complexity and `bd` CLI instability. Pipeline tasks in PostgreSQL provide atomic claiming, dependency tracking, and full audit history without an external CLI dependency. (ADR-009)
 - Q: How does the Lore Agent service run tasks? → A: A TypeScript worker in the `lore-agent` namespace polls the `pipeline.tasks` table and dispatches by task type. Simple tasks (onboard, feature-request, graph-ingest) run in-process via direct Anthropic API calls and the worker creates the PR. Complex tasks (implementation, general, review) run in ephemeral `claude-runner` Job pods created via the LoreTask CRD, with pre-run context hydration, deterministic validation, and full lifecycle control. (ADR-007)
 - Q: Why no Graphiti / FalkorDB? → A: PostgreSQL-backed live knowledge graph provides the same traversable fact store without an additional graph database dependency. (ADR-010)
 - Q: Why no OCI Context Cores? → A: DB-cached context assembly with the `lore_assemble_context` tool provides equivalent freshness guarantees without OCI registry infrastructure overhead. (ADR-010)
 
-### Session 2026-04-20 (spec update — ADR-015 + post-April-13 work)
+**Session 2026-04-20 (spec update — ADR-015 + post-April-13 work)**
 
 - Q: Why switch from cron-polling to webhooks for the review reactor? → A: Polling every 5 minutes burned API quota and GitHub rate-limit budget on ticks that did nothing. Webhooks fire only on actual PR state changes; review latency drops from avg ~2.5 min to seconds. (ADR-015)
 - Q: Why keep the safety-net cron at all? → A: A dropped webhook delivery stalls a PR until a human notices. A business-hours safety cron is nearly free and catches stragglers. Off-hours ticks are a pure waste so the cron is gated by `isBusinessHours()`. (ADR-015)
@@ -1054,9 +1060,9 @@ share one persistence surface instead of inline SQL.
 - Q: What is the `LORE_WEBHOOK_SECRET` latent bug that ADR-015 fixed? → A: The secret existed in GCP Secret Manager and had an ExternalSecret CR, but was never mounted into the mcp-server pod. `handleGitHubWebhook` always returned `503 "webhook secret not configured"`. ADR-015 mounted the secret and the webhook path now validates HMAC signatures correctly.
 - Q: Why add `FR-18` (stuck-task recovery) now? → A: Job pods that exit without writing a terminal status left tasks stuck in `running` forever. The loretask-watcher had no mechanism to detect this until the `stale_task_check` hourly job was added (commit f203952, 2026-04-20).
 
-## Scope Boundaries
+## Scope & Out of Scope
 
-### In Scope
+**In Scope**
 
 - Context repository structure and content.
 - MCP server (file-backed Phase 0, PostgreSQL/pgvector-backed Phase 1+).
@@ -1079,7 +1085,7 @@ share one persistence surface instead of inline SQL.
 - Per-template context budgets (ADR-015).
 - Stuck-task terminal-state recovery (`stale_task_check` job).
 
-### Out of Scope
+**Out of Scope**
 
 - Chatbot or internal AI assistant product.
 - Replacement for GitHub Issues, Jira, or project management tools.
@@ -1093,7 +1099,7 @@ share one persistence surface instead of inline SQL.
 - Graphiti / FalkorDB deployment (superseded by PostgreSQL live graph).
 - Beads (`bd` CLI) or Dolt task sync (superseded by pipeline tasks).
 
-## Dependencies
+## Background: Dependencies
 
 - Claude Code v2.1.32+ (Agent Teams support).
 - GCP project with existing GKE cluster (`your-gke-cluster`,
@@ -1113,7 +1119,7 @@ share one persistence surface instead of inline SQL.
   and watcher notifications (optional).
 - `docker/claude-runner/` image for ephemeral Job pods.
 
-## Assumptions
+## Background: Assumptions
 
 - Developers have Node.js, Python (with uv or pip), and Git installed.
 - All product repos are on GitHub within the Acme organization.
@@ -1124,7 +1130,7 @@ share one persistence surface instead of inline SQL.
 - GCP infrastructure provisioning is approved and budgeted for
   Phase 1.
 
-## Success Criteria
+## Success Criteria (Goals & Non-Goals)
 
 1. A new developer goes from zero to a fully configured Claude Code
    environment in under 5 minutes with a single command.

@@ -569,3 +569,72 @@ describe("taskFromRow", () => {
     });
   });
 });
+
+describe("advanceLine overlap guard — code-review-recheck opt-out", () => {
+  const recheckDef: AssemblyLine = parseAssemblyLine(`
+name: code-review-recheck
+description: fast re-check
+version: 1
+entry: recheck
+exit: done
+nodes:
+  - id: recheck
+    type: agent
+    prompt_ref: code-review-recheck
+  - id: done
+    type: retrospective
+edges:
+  - from: recheck
+    to: done
+    on: success
+  - from: recheck
+    to: done
+    on: changes_requested
+  - from: recheck
+    to: done
+    on: failed
+`);
+
+  it("does not defer a code-review-recheck line behind an older line on the same PR branch, so the verdict update is never silently dropped", async () => {
+    const port = new InMemoryAssemblyLines();
+    const launched: LoreTaskSpec[] = [];
+    const deps: AdvanceDeps = {
+      assemblyLines: port,
+      definitions: async () =>
+        new Map<string, AssemblyLine>([
+          ["code-review", codeReviewLike],
+          ["code-review-recheck", recheckDef],
+        ]),
+      launch: async (spec) => {
+        launched.push(spec);
+      },
+      resolvePrompt: (promptRef, description) => `${promptRef}::${description}`,
+      cleanupToken: async () => {},
+      jobRuns: { complete: async () => {}, fail: async () => {} },
+      notifyFailure: async () => {},
+    };
+
+    const older = await port.start({
+      definitionName: "code-review",
+      repo: "o/r",
+      branch: "feat/pr-branch",
+      args: { pr_number: 1 },
+    });
+
+    await port.markRunning(older);
+    await advanceLine(older, deps);
+
+    const recheck = await port.start({
+      definitionName: "code-review-recheck",
+      repo: "o/r",
+      branch: "feat/pr-branch",
+      args: { pr_number: 1 },
+    });
+
+    await port.markRunning(recheck);
+    await advanceLine(recheck, deps);
+
+    expect(await port.getById(recheck)).toMatchObject({ status: "running" });
+    expect(launched).toHaveLength(2);
+  });
+});

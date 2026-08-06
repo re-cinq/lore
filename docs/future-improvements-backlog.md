@@ -1,18 +1,20 @@
-Future Improvements backlog (out of scope; for later)
+# Future improvements backlog
+
+A running list of known, deliberately-deferred refactors and tech-debt in the
+spec-traceability / Dgraph projection subsystem (`libs/shared/src/spec-trace/`
+and neighbours). These are out of scope for the change that logged them; each
+line is a candidate cleanup, not a committed task. Entries name the file and the
+smell, then the intended fix — usually "extract a shared primitive once a second
+or third consumer appears."
 
 project-spec-file.ts upsertByXid = one txn per node → N+1 round-trips, no cross-file atomicity; batch into a single upsert txn (needed anyway for pruning's consistent snapshot).
 project-spec-file.ts newUid unguarded as string → returns undefined-as-string on a malformed mutate result, silently corrupting edges; add an enforce-style guard.
 upsertByXid query-then-mutate isn't atomic under concurrent projections of the same xid → use a Dgraph upsert block.
 Org-wide sha256 duplication (dgraph-memory-store.ts, spec-judge.ts, chunker.ts, + this file) → export one sha256/contentHash from shared.
-TestChunk.test_name == link_label (same value, two predicates) → confirm intended divergence or drop one.
 xid |-join collision if repo/path contains | → document or encode the delimiter.
 deleteRepoNodes test cleanup leaves orphan TestChunks (keyed repo|path|line, not reachable from Spec.repo) → add eq(TestChunk.repo,$repo).
 withTxn/newUid duplicated vs private copies in dgraph-memory-store.ts → hoist to shared/src/dgraph-txn.ts when pruning needs them; reuse in the test harness too.
-project-spec-file.ts upsertByXid = one txn per node → N+1 round-trips, no atomicity across a projection; batch into one txn / Promise.all once pruning's snapshot needs land.
-newUid unguarded as string → returns undefined-as-string on a malformed mutate result; add an enforce guard.
-upsertByXid query-then-mutate not atomic under concurrent same-xid projections → use a Dgraph @upsert block.
 projectSections/projectAcceptanceCriteria parallel "collect uids → set forward Spec.<edge> if non-empty" → extract linkSpecCollection(context, forwardEdge, uids) when the section/AC prune facets land alongside.
-Org-wide sha256 duplication (dgraph-memory-store.ts, spec-judge.ts, chunker.ts, this file) → one shared helper.
 TestChunk.test_name == link_label (same value, two predicates) → confirm intended divergence or drop one.
 Module header doc still lists "idempotent re-projection pruning" as fully deferred though statement pruning ships → narrow it to Section/AC pruning.
 live-Dgraph test harness (readGraph/deleteRepoNodes) local to one file → extract spec-trace/__tests__/dgraph-fixture.ts when the second live test file appears.
@@ -22,7 +24,6 @@ ProvenanceRef triple serialized in 3 places (trailer wire #/->, dedup | key, reg
 commit-trailers.ts: formatTrailers lacks a doc comment; the module mixes pure parsing with git-I/O (lastStageOnBranch) → split the I/O edge if it grows.
 commit-trailers.test.ts: formats extras after required keys uses individual expects → one toEqual([...]).
 shared/src/index.ts is a 150-line god-barrel → split into per-domain sub-barrels.
-stale doc-example nits cleaned up during the loop (no action needed).
 N+1 queries in matchCoveredRanges (one query per covered range) → batch by distinct file path in one query.
 Live-Dgraph test harness duplicated across ingest-coverage/verify-coverage/project-spec-file/provenance tests (reachability probe, schema applier, readGraph, repo cleanup, mutate seed helper) → extract a domain-named spec-trace/__tests__/dgraph-harness.ts fixture.
 Unnamed coverage shapes — CoverageMeta {repo,tool,commit} / CoverageRecord {testFile,testName,covered} are inline on ingestCoverageReport → name them (ideally in @re-cinq/lore-shared beside CoveredChunk) so the route + CLI share one vocabulary.
