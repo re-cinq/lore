@@ -126,6 +126,12 @@ variable "lore_ui_url" {
   default     = ""
 }
 
+variable "lore_mcp_url" {
+  description = "External base URL for the shared lore-mcp gateway that serves live Lore tools to agent pods (e.g. https://lore-mcp.example.com); drives the lore-mcp ingress host and the agent recipes' mcp_servers URL (with /mcp appended). Empty disables the ingress and leaves agent recipes without a live MCP endpoint."
+  type        = string
+  default     = ""
+}
+
 variable "lore_ui_hostname" {
   description = "Hostname for the Lore Web UI ingress (e.g. lore.example.com)"
   type        = string
