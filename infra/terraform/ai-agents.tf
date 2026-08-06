@@ -72,13 +72,14 @@ resource "kubectl_manifest" "es_ai_agents_secrets" {
           data = {
             "agent-events-auth" = "Authorization: Bearer {{ .LORE_AGENT_INTERNAL_TOKEN }}"
             # The seeded agent recipes' `resources.mcp_servers` lore entry declares
-            # `headers_secret: lore-mcp-auth`; the controller injects it as the MCP
-            # request's Authorization header, so (like agent-events-auth) it must be the
-            # full `Authorization: Bearer <token>` line. v1 reuses the already-pulled
-            # LORE_INGEST_TOKEN — the same token the lore-mcp gateway validates incoming
-            # requests against (its LORE_MCP_AUTH_TOKEN is sourced from lore-ingest-token),
-            # so no new GSM secret material is needed.
-            "lore-mcp-auth" = "Authorization: Bearer {{ .LORE_INGEST_TOKEN }}"
+            # `headers_secret: lore-mcp-auth`; the Claude adapter renders it into the
+            # --mcp-config JSON as the VALUE of an `Authorization` header it supplies the
+            # name for — so (UNLIKE the sink's agent-events-auth, which is a full header
+            # LINE) this is the bare `Bearer <token>` credential. v1 reuses the
+            # already-pulled LORE_INGEST_TOKEN — the same token the lore-mcp gateway
+            # validates incoming requests against (its LORE_MCP_AUTH_TOKEN is sourced from
+            # lore-ingest-token) — so no new GSM secret material is needed.
+            "lore-mcp-auth" = "Bearer {{ .LORE_INGEST_TOKEN }}"
           }
         }
       }
