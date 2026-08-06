@@ -142,9 +142,10 @@ task_types:
     model: claude-sonnet-4-6
 
   # The code-review-recheck line's node — the FAST re-check run on every new push
-  # after the first full review. Same suggestion-only REVIEW_FINDINGS contract, but
-  # a cheap model and a tighter scope, so the PR's formal APPROVE / REQUEST_CHANGES
-  # tracks the fixes as the author iterates.
+  # after the first full review. Same REVIEW_FINDINGS contract (the node emits
+  # findings and never posts or commits; the Floor submits the verdict), but a cheap
+  # model and a tighter scope, so the PR's formal APPROVE / REQUEST_CHANGES tracks
+  # the fixes as the author iterates.
   code-review-recheck:
     prompt_template: |
       {description}

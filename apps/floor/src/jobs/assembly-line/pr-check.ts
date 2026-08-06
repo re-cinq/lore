@@ -23,6 +23,17 @@ export interface CheckPublisher {
   upsertCheckRun(input: CheckRunInput): Promise<void>;
 }
 
+/** The fast per-push re-check publishes under the deep review's check name so a repo
+ *  that made `lore/code-review` a required branch-protection check sees it refreshed on
+ *  every push, not stranded (unrefreshed) under a separate `lore/code-review-recheck`. */
+const CHECK_NAME_ALIAS: Record<string, string> = {
+  "code-review-recheck": "code-review",
+};
+
+export function checkName(definitionName: string): string {
+  return CHECK_NAME_ALIAS[definitionName] ?? definitionName;
+}
+
 export function assemblyLineCheck(
   line: AssemblyLineRecord,
   nodes: readonly AssemblyLineNodeRecord[],
@@ -35,10 +46,11 @@ export function assemblyLineCheck(
   if (!prNumber || !headSha) {
     return null;
   }
+  const displayName = checkName(line.definitionName);
   const base = {
     headSha,
-    name: `lore/${line.definitionName}`,
-    title: `Lore ${line.definitionName}`,
+    name: `lore/${displayName}`,
+    title: `Lore ${displayName}`,
     ...(uiUrl ? { detailsUrl: `${uiUrl}/assembly-lines/${line.id}` } : {}),
   };
 

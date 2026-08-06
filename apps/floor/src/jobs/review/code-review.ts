@@ -4,14 +4,17 @@
  * listen for events — all wiring lives in the Floor registry.
  *
  * Triggers (ADR-012 amendment):
- * - first review on open / out-of-draft / first push (`onTrigger`, first-review-only)
- * - explicit `@lore review` comment (`onComment` keyword fast-path)
+ * - deep review on open / out-of-draft / first push (`onTrigger`, first-review-only)
+ * - fast `code-review-recheck` on every later push (`onTrigger` routes to it once
+ *   the PR has been reviewed), so the formal verdict tracks the fix
+ * - explicit `@lore review` comment (`onComment` keyword fast-path) forces a deep pass
  * - every other human comment → the Haiku `comment-triage` line, which classifies
  *   and routes (`onCommentTriaged`): review / address-and-commit / answer / ignore
  * - a formal "request changes" review → address (`onReviewSubmitted`)
  *
- * Review is suggestion-only; fixes are human-gated (the `address` intent). Gated
- * per-repo on `auto_review`; bot actors are skipped so the review never
+ * Both reviews emit structured findings and the Floor submits a formal
+ * APPROVE/REQUEST_CHANGES verdict; code fixes are human-gated (the `address` intent).
+ * Gated per-repo on `auto_review`; bot actors are skipped so the review never
  * re-triggers on its own output.
  */
 
@@ -268,8 +271,9 @@ export async function startReview(
  * on the updated diff. Same open/non-draft/non-bot gate as the first review, but
  * posts no per-push comment (the deep review already posted the how-to, and a
  * comment per push would be noise). Returns the line id or null when the gate
- * skips it. (An in-flight-line overlap guard for rapid pushes is a follow-up; the
- * re-check is cheap enough to tolerate the occasional stacked run.)
+ * skips it. Re-check lines are in `BRANCH_SHARED_WORKSPACE` (advance.ts) so a push
+ * that lands while a review/reply line still holds the PR branch is never silently
+ * dropped as `lease_held` by the overlap guard — the verdict update always runs.
  */
 export async function startRecheck(
   project: CodeReviewProject,

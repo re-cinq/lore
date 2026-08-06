@@ -174,3 +174,14 @@ describe("assemblyLineCheck", () => {
     ).toMatchObject({ status: "completed", conclusion: "failure" });
   });
 });
+
+describe("assemblyLineCheck check-name alias", () => {
+  it("publishes a code-review-recheck line under the aliased lore/code-review check name so a required check is refreshed", () => {
+    expect(
+      assemblyLineCheck(
+        line({ definitionName: "code-review-recheck", status: "running" }),
+        [],
+      ),
+    ).toMatchObject({ name: "lore/code-review", title: "Lore code-review" });
+  });
+});
