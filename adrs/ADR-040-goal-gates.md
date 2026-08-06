@@ -1,5 +1,5 @@
 ---
-adr_number: 41
+adr_number: 40
 title: "Declarative goal gates in assembly-line definitions"
 status: draft
 date: 2026-08-05
@@ -7,7 +7,7 @@ deciders: []
 domains: [assembly-lines, floor]
 ---
 
-# ADR-041: Declarative goal gates in assembly-line definitions
+# ADR-040: Declarative goal gates in assembly-line definitions
 
 This ADR proposes a `goal_gate: true` node attribute in assembly-line YAML:
 a line may not reach its terminal success state unless every goal-gated node

@@ -1,5 +1,5 @@
 ---
-adr_number: 42
+adr_number: 41
 title: "Fork-and-rerun of assembly lines from a completed node"
 status: draft
 date: 2026-08-05
@@ -7,7 +7,7 @@ deciders: []
 domains: [assembly-lines, floor, operations]
 ---
 
-# ADR-042: Fork-and-rerun of assembly lines from a completed node
+# ADR-041: Fork-and-rerun of assembly lines from a completed node
 
 This ADR proposes a `resume_from` start variant: a new assembly-line
 execution seeded with the completed node rows of a prior execution up to a
