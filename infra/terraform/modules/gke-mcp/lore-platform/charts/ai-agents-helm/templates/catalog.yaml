@@ -409,6 +409,90 @@ spec:
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
+  name: code-review-recheck
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore code-review-recheck task recipe (seeded).
+  model: claude-haiku-4-5-20251001
+  prompt: |-
+    {description}
+
+    A full review already ran on this PR; new commits were just pushed. This is
+    a FAST re-check — be quick and concise, do not re-litigate resolved nits.
+
+    The PR branch is already checked out locally at /workspace/target. Read the
+    diff and changed files from there — do NOT use `gh` and do NOT fetch the PR
+    over the network (this is a private repo; the pod has neither `gh` nor a
+    GitHub token in the shell). Get the diff with:
+      git -C /workspace/target diff main...HEAD
+      git -C /workspace/target log main..HEAD --oneline
+
+    Re-assess against the repo's conventions (CLAUDE.md), ADRs, and specs:
+    confirm the prior concerns are resolved and flag only NEW significant issues
+    the latest commits introduced. Do NOT edit code and do NOT post comments
+    yourself — Lore posts your findings for you.
+
+    Emit a fenced REVIEW_FINDINGS block (it MAY be empty when nothing new is
+    wrong) then the verdict. Same schema as the full review:
+
+    ```REVIEW_FINDINGS
+    {
+      "verdict": "approved" | "changes_requested",
+      "summary": "<one line>",
+      "findings": []
+    }
+    ```
+
+    Then output exactly one of:
+    - REVIEW_RESULT:APPROVED
+    - REVIEW_RESULT:CHANGES_REQUESTED:<one-line summary>
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+  resources:
+    secrets:
+      - name: ANTHROPIC_API_KEY
+        ref: ANTHROPIC_API_KEY
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: code-review-recheck
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: code-review-recheck
+  deadlineMinutes: 10
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
   name: code-review-refine
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed

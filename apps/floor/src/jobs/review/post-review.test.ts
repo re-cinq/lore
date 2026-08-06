@@ -75,7 +75,7 @@ describe("partitionByHunks", () => {
 });
 
 describe("postReview", () => {
-  it("posts one COMMENT review with a rendered comment per commentable finding and a summary", async () => {
+  it("posts one REQUEST_CHANGES review with a rendered comment per commentable finding and a summary", async () => {
     const { pulls, calls } = recorder();
     const output: ReviewOutput = {
       verdict: "changes_requested",
@@ -100,7 +100,7 @@ describe("postReview", () => {
     expect(calls[0]).toMatchObject({
       number: 7,
       input: {
-        event: "COMMENT",
+        event: "REQUEST_CHANGES",
         comments: [
           {
             path: "src/a.ts",
@@ -182,6 +182,7 @@ describe("maybePostReview", () => {
       await maybePostReview(pulls, 7, "REVIEW_RESULT:APPROVED", positions()),
     ).toEqual({ mode: "inline" });
     expect(calls).toHaveLength(1);
+    expect(calls[0]?.input.event).toBe("APPROVE");
     expect(calls[0]?.input.comments).toHaveLength(0);
     expect(calls[0]?.input.body).toContain("Approved");
   });
@@ -424,5 +425,37 @@ describe("fallback preamble vs the issue-comment adapter filter", () => {
     );
 
     expect(comments[0]?.body).toMatch(/^_Inline placement/);
+  });
+});
+
+describe("formal verdict submission (always on)", () => {
+  it("submits an APPROVE review carrying the inline findings for an approved verdict", async () => {
+    const { pulls, calls } = recorder();
+    const output: ReviewOutput = {
+      verdict: "approved",
+      findings: [finding({ path: "src/a.ts", line: 12, subject: "tiny nit" })],
+    };
+
+    await postReview(pulls, 7, output, positions(["src/a.ts", 12]));
+
+    expect(calls[0]?.input).toMatchObject({
+      event: "APPROVE",
+      comments: [{ path: "src/a.ts", line: 12 }],
+    });
+  });
+
+  it("submits a REQUEST_CHANGES review carrying the inline findings for a changes_requested verdict", async () => {
+    const { pulls, calls } = recorder();
+    const output: ReviewOutput = {
+      verdict: "changes_requested",
+      findings: [finding({ path: "src/a.ts", line: 12, subject: "real bug" })],
+    };
+
+    await postReview(pulls, 7, output, positions(["src/a.ts", 12]));
+
+    expect(calls[0]?.input).toMatchObject({
+      event: "REQUEST_CHANGES",
+      comments: [{ path: "src/a.ts", line: 12 }],
+    });
   });
 });

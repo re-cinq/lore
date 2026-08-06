@@ -1,0 +1,28 @@
+name: code-review-recheck
+description: Fast re-check after a new push — re-assess the updated diff and emit a REVIEW_RESULT verdict so the PR's formal APPROVE / REQUEST_CHANGES tracks the fix. Cheap model, short timeout. Started per push once the deep review has run.
+version: 1
+entry: recheck
+exit: done
+
+nodes:
+  - id: recheck
+    type: agent
+    prompt_ref: code-review-recheck
+    model: claude-haiku-4-5-20251001
+    timeout_minutes: 10
+    description: Re-assess the diff quickly against the prior review; emit REVIEW_FINDINGS + a REVIEW_RESULT verdict. Does not post or commit.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker.
+
+edges:
+  - from: recheck
+    to: done
+    on: success
+  - from: recheck
+    to: done
+    on: changes_requested
+  - from: recheck
+    to: done
+    on: failed
