@@ -2,8 +2,9 @@
  * In-sync mirror of `shared/src/ingest-workflow.ts`. web-ui is not a
  * workspace member, so it can't import from `@re-cinq/lore-shared`
  * directly. Keep both copies in step — the byte content here is what the
- * "fix" button commits to repos and must match what the agent installs.
- * See web-ui/CLAUDE.md and `lib/test-paths.ts` for the mirror pattern.
+ * "fix" button commits to repos and must match what the agent installs —
+ * `ingest-workflow.parity.test.ts` holds the two byte-identical. See
+ * web-ui/CLAUDE.md and `lib/onboard-guard.ts` for the mirror pattern.
  */
 
 export const LORE_INGEST_WORKFLOW_PATH = ".github/workflows/lore-ingest.yml";

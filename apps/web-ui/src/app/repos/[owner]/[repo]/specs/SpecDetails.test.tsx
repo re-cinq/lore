@@ -420,4 +420,39 @@ describe("SpecDetails sanitization", () => {
 
     expect(container.querySelector("svg")).toBeNull();
   });
+
+  it("wraps a statement whose trailing test-link target itself contains parens", () => {
+    const md =
+      "## Acceptance Criteria\n\n- Claims the task. ([t](src/util(spec).test.ts#L1))\n";
+    const statements = [
+      stmt({
+        ordinal: 0,
+        text: "Claims the task. ([t](src/util(spec).test.ts#L1))",
+        kind: "list-item",
+        state: "tested",
+        testLinks: [{ label: "t", path: "src/util(spec).test.ts", line: 1 }],
+      }),
+    ];
+    const { container } = renderSpec(md, statements);
+    const mark = container.querySelector('mark[data-state="tested"]');
+
+    expect(mark).not.toBeNull();
+    expect(mark?.textContent).toContain("Claims the task.");
+  });
+
+  it("keeps a plain prose trailing parenthetical inside the statement mark", () => {
+    const md = "## Requirements\n\n- Keeps prose parens (like this).\n";
+    const statements = [
+      stmt({
+        ordinal: 0,
+        text: "Keeps prose parens (like this).",
+        kind: "list-item",
+        state: "untested",
+      }),
+    ];
+    const { container } = renderSpec(md, statements);
+    const mark = container.querySelector('mark[data-state="untested"]');
+
+    expect(mark?.textContent).toContain("(like this)");
+  });
 });

@@ -101,3 +101,22 @@ describe("parseReferences", () => {
     ]);
   });
 });
+
+describe("linkifyMarkdown around parenthesized link targets", () => {
+  it("does not linkify the tail of a link target containing parentheses", () => {
+    expect(linkifyMarkdown("[t](specs/a_(draft)/spec.md)", ctx)).toBe(
+      "[t](specs/a_(draft)/spec.md)",
+    );
+  });
+
+  it("still links a reference after a link target containing parentheses", () => {
+    expect(
+      linkifyMarkdown(
+        "[bug](https://en.wikipedia.org/wiki/Bug_(software)) fixes #5",
+        ctx,
+      ),
+    ).toBe(
+      "[bug](https://en.wikipedia.org/wiki/Bug_(software)) fixes [#5](https://github.com/re-cinq/lore/issues/5)",
+    );
+  });
+});

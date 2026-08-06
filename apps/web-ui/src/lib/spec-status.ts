@@ -5,6 +5,13 @@
 // file mirrors.
 //   - parseSpecStatus  — spec.md `| Status | ... |` header row (spec detail)
 //   - statusInfoFromValue — a bare ADR frontmatter value (ADR detail)
+//
+// Intentional split, not full duplication: canonical also carries the
+// require-statement-links lint tiers and the status rewriters, which web-ui
+// never needs; this side adds the pill colors/order/filter UI helpers. The
+// parse core is held in lockstep by `spec-status.parity.test.ts` (buckets +
+// labels vs `docStatusPill`) and scripts/type-drift/spec-status.drift.ts
+// (the SpecStatus ↔ StatusBucket union, `npm run typecheck:drift`).
 
 export type DocKind = "spec" | "adr";
 

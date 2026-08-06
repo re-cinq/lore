@@ -2,7 +2,9 @@
  * In-sync mirror of the dark-factory resolver/defaults. Canonical implementation
  * lives in @re-cinq/lore-shared (libs/shared/src/dark-factory-settings.ts); web-ui
  * is not a workspace member, so it keeps this mirror — matching how lib/db.ts,
- * lib/test-paths.ts, etc. mirror server libs. Keep both in step.
+ * lib/onboard-guard.ts, etc. mirror server libs. Keep both in step;
+ * `dark-factory-resolve.parity.test.ts` holds the resolver and defaults in
+ * lockstep with the canonical implementation.
  */
 
 export type TrustLevel = "docs" | "tests" | "implementation" | "full";
