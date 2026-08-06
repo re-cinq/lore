@@ -81,7 +81,7 @@ See [CLAUDE.md](CLAUDE.md) for full conventions. Quick summary:
 
 ## Submitting PRs
 
-A PR template is included in `.github/pull_request_template.md`. Fill it out
+A PR template is included in `.github/PULL_REQUEST_TEMPLATE.md`. Fill it out
 before requesting review. Use the `/lore-pr` skill to draft a description from
 your spec and changed files:
 

@@ -18,7 +18,7 @@ rebase a branch that carries trailers — the lifecycle relies on the commit
 log being append-only.
 
 PR bodies must include the `Lore-Task: <uuid>` line so the web-ui can
-resolve PR ↔ task. Use `prFooter()` from `agent/src/lib/pr-body.ts`.
+resolve PR ↔ task. Use `prFooter()` from `@re-cinq/lore-shared`.
 
 ## First session (new developer)
 
@@ -57,7 +57,7 @@ or picking up a ticket:
 - All context (org conventions, team patterns, ADRs) is loaded via MCP.
 - All task state is tracked via pipeline MCP tools.
 - Do not ask the developer to provide context you already have.
-- If uncertain about a convention, check MCP via get_context before asking.
+- If uncertain about a convention, check MCP via `lore_assemble_context` before asking.
 
 ## Finishing work
 

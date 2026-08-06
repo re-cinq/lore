@@ -2,10 +2,10 @@
 
 ## Current Work
 
-Building and validating the Lore platform. Phase 0 is validated
-(install, MCP server, skills, hooks all working). Phase 1 infra
-is deployed (PostgreSQL, Lore Agent service, MCP server on GKE). Currently
-working on embedding pipeline and testing the full stack end-to-end.
+Building and operating the Lore platform end-to-end: the MCP server, the
+remote Lore API, the Floor coordinator, the agent subsystem, and the
+supporting infrastructure (PostgreSQL + pgvector, Helm charts, CronJobs) on
+GKE.
 
 ## What We Own
 
@@ -18,11 +18,11 @@ working on embedding pipeline and testing the full stack end-to-end.
 
 ## Conventions
 
-- Test changes on the remote machine (spark-866a) before merging
-- Push to `1-lore-platform` branch, force-push to main for now
-  (single developer, will switch to PRs when team grows)
-- Run `lore-doctor` after any install.sh changes
-- Rebuild and push the remote API image via podman after lore-api changes:
-  `podman build --platform linux/amd64 -t ghcr.io/re-cinq/lore-api:latest .`
-  `podman push ghcr.io/re-cinq/lore-api:latest`
-  `kubectl rollout restart deployment/lore-api -n lore-api`
+- Work on feature branches and open a PR — `main` is protected and gated on
+  PR checks (see `.github/workflows/guard-main-pushes.yml`); do not push
+  directly to `main`.
+- Run `lore-doctor` (`scripts/lore-doctor.sh`) after any `install.sh` changes.
+- Image builds and deploys are CI-driven: merging to `main` builds and pushes
+  the service image to `ghcr.io` (SHA-tagged) and Helm-deploys it via
+  `scripts/ci/deploy-lore-platform.sh` (see `.github/workflows/build-*.yml`).
+  Do not hand-build or push `:latest` images.

@@ -1,6 +1,6 @@
 # web-ui
 
-Next.js 14 App Router frontend for the Lore platform.
+Next.js 15 App Router frontend for the Lore platform.
 
 ## App structure
 
@@ -22,7 +22,7 @@ src/app/
   agents/                 — agent list
   pools/                  — shared memory pools
   onboard/                — self-service repo onboarding
-  context/                — (legacy route, redirects)
+  context/                — global cross-repo context/chunk browser (not in sidebar nav)
   settings/               — org-wide settings
 src/lib/
   db.ts                   — PostgreSQL pool, queryAllChunks, schema helpers
@@ -41,85 +41,70 @@ All DB access goes through `src/lib/db.ts`. Key helpers:
   appears once per schema in `allParams` — this is correct but looks
   redundant when reading the call sites.
 
-The DB user is `lore_ui` (read-only on team schemas). Server Actions that
-write (e.g. "Add Spec") use the same pool — make sure `lore_ui` has INSERT
-on the relevant tables if adding new write paths.
+The DB user defaults to `lore_ui` (read-only on team schemas; overridable via
+`LORE_DB_USER`). Any Server Action that writes uses the same pool — make sure
+`lore_ui` has the required grants on the relevant tables if adding new write
+paths.
 
 ## Specs viewer — design decisions and known gotchas
+
+The specs viewer reads from the **spec-traceability graph** (via
+`src/lib/trace-api`: `fetchAllSpecs`, `fetchSpecSummaries`, `fetchTraceSource`,
+`fetchTraceDocument`), not from the `chunks` table. Specs are projected into
+the graph automatically by CI on push to `main`, so there is no manual "add
+spec" write path and no per-chunk embedding/dedup handling in these pages.
 
 Three routes make up the specs viewer:
 
 | Route | File | Scope |
 |---|---|---|
-| `/specs` | `src/app/specs/page.tsx` | Global list, all repos, `content_type = 'spec'` only |
-| `/specs/[...path]` | `src/app/specs/[...path]/page.tsx` | Detail view for one file path, **all content types** |
-| `/repos/[owner]/[repo]/specs` | `src/app/repos/[owner]/[repo]/specs/page.tsx` | Per-repo list + manual add form |
+| `/specs` | `src/app/specs/page.tsx` | Global list of every spec in the graph across all repos (`GlobalDocsView`) |
+| `/specs/[...path]` | `src/app/specs/[...path]/page.tsx` | Detail for one file path — renders one `SpecDocument` per repo that holds that path |
+| `/repos/[owner]/[repo]/specs` | `src/app/repos/[owner]/[repo]/specs/page.tsx` | Per-repo list (`SpecListView`); each entry links to the per-repo detail page |
 
-### URL encoding contract (catch-all route)
+### Linking between the list and detail pages
 
-The global list links to the detail page using `encodeURIComponent` on the
-**full** `file_path` value (which typically contains `/`):
+The global list (`GlobalDocsView`) links each entry to the **per-repo** detail
+page — `/repos/{repo}/specs/{...}` for specs, `/repos/{repo}/adrs/{...}` for
+ADRs — not to `/specs/[...path]`. The per-repo list (`SpecListView`) links each
+spec to `/repos/{owner}/{repo}/specs/{...}` as well. The `/specs/[...path]`
+catch-all route still exists (reachable by direct URL) and carries a
+"view in repo →" link back to the canonical per-repo page for each repo that
+holds the path.
+
+### URL encoding contract (catch-all routes)
+
+All of these links encode the **full** file path with `encodeURIComponent`
+(the path typically contains `/`):
 
 ```tsx
-href={`/specs/${encodeURIComponent(s.file_path)}`}
-// e.g. /specs/specs%2F1-lore-platform%2Fspec.md
+href={`/repos/${repo}/specs/${encodeURIComponent(filePath)}`}
+// e.g. /repos/re-cinq/lore/specs/specs%2F1-lore-platform%2Fspec.md
 ```
 
 `encodeURIComponent` encodes `/` as `%2F`. Next.js does **not** split on
 `%2F` when resolving catch-all segments, so `params.path` is always a
-**single-element array** `['specs%2F1-lore-platform%2Fspec.md']` regardless
-of how many slashes the original path contains. The detail page decodes it:
+**single-element array** regardless of how many slashes the original path
+contains. The detail page decodes it:
 
 ```tsx
 const filePath = path.map(decodeURIComponent).join('/');
 // → 'specs/1-lore-platform/spec.md'
 ```
 
-Do not change the list page's `encodeURIComponent` to a bare path template
-literal — that would cause Next.js to split on `/` and produce multiple
-segments, breaking the decode logic.
+Do not change these links to a bare path template literal — that would cause
+Next.js to split on `/` and produce multiple segments, breaking the decode
+logic.
 
-### Detail page renders specs richly (spec-only)
+### How the detail pages render
 
-`/specs/[...path]/page.tsx` queries `WHERE file_path = $1 AND content_type
-= 'spec'`, matching the list page — source code (`content_type = 'code'`),
-ADRs, docs, and tasks are **not** shown; a non-spec path returns "Not Found".
-It then reuses the **same render pipeline as the per-repo detail page**:
-`fetchTraceSource` + `fetchTraceDocument` (lib/trace-api) → `SpecDocument`
-(imported from `app/repos/[owner]/[repo]/specs/[...path]/SpecDocument`),
-so the global view shows the markdown with the coverage bar and
-statement-level coloring, not a raw `<pre>` dump. Because the global view
-spans every team schema, chunks are grouped by `repo` and each group
-reassembles/scores independently (normally one group); each carries a
-"view in repo →" link to the canonical per-repo page. Breadcrumb reads
-"Specifications".
-
-### Repo-specific specs page does not link to the detail view
-
-`/repos/[owner]/[repo]/specs/page.tsx` renders spec cards with a 400-char
-preview but the `<h3>` heading is plain text, not a link. There is no
-navigation path from the repo-specific specs list to the global detail page.
-If you add a link, use:
-
-```tsx
-<Link href={`/specs/${encodeURIComponent(s.file_path)}`}>{s.file_path}</Link>
-```
-
-### Manually added specs have no embeddings
-
-The "Add Spec" server action in the repo specs page does a raw
-`INSERT INTO ${schema}.chunks (...)`. It does **not** call the embedding
-pipeline. Rows inserted this way will appear in the web-ui list and detail
-views (exact DB lookup) but will **not** be returned by semantic search
-(`lore_search_context`, `lore_search_memory`) or `lore_assemble_context` because those rely
-on the `embedding` column. To make manually added specs searchable,
-trigger a re-ingest via `POST /api/repos/{owner}/{repo}/ingest` or the
-nightly ingest job.
-
-### Sorting and deduplication
-
-Both the global list and the detail page sort by `ingested_at DESC`. Re-ingesting
-a file creates a new chunk row — it does **not** upsert. The detail page
-therefore shows multiple chunks for the same path if the file was ingested
-more than once; the most recent appears first with a horizontal rule separator
-between entries. There is no deduplication or "latest only" toggle.
+Both `/specs/[...path]/page.tsx` and the per-repo detail page render through
+the shared `SpecDocument` component
+(`app/repos/[owner]/[repo]/specs/[...path]/SpecDocument`): the markdown source
+comes from `fetchTraceSource`, and the statement-level overlay (coverage bar +
+per-statement coloring) from `fetchTraceDocument`, so the view is rich markdown
+rather than a raw `<pre>` dump. The global detail page spans every repo that
+holds the path, filtering `fetchAllSpecs()` by `filePath` and rendering one
+framed `SpecDocument` per repo (normally one). Its breadcrumb reads "Specs",
+and a path with no graph data shows a "No graph data …" empty state rather
+than a hard 404.

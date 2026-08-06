@@ -59,7 +59,7 @@ Add a `lore` label to any Issue on an onboarded repo — or open one with the Lo
 The label determines the task type:
 
 - `lore` → general task
-- `lore:implementation` → implementation task (ephemeral Job pod)
+- `lore:implementation` → implementation task (runs on the ai-agent-subsystem)
 - `lore:review` → review task
 - `lore:runbook` → runbook task
 
