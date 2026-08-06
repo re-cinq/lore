@@ -1,3 +1,4 @@
+import { enforceTrue } from "../lib/enforce.js";
 import type { PgPool } from "../memory-store.js";
 
 /** One recorded query() invocation. */
@@ -26,8 +27,10 @@ export interface FakePgPool extends PgPool {
 
 /**
  * Scripted {@link PgPool} fake for adapter SQL-shape tests: responses are
- * consumed in call order, every invocation is recorded in `calls`. Replaces the
- * per-file hand-rolled `mockPool`s (the untyped ones hid `pool as any` casts).
+ * consumed in call order, every invocation is recorded in `calls`, and a call
+ * beyond the scripted responses throws (an adapter issuing an extra query must
+ * fail the test, not silently read empty rows). Replaces the per-file
+ * hand-rolled `mockPool`s (the untyped ones hid `pool as any` casts).
  */
 export function fakePgPool(responses: FakePgPoolResponse[] = []): {
   pool: FakePgPool;
@@ -40,7 +43,13 @@ export function fakePgPool(responses: FakePgPoolResponse[] = []): {
       params?: unknown[],
     ): Promise<{ rows: T[]; rowCount: number }> {
       calls.push({ text, params });
-      const response = responses[calls.length - 1] ?? {};
+      const response = responses[calls.length - 1];
+
+      enforceTrue(
+        response,
+        Error,
+        `fakePgPool: unexpected call ${calls.length} — only ${responses.length} response(s) scripted.\nSQL: ${text}`,
+      );
       const rows = (response.rows ?? []) as T[];
 
       return { rows, rowCount: response.rowCount ?? rows.length };

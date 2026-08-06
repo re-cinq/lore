@@ -173,7 +173,7 @@ export class InMemoryTaskStore implements TaskStorePort {
 
     enforceTrue(task, Error, "Task not found");
     enforceTrue(
-      !(task.status !== "failed" && task.status !== "needs-human-help"),
+      task.status === "failed" || task.status === "needs-human-help",
       Error,
       `Cannot retry task in ${task.status} state (must be failed or needs-human-help)`,
     );
@@ -315,7 +315,7 @@ export class InMemoryTaskStore implements TaskStorePort {
 
     enforceTrue(task, Error, "Task not found");
     enforceTrue(
-      !(task.status !== "pr-created" && task.status !== "review"),
+      task.status === "pr-created" || task.status === "review",
       Error,
       `Cannot mark task as merged from ${task.status} state (expected pr-created or review)`,
     );

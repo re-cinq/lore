@@ -169,3 +169,13 @@ describe("InMemoryFeatures.delete", () => {
     expect(await features.delete("a/b", feature.id)).toBe(false);
   });
 });
+
+describe("InMemoryFeatures.transitionStatus no-match", () => {
+  it("returns undefined for an unknown id, mirroring the Pg rows[0] on a no-match UPDATE", async () => {
+    const features = new InMemoryFeatures();
+
+    expect(
+      await features.transitionStatus("a/b", "missing", "pr-open"),
+    ).toBeUndefined();
+  });
+});

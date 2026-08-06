@@ -57,6 +57,10 @@ export const NEXT_STATUS: Record<TaskAction, string> = {
 export interface FindOpenLikeInput {
   repo: string;
   taskType: string;
+  /**
+   * Matched as an unescaped SQL LIKE prefix (`<prefix>%`, no ESCAPE clause):
+   * a literal `%` or `_` in the prefix acts as a wildcard in both adapters.
+   */
   descriptionPrefix: string;
   statuses: readonly string[];
 }

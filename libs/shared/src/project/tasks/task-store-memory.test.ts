@@ -319,3 +319,11 @@ describe("InMemoryTaskStore list + events", () => {
     expect(await store.getWithEvents("missing")).toBeNull();
   });
 });
+
+describe("InMemoryTaskStore.transition no-match", () => {
+  it("returns undefined for an unknown id, mirroring the Pg rows[0] on a no-match UPDATE", async () => {
+    const store = new InMemoryTaskStore([]);
+
+    expect(await store.transition("missing", "claim")).toBeUndefined();
+  });
+});
