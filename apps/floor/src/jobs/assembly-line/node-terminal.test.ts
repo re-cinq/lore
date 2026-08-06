@@ -767,3 +767,39 @@ describe("postReplyFromNode without a known iteration", () => {
     return { ...p, poster };
   }
 });
+
+describe("postReviewFromNode for the fast re-check node", () => {
+  const recheckNode: AssemblyLineNode = {
+    id: "recheck",
+    type: "agent",
+    prompt_ref: "code-review-recheck",
+  };
+
+  it("submits a REQUEST_CHANGES review for a re-check node that requests changes", async () => {
+    const p = ports();
+
+    const outcome = await postReviewFromNode(
+      row(),
+      recheckNode,
+      findingsText("changes_requested"),
+      p,
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.reviews[0]?.input.event).toBe("REQUEST_CHANGES");
+  });
+
+  it("submits an APPROVE review for a re-check node that approves", async () => {
+    const p = ports();
+
+    const outcome = await postReviewFromNode(
+      row(),
+      recheckNode,
+      findingsText("approved"),
+      p,
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.reviews[0]?.input.event).toBe("APPROVE");
+  });
+});

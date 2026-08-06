@@ -76,7 +76,7 @@ resource "google_container_node_pool" "mcp_pool" {
   }
 }
 
-# ----- Node Pool: general (Langfuse, Klaus, supporting services) -----
+# ----- Node Pool: general (Langfuse, supporting services) -----
 
 resource "google_container_node_pool" "general" {
   name     = "general"
@@ -165,22 +165,6 @@ resource "kubernetes_namespace" "langfuse" {
     labels = {
       managed-by = "terraform"
       component  = "observability"
-    }
-  }
-
-  depends_on = [
-    google_container_node_pool.mcp_pool,
-    google_container_node_pool.general,
-  ]
-}
-
-resource "kubernetes_namespace" "klaus" {
-  metadata {
-    name = "klaus"
-
-    labels = {
-      managed-by = "terraform"
-      component  = "agents"
     }
   }
 

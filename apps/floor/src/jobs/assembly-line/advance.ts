@@ -101,9 +101,14 @@ export function taskFromRow(row: AssemblyLineRecord): FloorAssemblyLineTask {
 // drop the newer as lease_held and silently lose a comment, so they opt out. They
 // then run concurrently: comment-triage commits nothing, and a code-review-reply
 // push race fails loudly rather than a comment vanishing without a trace.
+// code-review-recheck opts out for the same reason: each push carries a distinct
+// diff and it commits nothing, so guarding it would silently drop a verdict update
+// — stranding a stale REQUEST_CHANGES that blocks auto-merge while a reply line
+// holds the branch — rather than suppress duplicate work.
 const BRANCH_SHARED_WORKSPACE = new Set([
   "comment-triage",
   "code-review-reply",
+  "code-review-recheck",
 ]);
 
 /** Re-derive the line's next step from its node rows and perform it: launch the next

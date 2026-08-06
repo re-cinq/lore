@@ -181,7 +181,7 @@ describe("onTrigger", () => {
     expect(comments[0]?.body).toContain("@lore review");
   });
 
-  it("does not re-review a PR that already has a code-review line (first-review-only)", async () => {
+  it("starts a code-review-recheck line on a push to an already-reviewed PR", async () => {
     const { port, handlers } = harness(openPr());
 
     await new AssemblyLines(REPO, port).start("code-review", {
@@ -190,7 +190,7 @@ describe("onTrigger", () => {
 
     await handlers.onTrigger({ repo: REPO, pr_number: 42 });
 
-    expect(port.rows).toHaveLength(1);
+    expect(port.rows[1]?.definitionName).toBe("code-review-recheck");
   });
 
   it("skips a draft PR", async () => {
@@ -426,5 +426,35 @@ describe("onClose", () => {
       status: "finished",
       outcome: "pr_closed",
     });
+  });
+});
+
+describe("onTrigger re-check routing", () => {
+  it("re-checks with the head sha and recheck mode and posts no per-push comment", async () => {
+    const { port, comments, handlers } = harness(openPr());
+
+    await new AssemblyLines(REPO, port).start("code-review", {
+      args: { pr_number: 42 },
+    });
+
+    await handlers.onTrigger({ repo: REPO, pr_number: 42 });
+
+    expect(port.rows[1]).toMatchObject({
+      definitionName: "code-review-recheck",
+      args: { pr_number: 42, mode: "recheck", head_sha: "abc123" },
+    });
+    expect(comments).toHaveLength(0);
+  });
+
+  it("skips the re-check on a bot-authored PR under the same loop guard as the first review", async () => {
+    const { port, handlers } = harness(openPr({ author: "lore-app[bot]" }));
+
+    await new AssemblyLines(REPO, port).start("code-review", {
+      args: { pr_number: 42 },
+    });
+
+    await handlers.onTrigger({ repo: REPO, pr_number: 42 });
+
+    expect(port.rows).toHaveLength(1);
   });
 });

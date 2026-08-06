@@ -148,9 +148,19 @@ export async function resolvePrForTaskFromDb(
         (c) => c.conclusion === "success" || c.conclusion === "skipped",
       );
 
-    botApproved = reviews.some(
-      (r) => r.state === "APPROVED" && r.user === botLogin,
-    );
+    // The bot re-reviews on every push (the code-review-recheck line), so a
+    // stale early APPROVED must not linger past a later REQUEST_CHANGES: take the
+    // bot's LATEST decision, not "any past approval". `id` is monotonic, so it
+    // orders reviews by submission; COMMENT/DISMISSED are not decisions.
+    const botDecisions = reviews
+      .filter(
+        (r) =>
+          r.user === botLogin &&
+          (r.state === "APPROVED" || r.state === "CHANGES_REQUESTED"),
+      )
+      .sort((a, b) => a.id - b.id);
+
+    botApproved = botDecisions.at(-1)?.state === "APPROVED";
     humanChangesRequested = reviews.some(
       (r) => r.state === "CHANGES_REQUESTED" && !r.user.endsWith("[bot]"),
     );

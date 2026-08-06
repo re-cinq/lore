@@ -4,14 +4,17 @@
  * listen for events — all wiring lives in the Floor registry.
  *
  * Triggers (ADR-012 amendment):
- * - first review on open / out-of-draft / first push (`onTrigger`, first-review-only)
- * - explicit `@lore review` comment (`onComment` keyword fast-path)
+ * - deep review on open / out-of-draft / first push (`onTrigger`, first-review-only)
+ * - fast `code-review-recheck` on every later push (`onTrigger` routes to it once
+ *   the PR has been reviewed), so the formal verdict tracks the fix
+ * - explicit `@lore review` comment (`onComment` keyword fast-path) forces a deep pass
  * - every other human comment → the Haiku `comment-triage` line, which classifies
  *   and routes (`onCommentTriaged`): review / address-and-commit / answer / ignore
  * - a formal "request changes" review → address (`onReviewSubmitted`)
  *
- * Review is suggestion-only; fixes are human-gated (the `address` intent). Gated
- * per-repo on `auto_review`; bot actors are skipped so the review never
+ * Both reviews emit structured findings and the Floor submits a formal
+ * APPROVE/REQUEST_CHANGES verdict; code fixes are human-gated (the `address` intent).
+ * Gated per-repo on `auto_review`; bot actors are skipped so the review never
  * re-triggers on its own output.
  */
 
@@ -116,6 +119,10 @@ export function routeTriagedComment(
 
 function reviewDescription(repo: string, pr: number, branch: string): string {
   return `Review pull request #${pr} in ${repo} (branch ${branch}).`;
+}
+
+function recheckDescription(repo: string, pr: number, branch: string): string {
+  return `Re-check pull request #${pr} in ${repo} (branch ${branch}) after a new push.`;
 }
 
 function replyDescription(
@@ -258,6 +265,42 @@ export async function startReview(
   return id;
 }
 
+/**
+ * Start a `code-review-recheck` line — the fast re-check that runs on every new
+ * push after the deep review, re-deciding the PR's formal APPROVE / REQUEST_CHANGES
+ * on the updated diff. Same open/non-draft/non-bot gate as the first review, but
+ * posts no per-push comment (the deep review already posted the how-to, and a
+ * comment per push would be noise). Returns the line id or null when the gate
+ * skips it. Re-check lines are in `BRANCH_SHARED_WORKSPACE` (advance.ts) so a push
+ * that lands while a review/reply line still holds the PR branch is never silently
+ * dropped as `lease_held` by the overlap guard — the verdict update always runs.
+ */
+export async function startRecheck(
+  project: CodeReviewProject,
+  input: { repo: string; prNumber: number; autoReview: boolean },
+): Promise<string | null> {
+  const pr = await project.pulls.get(input.prNumber);
+
+  if (!pr || pr.state !== "open") {
+    return null;
+  }
+
+  if (!decideReviewOnOpen({ autoReview: input.autoReview, pr }).start) {
+    return null;
+  }
+
+  return project.assemblyLines.start("code-review-recheck", {
+    branch: pr.branch,
+    args: {
+      pr_number: input.prNumber,
+      mode: "recheck",
+      head_sha: pr.headSha,
+      actor: pr.author,
+      description: recheckDescription(input.repo, input.prNumber, pr.branch),
+    },
+  });
+}
+
 export function createCodeReviewHandlers(deps: CodeReviewDeps): {
   onTrigger: EventHandler;
   onComment: EventHandler;
@@ -274,9 +317,13 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     }
     const project = await deps.project(repo);
 
-    // First-review-only: opened/ready_for_review/synchronize should review once;
-    // subsequent pushes don't re-review (re-review is an explicit `@lore review`).
+    // First push → the deep review; every later push → the fast re-check, which
+    // re-decides APPROVE / REQUEST_CHANGES on the updated diff so the PR's formal
+    // verdict tracks the fix. `hasReviewedPr` matches the `code-review` line only,
+    // so re-check lines never flip it and every subsequent push routes here.
     if (await project.assemblyLines.hasReviewedPr(pr_number)) {
+      await startRecheck(project, { repo, prNumber: pr_number, autoReview });
+
       return;
     }
     await startReview(

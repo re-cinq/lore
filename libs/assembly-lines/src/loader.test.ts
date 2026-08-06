@@ -351,6 +351,7 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
 
     expect(names).toEqual([
       "code-review",
+      "code-review-recheck",
       "code-review-reply",
       "comment-triage",
       "feature-finalize",
@@ -642,5 +643,29 @@ describe("uncoveredOutcomes", () => {
       "changes_requested",
       "failed",
     ]);
+  });
+});
+
+describe("loadAssemblyLineDir — code-review-recheck line", () => {
+  const here = new URL(".", import.meta.url).pathname;
+  const assemblyLinesDir = path.resolve(here, "assembly-lines");
+
+  it("is a fast Haiku recheck→done graph routing every verdict to done", async () => {
+    const map = await loadAssemblyLineDir(assemblyLinesDir);
+    const wf = map.get("code-review-recheck");
+
+    expect(wf?.entry).toBe("recheck");
+    expect(wf?.exit).toBe("done");
+    expect(wf?.nodes.find((n) => n.id === "recheck")).toMatchObject({
+      type: "agent",
+      prompt_ref: "code-review-recheck",
+      model: "claude-haiku-4-5-20251001",
+    });
+    expect(
+      wf?.edges
+        .filter((e) => e.from === "recheck")
+        .map((e) => e.on)
+        .sort(),
+    ).toEqual(["changes_requested", "failed", "success"]);
   });
 });
