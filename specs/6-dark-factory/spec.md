@@ -9,7 +9,7 @@
 |----------|--------------------------------|
 | Feature  | Dark Factory Mode              |
 | Branch   | 6-dark-factory                 |
-| Status   | In Progress                    |
+| Status   | Shipped                        |
 | Created  | 2026-04-28                     |
 | Owner    | Platform Engineering           |
 
@@ -70,11 +70,14 @@ exception requires escalation.
 
 Three coordinated changes deliver this vision:
 
-1. **Branch as durable state.** Every workflow phase ends with a
-   commit carrying structured trailers (`Lore-Stage:`,
-   `Lore-Iteration:`, `Lore-Task:`). The branch is the audit trail.
-   A supervisor pod that dies resumes by reading `git log` on the
-   branch — no database checkpoints, no CR status sync, no parallel
+1. **Durable state (branch-as-state → DB-as-state, restated 2026-07).**
+   Every workflow phase ends with a commit carrying structured trailers
+   (`Lore-Stage:`, `Lore-Iteration:`, `Lore-Task:`) — the audit
+   substrate, emitted unconditionally on all Lore-authored commits.
+   Under the event-driven walk (ADR-031) the durable state is the
+   `pipeline.assembly_line_nodes` rows, not the git log: a Floor pod
+   that dies leaves no line stranded because transitions re-derive from
+   the persisted node rows (FR1.2) — no CR status sync, no parallel
    ledger.
 
 2. **Workflow as declarative graph.** The implicit chain
@@ -82,8 +85,8 @@ Three coordinated changes deliver this vision:
    externalized into a YAML/DOT-style directed graph: nodes are
    stages (agent prompts, validation steps, gate checks), edges
    carry conditions on commit / CI / review outcomes. New flows are
-   new graphs, not new code paths. The local runner and the GKE
-   supervisor interpret the same graph.
+   new graphs, not new code paths. The local runner and the Floor's
+   event-driven walk share the same graph definition.
 
 3. **Human gates are opt-out, not opt-in.** A per-repo `dark_factory`
    setting block flips the defaults: GitHub Issues are created only
@@ -95,13 +98,13 @@ Three coordinated changes deliver this vision:
    — gates which paths qualify for auto-merge.
 
 The feature is observable end-to-end: every task's lifecycle is
-reconstructable from the branch's commit history, every auto-merge
-records the trust decision in the audit log, and every escalation
-produces an Issue with full context attached.
+reconstructable from the persisted node rows and audit log, every
+auto-merge records the trust decision in the audit log, and every
+escalation produces an Issue with full context attached.
 
 ## Clarifications
 
-### Session 2026-04-28
+**Session 2026-04-28**
 
 - **Q1.** Assembly line on-disk format → A: Pure YAML (matches `task-types.yaml`, single source of truth, web-ui renders directly)
 - **Q2.** Bot behavior on PRs outside the auto-merge path allowlist → A: Review-and-await-human (bot posts inline comments + verdict, PR sits open until a human merges; no time-based auto-merge fallback in v1)
@@ -109,7 +112,7 @@ produces an Issue with full context attached.
 - **Q4.** Concurrency control when two supervisors think they own the same task → A: DB row-level lease keyed on branch name; first action of any supervisor is `acquire_lease(branch_name)`; lease has a TTL that expires automatically for pod-death recovery
 - **Q5.** Commit-trailer behavior in opt-out repos → A: Trailers always on regardless of `dark_factory.enabled` — strictly additive, single supervisor code path, pod-death recovery works uniformly across opt-in and opt-out repos
 
-## Goals
+## Goals (Background)
 
 1. **Cut handovers.** A successful implementation task should run
    from intent to merged PR in ≤ 1 supervised process per iteration,
@@ -144,39 +147,36 @@ produces an Issue with full context attached.
 
 ## User Personas
 
-### Platform Engineer
-
-Operates Lore. Needs visibility into autonomous flows: which tasks
+**Platform Engineer** — Operates Lore. Needs visibility into autonomous flows: which tasks
 ran dark, which auto-merged, which escalated. Configures per-repo
 `dark_factory` settings and the global path-allowlist. Investigates
 exceptions when they fire.
 
-### Developer / Maintainer
-
-Lives in a Lore-onboarded repo. Today receives ~10 bot Issue
+**Developer / Maintainer** — Lives in a Lore-onboarded repo. Today receives ~10 bot Issue
 notifications per week from routine gap-fill / spec-drift / runbook
 tasks, most of which they ignore. After dark mode: receives Slack
 or Issue notifications only when human action is genuinely needed.
 Trust ramps up automatically as repo accumulates clean merges.
 
-### Product Manager (non-engineer)
-
-Submits feature intents via Slack `/lore feature-request`. Needs to
+**Product Manager (non-engineer)** — Submits feature intents via Slack `/lore feature-request`. Needs to
 know "is my intent being worked on" and "where is the result." Today
 they watch GitHub Issues; after dark mode they watch the web-ui
 pipeline page. The web-ui already exists — this feature shifts PMs
 to it as the canonical surface.
 
-### Reviewer (human)
-
-Today reviews bot-authored PRs (often 8 days late). After dark mode:
+**Reviewer (human)** — Today reviews bot-authored PRs (often 8 days late). After dark mode:
 reviews only PRs that are *not* in the auto-merge allowlist (code
 changes, infra changes, anything outside docs/specs/ADRs). Sees
 fewer PRs, each carrying genuine human-decision weight.
 
-## User Scenarios & Acceptance Criteria
+## Background — User Scenarios & Acceptance Criteria
 
-### Scenario 1: Routine doc PR auto-merges
+These walkthroughs are illustrative; the normative, testable contract lives in
+the Functional Requirements below. (Some describe the original supervisor-pod
+framing — superseded by the Floor's event-driven assembly-line walk per
+ADR-031; the FRs carry the reconciled behaviour.)
+
+**Scenario 1: Routine doc PR auto-merges**
 
 **Actor:** System (no human)
 
@@ -197,7 +197,7 @@ fewer PRs, each carrying genuine human-decision weight.
 - The audit log entry names the rule applied (path-allowlist, trust level, CI status, bot-approval).
 - No human action occurs between push and merge: the PR merges automatically once CI is green (auto-merge engine SLA ≤ 60s per research R6), so wall-clock-to-merge is bounded by CI duration alone.
 
-### Scenario 2: Implementation task survives pod death
+**Scenario 2: Implementation task survives pod death**
 
 > *(restated 2026-07 — the durability promise stands but the mechanism is historical: there is no supervisor pod and resume is DB-as-state rather than git-log, since the event-driven walk re-derives the next step by replaying `pipeline.assembly_line_nodes` through the definition and the per-minute reaper converges any line a crash left open — see the restated FR1 and FR6 entries)* ([validated by `transition.test.ts:97`](libs/assembly-lines/src/transition.test.ts#L97), [`assembly-line-reaper.test.ts:38`](apps/floor/src/jobs/assembly-line/assembly-line-reaper.test.ts#L38))
 
@@ -217,7 +217,7 @@ fewer PRs, each carrying genuine human-decision weight.
 - The final PR carries the unbroken commit chain across both pods.
 - `pipeline.tasks.status` and the branch state agree at termination — neither is the source of truth alone.
 
-### Scenario 3: Code change still requires human review
+**Scenario 3: Code change still requires human review**
 
 **Actor:** Reviewer (human)
 
@@ -235,7 +235,7 @@ fewer PRs, each carrying genuine human-decision weight.
 - If the human comments, the response is committed by the same supervisor process or a webhook-triggered continuation, and resumes from the branch state — not from a fresh CR / Job pair.
 - Final merge is done by the human.
 
-### Scenario 4: Approval gate produces an Issue
+**Scenario 4: Approval gate produces an Issue**
 
 **Actor:** Approver (human), System
 
@@ -252,7 +252,7 @@ fewer PRs, each carrying genuine human-decision weight.
 - No commits are made until the Issue is labeled.
 - After approval, the flow proceeds without further human input until the next gate (or merge, if auto-merge applies).
 
-### Scenario 5: Escalation produces an Issue with full context
+**Scenario 5: Escalation produces an Issue with full context**
 
 **Actor:** Maintainer (human)
 
@@ -269,7 +269,7 @@ fewer PRs, each carrying genuine human-decision weight.
 - A `escalation` notification reaches the configured Slack channel.
 - The task can be resumed from the current commit if the human pushes a fix to the branch.
 
-### Scenario 6: Repo opts out of dark mode
+**Scenario 6: Repo opts out of dark mode**
 
 **Actor:** Platform Engineer
 
@@ -281,7 +281,7 @@ fewer PRs, each carrying genuine human-decision weight.
 - Repos with dark mode off see no behavior change from before this feature.
 - Migration is non-destructive: enabling dark mode is a settings update, no schema migration required for opt-in repos.
 
-### Scenario 7: PR-to-task cross-reference works without Issues
+**Scenario 7: PR-to-task cross-reference works without Issues**
 
 **Actor:** Auditor / Maintainer
 
@@ -303,8 +303,8 @@ fewer PRs, each carrying genuine human-decision weight.
 - **FR1.1a** The structured trailer block MUST be machine-readable: `parseTrailers` round-trips a formatted block with or without extras, reads a trailer paragraph appended to a multi-paragraph commit body, tolerates CRLF line endings and trailing whitespace, and returns null when no trailer paragraph is present, a required key is missing, `Lore-Iteration` is non-numeric, the final paragraph mixes trailer and non-trailer lines, or the input is empty. ([validated by `commit-trailers.test.ts:84`](libs/shared/src/commit-trailers.test.ts#L84), [`commit-trailers.test.ts:129`](libs/shared/src/commit-trailers.test.ts#L129), [`commit-trailers.test.ts:184`](libs/shared/src/commit-trailers.test.ts#L184), [`commit-trailers.test.ts:216`](libs/shared/src/commit-trailers.test.ts#L216), [`commit-trailers.test.ts:140`](libs/shared/src/commit-trailers.test.ts#L140), [`commit-trailers.test.ts:195`](libs/shared/src/commit-trailers.test.ts#L195), [`commit-trailers.test.ts:206`](libs/shared/src/commit-trailers.test.ts#L206), [`commit-trailers.test.ts:158`](libs/shared/src/commit-trailers.test.ts#L158), [`commit-trailers.test.ts:162`](libs/shared/src/commit-trailers.test.ts#L162), [`commit-trailers.test.ts:166`](libs/shared/src/commit-trailers.test.ts#L166), [`commit-trailers.test.ts:172`](libs/shared/src/commit-trailers.test.ts#L172), [`commit-trailers.test.ts:179`](libs/shared/src/commit-trailers.test.ts#L179); implemented by [`commit-trailers.ts:25`](libs/shared/src/commit-trailers.ts#L25))
 - **FR1.1b** The commit-trailers module also carries a spec→test provenance trailer: `formatValidatesTrailer` renders a `ProvenanceRef` as `Lore-Validates: <specPath>#<ordinal> -> <target>`, and `parseValidatesTrailers` reads each `Lore-Validates` line back into a `ProvenanceRef` with a numeric ordinal, round-tripping format→parse. ([validated by returns one ref with numeric ordinal for a single Lore-Validates line](libs/shared/src/commit-trailers.test.ts#L227), [renders specs/foo/spec.md#7 -> test/x.test.ts and round-trips through parseValidatesTrailers](libs/shared/src/commit-trailers.test.ts#L242); implemented by [`commit-trailers.ts`](libs/shared/src/commit-trailers.ts))
 - **FR1.2** *(restated 2026-07: DB-as-state)* The next assembly line node MUST be derivable from persisted state alone, without an in-memory walker: the event-driven walk replays `pipeline.assembly_line_nodes` through the definition (`nextTransition`, FR6.9). The original git-log resume described a fiction in production — the Floor's stage commits were local-only and never pushed. ([validated by `transition.test.ts:97`](libs/assembly-lines/src/transition.test.ts#L97), [`transition.test.ts:72`](libs/assembly-lines/src/transition.test.ts#L72), [`transition.test.ts:77`](libs/assembly-lines/src/transition.test.ts#L77), [`transition.test.ts:83`](libs/assembly-lines/src/transition.test.ts#L83), [`transition.test.ts:91`](libs/assembly-lines/src/transition.test.ts#L91), [`transition.test.ts:103`](libs/assembly-lines/src/transition.test.ts#L103), [`transition.test.ts:117`](libs/assembly-lines/src/transition.test.ts#L117), [`transition.test.ts:127`](libs/assembly-lines/src/transition.test.ts#L127), [`transition.test.ts:144`](libs/assembly-lines/src/transition.test.ts#L144), [`transition.test.ts:156`](libs/assembly-lines/src/transition.test.ts#L156), [`transition.test.ts:165`](libs/assembly-lines/src/transition.test.ts#L165), [`transition.test.ts:190`](libs/assembly-lines/src/transition.test.ts#L190); implemented by [`transition.ts:44`](libs/assembly-lines/src/transition.ts#L44))
-- **FR1.3** Phases that produce no file changes (e.g. a no-op review) MUST still produce a commit (empty commit allowed) so the trailer is captured.
-- **FR1.4** Branch history MUST NOT be rewritten by agents (no `--amend`, no force-push, no rebase) for any branch carrying stage trailers.
+- **FR1.3** *(restated 2026-07: DB-as-state)* A phase that produces no file changes still checkpoints and advances the walk — the checkpoint is the `pipeline.assembly_line_nodes` row recording the node's outcome, not an empty git commit (the empty-commit mechanism retired with the in-process executor, ADR-031). ([validated by `advance.test.ts:262`](apps/floor/src/jobs/assembly-line/advance.test.ts#L262))
+- **FR1.4** *(restated 2026-07: DB-as-state)* Recorded walk history is immutable: a node's outcome is written once and replayed, never rewritten — the UNIQUE `(assembly_line_id, node_id, iteration)` constraint and first-writer-wins finish (FR1.6/FR6.9) make an already-recorded node non-re-executable. The original guard was against agents rewriting on-branch stage-trailer history; the walk now pushes no stage commits, so node-row immutability is the invariant that carries the intent. ([validated by `transition.test.ts:91`](libs/assembly-lines/src/transition.test.ts#L91), [`advance.test.ts:262`](apps/floor/src/jobs/assembly-line/advance.test.ts#L262))
 - **FR1.5** The `Lore-Task: <uuid>` trailer MUST also appear in the final PR body, replacing the today's `Refs #<issue>` cross-reference. `prFooter` emits `Refs #N` before `Lore-Task` only when an issue number is present, treating a null, undefined, or `0` issue number as no issue. ([validated by `pr-body.test.ts:11`](libs/shared/src/pr-body.test.ts#L11), [`pr-body.test.ts:5`](libs/shared/src/pr-body.test.ts#L5), [`pr-body.test.ts:17`](libs/shared/src/pr-body.test.ts#L17), [`pr-body.test.ts:21`](libs/shared/src/pr-body.test.ts#L21); implemented by [`pr-body.ts:10`](libs/shared/src/pr-body.ts#L10))
 - **FR1.6** *(re-scoped 2026-07)* Concurrency control on the assembly-line path is structural — UNIQUE `(assembly_line_id, node_id, iteration)`, CAS node outcomes, first-writer-wins row finish, per-CR event dedupe (FR6.9) — plus a branch-keyed overlap guard: a second not-yet-started run on the same repo+branch finishes `lease_held`, deferring to the deterministically-chosen oldest open run — except for definitions whose branch is a shared workspace rather than a work identity (`comment-triage`, `code-review-reply`: distinct human comments ride one PR head branch, so guarding them would silently drop a comment; they run concurrently instead). There is no walker process left to lease. The branch-name lease backend (`lease-backends.ts`) and lease reaper remain for other consumers (the local runner's worktree mode); the reaper writes one `lease_expired` audit entry per reaped lease (branch name + previous holder, expiry ISO-stringified from a Date and passed through as a string), reporting the reaped count and writing nothing when none are past the grace cutoff. ([validated by `advance.test.ts:319`](apps/floor/src/jobs/assembly-line/advance.test.ts#L319), [`lease-reaper.test.ts:23`](apps/floor/src/main-loop/lease/lease-reaper.test.ts#L23), [`lease-reaper.test.ts:47`](apps/floor/src/main-loop/lease/lease-reaper.test.ts#L47), [`lease-reaper.test.ts:55`](apps/floor/src/main-loop/lease/lease-reaper.test.ts#L55), [`lease-reaper.test.ts:67`](apps/floor/src/main-loop/lease/lease-reaper.test.ts#L67); implemented by [`advance.ts:137`](apps/floor/src/jobs/assembly-line/advance.ts#L137))
 - **FR1.6a** The branch-keyed lease backend (Db + File + in-memory double) MUST implement one contract: `acquire` returns `acquired:true` on an empty slot or after a prior lease has expired (reporting `tookOverFrom` on takeover) and `acquired:false` with the current holder while a lease is still valid; a default TTL of 600s applies when unspecified; `refresh` extends the expiry only for the current holder (false for a non-holder or a missing record) and preserves the existing phase via COALESCE when the phase is omitted; `release` removes the record only for the holder (false, record intact, otherwise); `reapExpired(cutoff)` deletes and returns only leases past the cutoff (empty array otherwise); branch names containing slashes are encoded correctly. ([validated by `lease-backends.test.ts:35`](libs/shared/src/project/leases/lease-backends.test.ts#L35), [`lease-backends.test.ts:53`](libs/shared/src/project/leases/lease-backends.test.ts#L53), [`lease-backends.test.ts:66`](libs/shared/src/project/leases/lease-backends.test.ts#L66), [`lease-backends.test.ts:82`](libs/shared/src/project/leases/lease-backends.test.ts#L82), [`lease-backends.test.ts:93`](libs/shared/src/project/leases/lease-backends.test.ts#L93), [`lease-backends.test.ts:108`](libs/shared/src/project/leases/lease-backends.test.ts#L108), [`lease-backends.test.ts:115`](libs/shared/src/project/leases/lease-backends.test.ts#L115), [`lease-backends.test.ts:125`](libs/shared/src/project/leases/lease-backends.test.ts#L125), [`lease-backends.test.ts:134`](libs/shared/src/project/leases/lease-backends.test.ts#L134), [`lease-backends.test.ts:143`](libs/shared/src/project/leases/lease-backends.test.ts#L143), [`lease-backends.test.ts:163`](libs/shared/src/project/leases/lease-backends.test.ts#L163), [`lease-backends.test.ts:187`](libs/shared/src/project/leases/lease-backends.test.ts#L187), [`lease-backends.test.ts:202`](libs/shared/src/project/leases/lease-backends.test.ts#L202), [`lease-backends.test.ts:211`](libs/shared/src/project/leases/lease-backends.test.ts#L211), [`lease-backends.test.ts:220`](libs/shared/src/project/leases/lease-backends.test.ts#L220), [`lease-backends.test.ts:229`](libs/shared/src/project/leases/lease-backends.test.ts#L229), [`lease-backends.test.ts:238`](libs/shared/src/project/leases/lease-backends.test.ts#L238), [`lease-backends.test.ts:244`](libs/shared/src/project/leases/lease-backends.test.ts#L244), [`lease-backends.test.ts:255`](libs/shared/src/project/leases/lease-backends.test.ts#L255), [`lease-backends.test.ts:265`](libs/shared/src/project/leases/lease-backends.test.ts#L265), [`lease-backends.test.ts:279`](libs/shared/src/project/leases/lease-backends.test.ts#L279), [`lease-backends.test.ts:301`](libs/shared/src/project/leases/lease-backends.test.ts#L301), [`lease-backends.test.ts:313`](libs/shared/src/project/leases/lease-backends.test.ts#L313); implemented by [`lease-backends.ts`](libs/shared/src/project/leases/lease-backends.ts))
@@ -315,7 +315,7 @@ fewer PRs, each carrying genuine human-decision weight.
 - **FR2.2** An assembly line definition MUST express: nodes (typed: agent stage, validation, gate, retrospective), edges (with conditions on commit / CI / review outcomes), and entry/exit nodes. ([validated by `loader.test.ts:148`](libs/assembly-lines/src/loader.test.ts#L148), [`loader.test.ts:177`](libs/assembly-lines/src/loader.test.ts#L177), [`loader.test.ts:209`](libs/assembly-lines/src/loader.test.ts#L209), [`loader.test.ts:258`](libs/assembly-lines/src/loader.test.ts#L284), [`loader.test.ts:275`](libs/assembly-lines/src/loader.test.ts#L301); implemented by [`loader.ts:63`](libs/assembly-lines/src/loader.ts#L63))
 - **FR2.3** *(restated 2026-07: shared definition, not shared executor)* The assembly line definition is a single source of truth: the same YAML (loader + builtin definitions) is consumed by both the Floor's event-driven walk (`nextTransition` over the parsed graph) and, aspirationally, the local runner. The in-process `executeAssemblyLine` that once interpreted it Floor-side is retired; there is no "GKE supervisor" process anymore. ([validated by `loader.test.ts:322`](libs/assembly-lines/src/loader.test.ts#L348), [`boundaries.test.ts:41`](libs/assembly-lines/src/boundaries.test.ts#L41), [`boundaries.test.ts:45`](libs/assembly-lines/src/boundaries.test.ts#L45), [`boundaries.test.ts:49`](libs/assembly-lines/src/boundaries.test.ts#L49); implemented by [`loader.ts:128`](libs/assembly-lines/src/loader.ts#L128), [`transition.ts:44`](libs/assembly-lines/src/transition.ts#L44))
 - **FR2.4** Existing flows (implementation, gap-fill, runbook, review, feature-request, onboard, general) MUST be migratable to graph definitions without losing current behavior. ([validated by `loader.test.ts:389`](libs/assembly-lines/src/loader.test.ts#L418), [`loader.test.ts:340`](libs/assembly-lines/src/loader.test.ts#L370), [`loader.test.ts:359`](libs/assembly-lines/src/loader.test.ts#L387), [`loader.test.ts:380`](libs/assembly-lines/src/loader.test.ts#L397), [`loader.test.ts:400`](libs/assembly-lines/src/loader.test.ts#L427), [`loader.test.ts:413`](libs/assembly-lines/src/loader.test.ts#L438); implemented by [`loader.ts:138`](libs/assembly-lines/src/loader.ts#L138))
-- **FR2.5** Adding a new flow MUST require only a new graph definition + any new agent prompts referenced by it; no changes to supervisor / runner code.
+- **FR2.5** Adding a new flow MUST require only a new graph definition (YAML) plus any agent prompts it references — no engine code change; every bundled definition loads and walks through the one shared kernel. ([validated by `loader.test.ts:348`](libs/assembly-lines/src/loader.test.ts#L348), [`transition.test.ts:190`](libs/assembly-lines/src/transition.test.ts#L190))
 - **FR2.6** Non-agent node types MUST execute deterministically through a command relay: the relay runs a command in the configured workdir and returns its stdout, stderr and exit code, running sequential commands in order on the same relay; the `validate` node runs the repo's detected lint/typecheck check through the relay — success when no tooling is detected or the check passes, `failed` naming the failing step otherwise; the `github_action` node maps each CI conclusion to a node outcome. ([validated by `relay-executor.test.ts:50`](libs/assembly-lines/src/relay/relay-executor.test.ts#L50), [`relay-executor.test.ts:60`](libs/assembly-lines/src/relay/relay-executor.test.ts#L60), [`relay-executor.test.ts:68`](libs/assembly-lines/src/relay/relay-executor.test.ts#L68), [`relay-executor.test.ts:76`](libs/assembly-lines/src/relay/relay-executor.test.ts#L76), [`validate-handler.test.ts:51`](libs/assembly-lines/src/validate-handler.test.ts#L51), [`validate-handler.test.ts:59`](libs/assembly-lines/src/validate-handler.test.ts#L59), [`validate-handler.test.ts:67`](libs/assembly-lines/src/validate-handler.test.ts#L67), [`validate-handler.test.ts:89`](libs/assembly-lines/src/validate-handler.test.ts#L89), [`github-action-handler.test.ts:5`](libs/assembly-lines/src/github-action-handler.test.ts#L5))
 - **FR2.7** *(added 2026-07-23, #946)* The loader MUST reject, at load time, a definition in which any non-exit node lacks an edge (exact-outcome or `always`) for an outcome its node type can produce — every type produces `success` and `failed` (infrastructure failure: CR phase Failed, station timeout), and agent nodes additionally `changes_requested` (LORE_NODE_RESULT / REVIEW_RESULT verdict lines). The error names the node, the missing outcome(s), and the definition; an uncovered outcome must never surface as `nextTransition`'s runtime no-edge walk crash. ([validated by `loader.test.ts:458`](libs/assembly-lines/src/loader.test.ts#L459), [`loader.test.ts:482`](libs/assembly-lines/src/loader.test.ts#L483), [`loader.test.ts:508`](libs/assembly-lines/src/loader.test.ts#L509), [`loader.test.ts:531`](libs/assembly-lines/src/loader.test.ts#L532), [`loader.test.ts:561`](libs/assembly-lines/src/loader.test.ts#L562), [`loader.test.ts:582`](libs/assembly-lines/src/loader.test.ts#L583), [`loader.test.ts:623`](libs/assembly-lines/src/loader.test.ts#L624), [`loader.test.ts:630`](libs/assembly-lines/src/loader.test.ts#L631), [`loader.test.ts:637`](libs/assembly-lines/src/loader.test.ts#L638); implemented by [`loader.ts:91`](libs/assembly-lines/src/loader.ts#L91))
 
@@ -330,7 +330,7 @@ fewer PRs, each carrying genuine human-decision weight.
 - **FR3.3b** The auto-merge decision engine (`evaluateAutoMerge`) MUST squash-merge only when every gate passes and otherwise defer with a specific reason — `dark_mode_off` (overrides everything), `no_changes` (empty PR, checked before the path allowlist), `human_review`, `ci_failed` (only when `require_green_ci`), `bot_changes_requested`, `path_outside_allowlist`, `trust_too_low` (including a repo with no trust set) — and it reports CI/bot-review status in the decision inputs. The trigger wrapper (`evaluateAndMerge`) resolves the PR via the facade-backed policy lookup (no direct octokit) and no-ops without writing an audit row for an orphaned task (no `target_repo`), a `dark_factory.enabled:false` or null-settings repo, or a not-yet-created PR, invoking the merge only when dark mode is on and a PR exists, and propagating merge errors to the caller. ([validated by `auto-merge.test.ts:31`](apps/floor/src/jobs/merge/auto-merge.test.ts#L31), [`auto-merge.test.ts:40`](apps/floor/src/jobs/merge/auto-merge.test.ts#L40), [`auto-merge.test.ts:46`](apps/floor/src/jobs/merge/auto-merge.test.ts#L46), [`auto-merge.test.ts:52`](apps/floor/src/jobs/merge/auto-merge.test.ts#L52), [`auto-merge.test.ts:58`](apps/floor/src/jobs/merge/auto-merge.test.ts#L58), [`auto-merge.test.ts:64`](apps/floor/src/jobs/merge/auto-merge.test.ts#L64), [`auto-merge.test.ts:75`](apps/floor/src/jobs/merge/auto-merge.test.ts#L75), [`auto-merge.test.ts:81`](apps/floor/src/jobs/merge/auto-merge.test.ts#L81), [`auto-merge.test.ts:89`](apps/floor/src/jobs/merge/auto-merge.test.ts#L89), [`auto-merge.test.ts:100`](apps/floor/src/jobs/merge/auto-merge.test.ts#L100), [`auto-merge.test.ts:106`](apps/floor/src/jobs/merge/auto-merge.test.ts#L106), [`auto-merge.test.ts:132`](apps/floor/src/jobs/merge/auto-merge.test.ts#L132), [`auto-merge.test.ts:138`](apps/floor/src/jobs/merge/auto-merge.test.ts#L138), [`auto-merge-trigger.test.ts:50`](apps/floor/src/jobs/merge/auto-merge-trigger.test.ts#L50), [`auto-merge-trigger.test.ts:58`](apps/floor/src/jobs/merge/auto-merge-trigger.test.ts#L58), [`auto-merge-trigger.test.ts:67`](apps/floor/src/jobs/merge/auto-merge-trigger.test.ts#L67), [`auto-merge-trigger.test.ts:75`](apps/floor/src/jobs/merge/auto-merge-trigger.test.ts#L75), [`auto-merge-trigger.test.ts:86`](apps/floor/src/jobs/merge/auto-merge-trigger.test.ts#L86), [`auto-merge-trigger.test.ts:133`](apps/floor/src/jobs/merge/auto-merge-trigger.test.ts#L133), [`auto-merge-trigger.test.ts:143`](apps/floor/src/jobs/merge/auto-merge-trigger.test.ts#L143); implemented by [`auto-merge.ts:60`](apps/floor/src/jobs/merge/auto-merge.ts#L64))
 - **FR3.4** Sub-setting `review` MUST support `trust_based | always | never`. Default when dark-mode-on: `trust_based`. When `trust_based` is active and a PR's changed paths are *outside* the configured `auto_merge.paths` allowlist, the bot MUST post its inline review comments and verdict and then stop; the PR remains open awaiting human merge. Time-based "no-objection" auto-merge is explicitly out of scope for v1. ([validated by `dark-factory.test.ts:182`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L182), [`dark-factory.test.ts:104`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L104), [`dark-factory.test.ts:111`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L111), [`dark-factory.test.ts:128`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L128), [`dark-factory.test.ts:137`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L137), [`dark-factory.test.ts:146`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L146), [`dark-factory.test.ts:155`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L155), [`dark-factory.test.ts:164`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L164), [`dark-factory.test.ts:173`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L173); implemented by [`dark-factory.ts:100`](apps/floor/src/jobs/dark-factory/dark-factory.ts#L101))
 - **FR3.5** Sub-setting `notify` MUST support a list of channels: `escalation`, `watched`, `all`. Default when dark-mode-on: `[escalation]`. ([validated by `notify.test.ts:27`](libs/shared/src/project/notify/notify.test.ts#L27), [`notify.test.ts:40`](libs/shared/src/project/notify/notify.test.ts#L40), [`notify-decision.test.ts:10`](libs/shared/src/project/notify/notify-decision.test.ts#L10), [`notify-decision.test.ts:17`](libs/shared/src/project/notify/notify-decision.test.ts#L17), [`notify-decision.test.ts:24`](libs/shared/src/project/notify/notify-decision.test.ts#L24), [`notify-decision.test.ts:35`](libs/shared/src/project/notify/notify-decision.test.ts#L35), [`notify-slack.test.ts:16`](libs/shared/src/project/notify/notify-slack.test.ts#L16), [`notify-slack.test.ts:30`](libs/shared/src/project/notify/notify-slack.test.ts#L30); implemented by [`notify-decision.ts:13`](libs/shared/src/project/notify/notify-decision.ts#L13))
-- **FR3.6** Per-task overrides at creation time MUST be able to force `human_review: required`, `with_issue: true`, or `notify: completion` for a single task without changing repo settings.
+- **FR3.6** Per-task overrides at creation time MUST be able to force `human_review: required` or `with_issue: true` for a single task without changing repo settings. (The `notify: completion` per-task override listed in the original draft was not built in v1 — per-task notify control is deferred; repo-level `notify` channels remain the mechanism.) ([validated by `dark-factory.test.ts:11`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L11), [`dark-factory.test.ts:128`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L128))
 - **FR3.7** Auto-merge decisions MUST be recorded in the audit log with the rule that justified them (path matched, trust level, CI status, bot-approval). ([validated by `audit.test.ts:6`](apps/floor/src/jobs/lib/audit.test.ts#L6), [`auto-merge.test.ts:119`](apps/floor/src/jobs/merge/auto-merge.test.ts#L119), [`audit.test.ts:23`](libs/shared/src/project/audit/audit.test.ts#L23), [`audit.test.ts:44`](libs/shared/src/project/audit/audit.test.ts#L44), [`audit-memory.test.ts:5`](libs/shared/src/project/audit/audit-memory.test.ts#L5); implemented by [`auto-merge.ts:60`](apps/floor/src/jobs/merge/auto-merge.ts#L64), [`audit.ts:9`](apps/floor/src/jobs/lib/audit.ts#L9))
 - **FR3.8** Issues created on escalation MUST contain: task description, branch link, failing phase output (if any), diagnostic from the supervisor, and links to contributing facts/memories. ([validated by `escalation.test.ts:45`](apps/floor/src/jobs/platform/escalation.test.ts#L45), [`escalation.test.ts:65`](apps/floor/src/jobs/platform/escalation.test.ts#L65), [`escalation.test.ts:87`](apps/floor/src/jobs/platform/escalation.test.ts#L87), [`escalation.test.ts:114`](apps/floor/src/jobs/platform/escalation.test.ts#L114), [`escalation.test.ts:132`](apps/floor/src/jobs/platform/escalation.test.ts#L132), [`escalation.test.ts:162`](apps/floor/src/jobs/platform/escalation.test.ts#L162), [`escalation.test.ts:202`](apps/floor/src/jobs/platform/escalation.test.ts#L202), [`infra-failure.test.ts:23`](apps/floor/src/jobs/platform/infra-failure.test.ts#L23); implemented by [`escalation.ts:65`](apps/floor/src/jobs/platform/escalation.ts#L76))
 - **FR3.9** Authorization on `dark_factory.*` settings MUST be tiered. Privileged changes — toggling `dark_factory.enabled` and modifying `dark_factory.auto_merge.paths` — MUST require both an admin-scope API token and a CODEOWNERS approval recorded in the audit log (a labeled PR against the settings, or an equivalent ceremony surfaced via the web-ui). Lighter sub-settings (`notify`, `create_issue`, `review`, `auto_merge.min_trust`, `auto_merge.require_*`) MAY be changed with admin scope alone. Every mutation, regardless of tier, MUST write an audit_log entry naming the actor, the previous value, the new value, and the authorization path used. ([validated by `dark-factory.test.ts:250`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L250), [`dark-factory-settings.test.ts:108`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L108), [`dark-factory-settings.test.ts:113`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L113), [`dark-factory-settings.test.ts:119`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L119), [`dark-factory-settings.test.ts:128`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L128), [`dark-factory-settings.test.ts:137`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L137), [`dark-factory-settings.test.ts:147`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L147), [`dark-factory-settings.test.ts:206`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L206), [`dark-factory-settings.test.ts:215`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L215), [`dark-factory.test.ts:178`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L178), [`dark-factory.test.ts:197`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L197), [`dark-factory.test.ts:239`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L239), [`dark-factory.test.ts:258`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L258), [`dark-factory.test.ts:351`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L351); implemented by [`dark-factory-authz.ts:69`](apps/lore-api/src/features/dark-factory/dark-factory-authz.ts#L73), [`dark-factory-settings.ts:63`](apps/lore-api/src/features/dark-factory/dark-factory-settings.ts#L63))
@@ -339,14 +339,15 @@ fewer PRs, each carrying genuine human-decision weight.
 
 ### FR4 — Migration and compatibility
 
-- **FR4.1** All existing repos MUST default to `dark_factory.enabled = false` at migration; behavior is identical to pre-feature.
-- **FR4.2** Enabling dark mode on a repo MUST require no schema migration and no agent restart.
-- **FR4.3** A repo can revert to `dark_factory.enabled = false` at any time; subsequent tasks behave as today.
-- **FR4.4** Existing in-flight tasks at migration time MUST complete using their original flow; dark mode applies to tasks created after enablement.
+- **FR4.1** All existing repos MUST default to `dark_factory.enabled = false` at migration; behavior is identical to pre-feature. ([validated by `dark-factory-settings.test.ts:72`](apps/lore-api/src/features/dark-factory/dark-factory-settings.test.ts#L72), [`dark-factory.test.ts:94`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L94))
+- **FR4.3** A repo can revert to `dark_factory.enabled = false` at any time; subsequent tasks behave as today. ([validated by `dark-factory.test.ts:94`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L94), [`dark-factory.test.ts:104`](apps/floor/src/jobs/dark-factory/dark-factory.test.ts#L104))
+
+Decision: the remaining migration guarantees are architectural — enabling or reverting dark mode is a `settings.dark_factory` JSONB write needing no schema migration and no agent restart, and it applies only to tasks created after the change so any in-flight task completes on its original flow; both are properties of the settings-resolution path exercised by the enablement and revert requirements above, not separately unit-tested (see ADR-016).
 
 ### FR5 — Observability
 
-- **FR5.1** OpenTelemetry traces MUST cover supervisor phase transitions; each phase produces a span linked to its commit SHA.
+Decision: *(restated 2026-07: DB-as-state)* observability rides the event-driven walk rather than supervisor phase spans — each Agent or station node streams NDJSON to the Floor `/api/agent-events` sink, projected into `pipeline.llm_calls` (cost) and OTEL spans (ADR-031 D8), and the auto-merge decision emits the `lore.auto_merge.decision` span carrying its rule trace; the original per-phase span-linked-to-commit-SHA model retired with the in-process supervisor (see ADR-031).
+
 - **FR5.2** A repo dashboard view (web-ui) MUST surface: tasks run dark this week, tasks auto-merged, tasks escalated, current trust level, current `dark_factory` settings. ([validated by `RepoOverviewView.test.tsx:129`](apps/web-ui/src/app/repos/[owner]/[repo]/RepoOverviewView.test.tsx#L129), [`DarkFactoryConsoleView.test.tsx:26`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/DarkFactoryConsoleView.test.tsx#L26), [`DarkFactoryConsoleView.test.tsx:33`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/DarkFactoryConsoleView.test.tsx#L33), [`DarkFactoryConsoleView.test.tsx:46`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/DarkFactoryConsoleView.test.tsx#L46), [`DarkFactoryView.test.tsx:32`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/settings/DarkFactoryView.test.tsx#L32), [`DarkFactoryView.test.tsx:56`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/settings/DarkFactoryView.test.tsx#L56), [`DarkFactoryView.test.tsx:66`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/settings/DarkFactoryView.test.tsx#L66), [`AssemblyLineRunListView.test.tsx:26`](apps/web-ui/src/app/assembly-lines/AssemblyLineRunListView.test.tsx#L26), [`AssemblyLineRunListView.test.tsx:42`](apps/web-ui/src/app/assembly-lines/AssemblyLineRunListView.test.tsx#L42), [`AssemblyLineRunsTable.test.tsx:35`](apps/web-ui/src/app/assembly-lines/AssemblyLineRunsTable.test.tsx#L35), [`AssemblyLineRunsTable.test.tsx:41`](apps/web-ui/src/app/assembly-lines/AssemblyLineRunsTable.test.tsx#L41), [`AssemblyLineRunsTable.test.tsx:62`](apps/web-ui/src/app/assembly-lines/AssemblyLineRunsTable.test.tsx#L62), [`AssemblyLineRunsTable.test.tsx:84`](apps/web-ui/src/app/assembly-lines/AssemblyLineRunsTable.test.tsx#L84), [`AssemblyLineRunsTable.test.tsx:97`](apps/web-ui/src/app/assembly-lines/AssemblyLineRunsTable.test.tsx#L178), [`AssemblyLineRunsTable.test.tsx:201`](apps/web-ui/src/app/assembly-lines/AssemblyLineRunsTable.test.tsx#L201), [`AssemblyLineRunsTable.test.tsx:207`](apps/web-ui/src/app/assembly-lines/AssemblyLineRunsTable.test.tsx#L207))
 - **FR5.3** The web-ui task detail page MUST resolve `Lore-Task: <uuid>` from a PR URL and render the branch's stage timeline. ([validated by `TimelineView.test.tsx:102`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L102), [`AssemblyLineRunView.test.tsx:43`](apps/web-ui/src/app/assembly-lines/[id]/AssemblyLineRunView.test.tsx#L43), [`AssemblyLineRunView.test.tsx:62`](apps/web-ui/src/app/assembly-lines/[id]/AssemblyLineRunView.test.tsx#L62), [`AssemblyLineRunView.test.tsx:74`](apps/web-ui/src/app/assembly-lines/[id]/AssemblyLineRunView.test.tsx#L74), [`AssemblyLineRunView.test.tsx:100`](apps/web-ui/src/app/assembly-lines/[id]/AssemblyLineRunView.test.tsx#L100), [`AssemblyLineRunView.test.tsx:148`](apps/web-ui/src/app/assembly-lines/[id]/AssemblyLineRunView.test.tsx#L148), [`AssemblyLineRunView.test.tsx:162`](apps/web-ui/src/app/assembly-lines/[id]/AssemblyLineRunView.test.tsx#L162), [`NodePodLogs.test.tsx:46`](apps/web-ui/src/app/assembly-lines/[id]/NodePodLogs.test.tsx#L46), [`NodePodLogs.test.tsx:54`](apps/web-ui/src/app/assembly-lines/[id]/NodePodLogs.test.tsx#L54), [`node-pod-logs-presenter.test.ts:20`](apps/web-ui/src/app/assembly-lines/[id]/node-pod-logs-presenter.test.ts#L20), [`node-pod-logs-presenter.test.ts:28`](apps/web-ui/src/app/assembly-lines/[id]/node-pod-logs-presenter.test.ts#L28), [`node-pod-logs-presenter.test.ts:32`](apps/web-ui/src/app/assembly-lines/[id]/node-pod-logs-presenter.test.ts#L32), [`node-pod-logs-presenter.test.ts:36`](apps/web-ui/src/app/assembly-lines/[id]/node-pod-logs-presenter.test.ts#L36), [`node-pod-logs-presenter.test.ts:40`](apps/web-ui/src/app/assembly-lines/[id]/node-pod-logs-presenter.test.ts#L40), [`node-pod-logs-presenter.test.ts:48`](apps/web-ui/src/app/assembly-lines/[id]/node-pod-logs-presenter.test.ts#L48), [`node-pod-logs-presenter.test.ts:52`](apps/web-ui/src/app/assembly-lines/[id]/node-pod-logs-presenter.test.ts#L52), [`node-pod-logs-presenter.test.ts:56`](apps/web-ui/src/app/assembly-lines/[id]/node-pod-logs-presenter.test.ts#L56), [`node-pod-logs-presenter.test.ts:60`](apps/web-ui/src/app/assembly-lines/[id]/node-pod-logs-presenter.test.ts#L60); implemented by [`Timeline.tsx:61`](apps/web-ui/src/app/tasks/[id]/TimelineView.tsx#L68), [`task-timeline.ts:62`](apps/lore-api/src/api/routes/tasks/task-timeline.ts#L66))
 
@@ -382,7 +383,7 @@ fewer PRs, each carrying genuine human-decision weight.
 
 - **FR6.14** *(added 2026-07-17)* A node CR that fails because the Anthropic account ran dry (`Credit balance is too low` / `insufficient credit`) MUST raise ONE throttled operator alert, distinct from the per-line FR6.12 failure notice. Such a failure downs every LLM node — review, refine, triage, implementation — at once, so a per-run notice would flood the channel while a code fix would do nothing; the fix is topping up the account. The classifier reads the agent's terminal error text (`terminalErrorText` — the last `is_error` result line, peeled from the same NDJSON/attribution envelope as FR6.11, since the CR's own `failureReason` is only the Job-level `BackoffLimitExceeded`); a global time-window throttle (account-wide, so one alert per window across all repos, not per drowned run) gates the `escalation`-level Slack send; and the whole path is best-effort — a notify throw is logged, never propagated, so it cannot fail the node-event handler or re-drive the event. Non-billing failures neither alert nor consume the throttle. ([validated by `billing-alert.test.ts:15`](apps/floor/src/jobs/assembly-line/billing-alert.test.ts#L15), [`billing-alert.test.ts:27`](apps/floor/src/jobs/assembly-line/billing-alert.test.ts#L27), [`billing-alert.test.ts:35`](apps/floor/src/jobs/assembly-line/billing-alert.test.ts#L35), [`billing-alert.test.ts:50`](apps/floor/src/jobs/assembly-line/billing-alert.test.ts#L50), [`billing-alert.test.ts:65`](apps/floor/src/jobs/assembly-line/billing-alert.test.ts#L65), [`billing-alert.test.ts:85`](apps/floor/src/jobs/assembly-line/billing-alert.test.ts#L85), [`billing-alert.test.ts:110`](apps/floor/src/jobs/assembly-line/billing-alert.test.ts#L110), [`node-event-handler.test.ts:111`](apps/floor/src/jobs/assembly-line/node-event-handler.test.ts#L111), [`node-event-handler.test.ts:126`](apps/floor/src/jobs/assembly-line/node-event-handler.test.ts#L126), [`node-outcome.test.ts:116`](libs/assembly-lines/src/node-outcome.test.ts#L116), [`node-outcome.test.ts:122`](libs/assembly-lines/src/node-outcome.test.ts#L122), [`agent-output.test.ts:145`](libs/assembly-lines/src/agent-output.test.ts#L145), [`agent-output.test.ts:155`](libs/assembly-lines/src/agent-output.test.ts#L155), [`agent-output.test.ts:165`](libs/assembly-lines/src/agent-output.test.ts#L165), [`agent-output.test.ts:173`](libs/assembly-lines/src/agent-output.test.ts#L173); implemented by [`billing-alert.ts:29`](apps/floor/src/jobs/assembly-line/billing-alert.ts#L29), [`node-event-handler.ts:76`](apps/floor/src/jobs/assembly-line/node-event-handler.ts#L76))
 
-## Requirement Traceability
+## Requirement Traceability (Background)
 
 Each functional requirement maps to the user scenario(s) that exercise it and the
 success criteria it advances. Per-statement test and implementation links live
@@ -392,8 +393,8 @@ inline on each FR above (`validated by` / `implemented by`).
 |---|---|---|
 | FR1.1 Trailers on every commit | 1, 6 | SC5 |
 | FR1.2 Next node from persisted node rows (restated) | 2 | SC2 |
-| FR1.3 Empty commit for no-op phases | 1 | SC5 |
-| FR1.4 No history rewrite | 2 | SC2, SC5 |
+| FR1.3 No-op phase checkpoints as a node row (DB-as-state) | 1 | SC5 |
+| FR1.4 Recorded node history is immutable (DB-as-state) | 2 | SC2, SC5 |
 | FR1.5 `Lore-Task:` in PR body | 7 | SC5 |
 | FR1.6 Structural concurrency + branch overlap guard (re-scoped) | 2 | SC2 |
 | FR2.1 Workflow YAML (no alt formats) | 1, 3 | SC1 |
@@ -410,55 +411,54 @@ inline on each FR above (`validated by` / `implemented by`).
 | FR3.7 Auto-merge audit record | 1, 3 | SC5, SC7 |
 | FR3.8 Escalation Issue content | 5 | SC4 |
 | FR3.9 Two-key settings authz | (settings change) | SC7 |
-| FR4.1–4.4 Migration & compatibility | 6 | SC8 |
-| FR5.1 OTEL phase spans | 2 | SC2 |
+| FR4.1, FR4.3 Migration & compatibility (FR4.2/4.4 architectural — see Decision) | 6 | SC8 |
+| FR5.1 Observability via NDJSON→OTEL + auto-merge span (restated) | 2 | SC2 |
 | FR5.2 Repo dashboard | 7 | — |
 | FR5.3 Timeline + `Lore-Task:` resolver | 7 | SC5 |
 
-## Success Criteria
+## Success Criteria (Background)
 
-### SC1 — Handover reduction
-For implementation tasks, **the count of distinct ephemeral Job pods per task drops from ≥ 4 to ≤ 2** (one supervisor + at most one webhook-triggered continuation), measured over a 7-day window after dark mode is enabled on a representative repo.
+These are org-level outcome metrics measured operationally after enablement, not
+unit-testable assertions — the underlying behaviours are validated via the FRs
+above (e.g. SC7 ← FR3.3/3.7 path-allowlist, SC2 ← FR1.2/1.6 replay).
 
-### SC2 — Pod-death survivability
+**SC1 — Handover reduction**
+For implementation tasks, **the old 4+ CR / Issue / comment handoff chain per task collapses** — the event-driven walk dispatches one Agent/station CR per node with no cross-pod handover ledger — measured over a 7-day window after dark mode is enabled on a representative repo.
+
+**SC2 — Pod-death survivability**
 *(restated 2026-07)* **A Floor pod dying at ANY point leaves no assembly line stranded**: there is no walker process — transitions are event-driven over persisted node rows (FR6.9), so already-recorded nodes are never re-executed, in-flight Agent CRs keep running and their terminal events (or the FR6.10 reaper) advance the line on the next Floor instance. Measured by `kubectl rollout restart` during canary runs across all node types.
 
-### SC3 — Stale-PR elimination
+**SC3 — Stale-PR elimination**
 On dark-mode-enabled repos, **no PR auto-generated by Lore stays open with green CI + bot-approved status for more than 24 hours**, measured over a rolling 30-day window.
 
-### SC4 — Human notification reduction
+**SC4 — Human notification reduction**
 For a representative onboarded repo, **the number of GitHub Issues created by Lore drops by at least 80%** when comparing the 30-day post-enable window against the 30-day pre-enable baseline (captured in `pipeline.dark_factory_baseline` per T011b), while task throughput stays equal or higher ([validated by `dark-factory-baseline.test.ts:30`](apps/floor/src/jobs/dark-factory/dark-factory-baseline.test.ts#L30), [`dark-factory-baseline.test.ts:52`](apps/floor/src/jobs/dark-factory/dark-factory-baseline.test.ts#L52), [`dark-factory-baseline.test.ts:70`](apps/floor/src/jobs/dark-factory/dark-factory-baseline.test.ts#L70)).
 
-### SC5 — Audit completeness preserved
+**SC5 — Audit completeness preserved**
 **100% of Lore-authored merged PRs are resolvable to their originating task via the `Lore-Task:` trailer**, with the branch's commit log reconstructing the full phase sequence and outcomes.
 
-### SC6 — Human review focus
+**SC6 — Human review focus**
 For dark-mode-enabled repos, **the share of bot-authored PRs that require human review drops to ≤ 30%** of the dark-mode total, with the remainder auto-merging on policy.
 
-### SC7 — Trust-based gating works
+**SC7 — Trust-based gating works**
 **Zero auto-merges occur outside the configured path allowlist** during the first 90 days post-launch. Any violation is treated as a P1 incident.
 
-### SC8 — Adoption gate
+**SC8 — Adoption gate**
 At least **three repos representing distinct trust tiers (`docs`, `tests`, `implementation`)** must be running dark mode for ≥ 14 days each before the feature can be declared general-availability.
 
-## Key Entities
+## Key Entities (Background)
 
-### Assembly Line Graph
-A declarative description of a flow as nodes and edges. Stored in `assembly-lines/*.yaml` (or equivalent) and loaded by both the local runner and the GKE supervisor. ([implemented by `loader.ts:63`](libs/assembly-lines/src/loader.ts#L63))
+**Assembly Line Graph** — A declarative description of a flow as nodes and edges. Stored in `assembly-lines/*.yaml` and loaded by the shared kernel that both the local runner and the Floor walk. ([implemented by `loader.ts:63`](libs/assembly-lines/src/loader.ts#L63))
 
-### Stage Commit
-A git commit produced at the end of an assembly line phase. Carries trailers identifying the stage, iteration, and originating task. The commit is the durable handover unit between phases. ([implemented by `commit-trailers.ts:25`](libs/shared/src/commit-trailers.ts#L25))
+**Stage Commit** — A Lore-authored git commit carrying `Lore-Stage:`/`Lore-Iteration:`/`Lore-Task:` trailers — the audit substrate (FR1.1). Under the event-driven walk (ADR-031) the durable handover unit between phases is the `pipeline.assembly_line_nodes` row, not a pushed commit; stage commits are local audit detail, never the resume source. ([implemented by `commit-trailers.ts:25`](libs/shared/src/commit-trailers.ts#L25))
 
-### Dark-Factory Policy
-The merged result of the per-repo `settings.dark_factory.*` block plus per-task overrides. Determines: whether to create an Issue, whether to auto-merge on success, who to notify, and how strict the review gate is. ([implemented by `dark-factory-settings.ts:63`](libs/shared/src/dark-factory-settings.ts#L63))
+**Dark-Factory Policy** — The merged result of the per-repo `settings.dark_factory.*` block plus per-task overrides. Determines: whether to create an Issue, whether to auto-merge on success, who to notify, and how strict the review gate is. ([implemented by `dark-factory-settings.ts:63`](libs/shared/src/dark-factory-settings.ts#L63))
 
-### Auto-Merge Decision Record
-An audit-log entry capturing every auto-merge: the PR, the task, the policy that applied, the trust level at decision time, the CI status, and the bot-review verdict. Required for forensic reconstruction. ([implemented by `auto-merge.ts:60`](apps/floor/src/jobs/merge/auto-merge.ts#L64), [`audit.ts:9`](apps/floor/src/jobs/lib/audit.ts#L9))
+**Auto-Merge Decision Record** — An audit-log entry capturing every auto-merge: the PR, the task, the policy that applied, the trust level at decision time, the CI status, and the bot-review verdict. Required for forensic reconstruction. ([implemented by `auto-merge.ts:60`](apps/floor/src/jobs/merge/auto-merge.ts#L64), [`audit.ts:9`](apps/floor/src/jobs/lib/audit.ts#L9))
 
-### Escalation Issue
-A GitHub Issue created on the fly when a task hits `needs-human-help`. Differs from today's per-task Issue in that it carries diagnostic context and links to partial work; humans can act on it without re-deriving state. ([implemented by `escalation.ts:65`](apps/floor/src/jobs/platform/escalation.ts#L76))
+**Escalation Issue** — A GitHub Issue created on the fly when a task hits `needs-human-help`. Differs from today's per-task Issue in that it carries diagnostic context and links to partial work; humans can act on it without re-deriving state. ([implemented by `escalation.ts:65`](apps/floor/src/jobs/platform/escalation.ts#L76))
 
-## Constitutional Impact
+## Constitutional Impact (Background)
 
 This feature **partially supersedes** the row "Task tracking | Pipeline tasks via Lore MCP + GH Issues" in Principle 7 of the constitution. Per the amendment procedure, this requires:
 
@@ -471,15 +471,14 @@ All other principles remain intact. Specifically preserved:
 - **P9 Intelligent Agents Over Mechanical Scripts** — strengthened (supervisor agents now own end-to-end flows).
 - **P11 Intelligent Memory Lifecycle** — unchanged.
 
-## Assumptions
+## Assumptions (Background)
 
 - The progressive-trust system (`docs → tests → implementation → full`) accurately reflects per-repo readiness and is the right input to auto-merge gating.
 - GitHub does not impose API rate limits that make on-the-fly escalation Issue creation unreliable. (Mitigation: Issue creation already used elsewhere; rate limits are familiar.)
-- Branch-as-state implies branches are not rebased by humans either while a task is in flight. (Mitigation: branches are agent-owned per task; humans rebase only after the task is closed.)
 - Web-ui pipeline page is acceptable as the canonical "where's my task" surface for non-engineer stakeholders. PMs already have access.
-- Supervisor pods can be configured to read git history at startup with minimal overhead (≤ 5 seconds).
+- _(Superseded 2026-07)_ The original branch-as-state assumptions — that in-flight branches are never human-rebased, and that supervisor pods can cheaply read git history at startup — no longer bind: under the event-driven walk (ADR-031) resume derives from `pipeline.assembly_line_nodes` rows, not git history, so there is no supervisor and no git-log resume to protect.
 
-## Dependencies
+## Dependencies (Background)
 
 - The progressive-trust system (`settings.trust.level`) — already shipped.
 - The audit_log infrastructure — already shipped.
