@@ -8,12 +8,9 @@ For a non-engineer, plain-language overview of what these tools are for, read th
 
 ## MCP server structure
 
-**Dual transport.** The server (`@re-cinq/lore-mcp`) runs in one of two modes, selected by `MCP_TRANSPORT`:
+**Local stdio adapter.** The shipped MCP server (`@re-cinq/lore-mcp`, `apps/mcp-server`) runs on the developer's machine over **stdio**, registered by `scripts/install.sh`. It holds no database pool: it auto-detects the current repo from the git remote and **proxies** operations to the shared backend over `LORE_API_URL` (bearer `LORE_INGEST_TOKEN`). Proxied reads pass through a read-through cache (`platform/proxy-cache.ts`); writes invalidate the caches they affect. The remote backend it talks to is `@re-cinq/lore-api`, a plain REST service that owns the direct PostgreSQL + pgvector access behind `/api/*` (ADR-032).
 
-- **stdio (default) — local proxy.** Runs on the developer's machine via `scripts/install.sh`. It auto-detects the current repo from the git remote and proxies most operations to the shared GKE backend over `LORE_API_URL` (bearer `LORE_INGEST_TOKEN`). Proxied reads pass through a read-through cache (`platform/proxy-cache.ts`); writes invalidate the caches they affect.
-- **http (Streamable HTTP) — shared GKE server.** The cluster deployment in the `lore-api` namespace. When `LORE_DB_HOST` is set it talks to PostgreSQL + pgvector directly instead of proxying.
-
-Most tools branch on `LORE_DB_HOST` (equivalently `isMemoryDbAvailable()`): present → direct DB; absent → proxy to `LORE_API_URL`, with a `~/.lore` file fallback only for a subset of memory tools and only when no API is configured at all.
+**Two code paths in each handler.** Every tool handler is written to branch on `LORE_DB_HOST` (equivalently `isMemoryDbAvailable()`): pool present → direct DB; absent → proxy to `LORE_API_URL`, with a `~/.lore` file fallback only for a subset of memory tools and only when no API is configured at all. The stdio adapter never supplies a pool, so in the local install it always takes the proxy path; the direct-DB branch is the same code exercised whenever these handlers run with a live pool. The per-tool "Where it runs" notes below describe both branches.
 
 **How tools register.** Each category lives in one file and exposes a `registerXTools(server, deps)` function called at startup. Inside, every tool is declared with:
 
@@ -41,7 +38,7 @@ Every tool is namespaced with the **`lore_` prefix** (Anthropic-recommended name
 
 ## Tool reference
 
-41 tools across seven categories. For each: purpose, when to use / not use, parameters (only what the zod shape actually declares), return shape, where it runs, and cache/mutation notes.
+40 tools across seven categories. For each: purpose, when to use / not use, parameters (only what the zod shape actually declares), return shape, where it runs, and cache/mutation notes.
 
 ### Context & knowledge
 
@@ -581,30 +578,16 @@ One-line purpose: view or update the local task-runner config (`~/.lore/local-ru
 
 ### Spec-trace
 
-#### `lore_ingest_graph`
-
-One-line purpose: build (or rebuild) the spec-traceability graph by creating one zero-LLM ingestion pipeline task per requested kind.
-
-- **When to use:** populate or refresh the graph (write/build side).
-- **When not to use:** READ a spec's coverage from the built graph → `lore-query-trace`; enumerate/execute tests locally → `lore_list_tests` / `lore_run_test`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `repo` | no | auto-detect | Target repo as `owner/repo`; falls back to the git-remote-detected repo. |
-| `kinds` | no | all three | Array of any of `specs`, `adrs`, `tests`. One pipeline task is created per kind. |
-| `ref` | no | default branch | Git branch or commit SHA to ingest at; passed through as the created task's branch. |
-| `force` | no | `false` | When true, the `specs`/`adrs` projection re-processes every file even if its content hash is unchanged. No effect on `tests` (which always re-runs the full suite). |
-
-- **Returns:** the count, the group id, a `  • {kind}: {task_id}` line per created task, and a "Skipped (already in flight)" note when any kind was skipped.
-- **Where it runs:** **direct-DB only** (`LORE_DB_HOST`); does not proxy over `LORE_API_URL`; returns "Database not available" with no pool. The agent runner picks up `specs`/`adrs` automatically; `tests` are run locally via `lore_run_task_locally`.
-- **Cache/mutation:** WRITE — inserts one `pipeline.tasks` row per non-skipped kind. Idempotent: a kind with an in-flight task (`pending`/`queued`/`running`/`running-local`) for this repo is skipped so re-runs never stack duplicates.
+> The trace graph is (re)built out of band — by the repo's CI ingest workflow and by
+> `lore_ingest_files` for on-demand doc ingestion — not by an MCP tool. The tools below
+> only READ the graph or run tests locally.
 
 #### `lore-query-trace`
 
 One-line purpose: query the spec-traceability graph for a spec — which statements are validated/implemented/decided by what, and which are drifted or violated.
 
 - **When to use:** READ a spec's coverage and needs-attention from the already-built main-branch graph.
-- **When not to use:** (re)build the graph → `lore_ingest_graph`; enumerate/run tests locally → `lore_list_tests` / `lore_run_test`.
+- **When not to use:** enumerate/run tests locally → `lore_list_tests` / `lore_run_test`. (The graph is (re)built by CI ingest / `lore_ingest_files`, not by an MCP tool.)
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -621,7 +604,7 @@ One-line purpose: query the spec-traceability graph for a spec — which stateme
 One-line purpose: enumerate the current repo's tests by running its declared `list` command from `.lore/test-commands.yml` in your local checkout.
 
 - **When to use:** discover what tests exist and their selectors before executing one.
-- **When not to use:** run a single test → `lore_run_test`; read already-computed coverage without execution → `lore-query-trace`; (re)build the graph → `lore_ingest_graph`.
+- **When not to use:** run a single test → `lore_run_test`; read already-computed coverage without execution → `lore-query-trace`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -636,7 +619,7 @@ One-line purpose: enumerate the current repo's tests by running its declared `li
 One-line purpose: run a single test by its runner-native selector and report the code it covers.
 
 - **When to use:** run ONE test and learn what it covers.
-- **When not to use:** discover available tests/selectors → `lore_list_tests`; read coverage without running → `lore-query-trace`; (re)build the graph → `lore_ingest_graph`.
+- **When not to use:** discover available tests/selectors → `lore_list_tests`; read coverage without running → `lore-query-trace`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -786,7 +769,6 @@ Quick-reference for the confusable clusters.
 
 | Use | Tool |
 |---|---|
-| (Re)build the trace graph by creating per-kind ingestion tasks (specs/adrs/tests). Write path; requires direct DB; idempotent unless `force`. | `lore_ingest_graph` |
 | READ a spec's coverage/needs-attention from the already-built main-branch graph. Read path over the API. | `lore-query-trace` |
 | Enumerate the repo's tests via its manifest in your local checkout. Local-only; refused on the shared cluster. | `lore_list_tests` |
 | Execute ONE test by selector and see what code it covers. Local-only; refused on the shared cluster. | `lore_run_test` |

@@ -35,6 +35,8 @@ Required variables in `secrets.tfvars`:
 | `anthropic_api_key` | Anthropic API key for Claude |
 | `db_password` | PostgreSQL password |
 | `ingest_token` | Shared token for API auth |
+| `webhook_secret` | HMAC secret for verifying inbound GitHub/Slack webhooks |
+| `agent_internal_token` | Internal token the ai-agent-subsystem uses to authenticate to the API |
 | `github_oauth_client_id` | GitHub OAuth App client ID (for UI login) |
 | `github_oauth_client_secret` | GitHub OAuth App client secret |
 | `nextauth_secret` | Random string for NextAuth session encryption |
@@ -62,7 +64,7 @@ terraform apply \
 ```
 
 This creates:
-- GCP Secret Manager entries (11 secrets)
+- GCP Secret Manager entries (14 secrets: 13 named values plus the GHCR pull secret)
 - External Secrets Operator (syncs secrets to K8s)
 - GCS bucket for task logs (CMEK encrypted, 30-day retention)
 - KMS key ring + crypto key
@@ -121,7 +123,7 @@ within bash 3.2, the macOS default).
 **Install:**
 
 ```bash
-git clone https://github.com/your-org/lore.git
+git clone https://github.com/re-cinq/lore.git
 cd lore && scripts/install.sh
 ```
 

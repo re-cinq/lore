@@ -12,14 +12,14 @@
 npm start
 ```
 
-This runs `scripts/dev-local.sh`, which brings up a Docker Postgres (pgvector, data persisted to the git-ignored `.lore-pgdata/`), builds `libs/shared` → `libs/assembly-lines` → `apps/mcp-server` → `apps/floor`, then runs all four components under `concurrently` with live reload.
+This runs `scripts/dev-local.sh`, which brings up the backing services (Docker Postgres with pgvector, plus Dgraph, data persisted to the git-ignored `.lore-*data/`), builds `libs/shared` → `libs/assembly-lines` → `libs/server-core` → `apps/lore-api` → `apps/mcp-server` → `apps/floor`, then runs the services under `concurrently` with live reload. The stdio MCP server (`apps/mcp-server`) is built here but launched on demand by Claude Code, not run as a daemon.
 
 Ports:
 
 | Component | Port |
 |-----------|------|
 | web-ui | `:3000` |
-| mcp-server | `:3001` |
+| Lore API | `:3001` |
 | floor | `:8080` |
 | Postgres | `:5432` |
 
@@ -55,17 +55,20 @@ Optionally set `GITHUB_ALLOWED_ORG` in the same file to restrict login to one or
 lore/
 ├── apps/                       # deployable services
 │   ├── floor/                  # Floor — coordinator runtime (TypeScript: task runner, scheduler, controllers)
-│   ├── mcp-server/             # MCP server (serves context + memory + pipeline)
+│   ├── lore-api/               # Remote REST backend (/api/*) on GKE — DB / GitHub / GCS / tree-sitter
+│   ├── mcp-server/             # Local stdio MCP adapter — proxies every op to the Lore API
+│   ├── lore-station/           # Station pod image (runs one non-agent assembly-line node per pod)
+│   ├── lore-code-trace/        # Go binary — runs a repo's test suite in CI and posts the trace
 │   ├── web-ui/                 # Next.js dashboard (repo-centric UI, GitHub OAuth)
 │   └── vscode-extension/       # VS Code extension (spec ↔ code highlighting)
 ├── libs/                       # shared libraries (consumed by apps)
 │   ├── shared/                 # @re-cinq/lore-shared — chunker, redact, Project facade, types
-│   └── assembly-lines/         # @re-cinq/lore-assembly-lines — execution kernel (supervisor, assembly lines)
+│   ├── server-core/            # @re-cinq/lore-server-core — light business logic shared by both deployables
+│   └── assembly-lines/         # @re-cinq/lore-assembly-lines — assembly-line loader, graph, node outcomes
 ├── infra/                      # deploy & runtime
-│   ├── terraform/modules/      # Helm charts (floor-helm, lore-api-helm, ui-helm, lore-db-helm), LoreTask CRD
-│   ├── docker/claude-runner/   # Ephemeral container for Claude Code in K8s Jobs
-│   ├── k8s/                    # Ingress manifests, CronJobs
-│   └── compose.yaml            # Local Postgres/Dgraph for the dev stack
+│   ├── terraform/modules/      # Terraform + the `lore-platform` umbrella Helm chart
+│   │                           #   (floor / lore-api / ui / lore-db / ai-agents subcharts)
+│   └── compose.yaml            # Local Postgres + Dgraph for the dev stack
 ├── scripts/                    # install.sh, lore-doctor, infra setup scripts
 ├── adrs/                       # Architecture decision records (MADR format)
 ├── specs/                      # Feature specifications (speckit workflow)
@@ -75,13 +78,14 @@ lore/
 └── .github/workflows/          # CI: build + push containers for Floor, MCP, UI
 ```
 
-npm workspaces live under `apps/*` + `libs/*`; `web-ui` is a standalone Next.js app (its own lockfile, not a workspace).
+npm workspaces cover `libs/*` and the TypeScript apps (`floor`, `lore-api`, `lore-station`, `mcp-server`, `vscode-extension`). `web-ui` is a standalone Next.js app (its own lockfile, not a workspace), and `lore-code-trace` is a Go module.
 
 ## Tech stack
 
 | Layer | Technology |
 |-------|-----------|
 | MCP Server | TypeScript, `@modelcontextprotocol/sdk`, Zod |
+| Lore API | TypeScript, `@hapi/hapi` (REST), Zod, `pg`, Octokit, tree-sitter |
 | Floor | TypeScript, `@anthropic-ai/sdk`, Claude Code (headless) |
 | Web UI | Next.js 15, NextAuth v4 (GitHub OAuth) |
 | Database | PostgreSQL 16 + pgvector (CloudNativePG) |
@@ -105,7 +109,7 @@ Architecture decisions are documented as ADRs in `adrs/` (MADR format).
 
 ## Development workflow
 
-Use the `/lore-feature` skill to start or continue a feature — it guides you through spec → plan → tasks → implementation interactively. When you're ready to open a PR, `/lore-pr` drafts a description from your spec and changed files against the template in `.github/pull_request_template.md`. Full conventions live in [CLAUDE.md](../../CLAUDE.md); the PR checklist is in the root [CONTRIBUTING.md](../../CONTRIBUTING.md).
+Use the `/lore-feature` skill to start or continue a feature — it guides you through spec → plan → tasks → implementation interactively. When you're ready to open a PR, `/lore-pr` drafts a description from your spec and changed files against the template in `.github/PULL_REQUEST_TEMPLATE.md`. Full conventions live in [CLAUDE.md](../../CLAUDE.md); the PR checklist is in the root [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ---
 

@@ -27,9 +27,9 @@ Beyond context, Lore is an **agent operating system**. It runs background agents
 ## Repository layout
 
 ```
-apps/        deployable services        floor · mcp-server · web-ui · vscode-extension
-libs/        shared libraries           shared (@re-cinq/lore-shared) · assembly-lines (@re-cinq/lore-assembly-lines)
-infra/       deploy & runtime           terraform · docker · k8s · compose.yaml
+apps/        deployable services        floor · lore-api · mcp-server · web-ui · vscode-extension
+libs/        shared libraries           shared (@re-cinq/lore-shared) · assembly-lines (@re-cinq/lore-assembly-lines) · server-core (@re-cinq/lore-server-core)
+infra/       deploy & runtime           terraform · compose.yaml
 specs/       speckit specs (spec/plan/tasks/contracts) — first-class, links into code
 adrs/        architecture decision records (MADR)
 runbooks/    incident & operational runbooks        teams/  per-team CLAUDE.md

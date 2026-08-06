@@ -21,7 +21,7 @@ its own row. All access goes through the Lore agent-definitions API
 
 **List** the repo's resolved agent definitions (org defaults overlaid with repo overrides):
 ```
-curl -fsS -H "authorization: Bearer $LORE_API_URL_TOKEN" \
+curl -fsS -H "authorization: Bearer $TOKEN" \
   "$LORE_API_URL/api/repos/<owner>/<repo>/agent-definitions"
 ```
 Each entry has `name, model, timeout_minutes, prompt, image, execution_mode,

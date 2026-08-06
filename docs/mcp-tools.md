@@ -95,7 +95,6 @@ These use your local checkout and (optionally) your own Claude subscription.
 | `lore_list_repos` | Lists repos onboarded to Lore. | ☁️ Cloud (service-side) |
 | `lore_onboard_repo` | Adds a new repo to Lore. | ☁️ Cloud (service-side) |
 | `lore_ingest_files` | Makes specific files searchable in Lore. | ☁️ Cloud |
-| `lore_ingest_graph` | Refreshes the spec/test/decision knowledge graph. | ☁️ Cloud (service-side) |
 
 ## Usage & analytics
 

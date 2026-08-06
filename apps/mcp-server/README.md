@@ -5,14 +5,17 @@ Serves org context, ADRs, memory, and search to Claude Code over the
 entrypoint developers connect to: it auto-detects the current repo from the git
 remote and serves that repo's context.
 
-## Transports
+## Transport
 
-Dual transport, selected by the `MCP_TRANSPORT` env var:
-
-- **stdio** (default) — local mode. Runs on the developer's machine and proxies
-  most operations to the GKE backend via `LORE_API_URL`.
-- **http** (Streamable HTTP) — the shared server on GKE, talking directly to
-  PostgreSQL when `LORE_DB_HOST` is set.
+Single **stdio** transport (ADR-032). The MCP server runs on the developer's
+machine, registered by `scripts/install.sh`, and speaks the MCP protocol to
+Claude Code over stdio. It holds no database pool: it auto-detects the current
+repo from the git remote and **proxies** every data operation to the shared
+backend over `LORE_API_URL` (bearer `LORE_INGEST_TOKEN`), with a `~/.lore` file
+fallback for a subset of memory tools. Proxied reads pass through a read-through
+cache; writes invalidate the caches they affect. The remote backend it talks to
+is `@re-cinq/lore-api`, a plain REST service that owns the direct PostgreSQL +
+pgvector access behind `/api/*`.
 
 ## What it serves
 
@@ -20,7 +23,8 @@ The three core tools — `lore_assemble_context`, `lore_search_context`,
 `lore_search_memory` — plus 30+ others spanning memory, the task pipeline,
 repo onboarding, spec-trace, and usage. Context is assembled from PostgreSQL +
 pgvector (hybrid vector + BM25 search via Reciprocal Rank Fusion) using the YAML
-templates in [`templates/`](./templates). For the full per-tool reference —
+context-assembly templates that ship with `@re-cinq/lore-server-core`. For the
+full per-tool reference —
 parameters, returns, and disambiguation — see
 [`docs/mcp-tools-reference.md`](../../docs/mcp-tools-reference.md).
 
@@ -32,19 +36,15 @@ dispatch; errors are returned as text in MCP responses, never thrown.
 
 ```
 src/
-  index.ts           entry: init OTEL → DB pool → load task types + templates → build server → start transport
-  server/            build-mcp-server.ts, http-server.ts, transports.ts
-  mcp/tools/         MCP tool implementations (context, memory, pipeline, repo, usage, spec-trace, local-runner)
-  api/               routes.ts + routes/  — the HTTP API surface (ingest, webhooks, tokens, coverage, trace, ...)
-  features/          domain logic
-    context/             context assembly, hydration, transfer scoring
-    memory/              facts, graph, memory store + search
-    pipeline/            task config, CRUD, local runner
-    repo/                repo detection, onboarding, deterministic lint/typecheck validation
-    dark-factory/        settings schema + CODEOWNERS-approval authZ
-    spec-trace/          spec→test trace ingest + query
-  platform/          otel, db, session-tracker
-templates/           YAML context-assembly templates (default, implementation, research, review)
+  index.ts           entry: load task types + templates → build the MCP server → connect the stdio transport
+                     (no DB pool, no OTEL SDK — those heavy remote concerns live in @re-cinq/lore-api)
+  server/            build-mcp-server.ts — assembles the server and registers every tool
+  mcp/tools/         MCP tool implementations + registration (context, memory, pipeline, repo, usage,
+                     spec-trace, local-runner); deps.ts holds the lazy getPool + proxy helpers
+  features/          local-only glue — context (hydration, transfer scoring), pipeline (CRUD + local
+                     runner), spec-trace; the bulk of the domain logic lives in @re-cinq/lore-server-core
+                     and @re-cinq/lore-shared
+  platform/          healthz + secret-redaction checks
 ```
 
 ## Develop
@@ -61,7 +61,9 @@ the MCP server then listens on `:3001`.
 
 ## Deploy
 
-Built into a container via [`Dockerfile`](./Dockerfile) and deployed to the
-`mcp-servers` namespace on GKE (Streamable HTTP transport). The local install
-path (`scripts/install.sh`) configures Claude Code to launch the stdio build,
-which proxies to this backend. See [`infra/`](../../infra) and the root README.
+There is no separate server deployment for this package — it runs locally over
+stdio. `scripts/install.sh` builds the `@re-cinq/lore-shared`,
+`@re-cinq/lore-server-core`, and `@re-cinq/lore-mcp` workspaces and configures
+Claude Code to launch `apps/mcp-server/dist/index.js`, which proxies to the
+shared backend. The remote piece that runs on GKE is `@re-cinq/lore-api`; see
+[`infra/`](../../infra) and the root README.
