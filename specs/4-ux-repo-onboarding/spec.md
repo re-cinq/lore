@@ -32,7 +32,8 @@ Lore's UI is repo-centric. You pick a repo and see everything: its
 context (CLAUDE.md, ADRs), active pipeline tasks, agent memory,
 specs, and audit trail — all in one view. Adding a new repo is one
 click: Lore creates an onboarding PR on the target repo with
-everything needed (CLAUDE.md, skills, workflows, PR template). The
+everything needed — the ingest and spec-impact workflows, a PR template
+and PR-description check, issue templates, and a generated AGENTS.md. The
 repo owner merges and they're live.
 
 ## User Personas
@@ -81,11 +82,12 @@ the Functional Requirements below. The acceptance-criteria bullets that carry
 2. Selects a repo from their GitHub repos (dropdown, filtered by
    GitHub App installation).
 3. Lore creates a PR on the target repo containing:
-   - `CLAUDE.md` skeleton with HTML comment prompts
-   - `AGENTS.md` pointing to Lore MCP
-   - `.github/PULL_REQUEST_TEMPLATE.md`
-   - `.github/workflows/pr-description-check.yml`
-   - `.github/workflows/spec-agent.yml` (spec PR → agent trigger)
+   - `.github/workflows/lore-ingest.yml` (context ingest) and
+     `.github/workflows/lore-trace-impact.yml` (advisory spec-impact)
+   - `.github/PULL_REQUEST_TEMPLATE.md` and
+     `.github/workflows/pr-description-check.yml`
+   - `.claude/settings.json` and `.github/ISSUE_TEMPLATE/*.yml`
+   - LLM-drafted `AGENTS.md` (pointing to Lore MCP) and `.specify/spec.md`
 4. User sees the PR link in the UI.
 5. Repo owner reviews and merges the PR.
 6. Lore's nightly ingestion picks up the new repo's content.
