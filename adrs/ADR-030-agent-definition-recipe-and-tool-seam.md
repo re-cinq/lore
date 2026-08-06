@@ -144,3 +144,24 @@ definition" row drops "execution image".
   `resolveExecutionImage`/`settings.execution.image` retired.
 - The canonical glossary stays [`specs/glossary.md`](../specs/glossary.md); this ADR enriches the
   "Agent definition" and "Station" rows there.
+
+## Update (2026-08): the `resources.mcp_servers` seam, realized
+
+The `resources.mcp_servers` field from Decision 1 is no longer schema-only. Agent recipes now carry
+a live Lore MCP endpoint, and the ai-agent-subsystem controller renders it into the headless `claude`
+invocation via `--mcp-config` (see [ADR-031](./ADR-031-agent-station-crds.md)). Two points settle how
+it lands inside Decision 4's security model:
+
+- **Transport is `http`, not stdio.** A shared `lore-mcp` gateway — the `apps/mcp-server` process run
+  with `LORE_MCP_HTTP=1` + `LORE_MCP_SERVER_MODE=agent` — serves the read/memory/search tool subset
+  over MCP-over-HTTP behind a public `:443` host with bearer auth. Because the entry is reached over an
+  egress-host-checked `http` URL (Decision 4, "Egress hosts"), the stdio `mcp_servers[].command`
+  two-key gate (Decision 4, "Command execution") does not apply — nothing executes in the pod.
+- **The seed carries it.** `buildAgentDefinition` emits `resources.mcp_servers: [{ name: lore,
+  transport: http, url: <gateway>, headers_secret: lore-mcp-auth }]` and lists
+  `lore_create_pipeline_task` in `disallowed_tools` (closing the task-recursion vector), mirroring the
+  already-shipped `output.sinks[].http` + `headers_secret` precedent proven to reach a public endpoint
+  under the agent-pod NetworkPolicy.
+
+The rest of the seam (`output` fan-out, the `AgentTool` port for codex/cursor, the `StationDefinition`
+record) stays designed-but-unrealized, so this ADR remains **draft**.

@@ -11,7 +11,13 @@ PR history, and task state.
   the MCP protocol to Claude Code and proxies every data operation to the remote
   Lore API (`LORE_API_URL`). Lean install: no pg/octokit/GCS/OTel-SDK. Three core
   tools: `lore_assemble_context`, `lore_search_context`, `lore_search_memory`,
-  plus pipeline delegation, the local task runner, and 30+ tools total.
+  plus pipeline delegation, the local task runner, and 30+ tools total. Also runs
+  as the shared **`lore-mcp` HTTP gateway** for agent pods: with `LORE_MCP_HTTP=1`
+  it mounts the SDK's `StreamableHTTPServerTransport` (`src/server/http-transport.ts`)
+  instead of stdio, and `LORE_MCP_SERVER_MODE=agent` (`build-mcp-server.ts`) omits
+  the laptop-only + `lore_create_pipeline_task` tools. Deployed by `charts/lore-mcp-helm`
+  (image `ghcr.io/re-cinq/lore-mcp`) in the `lore-api` namespace; agent recipes reach
+  it via a `resources.mcp_servers` entry (ADR-030/031/032).
 - **`apps/lore-api`** (`src/index.ts` + `src/server/http-server.ts`) — the remote
   HTTPS REST backend (`/api/*`) on GKE. Routes are organized one folder per
   endpoint under `src/api/routes/`; the DB/GitHub/GCS/tree-sitter work lives here.
@@ -414,6 +420,16 @@ runners fetch assembled context from the Lore API (`/api/context`
 with `query` param). The agent starts with conventions, ADRs,
 memories, and graph on turn 1 instead of spending its first action
 calling `lore_assemble_context`.
+
+**Live agent MCP access**: hydration is one-shot; agent *pods* also get a
+**live, scoped** Lore MCP for the whole run via the shared `lore-mcp` HTTP
+gateway. The seeded agent recipe (`buildAgentDefinition`, `agent-catalog.ts`)
+carries `resources.mcp_servers: [{ name: lore, transport: http, headers_secret:
+lore-mcp-auth }]` and drops `lore_create_pipeline_task`; the ai-agent-subsystem
+controller renders it into `claude --mcp-config`. The pod can search
+memory/context and record targeted memory mid-task, not just start warm. The
+gateway is reachable at a public `:443` host because the `agent-job-egress`
+NetworkPolicy allows only public `:443` egress.
 
 **Subdirectory convention rules**: `.claude/rules/*.md` files are
 loaded conditionally during context assembly based on task query

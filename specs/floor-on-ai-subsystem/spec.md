@@ -229,8 +229,10 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
     model, `{station_input}` prompt, lore-station image via `.Values.stationImage`, deadline
     default 15); org rows seeded by migration 0027 (`execution_mode: 'station'`). The catalog
     builder maps each agent recipe to an AgentDefinition (prompt + `{context}`, `permission_mode`,
-    `max_turns`, `ANTHROPIC_API_KEY` secret for the model key, agent-events http sink; model omitted
-    when the recipe has none) and Station (agentDefRef, deadline default 30, agent container), and
+    `max_turns`, `ANTHROPIC_API_KEY` secret for the model key, the `lore` http `mcp_servers` entry —
+    `headers_secret: lore-mcp-auth` — with `lore_create_pipeline_task` in `disallowed_tools` so the
+    live run gets scoped Lore tools without a task-recursion vector, agent-events http sink; model
+    omitted when the recipe has none) and Station (agentDefRef, deadline default 30, agent container), and
     each station recipe to a `def-<name>` exec pair (`model: exec`, `{station_input}` prompt,
     `tool_config.command`, station image, deadline default 15, RFC-1123-sanitised name, no ANTHROPIC
     secret — station recipes instead carry the `LORE_API_URL` env + `LORE_INGEST_TOKEN` secret every

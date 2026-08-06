@@ -219,6 +219,13 @@ system is performing.
 - Task submission returns immediately with a tracking ID.
 - Context bundle is pre-hydrated from the Lore API before the Job pod
   starts — the agent begins with conventions, ADRs, and memories.
+- Agent nodes also get a **live, scoped** Lore MCP for the run's duration:
+  the seeded agent recipe carries a `resources.mcp_servers` entry
+  (`name: lore`, `transport: http`, `headers_secret: lore-mcp-auth`) and drops
+  `lore_create_pipeline_task`, so the pod can search memory/context and record
+  targeted memory mid-task — not only start pre-hydrated. A shared `lore-mcp`
+  gateway serves those tools over MCP-over-HTTP at a public `:443` host (the
+  agent-pod NetworkPolicy allows only public `:443` egress). ([validated by `agent-catalog.test.ts:60`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L60), [`agent-catalog.test.ts:20`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L20))
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no
