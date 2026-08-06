@@ -305,7 +305,7 @@ The system MUST provide a single-command install experience. ([validated by `ins
 ### FR-4: Task Tracking Integration
 
 The system MUST provide agent-native task tracking via PostgreSQL
-pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:39`](libs/shared/src/project/tasks/task-queue.test.ts#L39))
+pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:22`](libs/shared/src/project/tasks/task-queue.test.ts#L22))
 
 - Decision: the generated `AGENTS.md` instructs Claude Code on task-tracking
   commands and proactive guidance behaviour.
@@ -603,14 +603,14 @@ Added 2026-04-17 per ADR-015.
 ### FR-18: Stuck-Task Terminal-State Recovery (Phase 1)
 
 The system MUST detect and surface pipeline tasks that are stuck in
-non-terminal states and resolve them without manual intervention. ([validated by `task-queue.test.ts:365`](libs/shared/src/project/tasks/task-queue.test.ts#L365))
+non-terminal states and resolve them without manual intervention. ([validated by `task-queue.test.ts:348`](libs/shared/src/project/tasks/task-queue.test.ts#L348))
 
 - FR-18.1: A `stale_task_check` job runs hourly at `:17` and flags
   tasks in `running` or `pending` state for longer than their
   configured timeout plus a grace period. ([validated by `task-queue.test.ts:348`](libs/shared/src/project/tasks/task-queue.test.ts#L348))
 - FR-18.2: Stuck tasks are transitioned to a terminal state
   (`failed` with reason `timeout_exceeded`) so the pipeline does not
-  stall waiting for a pod that has already exited. ([validated by `task-queue.test.ts:365`](libs/shared/src/project/tasks/task-queue.test.ts#L365))
+  stall waiting for a pod that has already exited. ([validated by `task-queue.test.ts:348`](libs/shared/src/project/tasks/task-queue.test.ts#L348))
 - FR-18.3: The transition is idempotent — if a task completes between
   detection and the state write, the write is a no-op. ([validated by `task-store-pg.test.ts:74`](libs/shared/src/project/tasks/task-store-pg.test.ts#L74))
 - FR-18.4: A failure episode is written for each stuck task so the
@@ -742,7 +742,7 @@ The `Project` facade (ADR-024) exposes every data capability — tasks,
 events, chunks, features, agents, workspace, PRs, issues, cost/usage
 accounting — through repo-bound ports with a Postgres/GCS/HTTP adapter
 and an in-memory double per port, so Floor, mcp-server, and lore-api
-share one persistence surface instead of inline SQL. ([validated by `task-queue.test.ts:39`](libs/shared/src/project/tasks/task-queue.test.ts#L39))
+share one persistence surface instead of inline SQL. ([validated by `task-queue.test.ts:22`](libs/shared/src/project/tasks/task-queue.test.ts#L22))
 
 - FR-20.1: The `TaskQueue` port drives org-wide claim/sweep: it claims
   one runnable pending task (immediate-first, past the minute interval,
