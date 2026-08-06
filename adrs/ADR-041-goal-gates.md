@@ -3,6 +3,7 @@ adr_number: 41
 title: "Declarative goal gates in assembly-line definitions"
 status: draft
 date: 2026-08-05
+deciders: []
 domains: [assembly-lines, floor]
 ---
 
@@ -37,6 +38,12 @@ a definition change can see it, not in the topology's implications.
 - Existing definitions are unchanged (attribute is opt-in); the code-review
   and implementation lines adopt it for their review nodes in the same
   change, as the motivating use.
+- A goal-gated node skipped by conditional branching still counts as unmet:
+  the line fails with `goal_gate_unmet` rather than finishing around it.
+  Gates therefore belong on unconditionally-reachable nodes; the loader
+  emits a validation warning when a goal-gated node is reachable only
+  through conditional edges, so the definition author learns at load time,
+  not at the first skipped run.
 
 ## Alternatives rejected
 
@@ -56,3 +63,8 @@ a definition change can see it, not in the topology's implications.
   of a run stops being able to misreport a skipped gate as success.
 - A new terminal outcome (`goal_gate_unmet`) reaches the run-viz UI and
   `pipeline.audit_log` consumers; both need the label added.
+- `goal_gate_unmet` routes through the same `escalate()` path as other
+  terminal failures — a `needs-human-help` issue on the target repo listing
+  the unsatisfied gate(s) in the diagnostic. No new escalation mechanism;
+  the existing call in the walk's fail branch covers it, so gated lines
+  never stop silently.

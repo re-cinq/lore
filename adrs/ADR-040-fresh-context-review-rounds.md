@@ -3,6 +3,7 @@ adr_number: 40
 title: "Fresh-context review rounds with plan reconsideration"
 status: draft
 date: 2026-08-05
+deciders: []
 domains: [review, assembly-lines, floor]
 ---
 
@@ -40,14 +41,21 @@ The implementation and code-review assembly lines gain:
 
 - **Fresh context per review round.** Each review node execution is a new
   Agent CR whose prompt contains the diff, the spec, and conventions — not
-  the transcript of prior rounds. Round-over-round state lives only in the
-  branch (commits) and the node rows, which is already the branch-as-state
+  the transcript of prior rounds. Each round already spawns a distinct
+  Agent CR under ADR-031; the change here is entirely prompt construction
+  (excluding the prior round's digest from the next round's prompt), not a
+  new execution mechanism. Round-over-round state lives only in the branch
+  (commits) and the node rows, which is already the branch-as-state
   doctrine.
 - **A replan back-edge.** After N blocked review rounds (initial N = 2,
   configurable per line), the walk routes to a replan node that re-derives
   the approach from the spec and the accumulated review verdicts, then
   re-enters implementation. The replan edge carries its own `iteration_max`
-  so total work stays bounded before `needs-human-help` escalation.
+  so total work stays bounded before `needs-human-help` escalation. N = 2
+  is deliberately lower than trycycle's round-4 reconsideration: trycycle's
+  rounds are subscription-billed local runs, Lore's are API-billed pod
+  launches, so replanning earlier is the cheaper failure path here; the
+  threshold is per-line configuration, not a constant.
 
 ## Alternatives rejected
 

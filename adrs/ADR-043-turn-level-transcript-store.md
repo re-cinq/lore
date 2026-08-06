@@ -3,6 +3,7 @@ adr_number: 43
 title: "Turn-level transcript store for agent runs"
 status: draft
 date: 2026-08-05
+deciders: []
 domains: [observability, floor, architecture, storage]
 ---
 
@@ -41,10 +42,18 @@ rule — a provenance fact colleagues should weigh explicitly.
 Phase 1 (this ADR's commitment): the ai-agent-subsystem supervisor's
 existing NDJSON POST is teed, behind a feature flag on a pilot repo, into a
 CxDB instance deployed as a sidecar service in the platform (one subchart,
-its own PVC; no cluster-external egress). The run detail page links to the
-turn view for piloted runs. Success criteria: post-mortems answered from
-turns instead of GCS spelunking; storage within projections; no ingest-path
-regressions.
+its own PVC; no cluster-external egress). Before the tee is enabled on any
+pilot repo, a focused security review of CxDB's ingest path and storage
+layer must complete — lightweight (a day, two reviewers reading the Rust
+ingest code) but mandatory, answering at minimum: are plaintext blobs
+written before dedup-hash computation, and are the HTTP bindings
+cluster-internal only. This is the concrete mitigation for the
+agent-written-provenance risk named above. The run detail page links to
+the turn view for piloted runs. Success criteria: post-mortems answered
+from turns instead of GCS spelunking; CxDB PVC growth ≤ 2× the existing
+`agent_run_events` write rate (post-dedup + zstd), with the pilot pausing
+for a resizing review if usage crosses 80% of the initial PVC; no
+ingest-path regressions.
 
 Phase 2 (explicitly deferred to a follow-up decision): retiring the GCS
 archive, wiring full-fidelity node context carryover and ADR-042-style

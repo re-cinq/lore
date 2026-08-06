@@ -3,6 +3,7 @@ adr_number: 42
 title: "Fork-and-rerun of assembly lines from a completed node"
 status: draft
 date: 2026-08-05
+deciders: []
 domains: [assembly-lines, floor, operations]
 ---
 
@@ -31,10 +32,13 @@ resumability at sub-run granularity as table stakes for long agent runs.
 ## Decision
 
 - `project.assemblyLines.start(definitionName, { resumeFrom: { lineId,
-nodeId }, ... })` creates the new line row and copies the source line's
+nodeId } })` creates the new line row and copies the source line's
   node rows up to and including the named node, in the same atomic CTE as
   the existing start; the `assembly_line.start` event carries the parentage
-  for audit.
+  for audit. When `resumeFrom` is supplied, `branch` and `taskId` are
+  inherited from the source line and must not be passed — passing them is
+  a validation error; `args` may be overridden to inject updated inputs
+  for the replayed portion.
 - The branch question is explicit: the fork reuses the source branch only
   when the source line is terminal (failed/finished); forking a live line
   is refused — the overlap guard's lesson.
@@ -63,3 +67,9 @@ nodeId }, ... })` creates the new line row and copies the source line's
 - Copied rows reference the source attempt's Agent CR names and stage
   commits; consumers (run-viz, timeline) must render inherited rows as
   inherited rather than as fresh executions.
+- The definition-hash guard requires a migration adding a
+  `definition_hash` column to `pipeline.assembly_lines`, populated at
+  start time from the loaded YAML content. Existing rows carry `NULL` and
+  are rejected by `resume_from` with a clear message until backfilled —
+  an honest limitation, preferable to forking across silent definition
+  drift.

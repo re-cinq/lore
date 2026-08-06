@@ -3,6 +3,7 @@ adr_number: 39
 title: "Cross-model review for agent-authored changes"
 status: draft
 date: 2026-08-05
+deciders: []
 domains: [review, agent-definitions, quality]
 ---
 
@@ -33,13 +34,25 @@ under dark-factory mode.
 ## Decision
 
 The org-default `agent_definitions` row for review-type agents pins a model
-from a different family than the implementation default. When an
-implementation task's model is overridden per-repo, the repo owner is
-responsible for keeping the review model cross-family; the settings UI
-surfaces a warning when implementer and reviewer resolve to the same family.
+from a different family than the implementation default. Concretely: while
+the implementation default resolves to the Anthropic/Claude family, the
+review default is pinned to OpenAI's current flagship (`gpt-5.6` at time of
+writing), and vice versa. When an implementation task's model is overridden
+per-repo, the repo owner is responsible for keeping the review model
+cross-family; the settings UI surfaces a warning when implementer and
+reviewer resolve to the same family.
 
-No new mechanism is introduced: this is a policy expressed entirely through
-existing `agent_definitions` rows and their resolve chain.
+**Prerequisites.** The ai-agent-subsystem's `claude-code` vendor only calls
+the Anthropic API today, so cross-provider review is not yet reachable by
+row edits alone: the subsystem needs a second vendor (e.g. `openai-code`)
+that runs the review prompt against the OpenAI API and emits the same
+`REVIEW_RESULT` marker the node contract parses. That vendor is scoped as a
+follow-up to ADR-031. Until it exists, the interim config-only step is a
+*different Anthropic model tier* for review — weaker against family-level
+self-preference, but immediately available through the resolve chain.
+
+The end state introduces no new mechanism: the policy is expressed entirely
+through existing `agent_definitions` rows and their resolve chain.
 
 ## Alternatives rejected
 
@@ -53,7 +66,9 @@ existing `agent_definitions` rows and their resolve chain.
 
 ## Consequences
 
-- Config-only change; reversible by editing rows.
+- The interim step (different Anthropic tier) is config-only and reversible
+  by editing rows; the full cross-provider step additionally requires the
+  `openai-code` vendor named under Prerequisites.
 - Review quality on agent-authored PRs no longer depends on a model grading
   its own homework; this strengthens the `bot APPROVED` input to
   `evaluateAutoMerge()`.
