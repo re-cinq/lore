@@ -36,6 +36,10 @@ const SEED_LABELS = { "app.kubernetes.io/managed-by": "lore-catalog-seed" };
 // Placeholder for the per-cluster sink URL; catalogChartYaml swaps it for the helm value.
 const EVENTS_URL_SENTINEL = "__AGENT_EVENTS_URL__";
 
+// Placeholder for the shared lore-mcp gateway URL agent recipes point at;
+// catalogChartYaml swaps it for the helm value (empty → the block is omitted).
+const MCP_URL_SENTINEL = "__LORE_MCP_URL__";
+
 // Placeholder for the per-cluster Lore API base URL every lore-station pod calls
 // (createStationProject / apiEmbed / payload fetch); catalogChartYaml swaps it for
 // the helm value.
@@ -95,7 +99,24 @@ export function buildAgentDefinition(
       prompt: `${cfg.prompt_template.trimEnd()}\n\n{context}`,
       permission_mode: "bypass",
       max_turns: 40,
-      resources: { secrets: AGENT_SECRETS },
+      // Agent nodes get a scoped, live Lore MCP via the shared HTTP gateway
+      // (server-mode=agent → no pipeline/local tools). headers_secret carries the
+      // Bearer from agent-secrets, exactly like the agent-events sink below.
+      // See ADR-030 (the AgentTool seam) + specs/mcp-self-update siblings.
+      resources: {
+        secrets: AGENT_SECRETS,
+        mcp_servers: [
+          {
+            name: "lore",
+            transport: "http",
+            url: MCP_URL_SENTINEL,
+            headers_secret: "lore-mcp-auth",
+          },
+        ],
+      },
+      // Defense-in-depth (the gateway already omits it in agent mode): an agent
+      // must never spawn more pipeline work from inside a run.
+      disallowed_tools: ["mcp__lore__lore_create_pipeline_task"],
       // D8 (#687): stream NDJSON run output to the Floor's /api/agent-events sink for
       // cost accounting. URL is per-cluster (.Values.agentEventsUrl); headers_secret
       // carries the Authorization header from agent-secrets.
@@ -262,6 +283,7 @@ export function catalogChartYaml(
 
   return body
     .replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}")
+    .replaceAll(MCP_URL_SENTINEL, "{{ .Values.loreMcpUrl }}")
     .replaceAll(API_URL_SENTINEL, "{{ .Values.loreApiUrl }}")
     .replaceAll(GKE_DGRAPH_URL, "{{ .Values.dgraphUrl }}")
     .replaceAll(NAMESPACE_SENTINEL, "{{ .Values.namespace }}")

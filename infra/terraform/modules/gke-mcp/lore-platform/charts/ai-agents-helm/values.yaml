@@ -48,6 +48,13 @@ stationImage: ghcr.io/re-cinq/lore-station:latest
 # VIPs dropped). The run-pod NetworkPolicy opens exactly this service via apiSink.
 loreApiUrl: http://lore-api.lore-api.svc.cluster.local:3000
 
+# PUBLIC HTTPS URL of the shared lore-mcp gateway that agent recipes point at
+# (resources.mcp_servers). Unlike loreApiUrl this must be PUBLIC :443 — the run-pod
+# NetworkPolicy blocks in-cluster egress, so agents reach the gateway over the public
+# ingress (the same reason agentEventsUrl works). Empty = agent MCP off until the
+# gateway is deployed AND the ai-agent-subsystem wires mcp_servers (ADR-030).
+loreMcpUrl: ""
+
 # In-cluster egress target for the station API calls — must match the host:port in
 # loreApiUrl above (same pattern as floorSink/agentEventsUrl).
 apiSink:
