@@ -1,4 +1,35 @@
 import type { PipelineTask } from "../../types.js";
+import { enforceTrue } from "../../lib/enforce.js";
+
+/** Columns setColumns may write (allow-listed to keep the dynamic SQL injection-safe). */
+export const SETTABLE_TASK_COLUMNS = new Set([
+  "issue_number",
+  "issue_url",
+  "review_iteration",
+  "pr_url",
+  "pr_number",
+  "target_branch",
+  "failure_reason",
+  "log_url",
+  "agent_id",
+]);
+
+/**
+ * Reject keys outside {@link SETTABLE_TASK_COLUMNS}. Shared by the Pg adapter
+ * and the in-memory double so a typo'd column fails loudly and identically in
+ * both, instead of silently no-oping in one and writing in the other.
+ */
+export function enforceSettableTaskColumns(
+  columns: Record<string, unknown>,
+): void {
+  for (const key of Object.keys(columns)) {
+    enforceTrue(
+      SETTABLE_TASK_COLUMNS.has(key),
+      Error,
+      `setColumns: unknown task column "${key}" (not in SETTABLE_TASK_COLUMNS)`,
+    );
+  }
+}
 
 /** A running/queued task idle long enough to be a crash-recovery candidate. */
 export interface RecoverableTask {
@@ -210,7 +241,10 @@ export interface TaskQueueRepository {
   /** Gate-free task insert (spec-task / feature-decompose). Returns the new id, or null on conflict. */
   insertTask(input: InsertTaskInput): Promise<string | null>;
 
-  /** Set arbitrary allow-listed task columns by id WITHOUT touching status or updated_at. */
+  /**
+   * Set arbitrary allow-listed task columns by id WITHOUT touching status or
+   * updated_at. Throws on any key outside {@link SETTABLE_TASK_COLUMNS}.
+   */
   setColumns(taskId: string, columns: Record<string, unknown>): Promise<void>;
 
   /** The most recent task id for a repo + PR number (newest first), or null. */

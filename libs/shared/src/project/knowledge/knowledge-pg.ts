@@ -2,10 +2,11 @@ import type { PgPool } from "../../memory-store.js";
 import { resolveChunkSchemaForRepo } from "../chunks/chunk-schema.js";
 import { queryLiveGraph, type LiveGraphResult } from "./live-graph.js";
 import { assembleContext as runAssembleContext } from "./context-assembly.js";
-import type {
-  KnowledgePort,
-  AssembledContext,
-  DocRef,
+import {
+  TRACE_NOT_DEPLOYED_MESSAGE,
+  type KnowledgePort,
+  type AssembledContext,
+  type DocRef,
 } from "./knowledge-port.js";
 
 /**
@@ -39,9 +40,7 @@ export class PgKnowledge implements KnowledgePort {
   }
 
   queryTrace(): Promise<string> {
-    return Promise.resolve(
-      "Trace queries are not yet available: the spec-traceability graph projection is not deployed in this build.",
-    );
+    return Promise.resolve(TRACE_NOT_DEPLOYED_MESSAGE);
   }
 
   listSpecs(repo: string): Promise<DocRef[]> {

@@ -15,14 +15,18 @@ import {
   type CreatedTask,
   type RetriedTask,
 } from "../../pipeline-tasks.js";
-import type {
-  TaskStorePort,
-  TaskAction,
-  TaskTransitionMeta,
-  TaskWithEvents,
-  TaskListResult,
-  FindOpenLikeInput,
-  DriftTaskRow,
+import {
+  PENDING_STATUSES,
+  RUNNING_STATUSES,
+  EXECUTED_STATUSES,
+  NEXT_STATUS,
+  type TaskStorePort,
+  type TaskAction,
+  type TaskTransitionMeta,
+  type TaskWithEvents,
+  type TaskListResult,
+  type FindOpenLikeInput,
+  type DriftTaskRow,
 } from "./task-store-port.js";
 
 /**
@@ -31,16 +35,6 @@ import type {
  * minimal status update — richer claim/cancel semantics are relocated from
  * mcp-server during migration.
  */
-
-const PENDING_STATUSES = ["pending", "queued", "awaiting_approval"];
-const RUNNING_STATUSES = ["running", "running-local", "review", "pr-created"];
-const EXECUTED_STATUSES = ["completed", "merged", "failed", "cancelled"];
-
-const NEXT_STATUS: Record<TaskAction, string> = {
-  claim: "running-local",
-  cancel: "cancelled",
-  retry: "retried",
-};
 
 export class PgTaskStore implements TaskStorePort {
   constructor(private readonly pool: PgPool) {}

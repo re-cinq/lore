@@ -1,74 +1,59 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
+import { fakePgPool } from "../../test-helpers/fake-pg-pool.js";
 import { PgEventQueue } from "./event-queue-pg.js";
 import { InMemoryEventQueue } from "./event-queue-memory.js";
 import type { EventRow } from "./event-queue-port.js";
-
-type Call = { sql: string; values: unknown[] };
-
-function mockPool(responses: Array<{ rows?: unknown[] }>) {
-  const calls: Call[] = [];
-  let i = 0;
-  const pool = {
-    query: vi.fn(async (sql: string, values: unknown[]) => {
-      calls.push({ sql, values });
-
-      return { rows: responses[i++]?.rows ?? [] };
-    }),
-  };
-
-  return { pool: pool as any, calls };
-}
 
 // ── PgEventQueue: SQL shape ────────────────────────────────────────────
 
 describe("PgEventQueue.claimBatch", () => {
   it("claims runnable rows with FOR UPDATE SKIP LOCKED, incrementing attempts", async () => {
-    const { pool, calls } = mockPool([{ rows: [{ id: "1" }] }]);
+    const { pool, calls } = fakePgPool([{ rows: [{ id: "1" }] }]);
     const rows = await new PgEventQueue(pool).claimBatch(20);
 
     expect(rows).toEqual([{ id: "1" }]);
-    expect(calls[0].sql).toContain(
+    expect(calls[0].text).toContain(
       "SET status = 'processing', attempts = attempts + 1",
     );
-    expect(calls[0].sql).toContain(
+    expect(calls[0].text).toContain(
       "status IN ('pending', 'failed') AND next_attempt_at <= now()",
     );
-    expect(calls[0].sql).toContain("FOR UPDATE SKIP LOCKED");
-    expect(calls[0].values).toEqual([20, []]);
+    expect(calls[0].text).toContain("FOR UPDATE SKIP LOCKED");
+    expect(calls[0].params).toEqual([20, []]);
   });
 
   it("excludes the passed event names from the claim so busy serial families stay pending", async () => {
-    const { pool, calls } = mockPool([{ rows: [] }]);
+    const { pool, calls } = fakePgPool([{ rows: [] }]);
 
     await new PgEventQueue(pool).claimBatch(20, ["internal.ingest.spec_trace"]);
-    expect(calls[0].sql).toContain("event_name <> ALL($2::text[])");
-    expect(calls[0].values).toEqual([20, ["internal.ingest.spec_trace"]]);
+    expect(calls[0].text).toContain("event_name <> ALL($2::text[])");
+    expect(calls[0].params).toEqual([20, ["internal.ingest.spec_trace"]]);
   });
 });
 
 describe("PgEventQueue terminal transitions", () => {
   it("markFailed truncates the error and applies the backoff interval", async () => {
-    const { pool, calls } = mockPool([{ rows: [] }]);
+    const { pool, calls } = fakePgPool([{ rows: [] }]);
 
     await new PgEventQueue(pool).markFailed("7", "x".repeat(5000), 30);
-    expect(calls[0].sql).toContain("($3::int || ' seconds')::interval");
-    expect((calls[0].values[1] as string).length).toBe(2000);
-    expect(calls[0].values).toEqual(["7", "x".repeat(2000), 30]);
+    expect(calls[0].text).toContain("($3::int || ' seconds')::interval");
+    expect((calls[0].params?.[1] as string).length).toBe(2000);
+    expect(calls[0].params).toEqual(["7", "x".repeat(2000), 30]);
   });
 
   it("reapStuck returns the number of recovered rows", async () => {
-    const { pool, calls } = mockPool([{ rows: [{ id: "1" }, { id: "2" }] }]);
+    const { pool, calls } = fakePgPool([{ rows: [{ id: "1" }, { id: "2" }] }]);
 
     expect(await new PgEventQueue(pool).reapStuck(300)).toBe(2);
-    expect(calls[0].sql).toContain("WHERE status = 'processing'");
+    expect(calls[0].text).toContain("WHERE status = 'processing'");
   });
 
   it("pruneHandled returns the number of deleted rows", async () => {
-    const { pool, calls } = mockPool([{ rows: [{ id: "1" }] }]);
+    const { pool, calls } = fakePgPool([{ rows: [{ id: "1" }] }]);
 
     expect(await new PgEventQueue(pool).pruneHandled(7)).toBe(1);
-    expect(calls[0].sql).toContain("DELETE FROM pipeline.events");
-    expect(calls[0].sql).toContain("status IN ('done', 'dead')");
+    expect(calls[0].text).toContain("DELETE FROM pipeline.events");
+    expect(calls[0].text).toContain("status IN ('done', 'dead')");
   });
 });
 
