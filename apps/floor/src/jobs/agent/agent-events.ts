@@ -86,6 +86,10 @@ export interface AgentSink {
   runEvents: AgentRunEventInsert[];
   /** Full-fidelity turns, empty unless `collectTurns` (specs/turn-level-transcript-store). */
   turns: AgentRunTurnInsert[];
+  /** Turns lost because redaction left their line unparseable. Reported rather
+   *  than swallowed: a store justified by fidelity must make its own losses
+   *  visible, and an agent can trigger the drop on purpose. */
+  turnsDropped: number;
 }
 
 /** Yield each `\n`-delimited line without materializing the whole array.
@@ -116,8 +120,13 @@ function* lines(body: string): Generator<string> {
  * it, bound the peak memory a large body holds — the regression that OOM-looped
  * the single Floor replica. Turn collection reuses that same parse and the line
  * string the scanner already yielded, so it adds no parse and no serialization;
- * `collectTurns` defaults off, matching its feature flag. Blank, unparseable and
- * task-less lines are skipped; nothing throws.
+ * `collectTurns` defaults off, matching its feature flag.
+ *
+ * Blank and unparseable lines are skipped. A task-less line yields no cost row
+ * and no visualization row, but IS still collected as a turn — the turn store
+ * keeps what it cannot label. The only turn loss is a line whose redaction left
+ * it unparseable, and that is counted in `turnsDropped` rather than swallowed.
+ * Nothing throws.
  */
 export function parseAgentSink(
   ndjson: string,
@@ -127,6 +136,7 @@ export function parseAgentSink(
   const costRows: LlmCallRow[] = [];
   const runEvents: AgentRunEventInsert[] = [];
   const turns: AgentRunTurnInsert[] = [];
+  let turnsDropped = 0;
 
   for (const line of lines(ndjson)) {
     if (!line.trim()) {
@@ -150,6 +160,8 @@ export function parseAgentSink(
 
       if (turn) {
         turns.push(turn);
+      } else {
+        turnsDropped++;
       }
     }
 
@@ -165,7 +177,7 @@ export function parseAgentSink(
     }
   }
 
-  return { costRows, runEvents, turns };
+  return { costRows, runEvents, turns, turnsDropped };
 }
 
 /** The cost projection alone (skips blank, unparseable, and non-`result` lines,

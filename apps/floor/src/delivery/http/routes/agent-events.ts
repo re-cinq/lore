@@ -45,6 +45,7 @@ type AnomalyKind =
   | "cost_failed"
   | "run_events_failed"
   | "run_turns_failed"
+  | "turn_dropped_redaction"
   | "archive_failed"
   | "archive_shed";
 
@@ -241,7 +242,7 @@ export const agentEventsRoute: ServerRoute = {
     const oversized = Buffer.byteLength(rawNdjson, "utf8") > MAX_VIZ_BODY_BYTES;
     // Turns ride the SAME single pass as the cost rows and the projection, and
     // reuse the same oversized gate — no second parse, no second size rule.
-    const { costRows, runEvents, turns } = parseAgentSink(
+    const { costRows, runEvents, turns, turnsDropped } = parseAgentSink(
       rawNdjson,
       !oversized,
       !oversized && agentTurnsEnabled(),
@@ -249,6 +250,16 @@ export const agentEventsRoute: ServerRoute = {
     const cost = await recordAgentCosts(costRows);
     const vizRows = oversized ? 0 : await recordRunEvents(runEvents);
     const turnRows = turns.length > 0 ? await recordRunTurns(turns) : 0;
+
+    if (turnsDropped > 0) {
+      // Visible, not silent: redaction that breaks a line's JSON is the store's
+      // only lossy path, and an agent can provoke it to keep a line out of its
+      // own transcript.
+      countAnomaly("turn_dropped_redaction", turnsDropped);
+      console.warn(
+        `[floor] ${turnsDropped} turn(s) dropped: redaction left the line unparseable`,
+      );
+    }
 
     const audit = costDegradedAudit(cost);
 
@@ -270,6 +281,7 @@ export const agentEventsRoute: ServerRoute = {
       "agent_events.failed": cost.failed,
       "agent_events.viz_rows": vizRows,
       "agent_events.turn_rows": turnRows,
+      "agent_events.turns_dropped": turnsDropped,
       "agent_events.oversized": oversized,
     });
 

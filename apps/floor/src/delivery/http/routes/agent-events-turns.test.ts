@@ -100,3 +100,48 @@ describe("POST /api/agent-events turn store", () => {
     expect(insertTurns).not.toHaveBeenCalled();
   });
 });
+
+describe("POST /api/agent-events dropped-turn signal", () => {
+  const BREAKING_LINE = JSON.stringify({
+    source: { task: "task-uuid-1", agent: "cr-1" },
+    event: {
+      type: "assistant",
+      "-----BEGIN PRIVATE KEY-----k": 1,
+      z: "-----END PRIVATE KEY-----",
+    },
+  });
+
+  it("warns with a count when redaction drops turns, and still records cost", async () => {
+    process.env.LORE_AGENT_TURNS = "1";
+    // Re-spying an already-spied method hands back the SAME mock, calls and
+    // all, so clear rather than trust a fresh spy.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    warn.mockClear();
+
+    const res = await post(`${BREAKING_LINE}\n${RESULT_LINE}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(logLlmCall).toHaveBeenCalledTimes(1);
+    expect(
+      warn.mock.calls.some((call) =>
+        String(call[0]).includes("1 turn(s) dropped"),
+      ),
+    ).toBe(true);
+  });
+
+  it("warns about nothing when every line survives redaction", async () => {
+    process.env.LORE_AGENT_TURNS = "1";
+    // Re-spying an already-spied method hands back the SAME mock, calls and
+    // all, so clear rather than trust a fresh spy.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    warn.mockClear();
+
+    await post(RESULT_LINE);
+
+    expect(
+      warn.mock.calls.some((call) => String(call[0]).includes("dropped")),
+    ).toBe(false);
+  });
+});

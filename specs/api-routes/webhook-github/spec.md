@@ -34,7 +34,7 @@ Registered in the route table ([registration](../../../apps/floor/src/delivery/h
   The router does **not** apply bearer-scope auth to `/api/webhook/*`
   ([auth exemption](../../../apps/floor/src/delivery/http/routes/github-webhook.ts#L33)). The
   Floor ingress applies no rate-limit bucket; it bounds deliveries at GitHub's
-  25 MB payload cap instead ([body cap](../../../apps/floor/src/delivery/http/server.ts#L29)).
+  25 MB payload cap instead ([body cap](../../../apps/floor/src/delivery/http/server.ts#L30)).
 - **Request body** (raw, signed): a GitHub webhook JSON payload. Dispatched by
   `X-GitHub-Event`:
   - `pull_request` — `{action, repository.full_name, pull_request:{number, merged, merge_commit_sha, head.ref, labels[]}}`.

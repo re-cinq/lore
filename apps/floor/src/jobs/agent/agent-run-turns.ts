@@ -10,10 +10,14 @@
 // say at the step that went wrong".
 //
 // Two properties are load-bearing on this hot path:
-//   * NOTHING is re-parsed and nothing is re-serialized. The scanner already
-//     yielded the raw line string and already parsed it once; this collector
-//     takes both and hands the string straight to the port, which binds it as
-//     TEXT and lets Postgres do the only JSON parse that has to happen.
+//   * NOTHING is re-parsed here. The scanner already yielded the raw line
+//     string and already parsed it once; this collector takes both and hands
+//     the string straight to the port, which binds it as TEXT and lets
+//     Postgres do the only JSON parse that has to happen. One serialization
+//     does remain, at the adapter's Postgres boundary: PgAgentRunTurns
+//     JSON.stringify()s the whole batch, re-escaping every envelope byte. That
+//     is the store's real memory cost with the flag on — see the spec's
+//     Consequences for the sizing.
 //   * The whole collector is behind LORE_AGENT_TURNS, off by default. With the
 //     flag off no turn is built, so the flag costs one env comparison per POST
 //     and the store adds no allocation at all.

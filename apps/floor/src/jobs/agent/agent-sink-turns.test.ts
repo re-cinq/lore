@@ -63,3 +63,45 @@ describe("parseAgentSink turn collection", () => {
     );
   });
 });
+
+// A genuine (not stubbed) JSON-breaking redaction: the private-key pattern is
+// not anchored inside one JSON string, so a BEGIN marker in a property NAME and
+// an END marker in a later value collapse the structure between them. An agent
+// can emit that pair deliberately, which is why the drop must be counted rather
+// than silent — otherwise it is a self-censorship vector out of the transcript.
+const REDACTION_BREAKING_LINE = JSON.stringify({
+  source: src,
+  event: {
+    type: "assistant",
+    "-----BEGIN PRIVATE KEY-----k": 1,
+    z: "-----END PRIVATE KEY-----",
+  },
+});
+
+describe("parseAgentSink dropped turns", () => {
+  it("counts a turn dropped because redaction left its line unparseable", () => {
+    const sink = parseAgentSink(REDACTION_BREAKING_LINE, false, true);
+
+    expect(sink.turns).toEqual([]);
+    expect(sink.turnsDropped).toBe(1);
+  });
+
+  it("keeps the other turns of a body when one line's redaction breaks it", () => {
+    const mixed = [REDACTION_BREAKING_LINE, body].join("\n");
+
+    const sink = parseAgentSink(mixed, false, true);
+
+    expect(sink.turns).toHaveLength(2);
+    expect(sink.turnsDropped).toBe(1);
+  });
+
+  it("counts nothing dropped for a body no redaction breaks", () => {
+    expect(parseAgentSink(body, false, true).turnsDropped).toBe(0);
+  });
+
+  it("counts nothing dropped while turn collection is off", () => {
+    expect(parseAgentSink(REDACTION_BREAKING_LINE, false, false)).toMatchObject(
+      { turns: [], turnsDropped: 0 },
+    );
+  });
+});
