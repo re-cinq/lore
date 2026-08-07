@@ -290,3 +290,80 @@ describe("rework: a step sends work back to the step that fed it", () => {
     ).toEqual({ kind: "finish" });
   });
 });
+
+// A gated review whose own failed/changes_requested edges reach the exit, so the
+// walk can arrive at `done` with the gate unsatisfied — the shape the finish
+// guard exists for. work's non-success edges skip the gate entirely.
+const gatedReview: AssemblyLine = parseAssemblyLine(`
+name: gated-review
+description: review is a goal gate; work's non-success outcomes route around it
+version: 1
+entry: work
+exit: done
+nodes:
+  - id: work
+    type: agent
+  - id: review
+    type: agent
+    goal_gate: true
+  - id: done
+    type: retrospective
+edges:
+  - from: work
+    to: review
+    on: success
+  - from: work
+    to: done
+    on: changes_requested
+  - from: work
+    to: done
+    on: failed
+  - from: review
+    to: done
+    on: always
+`);
+
+describe("nextTransition — goal gates", () => {
+  it("finishes when the gated node succeeded", () => {
+    const visits = [visit("work", 1, "success"), visit("review", 1, "success")];
+
+    expect(nextTransition(gatedReview, visits)).toEqual({ kind: "finish" });
+  });
+
+  it("fails goal_gate_unmet when the gated node failed", () => {
+    const visits = [visit("work", 1, "success"), visit("review", 1, "failed")];
+
+    expect(nextTransition(gatedReview, visits)).toMatchObject({
+      kind: "fail",
+      outcome: "goal_gate_unmet",
+    });
+  });
+
+  it("fails goal_gate_unmet when branching skipped the gated node entirely", () => {
+    expect(
+      nextTransition(gatedReview, [visit("work", 1, "failed")]),
+    ).toMatchObject({
+      kind: "fail",
+      outcome: "goal_gate_unmet",
+    });
+  });
+
+  it("finishes when the gated node requested changes", () => {
+    const visits = [
+      visit("work", 1, "success"),
+      visit("review", 1, "changes_requested"),
+    ];
+
+    expect(nextTransition(gatedReview, visits)).toEqual({ kind: "finish" });
+  });
+
+  it("finishes an ungated line whose nodes recorded non-success outcomes", () => {
+    const visits = [
+      visit("validate", 1, "failed"),
+      visit("address", 1, "success"),
+      visit("validate", 2, "success"),
+    ];
+
+    expect(nextTransition(alwaysLoop, visits)).toEqual({ kind: "finish" });
+  });
+});

@@ -41,9 +41,9 @@ StrongDM's Attractor spec models this as a first-class `goal_gate` node attribut
 
 ### FR2 — Finish guard in the replay
 
-- `nextTransition()` refuses the `finish` transition while any goal-gated node lacks a success-class outcome, returning a `fail` transition carrying a distinct `goal_gate_unmet` outcome instead.
-- A goal-gated node that conditional branching skipped entirely counts as unmet: the line fails with `goal_gate_unmet` rather than finishing around it.
-- `changes_requested` satisfies a gate. For a review node it is a completed review that produced a verdict, not a failure — the analogue of Attractor's PARTIAL_SUCCESS.
+- `nextTransition()` refuses the `finish` transition while any goal-gated node lacks a success-class outcome, returning a `fail` transition carrying a distinct `goal_gate_unmet` outcome instead; a line with no gates finishes exactly as before ([validated by `transition.test.ts:254`](libs/assembly-lines/src/transition.test.ts#L254), [`transition.test.ts:260`](libs/assembly-lines/src/transition.test.ts#L260), [`transition.test.ts:287`](libs/assembly-lines/src/transition.test.ts#L287))
+- A goal-gated node that conditional branching skipped entirely counts as unmet: the line fails with `goal_gate_unmet` rather than finishing around it ([validated by `transition.test.ts:269`](libs/assembly-lines/src/transition.test.ts#L269))
+- `changes_requested` satisfies a gate. For a review node it is a completed review that produced a verdict, not a failure — the analogue of Attractor's PARTIAL_SUCCESS ([validated by `transition.test.ts:278`](libs/assembly-lines/src/transition.test.ts#L278))
 - Only the gated node's latest visit decides. A gate satisfied on iteration 1 whose re-run failed leaves the line `goal_gate_unmet`, because the earlier verdict applied to an earlier state of the branch; symmetrically, a latest clean visit supersedes an earlier failed one.
 - The `goal_gate_unmet` reason names every unsatisfied gate, so the operator diagnostic states exactly which invariant broke.
 

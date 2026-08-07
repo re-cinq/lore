@@ -61,6 +61,23 @@ export function selectEdge(
   return candidates.find((e) => e.on === outcome) ?? candidates[0] ?? null;
 }
 
+/** A completed node whose outcome counts as reaching its goal. `changes_requested`
+ *  qualifies: a review that produced a verdict did its job, it is not a failure. */
+function satisfiesGate(outcome: StageOutcome | null): boolean {
+  return outcome === "success" || outcome === "changes_requested";
+}
+
+/** Goal-gated nodes the history does not show reaching a success-class outcome.
+ *  A node conditional branching skipped has no visit at all, so it is unmet. */
+function unmetGates(assemblyLine: AssemblyLine, visits: NodeVisit[]): string[] {
+  return assemblyLine.nodes
+    .filter((n) => n.goal_gate)
+    .filter(
+      (n) => !visits.some((v) => v.nodeId === n.id && satisfiesGate(v.outcome)),
+    )
+    .map((n) => n.id);
+}
+
 /**
  * Replay the visit history and return what happens next. This is now the sole
  * definition of the walk's routing (the in-process `executeAssemblyLine` it was
@@ -140,7 +157,15 @@ export function nextTransition(
   }
 
   if (currentId === assemblyLine.exit) {
-    return { kind: "finish" };
+    if (unmetGates(assemblyLine, visits).length === 0) {
+      return { kind: "finish" };
+    }
+
+    return {
+      kind: "fail",
+      outcome: "goal_gate_unmet",
+      reason: `AssemblyLine ${assemblyLine.name}: reached the exit with a goal gate unsatisfied`,
+    };
   }
 
   return { kind: "launch", nodeId: currentId, iteration };
