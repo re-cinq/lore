@@ -1,9 +1,28 @@
+/** Fork parentage: the terminal line to inherit from, and the last node to inherit. */
+export interface AssemblyLineResumeFrom {
+  lineId: string;
+  /** Rows through THIS node's latest completed row are copied; the walk resumes
+   *  at its successor. */
+  nodeId: string;
+}
+
 export interface AssemblyLineStartInput {
   definitionName: string;
   repo: string;
   branch?: string;
   taskId?: string;
   args?: Record<string, unknown>;
+  /** Content hash of the definition the caller loaded. Required with
+   *  {@link resumeFrom} — it is the drift guard's left-hand side. */
+  definitionHash?: string;
+  /**
+   * Fork-and-rerun (specs/fork-rerun-from-node): seed the new line with the
+   * source's node rows through `nodeId`, so the ordinary replay-derived walk
+   * resumes at the successor instead of re-running the green prefix. `branch`
+   * and `taskId` are inherited and must not be passed; `args` are inherited
+   * unless overridden.
+   */
+  resumeFrom?: AssemblyLineResumeFrom;
 }
 
 export interface AssemblyLineNodeStartInput {
@@ -35,6 +54,12 @@ export interface AssemblyLineRecord {
   status: "queued" | "running" | "finished" | "failed";
   outcome: string | null;
   reason: string | null;
+  /** Content hash of the definition this execution ran; null for rows that
+   *  predate the column or whose definition never resolved. */
+  definitionHash: string | null;
+  /** Fork parentage — null for a line that was not forked. */
+  resumedFromLineId: string | null;
+  resumedFromNodeId: string | null;
   createdAt: Date;
   startedAt: Date | null;
   finishedAt: Date | null;

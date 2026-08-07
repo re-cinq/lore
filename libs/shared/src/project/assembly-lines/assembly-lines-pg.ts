@@ -8,6 +8,11 @@ import type {
   AssemblyLineNodeRecord,
 } from "./assembly-lines-port.js";
 
+/** Every column `toRecord` maps, single-sourced so the four read sites cannot drift. */
+const LINE_COLUMNS = `id, definition_name, task_id, repo, branch, args, status, outcome, reason,
+         definition_hash, resumed_from_line_id, resumed_from_node_id,
+         created_at, started_at, finished_at`;
+
 /**
  * Postgres-backed {@link AssemblyLinesPort} over `pipeline.assembly_lines` /
  * `pipeline.assembly_line_nodes` (migration 0025). `start` writes the row and
@@ -148,8 +153,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
 
   async listOpen(): Promise<AssemblyLineRecord[]> {
     const { rows } = await this.pool.query(
-      `SELECT id, definition_name, task_id, repo, branch, args, status, outcome, reason,
-              created_at, started_at, finished_at
+      `SELECT ${LINE_COLUMNS}
          FROM pipeline.assembly_lines
         WHERE status IN ('queued', 'running')
         ORDER BY created_at`,
@@ -160,8 +164,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
 
   async getById(id: string): Promise<AssemblyLineRecord | null> {
     const { rows } = await this.pool.query(
-      `SELECT id, definition_name, task_id, repo, branch, args, status, outcome, reason,
-              created_at, started_at, finished_at
+      `SELECT ${LINE_COLUMNS}
          FROM pipeline.assembly_lines WHERE id = $1`,
       [id],
     );
@@ -175,8 +178,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
 
   async listForTask(taskId: string): Promise<AssemblyLineRecord[]> {
     const { rows } = await this.pool.query(
-      `SELECT id, definition_name, task_id, repo, branch, args, status, outcome, reason,
-              created_at, started_at, finished_at
+      `SELECT ${LINE_COLUMNS}
          FROM pipeline.assembly_lines
         WHERE task_id = $1
         ORDER BY created_at DESC`,
@@ -191,8 +193,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
     prNumber: number,
   ): Promise<AssemblyLineRecord[]> {
     const { rows } = await this.pool.query(
-      `SELECT id, definition_name, task_id, repo, branch, args, status, outcome, reason,
-              created_at, started_at, finished_at
+      `SELECT ${LINE_COLUMNS}
          FROM pipeline.assembly_lines
         WHERE repo = $1
           AND (args->>'pr_number')::int = $2
@@ -271,6 +272,9 @@ function toRecord(row: {
   status: AssemblyLineRecord["status"];
   outcome: string | null;
   reason: string | null;
+  definition_hash: string | null;
+  resumed_from_line_id: string | null;
+  resumed_from_node_id: string | null;
   created_at: Date;
   started_at: Date | null;
   finished_at: Date | null;
@@ -285,6 +289,9 @@ function toRecord(row: {
     status: row.status,
     outcome: row.outcome,
     reason: row.reason,
+    definitionHash: row.definition_hash,
+    resumedFromLineId: row.resumed_from_line_id,
+    resumedFromNodeId: row.resumed_from_node_id,
     createdAt: row.created_at,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
