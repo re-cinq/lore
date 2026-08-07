@@ -21,11 +21,11 @@ and the port is dead code without the test.
 
 ## Phase 3 — The ingest tee
 
-- [ ] **T7** `apps/floor/src/jobs/agent/agent-run-turns.test.ts` + `agent-run-turns.ts`: the flag (`LORE_AGENT_TURNS`), `turnFromEnvelope` (redaction, JSON-validity guard, null task id, event kind) and `MAX_RUN_TURNS_PER_BATCH`.
-- [ ] **T8** Widen `parseAgentSink` in `apps/floor/src/jobs/agent/agent-events.ts` with a third `turns` output collected in the **existing** loop, gated by a `collectTurns` argument; tests appended at the end of `apps/floor/src/jobs/agent/agent-events.test.ts`.
-- [ ] **T9** [P] Bind the `agentRunTurns()` lazy singleton in `apps/floor/src/kernel/queues.ts`.
-- [ ] **T10** Tee the route: `apps/floor/src/delivery/http/routes/agent-events.ts` persists turns skip-not-fail behind the flag and the existing oversized gate; tests appended at the end of `apps/floor/src/delivery/http/routes/agent-events.test.ts`.
-- [ ] **T11** [P] Prune turns at 90 days on the existing `eventsPrune` tick in `apps/floor/src/jobs/cron.ts`; test appended at the end of `apps/floor/src/jobs/cron.test.ts` if one exists, otherwise covered by the port's `pruneOld` suite.
+- [x] **T7** `apps/floor/src/jobs/agent/agent-run-turns.test.ts` + `agent-run-turns.ts`: the flag (`LORE_AGENT_TURNS`), `turnFromEnvelope` (redaction, JSON-validity guard, null task id, event kind) and `MAX_RUN_TURNS_PER_BATCH`.
+- [x] **T8** Widen `parseAgentSink` in `apps/floor/src/jobs/agent/agent-events.ts` with a third `turns` output collected in the **existing** loop, gated by a `collectTurns` argument; tests appended at the end of `apps/floor/src/jobs/agent/agent-events.test.ts`.
+- [x] **T9** [P] Bind the `agentRunTurns()` lazy singleton in `apps/floor/src/kernel/queues.ts`.
+- [x] **T10** Tee the route: `apps/floor/src/delivery/http/routes/agent-events.ts` persists turns skip-not-fail behind the flag and the existing oversized gate; tests appended at the end of `apps/floor/src/delivery/http/routes/agent-events.test.ts`.
+- [x] **T11** [P] Prune turns at 90 days on the existing `eventsPrune` tick in `apps/floor/src/jobs/cron.ts`; test appended at the end of `apps/floor/src/jobs/cron.test.ts` if one exists, otherwise covered by the port's `pruneOld` suite.
 
 ## Phase 4 — The read API
 

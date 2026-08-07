@@ -1,0 +1,102 @@
+// The turn-store tee on POST /api/agent-events (specs/turn-level-transcript-store
+// FR3). A separate file from agent-events.test.ts because that one carries #L
+// anchors from specs/assembly-line-run-viz and its module mock would have to be
+// widened in place, shifting every anchor below it.
+
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+import { buildServer } from "../server.js";
+
+const logLlmCall = vi.fn();
+const insertBatch = vi.fn();
+const insertTurns = vi.fn();
+const write = vi.fn();
+
+vi.mock("../../../kernel/queues.js", () => ({
+  usage: () => ({ logLlmCall }),
+  agentRunEvents: () => ({ insertBatch }),
+  agentRunTurns: () => ({ insertBatch: insertTurns }),
+  auditLog: () => ({ write }),
+}));
+
+const ORIG_TOKEN = process.env.LORE_AGENT_INTERNAL_TOKEN;
+const ORIG_FLAG = process.env.LORE_AGENT_TURNS;
+
+const RESULT_LINE = JSON.stringify({
+  source: { task: "task-uuid-1", agent: "cr-1" },
+  event: {
+    type: "result",
+    subtype: "success",
+    usage: { input_tokens: 3 },
+    total_cost_usd: 0.01,
+  },
+});
+
+const post = (payload: string) =>
+  buildServer({ getJobStatus: () => ({}) }).inject({
+    method: "POST",
+    url: "/api/agent-events",
+    headers: { authorization: "Bearer internal-secret" },
+    payload,
+  });
+
+beforeEach(() => {
+  process.env.LORE_AGENT_INTERNAL_TOKEN = "internal-secret";
+  logLlmCall.mockReset().mockResolvedValue({ correlated: true });
+  insertBatch.mockReset().mockResolvedValue([]);
+  insertTurns.mockReset().mockResolvedValue([{ id: "1" }]);
+  write.mockReset().mockResolvedValue(undefined);
+});
+
+afterEach(() => {
+  process.env.LORE_AGENT_INTERNAL_TOKEN = ORIG_TOKEN ?? "";
+  process.env.LORE_AGENT_TURNS = ORIG_FLAG ?? "";
+});
+
+describe("POST /api/agent-events turn store", () => {
+  it("writes no turn while LORE_AGENT_TURNS is off", async () => {
+    delete process.env.LORE_AGENT_TURNS;
+    const res = await post(RESULT_LINE);
+
+    expect(res.statusCode).toBe(200);
+    expect(insertTurns).not.toHaveBeenCalled();
+    expect(logLlmCall).toHaveBeenCalledTimes(1);
+    expect(insertBatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("writes one untruncated turn per line while LORE_AGENT_TURNS is on", async () => {
+    process.env.LORE_AGENT_TURNS = "1";
+
+    await post(RESULT_LINE);
+
+    expect(insertTurns).toHaveBeenCalledTimes(1);
+    expect(insertTurns.mock.calls[0][0]).toEqual([
+      {
+        taskId: "task-uuid-1",
+        agentCrName: "cr-1",
+        eventType: "result",
+        envelope: RESULT_LINE,
+      },
+    ]);
+  });
+
+  it("returns the unchanged cost-path response when the turn insert rejects", async () => {
+    process.env.LORE_AGENT_TURNS = "1";
+    insertTurns.mockRejectedValue(new Error("pg down"));
+
+    const res = await post(RESULT_LINE);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.result).toEqual({ status: "ok", events: 1, recorded: 1 });
+  });
+
+  it("writes no turn for an oversized body even while the flag is on", async () => {
+    process.env.LORE_AGENT_TURNS = "1";
+    const oversized = `${RESULT_LINE}\n${"x".repeat(9 * 1024 * 1024)}`;
+
+    const res = await post(oversized);
+
+    expect(res.statusCode).toBe(200);
+    expect(logLlmCall).toHaveBeenCalledTimes(1);
+    expect(insertTurns).not.toHaveBeenCalled();
+  });
+});
