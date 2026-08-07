@@ -99,7 +99,6 @@ export interface ImpactReport {
   graphCommit?: string;
   /** ISO-8601 timestamp of that stamp. */
   graphCommitAt?: string;
-  stale?: boolean;
   /**
    * What the check actually looked at. A bare "no impact" over files the graph
    * has no data for is what taught people to ignore this check; these numbers
@@ -432,8 +431,17 @@ async function implementedByImpact(
   for (const chunk of chunks) {
     const start = chunk["CodeChunk.start_line"] ?? 0;
     const end = chunk["CodeChunk.end_line"] ?? 0;
+    // `end_line` has no producer: projectLinkedChunks writes only what the
+    // author's `[label](src/x.ts#L12)` anchor carried. Demanding it made this
+    // route compare [start, 0] and match nothing, ever. A `#L` anchor is a
+    // navigation aid, not a maintained interval — so an unbounded chunk couples
+    // the whole file, which is the claim the link actually makes.
+    const spanKnown = start > 0 && end >= start;
 
-    if (!ranges.some(([s, e]) => intervalsOverlap(start, end, s, e))) {
+    if (
+      spanKnown &&
+      !ranges.some(([s, e]) => intervalsOverlap(start, end, s, e))
+    ) {
       continue;
     }
 

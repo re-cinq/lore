@@ -760,3 +760,133 @@ describe("protocol gating", () => {
     expect(comment).toContain("line-precise coupling skipped");
   });
 });
+
+/**
+ * CodeChunks are minted from the `#L` anchors spec authors type into inline code
+ * links, and `CodeChunk.end_line` has never had a producer. Requiring it made
+ * the implemented_by route compare [start, 0] and match nothing at all — the
+ * only statement→production-code edge in the graph, silently dark since it was
+ * written.
+ */
+describe.skipIf(!reachable)(
+  "implemented_by without end_line (live Dgraph)",
+  () => {
+    const dgraphClient = new dgraph.DgraphClient(
+      new dgraph.DgraphClientStub(DGRAPH_HTTP),
+    );
+    let repo = "";
+
+    beforeAll(() => {
+      execFileSync("bash", [APPLIER], {
+        env: { ...process.env, DGRAPH_HTTP },
+        stdio: "pipe",
+      });
+    });
+
+    afterEach(async () => {
+      const txn = dgraphClient.newTxn();
+
+      try {
+        const res = await txn.queryWithVars(
+          `query nodes($repo: string) {
+          specs(func: eq(Spec.repo, $repo)) { uid }
+          stmts(func: eq(Statement.repo, $repo)) { uid }
+          chunks(func: eq(CodeChunk.repo, $repo)) { uid }
+        }`,
+          { $repo: repo },
+        );
+        const data = res.data as Record<string, { uid: string }[]>;
+        const uids = Object.values(data)
+          .flat()
+          .map((n) => n.uid);
+
+        if (uids.length) {
+          await txn.mutate({
+            deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
+            commitNow: true,
+          });
+        }
+      } catch {
+        /* best-effort cleanup */
+      } finally {
+        await txn.discard().catch(() => {});
+      }
+    });
+
+    async function seedAnchorOnlyChunk(): Promise<void> {
+      const txn = dgraphClient.newTxn();
+
+      try {
+        await txn.mutate({
+          setJson: {
+            uid: "_:spec",
+            "dgraph.type": "Spec",
+            "Spec.xid": `${repo}|specs/widget/spec.md`,
+            "Spec.repo": repo,
+            "Spec.file_path": "specs/widget/spec.md",
+            "Spec.title": "Widget Spec",
+            "Spec.sections": [
+              {
+                uid: "_:stmt",
+                "dgraph.type": "Statement",
+                "Statement.xid": `${repo}|specs/widget/spec.md|3`,
+                "Statement.repo": repo,
+                "Statement.text": "The widget MUST render on mount.",
+                "Statement.spec": { uid: "_:spec" },
+                // Exactly what projectLinkedChunks writes for [label](src/widget.ts#L1):
+                // a start line and nothing else.
+                "Statement.implemented_by": {
+                  uid: "_:cc",
+                  "dgraph.type": "CodeChunk",
+                  "CodeChunk.xid": `${repo}|src/widget.ts|1`,
+                  "CodeChunk.repo": repo,
+                  "CodeChunk.file_path": "src/widget.ts",
+                  "CodeChunk.start_line": 1,
+                },
+              },
+            ],
+          },
+          commitNow: true,
+        });
+      } finally {
+        await txn.discard().catch(() => {});
+      }
+    }
+
+    it("couples file-wide when the chunk carries no end_line to bound it", async () => {
+      repo = `impl-anchor/${randomUUID()}`;
+      await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
+      await seedAnchorOnlyChunk();
+
+      const report = await computeImpact(
+        dgraphClient,
+        repo,
+        [{ path: "src/widget.ts", ranges: [[900, 910]], aligned: true }],
+        { protocol: 2 },
+      );
+
+      expect(report.statements).toMatchObject([
+        {
+          specPath: "specs/widget/spec.md",
+          statementText: "The widget MUST render on mount.",
+          evidence: "file-link",
+        },
+      ]);
+    });
+
+    it("returns nothing for a file the graph holds no chunk for", async () => {
+      repo = `impl-anchor/${randomUUID()}`;
+      await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
+      await seedAnchorOnlyChunk();
+
+      const report = await computeImpact(
+        dgraphClient,
+        repo,
+        [{ path: "src/other.ts", ranges: [[1, 5]], aligned: true }],
+        { protocol: 2 },
+      );
+
+      expect(report.statements).toEqual([]);
+    });
+  },
+);
