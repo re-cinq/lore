@@ -6,7 +6,7 @@ test, confirm it fails for the stated reason, then implement, then commit.
 
 ## Phase 1 — Schema
 
-- [ ] **T1** Add `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0037_agent_run_turns.sql`: `pipeline.agent_run_turns` with the FR1 columns, three indexes, `lore` grant and role-guarded `lore_ui` SELECT grant. Every statement `IF NOT EXISTS`. No test — the migration is DDL applied by the Helm hook; FR1's behavioral claims are validated through the adapter in T2.
+- [x] **T1** Add `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0037_agent_run_turns.sql`: `pipeline.agent_run_turns` with the FR1 columns, three indexes, `lore` grant and role-guarded `lore_ui` SELECT grant. Every statement `IF NOT EXISTS`. No test — the migration is DDL applied by the Helm hook; FR1's behavioral claims are validated through the adapter in T2.
 
 ## Phase 2 — The repository port
 
