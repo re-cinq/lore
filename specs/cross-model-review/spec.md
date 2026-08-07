@@ -4,7 +4,7 @@
 |---------|------------------------|
 | Feature | Cross-Model Review     |
 | Branch  | feat/cross-model-review |
-| Status  | Draft                  |
+| Status  | In Progress            |
 | Created | 2026-08-07             |
 | Owner   | Platform Engineering   |
 
@@ -20,8 +20,8 @@ The full fix — routing review to a genuinely different provider — needs a se
 
 ### FR1 — `modelFamily()` classifies a model id into a vendor family
 
-- Classify a model id starting with `claude` (case-insensitive) as `anthropic`, one starting with `gpt-` as `openai`, and one starting with `gemini` as `google`.
-- Classify an unrecognized model id, an empty string, or an undefined model id as `unknown` rather than guessing — an unrecognized id must never be silently folded into an existing family.
+- Classify a model id starting with `claude` (case-insensitive) as `anthropic`, one starting with `gpt-` as `openai`, and one starting with `gemini` as `google`. ([validated by `model-family.test.ts:5`](../../libs/shared/src/llm/model-family.test.ts#L5), [`model-family.test.ts:9`](../../libs/shared/src/llm/model-family.test.ts#L9), [`model-family.test.ts:13`](../../libs/shared/src/llm/model-family.test.ts#L13), [`model-family.test.ts:17`](../../libs/shared/src/llm/model-family.test.ts#L17), [`model-family.test.ts:21`](../../libs/shared/src/llm/model-family.test.ts#L21))
+- Classify an unrecognized model id, an empty string, or an undefined model id as `unknown` rather than guessing — an unrecognized id must never be silently folded into an existing family. ([validated by `model-family.test.ts:25`](../../libs/shared/src/llm/model-family.test.ts#L25), [`model-family.test.ts:29`](../../libs/shared/src/llm/model-family.test.ts#L29), [`model-family.test.ts:33`](../../libs/shared/src/llm/model-family.test.ts#L33))
 
 ### FR2 — `crossModelReviewWarning()` flags same-family implementer/reviewer pairs
 
