@@ -50,11 +50,7 @@ function llmSpec(def: RecipeDef, sinks: OutputSink[]): AgentDefinitionSpec {
   // The subsystem rejects a promptless AgentDefinition at admission
   // (ai-agent-subsystem#155). Emitting the spec without one just moved the failure
   // to the apply, where it surfaces as an opaque API-server rejection.
-  enforceTrue(
-    def.prompt,
-    Boom.badRequest,
-    `recipe ${def.name} has no prompt`,
-  );
+  enforceTrue(def.prompt, Boom.badRequest, `recipe ${def.name} has no prompt`);
 
   return {
     description: `Lore ${def.name} recipe (UI-authored).`,

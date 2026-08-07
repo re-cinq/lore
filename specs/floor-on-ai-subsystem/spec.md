@@ -162,8 +162,9 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
    line completion). Per-task provisioning derives the token-secret key + Station/Definition names
    from the first 8 of the task id, only provisions when the task targets a repo, injects the target
    repo (clone URL + branch ref, ref omitted when the spec has no branch + `token_secret`) into the
-   renamed-and-task-id-labelled AgentDefinition (catalog recipe preserved), and points the per-task
-   Station's `agentDefRef` at it (template preserved, empty-template fallback). ([validated by `agent-watcher-logic.test.ts:64`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L64), [`agent-watcher-logic.test.ts:72`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L72), [`per-task-token.test.ts:57`](apps/floor/src/jobs/station/per-task-token.test.ts#L57), [`per-task-token.test.ts:76`](apps/floor/src/jobs/station/per-task-token.test.ts#L76), [`per-task-token.test.ts:79`](apps/floor/src/jobs/station/per-task-token.test.ts#L79), [`per-task-token.test.ts:92`](apps/floor/src/jobs/station/per-task-token.test.ts#L92), [`per-task-token.test.ts:107`](apps/floor/src/jobs/station/per-task-token.test.ts#L107), [`per-task-token.test.ts:117`](apps/floor/src/jobs/station/per-task-token.test.ts#L117), [`per-task-token.test.ts:123`](apps/floor/src/jobs/station/per-task-token.test.ts#L123), [`per-task-token.test.ts:138`](apps/floor/src/jobs/station/per-task-token.test.ts#L138), [`per-task-token.test.ts:156`](apps/floor/src/jobs/station/per-task-token.test.ts#L156))
+   renamed-and-task-id-labelled AgentDefinition (catalog recipe preserved, and rejected when the
+   catalog row carries no prompt — the clone could not admit), and points the per-task
+   Station's `agentDefRef` at it (template preserved, empty-template fallback). ([validated by `agent-watcher-logic.test.ts:64`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L64), [`agent-watcher-logic.test.ts:72`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L72), [`per-task-token.test.ts:57`](apps/floor/src/jobs/station/per-task-token.test.ts#L57), [`per-task-token.test.ts:76`](apps/floor/src/jobs/station/per-task-token.test.ts#L76), [`per-task-token.test.ts:79`](apps/floor/src/jobs/station/per-task-token.test.ts#L79), [`per-task-token.test.ts:92`](apps/floor/src/jobs/station/per-task-token.test.ts#L92), [`per-task-token.test.ts:107`](apps/floor/src/jobs/station/per-task-token.test.ts#L107), [`per-task-token.test.ts:117`](apps/floor/src/jobs/station/per-task-token.test.ts#L117), [`per-task-token.test.ts:123`](apps/floor/src/jobs/station/per-task-token.test.ts#L123), [`per-task-token.test.ts:135`](apps/floor/src/jobs/station/per-task-token.test.ts#L135), [`per-task-token.test.ts:152`](apps/floor/src/jobs/station/per-task-token.test.ts#L152), [`per-task-token.test.ts:170`](apps/floor/src/jobs/station/per-task-token.test.ts#L170))
 
 10. Run output reaches the Floor over the public-LB http sink and is recorded in
     `pipeline.llm_calls`, OTEL spans, and GCS (the UI log viewer shows it). `parseAgentEvents` maps
@@ -340,10 +341,11 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
 - **Recipe → CRD materialisation.** `agentDefToCrds` maps an `AgentDefinition` recipe to a paired
   Kubernetes `AgentDefinition` + `Station`: an AI recipe carries `permission_mode:"bypass"`,
   `max_turns:40`, a `{context}`-suffixed prompt, and — when an events URL is supplied — the http
-  telemetry sink alongside stdout; model/prompt are omitted when the recipe inherits them, deadline
-  defaults to 30 and image to `node:22-bookworm`, and stdout-only sinks stand in without an events
-  URL. An `execution_mode:"station"` recipe materialises an exec-vendor station (`model:"exec"`,
-  `{station_input}` prompt, `max_turns:1`, `lore-station <type>` command) on its own image. ([validated by `agent-crd.test.ts:17`](apps/lore-api/src/features/agents/agent-crd.test.ts#L17), [`agent-crd.test.ts:58`](apps/lore-api/src/features/agents/agent-crd.test.ts#L58), [`agent-crd.test.ts:82`](apps/lore-api/src/features/agents/agent-crd.test.ts#L82))
+  telemetry sink alongside stdout; model is omitted when the recipe inherits it, a recipe with no
+  prompt is rejected outright (the subsystem refuses a promptless AgentDefinition at admission, so
+  emitting one only moved the failure to the apply), deadline defaults to 30 and image to
+  `node:22-bookworm`, and stdout-only sinks stand in without an events URL. An `execution_mode:"station"` recipe materialises an exec-vendor station (`model:"exec"`,
+  `{station_input}` prompt, `max_turns:1`, `lore-station <type>` command) on its own image. ([validated by `agent-crd.test.ts:17`](apps/lore-api/src/features/agents/agent-crd.test.ts#L17), [`agent-crd.test.ts:58`](apps/lore-api/src/features/agents/agent-crd.test.ts#L58), [`agent-crd.test.ts:78`](apps/lore-api/src/features/agents/agent-crd.test.ts#L78), [`agent-crd.test.ts:86`](apps/lore-api/src/features/agents/agent-crd.test.ts#L86))
 - **CR-watch idempotency.** Event dedupe keys collapse redundant deliveries so a Floor restart replays
   nothing twice: `githubDedupeKey` prefixes the delivery id, `k8sDedupeKey` keys a terminal Agent CR
   on task-id+phase (repeated `MODIFIED` events collapse), `cronDedupeKey` floors the tick to the
