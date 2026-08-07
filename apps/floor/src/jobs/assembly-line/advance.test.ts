@@ -646,6 +646,18 @@ edges:
 describe("advanceLine on a forked line", () => {
   const HASH = "hash-code-review";
 
+  /** Strictly-increasing clock: the overlap guard breaks a createdAt TIE on the
+   *  row ids, which are random uuids — a real coin flip. The port takes an
+   *  injectable clock for exactly this, so every line here is unambiguously
+   *  ordered and the guard's decision is the only variable under test. */
+  function orderedPort(): InMemoryAssemblyLines {
+    let tick = 0;
+
+    return new InMemoryAssemblyLines(
+      () => new Date(Date.UTC(2026, 7, 7) + ++tick * 1000),
+    );
+  }
+
   async function forkableLine(
     port: InMemoryAssemblyLines,
     branch = "feat/x",
@@ -690,7 +702,7 @@ describe("advanceLine on a forked line", () => {
   }
 
   it("launches the successor of the inherited node, not the entry node", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = orderedPort();
     const source = await forkableLine(port);
     const forked = await fork(port, source);
     const { deps, launched } = makeDeps(port);
@@ -709,7 +721,7 @@ describe("advanceLine on a forked line", () => {
   });
 
   it("does not re-run the inherited node", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = orderedPort();
     const source = await forkableLine(port);
     const forked = await fork(port, source);
     const { deps, launched } = makeDeps(port);
@@ -722,7 +734,7 @@ describe("advanceLine on a forked line", () => {
   });
 
   it("defers as lease_held when another open line already holds the inherited branch", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = orderedPort();
     const source = await forkableLine(port);
     const holder = await port.start({
       definitionName: "code-review",
@@ -745,7 +757,7 @@ describe("advanceLine on a forked line", () => {
   });
 
   it("proceeds when the only other line on the branch is the terminal source", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = orderedPort();
     const source = await forkableLine(port);
     const forked = await fork(port, source);
     const { deps, launched } = makeDeps(port);
@@ -757,7 +769,7 @@ describe("advanceLine on a forked line", () => {
   });
 
   it("stops guarding once the fork has launched work of its own", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = orderedPort();
     const source = await forkableLine(port);
     const forked = await fork(port, source);
     const { deps, launched } = makeDeps(port);
