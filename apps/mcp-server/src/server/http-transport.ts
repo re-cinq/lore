@@ -7,7 +7,9 @@ import {
 import { randomUUID } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import { resolve } from "node:path";
 import { buildMcpServer, type ServerMode } from "./build-mcp-server.js";
+import { handleSkillsRequest } from "./skills-registry.js";
 import type { ToolDeps } from "../mcp/tools/deps.js";
 
 export interface HttpGatewayOptions {
@@ -126,6 +128,10 @@ export function startHttpGateway(
   opts: HttpGatewayOptions,
 ): Server {
   const sessions = new Map<string, StreamableHTTPServerTransport>();
+  // The agent-skills bundle baked into this gateway image (Lore content in a Lore
+  // service). The subsystem init fetches it over /skills; it is not part of MCP.
+  const skillsRoot =
+    process.env.LORE_AGENT_SKILLS_DIR ?? resolve(process.cwd(), "agent-skills");
 
   const authorized = (req: IncomingMessage): boolean =>
     !opts.authToken || req.headers.authorization === `Bearer ${opts.authToken}`;
@@ -153,6 +159,11 @@ export function startHttpGateway(
     if (req.method === "GET" && url === "/healthz") {
       res.writeHead(200, { "Content-Type": "text/plain" }).end("ok");
 
+      return;
+    }
+
+    // Skills registry (unauthenticated — org conventions, not secrets). Owns /skills/*.
+    if (await handleSkillsRequest(req, res, skillsRoot)) {
       return;
     }
 

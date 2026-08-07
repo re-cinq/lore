@@ -55,6 +55,12 @@ loreApiUrl: http://lore-api.lore-api.svc.cluster.local:3000
 # gateway is deployed AND the ai-agent-subsystem wires mcp_servers (ADR-030).
 loreMcpUrl: ""
 
+# PUBLIC HTTPS base URL of the gateway's /skills registry the agent init fetches skills
+# + settings from (resources.skills_source). Same public-:443 constraint as loreMcpUrl —
+# agent pods reach it over the public ingress. Empty = skills off (the init skips the
+# fetch). Normally `<loreMcpUrl host>/skills`.
+loreSkillsUrl: ""
+
 # In-cluster egress target for the station API calls — must match the host:port in
 # loreApiUrl above (same pattern as floorSink/agentEventsUrl).
 apiSink:

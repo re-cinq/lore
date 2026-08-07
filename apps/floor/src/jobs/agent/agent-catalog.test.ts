@@ -41,6 +41,8 @@ describe("buildAgentDefinition", () => {
               headers_secret: "lore-mcp-auth",
             },
           ],
+          skills: ["lore-context"],
+          skills_source: "__LORE_SKILLS_URL__",
         },
         disallowed_tools: ["mcp__lore__lore_create_pipeline_task"],
         output: {
@@ -70,6 +72,8 @@ describe("buildAgentDefinition", () => {
           headers_secret: "lore-mcp-auth",
         },
       ],
+      skills: ["lore-context"],
+      skills_source: "__LORE_SKILLS_URL__",
     });
   });
 

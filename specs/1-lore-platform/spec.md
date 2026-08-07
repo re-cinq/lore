@@ -225,7 +225,7 @@ system is performing.
   `lore_create_pipeline_task`, so the pod can search memory/context and record
   targeted memory mid-task — not only start pre-hydrated. A shared `lore-mcp`
   gateway serves those tools over MCP-over-HTTP at a public `:443` host (the
-  agent-pod NetworkPolicy allows only public `:443` egress). ([validated by `agent-catalog.test.ts:60`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L60), [`agent-catalog.test.ts:20`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L20))
+  agent-pod NetworkPolicy allows only public `:443` egress). ([validated by `agent-catalog.test.ts:62`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L62), [`agent-catalog.test.ts:20`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L20))
 - The gateway reads each request body defensively: it JSON-parses the body
   (an empty body carries no payload), caps it at 1 MB (`413` over the cap) so an
   authenticated-but-rogue pod cannot exhaust gateway memory, and returns `400`
@@ -233,6 +233,12 @@ system is performing.
 - When no gateway URL is configured (the default, and every cluster before the
   gateway is deployed), the seeded agent recipes omit the `mcp_servers` block
   entirely — no empty-`url` MCP entry lands in any recipe CRD. ([validated by `catalog-mcp-guard.test.ts:12`](apps/floor/src/jobs/agent/catalog-mcp-guard.test.ts#L12))
+- The gateway also serves an **agent-skills registry** at `/skills` (unauthenticated —
+  skills are org conventions, not secrets): `GET /skills/settings.json` returns the org
+  session settings/hooks, and `GET /skills/<name>.tar.gz` streams a gzip tarball of the
+  baked skill directory, rejecting an unsafe/traversing name with `404`. The
+  ai-agent-subsystem init fetches these into a run's `$HOME/.claude` (recipe
+  `resources.skills` + `skills_source`, ADR-030). ([validated by `skills-registry.test.ts:42`](apps/mcp-server/src/server/skills-registry.test.ts#L42), [`skills-registry.test.ts:50`](apps/mcp-server/src/server/skills-registry.test.ts#L50), [`skills-registry.test.ts:63`](apps/mcp-server/src/server/skills-registry.test.ts#L63), [`skills-registry.test.ts:74`](apps/mcp-server/src/server/skills-registry.test.ts#L74))
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no

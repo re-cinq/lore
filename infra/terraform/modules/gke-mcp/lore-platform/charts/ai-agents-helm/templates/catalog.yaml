@@ -35,6 +35,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -102,6 +105,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -183,6 +189,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -250,6 +259,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -323,6 +335,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -426,6 +441,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -519,6 +537,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -607,6 +628,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -679,6 +703,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -774,6 +801,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -845,6 +875,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -908,6 +941,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -1055,6 +1091,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
