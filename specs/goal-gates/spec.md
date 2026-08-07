@@ -46,6 +46,7 @@ StrongDM's Attractor spec models this as a first-class `goal_gate` node attribut
 - `changes_requested` satisfies a gate. For a review node it is a completed review that produced a verdict, not a failure — the analogue of Attractor's PARTIAL_SUCCESS ([validated by `transition.test.ts:278`](libs/assembly-lines/src/transition.test.ts#L278))
 - Only the gated node's latest visit decides. A gate satisfied on iteration 1 whose re-run failed leaves the line `goal_gate_unmet`, because the earlier verdict applied to an earlier state of the branch; symmetrically, a latest clean visit supersedes an earlier failed one ([validated by `transition.test.ts:341`](libs/assembly-lines/src/transition.test.ts#L341), [`transition.test.ts:353`](libs/assembly-lines/src/transition.test.ts#L353))
 - The `goal_gate_unmet` reason names every unsatisfied gate, so the operator diagnostic states exactly which invariant broke ([validated by `transition.test.ts:406`](libs/assembly-lines/src/transition.test.ts#L406))
+- The guard lives in the exit branch, downstream of loop accounting, so a line that exhausts an `iteration_max` budget before ever reaching its gate fails `iteration_max` — the budget is the earlier and more specific diagnosis ([validated by `transition.test.ts:451`](libs/assembly-lines/src/transition.test.ts#L451))
 
 ### FR3 — Adoption in the motivating lines
 

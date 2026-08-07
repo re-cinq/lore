@@ -488,3 +488,45 @@ describe("nextTransition — goal_gate_unmet diagnostic", () => {
     });
   });
 });
+
+// A gated line whose retry budget runs out before the gate is ever reached.
+const gatedWithLoop: AssemblyLine = parseAssemblyLine(`
+name: gated-with-loop
+description: work retries itself once; review is a goal gate reached only on success
+version: 1
+entry: work
+exit: done
+nodes:
+  - id: work
+    type: agent
+  - id: review
+    type: agent
+    goal_gate: true
+  - id: done
+    type: retrospective
+edges:
+  - from: work
+    to: review
+    on: success
+  - from: work
+    to: work
+    on: failed
+    iteration_max: 1
+  - from: work
+    to: done
+    on: changes_requested
+  - from: review
+    to: done
+    on: always
+`);
+
+describe("nextTransition — goal gates versus the loop budget", () => {
+  it("fails iteration_max when the retry budget runs out before the gate", () => {
+    const visits = [visit("work", 1, "failed"), visit("work", 2, "failed")];
+
+    expect(nextTransition(gatedWithLoop, visits)).toMatchObject({
+      kind: "fail",
+      outcome: "iteration_max",
+    });
+  });
+});
