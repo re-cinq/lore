@@ -69,19 +69,22 @@ controller:
   replicas: 1
   image:
     repository: ghcr.io/re-cinq/ai-agent-controller
-    # Pinned by digest (never a floating tag) — v0.8.0: the init container fetches
+    # Pinned by digest (never a floating tag) — v0.8.1: the init container fetches
     # each recipe's resources.skills + settings.json from resources.skills_source
-    # into the run's $HOME/.claude, so a headless run finally gets skills and
-    # session hooks (ai-agent-subsystem#180). Inert until skillsSource is set.
-    # Resolved via
-    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.8.0
-    digest: "sha256:7780f6fc42b14a362e4b97ed417b4edc20e2457592d76bb96e85d121b7f7eeb9"
+    # into the run's $HOME/.claude (ai-agent-subsystem#180, inert until skillsSource
+    # is set), and the supervisor now carries its own run deadline — a wedged agent is
+    # forced down and still reports a terminal event instead of dying silently with the
+    # pod at the Job deadline, with the agent's stderr forwarded to the pod log tagged
+    # `[agent]` (ai-agent-subsystem#47/#48). Resolved via
+    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.8.1
+    digest: "sha256:3e3d76897436c1926f18c774af1820b60b7322fc44bd739349be2045efeb4213"
   # The image whose init container injects the agent runtime + supervisor into each run
-  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.8.0
-  # digest, paired with the controller above. Resolve with (needs ghcr read on the
-  # ai-agent package — not public):
-  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.8.0
-  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:ec25017688ea4af6345722be87852e2f1abfc92c63bc6d9f0e5a0db6affa5048"
+  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.8.1
+  # digest, paired with the controller above. The deadline fix needs BOTH: the injection
+  # is the controller's, the enforcement the supervisor's, which rides in this image.
+  # Resolve with (needs ghcr read on the ai-agent package — not public):
+  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.8.1
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:defe3031ca44b0fbdf4fbbd06bcbd2b128d90cf78beba3c9759233bb9c4f1262"
   # Tail of run-pod log kept in Agent.status.output (bounds the object under etcd's limit).
   maxOutputBytes: "262144"
   resources:
