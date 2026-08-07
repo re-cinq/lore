@@ -46,7 +46,7 @@ Trusted-sandbox only — executes a shell command in your local checkout. The sh
 2. Load the manifest with `loadTestCommandManifest(root)`
    ([loader](apps/mcp-server/src/features/spec-trace/spec-trace-tools.ts#L129)).
 3. Delegate to `runTestTool(process.env, manifest, selector, root)`
-   ([handler](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.ts#L96)):
+   ([handler](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.ts#L104)):
    1. **Trust-boundary gate** — `executionRefusal(env)`
       ([gate](../../../libs/shared/src/project/lib/trust.ts#L12)) returns a non-null
       string when `LORE_DB_HOST` is set. When non-null, return it immediately

@@ -43,7 +43,7 @@ Starts a local background poller that watches repos for new 'pending' pipeline t
 1. Dynamically import `startNotifier`, `detectRepo`, `isNotifierRunning` from
    `runner.local`.
 2. If `isNotifierRunning()`
-   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L876)) → return
+   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L1059)) → return
    `"Task notifications already active."` (idempotent — single interval).
 3. Resolve `repos = args.repos || [detectRepo()].filter(Boolean)`. If empty →
    `"Error: no repos to watch. Pass repos explicitly or run from a git repo with a GitHub remote."`.
