@@ -19,6 +19,7 @@ import {
   type ImpactStatement,
 } from "./impact-statement.js";
 import { testFileImpact } from "./impact-test-link.js";
+import { specFileImpact } from "./impact-statement-delta.js";
 
 export { parseRanges } from "./line-range.js";
 export type {
@@ -44,6 +45,20 @@ export interface OrphanStatement {
   wasCoveredBy: string;
 }
 
+/**
+ * The head content of a changed spec/ADR. Sent by the client because it already
+ * has the checkout — no GitHub round-trip, and it works on fork PRs.
+ */
+export interface ChangedDoc {
+  path: string;
+  content: string;
+}
+
+export interface ImpactOptions {
+  /** Head content of changed spec/ADR files, for the statement-identity diff. */
+  docs?: ChangedDoc[];
+}
+
 export interface ImpactReport {
   status: "ok" | "unavailable";
   statements: ImpactStatement[];
@@ -51,6 +66,18 @@ export interface ImpactReport {
   testSelectors: string[];
   graphCommit?: string;
   stale?: boolean;
+  /**
+   * What the check actually looked at. A bare "no impact" over files the graph
+   * has no data for is what taught people to ignore this check; these numbers
+   * let the comment say so instead of implying a clean bill of health.
+   */
+  examined?: {
+    files: number;
+    withGraphData: number;
+    docs: number;
+    /** Statements present in a changed spec that the graph has never seen. */
+    newStatements: number;
+  };
 }
 
 /** A GitHub Checks API annotation anchored to a changed line range. */
@@ -390,6 +417,7 @@ export async function computeImpact(
   dgraph: DgraphClientPort | null,
   repo: string,
   changed: ChangedRange[],
+  options: ImpactOptions = {},
 ): Promise<ImpactReport> {
   if (!dgraph) {
     return {
@@ -401,21 +429,51 @@ export async function computeImpact(
   }
   const raw: Array<ImpactStatement & { xid: string }> = [];
   const orphaned: OrphanStatement[] = [];
+  let withGraphData = 0;
 
   for (const { path, ranges, deleted } of changed) {
-    raw.push(...(await implementedByImpact(dgraph, repo, path, ranges)));
-    raw.push(...(await validatedByImpact(dgraph, repo, path, ranges)));
-    raw.push(...(await testFileImpact(dgraph, repo, path, ranges)));
+    const found = [
+      ...(await implementedByImpact(dgraph, repo, path, ranges)),
+      ...(await validatedByImpact(dgraph, repo, path, ranges)),
+      ...(await testFileImpact(dgraph, repo, path, ranges)),
+    ];
+
+    if (found.length) {
+      withGraphData += 1;
+    }
+    raw.push(...found);
 
     if (deleted?.length) {
       orphaned.push(...(await orphanImpact(dgraph, repo, path, deleted)));
     }
+  }
+
+  // Doc-side: a changed spec couples through statement identity, not lines, so
+  // this runs whatever the diff's coordinates look like.
+  const docs = options.docs ?? [];
+  let newStatements = 0;
+
+  for (const doc of docs) {
+    const impact = await specFileImpact(dgraph, repo, doc.path, doc.content);
+
+    newStatements += impact.added;
+    raw.push(...impact.statements);
   }
   const statements = mergeStatements(raw);
   const testSelectors = [
     ...new Set(statements.flatMap((s) => s.tests.map((t) => t.file))),
   ];
 
-  return { status: "ok", statements, orphaned, testSelectors };
+  return {
+    status: "ok",
+    statements,
+    orphaned,
+    testSelectors,
+    examined: {
+      files: changed.length,
+      withGraphData,
+      docs: docs.length,
+      newStatements,
+    },
+  };
 }
-

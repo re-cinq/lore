@@ -128,7 +128,9 @@ describe.skipIf(!reachable)("testFileImpact (live Dgraph)", () => {
     await seedStatementValidatedBy("test/login.test.ts", 40, 60);
 
     expect(
-      await testFileImpact(dgraphClient, repo, "test/login.test.ts", [[45, 50]]),
+      await testFileImpact(dgraphClient, repo, "test/login.test.ts", [
+        [45, 50],
+      ]),
     ).toMatchObject([
       {
         specPath,

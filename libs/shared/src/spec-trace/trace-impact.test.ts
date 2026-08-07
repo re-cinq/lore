@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { findRepoRoot } from "../lib/repo-root.js";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import {
   parseRanges,
@@ -459,5 +459,129 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
         wasCoveredBy: "src/legacy.ts:10-20",
       },
     ]);
+  });
+});
+
+/**
+ * Regression for the false-negative class this check was ignored for: a PR that
+ * changes only spec prose. #1076 changed exactly one file — specs/6-dark-factory/spec.md
+ * — and the check reported "No spec impact detected", because every lookup rooted
+ * on a changed production file.
+ */
+describe.skipIf(!reachable)("spec-only PR (live Dgraph)", () => {
+  const dgraphClient = new dgraph.DgraphClient(
+    new dgraph.DgraphClientStub(DGRAPH_HTTP),
+  );
+  let createdRepo = "";
+
+  beforeAll(() => {
+    execFileSync("bash", [APPLIER], {
+      env: { ...process.env, DGRAPH_HTTP },
+      stdio: "pipe",
+    });
+  });
+
+  afterEach(async () => {
+    const txn = dgraphClient.newTxn();
+
+    try {
+      const res = await txn.queryWithVars(
+        `query nodes($repo: string) {
+          specs(func: eq(Spec.repo, $repo)) { uid }
+          stmts(func: eq(Statement.repo, $repo)) { uid }
+          chunks(func: eq(TestChunk.repo, $repo)) { uid }
+        }`,
+        { $repo: createdRepo },
+      );
+      const data = res.data as Record<string, { uid: string }[]>;
+      const uids = Object.values(data)
+        .flat()
+        .map((n) => n.uid);
+
+      if (uids.length) {
+        await txn.mutate({
+          deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
+          commitNow: true,
+        });
+      }
+    } catch {
+      /* best-effort cleanup */
+    } finally {
+      await txn.discard().catch(() => {});
+    }
+  });
+
+  it("couples a spec-only diff to the statement whose text it edited", async () => {
+    const repo = `spec-only/${randomUUID()}`;
+
+    createdRepo = repo;
+    const specPath = "specs/widget/spec.md";
+    const oldText = "The widget MUST render within 100ms.";
+    const txn = dgraphClient.newTxn();
+
+    try {
+      await txn.mutate({
+        setJson: {
+          uid: "_:spec",
+          "dgraph.type": "Spec",
+          "Spec.xid": `${repo}|${specPath}`,
+          "Spec.repo": repo,
+          "Spec.file_path": specPath,
+          "Spec.title": "Widget Spec",
+          "Spec.sections": [
+            {
+              uid: "_:stmt",
+              "dgraph.type": "Statement",
+              "Statement.xid": `${repo}|${specPath}|1`,
+              "Statement.repo": repo,
+              "Statement.text": oldText,
+              "Statement.text_hash": createHash("sha256")
+                .update(oldText)
+                .digest("hex"),
+              "Statement.spec": { uid: "_:spec" },
+              "Statement.validated_by": {
+                uid: "_:tc",
+                "dgraph.type": "TestChunk",
+                "TestChunk.xid": `${repo}|test/widget.test.ts`,
+                "TestChunk.repo": repo,
+                "TestChunk.file_path": "test/widget.test.ts",
+                "TestChunk.test_name": "renders fast",
+                "TestChunk.start_line": 12,
+              },
+            },
+          ],
+        },
+        commitNow: true,
+      });
+    } finally {
+      await txn.discard().catch(() => {});
+    }
+
+    // The PR touches no code at all — only the spec's prose, exactly as #1076 did.
+    const report = await computeImpact(
+      dgraphClient,
+      repo,
+      [{ path: specPath, ranges: [[5, 5]] }],
+      {
+        docs: [
+          {
+            path: specPath,
+            content:
+              "# Widget Spec\n\n## FR\n\nThe widget MUST render within 50ms.\n",
+          },
+        ],
+      },
+    );
+
+    expect(report.statements).toMatchObject([
+      {
+        specPath,
+        statementText: oldText,
+        evidence: "statement-edit",
+        changeKind: "changed",
+        tests: [{ file: "test/widget.test.ts", name: "renders fast" }],
+      },
+    ]);
+    expect(report.examined).toMatchObject({ docs: 1, newStatements: 1 });
   });
 });

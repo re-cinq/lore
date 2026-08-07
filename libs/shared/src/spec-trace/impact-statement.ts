@@ -10,10 +10,7 @@
 
 /** How a statement was reached, strongest first — see {@link EVIDENCE_RANK}. */
 export type Evidence =
-  | "statement-edit"
-  | "coverage"
-  | "test-link"
-  | "file-link";
+  "statement-edit" | "coverage" | "test-link" | "file-link";
 
 /**
  * Merge precedence. `statement-edit` outranks everything because the diff
@@ -29,8 +26,13 @@ const EVIDENCE_RANK: Record<Evidence, number> = {
   "file-link": 0,
 };
 
-/** What the diff did to a statement's own text. Only set by the doc-side lookup. */
-export type ChangeKind = "added" | "modified" | "removed";
+/**
+ * What the diff did to a statement's own text. Only set by the doc-side lookup.
+ * "changed" covers edited AND deleted deliberately: without stable identity
+ * across an edit the two are indistinguishable, and naming it "modified" would
+ * claim a precision the diff cannot support.
+ */
+export type ChangeKind = "added" | "changed";
 
 /** A spec statement coupled to the diff, with the tests that cover it (selectors). */
 export interface ImpactStatement {
