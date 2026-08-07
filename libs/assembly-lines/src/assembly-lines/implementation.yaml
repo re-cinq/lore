@@ -25,6 +25,7 @@ nodes:
     type: agent
     prompt_ref: review
     model: claude-haiku-4-5-20251001
+    goal_gate: true
     description: Bot review — posts inline comments + verdict.
 
   - id: address

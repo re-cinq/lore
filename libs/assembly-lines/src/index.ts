@@ -36,6 +36,8 @@ export { ciOutcome, type CiConclusion } from "./github-action-handler.js";
 export {
   loadAssemblyLineDir,
   parseAssemblyLine,
+  assemblyLineDefinitionHash,
+  bypassableGoalGates,
   AssemblyLineLoadError,
   type AssemblyLine,
   type AssemblyLineNode,

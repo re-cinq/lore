@@ -1,5 +1,6 @@
 import { enforceTrue } from "../../lib/enforce.js";
 import { randomUUID } from "node:crypto";
+import { enforceResumable } from "./assembly-lines-resume.js";
 import type {
   AssemblyLinesPort,
   AssemblyLineStartInput,
@@ -40,6 +41,9 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
   constructor(public clock: () => Date = () => new Date()) {}
 
   async start(input: AssemblyLineStartInput): Promise<string> {
+    if (input.resumeFrom) {
+      return this.startResume(input);
+    }
     const id = randomUUID();
 
     this.rows.push(this.newRow(id, input));
@@ -58,6 +62,70 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     });
 
     return id;
+  }
+
+  /** The `resumeFrom` fork: a fresh line row seeded with the source's node
+   *  rows through the chosen node, so the ordinary replay continues after it. */
+  private async startResume(input: AssemblyLineStartInput): Promise<string> {
+    const resumeFrom = input.resumeFrom!;
+    const { source, boundary } = enforceResumable(
+      input,
+      await this.getById(resumeFrom.lineId),
+      await this.listNodes(resumeFrom.lineId),
+    );
+    const id = randomUUID();
+    const row = this.newRow(id, input);
+
+    row.branch = source.branch;
+    row.taskId = source.taskId;
+    row.args = input.args ?? source.args;
+    this.rows.push(row);
+
+    for (const n of await this.listNodes(resumeFrom.lineId)) {
+      this.nodes.push({
+        id: String(this.nodes.length + 1),
+        assemblyLineId: id,
+        nodeId: n.nodeId,
+        iteration: n.iteration,
+        agentCrName: n.agentCrName,
+        outcome: n.outcome,
+        commitSha: n.commitSha,
+        startedAt: n.startedAt,
+        finishedAt: n.finishedAt,
+      });
+
+      if (n.id === boundary.id) {
+        break;
+      }
+    }
+
+    this.events.push({
+      eventName: "assembly_line.start",
+      source: "internal",
+      params: {
+        assemblyLineId: id,
+        definitionName: input.definitionName,
+        repo: input.repo,
+        branch: source.branch,
+        taskId: source.taskId,
+        args: row.args,
+        resumedFrom: { lineId: resumeFrom.lineId, nodeId: resumeFrom.nodeId },
+      },
+      dedupeKey: `assembly_line.start:${id}`,
+    });
+
+    return id;
+  }
+
+  async recordDefinitionHash(
+    id: string,
+    definitionHash: string,
+  ): Promise<void> {
+    const row = this.mustFind(id);
+
+    if (row.definitionHash === null) {
+      row.definitionHash = definitionHash;
+    }
   }
 
   async markRunning(id: string): Promise<void> {
@@ -240,6 +308,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
       status: "queued",
       outcome: null,
       reason: null,
+      definitionHash: input.definitionHash ?? null,
       createdAt: this.clock(),
       startedAt: null,
       finishedAt: null,

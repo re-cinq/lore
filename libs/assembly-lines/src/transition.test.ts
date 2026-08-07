@@ -217,3 +217,99 @@ describe("nextTransition walks every builtin assembly line to finish on success"
     }
   });
 });
+
+// A gated review with a bypass edge: `work` can route straight to `done` on
+// changes_requested, skipping the goal-gated review entirely.
+const gatedReview: AssemblyLine = {
+  name: "gated-review",
+  description: "work → review (goal-gated) → done, with a review bypass",
+  version: 1,
+  entry: "work",
+  exit: "done",
+  nodes: [
+    { id: "work", type: "agent" },
+    { id: "review", type: "agent", goal_gate: true },
+    { id: "done", type: "retrospective" },
+  ],
+  edges: [
+    { from: "work", to: "review", on: "success" },
+    { from: "work", to: "done", on: "changes_requested" },
+    { from: "review", to: "done", on: "success" },
+    { from: "review", to: "done", on: "changes_requested" },
+    { from: "review", to: "done", on: "failed" },
+  ],
+};
+
+describe("nextTransition goal gates", () => {
+  it("fails with goal_gate_unmet naming the gate when the walk finishes around a goal-gated node", () => {
+    const visits: NodeVisit[] = [
+      { nodeId: "work", iteration: 1, outcome: "changes_requested" },
+    ];
+
+    const t = nextTransition(gatedReview, visits);
+
+    expect(t).toMatchObject({ kind: "fail", outcome: "goal_gate_unmet" });
+    expect(t.kind === "fail" && t.reason).toContain('"review"');
+  });
+
+  it("fails with goal_gate_unmet when the goal-gated node's only outcome is failed", () => {
+    const visits: NodeVisit[] = [
+      { nodeId: "work", iteration: 1, outcome: "success" },
+      { nodeId: "review", iteration: 1, outcome: "failed" },
+    ];
+
+    expect(nextTransition(gatedReview, visits)).toMatchObject({
+      kind: "fail",
+      outcome: "goal_gate_unmet",
+    });
+  });
+
+  it("finishes when the goal-gated node recorded success", () => {
+    const visits: NodeVisit[] = [
+      { nodeId: "work", iteration: 1, outcome: "success" },
+      { nodeId: "review", iteration: 1, outcome: "success" },
+    ];
+
+    expect(nextTransition(gatedReview, visits)).toEqual({ kind: "finish" });
+  });
+
+  it("treats changes_requested as satisfying a goal gate", () => {
+    const visits: NodeVisit[] = [
+      { nodeId: "work", iteration: 1, outcome: "success" },
+      { nodeId: "review", iteration: 1, outcome: "changes_requested" },
+    ];
+
+    expect(nextTransition(gatedReview, visits)).toEqual({ kind: "finish" });
+  });
+
+  it("lists every unsatisfied gate in the goal_gate_unmet reason", () => {
+    const twoGates: AssemblyLine = {
+      name: "two-gates",
+      description: "work → lint → review → done, both gated, one bypass",
+      version: 1,
+      entry: "work",
+      exit: "done",
+      nodes: [
+        { id: "work", type: "agent" },
+        { id: "lint", type: "validate", goal_gate: true },
+        { id: "review", type: "agent", goal_gate: true },
+        { id: "done", type: "retrospective" },
+      ],
+      edges: [
+        { from: "work", to: "lint", on: "success" },
+        { from: "work", to: "done", on: "changes_requested" },
+        { from: "lint", to: "review", on: "success" },
+        { from: "review", to: "done", on: "success" },
+      ],
+    };
+    const visits: NodeVisit[] = [
+      { nodeId: "work", iteration: 1, outcome: "changes_requested" },
+    ];
+
+    const t = nextTransition(twoGates, visits);
+
+    expect(t).toMatchObject({ kind: "fail", outcome: "goal_gate_unmet" });
+    expect(t.kind === "fail" && t.reason).toContain('"lint"');
+    expect(t.kind === "fail" && t.reason).toContain('"review"');
+  });
+});

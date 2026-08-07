@@ -9,11 +9,15 @@
 // this mapper consumes unwrapAttribution and peels nothing of its own (#875).
 
 import { unwrapAttribution } from "@re-cinq/lore-assembly-lines";
-import type { AgentRunEventInsert } from "@re-cinq/lore-shared";
+import type {
+  AgentRunEventInsert,
+  AgentRunTurnInsert,
+} from "@re-cinq/lore-shared";
 import {
   rowsFromEnvelope,
   MAX_RUN_EVENTS_PER_BATCH,
 } from "./agent-run-events.js";
+import { turnFromEnvelope } from "./agent-turns.js";
 
 export interface LlmCallRow {
   /** Always non-empty — rowFromEnvelope returns null when the envelope carries
@@ -77,6 +81,9 @@ function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
 export interface AgentSink {
   costRows: LlmCallRow[];
   runEvents: AgentRunEventInsert[];
+  /** Full-fidelity turn rows — collected only when the tee asks
+   *  (`projectTurns`, the LORE_AGENT_TURNS pilot flag). */
+  turnRows: AgentRunTurnInsert[];
 }
 
 /** Yield each `\n`-delimited line without materializing the whole array.
@@ -109,9 +116,11 @@ function* lines(body: string): Generator<string> {
 export function parseAgentSink(
   ndjson: string,
   projectRunEvents = true,
+  projectTurns = false,
 ): AgentSink {
   const costRows: LlmCallRow[] = [];
   const runEvents: AgentRunEventInsert[] = [];
+  const turnRows: AgentRunTurnInsert[] = [];
 
   for (const line of lines(ndjson)) {
     if (!line.trim()) {
@@ -130,6 +139,14 @@ export function parseAgentSink(
       costRows.push(costRow);
     }
 
+    if (projectTurns && turnRows.length < MAX_RUN_EVENTS_PER_BATCH) {
+      const turn = turnFromEnvelope(envelope);
+
+      if (turn) {
+        turnRows.push(turn);
+      }
+    }
+
     if (!projectRunEvents || runEvents.length >= MAX_RUN_EVENTS_PER_BATCH) {
       continue;
     }
@@ -142,7 +159,7 @@ export function parseAgentSink(
     }
   }
 
-  return { costRows, runEvents };
+  return { costRows, runEvents, turnRows };
 }
 
 /** The cost projection alone (skips blank, unparseable, and non-`result` lines,

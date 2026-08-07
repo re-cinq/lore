@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
 import {
   parseAssemblyLine,
   loadAssemblyLineDir,
   uncoveredOutcomes,
+  assemblyLineDefinitionHash,
   AssemblyLineLoadError,
   type AssemblyLine,
   type EdgeConditionValue,
@@ -667,5 +669,123 @@ describe("loadAssemblyLineDir — code-review-recheck line", () => {
         .map((e) => e.on)
         .sort(),
     ).toEqual(["changes_requested", "failed", "success"]);
+  });
+});
+
+const GATED_YAML = `
+name: gated
+description: work routes around the goal-gated review on changes_requested
+version: 1
+entry: work
+exit: done
+nodes:
+  - id: work
+    type: agent
+  - id: review
+    type: agent
+    goal_gate: true
+  - id: done
+    type: retrospective
+edges:
+  - from: work
+    to: review
+    on: success
+  - from: work
+    to: done
+    on: failed
+  - from: work
+    to: done
+    on: changes_requested
+  - from: review
+    to: done
+    on: always
+`;
+
+describe("parseAssemblyLine goal gates", () => {
+  it("accepts goal_gate: true on a node", () => {
+    const wf = parseAssemblyLine(GATED_YAML);
+
+    expect(wf.nodes.find((n) => n.id === "review")?.goal_gate).toBe(true);
+  });
+
+  it("warns when a goal-gated node can be bypassed on a path to exit", () => {
+    const warnings: string[] = [];
+
+    parseAssemblyLine(GATED_YAML, "<inline>", (w) => warnings.push(w));
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('"review"');
+  });
+
+  it("stays silent when every path to exit passes through the goal-gated node", () => {
+    const warnings: string[] = [];
+
+    parseAssemblyLine(
+      `
+name: linear-gated
+description: every path passes through the gated review
+version: 1
+entry: work
+exit: done
+nodes:
+  - id: work
+    type: agent
+  - id: review
+    type: agent
+    goal_gate: true
+  - id: done
+    type: retrospective
+edges:
+  - from: work
+    to: review
+    on: always
+  - from: review
+    to: done
+    on: always
+`,
+      "<inline>",
+      (w) => warnings.push(w),
+    );
+
+    expect(warnings).toEqual([]);
+  });
+
+  it("marks the review nodes of the code-review and implementation lines as goal-gated", async () => {
+    const builtins = await loadBuiltinAssemblyLines();
+
+    const reviewNode = (line: string) =>
+      builtins.get(line)?.nodes.find((n) => n.id === "review");
+
+    expect(reviewNode("code-review")?.goal_gate).toBe(true);
+    expect(reviewNode("implementation")?.goal_gate).toBe(true);
+  });
+});
+
+describe("assemblyLineDefinitionHash", () => {
+  it("returns the same hash for the same definition and a different hash after an edit", () => {
+    const a = assemblyLineDefinitionHash(parseAssemblyLine(GATED_YAML));
+    const b = assemblyLineDefinitionHash(parseAssemblyLine(GATED_YAML));
+    const edited = assemblyLineDefinitionHash(
+      parseAssemblyLine(
+        GATED_YAML.replace("goal_gate: true", "goal_gate: false"),
+      ),
+    );
+
+    expect(a).toBe(b);
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
+    expect(edited).not.toBe(a);
+  });
+});
+
+describe("cross-model review interim tiering", () => {
+  it("pins the implementation line's bot review to a different model tier than the implement node", async () => {
+    const builtins = await loadBuiltinAssemblyLines();
+    const line = builtins.get("implementation");
+    const implement = line?.nodes.find((n) => n.id === "implement");
+    const review = line?.nodes.find((n) => n.id === "review");
+
+    expect(implement?.model).toBeTruthy();
+    expect(review?.model).toBeTruthy();
+    expect(review?.model).not.toBe(implement?.model);
   });
 });

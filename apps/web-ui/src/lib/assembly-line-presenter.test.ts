@@ -93,3 +93,12 @@ describe("runStatusVisual", () => {
     expect(runStatusVisual("running", null).tone).toBe("running");
   });
 });
+
+describe("runStatusVisual goal gates", () => {
+  it("maps finished + goal_gate_unmet to a danger tone with its own label", () => {
+    expect(runStatusVisual("finished", "goal_gate_unmet")).toEqual({
+      label: "Goal gate unmet",
+      tone: "danger",
+    });
+  });
+});

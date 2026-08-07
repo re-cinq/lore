@@ -14,17 +14,25 @@ import { errorMessage } from "@re-cinq/lore-shared";
 
 import type { ServerRoute } from "@hapi/hapi";
 import { metrics } from "@opentelemetry/api";
-import { usage, agentRunEvents } from "../../../kernel/queues.js";
+import {
+  usage,
+  agentRunEvents,
+  agentRunTurns,
+} from "../../../kernel/queues.js";
 import {
   parseAgentSink,
   agentEventsArchiveKey,
   type LlmCallRow,
 } from "../../../jobs/agent/agent-events.js";
+import { turnStoreEnabled } from "../../../jobs/agent/agent-turns.js";
 import { agentEventBus } from "../../../jobs/agent/agent-event-bus.js";
 import { archiveAgentEvents } from "../../../jobs/agent/agent-events-store.js";
 import { writeAuditLog } from "../../../jobs/lib/audit.js";
 import { rawBody } from "../raw-body.js";
-import type { AgentRunEventInsert } from "@re-cinq/lore-shared";
+import type {
+  AgentRunEventInsert,
+  AgentRunTurnInsert,
+} from "@re-cinq/lore-shared";
 import type { AuditLogEntry } from "@re-cinq/lore-shared/project/audit/audit-port.js";
 import type {
   LlmCallRecord,
@@ -36,6 +44,7 @@ type AnomalyKind =
   | "cost_uncorrelated"
   | "cost_failed"
   | "run_events_failed"
+  | "run_turns_failed"
   | "archive_failed"
   | "archive_shed";
 
@@ -202,6 +211,24 @@ async function recordRunEvents(
   }
 }
 
+/**
+ * Persist the full-fidelity turn tee (specs/turn-level-transcript-store) —
+ * non-authoritative pilot write, skip-not-fail like the projection: a turn
+ * persistence failure must never 500 the cost sink or touch the live view.
+ */
+async function recordRunTurns(
+  rows: readonly AgentRunTurnInsert[],
+): Promise<number> {
+  try {
+    return await agentRunTurns().insertBatch(rows);
+  } catch (err) {
+    countAnomaly("run_turns_failed");
+    console.warn(`[floor] agent_run_turns skipped: ${errorMessage(err)}`);
+
+    return 0;
+  }
+}
+
 export const agentEventsRoute: ServerRoute = {
   method: "POST",
   path: "/api/agent-events",
@@ -211,9 +238,16 @@ export const agentEventsRoute: ServerRoute = {
     // records the exception on the request span — no per-handler try/catch.
     const rawNdjson = rawBody(request);
     const oversized = Buffer.byteLength(rawNdjson, "utf8") > MAX_VIZ_BODY_BYTES;
-    const { costRows, runEvents } = parseAgentSink(rawNdjson, !oversized);
+    const turnsOn =
+      !oversized && turnStoreEnabled(process.env.LORE_AGENT_TURNS);
+    const { costRows, runEvents, turnRows } = parseAgentSink(
+      rawNdjson,
+      !oversized,
+      turnsOn,
+    );
     const cost = await recordAgentCosts(costRows);
     const vizRows = oversized ? 0 : await recordRunEvents(runEvents);
+    const turnCount = turnsOn ? await recordRunTurns(turnRows) : 0;
 
     const audit = costDegradedAudit(cost);
 
@@ -234,6 +268,7 @@ export const agentEventsRoute: ServerRoute = {
       "agent_events.uncorrelated": cost.uncorrelated,
       "agent_events.failed": cost.failed,
       "agent_events.viz_rows": vizRows,
+      "agent_events.turn_rows": turnCount,
       "agent_events.oversized": oversized,
     });
 

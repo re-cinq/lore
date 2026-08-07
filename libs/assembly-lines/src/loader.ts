@@ -1,6 +1,7 @@
 import { z } from "zod";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { createHash } from "node:crypto";
 import { parse as parseYaml } from "yaml";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
@@ -41,6 +42,9 @@ const NodeSchema = z.object({
   station_ref: z.string().optional(),
   /** Per-node run timeout; falls back to the referenced Station's deadline. */
   timeout_minutes: z.number().int().positive().optional(),
+  /** The line may not finish unless this node recorded a successful outcome
+   *  (`nextTransition` fails it `goal_gate_unmet` instead). */
+  goal_gate: z.boolean().optional(),
   description: z.string().optional(),
 });
 
@@ -128,6 +132,7 @@ export class AssemblyLineLoadError extends Error {
 export function parseAssemblyLine(
   yamlSrc: string,
   source = "<inline>",
+  onWarning?: (warning: string) => void,
 ): AssemblyLine {
   let raw: unknown;
 
@@ -154,7 +159,49 @@ export function parseAssemblyLine(
 
   validateAssemblyLine(wf, source);
 
+  if (onWarning) {
+    for (const nodeId of bypassableGoalGates(wf)) {
+      onWarning(
+        `goal-gated node "${nodeId}" in assembly line "${wf.name}" can be bypassed on a path to exit — a walk that skips it fails goal_gate_unmet instead of finishing`,
+      );
+    }
+  }
+
   return wf;
+}
+
+/** Content hash of a loaded definition (sha256 over its canonical JSON) —
+ *  stored per execution so `resumeFrom` can refuse to fork across drift. */
+export function assemblyLineDefinitionHash(wf: AssemblyLine): string {
+  return createHash("sha256").update(JSON.stringify(wf)).digest("hex");
+}
+
+/** Goal-gated node ids the walk can route around: exit stays reachable from
+ *  entry with the node removed from the graph, so a conditional branch can
+ *  finish the line without ever running the gate. */
+export function bypassableGoalGates(wf: AssemblyLine): string[] {
+  const gated = wf.nodes.filter((n) => n.goal_gate).map((n) => n.id);
+
+  return gated.filter((id) => {
+    if (id === wf.entry || id === wf.exit) {
+      return false;
+    }
+    const reachable = new Set<string>([wf.entry]);
+    const queue: string[] = [wf.entry];
+
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+
+      for (const e of wf.edges) {
+        if (e.from === cur && e.to !== id && !reachable.has(e.to)) {
+          reachable.add(e.to);
+          queue.push(e.to);
+        }
+      }
+    }
+
+    return reachable.has(wf.exit);
+  });
 }
 
 export async function loadAssemblyLineFile(

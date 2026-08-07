@@ -1,9 +1,20 @@
+export interface AssemblyLineResumeFrom {
+  /** Source execution to fork. Must be terminal (finished/failed). */
+  lineId: string;
+  /** Completed node to copy through — the fork re-runs live after it. */
+  nodeId: string;
+}
+
 export interface AssemblyLineStartInput {
   definitionName: string;
   repo: string;
   branch?: string;
   taskId?: string;
   args?: Record<string, unknown>;
+  /** Content hash of the loaded definition. Stored on the row; on a
+   *  `resumeFrom` start it must equal the source row's stored hash. */
+  definitionHash?: string;
+  resumeFrom?: AssemblyLineResumeFrom;
 }
 
 export interface AssemblyLineNodeStartInput {
@@ -35,6 +46,7 @@ export interface AssemblyLineRecord {
   status: "queued" | "running" | "finished" | "failed";
   outcome: string | null;
   reason: string | null;
+  definitionHash: string | null;
   createdAt: Date;
   startedAt: Date | null;
   finishedAt: Date | null;
@@ -53,6 +65,10 @@ export interface AssemblyLinesPort {
    */
   start(input: AssemblyLineStartInput): Promise<string>;
   markRunning(id: string): Promise<void>;
+  /** Stamp the definition content hash once (only while NULL) — the walk's
+   *  start handler records it so a later `resumeFrom` can guard against
+   *  definition drift. Never overwrites an existing hash. */
+  recordDefinitionHash(id: string, definitionHash: string): Promise<void>;
   /** `outcome: "error"` closes the row as `failed`; anything else as `finished`.
    *  First writer decides — returns true only for the call that closed the row,
    *  so racing finishers (node event vs reaper) can gate once-only side effects

@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
-import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
+import {
+  assemblyLineDefinitionHash,
+  type AssemblyLine,
+} from "@re-cinq/lore-assembly-lines";
 import {
   createStartEventHandler,
   type StartEventHandlerDeps,
@@ -202,5 +205,29 @@ describe("createStartEventHandler", () => {
     await expect(
       createStartEventHandler(deps)({ definitionName: "implementation" }),
     ).rejects.toThrow("missing assemblyLineId");
+  });
+});
+
+describe("definition hash stamping at start", () => {
+  it("stamps the resolved definition's content hash on the row", async () => {
+    const { port, assemblyLineId } = await seededPort("implementation");
+    const { deps } = makeDeps(port);
+
+    await createStartEventHandler(deps)(
+      params(assemblyLineId, "implementation"),
+    );
+
+    expect((await port.getById(assemblyLineId))?.definitionHash).toBe(
+      assemblyLineDefinitionHash(TEST_DEFINITIONS.get("implementation")!),
+    );
+  });
+
+  it("leaves the hash NULL for a task-backed row with no builtin definition", async () => {
+    const { port, assemblyLineId } = await seededPort("onboard");
+    const { deps } = makeDeps(port);
+
+    await createStartEventHandler(deps)(params(assemblyLineId, "onboard"));
+
+    expect((await port.getById(assemblyLineId))?.definitionHash).toBeNull();
   });
 });

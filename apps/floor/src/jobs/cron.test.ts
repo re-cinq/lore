@@ -9,6 +9,7 @@ vi.mock("../main-loop/store.js", () => ({
 
 vi.mock("../kernel/queues.js", () => ({
   agentRunEvents: () => ({ pruneOld: (days: number) => pruneOld(days) }),
+  agentRunTurns: () => ({ pruneOld: async () => 0 }),
 }));
 
 const { eventsPrune } = await import("./cron.js");

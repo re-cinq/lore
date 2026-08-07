@@ -16,6 +16,7 @@ function line(over: Partial<AssemblyLineRecord>): AssemblyLineRecord {
     status: "running",
     outcome: null,
     reason: null,
+    definitionHash: null,
     createdAt: new Date(0),
     startedAt: null,
     finishedAt: null,

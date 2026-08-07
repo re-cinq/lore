@@ -1,5 +1,6 @@
 import { enforceTrue } from "../../lib/enforce.js";
 import type { PgPool } from "../../memory-store.js";
+import { enforceResumable } from "./assembly-lines-resume.js";
 import type {
   AssemblyLinesPort,
   AssemblyLineStartInput,
@@ -19,10 +20,13 @@ export class PgAssemblyLines implements AssemblyLinesPort {
   constructor(private readonly pool: PgPool) {}
 
   async start(input: AssemblyLineStartInput): Promise<string> {
+    if (input.resumeFrom) {
+      return this.startResume(input);
+    }
     const { rows } = await this.pool.query(
       `WITH al AS (
-         INSERT INTO pipeline.assembly_lines (definition_name, task_id, repo, branch, args)
-         VALUES ($1, $2, $3, $4, $5::jsonb)
+         INSERT INTO pipeline.assembly_lines (definition_name, task_id, repo, branch, args, definition_hash)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6)
          RETURNING id
        ), ev AS (
          INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
@@ -45,10 +49,78 @@ export class PgAssemblyLines implements AssemblyLinesPort {
         input.repo,
         input.branch ?? null,
         JSON.stringify(input.args ?? {}),
+        input.definitionHash ?? null,
       ],
     );
 
     return rows[0].id as string;
+  }
+
+  /** The `resumeFrom` fork (validated against the terminal source line): a
+   *  fresh line row, its start event carrying the fork parentage, and the
+   *  source's node-row prefix copied through the chosen node — one atomic
+   *  data-modifying CTE, mirroring the plain start. The source is terminal,
+   *  so its rows are frozen between the validation reads and the copy. */
+  private async startResume(input: AssemblyLineStartInput): Promise<string> {
+    const resumeFrom = input.resumeFrom!;
+    const { source, boundary } = enforceResumable(
+      input,
+      await this.getById(resumeFrom.lineId),
+      await this.listNodes(resumeFrom.lineId),
+    );
+    const { rows } = await this.pool.query(
+      `WITH al AS (
+         INSERT INTO pipeline.assembly_lines (definition_name, task_id, repo, branch, args, definition_hash)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+         RETURNING id
+       ), ev AS (
+         INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
+         SELECT 'assembly_line.start', 'internal',
+                jsonb_build_object(
+                  'assemblyLineId', al.id,
+                  'definitionName', $1,
+                  'repo', $3,
+                  'branch', $4,
+                  'taskId', $2,
+                  'args', $5::jsonb,
+                  'resumedFrom', jsonb_build_object('lineId', $7, 'nodeId', $8)
+                ),
+                $3, 'assembly_line.start:' || al.id
+         FROM al
+       ), copies AS (
+         INSERT INTO pipeline.assembly_line_nodes
+                (assembly_line_id, node_id, iteration, agent_cr_name, outcome, commit_sha, started_at, finished_at)
+         SELECT al.id, n.node_id, n.iteration, n.agent_cr_name, n.outcome, n.commit_sha, n.started_at, n.finished_at
+           FROM al, pipeline.assembly_line_nodes n
+          WHERE n.assembly_line_id = $7 AND n.id <= $9
+       )
+       SELECT id FROM al`,
+      [
+        input.definitionName,
+        source.taskId,
+        input.repo,
+        source.branch,
+        JSON.stringify(input.args ?? source.args),
+        input.definitionHash,
+        resumeFrom.lineId,
+        resumeFrom.nodeId,
+        boundary.id,
+      ],
+    );
+
+    return rows[0].id as string;
+  }
+
+  async recordDefinitionHash(
+    id: string,
+    definitionHash: string,
+  ): Promise<void> {
+    await this.pool.query(
+      `UPDATE pipeline.assembly_lines
+         SET definition_hash = $1
+       WHERE id = $2 AND definition_hash IS NULL`,
+      [definitionHash, id],
+    );
   }
 
   async markRunning(id: string): Promise<void> {
@@ -149,7 +221,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
   async listOpen(): Promise<AssemblyLineRecord[]> {
     const { rows } = await this.pool.query(
       `SELECT id, definition_name, task_id, repo, branch, args, status, outcome, reason,
-              created_at, started_at, finished_at
+              definition_hash, created_at, started_at, finished_at
          FROM pipeline.assembly_lines
         WHERE status IN ('queued', 'running')
         ORDER BY created_at`,
@@ -161,7 +233,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
   async getById(id: string): Promise<AssemblyLineRecord | null> {
     const { rows } = await this.pool.query(
       `SELECT id, definition_name, task_id, repo, branch, args, status, outcome, reason,
-              created_at, started_at, finished_at
+              definition_hash, created_at, started_at, finished_at
          FROM pipeline.assembly_lines WHERE id = $1`,
       [id],
     );
@@ -176,7 +248,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
   async listForTask(taskId: string): Promise<AssemblyLineRecord[]> {
     const { rows } = await this.pool.query(
       `SELECT id, definition_name, task_id, repo, branch, args, status, outcome, reason,
-              created_at, started_at, finished_at
+              definition_hash, created_at, started_at, finished_at
          FROM pipeline.assembly_lines
         WHERE task_id = $1
         ORDER BY created_at DESC`,
@@ -192,7 +264,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
   ): Promise<AssemblyLineRecord[]> {
     const { rows } = await this.pool.query(
       `SELECT id, definition_name, task_id, repo, branch, args, status, outcome, reason,
-              created_at, started_at, finished_at
+              definition_hash, created_at, started_at, finished_at
          FROM pipeline.assembly_lines
         WHERE repo = $1
           AND (args->>'pr_number')::int = $2
@@ -271,6 +343,7 @@ function toRecord(row: {
   status: AssemblyLineRecord["status"];
   outcome: string | null;
   reason: string | null;
+  definition_hash?: string | null;
   created_at: Date;
   started_at: Date | null;
   finished_at: Date | null;
@@ -285,6 +358,7 @@ function toRecord(row: {
     status: row.status,
     outcome: row.outcome,
     reason: row.reason,
+    definitionHash: row.definition_hash ?? null,
     createdAt: row.created_at,
     startedAt: row.started_at,
     finishedAt: row.finished_at,

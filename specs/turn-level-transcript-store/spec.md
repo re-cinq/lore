@@ -1,12 +1,12 @@
 # Feature Specification: Turn-Level Transcript Store for Agent Runs
 
-| Field     | Value                                  |
-| --------- | -------------------------------------- |
-| Feature   | Turn-Level Transcript Store for Agent Runs |
-| Branch    | (unassigned)                           |
-| Status    | Draft                                  |
-| Created   | 2026-08-07                             |
-| Owner     | Platform Engineering                   |
+| Field     | Value                                                  |
+| --------- | ------------------------------------------------------ |
+| Feature   | Turn-Level Transcript Store for Agent Runs             |
+| Branch    | docs/convert-field-survey-adrs-to-specs                |
+| Status    | Shipped                                                |
+| Created   | 2026-08-07                                             |
+| Owner     | Platform Engineering                                   |
 | Builds on | [ADR-037](../../adrs/ADR-037-sse-run-observability.md) |
 
 The Turn-Level Transcript Store is a full-fidelity, queryable, turn-level
@@ -49,45 +49,33 @@ not to a missing storage engine.
 
 ### FR1 — The `pipeline.agent_run_turns` table
 
-- A new table, `pipeline.agent_run_turns`, stores the full-fidelity turn
-  stream: same correlation columns as `agent_run_events` (task, assembly
-  line, node, agent CR name, event type), with the untruncated content in
-  JSONB. Added by an ordered migration like every other schema change.
+- A new table, `pipeline.agent_run_turns` (ordered migration 0037), stores one row per stream-json line with the untruncated content in JSONB and the same write-time correlation as the projection: `agentCrName` resolves to (`assemblyLineId`, `nodeId`, `iteration`) at insert. ([validated by `agent-run-turns.test.ts:37`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L37))
+- A row that correlates to no node is kept with the correlated fields null rather than dropped — skip-not-fail, like every ingest write on this route. ([validated by `agent-run-turns.test.ts:62`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L62))
+- The batch crosses to Postgres as a single bound jsonb parameter (payloads carry agent-controlled text that must never reach statement text), and an empty batch issues no query. ([validated by `agent-run-turns.test.ts:116`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L116), [`agent-run-turns.test.ts:130`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L130), [`agent-run-turns.test.ts:75`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L75))
+- The store exposes a per-line ascending read — the turn view's query, and the reason this table is not a second write-only archive. ([validated by `agent-run-turns.test.ts:82`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L82))
 
 ### FR2 — Fed at the existing tee, behind a pilot flag
 
-- The table is fed at the same tee point in the agent-events route where
-  the projection and the archive already fork, behind a feature flag scoped
-  to a pilot repo. The projection, the SSE view, and the GCS archive are
-  untouched — the new write is non-authoritative until the pilot proves it.
+- The turn rows are collected in the same single-pass parse that produces the cost rows and the run-viz projection, at the same tee point in the agent-events route — one turn per attributed line, keeping the line's own stream kind (`system` / `assistant` / `user` / `result` / `log`). ([validated by `agent-turns.test.ts:83`](apps/floor/src/jobs/agent/agent-turns.test.ts#L83), [`agent-turns.test.ts:11`](apps/floor/src/jobs/agent/agent-turns.test.ts#L11))
+- The tee is off by default and opts in via the `LORE_AGENT_TURNS` feature flag; when off, no turns are collected or written, and the projection, the SSE view, and the GCS archive are untouched either way — the new write is non-authoritative until the pilot proves it. ([validated by `agent-turns.test.ts:61`](apps/floor/src/jobs/agent/agent-turns.test.ts#L61), [`agent-turns.test.ts:93`](apps/floor/src/jobs/agent/agent-turns.test.ts#L93))
+- A task-less line and an unknown line kind are dropped, mirroring the projection's forward-compat contract. ([validated by `agent-turns.test.ts:54`](apps/floor/src/jobs/agent/agent-turns.test.ts#L54))
 
 ### FR3 — Redaction before write
 
-- The existing redaction path (`sanitizeContent`/`redactSecrets`) runs
-  before the write, exactly as it does for the archive today. No new
-  service, no new ingress, no new credential surface: the store inherits
-  the operated posture of `lore-db`.
-- A queryable store raises the stakes of any redaction miss from "buried in
-  GCS" to "searchable": the sanitize path is treated as a security control
-  with test coverage, not a courtesy.
+- The existing secret-redaction path (`redactSecrets`, the same patterns the GCS archive runs) is applied to every turn payload before it is stored; a queryable store raises the stakes of any redaction miss from "buried in GCS" to "searchable", so this is a security control with test coverage, not a courtesy. ([validated by `agent-turns.test.ts:32`](apps/floor/src/jobs/agent/agent-turns.test.ts#L32))
 
 ### FR4 — Retention
 
-- Retention is longer than the projection's 14 days (initial: 90 days,
-  prunable) — the table exists precisely for questions asked after the
-  live view has moved on.
+- Retention is longer than the projection's 14 days — 90 days, pruned on the `created_at` horizon by the same events-prune cron that reaps the projection. The table exists precisely for questions asked after the live view has moved on. ([validated by `agent-run-turns.test.ts:102`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L102), [`agent-run-turns.test.ts:137`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L137))
 
-### FR5 — Turn view on the run detail page
-
-- The run detail page gains a turn view reading this table for piloted
-  runs.
-
-## Success Criteria
+## Open Questions — pilot exit criteria
 
 - Post-mortems answered from turns instead of GCS spelunking.
 - Table growth monitored, with the pilot pausing for review if it exceeds
   the sized estimate.
 - No ingest-path regressions.
+- The run detail page's turn view reading this table for piloted runs is a
+  follow-up once the pilot writes data worth rendering.
 
 ## Out of Scope (Phase 2, deferred to a follow-up decision)
 
@@ -120,9 +108,10 @@ not to a missing storage engine.
 
 ## Consequences
 
-- One migration plus a widened tee in an existing route: no new
-  operational surface, which is the decisive difference from the CxDB
-  draft.
+- One migration plus a widened tee in an existing route: no new service,
+  no new ingress, no new credential surface — the store inherits the
+  operated posture of `lore-db`, which is the decisive difference from the
+  CxDB draft.
 - The real cost moves to `lore-db` storage: full-fidelity JSONB turns grow
   faster than the truncated projection. The pilot's growth measurement and
   the 90-day prune bound it; Phase 2's dedup is the escape hatch if

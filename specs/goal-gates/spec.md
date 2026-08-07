@@ -1,12 +1,12 @@
 # Feature Specification: Declarative Goal Gates in Assembly-Line Definitions
 
-| Field   | Value                                  |
-| ------- | -------------------------------------- |
+| Field   | Value                                               |
+| ------- | --------------------------------------------------- |
 | Feature | Declarative Goal Gates in Assembly-Line Definitions |
-| Branch  | (unassigned)                           |
-| Status  | Draft                                  |
-| Created | 2026-08-07                             |
-| Owner   | Platform Engineering                   |
+| Branch  | docs/convert-field-survey-adrs-to-specs             |
+| Status  | Shipped                                             |
+| Created | 2026-08-07                                          |
+| Owner   | Platform Engineering                                |
 
 Goal Gates add a `goal_gate: true` node attribute to assembly-line YAML: a
 line may not reach its terminal success state unless every goal-gated node
@@ -32,36 +32,25 @@ PARTIAL_SUCCESS).
 
 ### FR1 — Loader schema
 
-- `libs/assembly-lines/src/loader.ts` accepts an optional `goal_gate: true`
-  on any node.
-- Existing definitions are unchanged: the attribute is opt-in.
-- The loader emits a validation warning when a goal-gated node is reachable
-  only through conditional edges, so the definition author learns at load
-  time, not at the first skipped run.
+- The loader accepts an optional `goal_gate: true` on any node; the attribute is opt-in and existing definitions parse unchanged. ([validated by `loader.test.ts:705`](libs/assembly-lines/src/loader.test.ts#L705))
+- The loader surfaces a validation warning when a goal-gated node can be bypassed on a path from entry to exit, so the definition author learns at load time — not at the first skipped run — that the gate can fail the line via a skip. ([validated by `loader.test.ts:711`](libs/assembly-lines/src/loader.test.ts#L711))
+- No warning is raised when every path to exit passes through the gated node. ([validated by `loader.test.ts:720`](libs/assembly-lines/src/loader.test.ts#L720))
 
 ### FR2 — Finish guard in the replay
 
-- `nextTransition()` refuses the finish transition while any goal-gated node
-  in the walked graph lacks a success-class outcome, failing the line with a
-  distinct `goal_gate_unmet` outcome instead of finishing it.
-- A goal-gated node skipped by conditional branching still counts as unmet:
-  the line fails with `goal_gate_unmet` rather than finishing around it.
-  Gates therefore belong on unconditionally-reachable nodes.
+- `nextTransition()` refuses the finish transition while any goal-gated node lacks a success-class outcome, failing the line with a distinct `goal_gate_unmet` outcome instead of finishing it. ([validated by `transition.test.ts:255`](libs/assembly-lines/src/transition.test.ts#L255), [`transition.test.ts:267`](libs/assembly-lines/src/transition.test.ts#L267))
+- A goal-gated node skipped by conditional branching still counts as unmet: the line fails with `goal_gate_unmet` rather than finishing around it. ([validated by `transition.test.ts:244`](libs/assembly-lines/src/transition.test.ts#L244))
+- `changes_requested` satisfies a gate: for a review node it is a completed review with a verdict, not a failure — the Attractor PARTIAL_SUCCESS analogue. ([validated by `transition.test.ts:276`](libs/assembly-lines/src/transition.test.ts#L276))
+- The `goal_gate_unmet` failure reason names every unsatisfied gate, so the escalation diagnostic tells the operator exactly which invariant broke. ([validated by `transition.test.ts:285`](libs/assembly-lines/src/transition.test.ts#L285))
 
 ### FR3 — Adoption in the motivating lines
 
-- The code-review and implementation lines adopt `goal_gate: true` on their
-  review nodes in the same change, as the motivating use.
+- The code-review and implementation lines carry `goal_gate: true` on their review nodes, as the motivating use: a line that skipped or failed its review can no longer read as green. ([validated by `loader.test.ts:753`](libs/assembly-lines/src/loader.test.ts#L753))
 
 ### FR4 — Surfacing the new outcome
 
-- The new terminal outcome (`goal_gate_unmet`) reaches the run-viz UI and
-  `pipeline.audit_log` consumers; both get the label added.
-- `goal_gate_unmet` routes through the same `escalate()` path as other
-  terminal failures — a `needs-human-help` issue on the target repo listing
-  the unsatisfied gate(s) in the diagnostic. No new escalation mechanism;
-  the existing call in the walk's fail branch covers it, so gated lines
-  never stop silently.
+- The run list and run detail render `goal_gate_unmet` with its own danger-tone label rather than falling through to a neutral unknown-outcome badge. ([validated by `assembly-line-presenter.test.ts:98`](apps/web-ui/src/lib/assembly-line-presenter.test.ts#L98))
+- `goal_gate_unmet` classifies as a failure outcome, so it rides the same user-facing failure-notification path (Slack escalation + PR comment, `finishLine`'s winner-only seam) as every other terminal failure — gated lines never stop silently. ([validated by `notify-failure.test.ts:200`](apps/floor/src/jobs/assembly-line/notify-failure.test.ts#L200))
 
 ## Alternatives rejected
 
@@ -77,5 +66,9 @@ PARTIAL_SUCCESS).
 
 - Small, pure change to the loader schema and the replay's finish guard,
   both already colocated with tests.
-- Definitions become auditable for their success criteria; the status of a
-  run stops being able to misreport a skipped gate as success.
+- Definitions become auditable for their success criteria; a run's recorded
+  outcome stops being able to misreport a skipped gate as success.
+- Behavior change on the adopted lines: the implementation line's
+  `implement → retrospective` path on `changes_requested` (which skips
+  review) and its `review failed` path now close the line as
+  `goal_gate_unmet` instead of a finished success — that is the point.

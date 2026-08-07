@@ -11,7 +11,10 @@ import type {
   AssemblyLinesPort,
   AssemblyLineRecord,
 } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
-import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
+import {
+  assemblyLineDefinitionHash,
+  type AssemblyLine,
+} from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
 
 export interface StartEventHandlerDeps {
@@ -94,6 +97,13 @@ export function createStartEventHandler(
     }
 
     await deps.assemblyLines.markRunning(assemblyLineId);
+
+    // Stamp the definition's content hash once (only while NULL) so a later
+    // resume_from fork can refuse to replay rows across definition drift.
+    await deps.assemblyLines.recordDefinitionHash(
+      assemblyLineId,
+      assemblyLineDefinitionHash(definition),
+    );
 
     // Launch the entry node and return — the walk advances on
     // `kubernetes.agent_node.*` events; a Floor restart loses nothing because

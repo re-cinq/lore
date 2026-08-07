@@ -21,6 +21,7 @@ function lineRow(
     status: "failed",
     outcome: "error",
     reason: null,
+    definitionHash: null,
     createdAt: new Date("2026-07-17T06:20:00Z"),
     startedAt: new Date("2026-07-17T06:20:01Z"),
     finishedAt: null,
@@ -192,5 +193,11 @@ describe("notifyLineFailure", () => {
         payload: { channel: "comment", error: "comment 403" },
       },
     ]);
+  });
+});
+
+describe("goal_gate_unmet classification", () => {
+  it("classifies goal_gate_unmet as a failure outcome that notifies", () => {
+    expect(isFailureOutcome("goal_gate_unmet")).toBe(true);
   });
 });

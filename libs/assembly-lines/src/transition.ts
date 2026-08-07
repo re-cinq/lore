@@ -18,7 +18,19 @@ export type Transition =
   | { kind: "launch"; nodeId: string; iteration: number }
   | { kind: "await" }
   | { kind: "finish" }
-  | { kind: "fail"; outcome: "iteration_max" | "error"; reason: string };
+  | {
+      kind: "fail";
+      outcome: "iteration_max" | "error" | "goal_gate_unmet";
+      reason: string;
+    };
+
+/** Outcomes that satisfy a goal gate: the node ran and delivered a verdict.
+ *  `changes_requested` counts — for a review node it is a completed review,
+ *  not a failure (Attractor's PARTIAL_SUCCESS analogue). */
+const GATE_SATISFYING: ReadonlySet<StageOutcome> = new Set([
+  "success",
+  "changes_requested",
+]);
 
 const DEFAULT_MAX_NODES = 200;
 
@@ -104,6 +116,27 @@ export function nextTransition(
   }
 
   if (currentId === assemblyLine.exit) {
+    const unmetGates = assemblyLine.nodes
+      .filter((n) => n.goal_gate)
+      .filter(
+        (n) =>
+          !visits.some(
+            (v) =>
+              v.nodeId === n.id &&
+              v.outcome !== null &&
+              GATE_SATISFYING.has(v.outcome),
+          ),
+      )
+      .map((n) => `"${n.id}"`);
+
+    if (unmetGates.length > 0) {
+      return {
+        kind: "fail",
+        outcome: "goal_gate_unmet",
+        reason: `AssemblyLine ${assemblyLine.name}: goal-gated node(s) ${unmetGates.join(", ")} never recorded a successful outcome`,
+      };
+    }
+
     return { kind: "finish" };
   }
 

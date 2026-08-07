@@ -62,6 +62,7 @@ export type {
   AssemblyLineStartInput,
   AssemblyLineNodeStartInput,
   AssemblyLineRecord,
+  AssemblyLineResumeFrom,
 } from "./assembly-lines/assembly-lines-port.js";
 export { AssemblyLines } from "./assembly-lines/assembly-lines.js";
 
@@ -72,6 +73,13 @@ export type {
   AgentRunEventNodeRef,
   AgentRunEventType,
 } from "./agent-run-events/agent-run-events-port.js";
+
+export type {
+  AgentRunTurnsRepository,
+  AgentRunTurnRow,
+  AgentRunTurnInsert,
+  AgentRunTurnType,
+} from "./agent-run-turns/agent-run-turns-port.js";
 
 export type {
   NotifyPort,

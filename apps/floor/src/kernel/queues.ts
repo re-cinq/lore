@@ -21,6 +21,7 @@ import { PgAudit } from "@re-cinq/lore-shared/project/audit/audit-pg.js";
 import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { PgJobRuns } from "@re-cinq/lore-shared/project/job-runs/job-runs-pg.js";
 import { PgAgentRunEvents } from "@re-cinq/lore-shared/project/agent-run-events/agent-run-events-pg.js";
+import { PgAgentRunTurns } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-pg.js";
 import { PgEvalRuns } from "@re-cinq/lore-shared/project/evals/evals-pg.js";
 import { PgCost } from "@re-cinq/lore-shared/project/cost/cost-pg.js";
 import { PgContextCore } from "@re-cinq/lore-shared/project/context-core/context-core-pg.js";
@@ -38,6 +39,7 @@ let auditLogSingleton: PgAudit | undefined;
 let usageSingleton: PgUsage | undefined;
 let jobRunsSingleton: PgJobRuns | undefined;
 let agentRunEventsSingleton: PgAgentRunEvents | undefined;
+let agentRunTurnsSingleton: PgAgentRunTurns | undefined;
 let evalRunsSingleton: PgEvalRuns | undefined;
 let costSingleton: PgCost | undefined;
 let contextCoreSingleton: PgContextCore | undefined;
@@ -90,6 +92,9 @@ export const jobRuns = (): PgJobRuns =>
 /** Per-tool-call agent telemetry (pipeline.agent_run_events). */
 export const agentRunEvents = (): PgAgentRunEvents =>
   (agentRunEventsSingleton ??= new PgAgentRunEvents(getPool()));
+
+export const agentRunTurns = (): PgAgentRunTurns =>
+  (agentRunTurnsSingleton ??= new PgAgentRunTurns(getPool()));
 
 /** Eval-run results (pipeline.eval_runs), written by the eval-runner cron. */
 export const evalRuns = (): PgEvalRuns =>
