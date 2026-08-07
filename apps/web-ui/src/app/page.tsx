@@ -6,8 +6,15 @@ import {
   ingestWorkflowStatus,
   type IngestWorkflowStatus,
 } from "@/lib/ingest-workflow";
-import { getIngestStatuses } from "@/lib/ingest-status-cache";
-import { fixIngestWorkflows } from "./actions";
+import {
+  TRACE_IMPACT_WORKFLOW_PATH,
+  traceImpactWorkflowStatus,
+} from "@/lib/trace-impact-workflow";
+import {
+  getIngestStatuses,
+  getWorkflowStatuses,
+} from "@/lib/ingest-status-cache";
+import { fixIngestWorkflows, fixTraceImpactWorkflows } from "./actions";
 import HomeView, { type Repo } from "./HomeView";
 
 const HOME_REPO_LIMIT = 100;
@@ -41,18 +48,38 @@ export default async function HomePage() {
         ),
     );
   }
-  const misaligned = repos
-    .filter((r) => {
-      const s = ingestStatus.get(r.full_name);
+  // Same treatment for the spec-impact workflow. A stale one is not cosmetic:
+  // the backend suppresses a v1 client's findings, so the check is off until the
+  // repo updates.
+  let impactStatus = new Map<string, IngestWorkflowStatus>();
 
-      return s === "missing" || s === "stale";
-    })
-    .map((r) => r.full_name);
+  if (isGitHubConfigured()) {
+    impactStatus = await getWorkflowStatuses(
+      "trace-impact",
+      repos.map((r) => r.full_name),
+      (repo) =>
+        getRepoFileContent(repo, TRACE_IMPACT_WORKFLOW_PATH).then(
+          traceImpactWorkflowStatus,
+        ),
+    );
+  }
+  const needsFix = (status: Map<string, IngestWorkflowStatus>) =>
+    repos
+      .filter((r) => {
+        const s = status.get(r.full_name);
+
+        return s === "missing" || s === "stale";
+      })
+      .map((r) => r.full_name);
+  const misaligned = needsFix(ingestStatus);
+  const impactMisaligned = needsFix(impactStatus);
 
   return (
     <HomeView
       repos={repos}
       ingestStatus={ingestStatus}
+      impactMisaligned={impactMisaligned}
+      fixTraceImpactWorkflows={fixTraceImpactWorkflows}
       misaligned={misaligned}
       fixIngestWorkflows={fixIngestWorkflows}
     />

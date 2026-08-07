@@ -25,13 +25,20 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 
-export async function getIngestStatuses(
+/**
+ * Status for one workflow across many repos. `kind` namespaces the cache key:
+ * more than one workflow is tracked now, and a bare repo key would serve the
+ * ingest status for a spec-impact lookup.
+ */
+export async function getWorkflowStatuses(
+  kind: string,
   repos: string[],
   fetchStatus: (repo: string) => Promise<IngestWorkflowStatus>,
   now: () => number = Date.now,
 ): Promise<Map<string, IngestWorkflowStatus>> {
   const entries = repos.map((repo) => {
-    const cached = cache.get(repo);
+    const key = `${kind}::${repo}`;
+    const cached = cache.get(key);
 
     if (cached && cached.expiresAt > now()) {
       return { repo, value: cached.value };
@@ -40,7 +47,7 @@ export async function getIngestStatuses(
       (): IngestWorkflowStatus => "aligned",
     );
 
-    cache.set(repo, { value, expiresAt: now() + INGEST_STATUS_TTL_MS });
+    cache.set(key, { value, expiresAt: now() + INGEST_STATUS_TTL_MS });
 
     return { repo, value };
   });
@@ -48,6 +55,14 @@ export async function getIngestStatuses(
   const statuses = await Promise.all(entries.map((e) => e.value));
 
   return new Map(entries.map((e, i) => [e.repo, statuses[i]]));
+}
+
+export async function getIngestStatuses(
+  repos: string[],
+  fetchStatus: (repo: string) => Promise<IngestWorkflowStatus>,
+  now: () => number = Date.now,
+): Promise<Map<string, IngestWorkflowStatus>> {
+  return getWorkflowStatuses("ingest", repos, fetchStatus, now);
 }
 
 export function clearIngestStatusCache(): void {
