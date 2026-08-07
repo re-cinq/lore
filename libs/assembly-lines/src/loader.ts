@@ -162,16 +162,22 @@ export class AssemblyLineLoadError extends Error {
   }
 }
 
+/** Sink for non-fatal load diagnostics (today: bypassable goal gates). */
+export type AssemblyLineWarningHandler = (message: string) => void;
+
+const IGNORE_WARNINGS: AssemblyLineWarningHandler = () => {};
+
 /**
  * Parse and fully validate an assembly line definition. Throws
  * {@link AssemblyLineLoadError} on malformed YAML, schema violation,
  * dangling node references, unreachable nodes, terminal-only-on-exit
- * violations, producible outcomes with no matching edge, or back-edges
- * without `iteration_max`.
+ * violations, producible outcomes with no matching edge, `goal_gate` on
+ * the exit node, or back-edges without `iteration_max`.
  */
 export function parseAssemblyLine(
   yamlSrc: string,
   source = "<inline>",
+  onWarning: AssemblyLineWarningHandler = IGNORE_WARNINGS,
 ): AssemblyLine {
   let raw: unknown;
 
@@ -196,7 +202,7 @@ export function parseAssemblyLine(
 
   const wf = parsed.data;
 
-  validateAssemblyLine(wf, source);
+  validateAssemblyLine(wf, source, onWarning);
 
   return wf;
 }
@@ -245,7 +251,36 @@ export async function loadAssemblyLineDir(
   return out;
 }
 
-function validateAssemblyLine(wf: AssemblyLine, source: string): void {
+/** True when exit stays reachable from entry with `nodeId` removed — i.e. some
+ *  path runs around the node instead of through it. The entry node is on every
+ *  path by definition. */
+function canBypass(wf: AssemblyLine, nodeId: string): boolean {
+  if (wf.entry === nodeId) {
+    return false;
+  }
+  const reachable = new Set<string>([wf.entry]);
+  const queue: string[] = [wf.entry];
+
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+
+    for (const e of wf.edges) {
+      if (e.from !== cur || e.to === nodeId || reachable.has(e.to)) {
+        continue;
+      }
+      reachable.add(e.to);
+      queue.push(e.to);
+    }
+  }
+
+  return reachable.has(wf.exit);
+}
+
+function validateAssemblyLine(
+  wf: AssemblyLine,
+  source: string,
+  onWarning: AssemblyLineWarningHandler,
+): void {
   const nodeIds = new Set(wf.nodes.map((n) => n.id));
 
   const loadError = (message: string): AssemblyLineLoadError =>
@@ -382,6 +417,19 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
       `node "${n.id}" in assembly line "${wf.name}" has no edge for producible outcome(s) ${missing
         .map((o) => `"${o}"`)
         .join(", ")}`,
+    );
+  }
+
+  // A gate the graph can route around is almost always an authoring mistake,
+  // but not a load error: the walk still enforces it (the line fails
+  // `goal_gate_unmet`), so warn rather than refuse a definition that may be
+  // deliberately shaped that way.
+  for (const n of wf.nodes) {
+    if (!n.goal_gate || !canBypass(wf, n.id)) {
+      continue;
+    }
+    onWarning(
+      `goal-gated node "${n.id}" in assembly line "${wf.name}" can be bypassed: some path from entry to exit does not pass through it [${source}]`,
     );
   }
 

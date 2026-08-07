@@ -1014,3 +1014,77 @@ edges:
     );
   });
 });
+
+describe("parseAssemblyLine — goal_gate bypass warning", () => {
+  const bypassableGate = `
+name: bypassable-gate
+description: d
+version: 1
+entry: work
+exit: done
+nodes:
+  - id: work
+    type: agent
+  - id: review
+    type: agent
+    goal_gate: true
+  - id: done
+    type: retrospective
+edges:
+  - from: work
+    to: review
+    on: success
+  - from: work
+    to: done
+    on: changes_requested
+  - from: work
+    to: done
+    on: failed
+  - from: review
+    to: done
+    on: always
+`;
+
+  const guardedGate = `
+name: guarded-gate
+description: d
+version: 1
+entry: work
+exit: done
+nodes:
+  - id: work
+    type: agent
+  - id: review
+    type: agent
+    goal_gate: true
+  - id: done
+    type: retrospective
+edges:
+  - from: work
+    to: review
+    on: always
+  - from: review
+    to: done
+    on: always
+`;
+
+  it("warns when a path from entry to exit skips the goal-gated node", () => {
+    const warnings: string[] = [];
+
+    parseAssemblyLine(bypassableGate, "<inline>", (m) => warnings.push(m));
+
+    expect(warnings).toEqual([
+      expect.stringContaining(
+        'goal-gated node "review" in assembly line "bypassable-gate" can be bypassed',
+      ),
+    ]);
+  });
+
+  it("raises no warning when every path from entry to exit crosses the gate", () => {
+    const warnings: string[] = [];
+
+    parseAssemblyLine(guardedGate, "<inline>", (m) => warnings.push(m));
+
+    expect(warnings).toEqual([]);
+  });
+});
