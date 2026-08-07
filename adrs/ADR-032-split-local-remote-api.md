@@ -152,6 +152,10 @@ omits the laptop-only + task-creating tools. The two runtime shapes of `apps/mcp
 1. **Local stdio adapter** — one per developer, proxies to `lore-api` over HTTPS (unchanged).
 2. **`lore-mcp` HTTP gateway** — one cluster Deployment (chart `charts/lore-mcp-helm`, image
    `ghcr.io/re-cinq/lore-mcp`) in the `lore-api` namespace, bearer-authed, public `:443` for agent pods.
+   The Helm chart/Deployment/Service are named **`lore-mcp-gateway`**, not `lore-mcp`: the umbrella
+   release still stores an orphaned `lore-mcp:` values block from the pre-rename remote workload
+   (`namespace: mcp-servers`, now gone), and a subchart named `lore-mcp` would inherit it under
+   `reuse_values` and deploy into the vanished namespace. The public host stays `lore-mcp.…`.
 
 This does not violate the split's "names stop lying" goal: unlike `lore-api` (plain REST), the gateway
 genuinely **speaks MCP** — so the `lore-mcp` name is honest. `lore-api` stays the REST backend both
