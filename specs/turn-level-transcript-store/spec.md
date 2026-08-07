@@ -4,7 +4,7 @@
 |---------|------------------------------------------|
 | Feature | Turn-Level Transcript Store              |
 | Branch  | `feat/turn-level-transcript-store`       |
-| Status  | Draft                                    |
+| Status  | In Progress                              |
 | Created | 2026-08-07                               |
 | Owner   | Platform Engineering                     |
 
@@ -50,11 +50,11 @@ Migration `0037_agent_run_turns.sql` under
 adds the table, applied by the same `pre-install,pre-upgrade` Helm hook as
 every other migration.
 
-- The table stores one row per stream-json line with the **untruncated** envelope in a JSONB column, alongside the same correlation columns `agent_run_events` carries: `task_id`, `agent_cr_name`, `assembly_line_id`, `node_id`, `iteration`, plus the raw line kind in `event_type`.
-- `id` is a `BIGINT GENERATED ALWAYS AS IDENTITY` primary key that doubles as the read cursor, so it is carried as a string-encoded bigint across every boundary and never narrowed to a JS number.
+- The table stores one row per stream-json line with the **untruncated** envelope in a JSONB column, alongside the same correlation columns `agent_run_events` carries: `task_id`, `agent_cr_name`, `assembly_line_id`, `node_id`, `iteration`, plus the raw line kind in `event_type`. ([validated by `agent-run-turns.test.ts:103`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L103), [`agent-run-turns.test.ts:309`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L309))
+- `id` is a `BIGINT GENERATED ALWAYS AS IDENTITY` primary key that doubles as the read cursor, so it is carried as a string-encoded bigint across every boundary and never narrowed to a JS number. ([validated by `agent-run-turns.test.ts:126`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L126), [`agent-run-turns.test.ts:309`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L309))
 - The table carries **no foreign keys**, on `task_id` and `assembly_line_id` alike: ingest is a batch insert and one bad row under a FK would abort the whole statement and drop the batch.
-- `task_id` is nullable, unlike the projection's `NOT NULL` column, so a line the subsystem never attributed to a task is still stored rather than dropped.
-- Retention is 90 days — six times the projection's 14 — because the table exists precisely for questions asked after the live view has moved on, and the prune runs on the existing `eventsPrune` housekeeping tick.
+- `task_id` is nullable, unlike the projection's `NOT NULL` column, so a line the subsystem never attributed to a task is still stored rather than dropped. ([validated by `agent-run-turns.test.ts:93`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L93))
+- Retention is 90 days — six times the projection's 14 — because the table exists precisely for questions asked after the live view has moved on, and the prune runs on the existing `eventsPrune` housekeeping tick. ([validated by `agent-run-turns.test.ts:237`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L237), [`agent-run-turns.test.ts:249`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L249))
 - The migration is idempotent: every statement is `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS`, and the `lore_ui` grant is guarded by a role-existence check, so re-running it on a deploy that changed nothing is a no-op.
 - Three indexes cover the three access paths: `(assembly_line_id, id)` for the per-line read, `(task_id, id)` for the per-task read that reaches uncorrelated rows, and `(created_at)` for the retention prune.
 
@@ -65,16 +65,16 @@ mirrors the sibling `agent-run-events/` triple: one port interface, a
 Postgres adapter, an in-memory double that is the behavioral spec, and one
 colocated test suite exercising both.
 
-- `insertBatch` resolves `agentCrName` to (`assemblyLineId`, `nodeId`, `iteration`) against `pipeline.assembly_line_nodes` at write time, taking the newest matching node row when two lines collide on a CR name.
-- A row whose `agentCrName` matches no node row is still inserted, with `agentCrName` retained and the three correlated fields left null — skip-not-fail, because ingest must never lose a batch.
-- One uncorrelated row never suppresses the rest of its batch: the remaining rows insert normally.
-- `insertBatch` returns the persisted rows ascending by id, comparing ids numerically rather than lexicographically so a bigint cursor cannot page backwards past 10 digits.
-- The batch crosses to Postgres as a **single bound `jsonb` parameter** expanded by `jsonb_to_recordset`, never a string-built `VALUES` list: turn envelopes carry agent-controlled text that must never reach statement text.
-- The envelope crosses the port as JSON **text** and is cast to `jsonb` inside the statement, so the ingest path never re-serializes a payload it is already holding as a string.
-- An empty batch issues no query at all and returns an empty array.
-- `listByLine` returns one assembly line's turns ascending by id, above a cursor and capped by a limit, so a reader pages a finished run without gaps or duplicates.
-- `listByTask` reads the same way scoped to a task id, which is the only way to reach the rows that deliberately correlate to no node.
-- `pruneOld` deletes rows older than a day horizon and returns the count deleted.
+- `insertBatch` resolves `agentCrName` to (`assemblyLineId`, `nodeId`, `iteration`) against `pipeline.assembly_line_nodes` at write time, taking the newest matching node row when two lines collide on a CR name. ([validated by `agent-run-turns.test.ts:34`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L34), [`agent-run-turns.test.ts:269`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L269))
+- A row whose `agentCrName` matches no node row is still inserted, with `agentCrName` retained and the three correlated fields left null — skip-not-fail, because ingest must never lose a batch. ([validated by `agent-run-turns.test.ts:59`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L59))
+- One uncorrelated row never suppresses the rest of its batch: the remaining rows insert normally. ([validated by `agent-run-turns.test.ts:74`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L74))
+- `insertBatch` returns the persisted rows ascending by id, comparing ids numerically rather than lexicographically so a bigint cursor cannot page backwards past 10 digits. ([validated by `agent-run-turns.test.ts:204`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L204), [`agent-run-turns.test.ts:309`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L309))
+- The batch crosses to Postgres as a **single bound `jsonb` parameter** expanded by `jsonb_to_recordset`, never a string-built `VALUES` list: turn envelopes carry agent-controlled text that must never reach statement text. ([validated by `agent-run-turns.test.ts:281`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L281))
+- The envelope crosses the port as JSON **text** and is cast to `jsonb` inside the statement, so the ingest path never re-serializes a payload it is already holding as a string. ([validated by `agent-run-turns.test.ts:300`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L300))
+- An empty batch issues no query at all and returns an empty array. ([validated by `agent-run-turns.test.ts:138`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L138), [`agent-run-turns.test.ts:262`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L262))
+- `listByLine` returns one assembly line's turns ascending by id, above a cursor and capped by a limit, so a reader pages a finished run without gaps or duplicates. ([validated by `agent-run-turns.test.ts:171`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L171), [`agent-run-turns.test.ts:179`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L179), [`agent-run-turns.test.ts:191`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L191), [`agent-run-turns.test.ts:356`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L356))
+- `listByTask` reads the same way scoped to a task id, which is the only way to reach the rows that deliberately correlate to no node. ([validated by `agent-run-turns.test.ts:222`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L222), [`agent-run-turns.test.ts:368`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L368))
+- `pruneOld` deletes rows older than a day horizon and returns the count deleted. ([validated by `agent-run-turns.test.ts:237`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L237), [`agent-run-turns.test.ts:379`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L379))
 
 ## FR3 — The ingest tee
 

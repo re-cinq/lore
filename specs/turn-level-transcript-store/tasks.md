@@ -10,11 +10,11 @@ test, confirm it fails for the stated reason, then implement, then commit.
 
 ## Phase 2 — The repository port
 
-- [ ] **T2** `libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts` (new file): the failing suite for both implementations — correlation to the newest node, uncorrelated rows kept, mixed batches, numeric id ordering, empty batch issues no query, single bound `jsonb` parameter, envelope cast from text, `listByLine` / `listByTask` cursor paging, `pruneOld` horizon.
-- [ ] **T3** `libs/shared/src/project/agent-run-turns/agent-run-turns-port.ts`: `AgentRunTurnRow`, `AgentRunTurnInsert`, `AgentRunTurnNodeRef`, `AgentRunTurnsRepository`.
-- [ ] **T4** `libs/shared/src/project/agent-run-turns/agent-run-turns-memory.ts`: `InMemoryAgentRunTurns`, the behavioral spec of the port.
-- [ ] **T5** `libs/shared/src/project/agent-run-turns/agent-run-turns-pg.ts`: `PgAgentRunTurns` — `jsonb_to_recordset` + `LEFT JOIN LATERAL` correlation, `v.envelope::jsonb` cast.
-- [ ] **T6** Export the port types and both implementations from `libs/shared/src/project/index.ts`; re-run `scripts/worktree-bootstrap.sh` so `tsc` sees the fresh `dist`.
+- [x] **T2** `libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts` (new file): the failing suite for both implementations — correlation to the newest node, uncorrelated rows kept, mixed batches, numeric id ordering, empty batch issues no query, single bound `jsonb` parameter, envelope cast from text, `listByLine` / `listByTask` cursor paging, `pruneOld` horizon.
+- [x] **T3** `libs/shared/src/project/agent-run-turns/agent-run-turns-port.ts`: `AgentRunTurnRow`, `AgentRunTurnInsert`, `AgentRunTurnNodeRef`, `AgentRunTurnsRepository`.
+- [x] **T4** `libs/shared/src/project/agent-run-turns/agent-run-turns-memory.ts`: `InMemoryAgentRunTurns`, the behavioral spec of the port.
+- [x] **T5** `libs/shared/src/project/agent-run-turns/agent-run-turns-pg.ts`: `PgAgentRunTurns` — `jsonb_to_recordset` + `LEFT JOIN LATERAL` correlation, `v.envelope::jsonb` cast.
+- [x] **T6** Export the port types and both implementations from `libs/shared/src/project/index.ts`; re-run `scripts/worktree-bootstrap.sh` so `tsc` sees the fresh `dist`.
 
 T2–T6 land as one commit: the test file cannot compile without the port,
 and the port is dead code without the test.
