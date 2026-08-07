@@ -108,4 +108,4 @@ jobs:
         # Args: <subchart> <tag> <deployment> <namespace> <image_repo>. The gateway
         # Deployment is named lore-mcp but lives in the lore-api namespace (it reuses
         # that namespace's lore-ingest-token + ghcr-pull-secret), so NS is lore-api.
-        run: bash scripts/ci/deploy-lore-platform.sh lore-mcp "${{ needs.build.outputs.image_tag }}" lore-mcp lore-api "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+        run: bash scripts/ci/deploy-lore-platform.sh lore-mcp-gateway "${{ needs.build.outputs.image_tag }}" lore-mcp-gateway lore-api "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"

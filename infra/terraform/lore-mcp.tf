@@ -54,7 +54,9 @@ resource "kubernetes_ingress_v1" "lore_mcp" {
 
           backend {
             service {
-              name = "lore-mcp"
+              # The gateway Service is named after its chart (lore-mcp-gateway),
+              # renamed off `lore-mcp` to dodge the umbrella's orphaned stored block.
+              name = "lore-mcp-gateway"
               port {
                 number = 8080
               }

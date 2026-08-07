@@ -1,5 +1,9 @@
 apiVersion: v2
-name: lore-mcp
+# Named lore-mcp-gateway (not lore-mcp) so it can't collide with the orphaned
+# `lore-mcp:` block the umbrella release still stores from the pre-rename remote
+# workload (namespace: mcp-servers) — reuse_values would otherwise merge that dead
+# block onto this subchart and deploy it into a namespace that no longer exists.
+name: lore-mcp-gateway
 description: Shared MCP-over-HTTP gateway serving scoped Lore tools to agent pods
 version: 0.1.0
 appVersion: "1.0.0"
