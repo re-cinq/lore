@@ -189,3 +189,22 @@ describe("assemblyLineCheck check-name alias", () => {
     ).toMatchObject({ name: "lore/code-review", title: "Lore code-review" });
   });
 });
+
+describe("assemblyLineCheck — goal_gate_unmet", () => {
+  it("publishes a failing check for a PR-linked line closing goal_gate_unmet", () => {
+    const closed = line({
+      status: "finished",
+      outcome: "goal_gate_unmet",
+      reason: 'reached the exit with unsatisfied goal gate(s) "review"',
+    });
+
+    expect(
+      assemblyLineCheck(closed, [nodeRow({ outcome: "failed" })]),
+    ).toMatchObject({
+      name: "lore/code-review",
+      status: "completed",
+      conclusion: "failure",
+      summary: expect.stringContaining("unsatisfied goal gate"),
+    });
+  });
+});
