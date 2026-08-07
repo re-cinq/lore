@@ -30,6 +30,9 @@ export interface DefinitionNode {
   job_ref?: string;
   station_ref?: string;
   timeout_minutes?: number;
+  /** The line may not finish unless this node recorded a successful outcome
+   *  (mirrors the loader's goal-gate attribute, specs/goal-gates). */
+  goal_gate?: boolean;
   description?: string;
 }
 
