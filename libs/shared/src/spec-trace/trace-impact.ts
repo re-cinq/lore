@@ -19,6 +19,8 @@ import {
   type ImpactStatement,
 } from "./impact-statement.js";
 import { testFileImpact } from "./impact-test-link.js";
+import { summarizeStatement } from "./impact-render.js";
+import { readGraphBaseline } from "./graph-baseline.js";
 import { specFileImpact } from "./impact-statement-delta.js";
 
 export { parseRanges } from "./line-range.js";
@@ -64,7 +66,10 @@ export interface ImpactReport {
   statements: ImpactStatement[];
   orphaned: OrphanStatement[];
   testSelectors: string[];
+  /** Commit the graph's line ranges are expressed in; absent when never stamped. */
   graphCommit?: string;
+  /** ISO-8601 timestamp of that stamp. */
+  graphCommitAt?: string;
   stale?: boolean;
   /**
    * What the check actually looked at. A bare "no impact" over files the graph
@@ -97,6 +102,96 @@ export const IMPACT_COMMENT_MARKER = "<!-- lore-trace-impact -->";
 
 const COMMENT_HEADER = "## 🔍 Lore Spec Impact";
 
+/** Rows shown before the rest is folded away — a wall of them reads as noise. */
+const MAX_ROWS = 10;
+
+/**
+ * The honest negative. A bare "No spec impact detected" over files the graph has
+ * no data for reads as a clean bill of health and is what taught people to skim
+ * past this check; say what was actually examined instead.
+ */
+function describeExamined(report: ImpactReport): string {
+  const seen = report.examined;
+
+  if (!seen) {
+    return "No spec impact detected for this PR.";
+  }
+  const blind = seen.files - seen.withGraphData;
+  const parts = [
+    `Examined **${seen.files} changed file(s)**: ${seen.withGraphData} had graph data (no coupling found), ${blind} had none — no ingested test run covers them, so this check cannot speak for them.`,
+  ];
+
+  if (seen.docs) {
+    parts.push(
+      `Also read **${seen.docs} changed spec/ADR** at statement level; no projected statement changed.`,
+    );
+  }
+
+  if (seen.newStatements) {
+    parts.push(
+      `**${seen.newStatements} new statement(s)** have no test link yet.`,
+    );
+  }
+
+  return parts.join(" ");
+}
+
+/**
+ * The provenance line. `graph @ unknown` was printed on every comment ever
+ * posted, because nothing set the field — an admission of ignorance dressed up
+ * as a reading. Say which commit the graph's ranges belong to, or say plainly
+ * that the repo has never been stamped.
+ */
+function describeBaseline(report: ImpactReport): string {
+  if (!report.graphCommit) {
+    return "graph baseline unknown (no ingested test run has stamped this repo)";
+  }
+  const at = report.graphCommitAt
+    ? ` (projected ${report.graphCommitAt.slice(0, 10)})`
+    : "";
+
+  return `graph @ \`${report.graphCommit.slice(0, 7)}\`${at}`;
+}
+
+const testCellFor = (s: ImpactStatement) =>
+  s.tests[0] ? `${s.tests[0].file}:${s.tests[0].line}` : "—";
+
+/**
+ * Collapses findings that would render as identical rows. #1077 showed the same
+ * test/file pair four times; a reader cannot tell repetition from emphasis, and
+ * the headline count has to agree with what the table shows.
+ */
+function dedupeRows(statements: ImpactStatement[]): ImpactStatement[] {
+  const seen = new Set<string>();
+
+  return statements.filter((s) => {
+    const key = `${s.specPath}|${s.statementText}|${testCellFor(s)}|${s.changedFile}`;
+
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+
+    return true;
+  });
+}
+
+/** One markdown table for a set of findings, capped. */
+function statementTable(statements: ImpactStatement[]): string[] {
+  const shown = statements.slice(0, MAX_ROWS);
+  const hidden = statements.length - shown.length;
+
+  return [
+    "| Spec | Statement | Covering test | Changed file |",
+    "|------|-----------|---------------|--------------|",
+    ...shown.map(
+      (s) =>
+        `| ${s.specTitle}${sectionLabel(s.section)} | ${summarizeStatement(s.statementText)} | ${testCellFor(s)} | ${s.changedFile} |`,
+    ),
+    ...(hidden > 0 ? ["", `…and ${hidden} more.`] : []),
+  ];
+}
+
 /**
  * Renders the sticky PR summary comment for an ImpactReport. The Action posts
  * this verbatim (find-by-marker, update-in-place) — all formatting lives here so
@@ -107,29 +202,43 @@ export function buildImpactComment(report: ImpactReport): string {
     return `${COMMENT_HEADER}\n\nGraph not available for this repo yet — skipping impact analysis. No action needed.\n\n${IMPACT_COMMENT_MARKER}\n`;
   }
 
-  if (!report.statements.length && !report.orphaned.length) {
-    return `${COMMENT_HEADER}\n\nNo spec impact detected for this PR.\n\n${IMPACT_COMMENT_MARKER}\n`;
+  // A statement with no resolvable spec is a broken graph edge, not a finding —
+  // rendering it produced the blank table rows in #1077.
+  const findings = dedupeRows(
+    report.statements.filter(
+      (s) => s.specTitle || s.specPath || s.statementText,
+    ),
+  );
+  const strong = findings.filter(
+    (s) => s.evidence === "statement-edit" || s.evidence === "coverage",
+  );
+  const weak = findings.filter(
+    (s) => s.evidence === "test-link" || s.evidence === "file-link",
+  );
+
+  if (!findings.length && !report.orphaned.length) {
+    return `${COMMENT_HEADER}\n\n${describeExamined(report)}\n\n${IMPACT_COMMENT_MARKER}\n`;
   }
 
-  const specCount = new Set(report.statements.map((s) => s.specPath)).size;
+  const specCount = new Set(findings.map((s) => s.specPath)).size;
   const lines = [
     `${COMMENT_HEADER} — advisory`,
     "",
-    `This PR touches code coupled to **${report.statements.length} statement(s)** across **${specCount} spec(s)**.`,
+    `This PR touches **${findings.length} statement(s)** across **${specCount} spec(s)**.`,
   ];
 
-  if (report.statements.length) {
+  if (strong.length) {
+    lines.push("", "### Coupled statements", ...statementTable(strong));
+  }
+
+  if (weak.length) {
     lines.push(
       "",
-      "### Coupled statements",
-      "| Spec | Statement | Covering test | Changed file |",
-      "|------|-----------|---------------|--------------|",
-      ...report.statements.map((s) => {
-        const test = s.tests[0];
-        const testCell = test ? `${test.file}:${test.line}` : "—";
-
-        return `| ${s.specTitle}${sectionLabel(s.section)} | ${s.statementText} | ${testCell} | ${s.changedFile} |`;
-      }),
+      `<details><summary>Weaker signals (${weak.length}) — linked by a spec, not proven by a test run</summary>`,
+      "",
+      ...statementTable(weak),
+      "",
+      "</details>",
     );
   }
 
@@ -144,12 +253,9 @@ export function buildImpactComment(report: ImpactReport): string {
     );
   }
 
-  const commit = report.graphCommit ?? "unknown";
-  const staleNote = report.stale ? " · ⚠ baseline may be stale" : "";
-
   lines.push(
     "",
-    `<sub>Deterministic · graph @ \`${commit}\`${staleNote} · no tests run by this check</sub>`,
+    `<sub>Deterministic · ${describeBaseline(report)} · no tests run by this check</sub>`,
     "",
     IMPACT_COMMENT_MARKER,
     "",
@@ -464,11 +570,19 @@ export async function computeImpact(
     ...new Set(statements.flatMap((s) => s.tests.map((t) => t.file))),
   ];
 
+  const baseline = await readGraphBaseline(dgraph, repo);
+
   return {
     status: "ok",
     statements,
     orphaned,
     testSelectors,
+    ...(baseline.commit
+      ? {
+          graphCommit: baseline.commit,
+          graphCommitAt: baseline.at ?? undefined,
+        }
+      : {}),
     examined: {
       files: changed.length,
       withGraphData,

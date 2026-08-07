@@ -10,6 +10,8 @@ import {
   buildImpactAnnotations,
   buildImpactComment,
   IMPACT_COMMENT_MARKER,
+  type ImpactReport,
+  type ImpactStatement,
 } from "./trace-impact.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
@@ -583,5 +585,96 @@ describe.skipIf(!reachable)("spec-only PR (live Dgraph)", () => {
       },
     ]);
     expect(report.examined).toMatchObject({ docs: 1, newStatements: 1 });
+  });
+});
+
+/**
+ * The presentation half of the trust problem. #1077 rendered five findings as a
+ * table carrying paragraph-length statement text with fourteen inline links in
+ * one cell, four duplicate rows, and two rows whose Spec and Statement columns
+ * were empty.
+ */
+describe("buildImpactComment presentation", () => {
+  const coupled = (over: Partial<ImpactStatement>): ImpactStatement => ({
+    specPath: "specs/widget/spec.md",
+    specTitle: "Widget Spec",
+    statementText: "The widget MUST render on mount.",
+    statementAnchor: "specs/widget/spec.md",
+    tests: [{ file: "test/widget.test.ts", name: "renders", line: 12 }],
+    changedFile: "src/widget.ts",
+    evidence: "coverage",
+    ...over,
+  });
+
+  const render = (over: Partial<ImpactReport>) =>
+    buildImpactComment({
+      status: "ok",
+      statements: [],
+      orphaned: [],
+      testSelectors: [],
+      ...over,
+    });
+
+  it("drops a finding whose spec and statement did not resolve", () => {
+    const comment = render({
+      statements: [
+        coupled({}),
+        coupled({ specPath: "", specTitle: "", statementText: "" }),
+      ],
+    });
+
+    expect(comment).toContain("**1 statement(s)**");
+  });
+
+  it("dedups repeated statement, test and changed-file triples", () => {
+    const comment = render({ statements: [coupled({}), coupled({})] });
+
+    expect(
+      comment.split("The widget MUST render on mount.").length - 1,
+    ).toEqual(1);
+  });
+
+  it("folds spec-linked findings away from coverage-backed ones", () => {
+    const comment = render({
+      statements: [
+        coupled({}),
+        coupled({
+          statementText: "The widget MUST unmount cleanly.",
+          evidence: "file-link",
+        }),
+      ],
+    });
+
+    expect(comment).toContain("<details>");
+    expect(comment).toContain("Weaker signals (1)");
+  });
+
+  it("names what it examined instead of claiming a clean bill of health", () => {
+    const comment = render({
+      examined: { files: 23, withGraphData: 3, docs: 2, newStatements: 4 },
+    });
+
+    expect(comment).toContain("Examined **23 changed file(s)**");
+    expect(comment).toContain("3 had graph data");
+    expect(comment).toContain("20 had none");
+    expect(comment).toContain("**4 new statement(s)**");
+  });
+
+  it("says the baseline is unknown rather than printing graph @ unknown", () => {
+    const comment = render({ statements: [coupled({})] });
+
+    expect(comment).toContain("graph baseline unknown");
+    expect(comment).not.toContain("graph @ `unknown`");
+  });
+
+  it("names the baseline commit and projection date when the repo is stamped", () => {
+    const comment = render({
+      statements: [coupled({})],
+      graphCommit: "8f2a1c3d9e0b",
+      graphCommitAt: "2026-08-07T10:30:00.000Z",
+    });
+
+    expect(comment).toContain("graph @ `8f2a1c3`");
+    expect(comment).toContain("projected 2026-08-07");
   });
 });
