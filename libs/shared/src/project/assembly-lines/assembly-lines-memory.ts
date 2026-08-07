@@ -74,6 +74,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     const id = randomUUID();
     const row = this.newRow(id, inheritFromSource(input, source));
 
+    row.inheritedNodeCount = inherited.length;
     this.rows.push(row);
 
     for (const node of inherited) {
@@ -291,6 +292,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
       definitionHash: input.definitionHash ?? null,
       resumedFromLineId: input.resumeFrom?.lineId ?? null,
       resumedFromNodeId: input.resumeFrom?.nodeId ?? null,
+      inheritedNodeCount: 0,
       createdAt: this.clock(),
       startedAt: null,
       finishedAt: null,

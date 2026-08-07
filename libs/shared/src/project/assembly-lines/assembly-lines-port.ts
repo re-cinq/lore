@@ -60,6 +60,11 @@ export interface AssemblyLineRecord {
   /** Fork parentage — null for a line that was not forked. */
   resumedFromLineId: string | null;
   resumedFromNodeId: string | null;
+  /** Node rows copied from the fork source, fixed at fork time (0 for a plain
+   *  start). The overlap guard's "no work of its own yet" test compares the
+   *  line's CURRENT row count against this; recomputing the prefix instead
+   *  would let a back-edge revisit re-arm the guard mid-walk. */
+  inheritedNodeCount: number;
   createdAt: Date;
   startedAt: Date | null;
   finishedAt: Date | null;

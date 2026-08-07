@@ -1181,6 +1181,7 @@ describe("PgAssemblyLines resumeFrom", () => {
       "src",
       "review",
       "12",
+      2,
     ]);
   });
 

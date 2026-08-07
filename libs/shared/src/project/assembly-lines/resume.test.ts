@@ -44,6 +44,7 @@ function source(
     definitionHash: HASH,
     resumedFromLineId: null,
     resumedFromNodeId: null,
+    inheritedNodeCount: 0,
     createdAt: AT,
     startedAt: AT,
     finishedAt: AT,

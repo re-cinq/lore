@@ -9,10 +9,8 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import type {
   AssemblyLinesPort,
-  AssemblyLineNodeRecord,
   AssemblyLineRecord,
 } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
-import { resumeCutoffIndex } from "@re-cinq/lore-shared/project/assembly-lines/resume.js";
 import {
   nextTransition,
   type AssemblyLine,
@@ -113,18 +111,6 @@ const BRANCH_SHARED_WORKSPACE = new Set([
   "code-review-recheck",
 ]);
 
-/** Rows a forked line inherited from its source (specs/fork-rerun-from-node) — they
- *  are present before the fork launches anything, so the overlap guard has to
- *  measure against them instead of against an empty list. Zero for a plain start. */
-function inheritedNodeCount(
-  row: AssemblyLineRecord,
-  nodes: AssemblyLineNodeRecord[],
-): number {
-  return row.resumedFromNodeId
-    ? resumeCutoffIndex(nodes, row.resumedFromNodeId) + 1
-    : 0;
-}
-
 /** Re-derive the line's next step from its node rows and perform it: launch the next
  *  node CR, finish the row, or fail it. Safe to call redundantly — no-ops unless the
  *  replay says there is something to do. */
@@ -148,6 +134,12 @@ export async function advanceLine(
   const nodes = await deps.assemblyLines.listNodes(assemblyLineId);
 
   // Overlap guard (branch-lease parity): a second not-yet-started run on the same
+  // Note `row.inheritedNodeCount` rather than a recomputed prefix: a fork starts
+  // life with its source's rows, but its own walk may REVISIT the node it resumed
+  // from (implementation.yaml loops validate -> implement). Deriving the prefix
+  // from the current rows makes the count grow back, re-arming this guard
+  // mid-walk and closing a RUNNING fork as lease_held — paid work lost. The
+  // stored count never moves, so the test is false forever after the first launch.
   // repo+branch defers to the one already in flight — the detect fan-out relies on
   // this to suppress duplicate per-repo runs, exactly as the old lease did. It is
   // check-then-act (not atomic like the old lease CTE): two starts in the same
@@ -156,7 +148,7 @@ export async function advanceLine(
   // one side backs off (a naive "any other running" would make BOTH defer and skip
   // detection for the tick).
   if (
-    nodes.length === inheritedNodeCount(row, nodes) &&
+    nodes.length === row.inheritedNodeCount &&
     row.branch &&
     !BRANCH_SHARED_WORKSPACE.has(row.definitionName)
   ) {

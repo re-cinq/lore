@@ -24,6 +24,7 @@ function lineRow(
     definitionHash: null,
     resumedFromLineId: null,
     resumedFromNodeId: null,
+    inheritedNodeCount: 0,
     createdAt: new Date("2026-07-17T06:20:00Z"),
     startedAt: new Date("2026-07-17T06:20:01Z"),
     finishedAt: null,

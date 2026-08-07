@@ -34,6 +34,9 @@ ALTER TABLE pipeline.assembly_lines
 ALTER TABLE pipeline.assembly_lines
   ADD COLUMN IF NOT EXISTS resumed_from_node_id TEXT;
 
+ALTER TABLE pipeline.assembly_lines
+  ADD COLUMN IF NOT EXISTS inherited_node_count INTEGER NOT NULL DEFAULT 0;
+
 -- Answers "which forks descend from this line" without a full scan; partial so
 -- the index costs nothing for the overwhelming majority of non-forked rows.
 CREATE INDEX IF NOT EXISTS idx_assembly_lines_resumed_from

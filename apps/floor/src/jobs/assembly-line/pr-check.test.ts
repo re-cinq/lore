@@ -19,6 +19,7 @@ function line(over: Partial<AssemblyLineRecord>): AssemblyLineRecord {
     definitionHash: null,
     resumedFromLineId: null,
     resumedFromNodeId: null,
+    inheritedNodeCount: 0,
     createdAt: new Date(0),
     startedAt: null,
     finishedAt: null,

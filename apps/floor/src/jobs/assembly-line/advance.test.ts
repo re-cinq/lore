@@ -789,3 +789,141 @@ describe("advanceLine on a forked line", () => {
     expect(launched).toHaveLength(1);
   });
 });
+
+// A definition with a BACK EDGE, like implementation.yaml's `validate -> implement
+// on: failed`. A fork's own walk can revisit the node it resumed from, which is
+// where a count-based "has it started work yet" test comes apart.
+const backEdgeLike: AssemblyLine = parseAssemblyLine(`
+name: back-edge
+description: implement -> validate, failing validate loops back
+version: 1
+entry: implement
+exit: done
+nodes:
+  - id: implement
+    type: agent
+    prompt_ref: implementation
+  - id: validate
+    type: validate
+  - id: done
+    type: retrospective
+edges:
+  - from: implement
+    to: validate
+    on: always
+  - from: validate
+    to: done
+    on: success
+  - from: validate
+    to: implement
+    on: failed
+    iteration_max: 1
+`);
+
+describe("advanceLine overlap guard on a fork that revisits its resume node", () => {
+  function orderedPort(): InMemoryAssemblyLines {
+    let tick = 0;
+
+    return new InMemoryAssemblyLines(
+      () => new Date(Date.UTC(2026, 7, 7) + ++tick * 1000),
+    );
+  }
+
+  function backEdgeDeps(port: InMemoryAssemblyLines) {
+    const made = makeDeps(port);
+
+    return {
+      ...made,
+      deps: {
+        ...made.deps,
+        definitions: async () =>
+          new Map<string, AssemblyLine>([["back-edge", backEdgeLike]]),
+      },
+    };
+  }
+
+  /** A terminal source whose `implement` node completed once. */
+  async function source(port: InMemoryAssemblyLines): Promise<string> {
+    const id = await port.start({
+      definitionName: "back-edge",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { description: "implement the spec" },
+    });
+
+    await port.stampDefinitionHash(id, "hash-back-edge");
+    await port.markRunning(id);
+    const { nodeRowId } = await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "implement",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-implement`,
+    });
+
+    await port.finishNodeOnce(nodeRowId, "success", "sha-implement");
+    await port.finish(id, "failed", "validate never ran");
+
+    return id;
+  }
+
+  it("keeps running after the back edge revisits the resumed node, even under a branch holder", async () => {
+    const port = orderedPort();
+    const from = await source(port);
+    const forked = await port.start({
+      definitionName: "back-edge",
+      repo: "re-cinq/lore",
+      definitionHash: "hash-back-edge",
+      resumeFrom: { lineId: from, nodeId: "implement" },
+    });
+
+    await port.markRunning(forked);
+    const { deps, launched } = backEdgeDeps(port);
+
+    // The fork does real work of its own: validate runs and fails, the back edge
+    // sends it to implement iteration 2, which succeeds.
+    await advanceLine(forked, deps);
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: forked,
+        nodeId: "validate",
+        iteration: 1,
+        result: { outcome: "failed" },
+      },
+      deps,
+    );
+    // A line with an EARLIER created_at becomes visible only now. That is not
+    // contrived: pipeline.assembly_lines defaults created_at to now(), which in
+    // Postgres is the TRANSACTION START time, so a transaction that began before
+    // the fork but committed after it lands exactly here — older by timestamp,
+    // yet invisible at the fork's first advance.
+    const clock = port.clock;
+
+    port.clock = () => new Date(Date.UTC(2026, 7, 6));
+    const holder = await port.start({
+      definitionName: "back-edge",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+    });
+
+    port.clock = clock;
+    await port.markRunning(holder);
+
+    // Completing the revisited node makes the fork's row count equal its
+    // inherited count again. The fork is mid-walk with paid work behind it and
+    // must never be killed as lease_held here.
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: forked,
+        nodeId: "implement",
+        iteration: 2,
+        result: { outcome: "success" },
+      },
+      deps,
+    );
+
+    expect(await port.getById(forked)).toMatchObject({ status: "running" });
+    expect(launched.map((spec) => spec.name)).toContain(
+      `${forked.substring(0, 12)}-validate-2`,
+    );
+  });
+});

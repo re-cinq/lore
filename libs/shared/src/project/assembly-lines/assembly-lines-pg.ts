@@ -12,7 +12,7 @@ import type {
 
 /** Every column `toRecord` maps, single-sourced so the four read sites cannot drift. */
 const LINE_COLUMNS = `id, definition_name, task_id, repo, branch, args, status, outcome, reason,
-         definition_hash, resumed_from_line_id, resumed_from_node_id,
+         definition_hash, resumed_from_line_id, resumed_from_node_id, inherited_node_count,
          created_at, started_at, finished_at`;
 
 /**
@@ -96,8 +96,8 @@ export class PgAssemblyLines implements AssemblyLinesPort {
       `WITH al AS (
          INSERT INTO pipeline.assembly_lines
            (definition_name, task_id, repo, branch, args, definition_hash,
-            resumed_from_line_id, resumed_from_node_id)
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)
+            resumed_from_line_id, resumed_from_node_id, inherited_node_count)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $10)
          RETURNING id
        ), ev AS (
          INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
@@ -135,6 +135,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
         resumeFrom.lineId,
         resumeFrom.nodeId,
         cutoffNodeRowId,
+        prefix.length,
       ],
     );
 
@@ -360,6 +361,7 @@ function toRecord(row: {
   definition_hash: string | null;
   resumed_from_line_id: string | null;
   resumed_from_node_id: string | null;
+  inherited_node_count: number;
   created_at: Date;
   started_at: Date | null;
   finished_at: Date | null;
@@ -377,6 +379,7 @@ function toRecord(row: {
     definitionHash: row.definition_hash,
     resumedFromLineId: row.resumed_from_line_id,
     resumedFromNodeId: row.resumed_from_node_id,
+    inheritedNodeCount: row.inherited_node_count,
     createdAt: row.created_at,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
