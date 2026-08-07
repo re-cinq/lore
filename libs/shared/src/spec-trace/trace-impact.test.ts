@@ -651,13 +651,20 @@ describe("buildImpactComment presentation", () => {
 
   it("names what it examined instead of claiming a clean bill of health", () => {
     const comment = render({
-      examined: { files: 23, withGraphData: 3, docs: 2, newStatements: 4 },
+      examined: {
+        files: 23,
+        withGraphData: 3,
+        docs: 2,
+        newStatements: 4,
+        changedWithoutTests: 114,
+      },
     });
 
     expect(comment).toContain("Examined **23 changed file(s)**");
     expect(comment).toContain("3 had graph data");
     expect(comment).toContain("20 had none");
     expect(comment).toContain("**4 new statement(s)**");
+    expect(comment).toContain("**114 changed statement(s)** had no validating");
   });
 
   it("says the baseline is unknown rather than printing graph @ unknown", () => {

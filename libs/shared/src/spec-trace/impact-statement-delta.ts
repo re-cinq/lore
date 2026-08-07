@@ -142,10 +142,14 @@ export async function readSpecStatements(
 /**
  * Statements this PR disturbed in a changed spec, as impact findings.
  *
- * Only `changed` statements become findings: they are the ones something already
- * claims to validate, so they are the ones a reviewer can act on. The `added`
- * count rides on the report separately — a brand-new statement has no links yet
- * by definition, and listing each one as a finding would bury the actionable set.
+ * Only a changed statement that something already claims to VALIDATE becomes a
+ * finding. The other two populations are counted, not listed, because listing
+ * them buries the set a reviewer can act on:
+ *
+ * - a changed statement with no validating test was never covered, so editing it
+ *   breaks no coverage — replaying the #1076 spec rewrite emitted 104 findings,
+ *   almost all of them this, which is as unreadable as the noise it replaced;
+ * - a brand-new statement has no links yet by definition.
  */
 export async function specFileImpact(
   dgraph: DgraphClientPort,
@@ -155,13 +159,16 @@ export async function specFileImpact(
 ): Promise<{
   statements: Array<ImpactStatement & { xid: string }>;
   added: number;
+  changedWithoutTests: number;
 }> {
   const known = await readSpecStatements(dgraph, repo, specPath);
   const delta = diffStatements(content, known);
+  const validated = delta.changed.filter((stmt) => stmt.tests.length);
 
   return {
     added: delta.added,
-    statements: delta.changed.map((stmt) => ({
+    changedWithoutTests: delta.changed.length - validated.length,
+    statements: validated.map((stmt) => ({
       xid: stmt.xid,
       specPath,
       specTitle: stmt.specTitle,

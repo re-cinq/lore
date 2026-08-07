@@ -82,6 +82,8 @@ export interface ImpactReport {
     docs: number;
     /** Statements present in a changed spec that the graph has never seen. */
     newStatements: number;
+    /** Statements the diff changed that no test validated — counted, not listed. */
+    changedWithoutTests: number;
   };
 }
 
@@ -127,13 +129,31 @@ function describeExamined(report: ImpactReport): string {
     );
   }
 
+  parts.push(...docNotes(seen));
+
+  return parts.join(" ");
+}
+
+/**
+ * The doc-side populations that are counted rather than listed. Reported even
+ * when nothing else is, so a bounded output never reads as an empty one.
+ */
+function docNotes(seen: NonNullable<ImpactReport["examined"]>): string[] {
+  const notes: string[] = [];
+
+  if (seen.changedWithoutTests) {
+    notes.push(
+      `**${seen.changedWithoutTests} changed statement(s)** had no validating test, so no coverage broke.`,
+    );
+  }
+
   if (seen.newStatements) {
-    parts.push(
+    notes.push(
       `**${seen.newStatements} new statement(s)** have no test link yet.`,
     );
   }
 
-  return parts.join(" ");
+  return notes;
 }
 
 /**
@@ -240,6 +260,12 @@ export function buildImpactComment(report: ImpactReport): string {
       "",
       "</details>",
     );
+  }
+
+  const notes = report.examined ? docNotes(report.examined) : [];
+
+  if (notes.length) {
+    lines.push("", notes.join(" "));
   }
 
   if (report.orphaned.length) {
@@ -558,11 +584,13 @@ export async function computeImpact(
   // this runs whatever the diff's coordinates look like.
   const docs = options.docs ?? [];
   let newStatements = 0;
+  let changedWithoutTests = 0;
 
   for (const doc of docs) {
     const impact = await specFileImpact(dgraph, repo, doc.path, doc.content);
 
     newStatements += impact.added;
+    changedWithoutTests += impact.changedWithoutTests;
     raw.push(...impact.statements);
   }
   const statements = mergeStatements(raw);
@@ -588,6 +616,7 @@ export async function computeImpact(
       withGraphData,
       docs: docs.length,
       newStatements,
+      changedWithoutTests,
     },
   };
 }
