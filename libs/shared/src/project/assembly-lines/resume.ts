@@ -29,6 +29,13 @@ export function resumeCutoffIndex(
   return -1;
 }
 
+/** The validated fork: the source row (proven present and terminal) and the node
+ *  rows the fork inherits. */
+export interface ResumePrefix {
+  source: AssemblyLineRecord;
+  prefix: AssemblyLineNodeRecord[];
+}
+
 /**
  * Validate a `resumeFrom` start against its source line and return the node rows
  * the fork inherits — the source's visit history through the chosen node's latest
@@ -40,7 +47,7 @@ export function resolveResumePrefix(
   input: AssemblyLineStartInput,
   source: AssemblyLineRecord | null,
   nodes: AssemblyLineNodeRecord[],
-): AssemblyLineNodeRecord[] {
+): ResumePrefix {
   const resumeFrom = input.resumeFrom;
 
   enforceTrue(
@@ -111,7 +118,7 @@ export function resolveResumePrefix(
     `resume-from source line "${source.id}" has an unfinished "${unfinished?.nodeId}" node inside the prefix — its history is not replayable`,
   );
 
-  return prefix;
+  return { source, prefix };
 }
 
 function short(hash: string): string {

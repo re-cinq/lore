@@ -23,7 +23,7 @@ stated reason, then implement. One commit per task; the spec's
 
 - [x] T005 FR4 stamping — `stampDefinitionHash` in both adapters, write-once. Tests appended to `libs/shared/src/project/assembly-lines/assembly-lines.test.ts`.
 - [x] T006 FR1/FR2/FR3 in the double — `InMemoryAssemblyLines.start` with `resumeFrom`, the behavioural spec. Tests appended to the same file.
-- [ ] T007 FR1/FR2/FR3 in Postgres — `PgAssemblyLines.start` resume branch as one data-modifying CTE, plus the facade pass-through. Tests appended to the same file.
+- [x] T007 FR1/FR2/FR3 in Postgres — `PgAssemblyLines.start` resume branch as one data-modifying CTE, plus the facade pass-through. Tests appended to the same file.
 
 ## Phase 4 — Floor integration
 

@@ -1,7 +1,9 @@
 import { enforceTrue } from "../../lib/enforce.js";
+import { resolveResumePrefix } from "./resume.js";
 import type { PgPool } from "../../memory-store.js";
 import type {
   AssemblyLinesPort,
+  AssemblyLineResumeFrom,
   AssemblyLineStartInput,
   AssemblyLineNodeStartInput,
   AssemblyLineRecord,
@@ -24,6 +26,10 @@ export class PgAssemblyLines implements AssemblyLinesPort {
   constructor(private readonly pool: PgPool) {}
 
   async start(input: AssemblyLineStartInput): Promise<string> {
+    if (input.resumeFrom) {
+      return this.startResumed(input, input.resumeFrom);
+    }
+
     const { rows } = await this.pool.query(
       `WITH al AS (
          INSERT INTO pipeline.assembly_lines (definition_name, task_id, repo, branch, args)
@@ -67,6 +73,72 @@ export class PgAssemblyLines implements AssemblyLinesPort {
          AND status IN ('queued', 'running')`,
       [id],
     );
+  }
+
+  /**
+   * Fork-and-rerun (specs/fork-rerun-from-node): read the source line and its
+   * node rows, validate, then write the new line row, the `assembly_line.start`
+   * event and every inherited node row in ONE data-modifying CTE. Nothing is
+   * written until validation passes, and every property validated is immutable
+   * on a terminal line — so the read-then-write split opens no window.
+   */
+  private async startResumed(
+    input: AssemblyLineStartInput,
+    resumeFrom: AssemblyLineResumeFrom,
+  ): Promise<string> {
+    const { source, prefix } = resolveResumePrefix(
+      input,
+      await this.getById(resumeFrom.lineId),
+      await this.listNodes(resumeFrom.lineId),
+    );
+    const cutoffNodeRowId = prefix[prefix.length - 1].id;
+    const { rows } = await this.pool.query(
+      `WITH al AS (
+         INSERT INTO pipeline.assembly_lines
+           (definition_name, task_id, repo, branch, args, definition_hash,
+            resumed_from_line_id, resumed_from_node_id)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)
+         RETURNING id
+       ), ev AS (
+         INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
+         SELECT 'assembly_line.start', 'internal',
+                jsonb_build_object(
+                  'assemblyLineId', al.id,
+                  'definitionName', $1,
+                  'repo', $3,
+                  'branch', $4,
+                  'taskId', $2,
+                  'args', $5::jsonb,
+                  'resumedFrom', jsonb_build_object('lineId', $7, 'nodeId', $8)
+                ),
+                $3, 'assembly_line.start:' || al.id
+         FROM al
+       ), copied AS (
+         INSERT INTO pipeline.assembly_line_nodes
+           (assembly_line_id, node_id, iteration, outcome, agent_cr_name,
+            commit_sha, started_at, finished_at)
+         SELECT al.id,
+                n.node_id, n.iteration, n.outcome, n.agent_cr_name, n.commit_sha, n.started_at, n.finished_at
+           FROM pipeline.assembly_line_nodes n, al
+          WHERE n.assembly_line_id = $7
+            AND n.id <= $9::bigint
+          ORDER BY n.id
+       )
+       SELECT id FROM al`,
+      [
+        input.definitionName,
+        source.taskId,
+        input.repo,
+        source.branch,
+        JSON.stringify(input.args ?? source.args),
+        source.definitionHash,
+        resumeFrom.lineId,
+        resumeFrom.nodeId,
+        cutoffNodeRowId,
+      ],
+    );
+
+    return rows[0].id as string;
   }
 
   async stampDefinitionHash(id: string, hash: string): Promise<void> {

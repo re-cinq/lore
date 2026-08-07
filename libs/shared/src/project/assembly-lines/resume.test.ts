@@ -98,7 +98,7 @@ describe("resumeCutoffIndex", () => {
 
 describe("resolveResumePrefix", () => {
   it("returns the rows through the chosen node's latest completed row, inclusive", () => {
-    const prefix = resolveResumePrefix(input(), source(), NODES);
+    const { prefix } = resolveResumePrefix(input(), source(), NODES);
 
     expect(prefix.map((n) => `${n.nodeId}:${n.iteration}`)).toEqual([
       "implement:1",
@@ -108,7 +108,7 @@ describe("resolveResumePrefix", () => {
   });
 
   it("carries the source rows through untouched, so the copy keeps their provenance", () => {
-    const prefix = resolveResumePrefix(
+    const { prefix } = resolveResumePrefix(
       input({ resumeFrom: { lineId: "src", nodeId: "review" } }),
       source(),
       NODES,
@@ -127,7 +127,9 @@ describe("resolveResumePrefix", () => {
   it("accepts a finished source line as readily as a failed one", () => {
     const finished = source({ status: "finished", outcome: "completed" });
 
-    expect(resolveResumePrefix(input(), finished, NODES)).toHaveLength(3);
+    expect(resolveResumePrefix(input(), finished, NODES).prefix).toHaveLength(
+      3,
+    );
   });
 
   it("rejects a branch passed alongside resumeFrom", () => {

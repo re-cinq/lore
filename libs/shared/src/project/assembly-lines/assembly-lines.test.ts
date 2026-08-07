@@ -1058,3 +1058,227 @@ describe("InMemoryAssemblyLines resumeFrom", () => {
     expect(await port.listNodes(source)).toHaveLength(4);
   });
 });
+
+describe("PgAssemblyLines resumeFrom", () => {
+  const HASH = "hash-implementation";
+  const AT = new Date("2026-08-07T10:00:00Z");
+
+  function sourceRow(over: Record<string, unknown> = {}) {
+    return {
+      id: "src",
+      definition_name: "implementation",
+      task_id: "task-9",
+      repo: "re-cinq/lore",
+      branch: "lore/implementation/x",
+      args: { spec: "specs/x/spec.md" },
+      status: "failed",
+      outcome: "error",
+      reason: null,
+      definition_hash: HASH,
+      resumed_from_line_id: null,
+      resumed_from_node_id: null,
+      created_at: AT,
+      started_at: AT,
+      finished_at: AT,
+      ...over,
+    };
+  }
+
+  function sourceNode(id: number, nodeId: string, iteration: number) {
+    return {
+      id,
+      assembly_line_id: "src",
+      node_id: nodeId,
+      iteration,
+      outcome: "success",
+      agent_cr_name: `src12345678-${nodeId}`,
+      commit_sha: `sha-${id}`,
+      started_at: AT,
+      finished_at: AT,
+    };
+  }
+
+  const NODE_ROWS = [
+    sourceNode(11, "implement", 1),
+    sourceNode(12, "review", 1),
+    sourceNode(13, "implement", 2),
+  ];
+
+  function resumeInput(over: Record<string, unknown> = {}) {
+    return {
+      definitionName: "implementation",
+      repo: "re-cinq/lore",
+      definitionHash: HASH,
+      resumeFrom: { lineId: "src", nodeId: "review" },
+      ...over,
+    };
+  }
+
+  it("reads the source line and its nodes before writing anything", async () => {
+    const { pool, calls } = fakePool([
+      [sourceRow()],
+      NODE_ROWS,
+      [{ id: "al-9" }],
+    ]);
+
+    const id = await new PgAssemblyLines(pool).start(resumeInput());
+
+    expect(id).toBe("al-9");
+    expect(calls[0]?.text).toContain("FROM pipeline.assembly_lines");
+    expect(calls[1]?.text).toContain("FROM pipeline.assembly_line_nodes");
+    expect(calls).toHaveLength(3);
+  });
+
+  it("writes the line row, the start event and the copied node rows in one statement", async () => {
+    const { pool, calls } = fakePool([
+      [sourceRow()],
+      NODE_ROWS,
+      [{ id: "al-9" }],
+    ]);
+
+    await new PgAssemblyLines(pool).start(resumeInput());
+    const sql = calls[2]?.text ?? "";
+
+    expect(sql).toContain("INSERT INTO pipeline.assembly_lines");
+    expect(sql).toContain("INSERT INTO pipeline.events");
+    expect(sql).toContain("INSERT INTO pipeline.assembly_line_nodes");
+    expect(sql).toContain("'assembly_line.start:' || al.id");
+  });
+
+  it("bounds the copy by the cutoff row id, scoped to the source line and ordered by id", async () => {
+    const { pool, calls } = fakePool([
+      [sourceRow()],
+      NODE_ROWS,
+      [{ id: "al-9" }],
+    ]);
+
+    await new PgAssemblyLines(pool).start(resumeInput());
+    const sql = calls[2]?.text ?? "";
+
+    expect(sql).toContain("WHERE n.assembly_line_id = $7");
+    expect(sql).toContain("AND n.id <= $9::bigint");
+    expect(sql).toContain("ORDER BY n.id");
+    // cutoff is the LATEST completed "review" row — id 12, not the line's last row
+    expect(calls[2]?.params?.[8]).toBe("12");
+  });
+
+  it("binds the inherited branch, taskId, args, hash and parentage", async () => {
+    const { pool, calls } = fakePool([
+      [sourceRow()],
+      NODE_ROWS,
+      [{ id: "al-9" }],
+    ]);
+
+    await new PgAssemblyLines(pool).start(resumeInput());
+
+    expect(calls[2]?.params).toEqual([
+      "implementation",
+      "task-9",
+      "re-cinq/lore",
+      "lore/implementation/x",
+      JSON.stringify({ spec: "specs/x/spec.md" }),
+      HASH,
+      "src",
+      "review",
+      "12",
+    ]);
+  });
+
+  it("binds overridden args instead of the source's", async () => {
+    const { pool, calls } = fakePool([
+      [sourceRow()],
+      NODE_ROWS,
+      [{ id: "al-9" }],
+    ]);
+
+    await new PgAssemblyLines(pool).start(
+      resumeInput({ args: { spec: "specs/y/spec.md" } }),
+    );
+
+    expect(calls[2]?.params?.[4]).toBe(
+      JSON.stringify({ spec: "specs/y/spec.md" }),
+    );
+  });
+
+  it("copies the source's outcome, agent CR name, commit sha and timestamps", async () => {
+    const { pool, calls } = fakePool([
+      [sourceRow()],
+      NODE_ROWS,
+      [{ id: "al-9" }],
+    ]);
+
+    await new PgAssemblyLines(pool).start(resumeInput());
+    const sql = calls[2]?.text ?? "";
+
+    expect(sql).toContain(
+      "n.node_id, n.iteration, n.outcome, n.agent_cr_name, n.commit_sha, n.started_at, n.finished_at",
+    );
+  });
+
+  it("issues no write when the source line is still running", async () => {
+    const { pool, calls } = fakePool([[sourceRow({ status: "running" })], []]);
+
+    await expect(
+      new PgAssemblyLines(pool).start(resumeInput()),
+    ).rejects.toThrow(/is still running/);
+    expect(calls.every((c) => c.text.includes("SELECT"))).toBe(true);
+  });
+
+  it("issues no write when the definition hash drifted", async () => {
+    const { pool, calls } = fakePool([
+      [sourceRow({ definition_hash: "other" })],
+      NODE_ROWS,
+    ]);
+
+    await expect(
+      new PgAssemblyLines(pool).start(resumeInput()),
+    ).rejects.toThrow(/has changed since that run/);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("keeps the plain start on its own two-CTE statement with five parameters", async () => {
+    const { pool, calls } = fakePool([[{ id: "al-1" }]]);
+
+    await new PgAssemblyLines(pool).start({
+      definitionName: "general",
+      repo: "re-cinq/lore",
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.params).toHaveLength(5);
+    expect(calls[0]?.text).not.toContain(
+      "INSERT INTO pipeline.assembly_line_nodes",
+    );
+  });
+});
+
+describe("AssemblyLines facade resumeFrom", () => {
+  it("passes resumeFrom and definitionHash through, filling the repo from its scope", async () => {
+    const port = new InMemoryAssemblyLines();
+    const facade = new AssemblyLines("re-cinq/lore", port);
+    const source = await facade.start("general", { branch: "feat/x" });
+
+    await port.stampDefinitionHash(source, "hash-general");
+    await port.markRunning(source);
+    const { nodeRowId } = await port.ensureNodeStart({
+      assemblyLineId: source,
+      nodeId: "work",
+      iteration: 1,
+    });
+
+    await port.finishNodeOnce(nodeRowId, "success");
+    await port.finish(source, "completed");
+
+    const fork = await facade.start("general", {
+      definitionHash: "hash-general",
+      resumeFrom: { lineId: source, nodeId: "work" },
+    });
+
+    expect(await facade.getById(fork)).toMatchObject({
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      resumedFromLineId: source,
+    });
+    expect(await port.listNodes(fork)).toHaveLength(1);
+  });
+});

@@ -69,7 +69,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
           input,
           source,
           await this.listNodes(resumeFrom.lineId),
-        )
+        ).prefix
       : [];
     const id = randomUUID();
     const row = this.newRow(id, inheritFromSource(input, source));
