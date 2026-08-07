@@ -2,7 +2,7 @@
 
 Spec: [spec.md](spec.md). Every task is test-first — write the failing test, watch it fail for the right reason, then implement. One commit per task.
 
-**Each task links its own tests.** `lore/require-spec-link` is an eslint **error**, so a test that lands without an inline `([validated by …])` in `spec.md` turns the repo red immediately — linking cannot be deferred to a closure phase. New tests are appended at EOF of their test file: four specs hold sixteen `#L` anchors into `loader.test.ts` and `transition.test.ts`, and a mid-file insertion would silently break every one.
+**Each task links its own tests.** `lore/require-spec-link` is an eslint **error**, so a test that lands without an inline `([validated by …])` in `spec.md` turns the repo red immediately — linking cannot be deferred to a closure phase. New tests are appended at EOF of their test file: four other specs hold 46 unique `#L` anchors (52 link instances) into `loader.test.ts` and `transition.test.ts`, and a mid-file insertion would silently break every one.
 
 ## Phase 1 — Loader schema (FR1)
 

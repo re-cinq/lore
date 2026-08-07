@@ -1089,8 +1089,8 @@ edges:
   });
 });
 
-// Imported here rather than in the header block: the four specs anchoring
-// sixteen `#L` links into this file would all shift by a line.
+// Imported here rather than in the header block: the 46 unique `#L` anchors
+// four other specs hold into this file and transition.test.ts would all shift.
 import { canBypass, loadAssemblyLineFile } from "./loader.js";
 
 describe("goal_gate bypass warning propagation", () => {

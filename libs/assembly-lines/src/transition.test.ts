@@ -530,3 +530,20 @@ describe("nextTransition — goal gates versus the loop budget", () => {
     });
   });
 });
+
+describe("nextTransition — partially satisfied goal gates", () => {
+  it("names only the unsatisfied gate when a sibling gate is met", () => {
+    const visits = [
+      visit("work", 1, "success"),
+      visit("review", 1, "success"),
+      visit("audit", 1, "failed"),
+    ];
+    const t = nextTransition(twoGates, visits);
+
+    expect(t).toMatchObject({ kind: "fail", outcome: "goal_gate_unmet" });
+    expect((t as { reason: string }).reason).toContain(
+      'unsatisfied goal gate(s) "audit"',
+    );
+    expect((t as { reason: string }).reason).not.toContain('"review"');
+  });
+});
