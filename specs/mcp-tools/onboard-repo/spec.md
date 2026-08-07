@@ -22,7 +22,7 @@ pipeline task.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/repo-tools.ts#L34)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/repo-tools.ts#L84)).
 
 - **name**: `lore_onboard_repo`
 - **description** (verbatim):

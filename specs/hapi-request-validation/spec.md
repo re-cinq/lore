@@ -19,7 +19,7 @@ its request body **by hand, inside the handler**:
 - Routes set [`payload: { parse: false }`](../../apps/lore-api/src/api/routes/memory/memory.ts#L14)
   so hapi delivers the body as a raw Buffer, then call
   [`rawBody`](../../apps/lore-api/src/server/raw-body.ts#L10) + `JSON.parse`
-  (or [`parseJsonBodyCapped`](../../apps/lore-api/src/server/raw-body.ts#L24))
+  (or `parseJsonBodyCapped`)
   themselves. This exists **only** to reproduce the legacy dispatcher's quirk of
   returning `500` on malformed JSON (hapi's own parser returns `400`). It was a
   migration-compatibility artifact, never a desired contract.
