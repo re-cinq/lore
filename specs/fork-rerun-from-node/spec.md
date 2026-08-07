@@ -4,7 +4,7 @@
 |---------|-----------------------------------------|
 | Feature | Fork-and-Rerun of Assembly Lines from a Completed Node |
 | Branch  | `feat/fork-rerun-from-node`             |
-| Status  | Draft                                   |
+| Status  | In Progress                                 |
 | Created | 2026-08-07                              |
 | Owner   | Platform Engineering                    |
 
@@ -58,13 +58,12 @@ a debugging affordance rather than a fault-tolerance one.
 
 - A `resumeFrom` whose source line is still `queued` or `running` is refused, naming the status.
 - A `resumeFrom` whose source line does not exist is refused.
-
 - Decision: the terminal-source rule is the overlap guard's lesson, not squeamishness — the fork reuses the source's branch, so a live source would put two lines on one working branch and let them race for the same commits.
 
 ## FR4 — Definition-drift guard
 
 - `pipeline.assembly_lines` carries a `definition_hash` column holding a content hash of the definition the execution ran.
-- The hash is a stable content hash of the definition's semantics: two loads of the same definition hash equal regardless of key ordering, and any change to a node or an edge changes it.
+- The hash is a stable content hash of the definition's semantics: two loads of the same definition hash equal regardless of key ordering, and any change to a node or an edge changes it. ([validated by `definition-hash.test.ts:22`](libs/assembly-lines/src/definition-hash.test.ts#L22), [`definition-hash.test.ts:26`](libs/assembly-lines/src/definition-hash.test.ts#L26), [`definition-hash.test.ts:30`](libs/assembly-lines/src/definition-hash.test.ts#L30), [`definition-hash.test.ts:47`](libs/assembly-lines/src/definition-hash.test.ts#L47), [`definition-hash.test.ts:64`](libs/assembly-lines/src/definition-hash.test.ts#L64), [`definition-hash.test.ts:75`](libs/assembly-lines/src/definition-hash.test.ts#L75), [`definition-hash.test.ts:86`](libs/assembly-lines/src/definition-hash.test.ts#L86), [`definition-hash.test.ts:95`](libs/assembly-lines/src/definition-hash.test.ts#L95))
 - The Floor's `assembly_line.start` handler stamps the hash once, at the moment the definition resolves, and never overwrites an already-stamped value.
 - A `resumeFrom` start requires the caller to supply the current definition's hash, and rejects a mismatch against the source line's stored hash rather than replaying node rows against a graph that has since changed.
 - A source line whose stored hash is NULL — every row predating the column — is rejected with a message naming the backfill, an honest limitation preferable to forking across silent definition drift.
