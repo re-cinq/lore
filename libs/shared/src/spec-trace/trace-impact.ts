@@ -36,7 +36,24 @@ export interface ChangedRange {
   path: string;
   ranges: [number, number][];
   deleted?: [number, number][];
+  /**
+   * Old-side intervals of EVERY hunk, in the diff base's line numbering. This is
+   * the coordinate system the graph's ranges live in; `ranges` is head-side and
+   * exists only to anchor annotations. Absent from protocol-1 clients.
+   */
+  baseRanges?: [number, number][];
+  /**
+   * True when this file is byte-identical at the graph's baseline commit and at
+   * the diff base — which makes `baseRanges` exactly graph coordinates. False
+   * means the file genuinely moved since the graph last saw it, and no
+   * arithmetic can honestly line the two up.
+   */
+  aligned?: boolean;
 }
+
+/** Why a file or a whole run contributed no line-precise finding. */
+export type SkipReason =
+  "unaligned" | "no-baseline" | "legacy-client" | "no-graph-data";
 
 /** A statement whose only coverage the diff deletes. */
 export interface OrphanStatement {
@@ -59,10 +76,22 @@ export interface ChangedDoc {
 export interface ImpactOptions {
   /** Head content of changed spec/ADR files, for the statement-identity diff. */
   docs?: ChangedDoc[];
+  /**
+   * Wire-format the client speaks. 1 (or absent) means it computed its diff
+   * against the base-branch tip rather than the merge base, so its file list
+   * includes everything merged to the base since the branch point — findings
+   * from it are not trustworthy and are suppressed rather than published.
+   */
+  protocol?: number;
 }
 
 export interface ImpactReport {
   status: "ok" | "unavailable";
+  /** Client wire-format, echoed so the comment can explain a suppressed run. */
+  protocol?: number;
+  /** Whether line-precise lookups could be trusted for every examined file. */
+  coordinates?: "aligned" | "unverified";
+  skipped?: { path: string; reason: SkipReason }[];
   statements: ImpactStatement[];
   orphaned: OrphanStatement[];
   testSelectors: string[];
@@ -163,14 +192,21 @@ function docNotes(seen: NonNullable<ImpactReport["examined"]>): string[] {
  * that the repo has never been stamped.
  */
 function describeBaseline(report: ImpactReport): string {
+  const unaligned = (report.skipped ?? []).filter(
+    (s) => s.reason === "unaligned",
+  ).length;
+  const skipNote = unaligned
+    ? ` · ${unaligned} file(s) skipped: changed since the graph last saw them, so their line numbers no longer line up`
+    : "";
+
   if (!report.graphCommit) {
-    return "graph baseline unknown (no ingested test run has stamped this repo)";
+    return "graph baseline unknown (no ingested test run has stamped this repo) — line-precise coupling skipped";
   }
   const at = report.graphCommitAt
     ? ` (projected ${report.graphCommitAt.slice(0, 10)})`
     : "";
 
-  return `graph @ \`${report.graphCommit.slice(0, 7)}\`${at}`;
+  return `graph @ \`${report.graphCommit.slice(0, 7)}\`${at}${skipNote}`;
 }
 
 const testCellFor = (s: ImpactStatement) =>
@@ -222,6 +258,10 @@ export function buildImpactComment(report: ImpactReport): string {
     return `${COMMENT_HEADER}\n\nGraph not available for this repo yet — skipping impact analysis. No action needed.\n\n${IMPACT_COMMENT_MARKER}\n`;
   }
 
+  if (report.protocol !== undefined && report.protocol < 2) {
+    return `${COMMENT_HEADER}\n\nThis repo's \`.github/workflows/lore-trace-impact.yml\` is version 1, which computed its diff against the base-branch tip instead of the merge base — so it reported every commit merged to the base since the branch point as a change of this PR. Findings from it were unreliable and are suppressed. Update the workflow to re-enable this check.\n\n${IMPACT_COMMENT_MARKER}\n`;
+  }
+
   // A statement with no resolvable spec is a broken graph edge, not a finding —
   // rendering it produced the blank table rows in #1077.
   const findings = dedupeRows(
@@ -236,8 +276,20 @@ export function buildImpactComment(report: ImpactReport): string {
     (s) => s.evidence === "test-link" || s.evidence === "file-link",
   );
 
+  // The empty result carries the same footer as a populated one. Without it a
+  // run that skipped every file for want of a baseline is indistinguishable
+  // from a run that looked properly and found nothing.
   if (!findings.length && !report.orphaned.length) {
-    return `${COMMENT_HEADER}\n\n${describeExamined(report)}\n\n${IMPACT_COMMENT_MARKER}\n`;
+    return [
+      COMMENT_HEADER,
+      "",
+      describeExamined(report),
+      "",
+      `<sub>Deterministic · ${describeBaseline(report)} · no tests run by this check</sub>`,
+      "",
+      IMPACT_COMMENT_MARKER,
+      "",
+    ].join("\n");
   }
 
   const specCount = new Set(findings.map((s) => s.specPath)).size;
@@ -559,24 +611,62 @@ export async function computeImpact(
       testSelectors: [],
     };
   }
+
+  // A protocol-1 client diffed against the base-branch tip, so its file list
+  // carries everything merged to the base since the branch point. Publishing
+  // findings from that input is how this check lost its readers; suppress and
+  // say why instead.
+  if ((options.protocol ?? 1) < 2) {
+    return {
+      status: "ok",
+      protocol: 1,
+      statements: [],
+      orphaned: [],
+      testSelectors: [],
+      skipped: [{ path: "*", reason: "legacy-client" }],
+    };
+  }
   const raw: Array<ImpactStatement & { xid: string }> = [];
   const orphaned: OrphanStatement[] = [];
+  const skipped: { path: string; reason: SkipReason }[] = [];
+  const baseline = await readGraphBaseline(dgraph, repo);
   let withGraphData = 0;
 
-  for (const { path, ranges, deleted } of changed) {
+  for (const file of changed) {
+    // The graph's ranges belong to the baseline commit; `baseRanges` is the
+    // diff's old side. They are the same coordinate system only when the file is
+    // byte-identical at both commits, which is what `aligned` records. Without
+    // that, line arithmetic is comparing two different numberings.
+    const aligned = file.aligned === true && Boolean(baseline.commit);
+    const lookupRanges = file.baseRanges ?? file.ranges;
     const found = [
-      ...(await implementedByImpact(dgraph, repo, path, ranges)),
-      ...(await validatedByImpact(dgraph, repo, path, ranges)),
-      ...(await testFileImpact(dgraph, repo, path, ranges)),
+      ...(await implementedByImpact(dgraph, repo, file.path, lookupRanges)),
+      ...(await testFileImpact(dgraph, repo, file.path, lookupRanges, {
+        fileLevel: !aligned,
+      })),
+      // Coverage facets and orphan footprints are line-precise with no
+      // file-level fallback, so an unaligned file cannot use them at all.
+      ...(aligned
+        ? await validatedByImpact(dgraph, repo, file.path, lookupRanges)
+        : []),
     ];
+
+    if (!aligned) {
+      skipped.push({
+        path: file.path,
+        reason: baseline.commit ? "unaligned" : "no-baseline",
+      });
+    }
 
     if (found.length) {
       withGraphData += 1;
     }
     raw.push(...found);
 
-    if (deleted?.length) {
-      orphaned.push(...(await orphanImpact(dgraph, repo, path, deleted)));
+    if (aligned && file.deleted?.length) {
+      orphaned.push(
+        ...(await orphanImpact(dgraph, repo, file.path, file.deleted)),
+      );
     }
   }
 
@@ -598,10 +688,11 @@ export async function computeImpact(
     ...new Set(statements.flatMap((s) => s.tests.map((t) => t.file))),
   ];
 
-  const baseline = await readGraphBaseline(dgraph, repo);
-
   return {
     status: "ok",
+    protocol: options.protocol,
+    coordinates: skipped.length ? "unverified" : "aligned",
+    ...(skipped.length ? { skipped } : {}),
     statements,
     orphaned,
     testSelectors,

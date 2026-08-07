@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { findRepoRoot } from "../lib/repo-root.js";
+import { stampGraphBaseline } from "./graph-baseline.js";
 import { randomUUID, createHash } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import {
@@ -254,6 +255,7 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
     const repo = `test-impact/${randomUUID()}`;
 
     createdRepo = repo;
+    await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
     const specPath = "specs/widget/spec.md";
 
     const txn = dgraphClient.newTxn();
@@ -293,9 +295,12 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
       await txn.discard().catch(() => {});
     }
 
-    const report = await computeImpact(dgraphClient, repo, [
-      { path: "src/widget.ts", ranges: [[5, 8]] },
-    ]);
+    const report = await computeImpact(
+      dgraphClient,
+      repo,
+      [{ path: "src/widget.ts", ranges: [[5, 8]], aligned: true }],
+      { protocol: 2 },
+    );
 
     expect(report.status).toBe("ok");
     expect(report.statements).toMatchObject([
@@ -307,9 +312,12 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
       },
     ]);
 
-    const noOverlap = await computeImpact(dgraphClient, repo, [
-      { path: "src/widget.ts", ranges: [[50, 60]] },
-    ]);
+    const noOverlap = await computeImpact(
+      dgraphClient,
+      repo,
+      [{ path: "src/widget.ts", ranges: [[50, 60]], aligned: true }],
+      { protocol: 2 },
+    );
 
     expect(noOverlap.statements).toEqual([]);
   });
@@ -318,6 +326,7 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
     const repo = `test-impact/${randomUUID()}`;
 
     createdRepo = repo;
+    await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
     const specPath = "specs/login/spec.md";
 
     const txn = dgraphClient.newTxn();
@@ -373,9 +382,12 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
       await txn.discard().catch(() => {});
     }
 
-    const report = await computeImpact(dgraphClient, repo, [
-      { path: "src/auth.ts", ranges: [[30, 35]] },
-    ]);
+    const report = await computeImpact(
+      dgraphClient,
+      repo,
+      [{ path: "src/auth.ts", ranges: [[30, 35]], aligned: true }],
+      { protocol: 2 },
+    );
 
     expect(report.statements).toMatchObject([
       {
@@ -393,6 +405,7 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
     const repo = `test-impact/${randomUUID()}`;
 
     createdRepo = repo;
+    await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
     const specPath = "specs/legacy/spec.md";
 
     const txn = dgraphClient.newTxn();
@@ -448,9 +461,19 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
       await txn.discard().catch(() => {});
     }
 
-    const report = await computeImpact(dgraphClient, repo, [
-      { path: "src/legacy.ts", ranges: [], deleted: [[10, 20]] },
-    ]);
+    const report = await computeImpact(
+      dgraphClient,
+      repo,
+      [
+        {
+          path: "src/legacy.ts",
+          ranges: [],
+          deleted: [[10, 20]],
+          aligned: true,
+        },
+      ],
+      { protocol: 2 },
+    );
 
     expect(report.statements).toEqual([]);
     expect(report.orphaned).toMatchObject([
@@ -517,6 +540,7 @@ describe.skipIf(!reachable)("spec-only PR (live Dgraph)", () => {
     const repo = `spec-only/${randomUUID()}`;
 
     createdRepo = repo;
+    await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
     const specPath = "specs/widget/spec.md";
     const oldText = "The widget MUST render within 100ms.";
     const txn = dgraphClient.newTxn();
@@ -563,8 +587,9 @@ describe.skipIf(!reachable)("spec-only PR (live Dgraph)", () => {
     const report = await computeImpact(
       dgraphClient,
       repo,
-      [{ path: specPath, ranges: [[5, 5]] }],
+      [{ path: specPath, ranges: [[5, 5]], aligned: true }],
       {
+        protocol: 2,
         docs: [
           {
             path: specPath,
@@ -683,5 +708,55 @@ describe("buildImpactComment presentation", () => {
 
     expect(comment).toContain("graph @ `8f2a1c3`");
     expect(comment).toContain("projected 2026-08-07");
+  });
+});
+
+describe("protocol gating", () => {
+  it("suppresses findings from a client that did not declare protocol 2", async () => {
+    const report = await computeImpact({} as never, "any/repo", [
+      { path: "src/a.ts", ranges: [[1, 5]] },
+    ]);
+
+    expect(report).toMatchObject({
+      status: "ok",
+      protocol: 1,
+      statements: [],
+      skipped: [{ path: "*", reason: "legacy-client" }],
+    });
+  });
+
+  it("tells a legacy client why its findings were withheld", () => {
+    const comment = buildImpactComment({
+      status: "ok",
+      protocol: 1,
+      statements: [],
+      orphaned: [],
+      testSelectors: [],
+    });
+
+    expect(comment).toContain("is version 1");
+    expect(comment).toContain("merge base");
+    expect(comment).toContain("suppressed");
+  });
+
+  it("says line-precise coupling was skipped when the repo has no baseline", () => {
+    const comment = buildImpactComment({
+      status: "ok",
+      protocol: 2,
+      statements: [],
+      orphaned: [],
+      testSelectors: [],
+      coordinates: "unverified",
+      skipped: [{ path: "src/a.ts", reason: "no-baseline" }],
+      examined: {
+        files: 1,
+        withGraphData: 0,
+        docs: 0,
+        newStatements: 0,
+        changedWithoutTests: 0,
+      },
+    });
+
+    expect(comment).toContain("line-precise coupling skipped");
   });
 });

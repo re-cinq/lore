@@ -40,6 +40,20 @@ describe("lore-trace-impact.yml parity", () => {
     );
   });
 
+  it("declares protocol 2, so its findings are not suppressed as legacy", () => {
+    expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain("d.protocol=2");
+  });
+
+  it("reads the graph baseline and marks each file aligned or not", () => {
+    expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain("/impact/base");
+    expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain("f.aligned =");
+    expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain("ls-tree");
+  });
+
+  it("carries no literal NUL byte, which would make the file read as binary", () => {
+    expect(TRACE_IMPACT_WORKFLOW_CONTENT).not.toContain("\u0000");
+  });
+
   it("distinguishes an auth failure from an unavailable graph", () => {
     expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain("%{http_code}");
     expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain("lacks the write scope");

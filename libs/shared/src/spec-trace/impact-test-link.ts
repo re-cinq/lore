@@ -51,6 +51,7 @@ export async function testFileImpact(
   repo: string,
   file: string,
   ranges: [number, number][],
+  options: { fileLevel?: boolean } = {},
 ): Promise<Array<ImpactStatement & { xid: string }>> {
   const chunks = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(TEST_LINK_QUERY, {
@@ -65,7 +66,10 @@ export async function testFileImpact(
   for (const chunk of chunks) {
     const start = chunk["TestChunk.start_line"] ?? 0;
     const end = chunk["TestChunk.end_line"] ?? 0;
-    const spanKnown = start > 0 && end >= start;
+    // `fileLevel` is the honest degrade for a file whose graph coordinates no
+    // longer line up with the diff: the link still couples the statement to this
+    // file, so report it rather than silently comparing incomparable numbers.
+    const spanKnown = !options.fileLevel && start > 0 && end >= start;
 
     if (
       spanKnown &&

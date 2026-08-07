@@ -60,6 +60,7 @@ import {
   agentsDeleteRoute,
 } from "../api/routes/agent-definitions/agents.js";
 import { impactRoute } from "../api/routes/impact/impact.js";
+import { impactBaseRoute } from "../api/routes/impact/impact-base.js";
 import { traceRoute } from "../api/routes/trace/trace.js";
 import { chunksRoute } from "../api/routes/repos/chunks.js";
 import { stationDataRoutes } from "../api/routes/repos/station-data.js";
@@ -114,6 +115,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     agentsPutRoute(getPool),
     agentsDeleteRoute(getPool),
     impactRoute(),
+    impactBaseRoute(),
     traceRoute(),
     chunksRoute(),
     ...stationDataRoutes(),
