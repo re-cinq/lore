@@ -140,3 +140,19 @@ make the names tell the truth.
    is pure helpers (commit-trailers, settings types). Mixing server-runtime glue
    in risks pulling runtime concerns into a currently-pure lib. A dedicated
    `server-core` keeps the boundary legible.
+
+## Amendment (2026-08): `apps/mcp-server` gains a third deployable shape — the HTTP gateway
+
+Decision 1 cast `apps/mcp-server` as **local-only** (the stdio MCP adapter on a developer laptop). It
+now also runs as a **shared cluster deployable**: the `lore-mcp` gateway that serves agent pods their
+live Lore tools over MCP-over-HTTP. Same code, same `buildMcpServer`, a new transport — `LORE_MCP_HTTP=1`
+mounts the SDK's `StreamableHTTPServerTransport` instead of stdio, and `LORE_MCP_SERVER_MODE=agent`
+omits the laptop-only + task-creating tools. The two runtime shapes of `apps/mcp-server` are therefore:
+
+1. **Local stdio adapter** — one per developer, proxies to `lore-api` over HTTPS (unchanged).
+2. **`lore-mcp` HTTP gateway** — one cluster Deployment (chart `charts/lore-mcp-helm`, image
+   `ghcr.io/re-cinq/lore-mcp`) in the `lore-api` namespace, bearer-authed, public `:443` for agent pods.
+
+This does not violate the split's "names stop lying" goal: unlike `lore-api` (plain REST), the gateway
+genuinely **speaks MCP** — so the `lore-mcp` name is honest. `lore-api` stays the REST backend both
+shapes proxy to.

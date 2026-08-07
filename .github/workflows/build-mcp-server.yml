@@ -1,0 +1,111 @@
+name: Build and push Lore MCP gateway
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/mcp-server/**"
+      # The compiled shared + server-core packages are bundled into the image —
+      # a lib-only change must rebuild + redeploy or the gateway runs stale code.
+      - "libs/shared/**"
+      - "libs/server-core/**"
+      - "infra/terraform/modules/gke-mcp/lore-platform/charts/lore-mcp-helm/**"
+      - "infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml"
+      - "infra/terraform/modules/gke-mcp/lore-platform/values.yaml"
+      - ".github/workflows/build-mcp-server.yml"
+      - "scripts/task-types.yaml"
+      - "scripts/ci/deploy-lore-platform.sh"
+  pull_request:
+    paths:
+      - "apps/mcp-server/**"
+      - "libs/shared/**"
+      - "libs/server-core/**"
+      - "infra/terraform/modules/gke-mcp/lore-platform/charts/lore-mcp-helm/**"
+      - "infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml"
+      - "infra/terraform/modules/gke-mcp/lore-platform/values.yaml"
+      - ".github/workflows/build-mcp-server.yml"
+      - "scripts/task-types.yaml"
+      - "scripts/ci/deploy-lore-platform.sh"
+  workflow_dispatch:
+
+concurrency:
+  group: build-mcp-server-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: re-cinq/lore-mcp
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.sha.outputs.short_sha }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Short SHA
+        id: sha
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/mcp-server/Dockerfile
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Auth to GCP
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v3
+        with:
+          cluster_name: ${{ vars.GKE_CLUSTER_NAME }}
+          location: europe-west1
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Deploy lore-mcp into the umbrella release
+        # Args: <subchart> <tag> <deployment> <namespace> <image_repo>. The gateway
+        # Deployment is named lore-mcp but lives in the lore-api namespace (it reuses
+        # that namespace's lore-ingest-token + ghcr-pull-secret), so NS is lore-api.
+        run: bash scripts/ci/deploy-lore-platform.sh lore-mcp "${{ needs.build.outputs.image_tag }}" lore-mcp lore-api "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"

@@ -33,7 +33,16 @@ describe("buildAgentDefinition", () => {
         max_turns: 40,
         resources: {
           secrets: [{ name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" }],
+          mcp_servers: [
+            {
+              name: "lore",
+              transport: "http",
+              url: "__LORE_MCP_URL__",
+              headers_secret: "lore-mcp-auth",
+            },
+          ],
         },
+        disallowed_tools: ["mcp__lore__lore_create_pipeline_task"],
         output: {
           sinks: [
             { type: "stdout" },
@@ -53,6 +62,14 @@ describe("buildAgentDefinition", () => {
       buildAgentDefinition("implementation", impl).spec?.resources,
     ).toEqual({
       secrets: [{ name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" }],
+      mcp_servers: [
+        {
+          name: "lore",
+          transport: "http",
+          url: "__LORE_MCP_URL__",
+          headers_secret: "lore-mcp-auth",
+        },
+      ],
     });
   });
 

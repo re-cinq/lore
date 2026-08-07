@@ -1,0 +1,5 @@
+apiVersion: v2
+name: lore-mcp
+description: Shared MCP-over-HTTP gateway serving scoped Lore tools to agent pods
+version: 0.1.0
+appVersion: "1.0.0"

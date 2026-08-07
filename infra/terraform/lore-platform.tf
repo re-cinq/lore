@@ -127,8 +127,12 @@ resource "helm_release" "lore_platform" {
 
     # ai-agents: 1 controller replica (leader-election still elects the sole pod);
     # other config (seedCatalog, image digests, cross-ns refs) stays subchart default.
+    # loreMcpUrl templates into the seeded agent recipes' mcp_servers URL (the live
+    # Lore MCP the pods reach); the gateway serves MCP at /mcp. Empty leaves the
+    # sentinel unreplaced-but-harmless (no mcp_servers URL to connect to).
     "ai-agents" = {
       controller = { replicas = 1 }
+      loreMcpUrl = var.lore_mcp_url != "" ? "${var.lore_mcp_url}/mcp" : ""
     }
   })]
 

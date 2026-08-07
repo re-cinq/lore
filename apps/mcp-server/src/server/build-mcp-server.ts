@@ -23,24 +23,47 @@ These hold for every lore_ tool, so individual descriptions omit them:
 
 Start a task with lore_assemble_context (one ordered bundle), then lore_search_memory for prior learnings. For full return shapes, path-specific argument behavior, and a "choosing between similar tools" matrix, see docs/mcp-tools-reference.md.`;
 
+export type ServerMode = "full" | "agent";
+
+/**
+ * `agent` mode is for the shared HTTP gateway that serves headless agent pods:
+ * it omits tools that only make sense on a developer's machine or that let an
+ * agent spawn more work. Everything read/context/memory/search stays.
+ */
+function resolveServerMode(): ServerMode {
+  return process.env.LORE_MCP_SERVER_MODE === "agent" ? "agent" : "full";
+}
+
 /**
  * Build the McpServer and register every feature's tools. The DB pool is
  * read lazily through deps.getPool because main() creates it after this.
+ *
+ * `serverMode` defaults to LORE_MCP_SERVER_MODE. In `agent` mode the pipeline
+ * tools (lore_create_pipeline_task — the recursion vector), the local-runner
+ * tools (laptop-only worktree spawning) and the local spec-trace runners are
+ * NOT registered.
  */
-export function buildMcpServer(deps: ToolDeps): McpServer {
+export function buildMcpServer(
+  deps: ToolDeps,
+  opts: { serverMode?: ServerMode } = {},
+): McpServer {
   const server = new McpServer(
     { name: "@re-cinq/lore-mcp", version: "0.1.0" },
     { instructions: SERVER_INSTRUCTIONS },
   );
+  const serverMode = opts.serverMode ?? resolveServerMode();
 
   registerContextTools(server, deps);
   registerMemoryTools(server, deps);
   registerSpecTraceTools(server, deps);
-  registerPipelineTools(server, deps);
   registerUsageTools(server, deps);
   registerRepoTools(server, deps);
-  registerLocalRunnerTools(server, deps);
-  registerSpecTraceLocalTools(server, deps);
+
+  if (serverMode !== "agent") {
+    registerPipelineTools(server, deps);
+    registerLocalRunnerTools(server, deps);
+    registerSpecTraceLocalTools(server, deps);
+  }
 
   return server;
 }
