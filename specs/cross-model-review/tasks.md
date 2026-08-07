@@ -9,7 +9,7 @@ Spec: [spec.md](spec.md)
 
 ## Phase 2 — Interim cross-tier default
 
-- [ ] T003 Guard the `implementation` assembly line's cross-tier pin: failing test first in new `libs/assembly-lines/src/implementation-review-tier.test.ts` (loads `implementation.yaml` via `loadAssemblyLineDir`, asserts `review`'s model differs from `implement`'s model, and asserts both currently classify to the `anthropic` family via `modelFamily()`), then annotate `libs/assembly-lines/src/assembly-lines/implementation.yaml` with a comment recording the policy this test guards
+- [x] T003 Guard the `implementation` assembly line's cross-tier pin: test in new `libs/assembly-lines/src/implementation-review-tier.test.ts` (loads `implementation.yaml` via `loadAssemblyLineDir`, asserts `review`'s model differs from `implement`'s model, and asserts both currently classify to the `anthropic` family via `modelFamily()`); annotated `libs/assembly-lines/src/assembly-lines/implementation.yaml` with a comment recording the policy this test guards. Note: the pin already existed (sonnet vs haiku, unrelated cost tuning) so this test is a characterization/regression guard, not a red-green cycle — it passed on first run
 
 ## Phase 3 — Spec status + ADR retirement
 

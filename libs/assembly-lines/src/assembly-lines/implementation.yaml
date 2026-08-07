@@ -24,6 +24,10 @@ nodes:
   - id: review
     type: agent
     prompt_ref: review
+    # Interim cross-model-review mitigation (specs/cross-model-review): pinned to
+    # a different tier than `implement`'s model, guarded by
+    # implementation-review-tier.test.ts. Both still resolve to the anthropic
+    # family until the openai-code vendor exists (ADR-039 Prerequisites).
     model: claude-haiku-4-5-20251001
     description: Bot review — posts inline comments + verdict.
 

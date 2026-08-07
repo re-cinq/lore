@@ -32,8 +32,8 @@ The full fix — routing review to a genuinely different provider — needs a se
 
 ### FR3 — Interim cross-tier default on the `implementation` assembly line
 
-- The `implementation` assembly line (`libs/assembly-lines/src/assembly-lines/implementation.yaml`) pins its `review` node to a different model than its `implement` node, so the two agent calls in the loop that most needs review diversity are never a single call grading its own output twice.
-- Until the `openai-code` vendor (see Out of Scope) exists, both models necessarily resolve to the same `anthropic` family under `modelFamily()` — this is recorded as a known, accepted gap rather than left silent.
+- The `implementation` assembly line (`libs/assembly-lines/src/assembly-lines/implementation.yaml`) pins its `review` node to a different model than its `implement` node, so the two agent calls in the loop that most needs review diversity are never a single call grading its own output twice. ([validated by `implementation-review-tier.test.ts:10`](../../libs/assembly-lines/src/implementation-review-tier.test.ts#L10))
+- Until the `openai-code` vendor (see Out of Scope) exists, both models necessarily resolve to the same `anthropic` family under `modelFamily()` — this is recorded as a known, accepted gap rather than left silent. ([validated by `implementation-review-tier.test.ts:21`](../../libs/assembly-lines/src/implementation-review-tier.test.ts#L21))
 
 ## Alternatives rejected
 
