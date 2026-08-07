@@ -171,7 +171,11 @@ jobs:
           # protocol 2 declares that this diff is merge-base-relative and carries
           # baseRanges + per-file alignment. Without it the server suppresses the
           # findings, because a protocol-1 diff cannot be trusted.
-          BODY=$(node -e 'const d=require("./impact-diff.json"); d.protocol=2; d.commit=process.env.COMMIT; d.graphCommit=process.env.GRAPH_COMMIT||null; process.stdout.write(JSON.stringify(d))')
+          # Write the body to a file rather than passing it as an argument.
+          # docs[] carries whole spec files, and Linux caps a SINGLE argument at
+          # MAX_ARG_STRLEN (128KB) regardless of the much larger total ARG_MAX —
+          # three changed specs was enough for "curl: Argument list too long".
+          node -e 'const fs=require("fs"); const d=require("./impact-diff.json"); d.protocol=2; d.commit=process.env.COMMIT; d.graphCommit=process.env.GRAPH_COMMIT||null; fs.writeFileSync("impact-body.json", JSON.stringify(d))'
           # Capture the status separately. \`curl -sf || echo unavailable\` used to
           # render a bad token, a 404 and a real outage as the same cheerful
           # "no action needed" - a check that looks identical when broken and
@@ -179,7 +183,7 @@ jobs:
           CODE=$(curl -s -o impact.json -w '%{http_code}' -X POST \\
             -H "Authorization: Bearer \${LORE_INGEST_TOKEN}" \\
             -H "Content-Type: application/json" \\
-            -d "$BODY" \\
+            --data-binary @impact-body.json \\
             "\${LORE_INGEST_URL}/api/repos/\${{ github.repository }}/impact" || echo 000)
           echo "impact endpoint returned $CODE"
           case "$CODE" in

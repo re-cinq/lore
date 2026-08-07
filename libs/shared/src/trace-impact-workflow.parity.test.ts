@@ -54,6 +54,15 @@ describe("lore-trace-impact.yml parity", () => {
     expect(TRACE_IMPACT_WORKFLOW_CONTENT).not.toContain("\u0000");
   });
 
+  it("posts the body from a file, since docs[] outgrows a single shell argument", () => {
+    // Linux caps one argument at MAX_ARG_STRLEN (128KB); three changed specs
+    // was enough for "curl: Argument list too long" on the first live run.
+    expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain(
+      "--data-binary @impact-body.json",
+    );
+    expect(TRACE_IMPACT_WORKFLOW_CONTENT).not.toContain('-d "$BODY"');
+  });
+
   it("distinguishes an auth failure from an unavailable graph", () => {
     expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain("%{http_code}");
     expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain("lacks the write scope");
