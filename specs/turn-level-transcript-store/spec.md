@@ -56,13 +56,14 @@ not to a missing storage engine.
 
 ### FR2 — Fed at the existing tee, behind a pilot flag
 
-- The turn rows are collected in the same single-pass parse that produces the cost rows and the run-viz projection, at the same tee point in the agent-events route — one turn per attributed line, keeping the line's own stream kind (`system` / `assistant` / `user` / `result` / `log`). ([validated by `agent-turns.test.ts:83`](apps/floor/src/jobs/agent/agent-turns.test.ts#L83), [`agent-turns.test.ts:11`](apps/floor/src/jobs/agent/agent-turns.test.ts#L11))
-- The tee is off by default and opts in via the `LORE_AGENT_TURNS` feature flag; when off, no turns are collected or written, and the projection, the SSE view, and the GCS archive are untouched either way — the new write is non-authoritative until the pilot proves it. ([validated by `agent-turns.test.ts:61`](apps/floor/src/jobs/agent/agent-turns.test.ts#L61), [`agent-turns.test.ts:93`](apps/floor/src/jobs/agent/agent-turns.test.ts#L93))
-- A task-less line and an unknown line kind are dropped, mirroring the projection's forward-compat contract. ([validated by `agent-turns.test.ts:54`](apps/floor/src/jobs/agent/agent-turns.test.ts#L54))
+- The turn rows are collected in the same single-pass parse that produces the cost rows and the run-viz projection, at the same tee point in the agent-events route — one turn per attributed line, keeping the line's own stream kind (`system` / `assistant` / `user` / `result` / `log`). ([validated by `agent-turns.test.ts:85`](apps/floor/src/jobs/agent/agent-turns.test.ts#L85), [`agent-turns.test.ts:12`](apps/floor/src/jobs/agent/agent-turns.test.ts#L12))
+- The tee is off by default and opts in via the `LORE_AGENT_TURNS` feature flag; when off, no turns are collected or written, and the projection, the SSE view, and the GCS archive are untouched either way — the new write is non-authoritative until the pilot proves it. ([validated by `agent-turns.test.ts:62`](apps/floor/src/jobs/agent/agent-turns.test.ts#L62), [`agent-turns.test.ts:95`](apps/floor/src/jobs/agent/agent-turns.test.ts#L95))
+- A task-less line and an unknown line kind are dropped, mirroring the projection's forward-compat contract. ([validated by `agent-turns.test.ts:55`](apps/floor/src/jobs/agent/agent-turns.test.ts#L55))
+- Turn collection is bounded by the same per-batch cap as the run-viz projection, so a pathological multi-megabyte body cannot materialize an unbounded row set on the single Floor replica. ([validated by `agent-turns.test.ts:102`](apps/floor/src/jobs/agent/agent-turns.test.ts#L102))
 
 ### FR3 — Redaction before write
 
-- The existing secret-redaction path (`redactSecrets`, the same patterns the GCS archive runs) is applied to every turn payload before it is stored; a queryable store raises the stakes of any redaction miss from "buried in GCS" to "searchable", so this is a security control with test coverage, not a courtesy. ([validated by `agent-turns.test.ts:32`](apps/floor/src/jobs/agent/agent-turns.test.ts#L32))
+- The existing secret-redaction path (`redactSecrets`, the same patterns the GCS archive runs) is applied to every turn payload before it is stored; a queryable store raises the stakes of any redaction miss from "buried in GCS" to "searchable", so this is a security control with test coverage, not a courtesy. ([validated by `agent-turns.test.ts:33`](apps/floor/src/jobs/agent/agent-turns.test.ts#L33))
 
 ### FR4 — Retention
 

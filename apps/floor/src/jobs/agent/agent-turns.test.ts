@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { turnFromEnvelope, turnStoreEnabled } from "./agent-turns.js";
 import { parseAgentSink } from "./agent-events.js";
+import { MAX_RUN_EVENTS_PER_BATCH } from "./agent-run-events.js";
 
 const envelope = (event: unknown, task = "task-9") => ({
   source: { task, agent: "abc123def456-review", pod: "p" },
@@ -76,6 +77,7 @@ describe("parseAgentSink turn projection", () => {
         message: { content: [{ type: "text", text: "hi" }] },
       }),
     ),
+    JSON.stringify(envelope({ type: "mystery_kind" })),
     "not json",
     JSON.stringify(envelope({ type: "result", is_error: false, usage: {} })),
   ].join("\n");
@@ -93,5 +95,19 @@ describe("parseAgentSink turn projection", () => {
   it("collects no turns unless the tee asks for them", () => {
     expect(parseAgentSink(body, true).turnRows).toEqual([]);
     expect(parseAgentSink(body, true, false).turnRows).toEqual([]);
+  });
+});
+
+describe("parseAgentSink turn cap", () => {
+  it("stops collecting turns at the per-batch cap so a pathological body stays bounded", () => {
+    const line = JSON.stringify(envelope({ type: "log", message: "tick" }));
+    const body = Array.from(
+      { length: MAX_RUN_EVENTS_PER_BATCH + 1 },
+      () => line,
+    ).join("\n");
+
+    const { turnRows } = parseAgentSink(body, false, true);
+
+    expect(turnRows).toHaveLength(MAX_RUN_EVENTS_PER_BATCH);
   });
 });
