@@ -76,7 +76,7 @@ StrongDM's Attractor spec models this as a first-class `goal_gate` node attribut
   - `code-review.yaml`: a `review --failed--> done` walk (the review agent crashed, timed out, or its CR failed) closes `goal_gate_unmet` instead of green. Today such a PR receives a passing `lore/code-review` check for a review that never produced a verdict.
   - `implementation.yaml`: the `implement --changes_requested-->` path no longer reaches the terminal marker at all — it now flows through validate → push → review, so the change is actually reviewed instead of closing green unreviewed and unpushed. A `review --failed--> retrospective --> done` walk closes `goal_gate_unmet`.
   - A review that requests changes, is addressed, and passes on re-review still finishes green: the guard reads the gated node's latest visit, so iteration 2's success supersedes iteration 1's `changes_requested`.
-- One new terminal outcome reaches the run-viz UI, the PR check, and escalation consumers.
+- One new terminal outcome reaches the run-viz UI, the PR check, and escalation consumers — `EscalationReason` admits `goal_gate_unmet`, so a gated line that needs a human can name the invariant it broke ([validated by `escalation.test.ts:218`](apps/floor/src/jobs/platform/escalation.test.ts#L218))
 
 ## Out of Scope
 

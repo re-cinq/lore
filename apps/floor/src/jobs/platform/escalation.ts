@@ -16,7 +16,8 @@ export type EscalationReason =
   | "validation_failed_twice"
   | "bot_review_failed_parse"
   | "supervisor_panic"
-  | "iteration_max_exceeded";
+  | "iteration_max_exceeded"
+  | "goal_gate_unmet";
 
 export interface ContributingRef {
   type: "fact" | "memory";

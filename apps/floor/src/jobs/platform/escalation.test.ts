@@ -213,3 +213,22 @@ describe("escalate — no notifier configured", () => {
     expect(r.outcome).toBe("issue_created");
   });
 });
+
+describe("escalate — goal_gate_unmet", () => {
+  it("titles the issue with goal_gate_unmet", async () => {
+    const { issues, createCalls } = mockIssues();
+    const result = await escalate({
+      taskId: "t-9",
+      repo: "owner/repo",
+      branchName: "feat/gated",
+      reason: "goal_gate_unmet",
+      diagnostic: 'reached the exit with unsatisfied goal gate(s) "review"',
+      issues,
+    });
+
+    expect({ outcome: result.outcome, title: createCalls[0].title }).toEqual({
+      outcome: "issue_created",
+      title: "[lore] needs-human-help: goal_gate_unmet on feat/gated",
+    });
+  });
+});
