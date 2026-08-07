@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { summarizeStatement } from "./impact-render.js";
+import { summarizeStatement, windowRewrite } from "./impact-render.js";
 
 /**
  * impact-render — turning a graph Statement into one readable table cell.
@@ -43,5 +43,34 @@ describe("summarizeStatement", () => {
 
   it("returns an empty string unchanged rather than an ellipsis", () => {
     expect(summarizeStatement("")).toEqual("");
+  });
+});
+
+describe("windowRewrite", () => {
+  it("shows the change when it falls past a fixed truncation point", () => {
+    const prefix = "x".repeat(300);
+    const { before, after } = windowRewrite(
+      `${prefix} drops by at least 80%.`,
+      `${prefix} drops by at least 60%.`,
+    );
+
+    expect(before).toContain("80%");
+    expect(after).toContain("60%");
+  });
+
+  it("elides the common head it skipped past", () => {
+    const { before } = windowRewrite(
+      `${"x".repeat(300)} old tail`,
+      `${"x".repeat(300)} new tail`,
+    );
+
+    expect(before.startsWith("…")).toBe(true);
+  });
+
+  it("leaves a short pair untouched", () => {
+    expect(windowRewrite("A MUST hold.", "A MUST fold.")).toEqual({
+      before: "A MUST hold.",
+      after: "A MUST fold.",
+    });
   });
 });

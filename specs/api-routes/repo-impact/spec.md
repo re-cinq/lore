@@ -154,7 +154,7 @@ The body accepts a `docs[]` array carrying the head text of changed spec/ADR fil
 
 `GET …/impact/base` serves the graph baseline and answers `{ graphCommit: null, source: "none" }` rather than erroring when Dgraph is unconfigured, so a missing baseline degrades the check instead of failing it; a request without a token is rejected. ([validated by `impact-base-route:35`](apps/lore-api/src/api/routes/impact/impact-base-route.test.ts#L35), [validated by `impact-base-route:42`](apps/lore-api/src/api/routes/impact/impact-base-route.test.ts#L42))
 
-A client that does not declare `protocol: 2` has its findings suppressed and is told why, because a diff taken against the base-branch tip carries every commit merged to the base since the branch point. ([validated by `trace-impact:715`](libs/shared/src/spec-trace/trace-impact.test.ts#L715), [validated by `trace-impact:728`](libs/shared/src/spec-trace/trace-impact.test.ts#L728))
+A client that does not declare `protocol: 2` has its findings suppressed and is told why, because a diff taken against the base-branch tip carries every commit merged to the base since the branch point. ([validated by `trace-impact:716`](libs/shared/src/spec-trace/trace-impact.test.ts#L716), [validated by `trace-impact:729`](libs/shared/src/spec-trace/trace-impact.test.ts#L729))
 
 The `status:"ok"` branch (coupled statements + orphans + non-empty annotations
 from a live graph walk) is exercised against a live Dgraph, which PR Checks now

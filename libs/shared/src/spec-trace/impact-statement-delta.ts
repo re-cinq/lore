@@ -25,6 +25,7 @@ import { isAcceptanceCriteriaHeading } from "./project-spec-file.js";
 import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
 import type { ImpactStatement } from "./impact-statement.js";
+import { pairRewrites } from "./statement-pairing.js";
 
 /** A statement as the graph holds it, with whatever claims to validate it. */
 export interface GraphStatementRef {
@@ -39,8 +40,12 @@ export interface GraphStatementRef {
 export interface StatementDelta {
   /** Known to the graph, its text no longer present in the file: edited or deleted. */
   changed: GraphStatementRef[];
-  /** Present in the file, unknown to the graph: newly written, nothing validates it yet. */
-  added: number;
+  /**
+   * Present in the file, unknown to the graph: newly written, or the new text of
+   * something rewritten. Carried as text, not a count, so a rewrite can be
+   * paired back to what it replaced and rendered as a real diff.
+   */
+  addedTexts: string[];
 }
 
 /** Hex sha256 — must stay identical to the projector's, or every statement reads as changed. */
@@ -59,18 +64,19 @@ export function diffStatements(
   content: string,
   graphStatements: GraphStatementRef[],
 ): StatementDelta {
-  const headHashes = new Set(
-    segmentStatements(content)
-      .filter(
-        (segment) => !isAcceptanceCriteriaHeading(segment.enclosingHeading),
-      )
-      .map((segment) => sha256(segment.text)),
+  const headStatements = segmentStatements(content).filter(
+    (segment) => !isAcceptanceCriteriaHeading(segment.enclosingHeading),
+  );
+  const headByHash = new Map(
+    headStatements.map((segment) => [sha256(segment.text), segment.text]),
   );
   const knownHashes = new Set(graphStatements.map((s) => s.textHash));
 
   return {
-    changed: graphStatements.filter((s) => !headHashes.has(s.textHash)),
-    added: [...headHashes].filter((h) => !knownHashes.has(h)).length,
+    changed: graphStatements.filter((s) => !headByHash.has(s.textHash)),
+    addedTexts: [...headByHash]
+      .filter(([hash]) => !knownHashes.has(hash))
+      .map(([, text]) => text),
   };
 }
 
@@ -164,9 +170,15 @@ export async function specFileImpact(
   const known = await readSpecStatements(dgraph, repo, specPath);
   const delta = diffStatements(content, known);
   const validated = delta.changed.filter((stmt) => stmt.tests.length);
+  // Recover "this became that" so the comment can show a before/after instead
+  // of quoting text the file no longer contains.
+  const rewrites = pairRewrites(
+    validated.map((stmt) => stmt.text),
+    delta.addedTexts,
+  );
 
   return {
-    added: delta.added,
+    added: delta.addedTexts.length,
     changedWithoutTests: delta.changed.length - validated.length,
     statements: validated.map((stmt) => ({
       xid: stmt.xid,
@@ -179,6 +191,7 @@ export async function specFileImpact(
       changedFile: specPath,
       evidence: "statement-edit" as const,
       changeKind: "changed" as const,
+      rewrittenAs: rewrites.get(stmt.text) ?? undefined,
     })),
   };
 }

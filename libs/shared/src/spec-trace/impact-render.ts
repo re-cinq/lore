@@ -35,9 +35,61 @@ export function summarizeStatement(text: string): string {
     }
     stripped = stripped.slice(0, match.index).trimEnd();
   }
-  const flat = stripped.replace(/\s+/g, " ").trim().replace(/\|/g, "\\|");
+  const flat = stripped
+    // Leading blockquote / list markers: the renderer supplies its own quoting,
+    // and a statement that already starts with ">" produced "> >". The marker
+    // must be followed by whitespace, or "**bold" loses a star to the strip.
+    .replace(/^[>\s]*(?:[-*+]\s+|\d+\.\s+)?/, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\|/g, "\\|");
 
   return flat.length > MAX_STATEMENT_CHARS
     ? `${flat.slice(0, MAX_STATEMENT_CHARS - 1)}…`
     : flat;
+}
+
+/**
+ * Slices a rewritten pair down to the neighbourhood of what actually changed.
+ *
+ * Truncating both sides at a fixed length hides the edit whenever it falls past
+ * the cut — a spec statement is often a paragraph, and the first 120 characters
+ * of before and after are usually identical. Anchoring on the first divergence
+ * is what makes the diff show the change rather than merely prove one happened.
+ */
+export function windowRewrite(
+  before: string,
+  after: string,
+  width = 110,
+): { before: string; after: string } {
+  let head = 0;
+
+  while (
+    head < before.length &&
+    head < after.length &&
+    before[head] === after[head]
+  ) {
+    head += 1;
+  }
+  let tail = 0;
+
+  while (
+    tail < before.length - head &&
+    tail < after.length - head &&
+    before[before.length - 1 - tail] === after[after.length - 1 - tail]
+  ) {
+    tail += 1;
+  }
+  const start = Math.max(0, head - Math.floor(width / 3));
+  const slice = (text: string) => {
+    const end = Math.min(
+      text.length,
+      Math.max(head, text.length - tail) + width,
+    );
+    const body = text.slice(start, end);
+
+    return `${start > 0 ? "…" : ""}${body}${end < text.length ? "…" : ""}`;
+  };
+
+  return { before: slice(before), after: slice(after) };
 }

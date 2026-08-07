@@ -19,7 +19,7 @@ import {
   type ImpactStatement,
 } from "./impact-statement.js";
 import { testFileImpact } from "./impact-test-link.js";
-import { summarizeStatement } from "./impact-render.js";
+import { summarizeStatement, windowRewrite } from "./impact-render.js";
 import { readGraphBaseline } from "./graph-baseline.js";
 import { specFileImpact } from "./impact-statement-delta.js";
 
@@ -223,9 +223,9 @@ const testCellFor = (s: ImpactStatement) =>
   s.tests[0] ? `${s.tests[0].file}:${s.tests[0].line}` : "—";
 
 /**
- * Collapses findings that would render as identical rows. #1077 showed the same
+ * Collapses findings that would render identically. #1077 showed the same
  * test/file pair four times; a reader cannot tell repetition from emphasis, and
- * the headline count has to agree with what the table shows.
+ * the headline count has to agree with what is shown.
  */
 function dedupeRows(statements: ImpactStatement[]): ImpactStatement[] {
   const seen = new Set<string>();
@@ -250,20 +250,114 @@ function dedupeRows(statements: ImpactStatement[]): ImpactStatement[] {
   });
 }
 
-/** One markdown table for a set of findings, capped. */
-function statementTable(statements: ImpactStatement[]): string[] {
-  const shown = statements.slice(0, MAX_ROWS);
-  const hidden = statements.length - shown.length;
+/** Short label for a statement: its section if it has one, else its opening words. */
+function statementLabel(s: ImpactStatement): string {
+  const summary = summarizeStatement(s.statementText);
 
-  return [
-    "| Spec | Statement | Covering test | Changed file |",
-    "|------|-----------|---------------|--------------|",
-    ...shown.map(
-      (s) =>
-        `| ${s.specTitle}${sectionLabel(s.section)} | ${summarizeStatement(s.statementText)} | ${testCellFor(s)} | ${s.changedFile} |`,
-    ),
-    ...(hidden > 0 ? ["", `…and ${hidden} more.`] : []),
-  ];
+  if (s.section) {
+    return s.section;
+  }
+
+  return summary.length > 60 ? `${summary.slice(0, 59)}…` : summary;
+}
+
+/**
+ * A statement rendered as a block rather than a table row.
+ *
+ * Tables forced paragraph-length prose, a link list and four columns into one
+ * line each, which is why the output was unreadable at any width. A block can
+ * carry the one thing that actually matters — whether the validating tests moved
+ * too — on its own line, and for a rewritten statement can show the real
+ * before/after, which the graph and the head file between them already know.
+ */
+function statementBlock(s: ImpactStatement): string[] {
+  const before = summarizeStatement(s.statementText);
+  const after = s.rewrittenAs ? summarizeStatement(s.rewrittenAs) : null;
+  const lines = [`**${statementLabel(s)}**`];
+
+  lines.push(
+    s.testsTouched
+      ? "✓ this PR also changes the tests that validate it"
+      : "⚠ the tests that validate it are **not** touched by this PR",
+  );
+
+  if (after && after !== before) {
+    // Windowed on the divergence: a spec statement is often a paragraph, and
+    // truncating both sides at the same length renders two identical-looking
+    // lines that prove a change happened without showing it.
+    const win = windowRewrite(before, after);
+
+    lines.push("", "```diff", `- ${win.before}`, `+ ${win.after}`, "```");
+  } else if (after) {
+    // The texts are identical once the inline ([validated by …]) parentheticals
+    // are stripped, so only the coverage annotation moved. Saying so beats
+    // rendering a diff of two identical lines — and it is genuinely different
+    // news: the contract did not change, its bookkeeping did.
+    lines.push(
+      "",
+      "only its test links changed — the statement text itself is unchanged",
+      ...(s.section ? ["", `> ${before}`] : []),
+    );
+  } else if (s.section) {
+    // Without a section the label already carried this text; repeating it as a
+    // quote printed the same sentence twice.
+    lines.push("", `> ${before}`);
+  }
+
+  const tests = s.tests.length
+    ? s.tests
+        .slice(0, 4)
+        .map((t) => `\`${t.file}:${t.line}\``)
+        .join(", ") +
+      (s.tests.length > 4 ? `, +${s.tests.length - 4} more` : "")
+    : "_nothing validates it_";
+
+  lines.push("", `validated by ${tests}`);
+
+  if (s.changedFile !== s.specPath) {
+    lines.push(`via changed file \`${s.changedFile}\``);
+  }
+
+  return lines;
+}
+
+/** Findings grouped under the spec they belong to, capped. */
+function specSections(statements: ImpactStatement[]): string[] {
+  const bySpec = new Map<string, ImpactStatement[]>();
+
+  for (const s of statements) {
+    const key = s.specPath || s.specTitle;
+
+    bySpec.set(key, [...(bySpec.get(key) ?? []), s]);
+  }
+  const titleFor = (found: ImpactStatement[]) =>
+    found.find((s) => s.specTitle)?.specTitle ?? "";
+  const lines: string[] = [];
+  let rendered = 0;
+
+  for (const [specPath, found] of bySpec) {
+    if (rendered >= MAX_ROWS) {
+      break;
+    }
+    const shown = found.slice(0, MAX_ROWS - rendered);
+
+    rendered += shown.length;
+    const title = titleFor(found);
+
+    lines.push(
+      "",
+      `### ${title || specPath} · ${found.length} statement(s)`,
+      ...(title ? [`\`${specPath}\``] : []),
+      ...shown.flatMap((s) => ["", ...statementBlock(s)]),
+    );
+  }
+  const hidden = statements.length - rendered;
+
+  if (hidden > 0) {
+    lines.push("", `…and ${hidden} more statement(s).`);
+  }
+
+  return lines;
 }
 
 /**
@@ -311,22 +405,25 @@ export function buildImpactComment(report: ImpactReport): string {
   }
 
   const specCount = new Set(findings.map((s) => s.specPath)).size;
+  const untouched = findings.filter((s) => !s.testsTouched).length;
   const lines = [
     `${COMMENT_HEADER} — advisory`,
     "",
-    `This PR touches **${findings.length} statement(s)** across **${specCount} spec(s)**.`,
+    `This PR touches **${findings.length} statement(s)** across **${specCount} spec(s)**` +
+      (untouched
+        ? `, and **${untouched}** of them ${untouched === 1 ? "has" : "have"} validating tests this PR does not change.`
+        : ", and changes the validating tests alongside every one of them."),
   ];
 
   if (strong.length) {
-    lines.push("", "### Coupled statements", ...statementTable(strong));
+    lines.push(...specSections(strong));
   }
 
   if (weak.length) {
     lines.push(
       "",
       `<details><summary>Weaker signals (${weak.length}) — linked by a spec, not proven by a test run</summary>`,
-      "",
-      ...statementTable(weak),
+      ...specSections(weak),
       "",
       "</details>",
     );
@@ -710,7 +807,13 @@ export async function computeImpact(
     changedWithoutTests += impact.changedWithoutTests;
     raw.push(...impact.statements);
   }
-  const statements = mergeStatements(raw);
+  // The signal a reviewer acts on: did this PR touch the tests that hold the
+  // statement up, or only the thing they were holding?
+  const changedPaths = new Set(changed.map((file) => file.path));
+  const statements = mergeStatements(raw).map((stmt) => ({
+    ...stmt,
+    testsTouched: stmt.tests.some((test) => changedPaths.has(test.file)),
+  }));
   const testSelectors = [
     ...new Set(statements.flatMap((s) => s.tests.map((t) => t.file))),
   ];

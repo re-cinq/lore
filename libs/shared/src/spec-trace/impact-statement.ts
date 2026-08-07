@@ -45,6 +45,18 @@ export interface ImpactStatement {
   changedFile: string;
   evidence: Evidence;
   changeKind?: ChangeKind;
+  /**
+   * For a rewritten statement, the text that replaced it — the "after" side of
+   * the diff. Absent when the statement was deleted outright, or when nothing in
+   * the head file was close enough to be its replacement.
+   */
+  rewrittenAs?: string;
+  /**
+   * Whether this PR also touches at least one of the tests that validate the
+   * statement. The single most useful bit in a finding: a statement whose code
+   * or text moved while its tests did not is the drift worth looking at.
+   */
+  testsTouched?: boolean;
 }
 
 interface GraphSpecRef {

@@ -67,7 +67,10 @@ describe("diffStatements", () => {
       graphRef("The widget MUST unmount cleanly."),
     ];
 
-    expect(diffStatements(SPEC, graph)).toEqual({ changed: [], added: 0 });
+    expect(diffStatements(SPEC, graph)).toEqual({
+      changed: [],
+      addedTexts: [],
+    });
   });
 
   it("reports a statement whose text the file no longer contains", () => {
@@ -90,7 +93,7 @@ describe("diffStatements", () => {
     const graph = [graphRef("The widget MUST render on mount.")];
 
     expect(diffStatements(SPEC, graph)).toMatchObject({
-      added: 1,
+      addedTexts: ["The widget MUST unmount cleanly."],
       changed: [],
     });
   });
@@ -107,11 +110,20 @@ The widget renders in under a second.
       graphRef("The widget MUST unmount cleanly."),
     ];
 
-    expect(diffStatements(withAc, graph)).toEqual({ changed: [], added: 0 });
+    expect(diffStatements(withAc, graph)).toEqual({
+      changed: [],
+      addedTexts: [],
+    });
   });
 
   it("treats an empty graph as every statement added rather than as drift", () => {
-    expect(diffStatements(SPEC, [])).toMatchObject({ added: 2, changed: [] });
+    expect(diffStatements(SPEC, [])).toMatchObject({
+      addedTexts: [
+        "The widget MUST render on mount.",
+        "The widget MUST unmount cleanly.",
+      ],
+      changed: [],
+    });
   });
 });
 
