@@ -15,7 +15,7 @@ Spec: [spec.md](spec.md). Every task is test-first — write the failing test, w
 
 - [x] T005 `goal_gate_unmet` outcome — extend the `fail` variant of `Transition` in `libs/assembly-lines/src/transition.ts` to carry it (type-only; no behaviour yet)
 - [x] T006 The guard — failing tests in `libs/assembly-lines/src/transition.test.ts` covering: gated node with `success` finishes; gated node with `failed` fails `goal_gate_unmet`; gated node never visited (skipped by conditional branching) fails `goal_gate_unmet`; `changes_requested` satisfies the gate; ungated definitions finish exactly as before. Then implement the guard in the `currentId === assemblyLine.exit` branch of `nextTransition()`
-- [ ] T007 Latest-visit semantics — failing tests (iteration 1 `changes_requested` + iteration 2 `success` finishes; iteration 1 `success` + iteration 2 `failed` fails `goal_gate_unmet`), then make the guard read each gated node's latest visit rather than any visit
+- [x] T007 Latest-visit semantics — failing tests (iteration 1 `changes_requested` + iteration 2 `success` finishes; iteration 1 `success` + iteration 2 `failed` fails `goal_gate_unmet`), then make the guard read each gated node's latest visit rather than any visit
 - [ ] T008 Diagnostic reason — failing test that the reason names every unsatisfied gate, then compose the message in `nextTransition()`
 - [ ] T009 Precedence check — test that a line exceeding `iteration_max` fails with `iteration_max`, not `goal_gate_unmet` (the loop fails before the finish branch). Assert-only; expected to pass on T006's implementation
 

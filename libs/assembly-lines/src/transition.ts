@@ -67,14 +67,20 @@ function satisfiesGate(outcome: StageOutcome | null): boolean {
   return outcome === "success" || outcome === "changes_requested";
 }
 
-/** Goal-gated nodes the history does not show reaching a success-class outcome.
- *  A node conditional branching skipped has no visit at all, so it is unmet. */
+/** Goal-gated nodes whose LATEST visit is not success-class. Only the latest one
+ *  counts: an earlier verdict applied to an earlier state of the branch, so a
+ *  stale pass cannot carry a failed re-run and a stale rejection cannot sink a
+ *  clean one. A node conditional branching skipped has no visit at all, so it
+ *  is unmet. */
 function unmetGates(assemblyLine: AssemblyLine, visits: NodeVisit[]): string[] {
+  const latest = new Map<string, StageOutcome | null>();
+
+  for (const v of visits) {
+    latest.set(v.nodeId, v.outcome);
+  }
+
   return assemblyLine.nodes
-    .filter((n) => n.goal_gate)
-    .filter(
-      (n) => !visits.some((v) => v.nodeId === n.id && satisfiesGate(v.outcome)),
-    )
+    .filter((n) => n.goal_gate && !satisfiesGate(latest.get(n.id) ?? null))
     .map((n) => n.id);
 }
 

@@ -367,3 +367,73 @@ describe("nextTransition — goal gates", () => {
     expect(nextTransition(alwaysLoop, visits)).toEqual({ kind: "finish" });
   });
 });
+
+// The gated node is revisitable from both sides: changes_requested loops back
+// through work, and a failed verify sends the line back into review. Both a
+// stale pass and a stale rejection therefore sit in the history.
+const gatedLoop: AssemblyLine = parseAssemblyLine(`
+name: gated-loop
+description: review is a goal gate the walk can revisit from either side
+version: 1
+entry: work
+exit: done
+nodes:
+  - id: work
+    type: agent
+  - id: review
+    type: agent
+    goal_gate: true
+  - id: verify
+    type: validate
+  - id: done
+    type: retrospective
+edges:
+  - from: work
+    to: review
+    on: always
+  - from: review
+    to: verify
+    on: success
+  - from: review
+    to: work
+    on: changes_requested
+    iteration_max: 2
+  - from: review
+    to: done
+    on: failed
+  - from: verify
+    to: done
+    on: success
+  - from: verify
+    to: review
+    on: failed
+    iteration_max: 2
+`);
+
+describe("nextTransition — goal gates read the latest visit", () => {
+  it("finishes when a re-run supersedes an earlier changes_requested", () => {
+    const visits = [
+      visit("work", 1, "success"),
+      visit("review", 1, "changes_requested"),
+      visit("work", 2, "success"),
+      visit("review", 2, "success"),
+      visit("verify", 2, "success"),
+    ];
+
+    expect(nextTransition(gatedLoop, visits)).toEqual({ kind: "finish" });
+  });
+
+  it("fails goal_gate_unmet when a re-run supersedes an earlier success", () => {
+    const visits = [
+      visit("work", 1, "success"),
+      visit("review", 1, "success"),
+      visit("verify", 1, "failed"),
+      visit("review", 2, "failed"),
+    ];
+
+    expect(nextTransition(gatedLoop, visits)).toMatchObject({
+      kind: "fail",
+      outcome: "goal_gate_unmet",
+    });
+  });
+});
