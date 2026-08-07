@@ -27,6 +27,7 @@ import {
   type FacetedTarget,
 } from "./dgraph-upsert.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
+import { stampGraphBaseline } from "./graph-baseline.js";
 
 /** Serializes a file's covered intervals (in covered order) to the `ranges` edge facet, e.g. "5-10,20-25". */
 function serializeRanges(ranges: CoveredChunk[]): string {
@@ -165,6 +166,15 @@ export async function ingestCoverageReport(
     });
 
     await linkTestChunkCoverage(dgraph, meta.repo, record, coverageUid);
+  }
+
+  // The ranges just written are expressed in this commit's line numbering, so
+  // stamp it once per report — the pre-merge impact query aligns a PR diff to
+  // these coordinates rather than guessing. Skipped when nothing was written:
+  // advancing the baseline past ranges that did not move would claim more than
+  // the data supports.
+  if (records.length) {
+    await stampGraphBaseline(dgraph, meta.repo, meta.commit, new Date());
   }
 
   // `coversEdges` counts covered FILES (one Coverage→File edge each); `unmatched`

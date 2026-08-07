@@ -123,6 +123,11 @@ export {
   type ImpactAnnotation,
 } from "./spec-trace/trace-impact.js";
 export {
+  readGraphBaseline,
+  stampGraphBaseline,
+  type GraphBaseline,
+} from "./spec-trace/graph-baseline.js";
+export {
   assembleGraphContext,
   fetchGraphContext,
   DEFAULT_LIMIT as GRAPH_CONTEXT_DEFAULT_LIMIT,

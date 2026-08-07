@@ -77,7 +77,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # 17 files / 130 tests self-skip unless a Dgraph answers on :8081, so the
+          # whole spec-traceability graph walk was green-by-skip in CI until now.
           - name: shared
+            dgraph: true
             test: npm test -w @re-cinq/lore-shared
           # The assembly-lines kernel imports compiled @re-cinq/lore-shared (via subpaths),
           # so shared must be built before its suite runs.
@@ -145,8 +148,27 @@ jobs:
         with:
           node-version: 22
 
+      # Booted before the install so the container warms up while npm ci runs.
+      # Port 8081 is not a preference — it is the port dgraphReachable() probes.
+      - name: Start Dgraph
+        if: ${{ matrix.dgraph }}
+        run: docker run -d --name lore-dgraph -p 8081:8080 dgraph/standalone:v24.0.0
+
       - name: Install deps
         run: ${{ matrix.install || 'npm ci --ignore-scripts' }}
+
+      - name: Apply Dgraph schema
+        if: ${{ matrix.dgraph }}
+        run: |
+          for _ in $(seq 1 60); do
+            curl -sf http://localhost:8081/health >/dev/null && break
+            sleep 2
+          done
+          # Fail loudly. A silent timeout here would restore exactly the
+          # green-by-skip the service exists to eliminate.
+          curl -sf http://localhost:8081/health >/dev/null \
+            || { echo "::error::Dgraph never became healthy on :8081"; docker logs lore-dgraph; exit 1; }
+          npm run dgraph:schema
 
       - name: Build shared
         if: ${{ matrix.build }}
