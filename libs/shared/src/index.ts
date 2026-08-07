@@ -111,6 +111,11 @@ export type {
   LlmUsage,
 } from "./llm/llm-provider.js";
 export {
+  modelFamily,
+  crossModelReviewWarning,
+  type ModelFamily,
+} from "./llm/model-family.js";
+export {
   computeImpact,
   buildImpactAnnotations,
   buildImpactComment,

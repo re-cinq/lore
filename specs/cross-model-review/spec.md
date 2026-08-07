@@ -25,9 +25,9 @@ The full fix — routing review to a genuinely different provider — needs a se
 
 ### FR2 — `crossModelReviewWarning()` flags same-family implementer/reviewer pairs
 
-- Return a warning message naming both models and their shared family when the implementer and reviewer model ids classify to the same known family.
-- Return `null` when the implementer and reviewer model ids classify to different known families.
-- Return `null`, not a warning, when either model id classifies as `unknown` — an unclassifiable model can't support a confident same-family claim in either direction.
+- Return a warning message naming both models and their shared family when the implementer and reviewer model ids classify to the same known family. ([validated by `model-family.test.ts:39`](../../libs/shared/src/llm/model-family.test.ts#L39))
+- Return `null` when the implementer and reviewer model ids classify to different known families. ([validated by `model-family.test.ts:50`](../../libs/shared/src/llm/model-family.test.ts#L50))
+- Return `null`, not a warning, when either model id classifies as `unknown` — an unclassifiable model can't support a confident same-family claim in either direction. ([validated by `model-family.test.ts:54`](../../libs/shared/src/llm/model-family.test.ts#L54), [`model-family.test.ts:60`](../../libs/shared/src/llm/model-family.test.ts#L60), [`model-family.test.ts:64`](../../libs/shared/src/llm/model-family.test.ts#L64))
 - Both helpers are exported from `@re-cinq/lore-shared` so any future caller (settings UI, agent-definitions validation) can reuse the same policy instead of re-deriving it.
 
 ### FR3 — Interim cross-tier default on the `implementation` assembly line

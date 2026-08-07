@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { modelFamily } from "./model-family.js";
+import { modelFamily, crossModelReviewWarning } from "./model-family.js";
 
 describe("modelFamily", () => {
   it("returns anthropic for a claude sonnet model id", () => {
@@ -32,5 +32,36 @@ describe("modelFamily", () => {
 
   it("returns unknown for an undefined model id", () => {
     expect(modelFamily(undefined)).toBe("unknown");
+  });
+});
+
+describe("crossModelReviewWarning", () => {
+  it("warns naming both models and the shared family when implementer and reviewer are both claude", () => {
+    const warning = crossModelReviewWarning(
+      "claude-sonnet-4-6",
+      "claude-haiku-4-5-20251001",
+    );
+
+    expect(warning).toMatch(/claude-sonnet-4-6/);
+    expect(warning).toMatch(/claude-haiku-4-5-20251001/);
+    expect(warning).toMatch(/anthropic/);
+  });
+
+  it("returns null when implementer and reviewer resolve to different families", () => {
+    expect(crossModelReviewWarning("claude-sonnet-4-6", "gpt-5.6")).toBeNull();
+  });
+
+  it("returns null when the implementer model is unrecognized", () => {
+    expect(
+      crossModelReviewWarning("llama3", "claude-haiku-4-5-20251001"),
+    ).toBeNull();
+  });
+
+  it("returns null when the reviewer model is unrecognized", () => {
+    expect(crossModelReviewWarning("claude-sonnet-4-6", "llama3")).toBeNull();
+  });
+
+  it("returns null when both models are undefined", () => {
+    expect(crossModelReviewWarning(undefined, undefined)).toBeNull();
   });
 });
