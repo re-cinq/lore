@@ -151,13 +151,21 @@ function describeExamined(report: ImpactReport): string {
     `Examined **${seen.files} changed file(s)**: ${seen.withGraphData} had graph data (no coupling found), ${blind} had none — no ingested test run covers them, so this check cannot speak for them.`,
   ];
 
+  const notes = docNotes(seen);
+
   if (seen.docs) {
+    // Only claim nothing moved when nothing did. The counted-not-listed
+    // populations are the common case for a spec PR, and asserting "no
+    // projected statement changed" beside "114 changed statement(s)" is exactly
+    // the kind of contradiction that teaches people to stop reading.
     parts.push(
-      `Also read **${seen.docs} changed spec/ADR** at statement level; no projected statement changed.`,
+      notes.length
+        ? `Also read **${seen.docs} changed spec/ADR** at statement level.`
+        : `Also read **${seen.docs} changed spec/ADR** at statement level; no projected statement changed.`,
     );
   }
 
-  parts.push(...docNotes(seen));
+  parts.push(...notes);
 
   return parts.join(" ");
 }

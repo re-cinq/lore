@@ -739,6 +739,26 @@ describe("protocol gating", () => {
     expect(comment).toContain("suppressed");
   });
 
+  it("does not claim nothing moved while also reporting statements that moved", () => {
+    const comment = buildImpactComment({
+      status: "ok",
+      protocol: 2,
+      statements: [],
+      orphaned: [],
+      testSelectors: [],
+      examined: {
+        files: 1,
+        withGraphData: 0,
+        docs: 1,
+        newStatements: 39,
+        changedWithoutTests: 114,
+      },
+    });
+
+    expect(comment).not.toContain("no projected statement changed");
+    expect(comment).toContain("**114 changed statement(s)**");
+  });
+
   it("says line-precise coupling was skipped when the repo has no baseline", () => {
     const comment = buildImpactComment({
       status: "ok",
