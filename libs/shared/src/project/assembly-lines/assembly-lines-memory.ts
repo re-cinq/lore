@@ -1,5 +1,6 @@
 import { enforceTrue } from "../../lib/enforce.js";
 import { randomUUID } from "node:crypto";
+import { resolveResumePrefix } from "./resume.js";
 import type {
   AssemblyLinesPort,
   AssemblyLineStartInput,
@@ -27,6 +28,24 @@ export interface SeedAssemblyLineNode {
   finishedAt: Date | null;
 }
 
+/** A fork inherits branch and taskId from its source and its args unless the
+ *  caller overrides them; a plain start is passed through untouched. */
+function inheritFromSource(
+  input: AssemblyLineStartInput,
+  source: AssemblyLineRecord | null,
+): AssemblyLineStartInput {
+  if (!source) {
+    return input;
+  }
+
+  return {
+    ...input,
+    branch: source.branch ?? undefined,
+    taskId: source.taskId ?? undefined,
+    args: input.args ?? source.args,
+  };
+}
+
 /**
  * In-memory {@link AssemblyLinesPort}: the behavioral spec of the Pg adapter,
  * computed over seeded rows. `clock` is injectable so ordering-dependent reads
@@ -40,9 +59,30 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
   constructor(public clock: () => Date = () => new Date()) {}
 
   async start(input: AssemblyLineStartInput): Promise<string> {
+    const resumeFrom = input.resumeFrom;
+    const source = resumeFrom ? await this.getById(resumeFrom.lineId) : null;
+    // Validate the fork BEFORE minting anything, so a rejected resume leaves no
+    // half-created line behind (the Pg adapter gets the same property from its
+    // read-then-one-CTE shape).
+    const inherited = resumeFrom
+      ? resolveResumePrefix(
+          input,
+          source,
+          await this.listNodes(resumeFrom.lineId),
+        )
+      : [];
     const id = randomUUID();
+    const row = this.newRow(id, inheritFromSource(input, source));
 
-    this.rows.push(this.newRow(id, input));
+    this.rows.push(row);
+
+    for (const node of inherited) {
+      this.nodes.push({
+        ...node,
+        id: String(this.nodes.length + 1),
+        assemblyLineId: id,
+      });
+    }
     this.events.push({
       eventName: "assembly_line.start",
       source: "internal",
@@ -50,9 +90,10 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
         assemblyLineId: id,
         definitionName: input.definitionName,
         repo: input.repo,
-        branch: input.branch ?? null,
-        taskId: input.taskId ?? null,
-        args: input.args ?? {},
+        branch: row.branch,
+        taskId: row.taskId,
+        args: row.args,
+        resumedFrom: input.resumeFrom ?? null,
       },
       dedupeKey: `assembly_line.start:${id}`,
     });

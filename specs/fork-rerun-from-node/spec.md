@@ -35,28 +35,28 @@ a debugging affordance rather than a fault-tolerance one.
 
 ## FR1 — The `resumeFrom` start variant
 
-- `AssemblyLinesPort.start` accepts an optional `resumeFrom: { lineId, nodeId }`, mints a fresh per-attempt assembly-line id exactly as a plain start does, and returns it.
-- A `resumeFrom` start leaves the source line's own row and node rows untouched — the fork is a new attempt, never an edit of the recorded one.
+- `AssemblyLinesPort.start` accepts an optional `resumeFrom: { lineId, nodeId }`, mints a fresh per-attempt assembly-line id exactly as a plain start does, and returns it. ([validated by `assembly-lines.test.ts:879`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L879))
+- A `resumeFrom` start leaves the source line's own row and node rows untouched — the fork is a new attempt, never an edit of the recorded one. ([validated by `assembly-lines.test.ts:946`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L946))
 - `branch` is inherited from the source line, and passing `branch` alongside `resumeFrom` is a validation error rather than a silent override. ([validated by `resume.test.ts:133`](libs/shared/src/project/assembly-lines/resume.test.ts#L133))
 - `taskId` is inherited from the source line, and passing `taskId` alongside `resumeFrom` is a validation error on the same grounds. ([validated by `resume.test.ts:143`](libs/shared/src/project/assembly-lines/resume.test.ts#L143))
-- `args` are inherited from the source line when omitted and replaced wholesale when supplied, so an operator can inject corrected inputs for the replayed remainder.
+- `args` are inherited from the source line when omitted and replaced wholesale when supplied, so an operator can inject corrected inputs for the replayed remainder. ([validated by `assembly-lines.test.ts:965`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L965))
 - A `resumeFrom` start whose `repo` differs from the source line's is rejected: a fork inherits the source's branch, and a branch means nothing in another repository. ([validated by `resume.test.ts:173`](libs/shared/src/project/assembly-lines/resume.test.ts#L173))
 - A `resumeFrom` start whose `definitionName` differs from the source line's is rejected — replaying one definition's node rows against another definition's graph is not a fork. ([validated by `resume.test.ts:183`](libs/shared/src/project/assembly-lines/resume.test.ts#L183))
 - The repo-scoped `AssemblyLines` facade passes `resumeFrom` through unchanged, so callers write `project.assemblyLines.start(name, { resumeFrom, definitionHash })`.
 
 ## FR2 — Copy semantics
 
-- The copy runs through the chosen node's **latest completed row inclusive**, so earlier iterations of that node — everything a back-edge produced before it — ride along in visit order. ([validated by `resume.test.ts:74`](libs/shared/src/project/assembly-lines/resume.test.ts#L74), [`resume.test.ts:79`](libs/shared/src/project/assembly-lines/resume.test.ts#L79), [`resume.test.ts:83`](libs/shared/src/project/assembly-lines/resume.test.ts#L83), [`resume.test.ts:89`](libs/shared/src/project/assembly-lines/resume.test.ts#L89), [`resume.test.ts:100`](libs/shared/src/project/assembly-lines/resume.test.ts#L100), [`resume.test.ts:127`](libs/shared/src/project/assembly-lines/resume.test.ts#L127))
-- Copied rows carry the source row's `outcome`, `agent_cr_name`, `commit_sha`, `started_at` and `finished_at`, so the inherited prefix keeps the provenance of the run that actually produced it (its pods, its stage commits) rather than masquerading as fresh work. ([validated by `resume.test.ts:110`](libs/shared/src/project/assembly-lines/resume.test.ts#L110))
+- The copy runs through the chosen node's **latest completed row inclusive**, so earlier iterations of that node — everything a back-edge produced before it — ride along in visit order. ([validated by `resume.test.ts:74`](libs/shared/src/project/assembly-lines/resume.test.ts#L74), [`resume.test.ts:79`](libs/shared/src/project/assembly-lines/resume.test.ts#L79), [`resume.test.ts:83`](libs/shared/src/project/assembly-lines/resume.test.ts#L83), [`resume.test.ts:89`](libs/shared/src/project/assembly-lines/resume.test.ts#L89), [`resume.test.ts:100`](libs/shared/src/project/assembly-lines/resume.test.ts#L100), [`resume.test.ts:127`](libs/shared/src/project/assembly-lines/resume.test.ts#L127), [`assembly-lines.test.ts:902`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L902))
+- Copied rows carry the source row's `outcome`, `agent_cr_name`, `commit_sha`, `started_at` and `finished_at`, so the inherited prefix keeps the provenance of the run that actually produced it (its pods, its stage commits) rather than masquerading as fresh work. ([validated by `resume.test.ts:110`](libs/shared/src/project/assembly-lines/resume.test.ts#L110), [`assembly-lines.test.ts:902`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L902))
 - A `resumeFrom` naming a node the source line never completed — never visited, or visited and still open — is rejected, because there is no replayable prefix to copy. ([validated by `resume.test.ts:228`](libs/shared/src/project/assembly-lines/resume.test.ts#L228))
 - A prefix containing an unfinished row before the cutoff is rejected: an outcome-less row replays as `await`, so copying it would mint a line that can never advance. ([validated by `resume.test.ts:242`](libs/shared/src/project/assembly-lines/resume.test.ts#L242))
 - The Postgres adapter writes the line row, the `assembly_line.start` event and every copied node row in ONE data-modifying CTE, exactly as a plain start writes its two, so a fork is never half-created.
-- Validation completes before anything is written; the properties it reads — a terminal line's status, definition name, repo and stamped hash — are immutable once observed, so the read-then-write split introduces no window in which a validated fork becomes invalid.
+- Validation completes before anything is written; the properties it reads — a terminal line's status, definition name, repo and stamped hash — are immutable once observed, so the read-then-write split introduces no window in which a validated fork becomes invalid. ([validated by `assembly-lines.test.ts:1018`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L1018))
 - The plain (non-fork) start path is unchanged: same statement, same parameters, no copied-rows CTE.
 
 ## FR3 — Only terminal lines fork
 
-- A `resumeFrom` whose source line is still `queued` or `running` is refused, naming the status. ([validated by `resume.test.ts:197`](libs/shared/src/project/assembly-lines/resume.test.ts#L197))
+- A `resumeFrom` whose source line is still `queued` or `running` is refused, naming the status. ([validated by `resume.test.ts:197`](libs/shared/src/project/assembly-lines/resume.test.ts#L197), [`assembly-lines.test.ts:1038`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L1038))
 - A `resumeFrom` whose source line does not exist is refused. ([validated by `resume.test.ts:167`](libs/shared/src/project/assembly-lines/resume.test.ts#L167))
 - Decision: the terminal-source rule is the overlap guard's lesson, not squeamishness — the fork reuses the source's branch, so a live source would put two lines on one working branch and let them race for the same commits.
 
@@ -71,8 +71,8 @@ a debugging affordance rather than a fault-tolerance one.
 
 ## FR5 — Audit trail and walk integration
 
-- The `assembly_line.start` event params carry the fork parentage, so the audit record of *why* a line exists rides with the trigger.
-- The line row itself records `resumed_from_line_id` and `resumed_from_node_id`, because `pipeline.events` rows are pruned once handled and an event alone is not a durable audit substrate.
+- The `assembly_line.start` event params carry the fork parentage, so the audit record of *why* a line exists rides with the trigger. ([validated by `assembly-lines.test.ts:982`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L982), [`assembly-lines.test.ts:1006`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L1006))
+- The line row itself records `resumed_from_line_id` and `resumed_from_node_id`, because `pipeline.events` rows are pruned once handled and an event alone is not a durable audit substrate. ([validated by `assembly-lines.test.ts:879`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L879), [`assembly-lines.test.ts:1006`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L1006))
 - The walk needs no change: the Floor's ordinary start handler marks the forked row running and `advanceLine` replays the inherited rows through `nextTransition`, which returns a launch for the successor of the cutoff node.
 - The branch-overlap guard counts the inherited prefix rather than an empty node list, so a fork that lands on a branch another open line already holds still defers as `lease_held` instead of racing it.
 
