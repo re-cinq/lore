@@ -32,4 +32,4 @@ stated reason, then implement. One commit per task; the spec's
 
 ## Phase 5 — Close out
 
-- [ ] T010 Delete `adrs/ADR-041-fork-rerun-from-node.md`, superseded by the spec. (The `| Status |` flip to `Shipped` rode T009 — the ladder linter is an ERROR, so the commit that links the last testable statement is the commit that must carry it.)
+- [x] T010 Delete `adrs/ADR-041-fork-rerun-from-node.md`, superseded by the spec. (The `| Status |` flip to `Shipped` rode T009 — the ladder linter is an ERROR, so the commit that links the last testable statement is the commit that must carry it.)
