@@ -39,7 +39,11 @@ export type Transition =
   | { kind: "launch"; nodeId: string; iteration: number }
   | { kind: "await" }
   | { kind: "finish" }
-  | { kind: "fail"; outcome: "iteration_max" | "error"; reason: string };
+  | {
+      kind: "fail";
+      outcome: "iteration_max" | "error" | "goal_gate_unmet";
+      reason: string;
+    };
 
 const DEFAULT_MAX_NODES = 200;
 
