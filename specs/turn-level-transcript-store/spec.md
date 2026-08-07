@@ -96,12 +96,12 @@ produces the cost rows and the projection rows.
 ## FR4 — The read API
 
 `GET /api/agent-turns/{assemblyLineId}` on the Floor HTTP server mirrors
-the existing `GET /api/agent-events/{assemblyLineId}` history route: same
-`ingest-token` auth, same clamped cursor and limit parsing.
+the existing `GET /api/agent-events/{assemblyLineId}` history route.
 
-- The route reads one assembly line's turns through `listByLine`, scoping rows by line **and** cursor rather than by cursor alone.
-- The limit is clamped to a maximum and falls back to a default for a missing, non-numeric, zero or negative value, because the token is shared with the web-ui and an unbounded limit would be an unbounded read.
-- The cursor falls back to `0` for anything that is not a run of digits, so a malformed `after` reads the run from its start instead of erroring.
+- The route hands back one assembly line's turns with their envelopes untruncated, behind the same `ingest-token` bearer auth every other Floor read carries. ([validated by `agent-turns-history.test.ts:50`](apps/floor/src/delivery/http/routes/agent-turns-history.test.ts#L50), [`agent-turns-history.test.ts:88`](apps/floor/src/delivery/http/routes/agent-turns-history.test.ts#L88))
+- The route reads through `listByLine`, scoping rows by line **and** cursor rather than by cursor alone. ([validated by `agent-turns-history.test.ts:60`](apps/floor/src/delivery/http/routes/agent-turns-history.test.ts#L60))
+- The limit is clamped to a maximum and falls back to a default for a missing, non-numeric, zero or negative value, because the token is shared with the web-ui and an unbounded limit would be an unbounded read. ([validated by `agent-turns-history.test.ts:69`](apps/floor/src/delivery/http/routes/agent-turns-history.test.ts#L69))
+- The cursor falls back to `0` for anything that is not a run of digits, so a malformed `after` reads the run from its start instead of erroring. ([validated by `agent-turns-history.test.ts:79`](apps/floor/src/delivery/http/routes/agent-turns-history.test.ts#L79))
 
 ## Alternatives rejected
 

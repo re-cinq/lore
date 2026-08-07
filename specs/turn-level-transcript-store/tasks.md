@@ -29,7 +29,7 @@ and the port is dead code without the test.
 
 ## Phase 4 — The read API
 
-- [ ] **T12** `apps/floor/src/delivery/http/routes/agent-turns-history.ts` + colocated test (new files): `GET /api/agent-turns/{assemblyLineId}`, clamped limit and cursor, registered in `apps/floor/src/delivery/http/server.ts`.
+- [x] **T12** `apps/floor/src/delivery/http/routes/agent-turns-history.ts` + colocated test (new files): `GET /api/agent-turns/{assemblyLineId}`, clamped limit and cursor, registered in `apps/floor/src/delivery/http/server.ts`.
 
 ## Phase 5 — Supersession
 
