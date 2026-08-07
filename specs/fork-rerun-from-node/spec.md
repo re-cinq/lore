@@ -4,7 +4,7 @@
 |---------|-----------------------------------------|
 | Feature | Fork-and-Rerun of Assembly Lines from a Completed Node |
 | Branch  | `feat/fork-rerun-from-node`             |
-| Status  | Shipped                                     |
+| Status  | Implemented                                   |
 | Created | 2026-08-07                              |
 | Owner   | Platform Engineering                    |
 
