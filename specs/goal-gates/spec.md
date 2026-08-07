@@ -4,7 +4,7 @@
 | ------- | --------------------------------------------------- |
 | Feature | Declarative Goal Gates in Assembly-Line Definitions |
 | Branch  | feat/goal-gates                                     |
-| Status  | In Progress                                         |
+| Status  | Implemented                                         |
 | Created | 2026-08-07                                          |
 | Owner   | Platform Engineering                                |
 
@@ -59,7 +59,7 @@ StrongDM's Attractor spec models this as a first-class `goal_gate` node attribut
 - The run list and run detail render `goal_gate_unmet` with its own failure-toned label rather than falling through to a neutral unknown-outcome badge ([validated by `assembly-line-presenter.test.ts:98`](apps/web-ui/src/lib/assembly-line-presenter.test.ts#L98))
 - `goal_gate_unmet` classifies as a failure outcome, so it rides the existing user-facing failure path (escalation plus PR comment) — a gated line never stops silently ([validated by `notify-failure.test.ts:199`](apps/floor/src/jobs/assembly-line/notify-failure.test.ts#L199), [`notify-failure.test.ts:203`](apps/floor/src/jobs/assembly-line/notify-failure.test.ts#L203))
 - A PR-linked line that closes `goal_gate_unmet` publishes a failing `lore/<definition>` check rather than a neutral or green one ([validated by `pr-check.test.ts:190`](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L190))
-- The hand-written web-ui mirror of the definition schema carries `goal_gate`, so `npm run typecheck:drift` stays green (validated by the drift assertion in `scripts/type-drift/assembly-line-definition.drift.ts`, not a unit test).
+- The hand-written web-ui mirror of the definition schema carries `goal_gate` — enforced at compile time by `scripts/type-drift/assembly-line-definition.drift.ts`, and visible at runtime in the transcribed builtin definitions the run graph draws ([validated by `run-graph-definition.test.ts:81`](apps/web-ui/src/lib/run-graph-definition.test.ts#L81))
 
 ## Alternatives rejected
 
@@ -86,6 +86,6 @@ StrongDM's Attractor spec models this as a first-class `goal_gate` node attribut
 
 ## Verification
 
-- `libs/assembly-lines` unit tests cover the loader schema, the exit-node rejection, the bypass warning and its propagation, and every finish-guard branch in `nextTransition()`.
-- Floor tests cover failure notification and the PR check for the new outcome; web-ui tests cover the badge label.
-- `npm run typecheck:drift` proves the web-ui mirror stayed in sync.
+- `libs/assembly-lines` unit tests cover the loader schema, the exit-node rejection, the bypass warning and its propagation, and every finish-guard branch in `nextTransition()` ([validated by `loader.test.ts:721`](libs/assembly-lines/src/loader.test.ts#L721), [`loader.test.ts:802`](libs/assembly-lines/src/loader.test.ts#L802), [`loader.test.ts:834`](libs/assembly-lines/src/loader.test.ts#L834), [`transition.test.ts:254`](libs/assembly-lines/src/transition.test.ts#L254), [`transition.test.ts:269`](libs/assembly-lines/src/transition.test.ts#L269), [`transition.test.ts:341`](libs/assembly-lines/src/transition.test.ts#L341))
+- Floor tests cover failure notification and the PR check for the new outcome; web-ui tests cover the badge label ([validated by `notify-failure.test.ts:203`](apps/floor/src/jobs/assembly-line/notify-failure.test.ts#L203), [`pr-check.test.ts:190`](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L190), [`assembly-line-presenter.test.ts:98`](apps/web-ui/src/lib/assembly-line-presenter.test.ts#L98))
+- `npm run typecheck:drift` proves the web-ui mirror stayed in sync ([validated by `run-graph-definition.test.ts:81`](apps/web-ui/src/lib/run-graph-definition.test.ts#L81))

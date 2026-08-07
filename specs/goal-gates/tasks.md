@@ -34,6 +34,6 @@ Spec: [spec.md](spec.md). Every task is test-first — write the failing test, w
 
 ## Phase 5 — Closure
 
-- [ ] T017 Delete `adrs/ADR-040-goal-gates.md` — superseded by this spec
-- [ ] T018 Sweep `spec.md` for any statement still unlinked (each task links its own as it lands) and settle `| Status |` on the coverage ladder
+- [x] T017 Delete `adrs/ADR-040-goal-gates.md` — superseded by this spec
+- [x] T018 Sweep `spec.md` for any statement still unlinked (each task links its own as it lands) and settle `| Status |` on the coverage ladder
 - [ ] T019 Full verification: `npx eslint .` (0 errors), `npx prettier --check` on touched files, `npm run typecheck:drift`, and the `libs/assembly-lines`, `apps/floor`, `apps/web-ui` suites green

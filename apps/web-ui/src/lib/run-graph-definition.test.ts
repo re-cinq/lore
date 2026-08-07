@@ -112,3 +112,17 @@ describe("definitionForRun", () => {
     });
   });
 });
+
+describe("the transcribed builtins carry the review goal gate", () => {
+  it("marks review as a goal gate in implementation and code-review", () => {
+    const review = (n: { id: string }) => n.id === "review";
+
+    expect({
+      implementation: implementationDefinition.nodes.find(review),
+      codeReview: codeReviewDefinition.nodes.find(review),
+    }).toMatchObject({
+      implementation: { goal_gate: true },
+      codeReview: { goal_gate: true },
+    });
+  });
+});
