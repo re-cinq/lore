@@ -17,7 +17,11 @@ PR history, and task state.
   instead of stdio, and `LORE_MCP_SERVER_MODE=agent` (`build-mcp-server.ts`) omits
   the laptop-only + `lore_create_pipeline_task` tools. Deployed by `charts/lore-mcp-helm`
   (image `ghcr.io/re-cinq/lore-mcp`) in the `lore-api` namespace; agent recipes reach
-  it via a `resources.mcp_servers` entry (ADR-030/031/032).
+  it via a `resources.mcp_servers` entry (ADR-030/031/032). The gateway also serves the
+  **agent-skills registry** (`src/server/skills-registry.ts`) at `/skills/<name>.tar.gz`
+  + `/skills/settings.json` (unauthenticated; bundle baked from `apps/mcp-server/agent-skills/`);
+  the ai-agent-subsystem init fetches these into a run's `$HOME/.claude` via the recipe's
+  `resources.skills` + `skills_source` (ADR-030 skills seam).
 - **`apps/lore-api`** (`src/index.ts` + `src/server/http-server.ts`) — the remote
   HTTPS REST backend (`/api/*`) on GKE. Routes are organized one folder per
   endpoint under `src/api/routes/`; the DB/GitHub/GCS/tree-sitter work lives here.
