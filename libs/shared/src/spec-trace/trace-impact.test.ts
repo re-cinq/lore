@@ -687,7 +687,8 @@ describe("buildImpactComment presentation", () => {
 
     expect(comment).toContain("Examined **23 changed file(s)**");
     expect(comment).toContain("3 had graph data");
-    expect(comment).toContain("20 had none");
+    // 23 files - 3 with graph data - 2 read at statement level.
+    expect(comment).toContain("18 had none");
     expect(comment).toContain("**4 new statement(s)**");
     expect(comment).toContain("**114 changed statement(s)** had no validating");
   });
@@ -737,6 +738,25 @@ describe("protocol gating", () => {
     expect(comment).toContain("is version 1");
     expect(comment).toContain("merge base");
     expect(comment).toContain("suppressed");
+  });
+
+  it("does not count a spec it read at statement level among the files it cannot speak for", () => {
+    const comment = buildImpactComment({
+      status: "ok",
+      protocol: 2,
+      statements: [],
+      orphaned: [],
+      testSelectors: [],
+      examined: {
+        files: 3,
+        withGraphData: 1,
+        docs: 2,
+        newStatements: 0,
+        changedWithoutTests: 0,
+      },
+    });
+
+    expect(comment).toContain("0 had none");
   });
 
   it("does not claim nothing moved while also reporting statements that moved", () => {

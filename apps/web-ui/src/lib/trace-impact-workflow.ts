@@ -1,11 +1,13 @@
-// web-ui can't import the @re-cinq/lore-shared PACKAGE (separate workspace +
-// lockfile), so the canonical lore-trace-impact.yml workflow is hand-duplicated
-// here. `trace-impact-workflow.parity.test.ts` imports shared's PURE module by
-// file path and byte-compares the two: the web-ui "fix" button commits THIS
-// constant into repos while onboard commits the shared one, so a silent
-// divergence would ship two different workflows to different repos.
+// MIRROR — the ORIGINAL is libs/shared/src/trace-impact-workflow.ts. Edit there
+// first, then copy the result here; `trace-impact-workflow.parity.test.ts`
+// imports shared's PURE module by file path and byte-compares the two, so
+// starting on this side fails CI. web-ui can't import the @re-cinq/lore-shared
+// PACKAGE (separate workspace + lockfile), hence the duplication. The bytes
+// matter: the web-ui "fix" button commits THIS constant into repos while
+// onboard commits the shared one, so a silent divergence ships two different
+// workflows to different repos.
 /**
- * Canonical source of truth for the `lore-trace-impact.yml` GitHub Actions
+ * Mirror of the canonical `lore-trace-impact.yml` GitHub Actions
  * workflow that every onboarded repo installs. On each pull_request it sends the
  * diff (changed file + line ranges) plus the head text of any changed spec/ADR
  * to the Lore `/impact` endpoint, and renders the returned annotations + sticky
@@ -177,7 +179,11 @@ jobs:
           # protocol 2 declares that this diff is merge-base-relative and carries
           # baseRanges + per-file alignment. Without it the server suppresses the
           # findings, because a protocol-1 diff cannot be trusted.
-          BODY=$(node -e 'const d=require("./impact-diff.json"); d.protocol=2; d.commit=process.env.COMMIT; d.graphCommit=process.env.GRAPH_COMMIT||null; process.stdout.write(JSON.stringify(d))')
+          # Write the body to a file rather than passing it as an argument.
+          # docs[] carries whole spec files, and Linux caps a SINGLE argument at
+          # MAX_ARG_STRLEN (128KB) regardless of the much larger total ARG_MAX —
+          # three changed specs was enough for "curl: Argument list too long".
+          node -e 'const fs=require("fs"); const d=require("./impact-diff.json"); d.protocol=2; d.commit=process.env.COMMIT; d.graphCommit=process.env.GRAPH_COMMIT||null; fs.writeFileSync("impact-body.json", JSON.stringify(d))'
           # Capture the status separately. \`curl -sf || echo unavailable\` used to
           # render a bad token, a 404 and a real outage as the same cheerful
           # "no action needed" - a check that looks identical when broken and
@@ -185,7 +191,7 @@ jobs:
           CODE=$(curl -s -o impact.json -w '%{http_code}' -X POST \\
             -H "Authorization: Bearer \${LORE_INGEST_TOKEN}" \\
             -H "Content-Type: application/json" \\
-            -d "$BODY" \\
+            --data-binary @impact-body.json \\
             "\${LORE_INGEST_URL}/api/repos/\${{ github.repository }}/impact" || echo 000)
           echo "impact endpoint returned $CODE"
           case "$CODE" in

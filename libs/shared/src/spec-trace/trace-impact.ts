@@ -52,8 +52,7 @@ export interface ChangedRange {
 }
 
 /** Why a file or a whole run contributed no line-precise finding. */
-export type SkipReason =
-  "unaligned" | "no-baseline" | "legacy-client" | "no-graph-data";
+export type SkipReason = "unaligned" | "no-baseline" | "legacy-client";
 
 /** A statement whose only coverage the diff deletes. */
 export interface OrphanStatement {
@@ -146,7 +145,11 @@ function describeExamined(report: ImpactReport): string {
   if (!seen) {
     return "No spec impact detected for this PR.";
   }
-  const blind = seen.files - seen.withGraphData;
+  // Docs are examined at statement level, so they are neither "had graph data"
+  // (the line-based lookups usually find nothing in a .md) nor blind. Counting
+  // them as blind told the reader the check could not speak for exactly the
+  // files it read most closely. Clamped: a doc could also carry line data.
+  const blind = Math.max(0, seen.files - seen.withGraphData - seen.docs);
   const parts = [
     `Examined **${seen.files} changed file(s)**: ${seen.withGraphData} had graph data (no coupling found), ${blind} had none — no ingested test run covers them, so this check cannot speak for them.`,
   ];
@@ -228,7 +231,15 @@ function dedupeRows(statements: ImpactStatement[]): ImpactStatement[] {
   const seen = new Set<string>();
 
   return statements.filter((s) => {
-    const key = `${s.specPath}|${s.statementText}|${testCellFor(s)}|${s.changedFile}`;
+    // JSON rather than a delimiter: statement prose routinely contains pipes
+    // (markdown tables), and any single-character separator can be forged by the
+    // content it separates. This has no separator to collide with.
+    const key = JSON.stringify([
+      s.specPath,
+      s.statementText,
+      testCellFor(s),
+      s.changedFile,
+    ]);
 
     if (seen.has(key)) {
       return false;

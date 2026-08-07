@@ -16,6 +16,8 @@ import type { ServerRoute } from "@hapi/hapi";
 import { createDgraphClient, readGraphBaseline } from "@re-cinq/lore-shared";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 
+// Shared, not cloned per response: hapi serialises it to JSON and never hands
+// the object to a caller who could mutate it.
 const UNSTAMPED = { graphCommit: null, graphCommitAt: null, source: "none" };
 
 export function impactBaseRoute(): ServerRoute {

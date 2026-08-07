@@ -18,7 +18,11 @@ import { withTxn, upsertByXid } from "./dgraph-upsert.js";
 
 export interface GraphBaseline {
   commit: string | null;
-  /** ISO-8601, or null when the repo has never been stamped. */
+  /**
+   * ISO-8601 wall-clock time the stamp was WRITTEN — when ingest ran, not the
+   * commit's author/committer date. Useful for "how long ago did the graph last
+   * move"; do not read it as anything about `commit` itself.
+   */
   at: string | null;
   source: "repo-stamp" | "none";
 }
