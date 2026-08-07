@@ -199,3 +199,35 @@ describe("notifyLineFailure", () => {
     ]);
   });
 });
+
+describe("goal_gate_unmet rides the standard failure path", () => {
+  it("classifies goal_gate_unmet as a failure", () => {
+    expect(isFailureOutcome("goal_gate_unmet")).toBe(true);
+  });
+
+  it("notifies and comments on a PR-linked line closing goal_gate_unmet", async () => {
+    const recorder = recordingPorts();
+
+    await notifyLineFailure(
+      lineRow({ outcome: "goal_gate_unmet" }),
+      "goal_gate_unmet",
+      'reached the exit with unsatisfied goal gate(s) "review"',
+      recorder.ports,
+    );
+
+    expect({
+      notified: recorder.notified,
+      commented: recorder.commented,
+    }).toMatchObject({
+      notified: [
+        {
+          level: "escalation",
+          message: expect.stringContaining("goal_gate_unmet"),
+        },
+      ],
+      commented: [
+        { prNumber: 862, body: expect.stringContaining("goal_gate_unmet") },
+      ],
+    });
+  });
+});

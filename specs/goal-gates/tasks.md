@@ -28,7 +28,7 @@ Spec: [spec.md](spec.md). Every task is test-first — write the failing test, w
 
 - [x] T012 [P] Run-view label — failing test in `apps/web-ui/src/lib/assembly-line-presenter.test.ts` that `goal_gate_unmet` renders a failure-toned label, then add the case in `apps/web-ui/src/lib/assembly-line-presenter.ts`
 - [x] T013 [P] Definition mirror — add `goal_gate` to `apps/web-ui/src/lib/assembly-line-definition.ts` and confirm `npm run typecheck:drift` is green (red before, green after)
-- [ ] T014 [P] Failure notification — failing test in `apps/floor/src/jobs/assembly-line/notify-failure.test.ts` that a `goal_gate_unmet` line notifies on the standard failure path; extend the classifier only if it does not already treat the outcome as a failure generically
+- [x] T014 [P] Failure notification — failing test in `apps/floor/src/jobs/assembly-line/notify-failure.test.ts` that a `goal_gate_unmet` line notifies on the standard failure path; extend the classifier only if it does not already treat the outcome as a failure generically
 - [ ] T015 [P] PR check — failing test in `apps/floor/src/jobs/assembly-line/pr-check.test.ts` that a PR-linked line closing `goal_gate_unmet` publishes a failing `lore/<definition>` check; extend only if the mapping is not already generic
 - [ ] T016 [P] Escalation diagnostic — add `goal_gate_unmet` to the reason union in `apps/floor/src/jobs/platform/escalation.ts` with a covering test, if the union does not already admit it
 
