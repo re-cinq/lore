@@ -281,7 +281,17 @@ export function catalogChartYaml(
   );
   const body = `${header}{{- if .Values.seedCatalog }}\n---\n${docs.join("---\n")}{{- end }}\n`;
 
-  return body
+  // Guard the seeded mcp_servers block behind .Values.loreMcpUrl: with the gateway
+  // URL unset (the default, and every cluster before the gateway is deployed) the
+  // whole block is omitted, so recipe CRDs carry no empty-`url` MCP entry. The block
+  // is the `mcp_servers:` line plus its more-indented list lines.
+  const guarded = body.replace(
+    /^( *)mcp_servers:\n((?:\1 .*\n)*)/gm,
+    (_m, indent: string, items: string) =>
+      `{{- if .Values.loreMcpUrl }}\n${indent}mcp_servers:\n${items}{{- end }}\n`,
+  );
+
+  return guarded
     .replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}")
     .replaceAll(MCP_URL_SENTINEL, "{{ .Values.loreMcpUrl }}")
     .replaceAll(API_URL_SENTINEL, "{{ .Values.loreApiUrl }}")

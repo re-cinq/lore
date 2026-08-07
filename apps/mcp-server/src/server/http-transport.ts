@@ -17,15 +17,54 @@ export interface HttpGatewayOptions {
   serverMode?: ServerMode;
 }
 
-async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+/** Match the lore-api ingress cap so an authenticated-but-rogue pod can't OOM the gateway. */
+const MAX_BODY_BYTES = 1024 * 1024;
+
+/** Bound the per-session server map so leaked sessions (a pod that drops without
+ *  DELETE, so `onclose` never fires) can't grow it without limit. Far above the
+ *  handful of concurrent agent pods; hitting it means a leak, so evict the oldest. */
+const MAX_SESSIONS = 1000;
+
+/** An HTTP error carrying the status the gateway should return. */
+class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+function statusOf(err: unknown): number {
+  return err instanceof HttpError ? err.status : 500;
+}
+
+/** Read the request body with a hard size cap, then parse it as JSON — a
+ *  malformed body is a client error (400), an oversized one is 413; neither
+ *  should surface as a 500. Exported for unit testing. */
+export async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
+  let size = 0;
 
   for await (const chunk of req) {
+    size += (chunk as Buffer).length;
+
+    if (size > MAX_BODY_BYTES) {
+      throw new HttpError(413, "request body too large");
+    }
     chunks.push(chunk as Buffer);
   }
   const raw = Buffer.concat(chunks).toString("utf8");
 
-  return raw ? JSON.parse(raw) : undefined;
+  if (!raw) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new HttpError(400, "request body is not valid JSON");
+  }
 }
 
 function jsonRpcError(res: ServerResponse, status: number, message: string) {
@@ -48,6 +87,16 @@ function newSession(
   opts: HttpGatewayOptions,
   sessions: Map<string, StreamableHTTPServerTransport>,
 ): StreamableHTTPServerTransport {
+  // Map keeps insertion order, so the first key is the oldest session — evict it
+  // (closing frees its McpServer) rather than let a leak grow the map unbounded.
+  if (sessions.size >= MAX_SESSIONS) {
+    const oldest = sessions.keys().next().value;
+
+    if (oldest) {
+      void sessions.get(oldest)?.close();
+      sessions.delete(oldest);
+    }
+  }
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
     // Lore's tools are request/response, so a single JSON reply is enough —
@@ -82,9 +131,15 @@ export function startHttpGateway(
     !opts.authToken || req.headers.authorization === `Bearer ${opts.authToken}`;
 
   const server = createServer((req, res) => {
-    void handle(req, res).catch((err) => {
+    void handle(req, res).catch((err: unknown) => {
       if (!res.headersSent) {
-        jsonRpcError(res, 500, `gateway error: ${String(err)}`);
+        const status = statusOf(err);
+        const message =
+          status === 500
+            ? `gateway error: ${String(err)}`
+            : (err as Error).message;
+
+        jsonRpcError(res, status, message);
       }
     });
   });

@@ -5,17 +5,56 @@ Serves org context, ADRs, memory, and search to Claude Code over the
 entrypoint developers connect to: it auto-detects the current repo from the git
 remote and serves that repo's context.
 
-## Transport
+## Transports
 
-Single **stdio** transport (ADR-032). The MCP server runs on the developer's
-machine, registered by `scripts/install.sh`, and speaks the MCP protocol to
-Claude Code over stdio. It holds no database pool: it auto-detects the current
-repo from the git remote and **proxies** every data operation to the shared
-backend over `LORE_API_URL` (bearer `LORE_INGEST_TOKEN`), with a `~/.lore` file
-fallback for a subset of memory tools. Proxied reads pass through a read-through
-cache; writes invalidate the caches they affect. The remote backend it talks to
-is `@re-cinq/lore-api`, a plain REST service that owns the direct PostgreSQL +
-pgvector access behind `/api/*`.
+The same server (`buildMcpServer` — one tool registry) runs behind **two**
+transports; `src/index.ts` picks one at boot from `LORE_MCP_HTTP`.
+
+### stdio — the developer machine (default)
+
+The MCP server runs on the developer's machine, registered by
+`scripts/install.sh`, and speaks the MCP protocol to Claude Code over stdio. It
+holds no database pool: it auto-detects the current repo from the git remote and
+**proxies** every data operation to the shared backend over `LORE_API_URL`
+(bearer `LORE_INGEST_TOKEN`), with a `~/.lore` file fallback for a subset of
+memory tools. Proxied reads pass through a read-through cache; writes invalidate
+the caches they affect. The remote backend it talks to is `@re-cinq/lore-api`, a
+plain REST service that owns the direct PostgreSQL + pgvector access behind
+`/api/*`.
+
+### HTTP gateway — `lore-mcp`, for agent pods
+
+With `LORE_MCP_HTTP=1` the same server mounts the MCP SDK's
+`StreamableHTTPServerTransport` on a port instead of stdio
+(`src/server/http-transport.ts`). This is the shared **`lore-mcp` gateway**: one
+HTTPS service that gives headless agent pods (implementation / review / …) live
+Lore tools _during_ a run, reached declaratively through their `AgentDefinition`
+recipe's `resources.mcp_servers` entry (ADR-030/031/032). It proxies to
+`lore-api` exactly like the stdio adapter.
+
+| Env var | Meaning |
+|---------|---------|
+| `LORE_MCP_HTTP=1` | Serve over HTTP instead of stdio. |
+| `LORE_MCP_PORT` | Listen port (default `8080`). |
+| `LORE_MCP_AUTH_TOKEN` | Require `Authorization: Bearer <token>` on every request. Unset ⇒ auth off (local dev only). |
+| `LORE_MCP_SERVER_MODE=agent` | Omit the laptop-only tools **and** `lore_create_pipeline_task` — context / memory / search / graph only. |
+| `LORE_API_URL` | The `lore-api` base the gateway proxies to. |
+
+**Endpoints:** `POST /mcp` (send `initialize` first; subsequent tool calls carry
+the returned `mcp-session-id` header), `GET`/`DELETE /mcp` (stream / close a
+session), and `GET /healthz`. **Hardening:** bearer auth on every `/mcp`
+request; request bodies capped at 1 MB (`413` over the cap); malformed JSON →
+`400`; the per-session server map is bounded (oldest evicted) so a dropped
+connection can't leak it.
+
+Run it locally:
+
+```bash
+LORE_MCP_HTTP=1 LORE_MCP_PORT=8080 LORE_MCP_AUTH_TOKEN=dev-token \
+  LORE_API_URL=http://localhost:3000 node apps/mcp-server/dist/index.js
+# → [lore] MCP HTTP gateway listening on :8080 (mode=full, auth=on)
+curl -s localhost:8080/healthz   # → ok
+```
 
 ## What it serves
 
@@ -61,9 +100,17 @@ the MCP server then listens on `:3001`.
 
 ## Deploy
 
-There is no separate server deployment for this package — it runs locally over
-stdio. `scripts/install.sh` builds the `@re-cinq/lore-shared`,
+**Local (stdio):** `scripts/install.sh` builds the `@re-cinq/lore-shared`,
 `@re-cinq/lore-server-core`, and `@re-cinq/lore-mcp` workspaces and configures
 Claude Code to launch `apps/mcp-server/dist/index.js`, which proxies to the
-shared backend. The remote piece that runs on GKE is `@re-cinq/lore-api`; see
-[`infra/`](../../infra) and the root README.
+shared backend. Most developers only ever run this mode.
+
+**Cluster (HTTP gateway):** the same image runs as the `lore-mcp` gateway for
+agent pods — built by `.github/workflows/build-mcp-server.yml`
+(`ghcr.io/re-cinq/lore-mcp`) and deployed by the `lore-mcp-helm` subchart of the
+`lore-platform` umbrella into the `lore-api` namespace, with a public `:443`
+Ingress owned by Terraform (`infra/terraform/lore-mcp.tf`, host from
+`lore_mcp_url`). Agent recipes point at it via `resources.mcp_servers` seeded by
+the ai-agents catalog; the entry is omitted until `lore_mcp_url` is set, so the
+gateway is inert until deployed. The remote REST backend both transports proxy
+to is `@re-cinq/lore-api`; see [`infra/`](../../infra) and the root README.

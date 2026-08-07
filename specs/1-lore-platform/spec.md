@@ -226,6 +226,13 @@ system is performing.
   targeted memory mid-task — not only start pre-hydrated. A shared `lore-mcp`
   gateway serves those tools over MCP-over-HTTP at a public `:443` host (the
   agent-pod NetworkPolicy allows only public `:443` egress). ([validated by `agent-catalog.test.ts:60`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L60), [`agent-catalog.test.ts:20`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L20))
+- The gateway reads each request body defensively: it JSON-parses the body
+  (an empty body carries no payload), caps it at 1 MB (`413` over the cap) so an
+  authenticated-but-rogue pod cannot exhaust gateway memory, and returns `400`
+  for a malformed body rather than a `500`. ([validated by `http-transport.test.ts:10`](apps/mcp-server/src/server/http-transport.test.ts#L10), [`http-transport.test.ts:14`](apps/mcp-server/src/server/http-transport.test.ts#L14), [`http-transport.test.ts:18`](apps/mcp-server/src/server/http-transport.test.ts#L18), [`http-transport.test.ts:24`](apps/mcp-server/src/server/http-transport.test.ts#L24))
+- When no gateway URL is configured (the default, and every cluster before the
+  gateway is deployed), the seeded agent recipes omit the `mcp_servers` block
+  entirely — no empty-`url` MCP entry lands in any recipe CRD. ([validated by `catalog-mcp-guard.test.ts:12`](apps/floor/src/jobs/agent/catalog-mcp-guard.test.ts#L12))
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no

@@ -28,11 +28,13 @@ spec:
     secrets:
       - name: ANTHROPIC_API_KEY
         ref: ANTHROPIC_API_KEY
+{{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
         transport: http
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -93,11 +95,13 @@ spec:
     secrets:
       - name: ANTHROPIC_API_KEY
         ref: ANTHROPIC_API_KEY
+{{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
         transport: http
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -172,11 +176,13 @@ spec:
     secrets:
       - name: ANTHROPIC_API_KEY
         ref: ANTHROPIC_API_KEY
+{{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
         transport: http
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -237,11 +243,13 @@ spec:
     secrets:
       - name: ANTHROPIC_API_KEY
         ref: ANTHROPIC_API_KEY
+{{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
         transport: http
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -308,11 +316,13 @@ spec:
     secrets:
       - name: ANTHROPIC_API_KEY
         ref: ANTHROPIC_API_KEY
+{{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
         transport: http
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -409,11 +419,13 @@ spec:
     secrets:
       - name: ANTHROPIC_API_KEY
         ref: ANTHROPIC_API_KEY
+{{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
         transport: http
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -500,11 +512,13 @@ spec:
     secrets:
       - name: ANTHROPIC_API_KEY
         ref: ANTHROPIC_API_KEY
+{{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
         transport: http
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -586,11 +600,13 @@ spec:
     secrets:
       - name: ANTHROPIC_API_KEY
         ref: ANTHROPIC_API_KEY
+{{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
         transport: http
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -656,11 +672,13 @@ spec:
     secrets:
       - name: ANTHROPIC_API_KEY
         ref: ANTHROPIC_API_KEY
+{{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
         transport: http
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -749,11 +767,13 @@ spec:
     secrets:
       - name: ANTHROPIC_API_KEY
         ref: ANTHROPIC_API_KEY
+{{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
         transport: http
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -818,11 +838,13 @@ spec:
     secrets:
       - name: ANTHROPIC_API_KEY
         ref: ANTHROPIC_API_KEY
+{{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
         transport: http
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -879,11 +901,13 @@ spec:
     secrets:
       - name: ANTHROPIC_API_KEY
         ref: ANTHROPIC_API_KEY
+{{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
         transport: http
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -1024,11 +1048,13 @@ spec:
     secrets:
       - name: ANTHROPIC_API_KEY
         ref: ANTHROPIC_API_KEY
+{{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
         transport: http
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
