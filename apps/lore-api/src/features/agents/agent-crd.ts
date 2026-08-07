@@ -4,9 +4,12 @@
 // seed mapping (apps/floor agent-catalog.ts) but from the resolved recipe shape; pure +
 // deterministic. The k8s apply/delete is the IO shell (agent-crd-k8s.ts).
 
+import Boom from "@hapi/boom";
 import type { AgentDefinition as RecipeDef } from "@re-cinq/lore-shared";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type {
   AgentDefinition,
+  AgentDefinitionSpec,
   Station,
   OutputSink,
 } from "@re-cinq/agent-contracts";
@@ -26,6 +29,40 @@ export interface CrdOptions {
   eventsUrl?: string;
 }
 
+/** exec-vendor station (ADR-031 amendment): a non-LLM node run by the pod's
+ *  `lore-station <type>` entrypoint. The whole node input rides the {station_input}
+ *  prompt; tool_config.command names the entrypoint, derived from the def-<type>
+ *  name — a custom image honoring the station contract drops in by pointing
+ *  station_ref at its row. */
+function stationSpec(def: RecipeDef, sinks: OutputSink[]): AgentDefinitionSpec {
+  return {
+    description: `Lore ${def.name} station recipe (UI-authored).`,
+    model: "exec",
+    prompt: "{station_input}",
+    permission_mode: "bypass",
+    max_turns: 1,
+    tool_config: { command: ["lore-station", def.name.replace(/^def-/, "")] },
+    output: { sinks },
+  };
+}
+
+function llmSpec(def: RecipeDef, sinks: OutputSink[]): AgentDefinitionSpec {
+  // The subsystem rejects a promptless AgentDefinition at admission
+  // (ai-agent-subsystem#155). Emitting the spec without one just moved the failure
+  // to the apply, where it surfaces as an opaque API-server rejection.
+  enforceTrue(def.prompt, Boom.badRequest, `recipe ${def.name} has no prompt`);
+
+  return {
+    description: `Lore ${def.name} recipe (UI-authored).`,
+    ...(def.model ? { model: def.model } : {}),
+    // {context} is filled by the Floor's context hydration (D5).
+    prompt: `${def.prompt}\n\n{context}`,
+    permission_mode: "bypass",
+    max_turns: 40,
+    output: { sinks },
+  };
+}
+
 export function agentDefToCrds(def: RecipeDef, opts: CrdOptions = {}): CrdPair {
   const sinks: OutputSink[] = [{ type: "stdout" }];
 
@@ -43,32 +80,7 @@ export function agentDefToCrds(def: RecipeDef, opts: CrdOptions = {}): CrdPair {
       apiVersion: API_VERSION,
       kind: "AgentDefinition",
       metadata: { name: def.name, labels: { ...UI_LABELS } },
-      spec: isStation
-        ? {
-            // exec-vendor station (ADR-031 amendment): a non-LLM node run by the
-            // pod's `lore-station <type>` entrypoint. The whole node input rides
-            // the {station_input} prompt; tool_config.command names the entrypoint,
-            // derived from the def-<type> name — a custom image honoring the
-            // station contract drops in by pointing station_ref at its row.
-            description: `Lore ${def.name} station recipe (UI-authored).`,
-            model: "exec",
-            prompt: "{station_input}",
-            permission_mode: "bypass",
-            max_turns: 1,
-            tool_config: {
-              command: ["lore-station", def.name.replace(/^def-/, "")],
-            },
-            output: { sinks },
-          }
-        : {
-            description: `Lore ${def.name} recipe (UI-authored).`,
-            ...(def.model ? { model: def.model } : {}),
-            // {context} is filled by the Floor's context hydration (D5).
-            ...(def.prompt ? { prompt: `${def.prompt}\n\n{context}` } : {}),
-            permission_mode: "bypass",
-            max_turns: 40,
-            output: { sinks },
-          },
+      spec: isStation ? stationSpec(def, sinks) : llmSpec(def, sinks),
     },
     station: {
       apiVersion: API_VERSION,

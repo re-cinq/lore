@@ -9,6 +9,7 @@
 
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 
@@ -45,6 +46,15 @@ export function injectRepoToken(
   tokenKey: string,
   name: string,
 ): AgentDefinition {
+  // The subsystem rejects a promptless AgentDefinition at admission
+  // (ai-agent-subsystem#155), so a catalog row missing one can only produce a
+  // per-task clone the API server refuses — fail here, where the task id is known.
+  enforceTrue(
+    catalog.spec?.prompt,
+    Error,
+    `catalog recipe ${catalog.metadata?.name} has no prompt; task ${spec.taskId}`,
+  );
+
   return {
     ...catalog,
     metadata: {
