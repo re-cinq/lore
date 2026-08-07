@@ -792,3 +792,45 @@ describe("finish is first-writer-wins", () => {
     expect(calls[0]?.text).toContain("status IN ('queued', 'running')");
   });
 });
+
+// ── Definition hashing (specs/fork-rerun-from-node FR4): the stamp names the
+//    graph a line's node rows were produced by, so a fork can refuse to replay
+//    them against a definition that has since changed.
+describe("stampDefinitionHash", () => {
+  it("issues a write-once UPDATE guarded on a null hash (Pg)", async () => {
+    const { pool, calls } = fakePool();
+
+    await new PgAssemblyLines(pool).stampDefinitionHash("al-1", "hash-1");
+
+    expect(calls[0]?.text).toContain("SET definition_hash = $2");
+    expect(calls[0]?.text).toContain("definition_hash IS NULL");
+    expect(calls[0]?.params).toEqual(["al-1", "hash-1"]);
+  });
+
+  it("records the hash on a line that has none", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await port.start({ definitionName: "general", repo: "o/r" });
+
+    await port.stampDefinitionHash(id, "hash-1");
+
+    expect(await port.getById(id)).toMatchObject({ definitionHash: "hash-1" });
+  });
+
+  it("never overwrites an already-stamped hash, so a redelivered start cannot rewrite history", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await port.start({ definitionName: "general", repo: "o/r" });
+
+    await port.stampDefinitionHash(id, "hash-1");
+    await port.stampDefinitionHash(id, "hash-2");
+
+    expect(await port.getById(id)).toMatchObject({ definitionHash: "hash-1" });
+  });
+
+  it("throws on an unknown line id", async () => {
+    const port = new InMemoryAssemblyLines();
+
+    await expect(port.stampDefinitionHash("nope", "hash-1")).rejects.toThrow(
+      new Error('no assembly line "nope"'),
+    );
+  });
+});

@@ -69,6 +69,19 @@ export class PgAssemblyLines implements AssemblyLinesPort {
     );
   }
 
+  async stampDefinitionHash(id: string, hash: string): Promise<void> {
+    // Write-once: the stored hash is the graph this line's node rows were
+    // produced by. A redelivered start that loads a since-edited definition
+    // would otherwise silently re-point the row at a graph it never ran.
+    await this.pool.query(
+      `UPDATE pipeline.assembly_lines
+         SET definition_hash = $2
+       WHERE id = $1
+         AND definition_hash IS NULL`,
+      [id, hash],
+    );
+  }
+
   async finish(id: string, outcome: string, reason?: string): Promise<boolean> {
     // First writer decides: duplicate/late finishers (event redelivery, reaper vs
     // watch race) never overwrite a terminal row. RETURNING reports the win so

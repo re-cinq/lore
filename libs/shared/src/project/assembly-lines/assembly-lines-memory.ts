@@ -72,6 +72,13 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     row.startedAt = this.clock();
   }
 
+  async stampDefinitionHash(id: string, hash: string): Promise<void> {
+    const row = this.mustFind(id);
+
+    // Write-once (mirrors the Pg guard on a null hash).
+    row.definitionHash = row.definitionHash ?? hash;
+  }
+
   async finish(id: string, outcome: string, reason?: string): Promise<boolean> {
     const row = this.mustFind(id);
 

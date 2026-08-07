@@ -78,6 +78,13 @@ export interface AssemblyLinesPort {
    */
   start(input: AssemblyLineStartInput): Promise<string>;
   markRunning(id: string): Promise<void>;
+  /**
+   * Record the content hash of the definition this execution ran, once. Never
+   * overwrites an already-stamped value: the hash names the graph the line's
+   * node rows were produced by, so a redelivered start loading a since-edited
+   * definition must not rewrite what the rows actually came from.
+   */
+  stampDefinitionHash(id: string, hash: string): Promise<void>;
   /** `outcome: "error"` closes the row as `failed`; anything else as `finished`.
    *  First writer decides — returns true only for the call that closed the row,
    *  so racing finishers (node event vs reaper) can gate once-only side effects
