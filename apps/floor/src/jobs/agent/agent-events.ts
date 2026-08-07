@@ -90,6 +90,10 @@ export interface AgentSink {
    *  than swallowed: a store justified by fidelity must make its own losses
    *  visible, and an agent can trigger the drop on purpose. */
   turnsDropped: number;
+  /** Turns lost to MAX_RUN_TURNS_PER_BATCH. The other half of the same
+   *  property: every path that loses a turn is counted, so "the transcript is
+   *  complete" is a claim the metrics can actually support. */
+  turnsCapped: number;
 }
 
 /** Yield each `\n`-delimited line without materializing the whole array.
@@ -125,8 +129,9 @@ function* lines(body: string): Generator<string> {
  * Blank and unparseable lines are skipped. A task-less line yields no cost row
  * and no visualization row, but IS still collected as a turn — the turn store
  * keeps what it cannot label. The only turn loss is a line whose redaction left
- * it unparseable, and that is counted in `turnsDropped` rather than swallowed.
- * Nothing throws.
+ * it unparseable (`turnsDropped`) or one the per-batch cap left out
+ * (`turnsCapped`) — both counted rather than swallowed, so every lost turn is
+ * visible. Nothing throws.
  */
 export function parseAgentSink(
   ndjson: string,
@@ -137,6 +142,7 @@ export function parseAgentSink(
   const runEvents: AgentRunEventInsert[] = [];
   const turns: AgentRunTurnInsert[] = [];
   let turnsDropped = 0;
+  let turnsCapped = 0;
 
   for (const line of lines(ndjson)) {
     if (!line.trim()) {
@@ -155,14 +161,19 @@ export function parseAgentSink(
       costRows.push(costRow);
     }
 
-    if (collectTurns && turns.length < MAX_RUN_TURNS_PER_BATCH) {
-      const turn = turnFromEnvelope(envelope, line);
+    const wantTurn = collectTurns && turns.length < MAX_RUN_TURNS_PER_BATCH;
 
-      if (turn) {
-        turns.push(turn);
-      } else {
-        turnsDropped++;
-      }
+    if (collectTurns && !wantTurn) {
+      turnsCapped++;
+    }
+    const turn = wantTurn ? turnFromEnvelope(envelope, line) : null;
+
+    if (wantTurn && turn === null) {
+      turnsDropped++;
+    }
+
+    if (turn) {
+      turns.push(turn);
     }
 
     if (!projectRunEvents || runEvents.length >= MAX_RUN_EVENTS_PER_BATCH) {
@@ -177,7 +188,7 @@ export function parseAgentSink(
     }
   }
 
-  return { costRows, runEvents, turns, turnsDropped };
+  return { costRows, runEvents, turns, turnsDropped, turnsCapped };
 }
 
 /** The cost projection alone (skips blank, unparseable, and non-`result` lines,

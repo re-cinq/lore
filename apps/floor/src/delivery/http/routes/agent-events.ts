@@ -25,7 +25,10 @@ import {
   type LlmCallRow,
 } from "../../../jobs/agent/agent-events.js";
 import { agentEventBus } from "../../../jobs/agent/agent-event-bus.js";
-import { agentTurnsEnabled } from "../../../jobs/agent/agent-run-turns.js";
+import {
+  agentTurnsEnabled,
+  MAX_RUN_TURNS_PER_BATCH,
+} from "../../../jobs/agent/agent-run-turns.js";
 import { archiveAgentEvents } from "../../../jobs/agent/agent-events-store.js";
 import { writeAuditLog } from "../../../jobs/lib/audit.js";
 import { rawBody } from "../raw-body.js";
@@ -46,6 +49,7 @@ type AnomalyKind =
   | "run_events_failed"
   | "run_turns_failed"
   | "turn_dropped_redaction"
+  | "turn_dropped_cap"
   | "archive_failed"
   | "archive_shed";
 
@@ -242,11 +246,8 @@ export const agentEventsRoute: ServerRoute = {
     const oversized = Buffer.byteLength(rawNdjson, "utf8") > MAX_VIZ_BODY_BYTES;
     // Turns ride the SAME single pass as the cost rows and the projection, and
     // reuse the same oversized gate — no second parse, no second size rule.
-    const { costRows, runEvents, turns, turnsDropped } = parseAgentSink(
-      rawNdjson,
-      !oversized,
-      !oversized && agentTurnsEnabled(),
-    );
+    const { costRows, runEvents, turns, turnsDropped, turnsCapped } =
+      parseAgentSink(rawNdjson, !oversized, !oversized && agentTurnsEnabled());
     const cost = await recordAgentCosts(costRows);
     const vizRows = oversized ? 0 : await recordRunEvents(runEvents);
     const turnRows = turns.length > 0 ? await recordRunTurns(turns) : 0;
@@ -258,6 +259,15 @@ export const agentEventsRoute: ServerRoute = {
       countAnomaly("turn_dropped_redaction", turnsDropped);
       console.warn(
         `[floor] ${turnsDropped} turn(s) dropped: redaction left the line unparseable`,
+      );
+    }
+
+    if (turnsCapped > 0) {
+      // The other lossy path. Counted for the same reason: a transcript store
+      // that quietly truncates is worse than one that says it truncated.
+      countAnomaly("turn_dropped_cap", turnsCapped);
+      console.warn(
+        `[floor] ${turnsCapped} turn(s) dropped: batch cap of ${MAX_RUN_TURNS_PER_BATCH} reached`,
       );
     }
 
@@ -282,6 +292,7 @@ export const agentEventsRoute: ServerRoute = {
       "agent_events.viz_rows": vizRows,
       "agent_events.turn_rows": turnRows,
       "agent_events.turns_dropped": turnsDropped,
+      "agent_events.turns_capped": turnsCapped,
       "agent_events.oversized": oversized,
     });
 

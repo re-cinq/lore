@@ -73,6 +73,7 @@ export type {
   AgentRunEventType,
 } from "./agent-run-events/agent-run-events-port.js";
 
+export { compareTurnIdAscending } from "./agent-run-turns/agent-run-turns-port.js";
 export type {
   AgentRunTurnsRepository,
   AgentRunTurnRow,

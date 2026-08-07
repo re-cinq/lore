@@ -144,4 +144,25 @@ describe("POST /api/agent-events dropped-turn signal", () => {
       warn.mock.calls.some((call) => String(call[0]).includes("dropped")),
     ).toBe(false);
   });
+
+  it("warns with a count when the per-batch cap leaves turns out", async () => {
+    process.env.LORE_AGENT_TURNS = "1";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    warn.mockClear();
+    const overCap = Array.from({ length: 10_003 }, () =>
+      JSON.stringify({
+        source: { task: "task-uuid-1", agent: "cr-1" },
+        event: { type: "assistant", message: { content: [] } },
+      }),
+    ).join("\n");
+
+    await post(overCap);
+
+    expect(
+      warn.mock.calls.some((call) =>
+        String(call[0]).includes("3 turn(s) dropped"),
+      ),
+    ).toBe(true);
+  });
 });

@@ -1,8 +1,9 @@
 import type { PgPool } from "../../memory-store.js";
-import type {
-  AgentRunTurnInsert,
-  AgentRunTurnRow,
-  AgentRunTurnsRepository,
+import {
+  compareTurnIdAscending,
+  type AgentRunTurnInsert,
+  type AgentRunTurnRow,
+  type AgentRunTurnsRepository,
 } from "./agent-run-turns-port.js";
 
 /** The shape `pipeline.agent_run_turns` hands back from `RETURNING *`. */
@@ -14,7 +15,7 @@ interface AgentRunTurnDbRow {
   node_id: string | null;
   iteration: number | null;
   event_type: string | null;
-  envelope: Record<string, unknown> | null;
+  envelope: Record<string, unknown>;
   created_at: Date;
 }
 
@@ -30,13 +31,9 @@ function toRow(row: AgentRunTurnDbRow): AgentRunTurnRow {
     nodeId: row.node_id,
     iteration: row.iteration,
     eventType: row.event_type,
-    envelope: row.envelope ?? {},
+    envelope: row.envelope,
     createdAt: row.created_at,
   };
-}
-
-function byIdAscending(a: AgentRunTurnRow, b: AgentRunTurnRow): number {
-  return BigInt(a.id) < BigInt(b.id) ? -1 : 1;
 }
 
 /**
@@ -95,7 +92,7 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
       [JSON.stringify(batch)],
     );
 
-    return inserted.map(toRow).sort(byIdAscending);
+    return inserted.map(toRow).sort(compareTurnIdAscending);
   }
 
   async listByLine(

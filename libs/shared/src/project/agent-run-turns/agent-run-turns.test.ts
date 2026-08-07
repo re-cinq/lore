@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryAgentRunTurns } from "./agent-run-turns-memory.js";
 import { PgAgentRunTurns } from "./agent-run-turns-pg.js";
-import type { AgentRunTurnInsert } from "./agent-run-turns-port.js";
+import {
+  compareTurnIdAscending,
+  type AgentRunTurnInsert,
+  type AgentRunTurnRow,
+} from "./agent-run-turns-port.js";
 import type { PgPool } from "../../memory-store.js";
 
 function turn(overrides: Partial<AgentRunTurnInsert> = {}): AgentRunTurnInsert {
@@ -383,5 +387,43 @@ describe("PgAgentRunTurns adapter", () => {
     expect(calls[0]?.text).toContain("DELETE FROM pipeline.agent_run_turns");
     expect(calls[0]?.text).toContain("make_interval(days => $1)");
     expect(calls[0]?.params).toEqual([90]);
+  });
+});
+
+describe("compareTurnIdAscending", () => {
+  // Both adapters sort with this one comparator. Array#sort's behaviour for a
+  // comparator that never returns 0 is implementation-defined — V8 happens to
+  // mask it today, so the contract has to be asserted directly rather than
+  // through insertBatch, which would pass either way.
+  const at = (id: string): AgentRunTurnRow => ({
+    id,
+    taskId: null,
+    agentCrName: null,
+    assemblyLineId: null,
+    nodeId: null,
+    iteration: null,
+    eventType: null,
+    envelope: {},
+    createdAt: new Date(0),
+  });
+
+  it("returns 0 for two rows carrying the same id", () => {
+    expect(compareTurnIdAscending(at("42"), at("42"))).toBe(0);
+  });
+
+  it("returns a negative number when the left id is the smaller bigint", () => {
+    expect(
+      compareTurnIdAscending(at("9007199254740994"), at("9007199254740995")),
+    ).toBeLessThan(0);
+  });
+
+  it("returns a positive number when the left id is the larger bigint", () => {
+    expect(
+      compareTurnIdAscending(at("9007199254740995"), at("9007199254740994")),
+    ).toBeGreaterThan(0);
+  });
+
+  it("orders by numeric value rather than by string order", () => {
+    expect(compareTurnIdAscending(at("10"), at("9"))).toBeGreaterThan(0);
   });
 });

@@ -105,3 +105,35 @@ describe("parseAgentSink dropped turns", () => {
     );
   });
 });
+
+describe("parseAgentSink capped turns", () => {
+  const overCap = (extra: number) =>
+    Array.from({ length: MAX_RUN_TURNS_PER_BATCH + extra }, () =>
+      line(assistant([{ type: "text", text: "x" }])),
+    ).join("\n");
+
+  it("counts every turn the per-batch cap left out", () => {
+    const sink = parseAgentSink(overCap(5), false, true);
+
+    expect(sink.turns).toHaveLength(MAX_RUN_TURNS_PER_BATCH);
+    expect(sink.turnsCapped).toBe(5);
+  });
+
+  it("counts nothing capped for a body under the cap", () => {
+    expect(parseAgentSink(body, false, true).turnsCapped).toBe(0);
+  });
+
+  it("counts nothing capped while turn collection is off", () => {
+    expect(parseAgentSink(overCap(5), false, false).turnsCapped).toBe(0);
+  });
+
+  it("keeps counting redaction drops and cap drops apart", () => {
+    const sink = parseAgentSink(
+      [REDACTION_BREAKING_LINE, overCap(3)].join("\n"),
+      false,
+      true,
+    );
+
+    expect(sink).toMatchObject({ turnsDropped: 1, turnsCapped: 3 });
+  });
+});

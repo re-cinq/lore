@@ -1,22 +1,12 @@
-import type {
-  AgentRunTurnInsert,
-  AgentRunTurnNodeRef,
-  AgentRunTurnRow,
-  AgentRunTurnsRepository,
+import {
+  compareTurnIdAscending,
+  type AgentRunTurnInsert,
+  type AgentRunTurnNodeRef,
+  type AgentRunTurnRow,
+  type AgentRunTurnsRepository,
 } from "./agent-run-turns-port.js";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-const byIdAscending = (a: AgentRunTurnRow, b: AgentRunTurnRow): number => {
-  const left = BigInt(a.id);
-  const right = BigInt(b.id);
-
-  if (left < right) {
-    return -1;
-  }
-
-  return left > right ? 1 : 0;
-};
 
 /**
  * In-memory {@link AgentRunTurnsRepository} — the behavioral spec for the
@@ -46,7 +36,7 @@ export class InMemoryAgentRunTurns implements AgentRunTurnsRepository {
   async insertBatch(
     rows: readonly AgentRunTurnInsert[],
   ): Promise<AgentRunTurnRow[]> {
-    return rows.map((row) => this.persist(row)).sort(byIdAscending);
+    return rows.map((row) => this.persist(row)).sort(compareTurnIdAscending);
   }
 
   async listByLine(
@@ -88,7 +78,7 @@ export class InMemoryAgentRunTurns implements AgentRunTurnsRepository {
 
     return this.rows
       .filter((row) => scope(row) && BigInt(row.id) > cursor)
-      .sort(byIdAscending)
+      .sort(compareTurnIdAscending)
       .slice(0, limit);
   }
 

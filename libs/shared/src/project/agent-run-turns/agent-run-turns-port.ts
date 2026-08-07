@@ -47,6 +47,29 @@ export interface AgentRunTurnInsert {
   envelope: string;
 }
 
+/**
+ * Order two rows by their string-encoded bigint id, ascending.
+ *
+ * Lives on the port because "rows come back ascending by id" is the port's
+ * contract, and because both adapters need it: a private copy in each was one
+ * transcription away from disagreeing, which is exactly how the Pg copy came to
+ * return 1 for equal ids. A comparator that never returns 0 is not a total
+ * order, and `Array#sort` is free to do anything with one.
+ */
+export function compareTurnIdAscending(
+  a: AgentRunTurnRow,
+  b: AgentRunTurnRow,
+): number {
+  const left = BigInt(a.id);
+  const right = BigInt(b.id);
+
+  if (left < right) {
+    return -1;
+  }
+
+  return left > right ? 1 : 0;
+}
+
 /** A node identity the correlation lookup can resolve an `agentCrName` to. */
 export interface AgentRunTurnNodeRef {
   agentCrName: string;
