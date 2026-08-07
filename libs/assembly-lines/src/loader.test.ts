@@ -938,3 +938,50 @@ edges:
     expect(parseAssemblyLine(line("")).nodes[0].continues).toBeUndefined();
   });
 });
+
+describe("parseAssemblyLine — goal_gate schema", () => {
+  it("accepts goal_gate: true on a node", () => {
+    const wf = parseAssemblyLine(`
+name: gated-line
+description: d
+version: 1
+entry: work
+exit: done
+nodes:
+  - id: work
+    type: agent
+    goal_gate: true
+  - id: done
+    type: retrospective
+edges:
+  - from: work
+    to: done
+    on: always
+`);
+
+    expect(wf.nodes.find((n) => n.id === "work")).toMatchObject({
+      goal_gate: true,
+    });
+  });
+
+  it("leaves goal_gate undefined on a node that omits it", () => {
+    const wf = parseAssemblyLine(`
+name: ungated-line
+description: d
+version: 1
+entry: work
+exit: done
+nodes:
+  - id: work
+    type: agent
+  - id: done
+    type: retrospective
+edges:
+  - from: work
+    to: done
+    on: always
+`);
+
+    expect(wf.nodes.find((n) => n.id === "work")?.goal_gate).toBeUndefined();
+  });
+});

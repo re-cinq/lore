@@ -2,9 +2,11 @@
 
 Spec: [spec.md](spec.md). Every task is test-first — write the failing test, watch it fail for the right reason, then implement. One commit per task.
 
+**Each task links its own tests.** `lore/require-spec-link` is an eslint **error**, so a test that lands without an inline `([validated by …])` in `spec.md` turns the repo red immediately — linking cannot be deferred to a closure phase. New tests are appended at EOF of their test file: four specs hold sixteen `#L` anchors into `loader.test.ts` and `transition.test.ts`, and a mid-file insertion would silently break every one.
+
 ## Phase 1 — Loader schema (FR1)
 
-- [ ] T001 `goal_gate` on the node schema — failing tests in `libs/assembly-lines/src/loader.test.ts` (a node accepts `goal_gate: true`; existing definitions without it parse unchanged), then add the optional boolean to `NodeSchema` in `libs/assembly-lines/src/loader.ts`
+- [x] T001 `goal_gate` on the node schema — failing tests in `libs/assembly-lines/src/loader.test.ts` (a node accepts `goal_gate: true`; existing definitions without it parse unchanged), then add the optional boolean to `NodeSchema` in `libs/assembly-lines/src/loader.ts`
 - [ ] T002 Exit-node rejection — failing test (a definition with `goal_gate: true` on its exit node throws `AssemblyLineLoadError` naming the node), then add the check to `validateAssemblyLine` in `libs/assembly-lines/src/loader.ts`
 - [ ] T003 Bypass-reachability warning — failing tests (warning when some entry→exit path skips the gated node; no warning when every path crosses it), then implement the path walk in `libs/assembly-lines/src/loader.ts`
 - [ ] T004 Warning propagation — failing tests that the file loader, directory loader, and builtin loader all forward the warning, and that the builtin loader falls back to `console.warn` with no handler supplied; then thread the handler through `libs/assembly-lines/src/loader.ts` and `libs/assembly-lines/src/builtin-assembly-lines.ts`
@@ -33,5 +35,5 @@ Spec: [spec.md](spec.md). Every task is test-first — write the failing test, w
 ## Phase 5 — Closure
 
 - [ ] T017 Delete `adrs/ADR-040-goal-gates.md` — superseded by this spec
-- [ ] T018 Link every testable statement in `spec.md` to its validating test and flip `| Status |` per the coverage ladder
+- [ ] T018 Sweep `spec.md` for any statement still unlinked (each task links its own as it lands) and settle `| Status |` on the coverage ladder
 - [ ] T019 Full verification: `npx eslint .` (0 errors), `npx prettier --check` on touched files, `npm run typecheck:drift`, and the `libs/assembly-lines`, `apps/floor`, `apps/web-ui` suites green

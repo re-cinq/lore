@@ -75,6 +75,9 @@ const NodeSchema = z.object({
       key: z.string(),
     })
     .optional(),
+  /** The line may not finish unless this node's latest visit recorded a
+   *  success-class outcome (`nextTransition` fails it `goal_gate_unmet`). */
+  goal_gate: z.boolean().optional(),
   description: z.string().optional(),
 });
 
