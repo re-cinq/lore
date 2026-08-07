@@ -59,7 +59,7 @@ StrongDM's Attractor spec models this as a first-class `goal_gate` node attribut
 - The run list and run detail render `goal_gate_unmet` with its own failure-toned label rather than falling through to a neutral unknown-outcome badge ([validated by `assembly-line-presenter.test.ts:98`](apps/web-ui/src/lib/assembly-line-presenter.test.ts#L98))
 - `goal_gate_unmet` classifies as a failure outcome, so it rides the existing user-facing failure path (escalation plus PR comment) — a gated line never stops silently.
 - A PR-linked line that closes `goal_gate_unmet` publishes a failing `lore/<definition>` check rather than a neutral or green one.
-- The hand-written web-ui mirror of the definition schema carries `goal_gate`, so `npm run typecheck:drift` stays green.
+- The hand-written web-ui mirror of the definition schema carries `goal_gate`, so `npm run typecheck:drift` stays green (validated by the drift assertion in `scripts/type-drift/assembly-line-definition.drift.ts`, not a unit test).
 
 ## Alternatives rejected
 

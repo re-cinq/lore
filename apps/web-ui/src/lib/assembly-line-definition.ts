@@ -35,6 +35,7 @@ export interface DefinitionNode {
   job_ref?: string;
   station_ref?: string;
   timeout_minutes?: number;
+  goal_gate?: boolean;
   description?: string;
   /** Which previous run this node continues, and what keys the thread. */
   continues?: { node: string; key: string };
