@@ -2,7 +2,8 @@ import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { findRepoRoot } from "../lib/repo-root.js";
-import { randomUUID } from "node:crypto";
+import { stampGraphBaseline } from "./graph-baseline.js";
+import { randomUUID, createHash } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import {
   parseRanges,
@@ -10,6 +11,8 @@ import {
   buildImpactAnnotations,
   buildImpactComment,
   IMPACT_COMMENT_MARKER,
+  type ImpactReport,
+  type ImpactStatement,
 } from "./trace-impact.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
@@ -84,6 +87,7 @@ describe("buildImpactAnnotations", () => {
             statementAnchor: "specs/widget/spec.md",
             tests: [{ file: "test/widget.test.ts", name: "renders", line: 12 }],
             changedFile: "src/widget.ts",
+            evidence: "coverage",
           },
         ],
       },
@@ -163,6 +167,7 @@ describe("buildImpactComment", () => {
           statementAnchor: "specs/widget/spec.md",
           tests: [{ file: "test/widget.test.ts", name: "renders", line: 12 }],
           changedFile: "src/widget.ts",
+          evidence: "coverage",
         },
       ],
       orphaned: [
@@ -250,6 +255,7 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
     const repo = `test-impact/${randomUUID()}`;
 
     createdRepo = repo;
+    await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
     const specPath = "specs/widget/spec.md";
 
     const txn = dgraphClient.newTxn();
@@ -289,9 +295,12 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
       await txn.discard().catch(() => {});
     }
 
-    const report = await computeImpact(dgraphClient, repo, [
-      { path: "src/widget.ts", ranges: [[5, 8]] },
-    ]);
+    const report = await computeImpact(
+      dgraphClient,
+      repo,
+      [{ path: "src/widget.ts", ranges: [[5, 8]], aligned: true }],
+      { protocol: 2 },
+    );
 
     expect(report.status).toBe("ok");
     expect(report.statements).toMatchObject([
@@ -303,9 +312,12 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
       },
     ]);
 
-    const noOverlap = await computeImpact(dgraphClient, repo, [
-      { path: "src/widget.ts", ranges: [[50, 60]] },
-    ]);
+    const noOverlap = await computeImpact(
+      dgraphClient,
+      repo,
+      [{ path: "src/widget.ts", ranges: [[50, 60]], aligned: true }],
+      { protocol: 2 },
+    );
 
     expect(noOverlap.statements).toEqual([]);
   });
@@ -314,6 +326,7 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
     const repo = `test-impact/${randomUUID()}`;
 
     createdRepo = repo;
+    await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
     const specPath = "specs/login/spec.md";
 
     const txn = dgraphClient.newTxn();
@@ -369,9 +382,12 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
       await txn.discard().catch(() => {});
     }
 
-    const report = await computeImpact(dgraphClient, repo, [
-      { path: "src/auth.ts", ranges: [[30, 35]] },
-    ]);
+    const report = await computeImpact(
+      dgraphClient,
+      repo,
+      [{ path: "src/auth.ts", ranges: [[30, 35]], aligned: true }],
+      { protocol: 2 },
+    );
 
     expect(report.statements).toMatchObject([
       {
@@ -389,6 +405,7 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
     const repo = `test-impact/${randomUUID()}`;
 
     createdRepo = repo;
+    await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
     const specPath = "specs/legacy/spec.md";
 
     const txn = dgraphClient.newTxn();
@@ -444,9 +461,19 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
       await txn.discard().catch(() => {});
     }
 
-    const report = await computeImpact(dgraphClient, repo, [
-      { path: "src/legacy.ts", ranges: [], deleted: [[10, 20]] },
-    ]);
+    const report = await computeImpact(
+      dgraphClient,
+      repo,
+      [
+        {
+          path: "src/legacy.ts",
+          ranges: [],
+          deleted: [[10, 20]],
+          aligned: true,
+        },
+      ],
+      { protocol: 2 },
+    );
 
     expect(report.statements).toEqual([]);
     expect(report.orphaned).toMatchObject([
@@ -459,3 +486,447 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
     ]);
   });
 });
+
+/**
+ * Regression for the false-negative class this check was ignored for: a PR that
+ * changes only spec prose. #1076 changed exactly one file — specs/6-dark-factory/spec.md
+ * — and the check reported "No spec impact detected", because every lookup rooted
+ * on a changed production file.
+ */
+describe.skipIf(!reachable)("spec-only PR (live Dgraph)", () => {
+  const dgraphClient = new dgraph.DgraphClient(
+    new dgraph.DgraphClientStub(DGRAPH_HTTP),
+  );
+  let createdRepo = "";
+
+  beforeAll(() => {
+    execFileSync("bash", [APPLIER], {
+      env: { ...process.env, DGRAPH_HTTP },
+      stdio: "pipe",
+    });
+  });
+
+  afterEach(async () => {
+    const txn = dgraphClient.newTxn();
+
+    try {
+      const res = await txn.queryWithVars(
+        `query nodes($repo: string) {
+          specs(func: eq(Spec.repo, $repo)) { uid }
+          stmts(func: eq(Statement.repo, $repo)) { uid }
+          chunks(func: eq(TestChunk.repo, $repo)) { uid }
+        }`,
+        { $repo: createdRepo },
+      );
+      const data = res.data as Record<string, { uid: string }[]>;
+      const uids = Object.values(data)
+        .flat()
+        .map((n) => n.uid);
+
+      if (uids.length) {
+        await txn.mutate({
+          deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
+          commitNow: true,
+        });
+      }
+    } catch {
+      /* best-effort cleanup */
+    } finally {
+      await txn.discard().catch(() => {});
+    }
+  });
+
+  it("couples a spec-only diff to the statement whose text it edited", async () => {
+    const repo = `spec-only/${randomUUID()}`;
+
+    createdRepo = repo;
+    await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
+    const specPath = "specs/widget/spec.md";
+    const oldText = "The widget MUST render within 100ms.";
+    const txn = dgraphClient.newTxn();
+
+    try {
+      await txn.mutate({
+        setJson: {
+          uid: "_:spec",
+          "dgraph.type": "Spec",
+          "Spec.xid": `${repo}|${specPath}`,
+          "Spec.repo": repo,
+          "Spec.file_path": specPath,
+          "Spec.title": "Widget Spec",
+          "Spec.sections": [
+            {
+              uid: "_:stmt",
+              "dgraph.type": "Statement",
+              "Statement.xid": `${repo}|${specPath}|1`,
+              "Statement.repo": repo,
+              "Statement.text": oldText,
+              "Statement.text_hash": createHash("sha256")
+                .update(oldText)
+                .digest("hex"),
+              "Statement.spec": { uid: "_:spec" },
+              "Statement.validated_by": {
+                uid: "_:tc",
+                "dgraph.type": "TestChunk",
+                "TestChunk.xid": `${repo}|test/widget.test.ts`,
+                "TestChunk.repo": repo,
+                "TestChunk.file_path": "test/widget.test.ts",
+                "TestChunk.test_name": "renders fast",
+                "TestChunk.start_line": 12,
+              },
+            },
+          ],
+        },
+        commitNow: true,
+      });
+    } finally {
+      await txn.discard().catch(() => {});
+    }
+
+    // The PR touches no code at all — only the spec's prose, exactly as #1076 did.
+    const report = await computeImpact(
+      dgraphClient,
+      repo,
+      [{ path: specPath, ranges: [[5, 5]], aligned: true }],
+      {
+        protocol: 2,
+        docs: [
+          {
+            path: specPath,
+            content:
+              "# Widget Spec\n\n## FR\n\nThe widget MUST render within 50ms.\n",
+          },
+        ],
+      },
+    );
+
+    expect(report.statements).toMatchObject([
+      {
+        specPath,
+        statementText: oldText,
+        evidence: "statement-edit",
+        changeKind: "changed",
+        tests: [{ file: "test/widget.test.ts", name: "renders fast" }],
+      },
+    ]);
+    expect(report.examined).toMatchObject({ docs: 1, newStatements: 1 });
+  });
+});
+
+/**
+ * The presentation half of the trust problem. #1077 rendered five findings as a
+ * table carrying paragraph-length statement text with fourteen inline links in
+ * one cell, four duplicate rows, and two rows whose Spec and Statement columns
+ * were empty.
+ */
+describe("buildImpactComment presentation", () => {
+  const coupled = (over: Partial<ImpactStatement>): ImpactStatement => ({
+    specPath: "specs/widget/spec.md",
+    specTitle: "Widget Spec",
+    statementText: "The widget MUST render on mount.",
+    statementAnchor: "specs/widget/spec.md",
+    tests: [{ file: "test/widget.test.ts", name: "renders", line: 12 }],
+    changedFile: "src/widget.ts",
+    evidence: "coverage",
+    ...over,
+  });
+
+  const render = (over: Partial<ImpactReport>) =>
+    buildImpactComment({
+      status: "ok",
+      statements: [],
+      orphaned: [],
+      testSelectors: [],
+      ...over,
+    });
+
+  it("drops a finding whose spec and statement did not resolve", () => {
+    const comment = render({
+      statements: [
+        coupled({}),
+        coupled({ specPath: "", specTitle: "", statementText: "" }),
+      ],
+    });
+
+    expect(comment).toContain("**1 statement(s)**");
+  });
+
+  it("dedups repeated statement, test and changed-file triples", () => {
+    const comment = render({ statements: [coupled({}), coupled({})] });
+
+    expect(
+      comment.split("The widget MUST render on mount.").length - 1,
+    ).toEqual(1);
+  });
+
+  it("folds spec-linked findings away from coverage-backed ones", () => {
+    const comment = render({
+      statements: [
+        coupled({}),
+        coupled({
+          statementText: "The widget MUST unmount cleanly.",
+          evidence: "file-link",
+        }),
+      ],
+    });
+
+    expect(comment).toContain("<details>");
+    expect(comment).toContain("Weaker signals (1)");
+  });
+
+  it("names what it examined instead of claiming a clean bill of health", () => {
+    const comment = render({
+      examined: {
+        files: 23,
+        withGraphData: 3,
+        docs: 2,
+        newStatements: 4,
+        changedWithoutTests: 114,
+      },
+    });
+
+    expect(comment).toContain("Examined **23 changed file(s)**");
+    expect(comment).toContain("3 had graph data");
+    // 23 files - 3 with graph data - 2 read at statement level.
+    expect(comment).toContain("18 had none");
+    expect(comment).toContain("**4 new statement(s)**");
+    expect(comment).toContain("**114 changed statement(s)** had no validating");
+  });
+
+  it("says the baseline is unknown rather than printing graph @ unknown", () => {
+    const comment = render({ statements: [coupled({})] });
+
+    expect(comment).toContain("graph baseline unknown");
+    expect(comment).not.toContain("graph @ `unknown`");
+  });
+
+  it("names the baseline commit and projection date when the repo is stamped", () => {
+    const comment = render({
+      statements: [coupled({})],
+      graphCommit: "8f2a1c3d9e0b",
+      graphCommitAt: "2026-08-07T10:30:00.000Z",
+    });
+
+    expect(comment).toContain("graph @ `8f2a1c3`");
+    expect(comment).toContain("projected 2026-08-07");
+  });
+});
+
+describe("protocol gating", () => {
+  it("suppresses findings from a client that did not declare protocol 2", async () => {
+    const report = await computeImpact({} as never, "any/repo", [
+      { path: "src/a.ts", ranges: [[1, 5]] },
+    ]);
+
+    expect(report).toMatchObject({
+      status: "ok",
+      protocol: 1,
+      statements: [],
+      skipped: [{ path: "*", reason: "legacy-client" }],
+    });
+  });
+
+  it("tells a legacy client why its findings were withheld", () => {
+    const comment = buildImpactComment({
+      status: "ok",
+      protocol: 1,
+      statements: [],
+      orphaned: [],
+      testSelectors: [],
+    });
+
+    expect(comment).toContain("is version 1");
+    expect(comment).toContain("merge base");
+    expect(comment).toContain("suppressed");
+  });
+
+  it("does not count a spec it read at statement level among the files it cannot speak for", () => {
+    const comment = buildImpactComment({
+      status: "ok",
+      protocol: 2,
+      statements: [],
+      orphaned: [],
+      testSelectors: [],
+      examined: {
+        files: 3,
+        withGraphData: 1,
+        docs: 2,
+        newStatements: 0,
+        changedWithoutTests: 0,
+      },
+    });
+
+    expect(comment).toContain("0 had none");
+  });
+
+  it("does not claim nothing moved while also reporting statements that moved", () => {
+    const comment = buildImpactComment({
+      status: "ok",
+      protocol: 2,
+      statements: [],
+      orphaned: [],
+      testSelectors: [],
+      examined: {
+        files: 1,
+        withGraphData: 0,
+        docs: 1,
+        newStatements: 39,
+        changedWithoutTests: 114,
+      },
+    });
+
+    expect(comment).not.toContain("no projected statement changed");
+    expect(comment).toContain("**114 changed statement(s)**");
+  });
+
+  it("says line-precise coupling was skipped when the repo has no baseline", () => {
+    const comment = buildImpactComment({
+      status: "ok",
+      protocol: 2,
+      statements: [],
+      orphaned: [],
+      testSelectors: [],
+      coordinates: "unverified",
+      skipped: [{ path: "src/a.ts", reason: "no-baseline" }],
+      examined: {
+        files: 1,
+        withGraphData: 0,
+        docs: 0,
+        newStatements: 0,
+        changedWithoutTests: 0,
+      },
+    });
+
+    expect(comment).toContain("line-precise coupling skipped");
+  });
+});
+
+/**
+ * CodeChunks are minted from the `#L` anchors spec authors type into inline code
+ * links, and `CodeChunk.end_line` has never had a producer. Requiring it made
+ * the implemented_by route compare [start, 0] and match nothing at all — the
+ * only statement→production-code edge in the graph, silently dark since it was
+ * written.
+ */
+describe.skipIf(!reachable)(
+  "implemented_by without end_line (live Dgraph)",
+  () => {
+    const dgraphClient = new dgraph.DgraphClient(
+      new dgraph.DgraphClientStub(DGRAPH_HTTP),
+    );
+    let repo = "";
+
+    beforeAll(() => {
+      execFileSync("bash", [APPLIER], {
+        env: { ...process.env, DGRAPH_HTTP },
+        stdio: "pipe",
+      });
+    });
+
+    afterEach(async () => {
+      const txn = dgraphClient.newTxn();
+
+      try {
+        const res = await txn.queryWithVars(
+          `query nodes($repo: string) {
+          specs(func: eq(Spec.repo, $repo)) { uid }
+          stmts(func: eq(Statement.repo, $repo)) { uid }
+          chunks(func: eq(CodeChunk.repo, $repo)) { uid }
+        }`,
+          { $repo: repo },
+        );
+        const data = res.data as Record<string, { uid: string }[]>;
+        const uids = Object.values(data)
+          .flat()
+          .map((n) => n.uid);
+
+        if (uids.length) {
+          await txn.mutate({
+            deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
+            commitNow: true,
+          });
+        }
+      } catch {
+        /* best-effort cleanup */
+      } finally {
+        await txn.discard().catch(() => {});
+      }
+    });
+
+    async function seedAnchorOnlyChunk(): Promise<void> {
+      const txn = dgraphClient.newTxn();
+
+      try {
+        await txn.mutate({
+          setJson: {
+            uid: "_:spec",
+            "dgraph.type": "Spec",
+            "Spec.xid": `${repo}|specs/widget/spec.md`,
+            "Spec.repo": repo,
+            "Spec.file_path": "specs/widget/spec.md",
+            "Spec.title": "Widget Spec",
+            "Spec.sections": [
+              {
+                uid: "_:stmt",
+                "dgraph.type": "Statement",
+                "Statement.xid": `${repo}|specs/widget/spec.md|3`,
+                "Statement.repo": repo,
+                "Statement.text": "The widget MUST render on mount.",
+                "Statement.spec": { uid: "_:spec" },
+                // Exactly what projectLinkedChunks writes for [label](src/widget.ts#L1):
+                // a start line and nothing else.
+                "Statement.implemented_by": {
+                  uid: "_:cc",
+                  "dgraph.type": "CodeChunk",
+                  "CodeChunk.xid": `${repo}|src/widget.ts|1`,
+                  "CodeChunk.repo": repo,
+                  "CodeChunk.file_path": "src/widget.ts",
+                  "CodeChunk.start_line": 1,
+                },
+              },
+            ],
+          },
+          commitNow: true,
+        });
+      } finally {
+        await txn.discard().catch(() => {});
+      }
+    }
+
+    it("couples file-wide when the chunk carries no end_line to bound it", async () => {
+      repo = `impl-anchor/${randomUUID()}`;
+      await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
+      await seedAnchorOnlyChunk();
+
+      const report = await computeImpact(
+        dgraphClient,
+        repo,
+        [{ path: "src/widget.ts", ranges: [[900, 910]], aligned: true }],
+        { protocol: 2 },
+      );
+
+      expect(report.statements).toMatchObject([
+        {
+          specPath: "specs/widget/spec.md",
+          statementText: "The widget MUST render on mount.",
+          evidence: "file-link",
+        },
+      ]);
+    });
+
+    it("returns nothing for a file the graph holds no chunk for", async () => {
+      repo = `impl-anchor/${randomUUID()}`;
+      await stampGraphBaseline(dgraphClient, repo, "base1", new Date());
+      await seedAnchorOnlyChunk();
+
+      const report = await computeImpact(
+        dgraphClient,
+        repo,
+        [{ path: "src/other.ts", ranges: [[1, 5]], aligned: true }],
+        { protocol: 2 },
+      );
+
+      expect(report.statements).toEqual([]);
+    });
+  },
+);

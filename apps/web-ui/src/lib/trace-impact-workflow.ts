@@ -1,5 +1,13 @@
+// MIRROR — the ORIGINAL is libs/shared/src/trace-impact-workflow.ts. Edit there
+// first, then copy the result here; `trace-impact-workflow.parity.test.ts`
+// imports shared's PURE module by file path and byte-compares the two, so
+// starting on this side fails CI. web-ui can't import the @re-cinq/lore-shared
+// PACKAGE (separate workspace + lockfile), hence the duplication. The bytes
+// matter: the web-ui "fix" button commits THIS constant into repos while
+// onboard commits the shared one, so a silent divergence ships two different
+// workflows to different repos.
 /**
- * Canonical source of truth for the `lore-trace-impact.yml` GitHub Actions
+ * Mirror of the canonical `lore-trace-impact.yml` GitHub Actions
  * workflow that every onboarded repo installs. On each pull_request it sends the
  * diff (changed file + line ranges) plus the head text of any changed spec/ADR
  * to the Lore `/impact` endpoint, and renders the returned annotations + sticky

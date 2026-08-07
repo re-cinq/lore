@@ -36,22 +36,48 @@ diff's changed ranges and returns the `ImpactReport` plus pre-shaped Checks-API
 
 ### Request body (`ImpactBody`)
 
-| Field    | Type             | Required | Notes |
-|----------|------------------|----------|-------|
-| `commit` | string           | no       | Diff head (informational). |
-| `base`   | string           | no       | Diff base (informational). |
-| `files`  | `ChangedRange[]` | no       | `{ path, ranges: [number,number][], deleted?: [number,number][] }`. Non-array → treated as `[]`. |
+| Field         | Type             | Required | Notes |
+|---------------|------------------|----------|-------|
+| `protocol`    | number           | no       | Wire format. Absent → treated as 1 and the findings are suppressed. |
+| `commit`      | string           | no       | Diff head (informational). |
+| `base`        | string           | no       | Merge base the diff was taken from. |
+| `graphCommit` | string \| null   | no       | Baseline the client aligned against, from `GET …/impact/base`. |
+| `files`       | `ChangedRange[]` | no       | `{ path, ranges, baseRanges?, deleted?, aligned? }`. Non-array → `[]`. |
+| `docs`        | `ChangedDoc[]`   | no       | `{ path, content }` head text of changed spec/ADR files. Non-array → `[]`. |
 
-`ranges` are new/modified intervals (coupling); `deleted` are removed old-side
-intervals (orphan detection).
+The three range arrays are not interchangeable, and conflating them is what made
+this route's answers untrustworthy:
+
+- **`baseRanges` → graph lookup.** Old side of every hunk, in the diff base's
+  numbering, which is the numbering the graph's ranges are expressed in. Includes
+  pure insertions (`@@ -100,0 +101,5 @@`) as a straddling interval.
+- **`ranges` → annotation anchoring only.** Head-side, because that is what the
+  GitHub Checks API needs.
+- **`deleted` → orphan detection.** Old-side deletions.
+
+`aligned` records whether the file is byte-identical at `graphCommit` and at
+`base`. Only then is `baseRanges` exactly graph coordinates.
 
 ### Response
 
 `200 application/json`: `{ ...ImpactReport, annotations, comment }` where
-`ImpactReport` is `{ status, statements, orphaned, testSelectors, graphCommit?, stale? }`.
+`ImpactReport` is
+`{ status, protocol?, coordinates?, skipped?, statements, orphaned, testSelectors, graphCommit?, graphCommitAt?, examined? }`.
+
+`examined` carries `{ files, withGraphData, docs, newStatements, changedWithoutTests }` —
+the numbers behind an honest negative.
 
 `400 application/json` `{ error: "could not resolve repo from url" }` if the
 URL does not yield `owner/repo`.
+
+### `GET /api/repos/:owner/:repo/impact/base`
+
+Serves the commit whose line numbering the repo's graph ranges are expressed in,
+so the client can decide per file whether its diff is comparable. Scope `read`.
+Returns `200 { graphCommit, graphCommitAt, source }`, with
+`{ graphCommit: null, source: "none" }` both for a repo that has never been
+stamped and for a Dgraph outage — a missing baseline degrades the check, it does
+not fail it. Implemented by [`impactBaseRoute`](../../../apps/lore-api/src/api/routes/impact/impact-base.ts#L21).
 
 ## Behavior
 
@@ -66,12 +92,26 @@ URL does not yield `owner/repo`.
       is unset (the shared-server default). On `null`, return the module
       constant `UNAVAILABLE = { status:"unavailable", statements:[], orphaned:[], testSelectors:[] }`.
       This is the **expected** fail-soft and logs nothing.
-   2. Otherwise `await computeImpact(dgraph, repo, files)` — walks the
-      spec-traceability graph: CodeChunk overlap → `~Statement.implemented_by`
-      and Coverage-facet overlap → TestChunk → `~Statement.validated_by` for
-      coupled statements; statements whose only coverage the diff `deleted` →
-      `orphaned`. Returns `{ status:"ok", statements, orphaned, testSelectors }`.
-   3. A thrown error (reachable Dgraph, broken DQL / missing schema) is caught,
+   2. A client that did not declare `protocol: 2` computed its diff against the
+      base-branch tip rather than the merge base, so its file list carries
+      everything merged to the base since the branch point. Its findings are
+      suppressed — `{ status:"ok", protocol:1, statements:[], skipped:[{ path:"*",
+      reason:"legacy-client" }] }` — and the comment explains why instead of
+      publishing them.
+   3. Otherwise `await computeImpact(dgraph, repo, files, { docs, protocol })`
+      walks four coupling routes, each with its own evidence tier:
+      - CodeChunk overlap → `~Statement.implemented_by` (`file-link`),
+      - Coverage-facet overlap → TestChunk → `~Statement.validated_by` (`coverage`),
+      - `TestChunk.file_path` → `~Statement.validated_by` (`test-link`), which is
+        how a changed test couples to what it was holding up,
+      - changed spec → `Statement.text_hash` delta (`statement-edit`), which is
+        how a spec-only PR couples at all.
+
+      The first two are line-precise and run only for files whose `aligned` flag
+      and a present baseline make the coordinates comparable; the rest are
+      coordinate-free and always run. Every skipped file is recorded in
+      `skipped[]` with its reason (`unaligned` / `no-baseline`).
+   4. A thrown error (reachable Dgraph, broken DQL / missing schema) is caught,
       logged with context (`[impact] query failed for <repo> (Dgraph reachable
       but errored): <stack>`), and degraded to `UNAVAILABLE` — never a 500.
 5. **Shaping** — `annotations = report.status === "ok" ? buildImpactAnnotations(report, files) : []`
@@ -108,12 +148,17 @@ With Dgraph unconfigured, the route fails soft to `200` with
 
 A request without a `write`-scoped token is rejected with 403. ([validated by `rejects a request without a write-scoped token`](apps/lore-api/src/api/routes/impact/impact-route.test.ts#L51))
 
-An unparseable request body is rejected with a native 400 (ADR-034 hapi payload parse). ([validated by `impact-route.test.ts:61`](apps/lore-api/src/api/routes/impact/impact-route.test.ts#L61))
+An unparseable request body is rejected with a native 400 (ADR-034 hapi payload parse). ([validated by `impact-route.test.ts:75`](apps/lore-api/src/api/routes/impact/impact-route.test.ts#L75))
+
+The body accepts a `docs[]` array carrying the head text of changed spec/ADR files, forwarded to `computeImpact` as `ImpactOptions.docs` for the statement-identity coupling. Like `files`, it is validated as `unknown` and degrades to `[]` rather than 400ing, so a client sending a shape this server does not understand still gets an advisory answer. ([validated by `impact-route.test.ts:61`](apps/lore-api/src/api/routes/impact/impact-route.test.ts#L61))
+
+`GET …/impact/base` serves the graph baseline and answers `{ graphCommit: null, source: "none" }` rather than erroring when Dgraph is unconfigured, so a missing baseline degrades the check instead of failing it; a request without a token is rejected. ([validated by `impact-base-route:35`](apps/lore-api/src/api/routes/impact/impact-base-route.test.ts#L35), [validated by `impact-base-route:42`](apps/lore-api/src/api/routes/impact/impact-base-route.test.ts#L42))
+
+A client that does not declare `protocol: 2` has its findings suppressed and is told why, because a diff taken against the base-branch tip carries every commit merged to the base since the branch point. ([validated by `trace-impact:716`](libs/shared/src/spec-trace/trace-impact.test.ts#L716), [validated by `trace-impact:729`](libs/shared/src/spec-trace/trace-impact.test.ts#L729))
 
 The `status:"ok"` branch (coupled statements + orphans + non-empty annotations
-from a live graph walk) is exercised only against live Dgraph. *(untested: the
-`computeImpact` graph walk needs a populated Dgraph backend; only the null-client
-fail-soft is reachable in the unit harness.)*
+from a live graph walk) is exercised against a live Dgraph, which PR Checks now
+provides. ([validated by `trace-impact:254`](libs/shared/src/spec-trace/trace-impact.test.ts#L254), [validated by `trace-impact:325`](libs/shared/src/spec-trace/trace-impact.test.ts#L325), [validated by `trace-impact:404`](libs/shared/src/spec-trace/trace-impact.test.ts#L404), [validated by `trace-impact:539`](libs/shared/src/spec-trace/trace-impact.test.ts#L539))
 
 A 400 for a URL that does not resolve to `owner/repo` cannot be reached through
 the dispatcher (the route regex already requires two path segments before
