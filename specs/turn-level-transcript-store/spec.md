@@ -8,7 +8,7 @@
 | Created | 2026-08-07                               |
 | Owner   | Platform Engineering                     |
 
-The Turn-Level Transcript Store keeps the full-fidelity agent run stream in a new `pipeline.agent_run_turns` table written at the same ingest tee that already produces the cost rows and the truncated run-visualization projection, so "what exactly did the agent see and say at the step that went wrong" becomes a SQL question instead of a GCS spelunking expedition. This specification supersedes [ADR-042](../../adrs/ADR-042-turn-level-transcript-store.md), which is deleted on this branch; the decision, its rejected alternatives and its consequences are carried below.
+The Turn-Level Transcript Store keeps the full-fidelity agent run stream in a new `pipeline.agent_run_turns` table written at the same ingest tee that already produces the cost rows and the truncated run-visualization projection, so "what exactly did the agent see and say at the step that went wrong" becomes a SQL question instead of a GCS spelunking expedition. This specification supersedes ADR-042, deleted on this branch, and carries its decision, its rejected alternatives and its consequences below.
 
 ## Problem Statement
 

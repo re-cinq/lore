@@ -33,4 +33,4 @@ and the port is dead code without the test.
 
 ## Phase 5 — Supersession
 
-- [ ] **T13** Delete `adrs/ADR-042-turn-level-transcript-store.md`; this spec supersedes it.
+- [x] **T13** Delete `adrs/ADR-042-turn-level-transcript-store.md`; this spec supersedes it.
