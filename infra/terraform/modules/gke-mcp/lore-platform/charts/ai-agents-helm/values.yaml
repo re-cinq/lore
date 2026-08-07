@@ -69,20 +69,18 @@ controller:
   replicas: 1
   image:
     repository: ghcr.io/re-cinq/ai-agent-controller
-    # Pinned by digest (never a floating tag) — v0.6.2: stdout (pod logs /
-    # Agent.status.output) carries the BARE event line; the {source,event}
-    # attribution envelope rides only on sink deliveries, and wrapEvent
-    # enforce-throws on nesting (ai-agent-subsystem#171). Prerequisite for
-    # deleting lore's transitional reader peel (lore#857).
-    # Resolved via
-    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.6.2
-    digest: "sha256:0d4ad7c0938bd83ee537c41a8dba9a178dc0690671ef97783508b538fa8d69f7"
+    # Pinned by digest (never a floating tag) — v0.7.0: the controller renders
+    # each recipe's resources.mcp_servers into `claude --mcp-config` and injects
+    # the headers_secret as a run env var, giving agent pods live Lore MCP tools
+    # (ai-agent-subsystem#177). Resolved via
+    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.7.0
+    digest: "sha256:574ba2a6f8f8bb33e68076a5d83daeb0d158ea13dbad855a904c9c9153d67ebe"
   # The image whose init container injects the agent runtime + supervisor into each run
-  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.6.2
+  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.7.0
   # digest, paired with the controller above. Resolve with (needs ghcr read on the
   # ai-agent package — not public):
-  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.6.2
-  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:94f2c94428772f70d9792b2592467da9ad839d127635fabc31588cc45d63d742"
+  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.7.0
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:98dd85d5a65eaf32a71cb5ad208965370ba3137d3d0019fee03af8931ed14802"
   # Tail of run-pod log kept in Agent.status.output (bounds the object under etcd's limit).
   maxOutputBytes: "262144"
   resources:
