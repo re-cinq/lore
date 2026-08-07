@@ -308,6 +308,16 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
     );
   }
 
+  // The exit node is a marker the walk never records a visit for, so a gate on
+  // it could never be satisfied and the line would fail forever.
+  for (const n of wf.nodes) {
+    enforceTrue(
+      !n.goal_gate || n.id !== wf.exit,
+      loadError,
+      `exit node "${n.id}" cannot carry goal_gate — the walk records no visit for the terminal marker, so the gate could never be satisfied`,
+    );
+  }
+
   // A detect node without its job reference can't be dispatched — reject at load.
   for (const n of wf.nodes) {
     enforceTrue(

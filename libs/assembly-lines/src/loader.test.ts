@@ -985,3 +985,32 @@ edges:
     expect(wf.nodes.find((n) => n.id === "work")?.goal_gate).toBeUndefined();
   });
 });
+
+describe("parseAssemblyLine — goal_gate on the exit node", () => {
+  it("rejects goal_gate on the exit node, naming it", () => {
+    const gatedExit = `
+name: gated-exit
+description: d
+version: 1
+entry: work
+exit: done
+nodes:
+  - id: work
+    type: agent
+  - id: done
+    type: retrospective
+    goal_gate: true
+edges:
+  - from: work
+    to: done
+    on: always
+`;
+
+    expect(() => parseAssemblyLine(gatedExit)).toThrow(
+      new AssemblyLineLoadError(
+        'exit node "done" cannot carry goal_gate — the walk records no visit for the terminal marker, so the gate could never be satisfied',
+        "<inline>",
+      ),
+    );
+  });
+});

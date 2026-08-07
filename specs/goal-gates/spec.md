@@ -33,7 +33,7 @@ StrongDM's Attractor spec models this as a first-class `goal_gate` node attribut
 ### FR1 — Loader schema
 
 - The loader accepts an optional `goal_gate: true` on any node, and existing definitions that omit it parse unchanged — the attribute is opt-in ([validated by `loader.test.ts:674`](libs/assembly-lines/src/loader.test.ts#L674), [`loader.test.ts:698`](libs/assembly-lines/src/loader.test.ts#L698))
-- `goal_gate` on the exit node is rejected at load. The walk records no visit for the terminal marker, so such a gate could never be satisfied and the line would fail forever; failing at load is the honest outcome.
+- `goal_gate` on the exit node is rejected at load. The walk records no visit for the terminal marker, so such a gate could never be satisfied and the line would fail forever; failing at load is the honest outcome ([validated by `loader.test.ts:721`](libs/assembly-lines/src/loader.test.ts#L721))
 - The loader surfaces a validation warning when a goal-gated node can be bypassed on some path from entry to exit, so the author learns at load time rather than at the first skipped run.
 - No warning is raised when every path from entry to exit passes through the gated node.
 - The warning reaches the loading callers, not only direct `parseAssemblyLine` users: the file loader, the directory loader, and the builtin loader all forward it.
