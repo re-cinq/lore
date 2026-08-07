@@ -133,6 +133,10 @@ resource "helm_release" "lore_platform" {
     "ai-agents" = {
       controller = { replicas = 1 }
       loreMcpUrl = var.lore_mcp_url != "" ? "${var.lore_mcp_url}/mcp" : ""
+      # The same gateway serves the /skills registry the agent init fetches skills +
+      # settings from (resources.skills_source). Empty leaves the sentinel unreplaced —
+      # harmless, the init skips the fetch.
+      loreSkillsUrl = var.lore_mcp_url != "" ? "${var.lore_mcp_url}/skills" : ""
     }
   })]
 

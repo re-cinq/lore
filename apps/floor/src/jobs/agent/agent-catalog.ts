@@ -40,6 +40,11 @@ const EVENTS_URL_SENTINEL = "__AGENT_EVENTS_URL__";
 // catalogChartYaml swaps it for the helm value (empty → the block is omitted).
 const MCP_URL_SENTINEL = "__LORE_MCP_URL__";
 
+// Placeholder for the gateway's /skills registry base URL; catalogChartYaml swaps it
+// for the helm value. Empty ⇒ the ai-agent-subsystem init skips the skill fetch
+// (resources.skillsSource gate), so this is inert until the gateway is deployed.
+const SKILLS_SOURCE_SENTINEL = "__LORE_SKILLS_URL__";
+
 // Placeholder for the per-cluster Lore API base URL every lore-station pod calls
 // (createStationProject / apiEmbed / payload fetch); catalogChartYaml swaps it for
 // the helm value.
@@ -113,6 +118,11 @@ export function buildAgentDefinition(
             headers_secret: "lore-mcp-auth",
           },
         ],
+        // Agent skills fetched by the init from the gateway's /skills registry. The
+        // subsystem is registry-agnostic (ADR-030): it fetches `<source>/<name>.tar.gz`
+        // + `<source>/settings.json`. Empty source ⇒ no fetch, so inert until deployed.
+        skills: ["lore-context"],
+        skills_source: SKILLS_SOURCE_SENTINEL,
       },
       // Defense-in-depth (the gateway already omits it in agent mode): an agent
       // must never spawn more pipeline work from inside a run.
@@ -294,6 +304,7 @@ export function catalogChartYaml(
   return guarded
     .replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}")
     .replaceAll(MCP_URL_SENTINEL, "{{ .Values.loreMcpUrl }}")
+    .replaceAll(SKILLS_SOURCE_SENTINEL, "{{ .Values.loreSkillsUrl }}")
     .replaceAll(API_URL_SENTINEL, "{{ .Values.loreApiUrl }}")
     .replaceAll(GKE_DGRAPH_URL, "{{ .Values.dgraphUrl }}")
     .replaceAll(NAMESPACE_SENTINEL, "{{ .Values.namespace }}")

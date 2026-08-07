@@ -9,6 +9,7 @@
 
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 
@@ -45,6 +46,14 @@ export function injectRepoToken(
   tokenKey: string,
   name: string,
 ): AgentDefinition {
+  const base = catalog.spec;
+
+  enforceTrue(
+    base !== undefined,
+    Error,
+    "injectRepoToken: catalog recipe has no spec",
+  );
+
   return {
     ...catalog,
     metadata: {
@@ -55,9 +64,9 @@ export function injectRepoToken(
       },
     },
     spec: {
-      ...catalog.spec,
+      ...base,
       resources: {
-        ...(catalog.spec?.resources ?? {}),
+        ...(base.resources ?? {}),
         repos: [
           {
             name: "target",

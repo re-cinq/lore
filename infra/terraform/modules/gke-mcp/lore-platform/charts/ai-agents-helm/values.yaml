@@ -55,6 +55,12 @@ loreApiUrl: http://lore-api.lore-api.svc.cluster.local:3000
 # gateway is deployed AND the ai-agent-subsystem wires mcp_servers (ADR-030).
 loreMcpUrl: ""
 
+# PUBLIC HTTPS base URL of the gateway's /skills registry the agent init fetches skills
+# + settings from (resources.skills_source). Same public-:443 constraint as loreMcpUrl —
+# agent pods reach it over the public ingress. Empty = skills off (the init skips the
+# fetch). Normally `<loreMcpUrl host>/skills`.
+loreSkillsUrl: ""
+
 # In-cluster egress target for the station API calls — must match the host:port in
 # loreApiUrl above (same pattern as floorSink/agentEventsUrl).
 apiSink:
@@ -69,18 +75,18 @@ controller:
   replicas: 1
   image:
     repository: ghcr.io/re-cinq/ai-agent-controller
-    # Pinned by digest (never a floating tag) — v0.7.0: the controller renders
-    # each recipe's resources.mcp_servers into `claude --mcp-config` and injects
-    # the headers_secret as a run env var, giving agent pods live Lore MCP tools
-    # (ai-agent-subsystem#177). Resolved via
-    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.7.0
-    digest: "sha256:574ba2a6f8f8bb33e68076a5d83daeb0d158ea13dbad855a904c9c9153d67ebe"
+    # Pinned by digest (never a floating tag) — v0.8.1: the agent init now also fetches
+    # the recipe's resources.skills + settings from resources.skills_source into the run's
+    # $HOME/.claude (ai-agent-subsystem#180), on top of v0.7.0's --mcp-config rendering.
+    # Resolved via
+    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.8.1
+    digest: "sha256:7780f6fc42b14a362e4b97ed417b4edc20e2457592d76bb96e85d121b7f7eeb9"
   # The image whose init container injects the agent runtime + supervisor into each run
-  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.7.0
+  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.8.1
   # digest, paired with the controller above. Resolve with (needs ghcr read on the
   # ai-agent package — not public):
-  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.7.0
-  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:98dd85d5a65eaf32a71cb5ad208965370ba3137d3d0019fee03af8931ed14802"
+  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.8.1
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:ec25017688ea4af6345722be87852e2f1abfc92c63bc6d9f0e5a0db6affa5048"
   # Tail of run-pod log kept in Agent.status.output (bounds the object under etcd's limit).
   maxOutputBytes: "262144"
   resources:

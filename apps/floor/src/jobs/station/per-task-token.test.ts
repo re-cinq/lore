@@ -122,7 +122,7 @@ describe("injectRepoToken", () => {
   });
   it("tolerates a catalog AgentDefinition with no labels", () => {
     const def = injectRepoToken(
-      { kind: "AgentDefinition", spec: { model: "m" } },
+      { kind: "AgentDefinition", spec: { model: "m", prompt: "p" } },
       spec,
       "k",
       "n",
