@@ -33,8 +33,10 @@ describe("TRACE_IMPACT_WORKFLOW_CONTENT", () => {
     expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain(
       "LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}",
     );
+    // Falls back to LORE_API_URL so one byte-identical text works both in repos
+    // onboard configured (LORE_INGEST_URL) and in this one, which predates it.
     expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain(
-      "LORE_INGEST_URL: ${{ vars.LORE_INGEST_URL }}",
+      "LORE_INGEST_URL: ${{ vars.LORE_INGEST_URL || vars.LORE_API_URL }}",
     );
   });
 

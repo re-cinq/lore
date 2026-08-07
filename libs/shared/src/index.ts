@@ -117,6 +117,8 @@ export {
   IMPACT_COMMENT_MARKER,
   parseRanges,
   type ChangedRange,
+  type ChangedDoc,
+  type ImpactOptions,
   type ImpactReport,
   type ImpactStatement,
   type OrphanStatement,
