@@ -16,7 +16,7 @@ stated reason, then implement. One commit per task; the spec's
 ## Phase 2 — Substrate (independent, parallelizable)
 
 - [x] T002 [P] FR4 hash — `libs/assembly-lines/src/definition-hash.ts` + `definition-hash.test.ts`, exported from `libs/assembly-lines/src/index.ts`. Tests first: stable across key ordering, changes with any node/edge edit, 64-hex output.
-- [ ] T003 [P] FR4/FR5 schema — `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0036_assembly_line_fork_columns.sql` adding `definition_hash`, `resumed_from_line_id`, `resumed_from_node_id` to `pipeline.assembly_lines`. Idempotent (`ADD COLUMN IF NOT EXISTS`). Schema evidence, no unit test.
+- [x] T003 [P] FR4/FR5 schema — `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0036_assembly_line_fork_columns.sql` adding `definition_hash`, `resumed_from_line_id`, `resumed_from_node_id` to `pipeline.assembly_lines`. Idempotent (`ADD COLUMN IF NOT EXISTS`). Schema evidence, no unit test.
 - [ ] T004 [P] FR2 cutoff + validation — `libs/shared/src/project/assembly-lines/resume.ts` + `resume.test.ts`: `resumeCutoffIndex()` and `resolveResumeCutoff()`, the pure rules both adapters share. Tests first, one per rejection reason.
 
 ## Phase 3 — The start API
