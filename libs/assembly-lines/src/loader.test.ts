@@ -1141,3 +1141,20 @@ describe("implementation.yaml — every path reaches the exit through review", (
     expect(canBypass(map.get("implementation")!, "review")).toBe(false);
   });
 });
+
+import { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
+
+describe("the adopted definitions gate their review node", () => {
+  it("gates review in implementation and code-review, with no bypass warning", async () => {
+    const warnings: string[] = [];
+    const map = await loadBuiltinAssemblyLines((m) => warnings.push(m));
+    const gateOf = (name: string) =>
+      map.get(name)?.nodes.find((n) => n.id === "review")?.goal_gate;
+
+    expect({
+      implementation: gateOf("implementation"),
+      codeReview: gateOf("code-review"),
+      warnings,
+    }).toEqual({ implementation: true, codeReview: true, warnings: [] });
+  });
+});

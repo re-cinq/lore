@@ -9,6 +9,7 @@ nodes:
     type: agent
     prompt_ref: code-review
     model: claude-sonnet-4-6
+    goal_gate: true
     description: Assess the diff; emit REVIEW_FINDINGS (structured) + a REVIEW_RESULT verdict. Does not post or commit.
 
   - id: done

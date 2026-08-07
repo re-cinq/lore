@@ -36,7 +36,7 @@ StrongDM's Attractor spec models this as a first-class `goal_gate` node attribut
 - `goal_gate` on the exit node is rejected at load. The walk records no visit for the terminal marker, so such a gate could never be satisfied and the line would fail forever; failing at load is the honest outcome ([validated by `loader.test.ts:721`](libs/assembly-lines/src/loader.test.ts#L721))
 - The loader surfaces a validation warning when a goal-gated node can be bypassed on some path from entry to exit, so the author learns at load time rather than at the first skipped run ([validated by `loader.test.ts:802`](libs/assembly-lines/src/loader.test.ts#L802))
 - No warning is raised when every path from entry to exit passes through the gated node ([validated by `loader.test.ts:814`](libs/assembly-lines/src/loader.test.ts#L814))
-- The warning reaches the loading callers, not only direct `parseAssemblyLine` users: the file loader, the directory loader, and the builtin loader all forward it ([validated by `loader.test.ts:834`](libs/assembly-lines/src/loader.test.ts#L834), [`loader.test.ts:844`](libs/assembly-lines/src/loader.test.ts#L844))
+- The warning reaches the loading callers, not only direct `parseAssemblyLine` users: the file loader, the directory loader, and the builtin loader all forward it ([validated by `loader.test.ts:834`](libs/assembly-lines/src/loader.test.ts#L834), [`loader.test.ts:844`](libs/assembly-lines/src/loader.test.ts#L844), [`loader.test.ts:879`](libs/assembly-lines/src/loader.test.ts#L879))
 - With no warning handler supplied, bypass warnings reach `console.warn` — the builtin loader inherits the directory loader's default sink — so a bypassable gate is visible at server startup instead of being silently swallowed ([validated by `loader.test.ts:854`](libs/assembly-lines/src/loader.test.ts#L854))
 
 ### FR2 — Finish guard in the replay
@@ -50,9 +50,9 @@ StrongDM's Attractor spec models this as a first-class `goal_gate` node attribut
 
 ### FR3 — Adoption in the motivating lines
 
-- The `code-review` and `implementation` definitions carry `goal_gate: true` on their review nodes — the motivating use, and the reason this feature exists.
+- The `code-review` and `implementation` definitions carry `goal_gate: true` on their review nodes — the motivating use, and the reason this feature exists ([validated by `loader.test.ts:879`](libs/assembly-lines/src/loader.test.ts#L879))
 - `implementation.yaml`'s `implement --changes_requested--> retrospective` edge is redirected to `validate`. That edge is the one path reaching exit without review, and short-circuiting to the terminal marker was already wrong on its own terms: the implement node produced code, which belongs in validate → push → review like any other outcome. The edge is redirected rather than removed because an agent node's `changes_requested` is a producible outcome, and an uncovered producible outcome is a hard load error ([validated by `loader.test.ts:867`](libs/assembly-lines/src/loader.test.ts#L867))
-- With that edge redirected, every path from entry to exit in both adopted definitions passes through the gated review node, so neither builtin definition raises the FR1 bypass warning. The warning remains fully implemented and tested against synthetic definitions — it exists for the definitions authors write next, not for these two.
+- With that edge redirected, every path from entry to exit in both adopted definitions passes through the gated review node, so neither builtin definition raises the FR1 bypass warning. The warning remains fully implemented and tested against synthetic definitions — it exists for the definitions authors write next, not for these two ([validated by `loader.test.ts:879`](libs/assembly-lines/src/loader.test.ts#L879))
 
 ### FR4 — Surfacing the new outcome
 
