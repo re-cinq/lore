@@ -638,3 +638,142 @@ edges:
     expect(launched).toHaveLength(2);
   });
 });
+
+// ── Fork-and-rerun (specs/fork-rerun-from-node FR5): the walk itself is
+//    untouched — a forked line's inherited rows replay through nextTransition
+//    like any other history. What the guard needs is to stop reading "has node
+//    rows" as "already started work".
+describe("advanceLine on a forked line", () => {
+  const HASH = "hash-code-review";
+
+  async function forkableLine(
+    port: InMemoryAssemblyLines,
+    branch = "feat/x",
+  ): Promise<string> {
+    const id = await port.start({
+      definitionName: "code-review",
+      repo: "re-cinq/lore",
+      branch,
+      args: { description: "Review pull request #7", pr_number: 7 },
+    });
+
+    await port.stampDefinitionHash(id, HASH);
+    await port.markRunning(id);
+
+    const { nodeRowId } = await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-review`,
+    });
+
+    await port.finishNodeOnce(nodeRowId, "changes_requested", "sha-review");
+    await port.finish(id, "failed", 'node "refine" failed');
+
+    return id;
+  }
+
+  async function fork(
+    port: InMemoryAssemblyLines,
+    source: string,
+  ): Promise<string> {
+    const id = await port.start({
+      definitionName: "code-review",
+      repo: "re-cinq/lore",
+      definitionHash: HASH,
+      resumeFrom: { lineId: source, nodeId: "review" },
+    });
+
+    await port.markRunning(id);
+
+    return id;
+  }
+
+  it("launches the successor of the inherited node, not the entry node", async () => {
+    const port = new InMemoryAssemblyLines();
+    const source = await forkableLine(port);
+    const forked = await fork(port, source);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(forked, deps);
+
+    expect(launched).toHaveLength(1);
+    expect(launched[0]).toMatchObject({
+      name: `${forked.substring(0, 12)}-refine`,
+      branch: "feat/x",
+    });
+    expect((await port.listNodes(forked)).map((n) => n.nodeId)).toEqual([
+      "review",
+      "refine",
+    ]);
+  });
+
+  it("does not re-run the inherited node", async () => {
+    const port = new InMemoryAssemblyLines();
+    const source = await forkableLine(port);
+    const forked = await fork(port, source);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(forked, deps);
+
+    expect(launched.map((spec) => spec.name)).not.toContain(
+      `${forked.substring(0, 12)}-review`,
+    );
+  });
+
+  it("defers as lease_held when another open line already holds the inherited branch", async () => {
+    const port = new InMemoryAssemblyLines();
+    const source = await forkableLine(port);
+    const holder = await port.start({
+      definitionName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { pr_number: 7 },
+    });
+
+    await port.markRunning(holder);
+    const forked = await fork(port, source);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(forked, deps);
+
+    expect(await port.getById(forked)).toMatchObject({
+      status: "finished",
+      outcome: "lease_held",
+    });
+    expect(launched).toHaveLength(0);
+  });
+
+  it("proceeds when the only other line on the branch is the terminal source", async () => {
+    const port = new InMemoryAssemblyLines();
+    const source = await forkableLine(port);
+    const forked = await fork(port, source);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(forked, deps);
+
+    expect(await port.getById(forked)).toMatchObject({ status: "running" });
+    expect(launched).toHaveLength(1);
+  });
+
+  it("stops guarding once the fork has launched work of its own", async () => {
+    const port = new InMemoryAssemblyLines();
+    const source = await forkableLine(port);
+    const forked = await fork(port, source);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(forked, deps);
+    const holder = await port.start({
+      definitionName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { pr_number: 7 },
+    });
+
+    await port.markRunning(holder);
+    await advanceLine(forked, deps);
+
+    expect(await port.getById(forked)).toMatchObject({ status: "running" });
+    expect(launched).toHaveLength(1);
+  });
+});

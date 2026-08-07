@@ -28,8 +28,8 @@ stated reason, then implement. One commit per task; the spec's
 ## Phase 4 — Floor integration
 
 - [x] T008 FR4 stamping — `apps/floor/src/jobs/assembly-line/start-event-handler.ts` stamps `definitionHash(definition)` when the definition resolves. Tests appended to `start-event-handler.test.ts`.
-- [ ] T009 FR5 walk — `apps/floor/src/jobs/assembly-line/advance.ts` counts the inherited prefix in the branch-overlap guard, and a forked line advances to the cutoff node's successor. Tests appended to `advance.test.ts`.
+- [x] T009 FR5 walk — `apps/floor/src/jobs/assembly-line/advance.ts` counts the inherited prefix in the branch-overlap guard, and a forked line advances to the cutoff node's successor. Tests appended to `advance.test.ts`.
 
 ## Phase 5 — Close out
 
-- [ ] T010 Delete `adrs/ADR-041-fork-rerun-from-node.md`; flip the spec's `| Status |` row to the tier its coverage entitles it to.
+- [ ] T010 Delete `adrs/ADR-041-fork-rerun-from-node.md`, superseded by the spec. (The `| Status |` flip to `Shipped` rode T009 — the ladder linter is an ERROR, so the commit that links the last testable statement is the commit that must carry it.)

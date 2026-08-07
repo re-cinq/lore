@@ -4,7 +4,7 @@
 |---------|-----------------------------------------|
 | Feature | Fork-and-Rerun of Assembly Lines from a Completed Node |
 | Branch  | `feat/fork-rerun-from-node`             |
-| Status  | In Progress                                 |
+| Status  | Shipped                                     |
 | Created | 2026-08-07                              |
 | Owner   | Platform Engineering                    |
 
@@ -73,8 +73,8 @@ a debugging affordance rather than a fault-tolerance one.
 
 - The `assembly_line.start` event params carry the fork parentage, so the audit record of *why* a line exists rides with the trigger. ([validated by `assembly-lines.test.ts:982`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L982), [`assembly-lines.test.ts:1006`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L1006), [`assembly-lines.test.ts:1132`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L1132))
 - The line row itself records `resumed_from_line_id` and `resumed_from_node_id`, because `pipeline.events` rows are pruned once handled and an event alone is not a durable audit substrate. ([validated by `assembly-lines.test.ts:879`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L879), [`assembly-lines.test.ts:1006`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L1006), [`assembly-lines.test.ts:1165`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L1165))
-- The walk needs no change: the Floor's ordinary start handler marks the forked row running and `advanceLine` replays the inherited rows through `nextTransition`, which returns a launch for the successor of the cutoff node.
-- The branch-overlap guard counts the inherited prefix rather than an empty node list, so a fork that lands on a branch another open line already holds still defers as `lease_held` instead of racing it.
+- The walk needs no change: the Floor's ordinary start handler marks the forked row running and `advanceLine` replays the inherited rows through `nextTransition`, which returns a launch for the successor of the cutoff node. ([validated by `advance.test.ts:692`](apps/floor/src/jobs/assembly-line/advance.test.ts#L692), [`advance.test.ts:711`](apps/floor/src/jobs/assembly-line/advance.test.ts#L711))
+- The branch-overlap guard counts the inherited prefix rather than an empty node list, so a fork that lands on a branch another open line already holds still defers as `lease_held` instead of racing it. ([validated by `advance.test.ts:724`](apps/floor/src/jobs/assembly-line/advance.test.ts#L724), [`advance.test.ts:747`](apps/floor/src/jobs/assembly-line/advance.test.ts#L747), [`advance.test.ts:759`](apps/floor/src/jobs/assembly-line/advance.test.ts#L759))
 
 ## Alternatives rejected
 

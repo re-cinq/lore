@@ -9,8 +9,10 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import type {
   AssemblyLinesPort,
+  AssemblyLineNodeRecord,
   AssemblyLineRecord,
 } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import { resumeCutoffIndex } from "@re-cinq/lore-shared/project/assembly-lines/resume.js";
 import {
   nextTransition,
   type AssemblyLine,
@@ -111,6 +113,18 @@ const BRANCH_SHARED_WORKSPACE = new Set([
   "code-review-recheck",
 ]);
 
+/** Rows a forked line inherited from its source (specs/fork-rerun-from-node) — they
+ *  are present before the fork launches anything, so the overlap guard has to
+ *  measure against them instead of against an empty list. Zero for a plain start. */
+function inheritedNodeCount(
+  row: AssemblyLineRecord,
+  nodes: AssemblyLineNodeRecord[],
+): number {
+  return row.resumedFromNodeId
+    ? resumeCutoffIndex(nodes, row.resumedFromNodeId) + 1
+    : 0;
+}
+
 /** Re-derive the line's next step from its node rows and perform it: launch the next
  *  node CR, finish the row, or fail it. Safe to call redundantly — no-ops unless the
  *  replay says there is something to do. */
@@ -142,7 +156,7 @@ export async function advanceLine(
   // one side backs off (a naive "any other running" would make BOTH defer and skip
   // detection for the tick).
   if (
-    nodes.length === 0 &&
+    nodes.length === inheritedNodeCount(row, nodes) &&
     row.branch &&
     !BRANCH_SHARED_WORKSPACE.has(row.definitionName)
   ) {
