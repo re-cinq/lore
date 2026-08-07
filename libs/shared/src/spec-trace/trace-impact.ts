@@ -10,6 +10,22 @@
 
 import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
+import { intervalsOverlap, parseRanges } from "./line-range.js";
+import {
+  toImpactStatement,
+  mergeStatements,
+  STATEMENT_PROJECTION,
+  type GraphStatement,
+  type ImpactStatement,
+} from "./impact-statement.js";
+import { testFileImpact } from "./impact-test-link.js";
+
+export { parseRanges } from "./line-range.js";
+export type {
+  ImpactStatement,
+  Evidence,
+  ChangeKind,
+} from "./impact-statement.js";
 
 /** One changed file in a diff: `ranges` are the new/modified intervals (for coupling),
  * `deleted` are old-side intervals removed by the diff (for orphan detection). */
@@ -17,17 +33,6 @@ export interface ChangedRange {
   path: string;
   ranges: [number, number][];
   deleted?: [number, number][];
-}
-
-/** A spec statement coupled to the diff, with the tests that cover it (selectors). */
-export interface ImpactStatement {
-  specPath: string;
-  specTitle: string;
-  section?: string;
-  statementText: string;
-  statementAnchor: string;
-  tests: { file: string; name: string; line: number }[];
-  changedFile: string;
 }
 
 /** A statement whose only coverage the diff deletes. */
@@ -173,28 +178,6 @@ export function buildImpactAnnotations(
   return annotations;
 }
 
-/** Two closed integer intervals overlap iff neither ends before the other begins. */
-function intervalsOverlap(
-  aStart: number,
-  aEnd: number,
-  bStart: number,
-  bEnd: number,
-): boolean {
-  return aStart <= bEnd && bStart <= aEnd;
-}
-
-interface GraphSpecRef {
-  "Spec.file_path"?: string;
-  "Spec.title"?: string;
-}
-interface GraphStatement {
-  "Statement.xid"?: string;
-  "Statement.text"?: string;
-  // Statement.spec / Statement.section are single-cardinality `uid` edges, so
-  // Dgraph returns them as objects, not arrays.
-  spec?: GraphSpecRef;
-  section?: { "Section.heading"?: string };
-}
 interface GraphImplChunk {
   "CodeChunk.start_line"?: number;
   "CodeChunk.end_line"?: number;
@@ -211,36 +194,12 @@ interface GraphCoverage {
   tc?: GraphTestChunk[];
 }
 
-/** Builds an ImpactStatement from a graph Statement, carrying its xid for dedup. */
-function toImpactStatement(
-  stmt: GraphStatement,
-  changedFile: string,
-  tests: ImpactStatement["tests"],
-): ImpactStatement & { xid: string } {
-  const specPath = stmt.spec?.["Spec.file_path"] ?? "";
-
-  return {
-    xid:
-      stmt["Statement.xid"] ?? `${specPath}::${stmt["Statement.text"] ?? ""}`,
-    specPath,
-    specTitle: stmt.spec?.["Spec.title"] ?? "",
-    section: stmt.section?.["Section.heading"],
-    statementText: stmt["Statement.text"] ?? "",
-    statementAnchor: specPath,
-    tests,
-    changedFile,
-  };
-}
-
 const IMPL_QUERY = `query q($repo: string, $fp: string) {
   chunks(func: eq(CodeChunk.file_path, $fp)) @filter(eq(CodeChunk.repo, $repo)) {
     CodeChunk.start_line
     CodeChunk.end_line
     stmts: ~Statement.implemented_by {
-      Statement.xid
-      Statement.text
-      spec: Statement.spec { Spec.file_path Spec.title }
-      section: Statement.section { Section.heading }
+      ${STATEMENT_PROJECTION}
     }
   }
 }`;
@@ -268,7 +227,7 @@ async function implementedByImpact(
     }
 
     for (const stmt of chunk.stmts ?? []) {
-      out.push(toImpactStatement(stmt, file, []));
+      out.push(toImpactStatement(stmt, file, [], "file-link"));
     }
   }
 
@@ -286,10 +245,7 @@ const COVERAGE_QUERY = `query q($repo: string, $fp: string) {
       TestChunk.test_name
       TestChunk.start_line
       stmts: ~Statement.validated_by {
-        Statement.xid
-        Statement.text
-        spec: Statement.spec { Spec.file_path Spec.title }
-        section: Statement.section { Section.heading }
+        ${STATEMENT_PROJECTION}
       }
     }
   }
@@ -331,7 +287,7 @@ async function validatedByImpact(
       };
 
       for (const stmt of tc.stmts ?? []) {
-        out.push(toImpactStatement(stmt, file, [test]));
+        out.push(toImpactStatement(stmt, file, [test], "coverage"));
       }
     }
   }
@@ -430,34 +386,6 @@ async function orphanImpact(
   return [...byXid.values()];
 }
 
-/** Unions statements from every coupling path by xid, merging their test selectors. */
-function mergeStatements(
-  raw: Array<ImpactStatement & { xid: string }>,
-): ImpactStatement[] {
-  const byXid = new Map<string, ImpactStatement & { xid: string }>();
-
-  for (const stmt of raw) {
-    const existing = byXid.get(stmt.xid);
-
-    if (!existing) {
-      byXid.set(stmt.xid, { ...stmt, tests: [...stmt.tests] });
-      continue;
-    }
-
-    for (const test of stmt.tests) {
-      if (
-        !existing.tests.some(
-          (t) => t.file === test.file && t.name === test.name,
-        )
-      ) {
-        existing.tests.push(test);
-      }
-    }
-  }
-
-  return [...byXid.values()].map(({ xid: _xid, ...rest }) => rest);
-}
-
 export async function computeImpact(
   dgraph: DgraphClientPort | null,
   repo: string,
@@ -477,6 +405,7 @@ export async function computeImpact(
   for (const { path, ranges, deleted } of changed) {
     raw.push(...(await implementedByImpact(dgraph, repo, path, ranges)));
     raw.push(...(await validatedByImpact(dgraph, repo, path, ranges)));
+    raw.push(...(await testFileImpact(dgraph, repo, path, ranges)));
 
     if (deleted?.length) {
       orphaned.push(...(await orphanImpact(dgraph, repo, path, deleted)));
@@ -490,23 +419,3 @@ export async function computeImpact(
   return { status: "ok", statements, orphaned, testSelectors };
 }
 
-/** Inverse of ingest-coverage's `serializeRanges`: "5-10,20-25" → [[5,10],[20,25]]. */
-export function parseRanges(facet: string): [number, number][] {
-  const ranges: [number, number][] = [];
-
-  for (const part of facet.split(",")) {
-    const [rawStart, rawEnd, ...rest] = part.split("-");
-
-    if (rest.length || !rawStart || !rawEnd) {
-      continue;
-    }
-    const start = Number(rawStart);
-    const end = Number(rawEnd);
-
-    if (Number.isFinite(start) && Number.isFinite(end)) {
-      ranges.push([start, end]);
-    }
-  }
-
-  return ranges;
-}

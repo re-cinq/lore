@@ -84,6 +84,7 @@ describe("buildImpactAnnotations", () => {
             statementAnchor: "specs/widget/spec.md",
             tests: [{ file: "test/widget.test.ts", name: "renders", line: 12 }],
             changedFile: "src/widget.ts",
+            evidence: "coverage",
           },
         ],
       },
@@ -163,6 +164,7 @@ describe("buildImpactComment", () => {
           statementAnchor: "specs/widget/spec.md",
           tests: [{ file: "test/widget.test.ts", name: "renders", line: 12 }],
           changedFile: "src/widget.ts",
+          evidence: "coverage",
         },
       ],
       orphaned: [
