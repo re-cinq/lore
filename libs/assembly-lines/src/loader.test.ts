@@ -1158,3 +1158,20 @@ describe("the adopted definitions gate their review node", () => {
     }).toEqual({ implementation: true, codeReview: true, warnings: [] });
   });
 });
+
+describe("load diagnostics name their source", () => {
+  it("attaches the source file to a bypass warning the way a load error does", async () => {
+    const fixtureFile = path.resolve(
+      new URL(".", import.meta.url).pathname,
+      "test-fixtures",
+      "bypassable-gate.yaml",
+    );
+    const warnings: string[] = [];
+
+    await loadAssemblyLineFile(fixtureFile, (m) => warnings.push(m));
+
+    expect(warnings[0]).toContain(
+      new AssemblyLineLoadError("x", fixtureFile).message.replace("x", ""),
+    );
+  });
+});

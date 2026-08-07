@@ -62,7 +62,13 @@ export function selectEdge(
 }
 
 /** A completed node whose outcome counts as reaching its goal. `changes_requested`
- *  qualifies: a review that produced a verdict did its job, it is not a failure. */
+ *  qualifies: a review that produced a verdict did its job, it is not a failure.
+ *
+ *  These are review-SHAPED semantics, but `goal_gate` is accepted on any node
+ *  type, so a gated `validate` or `gate` node inherits them unchanged — its
+ *  `changes_requested` would satisfy its gate too. No builtin station emits that
+ *  outcome (only agent output carries the verdict lines), so the case is
+ *  unreachable today; narrowing per node type waits until a definition needs it. */
 function satisfiesGate(outcome: StageOutcome | null): boolean {
   return outcome === "success" || outcome === "changes_requested";
 }
@@ -71,7 +77,16 @@ function satisfiesGate(outcome: StageOutcome | null): boolean {
  *  counts: an earlier verdict applied to an earlier state of the branch, so a
  *  stale pass cannot carry a failed re-run and a stale rejection cannot sink a
  *  clean one. A node conditional branching skipped has no visit at all, so it
- *  is unmet. */
+ *  is unmet.
+ *
+ *  "Latest" is last-wins over `visits`, which relies on the array being in walk
+ *  order. That is not an assumption, it is already proven when this runs: the
+ *  caller only reaches the gate check after the replay loop has consumed every
+ *  visit, and that loop hard-fails (`error`, "node rows diverge") on the first
+ *  row whose node id or iteration does not match the recomputed walk. An
+ *  out-of-order history therefore fails before it can reach a gate verdict.
+ *  Deliberately not defended with a sort here — that would mask the divergence
+ *  check and let a genuinely corrupt history replay as a clean gate result. */
 function unmetGates(assemblyLine: AssemblyLine, visits: NodeVisit[]): string[] {
   const latest = new Map<string, StageOutcome | null>();
 

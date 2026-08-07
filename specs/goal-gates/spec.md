@@ -34,7 +34,7 @@ StrongDM's Attractor spec models this as a first-class `goal_gate` node attribut
 
 - The loader accepts an optional `goal_gate: true` on any node, and existing definitions that omit it parse unchanged — the attribute is opt-in ([validated by `loader.test.ts:674`](libs/assembly-lines/src/loader.test.ts#L674), [`loader.test.ts:698`](libs/assembly-lines/src/loader.test.ts#L698))
 - `goal_gate` on the exit node is rejected at load. The walk records no visit for the terminal marker, so such a gate could never be satisfied and the line would fail forever; failing at load is the honest outcome ([validated by `loader.test.ts:721`](libs/assembly-lines/src/loader.test.ts#L721))
-- The loader surfaces a validation warning when a goal-gated node can be bypassed on some path from entry to exit, so the author learns at load time rather than at the first skipped run ([validated by `loader.test.ts:802`](libs/assembly-lines/src/loader.test.ts#L802))
+- The loader surfaces a validation warning when a goal-gated node can be bypassed on some path from entry to exit, so the author learns at load time rather than at the first skipped run. The warning names its origin with the same `[source]` suffix `AssemblyLineLoadError` attaches, so a bad gate is traceable to a file rather than just a definition name ([validated by `loader.test.ts:802`](libs/assembly-lines/src/loader.test.ts#L802), [`loader.test.ts:894`](libs/assembly-lines/src/loader.test.ts#L894))
 - No warning is raised when every path from entry to exit passes through the gated node ([validated by `loader.test.ts:814`](libs/assembly-lines/src/loader.test.ts#L814))
 - The warning reaches the loading callers, not only direct `parseAssemblyLine` users: the file loader, the directory loader, and the builtin loader all forward it ([validated by `loader.test.ts:834`](libs/assembly-lines/src/loader.test.ts#L834), [`loader.test.ts:844`](libs/assembly-lines/src/loader.test.ts#L844), [`loader.test.ts:879`](libs/assembly-lines/src/loader.test.ts#L879))
 - With no warning handler supplied, bypass warnings reach `console.warn` — the builtin loader inherits the directory loader's default sink — so a bypassable gate is visible at server startup instead of being silently swallowed ([validated by `loader.test.ts:854`](libs/assembly-lines/src/loader.test.ts#L854))
@@ -82,6 +82,7 @@ StrongDM's Attractor spec models this as a first-class `goal_gate` node attribut
 ## Out of Scope
 
 - Gate semantics richer than success-class (e.g. per-gate custom predicates, or requiring a specific outcome value per gate).
+- Per-node-type gate semantics. Satisfaction is defined in terms of review-shaped outcomes — `success` or `changes_requested` — while `goal_gate` is accepted on any node type, so a gated `validate`, `gate` or station node inherits those semantics unchanged and its `changes_requested` would satisfy its gate. No builtin station emits that outcome (only agent output carries the `LORE_NODE_RESULT` / `REVIEW_RESULT` verdict lines), so the case is unreachable today; narrowing satisfaction per node type waits until a definition needs it.
 - Backfilling `goal_gate` onto definitions beyond the two motivating lines; other lines adopt it when their authors choose to.
 - Any change to `stationNodeOutcome()` precedence or the station contract.
 

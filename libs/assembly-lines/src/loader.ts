@@ -150,14 +150,18 @@ export function uncoveredOutcomes(
   return PRODUCIBLE_OUTCOMES[node.type].filter((o) => !covered.has(o));
 }
 
+/** The one place a diagnostic's origin is attached, so load errors and load
+ *  warnings read identically. */
+function withSource(message: string, source?: string): string {
+  return source ? `${message} [${source}]` : message;
+}
+
 export class AssemblyLineLoadError extends Error {
   constructor(
     message: string,
     public readonly source?: string,
   ) {
-    const where = source ? ` [${source}]` : "";
-
-    super(`${message}${where}`);
+    super(withSource(message, source));
     this.name = "AssemblyLineLoadError";
   }
 }
@@ -437,7 +441,10 @@ function validateAssemblyLine(
       continue;
     }
     onWarning(
-      `goal-gated node "${n.id}" in assembly line "${wf.name}" can be bypassed: some path from entry to exit does not pass through it [${source}]`,
+      withSource(
+        `goal-gated node "${n.id}" in assembly line "${wf.name}" can be bypassed: some path from entry to exit does not pass through it`,
+        source,
+      ),
     );
   }
 
