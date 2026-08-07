@@ -162,17 +162,21 @@ export function nextTransition(
     currentId = chosen.to;
   }
 
-  if (currentId === assemblyLine.exit) {
-    if (unmetGates(assemblyLine, visits).length === 0) {
-      return { kind: "finish" };
-    }
-
-    return {
-      kind: "fail",
-      outcome: "goal_gate_unmet",
-      reason: `AssemblyLine ${assemblyLine.name}: reached the exit with a goal gate unsatisfied`,
-    };
+  if (currentId !== assemblyLine.exit) {
+    return { kind: "launch", nodeId: currentId, iteration };
   }
 
-  return { kind: "launch", nodeId: currentId, iteration };
+  const unmet = unmetGates(assemblyLine, visits);
+
+  if (unmet.length === 0) {
+    return { kind: "finish" };
+  }
+
+  return {
+    kind: "fail",
+    outcome: "goal_gate_unmet",
+    reason: `AssemblyLine ${assemblyLine.name}: reached the exit with unsatisfied goal gate(s) ${unmet
+      .map((id) => `"${id}"`)
+      .join(", ")}`,
+  };
 }

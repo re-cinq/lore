@@ -437,3 +437,54 @@ describe("nextTransition — goal gates read the latest visit", () => {
     });
   });
 });
+
+// Two gates, both skipped by the same failed edge — the diagnostic has to name
+// each one, not just report that some gate was unmet.
+const twoGates: AssemblyLine = parseAssemblyLine(`
+name: two-gates
+description: review and audit are both goal gates work's failed edge routes around
+version: 1
+entry: work
+exit: done
+nodes:
+  - id: work
+    type: agent
+  - id: review
+    type: agent
+    goal_gate: true
+  - id: audit
+    type: agent
+    goal_gate: true
+  - id: done
+    type: retrospective
+edges:
+  - from: work
+    to: review
+    on: success
+  - from: work
+    to: done
+    on: changes_requested
+  - from: work
+    to: done
+    on: failed
+  - from: review
+    to: audit
+    on: always
+  - from: audit
+    to: done
+    on: always
+`);
+
+describe("nextTransition — goal_gate_unmet diagnostic", () => {
+  it("names every unsatisfied gate in the failure reason", () => {
+    expect(
+      nextTransition(twoGates, [visit("work", 1, "failed")]),
+    ).toMatchObject({
+      kind: "fail",
+      outcome: "goal_gate_unmet",
+      reason: expect.stringContaining(
+        'unsatisfied goal gate(s) "review", "audit"',
+      ),
+    });
+  });
+});
