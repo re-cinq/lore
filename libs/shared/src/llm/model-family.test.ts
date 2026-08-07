@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { modelFamily, crossModelReviewWarning } from "./model-family.js";
+import { KNOWN_MODELS } from "../project/agents/agent-defs-port.js";
 
 describe("modelFamily — bare model ids", () => {
   it("returns anthropic for a claude sonnet model id", () => {
@@ -138,5 +139,19 @@ describe("crossModelReviewWarning", () => {
 
   it("returns null when both models are undefined", () => {
     expect(crossModelReviewWarning(undefined, undefined)).toBeNull();
+  });
+});
+
+describe("modelFamily — KNOWN_MODELS (the Agents tab's curated dropdown)", () => {
+  it("returns anthropic for claude-fable-5", () => {
+    expect(modelFamily("claude-fable-5")).toBe("anthropic");
+  });
+
+  it("classifies every KNOWN_MODELS id to a known family, not unknown", () => {
+    const unclassified = KNOWN_MODELS.map((model) => model.id).filter(
+      (id) => modelFamily(id) === "unknown",
+    );
+
+    expect(unclassified).toEqual([]);
   });
 });

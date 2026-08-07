@@ -27,7 +27,7 @@ const VENDOR_TOKEN_TO_FAMILY: Record<string, ModelFamily> = {
 const VENDOR_PREFIX = /^(anthropic|openai|google)[./]/;
 const BEDROCK_REGION_PREFIX = /^[a-z0-9-]+\.(anthropic|openai|google)\./;
 
-const ANTHROPIC_BARE_ID = /^claude-(opus|sonnet|haiku)(-|$)/;
+const ANTHROPIC_BARE_ID = /^claude-(opus|sonnet|haiku|fable)(-|$)/;
 const OPENAI_BARE_ID = /^(gpt-[345]|chatgpt-|o[134](-|$))/;
 const GOOGLE_BARE_ID = /^gemini(-|$)/;
 

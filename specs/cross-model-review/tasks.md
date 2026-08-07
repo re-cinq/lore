@@ -29,9 +29,16 @@ A different model reviewed the branch and returned BLOCK on four defects; all fo
 
 My original pushback (`In Progress` is impossible without breaking the `0 errors` constraint or inventing an unlinked FR) held up. But the follow-up correction was right: `lore/require-status-matches-coverage` compares **buckets**, not literal strings — `libs/shared/src/spec-status.ts`'s `shipped` bucket regex is `/^(shipped|implemented|complete|accepted|done|live)/`, verified directly in that file and in the rule's actual comparison path (`status-coverage.mjs`'s `statusMismatch`, which diffs `parseDocStatus(...).status` against `expectedStatus(...)`, both bucket values). So `Implemented` satisfies the lint rule exactly as `Shipped` does, while reading honestly for a branch that is unmerged and undeployed — and matches a sibling branch in the identical position, standardizing how the org's fully-linked-but-unmerged specs report their state. Changed `| Status |` to `Implemented`; kept the reworded lead paragraph (now saying "Implemented" instead of "Shipped").
 
+## Phase 5 — Fable re-review (2026-08-07)
+
+Fable re-reviewed the fix round: APPROVE-WITH-NITS, verified by running (not just reading) every id this repo configures. One should-fix, a good catch.
+
+- [x] T010 `KNOWN_MODELS` (`libs/shared/src/project/agents/agent-defs-port.ts:31`, the Agents tab's curated model dropdown) includes `claude-fable-5`, which `ANTHROPIC_BARE_ID`'s `(opus|sonnet|haiku)` alternation missed — `modelFamily("claude-fable-5")` read `unknown`, so a Fable-5 reviewer against a Sonnet implementer got no same-family warning. Failing tests first (`claude-fable-5` case + a guard iterating the real `KNOWN_MODELS` array asserting none classify `unknown`), then added `fable` to the alternation. The guard test earned its own FR1 bullet so the next dropdown addition can't silently repeat this
+- [x] T011 Documented the accepted gen-first-legacy-id limitation (`claude-3-opus-20240229` etc. read `unknown`) as a Consequences bullet, per the review's optional ask — not present on any config surface here, left as-is
+
 ## Acceptance gate
 
 - [x] `npx prettier --check` + `npx eslint` (0 errors) on every changed file
 - [x] `libs/shared` vitest suite green, `libs/assembly-lines` vitest suite green
 - [x] `require-spec-link` satisfied for every new `it(...)`
-- [x] Every `#Lnnn` spec anchor rechecked against the post-rewrite file (30 links, 30 `it()`s, exact match)
+- [x] Every `#Lnnn` spec anchor rechecked against the post-rewrite file (32 links, 32 `it()`s, exact match)
