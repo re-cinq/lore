@@ -307,11 +307,10 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
 
 ### FR-4: Form and Input Styling
 
-Decision: form styling — including every text input, textarea, select, and
-button — is centralized in `globals.css` and the shared presentational
-components below; visual consistency is a presentation contract, not a
-behavioural one, so it carries no unit assertion.
-
+- FR-4.1: All form controls — every text input, textarea, select, and button —
+  share one base rule in `globals.css` that opts them into the theme font, and
+  native `<select>` option popups are pinned to theme surface tokens (no
+  per-control hardcoding). ([validated by `globals-styling.test.ts:11`](apps/web-ui/src/app/globals-styling.test.ts#L11), [`globals-styling.test.ts:15`](apps/web-ui/src/app/globals-styling.test.ts#L15), [`globals-styling.test.ts:23`](apps/web-ui/src/app/globals-styling.test.ts#L23))
 - FR-4.2: Repo selector is a dropdown populated from the registry,
   not free text. ([validated by `AssemblyLineCreateView.test.tsx:39`](apps/web-ui/src/app/assembly-lines/create/AssemblyLineCreateView.test.tsx#L39))
 - FR-4.3: Task type selector shows descriptions, not just names —
@@ -334,14 +333,16 @@ The onboarding PR scaffolds a target repo with deterministic files committed ver
 - FR-5.3: `.github/workflows/pr-description-check.yml` enforces those PR sections
   in CI, treating a comment-only or blank section as empty. ([validated by `pr-section-check.test.ts:28`](libs/shared/src/pr-section-check.test.ts#L28), [`pr-section-check.test.ts:46`](libs/shared/src/pr-section-check.test.ts#L46), [`pr-section-check.test.ts:69`](libs/shared/src/pr-section-check.test.ts#L69), [`pr-section-check.test.ts:80`](libs/shared/src/pr-section-check.test.ts#L80))
 
-Decision: beyond those, the onboarding PR commits static scaffolding verbatim
-(`.claude/settings.json` for the Lore MCP system-prompt suffix, plus the
-`.github/ISSUE_TEMPLATE/*.yml` task templates) and LLM-drafts `AGENTS.md` and
-`.specify/spec.md` from a fixed prompt against the repo's context — those
-model-authored, human-reviewed files carry no deterministic content assertion,
-no `CLAUDE.md` is scaffolded (it is requested in the onboarding issue for the
-owner to author), and there is no `spec-agent.yml` (spec and ingest triggering
-ride the ingest and spec-impact workflows above).
+- FR-5.4: The onboarding PR commits static scaffolding verbatim —
+  `.claude/settings.json` carrying the Lore MCP system-prompt suffix, and the
+  four `.github/ISSUE_TEMPLATE/*.yml` task templates. ([validated by `onboard-files.test.ts:10`](apps/floor/src/jobs/task/onboard-files.test.ts#L10), [`onboard-files.test.ts:20`](apps/floor/src/jobs/task/onboard-files.test.ts#L20))
+- FR-5.5: It LLM-drafts `AGENTS.md`, the PR template, the pr-description-check
+  workflow, and `.specify/spec.md` from fixed prompts against the repo's context
+  — the AGENTS.md prompt targets the repo's own stack and the PR-template prompt
+  names the five canonical sections. ([validated by `onboard-files.test.ts:33`](apps/floor/src/jobs/task/onboard-files.test.ts#L33), [`onboard-files.test.ts:40`](apps/floor/src/jobs/task/onboard-files.test.ts#L40), [`onboard-files.test.ts:56`](apps/floor/src/jobs/task/onboard-files.test.ts#L56))
+- FR-5.6: The onboarding PR scaffolds no `CLAUDE.md` (requested in the onboarding
+  issue for the owner to author) and no `spec-agent.yml` — spec and ingest
+  triggering ride the ingest and spec-impact workflows above. ([validated by `onboard-files.test.ts:67`](apps/floor/src/jobs/task/onboard-files.test.ts#L67), [`onboard-files.test.ts:71`](apps/floor/src/jobs/task/onboard-files.test.ts#L71))
 
 ### FR-6: Top-Level Observability Pages
 
