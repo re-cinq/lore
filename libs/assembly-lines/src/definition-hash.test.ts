@@ -94,16 +94,52 @@ describe("definitionHash", () => {
 
   it("distinguishes a nested value from the string that spells it", () => {
     const stringified = line({
-      edges: [
+      nodes: [
         {
-          from: "implement",
-          to: "done",
-          on: "always",
+          id: "implement",
+          type: "agent",
+          prompt_ref: '[{"id":"implement","type":"agent"}]',
         },
+        { id: "done", type: "gate" },
       ],
-      description: '[{"from":"implement","to":"done","on":"always"}]',
     });
 
     expect(definitionHash(stringified)).not.toBe(definitionHash(line()));
+  });
+});
+
+describe("definitionHash ignores prose but not order", () => {
+  it("ignores a reworded description, at the top level and on a node", () => {
+    const reworded = line({
+      description: "a completely different sentence",
+      nodes: [
+        {
+          id: "implement",
+          type: "agent",
+          prompt_ref: "implementation",
+          description: "newly documented",
+        },
+        { id: "done", type: "gate", description: "also new" },
+      ],
+    });
+
+    expect(definitionHash(reworded)).toBe(definitionHash(line()));
+  });
+
+  it("changes when edges are reordered, because the first candidate can win", () => {
+    const forward = line({
+      edges: [
+        { from: "implement", to: "done", on: "always" },
+        { from: "implement", to: "implement", on: "always" },
+      ],
+    });
+    const reversed = line({
+      edges: [
+        { from: "implement", to: "implement", on: "always" },
+        { from: "implement", to: "done", on: "always" },
+      ],
+    });
+
+    expect(definitionHash(forward)).not.toBe(definitionHash(reversed));
   });
 });
