@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import * as path from "node:path";
-import { modelFamily } from "@re-cinq/lore-shared";
 import { loadAssemblyLineDir } from "./loader.js";
 
 describe("implementation.yaml — cross-model review interim policy", () => {
@@ -16,15 +15,5 @@ describe("implementation.yaml — cross-model review interim policy", () => {
     expect(implementModel).toBeDefined();
     expect(reviewModel).toBeDefined();
     expect(reviewModel).not.toBe(implementModel);
-  });
-
-  it("still resolves both models to the anthropic family, pending the openai-code vendor", async () => {
-    const map = await loadAssemblyLineDir(assemblyLinesDir);
-    const line = map.get("implementation");
-    const implementModel = line?.nodes.find((n) => n.id === "implement")?.model;
-    const reviewModel = line?.nodes.find((n) => n.id === "review")?.model;
-
-    expect(modelFamily(implementModel)).toBe("anthropic");
-    expect(modelFamily(reviewModel)).toBe("anthropic");
   });
 });
