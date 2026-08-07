@@ -4,11 +4,11 @@
 |---------|------------------------|
 | Feature | Cross-Model Review     |
 | Branch  | feat/cross-model-review |
-| Status  | Shipped                |
+| Status  | Implemented            |
 | Created | 2026-08-07             |
 | Owner   | Platform Engineering   |
 
-Cross-Model Review adds a vendor-neutral `modelFamily()` classifier and a `crossModelReviewWarning()` policy helper to `libs/shared/src/llm/model-family.ts`, and documents + guards the interim cross-tier default the `implementation` assembly line's review node already used. "Shipped" here means the two policy primitives are complete and exhaustively tested against real-world model-id forms, not that any production code path calls them yet — nothing in Lore's runtime resolves a model, calls `crossModelReviewWarning()`, or blocks a task on its result. Wiring a caller in is deliberately Out of Scope (see below); this spec is the tested substrate that follow-up work builds on.
+Cross-Model Review adds a vendor-neutral `modelFamily()` classifier and a `crossModelReviewWarning()` policy helper to `libs/shared/src/llm/model-family.ts`, and documents + guards the interim cross-tier default the `implementation` assembly line's review node already used. "Implemented" here means the two policy primitives are complete and exhaustively tested against real-world model-id forms, not that any production code path calls them yet — nothing in Lore's runtime resolves a model, calls `crossModelReviewWarning()`, or blocks a task on its result. Wiring a caller in is deliberately Out of Scope (see below); this spec is the tested substrate that follow-up work builds on.
 
 ## Problem Statement
 
