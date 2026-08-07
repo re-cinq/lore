@@ -155,3 +155,21 @@ describe("modelFamily — KNOWN_MODELS (the Agents tab's curated dropdown)", () 
     expect(unclassified).toEqual([]);
   });
 });
+
+describe("crossModelReviewWarning — identity normalization", () => {
+  it("warns with the identity message for the same model differing only by surrounding whitespace", () => {
+    expect(
+      crossModelReviewWarning("claude-sonnet-4-6", "  claude-sonnet-4-6  "),
+    ).toBe(
+      "Implementer and reviewer are the identical model (claude-sonnet-4-6); this is the strongest form of self-preference bias, not just same-family review.",
+    );
+  });
+
+  it("warns with the identity message for the same model differing only by letter case", () => {
+    expect(
+      crossModelReviewWarning("claude-sonnet-4-6", "Claude-Sonnet-4-6"),
+    ).toBe(
+      "Implementer and reviewer are the identical model (claude-sonnet-4-6); this is the strongest form of self-preference bias, not just same-family review.",
+    );
+  });
+});

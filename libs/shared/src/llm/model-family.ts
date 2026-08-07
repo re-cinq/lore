@@ -27,9 +27,14 @@ const VENDOR_TOKEN_TO_FAMILY: Record<string, ModelFamily> = {
 const VENDOR_PREFIX = /^(anthropic|openai|google)[./]/;
 const BEDROCK_REGION_PREFIX = /^[a-z0-9-]+\.(anthropic|openai|google)\./;
 
-const ANTHROPIC_BARE_ID = /^claude-(opus|sonnet|haiku|fable)(-|$)/;
-const OPENAI_BARE_ID = /^(gpt-[345]|chatgpt-|o[134](-|$))/;
-const GOOGLE_BARE_ID = /^gemini(-|$)/;
+const ANTHROPIC_BARE_ID = /^claude-(?:opus|sonnet|haiku|fable)(?:-|$)/;
+// The o[134] reasoning-model alternation is an enumerated list, not a
+// generation-agnostic o\d+ rule — deliberately, per specs/cross-model-review's
+// Known Limitations: broadening to \d+ would accept any "o<digits>" string,
+// reopening a weaker form of the over-matching Blocker 1 closed. Extend this
+// list by hand when OpenAI ships a new o-series generation.
+const OPENAI_BARE_ID = /^(?:gpt-[345]|chatgpt-|o[134](?:-|$))/;
+const GOOGLE_BARE_ID = /^gemini(?:-|$)/;
 
 export function modelFamily(modelId: string | undefined): ModelFamily {
   if (!modelId) {
@@ -88,7 +93,10 @@ export function crossModelReviewWarning(
     return null;
   }
 
-  if (implementerModel === reviewerModel) {
+  const normalizedImplementer = implementerModel?.trim().toLowerCase();
+  const normalizedReviewer = reviewerModel?.trim().toLowerCase();
+
+  if (normalizedImplementer === normalizedReviewer) {
     return (
       `Implementer and reviewer are the identical model (${implementerModel}); ` +
       `this is the strongest form of self-preference bias, not just same-family review.`

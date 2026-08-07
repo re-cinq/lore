@@ -56,9 +56,17 @@ The owner directed repointing `review` → `claude-sonnet-4-6` and `implement` �
 - [x] T013 Declined to make the literal model-value repoint (would be equally inert); declined to wire `station_ref` + `task-types.yaml` (production blast radius beyond this branch, needs owner sign-off) — pushed back per instruction #5 with the full evidence trail
 - [x] T014 Corrected `spec.md` FR3 + Consequences out of "effective mitigation" framing into "guarded declaration, not yet enforced"; added `## Known Limitations` with the citation trail and the two real options; updated the YAML comment to match (comment-only)
 
+## Phase 7 — PR #1091 review bot, three actionable comments (2026-08-07)
+
+CI 19/19 green, bot APPROVED. The owner independently verified the Known-Limitations evidence chain and confirmed the scope is repo-wide (11 `model:` declarations across 8 assembly-line YAMLs are decorative; only `code-review-reply.yaml` uses `station_ref`) — filed as its own issue, not folded into this branch.
+
+- [x] T015 **Identity-comparison bug (genuine, independently flagged twice).** `crossModelReviewWarning`'s identity check compared raw strings pre-trim/pre-case, so `("claude-sonnet-4-6", "  claude-sonnet-4-6  ")` or a case-differing pair got the weaker same-family message instead of the identity one — fail-safe (still warns) but wrong message. Failing tests first (whitespace-differing pair, case-differing pair), then normalized both sides (`.trim().toLowerCase()`) before the identity comparison, keeping the raw `implementerModel` in the displayed message. New FR2 bullet added, linked
+- [x] T016 **`o[134]` forward-compatibility — decided to leave it enumerated, documented why.** Broadening to `o\d+` would gain forward compatibility for `o5`/`o6` but reopens a weaker form of Blocker 1's over-matching (any `o<digits>` string, not just real ids); the independent reviewer separately judged today's fail-closed behavior (`o2`/`o5`/`o10-mini` → `unknown`) correct. Consistent with the classifier's governing rule (unknown rather than guessing) and `KNOWN_MODELS`'s own enumerated, hand-maintained shape — chose not to broaden. Documented as a new Known Limitations bullet (spec.md) plus an inline comment on `OPENAI_BARE_ID` (`model-family.ts`) so the reasoning travels with the code, not just the PR thread
+- [x] T017 **Non-capturing groups.** Converted every capturing group in `ANTHROPIC_BARE_ID`/`OPENAI_BARE_ID`/`GOOGLE_BARE_ID` to non-capturing (`(?:...)`) — none of the three are read via `.exec()`/`.match()` index (only `.test()`), unlike `VENDOR_PREFIX`/`BEDROCK_REGION_PREFIX`, whose `(anthropic|openai|google)` group is read as `match[1]` and correctly stays capturing
+
 ## Acceptance gate
 
 - [x] `npx prettier --check` + `npx eslint` (0 errors) on every changed file
 - [x] `libs/shared` vitest suite green, `libs/assembly-lines` vitest suite green
 - [x] `require-spec-link` satisfied for every new `it(...)`
-- [x] Every `#Lnnn` spec anchor rechecked against the post-rewrite file (32 links, 32 `it()`s, exact match — unchanged this round, no test file touched)
+- [x] Every `#Lnnn` spec anchor rechecked against the post-rewrite file (34 links, 34 `it()`s, exact match)
