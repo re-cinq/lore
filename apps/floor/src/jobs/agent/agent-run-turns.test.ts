@@ -1,20 +1,8 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
-  agentTurnsEnabled,
   turnFromEnvelope,
   MAX_RUN_TURNS_PER_BATCH,
 } from "./agent-run-turns.js";
-
-const ORIGINAL_FLAG = process.env.LORE_AGENT_TURNS;
-
-afterEach(() => {
-  if (ORIGINAL_FLAG === undefined) {
-    delete process.env.LORE_AGENT_TURNS;
-
-    return;
-  }
-  process.env.LORE_AGENT_TURNS = ORIGINAL_FLAG;
-});
 
 const envelope = (
   event: Record<string, unknown>,
@@ -22,26 +10,6 @@ const envelope = (
 ) => ({
   source,
   event,
-});
-
-describe("agentTurnsEnabled", () => {
-  it("is off when LORE_AGENT_TURNS is unset", () => {
-    delete process.env.LORE_AGENT_TURNS;
-
-    expect(agentTurnsEnabled()).toBe(false);
-  });
-
-  it("is off for any value other than 1", () => {
-    process.env.LORE_AGENT_TURNS = "true";
-
-    expect(agentTurnsEnabled()).toBe(false);
-  });
-
-  it("is on when LORE_AGENT_TURNS is 1", () => {
-    process.env.LORE_AGENT_TURNS = "1";
-
-    expect(agentTurnsEnabled()).toBe(true);
-  });
 });
 
 describe("turnFromEnvelope", () => {

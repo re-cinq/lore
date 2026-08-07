@@ -58,10 +58,11 @@ describe("eventsPrune", () => {
 });
 
 describe("eventsPrune turn retention", () => {
-  it("prunes agent run turns at 90 days, six times the projection's horizon", async () => {
+  it("prunes agent run turns at 30 days, longer than the projection's 14", async () => {
     await eventsPrune(tick as never);
 
-    expect(pruneTurns).toHaveBeenCalledWith(90);
+    expect(pruneTurns).toHaveBeenCalledWith(30);
+    expect(pruneOld).toHaveBeenCalledWith(14);
   });
 
   it("logs the deleted agent run turn count when non-zero", async () => {

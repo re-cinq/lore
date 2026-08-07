@@ -93,8 +93,8 @@ export const jobRuns = (): PgJobRuns =>
 export const agentRunEvents = (): PgAgentRunEvents =>
   (agentRunEventsSingleton ??= new PgAgentRunEvents(getPool()));
 
-/** Full-fidelity run transcripts (pipeline.agent_run_turns), written behind
- *  LORE_AGENT_TURNS and read by the turn history route. */
+/** Full-fidelity run transcripts (pipeline.agent_run_turns), written on every
+ *  agent-events POST and read by the turn history route. */
 export const agentRunTurns = (): PgAgentRunTurns =>
   (agentRunTurnsSingleton ??= new PgAgentRunTurns(getPool()));
 

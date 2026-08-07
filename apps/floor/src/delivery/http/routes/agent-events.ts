@@ -25,10 +25,7 @@ import {
   type LlmCallRow,
 } from "../../../jobs/agent/agent-events.js";
 import { agentEventBus } from "../../../jobs/agent/agent-event-bus.js";
-import {
-  agentTurnsEnabled,
-  MAX_RUN_TURNS_PER_BATCH,
-} from "../../../jobs/agent/agent-run-turns.js";
+import { MAX_RUN_TURNS_PER_BATCH } from "../../../jobs/agent/agent-run-turns.js";
 import { archiveAgentEvents } from "../../../jobs/agent/agent-events-store.js";
 import { writeAuditLog } from "../../../jobs/lib/audit.js";
 import { rawBody } from "../raw-body.js";
@@ -246,8 +243,10 @@ export const agentEventsRoute: ServerRoute = {
     const oversized = Buffer.byteLength(rawNdjson, "utf8") > MAX_VIZ_BODY_BYTES;
     // Turns ride the SAME single pass as the cost rows and the projection, and
     // reuse the same oversized gate — no second parse, no second size rule.
+    // Collection is unconditional: there is no flag, so the oversized gate is
+    // the only thing that can switch it off.
     const { costRows, runEvents, turns, turnsDropped, turnsCapped } =
-      parseAgentSink(rawNdjson, !oversized, !oversized && agentTurnsEnabled());
+      parseAgentSink(rawNdjson, !oversized, !oversized);
     const cost = await recordAgentCosts(costRows);
     const vizRows = oversized ? 0 : await recordRunEvents(runEvents);
     const turnRows = turns.length > 0 ? await recordRunTurns(turns) : 0;

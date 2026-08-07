@@ -19,7 +19,6 @@ vi.mock("../../../kernel/queues.js", () => ({
 }));
 
 const ORIG_TOKEN = process.env.LORE_AGENT_INTERNAL_TOKEN;
-const ORIG_FLAG = process.env.LORE_AGENT_TURNS;
 
 const RESULT_LINE = JSON.stringify({
   source: { task: "task-uuid-1", agent: "cr-1" },
@@ -49,23 +48,10 @@ beforeEach(() => {
 
 afterEach(() => {
   process.env.LORE_AGENT_INTERNAL_TOKEN = ORIG_TOKEN ?? "";
-  process.env.LORE_AGENT_TURNS = ORIG_FLAG ?? "";
 });
 
 describe("POST /api/agent-events turn store", () => {
-  it("writes no turn while LORE_AGENT_TURNS is off", async () => {
-    delete process.env.LORE_AGENT_TURNS;
-    const res = await post(RESULT_LINE);
-
-    expect(res.statusCode).toBe(200);
-    expect(insertTurns).not.toHaveBeenCalled();
-    expect(logLlmCall).toHaveBeenCalledTimes(1);
-    expect(insertBatch).toHaveBeenCalledTimes(1);
-  });
-
-  it("writes one untruncated turn per line while LORE_AGENT_TURNS is on", async () => {
-    process.env.LORE_AGENT_TURNS = "1";
-
+  it("writes one untruncated turn per line, with nothing to switch it on", async () => {
     await post(RESULT_LINE);
 
     expect(insertTurns).toHaveBeenCalledTimes(1);
@@ -79,18 +65,26 @@ describe("POST /api/agent-events turn store", () => {
     ]);
   });
 
+  it("records the same cost row and viz row it would without the turn store", async () => {
+    const res = await post(RESULT_LINE);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.result).toEqual({ status: "ok", events: 1, recorded: 1 });
+    expect(logLlmCall).toHaveBeenCalledTimes(1);
+    expect(insertBatch).toHaveBeenCalledTimes(1);
+  });
+
   it("returns the unchanged cost-path response when the turn insert rejects", async () => {
-    process.env.LORE_AGENT_TURNS = "1";
     insertTurns.mockRejectedValue(new Error("pg down"));
 
     const res = await post(RESULT_LINE);
 
     expect(res.statusCode).toBe(200);
     expect(res.result).toEqual({ status: "ok", events: 1, recorded: 1 });
+    expect(logLlmCall).toHaveBeenCalledTimes(1);
   });
 
-  it("writes no turn for an oversized body even while the flag is on", async () => {
-    process.env.LORE_AGENT_TURNS = "1";
+  it("writes no turn for an oversized body, the only gate left", async () => {
     const oversized = `${RESULT_LINE}\n${"x".repeat(9 * 1024 * 1024)}`;
 
     const res = await post(oversized);
@@ -112,7 +106,6 @@ describe("POST /api/agent-events dropped-turn signal", () => {
   });
 
   it("warns with a count when redaction drops turns, and still records cost", async () => {
-    process.env.LORE_AGENT_TURNS = "1";
     // Re-spying an already-spied method hands back the SAME mock, calls and
     // all, so clear rather than trust a fresh spy.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -131,7 +124,6 @@ describe("POST /api/agent-events dropped-turn signal", () => {
   });
 
   it("warns about nothing when every line survives redaction", async () => {
-    process.env.LORE_AGENT_TURNS = "1";
     // Re-spying an already-spied method hands back the SAME mock, calls and
     // all, so clear rather than trust a fresh spy.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -146,7 +138,6 @@ describe("POST /api/agent-events dropped-turn signal", () => {
   });
 
   it("warns with a count when the per-batch cap leaves turns out", async () => {
-    process.env.LORE_AGENT_TURNS = "1";
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     warn.mockClear();

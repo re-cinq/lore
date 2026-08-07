@@ -18,16 +18,24 @@ const body = [
 ].join("\n");
 
 describe("parseAgentSink turn collection", () => {
-  it("collects no turn unless turn collection is asked for", () => {
-    expect(parseAgentSink(body).turns).toEqual([]);
+  it("collects turns by default, since collection is unconditional", () => {
+    expect(parseAgentSink(body).turns).toHaveLength(2);
   });
 
-  it("leaves the cost rows and viz rows identical whether turns are collected or not", () => {
-    const off = parseAgentSink(body, true, false);
-    const on = parseAgentSink(body, true, true);
+  it("collects nothing on the cost-only path, which opts out explicitly", () => {
+    expect(parseAgentSink(body, false, false).turns).toEqual([]);
+  });
 
-    expect(on.costRows).toEqual(off.costRows);
-    expect(on.runEvents).toEqual(off.runEvents);
+  // The property the removed feature flag used to let an operator restore.
+  // With collection unconditional there is no off switch in production, so this
+  // is the only thing standing between the turn store and a regression in the
+  // cost rows or the run-viz projection.
+  it("leaves the cost rows and viz rows identical whether turns are collected or not", () => {
+    const without = parseAgentSink(body, true, false);
+    const with_ = parseAgentSink(body, true, true);
+
+    expect(with_.costRows).toEqual(without.costRows);
+    expect(with_.runEvents).toEqual(without.runEvents);
   });
 
   it("collects one turn per stream-json line in the same pass as the cost rows", () => {
@@ -99,7 +107,7 @@ describe("parseAgentSink dropped turns", () => {
     expect(parseAgentSink(body, false, true).turnsDropped).toBe(0);
   });
 
-  it("counts nothing dropped while turn collection is off", () => {
+  it("counts nothing dropped on the cost-only path", () => {
     expect(parseAgentSink(REDACTION_BREAKING_LINE, false, false)).toMatchObject(
       { turns: [], turnsDropped: 0 },
     );
@@ -123,7 +131,7 @@ describe("parseAgentSink capped turns", () => {
     expect(parseAgentSink(body, false, true).turnsCapped).toBe(0);
   });
 
-  it("counts nothing capped while turn collection is off", () => {
+  it("counts nothing capped on the cost-only path", () => {
     expect(parseAgentSink(overCap(5), false, false).turnsCapped).toBe(0);
   });
 

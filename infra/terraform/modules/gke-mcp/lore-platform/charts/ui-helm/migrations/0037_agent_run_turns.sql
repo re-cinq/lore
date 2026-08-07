@@ -22,8 +22,10 @@
 -- id is a bigint identity and doubles as the read cursor. It exceeds
 -- Number.MAX_SAFE_INTEGER, so every reader carries it as a string.
 --
--- Retention is 90 days (pipeline.agent_run_events prunes at 14). The table
--- exists precisely for questions asked after the live view has moved on.
+-- Retention is 30 days (pipeline.agent_run_events prunes at 14). The table
+-- exists precisely for questions asked after the live view has moved on, but
+-- there is no pilot to measure real growth against, so the starting horizon is
+-- deliberately conservative and can grow once volume is known.
 --
 -- The write-time correlation lookup rides pipeline.assembly_line_nodes'
 -- agent_cr_name index, created by 0031 -- no new index on a live table here.

@@ -124,7 +124,10 @@ function* lines(body: string): Generator<string> {
  * it, bound the peak memory a large body holds — the regression that OOM-looped
  * the single Floor replica. Turn collection reuses that same parse and the line
  * string the scanner already yielded, so it adds no parse and no serialization;
- * `collectTurns` defaults off, matching its feature flag.
+ * `collectTurns` is on by default — turn collection is unconditional in
+ * production, with no feature flag. The argument exists so the cost-only path
+ * can opt out, and so tests can assert that collecting turns perturbs neither
+ * the cost rows nor the projection.
  *
  * Blank and unparseable lines are skipped. A task-less line yields no cost row
  * and no visualization row, but IS still collected as a turn — the turn store
@@ -136,7 +139,7 @@ function* lines(body: string): Generator<string> {
 export function parseAgentSink(
   ndjson: string,
   projectRunEvents = true,
-  collectTurns = false,
+  collectTurns = true,
 ): AgentSink {
   const costRows: LlmCallRow[] = [];
   const runEvents: AgentRunEventInsert[] = [];
@@ -194,7 +197,7 @@ export function parseAgentSink(
 /** The cost projection alone (skips blank, unparseable, and non-`result` lines,
  *  and lines with no resolvable task id). */
 export function parseAgentEvents(ndjson: string): LlmCallRow[] {
-  return parseAgentSink(ndjson, false).costRows;
+  return parseAgentSink(ndjson, false, false).costRows;
 }
 
 /** GCS object key for an archived raw NDJSON sink batch (#687). Partitioned by UTC

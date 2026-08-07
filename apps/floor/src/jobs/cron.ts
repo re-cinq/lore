@@ -19,10 +19,12 @@ import type { EventHandler } from "../main-loop/types.js";
 /** Agent run events are per-tool-call telemetry: high volume, low half-life. */
 const AGENT_RUN_EVENT_RETENTION_DAYS = 14;
 
-/** Turns are the full-fidelity transcript: lower volume than the projection per
- *  byte of value, and kept six times longer because the store exists precisely
- *  for questions asked after the live view has moved on. */
-const AGENT_RUN_TURN_RETENTION_DAYS = 90;
+/** Turns are the full-fidelity transcript: kept longer than the projection's 14
+ *  days because the store exists precisely for questions asked after the live
+ *  view has moved on, but deliberately conservative. There is no pilot and so no
+ *  growth measurement to justify a longer horizon; 30 days is the starting bet
+ *  and the prune's log line is the only growth signal until one exists. */
+const AGENT_RUN_TURN_RETENTION_DAYS = 30;
 
 /** Adapt an existing `() => Promise<string>` job into an event handler (drop the summary). */
 const fromJob =

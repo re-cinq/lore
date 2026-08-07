@@ -246,7 +246,7 @@ describe("InMemoryAgentRunTurns pruneOld", () => {
     clock = new Date("2026-08-07T00:00:00.000Z");
     await repo.insertBatch([turn()]);
 
-    expect(await repo.pruneOld(90)).toBe(2);
+    expect(await repo.pruneOld(30)).toBe(2);
     expect(repo.rows.map((row) => row.id)).toEqual(["3"]);
   });
 
@@ -257,7 +257,7 @@ describe("InMemoryAgentRunTurns pruneOld", () => {
     await repo.insertBatch([turn()]);
     clock = new Date("2026-08-07T00:00:00.000Z");
 
-    expect(await repo.pruneOld(90)).toBe(0);
+    expect(await repo.pruneOld(30)).toBe(0);
     expect(repo.rows).toHaveLength(1);
   });
 });
@@ -383,10 +383,10 @@ describe("PgAgentRunTurns adapter", () => {
   it("pruneOld deletes by day horizon and returns the count", async () => {
     const { pool, calls } = fakePool([[{ count: 7 }]]);
 
-    expect(await new PgAgentRunTurns(pool).pruneOld(90)).toBe(7);
+    expect(await new PgAgentRunTurns(pool).pruneOld(30)).toBe(7);
     expect(calls[0]?.text).toContain("DELETE FROM pipeline.agent_run_turns");
     expect(calls[0]?.text).toContain("make_interval(days => $1)");
-    expect(calls[0]?.params).toEqual([90]);
+    expect(calls[0]?.params).toEqual([30]);
   });
 });
 

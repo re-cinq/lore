@@ -21,7 +21,7 @@ and the port is dead code without the test.
 
 ## Phase 3 — The ingest tee
 
-- [x] **T7** `apps/floor/src/jobs/agent/agent-run-turns.test.ts` + `agent-run-turns.ts`: the flag (`LORE_AGENT_TURNS`), `turnFromEnvelope` (redaction, JSON-validity guard, null task id, event kind) and `MAX_RUN_TURNS_PER_BATCH`.
+- [x] **T7** `apps/floor/src/jobs/agent/agent-run-turns.test.ts` + `agent-run-turns.ts`: `turnFromEnvelope` (redaction, JSON-validity guard, null task id, event kind) and `MAX_RUN_TURNS_PER_BATCH`. A `LORE_AGENT_TURNS` feature flag was built here and removed before merge — collection is unconditional; see the spec's Alternatives rejected.
 - [x] **T8** Widen `parseAgentSink` in `apps/floor/src/jobs/agent/agent-events.ts` with a third `turns` output collected in the **existing** loop, gated by a `collectTurns` argument. Tests go in a NEW `apps/floor/src/jobs/agent/agent-sink-turns.test.ts`, not appended to `agent-sink.test.ts`: that file carries `#L` anchors from `specs/assembly-line-run-viz`, and hosting these tests would have meant a mid-file import insert that shifts them.
 - [x] **T9** [P] Bind the `agentRunTurns()` lazy singleton in `apps/floor/src/kernel/queues.ts`.
 - [x] **T10** Tee the route: `apps/floor/src/delivery/http/routes/agent-events.ts` persists turns skip-not-fail behind the flag and the existing oversized gate, and counts turns dropped by redaction. Tests go in a NEW `apps/floor/src/delivery/http/routes/agent-events-turns.test.ts` — the existing route test's module mock would have had to be widened in place, shifting its anchors.

@@ -41,7 +41,7 @@ fed at the same tee, not a new database.
 
 - The first cut delivers storage plus a cursor-paged read API: the table, the repository port with its Postgres adapter and in-memory double, the flagged ingest tee, and one HTTP read route.
 - The turn-view UI is **out of scope**. This feature stops at the read API; rendering turns on the run detail page is a follow-up.
-- The new write is **non-authoritative** until piloted. The projection, the SSE live view and the GCS archive keep working byte-for-byte as they do today whether the flag is on or off.
+- The write is live from the first deploy. There is no flag and no pilot, so the projection, the SSE live view and the GCS archive continuing to work byte-for-byte is a property that has to be tested rather than a state an operator can restore by flipping something off.
 
 ## FR1 — The `pipeline.agent_run_turns` table
 
@@ -54,7 +54,7 @@ every other migration.
 - `id` is a `BIGINT GENERATED ALWAYS AS IDENTITY` primary key that doubles as the read cursor, so it is carried as a string-encoded bigint across every boundary and never narrowed to a JS number. ([validated by `agent-run-turns.test.ts:130`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L130), [`agent-run-turns.test.ts:313`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L313))
 - The table carries **no foreign keys**, on `task_id` and `assembly_line_id` alike: ingest is a batch insert and one bad row under a FK would abort the whole statement and drop the batch.
 - `task_id` is nullable, unlike the projection's `NOT NULL` column, so a line the subsystem never attributed to a task is still stored rather than dropped. ([validated by `agent-run-turns.test.ts:97`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L97))
-- Retention is 90 days — six times the projection's 14 — because the table exists precisely for questions asked after the live view has moved on, and the prune runs on the existing `eventsPrune` housekeeping tick. ([validated by `agent-run-turns.test.ts:241`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L241), [`agent-run-turns.test.ts:253`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L253), [`cron.test.ts:61`](apps/floor/src/jobs/cron.test.ts#L61), [`cron.test.ts:67`](apps/floor/src/jobs/cron.test.ts#L67))
+- Retention is 30 days, longer than the projection's 14 because the table exists precisely for questions asked after the live view has moved on, but deliberately conservative: there is no pilot, so no growth measurement justifies a longer horizon yet. The prune runs on the existing `eventsPrune` housekeeping tick and logs its deleted count, which is the only growth signal the feature ships with. ([validated by `cron.test.ts:61`](apps/floor/src/jobs/cron.test.ts#L61), [`cron.test.ts:68`](apps/floor/src/jobs/cron.test.ts#L68), [`agent-run-turns.test.ts:241`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L241), [`agent-run-turns.test.ts:253`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L253))
 - The migration is idempotent: every statement is `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS`, and the `lore_ui` grant is guarded by a role-existence check, so re-running it on a deploy that changed nothing is a no-op.
 - Three indexes cover the three access paths: `(assembly_line_id, id)` for the per-line read, `(task_id, id)` for the per-task read that reaches uncorrelated rows, and `(created_at)` for the retention prune.
 
@@ -83,17 +83,17 @@ is driven from the **existing single pass** in `parseAgentSink`
 (`apps/floor/src/jobs/agent/agent-events.ts`), the same loop that already
 produces the cost rows and the projection rows.
 
-- Turn collection is gated on the `LORE_AGENT_TURNS` feature flag and is **off** unless it is set to `1`: with the flag off no turn is collected and no turn is written. ([validated by `agent-run-turns.test.ts:28`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L28), [`agent-run-turns.test.ts:34`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L34), [`agent-run-turns.test.ts:40`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L40), [`agent-sink-turns.test.ts:21`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L21), [`agent-events-turns.test.ts:56`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L56))
-- With the flag off the sink's cost rows and run-visualization rows are byte-for-byte what they are today, so enabling or disabling the store cannot move the projection, the SSE view or the archive. ([validated by `agent-sink-turns.test.ts:25`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L25), [`agent-events-turns.test.ts:56`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L56))
-- A turn is built from the envelope the single pass **already parsed** — the collector re-parses nothing and re-serializes nothing, taking the raw line the scanner already yielded as the stored envelope. ([validated by `agent-run-turns.test.ts:48`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L48), [`agent-run-turns.test.ts:61`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L61), [`agent-run-turns.test.ts:68`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L68), [`agent-sink-turns.test.ts:33`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L33), [`agent-sink-turns.test.ts:43`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L43))
-- The stored envelope is redacted with the same `redactSecrets` the GCS archive uses, before it ever reaches the database, because a queryable store raises a redaction miss from "buried in GCS" to "searchable". ([validated by `agent-run-turns.test.ts:78`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L78))
-- Redaction is verified not to have broken the line's JSON: an unchanged line is kept as-is, and a redacted line that no longer parses is dropped rather than risking a batch-wide insert failure. ([validated by `agent-run-turns.test.ts:61`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L61), [`agent-run-turns.test.ts:90`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L90))
-- A dropped turn is counted and warned about, never silent. The private-key pattern is not anchored inside one JSON string, so an agent can emit a `BEGIN`/`END` pair straddling JSON structure and thereby keep its own line out of the transcript; a store justified by fidelity has to make that loss visible. ([validated by `agent-sink-turns.test.ts:82`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L82), [`agent-sink-turns.test.ts:89`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L89), [`agent-sink-turns.test.ts:98`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L98), [`agent-sink-turns.test.ts:102`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L102), [`agent-events-turns.test.ts:114`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L114), [`agent-events-turns.test.ts:133`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L133))
-- Turns left out by the per-batch cap are counted and warned about too, separately from the redaction drops. With both paths counted, every way the sink can lose a turn is visible, which is what lets "this transcript is complete" be read off the metrics instead of assumed. ([validated by `agent-sink-turns.test.ts:115`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L115), [`agent-sink-turns.test.ts:122`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L122), [`agent-sink-turns.test.ts:126`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L126), [`agent-sink-turns.test.ts:130`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L130), [`agent-events-turns.test.ts:148`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L148))
-- A line the subsystem attributed to no task, or of a kind this Floor has never seen, is still collected — carrying a null task id or a null kind, matching the table's nullable columns. ([validated by `agent-run-turns.test.ts:98`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L98), [`agent-run-turns.test.ts:107`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L107), [`agent-sink-turns.test.ts:49`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L49))
-- Collection is capped per POST at the same order as the projection's cap, so a pathological multi-megabyte report cannot materialize an unbounded row set on the single Floor replica. ([validated by `agent-run-turns.test.ts:115`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L115), [`agent-sink-turns.test.ts:56`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L56))
-- Turn collection is skipped entirely for an oversized body, reusing the projection's existing `MAX_VIZ_BODY_BYTES` gate rather than adding a second size rule. ([validated by `agent-events-turns.test.ts:92`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L92))
-- A failure to persist turns is counted and logged, never propagated: cost accounting is the sink's contract and a non-authoritative store must not be able to fail it. ([validated by `agent-events-turns.test.ts:82`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L82), [`agent-events-turns.test.ts:66`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L66))
+- Turn collection is unconditional: every `/api/agent-events` POST collects turns, with no feature flag and nothing for an operator to switch on. ([validated by `agent-sink-turns.test.ts:21`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L21), [`agent-events-turns.test.ts:54`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L54))
+- Collecting turns perturbs nothing else. The cost rows and the run-visualization rows are byte-for-byte what they would be without the turn store, so the projection, the SSE view and the GCS archive are unaffected. With no off switch in production this property is the only thing standing between the store and a regression in the outputs that were already there. ([validated by `agent-sink-turns.test.ts:33`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L33), [`agent-sink-turns.test.ts:25`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L25), [`agent-events-turns.test.ts:68`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L68))
+- A turn is built from the envelope the single pass **already parsed** — the collector re-parses nothing and re-serializes nothing, taking the raw line the scanner already yielded as the stored envelope. ([validated by `agent-run-turns.test.ts:16`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L16), [`agent-run-turns.test.ts:29`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L29), [`agent-run-turns.test.ts:36`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L36), [`agent-sink-turns.test.ts:41`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L41), [`agent-sink-turns.test.ts:51`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L51))
+- The stored envelope is redacted with the same `redactSecrets` the GCS archive uses, before it ever reaches the database, because a queryable store raises a redaction miss from "buried in GCS" to "searchable". ([validated by `agent-run-turns.test.ts:46`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L46))
+- Redaction is verified not to have broken the line's JSON: an unchanged line is kept as-is, and a redacted line that no longer parses is dropped rather than risking a batch-wide insert failure. ([validated by `agent-run-turns.test.ts:29`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L29), [`agent-run-turns.test.ts:58`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L58))
+- A dropped turn is counted and warned about, never silent. The private-key pattern is not anchored inside one JSON string, so an agent can emit a `BEGIN`/`END` pair straddling JSON structure and thereby keep its own line out of the transcript; a store justified by fidelity has to make that loss visible. ([validated by `agent-sink-turns.test.ts:90`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L90), [`agent-sink-turns.test.ts:97`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L97), [`agent-sink-turns.test.ts:106`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L106), [`agent-sink-turns.test.ts:110`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L110), [`agent-events-turns.test.ts:108`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L108), [`agent-events-turns.test.ts:126`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L126))
+- Turns left out by the per-batch cap are counted and warned about too, separately from the redaction drops. With both paths counted, every way the sink can lose a turn is visible, which is what lets "this transcript is complete" be read off the metrics instead of assumed. ([validated by `agent-sink-turns.test.ts:123`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L123), [`agent-sink-turns.test.ts:130`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L130), [`agent-sink-turns.test.ts:134`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L134), [`agent-sink-turns.test.ts:138`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L138), [`agent-events-turns.test.ts:140`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L140))
+- A line the subsystem attributed to no task, or of a kind this Floor has never seen, is still collected — carrying a null task id or a null kind, matching the table's nullable columns. ([validated by `agent-run-turns.test.ts:66`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L66), [`agent-run-turns.test.ts:75`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L75), [`agent-sink-turns.test.ts:57`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L57))
+- Collection is capped per POST at the same order as the projection's cap, so a pathological multi-megabyte report cannot materialize an unbounded row set on the single Floor replica. ([validated by `agent-run-turns.test.ts:83`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L83), [`agent-sink-turns.test.ts:64`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L64))
+- Turn collection is skipped entirely for an oversized body, reusing the projection's existing `MAX_VIZ_BODY_BYTES` gate rather than adding a second size rule. ([validated by `agent-events-turns.test.ts:87`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L87))
+- A failure to persist turns is counted and logged, never propagated: cost accounting is the sink's contract and a non-authoritative store must not be able to fail it. ([validated by `agent-events-turns.test.ts:77`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L77), [`agent-events-turns.test.ts:54`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L54))
 
 ## FR4 — The read API
 
@@ -125,6 +125,16 @@ the existing `GET /api/agent-events/{assemblyLineId}` history route.
   raw provider NDJSON, keyed by receipt timestamp, with no correlation
   columns — so every consumer re-implements the parsing forever. A live
   read path from GCS was already ruled out in ADR-037.
+- **A pilot flag** (`LORE_AGENT_TURNS`, off by default, enabled for one
+  repo). This is what ADR-042 specified, and it was built and then removed
+  before merge. The flag and the 90-day retention were one mechanism:
+  pilot on a repo, measure table growth, let the measurement justify the
+  horizon. Without the pilot the flag is a switch nobody flips — dead
+  code that also leaves the shipping configuration untested, since every
+  flag-off test asserts a state production never runs in. Removing it
+  costs the ability to disable collection without a deploy, and buys a
+  30-day horizon chosen conservatively instead of a 90-day one resting on
+  a measurement that was never going to happen.
 - **Do nothing.** The gap is the platform's weakest observability flank
   and the blocker for two follow-ups already sketched: full-fidelity node
   context carryover, and turn-level replay tooling.
@@ -135,20 +145,33 @@ the existing `GET /api/agent-events/{assemblyLineId}` history route.
   no new ingress, no new credential surface. That absence of new
   operational surface is the decisive difference from the CxDB draft.
 - The real cost moves to `lore-db` storage. Full-fidelity JSONB turns grow
-  faster than the truncated projection; the 90-day prune and the per-POST
+  faster than the truncated projection; the 30-day prune and the per-POST
   cap bound it, and content-addressed dedup of repeated blobs stays the
-  escape hatch if measured growth demands one.
-- Peak request memory rises when the flag is on, and whoever runs the pilot
-  on the single 512Mi Floor replica should know the shape of it. The
-  collector adds no parse and no copy — turns hold slices of the body the
-  scanner already produced — but the adapter serializes the whole batch once
-  (`JSON.stringify`, re-escaping every envelope byte) and the driver encodes
-  that parameter for the wire. A worst-case 8 MB POST therefore holds the
-  body plus roughly one to two further copies of it, on the order of 20–25 MB
-  transiently, versus ~8 MB with the flag off. That is bounded by the same
-  `MAX_VIZ_BODY_BYTES` gate and 10 000-turn cap the projection uses, and is a
-  different class from the unbounded double-parse that OOM-looped the replica
-  — but it is not free, and the pilot should watch the replica's memory.
+  escape hatch if growth demands one. Nobody knows the real growth rate:
+  dropping the pilot dropped the measurement that was supposed to justify
+  the horizon, which is exactly why the horizon starts low.
+- **Peak request memory rises on every POST, unconditionally, from the
+  first deploy.** This is the main risk being accepted. The collector adds
+  no parse and no copy — turns hold slices of the body the scanner already
+  produced — but the adapter serializes the whole batch once
+  (`JSON.stringify`, re-escaping every envelope byte) and the driver
+  encodes that parameter for the wire. A worst-case 8 MB POST therefore
+  holds the body plus roughly one to two further copies of it, on the
+  order of 20-25 MB transiently, against ~8 MB before this feature. The
+  Floor is a single replica requesting 512Mi with a 1Gi limit, and it has
+  OOM-crash-looped twice on body-proportional allocations on this exact
+  route (2026-07-21, 2026-07-24). The `MAX_VIZ_BODY_BYTES` gate and the
+  10 000-turn cap bound the worst case, and this is a different class from
+  the unbounded double-parse that caused those incidents — but there is no
+  flag to turn it off if it bites, and the replica's memory is worth
+  watching after the first deploy.
+- The two drop counters are the primary safety net, not a nicety. An
+  always-on write on a route with an OOM history needs to be observable
+  without anyone opting in: `turn_dropped_redaction` and
+  `turn_dropped_cap`, each with a warn line, are what make a store that
+  quietly stopped being complete visible. With no pilot and no growth
+  measurement, they and the prune's log line are the whole observability
+  surface this feature ships with.
 - Debugging economics change: full-fidelity, correlated, cursor-paged turn
   history in SQL — the same access idiom as every other Floor
   investigation, with no new query surface to learn.
@@ -156,15 +179,18 @@ the existing `GET /api/agent-events/{assemblyLineId}` history route.
   of a redaction miss from "buried in GCS" to "searchable", which is why
   the redaction step is specified as a tested control on the write path
   rather than a courtesy.
-- The flag must be piloted before anything depends on the store. Until
-  then it is a second, richer archive that nothing reads by default.
+- Nothing reads the store yet. It is a second, richer archive with a read
+  API and no consumer until the turn-view UI lands, which is the follow-up
+  this feature deliberately stops short of.
 
 ## Out of Scope
 
 - The turn-view UI on the run detail page. This feature stops at the read
   API.
-- Retiring or shortening the GCS raw archive. It stays exactly as it is
-  until the pilot proves the table.
+- Retiring or shortening the GCS raw archive. It stays exactly as it is,
+  and it is what makes a conservative 30-day horizon a safe bet: turns
+  pruned from the table are still in the archive, unindexed and painful to
+  reach, but not gone.
 - Content-addressed dedup of repeated blobs, and any storage-side
   compression beyond what Postgres TOAST does for free.
 - Wiring full-fidelity node context carryover or turn-level forking to the
