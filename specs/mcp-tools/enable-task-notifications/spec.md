@@ -49,7 +49,7 @@ Starts a local background poller that watches repos for new 'pending' pipeline t
    `"Error: no repos to watch. Pass repos explicitly or run from a git repo with a GitHub remote."`.
 4. Resolve `taskTypes = args.task_types || ["implementation","general","runbook","gap-fill"]`.
 5. `startNotifier(repos, taskTypes)`
-   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L833)): sets a 30s
+   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L1009)): sets a 30s
    `setInterval` (runs once immediately) that calls `fetchPendingTasks` (direct
    DB query when a pool is available, else `POST /api/task` `{action:"list"}`)
    and writes the matched tasks to `~/.lore/pending-tasks.json`. Every 5th cycle

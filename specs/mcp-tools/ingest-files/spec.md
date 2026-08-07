@@ -22,7 +22,7 @@ the repo + commit locally and proxies the embed work to the GKE ingest API.
 
 ## Interface
 
-Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/repo-tools.ts#L53)).
+Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/repo-tools.ts#L128)).
 
 - **name**: `lore_ingest_files`
 - **description** (verbatim):

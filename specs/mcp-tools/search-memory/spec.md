@@ -95,7 +95,7 @@ A single MCP text content block. Pretty-printed JSON array of
 
 - `isMemoryDbAvailable()`, `getPool()`.
 - Engine `searchMemories` ([memory-search.ts](../../../libs/server-core/src/features/memory/memory-search.ts#L4)); ranking core `rrfMerge` / `diversify` in `@re-cinq/lore-shared`.
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L98)); `searchMemoryFile` (offline).
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L13)); `searchMemoryFile` (offline).
 - Tables: `memory.memories`, `memory.facts`, `memory.shared_pools`, `memory.entities`, `memory.edges` (reads); `memory.facts` / `memory.memories` (retrieval-strengthening updates); `memory.audit_log` (insert, `operation='search'`).
 - Env: `LORE_DB_HOST`, `LORE_API_URL` + `LORE_INGEST_TOKEN`.
 

@@ -52,10 +52,10 @@ Starts a brand-new ad-hoc task as a detached background Claude Code process in a
    set, `POST {apiUrl}/api/task` to register the task and adopt the returned
    `task_id`; any failure falls back to the generated UUID.
 4. Spawn via `spawnLocalTask({taskId, prompt, repo, taskType, model, repoRoot})`
-   ([spawn](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L450)):
+   ([spawn](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L550)):
    1. `ensureDirs()` for `~/.lore/worktrees` and `~/.lore/task-logs`.
    2. `validateRepoMatch(repo, detectRepo())`
-      ([guard](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L150)) —
+      ([guard](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L163)) —
       throws if the cwd is a checkout of a different repo than `target_repo`.
    3. Build branch `lore/<taskType>/<slug>-<shortId>`; refuse if the worktree dir
       already exists (idempotency).
