@@ -830,3 +830,27 @@ describe("goal-gate warnings reach the loading callers", () => {
     }
   });
 });
+
+describe("goal gates on terminal nodes", () => {
+  it("rejects goal_gate on the exit node, which never records a visit and could never be satisfied", () => {
+    expect(() =>
+      parseAssemblyLine(`
+name: gated-exit
+description: the exit node can never satisfy a gate
+version: 1
+entry: work
+exit: done
+nodes:
+  - id: work
+    type: agent
+  - id: done
+    type: retrospective
+    goal_gate: true
+edges:
+  - from: work
+    to: done
+    on: always
+`),
+    ).toThrow(/goal_gate on exit node "done"/);
+  });
+});

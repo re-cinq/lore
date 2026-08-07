@@ -322,6 +322,17 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
     );
   }
 
+  // The exit node is a terminal marker the walk never launches, so it never
+  // records a visit — a gate on it could never be satisfied and the line
+  // would fail goal_gate_unmet forever. Reject at load, not at the first run.
+  for (const n of wf.nodes) {
+    enforceTrue(
+      !(n.goal_gate && n.id === wf.exit),
+      loadError,
+      `goal_gate on exit node "${n.id}" can never be satisfied — the walk never records a visit for the exit`,
+    );
+  }
+
   // Every outcome a node can produce must route somewhere — an uncovered
   // outcome would otherwise crash the walk at runtime (`nextTransition`'s
   // no-edge failure) instead of failing here at load.

@@ -37,7 +37,6 @@ export {
   loadAssemblyLineDir,
   parseAssemblyLine,
   assemblyLineDefinitionHash,
-  bypassableGoalGates,
   AssemblyLineLoadError,
   type AssemblyLine,
   type AssemblyLineNode,

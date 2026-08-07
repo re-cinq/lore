@@ -9,9 +9,10 @@ export type ModelFamily = "anthropic" | "openai" | "google" | "unknown";
 
 const FAMILY_PREFIXES: ReadonlyArray<[RegExp, ModelFamily]> = [
   [/^claude/i, "anthropic"],
-  // `o\d` anchors only the first two characters, so it covers the whole
-  // reasoning-model series (o1, o3, o4-mini, a future o10-…) without
-  // claiming every id that merely starts with "o".
+  // `^o\d` matches any id whose first two characters are `o` + a digit —
+  // `o10-mini` matches on the `o1` at position 0 — covering the whole
+  // reasoning-model series (o1, o3, o4-mini, o10-…) without claiming every
+  // id that merely starts with "o".
   [/^(gpt|o\d)/i, "openai"],
   [/^gemini/i, "google"],
 ];

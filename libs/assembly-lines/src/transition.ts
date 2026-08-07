@@ -116,24 +116,30 @@ export function nextTransition(
   }
 
   if (currentId === assemblyLine.exit) {
+    // Only the LATEST visit to a gated node decides: an earlier satisfying
+    // verdict applied to an earlier state of the branch, and a later re-run
+    // that failed means the final state was never verified — trusting the
+    // stale verdict would let auto-merge ride on it.
     const unmetGates = assemblyLine.nodes
       .filter((n) => n.goal_gate)
-      .filter(
-        (n) =>
-          !visits.some(
-            (v) =>
-              v.nodeId === n.id &&
-              v.outcome !== null &&
-              GATE_SATISFYING.has(v.outcome),
-          ),
-      )
+      .filter((n) => {
+        const lastVisit = visits
+          .filter((v) => v.nodeId === n.id && v.outcome !== null)
+          .at(-1);
+
+        return (
+          !lastVisit ||
+          lastVisit.outcome === null ||
+          !GATE_SATISFYING.has(lastVisit.outcome)
+        );
+      })
       .map((n) => `"${n.id}"`);
 
     if (unmetGates.length > 0) {
       return {
         kind: "fail",
         outcome: "goal_gate_unmet",
-        reason: `AssemblyLine ${assemblyLine.name}: goal-gated node(s) ${unmetGates.join(", ")} never recorded a successful outcome`,
+        reason: `AssemblyLine ${assemblyLine.name}: goal-gated node(s) ${unmetGates.join(", ")} did not record a satisfying outcome (success or changes_requested) on their latest visit`,
       };
     }
 

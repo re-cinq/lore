@@ -313,3 +313,77 @@ describe("nextTransition goal gates", () => {
     expect(t.kind === "fail" && t.reason).toContain('"review"');
   });
 });
+
+// Gated review whose changes_requested loops back to work while failed
+// routes to done — the shape where a stale iter-1 verdict could mask a
+// failed final review.
+const gatedCrLoop: AssemblyLine = {
+  name: "gated-cr-loop",
+  description: "review loops on changes_requested, exits on failed/success",
+  version: 1,
+  entry: "work",
+  exit: "done",
+  nodes: [
+    { id: "work", type: "agent" },
+    { id: "review", type: "agent", goal_gate: true },
+    { id: "done", type: "retrospective" },
+  ],
+  edges: [
+    { from: "work", to: "review", on: "success" },
+    { from: "work", to: "done", on: "changes_requested" },
+    { from: "review", to: "work", on: "changes_requested", iteration_max: 2 },
+    { from: "review", to: "done", on: "failed" },
+    { from: "review", to: "done", on: "success" },
+  ],
+};
+
+// The mirror shape: failed loops back to work, so a later clean run can
+// supersede an earlier failed visit.
+const gatedRetryLoop: AssemblyLine = {
+  name: "gated-retry-loop",
+  description: "review loops on failed, exits on success/changes_requested",
+  version: 1,
+  entry: "work",
+  exit: "done",
+  nodes: [
+    { id: "work", type: "agent" },
+    { id: "review", type: "agent", goal_gate: true },
+    { id: "done", type: "retrospective" },
+  ],
+  edges: [
+    { from: "work", to: "review", on: "success" },
+    { from: "work", to: "done", on: "changes_requested" },
+    { from: "review", to: "work", on: "failed", iteration_max: 2 },
+    { from: "review", to: "done", on: "changes_requested" },
+    { from: "review", to: "done", on: "success" },
+  ],
+};
+
+describe("nextTransition goal gates across iterations", () => {
+  it("fails goal_gate_unmet when the gate was satisfied on iteration 1 but its latest visit failed", () => {
+    const visits: NodeVisit[] = [
+      { nodeId: "work", iteration: 1, outcome: "success" },
+      { nodeId: "review", iteration: 1, outcome: "changes_requested" },
+      { nodeId: "work", iteration: 2, outcome: "success" },
+      { nodeId: "review", iteration: 2, outcome: "failed" },
+    ];
+
+    expect(nextTransition(gatedCrLoop, visits)).toMatchObject({
+      kind: "fail",
+      outcome: "goal_gate_unmet",
+    });
+  });
+
+  it("finishes when the gate's latest visit succeeds after an earlier failed one", () => {
+    const visits: NodeVisit[] = [
+      { nodeId: "work", iteration: 1, outcome: "success" },
+      { nodeId: "review", iteration: 1, outcome: "failed" },
+      { nodeId: "work", iteration: 2, outcome: "success" },
+      { nodeId: "review", iteration: 2, outcome: "success" },
+    ];
+
+    expect(nextTransition(gatedRetryLoop, visits)).toEqual({
+      kind: "finish",
+    });
+  });
+});
