@@ -65,3 +65,12 @@ describe("crossModelReviewWarning", () => {
     expect(crossModelReviewWarning(undefined, undefined)).toBeNull();
   });
 });
+
+describe("package exports", () => {
+  it("exports modelFamily and crossModelReviewWarning from the package index", async () => {
+    const pkg = await import("../index.js");
+
+    expect(pkg.modelFamily).toBe(modelFamily);
+    expect(pkg.crossModelReviewWarning).toBe(crossModelReviewWarning);
+  });
+});

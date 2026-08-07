@@ -13,10 +13,10 @@ Spec: [spec.md](spec.md)
 
 ## Phase 3 — Spec status + ADR retirement
 
-- [ ] T004 Flip `specs/cross-model-review/spec.md`'s `| Status |` row to `In Progress` in the same commit as T001's first test link; delete `adrs/ADR-039-cross-model-review.md` (superseded by this spec)
+- [x] T004 Status flipped In Progress → Shipped once all 8 testable statements carried links (T001 flipped Draft → In Progress with the first link); delete `adrs/ADR-039-cross-model-review.md` (superseded by this spec)
 
 ## Acceptance gate
 
-- [ ] `npx prettier --check` + `npx eslint` (0 errors) on every changed file
-- [ ] `libs/shared` vitest suite green, `libs/assembly-lines` vitest suite green
-- [ ] `require-spec-link` satisfied for every new `it(...)`
+- [x] `npx prettier --check` + `npx eslint` (0 errors) on every changed file
+- [x] `libs/shared` vitest suite green, `libs/assembly-lines` vitest suite green
+- [x] `require-spec-link` satisfied for every new `it(...)`
