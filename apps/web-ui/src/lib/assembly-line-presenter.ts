@@ -80,6 +80,8 @@ export function runStatusVisual(
       return { label: "Skipped", tone: "muted" };
     case "iteration_max":
       return { label: "Iteration max", tone: "warning" };
+    case "goal_gate_unmet":
+      return { label: "Goal gate unmet", tone: "danger" };
     case "pending":
       return { label: "Pending", tone: "info" };
     default:

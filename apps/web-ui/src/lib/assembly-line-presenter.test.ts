@@ -93,3 +93,12 @@ describe("runStatusVisual", () => {
     expect(runStatusVisual("running", null).tone).toBe("running");
   });
 });
+
+describe("runStatusVisual — goal_gate_unmet", () => {
+  it("renders a goal_gate_unmet run as a failure, not a neutral unknown", () => {
+    expect(runStatusVisual("finished", "goal_gate_unmet")).toEqual({
+      label: "Goal gate unmet",
+      tone: "danger",
+    });
+  });
+});
