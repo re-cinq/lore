@@ -21,7 +21,7 @@ Spec: [spec.md](spec.md). Every task is test-first — write the failing test, w
 
 ## Phase 3 — Adoption (FR3)
 
-- [ ] T010 Redirect the bypass edge — failing test that `implementation.yaml` has no entry→exit path skipping `review`, then change the `implement`/`changes_requested` edge target from `retrospective` to `validate` in `libs/assembly-lines/src/assembly-lines/implementation.yaml`
+- [x] T010 Redirect the bypass edge — failing test that `implementation.yaml` has no entry→exit path skipping `review`, then change the `implement`/`changes_requested` edge target from `retrospective` to `validate` in `libs/assembly-lines/src/assembly-lines/implementation.yaml`
 - [ ] T011 Gate the review nodes — failing test that both definitions carry `goal_gate: true` on `review` and that neither raises a bypass warning at load, then set the attribute in `libs/assembly-lines/src/assembly-lines/implementation.yaml` and `libs/assembly-lines/src/assembly-lines/code-review.yaml`
 
 ## Phase 4 — Surfacing the outcome (FR4)

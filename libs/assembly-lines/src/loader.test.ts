@@ -1091,7 +1091,7 @@ edges:
 
 // Imported here rather than in the header block: the four specs anchoring
 // sixteen `#L` links into this file would all shift by a line.
-import { loadAssemblyLineFile } from "./loader.js";
+import { canBypass, loadAssemblyLineFile } from "./loader.js";
 
 describe("goal_gate bypass warning propagation", () => {
   const fixturesDir = path.resolve(
@@ -1129,5 +1129,15 @@ describe("goal_gate bypass warning propagation", () => {
       expect.stringContaining('goal-gated node "review"'),
     );
     spy.mockRestore();
+  });
+});
+
+describe("implementation.yaml — every path reaches the exit through review", () => {
+  it("has no entry-to-exit path that skips review", async () => {
+    const map = await loadAssemblyLineDir(
+      path.resolve(new URL(".", import.meta.url).pathname, "assembly-lines"),
+    );
+
+    expect(canBypass(map.get("implementation")!, "review")).toBe(false);
   });
 });

@@ -262,7 +262,7 @@ export async function loadAssemblyLineDir(
 /** True when exit stays reachable from entry with `nodeId` removed — i.e. some
  *  path runs around the node instead of through it. The entry node is on every
  *  path by definition. */
-function canBypass(wf: AssemblyLine, nodeId: string): boolean {
+export function canBypass(wf: AssemblyLine, nodeId: string): boolean {
   if (wf.entry === nodeId) {
     return false;
   }
