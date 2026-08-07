@@ -343,7 +343,7 @@ function toRecord(row: {
   status: AssemblyLineRecord["status"];
   outcome: string | null;
   reason: string | null;
-  definition_hash?: string | null;
+  definition_hash: string | null;
   created_at: Date;
   started_at: Date | null;
   finished_at: Date | null;

@@ -45,7 +45,7 @@ resumability at sub-run granularity as table stakes for long agent runs.
 
 ### FR3 — Definition-drift guard
 
-- Every execution row stores a content hash of the loaded definition (`definition_hash`, migration 0036); the hash is deterministic for an unchanged definition and moves on any edit. ([validated by `loader.test.ts:765`](libs/assembly-lines/src/loader.test.ts#L765))
+- Every execution row stores a content hash of the loaded definition (`definition_hash`, migration 0036); the hash is deterministic for an unchanged definition and moves on any edit. ([validated by `loader.test.ts:766`](libs/assembly-lines/src/loader.test.ts#L766))
 - The walk's start handler stamps the hash when the definition resolves — once, never overwriting, and leaving single-CR rows (no builtin definition) unstamped. ([validated by `start-event-handler.test.ts:212`](apps/floor/src/jobs/assembly-line/start-event-handler.test.ts#L212), [`start-event-handler.test.ts:225`](apps/floor/src/jobs/assembly-line/start-event-handler.test.ts#L225), [`assembly-lines.test.ts:1045`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L1045), [`assembly-lines.test.ts:1059`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L1059))
 - `resumeFrom` requires the stored hash to match the current definition's hash, else it fails fast with a clear error. ([validated by `assembly-lines.test.ts:997`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L997))
 - Rows predating the hash column carry `NULL` and are rejected with a clear backfill message — an honest limitation, preferable to forking across silent definition drift. ([validated by `assembly-lines.test.ts:983`](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L983))

@@ -32,9 +32,11 @@ PARTIAL_SUCCESS).
 
 ### FR1 — Loader schema
 
-- The loader accepts an optional `goal_gate: true` on any node; the attribute is opt-in and existing definitions parse unchanged. ([validated by `loader.test.ts:705`](libs/assembly-lines/src/loader.test.ts#L705))
-- The loader surfaces a validation warning when a goal-gated node can be bypassed on a path from entry to exit, so the definition author learns at load time — not at the first skipped run — that the gate can fail the line via a skip. ([validated by `loader.test.ts:711`](libs/assembly-lines/src/loader.test.ts#L711))
-- No warning is raised when every path to exit passes through the gated node. ([validated by `loader.test.ts:720`](libs/assembly-lines/src/loader.test.ts#L720))
+- The loader accepts an optional `goal_gate: true` on any node; the attribute is opt-in and existing definitions parse unchanged. ([validated by `loader.test.ts:706`](libs/assembly-lines/src/loader.test.ts#L706))
+- The loader surfaces a validation warning when a goal-gated node can be bypassed on a path from entry to exit, so the definition author learns at load time — not at the first skipped run — that the gate can fail the line via a skip. ([validated by `loader.test.ts:712`](libs/assembly-lines/src/loader.test.ts#L712))
+- No warning is raised when every path to exit passes through the gated node. ([validated by `loader.test.ts:721`](libs/assembly-lines/src/loader.test.ts#L721))
+- The warning reaches the loading callers, not just direct `parseAssemblyLine` users: the file and directory loaders forward it, and the builtin loader reports implementation.yaml's bypassable review gate. ([validated by `loader.test.ts:795`](libs/assembly-lines/src/loader.test.ts#L795), [`loader.test.ts:807`](libs/assembly-lines/src/loader.test.ts#L807))
+- With no handler supplied, the builtin loader logs bypass warnings through `console.warn`, so a bypassable gate is visible at server startup rather than silently swallowed. ([validated by `loader.test.ts:819`](libs/assembly-lines/src/loader.test.ts#L819))
 
 ### FR2 — Finish guard in the replay
 
@@ -45,12 +47,13 @@ PARTIAL_SUCCESS).
 
 ### FR3 — Adoption in the motivating lines
 
-- The code-review and implementation lines carry `goal_gate: true` on their review nodes, as the motivating use: a line that skipped or failed its review can no longer read as green. ([validated by `loader.test.ts:753`](libs/assembly-lines/src/loader.test.ts#L753))
+- The code-review and implementation lines carry `goal_gate: true` on their review nodes, as the motivating use: a line that skipped or failed its review can no longer read as green. ([validated by `loader.test.ts:754`](libs/assembly-lines/src/loader.test.ts#L754))
 
 ### FR4 — Surfacing the new outcome
 
 - The run list and run detail render `goal_gate_unmet` with its own danger-tone label rather than falling through to a neutral unknown-outcome badge. ([validated by `assembly-line-presenter.test.ts:98`](apps/web-ui/src/lib/assembly-line-presenter.test.ts#L98))
 - `goal_gate_unmet` classifies as a failure outcome, so it rides the same user-facing failure-notification path (Slack escalation + PR comment, `finishLine`'s winner-only seam) as every other terminal failure — gated lines never stop silently. ([validated by `notify-failure.test.ts:200`](apps/floor/src/jobs/assembly-line/notify-failure.test.ts#L200))
+- A PR-linked line that closes `goal_gate_unmet` publishes a failing `lore/<definition>` check, not a neutral or green one. ([validated by `pr-check.test.ts:191`](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L191))
 
 ## Alternatives rejected
 

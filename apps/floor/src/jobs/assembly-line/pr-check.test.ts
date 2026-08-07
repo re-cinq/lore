@@ -186,3 +186,14 @@ describe("assemblyLineCheck check-name alias", () => {
     ).toMatchObject({ name: "lore/code-review", title: "Lore code-review" });
   });
 });
+
+describe("assemblyLineCheck goal gates", () => {
+  it("maps a goal_gate_unmet line outcome to a failure conclusion", () => {
+    expect(
+      assemblyLineCheck(
+        line({ status: "finished", outcome: "goal_gate_unmet" }),
+        [],
+      ),
+    ).toMatchObject({ status: "completed", conclusion: "failure" });
+  });
+});

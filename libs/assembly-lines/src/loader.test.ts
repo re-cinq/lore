@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import * as os from "node:os";
 import { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
 import {
   parseAssemblyLine,
@@ -787,5 +788,45 @@ describe("cross-model review interim tiering", () => {
     expect(implement?.model).toBeTruthy();
     expect(review?.model).toBeTruthy();
     expect(review?.model).not.toBe(implement?.model);
+  });
+});
+
+describe("goal-gate warnings reach the loading callers", () => {
+  it("loadAssemblyLineDir forwards each file's warnings to onWarning", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "lore-gated-"));
+
+    await fs.writeFile(path.join(dir, "gated.yaml"), GATED_YAML);
+    const warnings: string[] = [];
+
+    await loadAssemblyLineDir(dir, (w) => warnings.push(w));
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('"review"');
+  });
+
+  it("reports implementation.yaml's bypassable review gate when loading the builtins", async () => {
+    const warnings: string[] = [];
+
+    await loadBuiltinAssemblyLines((w) => warnings.push(w));
+
+    expect(
+      warnings.some(
+        (w) => w.includes('"review"') && w.includes("implementation"),
+      ),
+    ).toBe(true);
+  });
+
+  it("logs bypass warnings through console.warn when no handler is supplied", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    try {
+      await loadBuiltinAssemblyLines();
+
+      expect(
+        warn.mock.calls.some((call) => String(call[0]).includes('"review"')),
+      ).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

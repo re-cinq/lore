@@ -44,14 +44,15 @@ Decision: while the second vendor is pending, the review defaults pin a
 *different Anthropic model tier* than the implementation defaults — weaker
 than family-level separation, but immediately available through the
 resolve chain. Once the vendor lands, the org-default review row moves to
-the cross-family flagship (`gpt-5.6` at time of writing), and vice versa
-for OpenAI-authored changes.
+OpenAI's current flagship — whatever model that is at flip time, chosen
+when the row is edited rather than pinned here — and vice versa for
+OpenAI-authored changes.
 
 ## Functional Requirements
 
 ### FR1 — Cross-tier defaults (the interim step)
 
-- The implementation assembly line pins its bot-review node to a different model tier than its implement node, so the shipped default never has one model grading its own diff. ([validated by `loader.test.ts:781`](libs/assembly-lines/src/loader.test.ts#L781))
+- The implementation assembly line pins its bot-review node to a different model tier than its implement node, so the shipped default never has one model grading its own diff. ([validated by `loader.test.ts:782`](libs/assembly-lines/src/loader.test.ts#L782))
 
 ### FR2 — The same-family policy helpers
 

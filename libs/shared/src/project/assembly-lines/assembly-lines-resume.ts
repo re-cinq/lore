@@ -2,6 +2,11 @@
 // source line + its node rows, then this module decides whether the fork is
 // legal and where the copied prefix ends. Data manipulation, not
 // execution-engine work — the ordinary walk replays the copied rows.
+//
+// The validation reads and the adapter's INSERT are deliberately not one
+// atomic statement (a TOCTOU gap on paper): it is safe because forking is
+// only legal on a TERMINAL source line, and a terminal row's node set is
+// immutable — nothing can change the source between the reads and the copy.
 
 import { enforceTrue } from "../../lib/enforce.js";
 import type {

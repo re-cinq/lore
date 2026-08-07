@@ -13,6 +13,14 @@ const ASSEMBLY_LINES_DIR = path.resolve(
   "assembly-lines",
 );
 
-export function loadBuiltinAssemblyLines(): Promise<Map<string, AssemblyLine>> {
-  return loadAssemblyLineDir(ASSEMBLY_LINES_DIR);
+/**
+ * Load the bundled definitions. Goal-gate bypass warnings surface through
+ * `onWarning`, defaulting to `console.warn` so a bypassable gate is visible
+ * at server startup rather than silently swallowed (specs/goal-gates FR1).
+ */
+export function loadBuiltinAssemblyLines(
+  onWarning: (warning: string) => void = (warning) =>
+    console.warn(`[assembly-lines] ${warning}`),
+): Promise<Map<string, AssemblyLine>> {
+  return loadAssemblyLineDir(ASSEMBLY_LINES_DIR, onWarning);
 }

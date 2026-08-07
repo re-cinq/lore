@@ -206,10 +206,11 @@ export function bypassableGoalGates(wf: AssemblyLine): string[] {
 
 export async function loadAssemblyLineFile(
   filepath: string,
+  onWarning?: (warning: string) => void,
 ): Promise<AssemblyLine> {
   const yamlSrc = await fs.readFile(filepath, "utf-8");
 
-  return parseAssemblyLine(yamlSrc, filepath);
+  return parseAssemblyLine(yamlSrc, filepath, onWarning);
 }
 
 /**
@@ -218,6 +219,7 @@ export async function loadAssemblyLineFile(
  */
 export async function loadAssemblyLineDir(
   dir: string,
+  onWarning?: (warning: string) => void,
 ): Promise<Map<string, AssemblyLine>> {
   let entries: string[];
 
@@ -235,7 +237,7 @@ export async function loadAssemblyLineDir(
   const out = new Map<string, AssemblyLine>();
 
   for (const f of yamls) {
-    const wf = await loadAssemblyLineFile(path.join(dir, f));
+    const wf = await loadAssemblyLineFile(path.join(dir, f), onWarning);
 
     enforceTrue(
       !out.has(wf.name),
