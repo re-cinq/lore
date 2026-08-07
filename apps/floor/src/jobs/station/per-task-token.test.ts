@@ -132,6 +132,20 @@ describe("injectRepoToken", () => {
       "lore.re-cinq.com/task-id": spec.taskId,
     });
   });
+  it("throws when the catalog recipe has no prompt", () => {
+    // The contracts type makes prompt required, but the cluster can still hand back
+    // a catalog row without one — that is the case the guard exists for, so the
+    // fixture has to sidestep the compiler to reach it.
+    const promptless = {
+      kind: "AgentDefinition",
+      metadata: { name: "impl" },
+      spec: {},
+    } as AgentDefinition;
+
+    expect(() => injectRepoToken(promptless, spec, "k", "n")).toThrow(
+      new Error(`catalog recipe impl has no prompt; task ${spec.taskId}`),
+    );
+  });
 });
 
 describe("perTaskStation", () => {

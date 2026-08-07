@@ -55,17 +55,15 @@ describe("agentDefToCrds", () => {
     expect(containers[0].image).toBe("ghcr.io/acme/runner:1");
   });
 
-  it("omits model/prompt when inherited, defaults deadline + image, and stdout-only without an events url", () => {
+  it("omits model when inherited, defaults deadline + image, and stdout-only without an events url", () => {
     const { agentDefinition, station } = agentDefToCrds({
       ...full,
       model: null,
-      prompt: null,
       timeout_minutes: null,
       image: null,
     });
 
     expect(agentDefinition.spec).not.toHaveProperty("model");
-    expect(agentDefinition.spec).not.toHaveProperty("prompt");
     expect(agentDefinition.spec?.output?.sinks).toEqual([{ type: "stdout" }]);
     expect(station.spec?.deadlineMinutes).toBe(30);
     const containers = (
@@ -75,6 +73,12 @@ describe("agentDefToCrds", () => {
     ).spec.containers;
 
     expect(containers[0].image).toBe("node:22-bookworm");
+  });
+
+  it("throws when a claude-code recipe has no prompt", () => {
+    expect(() => agentDefToCrds({ ...full, prompt: null })).toThrow(
+      "recipe implementation has no prompt",
+    );
   });
 });
 

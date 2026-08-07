@@ -46,12 +46,13 @@ export function injectRepoToken(
   tokenKey: string,
   name: string,
 ): AgentDefinition {
-  const base = catalog.spec;
-
+  // The subsystem rejects a promptless AgentDefinition at admission
+  // (ai-agent-subsystem#155), so a catalog row missing one can only produce a
+  // per-task clone the API server refuses — fail here, where the task id is known.
   enforceTrue(
-    base !== undefined,
+    catalog.spec?.prompt,
     Error,
-    "injectRepoToken: catalog recipe has no spec",
+    `catalog recipe ${catalog.metadata?.name} has no prompt; task ${spec.taskId}`,
   );
 
   return {
@@ -64,9 +65,9 @@ export function injectRepoToken(
       },
     },
     spec: {
-      ...base,
+      ...catalog.spec,
       resources: {
-        ...(base.resources ?? {}),
+        ...(catalog.spec?.resources ?? {}),
         repos: [
           {
             name: "target",
