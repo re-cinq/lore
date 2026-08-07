@@ -24,11 +24,12 @@ nodes:
   - id: review
     type: agent
     prompt_ref: review
-    # Interim cross-model-review mitigation (specs/cross-model-review): pinned to
-    # a different tier than `implement`'s model, guarded by
-    # implementation-review-tier.test.ts. Both still resolve to the anthropic
-    # family under modelFamily() until a second-provider vendor exists (see
-    # the spec's Out of Scope).
+    # Cross-model-review declaration (specs/cross-model-review): a different
+    # tier than `implement`'s model, guarded by implementation-review-tier.test.ts.
+    # NOT yet the enforced runtime model — this node has no station_ref, so it
+    # dispatches on the SAME catalog Station as `implement` (the "implementation"
+    # task type; see spec.md's Known Limitations for the full trace). Both
+    # currently resolve to the anthropic family under modelFamily() regardless.
     model: claude-haiku-4-5-20251001
     description: Bot review — posts inline comments + verdict.
 
