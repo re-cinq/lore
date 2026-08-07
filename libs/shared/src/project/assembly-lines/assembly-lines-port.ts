@@ -88,6 +88,10 @@ export interface AssemblyLinesPort {
    * overwrites an already-stamped value: the hash names the graph the line's
    * node rows were produced by, so a redelivered start loading a since-edited
    * definition must not rewrite what the rows actually came from.
+   *
+   * Unknown id: the Pg UPDATE simply matches no row, while the in-memory double
+   * throws — the same deliberate asymmetry `markRunning` carries, so a caller
+   * bug surfaces in tests instead of vanishing in production.
    */
   stampDefinitionHash(id: string, hash: string): Promise<void>;
   /** `outcome: "error"` closes the row as `failed`; anything else as `finished`.

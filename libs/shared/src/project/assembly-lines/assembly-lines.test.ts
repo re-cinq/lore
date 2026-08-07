@@ -1283,3 +1283,39 @@ describe("AssemblyLines facade resumeFrom", () => {
     expect(await port.listNodes(fork)).toHaveLength(1);
   });
 });
+
+describe("plain start agrees across the adapter and the double", () => {
+  it("states an explicit null parentage in the event rather than omitting the key", async () => {
+    const { pool, calls } = fakePool([[{ id: "al-1" }]]);
+    const port = new InMemoryAssemblyLines();
+
+    await new PgAssemblyLines(pool).start({
+      definitionName: "general",
+      repo: "re-cinq/lore",
+    });
+    await port.start({ definitionName: "general", repo: "re-cinq/lore" });
+
+    expect(calls[0]?.text).toContain("'resumedFrom', NULL::jsonb");
+    expect(port.events[0]?.params).toHaveProperty("resumedFrom", null);
+  });
+
+  it("stores no definition hash, because the caller's hash is a resume input the Floor re-stamps", async () => {
+    const { pool, calls } = fakePool([[{ id: "al-1" }]]);
+    const port = new InMemoryAssemblyLines();
+
+    await new PgAssemblyLines(pool).start({
+      definitionName: "general",
+      repo: "re-cinq/lore",
+      definitionHash: "hash-general",
+    });
+    const id = await port.start({
+      definitionName: "general",
+      repo: "re-cinq/lore",
+      definitionHash: "hash-general",
+    });
+
+    expect(calls[0]?.text).not.toContain("definition_hash");
+    expect(calls[0]?.params).not.toContain("hash-general");
+    expect(await port.getById(id)).toMatchObject({ definitionHash: null });
+  });
+});

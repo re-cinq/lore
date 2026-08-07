@@ -75,6 +75,10 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     const row = this.newRow(id, inheritFromSource(input, source));
 
     row.inheritedNodeCount = inherited.length;
+    // A fork carries its source's hash; a plain start carries none until the
+    // Floor stamps it — `input.definitionHash` is a resume INPUT, and the Pg
+    // plain-start CTE likewise never writes it.
+    row.definitionHash = source?.definitionHash ?? null;
     this.rows.push(row);
 
     for (const node of inherited) {
@@ -289,7 +293,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
       status: "queued",
       outcome: null,
       reason: null,
-      definitionHash: input.definitionHash ?? null,
+      definitionHash: null,
       resumedFromLineId: input.resumeFrom?.lineId ?? null,
       resumedFromNodeId: input.resumeFrom?.nodeId ?? null,
       inheritedNodeCount: 0,

@@ -44,7 +44,8 @@ export class PgAssemblyLines implements AssemblyLinesPort {
                   'repo', $3,
                   'branch', $4,
                   'taskId', $2,
-                  'args', $5::jsonb
+                  'args', $5::jsonb,
+                  'resumedFrom', NULL::jsonb
                 ),
                 $3, 'assembly_line.start:' || al.id
          FROM al
