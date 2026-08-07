@@ -37,7 +37,7 @@ import {
 
 /** Files that the onboard process can generate. */
 /** Static files that don't need LLM generation */
-const ONBOARD_STATIC_FILES: { path: string; content: string }[] = [
+export const ONBOARD_STATIC_FILES: { path: string; content: string }[] = [
   {
     path: ".claude/settings.json",
     content: JSON.stringify(
@@ -119,7 +119,11 @@ contact_links:
   },
 ];
 
-const ONBOARD_FILES: { path: string; description: string; prompt: string }[] = [
+export const ONBOARD_FILES: {
+  path: string;
+  description: string;
+  prompt: string;
+}[] = [
   {
     path: "AGENTS.md",
     description: "Agent configuration for AI tools",
