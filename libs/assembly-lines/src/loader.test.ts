@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import {
@@ -1086,5 +1086,48 @@ edges:
     parseAssemblyLine(guardedGate, "<inline>", (m) => warnings.push(m));
 
     expect(warnings).toEqual([]);
+  });
+});
+
+// Imported here rather than in the header block: the four specs anchoring
+// sixteen `#L` links into this file would all shift by a line.
+import { loadAssemblyLineFile } from "./loader.js";
+
+describe("goal_gate bypass warning propagation", () => {
+  const fixturesDir = path.resolve(
+    new URL(".", import.meta.url).pathname,
+    "test-fixtures",
+  );
+  const fixtureFile = path.join(fixturesDir, "bypassable-gate.yaml");
+
+  it("forwards the warning through loadAssemblyLineFile", async () => {
+    const warnings: string[] = [];
+
+    await loadAssemblyLineFile(fixtureFile, (m) => warnings.push(m));
+
+    expect(warnings).toEqual([
+      expect.stringContaining('goal-gated node "review"'),
+    ]);
+  });
+
+  it("forwards the warning through loadAssemblyLineDir", async () => {
+    const warnings: string[] = [];
+
+    await loadAssemblyLineDir(fixturesDir, (m) => warnings.push(m));
+
+    expect(warnings).toEqual([
+      expect.stringContaining('goal-gated node "review"'),
+    ]);
+  });
+
+  it("reports the warning through console.warn when no handler is supplied", async () => {
+    const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await loadAssemblyLineDir(fixturesDir);
+
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining('goal-gated node "review"'),
+    );
+    spy.mockRestore();
   });
 });

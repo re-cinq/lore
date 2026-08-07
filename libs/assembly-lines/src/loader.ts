@@ -167,6 +167,12 @@ export type AssemblyLineWarningHandler = (message: string) => void;
 
 const IGNORE_WARNINGS: AssemblyLineWarningHandler = () => {};
 
+/** The I/O-side loaders' default sink. Parsing stays free of console side
+ *  effects, but a definition loaded off disk with a bypassable gate must be
+ *  visible at startup rather than silently swallowed. */
+const warnToConsole: AssemblyLineWarningHandler = (message) =>
+  console.warn(`[assembly-lines] ${message}`);
+
 /**
  * Parse and fully validate an assembly line definition. Throws
  * {@link AssemblyLineLoadError} on malformed YAML, schema violation,
@@ -209,10 +215,11 @@ export function parseAssemblyLine(
 
 export async function loadAssemblyLineFile(
   filepath: string,
+  onWarning: AssemblyLineWarningHandler = warnToConsole,
 ): Promise<AssemblyLine> {
   const yamlSrc = await fs.readFile(filepath, "utf-8");
 
-  return parseAssemblyLine(yamlSrc, filepath);
+  return parseAssemblyLine(yamlSrc, filepath, onWarning);
 }
 
 /**
@@ -221,6 +228,7 @@ export async function loadAssemblyLineFile(
  */
 export async function loadAssemblyLineDir(
   dir: string,
+  onWarning: AssemblyLineWarningHandler = warnToConsole,
 ): Promise<Map<string, AssemblyLine>> {
   let entries: string[];
 
@@ -238,7 +246,7 @@ export async function loadAssemblyLineDir(
   const out = new Map<string, AssemblyLine>();
 
   for (const f of yamls) {
-    const wf = await loadAssemblyLineFile(path.join(dir, f));
+    const wf = await loadAssemblyLineFile(path.join(dir, f), onWarning);
 
     enforceTrue(
       !out.has(wf.name),

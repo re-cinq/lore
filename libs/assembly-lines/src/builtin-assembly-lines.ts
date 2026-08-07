@@ -1,6 +1,10 @@
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadAssemblyLineDir, type AssemblyLine } from "./loader.js";
+import {
+  loadAssemblyLineDir,
+  type AssemblyLine,
+  type AssemblyLineWarningHandler,
+} from "./loader.js";
 
 /**
  * The assembly line YAMLs that ship inside this package (gap-fill, general,
@@ -33,11 +37,28 @@ export function memoizedPromise<T>(load: () => Promise<T>): () => Promise<T> {
   };
 }
 
+let cachedBuiltins: Promise<Map<string, AssemblyLine>> | undefined;
+
 /**
  * Memoized: the dir is baked into the image and immutable per process, and the
  * Floor's node-terminal path used to re-read and re-parse it on every event.
  * This is the ONE cache — callers must not wrap their own around it.
+ *
+ * `onWarning` reaches the loader only on the call that performs the load (the
+ * first); omitted, it falls through to the directory loader's `console.warn`
+ * default, so a bypassable goal gate is visible at server startup.
  */
-export const loadBuiltinAssemblyLines: () => Promise<
-  Map<string, AssemblyLine>
-> = memoizedPromise(() => loadAssemblyLineDir(ASSEMBLY_LINES_DIR));
+export function loadBuiltinAssemblyLines(
+  onWarning?: AssemblyLineWarningHandler,
+): Promise<Map<string, AssemblyLine>> {
+  if (!cachedBuiltins) {
+    cachedBuiltins = loadAssemblyLineDir(ASSEMBLY_LINES_DIR, onWarning).catch(
+      (err: unknown) => {
+        cachedBuiltins = undefined;
+        throw err;
+      },
+    );
+  }
+
+  return cachedBuiltins;
+}

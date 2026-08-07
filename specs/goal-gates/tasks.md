@@ -9,7 +9,7 @@ Spec: [spec.md](spec.md). Every task is test-first — write the failing test, w
 - [x] T001 `goal_gate` on the node schema — failing tests in `libs/assembly-lines/src/loader.test.ts` (a node accepts `goal_gate: true`; existing definitions without it parse unchanged), then add the optional boolean to `NodeSchema` in `libs/assembly-lines/src/loader.ts`
 - [x] T002 Exit-node rejection — failing test (a definition with `goal_gate: true` on its exit node throws `AssemblyLineLoadError` naming the node), then add the check to `validateAssemblyLine` in `libs/assembly-lines/src/loader.ts`
 - [x] T003 Bypass-reachability warning — failing tests (warning when some entry→exit path skips the gated node; no warning when every path crosses it), then implement the path walk in `libs/assembly-lines/src/loader.ts`
-- [ ] T004 Warning propagation — failing tests that the file loader, directory loader, and builtin loader all forward the warning, and that the builtin loader falls back to `console.warn` with no handler supplied; then thread the handler through `libs/assembly-lines/src/loader.ts` and `libs/assembly-lines/src/builtin-assembly-lines.ts`
+- [x] T004 Warning propagation — failing tests that the file loader, directory loader, and builtin loader all forward the warning, and that the builtin loader falls back to `console.warn` with no handler supplied; then thread the handler through `libs/assembly-lines/src/loader.ts` and `libs/assembly-lines/src/builtin-assembly-lines.ts`
 
 ## Phase 2 — Finish guard (FR2)
 

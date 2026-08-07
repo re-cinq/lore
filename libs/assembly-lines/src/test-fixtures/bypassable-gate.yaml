@@ -1,0 +1,33 @@
+name: bypassable-gate-fixture
+description: A goal-gated review the failed edge routes around — the load-time bypass warning's fixture.
+version: 1
+entry: work
+exit: done
+
+nodes:
+  - id: work
+    type: agent
+    description: Produces the work under review.
+
+  - id: review
+    type: agent
+    goal_gate: true
+    description: The gate the failed edge skips.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker.
+
+edges:
+  - from: work
+    to: review
+    on: success
+  - from: work
+    to: done
+    on: changes_requested
+  - from: work
+    to: done
+    on: failed
+  - from: review
+    to: done
+    on: always

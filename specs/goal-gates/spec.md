@@ -36,8 +36,8 @@ StrongDM's Attractor spec models this as a first-class `goal_gate` node attribut
 - `goal_gate` on the exit node is rejected at load. The walk records no visit for the terminal marker, so such a gate could never be satisfied and the line would fail forever; failing at load is the honest outcome ([validated by `loader.test.ts:721`](libs/assembly-lines/src/loader.test.ts#L721))
 - The loader surfaces a validation warning when a goal-gated node can be bypassed on some path from entry to exit, so the author learns at load time rather than at the first skipped run ([validated by `loader.test.ts:802`](libs/assembly-lines/src/loader.test.ts#L802))
 - No warning is raised when every path from entry to exit passes through the gated node ([validated by `loader.test.ts:814`](libs/assembly-lines/src/loader.test.ts#L814))
-- The warning reaches the loading callers, not only direct `parseAssemblyLine` users: the file loader, the directory loader, and the builtin loader all forward it.
-- With no warning handler supplied, the builtin loader reports bypass warnings through `console.warn`, so a bypassable gate is visible at server startup instead of being silently swallowed.
+- The warning reaches the loading callers, not only direct `parseAssemblyLine` users: the file loader, the directory loader, and the builtin loader all forward it ([validated by `loader.test.ts:834`](libs/assembly-lines/src/loader.test.ts#L834), [`loader.test.ts:844`](libs/assembly-lines/src/loader.test.ts#L844))
+- With no warning handler supplied, bypass warnings reach `console.warn` — the builtin loader inherits the directory loader's default sink — so a bypassable gate is visible at server startup instead of being silently swallowed ([validated by `loader.test.ts:854`](libs/assembly-lines/src/loader.test.ts#L854))
 
 ### FR2 — Finish guard in the replay
 
