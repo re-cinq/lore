@@ -79,25 +79,25 @@ The JSON bodies above; no HTML, no redirects, no fan-out to other services.
 
 ## Acceptance Criteria
 
-Sync parses the markdown and reports parsed, synced, and created counts. ([validated by `parses the markdown and reports parsed, synced and created counts`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L57))
+Sync parses the markdown and reports parsed, synced, and created counts. ([validated by `parses the markdown and reports parsed, synced and created counts`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L61))
 
-Sync passes the parsed tasks, repo, and slug to the syncer. ([validated by `passes the parsed tasks, repo and slug to the syncer`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L68))
+Sync passes the parsed tasks, repo, and slug to the syncer. ([validated by `passes the parsed tasks, repo and slug to the syncer`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L72))
 
-Markdown with no tasks reports `parsed: 0` and never touches the database. ([validated by `reports parsed:0 without syncing when the markdown has no tasks`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L82))
+Markdown with no tasks reports `parsed: 0` and never touches the database. ([validated by `reports parsed:0 without syncing when the markdown has no tasks`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L86))
 
-A repo that is not `owner/name` is rejected with 400. ([validated by `returns 400 for a repo that is not owner/name`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L93))
+A repo that is not `owner/name` is rejected with 400. ([validated by `returns 400 for a repo that is not owner/name`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L97))
 
-Ready returns the dependency-ready tasks for the requested repo. ([validated by `returns the dependency-ready tasks for the repo`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L105))
+Ready returns the dependency-ready tasks for the requested repo. ([validated by `returns the dependency-ready tasks for the repo`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L109))
 
-Ready without a repo is rejected with 400. ([validated by `returns 400 when repo is missing`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L117))
+Ready without a repo is rejected with 400. ([validated by `returns 400 when repo is missing`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L125))
 
-A successful claim reports `claimed: true` with the claiming agent. ([validated by `reports claimed:true and the claiming agent`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L125))
+A successful claim reports `claimed: true` with the claiming agent. ([validated by `reports claimed:true and the claiming agent`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L133))
 
-A task already taken reports `claimed: false` rather than erroring. ([validated by `reports claimed:false when the task is already taken`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L139))
+A task already taken reports `claimed: false` rather than erroring. ([validated by `reports claimed:false when the task is already taken`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L147))
 
-Complete returns the completion flag and the newly unblocked dependents. ([validated by `returns the completion flag and newly unblocked dependents`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L151))
+Complete returns the completion flag and the newly unblocked dependents. ([validated by `returns the completion flag and newly unblocked dependents`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L159))
 
-Every spec-task route returns 503 when the pool is null. ([validated by `returns 503 for every spec-task route when the pool is null`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L162))
+Every spec-task route returns 503 when the pool is null. ([validated by `returns 503 for every spec-task route when the pool is null`](apps/lore-api/src/api/routes/spec-tasks/spec-tasks.test.ts#L170))
 
 The four routes are registered on the server. ([implemented by](../../../apps/lore-api/src/server/build-server.ts#L110), [implemented by](../../../apps/lore-api/src/api/routes/spec-tasks/spec-tasks.ts#L40))
 

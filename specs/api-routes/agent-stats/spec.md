@@ -67,13 +67,13 @@ credentials, and the tool proxies.
 
 ## Acceptance Criteria
 
-Health, learning counters, and the recent-episode preview merge into one object. ([validated by `merges health, stats and recent episodes into one object`](apps/lore-api/src/api/routes/analytics/agent-stats.test.ts#L48))
+Health, learning counters, and the recent-episode preview merge into one object. ([validated by `merges health, stats and recent episodes into one object`](apps/lore-api/src/api/routes/analytics/agent-stats.test.ts#L52))
 
-Failing episode reads degrade to zero episodes instead of failing the request. ([validated by `reports zero episodes when the episode queries fail`](apps/lore-api/src/api/routes/analytics/agent-stats.test.ts#L65))
+Failing episode reads degrade to zero episodes instead of failing the request. ([validated by `reports zero episodes when the episode queries fail`](apps/lore-api/src/api/routes/analytics/agent-stats.test.ts#L69))
 
-An unset memory pool returns 503 `database unavailable`. ([validated by `returns 503 when memory has no database`](apps/lore-api/src/api/routes/analytics/agent-stats.test.ts#L82))
+An unset memory pool returns 503 `database unavailable`. ([validated by `returns 503 when memory has no database`](apps/lore-api/src/api/routes/analytics/agent-stats.test.ts#L86))
 
-A missing `agent_id` is rejected with 400. ([validated by `returns 400 when agent_id is missing`](apps/lore-api/src/api/routes/analytics/agent-stats.test.ts#L90))
+A missing `agent_id` is rejected with 400. ([validated by `returns 400 when agent_id is missing`](apps/lore-api/src/api/routes/analytics/agent-stats.test.ts#L94))
 
 The route is registered as `GET /api/agent-stats`. ([implemented by](../../../apps/lore-api/src/server/build-server.ts#L131), [implemented by](../../../apps/lore-api/src/api/routes/analytics/agent-stats.ts#L17))
 

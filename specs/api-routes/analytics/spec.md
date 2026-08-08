@@ -68,15 +68,15 @@ credentials; this route runs them and the tool renders the result.
 
 ## Acceptance Criteria
 
-Usage, task counts, and the per-type breakdown come back for the default month period. ([validated by `returns usage, task counts and the per-type breakdown for the default month period`](apps/lore-api/src/api/routes/analytics/analytics.test.ts#L42))
+Usage, task counts, and the per-type breakdown come back for the default month period. ([validated by `returns usage, task counts and the per-type breakdown for the default month period`](apps/lore-api/src/api/routes/analytics/analytics.test.ts#L46))
 
-The requested period selects its own time filter for every query. ([validated by `filters on the requested period`](apps/lore-api/src/api/routes/analytics/analytics.test.ts#L53))
+The requested period selects its own time filter for every query. ([validated by `filters on the requested period`](apps/lore-api/src/api/routes/analytics/analytics.test.ts#L57))
 
-`period=all` applies no time filter. ([validated by `period=all applies no time filter`](apps/lore-api/src/api/routes/analytics/analytics.test.ts#L65))
+`period=all` applies no time filter. ([validated by `period=all applies no time filter`](apps/lore-api/src/api/routes/analytics/analytics.test.ts#L69))
 
-An unknown period is rejected with 400 rather than silently defaulting. ([validated by `returns 400 for an unknown period`](apps/lore-api/src/api/routes/analytics/analytics.test.ts#L73))
+An unknown period is rejected with 400 rather than silently defaulting. ([validated by `returns 400 for an unknown period`](apps/lore-api/src/api/routes/analytics/analytics.test.ts#L77))
 
-A null pool returns 503 `database unavailable`. ([validated by `returns 503 when the pool is null`](apps/lore-api/src/api/routes/analytics/analytics.test.ts#L79))
+A null pool returns 503 `database unavailable`. ([validated by `returns 503 when the pool is null`](apps/lore-api/src/api/routes/analytics/analytics.test.ts#L83))
 
 The route is registered as `GET /api/analytics`. ([implemented by](../../../apps/lore-api/src/server/build-server.ts#L130), [implemented by](../../../apps/lore-api/src/api/routes/analytics/analytics.ts#L19))
 

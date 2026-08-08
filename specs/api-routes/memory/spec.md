@@ -196,9 +196,9 @@ A write without `extract_facts` fires no extraction. ([validated by `skips fact 
 
 The extraction resolves the newest version of the written key before extracting. ([validated by `extracts from the newest version of the written memory`](apps/lore-api/src/features/memory/fact-extraction.test.ts#L14))
 
-An unresolvable memory extracts nothing. ([validated by `does nothing when the written memory cannot be resolved`](apps/lore-api/src/features/memory/fact-extraction.test.ts#L36))
+An unresolvable memory extracts nothing. ([validated by `does nothing when the written memory cannot be resolved`](apps/lore-api/src/features/memory/fact-extraction.test.ts#L32))
 
-A failed lookup is swallowed so the write still succeeds. ([validated by `swallows a lookup failure so the write still succeeds`](apps/lore-api/src/features/memory/fact-extraction.test.ts#L49))
+A failed lookup is swallowed so the write still succeeds. ([validated by `swallows a lookup failure so the write still succeeds`](apps/lore-api/src/features/memory/fact-extraction.test.ts#L45))
 
 ## Out of Scope
 
