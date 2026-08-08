@@ -1,10 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
-import { ToolDeps, proxyGetApi, withReadCache } from "./deps.js";
+import { proxyGetApi, withReadCache } from "./deps.js";
 import { runQueryTrace } from "@re-cinq/lore-server-core/features/spec-trace/query-trace.js";
 
-export function registerSpecTraceTools(server: McpServer, _deps: ToolDeps) {
+export function registerSpecTraceTools(server: McpServer) {
   server.tool(
     "lore-query-trace",
     `READ side of spec-traceability: returns per-statement coverage for a spec — which tests validate each statement and which are drifted or violated. Read-only; executes and builds nothing. The graph is (re)projected by CI — specs/adrs on push, tests via lore-tests.yml — not by an MCP tool. Instead: to enumerate or run tests locally use lore_list_tests / lore_run_test.`,

@@ -29,6 +29,9 @@ vi.mock("@re-cinq/lore-server-core/features/memory/memory-file.js", () => ({
 vi.mock("@re-cinq/lore-server-core/features/memory/memory-search.js", () => ({
   searchMemories: vi.fn(),
 }));
+vi.mock("../../../features/memory/fact-extraction.js", () => ({
+  extractFactsForMemory: vi.fn(),
+}));
 
 import { getQueryEmbedding } from "@re-cinq/lore-server-core/platform/db.js";
 import {
@@ -46,6 +49,7 @@ import {
   searchMemoryFile,
 } from "@re-cinq/lore-server-core/features/memory/memory-file.js";
 import { searchMemories } from "@re-cinq/lore-server-core/features/memory/memory-search.js";
+import { extractFactsForMemory } from "../../../features/memory/fact-extraction.js";
 
 const originalEnv = { ...process.env };
 
@@ -82,6 +86,35 @@ describe("POST /api/memory", () => {
 
     expect(res.result).toEqual({ id: 1 });
     expect(getQueryEmbedding).toHaveBeenCalledWith("v");
+  });
+
+  it("extracts facts after a DB write when extract_facts is set", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(writeMemory).mockResolvedValue({ key: "k", version: 1 } as never);
+    vi.mocked(extractFactsForMemory).mockResolvedValue(undefined);
+    await post({
+      action: "write",
+      key: "k",
+      value: "v",
+      agent_id: "agent-7",
+      repo: "o/r",
+      extract_facts: true,
+    });
+
+    expect(vi.mocked(extractFactsForMemory).mock.calls[0][1]).toEqual({
+      key: "k",
+      value: "v",
+      agentId: "agent-7",
+      repo: "o/r",
+    });
+  });
+
+  it("skips fact extraction when extract_facts is absent", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(writeMemory).mockResolvedValue({ key: "k", version: 1 } as never);
+    await post({ action: "write", key: "k", value: "v" });
+
+    expect(extractFactsForMemory).not.toHaveBeenCalled();
   });
 
   it("writes via file fallback when memory DB unavailable", async () => {
@@ -185,6 +218,38 @@ describe("POST /api/memory", () => {
 
     expect(res.result).toEqual([{ m: 1 }]);
     expect(getQueryEmbedding).toHaveBeenCalledWith("q");
+  });
+
+  it("forwards include_invalidated and graph_augment to the searcher", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(searchMemories).mockResolvedValue([] as never);
+    await post({
+      action: "search",
+      query: "q",
+      limit: 5,
+      include_invalidated: true,
+      graph_augment: true,
+    });
+
+    expect(vi.mocked(searchMemories).mock.calls[0].slice(1)).toEqual([
+      "q",
+      undefined,
+      undefined,
+      5,
+      true,
+      true,
+    ]);
+  });
+
+  it("defaults include_invalidated and graph_augment to false", async () => {
+    vi.mocked(isMemoryDbAvailable).mockReturnValue(true);
+    vi.mocked(searchMemories).mockResolvedValue([] as never);
+    await post({ action: "search", query: "q" });
+
+    expect(vi.mocked(searchMemories).mock.calls[0].slice(5)).toEqual([
+      false,
+      false,
+    ]);
   });
 
   it("searches via file fallback", async () => {

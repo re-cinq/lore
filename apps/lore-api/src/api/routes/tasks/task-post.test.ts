@@ -61,13 +61,47 @@ describe("POST /api/task", () => {
     expect(res.result).toEqual({ task_id: "new" });
   });
 
-  it("cancels a task", async () => {
+  /** Queue the reads `cancelTask` makes: the task row, then its events. */
+  function poolWithTask(status: string) {
     const pool = makePool();
 
-    pool.query.mockResolvedValue({});
-    const res = await post({ action: "cancel", task_id: "t1" }, pool);
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ id: "t1", status }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValue({ rows: [{ status }] });
 
-    expect(res.result).toEqual({ ok: true, task_id: "t1" });
+    return pool;
+  }
+
+  it("cancels a task", async () => {
+    const res = await post(
+      { action: "cancel", task_id: "t1" },
+      poolWithTask("running"),
+    );
+
+    expect(res.result).toEqual({ task_id: "t1", status: "cancelled" });
+  });
+
+  it("returns 404 when cancelling a task that does not exist", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [] });
+    const res = await post({ action: "cancel", task_id: "gone" }, pool);
+
+    expect(res.statusCode).toBe(404);
+    expect(res.result).toEqual({ error: "Task not found" });
+  });
+
+  it("returns 409 when cancelling a merged task", async () => {
+    const res = await post(
+      { action: "cancel", task_id: "t1" },
+      poolWithTask("merged"),
+    );
+
+    expect(res.statusCode).toBe(409);
+    expect(res.result).toEqual({
+      error: "Cannot cancel task in merged state",
+    });
   });
 
   it("sets immediate priority", async () => {
@@ -213,18 +247,20 @@ describe("POST /api/task", () => {
     expect(createTask).not.toHaveBeenCalled();
   });
 
-  it("cancel issues the guarded tasks UPDATE with the task_id", async () => {
-    const pool = makePool();
+  it("cancel records a task_events row for the status transition", async () => {
+    const pool = poolWithTask("running");
 
-    pool.query.mockResolvedValue({});
     await post({ action: "cancel", task_id: "t1" }, pool);
-    const [sql, params] = pool.query.mock.calls[0];
-
-    expect(sql).toContain("status = 'cancelled'");
-    expect(sql).toContain(
-      "status NOT IN ('completed', 'failed', 'cancelled', 'merged')",
+    const eventInsert = pool.query.mock.calls.find(([sql]) =>
+      String(sql).includes("INSERT INTO pipeline.task_events"),
     );
-    expect(params).toEqual(["t1"]);
+
+    expect(eventInsert?.[1]).toMatchObject([
+      "t1",
+      "running",
+      "cancelled",
+      JSON.stringify({ cancelled_by: "user" }),
+    ]);
   });
 
   it("set-priority updates only pending tasks with the resolved priority", async () => {

@@ -255,12 +255,14 @@ searchable facts with embeddings.
 Agent ID resolved from: explicit parameter, `LORE_AGENT_ID` env,
 `~/.lore/agent-id` file, or auto-generated UUID.
 
-When the MCP server runs locally (stdio mode, no `LORE_DB_HOST`), the
-memory operations proxy to the GKE MCP server via `LORE_API_URL`:
+The MCP adapter holds **no** database pool (ADR-032) — not in stdio mode, not in
+the HTTP gateway — so every data operation proxies to `LORE_API_URL`:
 `lore_write_memory`/`lore_read_memory`/`lore_search_memory`/`lore_delete_memory`/`lore_list_memories`
-(with a `~/.lore/memory/` file fallback), `lore_write_episode`, and `lore_query_graph`
-(reads `GET /api/graph`). `lore_agent_stats` is still DB-only. Local learnings
-are shared across the org. AgentDB provides optional local read caching.
+(with a `~/.lore/memory/` file fallback), `lore_write_episode`, `lore_query_graph`
+(`GET /api/graph`), and `lore_agent_stats` (`GET /api/agent-stats`). Tool handlers
+carry exactly one path; a leftover "requires PostgreSQL (LORE_DB_HOST not set)"
+branch means the tool is dead, not gated. Local learnings are shared across the
+org. AgentDB provides optional local read caching.
 
 ## Required Workflow
 

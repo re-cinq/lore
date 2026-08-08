@@ -169,6 +169,7 @@ describe("generateOpenApi — tag grouping", () => {
       "Traceability",
       "Dark Factory",
       "Webhooks",
+      "Analytics",
       "Tokens",
       "Meta",
     ]);

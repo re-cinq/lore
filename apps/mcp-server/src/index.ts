@@ -8,23 +8,20 @@ import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context
 // The local MCP adapter speaks the MCP protocol over stdio and proxies every
 // data operation to the remote Lore API (LORE_API_URL). It holds no DB pool and
 // initializes no OpenTelemetry SDK — those heavy remote concerns live in
-// @re-cinq/lore-api. Tools read getPool() === null and take their proxy path.
+// @re-cinq/lore-api, so every tool has exactly one path: the proxy.
 //
 // With LORE_MCP_HTTP=1 it instead serves MCP over Streamable HTTP as a shared
 // gateway for headless agent pods (server/http-transport.ts).
-const getPool = () => null;
 
 async function main() {
   loadTaskTypes();
   loadDefaultTemplates();
 
-  const deps = { getPool };
-
   if (
     process.env.LORE_MCP_HTTP === "1" ||
     process.env.LORE_MCP_HTTP === "true"
   ) {
-    startHttpGateway(deps, {
+    startHttpGateway({
       port: Number.parseInt(process.env.LORE_MCP_PORT ?? "8080", 10),
       authToken: process.env.LORE_MCP_AUTH_TOKEN,
       serverMode:
@@ -34,7 +31,7 @@ async function main() {
     return;
   }
 
-  const server = buildMcpServer(deps);
+  const server = buildMcpServer();
   const transport = new StdioServerTransport();
 
   await server.connect(transport);

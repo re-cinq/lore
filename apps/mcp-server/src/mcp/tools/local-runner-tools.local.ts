@@ -1,9 +1,8 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { ToolDeps } from "./deps.js";
 
-export function registerLocalRunnerTools(server: McpServer, _deps: ToolDeps) {
+export function registerLocalRunnerTools(server: McpServer) {
   server.tool(
     "lore_run_task_locally",
     `Starts a brand-new ad-hoc task as a detached background Claude Code process in a local git worktree; returns immediately with task id, branch, worktree path, log file, and PID. Runs on your local machine (your Claude subscription). Instead of this: to run an EXISTING pending pipeline task by id use lore_claim_and_run_locally; to register a task for the GKE agent use lore_create_pipeline_task.`,

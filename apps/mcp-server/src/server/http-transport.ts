@@ -10,7 +10,6 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { resolve } from "node:path";
 import { buildMcpServer, type ServerMode } from "./build-mcp-server.js";
 import { handleSkillsRequest } from "./skills-registry.js";
-import type { ToolDeps } from "../mcp/tools/deps.js";
 
 export interface HttpGatewayOptions {
   port: number;
@@ -85,7 +84,6 @@ function jsonRpcError(res: ServerResponse, status: number, message: string) {
  * transport), tracked by the session id the transport mints on initialize.
  */
 function newSession(
-  deps: ToolDeps,
   opts: HttpGatewayOptions,
   sessions: Map<string, StreamableHTTPServerTransport>,
 ): StreamableHTTPServerTransport {
@@ -114,7 +112,7 @@ function newSession(
       sessions.delete(transport.sessionId);
     }
   };
-  void buildMcpServer(deps, { serverMode: opts.serverMode }).connect(transport);
+  void buildMcpServer({ serverMode: opts.serverMode }).connect(transport);
 
   return transport;
 }
@@ -123,10 +121,7 @@ function newSession(
  * Serve MCP over Streamable HTTP so headless agent pods can reach the same
  * toolset the stdio adapter exposes. One shared gateway; per-session servers.
  */
-export function startHttpGateway(
-  deps: ToolDeps,
-  opts: HttpGatewayOptions,
-): Server {
+export function startHttpGateway(opts: HttpGatewayOptions): Server {
   const sessions = new Map<string, StreamableHTTPServerTransport>();
   // The agent-skills bundle baked into this gateway image (Lore content in a Lore
   // service). The subsystem init fetches it over /skills; it is not part of MCP.
@@ -190,7 +185,7 @@ export function startHttpGateway(
 
           return;
         }
-        transport = newSession(deps, opts, sessions);
+        transport = newSession(opts, sessions);
       }
       await transport.handleRequest(req, res, body);
 

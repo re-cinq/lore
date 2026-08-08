@@ -36,6 +36,13 @@ import {
 } from "../api/routes/tasks/task-logs.js";
 import { jobRunLogsRoute } from "../api/routes/tasks/job-run-logs.js";
 import { taskPostRoute } from "../api/routes/tasks/task-post.js";
+import { taskGroupRoute } from "../api/routes/tasks/task-group.js";
+import {
+  specTasksSyncRoute,
+  specTasksReadyRoute,
+  specTasksClaimRoute,
+  specTasksCompleteRoute,
+} from "../api/routes/spec-tasks/spec-tasks.js";
 import { memoryRoute } from "../api/routes/memory/memory.js";
 import { episodeRoute } from "../api/routes/memory/episode.js";
 import { sessionSummaryRoute } from "../api/routes/memory/session-summary.js";
@@ -59,6 +66,9 @@ import {
   agentsPutRoute,
   agentsDeleteRoute,
 } from "../api/routes/agent-definitions/agents.js";
+import { usageRoute } from "../api/routes/analytics/usage.js";
+import { analyticsRoute } from "../api/routes/analytics/analytics.js";
+import { agentStatsRoute } from "../api/routes/analytics/agent-stats.js";
 import { impactRoute } from "../api/routes/impact/impact.js";
 import { impactBaseRoute } from "../api/routes/impact/impact-base.js";
 import { traceRoute } from "../api/routes/trace/trace.js";
@@ -94,6 +104,11 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     taskLogsGetRoute(getPool),
     jobRunLogsRoute(),
     taskPostRoute(getPool),
+    taskGroupRoute(getPool),
+    specTasksSyncRoute(getPool),
+    specTasksReadyRoute(getPool),
+    specTasksClaimRoute(getPool),
+    specTasksCompleteRoute(getPool),
     taskLogsPostRoute(),
     memoryRoute(getPool),
     episodeRoute(getPool),
@@ -114,6 +129,9 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     agentsPostRoute(getPool),
     agentsPutRoute(getPool),
     agentsDeleteRoute(getPool),
+    usageRoute(getPool),
+    analyticsRoute(getPool),
+    agentStatsRoute(getPool),
     impactRoute(),
     impactBaseRoute(),
     traceRoute(),

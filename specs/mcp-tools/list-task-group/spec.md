@@ -3,7 +3,7 @@
 | Field   | Value                          |
 |---------|--------------------------------|
 | Feature | lore_list_task_group MCP Tool       |
-| Status  | Draft                          |
+| Status  | In Progress                    |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_list_task_group`              |
@@ -38,19 +38,15 @@ Lists every task in one task_group_id with a completed/total rollup — the view
 
 ## Behavior
 
-1. **Pool gate** — `getPool()` (from `ToolDeps`); if null, return
-   `"Task groups require PostgreSQL (LORE_DB_HOST not set)."` (no stdio proxy).
-2. **Inline SELECT** ([query body](../../../apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L214)):
-   ```sql
-   SELECT id, description, task_type, status, target_repo, pr_url, created_at
-   FROM pipeline.tasks WHERE task_group_id = $1 ORDER BY created_at
-   ```
-   with `[group_id]`.
-3. **Empty-group guard** — if `rows.length === 0`, return `"No tasks found for group {group_id}"`.
-4. **Rollup** — `completed = rows.filter(t => ['merged','completed'].includes(t.status)).length`;
-   `summary = "Group {group_id}: {completed}/{rows.length} completed"`.
-5. Return `"{summary}\n\n{JSON.stringify(rows, null, 2)}"`.
-6. Any thrown error is caught and returned as `"Error: {message}"`.
+1. `GET /api/task-groups/{group_id}` via `proxyGetApi`, url-encoding the id. The
+   SELECT and the rollup run in lore-api
+   ([`GET /api/task-groups/{id}`](../../api-routes/task-group/spec.md)); the MCP
+   adapter holds no pool (ADR-032).
+2. **Empty-group guard** — if the response reports `total === 0`, return
+   `"No tasks found for group {group_id}"`.
+3. **Render** — `"Group {group_id}: {completed}/{total} completed\n\n{JSON.stringify(tasks, null, 2)}"`.
+4. **Failure** — `not_configured` → the not-configured text; `denied` → the
+   denial text; `unreachable` → `"Could not fetch the task group from the Lore API: {detail}"`.
 
 ## Output
 
@@ -60,20 +56,17 @@ pretty-printed rows array, or `"Error: {message}"`. **Never throws.**
 
 ## Dependencies & side effects
 
-- `getPool()` from `ToolDeps`. Read-only (single SELECT).
-- DB table: `pipeline.tasks` (filtered by `task_group_id`).
-- Env: `LORE_DB_HOST` (drives whether the pool is non-null) — no proxy path.
+- `proxyGetApi` + `notConfiguredError` / `deniedError`. Read-only.
+- Server-side: `pipeline.tasks` filtered by `task_group_id`.
+- Env: `LORE_API_URL`, `LORE_INGEST_TOKEN`. No database handle.
 
 ## Acceptance Criteria
 
-A group with tasks returns every row ordered by creation time.
-*(untested: the group SELECT is inline in the handler closure and not exported as a pure function — testable only against a live Postgres.)*
+The rollup line precedes the pretty-printed task array. ([validated by `lore_list_task_group renders the rollup line above the task JSON`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L301))
 
-The completed/total rollup counts only `merged`/`completed` tasks.
-*(untested: the rollup count is inline in the handler closure and not exported.)*
+A group id with no tasks returns a `No tasks found` message rather than an empty rollup. ([validated by `lore_list_task_group reports an empty group`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L319))
 
-A group id with no tasks returns a `No tasks found` message rather than an empty rollup.
-*(untested: the empty-group branch is inline in the handler closure and not exported.)*
+An unconfigured API yields the not-configured message rather than a PostgreSQL message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L440))
 
 ## Out of Scope
 
