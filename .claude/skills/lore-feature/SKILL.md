@@ -75,3 +75,17 @@ If the developer said what they want to build, go to Entry B.
 If they didn't specify, check if `specs/` has features and show them (Entry A).
 If `specs/` is empty and they didn't describe anything, ask:
 "What do you want to build? Give me a short description — what it does and why."
+
+## Help
+
+<!-- lore-help:begin -->
+**Summary.** Implement a feature end to end — from an existing spec, or by writing the spec and tasks first.
+**Usage:** `/lore-feature [feature-slug or short description]`
+**Use when.** You are about to build something and want the spec → tasks → code → commit loop driven for you, one task at a time.
+**Not for.** Writing the PR text once the branch is done — that is `/lore-pr`. Bootstrapping a whole org's team structure — that is `/lore-init`.
+**Examples**
+- `/lore-feature` — lists `specs/`, asks which feature to work on, resumes at the first unchecked task
+- `/lore-feature dark-factory` — opens that spec, summarises remaining tasks, starts working
+- `/lore-feature "add a webhook that retries on 5xx"` — no spec yet, so it writes `specs/<slug>/spec.md` + `tasks.md` first, confirms both, then implements
+**Related:** `/lore-pr`, `/lore-suggest-links`
+<!-- lore-help:end -->
