@@ -411,7 +411,7 @@ store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](l
 
 ### FR-8: Observability (Phase 1)
 
-The system MUST provide observability into context retrieval quality. ([validated by `otel.test.ts:6`](libs/server-core/src/platform/otel.test.ts#L6), [`usage-tools.test.ts:47`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L47))
+The system MUST provide observability into context retrieval quality. ([validated by `otel.test.ts:6`](libs/server-core/src/platform/otel.test.ts#L6), [`usage-tools.test.ts:51`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L51))
 
 - Decision: all MCP retrieval calls are traced via OpenTelemetry spans
   exported to Cloud Monitoring (SDK-level instrumentation).
@@ -422,7 +422,7 @@ The system MUST provide observability into context retrieval quality. ([validate
   (Langfuse trace queries → candidate generation → PromptFoo eval → PR)
   drives automated context improvement.
 - FR-8.4: `lore_my_usage` tool exposes per-developer token consumption
-  (today / 7-day / 30-day) without leaving Claude Code. ([validated by `usage-tools.test.ts:47`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L47), [`usage-pg.test.ts:105`](libs/shared/src/project/usage/usage-pg.test.ts#L105))
+  (today / 7-day / 30-day) without leaving Claude Code. ([validated by `usage-tools.test.ts:51`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L51), [`usage-pg.test.ts:105`](libs/shared/src/project/usage/usage-pg.test.ts#L105))
 
 ### FR-9: Context Evaluation (Phase 1)
 

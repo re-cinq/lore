@@ -18,6 +18,8 @@ import {
   searchMemoryFile,
 } from "@re-cinq/lore-server-core/features/memory/memory-file.js";
 import { searchMemories } from "@re-cinq/lore-server-core/features/memory/memory-search.js";
+import { resolveAgentId } from "@re-cinq/lore-server-core/platform/agent-id.js";
+import { extractFactsForMemory } from "../../../features/memory/fact-extraction.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { MAX_PAGE_LIMIT } from "../common-schemas.js";
@@ -40,6 +42,7 @@ const MemoryBody = z.discriminatedUnion("action", [
     agent_id: z.string().optional(),
     ttl: z.number().optional(),
     repo: z.string().optional(),
+    extract_facts: z.boolean().default(false),
   }),
   z.object({
     action: z.literal("read"),
@@ -53,6 +56,10 @@ const MemoryBody = z.discriminatedUnion("action", [
     agent_id: z.string().optional(),
     pool_name: z.string().optional(),
     limit: z.number().optional(),
+    // Carried from lore_search_memory, which has no pool of its own to honor
+    // them with (ADR-032).
+    include_invalidated: z.boolean().default(false),
+    graph_augment: z.boolean().default(false),
   }),
   z.object({
     action: z.literal("delete"),
@@ -93,24 +100,31 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
           : null;
 
         switch (body.action) {
-          case "write":
-            return h.response(
-              isMemoryDbAvailable()
-                ? await writeMemory(
-                    body.key,
-                    body.value,
-                    body.agent_id,
-                    body.ttl,
-                    embedding || undefined,
-                    body.repo,
-                  )
-                : writeMemoryFile(
-                    body.key,
-                    body.value,
-                    body.agent_id,
-                    body.ttl,
-                  ),
-            );
+          case "write": {
+            const written = isMemoryDbAvailable()
+              ? await writeMemory(
+                  body.key,
+                  body.value,
+                  body.agent_id,
+                  body.ttl,
+                  embedding || undefined,
+                  body.repo,
+                )
+              : writeMemoryFile(body.key, body.value, body.agent_id, body.ttl);
+
+            // Fire-and-forget: fact extraction calls an LLM, and the caller is
+            // waiting on the write, not on the facts.
+            if (body.extract_facts && isMemoryDbAvailable()) {
+              void extractFactsForMemory(pool!, {
+                key: body.key,
+                value: body.value,
+                agentId: resolveAgentId(body.agent_id),
+                repo: body.repo,
+              });
+            }
+
+            return h.response(written);
+          }
           case "read": {
             const v =
               body.version === "all"
@@ -134,6 +148,8 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
                     body.agent_id,
                     body.pool_name,
                     body.limit || 10,
+                    body.include_invalidated,
+                    body.graph_augment,
                   )
                 : searchMemoryFile(body.query, body.agent_id, body.limit || 10),
             );

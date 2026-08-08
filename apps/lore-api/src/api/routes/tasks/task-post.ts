@@ -1,4 +1,4 @@
-import { errorMessage } from "@re-cinq/lore-shared";
+import { errorMessage, cancelPipelineTask } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -55,14 +55,19 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
           return h.response(await retryTask(parsed.task_id));
         }
 
-        // Cancel action
+        // Cancel action — the shared canceller, so an unknown id or a terminal
+        // state is refused instead of silently no-op'ing, and the transition
+        // lands in pipeline.task_events like every other status change.
         if (parsed.action === "cancel" && parsed.task_id) {
-          await pool.query(
-            `UPDATE pipeline.tasks SET status = 'cancelled', updated_at = now() WHERE id = $1 AND status NOT IN ('completed', 'failed', 'cancelled', 'merged')`,
-            [parsed.task_id],
-          );
+          try {
+            return h.response(await cancelPipelineTask(pool, parsed.task_id));
+          } catch (err) {
+            const message = errorMessage(err);
 
-          return h.response({ ok: true, task_id: parsed.task_id });
+            return h
+              .response({ error: message })
+              .code(message === "Task not found" ? 404 : 409);
+          }
         }
 
         // Set priority action

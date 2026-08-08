@@ -12,31 +12,26 @@ type RemoteTaskLite = {
   status?: string;
   context_bundle?: { spec_task_id?: string };
 };
-import {
-  createTask,
-  getTask,
-  listTasks,
-  cancelTask,
-} from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
-import { getTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
-import {
-  parseTasks,
-  syncTasksToDb,
-  getReadyTasks,
-  claimTask,
-  completeTask,
-} from "@re-cinq/lore-server-core/features/pipeline/tasks.js";
 import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { resolveAgentId } from "@re-cinq/lore-server-core/platform/agent-id.js";
 import {
-  ToolDeps,
   withReadCache,
   unreachableError,
   deniedError,
   notConfiguredError,
   proxyGetApi,
+  proxyToApi,
+  type ProxyResult,
 } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
+
+type TaskGroupResponse = {
+  total: number;
+  completed: number;
+  tasks: RemoteTaskLite[];
+};
+type SyncTasksResponse = { parsed: number; synced: number; created: number };
+type ToolText = { content: [{ type: "text"; text: string }] };
 
 function completeOnly(body: string): boolean {
   try {
@@ -46,9 +41,61 @@ function completeOnly(body: string): boolean {
   }
 }
 
-export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
-  const { getPool } = deps;
+function toolText(text: string): ToolText {
+  return { content: [{ type: "text" as const, text }] };
+}
 
+function undetectedRepoError(): ToolText {
+  return toolText("Could not detect repo. Specify repo parameter.");
+}
+
+/**
+ * Run a proxied call and render its body, mapping every failure to tool text.
+ * These tools hold no pool (ADR-032), so the API is the only source: a config
+ * gap, a denial, and an outage each get their own message rather than a
+ * misleading "requires PostgreSQL".
+ */
+async function proxiedText(
+  call: () => Promise<ProxyResult>,
+  {
+    op,
+    toolName,
+    subject,
+    render,
+  }: {
+    op: string;
+    toolName: string;
+    /** Set for reads: names what could not be fetched, with no write-loss copy. */
+    subject?: string;
+    render: (body: unknown) => string;
+  },
+): Promise<ToolText> {
+  try {
+    const proxied = await call();
+
+    if (proxied.ok) {
+      return toolText(render(JSON.parse(proxied.body)));
+    }
+
+    if (proxied.reason === "not_configured") {
+      return notConfiguredError(op);
+    }
+
+    if (proxied.reason === "denied") {
+      return deniedError(toolName, proxied.detail);
+    }
+
+    return subject
+      ? toolText(
+          `Could not fetch ${subject} from the Lore API: ${proxied.detail}`,
+        )
+      : unreachableError(op, proxied.detail);
+  } catch (err) {
+    return toolText(`Error ${op}: ${errorMessage(err)}`);
+  }
+}
+
+export function registerPipelineTools(server: McpServer) {
   server.tool(
     "lore_create_pipeline_task",
     "Enqueues a new server-side pipeline task and returns its UUID and a pickup hint. priority=normal lands in the backlog; priority=immediate the GKE agent picks up within ~30s. This tool only enqueues — it never runs anything on your machine. Instead: lore_run_task_locally to start a new ad-hoc task in a local worktree NOW; lore_claim_and_run_locally to run an existing backlog task locally; lore_sync_tasks to materialize a tasks.md checklist as spec-tasks (not this tool).",
@@ -122,8 +169,8 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         // Auto-detect repo from git remote if not specified
         const resolvedRepo = target_repo || detectCurrentRepo() || undefined;
 
-        // When running locally (no DB), proxy to the GKE MCP server
-        if (!getPool()) {
+        // The adapter holds no pool: the remote API is the only writer.
+        {
           const apiUrl = process.env.LORE_API_URL;
           const apiToken = process.env.LORE_INGEST_TOKEN;
 
@@ -193,33 +240,6 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
           return { content: [{ type: "text" as const, text: msg }] };
         }
-
-        const validTypes = getTaskTypes();
-        const resolvedType = validTypes.includes(task_type)
-          ? task_type
-          : "general";
-        const result = await createTask(
-          desc,
-          resolvedType,
-          resolvedRepo,
-          "mcp",
-          context || undefined,
-          priority,
-          group_id,
-        );
-        const pickupMsg =
-          priority === "immediate"
-            ? "The GKE agent will pick this up within 30 seconds."
-            : "Task added to backlog. Claim it locally with lore_claim_and_run_locally, or set priority to immediate via the UI.";
-        const msg = `Task created: ${result.task_id}\nType: ${resolvedType}\nPriority: ${priority}\nRepo: ${resolvedRepo || "default"}\n\n${pickupMsg}`;
-
-        invalidateCache([
-          "lore_list_pipeline_tasks",
-          "lore_list_pending_tasks",
-          "lore_get_pipeline_status",
-        ]);
-
-        return { content: [{ type: "text" as const, text: msg }] };
       } catch (err) {
         return {
           content: [
@@ -241,7 +261,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ task_id }) => {
       try {
-        if (!getPool()) {
+        {
           const apiUrl = process.env.LORE_API_URL;
           const apiToken = process.env.LORE_INGEST_TOKEN;
 
@@ -286,21 +306,6 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             ],
           };
         }
-        const task = await getTask(task_id);
-
-        if (!task) {
-          return {
-            content: [
-              { type: "text" as const, text: `task not found: ${task_id}` },
-            ],
-          };
-        }
-
-        return {
-          content: [
-            { type: "text" as const, text: JSON.stringify(task, null, 2) },
-          ],
-        };
       } catch (err) {
         return {
           content: [
@@ -396,7 +401,7 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ status, limit, offset }) => {
       try {
-        if (!getPool()) {
+        {
           const apiUrl = process.env.LORE_API_URL;
           const apiToken = process.env.LORE_INGEST_TOKEN;
 
@@ -441,34 +446,6 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
             ],
           };
         }
-        const validStatuses = [
-          "pending",
-          "queued",
-          "running",
-          "pr-created",
-          "review",
-          "merged",
-          "failed",
-          "cancelled",
-        ];
-
-        if (status && !validStatuses.includes(status)) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `invalid status: ${status}. Valid values: ${validStatuses.join(", ")}`,
-              },
-            ],
-          };
-        }
-        const result = await listTasks(status, Math.min(limit, 100), offset);
-
-        return {
-          content: [
-            { type: "text" as const, text: JSON.stringify(result, null, 2) },
-          ],
-        };
       } catch (err) {
         return {
           content: [
@@ -484,81 +461,38 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_cancel_task",
-    "Cancels a server-side pipeline task, flipping it to 'cancelled' and best-effort stopping any running GKE agent. (DB-only) Instead: lore_cancel_local_task to stop a task running in a local worktree; lore_retry_task to re-run a failed task rather than stop a live one. Rejected for tasks already in merged/failed/cancelled state.",
+    "Cancels a server-side pipeline task, flipping it to 'cancelled' and best-effort stopping any running GKE agent. Instead: lore_cancel_local_task to stop a task running in a local worktree; lore_retry_task to re-run a failed task rather than stop a live one. Rejected for tasks already in merged/failed/cancelled state.",
     {
       task_id: z.string(),
     },
-    async ({ task_id }) => {
-      try {
-        if (!getPool()) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set).",
-              },
-            ],
-          };
-        }
-        const result = await cancelTask(task_id);
-
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(result) }],
-        };
-      } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error cancelling task: ${errorMessage(err)}`,
-            },
-          ],
-        };
-      }
-    },
+    ({ task_id }) =>
+      proxiedText(
+        () => proxyToApi("/api/task", { action: "cancel", task_id }),
+        {
+          op: "cancelling a task",
+          toolName: "lore_cancel_task",
+          render: (body) => JSON.stringify(body),
+        },
+      ),
   );
 
   server.tool(
     "lore_retry_task",
-    "Re-runs a failed or escalated task by cloning it into a new pipeline task linked via retry_of. Only tasks in 'failed' or 'needs-human-help' state are retryable. (DB-only) Instead: lore_cancel_task to stop an unwanted live task rather than re-run it.",
+    "Re-runs a failed or escalated task by cloning it into a new pipeline task linked via retry_of. Only tasks in 'failed' or 'needs-human-help' state are retryable. Instead: lore_cancel_task to stop an unwanted live task rather than re-run it.",
     {
       task_id: z.string(),
     },
-    async ({ task_id }) => {
-      try {
-        if (!getPool()) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Pipeline requires PostgreSQL (LORE_DB_HOST not set).",
-              },
-            ],
-          };
-        }
-        const { retryTask } =
-          await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
-        const result = await retryTask(task_id);
-
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(result) }],
-        };
-      } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error retrying task: ${errorMessage(err)}`,
-            },
-          ],
-        };
-      }
-    },
+    ({ task_id }) =>
+      proxiedText(() => proxyToApi("/api/task", { action: "retry", task_id }), {
+        op: "retrying a task",
+        toolName: "lore_retry_task",
+        render: (body) => JSON.stringify(body),
+      }),
   );
 
   server.tool(
     "lore_list_task_group",
-    "Lists every task in one task_group_id with a completed/total rollup — the view for a single multi-repo feature's progress. (DB-only) Instead: lore_list_pipeline_tasks for an unscoped newest-first listing of all tasks.",
+    "Lists every task in one task_group_id with a completed/total rollup — the view for a single multi-repo feature's progress. Instead: lore_list_pipeline_tasks for an unscoped newest-first listing of all tasks.",
     {
       group_id: z
         .string()
@@ -566,65 +500,27 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
           "Task-group UUID (the value passed as group_id to lore_create_pipeline_task).",
         ),
     },
-    async ({ group_id }) => {
-      try {
-        const dbPoolRef = getPool();
+    ({ group_id }) =>
+      proxiedText(
+        () => proxyGetApi(`/api/task-groups/${encodeURIComponent(group_id)}`),
+        {
+          op: "listing a task group",
+          toolName: "lore_list_task_group",
+          subject: "the task group",
+          render: (body) => {
+            const group = body as TaskGroupResponse;
 
-        if (!dbPoolRef) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Task groups require PostgreSQL (LORE_DB_HOST not set).",
-              },
-            ],
-          };
-        }
-        const { rows } = await dbPoolRef.query(
-          `SELECT id, description, task_type, status, target_repo, pr_url, created_at
-           FROM pipeline.tasks WHERE task_group_id = $1 ORDER BY created_at`,
-          [group_id],
-        );
-
-        if (rows.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `No tasks found for group ${group_id}`,
-              },
-            ],
-          };
-        }
-        const completed = rows.filter((t) =>
-          ["merged", "completed"].includes(t.status as string),
-        ).length;
-        const summary = `Group ${group_id}: ${completed}/${rows.length} completed`;
-
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `${summary}\n\n${JSON.stringify(rows, null, 2)}`,
-            },
-          ],
-        };
-      } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error listing task group: ${errorMessage(err)}`,
-            },
-          ],
-        };
-      }
-    },
+            return group.total === 0
+              ? `No tasks found for group ${group_id}`
+              : `Group ${group_id}: ${group.completed}/${group.total} completed\n\n${JSON.stringify(group.tasks, null, 2)}`;
+          },
+        },
+      ),
   );
 
   server.tool(
     "lore_sync_tasks",
-    "Parses a speckit tasks.md and idempotently upserts each checklist item as a spec-task row; returns a 'Synced N tasks (M new)' summary. Run once per spec before any claiming — this is the start of spec-driven multi-agent work. This tool does NOT claim, run, or evaluate readiness. (DB-only) After syncing: lore_ready_tasks to find workable items; lore_claim_task to lock one; lore_complete_task to finish it.",
+    "Parses a speckit tasks.md and idempotently upserts each checklist item as a spec-task row; returns a 'Synced N tasks (M new)' summary. Run once per spec before any claiming — this is the start of spec-driven multi-agent work. This tool does NOT claim, run, or evaluate readiness. After syncing: lore_ready_tasks to find workable items; lore_claim_task to lock one; lore_complete_task to finish it.",
     {
       tasks_markdown: z
         .string()
@@ -640,68 +536,37 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         .describe("Feature slug grouping these spec-tasks within the repo."),
     },
     async ({ tasks_markdown, repo, spec_slug }) => {
-      try {
-        const resolvedRepo = repo || detectCurrentRepo();
+      const resolvedRepo = repo || detectCurrentRepo();
 
-        if (!resolvedRepo) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Could not detect repo. Specify repo parameter.",
-              },
-            ],
-          };
-        }
-        const dbPoolRef = getPool();
-
-        if (!dbPoolRef) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "lore_sync_tasks requires PostgreSQL (LORE_DB_HOST not set).",
-              },
-            ],
-          };
-        }
-        const parsed = parseTasks(tasks_markdown);
-
-        if (parsed.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No tasks found in the provided markdown.",
-              },
-            ],
-          };
-        }
-        const result = await syncTasksToDb(
-          dbPoolRef,
-          resolvedRepo,
-          spec_slug,
-          parsed,
-        );
-        const summary = `Synced ${result.synced} tasks (${result.created} new) for ${resolvedRepo} / ${spec_slug}.`;
-
-        return { content: [{ type: "text" as const, text: summary }] };
-      } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error syncing tasks: ${errorMessage(err)}`,
-            },
-          ],
-        };
+      if (!resolvedRepo) {
+        return undetectedRepoError();
       }
+
+      return proxiedText(
+        () =>
+          proxyToApi("/api/spec-tasks/sync", {
+            repo: resolvedRepo,
+            spec_slug,
+            tasks_markdown,
+          }),
+        {
+          op: "syncing spec-tasks",
+          toolName: "lore_sync_tasks",
+          render: (body) => {
+            const sync = body as SyncTasksResponse;
+
+            return sync.parsed === 0
+              ? "No tasks found in the provided markdown."
+              : `Synced ${sync.synced} tasks (${sync.created} new) for ${resolvedRepo} / ${spec_slug}.`;
+          },
+        },
+      );
     },
   );
 
   server.tool(
     "lore_ready_tasks",
-    "Lists spec-tasks that are 'pending' AND whose every dependency has completed — the items you can start right now. (DB-only) Spec-tasks must first be materialized with lore_sync_tasks; after picking one, lock it with lore_claim_task. Instead: lore_list_pipeline_tasks for a general status-filtered listing; lore_list_pending_tasks for unclaimed tasks across repos to run locally.",
+    "Lists spec-tasks that are 'pending' AND whose every dependency has completed — the items you can start right now. Spec-tasks must first be materialized with lore_sync_tasks; after picking one, lock it with lore_claim_task. Instead: lore_list_pipeline_tasks for a general status-filtered listing; lore_list_pending_tasks for unclaimed tasks across repos to run locally.",
     {
       repo: z
         .string()
@@ -709,72 +574,37 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         .describe("'owner/repo'. Auto-detected from git remote when omitted."),
     },
     async ({ repo }) => {
-      try {
-        const resolvedRepo = repo || detectCurrentRepo();
+      const resolvedRepo = repo || detectCurrentRepo();
 
-        if (!resolvedRepo) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Could not detect repo. Specify repo parameter.",
-              },
-            ],
-          };
-        }
-        const dbPoolRef = getPool();
-
-        if (!dbPoolRef) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "lore_ready_tasks requires PostgreSQL (LORE_DB_HOST not set).",
-              },
-            ],
-          };
-        }
-        const tasks = await getReadyTasks(dbPoolRef, resolvedRepo);
-
-        if (tasks.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "No ready tasks. All tasks are either completed, claimed, or blocked by dependencies.",
-              },
-            ],
-          };
-        }
-        const lines = tasks.map(
-          (t) =>
-            `- **${t.context_bundle?.spec_task_id}** (${t.id}): ${t.description}`,
-        );
-
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `## Ready tasks\n\n${lines.join("\n")}`,
-            },
-          ],
-        };
-      } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error fetching ready tasks: ${errorMessage(err)}`,
-            },
-          ],
-        };
+      if (!resolvedRepo) {
+        return undetectedRepoError();
       }
+      const params = new URLSearchParams({ repo: resolvedRepo });
+
+      return proxiedText(() => proxyGetApi(`/api/spec-tasks/ready?${params}`), {
+        op: "fetching ready tasks",
+        toolName: "lore_ready_tasks",
+        subject: "ready tasks",
+        render: (body) => {
+          const { tasks } = body as { tasks: RemoteTaskLite[] };
+
+          if (tasks.length === 0) {
+            return "No ready tasks. All tasks are either completed, claimed, or blocked by dependencies.";
+          }
+          const lines = tasks.map(
+            (t) =>
+              `- **${t.context_bundle?.spec_task_id}** (${t.id}): ${t.description}`,
+          );
+
+          return `## Ready tasks\n\n${lines.join("\n")}`;
+        },
+      });
     },
   );
 
   server.tool(
     "lore_claim_task",
-    "Atomically locks one 'pending' spec-task (flips it to 'running') so exactly one agent owns it. (DB-only) Use right before starting a task surfaced by lore_ready_tasks. Instead: lore_complete_task to mark it done afterward; lore_skip_task to dismiss a local notification without a server claim.",
+    "Atomically locks one 'pending' spec-task (flips it to 'running') so exactly one agent owns it. Use right before starting a task surfaced by lore_ready_tasks. Instead: lore_complete_task to mark it done afterward; lore_skip_task to dismiss a local notification without a server claim.",
     {
       task_id: z.string(),
       agent_id: z
@@ -782,105 +612,49 @@ export function registerPipelineTools(server: McpServer, deps: ToolDeps) {
         .optional()
         .describe("Claiming agent identifier. Auto-resolved when omitted."),
     },
-    async ({ task_id, agent_id }) => {
-      try {
-        const dbPoolRef = getPool();
+    ({ task_id, agent_id }) => {
+      const resolvedAgent = agent_id || resolveAgentId();
 
-        if (!dbPoolRef) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "lore_claim_task requires PostgreSQL (LORE_DB_HOST not set).",
-              },
-            ],
-          };
-        }
-        const resolvedAgent = agent_id || resolveAgentId();
-        const claimed = await claimTask(dbPoolRef, task_id, resolvedAgent);
-
-        if (!claimed) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Could not claim task ${task_id}. It may already be claimed or does not exist.`,
-              },
-            ],
-          };
-        }
-
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Task ${task_id} claimed by ${resolvedAgent}.`,
-            },
-          ],
-        };
-      } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error claiming task: ${errorMessage(err)}`,
-            },
-          ],
-        };
-      }
+      return proxiedText(
+        () =>
+          proxyToApi("/api/spec-tasks/claim", {
+            task_id,
+            agent_id: resolvedAgent,
+          }),
+        {
+          op: "claiming a task",
+          toolName: "lore_claim_task",
+          render: (body) =>
+            (body as { claimed: boolean }).claimed
+              ? `Task ${task_id} claimed by ${resolvedAgent}.`
+              : `Could not claim task ${task_id}. It may already be claimed or does not exist.`,
+        },
+      );
     },
   );
 
   server.tool(
     "lore_complete_task",
-    "Marks a claimed ('running') spec-task as 'completed' and returns which dependents are now unblocked. (DB-only) Only 'running' tasks can be completed. Instead: lore_ready_tasks to pick the next item; lore_skip_task to dismiss a local notification; lore_cancel_task to cancel rather than complete.",
+    "Marks a claimed ('running') spec-task as 'completed' and returns which dependents are now unblocked. Only 'running' tasks can be completed. Instead: lore_ready_tasks to pick the next item; lore_skip_task to dismiss a local notification; lore_cancel_task to cancel rather than complete.",
     {
       task_id: z.string(),
     },
-    async ({ task_id }) => {
-      try {
-        const dbPoolRef = getPool();
+    ({ task_id }) =>
+      proxiedText(() => proxyToApi("/api/spec-tasks/complete", { task_id }), {
+        op: "completing a task",
+        toolName: "lore_complete_task",
+        render: (body) => {
+          const result = body as { completed: boolean; unblocked: string[] };
 
-        if (!dbPoolRef) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "lore_complete_task requires PostgreSQL (LORE_DB_HOST not set).",
-              },
-            ],
-          };
-        }
-        const result = await completeTask(dbPoolRef, task_id);
+          if (!result.completed) {
+            return `Could not complete task ${task_id}. It may not be in 'running' state.`;
+          }
 
-        if (!result.completed) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Could not complete task ${task_id}. It may not be in 'running' state.`,
-              },
-            ],
-          };
-        }
-        let msg = `Task ${task_id} completed.`;
-
-        if (result.unblocked.length > 0) {
-          msg += `\n\nNewly unblocked tasks:\n${result.unblocked.map((u) => `- ${u}`).join("\n")}`;
-        }
-
-        return { content: [{ type: "text" as const, text: msg }] };
-      } catch (err) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Error completing task: ${errorMessage(err)}`,
-            },
-          ],
-        };
-      }
-    },
+          return result.unblocked.length > 0
+            ? `Task ${task_id} completed.\n\nNewly unblocked tasks:\n${result.unblocked.map((u) => `- ${u}`).join("\n")}`
+            : `Task ${task_id} completed.`;
+        },
+      }),
   );
 
   server.tool(

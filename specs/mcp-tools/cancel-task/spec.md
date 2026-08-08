@@ -39,9 +39,12 @@ Cancels a server-side pipeline task, flipping it to 'cancelled' and best-effort 
 
 ## Behavior
 
-1. **DB gate** — if `process.env.LORE_DB_HOST` is unset, return
-   `"Pipeline requires PostgreSQL (LORE_DB_HOST not set)."` (no stdio proxy for cancel).
-2. Call `cancelTask(task_id)` ([handler wrapper](../../../libs/server-core/src/features/pipeline/pipeline.ts#L62)).
+1. `POST /api/task` with `{action: "cancel", task_id}` via `proxyToApi`. The MCP
+   adapter holds no pool (ADR-032), so the cancellation runs in lore-api
+   ([`POST /api/task`](../../api-routes/task-post/spec.md)) under the `task` scope.
+2. The route calls the shared `cancelTask(pool, task_id)`, so an unknown id
+   answers `404 Task not found` and a terminal state answers
+   `409 Cannot cancel task in {status} state` rather than silently no-op'ing.
 3. **Shared CRUD** ([`cancelTask`](../../../libs/shared/src/pipeline-tasks.ts#L195)):
    1. `getTask(pool, taskId)` (SELECT row + events); if `null`, throw `"Task not found"`.
    2. If `status ∈ {merged, failed, cancelled}`, throw `"Cannot cancel task in {status} state"`.
@@ -49,9 +52,11 @@ Cancels a server-side pipeline task, flipping it to 'cancelled' and best-effort 
       — reads the old status, `UPDATE pipeline.tasks SET status='cancelled', updated_at=now()`,
       then records the transition event into `pipeline.task_events`.
    4. Return `{task_id, status: "cancelled"}`.
-4. The handler returns `JSON.stringify(result)` (compact, no indent).
-5. Any thrown error is caught and returned as `"Error cancelling task: {message}"`
-   (this is how the `Task not found` / `Cannot cancel …` throws reach the caller).
+4. **Success** — the handler returns `JSON.stringify(body)` (compact, no indent).
+5. **Failure** — `not_configured` → the not-configured text; `denied` → the
+   denial text; anything else (including the 404/409 refusals) → the
+   `unreachableError("cancelling a task", detail)` text, whose detail carries the
+   server's own message.
 
 ## Output
 
@@ -61,10 +66,11 @@ A single MCP text content block — one of: the missing-DB message, the compact
 
 ## Dependencies & side effects
 
-- `cancelTask` wrapper → shared `cancelTask` (→ `getTask`, `updateTaskStatus`).
-- DB tables: `pipeline.tasks` (read + status UPDATE), `pipeline.task_events`
-  (the `cancelled` event with `{cancelled_by: "user"}`).
-- Env: `LORE_DB_HOST` (gate only — no proxy path).
+- `proxyToApi` + `notConfiguredError` / `deniedError` / `unreachableError`.
+- Server-side: shared `cancelTask` (→ `getTask`, `updateTaskStatus`) over
+  `pipeline.tasks` (read + status UPDATE) and `pipeline.task_events` (the
+  `cancelled` event with `{cancelled_by: "user"}`).
+- Env: `LORE_API_URL`, `LORE_INGEST_TOKEN`. No database handle.
 
 ## Acceptance Criteria
 
@@ -77,6 +83,15 @@ A task id with no matching row is rejected with `Task not found`.
 A task already in a terminal state (e.g. merged) is rejected with a
 `Cannot cancel task in <state> state` error.
 ([validated by `throws cannot cancel when the task is already merged`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L100))
+
+The cancel action is posted to `/api/task` and the API's result is returned
+verbatim. ([validated by `lore_cancel_task posts the cancel action and returns the API result`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L256))
+
+A server-side refusal (a merged task) reaches the caller with the server's own
+reason. ([validated by `lore_cancel_task reports the server's refusal for a merged task`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L271))
+
+An unconfigured API yields the not-configured message rather than a PostgreSQL
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L440))
 
 ## Out of Scope
 

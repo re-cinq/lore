@@ -1,19 +1,7 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { createHash } from "node:crypto";
-import { redactSecrets as sanitizeContent } from "@re-cinq/lore-shared";
-import { getQueryEmbedding } from "@re-cinq/lore-server-core/platform/db.js";
 import { resolveAgentId } from "@re-cinq/lore-server-core/platform/agent-id.js";
-import {
-  writeMemory,
-  readMemory,
-  deleteMemory,
-  listMemories,
-  isMemoryDbAvailable,
-  agentHealth,
-  agentStats,
-} from "@re-cinq/lore-server-core/features/memory/memory.js";
 import {
   writeMemoryFile,
   readMemoryFile,
@@ -21,26 +9,16 @@ import {
   listMemoriesFile,
   searchMemoryFile,
 } from "@re-cinq/lore-server-core/features/memory/memory-file.js";
-import { searchMemories } from "@re-cinq/lore-server-core/features/memory/memory-search.js";
-import {
-  extractFacts,
-  extractFactsFromEpisode,
-} from "@re-cinq/lore-server-core/features/memory/facts.js";
-import {
-  extractAndUpdateGraph,
-  queryLiveGraph,
-} from "@re-cinq/lore-server-core/features/memory/graph.js";
 import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
-import { createGraphLlmCall } from "@re-cinq/lore-server-core/platform/anthropic-client.js";
 import {
-  ToolDeps,
-  makeTrackLatency,
+  trackLatency,
   proxyMemory,
   proxyToApi,
   proxyGetApi,
   withReadCache,
   unreachableError,
   deniedError,
+  notConfiguredError,
 } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 
@@ -58,10 +36,7 @@ const EPISODE_DERIVED_READS = [
   "lore_assemble_context",
 ];
 
-export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
-  const { getPool } = deps;
-  const trackLatency = makeTrackLatency(getPool);
-
+export function registerMemoryTools(server: McpServer) {
   server.tool(
     "lore_write_memory",
     `Stores one curated key/value memory (versioned, repo-scoped when a repo is detected, agent-scoped otherwise) and returns {key, version, agent_id, created_at}. Use when you have a decision, convention, correction, or session summary you want to retrieve later by a key you choose. Instead: lore_write_episode for raw uncurated text with no chosen key.`,
@@ -81,51 +56,13 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         .boolean()
         .optional()
         .describe(
-          "When true, triggers async fact extraction from value (fire-and-forget).",
+          "When true, the API fires async fact extraction from value (fire-and-forget; does not block the write).",
         ),
     },
     async ({ key, value, agent_id, ttl, extract_facts }) => {
       try {
         const repo = detectCurrentRepo() || undefined;
-        const embedding = await getQueryEmbedding(value);
 
-        if (isMemoryDbAvailable()) {
-          const result = await writeMemory(
-            key,
-            value,
-            agent_id,
-            ttl,
-            embedding || undefined,
-            repo,
-          );
-
-          invalidateCache(MEMORY_DERIVED_READS);
-
-          if (extract_facts) {
-            void import("@re-cinq/lore-server-core/features/memory/memory.js").then(
-              ({ getMemoryPool }) => {
-                const p = getMemoryPool();
-
-                if (p) {
-                  void p
-                    .query<{ id: string }>(
-                      `SELECT id FROM memory.memories WHERE key = $1 AND (repo = $2 OR agent_id = $3) ORDER BY version DESC LIMIT 1`,
-                      [key, repo || "", resolveAgentId(agent_id)],
-                    )
-                    .then((r) => {
-                      if (r.rows[0]?.id) {
-                        extractFacts(r.rows[0].id, value, p).catch(() => {});
-                      }
-                    });
-                }
-              },
-            );
-          }
-
-          return {
-            content: [{ type: "text" as const, text: JSON.stringify(result) }],
-          };
-        }
         // Proxy to GKE if available
         const proxied = await proxyMemory("write", {
           key,
@@ -133,6 +70,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
           agent_id: agent_id || resolveAgentId(),
           ttl,
           repo,
+          extract_facts,
         });
 
         if (proxied.ok) {
@@ -187,23 +125,6 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
         const ver =
           version === "all" ? "all" : version ? Number(version) : undefined;
 
-        if (isMemoryDbAvailable()) {
-          const result = await readMemory(key, agent_id, ver);
-
-          if (!result) {
-            return {
-              content: [
-                { type: "text" as const, text: `Memory "${key}" not found.` },
-              ],
-            };
-          }
-
-          return {
-            content: [
-              { type: "text" as const, text: JSON.stringify(result, null, 2) },
-            ],
-          };
-        }
         const proxied = await withReadCache(
           {
             tool: "lore_read_memory",
@@ -266,15 +187,6 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ key, agent_id }) => {
       try {
-        if (isMemoryDbAvailable()) {
-          const result = await deleteMemory(key, agent_id);
-
-          invalidateCache(MEMORY_DERIVED_READS);
-
-          return {
-            content: [{ type: "text" as const, text: JSON.stringify(result) }],
-          };
-        }
         const proxied = await proxyMemory("delete", {
           key,
           agent_id: agent_id || resolveAgentId(),
@@ -333,15 +245,6 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
       try {
         const repo = detectCurrentRepo() || undefined;
 
-        if (isMemoryDbAvailable()) {
-          const result = await listMemories(agent_id, limit, offset, repo);
-
-          return {
-            content: [
-              { type: "text" as const, text: JSON.stringify(result, null, 2) },
-            ],
-          };
-        }
         const proxied = await withReadCache(
           {
             tool: "lore_list_memories",
@@ -424,41 +327,21 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
       graph_augment,
     }) => {
       try {
-        if (isMemoryDbAvailable()) {
-          const results = await searchMemories(
-            getPool()!,
-            query,
-            agent_id,
-            pool,
-            limit,
-            include_invalidated,
-            graph_augment,
-          );
-
-          return {
-            content: [
-              { type: "text" as const, text: JSON.stringify(results, null, 2) },
-            ],
-          };
-        }
+        const searchArgs = {
+          query,
+          agent_id: agent_id || undefined,
+          pool_name: pool,
+          limit,
+          include_invalidated,
+          graph_augment,
+        };
         const proxied = await withReadCache(
           {
             tool: "lore_search_memory",
-            args: {
-              query,
-              agent_id: agent_id || undefined,
-              pool_name: pool,
-              limit,
-            },
+            args: searchArgs,
             ttlSeconds: 300,
           },
-          () =>
-            proxyMemory("search", {
-              query,
-              agent_id: agent_id || undefined,
-              pool_name: pool,
-              limit,
-            }),
+          () => proxyMemory("search", searchArgs),
         );
 
         if (proxied.ok) {
@@ -517,122 +400,33 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ content, source, ref, agent_id }) => {
       try {
-        const dbPoolRef = getPool()!;
+        // Proxy to GKE
+        const proxied = await proxyToApi("/api/episode", {
+          content,
+          source,
+          ref,
+          agent_id: agent_id || resolveAgentId(),
+        });
 
-        if (!isMemoryDbAvailable()) {
-          // Proxy to GKE
-          const proxied = await proxyToApi("/api/episode", {
-            content,
-            source,
-            ref,
-            agent_id: agent_id || resolveAgentId(),
-          });
+        if (proxied.ok) {
+          invalidateCache(EPISODE_DERIVED_READS);
 
-          if (proxied.ok) {
-            invalidateCache(EPISODE_DERIVED_READS);
-
-            return { content: [{ type: "text" as const, text: proxied.body }] };
-          }
-
-          if (proxied.reason === "unreachable") {
-            return unreachableError("lore_write_episode", proxied.detail);
-          }
-
-          if (proxied.reason === "denied") {
-            return deniedError("lore_write_episode", proxied.detail);
-          }
-
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: "Episodes require PostgreSQL or LORE_API_URL. Neither is configured.",
-              },
-            ],
-          };
-        }
-        const agent = resolveAgentId(agent_id);
-        // Privacy filter: strip secrets before storing in org-wide memory
-        const safeContent = sanitizeContent(content);
-        const contentHash = createHash("sha256")
-          .update(safeContent)
-          .digest("hex");
-        const embedding = await getQueryEmbedding(safeContent);
-        const embeddingStr = embedding ? `[${embedding.join(",")}]` : null;
-
-        const { rows } = await dbPoolRef.query<{ id: string }>(
-          `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref, embedding)
-           VALUES ($1, $2, $3, $4, $5, $6)
-           ON CONFLICT (agent_id, content_hash) DO NOTHING
-           RETURNING id`,
-          [agent, safeContent, contentHash, source, ref || null, embeddingStr],
-        );
-
-        if (rows.length === 0) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify({
-                  status: "duplicate",
-                  message: "Episode already ingested.",
-                }),
-              },
-            ],
-          };
+          return { content: [{ type: "text" as const, text: proxied.body }] };
         }
 
-        const episodeId = rows[0].id;
-
-        invalidateCache(EPISODE_DERIVED_READS);
-
-        // Trigger async fact extraction and graph update (don't block the response)
-        extractFactsFromEpisode(episodeId, content, agent, dbPoolRef).catch(
-          (err) =>
-            console.warn(
-              `[episode] Fact extraction failed for ${episodeId}: ${errorMessage(err)}`,
-            ),
-        );
-
-        // Graph extraction (async, best-effort)
-        {
-          const graphLlmCall = createGraphLlmCall(dbPoolRef);
-          // Determine repo from ref (e.g. "owner/repo#42" -> "owner/repo")
-          const repoFromRef = ref?.match(/^([^#]+)/)?.[1] || null;
-
-          extractAndUpdateGraph(
-            dbPoolRef,
-            content,
-            repoFromRef,
-            episodeId,
-            null,
-            graphLlmCall,
-          ).catch((err) =>
-            console.warn(
-              `[episode] Graph extraction failed for ${episodeId}: ${errorMessage(err)}`,
-            ),
-          );
+        if (proxied.reason === "unreachable") {
+          return unreachableError("lore_write_episode", proxied.detail);
         }
 
-        // Audit log
-        await dbPoolRef
-          .query(
-            `INSERT INTO memory.audit_log (agent_id, operation, metadata)
-           VALUES ($1, 'lore_write_episode', $2)`,
-            [agent, JSON.stringify({ episode_id: episodeId, source, ref })],
-          )
-          .catch(() => {});
+        if (proxied.reason === "denied") {
+          return deniedError("lore_write_episode", proxied.detail);
+        }
 
         return {
           content: [
             {
               type: "text" as const,
-              text: JSON.stringify({
-                status: "ok",
-                episode_id: episodeId,
-                source,
-                ref,
-              }),
+              text: "Episodes require PostgreSQL or LORE_API_URL. Neither is configured.",
             },
           ],
         };
@@ -679,83 +473,55 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
     async ({ entity, relation_type, repo, include_invalidated }) => {
       return trackLatency("lore_query_graph", async () => {
         try {
-          if (!isMemoryDbAvailable()) {
-            // Local stdio mode: proxy the read to the GKE server over LORE_API_URL
-            // (mirrors lore_assemble_context) instead of requiring a direct DB.
-            const params = new URLSearchParams();
+          // Local stdio mode: proxy the read to the GKE server over LORE_API_URL
+          // (mirrors lore_assemble_context) instead of requiring a direct DB.
+          const params = new URLSearchParams();
 
-            if (entity) {
-              params.set("entity", entity);
-            }
-
-            if (relation_type) {
-              params.set("relation_type", relation_type);
-            }
-
-            if (repo) {
-              params.set("repo", repo);
-            }
-
-            if (include_invalidated) {
-              params.set("include_invalidated", "true");
-            }
-            const proxied = await withReadCache(
-              {
-                tool: "lore_query_graph",
-                args: { entity, relation_type, repo, include_invalidated },
-                repo: repo || undefined,
-                ttlSeconds: 600,
-              },
-              () => proxyGetApi(`/api/graph?${params.toString()}`),
-            );
-
-            if (proxied.ok) {
-              return {
-                content: [{ type: "text" as const, text: proxied.body }],
-              };
-            }
-
-            if (proxied.reason === "unreachable") {
-              return unreachableError("lore_query_graph", proxied.detail);
-            }
-
-            if (proxied.reason === "denied") {
-              return deniedError("lore_query_graph", proxied.detail);
-            }
-
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: "Knowledge graph requires PostgreSQL (LORE_DB_HOST) or a configured LORE_API_URL.",
-                },
-              ],
-            };
+          if (entity) {
+            params.set("entity", entity);
           }
-          const results = await queryLiveGraph(
-            getPool()!,
-            entity,
-            relation_type,
-            repo,
-            include_invalidated,
+
+          if (relation_type) {
+            params.set("relation_type", relation_type);
+          }
+
+          if (repo) {
+            params.set("repo", repo);
+          }
+
+          if (include_invalidated) {
+            params.set("include_invalidated", "true");
+          }
+          const proxied = await withReadCache(
+            {
+              tool: "lore_query_graph",
+              args: { entity, relation_type, repo, include_invalidated },
+              repo: repo || undefined,
+              ttlSeconds: 600,
+            },
+            () => proxyGetApi(`/api/graph?${params.toString()}`),
           );
 
-          if (results.length === 0) {
+          if (proxied.ok) {
             return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: entity
-                    ? `No relationships found for "${entity}".`
-                    : "Knowledge graph is empty. Write episodes or memories to populate it.",
-                },
-              ],
+              content: [{ type: "text" as const, text: proxied.body }],
             };
+          }
+
+          if (proxied.reason === "unreachable") {
+            return unreachableError("lore_query_graph", proxied.detail);
+          }
+
+          if (proxied.reason === "denied") {
+            return deniedError("lore_query_graph", proxied.detail);
           }
 
           return {
             content: [
-              { type: "text" as const, text: JSON.stringify(results, null, 2) },
+              {
+                type: "text" as const,
+                text: "Knowledge graph requires PostgreSQL (LORE_DB_HOST) or a configured LORE_API_URL.",
+              },
             ],
           };
         } catch (err) {
@@ -774,7 +540,7 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
 
   server.tool(
     "lore_agent_stats",
-    `Returns an agent's combined health and learning statistics as JSON (memory_count, total_facts, active_facts, invalidated_facts, total_searches, recent_episodes, etc.). Use to gauge how much an agent has learned and how active it is. (DB-only — does not proxy.) Instead: lore_my_usage for per-developer LLM token spend.`,
+    `Returns an agent's combined health and learning statistics as JSON (memory_count, total_facts, active_facts, invalidated_facts, total_searches, recent_episodes, etc.). Use to gauge how much an agent has learned and how active it is. Instead: lore_my_usage for per-developer LLM token spend.`,
     {
       agent_id: z
         .string()
@@ -783,63 +549,36 @@ export function registerMemoryTools(server: McpServer, deps: ToolDeps) {
     },
     async ({ agent_id }) => {
       try {
-        if (!isMemoryDbAvailable()) {
+        const params = new URLSearchParams({
+          agent_id: resolveAgentId(agent_id),
+        });
+        const proxied = await proxyGetApi(`/api/agent-stats?${params}`);
+
+        if (proxied.ok) {
           return {
             content: [
               {
                 type: "text" as const,
-                text: "Agent stats requires PostgreSQL (LORE_DB_HOST not set).",
+                text: JSON.stringify(JSON.parse(proxied.body), null, 2),
               },
             ],
           };
         }
-        const dbPoolRef = getPool()!;
-        const agent = resolveAgentId(agent_id);
 
-        // Fetch health, stats, and recent episodes in parallel
-        const [healthResult, statsResult, episodesResult] = await Promise.all([
-          agentHealth(agent_id),
-          agentStats(agent_id),
-          dbPoolRef
-            .query(
-              `SELECT e.id, e.source, e.ref, e.created_at,
-                    LEFT(e.content, 200) as content_preview,
-                    (SELECT count(*)::int FROM memory.facts f WHERE f.episode_id = e.id) as fact_count
-             FROM memory.episodes e
-             WHERE e.agent_id = $1
-             ORDER BY e.created_at DESC
-             LIMIT 5`,
-              [agent],
-            )
-            .catch(() => ({ rows: [] })),
-        ]);
-
-        // Get total episode count
-        let episodeCount = 0;
-
-        try {
-          const { rows } = await dbPoolRef.query(
-            `SELECT count(*)::int as total FROM memory.episodes WHERE agent_id = $1`,
-            [agent],
-          );
-
-          episodeCount = (rows[0]?.total as number) || 0;
-        } catch {
-          // best-effort: leave episodeCount at 0
+        if (proxied.reason === "not_configured") {
+          return notConfiguredError("fetching agent stats");
         }
 
-        const result = {
-          ...healthResult,
-          ...statsResult,
-          recent_episodes: {
-            total_count: episodeCount,
-            latest: episodesResult.rows,
-          },
-        };
+        if (proxied.reason === "denied") {
+          return deniedError("lore_agent_stats", proxied.detail);
+        }
 
         return {
           content: [
-            { type: "text" as const, text: JSON.stringify(result, null, 2) },
+            {
+              type: "text" as const,
+              text: `Could not fetch agent stats from the Lore API: ${proxied.detail}`,
+            },
           ],
         };
       } catch (err) {

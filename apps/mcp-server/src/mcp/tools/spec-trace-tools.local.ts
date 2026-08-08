@@ -1,12 +1,8 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { ToolDeps } from "./deps.js";
 
-export function registerSpecTraceLocalTools(
-  server: McpServer,
-  _deps: ToolDeps,
-) {
+export function registerSpecTraceLocalTools(server: McpServer) {
   server.tool(
     "lore_list_tests",
     `Runs the repo's .lore/test-commands.yml 'list' command and returns a JSON array of test descriptors {id, name, file, startLine?, endLine?, suite?, spec?}; 'id' is the selector to pass to lore_run_test. Use to discover available tests before running one. Instead: to run a test and see coverage use lore_run_test; to read built-graph coverage without executing use lore-query-trace.

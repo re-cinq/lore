@@ -20,7 +20,6 @@ vi.mock("./deps.js", async (importOriginal) => ({
 import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { proxyGetApi, proxyToApi } from "./deps.js";
 import { registerRepoTools } from "./repo-tools.js";
-import type { ToolDeps } from "./deps.js";
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<{
   content: { type: string; text: string }[];
@@ -28,7 +27,7 @@ type ToolHandler = (args: Record<string, unknown>) => Promise<{
 
 const originalEnv = { ...process.env };
 
-function handlerFor(name: string, getPool: () => unknown): ToolHandler {
+function handlerFor(name: string): ToolHandler {
   const handlers: Record<string, ToolHandler> = {};
   const fakeServer = {
     tool(
@@ -41,9 +40,7 @@ function handlerFor(name: string, getPool: () => unknown): ToolHandler {
     },
   };
 
-  registerRepoTools(fakeServer as never, {
-    getPool: getPool as ToolDeps["getPool"],
-  });
+  registerRepoTools(fakeServer as never);
 
   return handlers[name];
 }
@@ -68,7 +65,7 @@ describe("lore_ingest_files", () => {
 
   it("returns a detect-repo message when no repo is given and detection fails", async () => {
     vi.mocked(detectCurrentRepo).mockReturnValue(null);
-    const handler = handlerFor("lore_ingest_files", () => null);
+    const handler = handlerFor("lore_ingest_files");
     const result = await handler({ files: ["CLAUDE.md"] });
 
     expect(result.content[0].text).toEqual(
@@ -77,7 +74,7 @@ describe("lore_ingest_files", () => {
   });
 
   it("returns a config-required message when LORE_API_URL / token are unset", async () => {
-    const handler = handlerFor("lore_ingest_files", () => null);
+    const handler = handlerFor("lore_ingest_files");
     const result = await handler({
       files: ["CLAUDE.md"],
       repo: "re-cinq/lore",
@@ -104,7 +101,7 @@ describe("lore_onboard_repo", () => {
       status: 409,
       body,
     });
-    const handler = handlerFor("lore_onboard_repo", () => null);
+    const handler = handlerFor("lore_onboard_repo");
     const result = await handler({ full_name: "re-cinq/x" });
 
     // Not the "unreachable ... check the GKE pods and retry" copy: a refusal is
@@ -118,7 +115,7 @@ describe("lore_onboard_repo", () => {
       reason: "unreachable",
       detail: "request timed out (15s)",
     });
-    const handler = handlerFor("lore_onboard_repo", () => null);
+    const handler = handlerFor("lore_onboard_repo");
     const result = await handler({ full_name: "re-cinq/x" });
 
     expect(result.content[0].text).toContain("Lore API unreachable");
@@ -126,7 +123,7 @@ describe("lore_onboard_repo", () => {
 
   it("passes reonboard through to the API", async () => {
     vi.mocked(proxyToApi).mockResolvedValue({ ok: true, body: "{}" });
-    const handler = handlerFor("lore_onboard_repo", () => null);
+    const handler = handlerFor("lore_onboard_repo");
 
     await handler({ full_name: "re-cinq/x", reonboard: true });
 
@@ -145,7 +142,7 @@ describe("lore_list_repos", () => {
     vi.mocked(proxyGetApi)
       .mockResolvedValueOnce(page(first, 150))
       .mockResolvedValueOnce(page(second, 150));
-    const result = await handlerFor("lore_list_repos", () => null)({});
+    const result = await handlerFor("lore_list_repos")({});
 
     expect(proxyGetApi).toHaveBeenNthCalledWith(
       1,
@@ -165,7 +162,7 @@ describe("lore_list_repos", () => {
     vi.mocked(proxyGetApi).mockResolvedValueOnce(
       page([{ id: 1 }, { id: 2 }], 2),
     );
-    const result = await handlerFor("lore_list_repos", () => null)({});
+    const result = await handlerFor("lore_list_repos")({});
 
     expect(proxyGetApi).toHaveBeenCalledTimes(1);
     expect(JSON.parse(result.content[0].text)).toEqual({
@@ -176,7 +173,7 @@ describe("lore_list_repos", () => {
 
   it("reports no repos when the first page is empty", async () => {
     vi.mocked(proxyGetApi).mockResolvedValueOnce(page([], 0));
-    const result = await handlerFor("lore_list_repos", () => null)({});
+    const result = await handlerFor("lore_list_repos")({});
 
     expect(proxyGetApi).toHaveBeenCalledTimes(1);
     expect(result.content[0].text).toEqual(
