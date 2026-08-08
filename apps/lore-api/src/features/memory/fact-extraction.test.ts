@@ -26,11 +26,7 @@ describe("extractFactsForMemory", () => {
 
     expect(String(sql)).toContain("ORDER BY version DESC");
     expect(params).toEqual(["conventions/naming", "o/r", "agent-7"]);
-    expect(extractFacts).toHaveBeenCalledWith(
-      "m-1",
-      "we use kebab-case",
-      pool,
-    );
+    expect(extractFacts).toHaveBeenCalledWith("m-1", "we use kebab-case", pool);
   });
 
   it("does nothing when the written memory cannot be resolved", async () => {

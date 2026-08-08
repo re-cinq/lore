@@ -9,7 +9,11 @@ import {
 
 const originalEnv = { ...process.env };
 const get = (pool: unknown, url = "/api/analytics") =>
-  buildServer(() => pool as never).inject({ method: "GET", url, headers: AUTH });
+  buildServer(() => pool as never).inject({
+    method: "GET",
+    url,
+    headers: AUTH,
+  });
 
 /** Analytics fans out three concurrent queries; makePool resolves them in order. */
 function analyticsPool() {

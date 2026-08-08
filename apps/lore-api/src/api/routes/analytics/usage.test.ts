@@ -9,7 +9,11 @@ import {
 
 const originalEnv = { ...process.env };
 const get = (pool: unknown, url = "/api/usage?agent_id=dev@example.com") =>
-  buildServer(() => pool as never).inject({ method: "GET", url, headers: AUTH });
+  buildServer(() => pool as never).inject({
+    method: "GET",
+    url,
+    headers: AUTH,
+  });
 
 describe("GET /api/usage", () => {
   useRateLimitSafeClock();

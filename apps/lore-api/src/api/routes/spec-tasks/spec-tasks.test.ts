@@ -13,13 +13,18 @@ import {
  * stubbed here and these tests cover the HTTP contract: params in, JSON out,
  * status codes.
  */
-vi.mock("@re-cinq/lore-server-core/features/pipeline/tasks.js", async (orig) => ({
-  ...(await orig<typeof import("@re-cinq/lore-server-core/features/pipeline/tasks.js")>()),
-  syncTasksToDb: vi.fn(),
-  getReadyTasks: vi.fn(),
-  claimTask: vi.fn(),
-  completeTask: vi.fn(),
-}));
+vi.mock(
+  "@re-cinq/lore-server-core/features/pipeline/tasks.js",
+  async (orig) => ({
+    ...(await orig<
+      typeof import("@re-cinq/lore-server-core/features/pipeline/tasks.js")
+    >()),
+    syncTasksToDb: vi.fn(),
+    getReadyTasks: vi.fn(),
+    claimTask: vi.fn(),
+    completeTask: vi.fn(),
+  }),
+);
 
 import {
   syncTasksToDb,
@@ -29,8 +34,7 @@ import {
 } from "@re-cinq/lore-server-core/features/pipeline/tasks.js";
 
 const originalEnv = { ...process.env };
-const server = (pool: unknown = makePool()) =>
-  buildServer(() => pool as never);
+const server = (pool: unknown = makePool()) => buildServer(() => pool as never);
 const get = (url: string, pool?: unknown) =>
   server(pool).inject({ method: "GET", url, headers: AUTH });
 const post = (url: string, payload: unknown, pool?: unknown) =>
@@ -104,7 +108,11 @@ describe("spec-task DAG routes", () => {
   describe("GET /api/spec-tasks/ready", () => {
     it("returns the dependency-ready tasks for the repo", async () => {
       const tasks = [
-        { id: "t1", description: "wire", context_bundle: { spec_task_id: "T001" } },
+        {
+          id: "t1",
+          description: "wire",
+          context_bundle: { spec_task_id: "T001" },
+        },
       ];
 
       vi.mocked(getReadyTasks).mockResolvedValue(tasks as never);

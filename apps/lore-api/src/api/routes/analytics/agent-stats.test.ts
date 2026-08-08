@@ -10,7 +10,11 @@ import {
 
 const originalEnv = { ...process.env };
 const get = (pool: unknown, url = "/api/agent-stats?agent_id=agent-7") =>
-  buildServer(() => pool as never).inject({ method: "GET", url, headers: AUTH });
+  buildServer(() => pool as never).inject({
+    method: "GET",
+    url,
+    headers: AUTH,
+  });
 
 /**
  * The real `agentHealth` / `agentStats` run here — they read the pool set via
