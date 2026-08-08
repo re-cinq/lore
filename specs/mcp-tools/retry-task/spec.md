@@ -55,8 +55,9 @@ Re-runs a failed or escalated task by cloning it into a new pipeline task linked
    5. Return `{task_id: newId, status: result.status, retry_of: taskId}`.
 4. **Success** — the handler returns `JSON.stringify(body)` (compact).
 5. **Failure** — `not_configured` → the not-configured text; `denied` → the
-   denial text; anything else → the `unreachableError("retrying a task", detail)`
-   text, whose detail carries the server's own message.
+   denial text; a non-retriable status (the server refusing a non-retryable
+   state) → `"The Lore API refused retrying a task: {detail}"`; a real outage →
+   the `unreachableError("retrying a task", detail)` text.
 
 ## Output
 

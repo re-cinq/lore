@@ -85,6 +85,13 @@ async function proxiedText(
       return deniedError(toolName, proxied.detail);
     }
 
+    // A non-retriable status means the server answered and refused (e.g. a 409
+    // "Cannot cancel task in merged state"). Reporting that as "unreachable
+    // after 4 attempts" would blame the network for the server's verdict.
+    if (proxied.status) {
+      return toolText(`The Lore API refused ${op}: ${proxied.detail}`);
+    }
+
     return subject
       ? toolText(
           `Could not fetch ${subject} from the Lore API: ${proxied.detail}`,

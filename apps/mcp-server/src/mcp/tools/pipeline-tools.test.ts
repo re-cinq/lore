@@ -279,8 +279,8 @@ describe("pipeline tools that proxy to lore-api", () => {
 
     const result = await handlers["lore_cancel_task"]({ task_id: "t1" });
 
-    expect(result.content[0].text).toContain(
-      "Cannot cancel task in merged state",
+    expect(result.content[0].text).toBe(
+      "The Lore API refused cancelling a task: HTTP 409 Conflict: Cannot cancel task in merged state",
     );
   });
 

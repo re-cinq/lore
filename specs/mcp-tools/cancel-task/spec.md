@@ -54,9 +54,10 @@ Cancels a server-side pipeline task, flipping it to 'cancelled' and best-effort 
    4. Return `{task_id, status: "cancelled"}`.
 4. **Success** — the handler returns `JSON.stringify(body)` (compact, no indent).
 5. **Failure** — `not_configured` → the not-configured text; `denied` → the
-   denial text; anything else (including the 404/409 refusals) → the
-   `unreachableError("cancelling a task", detail)` text, whose detail carries the
-   server's own message.
+   denial text; a non-retriable status (the 404/409 refusals) → `"The Lore API
+   refused cancelling a task: {detail}"`, carrying the server's own message; a
+   real outage → the `unreachableError("cancelling a task", detail)` text. A
+   refusal is never reported as an outage.
 
 ## Output
 
