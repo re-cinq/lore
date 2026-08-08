@@ -382,14 +382,15 @@ every repo. ([validated by `AuditView.test.tsx:31`](apps/web-ui/src/app/audit/Au
   stays whole when readable but truncates an opaque hex value (full
   value in the title), with an empty-state row when there are no
   pools. ([validated by `PoolsView.test.tsx:17`](apps/web-ui/src/app/pools/PoolsView.test.tsx#L17), [`PoolsView.test.tsx:29`](apps/web-ui/src/app/pools/PoolsView.test.tsx#L29), [`PoolsView.test.tsx:34`](apps/web-ui/src/app/pools/PoolsView.test.tsx#L34), [`PoolsView.test.tsx:41`](apps/web-ui/src/app/pools/PoolsView.test.tsx#L41), [`PoolsView.test.tsx:49`](apps/web-ui/src/app/pools/PoolsView.test.tsx#L49), [`PoolsView.test.tsx:60`](apps/web-ui/src/app/pools/PoolsView.test.tsx#L60), [`PoolsView.test.tsx:69`](apps/web-ui/src/app/pools/PoolsView.test.tsx#L69), [`PoolsView.test.tsx:78`](apps/web-ui/src/app/pools/PoolsView.test.tsx#L78))
-- FR-6.6: The Spend page (`/spend`) renders the title and every section
-  heading, org billed/computed cost and token totals when data is
-  available (dashes and a warning card when org billed data is
-  unavailable), billed-cost-by-model rows (including a non-token
-  fallback label), daily billed-cost rows with localized dates, and
-  lore-computed cost by repo and by task type with counts and badges —
-  each table falling back to an empty-state row when there is no
-  data. ([validated by `SpendView.test.tsx:65`](apps/web-ui/src/app/spend/SpendView.test.tsx#L65), [`SpendView.test.tsx:99`](apps/web-ui/src/app/spend/SpendView.test.tsx#L99), [`SpendView.test.tsx:117`](apps/web-ui/src/app/spend/SpendView.test.tsx#L117), [`SpendView.test.tsx:132`](apps/web-ui/src/app/spend/SpendView.test.tsx#L132), [`SpendView.test.tsx:146`](apps/web-ui/src/app/spend/SpendView.test.tsx#L146), [`SpendView.test.tsx:156`](apps/web-ui/src/app/spend/SpendView.test.tsx#L156), [`SpendView.test.tsx:166`](apps/web-ui/src/app/spend/SpendView.test.tsx#L166), [`SpendView.test.tsx:180`](apps/web-ui/src/app/spend/SpendView.test.tsx#L180))
+- FR-6.6: The Spend page (`/spend`) is Lore-computed-first (no admin key
+  required): it renders the title and every section heading, headlines the
+  Lore-computed cost with the API-call count and input/output token totals, and
+  breaks spend down by model (including a non-token fallback label), by kind
+  (code-review vs task vs memory/curation), by day with localized dates and call
+  counts, and — where tasks are attributed — by repo and task type, each table
+  falling back to an empty-state row when there is no data. The Anthropic
+  billed-cost card and by-model/daily tables render only when an `sk-ant-admin`
+  key is configured, so the page is complete without one. ([validated by `SpendView.test.tsx:94`](apps/web-ui/src/app/spend/SpendView.test.tsx#L94), [`SpendView.test.tsx:110`](apps/web-ui/src/app/spend/SpendView.test.tsx#L110), [`SpendView.test.tsx:119`](apps/web-ui/src/app/spend/SpendView.test.tsx#L119), [`SpendView.test.tsx:130`](apps/web-ui/src/app/spend/SpendView.test.tsx#L130), [`SpendView.test.tsx:142`](apps/web-ui/src/app/spend/SpendView.test.tsx#L142), [`SpendView.test.tsx:153`](apps/web-ui/src/app/spend/SpendView.test.tsx#L153), [`SpendView.test.tsx:164`](apps/web-ui/src/app/spend/SpendView.test.tsx#L164), [`SpendView.test.tsx:183`](apps/web-ui/src/app/spend/SpendView.test.tsx#L183), [`SpendView.test.tsx:204`](apps/web-ui/src/app/spend/SpendView.test.tsx#L204))
 - FR-6.7: The knowledge-graph force layout (`lib/graph-layout`) seeds
   feature positions within a radius at distinct spots (larger features
   further out), partitions links into connected components, places
