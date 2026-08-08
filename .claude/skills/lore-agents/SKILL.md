@@ -67,3 +67,18 @@ curl -fsS -X DELETE -H "authorization: Bearer $ADMIN_TOKEN" \
   to bypass it.
 - Always show the developer the before/after of a change. Confirm destructive
   ops (delete) before running them.
+
+## Help
+
+<!-- lore-help:begin -->
+**Summary.** Inspect and override this repo's agent definitions — the model, timeout, prompt and image each task type runs with.
+**Usage:** `/lore-agents [what you want to change, in plain English]`
+**Use when.** A task type needs a different model, a longer timeout, or a tweaked prompt for this repo only. Every repo inherits the org defaults until you override one.
+**Not for.** Inspecting a *run* — a definition is config, not execution (ADR-024); for runs use `lore_get_pipeline_status` and `lore_get_task_logs`.
+**Examples**
+- `/lore-agents` — lists the repo's resolved definitions; `project_id: null` marks a value still inherited from the org default
+- `/lore-agents "put review on haiku"` — upserts this repo's override (needs an admin-scoped token) and shows you the before/after first
+- `/lore-agents "drop our review override"` — deletes the repo row, reverting to the org default
+- Setting a custom execution `image` is two-key gated: it needs an approved `dark-factory-approval` PR, and the skill will say so rather than route around it
+**Related:** `/lore-init`
+<!-- lore-help:end -->

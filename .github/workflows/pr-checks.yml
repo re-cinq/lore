@@ -112,6 +112,11 @@ jobs:
           - name: catalog-drift
             build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines
             test: bash scripts/check-catalog-drift.sh
+          # Skill-docs guard. /lore-help renders each platform skill from that
+          # skill's own `## Help` block, so a skill without one is invisible in
+          # the index. Pure markdown check — no build needed.
+          - name: skill-help
+            test: bash scripts/check-skill-help.sh
           # web-ui is NOT an npm workspace — it has its own lockfile and does
           # not depend on @re-cinq/lore-shared. Install and test in-place.
           - name: web-ui

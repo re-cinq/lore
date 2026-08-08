@@ -331,3 +331,16 @@ Don't dump huge intermediate results; just counts + the next action.
 The frozen example transcript at
 [`example.md`](./example.md) shows the canonical happy-path shape.
 Read it once to calibrate; do not paste it back verbatim.
+
+## Help
+
+<!-- lore-help:begin -->
+**Summary.** Suggest inline `([validated by …])` test links for a spec's un-linked testable statements, and open a PR with them.
+**Usage:** `/lore-suggest-links <path/to/spec.md>`
+**Use when.** A spec's coverage bar is red and you don't want to wait for the weekly `spec-coverage-backfill` cron. Billed to your Claude subscription, not the org's API key.
+**Not for.** Statements you can link yourself in ten seconds — hand-writing the parenthetical is free and always wins on accuracy.
+**Examples**
+- `/lore-suggest-links specs/dark-factory/spec.md` — segments the spec, skips narrative and already-linked statements, judges candidate tests, and opens a `lore-managed` PR
+- Statements with no confident match are left alone on purpose — a wrong link is worse than a missing one
+**Related:** `/lore-test-commands`, `/lore-feature`
+<!-- lore-help:end -->
