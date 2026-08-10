@@ -390,7 +390,7 @@ every repo. ([validated by `AuditView.test.tsx:31`](apps/web-ui/src/app/audit/Au
   counts, and — where tasks are attributed — by repo and task type, each table
   falling back to an empty-state row when there is no data. The Anthropic
   billed-cost card and by-model/daily tables render only when an `sk-ant-admin`
-  key is configured, so the page is complete without one,. Because Anthropic's cost report
+  key is configured, so the page is complete without one. Because Anthropic's cost report
   never includes the in-progress day, the billed card also carries a labeled
   "today (Lore-computed)" line bringing it current — shown only when billed
   data is present and today's computed spend is non-zero. ([validated by `SpendView.test.tsx:94`](apps/web-ui/src/app/spend/SpendView.test.tsx#L94), [`SpendView.test.tsx:110`](apps/web-ui/src/app/spend/SpendView.test.tsx#L110), [`SpendView.test.tsx:119`](apps/web-ui/src/app/spend/SpendView.test.tsx#L119), [`SpendView.test.tsx:130`](apps/web-ui/src/app/spend/SpendView.test.tsx#L130), [`SpendView.test.tsx:142`](apps/web-ui/src/app/spend/SpendView.test.tsx#L142), [`SpendView.test.tsx:153`](apps/web-ui/src/app/spend/SpendView.test.tsx#L153), [`SpendView.test.tsx:164`](apps/web-ui/src/app/spend/SpendView.test.tsx#L164), [`SpendView.test.tsx:183`](apps/web-ui/src/app/spend/SpendView.test.tsx#L183), [`SpendView.test.tsx:204`](apps/web-ui/src/app/spend/SpendView.test.tsx#L204), [`SpendView.test.tsx:214`](apps/web-ui/src/app/spend/SpendView.test.tsx#L214), [`SpendView.test.tsx:223`](apps/web-ui/src/app/spend/SpendView.test.tsx#L223), [`SpendView.test.tsx:231`](apps/web-ui/src/app/spend/SpendView.test.tsx#L231))
