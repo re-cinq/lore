@@ -46,13 +46,34 @@ fail() { echo "[lore] ERROR: $*" >&2; exit 1; }
 
 RESTORE=0
 WITH_PIPELINE=0
-for arg in "$@"; do
-  case "$arg" in
+RESTORE_FROM=""
+while [ $# -gt 0 ]; do
+  case "$1" in
     --restore) RESTORE=1 ;;
     --with-pipeline) WITH_PIPELINE=1 ;;
-    *) fail "unknown argument: $arg (expected --restore and/or --with-pipeline)" ;;
+    --restore-from) RESTORE_FROM="${2:?--restore-from needs a path}"; RESTORE=1; shift ;;
+    *) fail "unknown argument: $1 (expected --restore, --with-pipeline, --restore-from PATH)" ;;
   esac
+  shift
 done
+
+# Restoring an artifact you already pulled needs no cluster at all — skip straight past
+# the credential checks and the dump. That is the whole point of --restore-from: a
+# transfer that got most of the way there should never have to be repeated because the
+# load step failed, and re-pulling several hundred megabytes to retry a local restore is
+# both slow and another chance for the API server to reset the stream.
+if [ -n "$RESTORE_FROM" ]; then
+  [ -e "$RESTORE_FROM" ] || fail "no such dump: $RESTORE_FROM"
+  if [ -d "$RESTORE_FROM" ]; then
+    SCHEMAS="$(for f in "$RESTORE_FROM"/*.dump; do basename "$f" .dump; done)"
+    [ -n "$SCHEMAS" ] || fail "$RESTORE_FROM holds no .dump files"
+  else
+    SCHEMAS="(whatever $(basename "$RESTORE_FROM") contains)"
+  fi
+  log "Restoring from $RESTORE_FROM — no cluster access needed"
+fi
+
+if [ -z "$RESTORE_FROM" ]; then
 
 for bin in kubectl gcloud; do
   command -v "$bin" >/dev/null 2>&1 || fail "$bin not found"
@@ -93,26 +114,44 @@ in_pod psql -U postgres -d "$DB_NAME" -c \
 
 mkdir -p "$DUMP_DIR"
 chmod 700 "$DUMP_DIR"
-DUMP_FILE="$DUMP_DIR/lore-$(date +%Y%m%d-%H%M%S).dump"
+DUMP_RUN="$DUMP_DIR/lore-$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$DUMP_RUN"
 
-# Custom format: one file, and selective on the way back out if it turns out you only
-# wanted `memory` after all (pg_restore --schema=memory, no re-pull).
-schema_args=()
-for s in $SCHEMAS; do schema_args+=(--schema="$s"); done
-log "Dumping $(echo "$SCHEMAS" | wc -w) schemas..."
-in_pod pg_dump -U postgres -d "$DB_NAME" \
-  --format=custom --no-owner --no-privileges "${schema_args[@]}" \
-  > "$DUMP_FILE" || fail "pg_dump failed"
-[ -s "$DUMP_FILE" ] || fail "pg_dump produced an empty file"
-chmod 600 "$DUMP_FILE"
-log "Wrote $DUMP_FILE ($(du -h "$DUMP_FILE" | cut -f1))"
+# One file per schema, not one stream for the lot. A `kubectl exec` stream crosses the
+# API server, and a several-hundred-megabyte transfer gets reset often enough to matter:
+#
+#   error reading from error stream: read tcp …:443: read: connection reset by peer
+#
+# A single blob loses everything to one reset with no way to resume. Per schema, a reset
+# costs only that schema, retrying is cheap, and the big ones (org_shared, platform) stop
+# putting the small ones at risk. It also makes a partial restore trivial later — the
+# files are already split the way you would want to choose between them.
+log "Dumping $(echo "$SCHEMAS" | wc -w) schemas to $DUMP_RUN ..."
+for s in $SCHEMAS; do
+  target="$DUMP_RUN/$s.dump"
+  attempt=1
+  until in_pod pg_dump -U postgres -d "$DB_NAME" \
+          --format=custom --no-owner --no-privileges --schema="$s" > "$target" \
+        && [ -s "$target" ]; do
+    attempt=$((attempt + 1))
+    [ "$attempt" -gt 3 ] && fail "pg_dump failed for schema '$s' after 3 attempts"
+    log "  $s: transfer failed — retry $attempt/3"
+    sleep 3
+  done
+  log "  $s -> $(du -h "$target" | cut -f1)"
+done
+chmod 600 "$DUMP_RUN"/*.dump
+log "Wrote $DUMP_RUN ($(du -sh "$DUMP_RUN" | cut -f1) total)"
 
 if [ "$RESTORE" -eq 0 ]; then
   log ""
   log "Dump only — nothing local was touched. To load it:"
-  log "  $0 --restore"
+  log "  $0 --restore-from $DUMP_RUN"
   exit 0
 fi
+RESTORE_FROM="$DUMP_RUN"
+
+fi  # end of the pull phase
 
 command -v docker >/dev/null 2>&1 || fail "docker not found — needed for the local restore"
 docker ps --format '{{.Names}}' | grep -qx lore-postgres \
@@ -122,17 +161,27 @@ log ""
 log "RESTORE will DROP and recreate these schemas in the LOCAL database:"
 log "  $(echo "$SCHEMAS" | tr '\n' ' ')"
 read -r -p "       Type 'yes' to continue: " confirm
-[ "$confirm" = "yes" ] || fail "aborted — the dump is kept at $DUMP_FILE"
+[ "$confirm" = "yes" ] || fail "aborted — the dump is kept at $RESTORE_FROM"
 
 # --clean --if-exists so a schema that setup-local-schema.sh already created is replaced
 # rather than colliding row by row. pg_restore's default is to continue past errors,
 # which is what we want here and why --exit-on-error is absent: extension and role grants
 # routinely differ between a CloudNativePG cluster and a docker Postgres, and those
 # failures say nothing about the data.
-docker exec -i -e PGPASSWORD=lore lore-postgres \
-  pg_restore -h 127.0.0.1 -U postgres -d lore \
-  --clean --if-exists --no-owner --no-privileges \
-  < "$DUMP_FILE" 2>&1 | tail -20 || true
+restore_one() {
+  docker exec -i -e PGPASSWORD=lore lore-postgres \
+    pg_restore -h 127.0.0.1 -U postgres -d lore \
+    --clean --if-exists --no-owner --no-privileges < "$1" 2>&1 | tail -5 || true
+}
+
+if [ -d "$RESTORE_FROM" ]; then
+  for dump in "$RESTORE_FROM"/*.dump; do
+    log "  restoring $(basename "$dump" .dump) ..."
+    restore_one "$dump"
+  done
+else
+  restore_one "$RESTORE_FROM"
+fi
 
 # Quiesce anything claimable. The restore copied prod's queues verbatim, and the local
 # Floor polls them the moment it starts — so terminate every row a claim query can see
@@ -153,4 +202,4 @@ SQL
 fi
 
 log "Restored into the local Postgres (db=lore user=postgres)."
-log "Dump kept at $DUMP_FILE — delete it when you are done; it is org data in the clear."
+log "Dump kept at $RESTORE_FROM — delete it when you are done; it is org data in the clear."
