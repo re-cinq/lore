@@ -10,6 +10,7 @@ import GapSections, {
 import RunningCard from "./RunningCard";
 import FailureBlock from "./FailureBlock";
 import { isPlanningActive } from "../feature-status";
+import type { FeatureRunPayload } from "@/lib/feature-run";
 import type {
   FeatureWithIterations,
   FeatureRow,
@@ -30,6 +31,9 @@ interface Poll {
   liveOutput?: string | null;
   /** Most recent iteration that produced a result — shown even if the latest round failed. */
   lastReady?: FeatureIterationRow | null;
+  /** The round's assembly line, for the live run visualization. Absent until the
+   *  first poll returns (and null when the round has no run row). */
+  run?: FeatureRunPayload | null;
 }
 
 export default function PlanningWizard({
@@ -152,6 +156,7 @@ export default function PlanningWizard({
         since={latest?.created_at}
         timeoutMinutes={timeoutMinutes}
         liveOutput={data.liveOutput}
+        run={data.run}
       />
     );
   }
@@ -166,6 +171,7 @@ export default function PlanningWizard({
     <FailureBlock
       iteration={iteration}
       failureReason={data.task?.failure_reason}
+      run={data.run}
       pending={pending}
       onRetry={submitRefine}
     />

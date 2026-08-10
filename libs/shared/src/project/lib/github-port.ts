@@ -74,6 +74,10 @@ export interface GitHubPort {
   addIssueLabel(repo: string, number: number, label: string): Promise<void>;
   removeIssueLabel(repo: string, number: number, label: string): Promise<void>;
   // API writes (no clone) — branch + single-file commit
+  /** True when the branch already exists on the remote. Optional: only the octokit
+   *  adapter implements it, and a caller that cannot ask MUST NOT guess — see
+   *  createBranch, which force-resets an existing branch. */
+  branchExists?(repo: string, branch: string): Promise<boolean>;
   createBranch(repo: string, branch: string, base?: string): Promise<void>;
   commitFile(
     repo: string,

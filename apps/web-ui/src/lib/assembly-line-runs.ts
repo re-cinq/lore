@@ -179,6 +179,20 @@ export async function fetchAssemblyLineRun(
   return rows.length > 0 ? toAssemblyLineRun(rows[0]) : null;
 }
 
+/** The newest run for a task, or null. A task-centric page (the feature planning
+ *  wizard) knows only its task id — the run it should visualize is the latest
+ *  attempt, since a retry mints a fresh row against the same task. */
+export async function fetchLatestRunForTask(
+  taskId: string,
+): Promise<AssemblyLineRun | null> {
+  const rows = await queryAllowMissing<AssemblyLineRunRow>(
+    `${RUN_SELECT} WHERE al.task_id = $1 ORDER BY al.created_at DESC LIMIT 1`,
+    [taskId],
+  );
+
+  return rows.length > 0 ? toAssemblyLineRun(rows[0]) : null;
+}
+
 /** The run's node executions in visit order. */
 export async function fetchAssemblyLineRunNodes(
   id: string,

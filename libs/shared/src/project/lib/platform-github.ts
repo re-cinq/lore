@@ -343,6 +343,23 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     }
   }
 
+  async branchExists(repo: string, branch: string): Promise<boolean> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+
+    try {
+      await ok.rest.git.getRef({ owner, repo: name, ref: `heads/${branch}` });
+
+      return true;
+    } catch (err) {
+      if ((err as { status?: number }).status === 404) {
+        return false;
+      }
+
+      throw err;
+    }
+  }
+
   async createBranch(
     repo: string,
     branch: string,

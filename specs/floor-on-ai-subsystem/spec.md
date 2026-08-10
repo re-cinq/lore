@@ -247,7 +247,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
     fail every run pod at container creation rather than acting as a fallback. GKE
     supplies `ANTHROPIC_API_KEY` (the values.yaml default), a laptop minikube supplies
     `CLAUDE_CODE_OAUTH_TOKEN`, and the `claude` CLI accepts either from its
-    environment. ([validated by station catalog tests](apps/floor/src/jobs/agent/agent-catalog.test.ts#L187), [`agent-catalog.test.ts:20`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L20), [`agent-catalog.test.ts:62`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L62), [`agent-catalog.test.ts:80`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L80), [`agent-catalog.test.ts:94`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L94), [`agent-catalog.test.ts:102`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L102), [`agent-catalog.test.ts:120`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L120), [`agent-catalog.test.ts:128`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L128), [`agent-catalog.test.ts:146`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L146), [`agent-catalog.test.ts:152`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L152), [`agent-catalog.test.ts:156`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L156), [`agent-catalog.test.ts:165`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L165), [`agent-catalog.test.ts:170`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L170), [`agent-catalog.test.ts:174`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L174), [`agent-catalog.test.ts:187`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L187), [`agent-catalog.test.ts:220`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L220), [`agent-catalog.test.ts:287`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L287), [`agent-catalog.test.ts:302`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L302))
+    environment. ([validated by station catalog tests](apps/floor/src/jobs/agent/agent-catalog.test.ts#L209), [`agent-catalog.test.ts:20`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L20), [`agent-catalog.test.ts:62`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L62), [`agent-catalog.test.ts:80`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L80), [`agent-catalog.test.ts:94`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L94), [`agent-catalog.test.ts:102`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L102), [`agent-catalog.test.ts:130`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L130), [`agent-catalog.test.ts:138`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L138), [`agent-catalog.test.ts:156`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L156), [`agent-catalog.test.ts:162`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L162), [`agent-catalog.test.ts:166`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L166), [`agent-catalog.test.ts:175`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L175), [`agent-catalog.test.ts:192`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L192), [`agent-catalog.test.ts:196`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L196), [`agent-catalog.test.ts:209`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L209), [`agent-catalog.test.ts:242`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L242), [`agent-catalog.test.ts:309`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L309), [`agent-catalog.test.ts:324`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L324))
 
 21. Custom station images honor [station-contract.md](../6-dark-factory/contracts/station-contract.md).
 
@@ -288,6 +288,29 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
     2xx body, or an empty, whitespace-only, or absent `text` each yield undefined (the agent runs
     cold) after a `console.warn` carrying the HTTP status or error message plus the repo and query
     ([validated by `http-context-source.test.ts:33`](apps/floor/src/jobs/station/http-context-source.test.ts#L33), [`http-context-source.test.ts:44`](apps/floor/src/jobs/station/http-context-source.test.ts#L44), [`http-context-source.test.ts:60`](apps/floor/src/jobs/station/http-context-source.test.ts#L60), [`http-context-source.test.ts:77`](apps/floor/src/jobs/station/http-context-source.test.ts#L77), [`http-context-source.test.ts:89`](apps/floor/src/jobs/station/http-context-source.test.ts#L89), [`http-context-source.test.ts:106`](apps/floor/src/jobs/station/http-context-source.test.ts#L106), [`http-context-source.test.ts:121`](apps/floor/src/jobs/station/http-context-source.test.ts#L121), [`http-context-source.test.ts:136`](apps/floor/src/jobs/station/http-context-source.test.ts#L136), [`http-context-source.test.ts:147`](apps/floor/src/jobs/station/http-context-source.test.ts#L147), [`http-context-source.test.ts:158`](apps/floor/src/jobs/station/http-context-source.test.ts#L158), [`http-context-source.test.ts:169`](apps/floor/src/jobs/station/http-context-source.test.ts#L169); implemented by [`http-context-source.ts:28`](apps/floor/src/jobs/station/http-context-source.ts#L28))
+
+26. *(added 2026-08-10)* A seeded recipe MUST NOT declare `skills` without a
+    `skills_source` to fetch them from. The generated catalog omits the whole skills
+    block when the registry URL (`.Values.loreSkillsUrl`) is unset, exactly as it
+    already does for `mcp_servers`. Rendering the pair as `skills: [...]` beside
+    `skills_source: null` is not the harmless no-op it was assumed to be: the
+    subsystem's init runs its skills step, fetches nothing, reports **success**, and
+    the agent container then dies with `Settings file not found:
+    $HOME/.claude/settings.json` — the file that step fetches from
+    `<source>/settings.json`. A laptop minikube therefore points the value at the mcp
+    adapter running in HTTP-gateway mode on the host
+    (`http://host.minikube.internal:3002/skills`, served by `npm start`) rather than
+    leaving it empty ([validated by `agent-catalog.test.ts:180`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L180); implemented by [`agent-catalog.ts:319`](apps/floor/src/jobs/agent/agent-catalog.ts#L319))
+
+27. *(added 2026-08-10)* The agent container MUST run in the cloned repo
+    (`/workspace/target`), not the base image's default directory. Left unset, the
+    container inherits `/`, which is not writable — so the one instruction every
+    agent prompt gives about its deliverable ("write `result.json` in the working
+    directory") is unsatisfiable. A feature-planning agent produced a complete
+    16 KB GapResult, failed to place it (`cp: cannot create regular file
+    '/result.json': Permission denied`), wrote it to `$HOME` instead, and exited 0 —
+    so the run reported success while the round it existed for failed with no result
+    posted ([validated by `agent-catalog.test.ts:120`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L120); implemented by [`agent-catalog.ts:170`](apps/floor/src/jobs/agent/agent-catalog.ts#L170))
 
 ## Out of scope
 

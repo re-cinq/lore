@@ -117,6 +117,16 @@ describe("buildStation", () => {
     });
   });
 
+  it("runs the agent in the cloned repo, the one writable directory its prompts name", () => {
+    const containers = (
+      buildStation("implementation", impl).spec?.template as {
+        spec: { containers: Array<{ name: string; workingDir?: string }> };
+      }
+    ).spec.containers;
+
+    expect(containers[0].workingDir).toBe("/workspace/target");
+  });
+
   it("defaults the deadline to 30 when the recipe has no timeout", () => {
     expect(
       buildStation("x", { prompt_template: "p" }).spec?.deadlineMinutes,
@@ -166,6 +176,18 @@ describe("catalogChartYaml", () => {
     expect(out).toContain("- name: {{ .Values.agentLlmSecretKey }}");
     expect(out).toContain("ref: {{ .Values.agentLlmSecretKey }}");
     expect(out).not.toContain("__LLM_SECRET_KEY__");
+  });
+  it("guards the skills block behind .Values.loreSkillsUrl so no recipe asks for skills it cannot fetch", () => {
+    expect(out).toContain("{{- if .Values.loreSkillsUrl }}");
+    expect(out).toContain("skills_source: {{ .Values.loreSkillsUrl }}");
+    expect(out).not.toContain("__LORE_SKILLS_URL__");
+    // The guard opens immediately before `skills:` and closes after `skills_source:`
+    // — an unguarded skills list renders `skills_source: null`, which the init
+    // treats as a successful no-op and the agent then dies on the missing
+    // settings.json it was supposed to fetch.
+    expect(out).toMatch(
+      /\{\{- if \.Values\.loreSkillsUrl \}\}\n *skills:\n(?: +- .*\n)+ *skills_source: \{\{ \.Values\.loreSkillsUrl \}\}\n\{\{- end \}\}/,
+    );
   });
   it("stamps each CR namespace with the helm value (umbrella spans namespaces)", () => {
     expect(out).toContain("namespace: {{ .Values.namespace }}");

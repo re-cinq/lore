@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { formatSeconds } from "@/lib/format-time";
+import RunVisualizationPanel from "@/app/assembly-lines/[id]/RunVisualizationPanel";
+import type { FeatureRunPayload } from "@/lib/feature-run";
 
 /** Elapsed / budget (m:ss / mm:00) from when the running round started, ticking every
  *  second. Turns red and announces once elapsed passes the round's timeout. */
@@ -65,11 +67,13 @@ export default function RunningCard({
   since,
   timeoutMinutes,
   liveOutput,
+  run,
 }: {
   iteration: number;
   since: string | undefined;
   timeoutMinutes: number;
   liveOutput?: string | null;
+  run?: FeatureRunPayload | null;
 }) {
   return (
     <div className="spec-card">
@@ -85,6 +89,18 @@ export default function RunningCard({
       <p className="meta">
         The planning agent is running. This refreshes automatically.
       </p>
+      {run && (
+        <RunVisualizationPanel
+          runId={run.id}
+          runStatus={run.status}
+          startedAt={run.startedAt}
+          definition={run.definition}
+          showEdgeLabels={!run.synthetic}
+          nodes={run.nodes}
+          repo={run.repo}
+          reason={run.reason}
+        />
+      )}
       {liveOutput && <pre style={PRE_STYLE}>{liveOutput}</pre>}
     </div>
   );

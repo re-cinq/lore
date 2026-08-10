@@ -15,13 +15,13 @@ fail() { echo "[lore] ERROR: $*" >&2; exit 1; }
 
 # Kill any stale Lore stack from a previous `npm start`. node --watch children
 # ignore plain SIGTERM and can survive a rough exit, then hold the service ports
-# (web-ui :3000, mcp-server :3001, agent :8080) so the next run dies with
-# EADDRINUSE. Free those ports here. Postgres :5432 / Dgraph :8081 are
+# (web-ui :3000, mcp-server :3001, skills :3002, agent :8080) so the next run dies
+# with EADDRINUSE. Free those ports here. Postgres :5432 / Dgraph :8081 are
 # docker-managed, so we leave them alone. Idempotent: a no-op when nothing runs.
 free_stale_ports() {
   command -v lsof >/dev/null 2>&1 || { log "lsof not found — skipping stale-instance cleanup"; return 0; }
   local port pids
-  for port in 3000 3001 8080; do
+  for port in 3000 3001 3002 8080; do
     pids="$(lsof -ti "tcp:$port" -sTCP:LISTEN 2>/dev/null || true)"
     [ -n "$pids" ] || continue
     log "Port $port held by a stale instance (PID $(echo "$pids" | tr '\n' ' ')) — stopping it"
@@ -82,6 +82,12 @@ export LORE_DGRAPH_HTTP="${LORE_DGRAPH_HTTP:-http://localhost:8081}"
 #     honour any pre-set value so you can override for a real backend.
 export LORE_API_URL="${LORE_API_URL:-http://localhost:3001}"
 export LORE_INGEST_TOKEN="${LORE_INGEST_TOKEN:-lore-local-dev-token}"
+
+# 2b. The Floor's own HTTP server (:8080, PORT below). The web-ui proxies the run
+#     visualization's event history and SSE stream through it
+#     (/api/assembly-lines/[id]/events{,/stream}); unset, those routes answer
+#     "not configured" and every live run graph sits permanently Offline.
+export LORE_FLOOR_URL="${LORE_FLOOR_URL:-http://localhost:8080}"
 
 # Station execution. Tasks run as Agent CRs on the ai-agent-subsystem (agent-cr),
 # which needs a Kubernetes cluster. The default `inprocess` keeps the lightweight
@@ -173,14 +179,22 @@ set -m
 # The :3001 HTTP backend is now apps/lore-api (the remote REST API). The local
 # stdio MCP adapter (apps/mcp-server) is not run as a daemon here — Claude Code
 # spawns it on demand — but its tsc --watch keeps dist/ fresh for that use.
+#
+# The `skills` entry runs that same adapter in HTTP-gateway mode purely to serve
+# the /skills registry on :3002. A run pod's init fetches its skills AND its
+# $HOME/.claude/settings.json from there; without it the agent container starts and
+# dies with "Settings file not found", which is invisible from the Floor side.
+# LORE_AGENT_SKILLS_DIR is explicit because the gateway otherwise resolves the
+# bundle relative to cwd, and concurrently runs from the repo root.
 npx concurrently -k \
-  -n "shared,core,api-tsc,api,mcp-tsc,agent-tsc,agent,ui" \
-  -c "blue,gray,green,greenBright,yellow,magenta,magentaBright,cyan" \
+  -n "shared,core,api-tsc,api,mcp-tsc,skills,agent-tsc,agent,ui" \
+  -c "blue,gray,green,greenBright,yellow,white,magenta,magentaBright,cyan" \
   "npm run dev -w @re-cinq/lore-shared" \
   "npm run dev -w @re-cinq/lore-server-core" \
   "npm run dev -w @re-cinq/lore-api" \
   "PORT=3001 npm run start:watch -w @re-cinq/lore-api" \
   "npm run dev -w @re-cinq/lore-mcp" \
+  "LORE_MCP_HTTP=1 LORE_MCP_PORT=3002 LORE_AGENT_SKILLS_DIR=$ROOT/apps/mcp-server/agent-skills npm run start -w @re-cinq/lore-mcp" \
   "npm run dev -w @re-cinq/lore-floor" \
   "npm run start:watch -w @re-cinq/lore-floor" \
   "npm --prefix apps/web-ui run dev" &

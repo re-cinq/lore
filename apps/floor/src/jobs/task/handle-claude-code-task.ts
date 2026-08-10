@@ -9,6 +9,7 @@ import type { PipelineTask } from "@re-cinq/lore-shared";
 import { projectFor } from "../../composition/project-boot.js";
 import { buildPrompt, getTaskTypeConfig } from "../../kernel/config.js";
 import { agentPrompt } from "../../kernel/agent-invocation.js";
+import { ensureTaskBranch } from "./ensure-task-branch.js";
 
 // ── Cluster task handler ────────────────────────────────────────────
 
@@ -48,6 +49,12 @@ export async function handleClaudeCodeTask(
   // and the spec.darkFactory block tells the agent-cr backend to run the
   // Floor-side assembly line graph for this task type.
   const project = await projectFor(targetRepo);
+
+  // The CR's recipe pins `ref: branchName` and the pod's init checks it out, so the
+  // branch has to exist before dispatch — otherwise the run dies in its init
+  // container instead of ever reaching the agent.
+  await ensureTaskBranch(project.repo, branchName);
+
   const result = await project.agents.run(task.id, {
     mode: "cluster",
     taskType: task.task_type,

@@ -35,9 +35,11 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+{{- if .Values.loreSkillsUrl }}
     skills:
       - lore-context
     skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -64,6 +66,7 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
+          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m
@@ -105,9 +108,11 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+{{- if .Values.loreSkillsUrl }}
     skills:
       - lore-context
     skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -134,6 +139,7 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
+          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m
@@ -189,9 +195,11 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+{{- if .Values.loreSkillsUrl }}
     skills:
       - lore-context
     skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -218,6 +226,7 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
+          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m
@@ -259,9 +268,11 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+{{- if .Values.loreSkillsUrl }}
     skills:
       - lore-context
     skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -288,6 +299,7 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
+          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m
@@ -335,9 +347,11 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+{{- if .Values.loreSkillsUrl }}
     skills:
       - lore-context
     skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -364,6 +378,7 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
+          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m
@@ -441,9 +456,11 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+{{- if .Values.loreSkillsUrl }}
     skills:
       - lore-context
     skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -470,6 +487,7 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
+          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m
@@ -537,9 +555,11 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+{{- if .Values.loreSkillsUrl }}
     skills:
       - lore-context
     skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -566,6 +586,7 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
+          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m
@@ -628,9 +649,11 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+{{- if .Values.loreSkillsUrl }}
     skills:
       - lore-context
     skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -657,6 +680,7 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
+          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m
@@ -703,9 +727,11 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+{{- if .Values.loreSkillsUrl }}
     skills:
       - lore-context
     skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -732,6 +758,7 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
+          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m
@@ -801,9 +828,11 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+{{- if .Values.loreSkillsUrl }}
     skills:
       - lore-context
     skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -830,6 +859,7 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
+          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m
@@ -875,9 +905,11 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+{{- if .Values.loreSkillsUrl }}
     skills:
       - lore-context
     skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -904,6 +936,7 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
+          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m
@@ -941,9 +974,11 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+{{- if .Values.loreSkillsUrl }}
     skills:
       - lore-context
     skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -970,6 +1005,7 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
+          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m
@@ -1091,9 +1127,11 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+{{- if .Values.loreSkillsUrl }}
     skills:
       - lore-context
     skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -1120,6 +1158,7 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
+          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m

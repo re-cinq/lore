@@ -138,12 +138,13 @@ export { advanceLine };
  *  advance, and the reaper tick. */
 export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   const [
-    { assemblyLines, jobRuns },
+    { assemblyLines, jobRuns, taskStore },
     { loadBuiltinAssemblyLines },
     { agentCrBackend, projectFor },
     { buildPrompt },
     { cleanupPerTaskToken },
     { KubeAgentApi },
+    { settleTaskForLine },
   ] = await Promise.all([
     import("../../kernel/queues.js"),
     import("@re-cinq/lore-assembly-lines"),
@@ -151,6 +152,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     import("../../kernel/config.js"),
     import("../watcher/agent-watcher.js"),
     import("../station/kube-agent-api.js"),
+    import("./settle-task.js"),
   ]);
   const kubeApi = new KubeAgentApi();
 
@@ -164,6 +166,11 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     cleanupToken: cleanupPerTaskToken,
     jobRuns: jobRuns(),
     notifyFailure: notifyLineFailure,
+    settleTask: (row, outcome, reason) =>
+      settleTaskForLine(row, outcome, reason, {
+        tasks: taskStore(),
+        featuresFor: projectFor,
+      }),
     readAgentStatus: (name) => kubeApi.getStatus(name),
     alertBilling: async (repo, nodeType, status) => {
       await maybeAlertBilling(repo, nodeType, status, {

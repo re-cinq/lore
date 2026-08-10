@@ -521,6 +521,23 @@ edges:
     ]);
   });
 
+  it("settles the backing task once for the winning finisher only", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+    const settled: { outcome: string; reason?: string }[] = [];
+
+    deps.settleTask = async (_row, outcome, reason) => {
+      settled.push({ outcome, reason });
+    };
+    const row = (await port.getById(id))!;
+
+    await finishLine(row, "error", "station exploded", deps);
+    await finishLine(row, "error", "late racer", deps);
+
+    expect(settled).toEqual([{ outcome: "error", reason: "station exploded" }]);
+  });
+
   it("finishes the line even when the failure notifier throws", async () => {
     const port = new InMemoryAssemblyLines();
     const id = await runningLine(port);

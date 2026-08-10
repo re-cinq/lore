@@ -47,6 +47,14 @@ export interface AdvanceDeps {
     outcome: string,
     reason?: string,
   ) => Promise<void>;
+  /** Close the line's backing pipeline task — and, for a planning round, its feature
+   *  iteration — so a failed line stops reading as "still running" everywhere
+   *  downstream. Optional seam, same as notifyFailure. */
+  settleTask?: (
+    row: AssemblyLineRecord,
+    outcome: string,
+    reason?: string,
+  ) => Promise<void>;
 }
 
 /** A walk that reached exit still failed as a whole when a node failed on the way
@@ -261,6 +269,13 @@ export async function finishLine(
   // closes 0 rows yet still reaches here, so cleanupToken MUST be idempotent
   // (cleanupPerTaskToken swallows 404s); the double-reclaim is a harmless no-op.
   await deps.cleanupToken(row.taskId ?? row.id);
+
+  // The winning finisher also settles the backing task. Without this a line-backed
+  // task stays `running` with a NULL failure_reason forever — the watcher's
+  // post-completion path returns early for node CRs, so nobody else ever closes it.
+  if (closedNow && deps.settleTask) {
+    await deps.settleTask(row, outcome, reason);
+  }
 
   // Only the winning finisher tells the user — losers would duplicate the Slack
   // message and PR comment. Never let a notification failure poison the close.

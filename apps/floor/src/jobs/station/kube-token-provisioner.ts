@@ -6,6 +6,7 @@
 
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import { loadKube, type LoreTaskSpec } from "@re-cinq/lore-shared";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { TokenProvisioner } from "./agent-backend.js";
 import {
   tokenSecretKey,
@@ -110,8 +111,19 @@ export class GithubTokenMinter implements TokenMinter {
   constructor(
     private readonly gh: { getInstallationToken(): Promise<string> },
   ) {}
-  async mint(_repo: string): Promise<string> {
-    return this.gh.getInstallationToken();
+  async mint(repo: string): Promise<string> {
+    const token = await this.gh.getInstallationToken();
+
+    // An empty token writes a present-but-useless Secret key, so the pod starts and
+    // then dies in its init container on `git clone` with GitHub's deliberately
+    // uninformative "Repository not found". Fail here, where the cause is legible.
+    enforceTrue(
+      token.length > 0,
+      Error,
+      `minted an empty GitHub token for ${repo} — check GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID`,
+    );
+
+    return token;
   }
 }
 

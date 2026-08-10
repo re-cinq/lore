@@ -38,6 +38,12 @@ export class RepoFiles {
     return this.github.getDefaultBranch(this.repo);
   }
 
+  /** True/false when the backing adapter can answer, undefined when it cannot —
+   *  the caller must treat undefined as "don't touch the branch", never as "absent". */
+  branchExists(branch: string): Promise<boolean> | undefined {
+    return this.github.branchExists?.(this.repo, branch);
+  }
+
   createBranch(branch: string, base?: string): Promise<void> {
     return this.github.createBranch(this.repo, branch, base);
   }

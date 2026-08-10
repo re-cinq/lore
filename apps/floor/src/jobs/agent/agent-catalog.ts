@@ -33,6 +33,15 @@ const API_VERSION = "agents.re-cinq.com/v1alpha1";
 // glibc base; the subsystem's init container injects the claude runtime + supervisor.
 const BASE_IMAGE = "node:22-bookworm";
 const SEED_LABELS = { "app.kubernetes.io/managed-by": "lore-catalog-seed" };
+// Where the init clones the target repo ($WORKSPACE_DIR/<repo name>), and therefore
+// the only writable directory the agent prompts can mean by "the working directory".
+// Left unset, the container inherits the base image's `/`, which is NOT writable: a
+// feature-planning agent produced a complete result.json, failed to place it
+// (`cp: cannot create regular file '/result.json': Permission denied`), wrote it to
+// $HOME instead, and exited 0 — so the run "succeeded" while the round it was for
+// failed with no result posted (2026-08-10, laptop minikube).
+const REPO_WORKDIR = "/workspace/target";
+
 // Placeholder for the per-cluster sink URL; catalogChartYaml swaps it for the helm value.
 const EVENTS_URL_SENTINEL = "__AGENT_EVENTS_URL__";
 
@@ -41,8 +50,12 @@ const EVENTS_URL_SENTINEL = "__AGENT_EVENTS_URL__";
 const MCP_URL_SENTINEL = "__LORE_MCP_URL__";
 
 // Placeholder for the gateway's /skills registry base URL; catalogChartYaml swaps it
-// for the helm value. Empty ⇒ the ai-agent-subsystem init skips the skill fetch
-// (resources.skillsSource gate), so this is inert until the gateway is deployed.
+// for the helm value and omits the whole skills block when that value is empty.
+// The block MUST be omitted rather than rendered with an empty source: a recipe
+// declaring `skills` with `skills_source: null` is not inert. The init runs its
+// skills step, fetches nothing, reports success, and the agent container then dies
+// with `Settings file not found: $HOME/.claude/settings.json` — the file that step
+// fetches from `<source>/settings.json` (2026-08-10, laptop minikube).
 const SKILLS_SOURCE_SENTINEL = "__LORE_SKILLS_URL__";
 
 // Placeholder for the per-cluster Lore API base URL every lore-station pod calls
@@ -167,6 +180,7 @@ export function buildStation(
             {
               name: "agent",
               image: BASE_IMAGE,
+              workingDir: REPO_WORKDIR,
               resources: {
                 requests: { cpu: "250m", memory: "512Mi" },
                 limits: { cpu: "1", memory: "1Gi" },
@@ -307,7 +321,18 @@ export function catalogChartYaml(
       `{{- if .Values.loreMcpUrl }}\n${indent}mcp_servers:\n${items}{{- end }}\n`,
   );
 
-  return guarded
+  // Same guard for the skills block, and for a sharper reason: an unset registry URL
+  // renders `skills: [...]` beside `skills_source: null`, and that pair is not inert.
+  // The subsystem's init runs its skills step, fetches nothing, reports SUCCESS — and
+  // the agent container then dies on the `$HOME/.claude/settings.json` that step was
+  // supposed to deliver. A recipe must never ask for skills it has no source for.
+  const skillsGuarded = guarded.replace(
+    /^( *)skills:\n((?:\1 .*\n)*)\1skills_source: (.*)\n/gm,
+    (_m, indent: string, items: string, source: string) =>
+      `{{- if .Values.loreSkillsUrl }}\n${indent}skills:\n${items}${indent}skills_source: ${source}\n{{- end }}\n`,
+  );
+
+  return skillsGuarded
     .replaceAll(LLM_SECRET_SENTINEL, "{{ .Values.agentLlmSecretKey }}")
     .replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}")
     .replaceAll(MCP_URL_SENTINEL, "{{ .Values.loreMcpUrl }}")

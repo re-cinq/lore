@@ -6,6 +6,8 @@
 //   libs/assembly-lines/src/assembly-lines/gap-fill.yaml
 //   libs/assembly-lines/src/assembly-lines/code-review.yaml
 //   libs/assembly-lines/src/assembly-lines/spec-drift.yaml
+//   libs/assembly-lines/src/assembly-lines/feature-planning.yaml
+//   libs/assembly-lines/src/assembly-lines/feature-finalize.yaml
 // Descriptions and prompt_refs are omitted; only the graph shape is under test.
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
@@ -120,10 +122,44 @@ export const specDriftDefinition: AssemblyLineDefinition = {
   edges: [{ from: "detect", to: "done", on: "success" }],
 };
 
+export const featurePlanningDefinition: AssemblyLineDefinition = {
+  name: "feature-planning",
+  description: "One interactive planning round; emits a structured GapResult.",
+  version: 1,
+  entry: "analyze",
+  exit: "done",
+  nodes: [
+    { id: "analyze", type: "agent" },
+    { id: "done", type: "retrospective" },
+  ],
+  edges: [{ from: "analyze", to: "done", on: "always" }],
+};
+
+export const featureFinalizeDefinition: AssemblyLineDefinition = {
+  name: "feature-finalize",
+  description: "Write the agreed spec.md, commit, and push for the spec PR.",
+  version: 1,
+  entry: "write",
+  exit: "done",
+  nodes: [
+    { id: "write", type: "agent" },
+    { id: "push", type: "agent" },
+    { id: "done", type: "retrospective" },
+  ],
+  edges: [
+    { from: "write", to: "push", on: "success" },
+    { from: "write", to: "done", on: "changes_requested" },
+    { from: "write", to: "done", on: "failed" },
+    { from: "push", to: "done", on: "always" },
+  ],
+};
+
 export const builtinDefinitions: AssemblyLineDefinition[] = [
   implementationDefinition,
   generalDefinition,
   gapFillDefinition,
   codeReviewDefinition,
   specDriftDefinition,
+  featurePlanningDefinition,
+  featureFinalizeDefinition,
 ];

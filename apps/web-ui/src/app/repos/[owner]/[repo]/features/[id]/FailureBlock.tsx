@@ -16,14 +16,21 @@ const PRE_STYLE: React.CSSProperties = {
 export default function FailureBlock({
   iteration,
   failureReason,
+  run,
   pending,
   onRetry,
 }: {
   iteration: number;
   failureReason: string | null | undefined;
+  /** The round's assembly line, for the recorded reason + a link to the transcript. */
+  run?: { id: string; reason: string | null } | null;
   pending: boolean;
   onRetry: () => void;
 }) {
+  // The task's failure_reason is the richest text (it carries the failing pod's log
+  // tail); the line's reason names the node that failed. Either beats guessing.
+  const diagnosis = failureReason || run?.reason;
+
   return (
     <div
       className="spec-card"
@@ -33,7 +40,7 @@ export default function FailureBlock({
       <p style={{ color: "var(--danger)", fontWeight: 600, margin: 0 }}>
         Planning round {iteration} failed.
       </p>
-      {!failureReason && (
+      {!diagnosis && (
         <p className="meta">
           The run finished without producing a result — usually the planning
           agent couldn&apos;t reach the model. Set{" "}
@@ -41,7 +48,14 @@ export default function FailureBlock({
           agent logs.
         </p>
       )}
-      {failureReason && <pre style={PRE_STYLE}>{failureReason}</pre>}
+      {diagnosis && <pre style={PRE_STYLE}>{diagnosis}</pre>}
+      {run && (
+        <p className="meta">
+          <a href={`/assembly-lines/${run.id}`}>
+            View the full run transcript →
+          </a>
+        </p>
+      )}
       <button type="button" disabled={pending} onClick={onRetry}>
         {pending ? "Retrying…" : "Retry"}
       </button>
