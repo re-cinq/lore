@@ -40,6 +40,11 @@ const EVENTS_URL_SENTINEL = "__AGENT_EVENTS_URL__";
 // catalogChartYaml swaps it for the helm value (empty → the block is omitted).
 const MCP_URL_SENTINEL = "__LORE_MCP_URL__";
 
+// Placeholder for the gateway's /skills registry base URL; catalogChartYaml swaps it
+// for the helm value. Empty ⇒ the ai-agent-subsystem init skips the skill fetch
+// (resources.skillsSource gate), so this is inert until the gateway is deployed.
+const SKILLS_SOURCE_SENTINEL = "__LORE_SKILLS_URL__";
+
 // Placeholder for the per-cluster Lore API base URL every lore-station pod calls
 // (createStationProject / apiEmbed / payload fetch); catalogChartYaml swaps it for
 // the helm value.
@@ -64,12 +69,18 @@ const GKE_DGRAPH_URL =
 export const stationName = (name: string): string =>
   `def-${name.replaceAll("_", "-")}`;
 
-// The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY. The controller only
-// injects keys a recipe declares here (from the agent-secrets Secret), so without it a run
-// pod has no key and the agent cannot call the model. Stations (exec vendor) omit it.
+// Placeholder for the agent's LLM credential. The controller only injects keys a recipe
+// declares here (from the agent-secrets Secret) and renders each as a NON-optional
+// secretKeyRef — so the declared key must exist in that Secret or every run pod dies
+// CreateContainerConfigError. That is why this is one key per cluster rather than a
+// list: GKE supplies ANTHROPIC_API_KEY (the values.yaml default), a laptop minikube
+// supplies CLAUDE_CODE_OAUTH_TOKEN instead. The `claude` CLI reads either from its
+// environment, so the vendor never has to know which one it got. catalogChartYaml swaps
+// the sentinel for the helm value. Stations (exec vendor, no model call) omit it.
+const LLM_SECRET_SENTINEL = "__LLM_SECRET_KEY__";
 const AGENT_SECRETS: NonNullable<
   NonNullable<NonNullable<AgentDefinition["spec"]>["resources"]>["secrets"]
-> = [{ name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" }];
+> = [{ name: LLM_SECRET_SENTINEL, ref: LLM_SECRET_SENTINEL }];
 
 const OUTPUT_SINKS: NonNullable<
   NonNullable<AgentDefinition["spec"]>["output"]
@@ -113,6 +124,11 @@ export function buildAgentDefinition(
             headers_secret: "lore-mcp-auth",
           },
         ],
+        // Agent skills fetched by the init from the gateway's /skills registry. The
+        // subsystem is registry-agnostic (ADR-030): it fetches `<source>/<name>.tar.gz`
+        // + `<source>/settings.json`. Empty source ⇒ no fetch, so inert until deployed.
+        skills: ["lore-context"],
+        skills_source: SKILLS_SOURCE_SENTINEL,
       },
       // Defense-in-depth (the gateway already omits it in agent mode): an agent
       // must never spawn more pipeline work from inside a run.
@@ -292,8 +308,10 @@ export function catalogChartYaml(
   );
 
   return guarded
+    .replaceAll(LLM_SECRET_SENTINEL, "{{ .Values.agentLlmSecretKey }}")
     .replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}")
     .replaceAll(MCP_URL_SENTINEL, "{{ .Values.loreMcpUrl }}")
+    .replaceAll(SKILLS_SOURCE_SENTINEL, "{{ .Values.loreSkillsUrl }}")
     .replaceAll(API_URL_SENTINEL, "{{ .Values.loreApiUrl }}")
     .replaceAll(GKE_DGRAPH_URL, "{{ .Values.dgraphUrl }}")
     .replaceAll(NAMESPACE_SENTINEL, "{{ .Values.namespace }}")

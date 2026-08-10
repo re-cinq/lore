@@ -93,7 +93,7 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
 
 - `detectCurrentRepo()`, `getQueryEmbedding()` (Vertex), `isMemoryDbAvailable()`.
 - Handler `writeMemory` ([memory.ts](../../../libs/server-core/src/features/memory/memory.ts#L53)); `extractFacts` (async).
-- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L98)); `writeMemoryFile` (offline).
+- `proxyMemory` / `unreachableError` ([deps.ts](../../../apps/mcp-server/src/mcp/tools/deps.ts#L15)); `writeMemoryFile` (offline).
 - Tables: `memory.memories` (insert/update), `memory.memory_versions` (insert), `memory.audit_log` (insert), `memory.facts` (async via `extract_facts`).
 - Env: `LORE_DB_HOST` (DB availability), `LORE_API_URL` + `LORE_INGEST_TOKEN` (proxy).
 

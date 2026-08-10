@@ -225,7 +225,7 @@ system is performing.
   `lore_create_pipeline_task`, so the pod can search memory/context and record
   targeted memory mid-task — not only start pre-hydrated. A shared `lore-mcp`
   gateway serves those tools over MCP-over-HTTP at a public `:443` host (the
-  agent-pod NetworkPolicy allows only public `:443` egress). ([validated by `agent-catalog.test.ts:60`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L60), [`agent-catalog.test.ts:20`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L20))
+  agent-pod NetworkPolicy allows only public `:443` egress). ([validated by `agent-catalog.test.ts:62`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L62), [`agent-catalog.test.ts:20`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L20))
 - The gateway reads each request body defensively: it JSON-parses the body
   (an empty body carries no payload), caps it at 1 MB (`413` over the cap) so an
   authenticated-but-rogue pod cannot exhaust gateway memory, and returns `400`
@@ -233,6 +233,12 @@ system is performing.
 - When no gateway URL is configured (the default, and every cluster before the
   gateway is deployed), the seeded agent recipes omit the `mcp_servers` block
   entirely — no empty-`url` MCP entry lands in any recipe CRD. ([validated by `catalog-mcp-guard.test.ts:12`](apps/floor/src/jobs/agent/catalog-mcp-guard.test.ts#L12))
+- The gateway also serves an **agent-skills registry** at `/skills` (unauthenticated —
+  skills are org conventions, not secrets): `GET /skills/settings.json` returns the org
+  session settings/hooks, and `GET /skills/<name>.tar.gz` streams a gzip tarball of the
+  baked skill directory, rejecting an unsafe/traversing name with `404`. The
+  ai-agent-subsystem init fetches these into a run's `$HOME/.claude` (recipe
+  `resources.skills` + `skills_source`, ADR-030). ([validated by `skills-registry.test.ts:42`](apps/mcp-server/src/server/skills-registry.test.ts#L42), [`skills-registry.test.ts:50`](apps/mcp-server/src/server/skills-registry.test.ts#L50), [`skills-registry.test.ts:63`](apps/mcp-server/src/server/skills-registry.test.ts#L63), [`skills-registry.test.ts:74`](apps/mcp-server/src/server/skills-registry.test.ts#L74))
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no
@@ -405,7 +411,7 @@ store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](l
 
 ### FR-8: Observability (Phase 1)
 
-The system MUST provide observability into context retrieval quality. ([validated by `otel.test.ts:6`](libs/server-core/src/platform/otel.test.ts#L6), [`usage-tools.test.ts:47`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L47))
+The system MUST provide observability into context retrieval quality. ([validated by `otel.test.ts:6`](libs/server-core/src/platform/otel.test.ts#L6), [`usage-tools.test.ts:51`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L51))
 
 - Decision: all MCP retrieval calls are traced via OpenTelemetry spans
   exported to Cloud Monitoring (SDK-level instrumentation).
@@ -416,7 +422,7 @@ The system MUST provide observability into context retrieval quality. ([validate
   (Langfuse trace queries → candidate generation → PromptFoo eval → PR)
   drives automated context improvement.
 - FR-8.4: `lore_my_usage` tool exposes per-developer token consumption
-  (today / 7-day / 30-day) without leaving Claude Code. ([validated by `usage-tools.test.ts:47`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L47), [`usage-pg.test.ts:105`](libs/shared/src/project/usage/usage-pg.test.ts#L105))
+  (today / 7-day / 30-day) without leaving Claude Code. ([validated by `usage-tools.test.ts:51`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L51), [`usage-pg.test.ts:105`](libs/shared/src/project/usage/usage-pg.test.ts#L105))
 
 ### FR-9: Context Evaluation (Phase 1)
 
@@ -891,13 +897,13 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   PR via the pulls port. ([validated by `git-auth.test.ts:5`](libs/shared/src/project/workspace/git-auth.test.ts#L5), [`git-auth.test.ts:14`](libs/shared/src/project/workspace/git-auth.test.ts#L14), [`git-auth.test.ts:20`](libs/shared/src/project/workspace/git-auth.test.ts#L20), [`git-auth.test.ts:26`](libs/shared/src/project/workspace/git-auth.test.ts#L26), [`git-cli-auth.test.ts:22`](libs/shared/src/project/workspace/git-cli-auth.test.ts#L22), [`git-cli-auth.test.ts:35`](libs/shared/src/project/workspace/git-cli-auth.test.ts#L35), [`git-cli-auth.test.ts:46`](libs/shared/src/project/workspace/git-cli-auth.test.ts#L46), [`git-cli.test.ts:53`](libs/shared/src/project/workspace/git-cli.test.ts#L53), [`git-cli.test.ts:63`](libs/shared/src/project/workspace/git-cli.test.ts#L63), [`git-cli.test.ts:81`](libs/shared/src/project/workspace/git-cli.test.ts#L81), [`git-cli.test.ts:100`](libs/shared/src/project/workspace/git-cli.test.ts#L100), [`git-cli.test.ts:112`](libs/shared/src/project/workspace/git-cli.test.ts#L112), [`git-cli.test.ts:130`](libs/shared/src/project/workspace/git-cli.test.ts#L130), [`workspace.test.ts:39`](libs/shared/src/project/workspace/workspace.test.ts#L39), [`workspace.test.ts:52`](libs/shared/src/project/workspace/workspace.test.ts#L52))
 - FR-20.14: The `Repo` files port reads a file at a given ref (null when
   absent) and creates a branch committing a file via the API, repo bound.
-  ([validated by `repo-files.test.ts:53`](libs/shared/src/project/repo/repo-files.test.ts#L53), [`repo-files.test.ts:59`](libs/shared/src/project/repo/repo-files.test.ts#L59), [`repo-files.test.ts:65`](libs/shared/src/project/repo/repo-files.test.ts#L65))
+  ([validated by `repo-files.test.ts:54`](libs/shared/src/project/repo/repo-files.test.ts#L54), [`repo-files.test.ts:60`](libs/shared/src/project/repo/repo-files.test.ts#L60), [`repo-files.test.ts:66`](libs/shared/src/project/repo/repo-files.test.ts#L66))
 - FR-20.15: The `PullRequests` port lists only the repo's PRs, merges by
   number with the requested method, and exposes PR reads bound to the
   repo and number. ([validated by `pull-requests.test.ts:70`](libs/shared/src/project/pulls/pull-requests.test.ts#L70), [`pull-requests.test.ts:106`](libs/shared/src/project/pulls/pull-requests.test.ts#L106), [`pull-requests.test.ts:115`](libs/shared/src/project/pulls/pull-requests.test.ts#L115))
 - FR-20.16: The `Issues` port returns the GitHubPort issues for the
   project's repo, creates an issue bound to the repo, and comments,
-  closes, and labels by number bound to the repo. ([validated by `issues.test.ts:57`](libs/shared/src/project/issues/issues.test.ts#L57), [`issues.test.ts:101`](libs/shared/src/project/issues/issues.test.ts#L101), [`issues.test.ts:114`](libs/shared/src/project/issues/issues.test.ts#L114))
+  closes, and labels by number bound to the repo. ([validated by `issues.test.ts:58`](libs/shared/src/project/issues/issues.test.ts#L58), [`issues.test.ts:102`](libs/shared/src/project/issues/issues.test.ts#L102), [`issues.test.ts:115`](libs/shared/src/project/issues/issues.test.ts#L115))
 - FR-20.17: The `TestRunner` port lists tests in a trusted sandbox (no
   `LORE_DB_HOST`); its exec adapter lists the descriptors from the
   manifest `list` command, runs a single test aggregating the report, and
@@ -1093,7 +1099,7 @@ enforced by benchmarking, infrastructure configuration, and review process.
 - Autonomous review loop (opt-in per repo, webhook-driven per ADR-015).
 - Progressive trust gating.
 - Slack integration (`/lore` slash command + watcher notifications).
-- Web UI (`/onboard`, pipeline status, task logs, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:26`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L26), [`GraphView.test.tsx:35`](apps/web-ui/src/app/graph/GraphView.test.tsx#L35), [`AnalyticsView.test.tsx:116`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L116), [`TaskLogs.test.tsx:93`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L93), [`OnboardView.test.tsx:8`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L8))
+- Web UI (`/onboard`, pipeline status, task logs, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:26`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L26), [`GraphView.test.tsx:35`](apps/web-ui/src/app/graph/GraphView.test.tsx#L35), [`AnalyticsView.test.tsx:116`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L116), [`TaskLogs.test.tsx:87`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L87), [`OnboardView.test.tsx:8`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L8))
 - Spec drift detection (Phase 2).
 - Prompt caching on agent LLM calls (ADR-015).
 - Per-template context budgets (ADR-015).

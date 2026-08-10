@@ -67,7 +67,7 @@ On a 2xx response the proxy returns `ok` with the upstream body serialized to a 
 ## Acceptance Criteria
 
 1. **AC1** The cache is active only in local stdio mode (memory DB
-   unavailable); the GKE server read path never caches. ([implemented by `isMemoryDbAvailable`](apps/mcp-server/src/mcp/tools/context-tools.ts#L109), [`withReadCache`](apps/mcp-server/src/mcp/tools/deps.ts#L131))
+   unavailable); the GKE server read path never caches. ([implemented by `isMemoryDbAvailable`](apps/mcp-server/src/mcp/tools/context-tools.ts#L109), [`withReadCache`](apps/mcp-server/src/mcp/tools/deps.ts#L17))
 
 2. **AC2** `LORE_CACHE_ENABLED=false` disables all cache reads and writes;
    `=true` and `config.json`'s `enabled` are respected otherwise. ([validated by `is a no-op when LORE_CACHE_ENABLED=false`](libs/server-core/src/platform/proxy-cache.test.ts#L137), [`isCacheEnabled`](libs/server-core/src/platform/proxy-cache.ts#L117))

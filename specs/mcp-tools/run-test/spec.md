@@ -44,11 +44,11 @@ Trusted-sandbox only — executes a shell command in your local checkout. The sh
 
 1. Resolve the repo root: `getRepoRoot()` or fall back to `process.cwd()`.
 2. Load the manifest with `loadTestCommandManifest(root)`
-   ([loader](apps/mcp-server/src/features/spec-trace/spec-trace-tools.ts#L202)).
+   ([loader](apps/mcp-server/src/features/spec-trace/spec-trace-tools.ts#L129)).
 3. Delegate to `runTestTool(process.env, manifest, selector, root)`
-   ([handler](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.ts#L96)):
+   ([handler](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.ts#L104)):
    1. **Trust-boundary gate** — `executionRefusal(env)`
-      ([gate](../../../libs/shared/src/project/lib/trust.ts#L11)) returns a non-null
+      ([gate](../../../libs/shared/src/project/lib/trust.ts#L12)) returns a non-null
       string when `LORE_DB_HOST` is set. When non-null, return it immediately
       **without running the run command**.
    2. **Manifest precondition** — when `manifest` is `null`, return

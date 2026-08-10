@@ -32,6 +32,9 @@ export interface LiveCostPayload {
   fetchedAt: string;
 }
 
+/** Upper bound on the Floor round-trip. See the call site for why. */
+const FETCH_TIMEOUT_MS = 8_000;
+
 export interface OrgRollups {
   orgMtd: OrgMtdRow;
   orgByModel: OrgByModelRow[];
@@ -107,6 +110,11 @@ export async function fetchLiveCost(): Promise<LiveCostPayload | null> {
     const res = await fetch(`${floorUrl}/api/anthropic-cost/live`, {
       headers: { authorization: `Bearer ${token}` },
       cache: "no-store",
+      // Bounded because this await blocks the whole /spend render: an
+      // unresponsive Floor pod would otherwise hang the page rather than
+      // degrade it to the rollup. Comfortably above the observed ~4s upstream
+      // pull, since the Floor's TTL cache serves most requests instantly.
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     // Logged rather than silently swallowed: a rotated or expired admin key

@@ -1,9 +1,7 @@
-import type { PgPool } from "@re-cinq/lore-shared";
 /**
- * Shared dependency surface passed to every registerXTools(server, deps).
- *
- * The DB pool is created in main() AFTER tool registration, so tools must
- * read it lazily via getPool() rather than capturing a snapshot.
+ * Shared helpers for the registerXTools(server) modules: the API proxy surface
+ * plus the latency tracker. The adapter holds no DB pool at all (ADR-032) — it
+ * proxies every data operation to lore-api.
  */
 import { trackToolCall } from "@re-cinq/lore-server-core/platform/session-tracker.js";
 import { traceTool } from "@re-cinq/lore-server-core/platform/otel.js";
@@ -22,42 +20,23 @@ export {
   type ProxyResult,
 } from "@re-cinq/lore-server-core/proxy.js";
 
-export interface ToolDeps {
-  /** Lazy accessor for the pg pool (null until main() initializes it). */
-  getPool: () => PgPool | null;
-}
-
 // --- Latency tracking helper (shared by tools that opt into it) ---
-export function makeTrackLatency(getPool: () => PgPool | null) {
-  return async function trackLatency<T>(
-    tool: string,
-    fn: () => Promise<T>,
-  ): Promise<T> {
-    const start = Date.now();
-    let success = true;
+export async function trackLatency<T>(
+  tool: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const start = Date.now();
+  let success = true;
 
-    try {
-      const result = await fn();
+  try {
+    return await fn();
+  } catch (err) {
+    success = false;
+    throw err;
+  } finally {
+    const latencyMs = Date.now() - start;
 
-      return result;
-    } catch (err) {
-      success = false;
-      throw err;
-    } finally {
-      const latencyMs = Date.now() - start;
-
-      trackToolCall(tool, latencyMs, success);
-      traceTool(tool, latencyMs, success);
-      const pool = getPool();
-
-      if (pool) {
-        pool
-          .query(
-            `INSERT INTO memory.audit_log (agent_id, operation, metadata) VALUES ($1, $2, $3)`,
-            ["system", tool, JSON.stringify({ latency_ms: latencyMs })],
-          )
-          .catch(() => {});
-      }
-    }
-  };
+    trackToolCall(tool, latencyMs, success);
+    traceTool(tool, latencyMs, success);
+  }
 }

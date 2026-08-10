@@ -26,8 +26,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -35,6 +35,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -93,8 +96,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -102,6 +105,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -174,8 +180,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -183,6 +189,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -241,8 +250,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -250,6 +259,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -314,8 +326,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -323,6 +335,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -417,8 +432,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -426,6 +441,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -510,8 +528,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -519,6 +537,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -598,8 +619,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -607,6 +628,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -670,8 +694,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -679,6 +703,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -765,8 +792,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -774,6 +801,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -836,8 +866,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -845,6 +875,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -899,8 +932,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -908,6 +941,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:
@@ -1046,8 +1082,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -1055,6 +1091,9 @@ spec:
         url: {{ .Values.loreMcpUrl }}
         headers_secret: lore-mcp-auth
 {{- end }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
   output:

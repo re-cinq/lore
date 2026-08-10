@@ -41,8 +41,10 @@ Lists spec-tasks that are 'pending' AND whose every dependency has completed —
 
 1. Resolve `repo || detectCurrentRepo()`. If neither yields a repo, return
    `"Could not detect repo. Specify repo parameter."`.
-2. `getPool()`. If null, return `"lore_ready_tasks requires PostgreSQL (LORE_DB_HOST not set)."`.
-3. Delegate to `getReadyTasks(pool, resolvedRepo)`
+2. `GET /api/spec-tasks/ready?repo={resolvedRepo}` via `proxyGetApi`. The MCP
+   adapter holds no pool (ADR-032), so the dependency query runs in lore-api
+   ([`GET /api/spec-tasks/ready`](../../api-routes/spec-tasks/spec.md)).
+3. The route delegates to `getReadyTasks(pool, repo)`
    ([handler](../../../libs/server-core/src/features/pipeline/tasks.ts#L24)). It runs a single query
    selecting `id, description, status, context_bundle, agent_id` from
    `pipeline.tasks` where `task_type = 'spec-task'`, `target_repo = $1`,
@@ -54,7 +56,8 @@ Lists spec-tasks that are 'pending' AND whose every dependency has completed —
    `"No ready tasks. All tasks are either completed, claimed, or blocked by dependencies."`.
 5. Otherwise format each row as `"- **{spec_task_id}** ({id}): {description}"` and
    return `"## Ready tasks\n\n{lines joined by newline}"`.
-6. Any thrown error → `"Error fetching ready tasks: {message}"`.
+6. **Failure** — `not_configured` → the not-configured text; `denied` → the
+   denial text; `unreachable` → `"Could not fetch ready tasks from the Lore API: {detail}"`.
 
 ## Output
 
@@ -63,9 +66,10 @@ A single MCP text content block: the `## Ready tasks` markdown list, the
 
 ## Dependencies & side effects
 
-- `detectCurrentRepo()`, `getPool()`, `getReadyTasks`.
-- DB: read-only over `pipeline.tasks`.
-- No env vars beyond the DB pool's.
+- `detectCurrentRepo()` (client-side — the server cannot see the caller's git
+  remote), `proxyGetApi`, and the shared proxy error helpers.
+- Server-side: `getReadyTasks`, read-only over `pipeline.tasks`.
+- Env: `LORE_API_URL`, `LORE_INGEST_TOKEN`. No database handle.
 
 ## Acceptance Criteria
 
@@ -74,10 +78,14 @@ spec-tasks with satisfied dependencies. ([validated by `returns the rows the dep
 
 When nothing qualifies the handler returns an empty list. ([validated by `returns an empty list when no tasks are ready`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L139))
 
-The repo-detection / no-pool guards, the empty-result message, and the markdown
-list framing run only inside the tool handler. *(untested: handler-only
-orchestration around `detectCurrentRepo`/`getPool` with no unit seam; the query
-layer is covered above.)*
+Each ready task renders as one `- **{spec_task_id}** ({id}): {description}`
+bullet under a `## Ready tasks` heading. ([validated by `lore_ready_tasks renders one bullet per ready task`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L363))
+
+An empty ready set renders the "No ready tasks" message rather than an empty
+list. ([validated by `lore_ready_tasks reports an empty ready set`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L384))
+
+An unconfigured API yields the not-configured message rather than a PostgreSQL
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L440))
 
 ## Out of Scope
 

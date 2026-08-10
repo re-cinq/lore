@@ -3,7 +3,6 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import {
-  ToolDeps,
   proxyToApi,
   proxyGetApi,
   deniedError,
@@ -14,7 +13,7 @@ import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platfor
 const NOT_CONFIGURED =
   "Repo management requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.";
 
-export function registerRepoTools(server: McpServer, _deps: ToolDeps) {
+export function registerRepoTools(server: McpServer) {
   server.tool(
     "lore_list_repos",
     `Lists every repo onboarded into Lore as JSON ({ repos, total }) with per-repo metadata and pipeline task count. Pages through all repos automatically. Instead: to add a repo use lore_onboard_repo; to list pipeline tasks use lore_list_pipeline_tasks.`,

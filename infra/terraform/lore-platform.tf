@@ -19,6 +19,16 @@
 # CR, and Dgraph remain Terraform-owned (see the other *.tf files).
 # --------------------------------------------------------------------------
 
+locals {
+  # In-cluster base URL of the lore-mcp gateway (Service `lore-mcp-gateway` in the
+  # lore-api namespace, ClusterIP :8080). Agent run pods MUST use this rather than the
+  # public host in var.lore_mcp_url: Dataplane V2 short-circuits a VIP whose backend
+  # lives in this cluster, and the post-DNAT 10.x address is dropped by the run-pod
+  # egress policy's RFC1918 except-list. Host/port must stay in step with the
+  # ai-agents-helm `mcpSink` values that open the matching NetworkPolicy hole.
+  lore_mcp_in_cluster = "http://lore-mcp-gateway.lore-api.svc.cluster.local:8080"
+}
+
 resource "helm_release" "lore_platform" {
   name             = "lore-platform"
   chart            = "${path.module}/modules/gke-mcp/lore-platform"
@@ -132,7 +142,49 @@ resource "helm_release" "lore_platform" {
     # sentinel unreplaced-but-harmless (no mcp_servers URL to connect to).
     "ai-agents" = {
       controller = { replicas = 1 }
-      loreMcpUrl = var.lore_mcp_url != "" ? "${var.lore_mcp_url}/mcp" : ""
+      #
+      # The URL is IN-CLUSTER, not var.lore_mcp_url's public host: Dataplane V2
+      # short-circuits a VIP whose backend lives in this cluster and the post-DNAT 10.x
+      # address hits the run-pod egress policy's RFC1918 except-list, so the public
+      # gateway host merely hangs from an agent pod. var.lore_mcp_url stays the on/off
+      # switch (set = the gateway is deployed). See ai-agents-helm/values.yaml.
+      loreMcpUrl = var.lore_mcp_url != "" ? "${local.lore_mcp_in_cluster}/mcp" : ""
+      # The same gateway serves the /skills registry the agent init fetches skills +
+      # settings from (resources.skills_source). Empty leaves the sentinel unreplaced —
+      # harmless, the init skips the fetch.
+      #
+      # MUST STAY APPLIED. This value being absent from the cluster is what caused the
+      # 2026-08-10 outage: every Claude-agent node failed at boot with
+      #
+      #   [agent] Error: Settings file not found: /agent/.claude/settings.json
+      #   [agent] {"kind":"lifecycle","exitCode":1,"phase":"agent","status":"failed"}
+      #
+      # #1090 added this line and #1093 deployed the v0.8.1 images, but the two halves
+      # ship by different paths: the chart goes out via CI, this file only on a manual
+      # `terraform apply`. No apply ran, so the images went live with the config absent.
+      # Contrary to what #1093 and ai-agents-helm/values.yaml both assert, the seam is
+      # NOT inert without a source — ADR-030 is the accurate one ("The Claude adapter
+      # emits --settings; skills need no flag"): v0.8.1 passes
+      # --settings /agent/.claude/settings.json unconditionally, while the init only
+      # WRITES that file when skills_source is set. No source, no file, exit 1.
+      #
+      # Blast radius when unset: all 13 Claude-agent recipes (review, implementation,
+      # gap-fill, feature-planning, ...). Stations carry no skills, so ingest/detect
+      # lines stay green and the board looks healthy while every LLM node is dead.
+      #
+      # So: clearing this does not disable the feature, it breaks it. If the seam ever
+      # needs to be genuinely off, the images must go back too (and note contracts
+      # 0.8.1 is now a hard dependency of per-task-token.ts / agent-crd.ts).
+      #
+      # Verify after apply that the recipes carry a source — read
+      # .spec.resources.skills_source off the `general` AgentDefinition in ai-agents;
+      # it should be <gateway>/skills, not empty.
+      #
+      # 2026-08-10 follow-up: applying this was necessary but not sufficient. The value
+      # was ALSO being pruned by a stale CRD schema (helm never upgrades crds/), and once
+      # it finally reached a pod the fetch could not connect at all — the URL has to be
+      # in-cluster, same as loreMcpUrl above. All three had to be fixed (#1126).
+      loreSkillsUrl = var.lore_mcp_url != "" ? "${local.lore_mcp_in_cluster}/skills" : ""
     }
   })]
 

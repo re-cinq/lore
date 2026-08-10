@@ -32,6 +32,8 @@ spec:
           properties:
             spec:
               type: object
+              required:
+                - prompt
               properties:
                 description:
                   type: string
@@ -52,10 +54,9 @@ spec:
                     type: string
                 permission_mode:
                   type: string
-                  default: bypass
                   enum:
-                    - auto
-                    - bypass
+                    - "auto"
+                    - "bypass"
                 max_turns:
                   type: integer
                   minimum: 1
@@ -101,9 +102,9 @@ spec:
                           transport:
                             type: string
                             enum:
-                              - stdio
-                              - http
-                              - sse
+                              - "stdio"
+                              - "http"
+                              - "sse"
                           command:
                             type: string
                           args:
@@ -132,15 +133,21 @@ spec:
                             type: string
                           token_secret:
                             type: string
+                    skills:
+                      type: array
+                      items:
+                        type: string
+                    skills_source:
+                      type: string
                 output:
                   type: object
                   properties:
                     format:
                       type: string
                       enum:
-                        - text
-                        - json
-                        - stream-json
+                        - "text"
+                        - "json"
+                        - "stream-json"
                     schema:
                       type: object
                       description: "JSON Schema validating the result."
@@ -155,18 +162,18 @@ spec:
                           event:
                             type: string
                             enum:
-                              - tool_call
-                              - message
-                              - tool_result
-                              - result
-                              - usage
+                              - "tool_call"
+                              - "message"
+                              - "tool_result"
+                              - "result"
+                              - "usage"
                           tool:
                             type: string
                           role:
                             type: string
                             enum:
-                              - assistant
-                              - user
+                              - "assistant"
+                              - "user"
                           contains:
                             type: string
                     sinks:
@@ -179,9 +186,9 @@ spec:
                           type:
                             type: string
                             enum:
-                              - stdout
-                              - http
-                              - file
+                              - "stdout"
+                              - "http"
+                              - "file"
                           url:
                             type: string
                           headers_secret:

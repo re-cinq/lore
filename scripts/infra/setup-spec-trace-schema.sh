@@ -45,6 +45,11 @@ Statement.trace_links: [uid] @reverse @count .
 AcceptanceCriterion.trace_links: [uid] @reverse @count .
 
 Repo.name: string @index(hash) .
+# The commit whose line numbering every range in this repo's graph is expressed
+# in — stamped by the coverage ingest that writes those ranges. Read by the
+# pre-merge impact query to align a PR diff to the same coordinate system.
+Repo.trace_commit: string @index(hash) .
+Repo.trace_commit_at: dateTime @index(hour) .
 Repo.specs: [uid] @reverse @count .
 Repo.adrs: [uid] @reverse @count .
 Repo.code_chunks: [uid] @reverse @count .
@@ -168,6 +173,8 @@ ADR.supersedes: [uid] @reverse @count .
 type Repo {
   Repo.xid
   Repo.name
+  Repo.trace_commit
+  Repo.trace_commit_at
   Repo.specs
   Repo.adrs
   Repo.code_chunks

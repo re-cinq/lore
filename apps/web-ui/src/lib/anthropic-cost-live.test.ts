@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import {
   aggregateMonthToDate,
+  fetchLiveCost,
   monthStart,
   type LiveCostRow,
 } from "./anthropic-cost-live";
@@ -148,5 +149,122 @@ describe("aggregateMonthToDate", () => {
       orgByModel: [],
       orgDaily: [],
     });
+  });
+});
+
+describe("fetchLiveCost", () => {
+  const env = process.env;
+  const ORIG_URL = env.LORE_FLOOR_URL;
+  const ORIG_TOKEN = env.LORE_INGEST_TOKEN;
+
+  function set(name: string, value: string | undefined): void {
+    if (value === undefined) {
+      delete env[name];
+    } else {
+      env[name] = value;
+    }
+  }
+
+  function configure(): void {
+    set("LORE_FLOOR_URL", "http://floor.test:8080");
+    set("LORE_INGEST_TOKEN", "ingest-secret");
+  }
+
+  function respond(body: unknown, ok = true, status = 200) {
+    return vi.fn().mockResolvedValue({
+      ok,
+      status,
+      json: () => Promise.resolve(body),
+    });
+  }
+
+  const PAYLOAD = {
+    rows: [row({ costUsd: 1 })],
+    fetchedAt: FETCHED_AT,
+  };
+
+  afterEach(() => {
+    set("LORE_FLOOR_URL", ORIG_URL);
+    set("LORE_INGEST_TOKEN", ORIG_TOKEN);
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("returns null without calling the Floor when the Floor URL is unset", async () => {
+    configure();
+    set("LORE_FLOOR_URL", undefined);
+    const fetchMock = respond(PAYLOAD);
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await fetchLiveCost()).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns null without calling the Floor when the ingest token is unset", async () => {
+    configure();
+    set("LORE_INGEST_TOKEN", undefined);
+    const fetchMock = respond(PAYLOAD);
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await fetchLiveCost()).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns the payload and sends the bearer token on a 200", async () => {
+    configure();
+    const fetchMock = respond(PAYLOAD);
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await fetchLiveCost()).toEqual(PAYLOAD);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://floor.test:8080/api/anthropic-cost/live",
+      expect.objectContaining({
+        headers: { authorization: "Bearer ingest-secret" },
+        cache: "no-store",
+      }),
+    );
+  });
+
+  it("bounds the request with an abort signal so a hung Floor cannot stall the render", async () => {
+    configure();
+    const fetchMock = respond(PAYLOAD);
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchLiveCost();
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("returns null on a 503 from the Floor", async () => {
+    configure();
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.stubGlobal("fetch", respond(null, false, 503));
+
+    expect(await fetchLiveCost()).toBeNull();
+  });
+
+  it("returns null when the payload is missing rows or fetchedAt", async () => {
+    configure();
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.stubGlobal("fetch", respond({ rows: "not-an-array" }));
+
+    expect(await fetchLiveCost()).toBeNull();
+  });
+
+  it("returns null when the request rejects", async () => {
+    configure();
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("connect ECONNREFUSED")),
+    );
+
+    expect(await fetchLiveCost()).toBeNull();
   });
 });

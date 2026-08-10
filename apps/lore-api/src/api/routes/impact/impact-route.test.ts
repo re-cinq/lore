@@ -58,6 +58,20 @@ describe("POST /api/repos/:owner/:repo/impact", () => {
     expect(res.statusCode).toBe(403);
   });
 
+  it("accepts a docs[] body carrying changed spec content without rejecting it", async () => {
+    const res = await impact(
+      {
+        commit: "abc123",
+        files: [],
+        docs: [{ path: "specs/x/spec.md", content: "# X\n\nA MUST hold.\n" }],
+      },
+      AUTH,
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(res.result).toMatchObject({ status: "unavailable" });
+  });
+
   it("returns 400 on an unparseable body", async () => {
     // ADR-034: hapi parses the payload, so malformed JSON is a native 400.
     const res = await buildServer(() => makePool() as any).inject({

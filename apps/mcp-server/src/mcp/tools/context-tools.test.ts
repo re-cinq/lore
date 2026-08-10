@@ -48,7 +48,7 @@ beforeAll(async () => {
     },
   };
 
-  registerContextTools(fakeServer as never, { getPool: () => null });
+  registerContextTools(fakeServer as never);
   searchContext = handlers["lore_search_context"];
   assembleContext = handlers["lore_assemble_context"];
 });

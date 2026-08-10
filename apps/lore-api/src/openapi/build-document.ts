@@ -158,6 +158,10 @@ const CATEGORY_ORDER: Array<{ name: string; description: string }> = [
     name: "Webhooks",
     description: "Inbound webhooks and per-repo webhook configuration.",
   },
+  {
+    name: "Analytics",
+    description: "Usage, org-wide pipeline analytics, and agent statistics.",
+  },
   { name: "Tokens", description: "Scoped API token management." },
   { name: "Meta", description: "The OpenAPI document and its reference UI." },
 ];
@@ -169,7 +173,11 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/^\/api\/(openapi\.json|docs)$/, "Meta"],
   [/^\/api\/(context|graph)\b/, "Context"],
   [/^\/api\/(memory|episode|session-summary)\b/, "Memory"],
-  [/^\/api\/(task|tasks|task-logs|job-run-logs)\b/, "Tasks"],
+  [
+    /^\/api\/(task|tasks|task-logs|job-run-logs|spec-tasks|task-groups)\b/,
+    "Tasks",
+  ],
+  [/^\/api\/(usage|analytics|agent-stats)\b/, "Analytics"],
   [/\/features\b/, "Features"],
   [/\/agent-definitions\b/, "Agents"],
   [/\/settings\/dark-factory\b/, "Dark Factory"],

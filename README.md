@@ -161,6 +161,8 @@ cd lore && scripts/install.sh
 
 This configures the MCP server, skills, hooks, statusline, and agent ID. The MCP server runs locally over stdio but proxies all operations to the GKE backend — so the backend must be deployed first. See [docs/INSTALL.md](docs/INSTALL.md) for the complete deployment guide.
 
+Then open Claude Code and type **`/lore-help`** — what Lore does, how a session works, every skill, and which one fits the job you're on.
+
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).

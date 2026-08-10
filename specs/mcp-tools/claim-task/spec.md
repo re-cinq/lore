@@ -39,9 +39,12 @@ Atomically locks one 'pending' spec-task (flips it to 'running') so exactly one 
 
 ## Behavior
 
-1. `getPool()`. If null, return `"lore_claim_task requires PostgreSQL (LORE_DB_HOST not set)."`.
-2. Resolve `agent_id || resolveAgentId()` (env / `~/.lore/agent-id` / generated).
-3. Delegate to `claimTask(pool, task_id, resolvedAgent)`
+1. Resolve `agent_id || resolveAgentId()` (env / `~/.lore/agent-id` / generated)
+   client-side: the claiming identity lives on the caller's machine.
+2. `POST /api/spec-tasks/claim` with `{task_id, agent_id}` via `proxyToApi`. The
+   MCP adapter holds no pool (ADR-032), so the atomic claim runs in lore-api
+   ([`POST /api/spec-tasks/claim`](../../api-routes/spec-tasks/spec.md)).
+3. The route delegates to `claimTask(pool, task_id, agent_id)`
    ([handler](../../../libs/server-core/src/features/pipeline/tasks.ts#L29)). It:
    1. `pool.connect()` → `BEGIN`.
    2. `SELECT id FROM pipeline.tasks WHERE id = $1 AND status = 'pending' FOR UPDATE SKIP LOCKED`.
@@ -49,10 +52,11 @@ Atomically locks one 'pending' spec-task (flips it to 'running') so exactly one 
    4. Else `UPDATE pipeline.tasks SET status = 'running', agent_id = $2, updated_at = now() WHERE id = $1`.
    5. Best-effort `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1,'pending','running',$2)` with metadata `{ agent_id, claimed_by: 'lore_claim_task' }`; a failure here is swallowed and does not block the claim.
    6. `COMMIT`, release client, return `true`. Any thrown error → `ROLLBACK` + release + rethrow.
-4. If `claimTask` returned false, return
+4. If the response reports `claimed: false`, return
    `"Could not claim task {task_id}. It may already be claimed or does not exist."`.
 5. Otherwise return `"Task {task_id} claimed by {resolvedAgent}."`.
-6. Any thrown error → `"Error claiming task: {message}"`.
+6. **Failure** — `not_configured` → the not-configured text; `denied` → the
+   denial text; `unreachable` → the `unreachableError("claiming a task", detail)` text.
 
 ## Output
 
@@ -62,9 +66,11 @@ Never throws.
 
 ## Dependencies & side effects
 
-- `getPool()`, `resolveAgentId()`, `claimTask`.
-- DB: `SELECT … FOR UPDATE SKIP LOCKED` + `UPDATE` on `pipeline.tasks`; best-effort `INSERT` into `pipeline.task_events`. Runs inside a transaction on a dedicated client.
-- No env vars beyond the DB pool's (and `LORE_AGENT_ID` consulted by `resolveAgentId`).
+- `resolveAgentId()`, `proxyToApi`, and the shared proxy error helpers.
+- Server-side: `claimTask` — `SELECT … FOR UPDATE SKIP LOCKED` + `UPDATE` on
+  `pipeline.tasks` and a best-effort `INSERT` into `pipeline.task_events`, inside
+  a transaction on a dedicated client.
+- Env: `LORE_API_URL`, `LORE_INGEST_TOKEN`, `LORE_AGENT_ID`. No database handle.
 
 ## Acceptance Criteria
 
@@ -77,10 +83,13 @@ false. ([validated by `returns false and records no event when the row is alread
 A failure recording the claim event does not abort the claim; the transaction
 still commits. ([validated by `still returns true when the event-recording insert throws`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L175))
 
-The no-pool guard, agent resolution, and success/failure message framing run
-only inside the tool handler. *(untested: handler-only orchestration around
-`getPool`/`resolveAgentId` with no unit seam; the transactional claim is covered
-above.)*
+The resolved agent id is posted with the task id and a successful claim is
+confirmed by name. ([validated by `lore_claim_task posts the resolved agent id and confirms the claim`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L394))
+
+A refused claim renders the already-claimed/not-found message. ([validated by `lore_claim_task reports a task that could not be claimed`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L406))
+
+An unconfigured API yields the not-configured message rather than a PostgreSQL
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L440))
 
 ## Out of Scope
 

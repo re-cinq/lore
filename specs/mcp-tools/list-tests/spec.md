@@ -44,13 +44,13 @@ root and manifest are resolved at call time, not passed by the caller.
 1. Resolve the repo root: `getRepoRoot()` (git toplevel of the cwd) or fall back
    to `process.cwd()`.
 2. Load the manifest with `loadTestCommandManifest(root)`
-   ([loader](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.ts#L202)) —
+   ([loader](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.ts#L129)) —
    reads `<root>/.lore/test-commands.yml`, parses the YAML, and resolves it to a
    `TestCommandManifest` (or `null` when the file is absent).
 3. Delegate to `listTestsTool(process.env, manifest, root)`
-   ([handler](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.ts#L82)):
+   ([handler](../../../apps/mcp-server/src/features/spec-trace/spec-trace-tools.ts#L79)):
    1. **Trust-boundary gate** — `executionRefusal(env)`
-      ([gate](../../../libs/shared/src/project/lib/trust.ts#L11)) returns a non-null
+      ([gate](../../../libs/shared/src/project/lib/trust.ts#L12)) returns a non-null
       string when `LORE_DB_HOST` is set (i.e. the shared cluster server). When
       non-null, return it immediately **without running the list command**.
    2. **Manifest precondition** — when `manifest` is `null`, return the literal

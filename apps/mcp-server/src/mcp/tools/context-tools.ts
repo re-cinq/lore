@@ -8,14 +8,10 @@ import {
   hybridSearch,
   isDbAvailable,
 } from "@re-cinq/lore-server-core/platform/db.js";
-import { isMemoryDbAvailable } from "@re-cinq/lore-server-core/features/memory/memory.js";
-import { assembleContext } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
-import { resolveCrossRepo } from "@re-cinq/lore-server-core/features/context/cross-repo.js";
 import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
 import { traceRetrieval } from "@re-cinq/lore-server-core/platform/otel.js";
 import {
-  ToolDeps,
-  makeTrackLatency,
+  trackLatency,
   proxyGetApi,
   withReadCache,
   unreachableError,
@@ -32,10 +28,7 @@ function readFileSafe(path: string): string | null {
   }
 }
 
-export function registerContextTools(server: McpServer, deps: ToolDeps) {
-  const { getPool } = deps;
-  const trackLatency = makeTrackLatency(getPool);
-
+export function registerContextTools(server: McpServer) {
   server.tool(
     "lore_search_context",
     `Searches the repo/org ingested-document corpus (CLAUDE.md, ADRs, team docs, specs) and returns raw matching passages as source-scored snippets. Uses hybrid vector+BM25 retrieval when a DB is available; falls back to case-insensitive substring scan of local .md files otherwise.
@@ -209,85 +202,11 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
     async ({ query, template, max_tokens, repo, agent_id, cross_repo }) => {
       return trackLatency("lore_assemble_context", async () => {
         try {
-          const dbPoolRef = getPool()!;
+          // Local stdio mode: proxy to GKE through the read-through cache.
+          const apiUrl = process.env.LORE_API_URL;
+          const apiToken = process.env.LORE_INGEST_TOKEN;
 
-          if (!isMemoryDbAvailable()) {
-            // Local stdio mode: proxy to GKE through the read-through cache.
-            const apiUrl = process.env.LORE_API_URL;
-            const apiToken = process.env.LORE_INGEST_TOKEN;
-
-            if (!apiUrl || !apiToken) {
-              return {
-                content: [
-                  {
-                    type: "text" as const,
-                    text: "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
-                  },
-                ],
-              };
-            }
-            const resolvedRepo = repo || detectCurrentRepo() || "";
-            // Forward the knobs the backend honors. cross_repo=false is the
-            // no-op default (the server resolves the settings fallback), so it
-            // is only sent when true. The same extras seed the cache key so a
-            // 16000-token request is never served an 8000-token cached body.
-            const extras: Record<string, string> = {};
-
-            if (max_tokens) {
-              extras.max_tokens = String(max_tokens);
-            }
-
-            if (cross_repo) {
-              extras.cross_repo = "true";
-            }
-
-            if (agent_id) {
-              extras.agent_id = agent_id;
-            }
-            const params = new URLSearchParams({
-              query,
-              template,
-              repo: resolvedRepo,
-              ...extras,
-            });
-            const proxied = await withReadCache(
-              {
-                tool: "lore_assemble_context",
-                args: { query, template, repo: resolvedRepo, ...extras },
-                repo: resolvedRepo || undefined,
-                ttlSeconds: 600,
-              },
-              async () => {
-                const r = await proxyGetApi(
-                  `/api/context?${params.toString()}`,
-                );
-
-                if (!r.ok) {
-                  return r;
-                }
-                const data = JSON.parse(r.body) as { text?: string };
-
-                // A reachable backend that returns empty context is a real
-                // (empty) result, not an outage — return it as-is rather than
-                // forcing a stale, mislabeled "backend unreachable" serve.
-                return { ok: true as const, body: data.text ?? "" };
-              },
-            );
-
-            if (proxied.ok) {
-              return {
-                content: [{ type: "text" as const, text: proxied.body }],
-              };
-            }
-
-            if (proxied.reason === "unreachable") {
-              return unreachableError("lore_assemble_context", proxied.detail);
-            }
-
-            if (proxied.reason === "denied") {
-              return deniedError("lore_assemble_context", proxied.detail);
-            }
-
+          if (!apiUrl || !apiToken) {
             return {
               content: [
                 {
@@ -297,35 +216,73 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
               ],
             };
           }
-          const enableCrossRepo = await resolveCrossRepo(
-            dbPoolRef as Parameters<typeof resolveCrossRepo>[0],
-            repo,
-            cross_repo,
-          );
-          const result = await assembleContext(
-            dbPoolRef,
+          const resolvedRepo = repo || detectCurrentRepo() || "";
+          // Forward the knobs the backend honors. cross_repo=false is the
+          // no-op default (the server resolves the settings fallback), so it
+          // is only sent when true. The same extras seed the cache key so a
+          // 16000-token request is never served an 8000-token cached body.
+          const extras: Record<string, string> = {};
+
+          if (max_tokens) {
+            extras.max_tokens = String(max_tokens);
+          }
+
+          if (cross_repo) {
+            extras.cross_repo = "true";
+          }
+
+          if (agent_id) {
+            extras.agent_id = agent_id;
+          }
+          const params = new URLSearchParams({
             query,
             template,
-            max_tokens,
-            repo,
-            agent_id,
-            enableCrossRepo,
+            repo: resolvedRepo,
+            ...extras,
+          });
+          const proxied = await withReadCache(
+            {
+              tool: "lore_assemble_context",
+              args: { query, template, repo: resolvedRepo, ...extras },
+              repo: resolvedRepo || undefined,
+              ttlSeconds: 600,
+            },
+            async () => {
+              const r = await proxyGetApi(`/api/context?${params.toString()}`);
+
+              if (!r.ok) {
+                return r;
+              }
+              const data = JSON.parse(r.body) as { text?: string };
+
+              // A reachable backend that returns empty context is a real
+              // (empty) result, not an outage — return it as-is rather than
+              // forcing a stale, mislabeled "backend unreachable" serve.
+              return { ok: true as const, body: data.text ?? "" };
+            },
           );
 
-          if (!result.text || result.text.trim().length === 0) {
+          if (proxied.ok) {
             return {
-              content: [
-                {
-                  type: "text" as const,
-                  text: "No relevant context found for this query.",
-                },
-              ],
+              content: [{ type: "text" as const, text: proxied.body }],
             };
           }
-          const meta = `<!-- context: template=${template}, sections=${result.sections.length}, tokens=${result.sections.reduce((s, r) => s + r.tokens, 0)} -->\n\n`;
+
+          if (proxied.reason === "unreachable") {
+            return unreachableError("lore_assemble_context", proxied.detail);
+          }
+
+          if (proxied.reason === "denied") {
+            return deniedError("lore_assemble_context", proxied.detail);
+          }
 
           return {
-            content: [{ type: "text" as const, text: meta + result.text }],
+            content: [
+              {
+                type: "text" as const,
+                text: "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
+              },
+            ],
           };
         } catch (err) {
           return {

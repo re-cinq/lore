@@ -25,3 +25,10 @@ loreApiUrl: http://host.minikube.internal:3001
 # The host Dgraph the ingest-station recipes project into. docker compose publishes
 # its HTTP port on :8081 (dodging the Floor's :8080), not the in-cluster :8080.
 dgraphUrl: http://host.minikube.internal:8081
+
+# A laptop has no org API credit and no ESO. The agent container runs the real `claude`
+# CLI, which authenticates from CLAUDE_CODE_OAUTH_TOKEN just as happily as from an API
+# key — so a local run bills the developer's own subscription. setup-minikube-agents.sh
+# writes this same key into agent-secrets; the two must agree or the run pods fail to
+# start. Mint the token with `claude setup-token` (npm run dev-setup does it for you).
+agentLlmSecretKey: CLAUDE_CODE_OAUTH_TOKEN

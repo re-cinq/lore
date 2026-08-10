@@ -29,6 +29,7 @@ const renderHome = (
   repos: Repo[],
   status: Record<string, IngestWorkflowStatus> = {},
   misaligned: string[] = [],
+  impactMisaligned: string[] = [],
 ) =>
   render(
     <HomeView
@@ -36,6 +37,8 @@ const renderHome = (
       ingestStatus={new Map(Object.entries(status))}
       misaligned={misaligned}
       fixIngestWorkflows={action}
+      impactMisaligned={impactMisaligned}
+      fixTraceImpactWorkflows={action}
     />,
   );
 

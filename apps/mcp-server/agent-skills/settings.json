@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '[lore] station session started\\n' 1>&2"
+          }
+        ]
+      }
+    ]
+  }
+}

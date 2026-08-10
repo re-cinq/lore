@@ -17,7 +17,11 @@ PR history, and task state.
   instead of stdio, and `LORE_MCP_SERVER_MODE=agent` (`build-mcp-server.ts`) omits
   the laptop-only + `lore_create_pipeline_task` tools. Deployed by `charts/lore-mcp-helm`
   (image `ghcr.io/re-cinq/lore-mcp`) in the `lore-api` namespace; agent recipes reach
-  it via a `resources.mcp_servers` entry (ADR-030/031/032).
+  it via a `resources.mcp_servers` entry (ADR-030/031/032). The gateway also serves the
+  **agent-skills registry** (`src/server/skills-registry.ts`) at `/skills/<name>.tar.gz`
+  + `/skills/settings.json` (unauthenticated; bundle baked from `apps/mcp-server/agent-skills/`);
+  the ai-agent-subsystem init fetches these into a run's `$HOME/.claude` via the recipe's
+  `resources.skills` + `skills_source` (ADR-030 skills seam).
 - **`apps/lore-api`** (`src/index.ts` + `src/server/http-server.ts`) — the remote
   HTTPS REST backend (`/api/*`) on GKE. Routes are organized one folder per
   endpoint under `src/api/routes/`; the DB/GitHub/GCS/tree-sitter work lives here.
@@ -105,7 +109,7 @@ status pill — a stale header misreports the org's backlog.
 - `scripts/infra/` — setup-db.sh, setup-schedulers.sh, generate-embeddings.sh
 - `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/` — ordered, idempotent `NNNN_*.sql` applied to `lore-db` on every deploy by a `pre-install,pre-upgrade` Helm hook Job (`lore-platform/charts/ui-helm/templates/migrate-{job,configmap}.yaml`), tracked in `lore.schema_migrations`, connecting as `lore` (the DB owner — no superuser needed) via the chart's `dbPasswordSecret`. Runs on both deploy paths (CI `helm upgrade` of the umbrella and terraform `helm_release.lore_platform`). The hook now fires on every umbrella upgrade regardless of which service changed; it is idempotent (skip-if-applied) so re-running on a floor/mcp deploy is a no-op. Baseline schema still comes from `setup-*-schema.sh`; incremental changes go here.
 - `scripts/agent-prompts/` — Lore Agent prompt templates for scheduled jobs (gap detection, spec drift, autoresearch, nightly reindex, etc.); ingested as context, not loaded as runtime code
-- `.claude/skills/` — platform skills (lore-feature, lore-pr, lore-init)
+- `.claude/skills/` — platform skills (lore-help, lore-feature, lore-pr, lore-init, lore-agents, lore-suggest-links, lore-test-commands), installed to `~/.claude/skills` by `install.sh`. **Every skill documents itself**: each `SKILL.md` ends with a `## Help` block fenced by `<!-- lore-help:begin -->` / `<!-- lore-help:end -->` (required `**Summary.**` + `**Usage:**`), which `/lore-help` extracts verbatim to build its index, per-skill detail, and task router — there is no second copy to keep in sync. `scripts/check-skill-help.sh` (the `skill-help` PR check) fails a skill that ships without one. `install.sh` refreshes a changed skill rather than skipping it, and `lore-doctor` fails when an installed skill differs from the checkout — a stale copy would make `/lore-help` describe behaviour that is not installed. See `specs/lore-help/spec.md`
 - `infra/terraform/modules/gke-mcp/lore-platform/` — the single umbrella Helm chart for all five service workloads (floor/lore-api/ui/lore-db/ai-agents subcharts under `charts/`); each subchart stamps its own namespace so one release spans them. `infra/terraform/modules/gke-mcp/` also holds the standalone bootstrap root (cluster + node pools)
 - `specs/` — speckit artifacts (spec, plan, tasks, research, contracts)
 - `specs/assembly-line-run-viz/spec.md` — live assembly-line run observability (Shipped): projects every claude stream-json line POSTed to `POST /api/agent-events` into `pipeline.agent_run_events` (write-time truncation + `file_paths` extraction, correlated to `assembly_line_nodes` via `source.agent` == `agent_cr_name`, 14-day prune), streams it over SSE at `GET /api/agent-events/stream/{assemblyLineId}` with catch-up-then-live and a row-id cursor, and renders the definition DAG live. Deliberately no `node_status` event type — node state seeds from `pipeline.assembly_line_nodes`. Adding the first `([validated by …])` link REQUIRES flipping its `| Status |` row to `In Progress`, or `eslint .` goes red repo-wide
@@ -251,12 +255,14 @@ searchable facts with embeddings.
 Agent ID resolved from: explicit parameter, `LORE_AGENT_ID` env,
 `~/.lore/agent-id` file, or auto-generated UUID.
 
-When the MCP server runs locally (stdio mode, no `LORE_DB_HOST`), the
-memory operations proxy to the GKE MCP server via `LORE_API_URL`:
+The MCP adapter holds **no** database pool (ADR-032) — not in stdio mode, not in
+the HTTP gateway — so every data operation proxies to `LORE_API_URL`:
 `lore_write_memory`/`lore_read_memory`/`lore_search_memory`/`lore_delete_memory`/`lore_list_memories`
-(with a `~/.lore/memory/` file fallback), `lore_write_episode`, and `lore_query_graph`
-(reads `GET /api/graph`). `lore_agent_stats` is still DB-only. Local learnings
-are shared across the org. AgentDB provides optional local read caching.
+(with a `~/.lore/memory/` file fallback), `lore_write_episode`, `lore_query_graph`
+(`GET /api/graph`), and `lore_agent_stats` (`GET /api/agent-stats`). Tool handlers
+carry exactly one path; a leftover "requires PostgreSQL (LORE_DB_HOST not set)"
+branch means the tool is dead, not gated. Local learnings are shared across the
+org. AgentDB provides optional local read caching.
 
 ## Required Workflow
 
@@ -307,6 +313,21 @@ The MCP server runs locally via stdio but proxies all operations
 (context, memory, pipeline, search) to the GKE backend via
 `LORE_API_URL`. The backend must be running for any functionality
 beyond the initial install (the install path has no offline mode).
+
+`npm run dev-setup` (`scripts/dev-setup.sh`) is the one-time developer
+bootstrap: it checks the toolchain (docker, minikube, kubectl, helm,
+claude) and fills the gaps in `.env.local` — the agent LLM credential
+(`claude setup-token` → `CLAUDE_CODE_OAUTH_TOKEN`, so laptop runs bill a
+subscription rather than org API credit; `ANTHROPIC_API_KEY` wins if both
+are set), `GITHUB_TOKEN`, ghcr creds, and `LORE_STATION_BACKEND=k8s`. When
+`infra/terraform/secrets.tfvars` is present it offers (never silently) to
+import the ghcr pull pair and the GitHub App triple from it, so a deployer
+mints no new PATs; `anthropic_api_key` is deliberately never imported,
+since an API key outranks the subscription token. It
+is interactive and touches nothing outside the machine; all cluster
+bootstrap stays in `npm start`, which is why that half can stay
+unattended. Already-set values are never overwritten, so re-running is
+free.
 
 To run the full stack on your machine instead, `npm start` from the
 repo root runs `scripts/dev-local.sh`: it brings up a docker Postgres
