@@ -319,7 +319,11 @@ bootstrap: it checks the toolchain (docker, minikube, kubectl, helm,
 claude) and fills the gaps in `.env.local` — the agent LLM credential
 (`claude setup-token` → `CLAUDE_CODE_OAUTH_TOKEN`, so laptop runs bill a
 subscription rather than org API credit; `ANTHROPIC_API_KEY` wins if both
-are set), `GITHUB_TOKEN`, ghcr creds, and `LORE_STATION_BACKEND=k8s`. It
+are set), `GITHUB_TOKEN`, ghcr creds, and `LORE_STATION_BACKEND=k8s`. When
+`infra/terraform/secrets.tfvars` is present it offers (never silently) to
+import the ghcr pull pair and the GitHub App triple from it, so a deployer
+mints no new PATs; `anthropic_api_key` is deliberately never imported,
+since an API key outranks the subscription token. It
 is interactive and touches nothing outside the machine; all cluster
 bootstrap stays in `npm start`, which is why that half can stay
 unattended. Already-set values are never overwritten, so re-running is
