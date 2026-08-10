@@ -71,8 +71,22 @@ fi
 #     be pointed at: LORE_KUBECONFIG is a file path, the only override kubeConfigSource()
 #     honours — see libs/shared/src/kube-config.ts.
 KUBECONFIG_FILE="$ROOT/.lore-kubeconfig-minikube"
-kubectl config view --minify --flatten --context="$MINIKUBE_PROFILE" > "$KUBECONFIG_FILE" \
-  || fail "no kubeconfig context named '$MINIKUBE_PROFILE' — check 'kubectl config get-contexts'"
+
+# Read the developer's own kubeconfig, never the file we are about to write. A prior
+# run of this script — or a copy-pasted `export KUBECONFIG=…` from a debugging session —
+# leaves KUBECONFIG pointing AT that file, and then `> "$file"` truncates it before
+# kubectl reads it: the view comes back empty, the context looks missing, and the only
+# copy is destroyed on the way out. Writing through a temp file makes the truncation
+# harmless; dropping the self-reference makes the read correct.
+case ":${KUBECONFIG:-}:" in
+  *":$KUBECONFIG_FILE:"*) unset KUBECONFIG ;;
+esac
+kube_tmp="$(mktemp)"
+if ! kubectl config view --minify --flatten --context="$MINIKUBE_PROFILE" > "$kube_tmp"; then
+  rm -f "$kube_tmp"
+  fail "no kubeconfig context named '$MINIKUBE_PROFILE' — check 'kubectl config get-contexts'"
+fi
+mv "$kube_tmp" "$KUBECONFIG_FILE"
 chmod 600 "$KUBECONFIG_FILE"
 export KUBECONFIG="$KUBECONFIG_FILE"
 log "Pinned to the '$MINIKUBE_PROFILE' context — $KUBECONFIG_FILE"
@@ -125,6 +139,25 @@ log "agent-secrets merged ($LLM_SECRET_KEY, LORE_INGEST_TOKEN, LORE_AGENT_INTERN
 #    explicitly so a re-run picks up contract changes.
 kubectl apply -f "$CHART_DIR/crds/" >/dev/null
 log "Agent/Station/AgentDefinition CRDs applied"
+
+# 5b. Refuse to fight a pre-Helm install. The subsystem's own `deploy/` manifests
+#     (raw `kubectl apply`) create the same names this chart does, and helm will not
+#     adopt objects it did not create — it aborts on the first one with a wall of
+#     ownership-metadata text that never names the actual cause. Say it plainly instead,
+#     and hand over the command. Detection: no helm release, yet the controller exists.
+if ! helm status ai-agents -n "$NAMESPACE" >/dev/null 2>&1 \
+   && kubectl -n "$NAMESPACE" get deployment agent-controller >/dev/null 2>&1; then
+  echo "[lore] ERROR: namespace $NAMESPACE already holds a NON-Helm ai-agent-subsystem" >&2
+  echo "[lore]        (installed with raw 'kubectl apply', so helm cannot adopt it)." >&2
+  echo "[lore]        It is also stale — this chart pins a newer controller. Remove it:" >&2
+  echo "[lore]" >&2
+  echo "  kubectl -n $NAMESPACE delete deployment/agent-controller \\" >&2
+  echo "    sa/agent-controller sa/agent-launcher \\" >&2
+  echo "    role/agent-controller role/agent-launcher \\" >&2
+  echo "    rolebinding/agent-controller rolebinding/agent-launcher" >&2
+  echo "[lore]" >&2
+  fail "then re-run. The namespace and your secrets are left untouched."
+fi
 
 # 6. The subsystem itself.
 helm upgrade --install ai-agents "$CHART_DIR" \
