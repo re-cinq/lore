@@ -74,6 +74,16 @@ export default async function SpendPage() {
     : await cachedRollups();
   const orgAvailable = !!orgMtd.as_of;
 
+  // Today's Lore-computed spend, used to bring the billed MTD figure current:
+  // Anthropic's cost report is daily-granularity and never emits the
+  // in-progress day, so the billed total always ends at yesterday. llm_calls
+  // is verified token-exact against Anthropic's hourly usage report, and the
+  // UTC current_date boundary matches the report's UTC day buckets.
+  const loreToday = await queryOne<{ cost_usd: number }>(
+    `SELECT COALESCE(SUM(cost_usd), 0)::float8 AS cost_usd
+     FROM pipeline.llm_calls WHERE created_at >= current_date`,
+  );
+
   // Lore-computed cost (pipeline.llm_calls) — always available, no admin key.
   const loreMtd = (await queryOne<LoreMtdRow>(
     `SELECT
@@ -137,6 +147,7 @@ export default async function SpendPage() {
       orgMtd={orgMtd}
       orgAvailable={orgAvailable}
       orgSource={live ? "live" : "cache"}
+      loreTodayUsd={loreToday?.cost_usd ?? 0}
       orgByModel={orgByModel}
       orgDaily={orgDaily}
       loreMtd={loreMtd}

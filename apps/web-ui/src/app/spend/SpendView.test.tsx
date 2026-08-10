@@ -231,4 +231,29 @@ describe("SpendView", () => {
       screen.queryByText("from the last nightly sync"),
     ).not.toBeInTheDocument();
   });
+
+  it("brings the billed card current with today's Lore-computed spend, labeled", () => {
+    render(<SpendView {...withAdminKey} loreTodayUsd={1.95} />);
+
+    const note = screen.getByText(/billed through yesterday/);
+
+    expect(note.textContent).toContain(usd(1.95));
+    expect(note.textContent).toContain("today (Lore-computed)");
+  });
+
+  it("omits the today line when today's Lore-computed spend is zero", () => {
+    render(<SpendView {...withAdminKey} loreTodayUsd={0} />);
+
+    expect(
+      screen.queryByText(/billed through yesterday/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows no today line without billed data even when today has spend", () => {
+    render(<SpendView {...empty} loreTodayUsd={1.95} />);
+
+    expect(
+      screen.queryByText(/billed through yesterday/),
+    ).not.toBeInTheDocument();
+  });
 });
