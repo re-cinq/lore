@@ -140,30 +140,29 @@ log "agent-secrets merged ($LLM_SECRET_KEY, LORE_INGEST_TOKEN, LORE_AGENT_INTERN
 kubectl apply -f "$CHART_DIR/crds/" >/dev/null
 log "Agent/Station/AgentDefinition CRDs applied"
 
-# 5b. Refuse to fight a pre-Helm install. The subsystem's own `deploy/` manifests
-#     (raw `kubectl apply`) create the same names this chart does, and helm will not
-#     adopt objects it did not create — it aborts on the first one with a wall of
-#     ownership-metadata text that never names the actual cause. Say it plainly instead,
-#     and hand over the command. Detection: no helm release, yet the controller exists.
-if ! helm status ai-agents -n "$NAMESPACE" >/dev/null 2>&1 \
-   && kubectl -n "$NAMESPACE" get deployment agent-controller >/dev/null 2>&1; then
-  echo "[lore] ERROR: namespace $NAMESPACE already holds a NON-Helm ai-agent-subsystem" >&2
-  echo "[lore]        (installed with raw 'kubectl apply', so helm cannot adopt it)." >&2
-  echo "[lore]        It is also stale — this chart pins a newer controller. Remove it:" >&2
-  echo "[lore]" >&2
-  echo "  kubectl -n $NAMESPACE delete deployment/agent-controller \\" >&2
-  echo "    sa/agent-controller sa/agent-launcher \\" >&2
-  echo "    role/agent-controller role/agent-launcher \\" >&2
-  echo "    rolebinding/agent-controller rolebinding/agent-launcher" >&2
-  echo "[lore]" >&2
-  fail "then re-run. The namespace and your secrets are left untouched."
+# 5b. helm >= 3.17, for --take-ownership below.
+helm_version="$(helm version --template '{{.Version}}' 2>/dev/null | sed 's/^v//')"
+if [ "$(printf '%s\n3.17.0\n' "$helm_version" | sort -V | head -1)" != "3.17.0" ]; then
+  fail "helm $helm_version is too old — need >= 3.17 (this script installs with --take-ownership)"
 fi
 
 # 6. The subsystem itself.
+#
+# --take-ownership because on a laptop THIS CHART owns the namespace, and a cluster
+# that has been used before is the normal case, not the exception. Anything an earlier
+# install left behind — the subsystem's own `deploy/` manifests, a catalog someone
+# kubectl-applied, a release that was uninstalled while `resource-policy: keep` held its
+# CRs — carries no Helm ownership metadata, and helm's default is to abort on the first
+# such object with a wall of label/annotation text that never names the cause. Adopting
+# is also the better end state: the adopted object is immediately overwritten with this
+# chart's version, which is the whole point of running the bootstrap. Without it a
+# developer clears one class of object per run (controller, then RBAC, then 26 catalog
+# CRs …) with no way to see how many rounds are left.
 helm upgrade --install ai-agents "$CHART_DIR" \
   --namespace "$NAMESPACE" \
   -f "$CHART_DIR/values.minikube.yaml" \
   --set-string "agentLlmSecretKey=$LLM_SECRET_KEY" \
+  --take-ownership \
   --wait --timeout 5m \
   || fail "helm upgrade failed — check 'kubectl -n $NAMESPACE get pods'"
 
