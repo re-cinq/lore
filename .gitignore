@@ -69,6 +69,10 @@ next-env.d.ts
 .lore-kubeconfig-minikube
 
 
+# Local copies of the prod database (scripts/infra/pull-prod-db.sh) — org data in the
+# clear, so it must never reach git
+.lore-dumps/
+
 # Local dev GitHub App private key
 .lore-github-app.pem
 .claude/scheduled_tasks.lock
