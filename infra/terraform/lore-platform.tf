@@ -136,6 +136,33 @@ resource "helm_release" "lore_platform" {
       # The same gateway serves the /skills registry the agent init fetches skills +
       # settings from (resources.skills_source). Empty leaves the sentinel unreplaced —
       # harmless, the init skips the fetch.
+      #
+      # MUST STAY APPLIED. This value being absent from the cluster is what caused the
+      # 2026-08-10 outage: every Claude-agent node failed at boot with
+      #
+      #   [agent] Error: Settings file not found: /agent/.claude/settings.json
+      #   [agent] {"kind":"lifecycle","exitCode":1,"phase":"agent","status":"failed"}
+      #
+      # #1090 added this line and #1093 deployed the v0.8.1 images, but the two halves
+      # ship by different paths: the chart goes out via CI, this file only on a manual
+      # `terraform apply`. No apply ran, so the images went live with the config absent.
+      # Contrary to what #1093 and ai-agents-helm/values.yaml both assert, the seam is
+      # NOT inert without a source — ADR-030 is the accurate one ("The Claude adapter
+      # emits --settings; skills need no flag"): v0.8.1 passes
+      # --settings /agent/.claude/settings.json unconditionally, while the init only
+      # WRITES that file when skills_source is set. No source, no file, exit 1.
+      #
+      # Blast radius when unset: all 13 Claude-agent recipes (review, implementation,
+      # gap-fill, feature-planning, ...). Stations carry no skills, so ingest/detect
+      # lines stay green and the board looks healthy while every LLM node is dead.
+      #
+      # So: clearing this does not disable the feature, it breaks it. If the seam ever
+      # needs to be genuinely off, the images must go back too (and note contracts
+      # 0.8.1 is now a hard dependency of per-task-token.ts / agent-crd.ts).
+      #
+      # Verify after apply that the recipes carry a source — read
+      # .spec.resources.skills_source off the `general` AgentDefinition in ai-agents;
+      # it should be <gateway>/skills, not empty.
       loreSkillsUrl = var.lore_mcp_url != "" ? "${var.lore_mcp_url}/skills" : ""
     }
   })]
