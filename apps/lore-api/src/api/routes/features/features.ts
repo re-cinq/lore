@@ -1,11 +1,5 @@
 import type { ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
-import {
-  parseGapResult,
-  sanitizeGapResult,
-  decideFeatureStatus,
-  isPlanningPhase,
-  type GapResult,
-} from "@re-cinq/lore-shared/feature-planning/gap-result.js";
+import { applyGapResult } from "@re-cinq/lore-shared/feature-planning/apply-gap-result.js";
 import { composePlanningPrompt } from "@re-cinq/lore-shared/feature-planning/planning-prompt.js";
 import {
   enforceFeatureInput,
@@ -250,35 +244,17 @@ export function featuresRoutes(): ServerRoute[] {
             return h.response({ error: "feature not found" }).code(404);
           }
 
-          let planningResult: GapResult;
-
-          try {
-            planningResult = sanitizeGapResult(parseGapResult(request.payload));
-          } catch (err) {
-            await features.setIterationResult(id, iteration, null, "failed");
-
-            return h
-              .response({
-                error: err instanceof Error ? err.message : String(err),
-              })
-              .code(400);
-          }
-
-          await features.setIterationResult(
+          // Shared with the Floor's artifact-event handler so a round reads the
+          // same however the pod delivered it (applyGapResult).
+          const applied = await applyGapResult(
+            features,
             id,
             iteration,
-            planningResult,
-            "ready",
+            request.payload,
           );
 
-          // Only advance a feature still mid-planning; a slow/duplicate pod POSTing
-          // a stale GapResult must not drag a finalized feature back into the wizard.
-          if (isPlanningPhase(feature.status)) {
-            await features.transitionStatus(
-              id,
-              decideFeatureStatus(planningResult),
-              { draft_spec_md: planningResult.draft_spec_markdown },
-            );
+          if (applied.outcome === "failed") {
+            return h.response({ error: applied.error }).code(400);
           }
 
           return h.response({ ok: true });

@@ -183,7 +183,7 @@ useful granularity.
 
 - FR5.1. A failure to persist visualization rows never fails the request; `POST /api/agent-events` continues to return success and to record its cost rows. ([validated by `agent-events.test.ts:97`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L97), [`agent-events.test.ts:112`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L112), [`agent-events.test.ts:122`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L122), [`agent-events.test.ts:130`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L130))
 
-- FR5.2. A single malformed or unprojectable line never drops the rest of its batch. ([validated by `agent-events.test.ts:79`](apps/floor/src/jobs/agent/agent-events.test.ts#L79))
+- FR5.2. A single malformed or unprojectable line never drops the rest of its batch. ([validated by `agent-events.test.ts:83`](apps/floor/src/jobs/agent/agent-events.test.ts#L83))
 
 - FR5.3. A client that reconnects with a `Last-Event-ID` receives every event after that id with no gap and no duplicate. ([validated by `run-event-reducer.test.ts:224`](apps/web-ui/src/lib/run-event-reducer.test.ts#L224), [`run-event-reducer.test.ts:232`](apps/web-ui/src/lib/run-event-reducer.test.ts#L232), [`run-event-reducer.test.ts:242`](apps/web-ui/src/lib/run-event-reducer.test.ts#L242), [`run-event-reducer.test.ts:303`](apps/web-ui/src/lib/run-event-reducer.test.ts#L303))
 

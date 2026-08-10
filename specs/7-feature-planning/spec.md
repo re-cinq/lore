@@ -299,6 +299,16 @@ The system MUST turn a merged feature spec into an implementable story/task tree
 - FR-11.6: Decomposition runs in-process in the coordinator (the LLM analysis plus the Issue/pipeline writes are coordinator-side; no repo mutation, no pod). ([impl](apps/floor/src/jobs/task/worker.ts))
 - FR-11.7: The feature detail view surfaces the resulting stories and the status of their tasks. ([impl](apps/web-ui/src/app/repos/[owner]/[repo]/features/[id]/DecompositionView.tsx))
 
+### FR-14: Result Delivery
+
+A planning round's deliverable is a file the pod produces. Getting it back is a
+first-class step, not an afterthought.
+
+- FR-14.1: The round's result reaches the API by exactly one rule set, whichever way the pod delivered it — the features route (the pod POSTing directly) and the Floor's artifact-event handler both call the same `applyGapResult`. A round that read `ready` on one path and `failed` on the other would show the author a different feature depending on plumbing. A payload that does not validate marks the round failed and reports why rather than throwing, so the route can answer 400 and the Floor can log. ([validated by applyGapResult marks the round ready and stores the gap for a valid payload](libs/shared/src/feature-planning/apply-gap-result.test.ts#L28), [`apply-gap-result.test.ts:41`](libs/shared/src/feature-planning/apply-gap-result.test.ts#L41), [`apply-gap-result.test.ts:52`](libs/shared/src/feature-planning/apply-gap-result.test.ts#L52), [`apply-gap-result.test.ts:64`](libs/shared/src/feature-planning/apply-gap-result.test.ts#L64), [impl](libs/shared/src/feature-planning/apply-gap-result.ts))
+- FR-14.2: A late or duplicate delivery records its round but never drags a finalized feature back into the wizard — the feature only advances while it is still mid-planning. ([validated by applyGapResult records a late result without dragging a finalized feature back into planning](libs/shared/src/feature-planning/apply-gap-result.test.ts#L77))
+- FR-14.3: A round whose agent produced no usable artifact fails carrying the reason the subsystem reported (`missing`, `too-large`, `unreadable`) or the JSON parse error — never a silent success. ([validated by deliverPlanningResult fails the round naming the reason when the agent produced no file](apps/floor/src/jobs/agent/planning-result.test.ts#L70), [`planning-result.test.ts:86`](apps/floor/src/jobs/agent/planning-result.test.ts#L86))
+- FR-14.4: A planning node that genuinely failed — a crashed pod, a non-zero exit, a timeout — is retried once by the assembly line's existing `iteration_max` back-edge before the line fails. This cannot catch an agent that exits 0 having produced nothing: that node reports success, so the round is failed by FR-14.3's delivery check rather than retried. ([impl](libs/assembly-lines/src/assembly-lines/feature-planning.yaml))
+
 ### FR-12: Round Observability
 
 A planning round is an assembly line, so the author MUST be able to watch it run

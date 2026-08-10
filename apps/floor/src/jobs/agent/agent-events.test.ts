@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { resultLine } from "@re-cinq/lore-assembly-lines";
-import { parseAgentEvents, agentEventsArchiveKey } from "./agent-events.js";
+import {
+  parseAgentEvents,
+  parseAgentSink,
+  agentEventsArchiveKey,
+} from "./agent-events.js";
 
 const line = (source: unknown, event: unknown): string =>
   JSON.stringify({ source, event });
@@ -210,5 +214,86 @@ describe("parseAgentEvents on a station terminal line", () => {
     const stationLine = resultLine({ outcome: "success", extras: {} });
 
     expect(parseAgentEvents(line(src, JSON.parse(stationLine)))).toEqual([]);
+  });
+});
+
+describe("parseAgentSink file events", () => {
+  const fileLine = (event: Record<string, unknown>) => line(src, event);
+
+  it("maps a produced artifact to its declared event name and contents", () => {
+    const { fileEvents } = parseAgentSink(
+      fileLine({
+        kind: "file",
+        event: "planning.result",
+        path: "/workspace/target/result.json",
+        content: '{"gap":"found"}',
+      }),
+    );
+
+    expect(fileEvents).toEqual([
+      {
+        taskId: "task-uuid-1",
+        agentCrName: "agent-abc",
+        event: "planning.result",
+        path: "/workspace/target/result.json",
+        content: '{"gap":"found"}',
+        reason: null,
+      },
+    ]);
+  });
+
+  it("carries the reason when the agent produced nothing", () => {
+    const { fileEvents } = parseAgentSink(
+      fileLine({
+        kind: "file",
+        event: "planning.result",
+        path: "/workspace/target/result.json",
+        reason: "missing",
+      }),
+    );
+
+    expect(fileEvents[0]).toMatchObject({ content: null, reason: "missing" });
+  });
+
+  it("ignores lifecycle and tool-native lines", () => {
+    const ndjson = [
+      fileLine({ kind: "lifecycle", phase: "agent", status: "succeeded" }),
+      fileLine({ type: "assistant", message: {} }),
+    ].join("\n");
+
+    expect(parseAgentSink(ndjson).fileEvents).toEqual([]);
+  });
+
+  it("skips a file event with no task attribution to act on", () => {
+    const ndjson = JSON.stringify({
+      source: { agent: "agent-abc" },
+      event: {
+        kind: "file",
+        event: "planning.result",
+        path: "/w/r.json",
+        content: "{}",
+      },
+    });
+
+    expect(parseAgentSink(ndjson).fileEvents).toEqual([]);
+  });
+
+  it("keeps an artifact that carries no agent attribution or path", () => {
+    const ndjson = JSON.stringify({
+      source: { task: "task-uuid-1" },
+      event: { kind: "file", event: "planning.result", content: "{}" },
+    });
+
+    expect(parseAgentSink(ndjson).fileEvents[0]).toMatchObject({
+      agentCrName: null,
+      path: "",
+      content: "{}",
+    });
+  });
+
+  it("skips an unnamed artifact, which nothing could route", () => {
+    const ndjson = fileLine({ kind: "file", path: "/w/r.json", content: "{}" });
+
+    expect(parseAgentSink(ndjson).fileEvents).toEqual([]);
   });
 });

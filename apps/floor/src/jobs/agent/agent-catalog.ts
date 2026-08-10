@@ -11,6 +11,11 @@ export interface AgentCatalogConfig {
   prompt_template: string;
   model?: string;
   timeout_minutes?: number;
+  /** A file this run is expected to produce, raised as a named `kind:"file"` event
+   *  once the agent exits (ai-agent-subsystem#188). Declared for recipes whose
+   *  deliverable is an artifact rather than their prose — without it the file never
+   *  leaves the pod. `path` resolves against WORKSPACE_DIR, not the agent's cwd. */
+  watch?: { event: string; path: string };
 }
 
 /** A builtin station recipe (non-LLM node run by the exec vendor). */
@@ -108,6 +113,15 @@ const OUTPUT_SINKS: NonNullable<
   ],
 };
 
+/** `output.watch` (ai-agent-subsystem#189) is merged upstream but not in the
+ *  published `@re-cinq/agent-contracts` 0.8.1 types this app pins. The generated
+ *  chart YAML is produced from these objects, so the field must be emitted now.
+ *  DELETE this alias and use the package's `OutputSpec` directly the moment
+ *  @re-cinq/agent-contracts ships a version carrying `watch`. */
+type OutputSpecWithWatch = NonNullable<
+  NonNullable<AgentDefinition["spec"]>["output"]
+> & { watch?: { event: string; path: string }[] };
+
 export function buildAgentDefinition(
   taskType: string,
   cfg: AgentCatalogConfig,
@@ -158,7 +172,12 @@ export function buildAgentDefinition(
             headers_secret: "agent-events-auth",
           },
         ],
-      },
+        // A recipe whose deliverable is a file declares it here: the subsystem
+        // raises it as a named `kind:"file"` event on the sink above once the
+        // agent exits, which is the only way the artifact leaves the pod
+        // (ai-agent-subsystem#188).
+        ...(cfg.watch ? { watch: [cfg.watch] } : {}),
+      } as OutputSpecWithWatch,
     },
   };
 }

@@ -2,7 +2,9 @@ name: feature-planning
 description: >
   One interactive planning round: analyze the feature request against the project
   (with the prior feature timeline in context) and emit a structured GapResult.
-  No commit, no PR — the pod posts result.json back to the features API.
+  No commit, no PR — the run declares result.json as a produced artifact
+  (`output.watch`), the subsystem raises it as a `planning.result` event, and the
+  Floor persists it as the round's result.
 version: 1
 entry: analyze
 exit: done
@@ -21,4 +23,24 @@ nodes:
 edges:
   - from: analyze
     to: done
-    on: always
+    on: success
+
+  # An agent node can produce this outcome, so the graph must route it; planning
+  # asks for no review, so treat it as done rather than a failure.
+  - from: analyze
+    to: done
+    on: changes_requested
+
+  # One retry for a node that genuinely failed — a crashed pod, a non-zero exit, a
+  # timeout. Planning is a single expensive LLM pass with no partial state to lose,
+  # so re-running it is cheaper than making the author click Retry. A second failure
+  # exhausts the budget and fails the line (selectEdge does not fall through), which
+  # settle-task then reports on the round with the line's reason.
+  #
+  # Note this cannot catch the other shape: an agent that exits 0 having produced no
+  # usable artifact leaves the node `success`, so the line completes and the round is
+  # failed by the delivery check rather than retried here.
+  - from: analyze
+    to: analyze
+    on: failed
+    iteration_max: 1

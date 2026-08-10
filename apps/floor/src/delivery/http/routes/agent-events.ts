@@ -14,11 +14,14 @@ import { errorMessage } from "@re-cinq/lore-shared";
 
 import type { ServerRoute } from "@hapi/hapi";
 import { metrics } from "@opentelemetry/api";
-import { usage, agentRunEvents } from "../../../kernel/queues.js";
+import { usage, agentRunEvents, taskStore } from "../../../kernel/queues.js";
+import { projectFor } from "../../../composition/project-boot.js";
+import { deliverPlanningResults } from "../../../jobs/agent/planning-result.js";
 import {
   parseAgentSink,
   agentEventsArchiveKey,
   type LlmCallRow,
+  type AgentFileEvent,
 } from "../../../jobs/agent/agent-events.js";
 import { agentEventBus } from "../../../jobs/agent/agent-event-bus.js";
 import { archiveAgentEvents } from "../../../jobs/agent/agent-events-store.js";
@@ -202,6 +205,30 @@ async function recordRunEvents(
   }
 }
 
+/**
+ * Settle any planning rounds whose artifact arrived in this batch. Skip-not-fail
+ * like the projections above: a delivery failure must never 500 the sink, which
+ * also carries cost and viz rows for unrelated runs.
+ */
+async function recordPlanningResults(
+  fileEvents: readonly AgentFileEvent[],
+): Promise<number> {
+  if (fileEvents.length === 0) {
+    return 0;
+  }
+
+  try {
+    return await deliverPlanningResults(fileEvents, {
+      tasks: taskStore(),
+      featuresFor: projectFor,
+    });
+  } catch (err) {
+    console.warn(`[floor] planning results skipped: ${errorMessage(err)}`);
+
+    return 0;
+  }
+}
+
 export const agentEventsRoute: ServerRoute = {
   method: "POST",
   path: "/api/agent-events",
@@ -211,9 +238,15 @@ export const agentEventsRoute: ServerRoute = {
     // records the exception on the request span — no per-handler try/catch.
     const rawNdjson = rawBody(request);
     const oversized = Buffer.byteLength(rawNdjson, "utf8") > MAX_VIZ_BODY_BYTES;
-    const { costRows, runEvents } = parseAgentSink(rawNdjson, !oversized);
+    const { costRows, runEvents, fileEvents } = parseAgentSink(
+      rawNdjson,
+      !oversized,
+    );
     const cost = await recordAgentCosts(costRows);
     const vizRows = oversized ? 0 : await recordRunEvents(runEvents);
+    // Declared artifacts ride the same sink as cost + telemetry, so a planning
+    // round's result lands here rather than needing its own channel.
+    const planningRounds = await recordPlanningResults(fileEvents);
 
     const audit = costDegradedAudit(cost);
 
@@ -234,6 +267,7 @@ export const agentEventsRoute: ServerRoute = {
       "agent_events.uncorrelated": cost.uncorrelated,
       "agent_events.failed": cost.failed,
       "agent_events.viz_rows": vizRows,
+      "agent_events.planning_rounds": planningRounds,
       "agent_events.oversized": oversized,
     });
 

@@ -264,6 +264,14 @@ task_types:
     timeout_minutes: 15
     review_required: false
     model: claude-sonnet-4-6
+    # The run's deliverable is a FILE, so declare it: the subsystem raises it as a
+    # `kind:"file"` event on the NDJSON sink once the agent exits, and the Floor
+    # persists it as the round's result (ai-agent-subsystem#188). The path resolves
+    # against WORKSPACE_DIR, NOT the agent's cwd — the repo is cloned to
+    # $WORKSPACE_DIR/target, which is also where the agent works.
+    watch:
+      event: planning.result
+      path: target/result.json
 
   feature-finalize:
     prompt_template: |
