@@ -85,4 +85,20 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.apiSink.port }}
+    # The lore-mcp gateway: the agents' live MCP transport (resources.mcp_servers) AND
+    # the init's skills + settings fetch (resources.skills_source) — one service, one
+    # hole. In-cluster for the same DNAT reason as the Lore API above; the gateway's
+    # public :443 host is unreachable from a run pod and merely hangs (#1126, 2026-08-10:
+    # `curl: (28) ... after 135111 ms`, after which the init reported success anyway).
+    # Host/port must match loreMcpUrl / loreSkillsUrl.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.mcpSink.namespace }}
+          podSelector:
+            matchLabels:
+              app: lore-mcp-gateway
+      ports:
+        - protocol: TCP
+          port: {{ .Values.mcpSink.port }}
 {{- end }}

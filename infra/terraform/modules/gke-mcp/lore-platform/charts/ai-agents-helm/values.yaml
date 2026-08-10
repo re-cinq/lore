@@ -49,16 +49,22 @@ stationImage: ghcr.io/re-cinq/lore-station:latest
 loreApiUrl: http://lore-api.lore-api.svc.cluster.local:3000
 
 # PUBLIC HTTPS URL of the shared lore-mcp gateway that agent recipes point at
-# (resources.mcp_servers). Unlike loreApiUrl this must be PUBLIC :443 — the run-pod
-# NetworkPolicy blocks in-cluster egress, so agents reach the gateway over the public
-# ingress (the same reason agentEventsUrl works). Empty = agent MCP off until the
-# gateway is deployed AND the ai-agent-subsystem wires mcp_servers (ADR-030).
+# (resources.mcp_servers). IN-CLUSTER, for exactly the reason loreApiUrl documents
+# above — this was PUBLIC :443 until 2026-08-10 and never worked. Dataplane V2
+# short-circuits a VIP whose backend lives in this cluster, and the post-DNAT 10.x
+# address hits the egress policy's RFC1918 except-list, so a run pod reaching the
+# public gateway host just hangs. Observed in an agent init as
+#   curl: (28) Failed to connect to lore-mcp.gcp.re-cinq.com port 443 after 135111 ms
+# after which the init reported success and left the agent without its settings file
+# (#1126). agentEventsUrl is not a counter-example: it is in-cluster too, with its own
+# floorSink hole. Anything hosted in this cluster is reached in-cluster and opened
+# explicitly via a *Sink below. Empty = agent MCP off until the gateway is deployed AND
+# the ai-agent-subsystem wires mcp_servers (ADR-030).
 loreMcpUrl: ""
 
-# PUBLIC HTTPS base URL of the gateway's /skills registry the agent init fetches skills
-# + settings from (resources.skills_source). Same public-:443 constraint as loreMcpUrl —
-# agent pods reach it over the public ingress. Empty = skills off (the init skips the
-# fetch). Normally `<loreMcpUrl host>/skills`.
+# IN-CLUSTER base URL of the gateway's /skills registry the agent init fetches skills +
+# settings from (resources.skills_source). Same host and same reason as loreMcpUrl.
+# Empty = skills off (the init skips the fetch). Normally `<loreMcpUrl host>/skills`.
 loreSkillsUrl: ""
 
 # In-cluster egress target for the station API calls — must match the host:port in
@@ -66,6 +72,13 @@ loreSkillsUrl: ""
 apiSink:
   namespace: lore-api
   port: 3000
+
+# In-cluster egress target for the lore-mcp gateway — must match the host:port in
+# loreMcpUrl / loreSkillsUrl above. Covers both the agents' MCP transport and the
+# init's skills+settings fetch; they are the same service.
+mcpSink:
+  namespace: lore-api
+  port: 8080
 
 # The spec-traceability graph the ingest-station recipes project into. In-cluster for
 # the same reason as loreApiUrl; ingest-station-egress opens exactly this service.
