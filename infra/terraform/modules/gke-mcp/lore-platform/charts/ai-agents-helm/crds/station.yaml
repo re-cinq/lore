@@ -40,6 +40,8 @@ spec:
               properties:
                 agentDefRef:
                   type: string
+                  pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                  maxLength: 253
                   description: "Name of the AgentDefinition this Station runs."
                 deadlineMinutes:
                   type: integer
@@ -62,9 +64,9 @@ spec:
                   type: string
                   description: "At the limit: Allow queues (default), Forbid caps at one, Replace cancels the oldest run for the new one."
                   enum:
-                    - Allow
-                    - Forbid
-                    - Replace
+                    - "Allow"
+                    - "Forbid"
+                    - "Replace"
                 template:
                   type: object
                   description: "Standard Kubernetes PodTemplateSpec; the container named \"agent\" is wired with the recipe."
