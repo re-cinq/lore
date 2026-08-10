@@ -89,3 +89,32 @@ under the `graph-extraction` job name. ([validated by `helpers.test.ts:17`](apps
 
 `triggerAgentSpecTrace` is a no-op that resolves to undefined when there is no DB
 pool. ([validated by `spec-trace-trigger.test.ts:37`](apps/lore-api/src/api/routes/spec-trace-trigger.test.ts#L37))
+
+### Live Anthropic cost
+
+`GET /api/anthropic-cost/live` serves the Admin API cost/usage report to the
+`/spend` page so the org figures are current rather than up to a day stale. The
+Floor serves it because the `sk-ant-admin` key is org-wide billing access and is
+already mounted there, keeping it out of the `lore-ui` namespace. The route
+rejects a mismatched bearer token, answers `503` without calling upstream when
+`ANTHROPIC_ADMIN_KEY` is unset — so the caller can tell "not configured" from
+"configured and zero" — and otherwise returns the fetched rows alongside the
+`fetchedAt` timestamp, passing the key from the environment to the fetcher. ([validated by `anthropic-cost-live.test.ts:54`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L54), [`anthropic-cost-live.test.ts:68`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L68), [`anthropic-cost-live.test.ts:77`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L77), [`anthropic-cost-live.test.ts:92`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L92))
+
+Responses are cached for a TTL because every page view is an upstream call and
+the Admin API's rate-limit ceiling is unpublished: concurrent and repeat
+requests inside the TTL collapse into one upstream call, a request after the TTL
+has elapsed calls upstream again, and a rejection is never cached so the next
+request retries rather than pinning the page to the fallback. ([validated by `anthropic-cost-live.test.ts:102`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L102), [`anthropic-cost-live.test.ts:114`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L114), [`anthropic-cost-live.test.ts:126`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L126))
+
+`monthStart` resolves the month boundary in UTC to match the fallback SQL's
+`date_trunc('month', current_date)`, zero-padding single-digit months and using
+the UTC month even when the timestamp falls in a different month locally. ([validated by `anthropic-cost-live.test.ts:24`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L24), [`anthropic-cost-live.test.ts:28`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L28), [`anthropic-cost-live.test.ts:32`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L32))
+
+`aggregateMonthToDate` reproduces the three month-to-date rollups the page
+otherwise reads from `pipeline.anthropic_cost_daily`, so the live view and the
+DB fallback carry the same shapes and arithmetic: it sums cost and tokens across
+the month, excludes rows dated before the month start, groups by model ordered
+by cost descending and by day ordered by date descending, and reports a null
+`as_of` for a month with no rows — mirroring `MAX(fetched_at)` over an empty set
+— so an empty month reads as empty rather than as available data. ([validated by `anthropic-cost-live.test.ts:38`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L38), [`anthropic-cost-live.test.ts:53`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L53), [`anthropic-cost-live.test.ts:66`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L66), [`anthropic-cost-live.test.ts:81`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L81), [`anthropic-cost-live.test.ts:108`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L108), [`anthropic-cost-live.test.ts:125`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L125))

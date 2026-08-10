@@ -34,6 +34,13 @@ export interface LoreByTaskTypeRow {
 export interface SpendViewProps {
   orgMtd: OrgMtdRow;
   orgAvailable: boolean;
+  /**
+   * Where the org figures came from. `live` means the Floor answered with a
+   * fresh Admin API read; `cache` means the nightly `anthropic_cost_sync`
+   * rollup. Optional so callers that have no source (tests, older callers)
+   * render exactly as before.
+   */
+  orgSource?: "live" | "cache";
   orgByModel: OrgByModelRow[];
   orgDaily: OrgDailyRow[];
   loreComputedUsd: number;
@@ -47,6 +54,7 @@ const usd = (n: number) =>
 export default function SpendView({
   orgMtd,
   orgAvailable,
+  orgSource,
   orgByModel,
   orgDaily,
   loreComputedUsd,
@@ -70,6 +78,15 @@ export default function SpendView({
               ? `as of ${new Date(orgMtd.as_of as string).toLocaleString()}`
               : "admin key not configured"}
           </div>
+          {/* Rendered as a sibling rather than appended to the line above so
+              the "as of …" text stays an exact leaf node. */}
+          {orgAvailable && orgSource ? (
+            <div className={`meta ${styles.subnote}`}>
+              {orgSource === "live"
+                ? "live from Anthropic"
+                : "from the last nightly sync"}
+            </div>
+          ) : null}
         </div>
         <div className={`spec-card ${styles.card}`}>
           <div className="meta">Lore-computed cost</div>
@@ -92,13 +109,17 @@ export default function SpendView({
         </div>
       </div>
 
-      {!orgAvailable && (
+      {/* Suppressed when the source is `live`: a successful live read proves
+          the key is configured, so an empty month means the org simply has no
+          billed spend yet — not a misconfiguration. */}
+      {!orgAvailable && orgSource !== "live" && (
         <div className={`spec-card ${styles.warningCard}`}>
           <strong>Org-wide billed cost unavailable.</strong>
           <div className={`meta ${styles.warningNote}`}>
-            Set <code>ANTHROPIC_ADMIN_KEY</code> (an <code>sk-ant-admin…</code>{" "}
-            key) on the agent so the daily <code>anthropic-cost-sync</code> cron
-            can pull Anthropic&apos;s authoritative Cost report. Showing
+            Either the Floor is unreachable, or <code>ANTHROPIC_ADMIN_KEY</code>{" "}
+            (an <code>sk-ant-admin…</code> key) is unset there, so neither the
+            live read nor the daily <code>anthropic-cost-sync</code> cron can
+            pull Anthropic&apos;s authoritative Cost report. Showing
             Lore-computed estimates only.
           </div>
         </div>
