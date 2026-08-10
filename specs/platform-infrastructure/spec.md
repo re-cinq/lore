@@ -90,41 +90,15 @@ under the `graph-extraction` job name. ([validated by `helpers.test.ts:17`](apps
 `triggerAgentSpecTrace` is a no-op that resolves to undefined when there is no DB
 pool. ([validated by `spec-trace-trigger.test.ts:37`](apps/lore-api/src/api/routes/spec-trace-trigger.test.ts#L37))
 
-### Live Anthropic cost
+### Anthropic cost sync window
 
-`GET /api/anthropic-cost/live` serves the Admin API cost/usage report to the
-`/spend` page so the billed figures are current rather than up to a day stale —
-the Floor serves it rather than the web-ui because the `sk-ant-admin` key is
-org-wide billing access and is already mounted there, keeping it out of the
-`lore-ui` namespace — rejecting a mismatched bearer token, answering `503`
-without calling upstream when `ANTHROPIC_ADMIN_KEY` is unset so the caller can
-tell "not configured" from "configured and zero", and otherwise returning the
-fetched rows alongside the `fetchedAt` timestamp with the key passed from the
-environment to the fetcher. ([validated by `anthropic-cost-live.test.ts:54`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L54), [`anthropic-cost-live.test.ts:68`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L68), [`anthropic-cost-live.test.ts:77`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L77), [`anthropic-cost-live.test.ts:92`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L92))
-
-Responses are cached for a TTL because every page view is an upstream call and
-the Admin API's rate-limit ceiling is unpublished: concurrent and repeat
-requests inside the TTL collapse into one upstream call, a request after the TTL
-has elapsed calls upstream again, and a rejection is never cached so the next
-request retries rather than pinning the page to the fallback. ([validated by `anthropic-cost-live.test.ts:102`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L102), [`anthropic-cost-live.test.ts:114`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L114), [`anthropic-cost-live.test.ts:126`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L126))
-
-`monthStart` resolves the month boundary in UTC to match the fallback SQL's
-`date_trunc('month', current_date)`, zero-padding single-digit months and using
-the UTC month even when the timestamp falls in a different month locally. ([validated by `anthropic-cost-live.test.ts:25`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L25), [`anthropic-cost-live.test.ts:29`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L29), [`anthropic-cost-live.test.ts:33`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L33))
-
-`aggregateMonthToDate` reproduces the month-to-date rollups the page otherwise
-reads from `pipeline.anthropic_cost_daily`, so the live view and the DB fallback
-carry the same shapes and arithmetic: it sums cost and tokens across the month,
-excludes rows dated before the month start while including a row dated exactly
-on it, groups by model ordered by cost descending and by day ordered by date
-descending, and reports a null `as_of` for a month with no rows — mirroring
-`MAX(fetched_at)` over an empty set, so the view hides the billed sections
-rather than showing them as available. ([validated by `anthropic-cost-live.test.ts:39`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L39), [`anthropic-cost-live.test.ts:54`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L54), [`anthropic-cost-live.test.ts:67`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L67), [`anthropic-cost-live.test.ts:82`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L82), [`anthropic-cost-live.test.ts:109`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L109), [`anthropic-cost-live.test.ts:126`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L126), [`anthropic-cost-live.test.ts:139`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L139))
-
-`fetchLiveCost` degrades to the cached rollup rather than throwing, because
-`/spend` must render whatever the Floor is doing — returning null without
-calling out when the Floor URL or ingest token is unset, on a non-2xx response,
-on a malformed payload, and when the request rejects, returning the payload and
-sending the ingest token as a bearer header on success, and bounding the request
-with an abort signal so an unresponsive Floor pod degrades the page instead of
-stalling the render. ([validated by `anthropic-cost-live.test.ts:193`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L193), [`anthropic-cost-live.test.ts:204`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L204), [`anthropic-cost-live.test.ts:215`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L215), [`anthropic-cost-live.test.ts:231`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L231), [`anthropic-cost-live.test.ts:244`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L244), [`anthropic-cost-live.test.ts:252`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L252), [`anthropic-cost-live.test.ts:260`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L260))
+The hourly `anthropic_cost_sync` cron is the sole Anthropic Admin API caller —
+the cost report only changes once a day, so `/spend` reads the synced rows from
+the database rather than proxying the API per request (ADR-043) — and its
+`reportWindow` opens the request at today's UTC midnight minus 30
+days and deliberately sends no `ending_at` — the API returns only buckets that
+end strictly *before* that bound, so an `ending_at` at tomorrow's midnight
+would exclude the current day's bucket — leaving exactly 31 candidate daily
+buckets, the documented `1d` maximum, so the limit can never truncate one, the
+first of the month is still covered on the 31st, and a window crossing a month
+boundary loses no bucket. ([validated by `anthropic-cost-sync.test.ts:28`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L28), [`anthropic-cost-sync.test.ts:34`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L34), [`anthropic-cost-sync.test.ts:40`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L40), [`anthropic-cost-sync.test.ts:46`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L46), [`anthropic-cost-sync.test.ts:53`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L53), [`anthropic-cost-sync.test.ts:59`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L59))

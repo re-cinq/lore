@@ -211,24 +211,28 @@ describe("SpendView", () => {
     expect(screen.getByText("No task-attributed spend")).toBeInTheDocument(); // task type
   });
 
-  it("labels billed figures read live through the Floor", () => {
-    render(<SpendView {...withAdminKey} orgSource="live" />);
+  it("brings the billed card current with today's Lore-computed spend, labeled", () => {
+    render(<SpendView {...withAdminKey} loreTodayUsd={1.95} />);
 
-    expect(screen.getByText("live from Anthropic")).toBeInTheDocument();
+    const note = screen.getByText(/billed through yesterday/);
+
+    expect(note.textContent).toContain(usd(1.95));
+    expect(note.textContent).toContain("today (Lore-computed)");
   });
 
-  it("labels billed figures served from the nightly rollup", () => {
-    render(<SpendView {...withAdminKey} orgSource="cache" />);
+  it("omits the today line when today's Lore-computed spend is zero", () => {
+    render(<SpendView {...withAdminKey} loreTodayUsd={0} />);
 
-    expect(screen.getByText("from the last nightly sync")).toBeInTheDocument();
-  });
-
-  it("omits the source label when no source is given", () => {
-    render(<SpendView {...withAdminKey} />);
-
-    expect(screen.queryByText("live from Anthropic")).not.toBeInTheDocument();
     expect(
-      screen.queryByText("from the last nightly sync"),
+      screen.queryByText(/billed through yesterday/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows no today line without billed data even when today has spend", () => {
+    render(<SpendView {...empty} loreTodayUsd={1.95} />);
+
+    expect(
+      screen.queryByText(/billed through yesterday/),
     ).not.toBeInTheDocument();
   });
 });

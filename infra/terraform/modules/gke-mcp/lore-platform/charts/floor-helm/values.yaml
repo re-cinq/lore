@@ -175,7 +175,12 @@ cronJobs:
     schedule: "0 4 * * *"
   - name: anthropic-cost-sync
     job: anthropic_cost_sync
-    schedule: "0 7 * * *"  # daily, after the prior billing day settles
+    # Hourly: the cost report only changes once a day (buckets close at UTC
+    # midnight; the in-progress day is never emitted), so ~23 of 24 runs are
+    # no-op upserts — but yesterday's bucket lands within an hour of appearing,
+    # and a failed run self-heals on the next tick. This replaces the /spend
+    # page's per-request live read (ADR-043).
+    schedule: "15 * * * *"
 
   # Heavy LLM / embedding jobs — bigger memory + longer deadline
   - name: context-reindex

@@ -1,11 +1,5 @@
 export const dynamic = "force-dynamic";
 import { query, queryOne, queryAllowMissing } from "@/lib/db";
-import {
-  fetchLiveCost,
-  aggregateMonthToDate,
-  monthStart,
-  type OrgRollups,
-} from "@/lib/anthropic-cost-live";
 import SpendView, {
   type OrgMtdRow,
   type OrgByModelRow,
@@ -20,13 +14,13 @@ import SpendView, {
 
 const MTD = "created_at >= date_trunc('month', current_date)";
 
-/**
- * Billed month-to-date rollups from `pipeline.anthropic_cost_daily` — what the
- * nightly `anthropic_cost_sync` cron last wrote. The fallback for when the
- * Floor's live read is unavailable. `queryAllowMissing` degrades to [] when the
- * table is absent, and the view hides these sections.
- */
-async function cachedRollups(): Promise<OrgRollups> {
+export default async function SpendPage() {
+  // Anthropic's authoritative billed cost from pipeline.anthropic_cost_daily,
+  // written by the hourly anthropic_cost_sync cron. The cost report only ever
+  // changes once a day (buckets close at UTC midnight and the in-progress day
+  // is not emitted), so an hourly sync keeps this as fresh as the API allows —
+  // no per-request Anthropic call can do better. queryAllowMissing degrades to
+  // [] when the migration/table is absent, and the view hides these sections.
   const orgMtdRow = (
     await queryAllowMissing<OrgMtdRow>(
       `SELECT
@@ -38,41 +32,38 @@ async function cachedRollups(): Promise<OrgRollups> {
        WHERE bucket_date >= date_trunc('month', current_date)`,
     )
   )[0];
-
-  return {
-    orgMtd: orgMtdRow ?? {
-      billed_usd: 0,
-      input_tokens: 0,
-      output_tokens: 0,
-      as_of: null,
-    },
-    orgByModel: await queryAllowMissing<OrgByModelRow>(
-      `SELECT model, SUM(cost_usd)::float8 AS cost_usd,
-         SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens
-       FROM pipeline.anthropic_cost_daily
-       WHERE bucket_date >= date_trunc('month', current_date)
-       GROUP BY model ORDER BY cost_usd DESC`,
-    ),
-    orgDaily: await queryAllowMissing<OrgDailyRow>(
-      `SELECT bucket_date, SUM(cost_usd)::float8 AS cost_usd
-       FROM pipeline.anthropic_cost_daily
-       WHERE bucket_date >= date_trunc('month', current_date)
-       GROUP BY bucket_date ORDER BY bucket_date DESC`,
-    ),
+  const orgAvailable = !!orgMtdRow?.as_of;
+  const orgMtd: OrgMtdRow = orgMtdRow ?? {
+    billed_usd: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    as_of: null,
   };
-}
 
-export default async function SpendPage() {
-  // Anthropic's authoritative billed cost, read live through the Floor (which
-  // holds the admin key) so the figures are current rather than up to a day
-  // stale; the cron's rollup is the fallback when the Floor cannot answer. The
-  // view hides these sections when neither source has data. Everything below
-  // runs off pipeline.llm_calls and needs no admin key at all.
-  const live = await fetchLiveCost();
-  const { orgMtd, orgByModel, orgDaily } = live
-    ? aggregateMonthToDate(live.rows, live.fetchedAt, monthStart(new Date()))
-    : await cachedRollups();
-  const orgAvailable = !!orgMtd.as_of;
+  const orgByModel = await queryAllowMissing<OrgByModelRow>(
+    `SELECT model, SUM(cost_usd)::float8 AS cost_usd,
+       SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens
+     FROM pipeline.anthropic_cost_daily
+     WHERE bucket_date >= date_trunc('month', current_date)
+     GROUP BY model ORDER BY cost_usd DESC`,
+  );
+
+  const orgDaily = await queryAllowMissing<OrgDailyRow>(
+    `SELECT bucket_date, SUM(cost_usd)::float8 AS cost_usd
+     FROM pipeline.anthropic_cost_daily
+     WHERE bucket_date >= date_trunc('month', current_date)
+     GROUP BY bucket_date ORDER BY bucket_date DESC`,
+  );
+
+  // Today's Lore-computed spend, used to bring the billed MTD figure current:
+  // Anthropic's cost report is daily-granularity and never emits the
+  // in-progress day, so the billed total always ends at yesterday. llm_calls
+  // is verified token-exact against Anthropic's hourly usage report, and the
+  // UTC current_date boundary matches the report's UTC day buckets.
+  const loreToday = await queryOne<{ cost_usd: number }>(
+    `SELECT COALESCE(SUM(cost_usd), 0)::float8 AS cost_usd
+     FROM pipeline.llm_calls WHERE created_at >= current_date`,
+  );
 
   // Lore-computed cost (pipeline.llm_calls) — always available, no admin key.
   const loreMtd = (await queryOne<LoreMtdRow>(
@@ -136,7 +127,7 @@ export default async function SpendPage() {
     <SpendView
       orgMtd={orgMtd}
       orgAvailable={orgAvailable}
-      orgSource={live ? "live" : "cache"}
+      loreTodayUsd={loreToday?.cost_usd ?? 0}
       orgByModel={orgByModel}
       orgDaily={orgDaily}
       loreMtd={loreMtd}

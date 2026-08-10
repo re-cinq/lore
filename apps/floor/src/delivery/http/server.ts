@@ -18,7 +18,6 @@ import { githubWebhookRoute } from "./routes/github-webhook.js";
 import { ciIngestRoute } from "./routes/ci-ingest.js";
 import { ciTestsRoute } from "./routes/ci-tests.js";
 import { reviewStartRoute } from "./routes/review-start.js";
-import { anthropicCostLiveRoute } from "./routes/anthropic-cost-live.js";
 import type {
   PodLogSource,
   PodLogArchive,
@@ -54,7 +53,6 @@ export function buildServer(opts: {
     ciIngestRoute,
     ciTestsRoute,
     reviewStartRoute,
-    anthropicCostLiveRoute(),
   ]);
 
   return server;
