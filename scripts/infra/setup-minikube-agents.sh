@@ -56,10 +56,26 @@ LORE_INGEST_TOKEN="${LORE_INGEST_TOKEN:-lore-local-dev-token}"
 LORE_AGENT_INTERNAL_TOKEN="${LORE_AGENT_INTERNAL_TOKEN:-lore-local-agent-token}"
 
 # 1. Cluster up. `minikube status` exits non-zero when stopped/absent.
-if ! minikube status >/dev/null 2>&1; then
+MINIKUBE_PROFILE="${MINIKUBE_PROFILE:-minikube}"
+if ! minikube status -p "$MINIKUBE_PROFILE" >/dev/null 2>&1; then
   log "minikube is not running — starting it"
-  minikube start || fail "minikube start failed"
+  minikube start -p "$MINIKUBE_PROFILE" || fail "minikube start failed"
 fi
+
+# 1b. Pin to the minikube context. Everything below — and the host Floor's Agent CR
+#     dispatch — otherwise follows whatever `kubectl config current-context` happens to
+#     be, which on a working laptop is routinely a real GKE cluster: `npm start` would
+#     then create this namespace, these secrets and these CRDs THERE and dispatch every
+#     local run into production. Flattening the single context into its own file (rather
+#     than threading --context through each call) also hands the Floor something it can
+#     be pointed at: LORE_KUBECONFIG is a file path, the only override kubeConfigSource()
+#     honours — see libs/shared/src/kube-config.ts.
+KUBECONFIG_FILE="$ROOT/.lore-kubeconfig-minikube"
+kubectl config view --minify --flatten --context="$MINIKUBE_PROFILE" > "$KUBECONFIG_FILE" \
+  || fail "no kubeconfig context named '$MINIKUBE_PROFILE' — check 'kubectl config get-contexts'"
+chmod 600 "$KUBECONFIG_FILE"
+export KUBECONFIG="$KUBECONFIG_FILE"
+log "Pinned to the '$MINIKUBE_PROFILE' context — $KUBECONFIG_FILE"
 
 # 2. Namespace. The system label matches terraform's (kubernetes_namespace.ai_agents).
 kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
