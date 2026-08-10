@@ -15,28 +15,25 @@ const SYNC_WINDOW_DAYS = 31;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * The reporting window, aligned to UTC day boundaries and bounded at both ends.
+ * The reporting window: today's UTC midnight minus 30 days, and deliberately
+ * no `ending_at`.
  *
- * Both halves matter and both were wrong:
- *
- * - **Span.** `now - 31d` through now covers 31 whole days *plus the current
- *   one* — 32 daily buckets against a documented maximum of 31. The API
- *   returned the oldest 31 and dropped today, so the month-to-date total
- *   silently excluded the current day, every day, permanently. The window is
- *   now today plus the previous 30 days: exactly 31 buckets, today always in.
- * - **`ending_at`.** Previously omitted; every example in the Usage & Cost API
- *   docs supplies it. Ending at tomorrow's UTC midnight makes the in-progress
- *   day an explicit, whole final bucket rather than leaving the boundary to
- *   the server's default.
- *
- * Aligned to UTC midnight because the buckets the API reports are UTC days —
- * an unaligned `starting_at` puts every bucket boundary mid-day, which does not
- * match what `bucket_date` means downstream in `pipeline.anthropic_cost_daily`.
+ * - **Span.** The old `now - 31d` start spanned 31 whole days *plus* the
+ *   current one — 32 candidate daily buckets against the API's documented
+ *   hard maximum of 31 (`limit` docs), leaving which bucket survives to the
+ *   server's truncation choice. Starting at today − 30d leaves exactly 31
+ *   candidates, so `limit: 31` can never truncate anything.
+ * - **No `ending_at`.** The API reference defines it as "time buckets that
+ *   *end before* this timestamp" — strictly before. Today's bucket ends AT
+ *   tomorrow's midnight, so an `ending_at` of tomorrow-midnight excludes the
+ *   current day by construction (verified against the live API: the same
+ *   window with that bound came back one bucket short). Omitting it leaves
+ *   today's bucket eligible whenever the API emits it.
+ * - **UTC midnight alignment**, because the API snaps buckets to UTC days and
+ *   an unaligned `starting_at` would not match what `bucket_date` means
+ *   downstream in `pipeline.anthropic_cost_daily`.
  */
-export function reportWindow(now: Date): {
-  starting_at: string;
-  ending_at: string;
-} {
+export function reportWindow(now: Date): { starting_at: string } {
   const today = Date.UTC(
     now.getUTCFullYear(),
     now.getUTCMonth(),
@@ -47,7 +44,6 @@ export function reportWindow(now: Date): {
     starting_at: new Date(
       today - (SYNC_WINDOW_DAYS - 1) * DAY_MS,
     ).toISOString(),
-    ending_at: new Date(today + DAY_MS).toISOString(),
   };
 }
 

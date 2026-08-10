@@ -13,24 +13,37 @@ describe("anthropicCostSyncJob", () => {
 });
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const buckets = (w: { starting_at: string; ending_at: string }) =>
-  (Date.parse(w.ending_at) - Date.parse(w.starting_at)) / DAY_MS;
+// Candidate daily buckets between the window's start and the END of the given
+// day — what the API can return for this request, since the window is open.
+const candidates = (w: { starting_at: string }, now: string) => {
+  const day = new Date(now);
+  const endOfToday =
+    Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate()) +
+    DAY_MS;
+
+  return (endOfToday - Date.parse(w.starting_at)) / DAY_MS;
+};
 
 describe("reportWindow", () => {
-  it("spans exactly 31 daily buckets, the documented maximum for 1d", () => {
-    expect(buckets(reportWindow(new Date("2026-08-10T13:00:00.000Z")))).toBe(
-      31,
-    );
+  it("leaves exactly 31 candidate buckets through the end of today, so limit 31 never truncates", () => {
+    const now = "2026-08-10T13:00:00.000Z";
+
+    expect(candidates(reportWindow(new Date(now)), now)).toBe(31);
   });
 
-  it("ends at tomorrow's UTC midnight so the in-progress day is included", () => {
+  it("starts 30 days before today's UTC midnight", () => {
     expect(reportWindow(new Date("2026-08-10T13:00:00.000Z"))).toEqual({
       starting_at: "2026-07-11T00:00:00.000Z",
-      ending_at: "2026-08-11T00:00:00.000Z",
     });
   });
 
-  it("aligns both bounds to UTC midnight regardless of the time of day", () => {
+  it("sends no ending_at, whose strictly-before semantics would exclude the current day", () => {
+    expect(
+      reportWindow(new Date("2026-08-10T13:00:00.000Z")),
+    ).not.toHaveProperty("ending_at");
+  });
+
+  it("aligns the start to UTC midnight regardless of the time of day", () => {
     const early = reportWindow(new Date("2026-08-10T00:00:01.000Z"));
     const late = reportWindow(new Date("2026-08-10T23:59:59.000Z"));
 
@@ -44,8 +57,8 @@ describe("reportWindow", () => {
   });
 
   it("spans a UTC month boundary without losing a bucket", () => {
-    expect(buckets(reportWindow(new Date("2026-03-01T12:00:00.000Z")))).toBe(
-      31,
-    );
+    const now = "2026-03-01T12:00:00.000Z";
+
+    expect(candidates(reportWindow(new Date(now)), now)).toBe(31);
   });
 });
