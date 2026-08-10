@@ -128,15 +128,47 @@ docker exec -i "$LOCAL_CONTAINER" \
   curl -s -X POST localhost:8080/alter -d '{"drop_all": true}' >/dev/null \
   || fail "drop_all failed"
 
+# Load WITHOUT the HNSW vector indexes, then build them in one pass afterwards.
+#
+# Loading with them declared wedges the alpha permanently. Every mutation on an indexed
+# float32vector predicate tries to maintain the graph incrementally, and v24 fails it:
+#
+#   Applying proposal. Error: Got error while running mutation: No value found
+#   error fetching posting list for data key: 0-AcceptanceCriterion.embedding__vector_
+#
+# The alpha then rejects proposals, `dgraph live` blocks forever waiting on them, and the
+# symptom is a loader that holds steady CPU time and never advances — alive, but dead.
+# Stripping the index leaves the vectors themselves intact as plain float32vector data;
+# only the search structure is deferred.
+STRIPPED="$RESTORE_FROM/load.schema"
+zcat "$SCHEMA" | sed 's/ @index(hnsw([^)]*))//' > "$STRIPPED"
+vector_indexes="$(zcat "$SCHEMA" | grep 'float32vector @index' | sed 's/^\[0x[0-9a-f]*\] //' || true)"
+
 # The live loader talks to zero (:5080) and alpha (:9080). compose publishes only alpha's
 # ports to the host, so this runs INSIDE the container where both are on localhost.
 docker cp "$RDF" "$LOCAL_CONTAINER:/tmp/import.rdf.gz" >/dev/null
-docker cp "$SCHEMA" "$LOCAL_CONTAINER:/tmp/import.schema.gz" >/dev/null
-log "Loading..."
+docker cp "$STRIPPED" "$LOCAL_CONTAINER:/tmp/import.schema" >/dev/null
+log "Loading (vector indexes deferred)..."
 docker exec -i "$LOCAL_CONTAINER" \
-  dgraph live -f /tmp/import.rdf.gz -s /tmp/import.schema.gz \
+  dgraph live -f /tmp/import.rdf.gz -s /tmp/import.schema \
   -a localhost:9080 -z localhost:5080 2>&1 | tail -12
-docker exec -i "$LOCAL_CONTAINER" rm -f /tmp/import.rdf.gz /tmp/import.schema.gz
+docker exec -i "$LOCAL_CONTAINER" rm -f /tmp/import.rdf.gz /tmp/import.schema
+
+# Now the indexes, over data that is already at rest — a bulk build rather than 736k
+# incremental updates. Non-fatal: the graph is complete and browsable without them, and
+# only vector similarity queries against Dgraph would notice. Local dev usually would
+# not, since memory search runs on Postgres/pgvector.
+if [ -n "$vector_indexes" ]; then
+  log "Building vector indexes ($(echo "$vector_indexes" | wc -l) predicates) — this can take a while..."
+  if printf '%s\n' "$vector_indexes" | docker exec -i "$LOCAL_CONTAINER" \
+       curl -s -X POST localhost:8080/alter --data-binary @- | grep -q '"code":"Success"'; then
+    log "Vector indexes built"
+  else
+    log "WARNING: vector index build failed — data is loaded and queryable, but Dgraph"
+    log "         vector similarity search will not work locally. Re-apply by POSTing"
+    log "         the index lines from $SCHEMA to localhost:8081/alter"
+  fi
+fi
 
 log "Loaded into the local Dgraph (http://localhost:8081, grpc localhost:9080)."
 log "Export kept at $RESTORE_FROM — delete it when you are done; it is org data in the clear."
