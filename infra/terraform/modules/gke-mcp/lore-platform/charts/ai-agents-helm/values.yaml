@@ -123,3 +123,13 @@ mcpServer:
 # The single ESO-managed Secret the run pods mount allowlisted keys from. The Floor
 # PATCHes short-lived per-task GitHub tokens into it (see re-cinq/lore#685).
 agentSecretsName: agent-secrets
+
+# The agent-secrets key holding the agent's LLM credential, used as BOTH the secret key
+# and the env var the run pod sees. The controller renders it as a non-optional
+# secretKeyRef, so this key must exist in agent-secrets or every run pod fails
+# CreateContainerConfigError — change it only together with what writes that Secret (ESO
+# here, scripts/infra/setup-minikube-agents.sh on a laptop). The `claude` CLI accepts
+# either credential from its environment; values.minikube.yaml swaps in
+# CLAUDE_CODE_OAUTH_TOKEN so a laptop run bills a developer's subscription instead of
+# org API credit.
+agentLlmSecretKey: ANTHROPIC_API_KEY

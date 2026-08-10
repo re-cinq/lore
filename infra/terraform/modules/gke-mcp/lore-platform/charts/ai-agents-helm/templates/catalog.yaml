@@ -26,8 +26,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -96,8 +96,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -180,8 +180,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -250,8 +250,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -326,8 +326,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -432,8 +432,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -528,8 +528,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -619,8 +619,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -694,8 +694,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -792,8 +792,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -866,8 +866,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -932,8 +932,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -1082,8 +1082,8 @@ spec:
   max_turns: 40
   resources:
     secrets:
-      - name: ANTHROPIC_API_KEY
-        ref: ANTHROPIC_API_KEY
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore

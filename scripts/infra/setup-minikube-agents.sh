@@ -11,7 +11,7 @@ set -euo pipefail
 # repointing the run pods' callbacks at the host and dropping the GKE-only egress policy.
 #
 # Prereqs: minikube, kubectl, helm, and .env.local with GHCR_USER/GHCR_TOKEN +
-# ANTHROPIC_API_KEY. See .env.local.example.
+# CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY). `npm run dev-setup` fills those in.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CHART_DIR="$ROOT/infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm"
@@ -31,7 +31,25 @@ done
 
 : "${GHCR_USER:?set GHCR_USER in .env.local (a GitHub PAT owner with read:packages)}"
 : "${GHCR_TOKEN:?set GHCR_TOKEN in .env.local (a GitHub PAT with read:packages — the ai-agent images are private)}"
-: "${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in .env.local — every agent run needs it}"
+
+# The agent container runs the real `claude` CLI, which authenticates from either
+# credential in its environment. A laptop usually has no org API credit, so a personal
+# subscription token is the default here and an API key wins when both are set (it is
+# the deliberate choice, and it matches GKE). Whichever it is, the SAME key name must
+# land in agent-secrets and in the recipes' resources.secrets — the controller renders a
+# non-optional secretKeyRef, so a mismatch is not a fallback, it is every run pod stuck
+# in CreateContainerConfigError. Deriving both from one variable here is what makes that
+# mismatch unrepresentable.
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  LLM_SECRET_KEY="ANTHROPIC_API_KEY"
+  LLM_SECRET_VALUE="$ANTHROPIC_API_KEY"
+elif [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+  LLM_SECRET_KEY="CLAUDE_CODE_OAUTH_TOKEN"
+  LLM_SECRET_VALUE="$CLAUDE_CODE_OAUTH_TOKEN"
+else
+  fail "no agent LLM credential — set CLAUDE_CODE_OAUTH_TOKEN (run: claude setup-token) or ANTHROPIC_API_KEY in .env.local. 'npm run dev-setup' does this for you."
+fi
+log "Agent LLM credential: $LLM_SECRET_KEY"
 
 # Must match what the host processes present, since the run pods call back to them.
 LORE_INGEST_TOKEN="${LORE_INGEST_TOKEN:-lore-local-dev-token}"
@@ -78,14 +96,14 @@ kubectl -n "$NAMESPACE" create secret generic agent-secrets \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 kubectl -n "$NAMESPACE" patch secret agent-secrets --type merge -p "$(cat <<JSON
 {"stringData": {
-  "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
+  "${LLM_SECRET_KEY}": "${LLM_SECRET_VALUE}",
   "LORE_INGEST_TOKEN": "${LORE_INGEST_TOKEN}",
   "LORE_AGENT_INTERNAL_TOKEN": "${LORE_AGENT_INTERNAL_TOKEN}",
   "agent-events-auth": "Authorization: Bearer ${LORE_AGENT_INTERNAL_TOKEN}"
 }}
 JSON
 )" >/dev/null
-log "agent-secrets merged (ANTHROPIC_API_KEY, LORE_INGEST_TOKEN, LORE_AGENT_INTERNAL_TOKEN, agent-events-auth)"
+log "agent-secrets merged ($LLM_SECRET_KEY, LORE_INGEST_TOKEN, LORE_AGENT_INTERNAL_TOKEN, agent-events-auth)"
 
 # 5. CRDs. Helm only installs crds/ on first install, never on upgrade — apply them
 #    explicitly so a re-run picks up contract changes.
@@ -96,6 +114,7 @@ log "Agent/Station/AgentDefinition CRDs applied"
 helm upgrade --install ai-agents "$CHART_DIR" \
   --namespace "$NAMESPACE" \
   -f "$CHART_DIR/values.minikube.yaml" \
+  --set-string "agentLlmSecretKey=$LLM_SECRET_KEY" \
   --wait --timeout 5m \
   || fail "helm upgrade failed — check 'kubectl -n $NAMESPACE get pods'"
 
