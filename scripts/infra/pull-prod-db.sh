@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Copy the prod lore-db into the local dev Postgres, over a temporary port-forward.
+# Copy the prod lore-db into the local dev Postgres.
 #
 #   scripts/infra/pull-prod-db.sh                  # inspect + dump to .lore-dumps/, no local writes
 #   scripts/infra/pull-prod-db.sh --restore        # ...then load it into the local docker Postgres
@@ -25,18 +25,20 @@ set -euo pipefail
 # makes it dangerous. --with-pipeline restores it anyway and then quiesces every
 # claimable row, for when you want the run history in the UI.
 #
-# Prereqs: gcloud auth login (the GKE context is credentialed through it), kubectl,
-# docker. There is no local pg_dump — the client runs from the same pgvector image the
-# local dev Postgres uses, so client and server majors always match.
+# pg_dump runs INSIDE the primary pod rather than over a `kubectl port-forward`. The
+# tunnel version raced: port-forward binds its local socket before the upstream is ready
+# and drops the listener when a connection is opened and closed again — which a
+# readiness probe does by definition, so the probe passed and the very next connect got
+# ECONNREFUSED. Executing in the pod removes the tunnel, the probe, and the need for a
+# local pg_dump binary (there is none) in one go.
+#
+# Prereqs: gcloud auth login (the GKE context is credentialed through it), kubectl, and
+# docker for the local restore.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CONTEXT="${LORE_DB_CONTEXT:-gke_re5-n8n-platform_europe-west1_n8n-cluster}"
 NAMESPACE="${LORE_DB_NAMESPACE:-lore-db}"
-DB_SERVICE="svc/lore-db-rw"
-DB_SECRET="${LORE_DB_SECRET:-lore-db-credentials}"
 DB_NAME="${LORE_DB_NAME:-lore}"
-LOCAL_PORT="${LORE_DB_FORWARD_PORT:-15432}"   # not 5432 — that is the local dev Postgres
-PG_IMAGE="pgvector/pgvector:pg16"
 DUMP_DIR="$ROOT/.lore-dumps"
 
 log() { echo "[lore] $*"; }
@@ -52,47 +54,29 @@ for arg in "$@"; do
   esac
 done
 
-for bin in kubectl docker gcloud; do
+for bin in kubectl gcloud; do
   command -v "$bin" >/dev/null 2>&1 || fail "$bin not found"
 done
 gcloud auth print-access-token >/dev/null 2>&1 \
   || fail "gcloud credentials expired — run: gcloud auth login"
 
 KC="kubectl --context=$CONTEXT -n $NAMESPACE"
-$KC get "$DB_SERVICE" >/dev/null 2>&1 \
-  || fail "cannot reach $DB_SERVICE in $NAMESPACE (context: $CONTEXT)"
 
-# Credentials stay in variables and in pg_dump's environment — never in argv, where any
-# other process on the machine could read them out of `ps`.
-DB_USER="$($KC get secret "$DB_SECRET" -o jsonpath='{.data.username}' | base64 -d)"
-PGPASSWORD="$($KC get secret "$DB_SECRET" -o jsonpath='{.data.password}' | base64 -d)"
-export PGPASSWORD
-[ -n "$DB_USER" ] && [ -n "$PGPASSWORD" ] || fail "secret $DB_SECRET has no username/password keys"
+# The CloudNativePG primary. Dumping from a replica would be valid but can lag; the
+# label is the cluster's own, so it follows a failover instead of pinning to a pod name.
+POD="$($KC get pods -l cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+[ -n "$POD" ] || fail "no primary pod found in $NAMESPACE (context: $CONTEXT) — is the cluster up?"
+log "Primary: $POD"
 
-# The tunnel lives exactly as long as this script.
-$KC port-forward "$DB_SERVICE" "$LOCAL_PORT:5432" >/dev/null 2>&1 &
-FORWARD_PID=$!
-cleanup() { kill "$FORWARD_PID" 2>/dev/null || true; }
-trap cleanup EXIT INT TERM
+# Peer auth over the pod's local socket: no password crosses the wire, none lands in
+# argv inside the pod where another process could read it out of `ps`.
+in_pod() { $KC exec -i "$POD" -c postgres -- "$@"; }
 
-for _ in $(seq 1 20); do
-  (exec 3<>"/dev/tcp/127.0.0.1/$LOCAL_PORT") 2>/dev/null && { exec 3<&-; break; }
-  sleep 0.5
-done
-(exec 3<>"/dev/tcp/127.0.0.1/$LOCAL_PORT") 2>/dev/null || fail "port-forward never came up on :$LOCAL_PORT"
-exec 3<&-
-log "Tunnel up: localhost:$LOCAL_PORT -> $NAMESPACE/$DB_SERVICE"
-
-pg() {
-  docker run --rm --network host -e PGPASSWORD "$PG_IMAGE" "$@"
-}
-
-# Lore's own schemas, whatever they are called today: the fixed ones plus every team
-# schema. Discovering them beats a hardcoded list that silently misses a new team.
-SCHEMAS="$(pg psql -h 127.0.0.1 -p "$LOCAL_PORT" -U "$DB_USER" -d "$DB_NAME" -At -c \
+SCHEMAS="$(in_pod psql -U postgres -d "$DB_NAME" -At -c \
   "select nspname from pg_namespace
     where nspname not like 'pg\_%' and nspname <> 'information_schema'
-    order by nspname" | tr -d '\r')"
+    order by nspname" | tr -d '\r')" \
+  || fail "could not list schemas — check that '$POD' is the CloudNativePG primary"
 [ -n "$SCHEMAS" ] || fail "no schemas found in $DB_NAME"
 
 if [ "$WITH_PIPELINE" -eq 0 ]; then
@@ -101,7 +85,7 @@ if [ "$WITH_PIPELINE" -eq 0 ]; then
 fi
 
 log "Schemas and sizes:"
-pg psql -h 127.0.0.1 -p "$LOCAL_PORT" -U "$DB_USER" -d "$DB_NAME" -c \
+in_pod psql -U postgres -d "$DB_NAME" -c \
   "select nspname as schema, pg_size_pretty(sum(pg_total_relation_size(c.oid))::bigint) as size
      from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where nspname not like 'pg\_%' and nspname <> 'information_schema'
@@ -111,14 +95,15 @@ mkdir -p "$DUMP_DIR"
 chmod 700 "$DUMP_DIR"
 DUMP_FILE="$DUMP_DIR/lore-$(date +%Y%m%d-%H%M%S).dump"
 
-# Custom format: one file, parallel-restorable, and selective on the way back out if it
-# turns out you only wanted `memory` after all.
+# Custom format: one file, and selective on the way back out if it turns out you only
+# wanted `memory` after all (pg_restore --schema=memory, no re-pull).
 schema_args=()
 for s in $SCHEMAS; do schema_args+=(--schema="$s"); done
 log "Dumping $(echo "$SCHEMAS" | wc -w) schemas..."
-pg pg_dump -h 127.0.0.1 -p "$LOCAL_PORT" -U "$DB_USER" -d "$DB_NAME" \
+in_pod pg_dump -U postgres -d "$DB_NAME" \
   --format=custom --no-owner --no-privileges "${schema_args[@]}" \
   > "$DUMP_FILE" || fail "pg_dump failed"
+[ -s "$DUMP_FILE" ] || fail "pg_dump produced an empty file"
 chmod 600 "$DUMP_FILE"
 log "Wrote $DUMP_FILE ($(du -h "$DUMP_FILE" | cut -f1))"
 
@@ -129,6 +114,7 @@ if [ "$RESTORE" -eq 0 ]; then
   exit 0
 fi
 
+command -v docker >/dev/null 2>&1 || fail "docker not found — needed for the local restore"
 docker ps --format '{{.Names}}' | grep -qx lore-postgres \
   || fail "local Postgres container 'lore-postgres' is not running — start it with: npm run db:up"
 
@@ -150,8 +136,8 @@ docker exec -i -e PGPASSWORD=lore lore-postgres \
 
 # Quiesce anything claimable. The restore copied prod's queues verbatim, and the local
 # Floor polls them the moment it starts — so terminate every row a claim query can see
-# BEFORE that happens. Run unconditionally when pipeline came along: cheap, idempotent,
-# and the failure mode it prevents is a laptop opening PRs against live repos.
+# BEFORE that happens. Cheap, idempotent, and the failure mode it prevents is a laptop
+# opening PRs against live repos.
 if [ "$WITH_PIPELINE" -eq 1 ]; then
   docker exec -i -e PGPASSWORD=lore lore-postgres \
     psql -h 127.0.0.1 -U postgres -d lore -v ON_ERROR_STOP=1 <<'SQL'
