@@ -73,13 +73,15 @@ function upsertRow(row: AnthropicCostDailyRow): Promise<void> {
   });
 }
 
-export async function anthropicCostSyncJob(): Promise<string> {
-  const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
-
-  if (!adminKey) {
-    return "ANTHROPIC_ADMIN_KEY not set; skipping Anthropic org cost sync";
-  }
-
+/**
+ * The 31-day cost+usage pull, shared by the nightly cron and the /spend page's
+ * live read (`routes/anthropic-cost-live.ts`). Extracted so the two callers
+ * cannot drift on window, bucket width, or merge semantics — the page would
+ * otherwise show subtly different totals from the rollup it falls back to.
+ */
+export async function fetchAnthropicCostRows(
+  adminKey: string,
+): Promise<AnthropicCostDailyRow[]> {
   const startingAt = new Date(
     Date.now() - SYNC_WINDOW_DAYS * 24 * 60 * 60 * 1000,
   ).toISOString();
@@ -94,10 +96,20 @@ export async function anthropicCostSyncJob(): Promise<string> {
     fetchAllBuckets("usage_report/messages", baseParams, "model", adminKey),
   ]);
 
-  const merged = mergeCostAndUsage(
+  return mergeCostAndUsage(
     parseCostReport({ data: costBuckets }),
     parseUsageReport({ data: usageBuckets }),
   );
+}
+
+export async function anthropicCostSyncJob(): Promise<string> {
+  const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
+
+  if (!adminKey) {
+    return "ANTHROPIC_ADMIN_KEY not set; skipping Anthropic org cost sync";
+  }
+
+  const merged = await fetchAnthropicCostRows(adminKey);
 
   await Promise.all(merged.map(upsertRow));
 

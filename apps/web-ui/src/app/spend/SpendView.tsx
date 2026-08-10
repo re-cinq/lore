@@ -65,6 +65,12 @@ export interface LoreByTaskTypeRow {
 export interface SpendViewProps {
   orgMtd: OrgMtdRow;
   orgAvailable: boolean;
+  /**
+   * Where the billed figures came from: `live` is a fresh Admin API read
+   * proxied by the Floor, `cache` the nightly `anthropic_cost_sync` rollup.
+   * Optional — callers without a source render exactly as before.
+   */
+  orgSource?: "live" | "cache";
   orgByModel: OrgByModelRow[];
   orgDaily: OrgDailyRow[];
   loreMtd: LoreMtdRow;
@@ -80,9 +86,13 @@ const usd = (n: number) =>
 
 const num = (n: number) => Number(n).toLocaleString();
 
+const sourceLabel = (source: "live" | "cache") =>
+  source === "live" ? "live from Anthropic" : "from the last nightly sync";
+
 export default function SpendView({
   orgMtd,
   orgAvailable,
+  orgSource,
   orgByModel,
   orgDaily,
   loreMtd,
@@ -130,6 +140,11 @@ export default function SpendView({
             <div className={`meta ${styles.subnote}`}>
               as of {new Date(orgMtd.as_of as string).toLocaleString()}
             </div>
+            {orgSource && (
+              <div className={`meta ${styles.subnote}`}>
+                {sourceLabel(orgSource)}
+              </div>
+            )}
           </div>
         )}
       </div>
