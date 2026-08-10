@@ -134,40 +134,36 @@ resource "helm_release" "lore_platform" {
       controller = { replicas = 1 }
       loreMcpUrl = var.lore_mcp_url != "" ? "${var.lore_mcp_url}/mcp" : ""
       # The same gateway serves the /skills registry the agent init fetches skills +
-      # settings from (resources.skills_source).
+      # settings from (resources.skills_source). Empty leaves the sentinel unreplaced —
+      # harmless, the init skips the fetch.
       #
-      # DISABLED 2026-08-10 — every Claude-agent node was failing at boot. With a
-      # source set, controller v0.8.1 passes `--settings /agent/.claude/settings.json`
-      # to Claude Code, but the init's skills step reports success without leaving the
-      # file where the agent container looks, and Claude Code hard-errors on it:
+      # MUST STAY APPLIED. This value being absent from the cluster is what caused the
+      # 2026-08-10 outage: every Claude-agent node failed at boot with
       #
-      #   [init]  {"phase":"init","status":"running","tool":"skills"}
-      #   [init]  {"phase":"init","status":"succeeded"}
       #   [agent] Error: Settings file not found: /agent/.claude/settings.json
       #   [agent] {"kind":"lifecycle","exitCode":1,"phase":"agent","status":"failed"}
       #
-      # Blast radius: all 13 Claude-agent recipes (review, implementation, gap-fill,
-      # feature-planning, ...). Stations carry no skills, so ingest/detect lines stay
-      # green and the assembly-line board looks healthy while every LLM node is dead.
+      # #1090 added this line and #1093 deployed the v0.8.1 images, but the two halves
+      # ship by different paths: the chart goes out via CI, this file only on a manual
+      # `terraform apply`. No apply ran, so the images went live with the config absent.
+      # Contrary to what #1093 and ai-agents-helm/values.yaml both assert, the seam is
+      # NOT inert without a source — ADR-030 is the accurate one ("The Claude adapter
+      # emits --settings; skills need no flag"): v0.8.1 passes
+      # --settings /agent/.claude/settings.json unconditionally, while the init only
+      # WRITES that file when skills_source is set. No source, no file, exit 1.
       #
-      # Mechanism of the disable: catalog.yaml renders `skills_source:` unconditionally,
-      # so "" emits a YAML null, which the AgentDefinition CRD's structural schema
-      # (skills_source: type string, not nullable) prunes at admission — the stored CR
-      # carries no source at all, and per-task runs clone the live CR. The recipes still
-      # carry `skills: ["lore-context"]`; the disable relies on the subsystem gating the
-      # fetch and the --settings flag on the SOURCE, which is how #1090 shipped by
-      # default. Verify after apply:
-      #   kubectl -n ai-agents get agentdefinition general \
-      #     -o jsonpath='{.spec.resources.skills_source}'   # expect empty
+      # Blast radius when unset: all 13 Claude-agent recipes (review, implementation,
+      # gap-fill, feature-planning, ...). Stations carry no skills, so ingest/detect
+      # lines stay green and the board looks healthy while every LLM node is dead.
       #
-      # Takes effect only on `terraform apply` — merging this does not deploy.
+      # So: clearing this does not disable the feature, it breaks it. If the seam ever
+      # needs to be genuinely off, the images must go back too (and note contracts
+      # 0.8.1 is now a hard dependency of per-task-token.ts / agent-crd.ts).
       #
-      # To restore, once ai-agent-subsystem fixes the init/agent HOME mismatch (and
-      # makes a missing settings file degrade instead of exit 1): put back the
-      # expression below AND raise the ai-agents-helm values.yaml default, or the next
-      # CI ai-agents deploy overlays loreSkillsUrl:"" straight back over it.
-      #   loreSkillsUrl = var.lore_mcp_url != "" ? "${var.lore_mcp_url}/skills" : ""
-      loreSkillsUrl = ""
+      # Verify after apply that the recipes carry a source — read
+      # .spec.resources.skills_source off the `general` AgentDefinition in ai-agents;
+      # it should be <gateway>/skills, not empty.
+      loreSkillsUrl = var.lore_mcp_url != "" ? "${var.lore_mcp_url}/skills" : ""
     }
   })]
 
