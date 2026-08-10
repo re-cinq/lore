@@ -97,20 +97,16 @@ describe("buildAgentDefinition", () => {
       watch: { event: "planning.result", path: "target/result.json" },
     });
 
-    // The published contracts types predate `watch` (see OutputSpecWithWatch).
-    const output = planning.spec?.output as { watch?: unknown } | undefined;
-
-    expect(output?.watch).toEqual([
+    expect(planning.spec?.output?.watch).toEqual([
       { event: "planning.result", path: "target/result.json" },
     ]);
   });
 
   it("declares no artifact for a recipe whose deliverable is its output", () => {
-    const output = buildAgentDefinition("general", {
-      prompt_template: "do {description}",
-    }).spec?.output as { watch?: unknown } | undefined;
-
-    expect(output?.watch).toBeUndefined();
+    expect(
+      buildAgentDefinition("general", { prompt_template: "do {description}" })
+        .spec?.output?.watch,
+    ).toBeUndefined();
   });
 
   it("omits model when the recipe has none", () => {

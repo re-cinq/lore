@@ -113,15 +113,6 @@ const OUTPUT_SINKS: NonNullable<
   ],
 };
 
-/** `output.watch` (ai-agent-subsystem#189) is merged upstream but not in the
- *  published `@re-cinq/agent-contracts` 0.8.1 types this app pins. The generated
- *  chart YAML is produced from these objects, so the field must be emitted now.
- *  DELETE this alias and use the package's `OutputSpec` directly the moment
- *  @re-cinq/agent-contracts ships a version carrying `watch`. */
-type OutputSpecWithWatch = NonNullable<
-  NonNullable<AgentDefinition["spec"]>["output"]
-> & { watch?: { event: string; path: string }[] };
-
 export function buildAgentDefinition(
   taskType: string,
   cfg: AgentCatalogConfig,
@@ -177,7 +168,7 @@ export function buildAgentDefinition(
         // agent exits, which is the only way the artifact leaves the pod
         // (ai-agent-subsystem#188).
         ...(cfg.watch ? { watch: [cfg.watch] } : {}),
-      } as OutputSpecWithWatch,
+      },
     },
   };
 }

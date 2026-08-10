@@ -247,7 +247,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
     fail every run pod at container creation rather than acting as a fallback. GKE
     supplies `ANTHROPIC_API_KEY` (the values.yaml default), a laptop minikube supplies
     `CLAUDE_CODE_OAUTH_TOKEN`, and the `claude` CLI accepts either from its
-    environment. ([validated by station catalog tests](apps/floor/src/jobs/agent/agent-catalog.test.ts#L231), [`agent-catalog.test.ts:20`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L20), [`agent-catalog.test.ts:62`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L62), [`agent-catalog.test.ts:80`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L80), [`agent-catalog.test.ts:116`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L116), [`agent-catalog.test.ts:124`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L124), [`agent-catalog.test.ts:152`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L152), [`agent-catalog.test.ts:160`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L160), [`agent-catalog.test.ts:178`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L178), [`agent-catalog.test.ts:184`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L184), [`agent-catalog.test.ts:188`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L188), [`agent-catalog.test.ts:197`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L197), [`agent-catalog.test.ts:214`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L214), [`agent-catalog.test.ts:218`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L218), [`agent-catalog.test.ts:231`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L231), [`agent-catalog.test.ts:264`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L264), [`agent-catalog.test.ts:331`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L331), [`agent-catalog.test.ts:346`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L346))
+    environment. ([validated by station catalog tests](apps/floor/src/jobs/agent/agent-catalog.test.ts#L227), [`agent-catalog.test.ts:20`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L20), [`agent-catalog.test.ts:62`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L62), [`agent-catalog.test.ts:80`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L80), [`agent-catalog.test.ts:112`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L112), [`agent-catalog.test.ts:120`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L120), [`agent-catalog.test.ts:148`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L148), [`agent-catalog.test.ts:156`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L156), [`agent-catalog.test.ts:174`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L174), [`agent-catalog.test.ts:180`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L180), [`agent-catalog.test.ts:184`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L184), [`agent-catalog.test.ts:193`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L193), [`agent-catalog.test.ts:210`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L210), [`agent-catalog.test.ts:214`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L214), [`agent-catalog.test.ts:227`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L227), [`agent-catalog.test.ts:260`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L260), [`agent-catalog.test.ts:327`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L327), [`agent-catalog.test.ts:342`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L342))
 
 21. Custom station images honor [station-contract.md](../6-dark-factory/contracts/station-contract.md).
 
@@ -300,7 +300,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
     `<source>/settings.json`. A laptop minikube therefore points the value at the mcp
     adapter running in HTTP-gateway mode on the host
     (`http://host.minikube.internal:3002/skills`, served by `npm start`) rather than
-    leaving it empty ([validated by `agent-catalog.test.ts:202`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L202); implemented by [`agent-catalog.ts:319`](apps/floor/src/jobs/agent/agent-catalog.ts#L319))
+    leaving it empty ([validated by `agent-catalog.test.ts:198`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L198); implemented by [`agent-catalog.ts:319`](apps/floor/src/jobs/agent/agent-catalog.ts#L319))
 
 27. *(added 2026-08-10)* The agent container MUST run in the cloned repo
     (`/workspace/target`), not the base image's default directory. Left unset, the
@@ -310,7 +310,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
     16 KB GapResult, failed to place it (`cp: cannot create regular file
     '/result.json': Permission denied`), wrote it to `$HOME` instead, and exited 0 —
     so the run reported success while the round it existed for failed with no result
-    posted ([validated by `agent-catalog.test.ts:142`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L142); implemented by [`agent-catalog.ts:170`](apps/floor/src/jobs/agent/agent-catalog.ts#L170))
+    posted ([validated by `agent-catalog.test.ts:138`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L138); implemented by [`agent-catalog.ts:170`](apps/floor/src/jobs/agent/agent-catalog.ts#L170))
 
 28. *(added 2026-08-10)* A run whose deliverable is a **file** MUST declare it, so the
     artifact can leave the pod. The subsystem streams what an agent *says*
@@ -322,7 +322,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
     delivery path. `feature-planning` declares `planning.result` →
     `target/result.json`; the path resolves against `WORKSPACE_DIR`, not the agent's
     cwd. A recipe whose deliverable is its own output declares nothing
-    ([validated by `agent-catalog.test.ts:94`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L94), [`agent-catalog.test.ts:108`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L108); implemented by [`agent-catalog.ts:157`](apps/floor/src/jobs/agent/agent-catalog.ts#L157))
+    ([validated by `agent-catalog.test.ts:94`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L94), [`agent-catalog.test.ts:105`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L105); implemented by [`agent-catalog.ts:157`](apps/floor/src/jobs/agent/agent-catalog.ts#L157))
 
 29. *(added 2026-08-10)* The Floor MUST project those artifact events off the
     telemetry sink. The sink carries every run's events, so a file event with no name
