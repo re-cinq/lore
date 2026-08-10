@@ -8,9 +8,48 @@ import {
 
 const ADMIN_BASE = "https://api.anthropic.com/v1/organizations";
 const ANTHROPIC_VERSION = "2023-06-01";
-// The messages usage report caps 1d buckets at 31; a trailing 31-day window
-// always covers the current month for the month-to-date dashboard total.
+// The usage and cost reports cap 1d buckets at 31 — a documented hard maximum,
+// not a default. 31 buckets covers any calendar month, so month-to-date is
+// always fully spanned.
 const SYNC_WINDOW_DAYS = 31;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The reporting window, aligned to UTC day boundaries and bounded at both ends.
+ *
+ * Both halves matter and both were wrong:
+ *
+ * - **Span.** `now - 31d` through now covers 31 whole days *plus the current
+ *   one* — 32 daily buckets against a documented maximum of 31. The API
+ *   returned the oldest 31 and dropped today, so the month-to-date total
+ *   silently excluded the current day, every day, permanently. The window is
+ *   now today plus the previous 30 days: exactly 31 buckets, today always in.
+ * - **`ending_at`.** Previously omitted; every example in the Usage & Cost API
+ *   docs supplies it. Ending at tomorrow's UTC midnight makes the in-progress
+ *   day an explicit, whole final bucket rather than leaving the boundary to
+ *   the server's default.
+ *
+ * Aligned to UTC midnight because the buckets the API reports are UTC days —
+ * an unaligned `starting_at` puts every bucket boundary mid-day, which does not
+ * match what `bucket_date` means downstream in `pipeline.anthropic_cost_daily`.
+ */
+export function reportWindow(now: Date): {
+  starting_at: string;
+  ending_at: string;
+} {
+  const today = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+
+  return {
+    starting_at: new Date(
+      today - (SYNC_WINDOW_DAYS - 1) * DAY_MS,
+    ).toISOString(),
+    ending_at: new Date(today + DAY_MS).toISOString(),
+  };
+}
 
 async function fetchAllBuckets(
   endpoint: string,
@@ -82,11 +121,8 @@ function upsertRow(row: AnthropicCostDailyRow): Promise<void> {
 export async function fetchAnthropicCostRows(
   adminKey: string,
 ): Promise<AnthropicCostDailyRow[]> {
-  const startingAt = new Date(
-    Date.now() - SYNC_WINDOW_DAYS * 24 * 60 * 60 * 1000,
-  ).toISOString();
   const baseParams = {
-    starting_at: startingAt,
+    ...reportWindow(new Date()),
     bucket_width: "1d",
     limit: String(SYNC_WINDOW_DAYS),
   };

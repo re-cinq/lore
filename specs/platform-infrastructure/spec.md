@@ -128,3 +128,9 @@ on a malformed payload, and when the request rejects, returning the payload and
 sending the ingest token as a bearer header on success, and bounding the request
 with an abort signal so an unresponsive Floor pod degrades the page instead of
 stalling the render. ([validated by `anthropic-cost-live.test.ts:193`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L193), [`anthropic-cost-live.test.ts:204`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L204), [`anthropic-cost-live.test.ts:215`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L215), [`anthropic-cost-live.test.ts:231`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L231), [`anthropic-cost-live.test.ts:244`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L244), [`anthropic-cost-live.test.ts:252`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L252), [`anthropic-cost-live.test.ts:260`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L260))
+
+`reportWindow` bounds the Admin API request at both ends and aligns it to UTC
+day boundaries, spanning today plus the previous 30 days — exactly the 31 daily
+buckets the API documents as its maximum, so the current day is always inside
+the window, the first of the month is still covered on the 31st, and a window
+crossing a month boundary loses no bucket. ([validated by `anthropic-cost-sync.test.ts:20`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L20), [`anthropic-cost-sync.test.ts:26`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L26), [`anthropic-cost-sync.test.ts:33`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L33), [`anthropic-cost-sync.test.ts:40`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L40), [`anthropic-cost-sync.test.ts:46`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L46))
