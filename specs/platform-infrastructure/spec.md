@@ -93,13 +93,14 @@ pool. ([validated by `spec-trace-trigger.test.ts:37`](apps/lore-api/src/api/rout
 ### Live Anthropic cost
 
 `GET /api/anthropic-cost/live` serves the Admin API cost/usage report to the
-`/spend` page so the billed figures are current rather than up to a day stale.
-The Floor serves it because the `sk-ant-admin` key is org-wide billing access
-and is already mounted there, keeping it out of the `lore-ui` namespace. The
-route rejects a mismatched bearer token, answers `503` without calling upstream
-when `ANTHROPIC_ADMIN_KEY` is unset — so the caller can tell "not configured"
-from "configured and zero" — and otherwise returns the fetched rows alongside
-the `fetchedAt` timestamp, passing the key from the environment to the fetcher. ([validated by `anthropic-cost-live.test.ts:54`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L54), [`anthropic-cost-live.test.ts:68`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L68), [`anthropic-cost-live.test.ts:77`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L77), [`anthropic-cost-live.test.ts:92`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L92))
+`/spend` page so the billed figures are current rather than up to a day stale —
+the Floor serves it rather than the web-ui because the `sk-ant-admin` key is
+org-wide billing access and is already mounted there, keeping it out of the
+`lore-ui` namespace — rejecting a mismatched bearer token, answering `503`
+without calling upstream when `ANTHROPIC_ADMIN_KEY` is unset so the caller can
+tell "not configured" from "configured and zero", and otherwise returning the
+fetched rows alongside the `fetchedAt` timestamp with the key passed from the
+environment to the fetcher. ([validated by `anthropic-cost-live.test.ts:54`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L54), [`anthropic-cost-live.test.ts:68`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L68), [`anthropic-cost-live.test.ts:77`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L77), [`anthropic-cost-live.test.ts:92`](apps/floor/src/delivery/http/routes/anthropic-cost-live.test.ts#L92))
 
 Responses are cached for a TTL because every page view is an upstream call and
 the Admin API's rate-limit ceiling is unpublished: concurrent and repeat
@@ -121,12 +122,12 @@ descending, and reports a null `as_of` for a month with no rows — mirroring
 rather than showing them as available. ([validated by `anthropic-cost-live.test.ts:39`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L39), [`anthropic-cost-live.test.ts:54`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L54), [`anthropic-cost-live.test.ts:67`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L67), [`anthropic-cost-live.test.ts:82`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L82), [`anthropic-cost-live.test.ts:109`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L109), [`anthropic-cost-live.test.ts:126`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L126), [`anthropic-cost-live.test.ts:139`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L139))
 
 `fetchLiveCost` degrades to the cached rollup rather than throwing, because
-`/spend` must render whatever the Floor is doing: it returns null without
+`/spend` must render whatever the Floor is doing — returning null without
 calling out when the Floor URL or ingest token is unset, on a non-2xx response,
-on a malformed payload, and when the request rejects; on success it returns the
-payload and sends the ingest token as a bearer header. The request carries an
-abort signal so an unresponsive Floor pod degrades the page instead of stalling
-the render. ([validated by `anthropic-cost-live.test.ts:193`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L193), [`anthropic-cost-live.test.ts:204`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L204), [`anthropic-cost-live.test.ts:215`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L215), [`anthropic-cost-live.test.ts:231`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L231), [`anthropic-cost-live.test.ts:244`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L244), [`anthropic-cost-live.test.ts:252`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L252), [`anthropic-cost-live.test.ts:260`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L260))
+on a malformed payload, and when the request rejects, returning the payload and
+sending the ingest token as a bearer header on success, and bounding the request
+with an abort signal so an unresponsive Floor pod degrades the page instead of
+stalling the render. ([validated by `anthropic-cost-live.test.ts:193`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L193), [`anthropic-cost-live.test.ts:204`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L204), [`anthropic-cost-live.test.ts:215`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L215), [`anthropic-cost-live.test.ts:231`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L231), [`anthropic-cost-live.test.ts:244`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L244), [`anthropic-cost-live.test.ts:252`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L252), [`anthropic-cost-live.test.ts:260`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L260))
 
 The billed card names which source produced its figures — a live Floor read or
 the last nightly sync — and omits the label entirely when no source is given. ([validated by `SpendView.test.tsx:214`](apps/web-ui/src/app/spend/SpendView.test.tsx#L214), [`SpendView.test.tsx:220`](apps/web-ui/src/app/spend/SpendView.test.tsx#L220), [`SpendView.test.tsx:226`](apps/web-ui/src/app/spend/SpendView.test.tsx#L226))
