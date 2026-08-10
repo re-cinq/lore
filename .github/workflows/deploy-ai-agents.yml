@@ -48,9 +48,24 @@ jobs:
       # the release's stored user-supplied values — the release carries a full
       # legacy ai-agents block that otherwise shadows every values.yaml edit
       # (digests, resources) under --reset-then-reuse-values.
+      #
+      # But that same precedence makes the overlay clobber the keys terraform
+      # owns. loreMcpUrl / loreSkillsUrl are per-cluster URLs the chart cannot
+      # know, so their values.yaml defaults are "" — and shipping "" at higher
+      # precedence than the stored values switches the MCP + skills seams OFF on
+      # every ai-agents deploy, until someone happens to run terraform apply
+      # again. That is what caused the 2026-08-10 agent-node outage (#1126):
+      # v0.8.1 shipped via this workflow while loreSkillsUrl stayed empty, and
+      # the Claude adapter emits --settings for a file the init only writes when
+      # a skills_source is set.
+      #
+      # So drop the terraform-owned keys from the overlay. Everything the
+      # overlay exists for (image digests, resources) still outranks the stored
+      # block; the two URLs fall through to the stored values terraform applied.
+      # Any key added here that terraform also sets must be added to the del().
       - name: Deploy ai-agents into the umbrella release
         run: |
-          yq -o=json '{"ai-agents": .}' \
+          yq -o=json '{"ai-agents": (del(.loreMcpUrl, .loreSkillsUrl))}' \
             infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/values.yaml \
             > /tmp/ai-agents-overlay.json
           bash scripts/ci/deploy-lore-platform.sh ai-agents - agent-controller ai-agents "" /tmp/ai-agents-overlay.json
