@@ -128,6 +128,3 @@ on a malformed payload, and when the request rejects, returning the payload and
 sending the ingest token as a bearer header on success, and bounding the request
 with an abort signal so an unresponsive Floor pod degrades the page instead of
 stalling the render. ([validated by `anthropic-cost-live.test.ts:193`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L193), [`anthropic-cost-live.test.ts:204`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L204), [`anthropic-cost-live.test.ts:215`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L215), [`anthropic-cost-live.test.ts:231`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L231), [`anthropic-cost-live.test.ts:244`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L244), [`anthropic-cost-live.test.ts:252`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L252), [`anthropic-cost-live.test.ts:260`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L260))
-
-The billed card names which source produced its figures — a live Floor read or
-the last nightly sync — and omits the label entirely when no source is given. ([validated by `SpendView.test.tsx:214`](apps/web-ui/src/app/spend/SpendView.test.tsx#L214), [`SpendView.test.tsx:220`](apps/web-ui/src/app/spend/SpendView.test.tsx#L220), [`SpendView.test.tsx:226`](apps/web-ui/src/app/spend/SpendView.test.tsx#L226))
