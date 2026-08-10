@@ -134,9 +134,40 @@ resource "helm_release" "lore_platform" {
       controller = { replicas = 1 }
       loreMcpUrl = var.lore_mcp_url != "" ? "${var.lore_mcp_url}/mcp" : ""
       # The same gateway serves the /skills registry the agent init fetches skills +
-      # settings from (resources.skills_source). Empty leaves the sentinel unreplaced —
-      # harmless, the init skips the fetch.
-      loreSkillsUrl = var.lore_mcp_url != "" ? "${var.lore_mcp_url}/skills" : ""
+      # settings from (resources.skills_source).
+      #
+      # DISABLED 2026-08-10 — every Claude-agent node was failing at boot. With a
+      # source set, controller v0.8.1 passes `--settings /agent/.claude/settings.json`
+      # to Claude Code, but the init's skills step reports success without leaving the
+      # file where the agent container looks, and Claude Code hard-errors on it:
+      #
+      #   [init]  {"phase":"init","status":"running","tool":"skills"}
+      #   [init]  {"phase":"init","status":"succeeded"}
+      #   [agent] Error: Settings file not found: /agent/.claude/settings.json
+      #   [agent] {"kind":"lifecycle","exitCode":1,"phase":"agent","status":"failed"}
+      #
+      # Blast radius: all 13 Claude-agent recipes (review, implementation, gap-fill,
+      # feature-planning, ...). Stations carry no skills, so ingest/detect lines stay
+      # green and the assembly-line board looks healthy while every LLM node is dead.
+      #
+      # Mechanism of the disable: catalog.yaml renders `skills_source:` unconditionally,
+      # so "" emits a YAML null, which the AgentDefinition CRD's structural schema
+      # (skills_source: type string, not nullable) prunes at admission — the stored CR
+      # carries no source at all, and per-task runs clone the live CR. The recipes still
+      # carry `skills: ["lore-context"]`; the disable relies on the subsystem gating the
+      # fetch and the --settings flag on the SOURCE, which is how #1090 shipped by
+      # default. Verify after apply:
+      #   kubectl -n ai-agents get agentdefinition general \
+      #     -o jsonpath='{.spec.resources.skills_source}'   # expect empty
+      #
+      # Takes effect only on `terraform apply` — merging this does not deploy.
+      #
+      # To restore, once ai-agent-subsystem fixes the init/agent HOME mismatch (and
+      # makes a missing settings file degrade instead of exit 1): put back the
+      # expression below AND raise the ai-agents-helm values.yaml default, or the next
+      # CI ai-agents deploy overlays loreSkillsUrl:"" straight back over it.
+      #   loreSkillsUrl = var.lore_mcp_url != "" ? "${var.lore_mcp_url}/skills" : ""
+      loreSkillsUrl = ""
     }
   })]
 
