@@ -86,6 +86,85 @@ prompt_secret() {
   log "$name saved to .env.local"
 }
 
+# ------------------------------------------------- import from secrets.tfvars
+
+# A deployer already holds every GitHub credential this needs, in terraform shapes:
+# ghcr as a dockerconfigjson blob, the App as an id/installation/PEM triple. Minting
+# fresh PATs to restate them is busywork and one more secret to leak. Read the file
+# instead — but only what the agent pods need, and only with a yes: it is the most
+# sensitive file in the checkout, so opening it is the developer's call, not the
+# script's default.
+#
+# anthropic_api_key is deliberately NOT imported. setup-minikube-agents.sh prefers an
+# API key when both are present, so importing it would silently move a laptop run onto
+# org billing — the exact thing a subscription token is here to avoid.
+TFVARS="$ROOT/infra/terraform/secrets.tfvars"
+
+# The value is raw (escaped) JSON on one line, NOT base64 despite what
+# secrets.tfvars.example's comment says. Unescape, pull the auth field, decode the
+# `user:token` pair. Pure coreutils — no python dependency for an optional path.
+ghcr_pair_from_tfvars() {
+  local raw auth
+  raw="$(sed -n 's/^ghcr_pull_secret_dockerconfigjson *= *"\(.*\)"$/\1/p' "$TFVARS")"
+  [ -n "$raw" ] || return 1
+  auth="$(printf '%s' "$raw" | sed 's/\\"/"/g' \
+    | grep -o '"auth"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')"
+  [ -n "$auth" ] || return 1
+  printf '%s' "$auth" | base64 -d 2>/dev/null
+}
+
+tfvar_scalar() {
+  sed -n "s/^$1 *= *\"\(.*\)\"$/\1/p" "$TFVARS" | tail -1
+}
+
+# The PEM is a `<<-EOT … EOT` heredoc, so it needs the block, not a scalar.
+tfvar_heredoc() {
+  awk -v key="$1" '
+    $0 ~ "^" key " *= *<<-?[A-Z]+" { collecting = 1; next }
+    collecting && /^[[:space:]]*EOT[[:space:]]*$/ { exit }
+    collecting { sub(/^[[:space:]]+/, ""); print }
+  ' "$TFVARS"
+}
+
+# Only for values that must keep their newlines (the PEM). Append-only, so it is
+# called solely when the variable is absent — which is also why it needs no removal
+# pass: a multi-line assignment cannot be deleted by matching one line.
+append_env_multiline() {
+  printf '%s="%s"\n' "$1" "$2" >> "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+}
+
+needs_github_creds() {
+  [ -z "$(env_value GHCR_TOKEN)" ] ||
+    { [ -z "$(env_value GITHUB_TOKEN)" ] && [ -z "$(env_value GITHUB_APP_ID)" ]; }
+}
+
+if [ -f "$TFVARS" ] && needs_github_creds; then
+  log "Found infra/terraform/secrets.tfvars — it already holds the ghcr pull"
+  log "credentials and the GitHub App, which is everything the agent pods need."
+  read -r -p "       Import them into .env.local? [Y/n]: " answer
+  if [ "${answer:-Y}" != "n" ] && [ "${answer:-Y}" != "N" ]; then
+    if pair="$(ghcr_pair_from_tfvars)" && [ -n "$pair" ]; then
+      [ -n "$(env_value GHCR_USER)" ] || set_env GHCR_USER "${pair%%:*}"
+      [ -n "$(env_value GHCR_TOKEN)" ] || set_env GHCR_TOKEN "${pair#*:}"
+      log "Imported GHCR_USER (${pair%%:*}) + GHCR_TOKEN"
+    else
+      log "Could not read ghcr_pull_secret_dockerconfigjson — falling back to prompts"
+    fi
+
+    app_id="$(tfvar_scalar github_app_id)"
+    app_install="$(tfvar_scalar github_app_installation_id)"
+    app_key="$(tfvar_heredoc github_app_private_key)"
+    if [ -n "$app_id" ] && [ -n "$app_install" ] && [ -n "$app_key" ] \
+       && [ -z "$(env_value GITHUB_APP_ID)" ]; then
+      set_env GITHUB_APP_ID "$app_id"
+      set_env GITHUB_APP_INSTALLATION_ID "$app_install"
+      append_env_multiline GITHUB_APP_PRIVATE_KEY "$app_key"
+      log "Imported the GitHub App triple — pods mint installation tokens as prod does"
+    fi
+  fi
+fi
+
 log "Filling gaps in .env.local (existing values are never overwritten)"
 
 # The agent pods' LLM credential. A subscription token is the laptop default: it
@@ -100,7 +179,13 @@ else
   prompt_secret CLAUDE_CODE_OAUTH_TOKEN "Paste the token from above (or leave blank to use ANTHROPIC_API_KEY instead)."
 fi
 
-prompt_secret GITHUB_TOKEN "A PAT with 'repo' scope — the agent pods clone and push with it. https://github.com/settings/tokens"
+# The App triple outranks the PAT in platform-github.ts, so asking for one after
+# importing the App would be asking for a credential nothing reads.
+if [ -n "$(env_value GITHUB_APP_ID)" ]; then
+  log "GITHUB_TOKEN — not needed, the GitHub App is configured"
+else
+  prompt_secret GITHUB_TOKEN "A PAT with 'repo' scope — the agent pods clone and push with it. Or: gh auth token. https://github.com/settings/tokens"
+fi
 prompt_secret GHCR_TOKEN "A PAT with 'read:packages' — ghcr.io/re-cinq/ai-agent is a private package. https://github.com/settings/tokens"
 
 if [ -z "$(env_value GHCR_USER)" ]; then
