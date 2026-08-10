@@ -100,6 +100,10 @@ export LORE_AGENT_INTERNAL_TOKEN="${LORE_AGENT_INTERNAL_TOKEN:-lore-local-agent-
 if [ "$LORE_STATION_BACKEND" = "k8s" ]; then
   log "Station backend is k8s — bootstrapping the ai-agent-subsystem on minikube"
   bash "$ROOT/scripts/infra/setup-minikube-agents.sh"
+  # The setup script wrote a kubeconfig holding ONLY the minikube context. Point the
+  # Floor at it so its Agent CR dispatch cannot follow a stray current-context into a
+  # real cluster; an explicitly-set LORE_KUBECONFIG still wins.
+  export LORE_KUBECONFIG="${LORE_KUBECONFIG:-$ROOT/.lore-kubeconfig-minikube}"
 fi
 
 # 2b. web-ui auth (NextAuth). Needs a URL + secret locally. Generate the secret

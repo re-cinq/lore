@@ -69,12 +69,18 @@ const GKE_DGRAPH_URL =
 export const stationName = (name: string): string =>
   `def-${name.replaceAll("_", "-")}`;
 
-// The agent CLI authenticates to Anthropic with ANTHROPIC_API_KEY. The controller only
-// injects keys a recipe declares here (from the agent-secrets Secret), so without it a run
-// pod has no key and the agent cannot call the model. Stations (exec vendor) omit it.
+// Placeholder for the agent's LLM credential. The controller only injects keys a recipe
+// declares here (from the agent-secrets Secret) and renders each as a NON-optional
+// secretKeyRef — so the declared key must exist in that Secret or every run pod dies
+// CreateContainerConfigError. That is why this is one key per cluster rather than a
+// list: GKE supplies ANTHROPIC_API_KEY (the values.yaml default), a laptop minikube
+// supplies CLAUDE_CODE_OAUTH_TOKEN instead. The `claude` CLI reads either from its
+// environment, so the vendor never has to know which one it got. catalogChartYaml swaps
+// the sentinel for the helm value. Stations (exec vendor, no model call) omit it.
+const LLM_SECRET_SENTINEL = "__LLM_SECRET_KEY__";
 const AGENT_SECRETS: NonNullable<
   NonNullable<NonNullable<AgentDefinition["spec"]>["resources"]>["secrets"]
-> = [{ name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" }];
+> = [{ name: LLM_SECRET_SENTINEL, ref: LLM_SECRET_SENTINEL }];
 
 const OUTPUT_SINKS: NonNullable<
   NonNullable<AgentDefinition["spec"]>["output"]
@@ -302,6 +308,7 @@ export function catalogChartYaml(
   );
 
   return guarded
+    .replaceAll(LLM_SECRET_SENTINEL, "{{ .Values.agentLlmSecretKey }}")
     .replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}")
     .replaceAll(MCP_URL_SENTINEL, "{{ .Values.loreMcpUrl }}")
     .replaceAll(SKILLS_SOURCE_SENTINEL, "{{ .Values.loreSkillsUrl }}")

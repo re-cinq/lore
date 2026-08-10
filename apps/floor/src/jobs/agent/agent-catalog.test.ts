@@ -32,7 +32,7 @@ describe("buildAgentDefinition", () => {
         permission_mode: "bypass",
         max_turns: 40,
         resources: {
-          secrets: [{ name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" }],
+          secrets: [{ name: "__LLM_SECRET_KEY__", ref: "__LLM_SECRET_KEY__" }],
           mcp_servers: [
             {
               name: "lore",
@@ -59,11 +59,11 @@ describe("buildAgentDefinition", () => {
     });
   });
 
-  it("declares ANTHROPIC_API_KEY in resources.secrets so the controller injects the model key", () => {
+  it("declares the LLM-credential sentinel in resources.secrets so the controller injects whichever key the cluster supplies", () => {
     expect(
       buildAgentDefinition("implementation", impl).spec?.resources,
     ).toEqual({
-      secrets: [{ name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" }],
+      secrets: [{ name: "__LLM_SECRET_KEY__", ref: "__LLM_SECRET_KEY__" }],
       mcp_servers: [
         {
           name: "lore",
@@ -161,6 +161,11 @@ describe("catalogChartYaml", () => {
 
     expect(withStation).toContain("value: {{ .Values.loreApiUrl }}");
     expect(withStation).not.toContain("__LORE_API_URL__");
+  });
+  it("templates the LLM credential key with the helm value, as both env name and secret ref (no sentinel leaks)", () => {
+    expect(out).toContain("- name: {{ .Values.agentLlmSecretKey }}");
+    expect(out).toContain("ref: {{ .Values.agentLlmSecretKey }}");
+    expect(out).not.toContain("__LLM_SECRET_KEY__");
   });
   it("stamps each CR namespace with the helm value (umbrella spans namespaces)", () => {
     expect(out).toContain("namespace: {{ .Values.namespace }}");

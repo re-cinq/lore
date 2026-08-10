@@ -314,6 +314,17 @@ The MCP server runs locally via stdio but proxies all operations
 `LORE_API_URL`. The backend must be running for any functionality
 beyond the initial install (the install path has no offline mode).
 
+`npm run dev-setup` (`scripts/dev-setup.sh`) is the one-time developer
+bootstrap: it checks the toolchain (docker, minikube, kubectl, helm,
+claude) and fills the gaps in `.env.local` — the agent LLM credential
+(`claude setup-token` → `CLAUDE_CODE_OAUTH_TOKEN`, so laptop runs bill a
+subscription rather than org API credit; `ANTHROPIC_API_KEY` wins if both
+are set), `GITHUB_TOKEN`, ghcr creds, and `LORE_STATION_BACKEND=k8s`. It
+is interactive and touches nothing outside the machine; all cluster
+bootstrap stays in `npm start`, which is why that half can stay
+unattended. Already-set values are never overwritten, so re-running is
+free.
+
 To run the full stack on your machine instead, `npm start` from the
 repo root runs `scripts/dev-local.sh`: it brings up a docker Postgres
 (pgvector, data persisted to the git-ignored `.lore-pgdata/`), builds
