@@ -40,3 +40,14 @@ dgraphUrl: http://host.minikube.internal:8081
 # writes this same key into agent-secrets; the two must agree or the run pods fail to
 # start. Mint the token with `claude setup-token` (npm run dev-setup does it for you).
 agentLlmSecretKey: CLAUDE_CODE_OAUTH_TOKEN
+
+# v0.9.0 controller + agent, pinned by digest as the PAIR the shared values.yaml
+# insists on: the artifact-event capability needs both halves — the recipe field is
+# read by the controller, the file is read and raised by the supervisor, which rides
+# in the agent image. Local-only on purpose; the shared values.yaml still pins v0.8.1
+# for GKE, so bumping prod stays a deliberate, separate decision.
+#   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent-controller:v0.9.0
+controller:
+  image:
+    digest: "sha256:af00ba16ef0fa7fc8ac929bccd3db4fa83d13214d34e3323da10fe98970d34a1"
+agentImage: "ghcr.io/re-cinq/ai-agent@sha256:0145a74cc2757629f9e152767a1e5036d078d2963a049c5606b4109a81409b34"
