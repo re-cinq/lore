@@ -71,8 +71,22 @@ fi
 #     be pointed at: LORE_KUBECONFIG is a file path, the only override kubeConfigSource()
 #     honours — see libs/shared/src/kube-config.ts.
 KUBECONFIG_FILE="$ROOT/.lore-kubeconfig-minikube"
-kubectl config view --minify --flatten --context="$MINIKUBE_PROFILE" > "$KUBECONFIG_FILE" \
-  || fail "no kubeconfig context named '$MINIKUBE_PROFILE' — check 'kubectl config get-contexts'"
+
+# Read the developer's own kubeconfig, never the file we are about to write. A prior
+# run of this script — or a copy-pasted `export KUBECONFIG=…` from a debugging session —
+# leaves KUBECONFIG pointing AT that file, and then `> "$file"` truncates it before
+# kubectl reads it: the view comes back empty, the context looks missing, and the only
+# copy is destroyed on the way out. Writing through a temp file makes the truncation
+# harmless; dropping the self-reference makes the read correct.
+case ":${KUBECONFIG:-}:" in
+  *":$KUBECONFIG_FILE:"*) unset KUBECONFIG ;;
+esac
+kube_tmp="$(mktemp)"
+if ! kubectl config view --minify --flatten --context="$MINIKUBE_PROFILE" > "$kube_tmp"; then
+  rm -f "$kube_tmp"
+  fail "no kubeconfig context named '$MINIKUBE_PROFILE' — check 'kubectl config get-contexts'"
+fi
+mv "$kube_tmp" "$KUBECONFIG_FILE"
 chmod 600 "$KUBECONFIG_FILE"
 export KUBECONFIG="$KUBECONFIG_FILE"
 log "Pinned to the '$MINIKUBE_PROFILE' context — $KUBECONFIG_FILE"
@@ -126,11 +140,29 @@ log "agent-secrets merged ($LLM_SECRET_KEY, LORE_INGEST_TOKEN, LORE_AGENT_INTERN
 kubectl apply -f "$CHART_DIR/crds/" >/dev/null
 log "Agent/Station/AgentDefinition CRDs applied"
 
+# 5b. helm >= 3.17, for --take-ownership below.
+helm_version="$(helm version --template '{{.Version}}' 2>/dev/null | sed 's/^v//')"
+if [ "$(printf '%s\n3.17.0\n' "$helm_version" | sort -V | head -1)" != "3.17.0" ]; then
+  fail "helm $helm_version is too old — need >= 3.17 (this script installs with --take-ownership)"
+fi
+
 # 6. The subsystem itself.
+#
+# --take-ownership because on a laptop THIS CHART owns the namespace, and a cluster
+# that has been used before is the normal case, not the exception. Anything an earlier
+# install left behind — the subsystem's own `deploy/` manifests, a catalog someone
+# kubectl-applied, a release that was uninstalled while `resource-policy: keep` held its
+# CRs — carries no Helm ownership metadata, and helm's default is to abort on the first
+# such object with a wall of label/annotation text that never names the cause. Adopting
+# is also the better end state: the adopted object is immediately overwritten with this
+# chart's version, which is the whole point of running the bootstrap. Without it a
+# developer clears one class of object per run (controller, then RBAC, then 26 catalog
+# CRs …) with no way to see how many rounds are left.
 helm upgrade --install ai-agents "$CHART_DIR" \
   --namespace "$NAMESPACE" \
   -f "$CHART_DIR/values.minikube.yaml" \
   --set-string "agentLlmSecretKey=$LLM_SECRET_KEY" \
+  --take-ownership \
   --wait --timeout 5m \
   || fail "helm upgrade failed — check 'kubectl -n $NAMESPACE get pods'"
 
