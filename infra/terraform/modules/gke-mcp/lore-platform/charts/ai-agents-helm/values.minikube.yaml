@@ -50,4 +50,9 @@ agentLlmSecretKey: CLAUDE_CODE_OAUTH_TOKEN
 controller:
   image:
     digest: "sha256:af00ba16ef0fa7fc8ac929bccd3db4fa83d13214d34e3323da10fe98970d34a1"
-agentImage: "ghcr.io/re-cinq/ai-agent@sha256:0145a74cc2757629f9e152767a1e5036d078d2963a049c5606b4109a81409b34"
+  # Nested under `controller` because that is where the template reads it
+  # (.Values.controller.agentImage). A top-level key here is silently ignored and
+  # falls back to the shared v0.8.1 digest — which injects a supervisor with no
+  # file-watch, so the artifact event is never raised and the round dies exactly as
+  # it did before the feature existed.
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:0145a74cc2757629f9e152767a1e5036d078d2963a049c5606b4109a81409b34"
