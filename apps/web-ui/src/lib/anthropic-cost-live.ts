@@ -109,16 +109,27 @@ export async function fetchLiveCost(): Promise<LiveCostPayload | null> {
       cache: "no-store",
     });
 
+    // Logged rather than silently swallowed: a rotated or expired admin key
+    // degrades to "figures are a day stale" with no other signal, and the
+    // small source note on the page is not something an operator watches.
     if (!res.ok) {
+      console.warn(`[spend] live cost read failed: HTTP ${res.status}`);
+
       return null;
     }
 
     const body = (await res.json()) as Partial<LiveCostPayload>;
 
-    return Array.isArray(body.rows) && typeof body.fetchedAt === "string"
-      ? { rows: body.rows, fetchedAt: body.fetchedAt }
-      : null;
-  } catch {
+    if (!Array.isArray(body.rows) || typeof body.fetchedAt !== "string") {
+      console.warn("[spend] live cost read returned a malformed payload");
+
+      return null;
+    }
+
+    return { rows: body.rows, fetchedAt: body.fetchedAt };
+  } catch (err: unknown) {
+    console.warn("[spend] live cost read errored:", err);
+
     return null;
   }
 }

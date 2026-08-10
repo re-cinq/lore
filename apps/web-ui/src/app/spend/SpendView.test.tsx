@@ -182,4 +182,26 @@ describe("SpendView", () => {
     expect(screen.getAllByText("No billed data yet")).toHaveLength(2); // model + daily
     expect(screen.getAllByText("No data")).toHaveLength(2); // repo + task type
   });
+
+  it("reports a zero month as known and live rather than as a missing key", () => {
+    render(<SpendView {...empty} orgSource="live" />);
+
+    expect(
+      screen.getByText("no billed spend this month yet"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("live from Anthropic")).toBeInTheDocument();
+    expect(
+      screen.queryByText("admin key not configured"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Org-wide billed cost unavailable."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryAllByText("—")).toHaveLength(0);
+  });
+
+  it("labels a DB-rollup read as coming from the nightly sync", () => {
+    render(<SpendView {...populated} orgSource="cache" />);
+
+    expect(screen.getByText("from the last nightly sync")).toBeInTheDocument();
+  });
 });

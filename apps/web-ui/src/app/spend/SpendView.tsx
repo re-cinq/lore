@@ -51,6 +51,43 @@ export interface SpendViewProps {
 const usd = (n: number) =>
   Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
 
+/**
+ * `live-empty` is the state a live read that found no billed spend this month
+ * lands in: the figures are genuinely zero and genuinely known, so they must
+ * not render as "—" or blame a missing key the read just proved is present.
+ */
+type OrgState = "available" | "live-empty" | "unavailable";
+
+function resolveOrgState(
+  orgAvailable: boolean,
+  orgSource?: "live" | "cache",
+): OrgState {
+  if (orgAvailable) {
+    return "available";
+  }
+
+  if (orgSource === "live") {
+    return "live-empty";
+  }
+
+  return "unavailable";
+}
+
+function orgSubnote(state: OrgState, asOf: string | null): string {
+  if (state === "available") {
+    return `as of ${new Date(asOf as string).toLocaleString()}`;
+  }
+
+  if (state === "live-empty") {
+    return "no billed spend this month yet";
+  }
+
+  return "admin key not configured";
+}
+
+const sourceLabel = (source: "live" | "cache") =>
+  source === "live" ? "live from Anthropic" : "from the last nightly sync";
+
 export default function SpendView({
   orgMtd,
   orgAvailable,
@@ -61,6 +98,9 @@ export default function SpendView({
   loreByRepo,
   loreByTaskType,
 }: SpendViewProps) {
+  const orgState = resolveOrgState(orgAvailable, orgSource);
+  const orgKnown = orgState !== "unavailable";
+
   return (
     <div>
       <h1>Claude API Spend</h1>
@@ -71,20 +111,16 @@ export default function SpendView({
         <div className={`spec-card ${styles.card}`}>
           <div className="meta">Billed cost (Anthropic)</div>
           <div className={styles.figure}>
-            {orgAvailable ? usd(orgMtd.billed_usd) : "—"}
+            {orgKnown ? usd(orgMtd.billed_usd) : "—"}
           </div>
           <div className={`meta ${styles.subnote}`}>
-            {orgAvailable
-              ? `as of ${new Date(orgMtd.as_of as string).toLocaleString()}`
-              : "admin key not configured"}
+            {orgSubnote(orgState, orgMtd.as_of)}
           </div>
           {/* Rendered as a sibling rather than appended to the line above so
               the "as of …" text stays an exact leaf node. */}
-          {orgAvailable && orgSource ? (
+          {orgKnown && orgSource ? (
             <div className={`meta ${styles.subnote}`}>
-              {orgSource === "live"
-                ? "live from Anthropic"
-                : "from the last nightly sync"}
+              {sourceLabel(orgSource)}
             </div>
           ) : null}
         </div>
@@ -98,13 +134,13 @@ export default function SpendView({
         <div className={`spec-card ${styles.card}`}>
           <div className="meta">Input Tokens</div>
           <div className={styles.figure}>
-            {orgAvailable ? Number(orgMtd.input_tokens).toLocaleString() : "—"}
+            {orgKnown ? Number(orgMtd.input_tokens).toLocaleString() : "—"}
           </div>
         </div>
         <div className={`spec-card ${styles.card}`}>
           <div className="meta">Output Tokens</div>
           <div className={styles.figure}>
-            {orgAvailable ? Number(orgMtd.output_tokens).toLocaleString() : "—"}
+            {orgKnown ? Number(orgMtd.output_tokens).toLocaleString() : "—"}
           </div>
         </div>
       </div>
@@ -112,7 +148,7 @@ export default function SpendView({
       {/* Suppressed when the source is `live`: a successful live read proves
           the key is configured, so an empty month means the org simply has no
           billed spend yet — not a misconfiguration. */}
-      {!orgAvailable && orgSource !== "live" && (
+      {orgState === "unavailable" && (
         <div className={`spec-card ${styles.warningCard}`}>
           <strong>Org-wide billed cost unavailable.</strong>
           <div className={`meta ${styles.warningNote}`}>

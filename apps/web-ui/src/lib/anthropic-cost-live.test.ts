@@ -122,6 +122,19 @@ describe("aggregateMonthToDate", () => {
     ]);
   });
 
+  it("includes a row dated exactly on the month start", () => {
+    const result = aggregateMonthToDate(
+      [row({ date: "2026-08-01", costUsd: 7 })],
+      FETCHED_AT,
+      "2026-08-01",
+    );
+
+    expect(result.orgMtd.billed_usd).toBe(7);
+    expect(result.orgDaily).toEqual([
+      { bucket_date: "2026-08-01", cost_usd: 7 },
+    ]);
+  });
+
   it("returns empty rollups for no rows at all", () => {
     const result = aggregateMonthToDate([], FETCHED_AT, "2026-08-01");
 

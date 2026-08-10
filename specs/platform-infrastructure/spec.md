@@ -117,4 +117,10 @@ DB fallback carry the same shapes and arithmetic: it sums cost and tokens across
 the month, excludes rows dated before the month start, groups by model ordered
 by cost descending and by day ordered by date descending, and reports a null
 `as_of` for a month with no rows — mirroring `MAX(fetched_at)` over an empty set
-— so an empty month reads as empty rather than as available data. ([validated by `anthropic-cost-live.test.ts:38`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L38), [`anthropic-cost-live.test.ts:53`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L53), [`anthropic-cost-live.test.ts:66`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L66), [`anthropic-cost-live.test.ts:81`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L81), [`anthropic-cost-live.test.ts:108`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L108), [`anthropic-cost-live.test.ts:125`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L125))
+— so an empty month reads as empty rather than as available data, and it includes a row dated exactly on the month start, the boundary the fallback SQL's `>=` also includes. ([validated by `anthropic-cost-live.test.ts:38`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L38), [`anthropic-cost-live.test.ts:53`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L53), [`anthropic-cost-live.test.ts:66`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L66), [`anthropic-cost-live.test.ts:81`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L81), [`anthropic-cost-live.test.ts:108`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L108), [`anthropic-cost-live.test.ts:138`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L138), [`anthropic-cost-live.test.ts:125`](apps/web-ui/src/lib/anthropic-cost-live.test.ts#L125))
+
+A live read that finds no billed spend this month is a distinct state from an
+absent admin key: the figures are known to be zero, so `/spend` renders them as
+zero with a "live from Anthropic" source note rather than as em dashes, and it
+suppresses both the "admin key not configured" subnote and the unavailable
+banner. A fallback read is labelled as coming from the last nightly sync. ([validated by `SpendView.test.tsx:186`](apps/web-ui/src/app/spend/SpendView.test.tsx#L186), [`SpendView.test.tsx:202`](apps/web-ui/src/app/spend/SpendView.test.tsx#L202))
