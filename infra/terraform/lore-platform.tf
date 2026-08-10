@@ -19,6 +19,16 @@
 # CR, and Dgraph remain Terraform-owned (see the other *.tf files).
 # --------------------------------------------------------------------------
 
+locals {
+  # In-cluster base URL of the lore-mcp gateway (Service `lore-mcp-gateway` in the
+  # lore-api namespace, ClusterIP :8080). Agent run pods MUST use this rather than the
+  # public host in var.lore_mcp_url: Dataplane V2 short-circuits a VIP whose backend
+  # lives in this cluster, and the post-DNAT 10.x address is dropped by the run-pod
+  # egress policy's RFC1918 except-list. Host/port must stay in step with the
+  # ai-agents-helm `mcpSink` values that open the matching NetworkPolicy hole.
+  lore_mcp_in_cluster = "http://lore-mcp-gateway.lore-api.svc.cluster.local:8080"
+}
+
 resource "helm_release" "lore_platform" {
   name             = "lore-platform"
   chart            = "${path.module}/modules/gke-mcp/lore-platform"
@@ -132,7 +142,13 @@ resource "helm_release" "lore_platform" {
     # sentinel unreplaced-but-harmless (no mcp_servers URL to connect to).
     "ai-agents" = {
       controller = { replicas = 1 }
-      loreMcpUrl = var.lore_mcp_url != "" ? "${var.lore_mcp_url}/mcp" : ""
+      #
+      # The URL is IN-CLUSTER, not var.lore_mcp_url's public host: Dataplane V2
+      # short-circuits a VIP whose backend lives in this cluster and the post-DNAT 10.x
+      # address hits the run-pod egress policy's RFC1918 except-list, so the public
+      # gateway host merely hangs from an agent pod. var.lore_mcp_url stays the on/off
+      # switch (set = the gateway is deployed). See ai-agents-helm/values.yaml.
+      loreMcpUrl = var.lore_mcp_url != "" ? "${local.lore_mcp_in_cluster}/mcp" : ""
       # The same gateway serves the /skills registry the agent init fetches skills +
       # settings from (resources.skills_source). Empty leaves the sentinel unreplaced —
       # harmless, the init skips the fetch.
@@ -163,7 +179,12 @@ resource "helm_release" "lore_platform" {
       # Verify after apply that the recipes carry a source — read
       # .spec.resources.skills_source off the `general` AgentDefinition in ai-agents;
       # it should be <gateway>/skills, not empty.
-      loreSkillsUrl = var.lore_mcp_url != "" ? "${var.lore_mcp_url}/skills" : ""
+      #
+      # 2026-08-10 follow-up: applying this was necessary but not sufficient. The value
+      # was ALSO being pruned by a stale CRD schema (helm never upgrades crds/), and once
+      # it finally reached a pod the fetch could not connect at all — the URL has to be
+      # in-cluster, same as loreMcpUrl above. All three had to be fixed (#1126).
+      loreSkillsUrl = var.lore_mcp_url != "" ? "${local.lore_mcp_in_cluster}/skills" : ""
     }
   })]
 
