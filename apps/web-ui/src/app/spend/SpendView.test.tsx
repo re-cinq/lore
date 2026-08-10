@@ -211,27 +211,6 @@ describe("SpendView", () => {
     expect(screen.getByText("No task-attributed spend")).toBeInTheDocument(); // task type
   });
 
-  it("labels billed figures read live through the Floor", () => {
-    render(<SpendView {...withAdminKey} orgSource="live" />);
-
-    expect(screen.getByText("live from Anthropic")).toBeInTheDocument();
-  });
-
-  it("labels billed figures served from the nightly rollup", () => {
-    render(<SpendView {...withAdminKey} orgSource="cache" />);
-
-    expect(screen.getByText("from the last nightly sync")).toBeInTheDocument();
-  });
-
-  it("omits the source label when no source is given", () => {
-    render(<SpendView {...withAdminKey} />);
-
-    expect(screen.queryByText("live from Anthropic")).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("from the last nightly sync"),
-    ).not.toBeInTheDocument();
-  });
-
   it("brings the billed card current with today's Lore-computed spend, labeled", () => {
     render(<SpendView {...withAdminKey} loreTodayUsd={1.95} />);
 

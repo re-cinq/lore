@@ -66,12 +66,6 @@ export interface SpendViewProps {
   orgMtd: OrgMtdRow;
   orgAvailable: boolean;
   /**
-   * Where the billed figures came from: `live` is a fresh Admin API read
-   * proxied by the Floor, `cache` the nightly `anthropic_cost_sync` rollup.
-   * Optional — callers without a source render exactly as before.
-   */
-  orgSource?: "live" | "cache";
-  /**
    * Today's Lore-computed spend (pipeline.llm_calls). Anthropic's cost report
    * is daily-granularity and never emits the in-progress day, so the billed
    * MTD figure always ends at yesterday — this is the only number that can
@@ -95,13 +89,9 @@ const usd = (n: number) =>
 
 const num = (n: number) => Number(n).toLocaleString();
 
-const sourceLabel = (source: "live" | "cache") =>
-  source === "live" ? "live from Anthropic" : "from the last nightly sync";
-
 export default function SpendView({
   orgMtd,
   orgAvailable,
-  orgSource,
   loreTodayUsd,
   orgByModel,
   orgDaily,
@@ -150,11 +140,6 @@ export default function SpendView({
             <div className={`meta ${styles.subnote}`}>
               as of {new Date(orgMtd.as_of as string).toLocaleString()}
             </div>
-            {orgSource && (
-              <div className={`meta ${styles.subnote}`}>
-                {sourceLabel(orgSource)}
-              </div>
-            )}
             {/* Anthropic's cost report never includes the in-progress day, so
                 the billed figure ends at yesterday. Surface today separately
                 and labeled rather than folding it in: the sum would silently

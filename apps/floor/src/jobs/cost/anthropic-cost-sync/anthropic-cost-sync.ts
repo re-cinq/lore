@@ -109,10 +109,8 @@ function upsertRow(row: AnthropicCostDailyRow): Promise<void> {
 }
 
 /**
- * The 31-day cost+usage pull, shared by the nightly cron and the /spend page's
- * live read (`routes/anthropic-cost-live.ts`). Extracted so the two callers
- * cannot drift on window, bucket width, or merge semantics — the page would
- * otherwise show subtly different totals from the rollup it falls back to.
+ * The 31-day cost+usage pull behind the hourly sync. Extracted from the job
+ * body so the window/bucket/merge mechanics are testable without a database.
  */
 export async function fetchAnthropicCostRows(
   adminKey: string,
