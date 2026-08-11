@@ -10,6 +10,10 @@ import { registerBearerAuth } from "./auth.js";
 import { registerRequestTracing } from "./tracing.js";
 import { healthRoute } from "./routes/health.js";
 import { agentEventsRoute } from "./routes/agent-events.js";
+import {
+  agentConversationFetchRoute,
+  agentConversationSaveRoute,
+} from "./routes/agent-conversations.js";
 import { agentLogsRoute } from "./routes/agent-logs.js";
 import { agentEventsStreamRoute } from "./routes/agent-events-stream.js";
 import { agentEventsHistoryRoute } from "./routes/agent-events-history.js";
@@ -45,6 +49,8 @@ export function buildServer(opts: {
   server.route([
     healthRoute(opts.getJobStatus),
     agentEventsRoute,
+    agentConversationSaveRoute,
+    agentConversationFetchRoute,
     agentEventsStreamRoute(),
     agentEventsHistoryRoute(),
     assemblyLineDefinitionsRoute(),

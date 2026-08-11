@@ -8,7 +8,10 @@ import type { ArchivePort, ArchiveSaveOptions } from "./archive-port.js";
 export interface StorageLike {
   bucket(name: string): {
     file(key: string): {
-      save(body: string, options: Record<string, unknown>): Promise<void>;
+      save(
+        body: string | Uint8Array,
+        options: Record<string, unknown>,
+      ): Promise<void>;
       exists(): Promise<[boolean]>;
       download(): Promise<[Buffer]>;
     };
@@ -23,7 +26,7 @@ export class GcsArchive implements ArchivePort {
 
   async save(
     key: string,
-    body: string,
+    body: string | Uint8Array,
     options: ArchiveSaveOptions,
   ): Promise<void> {
     await this.storage
@@ -49,6 +52,22 @@ export class GcsArchive implements ArchivePort {
       const [content] = await file.download();
 
       return content.toString("utf-8");
+    } catch {
+      return null;
+    }
+  }
+
+  async readBytes(key: string): Promise<Uint8Array | null> {
+    try {
+      const file = this.storage.bucket(this.bucketName).file(key);
+      const [exists] = await file.exists();
+
+      if (!exists) {
+        return null;
+      }
+      const [content] = await file.download();
+
+      return content;
     } catch {
       return null;
     }
