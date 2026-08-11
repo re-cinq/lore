@@ -112,5 +112,6 @@ the data changes once a day, and one settled sync at 07:00 UTC was judged
 worth more than 23 no-op runs buying a few hours of day-boundary freshness.
 The chart was reverted to `0 7 * * *`, making code match the running cluster;
 the midnight–07:00 gap for yesterday's figures is accepted and documented on
-the schedule entry. The overlay's cronJobs blind spot is tracked separately —
-any future `cronJobs` edit will silently no-op until the overlay covers it.
+the schedule entry. The overlay's cronJobs blind spot is tracked on
+issue #1120 (mechanism 3, "Helm stored-values shadowing") — any future
+`cronJobs` edit will silently no-op until the overlay covers it.
