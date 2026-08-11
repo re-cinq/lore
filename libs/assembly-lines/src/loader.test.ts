@@ -669,3 +669,69 @@ describe("loadAssemblyLineDir — code-review-recheck line", () => {
     ).toEqual(["changes_requested", "failed", "success"]);
   });
 });
+
+describe("parseAssemblyLine — continues", () => {
+  const line = (continues: string) => `
+name: planning
+description: d
+version: 1
+entry: analyze
+exit: done
+nodes:
+  - id: analyze
+    type: agent
+${continues}
+  - id: done
+    type: retrospective
+edges:
+  - from: analyze
+    to: done
+    on: always
+`;
+
+  it("accepts a node reference keyed by an arg", () => {
+    const wf = parseAssemblyLine(
+      line("    continues:\n      node: analyze\n      key: args.feature_id"),
+    );
+
+    expect(wf.nodes[0].continues).toEqual({
+      node: "analyze",
+      key: "args.feature_id",
+    });
+  });
+
+  it("accepts the built-in line and task keys", () => {
+    expect(
+      parseAssemblyLine(
+        line("    continues:\n      node: analyze\n      key: line"),
+      ).nodes[0].continues?.key,
+    ).toBe("line");
+    expect(
+      parseAssemblyLine(
+        line("    continues:\n      node: analyze\n      key: task"),
+      ).nodes[0].continues?.key,
+    ).toBe("task");
+  });
+
+  it("rejects a reference to a node that does not exist", () => {
+    // An unresolvable reference would silently start a fresh conversation at runtime,
+    // which is indistinguishable from one that continued and remembered nothing.
+    expect(() =>
+      parseAssemblyLine(
+        line("    continues:\n      node: reviewe\n      key: line"),
+      ),
+    ).toThrow(/continues unknown node "reviewe"/);
+  });
+
+  it("rejects a thread key that resolves to nothing", () => {
+    expect(() =>
+      parseAssemblyLine(
+        line("    continues:\n      node: analyze\n      key: feature"),
+      ),
+    ).toThrow(/invalid continues.key "feature"/);
+  });
+
+  it("leaves a node without continues alone", () => {
+    expect(parseAssemblyLine(line("")).nodes[0].continues).toBeUndefined();
+  });
+});

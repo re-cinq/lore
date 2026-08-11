@@ -41,6 +41,16 @@ const NodeSchema = z.object({
   station_ref: z.string().optional(),
   /** Per-node run timeout; falls back to the referenced Station's deadline. */
   timeout_minutes: z.number().int().positive().optional(),
+  /** Continue a previous run instead of starting a fresh conversation.
+   *  `node` names the work continued (validated against this definition below);
+   *  `key` identifies WHICH thread, so two features running the same definition
+   *  concurrently never continue each other. */
+  continues: z
+    .object({
+      node: z.string(),
+      key: z.string(),
+    })
+    .optional(),
   description: z.string().optional(),
 });
 
@@ -273,6 +283,28 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
     );
   }
 
+  // A `continues` reference must name a real node and a resolvable thread key.
+  // Both fail at LOAD because the runtime failure is invisible: an unresolvable
+  // reference would silently start a fresh conversation, which looks exactly like a
+  // continued one that happened to remember nothing.
+  for (const n of wf.nodes) {
+    if (!n.continues) {
+      continue;
+    }
+
+    enforceTrue(
+      nodeIds.has(n.continues.node),
+      loadError,
+      `node "${n.id}" in assembly line "${wf.name}" continues unknown node "${n.continues.node}"`,
+    );
+    enforceTrue(
+      isThreadKey(n.continues.key),
+      loadError,
+      `node "${n.id}" in assembly line "${wf.name}" has invalid continues.key "${n.continues.key}" ` +
+        `(expected "line", "task" or "args.<name>")`,
+    );
+  }
+
   // Every outcome a node can produce must route somewhere — an uncovered
   // outcome would otherwise crash the walk at runtime (`nextTransition`'s
   // no-edge failure) instead of failing here at load.
@@ -290,6 +322,16 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
 
   // Cycles must carry iteration_max on the back-edge (DFS coloring).
   detectCycles(wf, source);
+}
+
+/** The thread a `continues` reference belongs to: this run (`line`), this task across
+ *  attempts (`task`), or whatever value the run carries under `args.<name>`. The
+ *  args form keeps the engine domain-free — Lore keys planning threads by
+ *  `args.feature_id` exactly as detect lines already carry `args.job_run_id`. */
+export function isThreadKey(key: string): boolean {
+  return (
+    key === "line" || key === "task" || /^args\.[a-z][a-z0-9_]*$/.test(key)
+  );
 }
 
 function detectCycles(wf: AssemblyLine, source: string): void {
