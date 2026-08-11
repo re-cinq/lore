@@ -55,9 +55,13 @@ export async function handleClaudeCodeTask(
   // container instead of ever reaching the agent.
   await ensureTaskBranch(project.repo, branchName);
 
+  const featureId = task.context_bundle?.feature_id;
   const result = await project.agents.run(task.id, {
     mode: "cluster",
     taskType: task.task_type,
+    // Threaded into the line's args so `continues.key: args.feature_id` resolves —
+    // the assembly-line engine never learns what a feature is.
+    ...(typeof featureId === "string" ? { featureId } : {}),
     description: task.description,
     prompt: fullPrompt,
     branch: branchName,

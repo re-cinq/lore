@@ -36,6 +36,18 @@ export interface LoreTaskSpec {
    *  (detect/gate/retrospective/triage) need no repo, and their line branch is
    *  a synthetic lease key no `git checkout` could resolve. Default true. */
   clone?: boolean;
+  /** The feature a planning/finalize run belongs to, threaded into the line's args
+   *  so a definition can key a conversation thread on `args.feature_id`. */
+  featureId?: string;
+  /** A previous run this one continues, and the id it saves its own state as
+   *  (ai-agent-subsystem#188). Resolved at dispatch from the node's `continues`
+   *  declaration; absent when the node declares none or this is a retry. */
+  conversation?: {
+    source: string;
+    id: string;
+    pin: string;
+    headersSecret: string;
+  };
 }
 
 export interface K8sPort {

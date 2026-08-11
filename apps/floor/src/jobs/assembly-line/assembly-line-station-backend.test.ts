@@ -41,6 +41,49 @@ describe("AssemblyLineStationBackend", () => {
     expect(await backend.isActive()).toBe(true);
   });
 
+  it("threads the feature id into the line's args so a thread key can name it", async () => {
+    // `continues.key: args.feature_id` resolves against these args — the engine
+    // never learns what a feature is, it just carries what the caller put here.
+    const port = new InMemoryAssemblyLines();
+    const backend = new AssemblyLineStationBackend(
+      port,
+      new Set(["feature-planning"]),
+    );
+
+    await backend.launch({
+      taskId: "t1",
+      taskType: "feature-planning",
+      description: "plan it",
+      prompt: "p",
+      targetRepo: "re-cinq/lore",
+      branch: "lore/x",
+      featureId: "feature-9",
+    });
+
+    expect((await port.listOpen())[0].args).toMatchObject({
+      feature_id: "feature-9",
+    });
+  });
+
+  it("carries no feature id for a run that has none", async () => {
+    const port = new InMemoryAssemblyLines();
+    const backend = new AssemblyLineStationBackend(
+      port,
+      new Set(["implementation"]),
+    );
+
+    await backend.launch({
+      taskId: "t1",
+      taskType: "implementation",
+      description: "build it",
+      prompt: "p",
+      targetRepo: "re-cinq/lore",
+      branch: "lore/x",
+    });
+
+    expect((await port.listOpen())[0].args).not.toHaveProperty("feature_id");
+  });
+
   it("two launches of the same task mint distinct assembly line ids", async () => {
     const port = new InMemoryAssemblyLines();
     const backend = new AssemblyLineStationBackend(port);

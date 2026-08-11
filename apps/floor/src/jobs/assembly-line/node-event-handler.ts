@@ -138,13 +138,14 @@ export { advanceLine };
  *  advance, and the reaper tick. */
 export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   const [
-    { assemblyLines, jobRuns, taskStore },
+    { assemblyLines, jobRuns, taskStore, conversations },
     { loadBuiltinAssemblyLines },
     { agentCrBackend, projectFor },
     { buildPrompt },
     { cleanupPerTaskToken },
     { KubeAgentApi },
     { settleTaskForLine },
+    { resolveConversation },
   ] = await Promise.all([
     import("../../kernel/queues.js"),
     import("@re-cinq/lore-assembly-lines"),
@@ -153,6 +154,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     import("../watcher/agent-watcher.js"),
     import("../station/kube-agent-api.js"),
     import("./settle-task.js"),
+    import("./resolve-conversation.js"),
   ]);
   const kubeApi = new KubeAgentApi();
 
@@ -166,6 +168,14 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     cleanupToken: cleanupPerTaskToken,
     jobRuns: jobRuns(),
     notifyFailure: notifyLineFailure,
+    resolveConversation: (node, task, iteration) =>
+      resolveConversation(node, task, iteration, {
+        conversations: conversations(),
+        // The URL the POD must reach, which is the same sink host it already posts
+        // telemetry to — not the Floor's own view of itself.
+        registryUrl: `${process.env.LORE_FLOOR_POD_URL ?? ""}/api/agent-conversations`,
+        headersSecret: "agent-events-auth",
+      }),
     settleTask: (row, outcome, reason) =>
       settleTaskForLine(row, outcome, reason, {
         tasks: taskStore(),

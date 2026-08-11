@@ -47,6 +47,14 @@ export interface AdvanceDeps {
     outcome: string,
     reason?: string,
   ) => Promise<void>;
+  /** Resolve a node's `continues` declaration into the conversation this run should
+   *  continue and save as. Optional seam — a composition without it simply never
+   *  continues, which is the pre-feature behaviour. */
+  resolveConversation?: (
+    node: AssemblyLine["nodes"][number],
+    task: FloorAssemblyLineTask,
+    iteration: number,
+  ) => Promise<LoreTaskSpec["conversation"] | undefined>;
   /** Close the line's backing pipeline task — and, for a planning round, its feature
    *  iteration — so a failed line stops reading as "still running" everywhere
    *  downstream. Optional seam, same as notifyFailure. */
@@ -224,6 +232,19 @@ export async function advanceLine(
           transition.iteration,
         )
       : nodeStationSpec(node, task, transition.iteration);
+
+  // Only agent nodes hold a conversation; a station runs a deterministic command.
+  if (node.type === "agent" && deps.resolveConversation) {
+    const conversation = await deps.resolveConversation(
+      node,
+      task,
+      transition.iteration,
+    );
+
+    if (conversation) {
+      spec.conversation = conversation;
+    }
+  }
 
   // Row before CR: a crash in between leaves an open row the reaper resolves by
   // reading the (deterministically named) CR; a rowless CR would be invisible.

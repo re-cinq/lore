@@ -21,7 +21,13 @@ export class AssemblyLineStationBackend implements StationBackend {
       repo: spec.targetRepo,
       branch: spec.branch,
       taskId: spec.taskId,
-      args: { description: spec.description },
+      // Per-run values a definition can name with `continues.key: args.<name>`.
+      // The engine stays domain-free: it never learns what a feature is, it just
+      // carries the value the consumer put here.
+      args: {
+        description: spec.description,
+        ...(spec.featureId ? { feature_id: spec.featureId } : {}),
+      },
     });
 
     return { ref: assemblyLineId, launched: true };

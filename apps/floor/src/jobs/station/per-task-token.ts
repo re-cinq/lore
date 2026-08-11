@@ -68,6 +68,19 @@ export function injectRepoToken(
       ...catalog.spec,
       resources: {
         ...(catalog.spec?.resources ?? {}),
+        // The conversation is per-RUN (which previous run, saved as which id), so it
+        // rides the per-task clone exactly as the repo token does — the shared
+        // catalog recipe cannot carry it.
+        ...(spec.conversation
+          ? {
+              conversation: {
+                source: spec.conversation.source,
+                id: spec.conversation.id,
+                pin: spec.conversation.pin,
+                headers_secret: spec.conversation.headersSecret,
+              },
+            }
+          : {}),
         repos: [
           {
             name: "target",
