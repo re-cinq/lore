@@ -899,7 +899,7 @@ describe("InMemoryAssemblyLines resumeFrom", () => {
     });
   });
 
-  it("copies the source rows through the chosen node's latest completed row, in visit order", async () => {
+  it("copies the source rows through the chosen node's latest completed row, in visit order, with agent CR names nulled", async () => {
     const port = new InMemoryAssemblyLines();
     const source = await terminalSource(port);
 
@@ -924,21 +924,21 @@ describe("InMemoryAssemblyLines resumeFrom", () => {
         iteration: 1,
         outcome: "success",
         commitSha: "sha-implement",
-        agentCrName: `${source.slice(0, 12)}-implement`,
+        agentCrName: null,
       },
       {
         nodeId: "review",
         iteration: 1,
         outcome: "changes_requested",
         commitSha: "sha-review",
-        agentCrName: `${source.slice(0, 12)}-review`,
+        agentCrName: null,
       },
       {
         nodeId: "implement",
         iteration: 2,
         outcome: "success",
         commitSha: "sha-implement",
-        agentCrName: `${source.slice(0, 12)}-implement`,
+        agentCrName: null,
       },
     ]);
   });
@@ -1077,6 +1077,7 @@ describe("PgAssemblyLines resumeFrom", () => {
       definition_hash: HASH,
       resumed_from_line_id: null,
       resumed_from_node_id: null,
+      inherited_node_count: 0,
       created_at: AT,
       started_at: AT,
       finished_at: AT,
@@ -1201,7 +1202,7 @@ describe("PgAssemblyLines resumeFrom", () => {
     );
   });
 
-  it("copies the source's outcome, agent CR name, commit sha and timestamps", async () => {
+  it("copies the source's outcome, commit sha and timestamps but nulls the agent CR name", async () => {
     const { pool, calls } = fakePool([
       [sourceRow()],
       NODE_ROWS,
@@ -1212,7 +1213,7 @@ describe("PgAssemblyLines resumeFrom", () => {
     const sql = calls[2]?.text ?? "";
 
     expect(sql).toContain(
-      "n.node_id, n.iteration, n.outcome, n.agent_cr_name, n.commit_sha, n.started_at, n.finished_at",
+      "n.node_id, n.iteration, n.outcome, NULL, n.commit_sha, n.started_at, n.finished_at",
     );
   });
 

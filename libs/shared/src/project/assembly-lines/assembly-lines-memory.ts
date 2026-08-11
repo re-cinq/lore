@@ -86,6 +86,10 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
         ...node,
         id: String(this.nodes.length + 1),
         assemblyLineId: id,
+        // Copied rows never carry the source's CR name: the run-viz and cost
+        // correlation joins resolve agent_cr_name -> newest node row, and an
+        // echoed name would steal the source's late-arriving rows.
+        agentCrName: null,
       });
     }
     this.events.push({

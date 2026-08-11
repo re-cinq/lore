@@ -3,7 +3,7 @@
 | Field  | Value                       |
 |--------|-----------------------------|
 | Branch | `feat/fork-rerun-from-node` |
-| Status | In Progress                 |
+| Status | Complete                    |
 
 Every task is test-first: write the failing test, confirm it fails for the
 stated reason, then implement. One commit per task; the spec's

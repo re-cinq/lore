@@ -82,6 +82,15 @@ export class PgAssemblyLines implements AssemblyLinesPort {
    * event and every inherited node row in ONE data-modifying CTE. Nothing is
    * written until validation passes, and every property validated is immutable
    * on a terminal line — so the read-then-write split opens no window.
+   *
+   * Copied rows deliberately null agent_cr_name: the run-viz ingest and cost
+   * correlation joins resolve a CR name to its line via the NEWEST matching
+   * node row, so echoing the source's CR names onto the fork would steal any
+   * late-arriving agent-event or cost row from the source run. A node row's
+   * CR name always names a CR launched by that line; inherited rows launched
+   * nothing. (Safe for the walk and the reaper: every inherited row is proven
+   * terminal by resolveResumePrefix, and only open rows are ever read back by
+   * CR name.)
    */
   private async startResumed(
     input: AssemblyLineStartInput,
@@ -119,7 +128,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
            (assembly_line_id, node_id, iteration, outcome, agent_cr_name,
             commit_sha, started_at, finished_at)
          SELECT al.id,
-                n.node_id, n.iteration, n.outcome, n.agent_cr_name, n.commit_sha, n.started_at, n.finished_at
+                n.node_id, n.iteration, n.outcome, NULL, n.commit_sha, n.started_at, n.finished_at
            FROM pipeline.assembly_line_nodes n, al
           WHERE n.assembly_line_id = $7
             AND n.id <= $9::bigint
