@@ -189,7 +189,10 @@ export default function GapSections({
         >
           {section.content && <Markdown markdown={section.content} />}
           {section.mockups && section.mockups.length > 0 && (
-            <MockupSection mockups={section.mockups} />
+            <MockupSection
+              mockups={section.mockups}
+              stylesheet={gap.mockup_stylesheet}
+            />
           )}
           {section.questions?.map((q) => (
             <QuestionInput

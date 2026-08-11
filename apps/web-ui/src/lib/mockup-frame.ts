@@ -1,0 +1,43 @@
+// The document a mockup is rendered inside.
+//
+// Every mockup — svg, rendered mermaid, or html — goes into its own sandboxed
+// frame rather than into this page. Two reasons, and the second is the one that
+// forced it: a `<style>` block inside an INLINE svg applies document-wide, so a
+// mockup carrying the planned repo's CSS would restyle the wizard around it; and a
+// frame with no scripting and no same-origin is a boundary that holds for all
+// three formats instead of one sanitizer per format.
+
+import type { GapMockup } from "./feature-types";
+
+/** Height for a mockup that declared none, and the ceiling for one that declared
+ *  something absurd. The frame cannot measure itself (no same-origin access), so
+ *  an undeclared height is a guess by construction. */
+export const DEFAULT_MOCKUP_HEIGHT = 420;
+const MAX_MOCKUP_HEIGHT = 2000;
+
+// Deliberately NOT the dashboard's theme tokens. A mockup pictures the PLANNED
+// repository; when that repo has no styles to lend, a neutral system default reads
+// as a wireframe instead of dressing it up as something it is not.
+const RESET = `*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: transparent; }
+body { font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+svg, img, table { max-width: 100%; }`;
+
+/** The frame's document for one mockup's markup, with the planned repo's
+ *  stylesheet layered over the reset so the repo's own rules win. */
+export function mockupFrameSrcdoc(markup: string, stylesheet?: string): string {
+  const css = stylesheet?.trim() ? `${RESET}\n${stylesheet}` : RESET;
+
+  return `<style>${css}</style>${markup}`;
+}
+
+/** The pixel height to give a mockup's frame. */
+export function mockupHeight(mockup: GapMockup): number {
+  const declared = mockup.height;
+
+  if (typeof declared !== "number" || !(declared > 0)) {
+    return DEFAULT_MOCKUP_HEIGHT;
+  }
+
+  return Math.min(declared, MAX_MOCKUP_HEIGHT);
+}
