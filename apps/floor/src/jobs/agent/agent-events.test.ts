@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { resultLine } from "@re-cinq/lore-assembly-lines";
-import { parseAgentEvents, agentEventsArchiveKey } from "./agent-events.js";
+import { parseAgentEvents } from "./agent-events.js";
 
 const line = (source: unknown, event: unknown): string =>
   JSON.stringify({ source, event });
@@ -153,22 +153,6 @@ describe("parseAgentEvents", () => {
       "t-a",
       "t-b",
     ]);
-  });
-});
-
-describe("agentEventsArchiveKey", () => {
-  it("builds a date-partitioned key from the received instant and first task id", () => {
-    expect(
-      agentEventsArchiveKey("2026-06-29T22:45:01.123Z", ["task-uuid-1", "t-b"]),
-    ).toBe(
-      "__agent_events__/2026-06-29/2026-06-29T22-45-01-123Z-task-uuid-1.ndjson",
-    );
-  });
-
-  it("tags the key 'unknown' when the batch carries no task ids", () => {
-    expect(agentEventsArchiveKey("2026-06-29T22:45:01.123Z", [])).toBe(
-      "__agent_events__/2026-06-29/2026-06-29T22-45-01-123Z-unknown.ndjson",
-    );
   });
 });
 

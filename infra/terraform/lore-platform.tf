@@ -54,11 +54,6 @@ resource "helm_release" "lore_platform" {
         PORT             = "8080"
         LORE_INGEST_URL  = var.lore_api_url
         LORE_LOG_BUCKET  = "lore-task-logs-${var.project_id}"
-        # Raw agent-NDJSON run archive (agent-events.ts). Reuses the task-logs
-        # bucket — the archive keys are namespaced under __agent_events__/ and the
-        # bucket's log_retention_days lifecycle prunes them. Without this the
-        # archive is a silent no-op (agentEventsArchive returns null).
-        LORE_AGENT_EVENTS_BUCKET = "lore-task-logs-${var.project_id}"
         # Web-UI base: the "Lore review has started — <id>" comment (loreTaskRef)
         # links the run id to /assembly-lines/<id>, which the resolver renders.
         LORE_UI_URL = var.lore_ui_url

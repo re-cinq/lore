@@ -19,14 +19,15 @@ the Floor as NDJSON at `POST /api/agent-events`, one line per envelope
 (`apps/floor/src/jobs/agent/agent-events.ts`) projects only the terminal `result`
 line into a `pipeline.llm_calls` cost row and skips every other line silently.
 
-The raw body is not discarded: the route
-(`apps/floor/src/delivery/http/routes/agent-events.ts`) already calls
-`archiveAgentEvents(rawNdjson, key)`, writing the redacted NDJSON to GCS
-fire-and-forget. That archive is dormant until a bucket is configured, is keyed
-by timestamp rather than by run, offers no cursor, and cannot be tailed live — so
-it answers "what happened, eventually" and never "what is happening now". This
-feature adds a queryable projection alongside that archive; it does not rescue
-data that was being thrown away.
+The raw body is not discarded. When this feature shipped, the route
+(`apps/floor/src/delivery/http/routes/agent-events.ts`) archived the redacted
+NDJSON to GCS fire-and-forget — write-only, keyed by timestamp rather than by
+run, with no cursor and no live tail — so this feature added a queryable
+projection alongside that archive rather than rescuing discarded data.
+*(Amended 2026-08-11, #1148:)* the GCS archive is retired; the full redacted
+stream now lives in `pipeline.agent_run_turns`
+(`specs/turn-level-transcript-store`), which is keyed by run, correlated, and
+readable over HTTP.
 
 The observable result today is that a developer watching an assembly line has a
 task row, a set of node rows, and a PR link — but no view of what the agent is
@@ -38,7 +39,7 @@ useful granularity.
 
 - The first cut delivers persistence, live transport, history, and the run visualization behind session-authenticated web-ui proxies.
 - There is deliberately no `node_status` event type; node state is seeded from `pipeline.assembly_line_nodes` and derived from per-node `init` / `result` events, because a second source of truth for node status would drift against the table the walk actually writes.
-- Retention of the pre-existing GCS raw-NDJSON archive is out of scope; this feature owns only the `pipeline.agent_run_events` prune.
+- Retention of the raw stream is out of scope; this feature owns only the `pipeline.agent_run_events` prune. (The GCS raw-NDJSON archive this line once deferred to was retired 2026-08-11 in favor of the `pipeline.agent_run_turns` transcript and its own 30-day prune, #1148.)
 - Cost accounting is unchanged in the sense that this feature introduces no new cost semantics, no new cost schema, and no change to which line produces a `pipeline.llm_calls` row.
 
 ## Functional Requirements
@@ -59,7 +60,7 @@ useful granularity.
 
 - FR1.6. A `tool_result` payload is truncated at write time to at most 2KB. ([validated by `agent-run-events.test.ts:387`](apps/floor/src/jobs/agent/agent-run-events.test.ts#L387), [`agent-run-events.test.ts:550`](apps/floor/src/jobs/agent/agent-run-events.test.ts#L550), [`agent-run-events.test.ts:554`](apps/floor/src/jobs/agent/agent-run-events.test.ts#L554), [`agent-run-events.test.ts:558`](apps/floor/src/jobs/agent/agent-run-events.test.ts#L558))
 
-- FR1.6b. A single `/api/agent-events` POST projects at most `MAX_RUN_EVENTS_PER_BATCH` rows. A run large enough to exceed that stops projecting rather than materializing an unbounded row set — which, on the single `replicaCount: 1` Floor replica, OOM-crash-looped the whole ingress — since full fidelity remains in the GCS NDJSON archive. ([validated by `agent-sink.test.ts:20`](apps/floor/src/jobs/agent/agent-sink.test.ts#L20))
+- FR1.6b. A single `/api/agent-events` POST projects at most `MAX_RUN_EVENTS_PER_BATCH` rows. A run large enough to exceed that stops projecting rather than materializing an unbounded row set — which, on the single `replicaCount: 1` Floor replica, OOM-crash-looped the whole ingress — since full fidelity remains in the `pipeline.agent_run_turns` transcript (`specs/turn-level-transcript-store`). ([validated by `agent-sink.test.ts:20`](apps/floor/src/jobs/agent/agent-sink.test.ts#L20))
 
 - FR1.7. Each individual tool input is truncated at write time to at most 1KB, and all tool inputs on one row to at most 4KB in total. The cap binds on structured values — objects and arrays — exactly as it binds on strings; a value that survives the cap keeps its JSON shape, and one that does not is stored as its truncated encoding. ([validated by `agent-run-events.test.ts:402`](apps/floor/src/jobs/agent/agent-run-events.test.ts#L402), [`agent-run-events.test.ts:421`](apps/floor/src/jobs/agent/agent-run-events.test.ts#L421), [`agent-run-events.test.ts:441`](apps/floor/src/jobs/agent/agent-run-events.test.ts#L441), [`agent-run-events.test.ts:466`](apps/floor/src/jobs/agent/agent-run-events.test.ts#L466))
 
@@ -189,14 +190,15 @@ useful granularity.
 
 - FR5.6. Cost-row anomalies never fail the request: an id matching neither a task nor a line stores an uncorrelated row, and an insert error is skipped — both are surfaced via a metric and one `agent_events_cost_degraded` audit row per degraded batch rather than dropped silently, and a failed audit write is itself swallowed rather than 500-ing the endpoint (#945). ([validated by `agent-events.test.ts:141`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L141), [`agent-events.test.ts:156`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L156), [`agent-events.test.ts:168`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L168), [`agent-events.test.ts:175`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L175))
 
-- FR5.5. Above a body-size threshold, a `POST /api/agent-events` records its cost rows but skips the run-visualization projection and the full-body archive copy — the two body-proportional allocations — so a pathological report cannot OOM the single Floor replica. The projection is parsed in a single pass that can omit run events entirely for the cost-only path. ([validated by `agent-sink.test.ts:32`](apps/floor/src/jobs/agent/agent-sink.test.ts#L32), [`agent-events-oversized.test.ts:47`](apps/floor/src/delivery/http/routes/agent-events-oversized.test.ts#L47))
+- FR5.5. Above a body-size threshold, a `POST /api/agent-events` records its cost rows but skips the run-visualization projection and the turn transcript — the body-proportional allocations — so a pathological report cannot OOM the single Floor replica. The projection is parsed in a single pass that can omit run events entirely for the cost-only path. ([validated by `agent-sink.test.ts:32`](apps/floor/src/jobs/agent/agent-sink.test.ts#L32), [`agent-events-oversized.test.ts:47`](apps/floor/src/delivery/http/routes/agent-events-oversized.test.ts#L47))
 
-- FR5.7. The raw-NDJSON GCS archive is bounded in flight: beyond a small number of concurrent
-  uploads, `POST /api/agent-events` sheds the archive copy (counted via the anomaly metric) rather
-  than stacking it — each pending upload pins the body plus its redacted copy until GCS resolves,
-  and the unbounded fire-and-forget form OOM-crash-looped the single 512Mi Floor replica the first
-  time `LORE_AGENT_EVENTS_BUCKET` was set (2026-07-24). A shed or settled upload frees its slot;
-  cost ingestion is untouched either way. ([validated by `agent-events-archive-bound.test.ts:68`](apps/floor/src/delivery/http/routes/agent-events-archive-bound.test.ts#L68), [`agent-events-archive-bound.test.ts:81`](apps/floor/src/delivery/http/routes/agent-events-archive-bound.test.ts#L81))
+- FR5.7. *(Restated 2026-08-11, #1148 — originally the GCS upload in-flight bound.)* The sink
+  writes no object-storage copy: its durable outputs are exactly the three Postgres row families —
+  `pipeline.llm_calls` cost rows, the `pipeline.agent_run_events` projection, and the
+  `pipeline.agent_run_turns` transcript (`specs/turn-level-transcript-store`). The raw-NDJSON GCS
+  archive, whose fire-and-forget uploads pinned body-sized copies and OOM-crash-looped the single
+  512Mi Floor replica the first time `LORE_AGENT_EVENTS_BUCKET` was set (2026-07-24), is retired
+  along with its in-flight bound and shed path. ([validated by `agent-events-no-archive.test.ts:65`](apps/floor/src/delivery/http/routes/agent-events-no-archive.test.ts#L65))
 
 - FR5.4. A subscriber that cannot keep up with the live tail is disconnected rather than allowed to apply back-pressure to the Floor. The bound is the subscriber's own buffer: each subscription holds at most 1000 undelivered events, and on overflow the server drops the subscriber and closes the connection. Dropping is safe precisely because it is recoverable — the client's `EventSource` reconnects with its `Last-Event-ID` and FR5.3 replays the gap from the database, so a slow reader loses latency, never data. The buffer is what makes this bounded; an implementation that lets an unread subscriber grow the Floor's heap satisfies neither this FR nor FR5.1. ([validated by `agent-event-bus.test.ts:28`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L28), [`agent-event-bus.test.ts:41`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L41), [`agent-event-bus.test.ts:52`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L52), [`agent-event-bus.test.ts:62`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L62), [`agent-event-bus.test.ts:68`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L68), [`agent-event-bus.test.ts:79`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L79), [`agent-event-bus.test.ts:91`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L91), [`agent-event-bus.test.ts:132`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L132), [`agent-event-bus.test.ts:146`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L146), [`agent-event-bus.test.ts:159`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L159), [`agent-event-bus.test.ts:187`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L187), [`agent-event-bus.test.ts:203`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L203), [`agent-event-bus.test.ts:223`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L223), [`agent-events-stream.test.ts:373`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L373), [`agent-events-stream.test.ts:390`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L390), [`agent-events-stream.test.ts:419`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L419), [`agent-events-stream.test.ts:437`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L437), [`agent-events-stream.test.ts:351`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L351), [`agent-events-stream.test.ts:456`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L456))
 
