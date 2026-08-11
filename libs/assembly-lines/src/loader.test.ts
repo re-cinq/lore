@@ -145,6 +145,48 @@ edges:
     ).toThrow(/"b" has no outgoing edges/);
   });
 
+  it("accepts an issues station node", () => {
+    // A node type the enum does not know fails at LOAD, which is the point: the YAML
+    // is the contract, so a station that has no runner cannot be scheduled.
+    const wf = parseAssemblyLine(`
+name: feature-decompose
+description: decompose a merged spec, then file the issues
+version: 1
+entry: decompose
+exit: done
+nodes:
+  - id: decompose
+    type: agent
+    prompt_ref: feature-decompose
+  - id: issues
+    type: issues
+  - id: done
+    type: retrospective
+edges:
+  - from: decompose
+    to: issues
+    on: success
+  - from: issues
+    to: done
+    on: success
+  - from: issues
+    to: decompose
+    on: changes_requested
+    iteration_max: 1
+  - from: decompose
+    to: done
+    on: changes_requested
+  - from: decompose
+    to: done
+    on: failed
+  - from: issues
+    to: done
+    on: failed
+`);
+
+    expect(wf.nodes.find((n) => n.id === "issues")?.type).toBe("issues");
+  });
+
   it("requires iteration_max on cycles", () => {
     expect(() =>
       parseAssemblyLine(`

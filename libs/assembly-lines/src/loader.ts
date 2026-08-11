@@ -13,6 +13,10 @@ const NodeType = z.enum([
   "detect",
   "comment-triage",
   "ingest",
+  // Files the GitHub Issues + spec-tasks a decomposition calls for. A station, not
+  // an agent: the judgement (which stories, which labels) already happened upstream,
+  // and this only writes what the artifact says.
+  "issues",
 ]);
 const EdgeCondition = z.enum([
   "success",
@@ -80,8 +84,11 @@ export type EdgeConditionValue = z.infer<typeof EdgeCondition>;
 // specs/6-dark-factory/contracts/station-contract.md): every type yields
 // `failed` on an infrastructure failure (CR phase Failed, station timeout) and
 // `success` as the fallback; only agent output carries the LORE_NODE_RESULT /
-// REVIEW_RESULT verdict lines that yield `changes_requested` (the builtin
-// stations in apps/lore-station never emit it).
+// REVIEW_RESULT verdict lines that yield `changes_requested` — with ONE exception:
+// `issues` is the first station that judges its input rather than merely acting on
+// it (a label the repo does not have, a story with no tasks), so it can send the
+// decomposition back. Listing it here is what forces every definition using the node
+// to route that outcome, since selectEdge does not fall through.
 const PRODUCIBLE_OUTCOMES: Record<
   z.infer<typeof NodeType>,
   readonly EdgeConditionValue[]
@@ -94,6 +101,7 @@ const PRODUCIBLE_OUTCOMES: Record<
   detect: ["success", "failed"],
   "comment-triage": ["success", "failed"],
   ingest: ["success", "failed"],
+  issues: ["success", "changes_requested", "failed"],
 };
 
 /** Producible outcomes of `node` with no matching edge, under `selectEdge`
