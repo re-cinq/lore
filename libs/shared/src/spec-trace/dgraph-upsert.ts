@@ -62,10 +62,10 @@ export function isTxnAborted(err: unknown): boolean {
  * early retry wins most races — deliberately NOT the event-loop's 1-300s
  * schedule, which would push a many-write ingest handler toward the 600s
  * stuck-row reaper timeout. Each delay is a full-jitter draw
- * (`random() * delay`, rounded): the hourly ingest fan-out puts ~50 pods on the same
- * shared vertices (e.g. Repo) at once, and a deterministic schedule made every
- * loser re-collide at exactly 200/500/1000ms until the retries ran out
- * (2026-08-10). Worst case per write is ~7.7s of sleeps, still ms-to-seconds
+ * (`random() * delay`, rounded): the hourly ingest fan-out puts ~50 pods on
+ * the same shared vertices (e.g. Repo) at once, and a deterministic schedule
+ * made every loser re-collide at exactly 200/500/1000ms until the retries ran
+ * out (2026-08-10). Worst case per write is ~7.7s of sleeps, still ms-to-seconds
  * against the reaper budget, and only writes that keep losing pay the tail.
  */
 export const TXN_ABORT_DELAYS_MS: readonly number[] = [

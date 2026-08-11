@@ -210,7 +210,7 @@ describe("withTxn retry-on-abort (fake port)", () => {
     return { slept, sleep };
   };
 
-  it("retries an abort on a fresh txn, sleeping 200ms, and returns the 2nd attempt's result", async () => {
+  it("retries an abort on a fresh txn, sleeping 200ms at random()=1, and returns the 2nd attempt's result", async () => {
     const { port, txns } = scriptedPort(["abort", "ok"]);
     const { slept, sleep } = recordingSleep();
     const result = await withTxn(
