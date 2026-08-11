@@ -23,6 +23,9 @@ const baseRow: AssemblyLineRunRow = {
   task_pr_number: 42,
   created_by: "gedaiu",
   cost_usd: 0.1234,
+  resumed_from_line_id: null,
+  resumed_from_node_id: null,
+  inherited_node_count: 0,
 };
 
 describe("toAssemblyLineRun", () => {
@@ -74,6 +77,29 @@ describe("toAssemblyLineRun", () => {
     expect(run.prNumber).toBeNull();
     expect(run.createdBy).toBeNull();
     expect(run.costUsd).toBeNull();
+  });
+
+  it("maps fork parentage and the inherited prefix size for a forked run", () => {
+    expect(
+      toAssemblyLineRun({
+        ...baseRow,
+        resumed_from_line_id: "al-0",
+        resumed_from_node_id: "review",
+        inherited_node_count: 3,
+      }),
+    ).toMatchObject({
+      resumedFromLineId: "al-0",
+      resumedFromNodeId: "review",
+      inheritedNodeCount: 3,
+    });
+  });
+
+  it("maps a plain run to null parentage and a zero inherited prefix", () => {
+    expect(toAssemblyLineRun(baseRow)).toMatchObject({
+      resumedFromLineId: null,
+      resumedFromNodeId: null,
+      inheritedNodeCount: 0,
+    });
   });
 
   it("leaves duration null for a run that has not finished", () => {

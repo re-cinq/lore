@@ -77,6 +77,29 @@ a debugging affordance rather than a fault-tolerance one.
 - The branch-overlap guard measures against the inherited prefix rather than an empty node list, so a fork that lands on a branch another open line already holds still defers as `lease_held` instead of racing it. ([validated by `advance.test.ts:736`](apps/floor/src/jobs/assembly-line/advance.test.ts#L736), [`advance.test.ts:759`](apps/floor/src/jobs/assembly-line/advance.test.ts#L759), [`advance.test.ts:771`](apps/floor/src/jobs/assembly-line/advance.test.ts#L771))
 - The prefix size the guard reads is the count fixed at fork time, never one recomputed from the line's current rows. A fork's own walk may revisit the node it resumed from — `implementation.yaml` loops `validate` back to `implement` — which would make a recomputed count grow back to the row count and re-arm the guard mid-walk, closing a RUNNING fork as `lease_held`. The stored count cannot move, so the test is false forever after the fork's first launch. ([validated by `advance.test.ts:869`](apps/floor/src/jobs/assembly-line/advance.test.ts#L869), [`advance.test.ts:771`](apps/floor/src/jobs/assembly-line/advance.test.ts#L771))
 
+## FR6 — Trigger surface
+
+- Decision: this section is the follow-up issue #1144's scope — without a
+  caller, the fork API is dead code. The run-detail page is the trigger; the
+  Floor is the only service that both loads definitions (the drift guard's
+  current-hash side) and holds the project facade, so the route lives there
+  and the UI proxies to it.
+- The Floor exposes `POST /api/assembly-lines/{id}/rerun` behind the ingest-token bearer strategy, taking the node to resume from as `node_id`. ([validated by `assembly-line-rerun.test.ts:81`](apps/floor/src/delivery/http/routes/assembly-line-rerun.test.ts#L81), [`assembly-line-rerun.test.ts:94`](apps/floor/src/delivery/http/routes/assembly-line-rerun.test.ts#L94))
+- The route resolves the source line by id (404 when it does not exist) and refuses a line whose definition is not a builtin assembly line — a single-CR run record has no graph to replay. ([validated by `assembly-line-rerun.test.ts:101`](apps/floor/src/delivery/http/routes/assembly-line-rerun.test.ts#L101), [`assembly-line-rerun.test.ts:113`](apps/floor/src/delivery/http/routes/assembly-line-rerun.test.ts#L113))
+- The route is the caller FR4 was designed around: it loads the CURRENT builtin definition, hashes it, and passes the hash to `resumeFrom`, returning 202 with the fork's line id. ([validated by `assembly-line-rerun.test.ts:130`](apps/floor/src/delivery/http/routes/assembly-line-rerun.test.ts#L130))
+- A fork spends budget and pushes to an existing branch, so the route records who pulled the trigger: an `assembly_line_rerun` audit-log entry carries the actor and the parentage. The write is best-effort — losing the audit row must not turn an already-started line into an error response. ([validated by `assembly-line-rerun.test.ts:148`](apps/floor/src/delivery/http/routes/assembly-line-rerun.test.ts#L148), [`assembly-line-rerun.test.ts:169`](apps/floor/src/delivery/http/routes/assembly-line-rerun.test.ts#L169))
+- Only the rules' typed refusal (non-terminal source, unknown node, hash drift, NULL stored hash — `ResumeRefusedError`) maps to 409 carrying its message; any other failure inside the start propagates as a sanitized 500, so a DB outage is never reported as "your fork was refused" nor its internals leaked. ([validated by `assembly-line-rerun.test.ts:183`](apps/floor/src/delivery/http/routes/assembly-line-rerun.test.ts#L183), [`assembly-line-rerun.test.ts:204`](apps/floor/src/delivery/http/routes/assembly-line-rerun.test.ts#L204), [`resume.test.ts:156`](libs/shared/src/project/assembly-lines/resume.test.ts#L156))
+- The web-ui proxies the button through `POST /api/assembly-lines/[id]/rerun` with the run proxies' auth-ladder order — session (401) → run lookup (404) → repo access (403) — but the access rung is WRITE (push) permission on the run's repo, not the read-shaped check the read proxies use: read access to a public repo must not be a write trigger. The ingest token stays server-side. ([validated by `route.test.ts:56`](apps/web-ui/src/app/api/assembly-lines/[id]/rerun/route.test.ts#L56), [`route.test.ts:61`](apps/web-ui/src/app/api/assembly-lines/[id]/rerun/route.test.ts#L61), [`route.test.ts:70`](apps/web-ui/src/app/api/assembly-lines/[id]/rerun/route.test.ts#L70), [`route.test.ts:80`](apps/web-ui/src/app/api/assembly-lines/[id]/rerun/route.test.ts#L80), [`user-repo-access.test.ts:47`](apps/web-ui/src/lib/user-repo-access.test.ts#L47), [`user-repo-access.test.ts:57`](apps/web-ui/src/lib/user-repo-access.test.ts#L57), [`user-repo-access.test.ts:67`](apps/web-ui/src/lib/user-repo-access.test.ts#L67), [`user-repo-access.test.ts:77`](apps/web-ui/src/lib/user-repo-access.test.ts#L77), [`user-repo-access.test.ts:87`](apps/web-ui/src/lib/user-repo-access.test.ts#L87), [`user-repo-access.test.ts:97`](apps/web-ui/src/lib/user-repo-access.test.ts#L97))
+- The proxy requires `node_id`, forwards it with the session identity as the audit actor, and returns the fork's line id as JSON for the client-side button to navigate on. ([validated by `route.test.ts:96`](apps/web-ui/src/app/api/assembly-lines/[id]/rerun/route.test.ts#L96), [`route.test.ts:112`](apps/web-ui/src/app/api/assembly-lines/[id]/rerun/route.test.ts#L112), [`route.test.ts:127`](apps/web-ui/src/app/api/assembly-lines/[id]/rerun/route.test.ts#L127))
+- A Floor 409 passes through as a 409 with its reason — "definition hash mismatch" is actionable and "502" is not — while any other Floor failure maps to 502 without echoing its body. ([validated by `route.test.ts:136`](apps/web-ui/src/app/api/assembly-lines/[id]/rerun/route.test.ts#L136), [`route.test.ts:150`](apps/web-ui/src/app/api/assembly-lines/[id]/rerun/route.test.ts#L150))
+- The run page offers "Rerun from here" only where the port could say yes: on a terminal run whose definition is a real builtin (a synthetic graph has nothing to hash), and once per node on its latest COMPLETED row — a line that died mid-node leaves an open final row, and the port still forks from the completed iteration underneath it. ([validated by `AssemblyLineRunView.test.tsx:217`](apps/web-ui/src/app/assembly-lines/[id]/AssemblyLineRunView.test.tsx#L217), [`AssemblyLineRunView.test.tsx:240`](apps/web-ui/src/app/assembly-lines/[id]/AssemblyLineRunView.test.tsx#L240), [`AssemblyLineRunView.test.tsx:255`](apps/web-ui/src/app/assembly-lines/[id]/AssemblyLineRunView.test.tsx#L255), [`AssemblyLineRunView.test.tsx:269`](apps/web-ui/src/app/assembly-lines/[id]/AssemblyLineRunView.test.tsx#L269), [`AssemblyLineRunView.test.tsx:284`](apps/web-ui/src/app/assembly-lines/[id]/AssemblyLineRunView.test.tsx#L284))
+
+## FR7 — Inherited rows on the fork's run page
+
+- The run fetcher carries the fork parentage and the inherited prefix size, mapping a plain start to null parentage and a zero prefix. ([validated by `assembly-line-runs.test.ts:82`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L82), [`assembly-line-runs.test.ts:97`](apps/web-ui/src/lib/assembly-line-runs.test.ts#L97))
+- A forked run's header links the source line via `resumed_from_line_id` and names the resumed-from node — the source, one hop away, keeps the full logs/events history the inherited rows deliberately do not carry. ([validated by `AssemblyLineRunView.test.tsx:165`](apps/web-ui/src/app/assembly-lines/[id]/AssemblyLineRunView.test.tsx#L165))
+- The first `inherited_node_count` steps in id order are marked as inherited; a plain run shows no such marker. Pod-log links need no special case: inherited rows carry no `agent_cr_name`, so the existing CR-name filter already excludes them. ([validated by `AssemblyLineRunView.test.tsx:183`](apps/web-ui/src/app/assembly-lines/[id]/AssemblyLineRunView.test.tsx#L183), [`AssemblyLineRunView.test.tsx:205`](apps/web-ui/src/app/assembly-lines/[id]/AssemblyLineRunView.test.tsx#L205))
+
 ## Alternatives rejected
 
 - **Whole-line retry only.** The status quo. The cost of re-running the
@@ -124,9 +147,12 @@ a debugging affordance rather than a fault-tolerance one.
 
 ## Out of Scope
 
-- The run-detail "rerun from here" UI affordance. This feature delivers the
-  port/facade API and the Floor stamping only; no HTTP route and no UI
-  control are added, so today's only caller is a programmatic one.
+- An MCP tool for operators (`lore_rerun_assembly_line`). The run-detail
+  button (FR6) is the trigger surface issue #1144 asked for; the "and/or"
+  MCP twin can follow if operators want one away from the UI.
+- Replacing `args` from the UI. The port supports it (FR1); the button forks
+  with inherited args because a free-text args editor on the run page is a
+  bigger affordance than the rerun itself.
 - Editing inherited node state (outcomes, commit shas) on fork.
 - Backfilling `definition_hash` for historical rows.
 - Forking a line whose definition is not a builtin assembly line (a

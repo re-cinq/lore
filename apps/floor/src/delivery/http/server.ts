@@ -14,6 +14,7 @@ import { agentLogsRoute } from "./routes/agent-logs.js";
 import { agentEventsStreamRoute } from "./routes/agent-events-stream.js";
 import { agentEventsHistoryRoute } from "./routes/agent-events-history.js";
 import { assemblyLineDefinitionsRoute } from "./routes/assembly-line-definitions.js";
+import { assemblyLineRerunRoute } from "./routes/assembly-line-rerun.js";
 import { githubWebhookRoute } from "./routes/github-webhook.js";
 import { ciIngestRoute } from "./routes/ci-ingest.js";
 import { ciTestsRoute } from "./routes/ci-tests.js";
@@ -48,6 +49,7 @@ export function buildServer(opts: {
     agentEventsStreamRoute(),
     agentEventsHistoryRoute(),
     assemblyLineDefinitionsRoute(),
+    assemblyLineRerunRoute(),
     agentLogsRoute(opts.podLogSource, opts.podLogArchive),
     githubWebhookRoute,
     ciIngestRoute,

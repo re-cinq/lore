@@ -29,6 +29,9 @@ export interface AssemblyLineRunRow {
   task_pr_number: number | null;
   created_by: string | null;
   cost_usd: number | null;
+  resumed_from_line_id: string | null;
+  resumed_from_node_id: string | null;
+  inherited_node_count: number;
 }
 
 export interface AssemblyLineRun {
@@ -47,6 +50,13 @@ export interface AssemblyLineRun {
   prNumber: number | null;
   createdBy: string | null;
   costUsd: number | null;
+  /** Fork parentage (specs/fork-rerun-from-node) — null for a plain start. */
+  resumedFromLineId: string | null;
+  resumedFromNodeId: string | null;
+  /** A fork's inherited prefix is its first N node rows in id order; 0 for a
+   *  plain start. Inherited rows carry outcomes but no agent_cr_name, so no
+   *  pod logs or agent events exist for them under this run. */
+  inheritedNodeCount: number;
 }
 
 export interface AssemblyLineRunNodeRow {
@@ -111,6 +121,9 @@ export function toAssemblyLineRun(row: AssemblyLineRunRow): AssemblyLineRun {
     prNumber: prNumber ?? null,
     createdBy: row.created_by,
     costUsd: row.cost_usd,
+    resumedFromLineId: row.resumed_from_line_id,
+    resumedFromNodeId: row.resumed_from_node_id,
+    inheritedNodeCount: row.inherited_node_count,
   };
 }
 
@@ -132,6 +145,8 @@ const RUN_SELECT = `
   SELECT al.id, al.definition_name, al.task_id, al.repo, al.branch,
          al.status, al.outcome, al.reason,
          al.created_at, al.started_at, al.finished_at,
+         al.resumed_from_line_id, al.resumed_from_node_id,
+         al.inherited_node_count,
          (al.args->>'pr_number')::int AS args_pr_number,
          t.pr_url, t.pr_number AS task_pr_number,
          COALESCE(t.created_by, al.args->>'actor') AS created_by,
