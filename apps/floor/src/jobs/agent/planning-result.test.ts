@@ -67,7 +67,7 @@ describe("deliverPlanningResult", () => {
     });
   });
 
-  it("fails the round naming the reason when the agent produced no file", async () => {
+  it("leaves the round running when an attempt produced no file, so a retry can rescue it", async () => {
     const { features, id, deps } = await harness();
     const result = await deliverPlanningResult(
       fileEvent({ content: null, reason: "missing" }),
@@ -78,12 +78,15 @@ describe("deliverPlanningResult", () => {
       outcome: "failed",
       error: "the agent produced no result.json (missing)",
     });
+    // A failed ATTEMPT is not a failed ROUND: the node has an iteration_max
+    // back-edge, and the retry routinely succeeds. Recording failure here showed the
+    // author "round failed" with a Retry button while a retry was already running.
     expect((await features.get(id))?.iterations[0]).toMatchObject({
-      status: "failed",
+      status: "running",
     });
   });
 
-  it("fails the round when the artifact is not valid JSON", async () => {
+  it("leaves the round running when an attempt posted invalid JSON", async () => {
     const { features, id, deps } = await harness();
     const result = await deliverPlanningResult(
       fileEvent({ content: "{not json" }),
@@ -91,8 +94,10 @@ describe("deliverPlanningResult", () => {
     );
 
     expect(result.outcome).toBe("failed");
+    // Same rule: the line's terminal settlement is the single owner of "this round
+    // failed", so it cannot disagree with itself.
     expect((await features.get(id))?.iterations[0]).toMatchObject({
-      status: "failed",
+      status: "running",
     });
   });
 

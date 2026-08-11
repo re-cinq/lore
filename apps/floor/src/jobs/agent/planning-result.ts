@@ -60,9 +60,13 @@ export async function deliverPlanningResult(
   }
   const { features } = await deps.featuresFor(task.target_repo ?? "");
 
+  // A failed ATTEMPT is not a failed ROUND. The analyze node carries an
+  // `iteration_max` back-edge, and its retry routinely produces the result the first
+  // pod did not — so recording failure here showed the author "Planning round N
+  // failed", with a Retry button, while a retry was already in flight. The line's
+  // terminal settlement (settleTaskForLine) is the single owner of that verdict, and
+  // it already fails a round that ended without a usable result.
   if (fileEvent.reason) {
-    await features.setIterationResult(featureId, iteration, null, "failed");
-
     return {
       outcome: "failed",
       error: `the agent produced no result.json (${fileEvent.reason})`,
@@ -74,8 +78,7 @@ export async function deliverPlanningResult(
   try {
     payload = JSON.parse(fileEvent.content ?? "");
   } catch (err) {
-    await features.setIterationResult(featureId, iteration, null, "failed");
-
+    // Same rule as above: one owner for "this round failed".
     return {
       outcome: "failed",
       error: `result.json is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,

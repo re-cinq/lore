@@ -42,10 +42,10 @@ export default function FailureBlock({
       </p>
       {!diagnosis && (
         <p className="meta">
-          The run finished without producing a result — usually the planning
-          agent couldn&apos;t reach the model. Set{" "}
-          <code>ANTHROPIC_API_KEY</code> (org billing) and Retry, or check the
-          agent logs.
+          The run finished without producing a result, and recorded no reason.
+          The transcript below has the agent&apos;s own error — read it before
+          retrying. A missing model credential is one cause among several, not
+          the likely one.
         </p>
       )}
       {diagnosis && <pre style={PRE_STYLE}>{diagnosis}</pre>}

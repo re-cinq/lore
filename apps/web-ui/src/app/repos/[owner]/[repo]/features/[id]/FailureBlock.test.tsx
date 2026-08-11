@@ -44,7 +44,7 @@ describe("FailureBlock", () => {
     expect(screen.queryByText(/ANTHROPIC_API_KEY/)).toBeNull();
   });
 
-  it("keeps the model-unreachable hint when nothing recorded a reason", () => {
+  it("names no cause when nothing recorded a reason, and points at the transcript", () => {
     render(
       <FailureBlock
         iteration={1}
@@ -55,7 +55,12 @@ describe("FailureBlock", () => {
       />,
     );
 
-    expect(screen.getByText(/ANTHROPIC_API_KEY/)).toBeTruthy();
+    // The old copy asserted "usually the agent couldn't reach the model. Set
+    // ANTHROPIC_API_KEY" whenever no reason was recorded — a guess presented as a
+    // diagnosis, which sent the author after a credential while the real error (a
+    // rejected CLI flag) sat in the transcript.
+    expect(screen.getByText(/recorded no reason/)).toBeTruthy();
+    expect(screen.getByText(/one cause among several/)).toBeTruthy();
   });
 
   it("links to the run transcript when the round has a run", () => {
