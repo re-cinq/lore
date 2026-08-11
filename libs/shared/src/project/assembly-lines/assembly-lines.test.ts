@@ -1238,6 +1238,18 @@ describe("PgAssemblyLines resumeFrom", () => {
     expect(calls).toHaveLength(2);
   });
 
+  it("binds {} when neither the input nor the source row carries args", async () => {
+    const { pool, calls } = fakePool([
+      [sourceRow({ args: null })],
+      NODE_ROWS,
+      [{ id: "al-9" }],
+    ]);
+
+    await new PgAssemblyLines(pool).start(resumeInput());
+
+    expect(calls[2]?.params?.[4]).toBe(JSON.stringify({}));
+  });
+
   it("keeps the plain start on its own two-CTE statement with five parameters", async () => {
     const { pool, calls } = fakePool([[{ id: "al-1" }]]);
 

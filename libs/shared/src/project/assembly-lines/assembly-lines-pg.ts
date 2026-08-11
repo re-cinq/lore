@@ -101,6 +101,11 @@ export class PgAssemblyLines implements AssemblyLinesPort {
       await this.getById(resumeFrom.lineId),
       await this.listNodes(resumeFrom.lineId),
     );
+    // The copy below bounds on `n.id <= cutoff`. That is sound because node-row
+    // ids within one line are monotone in walk order: ensureNodeStart inserts
+    // sequentially and its upsert mints no new id on replay, so "rows up to the
+    // chosen visit" and "rows with id <= its id" are the same set (including for
+    // a fork of a fork, whose copied rows are inserted in ORDER BY n.id).
     const cutoffNodeRowId = prefix[prefix.length - 1].id;
     const { rows } = await this.pool.query(
       `WITH al AS (

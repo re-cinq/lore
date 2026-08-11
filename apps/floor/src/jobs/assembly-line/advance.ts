@@ -134,12 +134,6 @@ export async function advanceLine(
   const nodes = await deps.assemblyLines.listNodes(assemblyLineId);
 
   // Overlap guard (branch-lease parity): a second not-yet-started run on the same
-  // Note `row.inheritedNodeCount` rather than a recomputed prefix: a fork starts
-  // life with its source's rows, but its own walk may REVISIT the node it resumed
-  // from (implementation.yaml loops validate -> implement). Deriving the prefix
-  // from the current rows makes the count grow back, re-arming this guard
-  // mid-walk and closing a RUNNING fork as lease_held — paid work lost. The
-  // stored count never moves, so the test is false forever after the first launch.
   // repo+branch defers to the one already in flight — the detect fan-out relies on
   // this to suppress duplicate per-repo runs, exactly as the old lease did. It is
   // check-then-act (not atomic like the old lease CTE): two starts in the same
@@ -147,6 +141,14 @@ export async function advanceLine(
   // DETERMINISTICALLY-chosen winner — the one with the smaller row id — so at most
   // one side backs off (a naive "any other running" would make BOTH defer and skip
   // detection for the tick).
+  //
+  // "Not yet started" is `nodes.length === row.inheritedNodeCount` rather than a
+  // recomputed prefix: a fork starts life with its source's rows, but its own walk
+  // may REVISIT the node it resumed from (implementation.yaml loops
+  // validate -> implement). Deriving the prefix from the current rows makes the
+  // count grow back, re-arming this guard mid-walk and closing a RUNNING fork as
+  // lease_held — paid work lost. The stored count never moves, so the test is
+  // false forever after the first launch.
   if (
     nodes.length === row.inheritedNodeCount &&
     row.branch &&

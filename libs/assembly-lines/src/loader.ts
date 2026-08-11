@@ -21,6 +21,10 @@ const EdgeCondition = z.enum([
   "always",
 ]);
 
+// A field added to NodeSchema or AssemblyLineSchema changes definitionHash by
+// default (definition-hash.ts hashes everything not in its IGNORED_KEYS
+// denylist), which makes stored fork hashes refuse to resume across the change.
+// That over-refusal is deliberate; add prose-only fields to IGNORED_KEYS.
 const NodeSchema = z.object({
   // Node ids are embedded in the Agent CR NAME (`<id12>-<nodeId>`, DNS-1123) and
   // in a CR LABEL VALUE, so they must be DNS-label-safe: lowercase alnum + hyphen,
