@@ -31,6 +31,8 @@ export interface DefinitionNode {
   station_ref?: string;
   timeout_minutes?: number;
   description?: string;
+  /** Which previous run this node continues, and what keys the thread. */
+  continues?: { node: string; key: string };
 }
 
 export interface DefinitionEdge {

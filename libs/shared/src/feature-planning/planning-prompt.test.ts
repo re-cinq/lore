@@ -1,6 +1,34 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+import { parse } from "yaml";
 import { composePlanningPrompt } from "./planning-prompt.js";
-import type { GapResult } from "./gap-result.js";
+import { parseGapResult, type GapResult } from "./gap-result.js";
+
+/** The prompt the pod actually runs. Read from the file the catalog is generated
+ *  from, not from a constant, because a constant is exactly what used to drift
+ *  out of the delivered recipe without anything noticing. */
+function planningPromptTemplate(): string {
+  const yamlPath = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../../../scripts/task-types.yaml",
+  );
+  const doc = parse(readFileSync(yamlPath, "utf-8")) as {
+    task_types: Record<string, { prompt_template: string }>;
+  };
+
+  return doc.task_types["feature-planning"].prompt_template;
+}
+
+/** The worked example the prompt embeds, as JSON. It is the last `{...}` block
+ *  before the round content, so it is bounded by the heading that follows it. */
+function embeddedExample(template: string): unknown {
+  const after = template.split("Example of a valid result.json:")[1];
+  const json = after.split("## This round")[0].trim();
+
+  return JSON.parse(json);
+}
 
 const gap: GapResult = {
   sections: [
@@ -77,5 +105,55 @@ describe("composePlanningPrompt", () => {
     });
 
     expect(out).toContain("<Answer>(unanswered)</Answer>");
+  });
+});
+
+describe("the feature-planning prompt template", () => {
+  it("embeds an example that parses cleanly against the GapResult schema", () => {
+    // The guard PLANNING_EXAMPLE used to give, moved to the text that ships: an
+    // example demonstrating a shape the parser rejects teaches the agent to fail.
+    const example = embeddedExample(planningPromptTemplate());
+
+    expect(parseGapResult(example)).toEqual(example);
+  });
+
+  it("opens its example with an Overview section that asks nothing", () => {
+    const example = parseGapResult(embeddedExample(planningPromptTemplate()));
+
+    expect(example.sections[0]).toMatchObject({ title: "Overview" });
+    expect(example.sections[0].questions).toBeUndefined();
+  });
+
+  it("demonstrates every mockup format it offers", () => {
+    const example = parseGapResult(embeddedExample(planningPromptTemplate()));
+    const formats = example.sections.flatMap((s) =>
+      (s.mockups ?? []).map((m) => m.format),
+    );
+
+    expect(new Set(formats)).toEqual(new Set(["mermaid", "html"]));
+  });
+
+  it("carries the round content and context placeholders the runner fills", () => {
+    const template = planningPromptTemplate();
+
+    expect(template).toContain("{description}");
+    expect(template).toContain("{context}");
+  });
+
+  it("states the contract the agent is measured on", () => {
+    const template = planningPromptTemplate();
+
+    for (const clause of [
+      "GAP-CLOSING",
+      "MUST be titled",
+      "## Integration",
+      "task sizing",
+      "user-story",
+      "jq empty result.json",
+      "mockup_stylesheet",
+      "NOT LIKE THE TOOL SHOWING THEM",
+    ]) {
+      expect(template).toContain(clause);
+    }
   });
 });

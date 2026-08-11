@@ -45,43 +45,20 @@ describe("AssemblyLineStationBackend", () => {
     // `continues.key: args.feature_id` resolves against these args — the engine
     // never learns what a feature is, it just carries what the caller put here.
     const port = new InMemoryAssemblyLines();
-    const backend = new AssemblyLineStationBackend(
-      port,
-      new Set(["feature-planning"]),
-    );
+    const backend = new AssemblyLineStationBackend(port);
 
-    await backend.launch({
-      taskId: "t1",
-      taskType: "feature-planning",
-      description: "plan it",
-      prompt: "p",
-      targetRepo: "re-cinq/lore",
-      branch: "lore/x",
-      featureId: "feature-9",
-    });
+    await backend.launch({ ...spec("t1"), featureId: "feature-9" });
 
-    expect((await port.listOpen())[0].args).toMatchObject({
-      feature_id: "feature-9",
-    });
+    expect(port.rows[0].args).toMatchObject({ feature_id: "feature-9" });
   });
 
   it("carries no feature id for a run that has none", async () => {
     const port = new InMemoryAssemblyLines();
-    const backend = new AssemblyLineStationBackend(
-      port,
-      new Set(["implementation"]),
-    );
+    const backend = new AssemblyLineStationBackend(port);
 
-    await backend.launch({
-      taskId: "t1",
-      taskType: "implementation",
-      description: "build it",
-      prompt: "p",
-      targetRepo: "re-cinq/lore",
-      branch: "lore/x",
-    });
+    await backend.launch(spec("t1"));
 
-    expect((await port.listOpen())[0].args).not.toHaveProperty("feature_id");
+    expect(port.rows[0].args).not.toHaveProperty("feature_id");
   });
 
   it("two launches of the same task mint distinct assembly line ids", async () => {

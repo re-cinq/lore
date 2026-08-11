@@ -248,6 +248,130 @@ describe("sanitizeSvg", () => {
 });
 
 describe("sanitizeGapResult", () => {
+  it("keeps a mermaid mockup's source and marks its format", () => {
+    const drift = {
+      sections: [
+        {
+          title: "Flow",
+          mockups: [
+            {
+              title: "Pipeline",
+              format: "mermaid",
+              markup: "flowchart LR\n a --> b",
+            },
+          ],
+        },
+      ],
+      draft_spec_markdown: "d",
+    };
+
+    expect(parseGapResult(drift).sections[0].mockups?.[0]).toEqual({
+      title: "Pipeline",
+      format: "mermaid",
+      markup: "flowchart LR\n a --> b",
+    });
+  });
+
+  it("keeps an html mockup's declared height", () => {
+    const drift = {
+      sections: [
+        {
+          title: "Panel",
+          mockups: [
+            {
+              title: "Card",
+              format: "html",
+              markup: "<div class='card'>hi</div>",
+              height: 180,
+            },
+          ],
+        },
+      ],
+      draft_spec_markdown: "d",
+    };
+
+    expect(parseGapResult(drift).sections[0].mockups?.[0]).toMatchObject({
+      format: "html",
+      height: 180,
+    });
+  });
+
+  it("falls back to svg for an unrecognized format naming svg markup", () => {
+    const drift = {
+      sections: [
+        {
+          title: "D",
+          mockups: [{ title: "x", format: "diagram", markup: "<svg/>" }],
+        },
+      ],
+      draft_spec_markdown: "d",
+    };
+
+    expect(parseGapResult(drift).sections[0].mockups?.[0].format).toBe("svg");
+  });
+
+  it("drops a mockup whose unrecognized format names no svg markup", () => {
+    const drift = {
+      sections: [
+        {
+          title: "D",
+          mockups: [{ title: "x", format: "ascii", markup: "+---+" }],
+        },
+      ],
+      draft_spec_markdown: "d",
+    };
+
+    expect(parseGapResult(drift).sections[0].mockups).toBeUndefined();
+  });
+
+  it("carries the result-level mockup stylesheet", () => {
+    const drift = {
+      sections: [{ title: "Overview" }],
+      mockup_stylesheet: ".card { color: var(--text); }",
+      draft_spec_markdown: "d",
+    };
+
+    expect(parseGapResult(drift).mockup_stylesheet).toBe(
+      ".card { color: var(--text); }",
+    );
+  });
+
+  it("sanitizes an html mockup and leaves mermaid source untouched", () => {
+    const gap = parseGapResult({
+      sections: [
+        {
+          title: "S",
+          mockups: [
+            {
+              title: "a",
+              format: "html",
+              markup: "<div onclick='x()'>hi<script>bad()</script></div>",
+            },
+            { title: "b", format: "mermaid", markup: "flowchart LR\n a --> b" },
+          ],
+        },
+      ],
+      draft_spec_markdown: "d",
+    });
+    const [html, mermaid] = sanitizeGapResult(gap).sections[0].mockups ?? [];
+
+    expect(html.markup).toBe("<div>hi</div>");
+    expect(mermaid.markup).toBe("flowchart LR\n a --> b");
+  });
+
+  it("strips @import and url() from the mockup stylesheet", () => {
+    const gap = parseGapResult({
+      sections: [{ title: "S" }],
+      mockup_stylesheet:
+        "@import url('http://evil/x.css');\n.a { background: url(http://evil/x.png); color: red; }",
+      draft_spec_markdown: "d",
+    });
+
+    expect(sanitizeGapResult(gap).mockup_stylesheet).toBe(
+      "\n.a { background: none; color: red; }",
+    );
+  });
+
   it("sanitizes mockup markup across every section", () => {
     const g = parseGapResult({
       sections: [

@@ -310,14 +310,20 @@ export function catalogChartYaml(
     "# Seeded catalog (ADR-031, re-cinq/lore#698). Guarded by .Values.seedCatalog so\n" +
     "# operators stop re-seeding after first install; the web UI owns these thereafter.\n";
   const docs = buildCatalog(taskTypes, stationTypes).map((cr) =>
-    stringify({
-      ...cr,
-      metadata: {
-        ...cr.metadata,
-        namespace: NAMESPACE_SENTINEL,
-        annotations: { "helm.sh/resource-policy": "keep" },
+    stringify(
+      {
+        ...cr,
+        metadata: {
+          ...cr.metadata,
+          namespace: NAMESPACE_SENTINEL,
+          annotations: { "helm.sh/resource-policy": "keep" },
+        },
       },
-    }),
+      // Literal (`|`), never folded (`>-`): a prompt carries an indented JSON schema
+      // and code blocks, and folding rewraps them — the recipe the pod runs would
+      // then differ from the task-types.yaml it was generated from, silently.
+      { blockQuote: "literal" },
+    ),
   );
   const body = `${header}{{- if .Values.seedCatalog }}\n---\n${docs.join("---\n")}{{- end }}\n`;
 

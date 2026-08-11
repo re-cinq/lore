@@ -13,10 +13,17 @@ export type SectionDirection = "keep" | "refine" | "redirect";
 export type FeaturePlanningStatus = "awaiting-input" | "spec-ready";
 export type GapQuestionKind = "text" | "choice";
 
+/** How a mockup's `markup` must be interpreted: an SVG document, mermaid source,
+ *  or an HTML fragment. Each renders differently and carries a different risk. */
+export type GapMockupFormat = "svg" | "mermaid" | "html";
+
 export interface GapMockup {
   title: string;
-  format: "svg";
+  format: GapMockupFormat;
   markup: string;
+  /** Pixel height an `html` mockup needs. Its frame is sandboxed with no
+   *  same-origin access, so it cannot measure itself and must be told. */
+  height?: number;
   /** Legacy: which section a top-level mockup illustrated. New results nest
    *  mockups under their section instead. */
   section?: string;
@@ -55,6 +62,10 @@ export interface GapSection {
 
 export interface GapResult {
   sections: GapSection[];
+  /** CSS lifted from the PLANNED repository, shared by every mockup in this
+   *  result — a mockup is a picture of that project, so it wears that project's
+   *  colours rather than the dashboard's. Absent for a repo with no styles. */
+  mockup_stylesheet?: string;
   split_suggestion?: GapSplitSuggestion;
   draft_spec_markdown: string;
 }
@@ -127,22 +138,50 @@ function lenientStringArray(value: unknown): string[] {
   return value.filter((v): v is string => typeof v === "string");
 }
 
-/** A mockup as a `{title, format:"svg", markup}` object — tolerating a bare SVG
- *  string (models often emit the markup directly) or a `svg`/`content` alias. */
-function parseMockup(raw: unknown, i: number): GapMockup {
+const MOCKUP_FORMATS: ReadonlySet<string> = new Set(["svg", "mermaid", "html"]);
+
+/** Resolve a declared format, or `null` when it names nothing we can render.
+ *  An unrecognized name falls back to svg only when the markup is visibly an SVG
+ *  document — guessing wrong is worse than dropping, because mermaid source shown
+ *  as HTML and an HTML fragment shown as an SVG are both nonsense on screen. */
+function mockupFormat(
+  declared: string,
+  markup: string,
+): GapMockupFormat | null {
+  if (MOCKUP_FORMATS.has(declared)) {
+    return declared as GapMockupFormat;
+  }
+
+  return markup.trimStart().startsWith("<svg") ? "svg" : null;
+}
+
+/** A mockup as a `{title, format, markup}` object — tolerating a bare SVG string
+ *  (models often emit the markup directly) or a `svg`/`content` alias. Returns
+ *  `null` for a mockup that names a format we cannot render. */
+function parseMockup(raw: unknown, i: number): GapMockup | null {
   if (typeof raw === "string") {
     return { title: `Mockup ${i + 1}`, format: "svg", markup: raw };
   }
   const mo = asObject(raw, `mockups[${i}]`);
+  const markup = firstString(mo.markup, mo.svg, mo.content);
+  const format = mockupFormat(firstString(mo.format) || "svg", markup);
+
+  if (!format) {
+    return null;
+  }
   const mockup: GapMockup = {
     title: firstString(mo.title, mo.name) || `Mockup ${i + 1}`,
-    format: "svg",
-    markup: firstString(mo.markup, mo.svg, mo.content),
+    format,
+    markup,
   };
   const section = firstString(mo.section);
 
   if (section) {
     mockup.section = section;
+  }
+
+  if (typeof mo.height === "number" && Number.isFinite(mo.height)) {
+    mockup.height = mo.height;
   }
 
   return mockup;
@@ -215,9 +254,9 @@ function parseSection(raw: unknown, i: number): GapSection {
   }
 
   if (o.mockups !== undefined && o.mockups !== null) {
-    const mockups = asArray(o.mockups, `sections[${i}].mockups`).map(
-      parseMockup,
-    );
+    const mockups = asArray(o.mockups, `sections[${i}].mockups`)
+      .map(parseMockup)
+      .filter((m): m is GapMockup => m !== null);
 
     if (mockups.length) {
       section.mockups = mockups;
@@ -261,7 +300,9 @@ function parseArchitecture(raw: unknown): GapArchitecture {
 /** Build `sections` from a legacy architecture/user_flows/mockups/questions payload. */
 function deriveSectionsFromLegacy(o: Record<string, unknown>): GapSection[] {
   const sections: GapSection[] = [];
-  const mockups = Array.isArray(o.mockups) ? o.mockups.map(parseMockup) : [];
+  const mockups = Array.isArray(o.mockups)
+    ? o.mockups.map(parseMockup).filter((m): m is GapMockup => m !== null)
+    : [];
   const mockupsTagged = (key: string): GapMockup[] | undefined => {
     const m = mockups.filter((mk) => (mk.section ?? "architecture") === key);
 
@@ -351,6 +392,11 @@ export function parseGapResult(raw: unknown): GapResult {
   if (o.split_suggestion !== undefined && o.split_suggestion !== null) {
     result.split_suggestion = parseSplit(o.split_suggestion);
   }
+  const stylesheet = firstString(o.mockup_stylesheet);
+
+  if (stylesheet) {
+    result.mockup_stylesheet = stylesheet;
+  }
 
   return result;
 }
@@ -378,22 +424,47 @@ export function sanitizeSvg(markup: string): string {
     });
 }
 
-/** Sanitize every mockup's markup across all sections, in place-safe (returns a copy). */
+const CSS_IMPORT_RE = /@import\s+[^;]*;?/gi;
+const CSS_URL_RE = /url\s*\([^)]*\)/gi;
+
+/**
+ * Strip the only two things in agent-authored CSS that reach outside the frame it
+ * is rendered in: `@import` and `url()`. The frame is sandboxed with no network,
+ * so both would fail anyway — removing them keeps a mockup from silently depending
+ * on a fetch that never happens, and keeps the stylesheet honest if the frame's
+ * policy is ever loosened.
+ */
+export function sanitizeMockupCss(css: string): string {
+  return css.replace(CSS_IMPORT_RE, "").replace(CSS_URL_RE, "none");
+}
+
+/** Markup sanitisation by format. Mermaid is SOURCE, not markup — running an SVG
+ *  sanitizer over `A --> B` would corrupt a diagram to remove nothing. */
+function sanitizeMarkup(mockup: GapMockup): string {
+  return mockup.format === "mermaid"
+    ? mockup.markup
+    : sanitizeSvg(mockup.markup);
+}
+
+/** Sanitize every mockup's markup across all sections plus the shared stylesheet,
+ *  in place-safe (returns a copy). */
 export function sanitizeGapResult(gap: GapResult): GapResult {
-  return {
-    ...gap,
-    sections: gap.sections.map((s) =>
-      s.mockups
-        ? {
-            ...s,
-            mockups: s.mockups.map((m) => ({
-              ...m,
-              markup: sanitizeSvg(m.markup),
-            })),
-          }
-        : s,
-    ),
-  };
+  const sections = gap.sections.map((s) =>
+    s.mockups
+      ? {
+          ...s,
+          mockups: s.mockups.map((m) => ({ ...m, markup: sanitizeMarkup(m) })),
+        }
+      : s,
+  );
+
+  return gap.mockup_stylesheet
+    ? {
+        ...gap,
+        sections,
+        mockup_stylesheet: sanitizeMockupCss(gap.mockup_stylesheet),
+      }
+    : { ...gap, sections };
 }
 
 const PLANNING_PHASE_STATUSES: ReadonlySet<string> = new Set([

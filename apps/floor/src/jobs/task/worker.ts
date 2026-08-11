@@ -24,7 +24,6 @@ import type { TaskQueueRepository } from "@re-cinq/lore-shared/project/tasks/tas
 import { composeIssueBody } from "./issue-body.js";
 import { handleFeatureRequest } from "./handle-feature-request.js";
 import { handleClaudeCodeTask } from "./handle-claude-code-task.js";
-import { handleFeaturePlanning } from "./handle-feature-planning.js";
 import { handleFeatureFinalize } from "./handle-feature-finalize.js";
 import { handleFeatureDecompose } from "./handle-feature-decompose.js";
 import { handleOnboard } from "./handle-onboard.js";
@@ -157,15 +156,14 @@ async function processTask(task: PipelineTask): Promise<void> {
     task.task_type === "feature-planning" ||
     task.task_type === "feature-finalize";
 
+  // No in-process arm for feature-planning: its prompt is the recipe the pod runs
+  // (scripts/task-types.yaml), and a second execution path meant a second prompt
+  // that silently drifted — the agent was asked for a GapResult it was never shown.
   if (
-    isFeaturePlanningType &&
+    task.task_type === "feature-finalize" &&
     selectStationBackend(process.env) === "inprocess"
   ) {
-    if (task.task_type === "feature-planning") {
-      await handleFeaturePlanning(task, targetRepo);
-    } else {
-      await handleFeatureFinalize(task, targetRepo);
-    }
+    await handleFeatureFinalize(task, targetRepo);
 
     return;
   }
