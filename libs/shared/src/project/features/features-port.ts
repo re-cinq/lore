@@ -193,6 +193,14 @@ export function roundInFlight(
  *  is never killed; the primary orphan signal is the dead container/pod probe. */
 export const PLANNING_RECOVERY_STALE_MS = 30 * 60_000;
 
+/** How long after a round starts the runtime probe is not yet trusted to mean
+ *  "dead". A round is a task row, then an assembly line, then an Agent CR, then a
+ *  pod — the CR does not exist for the first seconds, so a probe in that window says
+ *  "not born yet", not "died". Round 10 was force-failed 32s in and survived only
+ *  because the delivered result overrode the reaper (2026-08-10). Generous enough to
+ *  cover a controller restart or image pull, far short of the round timeout. */
+export const PLANNING_STARTUP_GRACE_MS = 2 * 60_000;
+
 /** What the feature-planning reaper should do for one mid-planning feature. */
 export type PlanningRecovery =
   | { kind: "none" }
@@ -204,7 +212,8 @@ export type PlanningRecovery =
  * Pure — the reaper resolves `isActive` (the runtime probe of the latest running
  * iteration's task) and persists the outcome.
  *
- * - latest `running` + (runtime gone OR older than `windowMs`) → `orphan`: the
+ * - latest `running` + (runtime gone past the startup grace OR older than
+ *   `windowMs`) → `orphan`: the
  *   round's container/pod died (e.g. a restart) but the row was never closed, so
  *   the wizard "analyzes" forever. Mark it failed + revert the feature.
  * - latest `ready` with a result while the feature is still `planning` → the
@@ -232,9 +241,14 @@ export function decidePlanningRecovery(args: {
   }
 
   if (latest.status === "running") {
-    const stale = nowMs - Date.parse(latest.created_at) > windowMs;
+    const ageMs = nowMs - Date.parse(latest.created_at);
+    const stale = ageMs > windowMs;
+    // Inside the grace window an absent runtime means the CR has not been created
+    // yet, so the probe cannot be read as "died". Staleness still orphans: a wedged
+    // container that never exits must not be protected by the grace period.
+    const startingUp = ageMs < PLANNING_STARTUP_GRACE_MS;
 
-    return !isActive || stale
+    return (!isActive && !startingUp) || stale
       ? { kind: "orphan", iteration: latest.iteration }
       : { kind: "none" };
   }

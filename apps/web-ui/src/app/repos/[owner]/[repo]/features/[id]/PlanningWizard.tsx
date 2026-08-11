@@ -62,6 +62,8 @@ export default function PlanningWizard({
   const [pending, startTransition] = useTransition();
   const [finalizing, setFinalizing] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** Iteration whose completion already triggered a server refresh. */
+  const refreshedFor = useRef<number | null>(null);
 
   const fetchLatest = useCallback(async (): Promise<Poll | null> => {
     const r = await fetch(
@@ -113,6 +115,20 @@ export default function PlanningWizard({
       }
     };
   }, [running, fetchLatest]);
+
+  // The poll updates THIS component, but the draft spec renders from the server's
+  // copy of the feature (FeatureDetailView reads feature.draft_spec_md). Without a
+  // refresh, a round that just landed leaves the page showing pre-round data until
+  // the reader thinks to reload. Once per iteration — refresh() re-renders the
+  // parent, which would otherwise re-trigger this on every poll.
+  useEffect(() => {
+    if (!latestReady || refreshedFor.current === latest?.iteration) {
+      return;
+    }
+
+    refreshedFor.current = latest?.iteration ?? null;
+    router.refresh();
+  }, [latestReady, latest?.iteration, router]);
 
   const submitRefine = () =>
     startTransition(async () => {

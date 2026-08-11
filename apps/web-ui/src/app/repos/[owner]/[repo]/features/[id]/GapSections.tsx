@@ -157,9 +157,30 @@ export default function GapSections({
   onCreateDraft: (title: string, prompt: string) => void;
 }) {
   const sections = sectionsOf(gap);
+  // A round can return a valid GapResult with no sections at all (sanitizeGapResult
+  // accepts it) — one produced exactly that beside an 8KB draft. Rendering the
+  // section list alone would show a blank page over a result that exists, so fall
+  // back to the draft, and say so plainly when there is neither.
+  const draft = gap.draft_spec_markdown?.trim() ?? "";
 
   return (
     <div>
+      {sections.length === 0 && draft && (
+        <SectionCard title="Draft specification" highlight>
+          <p className="meta">
+            This round returned a single draft rather than reviewable sections.
+          </p>
+          <Markdown markdown={draft} />
+        </SectionCard>
+      )}
+      {sections.length === 0 && !draft && (
+        <SectionCard title="No analysis to review">
+          <p className="meta">
+            This round produced no reviewable analysis. Add direction below and
+            refine again.
+          </p>
+        </SectionCard>
+      )}
       {sections.map((section, i) => (
         <SectionCard
           key={`${section.title}-${i}`}
