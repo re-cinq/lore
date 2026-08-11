@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { recoverStaleTasks } from "./worker.js";
+import { recoverStaleTasks, isFeatureLifecycleType } from "./worker.js";
 import { slugify } from "./task-helpers.js";
 import { InMemoryTaskQueue } from "@re-cinq/lore-shared/project/tasks/task-queue-memory.js";
 
@@ -221,5 +221,27 @@ describe("recoverStaleTasks", () => {
     expect(insertEvent).toHaveBeenCalledWith("task-4", "running", "pending", {
       reason: "crash-recovery",
     });
+  });
+});
+
+describe("isFeatureLifecycleType", () => {
+  it("covers planning, finalize and decompose", () => {
+    // One decision, two consumers: which task types run their own assembly line, and
+    // which must NOT open a per-task Issue. decompose was missing from both when its
+    // in-process handler was retired, so it would have run without a line and opened
+    // an Issue the decompose line then duplicated per story.
+    expect(
+      ["feature-planning", "feature-finalize", "feature-decompose"].map(
+        isFeatureLifecycleType,
+      ),
+    ).toEqual([true, true, true]);
+  });
+
+  it("excludes the task types that do open their own issue", () => {
+    expect(
+      ["implementation", "review", "spec-task", "general"].map(
+        isFeatureLifecycleType,
+      ),
+    ).toEqual([false, false, false, false]);
   });
 });

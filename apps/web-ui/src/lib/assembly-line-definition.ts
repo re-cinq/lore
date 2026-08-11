@@ -15,7 +15,8 @@ export type DefinitionNodeType =
   | "github_action"
   | "detect"
   | "comment-triage"
-  | "ingest";
+  | "ingest"
+  | "issues";
 
 export type DefinitionEdgeCondition =
   "success" | "changes_requested" | "failed" | "always";

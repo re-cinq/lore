@@ -88,6 +88,20 @@ export function stationDataRoutes(): ServerRoute[] {
       },
     },
     {
+      method: "GET",
+      path: "/api/repos/{owner}/{repo}/labels",
+      options: bearerScope("read"),
+      handler: async (request, h) => {
+        try {
+          const p = await projectFor(repoOf(request.params));
+
+          return h.response({ labels: await p.issues.listLabels() });
+        } catch (err) {
+          return fail(h, err);
+        }
+      },
+    },
+    {
       method: "POST",
       path: "/api/repos/{owner}/{repo}/issues",
       options: {

@@ -244,6 +244,31 @@ describe("rework: a step sends work back to the step that fed it", () => {
     expect(nextTransition(finalize!, visits).kind).toBe("fail");
   });
 
+  it("routes the station's objection back to decompose, then fails rather than looping", async () => {
+    const decompose = (await loadBuiltinAssemblyLines()).get(
+      "feature-decompose",
+    );
+
+    expect(decompose).toBeDefined();
+    const visits: NodeVisit[] = [
+      { nodeId: "decompose", iteration: 1, outcome: "success" },
+      { nodeId: "issues", iteration: 1, outcome: "changes_requested" },
+    ];
+
+    expect(nextTransition(decompose!, visits)).toMatchObject({
+      kind: "launch",
+      nodeId: "decompose",
+      iteration: 2,
+    });
+
+    visits.push(
+      { nodeId: "decompose", iteration: 2, outcome: "success" },
+      { nodeId: "issues", iteration: 2, outcome: "changes_requested" },
+    );
+
+    expect(nextTransition(decompose!, visits).kind).toBe("fail");
+  });
+
   it("ends the line when analyse asks the AUTHOR for changes", async () => {
     // No upstream node to loop to — the input is the plan a human accepted, so the
     // walk routes straight to the exit. Returning the feature to the author is the

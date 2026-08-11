@@ -25,7 +25,6 @@ import { composeIssueBody } from "./issue-body.js";
 import { handleFeatureRequest } from "./handle-feature-request.js";
 import { handleClaudeCodeTask } from "./handle-claude-code-task.js";
 import { handleFeatureFinalize } from "./handle-feature-finalize.js";
-import { handleFeatureDecompose } from "./handle-feature-decompose.js";
 import { handleOnboard } from "./handle-onboard.js";
 
 // Re-export the task handlers so existing import sites (e.g. the onboard
@@ -34,6 +33,18 @@ import { handleOnboard } from "./handle-onboard.js";
 export { handleFeatureRequest } from "./handle-feature-request.js";
 export { handleClaudeCodeTask } from "./handle-claude-code-task.js";
 export { handleOnboard } from "./handle-onboard.js";
+
+/** The feature lifecycle task types. They share two behaviours: each runs its own
+ *  assembly line regardless of dark-factory, and none opens a per-TASK Issue — the
+ *  decompose line files Issues itself, one per user story. Changing this set changes
+ *  both, which is why it is one named decision rather than two inline predicates. */
+export function isFeatureLifecycleType(taskType: string): boolean {
+  return (
+    taskType === "feature-planning" ||
+    taskType === "feature-finalize" ||
+    taskType === "feature-decompose"
+  );
+}
 
 // ── Crash recovery ────────────────────────────────────────────────────
 
@@ -139,22 +150,16 @@ async function processTask(task: PipelineTask): Promise<void> {
   const targetRepo = task.target_repo || "re-cinq/lore";
   const project = await projectFor(targetRepo);
 
-  // Feature decomposition (ADR-029): a merged spec → user-story Issues + spec-tasks.
-  // Pure LLM analysis + coordinator-side Issue/pipeline writes → always in-process,
-  // never a Station (it mutates no repo files).
-  if (task.task_type === "feature-decompose") {
-    await handleFeatureDecompose(task, targetRepo);
-
-    return;
-  }
-
-  // Feature planning + finalize run through the Station (Docker locally, K8s on
-  // the cluster; ADR-028), forced below regardless of dark-factory. The explicit
-  // LORE_STATION_BACKEND=inprocess escape hatch keeps the lightweight in-process
-  // handlers for a dev without Docker/creds.
-  const isFeaturePlanningType =
-    task.task_type === "feature-planning" ||
-    task.task_type === "feature-finalize";
+  // The feature lifecycle runs through the Station (Docker locally, K8s on the
+  // cluster; ADR-028), forced below regardless of dark-factory. Only finalize keeps
+  // an in-process arm, behind the explicit LORE_STATION_BACKEND=inprocess hatch for a
+  // dev without Docker/creds — planning and decompose lost theirs when their prompts
+  // became the recipe the pod runs, because a second execution path meant a second
+  // prompt that silently drifted.
+  //
+  // It also gates Issue creation: these types must not open a per-TASK Issue. The
+  // decompose line files its own, one per user story, from the labels the agent chose.
+  const isFeaturePlanningType = isFeatureLifecycleType(task.task_type);
 
   // No in-process arm for feature-planning: its prompt is the recipe the pod runs
   // (scripts/task-types.yaml), and a second execution path meant a second prompt

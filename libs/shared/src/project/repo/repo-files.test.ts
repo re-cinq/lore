@@ -35,6 +35,7 @@ function fakeGitHub(writes: string[] = []): GitHubPort {
       state: "open",
       labels: [],
     }),
+    listLabels: async () => [],
     createLabels: async () => {},
     commentOnIssue: async () => {},
     closeIssue: async () => {},

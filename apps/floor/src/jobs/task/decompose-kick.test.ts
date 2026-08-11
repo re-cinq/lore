@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { decideDecomposeKick } from "./handle-feature-decompose.js";
+import { decideDecomposeKick } from "./decompose-kick.js";
 
 describe("decideDecomposeKick", () => {
   it("kicks decomposition when a feature-finalize task carries a feature id", () => {
