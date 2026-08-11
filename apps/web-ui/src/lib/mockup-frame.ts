@@ -19,8 +19,14 @@ const MAX_MOCKUP_HEIGHT = 2000;
 // repository; when that repo has no styles to lend, a neutral system default reads
 // as a wireframe instead of dressing it up as something it is not.
 const RESET = `*, *::before, *::after { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; background: transparent; }
-body { font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+html, body { margin: 0; padding: 0; }
+/* An explicit ground and text colour, NOT transparent-and-inherit. A stylesheet
+   that references the repo's tokens without defining them leaves every var()
+   invalid inside this isolated frame, so the background falls back to transparent
+   and the text to black — invisible over a dark dashboard. A mockup is a picture
+   of another app; a white ground reads as a screenshot and can never vanish. */
+body { background: #ffffff; color: #111111;
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
 svg, img, table { max-width: 100%; }`;
 
 /** The frame's document for one mockup's markup, with the planned repo's

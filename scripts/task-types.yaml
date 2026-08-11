@@ -367,6 +367,15 @@ task_types:
       config, its component classes. Then style each mockup with those variables and
       class names, exactly as a real screen in this codebase would.
 
+      "mockup_stylesheet" MUST BE SELF-CONTAINED. Your mockup is rendered in an
+      isolated frame that loads none of this repo's stylesheets, so a variable you
+      only REFERENCE is undefined there: `var(--text)` with no definition makes the
+      whole declaration invalid, and the mockup renders as unstyled black text on a
+      blank page. Copy the actual values in — open with a `:root { ... }` block
+      declaring every custom property you go on to use, taken from the repo's theme
+      file, then write your rules against them. If you use --text, --bg and --accent,
+      define all three.
+
       Never hardcode a hex colour or a font family when the repo defines a token for
       it. If the repository has no styles to speak of — a backend service, a library —
       omit "mockup_stylesheet" and write plain semantic HTML; it will be rendered with
@@ -446,7 +455,7 @@ task_types:
             "content": "Hooks into the existing merge handler in `apps/floor/src/jobs/merge/merge-check.ts` and reuses the task pipeline; no new deployable."
           }
         ],
-        "mockup_stylesheet": ".card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; font-family: var(--font-ui); }\n.muted { color: var(--text-muted); }\n.btn-primary { background: var(--accent); color: var(--on-accent); border: 0; border-radius: var(--radius); padding: 6px 12px; }",
+        "mockup_stylesheet": ":root { --surface: #ffffff; --border: #e2e5e9; --radius: 6px; --font-ui: system-ui, sans-serif; --text-muted: #6b7280; --accent: #2563eb; --on-accent: #ffffff; }\n.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; font-family: var(--font-ui); }\n.muted { color: var(--text-muted); }\n.btn-primary { background: var(--accent); color: var(--on-accent); border: 0; border-radius: var(--radius); padding: 6px 12px; }",
         "draft_spec_markdown": "# Feature Planning Agent\n\n## Problem\n…\n\n## Integration\nFits between **feature-request** and **implementation**; reuses the existing pipeline + task runner."
       }
 

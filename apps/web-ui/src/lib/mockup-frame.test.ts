@@ -36,10 +36,18 @@ describe("mockupFrameSrcdoc", () => {
     expect(mockupFrameSrcdoc("<svg/>")).toContain("max-width: 100%");
   });
 
-  it("declares a transparent ground so the frame does not punch a white hole", () => {
-    expect(mockupFrameSrcdoc("<div>hi</div>")).toContain(
-      "background: transparent",
+  it("stays legible when the stylesheet only references tokens it never defines", () => {
+    // What actually happens: the agent lifts the repo's variable NAMES but the frame
+    // is isolated, so every var() is invalid at computed-value time — background goes
+    // transparent and color inherits to black. Over a dark dashboard that renders the
+    // mockup invisible. An explicit ground and text colour make that impossible.
+    const doc = mockupFrameSrcdoc(
+      "<div>hi</div>",
+      ".card { color: var(--nope); }",
     );
+
+    expect(doc).toContain("background: #ffffff");
+    expect(doc).toContain("color: #111111");
   });
 });
 

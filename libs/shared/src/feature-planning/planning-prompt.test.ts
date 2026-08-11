@@ -136,6 +136,24 @@ describe("the feature-planning prompt template", () => {
     expect(new Set(formats)).toEqual(new Set(["mermaid", "html"]));
   });
 
+  it("embeds a self-contained example stylesheet, defining every token it uses", () => {
+    // The mockup frame loads none of the repo's stylesheets, so a token that is only
+    // REFERENCED is undefined there — the declaration is invalid and the mockup
+    // renders as unstyled black text on a blank page. An example demonstrating that
+    // pattern teaches the agent to produce it, which is exactly what happened.
+    const example = parseGapResult(embeddedExample(planningPromptTemplate()));
+    const css = example.mockup_stylesheet ?? "";
+    const used = new Set(
+      [...css.matchAll(/var\((--[\w-]+)\)/g)].map((m) => m[1]),
+    );
+    const defined = new Set(
+      [...css.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]),
+    );
+
+    expect(used.size).toBeGreaterThan(0);
+    expect([...used].filter((token) => !defined.has(token))).toEqual([]);
+  });
+
   it("carries the round content and context placeholders the runner fills", () => {
     const template = planningPromptTemplate();
 
