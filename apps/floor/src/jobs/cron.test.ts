@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const pruneHandled = vi.fn<(days: number) => Promise<number>>();
 const pruneOld = vi.fn<(days: number) => Promise<number>>();
+const pruneTurns = vi.fn<(days: number) => Promise<number>>();
 
 vi.mock("../main-loop/store.js", () => ({
   pruneHandled: (days: number) => pruneHandled(days),
@@ -9,6 +10,7 @@ vi.mock("../main-loop/store.js", () => ({
 
 vi.mock("../kernel/queues.js", () => ({
   agentRunEvents: () => ({ pruneOld: (days: number) => pruneOld(days) }),
+  agentRunTurns: () => ({ pruneOld: (days: number) => pruneTurns(days) }),
 }));
 
 const { eventsPrune } = await import("./cron.js");
@@ -18,6 +20,7 @@ const tick = { id: "1", name: "cron.events_prune.tick" };
 beforeEach(() => {
   pruneHandled.mockReset().mockResolvedValue(0);
   pruneOld.mockReset().mockResolvedValue(0);
+  pruneTurns.mockReset().mockResolvedValue(0);
 });
 
 afterEach(() => {
@@ -51,5 +54,25 @@ describe("eventsPrune", () => {
     expect(
       log.mock.calls.some((c) => String(c[0]).includes("agent run event")),
     ).toBe(false);
+  });
+});
+
+describe("eventsPrune turn retention", () => {
+  it("prunes agent run turns at 30 days, longer than the projection's 14", async () => {
+    await eventsPrune(tick as never);
+
+    expect(pruneTurns).toHaveBeenCalledWith(30);
+    expect(pruneOld).toHaveBeenCalledWith(14);
+  });
+
+  it("logs the deleted agent run turn count when non-zero", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    pruneTurns.mockResolvedValueOnce(4);
+    await eventsPrune(tick as never);
+
+    expect(
+      log.mock.calls.some((c) => String(c[0]).includes("4 agent run turn")),
+    ).toBe(true);
   });
 });

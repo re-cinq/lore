@@ -12,12 +12,19 @@ import { staleTaskCheckJob } from "./task/stale-task-check.js";
 import { featurePlanningReaperJob } from "./task/feature-planning-reaper.js";
 import { leaseReaperJob } from "../main-loop/lease/lease-reaper.js";
 import { pruneHandled } from "../main-loop/store.js";
-import { agentRunEvents } from "../kernel/queues.js";
+import { agentRunEvents, agentRunTurns } from "../kernel/queues.js";
 import { reconcileAgents } from "../listeners/k8s-watch.js";
 import type { EventHandler } from "../main-loop/types.js";
 
 /** Agent run events are per-tool-call telemetry: high volume, low half-life. */
 const AGENT_RUN_EVENT_RETENTION_DAYS = 14;
+
+/** Turns are the full-fidelity transcript: kept longer than the projection's 14
+ *  days because the store exists precisely for questions asked after the live
+ *  view has moved on, but deliberately conservative. There is no pilot and so no
+ *  growth measurement to justify a longer horizon; 30 days is the starting bet
+ *  and the prune's log line is the only growth signal until one exists. */
+const AGENT_RUN_TURN_RETENTION_DAYS = 30;
 
 /** Adapt an existing `() => Promise<string>` job into an event handler (drop the summary). */
 const fromJob =
@@ -73,6 +80,14 @@ export const eventsPrune: EventHandler = async () => {
 
   if (runEvents > 0) {
     console.log(`[events] pruned ${runEvents} agent run event(s)`);
+  }
+
+  const runTurns = await agentRunTurns().pruneOld(
+    AGENT_RUN_TURN_RETENTION_DAYS,
+  );
+
+  if (runTurns > 0) {
+    console.log(`[events] pruned ${runTurns} agent run turn(s)`);
   }
 };
 
