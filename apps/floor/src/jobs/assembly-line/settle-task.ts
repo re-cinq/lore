@@ -106,13 +106,34 @@ async function settlePlanningRound(
   return true;
 }
 
+/** The objection a finalize line's `analyse` node raised, if it raised one. Scoped
+ *  to feature-finalize: the arg belongs to that line, and a task of another type
+ *  must never settle on a stray key. */
+function specAnalysisObjection(
+  task: PipelineTask,
+  args: Record<string, unknown> | undefined,
+): string | null {
+  if (task.task_type !== "feature-finalize") {
+    return null;
+  }
+  const objection = args?.spec_analysis_objection;
+
+  return typeof objection === "string" && objection.trim() ? objection : null;
+}
+
 /**
  * Settle the task behind a line that just reached a terminal state. Safe to call
  * for every line: task-less lines, already-settled tasks, and losing racers all
  * no-op. Never throws — a settle failure must not poison finishLine.
  */
 export async function settleTaskForLine(
-  row: { id: string; taskId: string | null; repo: string },
+  row: {
+    id: string;
+    taskId: string | null;
+    repo: string;
+    /** The line's args — carries a node's objection back to the settlement. */
+    args?: Record<string, unknown>;
+  },
   outcome: string,
   reason: string | undefined,
   deps: SettleTaskDeps,
@@ -152,6 +173,16 @@ export async function settleTaskForLine(
       if (noResult && settlement.status === "completed") {
         settlement = { status: "failed", failureReason: NO_RESULT_REASON };
       }
+    }
+    // The spec analysis asked the AUTHOR a question rather than producing a change
+    // set. The line COMPLETES — a changes_requested visit is not a failed one — so
+    // without this the author presses "Create the spec PR", no PR appears, and
+    // nothing says why. Failing the task with the objection puts it exactly where the
+    // wizard already reads a diagnosis from.
+    const objection = specAnalysisObjection(task, row.args);
+
+    if (objection && settlement.status === "completed") {
+      settlement = { status: "failed", failureReason: objection };
     }
     const won = await deps.tasks.setStatusIf(
       task.id,

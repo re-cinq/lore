@@ -232,7 +232,8 @@ export default function PlanningWizard({
       />
       {finalizing && (
         <p className="meta" role="status">
-          Finalizing — creating the spec PR…
+          Creating the spec PR — analysing which specs this changes, then
+          writing them…
         </p>
       )}
       <div
@@ -251,7 +252,7 @@ export default function PlanningWizard({
           disabled={pending || finalizing}
           onClick={submitFinalize}
         >
-          {finalizing ? "Finalizing…" : "Proceed & finalize"}
+          {finalizing ? "Creating the spec PR…" : "Create the spec PR"}
         </button>
         {rounds.length > 1 && (
           <label className="meta" style={{ marginLeft: "auto" }}>

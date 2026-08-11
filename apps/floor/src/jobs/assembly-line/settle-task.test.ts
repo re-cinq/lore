@@ -219,3 +219,89 @@ describe("settleTaskForLine", () => {
     });
   });
 });
+
+describe("settleTaskForLine — the spec analysis asked the author a question", () => {
+  /** A finalize task, as the wizard's "Create the spec PR" button starts it. */
+  const finalizeTask = (featureId: string) => ({
+    id: "t-fin",
+    task_type: "feature-finalize",
+    status: "running",
+    target_repo: REPO,
+    description: "finalize it",
+    context_bundle: { feature_id: featureId },
+  });
+
+  it("fails the task carrying the objection, so the wizard can show it", async () => {
+    // The line COMPLETES when analyse requests changes — a changes_requested visit
+    // is not a failed one — so without this the author presses the button, no PR
+    // appears, and nothing anywhere says why.
+    const { featureId } = await featureWithRunningRound();
+    const tasks = new InMemoryTaskStore([finalizeTask(featureId)]);
+
+    await settleTaskForLine(
+      {
+        id: "line-fin",
+        taskId: "t-fin",
+        repo: REPO,
+        args: {
+          spec_analysis_objection:
+            "the plan contradicts specs/6-dark-factory: it moves auto-merge into the pod",
+        },
+      },
+      "completed",
+      undefined,
+      {
+        tasks,
+        featuresFor: async () => ({
+          features: new Features(REPO, new InMemoryFeatures()),
+        }),
+      },
+    );
+
+    expect(await tasks.getById("t-fin")).toMatchObject({
+      status: "failed",
+      failure_reason:
+        "the plan contradicts specs/6-dark-factory: it moves auto-merge into the pod",
+    });
+  });
+
+  it("completes a finalize line that raised no objection", async () => {
+    const { featureId } = await featureWithRunningRound();
+    const tasks = new InMemoryTaskStore([finalizeTask(featureId)]);
+
+    await settleTaskForLine(
+      { id: "line-fin", taskId: "t-fin", repo: REPO, args: {} },
+      "completed",
+      undefined,
+      {
+        tasks,
+        featuresFor: async () => ({
+          features: new Features(REPO, new InMemoryFeatures()),
+        }),
+      },
+    );
+
+    expect((await tasks.getById("t-fin"))?.status).toBe("completed");
+  });
+
+  it("leaves a planning round's own settlement alone", async () => {
+    // The objection arg belongs to the finalize line; a planning task must keep
+    // going through settlePlanningRound rather than reading a stray key.
+    const { features, featureId } = await featureWithRunningRound();
+    const tasks = new InMemoryTaskStore([planningTask("t1", 1, featureId)]);
+
+    await settleTaskForLine(
+      {
+        id: "line-1",
+        taskId: "t1",
+        repo: REPO,
+        args: { spec_analysis_objection: "not mine" },
+      },
+      "completed",
+      undefined,
+      { tasks, featuresFor: async () => ({ features }) },
+    );
+
+    expect((await tasks.getById("t1"))?.failure_reason).not.toBe("not mine");
+  });
+});

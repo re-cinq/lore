@@ -43,7 +43,7 @@ function FinalizedView({
             )}
           </p>
         ) : (
-          <p className="meta">Finalizing — opening the spec PR…</p>
+          <p className="meta">Creating the spec PR…</p>
         )}
       </div>
       <DecompositionView
