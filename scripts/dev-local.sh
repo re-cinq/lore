@@ -103,6 +103,21 @@ export LORE_STATION_BACKEND="${LORE_STATION_BACKEND:-inprocess}"
 export LORE_AGENTS_NAMESPACE="${LORE_AGENTS_NAMESPACE:-ai-agents}"
 export LORE_AGENT_INTERNAL_TOKEN="${LORE_AGENT_INTERNAL_TOKEN:-lore-local-agent-token}"
 
+# Agent conversations (ai-agent-subsystem#188): a run saves its state so a LATER run
+# continues it instead of being re-briefed. Two things have to be true or the whole
+# path degrades silently — by design, but silently.
+#
+#  * The pod fetches and posts the archive itself, so it needs the URL as the POD
+#    sees this host, not as this host sees itself.
+#  * The bytes need somewhere to live. Deployed that is a GCS bucket; here it is a
+#    directory, opt-in via LORE_ARCHIVE_DIR (a cluster that lost its bucket config
+#    must NOT silently fall back to pod-local disk that vanishes with the pod).
+#
+# Without them a round still succeeds and simply never continues anything, which is
+# indistinguishable from continuity that remembered nothing.
+export LORE_FLOOR_POD_URL="${LORE_FLOOR_POD_URL:-http://host.minikube.internal:8080}"
+export LORE_ARCHIVE_DIR="${LORE_ARCHIVE_DIR:-$ROOT/.lore-archive}"
+
 if [ "$LORE_STATION_BACKEND" = "k8s" ]; then
   log "Station backend is k8s — bootstrapping the ai-agent-subsystem on minikube"
   bash "$ROOT/scripts/infra/setup-minikube-agents.sh"
