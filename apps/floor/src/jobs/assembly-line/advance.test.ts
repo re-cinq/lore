@@ -638,3 +638,292 @@ edges:
     expect(launched).toHaveLength(2);
   });
 });
+
+// ── Fork-and-rerun (specs/fork-rerun-from-node FR5): the walk itself is
+//    untouched — a forked line's inherited rows replay through nextTransition
+//    like any other history. What the guard needs is to stop reading "has node
+//    rows" as "already started work".
+describe("advanceLine on a forked line", () => {
+  const HASH = "hash-code-review";
+
+  /** Strictly-increasing clock: the overlap guard breaks a createdAt TIE on the
+   *  row ids, which are random uuids — a real coin flip. The port takes an
+   *  injectable clock for exactly this, so every line here is unambiguously
+   *  ordered and the guard's decision is the only variable under test. */
+  function orderedPort(): InMemoryAssemblyLines {
+    let tick = 0;
+
+    return new InMemoryAssemblyLines(
+      () => new Date(Date.UTC(2026, 7, 7) + ++tick * 1000),
+    );
+  }
+
+  async function forkableLine(
+    port: InMemoryAssemblyLines,
+    branch = "feat/x",
+  ): Promise<string> {
+    const id = await port.start({
+      definitionName: "code-review",
+      repo: "re-cinq/lore",
+      branch,
+      args: { description: "Review pull request #7", pr_number: 7 },
+    });
+
+    await port.stampDefinitionHash(id, HASH);
+    await port.markRunning(id);
+
+    const { nodeRowId } = await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-review`,
+    });
+
+    await port.finishNodeOnce(nodeRowId, "changes_requested", "sha-review");
+    await port.finish(id, "failed", 'node "refine" failed');
+
+    return id;
+  }
+
+  async function fork(
+    port: InMemoryAssemblyLines,
+    source: string,
+  ): Promise<string> {
+    const id = await port.start({
+      definitionName: "code-review",
+      repo: "re-cinq/lore",
+      definitionHash: HASH,
+      resumeFrom: { lineId: source, nodeId: "review" },
+    });
+
+    await port.markRunning(id);
+
+    return id;
+  }
+
+  it("launches the successor of the inherited node, not the entry node", async () => {
+    const port = orderedPort();
+    const source = await forkableLine(port);
+    const forked = await fork(port, source);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(forked, deps);
+
+    expect(launched).toHaveLength(1);
+    expect(launched[0]).toMatchObject({
+      name: `${forked.substring(0, 12)}-refine`,
+      branch: "feat/x",
+    });
+    expect((await port.listNodes(forked)).map((n) => n.nodeId)).toEqual([
+      "review",
+      "refine",
+    ]);
+  });
+
+  it("does not re-run the inherited node", async () => {
+    const port = orderedPort();
+    const source = await forkableLine(port);
+    const forked = await fork(port, source);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(forked, deps);
+
+    expect(launched.map((spec) => spec.name)).not.toContain(
+      `${forked.substring(0, 12)}-review`,
+    );
+  });
+
+  it("defers as lease_held when another open line already holds the inherited branch", async () => {
+    const port = orderedPort();
+    const source = await forkableLine(port);
+    const holder = await port.start({
+      definitionName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { pr_number: 7 },
+    });
+
+    await port.markRunning(holder);
+    const forked = await fork(port, source);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(forked, deps);
+
+    expect(await port.getById(forked)).toMatchObject({
+      status: "finished",
+      outcome: "lease_held",
+    });
+    expect(launched).toHaveLength(0);
+  });
+
+  it("proceeds when the only other line on the branch is the terminal source", async () => {
+    const port = orderedPort();
+    const source = await forkableLine(port);
+    const forked = await fork(port, source);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(forked, deps);
+
+    expect(await port.getById(forked)).toMatchObject({ status: "running" });
+    expect(launched).toHaveLength(1);
+  });
+
+  it("stops guarding once the fork has launched work of its own", async () => {
+    const port = orderedPort();
+    const source = await forkableLine(port);
+    const forked = await fork(port, source);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(forked, deps);
+    const holder = await port.start({
+      definitionName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { pr_number: 7 },
+    });
+
+    await port.markRunning(holder);
+    await advanceLine(forked, deps);
+
+    expect(await port.getById(forked)).toMatchObject({ status: "running" });
+    expect(launched).toHaveLength(1);
+  });
+});
+
+// A definition with a BACK EDGE, like implementation.yaml's `validate -> implement
+// on: failed`. A fork's own walk can revisit the node it resumed from, which is
+// where a count-based "has it started work yet" test comes apart.
+const backEdgeLike: AssemblyLine = parseAssemblyLine(`
+name: back-edge
+description: implement -> validate, failing validate loops back
+version: 1
+entry: implement
+exit: done
+nodes:
+  - id: implement
+    type: agent
+    prompt_ref: implementation
+  - id: validate
+    type: validate
+  - id: done
+    type: retrospective
+edges:
+  - from: implement
+    to: validate
+    on: always
+  - from: validate
+    to: done
+    on: success
+  - from: validate
+    to: implement
+    on: failed
+    iteration_max: 1
+`);
+
+describe("advanceLine overlap guard on a fork that revisits its resume node", () => {
+  function orderedPort(): InMemoryAssemblyLines {
+    let tick = 0;
+
+    return new InMemoryAssemblyLines(
+      () => new Date(Date.UTC(2026, 7, 7) + ++tick * 1000),
+    );
+  }
+
+  function backEdgeDeps(port: InMemoryAssemblyLines) {
+    const made = makeDeps(port);
+
+    return {
+      ...made,
+      deps: {
+        ...made.deps,
+        definitions: async () =>
+          new Map<string, AssemblyLine>([["back-edge", backEdgeLike]]),
+      },
+    };
+  }
+
+  /** A terminal source whose `implement` node completed once. */
+  async function source(port: InMemoryAssemblyLines): Promise<string> {
+    const id = await port.start({
+      definitionName: "back-edge",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { description: "implement the spec" },
+    });
+
+    await port.stampDefinitionHash(id, "hash-back-edge");
+    await port.markRunning(id);
+    const { nodeRowId } = await port.ensureNodeStart({
+      assemblyLineId: id,
+      nodeId: "implement",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-implement`,
+    });
+
+    await port.finishNodeOnce(nodeRowId, "success", "sha-implement");
+    await port.finish(id, "failed", "validate never ran");
+
+    return id;
+  }
+
+  it("keeps running after the back edge revisits the resumed node, even under a branch holder", async () => {
+    const port = orderedPort();
+    const from = await source(port);
+    const forked = await port.start({
+      definitionName: "back-edge",
+      repo: "re-cinq/lore",
+      definitionHash: "hash-back-edge",
+      resumeFrom: { lineId: from, nodeId: "implement" },
+    });
+
+    await port.markRunning(forked);
+    const { deps, launched } = backEdgeDeps(port);
+
+    // The fork does real work of its own: validate runs and fails, the back edge
+    // sends it to implement iteration 2, which succeeds.
+    await advanceLine(forked, deps);
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: forked,
+        nodeId: "validate",
+        iteration: 1,
+        result: { outcome: "failed" },
+      },
+      deps,
+    );
+    // A line with an EARLIER created_at becomes visible only now. That is not
+    // contrived: pipeline.assembly_lines defaults created_at to now(), which in
+    // Postgres is the TRANSACTION START time, so a transaction that began before
+    // the fork but committed after it lands exactly here — older by timestamp,
+    // yet invisible at the fork's first advance.
+    const clock = port.clock;
+
+    port.clock = () => new Date(Date.UTC(2026, 7, 6));
+    const holder = await port.start({
+      definitionName: "back-edge",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+    });
+
+    port.clock = clock;
+    await port.markRunning(holder);
+
+    // Completing the revisited node makes the fork's row count equal its
+    // inherited count again. The fork is mid-walk with paid work behind it and
+    // must never be killed as lease_held here.
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: forked,
+        nodeId: "implement",
+        iteration: 2,
+        result: { outcome: "success" },
+      },
+      deps,
+    );
+
+    expect(await port.getById(forked)).toMatchObject({ status: "running" });
+    expect(launched.map((spec) => spec.name)).toContain(
+      `${forked.substring(0, 12)}-validate-2`,
+    );
+  });
+});

@@ -1,12 +1,19 @@
 import { enforceTrue } from "../../lib/enforce.js";
+import { resolveResumePrefix } from "./resume.js";
 import type { PgPool } from "../../memory-store.js";
 import type {
   AssemblyLinesPort,
+  AssemblyLineResumeFrom,
   AssemblyLineStartInput,
   AssemblyLineNodeStartInput,
   AssemblyLineRecord,
   AssemblyLineNodeRecord,
 } from "./assembly-lines-port.js";
+
+/** Every column `toRecord` maps, single-sourced so the four read sites cannot drift. */
+const LINE_COLUMNS = `id, definition_name, task_id, repo, branch, args, status, outcome, reason,
+         definition_hash, resumed_from_line_id, resumed_from_node_id, inherited_node_count,
+         created_at, started_at, finished_at`;
 
 /**
  * Postgres-backed {@link AssemblyLinesPort} over `pipeline.assembly_lines` /
@@ -19,6 +26,10 @@ export class PgAssemblyLines implements AssemblyLinesPort {
   constructor(private readonly pool: PgPool) {}
 
   async start(input: AssemblyLineStartInput): Promise<string> {
+    if (input.resumeFrom) {
+      return this.startResumed(input, input.resumeFrom);
+    }
+
     const { rows } = await this.pool.query(
       `WITH al AS (
          INSERT INTO pipeline.assembly_lines (definition_name, task_id, repo, branch, args)
@@ -33,7 +44,8 @@ export class PgAssemblyLines implements AssemblyLinesPort {
                   'repo', $3,
                   'branch', $4,
                   'taskId', $2,
-                  'args', $5::jsonb
+                  'args', $5::jsonb,
+                  'resumedFrom', NULL::jsonb
                 ),
                 $3, 'assembly_line.start:' || al.id
          FROM al
@@ -61,6 +73,100 @@ export class PgAssemblyLines implements AssemblyLinesPort {
        WHERE id = $1
          AND status IN ('queued', 'running')`,
       [id],
+    );
+  }
+
+  /**
+   * Fork-and-rerun (specs/fork-rerun-from-node): read the source line and its
+   * node rows, validate, then write the new line row, the `assembly_line.start`
+   * event and every inherited node row in ONE data-modifying CTE. Nothing is
+   * written until validation passes, and every property validated is immutable
+   * on a terminal line — so the read-then-write split opens no window.
+   *
+   * Copied rows deliberately null agent_cr_name: the run-viz ingest and cost
+   * correlation joins resolve a CR name to its line via the NEWEST matching
+   * node row, so echoing the source's CR names onto the fork would steal any
+   * late-arriving agent-event or cost row from the source run. A node row's
+   * CR name always names a CR launched by that line; inherited rows launched
+   * nothing. (Safe for the walk and the reaper: every inherited row is proven
+   * terminal by resolveResumePrefix, and only open rows are ever read back by
+   * CR name.)
+   */
+  private async startResumed(
+    input: AssemblyLineStartInput,
+    resumeFrom: AssemblyLineResumeFrom,
+  ): Promise<string> {
+    const { source, prefix } = resolveResumePrefix(
+      input,
+      await this.getById(resumeFrom.lineId),
+      await this.listNodes(resumeFrom.lineId),
+    );
+    // The copy below bounds on `n.id <= cutoff`. That is sound because node-row
+    // ids within one line are monotone in walk order: ensureNodeStart inserts
+    // sequentially and its upsert mints no new id on replay, so "rows up to the
+    // chosen visit" and "rows with id <= its id" are the same set (including for
+    // a fork of a fork, whose copied rows are inserted in ORDER BY n.id).
+    const cutoffNodeRowId = prefix[prefix.length - 1].id;
+    const { rows } = await this.pool.query(
+      `WITH al AS (
+         INSERT INTO pipeline.assembly_lines
+           (definition_name, task_id, repo, branch, args, definition_hash,
+            resumed_from_line_id, resumed_from_node_id, inherited_node_count)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $10)
+         RETURNING id
+       ), ev AS (
+         INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
+         SELECT 'assembly_line.start', 'internal',
+                jsonb_build_object(
+                  'assemblyLineId', al.id,
+                  'definitionName', $1,
+                  'repo', $3,
+                  'branch', $4,
+                  'taskId', $2,
+                  'args', $5::jsonb,
+                  'resumedFrom', jsonb_build_object('lineId', $7, 'nodeId', $8)
+                ),
+                $3, 'assembly_line.start:' || al.id
+         FROM al
+       ), copied AS (
+         INSERT INTO pipeline.assembly_line_nodes
+           (assembly_line_id, node_id, iteration, outcome, agent_cr_name,
+            commit_sha, started_at, finished_at)
+         SELECT al.id,
+                n.node_id, n.iteration, n.outcome, NULL, n.commit_sha, n.started_at, n.finished_at
+           FROM pipeline.assembly_line_nodes n, al
+          WHERE n.assembly_line_id = $7
+            AND n.id <= $9::bigint
+          ORDER BY n.id
+       )
+       SELECT id FROM al`,
+      [
+        input.definitionName,
+        source.taskId,
+        input.repo,
+        source.branch,
+        JSON.stringify(input.args ?? source.args),
+        source.definitionHash,
+        resumeFrom.lineId,
+        resumeFrom.nodeId,
+        cutoffNodeRowId,
+        prefix.length,
+      ],
+    );
+
+    return rows[0].id as string;
+  }
+
+  async stampDefinitionHash(id: string, hash: string): Promise<void> {
+    // Write-once: the stored hash is the graph this line's node rows were
+    // produced by. A redelivered start that loads a since-edited definition
+    // would otherwise silently re-point the row at a graph it never ran.
+    await this.pool.query(
+      `UPDATE pipeline.assembly_lines
+         SET definition_hash = $2
+       WHERE id = $1
+         AND definition_hash IS NULL`,
+      [id, hash],
     );
   }
 
@@ -148,8 +254,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
 
   async listOpen(): Promise<AssemblyLineRecord[]> {
     const { rows } = await this.pool.query(
-      `SELECT id, definition_name, task_id, repo, branch, args, status, outcome, reason,
-              created_at, started_at, finished_at
+      `SELECT ${LINE_COLUMNS}
          FROM pipeline.assembly_lines
         WHERE status IN ('queued', 'running')
         ORDER BY created_at`,
@@ -160,8 +265,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
 
   async getById(id: string): Promise<AssemblyLineRecord | null> {
     const { rows } = await this.pool.query(
-      `SELECT id, definition_name, task_id, repo, branch, args, status, outcome, reason,
-              created_at, started_at, finished_at
+      `SELECT ${LINE_COLUMNS}
          FROM pipeline.assembly_lines WHERE id = $1`,
       [id],
     );
@@ -175,8 +279,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
 
   async listForTask(taskId: string): Promise<AssemblyLineRecord[]> {
     const { rows } = await this.pool.query(
-      `SELECT id, definition_name, task_id, repo, branch, args, status, outcome, reason,
-              created_at, started_at, finished_at
+      `SELECT ${LINE_COLUMNS}
          FROM pipeline.assembly_lines
         WHERE task_id = $1
         ORDER BY created_at DESC`,
@@ -191,8 +294,7 @@ export class PgAssemblyLines implements AssemblyLinesPort {
     prNumber: number,
   ): Promise<AssemblyLineRecord[]> {
     const { rows } = await this.pool.query(
-      `SELECT id, definition_name, task_id, repo, branch, args, status, outcome, reason,
-              created_at, started_at, finished_at
+      `SELECT ${LINE_COLUMNS}
          FROM pipeline.assembly_lines
         WHERE repo = $1
           AND (args->>'pr_number')::int = $2
@@ -271,6 +373,10 @@ function toRecord(row: {
   status: AssemblyLineRecord["status"];
   outcome: string | null;
   reason: string | null;
+  definition_hash: string | null;
+  resumed_from_line_id: string | null;
+  resumed_from_node_id: string | null;
+  inherited_node_count: number;
   created_at: Date;
   started_at: Date | null;
   finished_at: Date | null;
@@ -285,6 +391,10 @@ function toRecord(row: {
     status: row.status,
     outcome: row.outcome,
     reason: row.reason,
+    definitionHash: row.definition_hash,
+    resumedFromLineId: row.resumed_from_line_id,
+    resumedFromNodeId: row.resumed_from_node_id,
+    inheritedNodeCount: row.inherited_node_count,
     createdAt: row.created_at,
     startedAt: row.started_at,
     finishedAt: row.finished_at,

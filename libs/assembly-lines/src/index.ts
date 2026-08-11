@@ -45,6 +45,8 @@ export {
 
 export { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
 
+export { definitionHash } from "./definition-hash.js";
+
 export { RelayExecutor, type RelayResult } from "./relay/relay-executor.js";
 export { RELAY_SCRIPT } from "./relay/relay-script.js";
 
