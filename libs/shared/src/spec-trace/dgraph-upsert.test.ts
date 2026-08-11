@@ -210,13 +210,13 @@ describe("withTxn retry-on-abort (fake port)", () => {
     return { slept, sleep };
   };
 
-  it("retries an abort on a fresh txn, sleeping 200ms, and returns the 2nd attempt's result", async () => {
+  it("retries an abort on a fresh txn, sleeping 200ms at random()=1, and returns the 2nd attempt's result", async () => {
     const { port, txns } = scriptedPort(["abort", "ok"]);
     const { slept, sleep } = recordingSleep();
     const result = await withTxn(
       port,
       async (txn) => (await txn.queryWithVars("q", {})).data,
-      { sleep },
+      { sleep, random: () => 1 },
     );
 
     expect(result).toEqual({ found: [{ uid: "0xok" }] });
@@ -236,15 +236,57 @@ describe("withTxn retry-on-abort (fake port)", () => {
     expect(slept).toEqual([]);
   });
 
-  it("exhausts after 4 attempts sleeping 200/500/1000ms and rethrows the abort", async () => {
-    const { port, txns } = scriptedPort(["abort", "abort", "abort", "abort"]);
+  it("exhausts after 6 attempts sleeping 200/500/1000/2000/4000ms at random()=1 and rethrows the abort", async () => {
+    const { port, txns } = scriptedPort([
+      "abort",
+      "abort",
+      "abort",
+      "abort",
+      "abort",
+      "abort",
+    ]);
     const { slept, sleep } = recordingSleep();
 
     await expect(
-      withTxn(port, async (txn) => txn.queryWithVars("q", {}), { sleep }),
+      withTxn(port, async (txn) => txn.queryWithVars("q", {}), {
+        sleep,
+        random: () => 1,
+      }),
     ).rejects.toThrow(ABORT);
-    expect(txns).toHaveLength(4);
-    expect(slept).toEqual([200, 500, 1000]);
+    expect(txns).toHaveLength(6);
+    expect(slept).toEqual([200, 500, 1000, 2000, 4000]);
+  });
+
+  it("jitters each abort delay by the injected random: 0.5 scales sleeps to 100 then 250", async () => {
+    const { port, txns } = scriptedPort(["abort", "abort", "ok"]);
+    const { slept, sleep } = recordingSleep();
+
+    await withTxn(port, async (txn) => txn.queryWithVars("q", {}), {
+      sleep,
+      random: () => 0.5,
+    });
+    expect(txns).toHaveLength(3);
+    expect(slept).toEqual([100, 250]);
+  });
+
+  it("defaults to Math.random jitter: every sleep lands within [0, delay] of the schedule", async () => {
+    const { port, txns } = scriptedPort([
+      "abort",
+      "abort",
+      "abort",
+      "abort",
+      "abort",
+      "ok",
+    ]);
+    const { slept, sleep } = recordingSleep();
+
+    await withTxn(port, async (txn) => txn.queryWithVars("q", {}), { sleep });
+    expect(txns).toHaveLength(6);
+    expect(slept).toHaveLength(5);
+    slept.forEach((ms, i) => {
+      expect(ms).toBeGreaterThanOrEqual(0);
+      expect(ms).toBeLessThanOrEqual([200, 500, 1000, 2000, 4000][i]);
+    });
   });
 
   it("isTxnAborted accepts the driver's abort shapes and rejects everything else", () => {

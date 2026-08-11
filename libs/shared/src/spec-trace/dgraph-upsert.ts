@@ -58,25 +58,35 @@ export function isTxnAborted(err: unknown): boolean {
 }
 
 /**
- * Aborts clear as soon as the winning concurrent txn commits (ms-scale), so a
- * 200ms first retry wins most races and ~1.7s bounds the worst case per write
- * — deliberately NOT the event-loop's 1-300s schedule, which would push a
- * many-write ingest handler toward the 600s stuck-row reaper timeout.
+ * Aborts clear as soon as the winning concurrent txn commits (ms-scale), so an
+ * early retry wins most races — deliberately NOT the event-loop's 1-300s
+ * schedule, which would push a many-write ingest handler toward the 600s
+ * stuck-row reaper timeout. Each delay is a full-jitter draw
+ * (`random() * delay`, rounded): the hourly ingest fan-out puts ~50 pods on
+ * the same shared vertices (e.g. Repo) at once, and a deterministic schedule
+ * made every loser re-collide at exactly 200/500/1000ms until the retries ran
+ * out (2026-08-10). Worst case per write is ~7.7s of sleeps, still ms-to-seconds
+ * against the reaper budget, and only writes that keep losing pay the tail.
  */
-export const TXN_ABORT_DELAYS_MS: readonly number[] = [200, 500, 1000];
+export const TXN_ABORT_DELAYS_MS: readonly number[] = [
+  200, 500, 1000, 2000, 4000,
+];
 
 /**
  * Runs `fn` inside a fresh transaction, always discarding it afterwards.
  * An aborted/conflicted attempt retries on a NEW transaction (an aborted
- * dgraph txn is finished) up to the TXN_ABORT_DELAYS_MS schedule — safe
- * because every spec-trace write is an idempotent xid upsert. Any other
- * error rethrows immediately.
+ * dgraph txn is finished) up to the TXN_ABORT_DELAYS_MS schedule, each delay
+ * scaled by full jitter to decorrelate concurrent losers — safe because every
+ * spec-trace write is an idempotent xid upsert. Any other error rethrows
+ * immediately.
  */
 export async function withTxn<T>(
   dgraph: DgraphClientPort,
   fn: (txn: DgraphTxn) => Promise<T>,
-  opts?: { sleep?: (ms: number) => Promise<void> },
+  opts?: { sleep?: (ms: number) => Promise<void>; random?: () => number },
 ): Promise<T> {
+  const random = opts?.random ?? Math.random;
+
   return withBackoff(
     async () => {
       const txn = dgraph.newTxn();
@@ -88,7 +98,7 @@ export async function withTxn<T>(
       }
     },
     {
-      delaysMs: TXN_ABORT_DELAYS_MS,
+      delaysMs: TXN_ABORT_DELAYS_MS.map((ms) => Math.round(random() * ms)),
       retryOn: isTxnAborted,
       sleep: opts?.sleep,
     },
