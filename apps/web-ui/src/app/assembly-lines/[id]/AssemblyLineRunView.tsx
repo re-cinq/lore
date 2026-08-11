@@ -6,6 +6,7 @@ import type {
 } from "@/lib/assembly-line-runs";
 import { formatDuration, runStatusVisual } from "@/lib/assembly-line-presenter";
 import { stepViews, type StepTone } from "@/lib/step-presenter";
+import { RerunFromNodeButton } from "./RerunFromNodeButton";
 import styles from "./AssemblyLineRunView.module.css";
 
 const EM_DASH = "—";
@@ -30,6 +31,10 @@ export interface AssemblyLineRunViewProps {
   run: AssemblyLineRun;
   nodes: AssemblyLineRunNode[];
   definition: AssemblyLineDefinition | null;
+  /** True when the run's definition is a real builtin (not synthesized from
+   *  visit rows) — the fork drift-guard needs a graph to hash, so only these
+   *  runs offer "Rerun from here". */
+  forkable?: boolean;
 }
 
 /** Run detail — the per-attempt execution: header facts + the node timeline from
@@ -38,9 +43,16 @@ export default function AssemblyLineRunView({
   run,
   nodes,
   definition,
+  forkable = false,
 }: AssemblyLineRunViewProps) {
   const visual = runStatusVisual(run.status, run.outcome);
   const steps = stepViews(definition, nodes, run.reason);
+  // Only a terminal line forks (FR3), and only from a completed node row (FR2)
+  // — the port re-validates, but offering a button it would refuse is noise.
+  // One button per node, on its latest row: forking a node always resumes from
+  // its LATEST completed iteration, so earlier rows would duplicate it.
+  const rerunnable = forkable && ["finished", "failed"].includes(run.status);
+  const lastRowIndexByNode = new Map(steps.map((step, i) => [step.nodeId, i]));
 
   return (
     <div>
@@ -68,6 +80,20 @@ export default function AssemblyLineRunView({
         ) : null}
         <dt>Duration</dt>
         <dd>{formatDuration(run.durationSeconds)}</dd>
+        {run.resumedFromLineId ? (
+          <>
+            <dt>Forked from</dt>
+            <dd>
+              <Link href={`/assembly-lines/${run.resumedFromLineId}`}>
+                source run
+                {run.resumedFromNodeId
+                  ? ` (through ${run.resumedFromNodeId})`
+                  : ""}{" "}
+                →
+              </Link>
+            </dd>
+          </>
+        ) : null}
         {run.taskId ? (
           <>
             <dt>Task</dt>
@@ -107,6 +133,11 @@ export default function AssemblyLineRunView({
                 <span className={`${styles.pill} ${PILL_CLASS[step.tone]}`}>
                   {step.label}
                 </span>
+                {i < run.inheritedNodeCount ? (
+                  <span className={`${styles.pill} ${styles.pillIdle}`}>
+                    Inherited
+                  </span>
+                ) : null}
                 <span className={styles.stepMeta}>
                   attempt {step.iteration} ·{" "}
                   {formatDuration(step.durationSeconds)}
@@ -121,6 +152,11 @@ export default function AssemblyLineRunView({
                   >
                     {step.commitSha.substring(0, 7)}
                   </a>
+                ) : null}
+                {rerunnable &&
+                step.outcome !== null &&
+                lastRowIndexByNode.get(step.nodeId) === i ? (
+                  <RerunFromNodeButton runId={run.id} nodeId={step.nodeId} />
                 ) : null}
               </div>
               {step.reason ? (

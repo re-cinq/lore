@@ -28,6 +28,9 @@ const run = (over: Partial<AssemblyLineRun> = {}): AssemblyLineRun => ({
   prNumber: 42,
   createdBy: "gedaiu",
   costUsd: 0.5,
+  resumedFromLineId: null,
+  resumedFromNodeId: null,
+  inheritedNodeCount: 0,
   ...over,
 });
 

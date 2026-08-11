@@ -55,7 +55,12 @@ export default async function AssemblyLineResolverPage({
 
     return (
       <>
-        <AssemblyLineRunView run={run} nodes={nodes} definition={definition} />
+        <AssemblyLineRunView
+          run={run}
+          nodes={nodes}
+          definition={definition}
+          forkable={!synthetic}
+        />
         {run.definitionName === "code-review" && run.prNumber ? (
           <TriggerReviewButton repo={run.repo} prNumber={run.prNumber} />
         ) : null}

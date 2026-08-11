@@ -24,6 +24,9 @@ const run = (over: Partial<AssemblyLineRun> = {}): AssemblyLineRun => ({
   prNumber: 7,
   createdBy: null,
   costUsd: null,
+  resumedFromLineId: null,
+  resumedFromNodeId: null,
+  inheritedNodeCount: 0,
   ...over,
 });
 
@@ -157,6 +160,123 @@ describe("AssemblyLineRunView", () => {
     expect(
       screen.getByText("No node executions recorded."),
     ).toBeInTheDocument();
+  });
+
+  it("links the fork's source run and names the resumed-from node", () => {
+    render(
+      <AssemblyLineRunView
+        run={run({
+          resumedFromLineId: "al-0",
+          resumedFromNodeId: "review",
+          inheritedNodeCount: 1,
+        })}
+        nodes={[node()]}
+        definition={implementationDefinition}
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "source run (through review) →" }),
+    ).toHaveAttribute("href", "/assembly-lines/al-0");
+  });
+
+  it("marks the first inheritedNodeCount steps as inherited, later steps not", () => {
+    render(
+      <AssemblyLineRunView
+        run={run({
+          resumedFromLineId: "al-0",
+          resumedFromNodeId: "implement",
+          inheritedNodeCount: 1,
+        })}
+        nodes={[
+          node({ nodeId: "implement", agentCrName: null }),
+          node({ nodeId: "validate" }),
+        ]}
+        definition={implementationDefinition}
+      />,
+    );
+
+    expect(screen.getAllByText("Inherited")).toHaveLength(1);
+  });
+
+  it("omits the inherited marker on a plain run", () => {
+    render(
+      <AssemblyLineRunView
+        run={run()}
+        nodes={[node()]}
+        definition={implementationDefinition}
+      />,
+    );
+
+    expect(screen.queryByText("Inherited")).not.toBeInTheDocument();
+  });
+
+  it("offers Rerun from here on the latest row per completed node of a terminal forkable run", () => {
+    const { container } = render(
+      <AssemblyLineRunView
+        run={run({ status: "failed", outcome: "error" })}
+        nodes={[
+          node({ nodeId: "implement", iteration: 1 }),
+          node({ nodeId: "validate", iteration: 1, outcome: "failed" }),
+          node({ nodeId: "implement", iteration: 2 }),
+        ]}
+        definition={implementationDefinition}
+        forkable
+      />,
+    );
+
+    expect(
+      screen.getAllByRole("button", { name: "Rerun from here" }),
+    ).toHaveLength(2);
+    const nodeIds = Array.from(
+      container.querySelectorAll('input[name="node_id"]'),
+    ).map((input) => (input as HTMLInputElement).value);
+
+    expect(nodeIds).toEqual(["validate", "implement"]);
+  });
+
+  it("offers no rerun on a running run even when forkable", () => {
+    render(
+      <AssemblyLineRunView
+        run={run({ status: "running", outcome: null })}
+        nodes={[node()]}
+        definition={implementationDefinition}
+        forkable
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Rerun from here" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers no rerun when the run is not forkable (synthetic definition)", () => {
+    render(
+      <AssemblyLineRunView
+        run={run({ status: "failed", outcome: "error" })}
+        nodes={[node()]}
+        definition={implementationDefinition}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Rerun from here" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers no rerun on a still-open node row", () => {
+    render(
+      <AssemblyLineRunView
+        run={run({ status: "failed", outcome: "error" })}
+        nodes={[node({ outcome: null })]}
+        definition={implementationDefinition}
+        forkable
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Rerun from here" }),
+    ).not.toBeInTheDocument();
   });
 
   it("builds the PR link for a code-review run with no task", () => {
