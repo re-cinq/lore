@@ -66,9 +66,10 @@ function countAnomaly(kind: AnomalyKind, n = 1): void {
  * are skipped — cost accounting (the terminal `result` line) is still recorded.
  * These are the only body-proportional allocations left after the single-pass
  * parse, so bounding them keeps a pathological report from OOM-ing the single
- * (replicaCount: 1) Floor replica at its memory limit. The dropped viz is a
- * nice-to-have; full fidelity remains in the raw NDJSON the agent subsystem
- * streams, and cost/billing is unaffected.
+ * (replicaCount: 1) Floor replica at its memory limit. Above the gate the Floor
+ * keeps only the cost rows — the pod's stdout in Cloud Logging is the sole
+ * remaining copy of an oversized stream (#1109) — and cost/billing is
+ * unaffected.
  */
 const MAX_VIZ_BODY_BYTES = 8 * 1024 * 1024;
 

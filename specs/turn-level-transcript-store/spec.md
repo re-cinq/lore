@@ -24,12 +24,13 @@ value at 1024 bytes (with a 4096-byte whole-input budget and a
 is exactly right for its consumer — the SSE live run view of ADR-037 — and
 wrong for a post-mortem by construction.
 
-The raw NDJSON is not discarded either: the same route fires
-`archiveRaw` → `archiveAgentEvents`, redacting the body and writing it to
-GCS fire-and-forget. That archive has **no read path**, no turn structure,
-no correlation columns, and a bucket lifecycle rule for retention. It
-answers "what happened, eventually, if you go get the object and parse it
-yourself".
+The raw NDJSON was not discarded either: when this spec was written the
+same route fired `archiveRaw` → `archiveAgentEvents`, redacting the body
+and writing it to GCS fire-and-forget. That archive had **no read path**,
+no turn structure, no correlation columns, and a bucket lifecycle rule for
+retention. It answered "what happened, eventually, if you go get the
+object and parse it yourself". *(Superseded 2026-08-11, #1148: the archive
+is retired; this store is the raw record.)*
 
 The third record is the pod log, and it is the closest thing to a durable
 transcript Lore has today. `GET /api/agent-logs/{name}`
@@ -192,9 +193,10 @@ the existing `GET /api/agent-events/{assemblyLineId}` history route.
   of a redaction miss from "buried in GCS" to "searchable", which is why
   the redaction step is specified as a tested control on the write path
   rather than a courtesy.
-- Nothing reads the store yet. It is a second, richer archive with a read
-  API and no consumer until the turn-view UI lands, which is the follow-up
-  this feature deliberately stops short of.
+- Nothing reads the store yet. It is the sole raw record (since #1148
+  retired the GCS archive) with a read API and no consumer until the
+  turn-view UI lands, which is the follow-up this feature deliberately
+  stops short of.
 
 ## Out of Scope
 

@@ -21,11 +21,21 @@ vi.mock("../../../kernel/queues.js", () => ({
   auditLog: () => ({ write }),
 }));
 
+// Spies on the ONE GCS adapter in the codebase, so the guard catches a
+// re-added kernel/archives singleton call and a direct `new GcsArchive(...)`
+// alike. Today nothing in the route's import graph touches it, so the mock
+// never even instantiates — it arms the moment a regression pulls it back in.
 const save = vi.fn(() => Promise.resolve());
+const gcsConstructed = vi.fn();
 
-vi.mock("../../../kernel/archives.js", () => ({
-  agentEventsArchive: () => ({ save }),
-  jobRunLogArchive: () => ({ save }),
+vi.mock("@re-cinq/lore-shared/project/archive/archive-gcs.js", () => ({
+  GcsArchive: class {
+    save = save;
+    read = vi.fn(() => Promise.resolve(null));
+    constructor(bucket: string) {
+      gcsConstructed(bucket);
+    }
+  },
 }));
 
 const ORIG_TOKEN = process.env.LORE_AGENT_INTERNAL_TOKEN;
@@ -55,6 +65,7 @@ beforeEach(() => {
   insertTurns.mockReset().mockResolvedValue([{ id: "1" }]);
   write.mockReset().mockResolvedValue(undefined);
   save.mockClear();
+  gcsConstructed.mockClear();
 });
 
 afterEach(() => {
@@ -67,6 +78,7 @@ describe("POST /api/agent-events object-storage retirement", () => {
 
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.payload)).toMatchObject({ recorded: 1 });
+    expect(gcsConstructed).not.toHaveBeenCalled();
     expect(save).not.toHaveBeenCalled();
   });
 });

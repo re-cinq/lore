@@ -64,7 +64,7 @@ cluster. The Lore-specific glue is **relocated Floor-side** and stays determinis
 - The recipe **schema + client are generated from the subsystem's D structs** into a published
   code-API package (`@re-cinq/agent-contracts`, subsystem v0.3.0) that the Floor and UI import.
 - Secrets, context hydration, networking, and observability **reuse the existing setup** (ESO
-  remoteRefs, public-LB hydration, an NDJSON http sink into `pipeline.llm_calls`/OTEL/GCS).
+  remoteRefs, public-LB hydration, an NDJSON http sink into `pipeline.llm_calls`/OTEL/`agent_run_turns`).
 
 The cutover is reversible (both controllers run in parallel behind a flag); `LoreTask`, the
 `claude-runner` image, and the cluster-wide `loretask-agent` RBAC are torn down only after a soak.
@@ -80,7 +80,7 @@ The cutover is reversible (both controllers run in parallel behind a flag); `Lor
 | **D5** Context hydration | Floor injects context into `Agent.spec.parameters`; code recipes also wire the Lore MCP server | Turn-1 context, deterministic, no in-pod network dependency |
 | **D6** Secrets | **Inherit** the existing GCP Secret Manager remoteRefs via ESO into `agent-secrets`; per-task GitHub App token PATCHed in and removed on terminal | No new secret material; short-lived, least-privilege; no org PAT |
 | **D7** Networking | Self-hydration + telemetry over the **public LB**; run pods **drop direct Postgres** | The run-pod NetworkPolicy blocks RFC1918/metadata; DB-less pods shrink blast radius |
-| **D8** Observability | NDJSON **http sink → Floor `/api/agent-events`** → `pipeline.llm_calls` + OTEL + GCS + UI logs | No telemetry capability lost; pod stays DB-less and GCS-less |
+| **D8** Observability | NDJSON **http sink → Floor `/api/agent-events`** → `pipeline.llm_calls` + OTEL + `agent_run_turns` + UI logs | No telemetry capability lost; pod stays DB-less and GCS-less |
 | **D9** Station nodes | **Every** non-agent node (validate/gate/retrospective/`github_action`/detect/custom) dispatches its own `Agent` CR run by the `exec` vendor (`model: exec` → `tool_config.command`); outcome via the `LORE_NODE_RESULT` result line. Cutover complete — no per-type flag; detector cores relocated to `@re-cinq/lore-shared/detect` so the detect node dispatches a station too | Uniform per-node isolation + timeouts; custom station images; no CRD change |
 
 ## Architecture (target data-flow, one `implementation` task)
@@ -97,7 +97,7 @@ pending task ─► Floor coordinator (event-driven walk: start handler launches
   └─ retrospective / merge ─► Floor-side handlers
 agent-watcher ─► changed files (compare-commits) ─► CI gate ─► open PR (Lore-Task footer)
               ─► auto-merge / escalate / Slack / episode
-http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS + UI
+http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agent_run_turns + UI
 ```
 
 ## File Changes (high level — detail per ticket)
@@ -167,12 +167,12 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + GCS 
    Station's `agentDefRef` at it (template preserved, empty-template fallback). ([validated by `agent-watcher-logic.test.ts:64`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L64), [`agent-watcher-logic.test.ts:72`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L72), [`per-task-token.test.ts:57`](apps/floor/src/jobs/station/per-task-token.test.ts#L57), [`per-task-token.test.ts:76`](apps/floor/src/jobs/station/per-task-token.test.ts#L76), [`per-task-token.test.ts:79`](apps/floor/src/jobs/station/per-task-token.test.ts#L79), [`per-task-token.test.ts:92`](apps/floor/src/jobs/station/per-task-token.test.ts#L92), [`per-task-token.test.ts:107`](apps/floor/src/jobs/station/per-task-token.test.ts#L107), [`per-task-token.test.ts:117`](apps/floor/src/jobs/station/per-task-token.test.ts#L117), [`per-task-token.test.ts:123`](apps/floor/src/jobs/station/per-task-token.test.ts#L123), [`per-task-token.test.ts:135`](apps/floor/src/jobs/station/per-task-token.test.ts#L135), [`per-task-token.test.ts:152`](apps/floor/src/jobs/station/per-task-token.test.ts#L152), [`per-task-token.test.ts:170`](apps/floor/src/jobs/station/per-task-token.test.ts#L170))
 
 10. Run output reaches the Floor over the public-LB http sink and is recorded in
-    `pipeline.llm_calls`, OTEL spans, and GCS (the UI log viewer shows it). `parseAgentEvents` maps
-    each NDJSON terminal result envelope to one `llm_calls` row (model from `modelUsage` → flat
+    `pipeline.llm_calls`, OTEL spans, and the `pipeline.agent_run_turns` transcript (the UI log
+    viewer shows it; the earlier GCS raw archive was retired 2026-08-11, #1148). `parseAgentEvents`
+    maps each NDJSON terminal result envelope to one `llm_calls` row (model from `modelUsage` → flat
     `model` field → `unknown`; missing usage/cost/duration default to zero; non-result events,
     results with no usage, task-less lines, and non-object/blank/unparseable lines are skipped; one
-    row per run across lines), and `agentEventsArchiveKey` builds a date-partitioned archive key from
-    the received instant + first task id (`unknown` when the batch carries none). The
+    row per run across lines). The
     `POST /api/agent-events` sink rejects a request whose bearer token mismatches or whose internal
     token is unconfigured (401). The mapper MUST own no envelope-peeling of its own: it reads the
     attribution envelope through `unwrapAttribution`, the single unwrap side both lanes share, which
