@@ -67,6 +67,34 @@ describe("AgentRunner", () => {
     });
   });
 
+  it("cluster mode forwards every run option to the Station spec", async () => {
+    // The spec is rebuilt field by field, so anything the list forgets is dropped
+    // in silence. featureId and roundFeedback were both added and both lost that
+    // way — the run dispatched fine and simply continued no conversation, which
+    // is indistinguishable from continuity that remembered nothing.
+    const created: LoreTaskSpec[] = [];
+    const station: StationBackend = {
+      launch: async (spec) => {
+        created.push(spec);
+
+        return { ref: "r", launched: true };
+      },
+      isActive: async () => true,
+    };
+    const runner = new AgentRunner(process.env, { station });
+
+    await runner.run("re-cinq/lore", "task-9", {
+      mode: "cluster",
+      featureId: "feature-9",
+      roundFeedback: '<RoundFeedback round="4"/>',
+    });
+
+    expect(created[0]).toMatchObject({
+      featureId: "feature-9",
+      roundFeedback: '<RoundFeedback round="4"/>',
+    });
+  });
+
   it("cluster mode passes the execution image to the Station", async () => {
     const created: LoreTaskSpec[] = [];
     const station: StationBackend = {
