@@ -70,7 +70,9 @@ export async function POST(
       );
     }
 
-    const actor = session.user?.name ?? session.user?.email ?? "ui";
+    // Audit actor: null over a fabricated "ui" placeholder — an unknown
+    // identity should read as unknown in pipeline.audit_log.
+    const actor = session.user?.name ?? session.user?.email ?? null;
     const upstream = await fetch(
       `${floorUrl}/api/assembly-lines/${encodeURIComponent(id)}/rerun`,
       {
