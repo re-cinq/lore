@@ -14,9 +14,15 @@ import { errorMessage } from "@re-cinq/lore-shared";
 
 import type { ServerRoute } from "@hapi/hapi";
 import { metrics } from "@opentelemetry/api";
-import { usage, agentRunEvents, taskStore } from "../../../kernel/queues.js";
+import {
+  usage,
+  agentRunEvents,
+  taskStore,
+  assemblyLines,
+} from "../../../kernel/queues.js";
 import { projectFor } from "../../../composition/project-boot.js";
 import { deliverPlanningResults } from "../../../jobs/agent/planning-result.js";
+import { deliverArtifact } from "../../../jobs/agent/artifact-args.js";
 import {
   parseAgentSink,
   agentEventsArchiveKey,
@@ -229,6 +235,24 @@ async function recordPlanningResults(
   }
 }
 
+/**
+ * Every OTHER declared artifact becomes the next node's input, merged into its
+ * line's args. Best-effort like the planning delivery above: a run that produced its
+ * file has already succeeded, and losing the handoff must not retroactively fail it —
+ * the consuming node reports the missing input itself.
+ */
+async function mergeArtifacts(
+  fileEvents: readonly AgentFileEvent[],
+): Promise<void> {
+  for (const fileEvent of fileEvents) {
+    try {
+      await deliverArtifact(fileEvent, { assemblyLines: assemblyLines() });
+    } catch (err) {
+      console.warn(`[floor] artifact not merged: ${errorMessage(err)}`);
+    }
+  }
+}
+
 export const agentEventsRoute: ServerRoute = {
   method: "POST",
   path: "/api/agent-events",
@@ -247,6 +271,8 @@ export const agentEventsRoute: ServerRoute = {
     // Declared artifacts ride the same sink as cost + telemetry, so a planning
     // round's result lands here rather than needing its own channel.
     const planningRounds = await recordPlanningResults(fileEvents);
+
+    await mergeArtifacts(fileEvents);
 
     const audit = costDegradedAudit(cost);
 

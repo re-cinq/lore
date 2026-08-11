@@ -158,6 +158,19 @@ export class PgAssemblyLines implements AssemblyLinesPort {
     return rows.map((r) => toRecord(r as Parameters<typeof toRecord>[0]));
   }
 
+  async mergeArgs(id: string, patch: Record<string, unknown>): Promise<void> {
+    // Merged in SQL, not read-modify-write: two nodes can produce artifacts within
+    // the same tick, and a JS-side merge would let the second read stale args and
+    // drop the first one's output. `||` is jsonb concatenation — right operand wins
+    // per key, which is exactly the supersede-on-re-run rule.
+    await this.pool.query(
+      `UPDATE pipeline.assembly_lines
+          SET args = COALESCE(args, '{}'::jsonb) || $2::jsonb
+        WHERE id = $1`,
+      [id, JSON.stringify(patch)],
+    );
+  }
+
   async getById(id: string): Promise<AssemblyLineRecord | null> {
     const { rows } = await this.pool.query(
       `SELECT id, definition_name, task_id, repo, branch, args, status, outcome, reason,

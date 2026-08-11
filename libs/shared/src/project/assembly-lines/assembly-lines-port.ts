@@ -59,6 +59,17 @@ export interface AssemblyLinesPort {
    *  (failure notification) on the win. */
   finish(id: string, outcome: string, reason?: string): Promise<boolean>;
   getById(id: string): Promise<AssemblyLineRecord | null>;
+  /**
+   * Merge a patch into the line's `args` — how one node's output reaches the next,
+   * and how a node's objection reaches the node that fed it.
+   *
+   * ADDITIVE by key: a key the patch does not mention is untouched, so a later merge
+   * can never make an earlier node's input vanish from under the replay. A key the
+   * patch DOES mention is replaced, because an upstream node re-running after an
+   * objection must supersede the output that was rejected. A line that does not
+   * exist is a no-op, not an error: the artifact sink is fire-and-forget.
+   */
+  mergeArgs(id: string, patch: Record<string, unknown>): Promise<void>;
   listForTask(taskId: string): Promise<AssemblyLineRecord[]>;
   /**
    * Event-driven transition primitives: the walk state is derived from node rows,
