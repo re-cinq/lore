@@ -363,10 +363,10 @@ pipeline tasks and GitHub Issues. ([validated by `task-queue.test.ts:22`](libs/s
 ### FR-5: Spec-Driven Feature Workflow
 
 The system MUST provide an end-to-end feature workflow via platform
-skills. ([validated by `planning-prompt.test.ts:21`](libs/shared/src/feature-planning/planning-prompt.test.ts#L49))
+skills. ([validated by `planning-prompt.test.ts:21`](libs/shared/src/feature-planning/planning-prompt.test.ts#L52))
 
 - FR-5.1: `/lore-feature` skill guides the full loop: constitution
-  generation → specification → task breakdown → pipeline task wiring. ([validated by `planning-prompt.test.ts:143`](libs/shared/src/feature-planning/planning-prompt.test.ts#L143), [`planning-prompt.test.ts:21`](libs/shared/src/feature-planning/planning-prompt.test.ts#L49))
+  generation → specification → task breakdown → pipeline task wiring. ([validated by `planning-prompt.test.ts:143`](libs/shared/src/feature-planning/planning-prompt.test.ts#L146), [`planning-prompt.test.ts:21`](libs/shared/src/feature-planning/planning-prompt.test.ts#L52))
 - FR-5.2: `/lore-pr` skill drafts PR descriptions from spec, task
   context, and changed files. ([validated by `pr-body.test.ts:5`](libs/shared/src/pr-body.test.ts#L5), [`pr-body.test.ts:11`](libs/shared/src/pr-body.test.ts#L11))
 - Decision: constitution generation (the `lore-gen-constitution` glue script)
@@ -374,7 +374,7 @@ skills. ([validated by `planning-prompt.test.ts:21`](libs/shared/src/feature-pla
   real ADRs and team conventions.
 - FR-5.4: Claude Code does mechanical work; developer confirms only
   at decision points (constitution review, spec review, task
-  breakdown review). ([validated by `planning-prompt.test.ts:59`](libs/shared/src/feature-planning/planning-prompt.test.ts#L87), [`planning-prompt.test.ts:71`](libs/shared/src/feature-planning/planning-prompt.test.ts#L99))
+  breakdown review). ([validated by `planning-prompt.test.ts:59`](libs/shared/src/feature-planning/planning-prompt.test.ts#L90), [`planning-prompt.test.ts:71`](libs/shared/src/feature-planning/planning-prompt.test.ts#L102))
 
 ### FR-6: PR Quality Enforcement
 

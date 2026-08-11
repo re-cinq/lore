@@ -24,6 +24,7 @@ import {
   type FloorAssemblyLineTask,
 } from "./floor-assembly-line.js";
 import { isFailureOutcome } from "./notify-failure.js";
+import { roundContent } from "./round-content.js";
 
 export interface AdvanceDeps {
   assemblyLines: AssemblyLinesPort;
@@ -222,28 +223,29 @@ export async function advanceLine(
     `AssemblyLine ${definition.name}: unknown node "${transition.nodeId}"`,
   );
   const task = taskFromRow(row);
+  // Resolved BEFORE the prompt: whether this run resumes a conversation decides how
+  // much round content the prompt must carry. Only agent nodes hold one — a station
+  // runs a deterministic command.
+  const conversation =
+    node.type === "agent" && deps.resolveConversation
+      ? await deps.resolveConversation(node, task, transition.iteration)
+      : undefined;
   // Iteration rides into the CR name + labels so a revisited node runs a fresh pod.
   const spec =
     node.type === "agent"
       ? nodeAgentSpec(
           node,
           task,
-          deps.resolvePrompt(node.prompt_ref ?? node.type, task.description),
+          deps.resolvePrompt(
+            node.prompt_ref ?? node.type,
+            roundContent(task, conversation),
+          ),
           transition.iteration,
         )
       : nodeStationSpec(node, task, transition.iteration);
 
-  // Only agent nodes hold a conversation; a station runs a deterministic command.
-  if (node.type === "agent" && deps.resolveConversation) {
-    const conversation = await deps.resolveConversation(
-      node,
-      task,
-      transition.iteration,
-    );
-
-    if (conversation) {
-      spec.conversation = conversation;
-    }
+  if (conversation) {
+    spec.conversation = conversation;
   }
 
   // Row before CR: a crash in between leaves an open row the reaper resolves by

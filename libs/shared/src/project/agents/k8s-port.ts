@@ -39,6 +39,9 @@ export interface LoreTaskSpec {
   /** The feature a planning/finalize run belongs to, threaded into the line's args
    *  so a definition can key a conversation thread on `args.feature_id`. */
   featureId?: string;
+  /** The round's feedback-only turn, used INSTEAD of `description` when this run
+   *  resumes a conversation — the agent already holds the draft being refined. */
+  roundFeedback?: string;
   /** A previous run this one continues, and the id it saves its own state as
    *  (ai-agent-subsystem#188). Resolved at dispatch from the node's `continues`
    *  declaration; absent when the node declares none or this is a retry. */

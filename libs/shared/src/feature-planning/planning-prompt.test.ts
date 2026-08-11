@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { parse } from "yaml";
-import { composePlanningPrompt } from "./planning-prompt.js";
+import {
+  composePlanningPrompt,
+  composeRoundFeedback,
+} from "./planning-prompt.js";
 import { parseGapResult, type GapResult } from "./gap-result.js";
 
 /** The prompt the pod actually runs. Read from the file the catalog is generated
@@ -155,5 +158,84 @@ describe("the feature-planning prompt template", () => {
     ]) {
       expect(template).toContain(clause);
     }
+  });
+});
+
+describe("composeRoundFeedback", () => {
+  const answers = {
+    sections: {
+      "Data model": {
+        comment: "drop the join table",
+        direction: "refine" as const,
+      },
+      Overview: { direction: "keep" as const },
+    },
+    questions: { q1: "just this repo" },
+    free_form: "ship the API first",
+  };
+
+  it("nests each answered question under the section that asked it", () => {
+    // The agent holds the draft in its conversation, not in the prompt — so the
+    // feedback has to say WHICH section each comment lands on by itself.
+    const out = composeRoundFeedback({ round: 4, priorGap: gap, answers });
+
+    expect(out).toContain('<Section title="Data model" direction="refine">');
+    expect(
+      out.split('<Section title="Data model"')[1].split("</Section>")[0],
+    ).toContain('<Question id="q1">');
+  });
+
+  it("quotes the question text beside the answer", () => {
+    // Not just the id: a compacted conversation may no longer hold what q1 asked.
+    const out = composeRoundFeedback({ round: 4, priorGap: gap, answers });
+
+    expect(out).toContain("<Asked>Which repos?</Asked>");
+    expect(out).toContain("<Answer>just this repo</Answer>");
+  });
+
+  it("carries the round number and the free-form note", () => {
+    const out = composeRoundFeedback({ round: 4, priorGap: gap, answers });
+
+    expect(out).toContain('<RoundFeedback round="4">');
+    expect(out).toContain(
+      "<OtherUserComments>\nship the API first\n</OtherUserComments>",
+    );
+  });
+
+  it("keeps a section the author only marked keep, with no comment", () => {
+    const out = composeRoundFeedback({ round: 2, priorGap: gap, answers });
+
+    expect(out).toContain('<Section title="Overview" direction="keep"/>');
+  });
+
+  it("restates none of the draft the agent already holds", () => {
+    const out = composeRoundFeedback({ round: 4, priorGap: gap, answers });
+
+    expect(out).not.toContain("Persist features + iterations.");
+    expect(out).not.toContain("<Generated>");
+  });
+
+  it("omits a section the author left entirely alone", () => {
+    const out = composeRoundFeedback({
+      round: 2,
+      priorGap: gap,
+      answers: { sections: {}, questions: {}, free_form: "" },
+    });
+
+    expect(out).toBe('<RoundFeedback round="2">\n</RoundFeedback>');
+  });
+
+  it("marks a question the author skipped", () => {
+    const out = composeRoundFeedback({
+      round: 2,
+      priorGap: gap,
+      answers: {
+        sections: { "Data model": { direction: "refine" as const } },
+        questions: {},
+        free_form: "",
+      },
+    });
+
+    expect(out).toContain("<Answer>(unanswered)</Answer>");
   });
 });

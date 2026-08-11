@@ -1,6 +1,9 @@
 import type { ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
 import { applyGapResult } from "@re-cinq/lore-shared/feature-planning/apply-gap-result.js";
-import { composePlanningPrompt } from "@re-cinq/lore-shared/feature-planning/planning-prompt.js";
+import {
+  composePlanningPrompt,
+  composeRoundFeedback,
+} from "@re-cinq/lore-shared/feature-planning/planning-prompt.js";
 import {
   enforceFeatureInput,
   parseSectionAnswers,
@@ -60,13 +63,20 @@ async function kickPlanning(
   featureId: string,
   iteration: number,
   description: string,
+  roundFeedback?: string,
 ): Promise<string> {
   const task = await createTask(
     description,
     "feature-planning",
     repoFullName,
     "ui",
-    { feature_id: featureId, iteration },
+    // Both forms ride along: whether the run resumes the previous round's
+    // conversation is only known at dispatch, in the Floor, so it picks there.
+    {
+      feature_id: featureId,
+      iteration,
+      ...(roundFeedback ? { round_feedback: roundFeedback } : {}),
+    },
     "immediate",
   );
 
@@ -196,10 +206,11 @@ export function featuresRoutes(): ServerRoute[] {
           }
 
           const answers = parseSectionAnswers(body.user_answers);
+          const priorGap = latestReadyGap(feature.iterations);
           const description = composePlanningPrompt({
             title: feature.title,
             originalPrompt: feature.original_prompt,
-            priorGap: latestReadyGap(feature.iterations),
+            priorGap,
             answers,
           });
           const row = await features.appendIteration(id, answers);
@@ -208,6 +219,7 @@ export function featuresRoutes(): ServerRoute[] {
             id,
             row.iteration,
             description,
+            composeRoundFeedback({ round: row.iteration, priorGap, answers }),
           );
 
           await features.attachIterationTask(id, row.iteration, taskId);

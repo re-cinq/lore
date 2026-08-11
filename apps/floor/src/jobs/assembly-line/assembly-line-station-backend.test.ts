@@ -52,6 +52,20 @@ describe("AssemblyLineStationBackend", () => {
     expect(port.rows[0].args).toMatchObject({ feature_id: "feature-9" });
   });
 
+  it("threads the round-feedback turn so a resumed run can send only what is new", async () => {
+    const port = new InMemoryAssemblyLines();
+    const backend = new AssemblyLineStationBackend(port);
+
+    await backend.launch({
+      ...spec("t1"),
+      roundFeedback: '<RoundFeedback round="4"/>',
+    });
+
+    expect(port.rows[0].args).toMatchObject({
+      round_feedback: '<RoundFeedback round="4"/>',
+    });
+  });
+
   it("carries no feature id for a run that has none", async () => {
     const port = new InMemoryAssemblyLines();
     const backend = new AssemblyLineStationBackend(port);
@@ -59,6 +73,7 @@ describe("AssemblyLineStationBackend", () => {
     await backend.launch(spec("t1"));
 
     expect(port.rows[0].args).not.toHaveProperty("feature_id");
+    expect(port.rows[0].args).not.toHaveProperty("round_feedback");
   });
 
   it("two launches of the same task mint distinct assembly line ids", async () => {
