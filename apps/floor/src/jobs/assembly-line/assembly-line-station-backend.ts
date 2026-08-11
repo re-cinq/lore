@@ -28,6 +28,9 @@ export class AssemblyLineStationBackend implements StationBackend {
         description: spec.description,
         ...(spec.featureId ? { feature_id: spec.featureId } : {}),
         ...(spec.roundFeedback ? { round_feedback: spec.roundFeedback } : {}),
+        ...(spec.resumeFromTask
+          ? { resume_from_task: spec.resumeFromTask }
+          : {}),
       },
     });
 

@@ -87,11 +87,13 @@ describe("AgentRunner", () => {
       mode: "cluster",
       featureId: "feature-9",
       roundFeedback: '<RoundFeedback round="4"/>',
+      resumeFromTask: "task-round-2",
     });
 
     expect(created[0]).toMatchObject({
       featureId: "feature-9",
       roundFeedback: '<RoundFeedback round="4"/>',
+      resumeFromTask: "task-round-2",
     });
   });
 

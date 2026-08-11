@@ -59,10 +59,13 @@ describe("AssemblyLineStationBackend", () => {
     await backend.launch({
       ...spec("t1"),
       roundFeedback: '<RoundFeedback round="4"/>',
+      resumeFromTask: "task-round-1",
     });
 
     expect(port.rows[0].args).toMatchObject({
       round_feedback: '<RoundFeedback round="4"/>',
+      // The round the conversation is resumed FROM, which rewind names explicitly.
+      resume_from_task: "task-round-1",
     });
   });
 

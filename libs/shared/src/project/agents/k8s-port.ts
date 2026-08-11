@@ -42,6 +42,9 @@ export interface LoreTaskSpec {
   /** The round's feedback-only turn, used INSTEAD of `description` when this run
    *  resumes a conversation — the agent already holds the draft being refined. */
   roundFeedback?: string;
+  /** The task whose run this one continues (rewind). Its assembly line reserved
+   *  the conversation to resume; absent means "continue the newest". */
+  resumeFromTask?: string;
   /** A previous run this one continues, and the id it saves its own state as
    *  (ai-agent-subsystem#188). Resolved at dispatch from the node's `continues`
    *  declaration; absent when the node declares none or this is a retry. */

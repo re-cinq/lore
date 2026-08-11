@@ -230,16 +230,18 @@ export async function advanceLine(
     node.type === "agent" && deps.resolveConversation
       ? await deps.resolveConversation(node, task, transition.iteration)
       : undefined;
+  // The round content BOTH fields carry. The recipe the pod runs renders
+  // {description}, so setting only the prompt hands a resumed round the full draft
+  // again — and the two disagreeing about what this run is working from is a bug in
+  // either direction.
+  const content = roundContent(task, conversation);
   // Iteration rides into the CR name + labels so a revisited node runs a fresh pod.
   const spec =
     node.type === "agent"
       ? nodeAgentSpec(
           node,
-          task,
-          deps.resolvePrompt(
-            node.prompt_ref ?? node.type,
-            roundContent(task, conversation),
-          ),
+          { ...task, description: content },
+          deps.resolvePrompt(node.prompt_ref ?? node.type, content),
           transition.iteration,
         )
       : nodeStationSpec(node, task, transition.iteration);

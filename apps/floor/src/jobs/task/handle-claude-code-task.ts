@@ -57,6 +57,7 @@ export async function handleClaudeCodeTask(
 
   const featureId = task.context_bundle?.feature_id;
   const roundFeedback = task.context_bundle?.round_feedback;
+  const resumeFromTask = task.context_bundle?.resume_from_task;
   const result = await project.agents.run(task.id, {
     mode: "cluster",
     taskType: task.task_type,
@@ -64,6 +65,7 @@ export async function handleClaudeCodeTask(
     // the assembly-line engine never learns what a feature is.
     ...(typeof featureId === "string" ? { featureId } : {}),
     ...(typeof roundFeedback === "string" ? { roundFeedback } : {}),
+    ...(typeof resumeFromTask === "string" ? { resumeFromTask } : {}),
     description: task.description,
     prompt: fullPrompt,
     branch: branchName,

@@ -38,6 +38,8 @@ export interface AgentRunOpts {
   /** The round's feedback-only turn, used instead of `description` when the run
    *  resumes a conversation. */
   roundFeedback?: string;
+  /** The task whose run this one continues (rewind). */
+  resumeFromTask?: string;
 }
 
 export interface AgentRunnerPort {

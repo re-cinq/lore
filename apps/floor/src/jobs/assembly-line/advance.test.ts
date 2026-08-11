@@ -131,6 +131,71 @@ describe("advanceLine", () => {
     ]);
   });
 
+  it("dispatches the resumed round's feedback as the CR's description, not just its prompt", async () => {
+    // The recipe the pod runs renders {description}; spec.prompt is not what
+    // reaches the agent. Setting only the prompt left every resumed round being
+    // handed the full draft again — the re-briefing this feature exists to end.
+    const port = new InMemoryAssemblyLines();
+    const id = await port.start({
+      definitionName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: {
+        description: "the whole draft",
+        round_feedback: "<RoundFeedback/>",
+      },
+    });
+
+    await port.markRunning(id);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(id, {
+      ...deps,
+      resolveConversation: async () => ({
+        source: "http://floor/api/agent-conversations",
+        id: "round-1",
+        pin: "round-2",
+        headersSecret: "agent-events-auth",
+      }),
+    });
+
+    expect(launched[0]).toMatchObject({
+      description: "<RoundFeedback/>",
+      prompt: "code-review::<RoundFeedback/>",
+    });
+  });
+
+  it("dispatches the full composition when nothing was resumed", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await port.start({
+      definitionName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: {
+        description: "the whole draft",
+        round_feedback: "<RoundFeedback/>",
+      },
+    });
+
+    await port.markRunning(id);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(id, {
+      ...deps,
+      resolveConversation: async () => ({
+        source: "http://floor/api/agent-conversations",
+        id: "",
+        pin: "round-1",
+        headersSecret: "agent-events-auth",
+      }),
+    });
+
+    expect(launched[0]).toMatchObject({
+      description: "the whole draft",
+      prompt: "code-review::the whole draft",
+    });
+  });
+
   it("converges a duplicate advance onto one node row and one idempotent launch", async () => {
     const port = new InMemoryAssemblyLines();
     const id = await runningLine(port);
