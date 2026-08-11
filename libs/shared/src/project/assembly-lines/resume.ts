@@ -14,6 +14,14 @@ import type {
   AssemblyLineStartInput,
 } from "./assembly-lines-port.js";
 
+/**
+ * A fork the rules refused — as opposed to an infrastructure failure inside the
+ * adapter. HTTP callers map this to a 4xx carrying the message and let anything
+ * else surface as a sanitized 500, so a dropped DB connection is never reported
+ * to an operator as "your fork was refused" (nor its raw message leaked).
+ */
+export class ResumeRefusedError extends Error {}
+
 /** Index (in visit order) of the latest COMPLETED row for `nodeId`, or -1 when
  *  the line never finished that node. */
 export function resumeCutoffIndex(
@@ -52,52 +60,52 @@ export function resolveResumePrefix(
 
   enforceTrue(
     resumeFrom,
-    Error,
+    ResumeRefusedError,
     "resolveResumePrefix called without resumeFrom",
   );
   enforceTrue(
     input.branch === undefined,
-    Error,
+    ResumeRefusedError,
     "resume-from start inherits branch from the source line — do not pass it",
   );
   enforceTrue(
     input.taskId === undefined,
-    Error,
+    ResumeRefusedError,
     "resume-from start inherits taskId from the source line — do not pass it",
   );
   enforceTrue(
     input.definitionHash,
-    Error,
+    ResumeRefusedError,
     "resume-from start requires definitionHash — the current definition's content hash",
   );
   enforceTrue(
     source,
-    Error,
+    ResumeRefusedError,
     `resume-from source line "${resumeFrom.lineId}" not found`,
   );
   enforceTrue(
     source.repo === input.repo,
-    Error,
+    ResumeRefusedError,
     `resume-from source line "${source.id}" belongs to repo "${source.repo}", not "${input.repo}"`,
   );
   enforceTrue(
     source.definitionName === input.definitionName,
-    Error,
+    ResumeRefusedError,
     `resume-from source line "${source.id}" ran definition "${source.definitionName}", not "${input.definitionName}"`,
   );
   enforceTrue(
     source.status === "finished" || source.status === "failed",
-    Error,
+    ResumeRefusedError,
     `resume-from source line "${source.id}" is still ${source.status} — only a finished or failed line can be forked`,
   );
   enforceTrue(
     source.definitionHash,
-    Error,
+    ResumeRefusedError,
     `resume-from source line "${source.id}" predates definition hashing — backfill pipeline.assembly_lines.definition_hash before forking it`,
   );
   enforceTrue(
     source.definitionHash === input.definitionHash,
-    Error,
+    ResumeRefusedError,
     `resume-from source line "${source.id}": definition "${source.definitionName}" has changed since that run (${short(source.definitionHash)} ≠ ${short(input.definitionHash)})`,
   );
 
@@ -105,7 +113,7 @@ export function resolveResumePrefix(
 
   enforceTrue(
     cutoff >= 0,
-    Error,
+    ResumeRefusedError,
     `resume-from source line "${source.id}" has no completed "${resumeFrom.nodeId}" node to fork from`,
   );
 
@@ -114,7 +122,7 @@ export function resolveResumePrefix(
 
   enforceTrue(
     !unfinished,
-    Error,
+    ResumeRefusedError,
     `resume-from source line "${source.id}" has an unfinished "${unfinished?.nodeId}" node inside the prefix — its history is not replayable`,
   );
 

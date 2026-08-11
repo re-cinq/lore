@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import AssemblyLineRunView from "./AssemblyLineRunView";
 import { implementationDefinition } from "@/lib/builtin-definitions";
 import type {
@@ -196,7 +196,10 @@ describe("AssemblyLineRunView", () => {
       />,
     );
 
-    expect(screen.getAllByText("Inherited")).toHaveLength(1);
+    const steps = screen.getAllByRole("listitem");
+
+    expect(within(steps[0]).getByText("Inherited")).toBeInTheDocument();
+    expect(within(steps[1]).queryByText("Inherited")).not.toBeInTheDocument();
   });
 
   it("omits the inherited marker on a plain run", () => {
@@ -212,7 +215,7 @@ describe("AssemblyLineRunView", () => {
   });
 
   it("offers Rerun from here on the latest row per completed node of a terminal forkable run", () => {
-    const { container } = render(
+    render(
       <AssemblyLineRunView
         run={run({ status: "failed", outcome: "error" })}
         nodes={[
@@ -225,14 +228,13 @@ describe("AssemblyLineRunView", () => {
       />,
     );
 
-    expect(
-      screen.getAllByRole("button", { name: "Rerun from here" }),
-    ).toHaveLength(2);
-    const nodeIds = Array.from(
-      container.querySelectorAll('input[name="node_id"]'),
-    ).map((input) => (input as HTMLInputElement).value);
+    const steps = screen.getAllByRole("listitem");
+    const buttonIn = (step: HTMLElement) =>
+      within(step).queryByRole("button", { name: "Rerun from here" });
 
-    expect(nodeIds).toEqual(["validate", "implement"]);
+    expect(buttonIn(steps[0])).not.toBeInTheDocument();
+    expect(buttonIn(steps[1])).toBeInTheDocument();
+    expect(buttonIn(steps[2])).toBeInTheDocument();
   });
 
   it("offers no rerun on a running run even when forkable", () => {
@@ -264,7 +266,7 @@ describe("AssemblyLineRunView", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("offers no rerun on a still-open node row", () => {
+  it("offers no rerun for a node that never completed a row", () => {
     render(
       <AssemblyLineRunView
         run={run({ status: "failed", outcome: "error" })}
@@ -277,6 +279,31 @@ describe("AssemblyLineRunView", () => {
     expect(
       screen.queryByRole("button", { name: "Rerun from here" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("offers the rerun on a node's latest completed row when its final row is still open", () => {
+    const { container } = render(
+      <AssemblyLineRunView
+        run={run({ status: "failed", outcome: "error" })}
+        nodes={[
+          node({ nodeId: "implement", iteration: 1 }),
+          node({ nodeId: "implement", iteration: 2, outcome: null }),
+        ]}
+        definition={implementationDefinition}
+        forkable
+      />,
+    );
+
+    expect(
+      screen.getAllByRole("button", { name: "Rerun from here" }),
+    ).toHaveLength(1);
+    const steps = container.querySelectorAll("li");
+
+    expect(
+      within(steps[0] as HTMLElement).getByRole("button", {
+        name: "Rerun from here",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("builds the PR link for a code-review run with no task", () => {

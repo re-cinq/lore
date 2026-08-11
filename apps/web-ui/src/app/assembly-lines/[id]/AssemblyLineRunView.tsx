@@ -49,10 +49,17 @@ export default function AssemblyLineRunView({
   const steps = stepViews(definition, nodes, run.reason);
   // Only a terminal line forks (FR3), and only from a completed node row (FR2)
   // — the port re-validates, but offering a button it would refuse is noise.
-  // One button per node, on its latest row: forking a node always resumes from
-  // its LATEST completed iteration, so earlier rows would duplicate it.
+  // One button per node, on its latest COMPLETED row (not its latest row): a
+  // line that died mid-node leaves an open final row, and the port still forks
+  // from the node's latest completed iteration underneath it.
   const rerunnable = forkable && ["finished", "failed"].includes(run.status);
-  const lastRowIndexByNode = new Map(steps.map((step, i) => [step.nodeId, i]));
+  const lastCompletedRowByNode = new Map<string, number>();
+
+  steps.forEach((step, i) => {
+    if (step.outcome !== null) {
+      lastCompletedRowByNode.set(step.nodeId, i);
+    }
+  });
 
   return (
     <div>
@@ -153,9 +160,7 @@ export default function AssemblyLineRunView({
                     {step.commitSha.substring(0, 7)}
                   </a>
                 ) : null}
-                {rerunnable &&
-                step.outcome !== null &&
-                lastRowIndexByNode.get(step.nodeId) === i ? (
+                {rerunnable && lastCompletedRowByNode.get(step.nodeId) === i ? (
                   <RerunFromNodeButton runId={run.id} nodeId={step.nodeId} />
                 ) : null}
               </div>

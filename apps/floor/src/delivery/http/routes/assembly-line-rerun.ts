@@ -15,6 +15,7 @@
 
 import Boom from "@hapi/boom";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { ResumeRefusedError } from "@re-cinq/lore-shared/project/assembly-lines/resume.js";
 import {
   definitionHash,
   loadBuiltinAssemblyLines,
@@ -23,10 +24,13 @@ import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
 import type { ServerRoute } from "@hapi/hapi";
 import { assemblyLines } from "../../../kernel/queues.js";
 import { projectFor } from "../../../composition/project-boot.js";
+import { writeAuditLog } from "../../../jobs/lib/audit.js";
 import { rawBody, parseJsonBody } from "../raw-body.js";
 
 interface RerunBody {
   node_id?: string;
+  /** Who clicked — the proxy's session identity, recorded in the audit log. */
+  actor?: string;
 }
 
 export function assemblyLineRerunRoute(
@@ -61,17 +65,45 @@ export function assemblyLineRerunRoute(
       );
 
       const project = await projectFor(row.repo);
+      let started: string;
 
       try {
-        const started = await project.assemblyLines.start(row.definitionName, {
+        started = await project.assemblyLines.start(row.definitionName, {
           resumeFrom: { lineId: row.id, nodeId },
           definitionHash: definitionHash(definition),
         });
-
-        return h.response({ started }).code(202);
       } catch (err) {
-        throw Boom.conflict((err as Error).message);
+        // Only the rules' refusal maps to a 4xx with its message; anything else
+        // (DB down, adapter bug) propagates as a sanitized 500 — reporting it
+        // as "refused" would misclassify an outage and leak internals.
+        if (err instanceof ResumeRefusedError) {
+          throw Boom.conflict(err.message);
+        }
+        throw err;
       }
+
+      // A fork spends budget and pushes to an existing branch — record who
+      // pulled the trigger. Best-effort: losing the audit row must not orphan
+      // the already-started line into an error response.
+      try {
+        await writeAuditLog({
+          event_type: "assembly_line_rerun",
+          repo: row.repo,
+          actor: body.actor ?? null,
+          payload: {
+            assembly_line_id: started,
+            resumed_from_line_id: row.id,
+            resumed_from_node_id: nodeId,
+          },
+        });
+      } catch (err) {
+        console.warn(
+          "[assembly-line-rerun] audit write failed:",
+          (err as Error).message,
+        );
+      }
+
+      return h.response({ started }).code(202);
     },
   };
 }

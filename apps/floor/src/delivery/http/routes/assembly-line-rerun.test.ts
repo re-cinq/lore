@@ -1,15 +1,20 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import Hapi from "@hapi/hapi";
 import { definitionHash } from "@re-cinq/lore-assembly-lines";
+import { ResumeRefusedError } from "@re-cinq/lore-shared/project/assembly-lines/resume.js";
 import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
 import { registerBearerAuth } from "../auth.js";
 import { assemblyLineRerunRoute } from "./assembly-line-rerun.js";
 import { assemblyLines } from "../../../kernel/queues.js";
 import { projectFor } from "../../../composition/project-boot.js";
+import { writeAuditLog } from "../../../jobs/lib/audit.js";
 
 vi.mock("../../../kernel/queues.js", () => ({ assemblyLines: vi.fn() }));
 vi.mock("../../../composition/project-boot.js", () => ({
   projectFor: vi.fn(),
+}));
+vi.mock("../../../jobs/lib/audit.js", () => ({
+  writeAuditLog: vi.fn(async () => undefined),
 }));
 
 const ORIG = process.env.LORE_INGEST_TOKEN;
@@ -140,11 +145,46 @@ describe("POST /api/assembly-lines/{id}/rerun", () => {
     });
   });
 
+  it("records who forked what in the audit log", async () => {
+    process.env.LORE_INGEST_TOKEN = "ingest-secret";
+    mockPorts();
+
+    await post(
+      rerunServer(),
+      JSON.stringify({ node_id: "implement", actor: "loredana" }),
+    );
+
+    expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith({
+      event_type: "assembly_line_rerun",
+      repo: "re-cinq/lore",
+      actor: "loredana",
+      payload: {
+        assembly_line_id: "line-2",
+        resumed_from_line_id: "line-1",
+        resumed_from_node_id: "implement",
+      },
+    });
+  });
+
+  it("still returns 202 when the audit write fails", async () => {
+    process.env.LORE_INGEST_TOKEN = "ingest-secret";
+    mockPorts();
+    vi.mocked(writeAuditLog).mockRejectedValueOnce(new Error("db down"));
+
+    const res = await post(
+      rerunServer(),
+      JSON.stringify({ node_id: "implement" }),
+    );
+
+    expect(res.statusCode).toBe(202);
+    expect(res.result).toEqual({ started: "line-2" });
+  });
+
   it("maps a port refusal to 409 carrying the refusal message", async () => {
     process.env.LORE_INGEST_TOKEN = "ingest-secret";
     mockPorts({
       start: vi.fn(async () => {
-        throw new Error(
+        throw new ResumeRefusedError(
           "resumeFrom definition hash mismatch: the definition changed since line-1 ran",
         );
       }),
@@ -159,5 +199,22 @@ describe("POST /api/assembly-lines/{id}/rerun", () => {
     expect(res.result).toMatchObject({
       message: expect.stringContaining("hash mismatch"),
     });
+  });
+
+  it("maps a non-refusal failure to a sanitized 500, not a 409", async () => {
+    process.env.LORE_INGEST_TOKEN = "ingest-secret";
+    mockPorts({
+      start: vi.fn(async () => {
+        throw new Error("connection to 10.0.0.7:5432 refused");
+      }),
+    });
+
+    const res = await post(
+      rerunServer(),
+      JSON.stringify({ node_id: "implement" }),
+    );
+
+    expect(res.statusCode).toBe(500);
+    expect(JSON.stringify(res.result)).not.toContain("10.0.0.7");
   });
 });

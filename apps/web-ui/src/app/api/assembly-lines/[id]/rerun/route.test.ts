@@ -4,12 +4,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const getServerSession = vi.fn();
 const fetchAssemblyLineRun = vi.fn();
-const userCanAccessRepo = vi.fn();
+const userCanWriteRepo = vi.fn();
 
 vi.mock("next-auth", () => ({ getServerSession }));
 vi.mock("@/lib/auth-options", () => ({ authOptions: {} }));
 vi.mock("@/lib/assembly-line-runs", () => ({ fetchAssemblyLineRun }));
-vi.mock("@/lib/user-repo-access", () => ({ userCanAccessRepo }));
+vi.mock("@/lib/user-repo-access", () => ({ userCanWriteRepo }));
 
 const { POST, dynamic } = await import("./route");
 
@@ -23,14 +23,16 @@ function postRequest(nodeId = "review") {
   return new Request("http://ui/api/assembly-lines/run-1/rerun", {
     method: "POST",
     body: form,
-    headers: { referer: "http://ui/assembly-lines/run-1" },
   });
 }
 
 function authorized() {
-  getServerSession.mockResolvedValue({ accessToken: "gho_x" });
+  getServerSession.mockResolvedValue({
+    accessToken: "gho_x",
+    user: { name: "loredana" },
+  });
   fetchAssemblyLineRun.mockResolvedValue({ id: "run-1", repo: "re-cinq/lore" });
-  userCanAccessRepo.mockResolvedValue(true);
+  userCanWriteRepo.mockResolvedValue(true);
 }
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -75,13 +77,13 @@ describe("auth ladder", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("returns 403 when the user cannot access the run's repo", async () => {
+  it("returns 403 when the user lacks write access to the run's repo", async () => {
     getServerSession.mockResolvedValue({ accessToken: "gho_x" });
     fetchAssemblyLineRun.mockResolvedValue({
       id: "run-1",
-      repo: "re-cinq/private",
+      repo: "re-cinq/public",
     });
-    userCanAccessRepo.mockResolvedValue(false);
+    userCanWriteRepo.mockResolvedValue(false);
 
     const res = await POST(postRequest(), { params });
 
@@ -107,7 +109,7 @@ describe("forwarding", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("forwards node_id to the Floor rerun endpoint with the ingest bearer", async () => {
+  it("forwards node_id and the session actor to the Floor with the ingest bearer", async () => {
     authorized();
 
     await POST(postRequest("review"), { params });
@@ -117,21 +119,21 @@ describe("forwarding", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({ Authorization: "Bearer tok" }),
-        body: JSON.stringify({ node_id: "review" }),
+        body: JSON.stringify({ node_id: "review", actor: "loredana" }),
       }),
     );
   });
 
-  it("redirects to the new fork's run page on success", async () => {
+  it("returns the fork's line id on success", async () => {
     authorized();
 
     const res = await POST(postRequest(), { params });
 
-    expect(res.status).toBe(303);
-    expect(res.headers.get("location")).toBe("http://ui/assembly-lines/run-2");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ started: "run-2" });
   });
 
-  it("surfaces a Floor refusal as 502 with the upstream message", async () => {
+  it("passes a Floor refusal through as 409 with the upstream message", async () => {
     authorized();
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ message: "definition hash mismatch" }), {
@@ -141,9 +143,19 @@ describe("forwarding", () => {
 
     const res = await POST(postRequest(), { params });
 
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "definition hash mismatch" });
+  });
+
+  it("maps any other Floor failure to 502 without echoing its body", async () => {
+    authorized();
+    fetchMock.mockResolvedValue(
+      new Response("stack trace soup", { status: 500 }),
+    );
+
+    const res = await POST(postRequest(), { params });
+
     expect(res.status).toBe(502);
-    expect(await res.json()).toMatchObject({
-      error: expect.stringContaining("definition hash mismatch"),
-    });
+    expect(await res.json()).toEqual({ error: "Floor returned 500" });
   });
 });
