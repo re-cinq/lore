@@ -1,17 +1,17 @@
 ---
 adr_number: 43
-title: "Spend freshness: hourly sync + llm_calls, not per-request API reads"
+title: "Spend freshness: daily sync + llm_calls, not per-request API reads"
 status: shipped
 date: 2026-08-10
 deciders: []
 domains: [floor, web-ui, cost, architecture]
 ---
 
-# ADR-043: Spend freshness — hourly sync + llm_calls, not per-request API reads
+# ADR-043: Spend freshness — daily sync + llm_calls, not per-request API reads
 
 Anthropic's Usage & Cost Admin API only changes once per day, so `/spend`'s
-billed figures are kept fresh by an hourly database sync rather than
-per-page-load API reads, and everything current-day comes from Lore's own
+billed figures come from a once-daily database sync rather than per-page-load
+API reads, and everything current-day comes from Lore's own
 verified-token-exact `pipeline.llm_calls`.
 
 ## Context
@@ -55,11 +55,10 @@ day-old data.
 
 ## Decision
 
-1. **The hourly `anthropic_cost_sync` cron is the only Anthropic caller**
-   (`15 * * * *`). ~23 of 24 runs are no-op upserts; yesterday's bucket lands
-   within an hour of the API publishing it, and a failed run self-heals on
-   the next tick. The per-page live read, its Floor route
-   (`GET /api/anthropic-cost/live`), and the web-ui mirror rollups
+1. **The daily `anthropic_cost_sync` cron (`0 7 * * *`) is the only
+   Anthropic caller.** The cost report changes once a day, so a single sync
+   after the day settles is sufficient. The per-page live read, its Floor
+   route (`GET /api/anthropic-cost/live`), and the web-ui mirror rollups
    (`aggregateMonthToDate` and friends) are removed. ([validated by `anthropic-cost-sync.test.ts:28`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L28), [`anthropic-cost-sync.test.ts:34`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L34), [`anthropic-cost-sync.test.ts:40`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L40))
 2. **`/spend` reads the database only.** Billed figures come from
    `pipeline.anthropic_cost_daily`; everything current-day comes from
@@ -74,11 +73,15 @@ day-old data.
 
 - One read path and one source of truth per figure; the TS/SQL parity mirror
   and its drift-guard burden are gone.
-- Billed freshness is within one hour of the best the API can provide;
-  today's spend is live to the second via `llm_calls`.
+- Yesterday's billed spend appears at 07:00 UTC. Between UTC midnight and
+  07:00 it is in neither the billed rows nor the today-line — an accepted
+  trade-off for not running ~23 no-op syncs a day; today's spend is live to
+  the second via `llm_calls` throughout.
 - The admin key is exercised by the cron only — no request path touches it.
 - A cron outage now surfaces as staleness rather than being masked by an
-  on-demand fallback; that is deliberate (job_runs tracks failures).
+  on-demand fallback; that is deliberate (job_runs tracks failures). At a
+  daily cadence a single missed run costs a day of freshness until the next
+  tick or a manual `kubectl create job --from=cronjob/...`.
 - If Anthropic ever publishes sub-daily or in-progress cost data, the sync
   window (`reportWindow`) is the single place to pick it up.
 
@@ -95,3 +98,20 @@ day-old data.
   redundant with `llm_calls` for the same reason; revisit only if `llm_calls`
   coverage ever drifts (a daily closed-days reconciliation of computed vs
   billed would expose that).
+
+## Amendment (2026-08-11): why the cadence stayed daily
+
+The decision as first merged set the cron hourly (`15 * * * *`). Two things
+followed. First, the schedule change never reached the cluster: the Helm
+release's stored values carry a legacy `lore-floor` block that shadows chart
+`values.yaml` edits under `--reset-then-reuse-values`, and the CI deploy
+overlay re-asserts only `.resources` — the same class as the 2026-08-03
+memory-limit incident. The cluster kept running `0 7 * * *` while the chart
+said otherwise. Second, on review the operator preferred the daily cadence:
+the data changes once a day, and one settled sync at 07:00 UTC was judged
+worth more than 23 no-op runs buying a few hours of day-boundary freshness.
+The chart was reverted to `0 7 * * *`, making code match the running cluster;
+the midnight–07:00 gap for yesterday's figures is accepted and documented on
+the schedule entry. The overlay's cronJobs blind spot is tracked on
+issue #1120 (mechanism 3, "Helm stored-values shadowing") — any future
+`cronJobs` edit will silently no-op until the overlay covers it.

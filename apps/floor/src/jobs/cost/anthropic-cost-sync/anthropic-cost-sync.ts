@@ -109,7 +109,7 @@ function upsertRow(row: AnthropicCostDailyRow): Promise<void> {
 }
 
 /**
- * The 31-day cost+usage pull behind the hourly sync. Extracted from the job
+ * The 31-day cost+usage pull behind the daily sync. Extracted from the job
  * body so the window/bucket/merge mechanics are testable without a database.
  */
 export async function fetchAnthropicCostRows(

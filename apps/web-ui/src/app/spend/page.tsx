@@ -16,10 +16,10 @@ const MTD = "created_at >= date_trunc('month', current_date)";
 
 export default async function SpendPage() {
   // Anthropic's authoritative billed cost from pipeline.anthropic_cost_daily,
-  // written by the hourly anthropic_cost_sync cron. The cost report only ever
-  // changes once a day (buckets close at UTC midnight and the in-progress day
-  // is not emitted), so an hourly sync keeps this as fresh as the API allows —
-  // no per-request Anthropic call can do better. queryAllowMissing degrades to
+  // written by the daily anthropic_cost_sync cron (07:00 UTC). The cost report
+  // only ever changes once a day (buckets close at UTC midnight and the
+  // in-progress day is not emitted), so a daily sync is sufficient and no
+  // per-request Anthropic call could show more. queryAllowMissing degrades to
   // [] when the migration/table is absent, and the view hides these sections.
   const orgMtdRow = (
     await queryAllowMissing<OrgMtdRow>(
