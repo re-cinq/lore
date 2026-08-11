@@ -10,6 +10,7 @@ import GapSections, {
 import RunningCard from "./RunningCard";
 import FailureBlock from "./FailureBlock";
 import { isPlanningActive } from "../feature-status";
+import { isRewind, lineageLabel, rewindOptions } from "@/lib/round-picker";
 import type { FeatureRunPayload } from "@/lib/feature-run";
 import type {
   FeatureWithIterations,
@@ -49,7 +50,10 @@ export default function PlanningWizard({
   repo: string;
   feature: FeatureWithIterations;
   timeoutMinutes: number;
-  refine: (userAnswers: SectionAnswers) => Promise<void>;
+  refine: (
+    userAnswers: SectionAnswers,
+    fromIteration?: number,
+  ) => Promise<void>;
   finalize: () => Promise<void>;
   onCreateDraft: (title: string, prompt: string) => void;
 }) {
@@ -59,6 +63,8 @@ export default function PlanningWizard({
     latestIteration: feature.iterations[feature.iterations.length - 1] ?? null,
   });
   const [feedback, setFeedback] = useState<FeedbackState>(emptyFeedback());
+  /** Which round the next one continues from; undefined = the latest. */
+  const [continueFrom, setContinueFrom] = useState<number | undefined>();
   const [pending, startTransition] = useTransition();
   const [finalizing, setFinalizing] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -130,10 +136,16 @@ export default function PlanningWizard({
     router.refresh();
   }, [latestReady, latest?.iteration, router]);
 
+  // From the server-rendered feature, refreshed by router.refresh() when a round
+  // lands — the poll payload carries only the latest iteration, not the history.
+  const rounds = rewindOptions(feature.iterations);
+  const rewinding = isRewind(rounds, continueFrom);
+
   const submitRefine = () =>
     startTransition(async () => {
-      await refine(toUserAnswers(feedback));
+      await refine(toUserAnswers(feedback), continueFrom);
       setFeedback(emptyFeedback());
+      setContinueFrom(undefined);
       await fetchLatest();
     });
 
@@ -223,7 +235,9 @@ export default function PlanningWizard({
           Finalizing — creating the spec PR…
         </p>
       )}
-      <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+      <div
+        style={{ display: "flex", gap: 10, marginTop: 8, alignItems: "center" }}
+      >
         <button
           type="button"
           disabled={pending || finalizing}
@@ -239,7 +253,31 @@ export default function PlanningWizard({
         >
           {finalizing ? "Finalizing…" : "Proceed & finalize"}
         </button>
+        {rounds.length > 1 && (
+          <label className="meta" style={{ marginLeft: "auto" }}>
+            Continue from{" "}
+            <select
+              value={continueFrom ?? rounds[0].iteration}
+              disabled={pending || finalizing}
+              onChange={(e) => setContinueFrom(Number(e.target.value))}
+            >
+              {rounds.map((r) => (
+                <option key={r.iteration} value={r.iteration}>
+                  {lineageLabel(r)
+                    ? `${r.label} — ${lineageLabel(r)}`
+                    : r.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
+      {rewinding && (
+        <p className="meta" role="status" style={{ marginTop: 6 }}>
+          This round continues round {continueFrom} — rounds after it stay on
+          record but are not carried forward.
+        </p>
+      )}
     </div>
   );
 }

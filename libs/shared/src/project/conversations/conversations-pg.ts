@@ -68,7 +68,7 @@ export class PgConversations implements ConversationsPort {
 
   async latestFor(
     thread: ConversationThread,
-    opts: { excludeAssemblyLineId?: string } = {},
+    opts: { excludeAssemblyLineId?: string; fromAssemblyLineId?: string } = {},
   ): Promise<ConversationRecord | null> {
     // `object_key IS NOT NULL` is the load-bearing clause: a reserved id whose run
     // never uploaded cannot be resumed, and offering it would send the next pod
@@ -79,6 +79,7 @@ export class PgConversations implements ConversationsPort {
         WHERE key_kind = $1 AND key_value = $2 AND node_id = $3
           AND object_key IS NOT NULL
           AND ($4::uuid IS NULL OR assembly_line_id IS DISTINCT FROM $4::uuid)
+          AND ($5::uuid IS NULL OR assembly_line_id = $5::uuid)
         ORDER BY created_at DESC
         LIMIT 1`,
       [
@@ -86,6 +87,7 @@ export class PgConversations implements ConversationsPort {
         thread.value,
         thread.nodeId,
         opts.excludeAssemblyLineId ?? null,
+        opts.fromAssemblyLineId ?? null,
       ],
     );
 

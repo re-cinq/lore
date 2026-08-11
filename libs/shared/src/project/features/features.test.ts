@@ -52,10 +52,10 @@ describe("Features facade", () => {
   it("stamps the bound repo on appendIteration", async () => {
     const { port, calls } = recordingPort();
 
-    await new Features("octo/repo", port).appendIteration("f1", { a: 1 });
+    await new Features("octo/repo", port).appendIteration("f1", { a: 1 }, 2);
     expect(calls[0]).toEqual({
       op: "appendIteration",
-      args: ["octo/repo", "f1", { a: 1 }],
+      args: ["octo/repo", "f1", { a: 1 }, 2],
     });
   });
 

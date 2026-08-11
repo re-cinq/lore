@@ -42,6 +42,8 @@ export interface FeatureIterationRow {
   status: IterationStatus;
   user_answers: SectionAnswers | null;
   gap_result: GapResult | null;
+  /** The round this one forked from — set only when the author rewound. */
+  parent_iteration?: number | null;
   created_at: string;
 }
 

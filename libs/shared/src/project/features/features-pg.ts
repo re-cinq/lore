@@ -100,6 +100,7 @@ export class PgFeatures implements FeaturesPort {
     repo: string,
     id: string,
     userAnswers: unknown,
+    parentIteration: number | null = null,
   ): Promise<FeatureIteration> {
     const { rows } = await this.pool.query(
       `UPDATE lore.features
@@ -114,10 +115,15 @@ export class PgFeatures implements FeaturesPort {
       .current_iteration;
     const { rows: inserted } = await this.pool.query<FeatureIteration>(
       `INSERT INTO lore.feature_iterations
-         (feature_id, iteration, status, user_answers)
-       VALUES ($1, $2, 'running', $3)
+         (feature_id, iteration, status, user_answers, parent_iteration)
+       VALUES ($1, $2, 'running', $3, $4)
        RETURNING *`,
-      [id, iteration, userAnswers == null ? null : JSON.stringify(userAnswers)],
+      [
+        id,
+        iteration,
+        userAnswers == null ? null : JSON.stringify(userAnswers),
+        parentIteration,
+      ],
     );
 
     return inserted[0] as FeatureIteration;

@@ -77,7 +77,10 @@ export default function FeatureDetailView({
   feature: FeatureWithIterations;
   timeoutMinutes: number;
   decomposition: { stories: DecompStoryGroup[]; total: number };
-  refine: (userAnswers: SectionAnswers) => Promise<void>;
+  refine: (
+    userAnswers: SectionAnswers,
+    fromIteration?: number,
+  ) => Promise<void>;
   finalize: () => Promise<void>;
   split: (title: string, prompt: string) => Promise<void>;
   del: () => Promise<void>;

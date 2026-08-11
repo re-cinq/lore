@@ -149,6 +149,75 @@ describe("features routes", () => {
     expect(res.result).toEqual({ task_id: "fin" });
   });
 
+  it("rewinds to the round the author chose, carrying its draft and its task", async () => {
+    const round1 = {
+      ...readyIteration({
+        sections: [{ title: "Overview", content: "ROUND ONE" }],
+        draft_spec_markdown: "d1",
+      }),
+      iteration: 1,
+      task_id: "task-round-1",
+    };
+    const round2 = {
+      ...readyIteration({
+        sections: [{ title: "Overview", content: "ROUND TWO" }],
+        draft_spec_markdown: "d2",
+      }),
+      iteration: 2,
+      task_id: "task-round-2",
+    };
+    const features = useProject(
+      fakeFeatures({
+        get: vi
+          .fn()
+          .mockResolvedValue({ id: "f1", iterations: [round1, round2] }),
+        appendIteration: vi.fn().mockResolvedValue({ id: "it3", iteration: 3 }),
+      }),
+    );
+
+    vi.mocked(createTask).mockResolvedValue({ task_id: "t3" } as never);
+
+    const res = await req("POST", `${base}/f1/iterations`, {
+      from_iteration: 1,
+    });
+
+    expect(res.statusCode).toBe(202);
+    // The new round records where it forked from — without it the history is a
+    // list pretending to be a tree.
+    expect(features.appendIteration).toHaveBeenCalledWith("f1", null, 1);
+    const bundle = vi.mocked(createTask).mock.calls[0][4] as Record<
+      string,
+      unknown
+    >;
+
+    expect(bundle.resume_from_task).toBe("task-round-1");
+    const prompt = vi.mocked(createTask).mock.calls[0][0];
+
+    expect(prompt).toContain("ROUND ONE");
+    expect(prompt).not.toContain("ROUND TWO");
+  });
+
+  it("rejects rewinding to a round that produced no result", async () => {
+    useProject(
+      fakeFeatures({
+        get: vi.fn().mockResolvedValue({
+          id: "f1",
+          iterations: [
+            { ...readyIteration(null), iteration: 1, status: "failed" },
+          ],
+        }),
+      }),
+    );
+    const res = await req("POST", `${base}/f1/iterations`, {
+      from_iteration: 1,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.result as { error: string }).error).toMatch(
+      /produced no result/,
+    );
+  });
+
   it("refuses to split when the latest ready round has no split suggestion", async () => {
     useProject(
       fakeFeatures({

@@ -13,6 +13,7 @@ import {
   roundInFlight,
   canFinalize,
   latestReadyGap,
+  resolveRoundBasis,
 } from "@re-cinq/lore-shared/project/features/features-port.js";
 import { projectFor } from "../../../platform/project-boot.js";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
@@ -64,6 +65,7 @@ async function kickPlanning(
   iteration: number,
   description: string,
   roundFeedback?: string,
+  resumeFromTask?: string | null,
 ): Promise<string> {
   const task = await createTask(
     description,
@@ -76,6 +78,7 @@ async function kickPlanning(
       feature_id: featureId,
       iteration,
       ...(roundFeedback ? { round_feedback: roundFeedback } : {}),
+      ...(resumeFromTask ? { resume_from_task: resumeFromTask } : {}),
     },
     "immediate",
   );
@@ -184,7 +187,10 @@ export function featuresRoutes(): ServerRoute[] {
         run(h, async () => {
           const repo = repoOf(request.params);
           const id = request.params.id;
-          const body = request.payload as { user_answers?: unknown };
+          const body = request.payload as {
+            user_answers?: unknown;
+            from_iteration?: unknown;
+          };
           const features = (await projectFor(repo)).features;
           const feature = await features.get(id);
 
@@ -206,20 +212,38 @@ export function featuresRoutes(): ServerRoute[] {
           }
 
           const answers = parseSectionAnswers(body.user_answers);
-          const priorGap = latestReadyGap(feature.iterations);
+          // Rewind: continue from the round the author picked rather than the
+          // latest. Both the prompt's draft and the conversation to resume come
+          // from that ONE round, so a rewind cannot half-happen.
+          const basis = resolveRoundBasis(
+            feature.iterations,
+            typeof body.from_iteration === "number"
+              ? body.from_iteration
+              : undefined,
+          );
+
+          if (!basis.ok) {
+            return h.response({ error: basis.error }).code(400);
+          }
+          const priorGap = basis.basis?.gap_result ?? null;
           const description = composePlanningPrompt({
             title: feature.title,
             originalPrompt: feature.original_prompt,
             priorGap,
             answers,
           });
-          const row = await features.appendIteration(id, answers);
+          const row = await features.appendIteration(
+            id,
+            answers,
+            basis.basis?.iteration ?? null,
+          );
           const taskId = await kickPlanning(
             repo,
             id,
             row.iteration,
             description,
             composeRoundFeedback({ round: row.iteration, priorGap, answers }),
+            basis.basis?.task_id ?? null,
           );
 
           await features.attachIterationTask(id, row.iteration, taskId);

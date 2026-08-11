@@ -58,11 +58,21 @@ export function createFeature(repo: string, title: string, prompt: string) {
   return post<{ id: string; task_id: string }>(repo, "", { title, prompt });
 }
 
-export function refineFeature(repo: string, id: string, userAnswers: unknown) {
+/** Start a round. `fromIteration` REWINDS: the new round continues that round's
+ *  draft and conversation instead of the latest, and records it as its parent. */
+export function refineFeature(
+  repo: string,
+  id: string,
+  userAnswers: unknown,
+  fromIteration?: number,
+) {
   return post<{ task_id: string; iteration: number }>(
     repo,
     `/${id}/iterations`,
-    { user_answers: userAnswers },
+    {
+      user_answers: userAnswers,
+      ...(fromIteration === undefined ? {} : { from_iteration: fromIteration }),
+    },
   );
 }
 

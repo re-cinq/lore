@@ -81,3 +81,73 @@ describe("ConversationsPort", () => {
     expect(await store.byConversationId("missing")).toBeNull();
   });
 });
+
+describe("ConversationsPort rewind", () => {
+  const thread = {
+    kind: "args" as const,
+    value: "feature-9",
+    nodeId: "analyze",
+  };
+
+  it("resumes the round the author chose, not the newest one", async () => {
+    // Rewind is exactly this: rounds 3 and 4 exist, and continuing from round 2
+    // means resuming round 2's transcript. Fork-per-round is what leaves it there
+    // to resume — resume-in-place would have overwritten it.
+    const conversations = new InMemoryConversations();
+
+    for (const [line, id] of [
+      ["line-2", "round-2"],
+      ["line-3", "round-3"],
+      ["line-4", "round-4"],
+    ]) {
+      await conversations.reserve({
+        thread,
+        conversationId: id,
+        assemblyLineId: line,
+      });
+      await conversations.attachArchive(id, `k/${id}.tgz`, 10);
+    }
+
+    expect(
+      await conversations.latestFor(thread, { fromAssemblyLineId: "line-2" }),
+    ).toMatchObject({ conversationId: "round-2" });
+  });
+
+  it("offers nothing when the chosen round never uploaded its state", async () => {
+    // An explicit choice must not silently fall through to the newest round: the
+    // author asked for round 2, and quietly resuming round 4 would look identical
+    // to a rewind that worked.
+    const conversations = new InMemoryConversations();
+
+    await conversations.reserve({
+      thread,
+      conversationId: "round-2",
+      assemblyLineId: "line-2",
+    });
+    await conversations.reserve({
+      thread,
+      conversationId: "round-4",
+      assemblyLineId: "line-4",
+    });
+    await conversations.attachArchive("round-4", "k/round-4.tgz", 10);
+
+    expect(
+      await conversations.latestFor(thread, { fromAssemblyLineId: "line-2" }),
+    ).toBeNull();
+  });
+
+  it("offers nothing when the chosen round belongs to another thread", async () => {
+    const conversations = new InMemoryConversations();
+
+    await conversations.reserve({
+      thread: { kind: "args", value: "feature-OTHER", nodeId: "analyze" },
+      conversationId: "round-2",
+      assemblyLineId: "line-2",
+    });
+    await conversations.attachArchive("round-2", "k/round-2.tgz", 10);
+
+    expect(
+      await conversations.latestFor(thread, { fromAssemblyLineId: "line-2" }),
+    ).toBeNull();
+  });
+});

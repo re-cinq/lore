@@ -48,6 +48,9 @@ export interface FeatureIteration {
   status: IterationStatus;
   user_answers: unknown | null;
   gap_result: GapResult | null;
+  /** The round this one continued from — set when the author rewound to an earlier
+   *  round instead of the latest. Null for a normal next round. */
+  parent_iteration: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -105,6 +108,7 @@ export interface FeaturesPort {
     repo: string,
     id: string,
     userAnswers: unknown,
+    parentIteration?: number | null,
   ): Promise<FeatureIteration>;
   /** Link a spawned planning task to its iteration row (repo-scoped). */
   attachIterationTask(
@@ -273,4 +277,45 @@ export function slugifyFeatureTitle(title: string): string {
     .slice(0, 60);
 
   return slug || "feature";
+}
+
+/** The round a new round builds on: the one the author rewound to, or the latest
+ *  ready one. A rewind target that is not a READY round is rejected rather than
+ *  silently ignored — continuing from a failed round means continuing from nothing,
+ *  and the author would see a fresh start dressed as a rewind. */
+export type RoundBasis =
+  { ok: true; basis: FeatureIteration | null } | { ok: false; error: string };
+
+export function resolveRoundBasis(
+  iterations: FeatureIteration[],
+  fromIteration?: number,
+): RoundBasis {
+  if (fromIteration === undefined) {
+    return { ok: true, basis: latestReadyIteration(iterations) };
+  }
+  const chosen = iterations.find((it) => it.iteration === fromIteration);
+
+  if (!chosen) {
+    return { ok: false, error: `no round ${fromIteration} for this feature` };
+  }
+
+  return chosen.status === "ready" && chosen.gap_result
+    ? { ok: true, basis: chosen }
+    : {
+        ok: false,
+        error: `round ${fromIteration} produced no result to continue from`,
+      };
+}
+
+/** The newest round that produced a result, or null. */
+export function latestReadyIteration(
+  iterations: FeatureIteration[],
+): FeatureIteration | null {
+  for (let i = iterations.length - 1; i >= 0; i--) {
+    if (iterations[i].status === "ready" && iterations[i].gap_result) {
+      return iterations[i];
+    }
+  }
+
+  return null;
 }

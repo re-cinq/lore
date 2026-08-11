@@ -121,3 +121,99 @@ describe("resolveConversation", () => {
     );
   });
 });
+
+describe("resolveConversation rewind", () => {
+  const rewinding: FloorAssemblyLineTask = {
+    ...task,
+    assemblyLineId: "line-5",
+    args: { feature_id: "feature-9", resume_from_task: "task-round-2" },
+  };
+
+  const withLines = (
+    conversations: InMemoryConversations,
+    lines: Record<string, string[]>,
+  ) => ({
+    ...deps(conversations),
+    linesForTask: async (taskId: string) => lines[taskId] ?? [],
+  });
+
+  it("resumes the round the author rewound to, not the newest", async () => {
+    const store = new InMemoryConversations();
+    const thread = {
+      kind: "args" as const,
+      value: "feature-9",
+      nodeId: "analyze",
+    };
+
+    for (const [line, id] of [
+      ["line-2", "round-2"],
+      ["line-4", "round-4"],
+    ]) {
+      await store.reserve({ thread, conversationId: id, assemblyLineId: line });
+      await store.attachArchive(id, `k/${id}.tgz`, 10);
+    }
+
+    expect(
+      await resolveConversation(
+        node(),
+        rewinding,
+        1,
+        withLines(store, { "task-round-2": ["line-2"] }),
+      ),
+    ).toMatchObject({ id: "round-2" });
+  });
+
+  it("starts fresh rather than resuming the newest when the chosen round has no state", async () => {
+    // Falling through to round 4 here would present as a rewind that worked.
+    const store = new InMemoryConversations();
+    const thread = {
+      kind: "args" as const,
+      value: "feature-9",
+      nodeId: "analyze",
+    };
+
+    await store.reserve({
+      thread,
+      conversationId: "round-4",
+      assemblyLineId: "line-4",
+    });
+    await store.attachArchive("round-4", "k/round-4.tgz", 10);
+
+    expect(
+      await resolveConversation(
+        node(),
+        rewinding,
+        1,
+        withLines(store, { "task-round-2": ["line-2"] }),
+      ),
+    ).toMatchObject({ id: "" });
+  });
+
+  it("starts fresh when the chosen round never ran an assembly line", async () => {
+    const store = new InMemoryConversations();
+
+    expect(
+      await resolveConversation(node(), rewinding, 1, withLines(store, {})),
+    ).toMatchObject({ id: "" });
+  });
+
+  it("continues the newest when the run rewound to nothing", async () => {
+    const store = new InMemoryConversations();
+    const thread = {
+      kind: "args" as const,
+      value: "feature-9",
+      nodeId: "analyze",
+    };
+
+    await store.reserve({
+      thread,
+      conversationId: "round-4",
+      assemblyLineId: "line-4",
+    });
+    await store.attachArchive("round-4", "k/round-4.tgz", 10);
+
+    expect(
+      await resolveConversation(node(), task, 1, withLines(store, {})),
+    ).toMatchObject({ id: "round-4" });
+  });
+});

@@ -175,6 +175,10 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
         // telemetry to — not the Floor's own view of itself.
         registryUrl: `${process.env.LORE_FLOOR_POD_URL ?? ""}/api/agent-conversations`,
         headersSecret: "agent-events-auth",
+        // Rewind: `args.resume_from_task` names the round the author chose, and the
+        // conversation it reserved is keyed by the assembly line that ran it.
+        linesForTask: async (taskId) =>
+          (await assemblyLines().listForTask(taskId)).map((line) => line.id),
       }),
     settleTask: (row, outcome, reason) =>
       settleTaskForLine(row, outcome, reason, {

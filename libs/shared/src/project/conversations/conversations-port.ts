@@ -49,14 +49,19 @@ export interface ConversationsPort {
   ): Promise<boolean>;
 
   /**
-   * The most recent SAVED conversation for a thread — the one a new run continues.
-   * Rows without an archive are skipped: a reserved id whose run never uploaded
-   * cannot be resumed, and offering it would send a pod after an object that does
-   * not exist.
+   * The SAVED conversation a new run continues: the most recent one on the thread,
+   * or — when `fromAssemblyLineId` names one — that run's specifically. Rows without
+   * an archive are skipped: a reserved id whose run never uploaded cannot be resumed,
+   * and offering it would send a pod after an object that does not exist.
+   *
+   * An explicit `fromAssemblyLineId` that resolves to nothing returns null rather
+   * than falling back to the newest. That is the REWIND contract: the author asked
+   * for round 2, and quietly resuming round 4 instead would be indistinguishable
+   * from a rewind that worked.
    */
   latestFor(
     thread: ConversationThread,
-    opts?: { excludeAssemblyLineId?: string },
+    opts?: { excludeAssemblyLineId?: string; fromAssemblyLineId?: string },
   ): Promise<ConversationRecord | null>;
 
   /** One conversation by the id the pod was told to save as. */

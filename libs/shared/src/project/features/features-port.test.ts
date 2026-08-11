@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { canFinalize, latestReadyGap } from "./features-port.js";
+import {
+  canFinalize,
+  latestReadyGap,
+  resolveRoundBasis,
+} from "./features-port.js";
 import type { FeatureIteration, FeatureStatus } from "./features-port.js";
 import type { GapResult } from "../../feature-planning/gap-result.js";
 
@@ -18,6 +22,7 @@ function iteration(
     task_id: null,
     user_answers: null,
     gap_result: null,
+    parent_iteration: null,
     created_at: "2026-06-18T00:00:00Z",
     updated_at: "2026-06-18T00:00:00Z",
     ...partial,
@@ -69,5 +74,47 @@ describe("latestReadyGap", () => {
     expect(
       latestReadyGap([iteration({ iteration: 0, status: "running" })]),
     ).toBeNull();
+  });
+});
+
+describe("resolveRoundBasis", () => {
+  const rounds = [
+    iteration({ iteration: 1, status: "ready", gap_result: gap("one") }),
+    iteration({ iteration: 2, status: "ready", gap_result: gap("two") }),
+    iteration({ iteration: 3, status: "failed" }),
+  ];
+
+  it("builds on the latest ready round when the author named none", () => {
+    expect(resolveRoundBasis(rounds)).toMatchObject({
+      ok: true,
+      basis: { iteration: 2 },
+    });
+  });
+
+  it("builds on the round the author rewound to", () => {
+    expect(resolveRoundBasis(rounds, 1)).toMatchObject({
+      ok: true,
+      basis: { iteration: 1 },
+    });
+  });
+
+  it("rejects rewinding to a round that produced nothing", () => {
+    // Continuing from a failed round means continuing from nothing, which would
+    // show the author a fresh start dressed as a rewind.
+    expect(resolveRoundBasis(rounds, 3)).toEqual({
+      ok: false,
+      error: "round 3 produced no result to continue from",
+    });
+  });
+
+  it("rejects a round the feature never had", () => {
+    expect(resolveRoundBasis(rounds, 9)).toEqual({
+      ok: false,
+      error: "no round 9 for this feature",
+    });
+  });
+
+  it("builds on nothing for a feature with no ready round yet", () => {
+    expect(resolveRoundBasis([rounds[2]])).toEqual({ ok: true, basis: null });
   });
 });

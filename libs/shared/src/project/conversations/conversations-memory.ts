@@ -47,13 +47,15 @@ export class InMemoryConversations implements ConversationsPort {
 
   async latestFor(
     thread: ConversationThread,
-    opts: { excludeAssemblyLineId?: string } = {},
+    opts: { excludeAssemblyLineId?: string; fromAssemblyLineId?: string } = {},
   ): Promise<ConversationRecord | null> {
     const matches = this.rows.filter(
       (r) =>
         sameThread(r.thread, thread) &&
         r.objectKey !== null &&
-        r.assemblyLineId !== opts.excludeAssemblyLineId,
+        r.assemblyLineId !== opts.excludeAssemblyLineId &&
+        (!opts.fromAssemblyLineId ||
+          r.assemblyLineId === opts.fromAssemblyLineId),
     );
 
     return matches.length > 0 ? matches[matches.length - 1] : null;

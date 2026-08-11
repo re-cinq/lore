@@ -64,9 +64,9 @@ export default async function FeatureDetail({
     (await listAgents(fullName)).find((a) => a.name === "feature-planning")
       ?.timeout_minutes ?? 15;
 
-  async function refine(userAnswers: SectionAnswers) {
+  async function refine(userAnswers: SectionAnswers, fromIteration?: number) {
     "use server";
-    await refineFeature(fullName, id, userAnswers);
+    await refineFeature(fullName, id, userAnswers, fromIteration);
     revalidatePath(`/repos/${owner}/${repo}/features/${id}`);
   }
   async function finalize() {

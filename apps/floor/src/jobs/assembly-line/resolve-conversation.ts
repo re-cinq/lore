@@ -20,7 +20,38 @@ export interface ResolveConversationDeps {
   headersSecret: string;
   /** Override for the id this run saves as; defaults to a fresh uuid. */
   newId?: () => string;
+  /** The assembly lines a task ran, for `args.resume_from_task` (rewind). Optional
+   *  seam — a composition without it simply never rewinds. */
+  linesForTask?: (taskId: string) => Promise<string[]>;
 }
+
+/**
+ * The specific run to resume, when the author rewound to an earlier round.
+ *
+ * A round is addressed by the task it ran as, because that is what the caller
+ * already holds; the conversation is addressed by the assembly line, because that
+ * is what reserved it. Returns null when the run rewound to nothing.
+ */
+async function rewindTarget(
+  task: FloorAssemblyLineTask,
+  deps: ResolveConversationDeps,
+): Promise<string | null> {
+  const from = task.args?.resume_from_task;
+
+  if (typeof from !== "string" || !from || !deps.linesForTask) {
+    return null;
+  }
+  const lines = await deps.linesForTask(from);
+
+  // The newest line for that task: a retried round ran more than one, and the last
+  // is the attempt whose state the author actually saw.
+  return lines.length ? lines[lines.length - 1] : NO_SUCH_LINE;
+}
+
+/** Stands in for "the author named a round that ran no line". Not a real id, so it
+ *  matches no conversation — which is the point: an explicit choice that resolves to
+ *  nothing must start fresh, never fall through to the newest round. */
+const NO_SUCH_LINE = "00000000-0000-0000-0000-000000000000";
 
 /**
  * The conversation wiring for one node execution, or undefined when this run should
@@ -54,10 +85,12 @@ export async function resolveConversation(
     return undefined;
   }
 
+  const fromAssemblyLineId = await rewindTarget(task, deps);
   // Never continue this line's own conversation: a re-dispatch of the same run must
   // not resume itself.
   const prior = await deps.conversations.latestFor(resolved.thread, {
     excludeAssemblyLineId: task.assemblyLineId,
+    ...(fromAssemblyLineId ? { fromAssemblyLineId } : {}),
   });
   const pin = (deps.newId ?? randomUUID)();
 

@@ -32,8 +32,17 @@ export class Features {
     return this.port.list(this.repo, status);
   }
 
-  appendIteration(id: string, userAnswers: unknown): Promise<FeatureIteration> {
-    return this.port.appendIteration(this.repo, id, userAnswers);
+  appendIteration(
+    id: string,
+    userAnswers: unknown,
+    parentIteration?: number | null,
+  ): Promise<FeatureIteration> {
+    return this.port.appendIteration(
+      this.repo,
+      id,
+      userAnswers,
+      parentIteration,
+    );
   }
 
   attachIterationTask(
