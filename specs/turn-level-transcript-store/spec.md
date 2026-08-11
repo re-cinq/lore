@@ -12,8 +12,8 @@ The Turn-Level Transcript Store keeps the full-fidelity agent run stream in a ne
 
 ## Problem Statement
 
-Lore records every agent run twice, and neither record answers a
-post-mortem question.
+Lore already records every agent run three times over, and none of the
+three answers a post-mortem question.
 
 `pipeline.agent_run_events` is a deliberate **projection**. The Floor route
 `apps/floor/src/delivery/http/routes/agent-events.ts` maps each stream-json
@@ -31,7 +31,20 @@ no correlation columns, and a bucket lifecycle rule for retention. It
 answers "what happened, eventually, if you go get the object and parse it
 yourself".
 
-So the missing capability is not a storage engine. Full fidelity is lost
+The third record is the pod log, and it is the closest thing to a durable
+transcript Lore has today. `GET /api/agent-logs/{name}`
+(`apps/floor/src/delivery/http/routes/agent-logs.ts`) serves an agent's
+stdout live from the pod (`KubePodLogs`) and falls back to the Cloud
+Logging archive (`CloudLoggingPodLogs` in
+`apps/floor/src/jobs/station/agent-pod-logs.ts`) after the pod is
+garbage-collected; the run page's per-node log panel renders it today. It
+does answer "what did this one pod print" — but per CR name only,
+unstructured, tail-limited, at Cloud Logging's retention, outside
+Postgres. It cannot join a turn to its assembly-line node, answer a
+cross-node or per-task question, or be queried with SQL at all.
+
+So the missing capability is not a storage engine, and the delta this
+feature buys is structure, not existence. Full fidelity is lost
 to a **truncation policy** on a Postgres write path that already exists,
 already correlates rows to assembly-line nodes at write time, and already
 runs under the operated posture of `lore-db`. The fix is a sibling table

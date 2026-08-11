@@ -25,7 +25,7 @@ and the port is dead code without the test.
 - [x] **T8** Widen `parseAgentSink` in `apps/floor/src/jobs/agent/agent-events.ts` with a third `turns` output collected in the **existing** loop, gated by a `collectTurns` argument. Tests go in a NEW `apps/floor/src/jobs/agent/agent-sink-turns.test.ts`, not appended to `agent-sink.test.ts`: that file carries `#L` anchors from `specs/assembly-line-run-viz`, and hosting these tests would have meant a mid-file import insert that shifts them.
 - [x] **T9** [P] Bind the `agentRunTurns()` lazy singleton in `apps/floor/src/kernel/queues.ts`.
 - [x] **T10** Tee the route: `apps/floor/src/delivery/http/routes/agent-events.ts` persists turns skip-not-fail behind the flag and the existing oversized gate, and counts turns dropped by redaction. Tests go in a NEW `apps/floor/src/delivery/http/routes/agent-events-turns.test.ts` — the existing route test's module mock would have had to be widened in place, shifting its anchors.
-- [x] **T11** [P] Prune turns at 90 days on the existing `eventsPrune` tick in `apps/floor/src/jobs/cron.ts`; test appended at the end of `apps/floor/src/jobs/cron.test.ts` if one exists, otherwise covered by the port's `pruneOld` suite.
+- [x] **T11** [P] Prune turns at 30 days on the existing `eventsPrune` tick in `apps/floor/src/jobs/cron.ts`; test appended at the end of `apps/floor/src/jobs/cron.test.ts` if one exists, otherwise covered by the port's `pruneOld` suite.
 
 ## Phase 4 — The read API
 
