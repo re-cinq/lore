@@ -92,7 +92,8 @@ pool. ([validated by `spec-trace-trigger.test.ts:37`](apps/lore-api/src/api/rout
 
 ### Anthropic cost sync window
 
-The hourly `anthropic_cost_sync` cron is the sole Anthropic Admin API caller —
+The daily `anthropic_cost_sync` cron (07:00 UTC) is the sole Anthropic Admin API
+caller —
 the cost report only changes once a day, so `/spend` reads the synced rows from
 the database rather than proxying the API per request (ADR-043) — and its
 `reportWindow` opens the request at today's UTC midnight minus 30
