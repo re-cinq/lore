@@ -3,6 +3,7 @@ import {
   DEFAULT_MOCKUP_HEIGHT,
   mockupFrameSrcdoc,
   mockupHeight,
+  sanitizeMockupMarkup,
 } from "./mockup-frame";
 
 describe("mockupFrameSrcdoc", () => {
@@ -76,5 +77,29 @@ describe("mockupHeight", () => {
     expect(
       mockupHeight({ format: "html", markup: "<div/>", height: 99999 }),
     ).toBe(2000);
+  });
+});
+
+describe("sanitizeMockupMarkup", () => {
+  // DOMPurify's default export is an INSTANCE in a browser and a FACTORY in Node,
+  // where there is no window to purify against. A "use client" component still
+  // renders on the server, so calling .sanitize during render crashed the whole
+  // feature page with "sanitize is not a function" the moment a plan had a mockup.
+  const instance = {
+    sanitize: (raw: string) => raw.replace(/<script>.*?<\/script>/g, ""),
+  };
+
+  it("sanitizes with a purifier that has been given a window", () => {
+    expect(
+      sanitizeMockupMarkup(instance, "<p>hi</p><script>evil()</script>", {}),
+    ).toBe("<p>hi</p>");
+  });
+
+  it("yields nothing rather than throwing where there is no window", () => {
+    // The factory shape: callable, but no `sanitize` on it. Returning empty leaves
+    // the frame blank for one server render; the client fills it after mount.
+    const factory = (() => instance) as unknown as { sanitize?: unknown };
+
+    expect(sanitizeMockupMarkup(factory, "<p>hi</p>", {})).toBe("");
   });
 });

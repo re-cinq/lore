@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import DOMPurify from "dompurify";
 import type { GapMockup } from "@/lib/feature-types";
-import { mockupFrameSrcdoc, mockupHeight } from "@/lib/mockup-frame";
+import {
+  mockupFrameSrcdoc,
+  mockupHeight,
+  sanitizeMockupMarkup,
+} from "@/lib/mockup-frame";
 
 // LLM-generated mockup markup is UNTRUSTED. Two boundaries, not one:
 //
@@ -45,6 +49,9 @@ function downloadName(mockup: GapMockup, index: number): string {
 /** Render mermaid SOURCE to an svg string, or null while loading / on a syntax
  *  error. mermaid is imported lazily: it is the heaviest thing on this page and
  *  most rounds carry no diagram at all. */
+/** Never changes, so it never notifies — the store IS "am I in a browser". */
+const subscribeNever = () => () => {};
+
 function useMermaidSvg(mockup: GapMockup, index: number): string | null {
   const [svg, setSvg] = useState<string | null>(null);
 
@@ -103,7 +110,20 @@ function MockupFigure({
   const isMermaid = mockup.format === "mermaid";
   const isHtml = mockup.format === "html";
   const raw = isMermaid ? (mermaidSvg ?? "") : mockup.markup;
-  const clean = DOMPurify.sanitize(raw, isHtml ? HTML_CONFIG : SVG_CONFIG);
+  // Sanitized only where there is a DOM. This component renders on the SERVER too —
+  // "use client" means "also on the client" — and DOMPurify's default export is a
+  // FACTORY there, with no `sanitize` on it, which took the whole feature page down
+  // as soon as a plan carried a mockup. useSyncExternalStore rather than an effect:
+  // the server and the client legitimately disagree here, and this is the hook that
+  // says so without a setState or a hydration mismatch.
+  const isBrowser = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
+  const clean = isBrowser
+    ? sanitizeMockupMarkup(DOMPurify, raw, isHtml ? HTML_CONFIG : SVG_CONFIG)
+    : "";
   const href = `data:text/plain;charset=utf-8,${encodeURIComponent(mockup.markup)}`;
 
   return (

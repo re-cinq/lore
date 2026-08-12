@@ -47,3 +47,34 @@ export function mockupHeight(mockup: GapMockup): number {
 
   return Math.min(declared, MAX_MOCKUP_HEIGHT);
 }
+
+/** A purifier that may or may not have been handed a window yet. */
+interface MaybePurifier {
+  sanitize?: unknown;
+}
+
+/**
+ * Sanitize mockup markup, tolerating the shape DOMPurify has where there is no DOM.
+ *
+ * Its default export is an INSTANCE in a browser and a FACTORY in Node. A
+ * `"use client"` component still renders on the server, so calling `.sanitize`
+ * during render threw "sanitize is not a function" and took the whole feature page
+ * down as soon as a plan contained a mockup.
+ *
+ * Returning empty is the safe direction: a blank frame for one server render, filled
+ * by the client after mount. Never return the RAW markup — it is LLM-authored and
+ * untrusted, and the only reason it may carry the planned repo's stylesheet at all
+ * is that it has been through here and into a sandboxed frame.
+ */
+export function sanitizeMockupMarkup(
+  purifier: MaybePurifier,
+  raw: string,
+  config: object,
+): string {
+  return typeof purifier.sanitize === "function"
+    ? (purifier.sanitize as (raw: string, config: object) => string)(
+        raw,
+        config,
+      )
+    : "";
+}
