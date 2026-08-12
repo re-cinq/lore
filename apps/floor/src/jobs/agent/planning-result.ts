@@ -22,6 +22,8 @@ export const PLANNING_RESULT_EVENT = "planning.result";
 export interface PlanningResultDeps {
   tasks: { getById(id: string): Promise<PipelineTask | null> };
   featuresFor(repo: string): Promise<{ features: GapResultFeatures }>;
+  /** The round the run's assembly line is on, when a line carries one. */
+  roundOf(taskId: string): Promise<number | undefined>;
 }
 
 /** What the delivery did, for the caller's log line and span. */
@@ -53,7 +55,15 @@ export async function deliverPlanningResult(
     return { outcome: "skipped", error: "not a planning round" };
   }
   const featureId = task.context_bundle?.feature_id as string | undefined;
-  const iteration = task.context_bundle?.iteration as number | undefined;
+  // The LINE owns the round number. A resumed round mints no task (FR6.22), so every
+  // round after the first reports against the feature's ORIGINATING task, whose
+  // context_bundle still says iteration 1 — reading it there wrote round N's result
+  // onto round 1 and left round N with nothing, which the terminal settlement then
+  // reported as a failed round. The task's own value remains the fallback for the
+  // legacy shape, where each round had a line and a task of its own.
+  const iteration =
+    (await deps.roundOf(fileEvent.taskId)) ??
+    (task.context_bundle?.iteration as number | undefined);
 
   if (!featureId || iteration == null) {
     return { outcome: "skipped", error: "planning round has no feature id" };

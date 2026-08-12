@@ -227,6 +227,16 @@ async function recordPlanningResults(
     return await deliverPlanningResults(fileEvents, {
       tasks: taskStore(),
       featuresFor: projectFor,
+      // The round number the LINE is on. A resumed round mints no task, so the task's
+      // own value is stuck at the feature's first round (FR6.22).
+      roundOf: async (taskId) => {
+        const open = (await assemblyLines().listForTask(taskId)).filter(
+          (line) => line.status === "running" || line.status === "queued",
+        );
+        const round = open[open.length - 1]?.args?.iteration;
+
+        return typeof round === "number" ? round : undefined;
+      },
     });
   } catch (err) {
     console.warn(`[floor] planning results skipped: ${errorMessage(err)}`);

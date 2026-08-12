@@ -51,7 +51,12 @@ async function harness() {
   return {
     features,
     id: feature.id,
-    deps: { tasks, featuresFor: async () => ({ features }) },
+    deps: {
+      tasks,
+      featuresFor: async () => ({ features }),
+      // Legacy shape: one line per round, so the round number lives on the task.
+      roundOf: async () => undefined,
+    },
   };
 }
 
@@ -128,6 +133,7 @@ describe("deliverPlanningResult", () => {
       await deliverPlanningResult(fileEvent(), {
         tasks,
         featuresFor: async () => ({ features }),
+        roundOf: async () => undefined,
       }),
     ).toMatchObject({ outcome: "skipped" });
   });
@@ -139,6 +145,7 @@ describe("deliverPlanningResult", () => {
       await deliverPlanningResult(fileEvent({ taskId: "gone" }), {
         tasks: new InMemoryTaskStore([]),
         featuresFor: async () => ({ features }),
+        roundOf: async () => undefined,
       }),
     ).toMatchObject({ outcome: "skipped" });
   });
@@ -164,8 +171,74 @@ describe("deliverPlanningResults", () => {
         },
       },
       featuresFor: async () => ({ features }),
+      roundOf: async () => undefined,
     };
 
     await expect(deliverPlanningResults([fileEvent()], deps)).resolves.toBe(0);
+  });
+});
+
+describe("a round that resumed a parked line", () => {
+  // A resumed round mints no task (FR6.22), so every round after the first reports
+  // against the feature's ORIGINATING task — whose context_bundle says iteration 1.
+  // Reading the round number from there wrote round 2's result onto round 1 and left
+  // round 2 with nothing, which the terminal settlement then reported as a failed
+  // round. The author saw "round 2 failed" beside a plan that had visibly updated.
+  async function line(argsIteration: number | undefined) {
+    const features = new Features(REPO, new InMemoryFeatures());
+    const feature = await features.create({ title: "T", prompt: "p" });
+
+    await features.appendIteration(feature.id, null);
+    await features.appendIteration(feature.id, null);
+    const tasks = new InMemoryTaskStore([
+      {
+        id: "t1",
+        task_type: "feature-planning",
+        status: "running",
+        target_repo: REPO,
+        description: "plan it",
+        context_bundle: { feature_id: feature.id, iteration: 1 },
+      },
+    ]);
+
+    return {
+      features,
+      id: feature.id,
+      deps: {
+        tasks,
+        featuresFor: async () => ({ features }),
+        roundOf: async () => argsIteration,
+      },
+    };
+  }
+
+  it("writes the result to the round the LINE says is running", async () => {
+    const { features, id, deps } = await line(2);
+
+    expect(await deliverPlanningResult(fileEvent(), deps)).toEqual({
+      outcome: "ready",
+    });
+
+    const feature = await features.get(id);
+
+    expect(
+      feature?.iterations.find((i) => i.iteration === 2)?.gap_result,
+    ).not.toBeNull();
+    expect(
+      feature?.iterations.find((i) => i.iteration === 1)?.gap_result,
+    ).toBeNull();
+  });
+
+  it("falls back to the task's round when no line carries one", async () => {
+    // The legacy shape: one line per round, each with its own task.
+    const { features, id, deps } = await line(undefined);
+
+    expect(await deliverPlanningResult(fileEvent(), deps)).toEqual({
+      outcome: "ready",
+    });
+    expect(
+      (await features.get(id))?.iterations.find((i) => i.iteration === 1)
+        ?.gap_result,
+    ).not.toBeNull();
   });
 });
