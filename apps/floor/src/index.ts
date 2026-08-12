@@ -2,6 +2,7 @@ import { initOtel, shutdownOtel } from "./otel-init.js";
 import { createShutdown } from "./shutdown.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { initPool } from "./kernel/db.js";
+import { awaitSoleFloor } from "./kernel/single-instance.js";
 import { usage } from "./kernel/queues.js";
 import { loadTaskTypes } from "./kernel/config.js";
 import { recoverStaleTasks, startWorker } from "./jobs/task/worker.js";
@@ -45,6 +46,11 @@ async function main(): Promise<void> {
   if (recovered > 0) {
     console.log(`[floor] Recovered ${recovered} stale tasks`);
   }
+
+  // Nothing below may run twice. Two Floors do not corrupt a row — SKIP LOCKED just
+  // SPLITS the stream between them — so a stale instance quietly handles some events
+  // with whatever code it loaded while the log you are reading stays clean.
+  await awaitSoleFloor();
 
   // ── Layer 2: the drain loop + reaper over pipeline.events ──
   const registry = buildRegistry();
