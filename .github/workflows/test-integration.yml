@@ -1,11 +1,12 @@
 name: Integration Tests
 
 on:
-  pull_request:
-    branches: [main]
-  # No `push: main` trigger — branch protection requires PRs, so the
+  # No `branches` filter (#1146): stacked PRs must run the gate too, and
+  # base-retarget after the parent merges emits only `edited`, which never
+  # triggers. No `push: main` trigger — branch protection requires PRs, so the
   # PR run is the gate. A second run on the squash-merge commit would
   # be testing the same code (rediscovered 2026-04-29).
+  pull_request:
   workflow_dispatch:
 
 # Cancel in-progress runs when a new commit is pushed to the same PR
