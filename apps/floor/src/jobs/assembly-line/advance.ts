@@ -55,6 +55,7 @@ export interface AdvanceDeps {
     node: AssemblyLine["nodes"][number],
     task: FloorAssemblyLineTask,
     iteration: number,
+    priorOutcome: string | null,
   ) => Promise<LoreTaskSpec["conversation"] | undefined>;
   /** Close the line's backing pipeline task — and, for a planning round, its feature
    *  iteration — so a failed line stops reading as "still running" everywhere
@@ -78,6 +79,14 @@ export function lineOutcomeFromVisits(visits: NodeVisit[]): {
   return failed
     ? { outcome: "failed", reason: `node "${failed.nodeId}" failed` }
     : { outcome: "completed" };
+}
+
+/** The outcome of a node's most recent recorded visit, or null if it has never run.
+ *  Distinguishes a retry (its own last attempt failed) from a next round. */
+function priorOutcomeOf(visits: NodeVisit[], nodeId: string): string | null {
+  const own = visits.filter((v) => v.nodeId === nodeId);
+
+  return own.length ? (own[own.length - 1].outcome ?? null) : null;
 }
 
 function visitFailed(outcome: StageOutcome | null): boolean {
@@ -228,7 +237,12 @@ export async function advanceLine(
   // runs a deterministic command.
   const conversation =
     node.type === "agent" && deps.resolveConversation
-      ? await deps.resolveConversation(node, task, transition.iteration)
+      ? await deps.resolveConversation(
+          node,
+          task,
+          transition.iteration,
+          priorOutcomeOf(visits, transition.nodeId),
+        )
       : undefined;
   // The round content BOTH fields carry. The recipe the pod runs renders
   // {description}, so setting only the prompt hands a resumed round the full draft

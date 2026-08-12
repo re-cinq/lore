@@ -8,7 +8,10 @@
 import { randomUUID } from "node:crypto";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
-import type { ConversationsPort } from "@re-cinq/lore-shared/project/conversations/conversations-port.js";
+import type {
+  ConversationsPort,
+  ExecutionRef,
+} from "@re-cinq/lore-shared/project/conversations/conversations-port.js";
 import type { FloorAssemblyLineTask } from "./floor-assembly-line.js";
 import { mayContinue, resolveThread } from "./conversation-thread.js";
 
@@ -26,16 +29,27 @@ export interface ResolveConversationDeps {
 }
 
 /**
- * The specific run to resume, when the author rewound to an earlier round.
+ * The specific execution to resume, when the author rewound to an earlier round.
  *
- * A round is addressed by the task it ran as, because that is what the caller
- * already holds; the conversation is addressed by the assembly line, because that
- * is what reserved it. Returns null when the run rewound to nothing.
+ * Two shapes, because a round is addressed by whatever the caller holds. On a line
+ * whose rounds are REVISITS the round is an iteration of this very line, and a
+ * resumed round mints no task to name it by (FR6.22) — so `resume_from_iteration`
+ * is the only handle. The older shape, one line per round, still names the round by
+ * the task it ran as. Null when the run rewound to nothing.
  */
 async function rewindTarget(
   task: FloorAssemblyLineTask,
   deps: ResolveConversationDeps,
-): Promise<string | null> {
+): Promise<ExecutionRef | null> {
+  const rewoundTo = task.args?.resume_from_iteration;
+
+  // Explicitly null when the author did NOT rewind, so a stale value from an earlier
+  // round cannot keep steering later ones.
+  if (rewoundTo !== undefined && rewoundTo !== null) {
+    return typeof rewoundTo === "number"
+      ? { assemblyLineId: task.assemblyLineId, iteration: rewoundTo }
+      : { assemblyLineId: NO_SUCH_LINE };
+  }
   const from = task.args?.resume_from_task;
 
   if (typeof from !== "string" || !from || !deps.linesForTask) {
@@ -45,7 +59,9 @@ async function rewindTarget(
 
   // The newest line for that task: a retried round ran more than one, and the last
   // is the attempt whose state the author actually saw.
-  return lines.length ? lines[lines.length - 1] : NO_SUCH_LINE;
+  return lines.length
+    ? { assemblyLineId: lines[lines.length - 1] }
+    : { assemblyLineId: NO_SUCH_LINE };
 }
 
 /** Stands in for "the author named a round that ran no line". Not a real id, so it
@@ -67,8 +83,10 @@ export async function resolveConversation(
   task: FloorAssemblyLineTask,
   iteration: number,
   deps: ResolveConversationDeps,
+  /** Outcome of this node's most recent visit — how a retry is told from a round. */
+  priorOutcome: string | null = null,
 ): Promise<LoreTaskSpec["conversation"] | undefined> {
-  if (!node.continues || !mayContinue(iteration)) {
+  if (!node.continues || !mayContinue(priorOutcome)) {
     return undefined;
   }
   const resolved = resolveThread(node.continues.key, node.continues.node, {
@@ -85,12 +103,14 @@ export async function resolveConversation(
     return undefined;
   }
 
-  const fromAssemblyLineId = await rewindTarget(task, deps);
-  // Never continue this line's own conversation: a re-dispatch of the same run must
-  // not resume itself.
+  const from = await rewindTarget(task, deps);
+  // Never continue THIS EXECUTION's own conversation: a re-dispatch of the same run
+  // must not resume itself. Scoped to (line, iteration) rather than the line, or a
+  // line whose rounds are revisits excludes every earlier round of itself — which is
+  // the whole conversation, silently.
   const prior = await deps.conversations.latestFor(resolved.thread, {
-    excludeAssemblyLineId: task.assemblyLineId,
-    ...(fromAssemblyLineId ? { fromAssemblyLineId } : {}),
+    exclude: { assemblyLineId: task.assemblyLineId, iteration },
+    ...(from ? { from } : {}),
   });
   const pin = (deps.newId ?? randomUUID)();
 
@@ -101,6 +121,7 @@ export async function resolveConversation(
     thread: resolved.thread,
     conversationId: pin,
     assemblyLineId: task.assemblyLineId,
+    iteration,
   });
 
   return {

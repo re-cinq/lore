@@ -60,13 +60,20 @@ export function resolveThread(
 }
 
 /**
- * Whether this execution may continue a previous run.
+ * Whether this execution may continue a previous run, given the outcome of this
+ * node's own most recent visit (null when the walk has never run it).
  *
- * A RETRY never continues. When the walk revisits a node through an `iteration_max`
- * back-edge it re-runs the same work with the same prompt and no inherited state:
- * a retry exists because the last attempt failed, and inheriting that attempt's
- * context would make the rerun path-dependent. Retries must be reproducible.
+ * A RETRY never continues: it exists because the last attempt failed, and inheriting
+ * that attempt's context would make the rerun path-dependent. Retries must be
+ * reproducible.
+ *
+ * The test is WHY the node is being revisited, not how many times. `iteration <= 1`
+ * meant the same thing only while a failure back-edge was the sole way to revisit a
+ * node — on a line whose rounds are revisits (FR6.21) every round after the first is
+ * iteration >= 2, and the old rule refused them all, silently: no prior conversation
+ * simply re-briefs the agent from scratch, so the run still succeeds and nothing
+ * anywhere reports that continuity was dropped.
  */
-export function mayContinue(iteration: number): boolean {
-  return iteration <= 1;
+export function mayContinue(priorOutcome: string | null): boolean {
+  return !(priorOutcome ?? "").includes("failed");
 }

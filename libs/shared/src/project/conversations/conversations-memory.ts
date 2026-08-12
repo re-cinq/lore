@@ -2,20 +2,40 @@ import type {
   ConversationRecord,
   ConversationThread,
   ConversationsPort,
+  ExecutionRef,
 } from "./conversations-port.js";
 
 const sameThread = (a: ConversationThread, b: ConversationThread): boolean =>
   a.kind === b.kind && a.value === b.value && a.nodeId === b.nodeId;
 
+/** Does this row belong to the named execution?
+ *
+ *  An `iteration`-less REF matches any execution on the line — the caller holds only
+ *  a line. An `iteration`-less ROW matches any ref for its line: it predates the
+ *  column, when a line had exactly one execution. Both directions must stay loose,
+ *  or a legacy row is neither excludable nor addressable. */
+const isExecution = (
+  row: { assemblyLineId: string | null; iteration: number | null },
+  ref: ExecutionRef,
+): boolean =>
+  row.assemblyLineId === ref.assemblyLineId &&
+  (ref.iteration === undefined ||
+    row.iteration === null ||
+    row.iteration === ref.iteration);
+
 /** In-memory ConversationsPort — the behavioural spec the Pg adapter must match. */
 export class InMemoryConversations implements ConversationsPort {
-  readonly rows: (ConversationRecord & { thread: ConversationThread })[] = [];
+  readonly rows: (ConversationRecord & {
+    thread: ConversationThread;
+    iteration: number | null;
+  })[] = [];
   private seq = 0;
 
   async reserve(input: {
     thread: ConversationThread;
     conversationId: string;
     assemblyLineId: string | null;
+    iteration?: number;
   }): Promise<void> {
     this.rows.push({
       id: `conv-row-${++this.seq}`,
@@ -24,6 +44,7 @@ export class InMemoryConversations implements ConversationsPort {
       objectKey: null,
       bytes: null,
       assemblyLineId: input.assemblyLineId,
+      iteration: input.iteration ?? null,
       createdAt: new Date(this.seq).toISOString(),
     });
   }
@@ -47,15 +68,14 @@ export class InMemoryConversations implements ConversationsPort {
 
   async latestFor(
     thread: ConversationThread,
-    opts: { excludeAssemblyLineId?: string; fromAssemblyLineId?: string } = {},
+    opts: { exclude?: ExecutionRef; from?: ExecutionRef } = {},
   ): Promise<ConversationRecord | null> {
     const matches = this.rows.filter(
       (r) =>
         sameThread(r.thread, thread) &&
         r.objectKey !== null &&
-        r.assemblyLineId !== opts.excludeAssemblyLineId &&
-        (!opts.fromAssemblyLineId ||
-          r.assemblyLineId === opts.fromAssemblyLineId),
+        !(opts.exclude && isExecution(r, opts.exclude)) &&
+        (!opts.from || isExecution(r, opts.from)),
     );
 
     return matches.length > 0 ? matches[matches.length - 1] : null;

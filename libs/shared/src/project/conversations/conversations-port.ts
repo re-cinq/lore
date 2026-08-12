@@ -23,6 +23,20 @@ export interface ConversationThread {
   nodeId: string;
 }
 
+/**
+ * One node execution — the identity a conversation actually belongs to.
+ *
+ * A line was enough while every round was its own line. On a line whose rounds are
+ * REVISITS (the merged planning line, FR6.21) they all share the id, so anything
+ * addressing a round by line alone either excludes its own siblings or resumes the
+ * wrong one. `iteration` omitted means "any execution on that line" — the shape a
+ * one-round-per-line consumer still has.
+ */
+export interface ExecutionRef {
+  assemblyLineId: string;
+  iteration?: number;
+}
+
 export interface ConversationRecord {
   id: string;
   conversationId: string;
@@ -39,6 +53,8 @@ export interface ConversationsPort {
     thread: ConversationThread;
     conversationId: string;
     assemblyLineId: string | null;
+    /** Which execution on that line reserved it. */
+    iteration?: number;
   }): Promise<void>;
 
   /** Attach the archive to a reserved id once the run uploads it. */
@@ -50,18 +66,23 @@ export interface ConversationsPort {
 
   /**
    * The SAVED conversation a new run continues: the most recent one on the thread,
-   * or — when `fromAssemblyLineId` names one — that run's specifically. Rows without
+   * or — when `from` names one — that execution's specifically. Rows without
    * an archive are skipped: a reserved id whose run never uploaded cannot be resumed,
    * and offering it would send a pod after an object that does not exist.
    *
-   * An explicit `fromAssemblyLineId` that resolves to nothing returns null rather
+   * An explicit `from` that resolves to nothing returns null rather
    * than falling back to the newest. That is the REWIND contract: the author asked
    * for round 2, and quietly resuming round 4 instead would be indistinguishable
    * from a rewind that worked.
    */
   latestFor(
     thread: ConversationThread,
-    opts?: { excludeAssemblyLineId?: string; fromAssemblyLineId?: string },
+    opts?: {
+      /** The run asking — never offered its own conversation back. */
+      exclude?: ExecutionRef;
+      /** Rewind: resume THIS execution's conversation, or none. */
+      from?: ExecutionRef;
+    },
   ): Promise<ConversationRecord | null>;
 
   /** One conversation by the id the pod was told to save as. */

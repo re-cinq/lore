@@ -321,6 +321,12 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
                   description,
                   round_feedback: roundFeedback,
                   iteration: row.iteration,
+                  // Rewind on a merged line: a resumed round mints no task, so the
+                  // round can only be named by the iteration it ran as. Always
+                  // sent, so args never carry a STALE target from an earlier
+                  // rewind — the resume merges into the line's args, it does not
+                  // replace them.
+                  resume_from_iteration: basis.basis?.iteration ?? null,
                 },
               },
             });

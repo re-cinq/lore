@@ -3,6 +3,7 @@ import type {
   ConversationRecord,
   ConversationThread,
   ConversationsPort,
+  ExecutionRef,
 } from "./conversations-port.js";
 
 /** The shape `pipeline.agent_conversations` hands back. */
@@ -34,11 +35,13 @@ export class PgConversations implements ConversationsPort {
     thread: ConversationThread;
     conversationId: string;
     assemblyLineId: string | null;
+    iteration?: number;
   }): Promise<void> {
     await this.pool.query(
       `INSERT INTO pipeline.agent_conversations
-         (key_kind, key_value, node_id, conversation_id, assembly_line_id)
-       VALUES ($1, $2, $3, $4, $5)
+         (key_kind, key_value, node_id, conversation_id, assembly_line_id,
+          iteration)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (conversation_id) DO NOTHING`,
       [
         input.thread.kind,
@@ -46,6 +49,7 @@ export class PgConversations implements ConversationsPort {
         input.thread.nodeId,
         input.conversationId,
         input.assemblyLineId,
+        input.iteration ?? null,
       ],
     );
   }
@@ -68,7 +72,7 @@ export class PgConversations implements ConversationsPort {
 
   async latestFor(
     thread: ConversationThread,
-    opts: { excludeAssemblyLineId?: string; fromAssemblyLineId?: string } = {},
+    opts: { exclude?: ExecutionRef; from?: ExecutionRef } = {},
   ): Promise<ConversationRecord | null> {
     // `object_key IS NOT NULL` is the load-bearing clause: a reserved id whose run
     // never uploaded cannot be resumed, and offering it would send the next pod
@@ -78,16 +82,29 @@ export class PgConversations implements ConversationsPort {
          FROM pipeline.agent_conversations
         WHERE key_kind = $1 AND key_value = $2 AND node_id = $3
           AND object_key IS NOT NULL
-          AND ($4::uuid IS NULL OR assembly_line_id IS DISTINCT FROM $4::uuid)
-          AND ($5::uuid IS NULL OR assembly_line_id = $5::uuid)
+          -- Exclude / select a NODE EXECUTION, not a line: on a line whose rounds
+          -- are revisits they all share the id, so matching by line alone would
+          -- exclude a run's own siblings (killing continuity) or resume the wrong
+          -- round. A null iteration in the ref means "any execution on that line".
+          AND NOT (
+            $4::uuid IS NOT NULL
+            AND assembly_line_id = $4::uuid
+            AND ($5::int IS NULL OR iteration IS NULL OR iteration = $5::int)
+          )
+          AND ($6::uuid IS NULL OR (
+            assembly_line_id = $6::uuid
+            AND ($7::int IS NULL OR iteration IS NULL OR iteration = $7::int)
+          ))
         ORDER BY created_at DESC
         LIMIT 1`,
       [
         thread.kind,
         thread.value,
         thread.nodeId,
-        opts.excludeAssemblyLineId ?? null,
-        opts.fromAssemblyLineId ?? null,
+        opts.exclude?.assemblyLineId ?? null,
+        opts.exclude?.iteration ?? null,
+        opts.from?.assemblyLineId ?? null,
+        opts.from?.iteration ?? null,
       ],
     );
 

@@ -61,15 +61,29 @@ describe("resolveThread", () => {
   });
 });
 
-describe("mayContinue", () => {
-  it("continues on a node's first execution", () => {
-    expect(mayContinue(1)).toBe(true);
+describe("mayContinue by why the node is being revisited", () => {
+  it("continues when the node's previous visit succeeded — a next round, not a retry", () => {
+    // The merged planning line revisits `analyze` for every round, so round 2 is
+    // iteration 2. Refusing to continue at iteration > 1 silently killed continuity
+    // for every round after the first.
+    expect(mayContinue("success")).toBe(true);
   });
 
-  it("never continues on a retry, so a rerun is reproducible", () => {
-    // A retry exists because the last attempt failed; inheriting its context would
-    // make the rerun path-dependent on whatever confused it.
-    expect(mayContinue(2)).toBe(false);
-    expect(mayContinue(3)).toBe(false);
+  it("continues when the previous visit asked for changes", () => {
+    expect(mayContinue("changes_requested")).toBe(true);
+  });
+
+  it("refuses when the previous visit failed — a retry must be reproducible", () => {
+    // A retry exists because the last attempt failed; inheriting that attempt's
+    // context would make the rerun path-dependent.
+    expect(mayContinue("failed")).toBe(false);
+  });
+
+  it("refuses when the previous visit failed for an infrastructure reason", () => {
+    expect(mayContinue("review-failed")).toBe(false);
+  });
+
+  it("continues a node the walk has never visited", () => {
+    expect(mayContinue(null)).toBe(true);
   });
 });

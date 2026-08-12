@@ -87,10 +87,12 @@ describe("resolveConversation", () => {
   });
 
   it("never continues on a retry", async () => {
+    // A retry is a revisit whose own last attempt FAILED — not merely iteration > 1,
+    // which on a merged line is just the next round.
     const store = new InMemoryConversations();
 
     expect(
-      await resolveConversation(node(), task, 2, deps(store)),
+      await resolveConversation(node(), task, 2, deps(store), "failed"),
     ).toBeUndefined();
     // And reserves nothing, so a retry leaves no orphan id behind.
     expect(store.rows).toEqual([]);
@@ -215,5 +217,82 @@ describe("resolveConversation rewind", () => {
     expect(
       await resolveConversation(node(), task, 1, withLines(store, {})),
     ).toMatchObject({ id: "round-4" });
+  });
+});
+
+describe("a line whose rounds are revisits of one node", () => {
+  const thread = { kind: "args" as const, value: "feature-9", nodeId: "analyze" };
+
+  /** Round N of the SAME line — the merged planning line's shape. */
+  const savedRound = async (
+    store: InMemoryConversations,
+    iteration: number,
+  ) => {
+    await store.reserve({
+      thread,
+      conversationId: `round-${iteration}`,
+      assemblyLineId: task.assemblyLineId,
+      iteration,
+    });
+    await store.attachArchive(`round-${iteration}`, `k/round-${iteration}`, 10);
+  };
+
+  it("continues the previous round even though it ran on this same line", async () => {
+    // The regression: the exclusion used to be "not this line", which on a merged
+    // line is "not any of my own previous rounds". It failed quietly — no prior
+    // conversation just re-briefs the agent with the whole draft again.
+    const store = new InMemoryConversations();
+
+    await savedRound(store, 1);
+
+    expect(
+      (await resolveConversation(node(), task, 2, deps(store)))?.id,
+    ).toBe("round-1");
+  });
+
+  it("never resumes the round it is itself re-running", async () => {
+    const store = new InMemoryConversations();
+
+    await savedRound(store, 2);
+
+    expect((await resolveConversation(node(), task, 2, deps(store)))?.id).toBe(
+      "",
+    );
+  });
+
+  it("rewinds to the round the author picked by its iteration", async () => {
+    // On the merged line a resumed round mints no task, so `resume_from_task`
+    // cannot name one. The round IS the iteration of this line.
+    const store = new InMemoryConversations();
+
+    await savedRound(store, 1);
+    await savedRound(store, 2);
+    await savedRound(store, 3);
+
+    const rewound = {
+      ...task,
+      args: { feature_id: "feature-9", resume_from_iteration: 1 },
+    };
+
+    expect((await resolveConversation(node(), rewound, 4, deps(store)))?.id).toBe(
+      "round-1",
+    );
+  });
+
+  it("starts fresh when the round the author picked saved nothing", async () => {
+    // The rewind contract: an explicit choice that resolves to nothing must not
+    // fall through to the newest round, or a broken rewind is indistinguishable
+    // from one that worked.
+    const store = new InMemoryConversations();
+
+    await savedRound(store, 1);
+    const rewound = {
+      ...task,
+      args: { feature_id: "feature-9", resume_from_iteration: 9 },
+    };
+
+    expect((await resolveConversation(node(), rewound, 4, deps(store)))?.id).toBe(
+      "",
+    );
   });
 });
