@@ -177,7 +177,12 @@ export default function PlanningWizard({
 
   const iteration = latest?.iteration ?? data.feature.current_iteration;
 
-  if (running) {
+  // The spec phase gets the SAME card as a planning round: it runs on the same line,
+  // and the author has no decision to make while it does. Showing the decision row
+  // with everything disabled — a greyed "Refine again" beside a primary relabelled
+  // "Creating the spec PR…" — offered two dead controls and hid the run graph, which
+  // only ever rendered here.
+  if (running || finalizing) {
     return (
       <RunningCard
         iteration={iteration}
@@ -185,6 +190,7 @@ export default function PlanningWizard({
         timeoutMinutes={timeoutMinutes}
         liveOutput={data.liveOutput}
         run={data.run}
+        phase={running ? "round" : "spec"}
       />
     );
   }
@@ -231,36 +237,26 @@ export default function PlanningWizard({
         onChange={setFeedback}
         onCreateDraft={onCreateDraft}
       />
-      {finalizing && (
-        <p className="meta" role="status">
-          Creating the spec PR — analysing which specs this changes, then
-          writing them…
-        </p>
-      )}
       <div
         style={{ display: "flex", gap: 10, marginTop: 8, alignItems: "center" }}
       >
-        <button
-          type="button"
-          disabled={pending || finalizing}
-          onClick={submitRefine}
-        >
+        <button type="button" disabled={pending} onClick={submitRefine}>
           {pending ? "Working…" : "Refine again"}
         </button>
         <button
           type="button"
           className="button"
-          disabled={pending || finalizing}
+          disabled={pending}
           onClick={submitFinalize}
         >
-          {finalizing ? "Creating the spec PR…" : "Create the spec PR"}
+          Create the spec PR
         </button>
         {rounds.length > 1 && (
           <label className="meta" style={{ marginLeft: "auto" }}>
             Continue from{" "}
             <select
               value={continueFrom ?? rounds[0].iteration}
-              disabled={pending || finalizing}
+              disabled={pending}
               onChange={(e) => setContinueFrom(Number(e.target.value))}
             >
               {rounds.map((r) => (

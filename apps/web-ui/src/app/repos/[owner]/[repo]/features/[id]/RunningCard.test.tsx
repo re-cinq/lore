@@ -105,3 +105,31 @@ describe("RunningCard", () => {
     expect(screen.getByText("→ Bash: jq empty result.json")).toBeTruthy();
   });
 });
+
+describe("the card during the spec phase", () => {
+  // Accepting a plan used to leave a row of DEAD BUTTONS — "Refine again" disabled
+  // beside a primary relabelled "Creating the spec PR…" — and the run graph vanished,
+  // because the graph only ever rendered while a planning ROUND was running. The
+  // spec work runs on the same line and deserves the same card.
+  it("announces the spec phase instead of a planning round", () => {
+    render(
+      <RunningCard
+        iteration={3}
+        since={undefined}
+        timeoutMinutes={15}
+        phase="spec"
+      />,
+    );
+
+    expect(
+      screen.getByText(/writing the spec/i, { exact: false }),
+    ).toBeTruthy();
+    expect(screen.queryByText(/round 3/i)).toBeNull();
+  });
+
+  it("still says which round it is analysing during a planning round", () => {
+    render(<RunningCard iteration={3} since={undefined} timeoutMinutes={15} />);
+
+    expect(screen.getByText(/round 3/i)).toBeTruthy();
+  });
+});
