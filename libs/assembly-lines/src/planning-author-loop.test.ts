@@ -208,3 +208,22 @@ describe("feature-planning after the author accepts", () => {
     ).toEqual({ kind: "finish" });
   });
 });
+
+describe("the merged line's agent nodes name their own recipes", () => {
+  it("points analyse-specs and write at their own Stations, not the line's", async () => {
+    // The Station carries the RECIPE — its prompt template and, decisively, its
+    // `output.watch`. An agent node with no `station_ref` resolves the Station named
+    // after the line's task type, so on the merged line every node ran
+    // feature-planning's recipe: analyse-specs and write both executed the PLANNING
+    // prompt and emitted planning results, push found nothing to commit, and no spec
+    // PR was ever opened — while every node reported success.
+    const nodes = new Map(
+      (await planning()).nodes.map((n) => [n.id, n.station_ref]),
+    );
+
+    expect({
+      analyse: nodes.get("analyse-specs"),
+      write: nodes.get("write"),
+    }).toEqual({ analyse: "spec-analysis", write: "feature-finalize" });
+  });
+});

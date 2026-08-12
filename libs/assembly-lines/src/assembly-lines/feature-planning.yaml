@@ -36,6 +36,11 @@ nodes:
   - id: analyse-specs
     type: agent
     prompt_ref: spec-analysis
+    # The Station carries the RECIPE — prompt template AND output.watch. Without this
+    # the node resolves the Station named after the LINE's task type and runs
+    # feature-planning's recipe: it would emit a planning result instead of
+    # spec-plan.json, and report success for having done so.
+    station_ref: spec-analysis
     model: claude-sonnet-4-6
     description: >
       Decide which specs this feature changes. Emits spec-plan.json, which the Floor
@@ -44,6 +49,7 @@ nodes:
   - id: write
     type: agent
     prompt_ref: feature-finalize
+    station_ref: feature-finalize
     model: claude-sonnet-4-6
     description: Apply the change set — amend what it says to amend, create what it says to create.
 
