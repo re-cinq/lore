@@ -41,9 +41,7 @@
   color: var(--text-muted);
   cursor: pointer;
   white-space: nowrap;
-  transition:
-    background var(--transition),
-    color var(--transition);
+  transition: background var(--transition), color var(--transition);
 }
 
 /* Light/Auto/Dark are always equal squares, regardless of family. */

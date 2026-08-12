@@ -8,34 +8,26 @@
   border-bottom: 2px solid transparent;
   padding-bottom: 1px;
   cursor: help;
-  transition:
-    background-color 120ms ease,
-    border-color 120ms ease;
+  transition: background-color 120ms ease, border-color 120ms ease;
 }
 
 .specBody :global(mark.stmt-tested) {
-  background: var(
-    --success-bg,
-    color-mix(in srgb, var(--success) 14%, transparent)
-  );
+  background: var(--success-bg, color-mix(in srgb, var(--success) 14%, transparent));
   border-bottom-color: var(--success);
 }
 .specBody :global(mark.stmt-tested)::before {
-  content: "✓ ";
+  content: '✓ ';
   font-family: var(--font-mono);
   color: var(--success);
   font-weight: 700;
 }
 
 .specBody :global(mark.stmt-untested) {
-  background: var(
-    --danger-bg,
-    color-mix(in srgb, var(--danger) 14%, transparent)
-  );
+  background: var(--danger-bg, color-mix(in srgb, var(--danger) 14%, transparent));
   border-bottom-color: var(--danger);
 }
 .specBody :global(mark.stmt-untested)::before {
-  content: "! ";
+  content: '! ';
   font-family: var(--font-mono);
   color: var(--danger);
   font-weight: 700;
@@ -65,24 +57,16 @@
   pointer-events: none;
 }
 
-.popoverTested strong {
-  color: var(--success);
-}
-.popoverUntested strong {
-  color: var(--danger);
-}
-.popoverNarrative strong {
-  color: var(--text-muted);
-}
+.popoverTested strong { color: var(--success); }
+.popoverUntested strong { color: var(--danger); }
+.popoverNarrative strong { color: var(--text-muted); }
 
 .popoverDrift {
   margin-bottom: 8px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
 }
-.popoverDrift strong {
-  color: var(--warning, var(--danger));
-}
+.popoverDrift strong { color: var(--warning, var(--danger)); }
 
 .popoverHint {
   margin-top: 6px;

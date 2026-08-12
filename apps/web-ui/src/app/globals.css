@@ -109,9 +109,7 @@ option {
   color: var(--text-muted);
   font-size: var(--fs-sm);
   font-weight: 500;
-  transition:
-    background var(--transition),
-    color var(--transition);
+  transition: background var(--transition), color var(--transition);
 }
 
 .sidebar nav a:hover {
@@ -367,42 +365,15 @@ pre {
   font-size: var(--fs-xs);
   font-weight: 600;
 }
-.op-write {
-  background: var(--success-bg);
-  color: var(--success);
-}
-.op-read {
-  background: var(--info-bg);
-  color: var(--info);
-}
-.op-search {
-  background: var(--info-bg);
-  color: var(--accent);
-}
-.op-delete {
-  background: var(--danger-bg);
-  color: var(--danger);
-}
-.op-snapshot {
-  background: var(--warning-bg);
-  color: var(--warning);
-}
-.op-restore {
-  background: var(--warning-bg);
-  color: var(--warning);
-}
-.op-shared_write {
-  background: var(--success-bg);
-  color: var(--success);
-}
-.op-shared_read {
-  background: var(--info-bg);
-  color: var(--info);
-}
-.op-list {
-  background: var(--info-bg);
-  color: var(--info);
-}
+.op-write { background: var(--success-bg); color: var(--success); }
+.op-read { background: var(--info-bg); color: var(--info); }
+.op-search { background: var(--info-bg); color: var(--accent); }
+.op-delete { background: var(--danger-bg); color: var(--danger); }
+.op-snapshot { background: var(--warning-bg); color: var(--warning); }
+.op-restore { background: var(--warning-bg); color: var(--warning); }
+.op-shared_write { background: var(--success-bg); color: var(--success); }
+.op-shared_read { background: var(--info-bg); color: var(--info); }
+.op-list { background: var(--info-bg); color: var(--info); }
 
 /* Memory cards */
 
@@ -464,8 +435,7 @@ pre {
   color: var(--text);
   font-size: var(--fs-base);
 }
-.search-form button,
-.filter-form button {
+.search-form button, .filter-form button {
   padding: 10px 20px;
   background: var(--accent);
   color: var(--text-on-accent);
@@ -474,8 +444,7 @@ pre {
   cursor: pointer;
   font-size: var(--fs-base);
 }
-.search-form button:hover,
-.filter-form button:hover {
+.search-form button:hover, .filter-form button:hover {
   background: var(--accent-hover);
 }
 
@@ -488,8 +457,7 @@ pre {
   align-items: center;
   flex-wrap: wrap;
 }
-.filter-form input,
-.filter-form select {
+.filter-form input, .filter-form select {
   padding: 8px 12px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -505,8 +473,7 @@ pre {
   background: var(--bg-hover);
   font-size: var(--fs-sm);
 }
-.filter-form a.active,
-.filter-form a:hover {
+.filter-form a.active, .filter-form a:hover {
   background: var(--accent);
   color: var(--text-on-accent);
 }
@@ -522,9 +489,7 @@ pre {
   animation: chip-spin 0.6s linear infinite;
 }
 @keyframes chip-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 /* Feature-planning "analyzing" indicator (the smart-feature wizard). */
@@ -541,29 +506,14 @@ pre {
   background: var(--accent, #2563eb);
   animation: planning-bounce 1s ease-in-out infinite;
 }
-.planning-dots span:nth-child(2) {
-  animation-delay: 0.15s;
-}
-.planning-dots span:nth-child(3) {
-  animation-delay: 0.3s;
-}
+.planning-dots span:nth-child(2) { animation-delay: 0.15s; }
+.planning-dots span:nth-child(3) { animation-delay: 0.3s; }
 @keyframes planning-bounce {
-  0%,
-  80%,
-  100% {
-    transform: scale(0.5);
-    opacity: 0.4;
-  }
-  40% {
-    transform: scale(1);
-    opacity: 1;
-  }
+  0%, 80%, 100% { transform: scale(0.5); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .planning-dots span {
-    animation: none;
-    opacity: 0.7;
-  }
+  .planning-dots span { animation: none; opacity: 0.7; }
 }
 
 /* Load-more pager (context list) */
@@ -935,9 +885,7 @@ pre {
   text-decoration: none;
   border-bottom: 2px solid transparent;
   font-size: var(--fs-base);
-  transition:
-    color var(--transition),
-    border-color var(--transition);
+  transition: color var(--transition), border-color var(--transition);
 }
 .tab-link:hover {
   color: var(--text);
@@ -984,18 +932,10 @@ pre {
   border-radius: 50%;
   animation: nav-spin 0.7s linear infinite;
 }
-@keyframes nav-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
+@keyframes nav-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .nav-spinner {
-    animation-duration: 1.5s;
-  }
-  .route-loading-spinner {
-    animation-duration: 1.6s;
-  }
+  .nav-spinner { animation-duration: 1.5s; }
+  .route-loading-spinner { animation-duration: 1.6s; }
 }
 
 /* Skeleton placeholder blocks for route-level loading.tsx files. Sized by the
@@ -1006,18 +946,11 @@ pre {
   animation: skeleton-pulse 1.5s ease-in-out infinite;
 }
 @keyframes skeleton-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.55;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .skeleton {
-    animation: none;
-  }
+  .skeleton { animation: none; }
 }
 
 /* --- Repo grid --- */
@@ -1228,7 +1161,7 @@ textarea:focus-visible,
   }
 
   /* Widen task form submit button */
-  .task-form button[type="submit"] {
+  .task-form button[type='submit'] {
     align-self: stretch;
   }
 
@@ -1247,57 +1180,37 @@ textarea:focus-visible,
   background: transparent;
   padding: 0;
 }
-[data-color-scheme="dark"] .hljs {
+[data-color-scheme='dark'] .hljs {
   color: var(--text);
 }
-[data-color-scheme="dark"] .hljs-keyword,
-[data-color-scheme="dark"] .hljs-built_in,
-[data-color-scheme="dark"] .hljs-type,
-[data-color-scheme="dark"] .hljs-selector-tag {
+[data-color-scheme='dark'] .hljs-keyword,
+[data-color-scheme='dark'] .hljs-built_in,
+[data-color-scheme='dark'] .hljs-type,
+[data-color-scheme='dark'] .hljs-selector-tag {
   color: var(--accent);
 }
-[data-color-scheme="dark"] .hljs-string,
-[data-color-scheme="dark"] .hljs-attr,
-[data-color-scheme="dark"] .hljs-regexp {
+[data-color-scheme='dark'] .hljs-string,
+[data-color-scheme='dark'] .hljs-attr,
+[data-color-scheme='dark'] .hljs-regexp {
   color: var(--success);
 }
-[data-color-scheme="dark"] .hljs-comment,
-[data-color-scheme="dark"] .hljs-quote {
+[data-color-scheme='dark'] .hljs-comment,
+[data-color-scheme='dark'] .hljs-quote {
   color: var(--text-muted);
   font-style: italic;
 }
-[data-color-scheme="dark"] .hljs-number,
-[data-color-scheme="dark"] .hljs-literal,
-[data-color-scheme="dark"] .hljs-title,
-[data-color-scheme="dark"] .hljs-section {
+[data-color-scheme='dark'] .hljs-number,
+[data-color-scheme='dark'] .hljs-literal,
+[data-color-scheme='dark'] .hljs-title,
+[data-color-scheme='dark'] .hljs-section {
   color: var(--warning);
 }
 
 /* Markdown rendered inside the graph node popover. */
-.md-popover p {
-  margin: 0 0 6px;
-}
-.md-popover p:last-child {
-  margin-bottom: 0;
-}
-.md-popover pre {
-  margin: 6px 0;
-  padding: 8px;
-  border-radius: 6px;
-  overflow-x: auto;
-  font-size: 12px;
-}
-.md-popover :not(pre) > code {
-  font-size: 12px;
-  padding: 1px 4px;
-  border-radius: 4px;
-  background: var(--bg-hover);
-}
+.md-popover p { margin: 0 0 6px; }
+.md-popover p:last-child { margin-bottom: 0; }
+.md-popover pre { margin: 6px 0; padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+.md-popover :not(pre) > code { font-size: 12px; padding: 1px 4px; border-radius: 4px; background: var(--bg-hover); }
 
 /* Deployed build SHA at the foot of the sidebar — visibility into what's live. */
-.sidebar-version {
-  padding: 8px 12px;
-  font-size: 11px;
-  opacity: 0.6;
-  font-family: var(--font-mono, monospace);
-}
+.sidebar-version { padding: 8px 12px; font-size: 11px; opacity: 0.6; font-family: var(--font-mono, monospace); }

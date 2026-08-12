@@ -23,12 +23,10 @@
 /* Figma-like: Inter, rounded corners, soft shadows, frosted glass.           */
 /* Palette modeled on apple.com/mac.                                          */
 
-[data-theme-family="elegant"] {
-  --font-ui:
-    var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
+[data-theme-family='elegant'] {
+  --font-ui: var(--font-inter), system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-sans: var(--font-ui);
-  --font-mono:
-    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
   --font-heading: var(--font-ui);
 
   /* Type scale — referenced by globals.css; never hardcode font-size elsewhere. */
@@ -60,7 +58,7 @@
   --chart-neutral: #94a3b8;
 }
 
-[data-theme-family="elegant"][data-color-scheme="light"] {
+[data-theme-family='elegant'][data-color-scheme='light'] {
   --color-scheme: light;
 
   --bg: #f5f5f7;
@@ -95,7 +93,7 @@
   --glass-border: rgba(0, 0, 0, 0.08);
 }
 
-[data-theme-family="elegant"][data-color-scheme="dark"] {
+[data-theme-family='elegant'][data-color-scheme='dark'] {
   --color-scheme: dark;
 
   --bg: #000000;
@@ -134,14 +132,12 @@
 /* Tokyo Night terminal (cubeyond ansi-ink-phile): GohuFont bitmap body text,   */
 /* IBM Plex Mono titles + code, sharp corners, soft blue-grey on #1a1b26.       */
 
-[data-theme-family="retro"] {
+[data-theme-family='retro'] {
   /* GohuFont for regular/body text; IBM Plex Mono for headings and code. */
-  --font-ui: var(--font-gohu), ui-monospace, "Courier New", monospace;
+  --font-ui: var(--font-gohu), ui-monospace, 'Courier New', monospace;
   --font-sans: var(--font-ui);
-  --font-mono:
-    var(--font-ibm-plex-mono), ui-monospace, "Courier New", monospace;
-  --font-heading:
-    var(--font-ibm-plex-mono), ui-monospace, "Courier New", monospace;
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, 'Courier New', monospace;
+  --font-heading: var(--font-ibm-plex-mono), ui-monospace, 'Courier New', monospace;
 
   /* GohuFont (body) is a bitmap traced from a 14px cell (em 2048, 1px ≈ 146.3u):
      it is pixel-crisp ONLY at 14px and integer multiples (28/42). So every
@@ -163,7 +159,7 @@
   --glass-blur: blur(4px);
 }
 
-[data-theme-family="retro"][data-color-scheme="dark"] {
+[data-theme-family='retro'][data-color-scheme='dark'] {
   --color-scheme: dark;
 
   --bg: #1a1b26;
@@ -209,7 +205,7 @@
   --chart-neutral: #565f89;
 }
 
-[data-theme-family="retro"][data-color-scheme="light"] {
+[data-theme-family='retro'][data-color-scheme='light'] {
   --color-scheme: light;
 
   /* Tokyo Night Day: the official light counterpart for the light scheme. */
@@ -262,12 +258,12 @@
 /* colors (per scheme, below) and the box-shadow formulas here. The actual bevel */
 /* application onto components lives in chicago.css (globals.css stays flat).     */
 
-[data-theme-family="chicago"] {
+[data-theme-family='chicago'] {
   /* Tahoma is the metric-compatible successor to MS Sans Serif and ships on
      Windows; the stack degrades to the platform UI sans elsewhere. */
-  --font-ui: Tahoma, "MS Sans Serif", "Segoe UI", sans-serif;
+  --font-ui: Tahoma, 'MS Sans Serif', 'Segoe UI', sans-serif;
   --font-sans: var(--font-ui);
-  --font-mono: "Fixedsys", ui-monospace, "Courier New", monospace;
+  --font-mono: 'Fixedsys', ui-monospace, 'Courier New', monospace;
   --font-heading: var(--font-ui);
 
   /* Compact shell scale (~8pt MS Sans Serif). */
@@ -287,17 +283,17 @@
   --glass-blur: none;
 
   /* 98.css bevel formulas — reference the per-scheme primitives below. */
-  --border-raised-outer:
-    inset -1px -1px var(--window-frame), inset 1px 1px var(--button-highlight);
-  --border-raised-inner:
-    inset -2px -2px var(--button-shadow), inset 2px 2px var(--button-face);
-  --border-sunken-outer:
-    inset -1px -1px var(--button-highlight), inset 1px 1px var(--window-frame);
-  --border-sunken-inner:
-    inset -2px -2px var(--button-face), inset 2px 2px var(--button-shadow);
+  --border-raised-outer: inset -1px -1px var(--window-frame),
+    inset 1px 1px var(--button-highlight);
+  --border-raised-inner: inset -2px -2px var(--button-shadow),
+    inset 2px 2px var(--button-face);
+  --border-sunken-outer: inset -1px -1px var(--button-highlight),
+    inset 1px 1px var(--window-frame);
+  --border-sunken-inner: inset -2px -2px var(--button-face),
+    inset 2px 2px var(--button-shadow);
 }
 
-[data-theme-family="chicago"][data-color-scheme="light"] {
+[data-theme-family='chicago'][data-color-scheme='light'] {
   --color-scheme: light;
 
   --bg: #008080; /* teal desktop */
@@ -350,7 +346,7 @@
   --chart-neutral: #808080;
 }
 
-[data-theme-family="chicago"][data-color-scheme="dark"] {
+[data-theme-family='chicago'][data-color-scheme='dark'] {
   --color-scheme: dark; /* Win98 "High Contrast Black" accessibility scheme */
 
   --bg: #000000;
