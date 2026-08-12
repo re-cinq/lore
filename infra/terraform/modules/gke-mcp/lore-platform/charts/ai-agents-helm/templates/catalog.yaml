@@ -1689,6 +1689,64 @@ spec:
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
+  name: def-issues
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore issues station recipe (seeded).
+  model: exec
+  prompt: "{station_input}"
+  permission_mode: bypass
+  max_turns: 1
+  tool_config:
+    command:
+      - lore-station
+      - issues
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+  resources:
+    env:
+      - name: LORE_API_URL
+        value: {{ .Values.loreApiUrl }}
+    secrets:
+      - name: LORE_INGEST_TOKEN
+        ref: LORE_INGEST_TOKEN
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: def-issues
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: def-issues
+  deadlineMinutes: 10
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: {{ .Values.stationImage }}
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
   name: def-ingest
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed

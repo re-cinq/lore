@@ -608,6 +608,12 @@ stations:
   comment-triage:
     command: ["lore-station", "comment-triage"]
     timeout_minutes: 5
+  issues:
+    command: ["lore-station", "issues"]
+    # Files one Issue per story and one spec-task per task over the Lore API — no
+    # clone, no LLM, no repo mutation. The work is bounded by the decomposition it
+    # was handed, so a few minutes is generous.
+    timeout_minutes: 10
   ingest:
     command: ["lore-station", "ingest"]
     # Sized for the largest self-chunked slice (41 files with embeddings ~ 7 min);
