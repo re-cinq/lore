@@ -275,12 +275,14 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           // Rewind: continue from the round the author picked rather than the
           // latest. Both the prompt's draft and the conversation to resume come
           // from that ONE round, so a rewind cannot half-happen.
-          const basis = resolveRoundBasis(
-            feature.iterations,
+          // A REWIND is the author naming a round; the basis is resolved for every
+          // round either way (it supplies the prior draft). Only the first is a
+          // rewind, and conflating them makes every round claim to be one.
+          const rewoundTo =
             typeof body.from_iteration === "number"
               ? body.from_iteration
-              : undefined,
-          );
+              : undefined;
+          const basis = resolveRoundBasis(feature.iterations, rewoundTo);
 
           if (!basis.ok) {
             return h.response({ error: basis.error }).code(400);
@@ -322,11 +324,18 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
                   round_feedback: roundFeedback,
                   iteration: row.iteration,
                   // Rewind on a merged line: a resumed round mints no task, so the
-                  // round can only be named by the iteration it ran as. Always
-                  // sent, so args never carry a STALE target from an earlier
-                  // rewind — the resume merges into the line's args, it does not
-                  // replace them.
-                  resume_from_iteration: basis.basis?.iteration ?? null,
+                  // round can only be named by the iteration it ran as. Sent on
+                  // EVERY round — null when the author did not rewind — because the
+                  // resume merges into the line's args rather than replacing them,
+                  // so an omitted key would leave an earlier rewind still steering.
+                  // It must be the ROUND THE AUTHOR NAMED, never the ordinary
+                  // basis: the resolver honours a rewind literally, so claiming one
+                  // on an ordinary round drops the conversation whenever that basis
+                  // never archived.
+                  resume_from_iteration:
+                    rewoundTo === undefined
+                      ? null
+                      : (basis.basis?.iteration ?? null),
                 },
               },
             });

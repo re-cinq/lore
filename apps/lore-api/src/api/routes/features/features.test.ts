@@ -11,6 +11,7 @@ vi.mock("@re-cinq/lore-server-core/features/pipeline/pipeline.js", () => ({
 import { buildServer } from "../../../server/build-server.js";
 import { projectFor } from "../../../platform/project-boot.js";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   useRateLimitSafeClock,
   makePool,
@@ -175,15 +176,13 @@ describe("features routes", () => {
         appendIteration: vi.fn().mockResolvedValue({ id: "it2", iteration: 2 }),
       }),
       fakeAssemblyLines({
-        listForTask: vi
-          .fn()
-          .mockResolvedValue([
-            {
-              id: "line-1",
-              definitionName: "feature-planning",
-              status: "running",
-            },
-          ]),
+        listForTask: vi.fn().mockResolvedValue([
+          {
+            id: "line-1",
+            definitionName: "feature-planning",
+            status: "running",
+          },
+        ]),
         listNodes: vi.fn().mockResolvedValue([
           { nodeId: "analyze", iteration: 1, outcome: "success" },
           { nodeId: "author", iteration: 1, outcome: null },
@@ -395,5 +394,102 @@ describe("features routes", () => {
 
     expect(res.statusCode).toBe(409);
     expect(createTask).not.toHaveBeenCalled();
+  });
+});
+
+describe("resume_from_iteration is a REWIND, not the ordinary basis", () => {
+  // This block lives outside the suite above, so it needs its own auth fixture —
+  // without it every request 401s and the assertions read as "no event emitted".
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  const parkedLine = () =>
+    fakeAssemblyLines({
+      listForTask: vi.fn().mockResolvedValue([
+        {
+          id: "line-1",
+          definitionName: "feature-planning",
+          status: "running",
+        },
+      ]),
+      listNodes: vi
+        .fn()
+        .mockResolvedValue([{ nodeId: "author", iteration: 1, outcome: null }]),
+    });
+
+  const post = async (body: unknown) => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [{ id: "1" }] });
+    useProject(
+      fakeFeatures({
+        get: vi.fn().mockResolvedValue({
+          id: "f1",
+          iterations: [
+            {
+              ...readyIteration({
+                sections: [{ title: "Overview", content: "round one" }],
+                draft_spec_markdown: "d1",
+              }),
+              iteration: 1,
+              task_id: "task-1",
+            },
+          ],
+        }),
+        appendIteration: vi.fn().mockResolvedValue({ id: "it2", iteration: 2 }),
+      }),
+      parkedLine(),
+    );
+    const res = await buildServer(() => pool as never).inject({
+      method: "POST",
+      url: `${base}/f1/iterations`,
+      headers: AUTH,
+      payload: JSON.stringify(body),
+    });
+    const insert = pool.query.mock.calls.find((c) =>
+      String(c[0]).includes("pipeline.events"),
+    );
+    // params[2] is the jsonb payload, a JSON STRING — parse it rather than matching
+    // text, or every assertion has to know how the driver escaped it.
+    const params = (insert?.[1] ?? []) as string[];
+
+    // A 4xx would otherwise read as "no event emitted", which sent me chasing the
+    // wrong layer for twenty minutes.
+    enforceTrue(
+      Boolean(params[2]),
+      Error,
+      `no event: ${res.statusCode} ${JSON.stringify(res.result)}`,
+    );
+
+    return JSON.parse(params[2]) as {
+      args?: { resume_from_iteration?: number | null };
+    };
+  };
+
+  it("sends null for an ordinary round, so the run continues the newest conversation", async () => {
+    // Sending the ordinary basis here makes EVERY round claim to be a rewind. The
+    // resolver then honours it literally — and the rewind contract says an explicit
+    // choice that resolves to nothing must start fresh, so a round whose basis never
+    // archived silently loses the whole conversation.
+    expect(
+      (await post({ user_answers: { free_form: "go" } })).args,
+    ).toMatchObject({ resume_from_iteration: null });
+  });
+
+  it("sends the chosen round when the author actually rewound", async () => {
+    expect(
+      (
+        await post({
+          user_answers: { free_form: "back to one" },
+          from_iteration: 1,
+        })
+      ).args,
+    ).toMatchObject({ resume_from_iteration: 1 });
   });
 });
