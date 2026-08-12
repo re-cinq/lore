@@ -86,16 +86,22 @@ const poll = (status: string, nodes: ReturnType<typeof node>[]) => ({
   },
 });
 
-/** Drives the poll endpoint: each call returns the next queued server state, and the
- *  last one repeats — the wizard polls on a timer and must not run off the end. */
-function server(states: object[]) {
-  let at = 0;
+/** The server's CURRENT state, which the test moves explicitly. Deliberately not a
+ *  queue keyed on call count: the wizard polls on a timer and on mount, so a queue
+ *  makes the assertions depend on how many times it happened to fetch. */
+function server(initial: object) {
+  let state = initial;
 
-  return vi.fn(async () => ({
-    ok: true,
-    status: 200,
-    json: async () => states[Math.min(at++, states.length - 1)],
-  }));
+  return {
+    fetch: vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => state,
+    })),
+    set(next: object) {
+      state = next;
+    },
+  };
 }
 
 /** Let the polling interval fire once and the resulting state settle. */
@@ -105,10 +111,10 @@ async function tick() {
   });
 }
 
-function mount(states: object[]) {
-  const fetchMock = server(states);
+function mount(initial: object) {
+  const srv = server(initial);
 
-  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("fetch", srv.fetch);
   const finalize = vi.fn().mockResolvedValue(undefined);
 
   render(
@@ -123,7 +129,7 @@ function mount(states: object[]) {
     />,
   );
 
-  return { finalize };
+  return { finalize, srv };
 }
 
 beforeEach(() => {
@@ -150,7 +156,7 @@ describe("pressing Create the spec PR", () => {
   ]);
 
   it("offers the decision while the line waits on the author", async () => {
-    mount([parked]);
+    mount(parked);
 
     expect(
       screen.getByRole("button", { name: /create the spec pr/i }),
@@ -159,7 +165,7 @@ describe("pressing Create the spec PR", () => {
   });
 
   it("reports the accept to the server exactly once per press", async () => {
-    const { finalize } = mount([parked, analysing]);
+    const { finalize } = mount(parked);
 
     await userEvent.click(
       screen.getByRole("button", { name: /create the spec pr/i }),
@@ -172,11 +178,12 @@ describe("pressing Create the spec PR", () => {
     // The two bugs the author actually hit: a row of DISABLED buttons ("press one and
     // the other says waiting"), and the run graph disappearing — it rendered only
     // while a planning round was running, so accepting blanked the one live view.
-    mount([parked, analysing]);
+    const { srv } = mount(parked);
 
     await userEvent.click(
       screen.getByRole("button", { name: /create the spec pr/i }),
     );
+    srv.set(analysing);
     await tick();
 
     expect(screen.getByText(/writing the spec/i)).toBeTruthy();
@@ -191,14 +198,16 @@ describe("pressing Create the spec PR", () => {
     // The worst of the four: a finished line left "Writing the spec…" on screen
     // forever, because the phase came from a local flag that only the feature
     // leaving the planning phase could clear — and with no PR, it never did.
-    mount([parked, analysing, finished]);
+    const { srv } = mount(parked);
 
     await userEvent.click(
       screen.getByRole("button", { name: /create the spec pr/i }),
     );
+    srv.set(analysing);
     await tick();
     expect(screen.getByText(/writing the spec/i)).toBeTruthy();
 
+    srv.set(finished);
     await tick();
 
     expect(screen.queryByText(/writing the spec/i)).toBeNull();
@@ -216,15 +225,60 @@ describe("pressing Create the spec PR", () => {
       node("write", null),
     ]);
 
-    mount([parked, analysing, writing]);
+    const { srv } = mount(parked);
 
     await userEvent.click(
       screen.getByRole("button", { name: /create the spec pr/i }),
     );
+    srv.set(analysing);
     await tick();
+    srv.set(writing);
     await tick();
 
     expect(screen.getByText(/writing the spec/i)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /refine again/i })).toBeNull();
+  });
+});
+
+describe("reloading the page while the spec work runs", () => {
+  // A refresh destroys `finalizing`, so the wizard must learn the phase from the
+  // SERVER. It could not: polling ran only while a planning ROUND was running, and
+  // during the spec phase none is — so a reload showed the decision row, offered the
+  // button again, and never discovered the line was mid-walk. Pressing it then mints
+  // a SECOND line, which is how one feature collected seven branches.
+  const midSpec = poll("running", [
+    node("analyze", "success"),
+    node("author", "success"),
+    node("analyse-specs", null),
+  ]);
+
+  it("finds the running spec phase without anyone pressing anything", async () => {
+    mount(midSpec);
+
+    await tick();
+
+    expect(screen.getByText(/writing the spec/i)).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: /create the spec pr/i }),
+    ).toBeNull();
+  });
+
+  it("keeps polling after a reload, so the page is not frozen on stale state", async () => {
+    // The guard cut the interval whenever no round was running, which on a reload
+    // mid-spec-phase meant the first render was also the last.
+    const done = poll("finished", [node("push", "success")]);
+
+    const { srv } = mount(midSpec);
+
+    await tick();
+    expect(screen.getByText(/writing the spec/i)).toBeTruthy();
+
+    srv.set(done);
+    await tick();
+
+    expect(screen.queryByText(/writing the spec/i)).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /create the spec pr/i }),
+    ).toBeTruthy();
   });
 });

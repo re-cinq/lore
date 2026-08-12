@@ -104,14 +104,14 @@ export default function PlanningWizard({
     task?.status === "failed" || latest?.status === "failed" || settledUnusable;
   const running = (!latest || latest.status === "running") && !failed;
 
+  // Polls while the WIZARD is on screen, not only while a planning round runs. The
+  // spec phase runs no round, so the old guard stopped polling exactly when the line
+  // was working — and since the initial payload carries no `run`, a RELOAD mid-phase
+  // showed the decision row, offered the button again, and never learned otherwise.
+  // Pressing it then mints a second line, which is how one feature collected seven
+  // branches. The wizard only renders while planning is unfinished, so polling for as
+  // long as it is mounted costs one GET per interval on one page.
   useEffect(() => {
-    if (!running) {
-      if (timer.current) {
-        clearInterval(timer.current);
-      }
-
-      return;
-    }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount; state is set inside the async fetch
     void fetchLatest();
     timer.current = setInterval(() => void fetchLatest(), POLL_MS);
@@ -121,7 +121,7 @@ export default function PlanningWizard({
         clearInterval(timer.current);
       }
     };
-  }, [running, fetchLatest]);
+  }, [fetchLatest]);
 
   // The poll updates THIS component, but the draft spec renders from the server's
   // copy of the feature (FeatureDetailView reads feature.draft_spec_md). Without a
