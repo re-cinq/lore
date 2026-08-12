@@ -235,3 +235,45 @@ describe("a thread whose rounds share one assembly line", () => {
     expect(await store.latestFor(thread, { from: execution(9) })).toBeNull();
   });
 });
+
+describe("a row written before conversations carried an iteration", () => {
+  // Migration 0038 added the column; rows written before it have NULL. Such a row is
+  // "the only execution on its line", which was true when a line ran exactly one.
+  const preMigration = async (store: InMemoryConversations) => {
+    await store.reserve({
+      thread,
+      conversationId: "legacy",
+      assemblyLineId: "line-1",
+    });
+    await store.attachArchive("legacy", "key/legacy", 10);
+  };
+
+  it("hides it from the first execution, which is the one that could have written it", async () => {
+    const store = new InMemoryConversations();
+
+    await preMigration(store);
+
+    expect(
+      await store.latestFor(thread, {
+        exclude: { assemblyLineId: "line-1", iteration: 1 },
+      }),
+    ).toBeNull();
+  });
+
+  it("offers it to a later round of the same line", async () => {
+    // The merged line's rounds share the id, so treating a NULL row as "could be any
+    // execution here" hides round 1 from every round after it — the same silent loss
+    // the iteration column was added to end.
+    const store = new InMemoryConversations();
+
+    await preMigration(store);
+
+    expect(
+      (
+        await store.latestFor(thread, {
+          exclude: { assemblyLineId: "line-1", iteration: 3 },
+        })
+      )?.conversationId,
+    ).toBe("legacy");
+  });
+});

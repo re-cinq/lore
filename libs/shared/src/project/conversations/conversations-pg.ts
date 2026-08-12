@@ -89,11 +89,11 @@ export class PgConversations implements ConversationsPort {
           AND NOT (
             $4::uuid IS NOT NULL
             AND assembly_line_id = $4::uuid
-            AND ($5::int IS NULL OR iteration IS NULL OR iteration = $5::int)
+            AND ($5::int IS NULL OR COALESCE(iteration, 1) = $5::int)
           )
           AND ($6::uuid IS NULL OR (
             assembly_line_id = $6::uuid
-            AND ($7::int IS NULL OR iteration IS NULL OR iteration = $7::int)
+            AND ($7::int IS NULL OR COALESCE(iteration, 1) = $7::int)
           ))
         ORDER BY created_at DESC
         LIMIT 1`,

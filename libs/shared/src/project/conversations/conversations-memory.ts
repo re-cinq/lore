@@ -11,17 +11,16 @@ const sameThread = (a: ConversationThread, b: ConversationThread): boolean =>
 /** Does this row belong to the named execution?
  *
  *  An `iteration`-less REF matches any execution on the line — the caller holds only
- *  a line. An `iteration`-less ROW matches any ref for its line: it predates the
- *  column, when a line had exactly one execution. Both directions must stay loose,
- *  or a legacy row is neither excludable nor addressable. */
+ *  a line. An `iteration`-less ROW predates migration 0038, when a line ran exactly
+ *  one execution, so it can only be the FIRST: matching it against every iteration
+ *  would hide round 1 from every later round of a merged line, which is the silent
+ *  loss the column was added to end. */
 const isExecution = (
   row: { assemblyLineId: string | null; iteration: number | null },
   ref: ExecutionRef,
 ): boolean =>
   row.assemblyLineId === ref.assemblyLineId &&
-  (ref.iteration === undefined ||
-    row.iteration === null ||
-    row.iteration === ref.iteration);
+  (ref.iteration === undefined || ref.iteration === (row.iteration ?? 1));
 
 /** In-memory ConversationsPort — the behavioural spec the Pg adapter must match. */
 export class InMemoryConversations implements ConversationsPort {
