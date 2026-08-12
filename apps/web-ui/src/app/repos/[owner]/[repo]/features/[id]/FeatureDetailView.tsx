@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import CollapsibleCard from "@/components/CollapsibleCard";
 import { useState, useTransition } from "react";
 import StatusBadge from "../StatusBadge";
 import { isPlanningActive } from "../feature-status";
@@ -53,9 +54,12 @@ function FinalizedView({
         total={decomposition.total}
       />
       {feature.draft_spec_md && (
-        <div className="spec-card">
+        <CollapsibleCard
+          title="Draft spec"
+          hint={`${feature.draft_spec_md.split("\n").length} lines`}
+        >
           <Markdown markdown={feature.draft_spec_md} />
-        </div>
+        </CollapsibleCard>
       )}
     </div>
   );
@@ -114,12 +118,11 @@ export default function FeatureDetailView({
       </div>
 
       {feature.original_prompt && (
-        <div className="spec-card" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Your prompt</h3>
+        <CollapsibleCard title="Your prompt" defaultOpen>
           <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>
             {feature.original_prompt}
           </p>
-        </div>
+        </CollapsibleCard>
       )}
 
       {isPlanningActive(feature.status) ? (
