@@ -63,6 +63,46 @@ describe("FailureBlock", () => {
     expect(screen.getByText(/one cause among several/)).toBeTruthy();
   });
 
+  it("shows what the author submitted, so a failed round does not swallow it", () => {
+    // The words are persisted before the pod starts, but the wizard clears the form
+    // on submit — without this they are unreachable from the screen.
+    render(
+      <FailureBlock
+        iteration={2}
+        failureReason="node analyze failed"
+        answers={{
+          sections: {
+            "Data queries": {
+              comment: "use http + a refresh event",
+              direction: "refine",
+            },
+          },
+          questions: {},
+          free_form: "",
+        }}
+        pending={false}
+        onRetry={() => {}}
+      />,
+    );
+
+    expect(screen.getByText(/use http \+ a refresh event/)).toBeTruthy();
+    expect(screen.getByText(/Data queries/)).toBeTruthy();
+  });
+
+  it("shows no input section for a round the author submitted none for", () => {
+    render(
+      <FailureBlock
+        iteration={1}
+        failureReason="node analyze failed"
+        answers={null}
+        pending={false}
+        onRetry={() => {}}
+      />,
+    );
+
+    expect(screen.queryByText(/Your input for this round/)).toBeNull();
+  });
+
   it("links to the run transcript when the round has a run", () => {
     render(
       <FailureBlock

@@ -199,6 +199,7 @@ export default function PlanningWizard({
     <FailureBlock
       iteration={iteration}
       failureReason={data.task?.failure_reason}
+      answers={latest?.user_answers}
       run={data.run}
       pending={pending}
       onRetry={submitRefine}
