@@ -11,7 +11,7 @@ import RunningCard from "./RunningCard";
 import FailureBlock from "./FailureBlock";
 import { isPlanningActive } from "../feature-status";
 import { isRewind, lineageLabel, rewindOptions } from "@/lib/round-picker";
-import type { FeatureRunPayload } from "@/lib/feature-run";
+import { specPhaseOf, type FeatureRunPayload } from "@/lib/feature-run";
 import type {
   FeatureWithIterations,
   FeatureRow,
@@ -182,11 +182,20 @@ export default function PlanningWizard({
   // with everything disabled — a greyed "Refine again" beside a primary relabelled
   // "Creating the spec PR…" — offered two dead controls and hid the run graph, which
   // only ever rendered here.
-  if (running || finalizing) {
+  // Read from the LINE, not from "did the author just press the button": a line that
+  // finishes without producing a PR must give the controls back rather than leave a
+  // progress card running forever. `finalizing` only bridges the gap until the first
+  // poll shows the line moving, and never survives it finishing.
+  const spec = specPhaseOf(data.run);
+  const showSpec =
+    spec.running ||
+    (finalizing && (data.run?.status ?? "running") === "running");
+
+  if (running || showSpec) {
     return (
       <RunningCard
         iteration={iteration}
-        since={latest?.created_at}
+        since={running ? latest?.created_at : spec.since}
         timeoutMinutes={timeoutMinutes}
         liveOutput={data.liveOutput}
         run={data.run}
