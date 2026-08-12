@@ -76,14 +76,13 @@ describe("feature-planning author loop", () => {
   });
 
   it("moves on when the author accepts the plan", async () => {
-    // `done` is the exit, so the walk settles rather than launching it. Stage 2
-    // retargets this edge at spec analysis, and then it becomes a launch.
+    // Accepting no longer ends the line: the spec work follows on the SAME line.
     expect(
       nextTransition(await planning(), [
         visit("analyze", 1, "success"),
         visit("author", 1, "success"),
       ]),
-    ).toEqual({ kind: "finish" });
+    ).toEqual({ kind: "launch", nodeId: "analyse-specs", iteration: 1 });
   });
 
   it("ends the line when the author abandons the feature", async () => {
@@ -115,5 +114,97 @@ describe("feature-planning author loop", () => {
         visit("analyze", 1, "changes_requested"),
       ]),
     ).toEqual({ kind: "launch", nodeId: "author", iteration: 1 });
+  });
+});
+
+describe("feature-planning after the author accepts", () => {
+  const accepted: NodeVisit[] = [
+    visit("analyze", 1, "success"),
+    visit("author", 1, "success"),
+  ];
+
+  it("analyses which specs change before anything writes one", async () => {
+    expect(nextTransition(await planning(), accepted)).toEqual({
+      kind: "launch",
+      nodeId: "analyse-specs",
+      iteration: 1,
+    });
+  });
+
+  it("sends the plan back to the AUTHOR when the analysis has a question", async () => {
+    // The analysis has no upstream node — its input is a plan a person accepted, so
+    // the only party who can answer is that person. Before the merged line this ended
+    // the line and settle-task faked a task failure to surface the objection; now it
+    // is an ordinary edge to the station whose worker is the author.
+    expect(
+      nextTransition(await planning(), [
+        ...accepted,
+        visit("analyse-specs", 1, "changes_requested"),
+      ]),
+    ).toEqual({ kind: "launch", nodeId: "author", iteration: 2 });
+  });
+
+  it("writes the specs once the analysis lands", async () => {
+    expect(
+      nextTransition(await planning(), [
+        ...accepted,
+        visit("analyse-specs", 1, "success"),
+      ]),
+    ).toEqual({ kind: "launch", nodeId: "write", iteration: 1 });
+  });
+
+  it("returns an unusable change set to the analysis, once", async () => {
+    expect(
+      nextTransition(await planning(), [
+        ...accepted,
+        visit("analyse-specs", 1, "success"),
+        visit("write", 1, "changes_requested"),
+      ]),
+    ).toEqual({ kind: "launch", nodeId: "analyse-specs", iteration: 2 });
+  });
+
+  it("fails the line rather than let write and analyse argue twice", async () => {
+    // Two agents disagreeing without a referee will do so all day. The author's own
+    // loop is unbounded because a person decides each pass; this one is not.
+    expect(
+      nextTransition(await planning(), [
+        ...accepted,
+        visit("analyse-specs", 1, "success"),
+        visit("write", 1, "changes_requested"),
+        visit("analyse-specs", 2, "success"),
+        visit("write", 2, "changes_requested"),
+      ]),
+    ).toMatchObject({ kind: "fail", outcome: "iteration_max" });
+  });
+
+  it("pushes the branch so the watcher opens the spec PR", async () => {
+    expect(
+      nextTransition(await planning(), [
+        ...accepted,
+        visit("analyse-specs", 1, "success"),
+        visit("write", 1, "success"),
+      ]),
+    ).toEqual({ kind: "launch", nodeId: "push", iteration: 1 });
+  });
+
+  it("runs one line from the first round to the pushed spec PR", async () => {
+    // The whole point: one line id spans refine → accept → analyse → write → push.
+    //
+    // The nodes after the loop carry iteration 2, not 1: `iteration` is a WALK-level
+    // counter, so once the author's back-edge bumps it every later node inherits the
+    // number even on its first visit. Harmless for identity — (nodeId, iteration) is
+    // still unique — but it is why a first-ever `write` row can read as iteration 7
+    // on a feature that took six rounds.
+    expect(
+      nextTransition(await planning(), [
+        visit("analyze", 1, "success"),
+        visit("author", 1, "changes_requested"),
+        visit("analyze", 2, "success"),
+        visit("author", 2, "success"),
+        visit("analyse-specs", 2, "success"),
+        visit("write", 2, "success"),
+        visit("push", 2, "success"),
+      ]),
+    ).toEqual({ kind: "finish" });
   });
 });

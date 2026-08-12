@@ -114,6 +114,32 @@ async function resolveDispatch(
 }
 
 /**
+ * Report a station outcome to the node a line is parked on.
+ *
+ * The author IS a station (FR6.19), so a round and an accept differ only in the
+ * outcome they report. Deliberately NOT swallowed the way the ingest triggers are: an
+ * event that fails to land loses the work, and a 202 would say it started.
+ */
+async function reportToParkedNode(
+  pool: Pool | null,
+  target: { lineId: string } & ParkedTarget,
+  outcome: "success" | "changes_requested",
+  args: Record<string, unknown>,
+): Promise<void> {
+  await insertEvent(enforcePool(pool), {
+    eventName: "assembly_line.resume",
+    source: "internal",
+    params: {
+      assemblyLineId: target.lineId,
+      nodeId: target.nodeId,
+      iteration: target.iteration,
+      outcome,
+      args,
+    },
+  });
+}
+
+/**
  * Kick a feature-planning Station for the next round of a feature. `repoFullName`
  * MUST be the `owner/repo` slug — it lands verbatim in `target_repo`, which the
  * pod clones as `github.com/<target_repo>.git`.
@@ -307,37 +333,22 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           });
 
           if (dispatch.kind === "resume") {
-            // The author is a station reporting its outcome; the walk it resumes is
-            // the same one a pod's outcome resumes. Deliberately NOT swallowed the
-            // way the ingest triggers are: an event that fails to land loses the
-            // round, and answering 202 would tell the author it started.
-            await insertEvent(enforcePool(getPool()), {
-              eventName: "assembly_line.resume",
-              source: "internal",
-              params: {
-                assemblyLineId: dispatch.lineId,
-                nodeId: dispatch.nodeId,
-                iteration: dispatch.iteration,
-                outcome: "changes_requested",
-                args: {
-                  description,
-                  round_feedback: roundFeedback,
-                  iteration: row.iteration,
-                  // Rewind on a merged line: a resumed round mints no task, so the
-                  // round can only be named by the iteration it ran as. Sent on
-                  // EVERY round — null when the author did not rewind — because the
-                  // resume merges into the line's args rather than replacing them,
-                  // so an omitted key would leave an earlier rewind still steering.
-                  // It must be the ROUND THE AUTHOR NAMED, never the ordinary
-                  // basis: the resolver honours a rewind literally, so claiming one
-                  // on an ordinary round drops the conversation whenever that basis
-                  // never archived.
-                  resume_from_iteration:
-                    rewoundTo === undefined
-                      ? null
-                      : (basis.basis?.iteration ?? null),
-                },
-              },
+            await reportToParkedNode(getPool(), dispatch, "changes_requested", {
+              description,
+              round_feedback: roundFeedback,
+              iteration: row.iteration,
+              // Rewind on a merged line: a resumed round mints no task, so the round
+              // can only be named by the iteration it ran as. Sent on EVERY round —
+              // null when the author did not rewind — because the resume MERGES into
+              // the line's args rather than replacing them, so an omitted key would
+              // leave an earlier rewind still steering. It must be the round the
+              // AUTHOR NAMED, never the ordinary basis: the resolver honours a rewind
+              // literally, so claiming one on an ordinary round drops the
+              // conversation whenever that basis never archived.
+              resume_from_iteration:
+                rewoundTo === undefined
+                  ? null
+                  : (basis.basis?.iteration ?? null),
             });
 
             return h
@@ -417,7 +428,8 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
         run(h, async () => {
           const repo = repoOf(request.params);
           const id = request.params.id;
-          const features = (await projectFor(repo)).features;
+          const project = await projectFor(repo);
+          const features = project.features;
           const feature = await features.get(id);
 
           if (!feature) {
@@ -430,6 +442,15 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
                 error: `cannot finalize a feature in '${feature.status}' state`,
               })
               .code(409);
+          }
+          // Accepting is the author station reporting `success`: the spec work runs
+          // on the SAME line, so what follows the accept is an edge, not a new run.
+          const dispatch = await resolveDispatch(project, feature.iterations);
+
+          if (dispatch.kind === "resume") {
+            await reportToParkedNode(getPool(), dispatch, "success", {});
+
+            return h.response({ assembly_line_id: dispatch.lineId }).code(202);
           }
           const task = await createTask(
             `Finalize feature: ${feature.title}`,

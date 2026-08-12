@@ -31,6 +31,27 @@ nodes:
     signal: author_feedback
     description: The author reviews the round — refine, accept, or abandon.
 
+  # Accepting the plan starts the spec work on the SAME line: the author's accept is
+  # a station outcome like any other, so what follows it is an edge, not a new run.
+  - id: analyse-specs
+    type: agent
+    prompt_ref: spec-analysis
+    model: claude-sonnet-4-6
+    description: >
+      Decide which specs this feature changes. Emits spec-plan.json, which the Floor
+      merges into the line as args.spec_plan for the write node.
+
+  - id: write
+    type: agent
+    prompt_ref: feature-finalize
+    model: claude-sonnet-4-6
+    description: Apply the change set — amend what it says to amend, create what it says to create.
+
+  - id: push
+    type: agent
+    prompt_ref: push-only
+    description: Commit + open/update the PR branch.
+
   - id: done
     type: retrospective
     description: Terminal marker (the executor halts on exit).
@@ -54,8 +75,46 @@ edges:
     on: changes_requested
 
   - from: author
-    to: done
+    to: analyse-specs
     on: success
+
+  - from: analyse-specs
+    to: write
+    on: success
+
+  # The analysis has no upstream NODE — its input is a plan a PERSON accepted, so a
+  # question about that plan can only be answered by that person. This used to end the
+  # line, with settle-task faking a task failure to surface the objection; now it is an
+  # ordinary edge back to the station whose worker is the author.
+  - from: analyse-specs
+    to: author
+    on: changes_requested
+
+  - from: analyse-specs
+    to: done
+    on: failed
+
+  - from: write
+    to: push
+    on: success
+
+  # The change set was unusable — a spec path that does not exist, or an instruction to
+  # amend a spec that does not cover the area. The objection rides back through args and
+  # analyse-specs re-runs against it. ONE correction: unlike the author's loop, which is
+  # unbounded because a person decides each pass, two agents disagreeing without a
+  # referee will do so all day.
+  - from: write
+    to: analyse-specs
+    on: changes_requested
+    iteration_max: 1
+
+  - from: write
+    to: done
+    on: failed
+
+  - from: push
+    to: done
+    on: always
 
   # The author walked away, or the feature was closed. Not a failure of the machine,
   # so it settles rather than erroring — but it must be routed either way, because

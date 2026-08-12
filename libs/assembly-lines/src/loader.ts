@@ -415,11 +415,15 @@ function detectCycles(wf: AssemblyLine, source: string): void {
       const c = color.get(e.to);
 
       if (c === GRAY) {
-        // The rule exists so two AGENTS cannot argue indefinitely. A back-edge out of
-        // a `wait` node is exempt: its worker is a human, who decides each pass, so
-        // the runaway this guards against cannot happen. Keyed strictly on the SOURCE
-        // node's type — it must not become a way to write an unbounded agent loop.
-        const humanGated = typeOf.get(e.from) === "wait";
+        // The rule exists so two AGENTS cannot argue indefinitely. A back-edge with a
+        // `wait` node at EITHER end is exempt: leaving one, the human has just
+        // decided; entering one, the human decides before anything else runs. Either
+        // way a person gates every pass, so the runaway this guards against cannot
+        // happen. Keyed strictly on the endpoints' types — a cycle between two agents
+        // is still bounded, so this cannot become a way to write an unbounded agent
+        // loop.
+        const humanGated =
+          typeOf.get(e.from) === "wait" || typeOf.get(e.to) === "wait";
 
         if (!e.iteration_max && !humanGated) {
           throw new AssemblyLineLoadError(

@@ -493,3 +493,84 @@ describe("resume_from_iteration is a REWIND, not the ordinary basis", () => {
     ).toMatchObject({ resume_from_iteration: 1 });
   });
 });
+
+describe("accepting the plan resumes the parked node", () => {
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  const specReady = {
+    id: "f1",
+    status: "spec-ready",
+    title: "X",
+    slug: "x",
+    iterations: [{ ...readyIteration(null), iteration: 1, task_id: "task-1" }],
+  };
+
+  it("reports success to the author node instead of minting a finalize line", async () => {
+    // The accept is a station outcome like any other: the spec work follows on the
+    // SAME line. A second line here is what made the feature's life invisible.
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [{ id: "1" }] });
+    useProject(
+      fakeFeatures({ get: vi.fn().mockResolvedValue(specReady) }),
+      fakeAssemblyLines({
+        listForTask: vi.fn().mockResolvedValue([
+          {
+            id: "line-1",
+            definitionName: "feature-planning",
+            status: "running",
+          },
+        ]),
+        listNodes: vi
+          .fn()
+          .mockResolvedValue([
+            { nodeId: "author", iteration: 2, outcome: null },
+          ]),
+      }),
+    );
+
+    const res = await buildServer(() => pool as never).inject({
+      method: "POST",
+      url: `${base}/f1/finalize`,
+      headers: AUTH,
+      payload: JSON.stringify({}),
+    });
+
+    expect(res.statusCode).toBe(202);
+    expect(res.result).toMatchObject({ assembly_line_id: "line-1" });
+    expect(createTask).not.toHaveBeenCalled();
+
+    const insert = pool.query.mock.calls.find((c) =>
+      String(c[0]).includes("pipeline.events"),
+    );
+    const params = (insert?.[1] ?? []) as string[];
+
+    enforceTrue(
+      Boolean(params[2]),
+      Error,
+      `no event: ${res.statusCode} ${JSON.stringify(res.result)}`,
+    );
+    expect(JSON.parse(params[2])).toMatchObject({
+      nodeId: "author",
+      iteration: 2,
+      outcome: "success",
+    });
+  });
+
+  it("still kicks a finalize task for a feature whose planning predates the merged line", async () => {
+    useProject(fakeFeatures({ get: vi.fn().mockResolvedValue(specReady) }));
+    vi.mocked(createTask).mockResolvedValue({ task_id: "fin" } as never);
+
+    const res = await req("POST", `${base}/f1/finalize`, {});
+
+    expect(res.statusCode).toBe(202);
+    expect(res.result).toEqual({ task_id: "fin" });
+  });
+});
