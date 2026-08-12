@@ -19,7 +19,7 @@ import {
 import { linkifyMarkdown, selectStationBackend } from "@re-cinq/lore-shared";
 import type { Project } from "@re-cinq/lore-shared";
 import { slugify, setStatus, insertEvent } from "./task-helpers.js";
-import { taskQueue, settings } from "../../kernel/queues.js";
+import { taskQueue, settings, assemblyLines } from "../../kernel/queues.js";
 import type { TaskQueueRepository } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import { composeIssueBody } from "./issue-body.js";
 import { handleFeatureRequest } from "./handle-feature-request.js";
@@ -54,14 +54,31 @@ export interface RecoverStaleDeps {
   queue: Pick<TaskQueueRepository, "findRecoverable">;
   setStatus: typeof setStatus;
   insertEvent: typeof insertEvent;
+  /** True while an assembly line for this task is still queued or running. */
+  hasOpenLine: (taskId: string) => Promise<boolean>;
 }
 
 /**
  * Reset tasks that have been stuck in running/queued for over 30 minutes
  * back to pending so they can be retried.
+ *
+ * "Stuck" is inferred from age, which stopped being sufficient once a line could
+ * legitimately stay open for days: a merged planning line parks on its author for as
+ * long as the person takes, and the task that owns it stays `running` that whole
+ * time. Without the open-line check the sweep read that as a crash and re-dispatched
+ * it on EVERY Floor boot — a fresh planning agent, and a bill, per restart. The line
+ * is the authority on whether work is still in flight; the clock is only a hint.
  */
 export async function recoverStaleTasks(
-  deps: RecoverStaleDeps = { queue: taskQueue(), setStatus, insertEvent },
+  deps: RecoverStaleDeps = {
+    queue: taskQueue(),
+    setStatus,
+    insertEvent,
+    hasOpenLine: async (taskId) =>
+      (await assemblyLines().listForTask(taskId)).some(
+        (line) => line.status === "running" || line.status === "queued",
+      ),
+  },
 ): Promise<number> {
   const stale = await deps.queue.findRecoverable();
 
@@ -74,6 +91,12 @@ export async function recoverStaleTasks(
       console.log(
         `[floor] Skipping stale implementation task ${row.id} — managed by LoreTask CRD`,
       );
+      continue;
+    }
+
+    // Not stale — its line is still walking (or parked on a person, which is the
+    // same thing to everyone but the clock).
+    if (await deps.hasOpenLine(row.id)) {
       continue;
     }
     await deps.setStatus(row.id, "pending");
