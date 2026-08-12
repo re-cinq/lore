@@ -39,8 +39,16 @@ export function selectEdge(
 /**
  * Replay the visit history and return what happens next. This is now the sole
  * definition of the walk's routing (the in-process `executeAssemblyLine` it was
- * extracted from is retired): only an `iteration_max`-carrying edge (back-edge)
- * bumps the iteration, and exceeding its budget fails the line.
+ * extracted from is retired): an edge that returns to an ALREADY-VISITED node bumps
+ * the iteration, and a budgeted edge additionally fails the line past its
+ * `iteration_max`.
+ *
+ * The bump is keyed on the revisit rather than on the budget because a node's
+ * storage identity is (nodeId, iteration): a second visit that reused the first's
+ * number would collide on the persisted row and on the Agent CR name derived from
+ * it. That was invisible while every back-edge carried `iteration_max` — the two
+ * rules picked out the same edges — and stopped being true with the human-gated
+ * unbounded back-edge, where a person decides each pass and no budget applies.
  */
 export function nextTransition(
   assemblyLine: AssemblyLine,
@@ -62,8 +70,11 @@ export function nextTransition(
   let currentId = assemblyLine.entry;
   let iteration = 1;
   const backEdgeCounts = new Map<string, number>();
+  const visited = new Set<string>();
 
   for (const visit of visits) {
+    visited.add(visit.nodeId);
+
     if (visit.nodeId !== currentId || visit.iteration !== iteration) {
       // Both node id AND iteration must match the recomputed walk — a row
       // persisted with a wrong iteration would otherwise replay cleanly while B2
@@ -85,11 +96,11 @@ export function nextTransition(
       };
     }
 
-    if (chosen.iteration_max !== undefined) {
+    if (chosen.iteration_max !== undefined || visited.has(chosen.to)) {
       const key = `${chosen.from}->${chosen.to}`;
       const count = (backEdgeCounts.get(key) ?? 0) + 1;
 
-      if (count > chosen.iteration_max) {
+      if (chosen.iteration_max !== undefined && count > chosen.iteration_max) {
         return {
           kind: "fail",
           outcome: "iteration_max",

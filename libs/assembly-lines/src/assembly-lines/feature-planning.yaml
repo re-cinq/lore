@@ -22,20 +22,47 @@ nodes:
       key: args.feature_id
     description: Produce the GapResult JSON for this round (written to result.json).
 
+  # The author reading the round IS a station — the wizard is its worker, reporting
+  # over `assembly_line.resume` instead of stdout. Modelling the pause as a node is
+  # what lets one line span a whole feature: the moments a person acts stop being
+  # gaps between runs and become steps you can see in the graph.
+  - id: author
+    type: wait
+    signal: author_feedback
+    description: The author reviews the round — refine, accept, or abandon.
+
   - id: done
     type: retrospective
     description: Terminal marker (the executor halts on exit).
 
 edges:
   - from: analyze
-    to: done
+    to: author
     on: success
 
   # An agent node can produce this outcome, so the graph must route it; planning
-  # asks for no review, so treat it as done rather than a failure.
+  # asks for no review, so it reaches the author exactly as success does.
   - from: analyze
-    to: done
+    to: author
     on: changes_requested
+
+  # Unbounded on purpose. The back-edge rule exists to stop two agents arguing
+  # forever; here a person decides each pass, so there is no runaway to bound — and
+  # any number picked would silently kill a feature that needed one more round.
+  - from: author
+    to: analyze
+    on: changes_requested
+
+  - from: author
+    to: done
+    on: success
+
+  # The author walked away, or the feature was closed. Not a failure of the machine,
+  # so it settles rather than erroring — but it must be routed either way, because
+  # selectEdge does not fall through.
+  - from: author
+    to: done
+    on: failed
 
   # One retry for a node that genuinely failed — a crashed pod, a non-zero exit, a
   # timeout. Planning is a single expensive LLM pass with no partial state to lose,
