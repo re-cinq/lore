@@ -44,6 +44,11 @@ export {
 } from "./loader.js";
 
 export { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
+export {
+  resolveNodeStation,
+  builtinStationName,
+  type NodeStation,
+} from "./node-station.js";
 
 export { RelayExecutor, type RelayResult } from "./relay/relay-executor.js";
 export { RELAY_SCRIPT } from "./relay/relay-script.js";

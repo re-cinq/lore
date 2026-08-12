@@ -56,6 +56,11 @@ nodes:
   - id: push
     type: agent
     prompt_ref: push-only
+    # No `push-only` Station exists; the old finalize line reached this node with
+    # feature-finalize inherited from its task type, and naming it keeps that exact
+    # recipe. Left inherited, the merged line would run the PLANNING recipe here —
+    # the node meant to commit and push running a prompt that writes result.json.
+    station_ref: feature-finalize
     description: Commit + open/update the PR branch.
 
   - id: done

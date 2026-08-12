@@ -54,6 +54,28 @@ function post<T>(
   return send<T>(repo, path, "POST", body);
 }
 
+/** Unwrap a call, throwing when it did not succeed. `send` reports failure in its
+ *  RESULT rather than by throwing — it catches transport errors too — so a caller
+ *  that ignores the return value swallows every 4xx/5xx, an unconfigured API URL
+ *  and a refused connection alike. A server action that does that resolves
+ *  normally: the browser is told 200, nothing was written, and the failure is
+ *  indistinguishable from a no-op refresh. Next.js surfaces a THROWN action error
+ *  to the client, so enforcing here is what puts the real message on screen.
+ *
+ *  Local rather than `enforceTrue` from @re-cinq/lore-shared, which web-ui cannot
+ *  import (workspace + Docker isolation — same reason as agents-mirror.ts). */
+export function enforceOk<T>(action: string, result: FeatureApiResult<T>): T {
+  if (result.status === "ok") {
+    return result.data;
+  }
+
+  throw new Error(
+    result.status === "unconfigured"
+      ? `${action} is unavailable: the web UI has no LORE_API_URL plus LORE_ADMIN_TOKEN or LORE_INGEST_TOKEN configured.`
+      : `${action} failed: ${result.message}`,
+  );
+}
+
 export function createFeature(repo: string, title: string, prompt: string) {
   return post<{ id: string; task_id: string }>(repo, "", { title, prompt });
 }

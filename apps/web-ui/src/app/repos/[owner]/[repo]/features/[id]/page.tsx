@@ -8,6 +8,7 @@ import {
   finalizeFeature,
   splitFeature,
   deleteFeature,
+  enforceOk,
 } from "@/lib/feature-api";
 import { listAgents } from "@/lib/agents-api";
 import {
@@ -66,26 +67,28 @@ export default async function FeatureDetail({
 
   async function refine(userAnswers: SectionAnswers, fromIteration?: number) {
     "use server";
-    await refineFeature(fullName, id, userAnswers, fromIteration);
+    enforceOk(
+      "Starting a planning round",
+      await refineFeature(fullName, id, userAnswers, fromIteration),
+    );
     revalidatePath(`/repos/${owner}/${repo}/features/${id}`);
   }
   async function finalize() {
     "use server";
-    await finalizeFeature(fullName, id);
+    enforceOk("Finalizing the spec", await finalizeFeature(fullName, id));
     revalidatePath(`/repos/${owner}/${repo}/features/${id}`);
   }
   async function split(title: string, prompt: string) {
     "use server";
-    await splitFeature(fullName, id, title, prompt);
+    enforceOk(
+      "Splitting the feature",
+      await splitFeature(fullName, id, title, prompt),
+    );
     revalidatePath(`/repos/${owner}/${repo}/features`);
   }
   async function del() {
     "use server";
-    const result = await deleteFeature(fullName, id);
-
-    if (result.status === "error") {
-      throw new Error(result.message);
-    }
+    enforceOk("Deleting the feature", await deleteFeature(fullName, id));
     revalidatePath(`/repos/${owner}/${repo}/features`);
     redirect(`/repos/${owner}/${repo}/features`);
   }

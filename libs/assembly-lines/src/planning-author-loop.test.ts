@@ -221,9 +221,17 @@ describe("the merged line's agent nodes name their own recipes", () => {
       (await planning()).nodes.map((n) => [n.id, n.station_ref]),
     );
 
+    // push too: it inherits the LINE's task type, which on the merged line is
+    // feature-planning — so the node meant to commit and push would run the planning
+    // prompt. The API's `stationInherited` is what made this visible.
     expect({
       analyse: nodes.get("analyse-specs"),
       write: nodes.get("write"),
-    }).toEqual({ analyse: "spec-analysis", write: "feature-finalize" });
+      push: nodes.get("push"),
+    }).toEqual({
+      analyse: "spec-analysis",
+      write: "feature-finalize",
+      push: "feature-finalize",
+    });
   });
 });
