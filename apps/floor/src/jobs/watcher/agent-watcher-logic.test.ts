@@ -7,6 +7,7 @@ import {
   decideCiGate,
   decideTokenReclaim,
   runOutcomeFromTaskStatus,
+  decideFeatureLink,
 } from "./agent-watcher-logic.js";
 
 describe("taskIdOf / taskTypeOf", () => {
@@ -104,5 +105,46 @@ describe("runOutcomeFromTaskStatus", () => {
   });
   it("maps an un-advanced task on a Succeeded CR to completed", () => {
     expect(runOutcomeFromTaskStatus("running", "Succeeded")).toBe("completed");
+  });
+});
+
+describe("decideFeatureLink", () => {
+  const bundle = { feature_id: "f1", slug: "spec-standard" };
+
+  it("links the PR for the merged line, whose task type is feature-planning", async () => {
+    // The whole feature — rounds, spec analysis, write, push — runs under ONE
+    // feature-planning task now (FR6.26). Keying the link on `feature-finalize` meant
+    // the push opened a spec PR and nothing flipped the feature to pr-open, so the
+    // wizard sat on "Creating the spec PR…" forever while the work had actually run.
+    expect(decideFeatureLink("feature-planning", bundle)).toEqual({
+      featureId: "f1",
+      slug: "spec-standard",
+    });
+  });
+
+  it("still links the legacy finalize task", () => {
+    expect(decideFeatureLink("feature-finalize", bundle)).toEqual({
+      featureId: "f1",
+      slug: "spec-standard",
+    });
+  });
+
+  it("links nothing for a task that is not part of a feature's life", () => {
+    expect(decideFeatureLink("implementation", bundle)).toBeNull();
+  });
+
+  it("links nothing when the task carries no feature", () => {
+    expect(decideFeatureLink("feature-planning", { slug: "x" })).toBeNull();
+  });
+
+  it("tolerates a missing slug, which the merged line's task does not carry", () => {
+    // The finalize endpoint used to put the slug on its own task. The merged line's
+    // task predates the spec, so the path is simply omitted rather than invented.
+    expect(decideFeatureLink("feature-planning", { feature_id: "f1" })).toEqual(
+      {
+        featureId: "f1",
+        slug: undefined,
+      },
+    );
   });
 });
