@@ -64,19 +64,25 @@ export function buildServer(opts: {
   return server;
 }
 
+/**
+ * Start the HTTP server and return how to stop it.
+ *
+ * It deliberately registers NO signal handler: it used to stop itself on SIGTERM
+ * while another handler flushed telemetry, and neither exited — so the Floor stopped
+ * serving and lived on. Process lifecycle belongs to one owner (index.ts), which
+ * needs the stop function rather than a competing handler.
+ */
 export async function startHealthServer(
   port: number,
   getJobStatus: () => unknown,
-): Promise<void> {
+): Promise<() => Promise<void>> {
   const server = buildServer({ getJobStatus, port });
-
-  process.on("SIGTERM", () => {
-    void server.stop();
-  });
 
   try {
     await server.start();
     console.log(`[floor] Health server on :${port}/healthz`);
+
+    return () => server.stop();
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
 

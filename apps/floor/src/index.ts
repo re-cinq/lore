@@ -1,4 +1,5 @@
 import { initOtel, shutdownOtel } from "./otel-init.js";
+import { createShutdown } from "./shutdown.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { initPool } from "./kernel/db.js";
 import { usage } from "./kernel/queues.js";
@@ -26,7 +27,6 @@ async function main(): Promise<void> {
   console.log("[floor] Lore Floor Service starting...");
 
   await initOtel();
-  process.on("SIGTERM", () => void shutdownOtel());
 
   initPool();
   Llm.configure({ usage: usage() });
@@ -67,8 +67,20 @@ async function main(): Promise<void> {
   void startWorker();
 
   const port = parseInt(process.env.PORT || "8080", 10);
+  // Awaited: the stop function is half of the shutdown contract, and a fire-and-
+  // forgotten start left a late failure with nowhere to surface.
+  const stopServing = await startHealthServer(port, getJobStatus);
+  // ONE owner of the process lifecycle. Any handler overrides Node's default
+  // terminate, so the Floor must exit itself or the drain loop keeps it alive with
+  // nothing listening — the zombie shape this replaces.
+  const shutdown = createShutdown({
+    stopServing,
+    flushTelemetry: shutdownOtel,
+    exit: (code) => process.exit(code),
+  });
 
-  void startHealthServer(port, getJobStatus);
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
+  process.on("SIGINT", () => void shutdown("SIGINT"));
 
   console.log("[floor] Lore Floor Service ready");
 }
