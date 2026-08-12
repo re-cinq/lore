@@ -1,4 +1,5 @@
 import type { ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
+import type { Pool } from "pg";
 import { applyGapResult } from "@re-cinq/lore-shared/feature-planning/apply-gap-result.js";
 import {
   composePlanningPrompt,
@@ -15,6 +16,10 @@ import {
   latestReadyGap,
   resolveRoundBasis,
 } from "@re-cinq/lore-shared/project/features/features-port.js";
+import { decideRoundDispatch } from "@re-cinq/lore-shared/feature-planning/round-dispatch.js";
+import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import { insertEvent } from "@re-cinq/lore-shared";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../../platform/project-boot.js";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
@@ -32,6 +37,11 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
  */
 
 const BASE = "/api/repos/{owner}/{repo}/features";
+/** The definition whose line owns a feature's planning for its whole life. */
+const PLANNING_DEFINITION = "feature-planning";
+
+/** The node a resumed round completes, and the number it completes it at. */
+type ParkedTarget = { nodeId: string; iteration: number };
 const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
 // hapi parses the payload natively (ADR-034); the 2 MB cap surfaces as a 413.
 const WRITE_PAYLOAD = { maxBytes: 2 * 1_048_576 } as const;
@@ -52,6 +62,55 @@ async function run(
       .response({ error: err instanceof Error ? err.message : String(err) })
       .code(500);
   }
+}
+
+/** The resume event is the round. Without a pool it cannot be written, and a 202
+ *  would tell the author their round started when nothing did. */
+function enforcePool(pool: Pool | null): Pool {
+  enforceTrue(
+    pool !== null,
+    Error,
+    "no database pool: cannot report the round to its assembly line",
+  );
+
+  return pool;
+}
+
+/**
+ * Where this round goes: back to the node the feature's line is parked on, or down
+ * the legacy path that mints a line per round (FR6.21).
+ *
+ * The line is found through the FIRST round's task, which is the line's owner for
+ * its whole life. A feature whose planning predates the merged line has no parked
+ * node and must keep the old path, or it strands mid-plan.
+ */
+async function resolveDispatch(
+  project: {
+    assemblyLines: Pick<AssemblyLinesPort, "listForTask" | "listNodes">;
+  },
+  iterations: readonly { iteration: number; task_id: string | null }[],
+): Promise<
+  { kind: "legacy" } | ({ kind: "resume"; lineId: string } & ParkedTarget)
+> {
+  const first = [...iterations].sort((a, b) => a.iteration - b.iteration)[0];
+
+  if (!first?.task_id) {
+    return { kind: "legacy" };
+  }
+  const lines = await project.assemblyLines.listForTask(first.task_id);
+  const line = lines.find((l) => l.definitionName === PLANNING_DEFINITION);
+
+  if (!line) {
+    return { kind: "legacy" };
+  }
+  const decision = decideRoundDispatch(
+    line.status,
+    await project.assemblyLines.listNodes(line.id),
+  );
+
+  return decision.kind === "resume"
+    ? { ...decision, lineId: line.id }
+    : { kind: "legacy" };
 }
 
 /**
@@ -86,7 +145,7 @@ async function kickPlanning(
   return task.task_id as string;
 }
 
-export function featuresRoutes(): ServerRoute[] {
+export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
     // GET .../features — list, optionally filtered by status.
     {
@@ -191,7 +250,8 @@ export function featuresRoutes(): ServerRoute[] {
             user_answers?: unknown;
             from_iteration?: unknown;
           };
-          const features = (await projectFor(repo)).features;
+          const project = await projectFor(repo);
+          const features = project.features;
           const feature = await features.get(id);
 
           if (!feature) {
@@ -232,17 +292,53 @@ export function featuresRoutes(): ServerRoute[] {
             priorGap,
             answers,
           });
+          const dispatch = await resolveDispatch(project, feature.iterations);
           const row = await features.appendIteration(
             id,
             answers,
             basis.basis?.iteration ?? null,
           );
+          const roundFeedback = composeRoundFeedback({
+            round: row.iteration,
+            priorGap,
+            answers,
+          });
+
+          if (dispatch.kind === "resume") {
+            // The author is a station reporting its outcome; the walk it resumes is
+            // the same one a pod's outcome resumes. Deliberately NOT swallowed the
+            // way the ingest triggers are: an event that fails to land loses the
+            // round, and answering 202 would tell the author it started.
+            await insertEvent(enforcePool(getPool()), {
+              eventName: "assembly_line.resume",
+              source: "internal",
+              params: {
+                assemblyLineId: dispatch.lineId,
+                nodeId: dispatch.nodeId,
+                iteration: dispatch.iteration,
+                outcome: "changes_requested",
+                args: {
+                  description,
+                  round_feedback: roundFeedback,
+                  iteration: row.iteration,
+                },
+              },
+            });
+
+            return h
+              .response({
+                iteration: row.iteration,
+                assembly_line_id: dispatch.lineId,
+                task_id: null,
+              })
+              .code(202);
+          }
           const taskId = await kickPlanning(
             repo,
             id,
             row.iteration,
             description,
-            composeRoundFeedback({ round: row.iteration, priorGap, answers }),
+            roundFeedback,
             basis.basis?.task_id ?? null,
           );
 

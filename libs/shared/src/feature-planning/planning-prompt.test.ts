@@ -154,11 +154,15 @@ describe("the feature-planning prompt template", () => {
     expect([...used].filter((token) => !defined.has(token))).toEqual([]);
   });
 
-  it("carries the round content and context placeholders the runner fills", () => {
+  it("carries the round-content placeholder and leaves {context} to the catalog", () => {
+    // agent-catalog appends `\n\n{context}` to every recipe prompt. A template that
+    // also carried one produced the prompt a live pod was observed running, which
+    // ended `{context}\n\n{context}` — both unfilled, since renderPrompt leaves an
+    // unknown placeholder intact.
     const template = planningPromptTemplate();
 
     expect(template).toContain("{description}");
-    expect(template).toContain("{context}");
+    expect(template).not.toContain("{context}");
   });
 
   it("states the contract the agent is measured on", () => {

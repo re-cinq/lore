@@ -2,6 +2,7 @@ import type {
   AssemblyLinesPort,
   AssemblyLineStartInput,
   AssemblyLineRecord,
+  AssemblyLineNodeRecord,
 } from "./assembly-lines-port.js";
 
 /**
@@ -34,6 +35,11 @@ export class AssemblyLines {
 
   listForTask(taskId: string): Promise<AssemblyLineRecord[]> {
     return this.port.listForTask(taskId);
+  }
+
+  /** The line's node rows — how a reader tells which node it is parked on. */
+  listNodes(id: string): Promise<AssemblyLineNodeRecord[]> {
+    return this.port.listNodes(id);
   }
 
   findOpenByPr(prNumber: number): Promise<AssemblyLineRecord[]> {

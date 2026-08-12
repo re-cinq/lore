@@ -36,8 +36,20 @@ function fakeFeatures(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function useProject(features: ReturnType<typeof fakeFeatures>) {
-  vi.mocked(projectFor).mockResolvedValue({ features } as never);
+/** No line for the feature's first task → every round takes the legacy path. */
+function fakeAssemblyLines(overrides: Record<string, unknown> = {}) {
+  return {
+    listForTask: vi.fn().mockResolvedValue([]),
+    listNodes: vi.fn().mockResolvedValue([]),
+    ...overrides,
+  };
+}
+
+function useProject(
+  features: ReturnType<typeof fakeFeatures>,
+  assemblyLines = fakeAssemblyLines(),
+) {
+  vi.mocked(projectFor).mockResolvedValue({ features, assemblyLines } as never);
 
   return features;
 }
@@ -147,6 +159,62 @@ describe("features routes", () => {
 
     expect(res.statusCode).toBe(202);
     expect(res.result).toEqual({ task_id: "fin" });
+  });
+
+  it("reports a later round to the node its line is parked on, minting no task", async () => {
+    // The merged line: the author IS the station, so the round is an outcome
+    // reported to the parked node — not a new line per round with nothing between.
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [{ id: "1" }] });
+    const round1 = { ...readyIteration(null), iteration: 1, task_id: "task-1" };
+
+    useProject(
+      fakeFeatures({
+        get: vi.fn().mockResolvedValue({ id: "f1", iterations: [round1] }),
+        appendIteration: vi.fn().mockResolvedValue({ id: "it2", iteration: 2 }),
+      }),
+      fakeAssemblyLines({
+        listForTask: vi
+          .fn()
+          .mockResolvedValue([
+            {
+              id: "line-1",
+              definitionName: "feature-planning",
+              status: "running",
+            },
+          ]),
+        listNodes: vi.fn().mockResolvedValue([
+          { nodeId: "analyze", iteration: 1, outcome: "success" },
+          { nodeId: "author", iteration: 1, outcome: null },
+        ]),
+      }),
+    );
+
+    const res = await buildServer(() => pool as never).inject({
+      method: "POST",
+      url: `${base}/f1/iterations`,
+      headers: AUTH,
+      payload: JSON.stringify({ user_answers: { free_form: "smaller" } }),
+    });
+
+    expect(res.statusCode).toBe(202);
+    expect(res.result).toMatchObject({
+      iteration: 2,
+      assembly_line_id: "line-1",
+      task_id: null,
+    });
+    // A task here would start a SECOND line for the same feature.
+    expect(createTask).not.toHaveBeenCalled();
+
+    const insert = pool.query.mock.calls.find((c) =>
+      String(c[0]).includes("events"),
+    );
+
+    expect(insert).toBeDefined();
+    expect(JSON.stringify(insert)).toContain("assembly_line.resume");
+    // The author asked for changes: the edge back to another round.
+    expect(JSON.stringify(insert)).toContain("changes_requested");
   });
 
   it("rewinds to the round the author chose, carrying its draft and its task", async () => {
