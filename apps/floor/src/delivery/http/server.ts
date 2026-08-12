@@ -18,6 +18,7 @@ import { agentLogsRoute } from "./routes/agent-logs.js";
 import { agentEventsStreamRoute } from "./routes/agent-events-stream.js";
 import { agentEventsHistoryRoute } from "./routes/agent-events-history.js";
 import { agentTurnsHistoryRoute } from "./routes/agent-turns-history.js";
+import { agentTurnsByTaskRoute } from "./routes/agent-turns-by-task.js";
 import { assemblyLineDefinitionsRoute } from "./routes/assembly-line-definitions.js";
 import {
   assemblyRunReadRoute,
@@ -60,6 +61,7 @@ export function buildServer(opts: {
     agentEventsStreamRoute(),
     agentEventsHistoryRoute(),
     agentTurnsHistoryRoute(),
+    agentTurnsByTaskRoute(),
     assemblyLineDefinitionsRoute(),
     assemblyRunReadRoute(),
     legacyAssemblyLineReadRoute(),

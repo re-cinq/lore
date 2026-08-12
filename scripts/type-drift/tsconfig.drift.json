@@ -20,6 +20,7 @@
   },
   "include": [
     "run-stream-types.drift.ts",
+    "run-turn-types.drift.ts",
     "assembly-line-definition.drift.ts",
     "run-graph.drift.ts",
     "spec-status.drift.ts",

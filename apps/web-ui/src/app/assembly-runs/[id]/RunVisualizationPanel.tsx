@@ -27,6 +27,7 @@ import { parseRunStreamRow, type RunStreamEvent } from "@/lib/run-stream-types";
 import { toTranscriptRows } from "@/lib/transcript-rows";
 import { stepViews } from "@/lib/step-presenter";
 import FileHeatmapView from "./FileHeatmapView";
+import FullTranscriptPanel from "./FullTranscriptPanel";
 import NodeLogPanel from "./NodeLogPanel";
 import NodeTranscriptView, {
   recallScroll,
@@ -554,6 +555,16 @@ export default function RunVisualizationPanel({
       ) : null}
       {!selectedNodeId && visibleGraph.nodes.length === 0 ? (
         <p className={styles.hint}>No node executions recorded.</p>
+      ) : null}
+      {selectedNodeId ? (
+        // Keyed on the run for the same reason historyLoadedFor compares to
+        // runId above: a run change must reset the loaded transcript by
+        // construction, not by a flag someone has to remember to clear.
+        <FullTranscriptPanel
+          key={runId}
+          runId={runId}
+          nodeId={selectedNodeId}
+        />
       ) : null}
       <RunTimelineView
         ticks={displayState.timeline}

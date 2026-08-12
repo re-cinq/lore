@@ -54,7 +54,7 @@ fed at the same tee, not a new database.
 ## Goals & Non-Goals
 
 - The first cut delivers storage plus a cursor-paged read API: the table, the repository port with its Postgres adapter and in-memory double, the flagged ingest tee, and one HTTP read route.
-- The turn-view UI is **out of scope**. This feature stops at the read API; rendering turns on the run detail page is a follow-up.
+- The turn-view UI was **out of scope** for the first cut, which stopped at the read API. *(Superseded by the #1148 follow-up:)* the run detail page now renders turns behind a collapsed full-transcript panel (FR5), and the task-keyed read route exists (FR4).
 - The write is live from the first deploy. There is no flag and no pilot, so the projection and the SSE live view continuing to work byte-for-byte is a property that has to be tested rather than a state an operator can restore by flipping something off. (This originally listed the GCS archive too; it was retired the same day, #1148.)
 
 ## FR1 — The `pipeline.agent_run_turns` table
@@ -118,6 +118,35 @@ the existing `GET /api/agent-events/{assemblyLineId}` history route.
 - The route reads through `listByLine`, scoping rows by line **and** cursor rather than by cursor alone. ([validated by `agent-turns-history.test.ts:60`](apps/floor/src/delivery/http/routes/agent-turns-history.test.ts#L61))
 - The limit is clamped to a maximum and falls back to a default for a missing, non-numeric, zero or negative value, because the token is shared with the web-ui and an unbounded limit would be an unbounded read. ([validated by `agent-turns-history.test.ts:69`](apps/floor/src/delivery/http/routes/agent-turns-history.test.ts#L70))
 - The cursor falls back to `0` for anything that is not a run of digits, so a malformed `after` reads the run from its start instead of erroring. ([validated by `agent-turns-history.test.ts:79`](apps/floor/src/delivery/http/routes/agent-turns-history.test.ts#L80))
+
+`GET /api/agent-turns/task/{taskId}` is the task-keyed sibling (a #1148
+follow-up), reading through `listByTask` — the only path to the
+uncorrelated rows FR1 requires the table to preserve, which were otherwise
+stored but unreachable over HTTP.
+
+- The task route hands back one task's turns — including rows correlated to no assembly line — behind the same `ingest-token` bearer auth. ([validated by `agent-turns-by-task.test.ts:51`](apps/floor/src/delivery/http/routes/agent-turns-by-task.test.ts#L51), [`agent-turns-by-task.test.ts:89`](apps/floor/src/delivery/http/routes/agent-turns-by-task.test.ts#L89))
+- It reads through `listByTask`, scoping rows by task **and** cursor, and its literal `task` path segment never collides with the registered line route sharing the `/api/agent-turns` prefix. ([validated by `agent-turns-by-task.test.ts:61`](apps/floor/src/delivery/http/routes/agent-turns-by-task.test.ts#L61), [`agent-turns-by-task.test.ts:102`](apps/floor/src/delivery/http/routes/agent-turns-by-task.test.ts#L102))
+- The limit clamp and default are byte-identical to the line route's, for the same shared-token reason. ([validated by `agent-turns-by-task.test.ts:70`](apps/floor/src/delivery/http/routes/agent-turns-by-task.test.ts#L70))
+- The cursor falls back to `0` for a malformed `after`, same as the line route. ([validated by `agent-turns-by-task.test.ts:80`](apps/floor/src/delivery/http/routes/agent-turns-by-task.test.ts#L80))
+
+## FR5 — The turn-view UI
+
+The run detail page (`apps/web-ui/src/app/assembly-lines/[id]/`) surfaces
+the store through a session-authed proxy plus a collapsed
+`FullTranscriptPanel` next to the selected node's live transcript — the
+truncated live view stays the page's default and pays nothing for the
+panel's existence (the #1148 follow-up; deliberately one reused panel, not
+a parallel page, per #1102).
+
+- `GET /api/assembly-lines/[id]/turns` proxies the Floor's line-keyed turns route with the same auth ladder as the sibling events proxy: session (401) → run lookup (404) → repo access (403) → env guard (500). ([validated by `route.test.ts:47`](apps/web-ui/src/app/api/assembly-lines/[id]/turns/route.test.ts#L47), [`route.test.ts:56`](apps/web-ui/src/app/api/assembly-lines/[id]/turns/route.test.ts#L56), [`route.test.ts:65`](apps/web-ui/src/app/api/assembly-lines/[id]/turns/route.test.ts#L65), [`route.test.ts:76`](apps/web-ui/src/app/api/assembly-lines/[id]/turns/route.test.ts#L76))
+- The proxy forwards `after`/`limit` untouched, sends `LORE_INGEST_TOKEN` as the bearer, propagates the request's abort signal, returns the Floor's status and body verbatim, and opts out of route caching. ([validated by `route.test.ts:42`](apps/web-ui/src/app/api/assembly-lines/[id]/turns/route.test.ts#L42), [`route.test.ts:87`](apps/web-ui/src/app/api/assembly-lines/[id]/turns/route.test.ts#L87), [`route.test.ts:97`](apps/web-ui/src/app/api/assembly-lines/[id]/turns/route.test.ts#L97), [`route.test.ts:107`](apps/web-ui/src/app/api/assembly-lines/[id]/turns/route.test.ts#L107), [`route.test.ts:118`](apps/web-ui/src/app/api/assembly-lines/[id]/turns/route.test.ts#L118), [`route.test.ts:126`](apps/web-ui/src/app/api/assembly-lines/[id]/turns/route.test.ts#L126), [`route.test.ts:135`](apps/web-ui/src/app/api/assembly-lines/[id]/turns/route.test.ts#L135))
+- The row crosses into the web-ui as a hand-mirrored `AgentRunTurn` (web-ui cannot import `@re-cinq/lore-shared`), guarded keys-only by `scripts/type-drift/run-turn-types.drift.ts`; the parser requires the identity fields, keeps every correlation field nullable, keeps unknown event kinds unnarrowed, and never throws. ([validated by `run-turn-types.test.ts:20`](apps/web-ui/src/lib/run-turn-types.test.ts#L20), [`run-turn-types.test.ts:24`](apps/web-ui/src/lib/run-turn-types.test.ts#L24), [`run-turn-types.test.ts:37`](apps/web-ui/src/lib/run-turn-types.test.ts#L37), [`run-turn-types.test.ts:45`](apps/web-ui/src/lib/run-turn-types.test.ts#L45), [`run-turn-types.test.ts:49`](apps/web-ui/src/lib/run-turn-types.test.ts#L49), [`run-turn-types.test.ts:53`](apps/web-ui/src/lib/run-turn-types.test.ts#L53), [`run-turn-types.test.ts:57`](apps/web-ui/src/lib/run-turn-types.test.ts#L57))
+- The panel renders collapsed and fetches nothing until first opened, so the default view is unaffected; reopening it while the first walk is still in flight never starts a second one, and the mount is keyed on the run id so run navigation cannot leak a stale transcript. The page URL and cursor arithmetic are pure presenter functions. ([validated by `FullTranscriptPanel.test.tsx:71`](apps/web-ui/src/app/assembly-lines/[id]/FullTranscriptPanel.test.tsx#L71), [`FullTranscriptPanel.test.tsx:167`](apps/web-ui/src/app/assembly-lines/[id]/FullTranscriptPanel.test.tsx#L167), [`turn-transcript-presenter.test.ts:34`](apps/web-ui/src/app/assembly-lines/[id]/turn-transcript-presenter.test.ts#L34), [`turn-transcript-presenter.test.ts:40`](apps/web-ui/src/app/assembly-lines/[id]/turn-transcript-presenter.test.ts#L40), [`turn-transcript-presenter.test.ts:46`](apps/web-ui/src/app/assembly-lines/[id]/turn-transcript-presenter.test.ts#L46))
+- Once opened it pages the proxy with the cursor until a short page — the same end-of-history rule the event history uses — reading the cursor off the raw page so one unparseable row cannot end the paging early. ([validated by `FullTranscriptPanel.test.tsx:91`](apps/web-ui/src/app/assembly-lines/[id]/FullTranscriptPanel.test.tsx#L91), [`turn-transcript-presenter.test.ts:62`](apps/web-ui/src/app/assembly-lines/[id]/turn-transcript-presenter.test.ts#L62), [`turn-transcript-presenter.test.ts:66`](apps/web-ui/src/app/assembly-lines/[id]/turn-transcript-presenter.test.ts#L66), [`turn-transcript-presenter.test.ts:70`](apps/web-ui/src/app/assembly-lines/[id]/turn-transcript-presenter.test.ts#L70), [`turn-transcript-presenter.test.ts:74`](apps/web-ui/src/app/assembly-lines/[id]/turn-transcript-presenter.test.ts#L74))
+- The walk is bounded, never silent about it: it requests the Floor route's maximum page size rather than its default, and stops at a hard cap with a visible notice instead of materializing an unbounded run in the tab. ([validated by `FullTranscriptPanel.test.tsx:108`](apps/web-ui/src/app/assembly-lines/[id]/FullTranscriptPanel.test.tsx#L108), [`turn-transcript-presenter.test.ts:54`](apps/web-ui/src/app/assembly-lines/[id]/turn-transcript-presenter.test.ts#L54), [`turn-transcript-presenter.test.ts:58`](apps/web-ui/src/app/assembly-lines/[id]/turn-transcript-presenter.test.ts#L58))
+- It renders the selected node's turns with their **untruncated** envelopes, labeled by the raw stream-json kind and the iteration; switching the selected node refilters the one line-scoped fetch instead of refetching. ([validated by `FullTranscriptPanel.test.tsx:80`](apps/web-ui/src/app/assembly-lines/[id]/FullTranscriptPanel.test.tsx#L80), [`FullTranscriptPanel.test.tsx:127`](apps/web-ui/src/app/assembly-lines/[id]/FullTranscriptPanel.test.tsx#L127), [`FullTranscriptPanel.test.tsx:141`](apps/web-ui/src/app/assembly-lines/[id]/FullTranscriptPanel.test.tsx#L141), [`FullTranscriptPanel.test.tsx:152`](apps/web-ui/src/app/assembly-lines/[id]/FullTranscriptPanel.test.tsx#L152), [`turn-transcript-presenter.test.ts:84`](apps/web-ui/src/app/assembly-lines/[id]/turn-transcript-presenter.test.ts#L84), [`turn-transcript-presenter.test.ts:96`](apps/web-ui/src/app/assembly-lines/[id]/turn-transcript-presenter.test.ts#L96), [`turn-transcript-presenter.test.ts:100`](apps/web-ui/src/app/assembly-lines/[id]/turn-transcript-presenter.test.ts#L100), [`turn-transcript-presenter.test.ts:108`](apps/web-ui/src/app/assembly-lines/[id]/turn-transcript-presenter.test.ts#L108))
+- A node with no stored turns and a failed fetch each get an explicit message, so an empty panel is never ambiguous between "pruned", "never stored", and "broken". ([validated by `FullTranscriptPanel.test.tsx:187`](apps/web-ui/src/app/assembly-lines/[id]/FullTranscriptPanel.test.tsx#L187), [`FullTranscriptPanel.test.tsx:200`](apps/web-ui/src/app/assembly-lines/[id]/FullTranscriptPanel.test.tsx#L200))
+- The panel shows only node-correlated turns by design: correlation is all-or-nothing at write time, so the line-keyed read can never return a node-less row — the rows correlated to nothing are reachable only through FR4's task-keyed route, which the UI does not surface yet. ([validated by `turn-transcript-presenter.test.ts:84`](apps/web-ui/src/app/assembly-lines/[id]/turn-transcript-presenter.test.ts#L84), [`agent-run-turns.test.ts:63`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L63))
 
 ## Alternatives rejected
 
@@ -193,15 +222,14 @@ the existing `GET /api/agent-events/{assemblyLineId}` history route.
   of a redaction miss from "buried in GCS" to "searchable", which is why
   the redaction step is specified as a tested control on the write path
   rather than a courtesy.
-- Nothing reads the store yet. It is the sole raw record (since #1148
-  retired the GCS archive) with a read API and no consumer until the
-  turn-view UI lands, which is the follow-up this feature deliberately
-  stops short of.
+- Nothing read the store at first. *(Superseded by the #1148 follow-up:)*
+  the run detail page's full-transcript panel (FR5) is now the consumer,
+  and the task-keyed route (FR4) reaches the uncorrelated rows.
 
 ## Out of Scope
 
-- The turn-view UI on the run detail page. This feature stops at the read
-  API.
+- The turn-view UI on the run detail page. The first cut stopped at the
+  read API. *(Superseded by the #1148 follow-up:)* delivered as FR5.
 - Retiring or shortening the GCS raw archive was out of scope here, with the
   archive framed as the post-prune fallback that made a conservative 30-day
   horizon a safe bet. *(Superseded 2026-08-11, #1148:)* the archive is retired —
@@ -213,4 +241,7 @@ the existing `GET /api/agent-events/{assemblyLineId}` history route.
 - Wiring full-fidelity node context carryover or turn-level forking to the
   store. Both are named as motivation, neither is built here.
 - A `lore_ui` read path or web-ui proxy. The migration grants `SELECT` so
-  the UI follow-up needs no schema change, but no UI code is added.
+  the UI follow-up needs no schema change, but no UI code was added in the
+  first cut. *(Superseded by the #1148 follow-up:)* the web-ui proxy exists
+  (FR5) — and it proxies the Floor API rather than using the grant, matching
+  the events flow.
