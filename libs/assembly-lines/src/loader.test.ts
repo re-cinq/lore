@@ -145,6 +145,116 @@ edges:
     ).toThrow(/"b" has no outgoing edges/);
   });
 
+  it("accepts a wait node and an unbounded back-edge out of it", () => {
+    // A wait node's worker is a HUMAN. The iteration_max rule exists so two agents
+    // cannot argue indefinitely; a person deciding each pass cannot run away, so the
+    // refine loop is legitimately unbounded.
+    const wf = parseAssemblyLine(`
+name: feature
+description: plan a feature with the author in the loop
+version: 1
+entry: analyze
+exit: done
+nodes:
+  - id: analyze
+    type: agent
+    prompt_ref: feature-planning
+  - id: author
+    type: wait
+    signal: author_feedback
+  - id: done
+    type: retrospective
+edges:
+  - from: analyze
+    to: author
+    on: success
+  - from: analyze
+    to: done
+    on: changes_requested
+  - from: analyze
+    to: done
+    on: failed
+  - from: author
+    to: analyze
+    on: changes_requested
+  - from: author
+    to: done
+    on: success
+  - from: author
+    to: done
+    on: failed
+`);
+
+    expect(wf.nodes.find((n) => n.id === "author")).toMatchObject({
+      type: "wait",
+      signal: "author_feedback",
+    });
+  });
+
+  it("still requires iteration_max on a back-edge between two agents", () => {
+    // The exemption is keyed strictly on the SOURCE node's type — it must not become
+    // a way to write an unbounded agent loop.
+    expect(() =>
+      parseAssemblyLine(`
+name: feature
+description: two agents arguing
+version: 1
+entry: a
+exit: done
+nodes:
+  - id: a
+    type: agent
+    prompt_ref: x
+  - id: b
+    type: agent
+    prompt_ref: y
+  - id: done
+    type: retrospective
+edges:
+  - from: a
+    to: b
+    on: success
+  - from: a
+    to: done
+    on: changes_requested
+  - from: a
+    to: done
+    on: failed
+  - from: b
+    to: a
+    on: changes_requested
+  - from: b
+    to: done
+    on: success
+  - from: b
+    to: done
+    on: failed
+`),
+    ).toThrow(/back-edge b → a requires iteration_max/);
+  });
+
+  it("rejects a wait node with no signal", () => {
+    // Nothing could ever complete it: the signal names the surface that reports it.
+    expect(() =>
+      parseAssemblyLine(`
+name: feature
+description: a wait nobody can end
+version: 1
+entry: author
+exit: done
+nodes:
+  - id: author
+    type: wait
+  - id: done
+    type: retrospective
+edges:
+  - from: author
+    to: done
+    on: always
+`),
+    ).toThrow(/wait node "author" requires signal/);
+  });
+
   it("accepts an issues station node", () => {
     // A node type the enum does not know fails at LOAD, which is the point: the YAML
     // is the contract, so a station that has no runner cannot be scheduled.

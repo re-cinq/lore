@@ -17,7 +17,16 @@ const NodeType = z.enum([
   // an agent: the judgement (which stories, which labels) already happened upstream,
   // and this only writes what the artifact says.
   "issues",
+  // A station whose worker is OUTSIDE the pod system — a person in the wizard, or a
+  // spec PR merging. It dispatches nothing and parks the line until the surface named
+  // by `signal` reports an outcome, over HTTP, on the same station contract a pod
+  // reports over stdout.
+  "wait",
 ]);
+
+/** Who completes a `wait` node. `author_feedback` is the planning wizard (refine /
+ *  accept); `pr_merged` is the GitHub webhook. */
+const WaitSignal = z.enum(["author_feedback", "pr_merged"]);
 const EdgeCondition = z.enum([
   "success",
   "changes_requested",
@@ -41,6 +50,8 @@ const NodeSchema = z.object({
   validator: z.string().optional(),
   condition_ref: z.string().optional(),
   job_ref: z.string().optional(),
+  /** Required for `wait`: the surface that reports this node's outcome. */
+  signal: WaitSignal.optional(),
   /** Custom station (agent-definitions name) overriding the default `def-<type>`. */
   station_ref: z.string().optional(),
   /** Per-node run timeout; falls back to the referenced Station's deadline. */
@@ -102,6 +113,8 @@ const PRODUCIBLE_OUTCOMES: Record<
   "comment-triage": ["success", "failed"],
   ingest: ["success", "failed"],
   issues: ["success", "changes_requested", "failed"],
+  // accept / merged, refine, and abandoned — a human can do all three.
+  wait: ["success", "changes_requested", "failed"],
 };
 
 /** Producible outcomes of `node` with no matching edge, under `selectEdge`
@@ -291,6 +304,16 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
     );
   }
 
+  // A wait node with no signal can never be completed — nothing would know to report
+  // it. Reject at load, exactly as a detect node with no job_ref is rejected.
+  for (const n of wf.nodes) {
+    enforceTrue(
+      n.type !== "wait" || n.signal,
+      Error,
+      `wait node "${n.id}" requires signal`,
+    );
+  }
+
   // A `continues` reference must name a real node and a resolvable thread key.
   // Both fail at LOAD because the runtime failure is invisible: an unresolvable
   // reference would silently start a fresh conversation, which looks exactly like a
@@ -358,6 +381,8 @@ function detectCycles(wf: AssemblyLine, source: string): void {
   const BLACK = 2;
   const color = new Map<string, number>();
 
+  const typeOf = new Map(wf.nodes.map((n) => [n.id, n.type]));
+
   for (const n of wf.nodes) {
     color.set(n.id, WHITE);
   }
@@ -390,7 +415,13 @@ function detectCycles(wf: AssemblyLine, source: string): void {
       const c = color.get(e.to);
 
       if (c === GRAY) {
-        if (!e.iteration_max) {
+        // The rule exists so two AGENTS cannot argue indefinitely. A back-edge out of
+        // a `wait` node is exempt: its worker is a human, who decides each pass, so
+        // the runaway this guards against cannot happen. Keyed strictly on the SOURCE
+        // node's type — it must not become a way to write an unbounded agent loop.
+        const humanGated = typeOf.get(e.from) === "wait";
+
+        if (!e.iteration_max && !humanGated) {
           throw new AssemblyLineLoadError(
             `back-edge ${e.from} → ${e.to} requires iteration_max`,
             source,

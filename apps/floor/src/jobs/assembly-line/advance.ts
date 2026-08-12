@@ -258,6 +258,14 @@ export async function advanceLine(
     iteration: transition.iteration,
     agentCrName: spec.name,
   });
+
+  // A `wait` node's worker is outside the pod system — a person in the wizard, or a
+  // spec PR merging. The row is what parks the walk and lets the graph show whose
+  // move it is; nothing is dispatched, and the outcome arrives later as a resume.
+  if (node.type === "wait") {
+    return;
+  }
+
   await deps.launch(spec);
 }
 

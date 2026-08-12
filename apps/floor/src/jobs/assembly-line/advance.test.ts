@@ -63,6 +63,25 @@ edges:
     on: failed
 `);
 
+/** A line whose entry node is parked on the author — the shape stage 1 introduces. */
+const authorGated = parseAssemblyLine(`
+name: author-gated
+description: a line that waits on the author
+version: 1
+entry: author
+exit: done
+nodes:
+  - id: author
+    type: wait
+    signal: author_feedback
+  - id: done
+    type: retrospective
+edges:
+  - from: author
+    to: done
+    on: always
+`);
+
 function makeDeps(port: InMemoryAssemblyLines) {
   const launched: LoreTaskSpec[] = [];
   const cleaned: string[] = [];
@@ -194,6 +213,32 @@ describe("advanceLine", () => {
       description: "the whole draft",
       prompt: "code-review::the whole draft",
     });
+  });
+
+  it("records a wait node but launches nothing — its worker is not a pod", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await port.start({
+      definitionName: "author-gated",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { description: "plan it" },
+    });
+
+    await port.markRunning(id);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(id, {
+      ...deps,
+      definitions: async () =>
+        new Map<string, AssemblyLine>([["author-gated", authorGated]]),
+    });
+
+    // The row exists, so the walk parks on it and the graph can show it — but no CR
+    // was dispatched, because the person is the worker.
+    expect(port.nodes).toEqual([
+      expect.objectContaining({ nodeId: "author", iteration: 1 }),
+    ]);
+    expect(launched).toEqual([]);
   });
 
   it("converges a duplicate advance onto one node row and one idempotent launch", async () => {

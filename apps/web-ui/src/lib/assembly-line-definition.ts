@@ -16,7 +16,8 @@ export type DefinitionNodeType =
   | "detect"
   | "comment-triage"
   | "ingest"
-  | "issues";
+  | "issues"
+  | "wait";
 
 export type DefinitionEdgeCondition =
   "success" | "changes_requested" | "failed" | "always";
@@ -34,6 +35,9 @@ export interface DefinitionNode {
   description?: string;
   /** Which previous run this node continues, and what keys the thread. */
   continues?: { node: string; key: string };
+  /** For a `wait` node: which surface reports its outcome. A parked node is waiting
+   *  for a person or for a PR, and the graph should say which. */
+  signal?: "author_feedback" | "pr_merged";
 }
 
 export interface DefinitionEdge {
