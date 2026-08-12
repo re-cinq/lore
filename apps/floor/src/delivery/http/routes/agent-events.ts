@@ -21,12 +21,10 @@ import {
 } from "../../../kernel/queues.js";
 import {
   parseAgentSink,
-  agentEventsArchiveKey,
   type LlmCallRow,
 } from "../../../jobs/agent/agent-events.js";
 import { agentEventBus } from "../../../jobs/agent/agent-event-bus.js";
 import { MAX_RUN_TURNS_PER_BATCH } from "../../../jobs/agent/agent-run-turns.js";
-import { archiveAgentEvents } from "../../../jobs/agent/agent-events-store.js";
 import { writeAuditLog } from "../../../jobs/lib/audit.js";
 import { rawBody } from "../raw-body.js";
 import type {
@@ -46,9 +44,7 @@ type AnomalyKind =
   | "run_events_failed"
   | "run_turns_failed"
   | "turn_dropped_redaction"
-  | "turn_dropped_cap"
-  | "archive_failed"
-  | "archive_shed";
+  | "turn_dropped_cap";
 
 /** Counts ingest anomalies so a silent problem shows on a dashboard. No-op
  *  until the OTEL SDK is registered (otel-init), so free in tests. */
@@ -56,7 +52,7 @@ const anomalyCounter = metrics
   .getMeter("lore-floor")
   .createCounter("lore.agent_events.anomalies", {
     description:
-      "Agent-events ingest anomalies: uncorrelated/failed cost rows, viz/archive failures",
+      "Agent-events ingest anomalies: uncorrelated/failed cost rows, viz/turn failures",
   });
 
 function countAnomaly(kind: AnomalyKind, n = 1): void {
@@ -66,13 +62,14 @@ function countAnomaly(kind: AnomalyKind, n = 1): void {
 }
 
 /**
- * Above this body size the run-visualization projection and the full-body GCS
- * archive copy are skipped — cost accounting (the terminal `result` line) is
- * still recorded. These are the only body-proportional allocations left after
- * the single-pass parse, so bounding them keeps a pathological report from
- * OOM-ing the single (replicaCount: 1) Floor replica at its memory limit. The
- * dropped viz is a nice-to-have; full fidelity remains in the raw NDJSON the
- * agent subsystem streams, and cost/billing is unaffected.
+ * Above this body size the run-visualization projection and the turn transcript
+ * are skipped — cost accounting (the terminal `result` line) is still recorded.
+ * These are the only body-proportional allocations left after the single-pass
+ * parse, so bounding them keeps a pathological report from OOM-ing the single
+ * (replicaCount: 1) Floor replica at its memory limit. Above the gate the Floor
+ * keeps only the cost rows — the pod's stdout in Cloud Logging is the sole
+ * remaining copy of an oversized stream (#1109) — and cost/billing is
+ * unaffected.
  */
 const MAX_VIZ_BODY_BYTES = 8 * 1024 * 1024;
 
@@ -144,49 +141,6 @@ export function costDegradedAudit(s: CostIngestSummary): AuditLogEntry | null {
       first_issue: s.firstIssue ?? null,
     },
   };
-}
-
-/**
- * Each in-flight archive pins the raw body plus its redacted copy (≤2× the 8MB
- * viz cap) until GCS resolves, so unbounded fire-and-forget stacked ~16MB per
- * concurrent POST and OOM-crash-looped the then-512Mi Floor the first time the
- * bucket env was set (2026-07-24). Beyond this many concurrent uploads the
- * body is shed — counted, cost ingestion untouched, and the run's own raw
- * stream still exists on the agent-subsystem side.
- */
-const MAX_ARCHIVES_IN_FLIGHT = 2;
-let archivesInFlight = 0;
-
-/**
- * Archive the raw NDJSON for replay (redacted, dormant until a bucket is set).
- * Fire-and-forget behind a small in-flight bound: a failed or shed archive
- * must never fail cost-row ingestion.
- */
-function archiveRaw(body: string, rows: readonly LlmCallRow[]): void {
-  if (archivesInFlight >= MAX_ARCHIVES_IN_FLIGHT) {
-    countAnomaly("archive_shed");
-    console.warn(
-      `[floor] events archive shed: ${archivesInFlight} uploads already in flight`,
-    );
-
-    return;
-  }
-  const key = agentEventsArchiveKey(
-    new Date().toISOString(),
-    rows.map((r) => r.taskId),
-  );
-
-  // Retention is handled by the task-logs bucket's log_retention_days lifecycle
-  // rule (the bucket LORE_AGENT_EVENTS_BUCKET points at); no app-side pruning.
-  archivesInFlight++;
-  void archiveAgentEvents(body, key)
-    .catch((err) => {
-      countAnomaly("archive_failed");
-      console.warn(`[floor] events archive skipped: ${errorMessage(err)}`);
-    })
-    .finally(() => {
-      archivesInFlight--;
-    });
 }
 
 /**
@@ -294,10 +248,6 @@ export const agentEventsRoute: ServerRoute = {
       "agent_events.turns_capped": turnsCapped,
       "agent_events.oversized": oversized,
     });
-
-    if (!oversized) {
-      archiveRaw(rawNdjson, costRows);
-    }
 
     return h
       .response({

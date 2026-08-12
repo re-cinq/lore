@@ -199,17 +199,3 @@ export function parseAgentSink(
 export function parseAgentEvents(ndjson: string): LlmCallRow[] {
   return parseAgentSink(ndjson, false, false).costRows;
 }
-
-/** GCS object key for an archived raw NDJSON sink batch (#687). Partitioned by UTC
- *  date for lifecycle rules; the full received instant keeps same-second batches
- *  distinct, and the first task id tags the object for eyeballing. */
-export function agentEventsArchiveKey(
-  receivedAtIso: string,
-  taskIds: readonly string[],
-): string {
-  const date = receivedAtIso.slice(0, 10);
-  const instant = receivedAtIso.replace(/[:.]/g, "-");
-  const tag = taskIds.length > 0 ? taskIds[0] : "unknown";
-
-  return `__agent_events__/${date}/${instant}-${tag}.ndjson`;
-}

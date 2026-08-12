@@ -24,12 +24,13 @@ value at 1024 bytes (with a 4096-byte whole-input budget and a
 is exactly right for its consumer — the SSE live run view of ADR-037 — and
 wrong for a post-mortem by construction.
 
-The raw NDJSON is not discarded either: the same route fires
-`archiveRaw` → `archiveAgentEvents`, redacting the body and writing it to
-GCS fire-and-forget. That archive has **no read path**, no turn structure,
-no correlation columns, and a bucket lifecycle rule for retention. It
-answers "what happened, eventually, if you go get the object and parse it
-yourself".
+The raw NDJSON was not discarded either: when this spec was written the
+same route fired `archiveRaw` → `archiveAgentEvents`, redacting the body
+and writing it to GCS fire-and-forget. That archive had **no read path**,
+no turn structure, no correlation columns, and a bucket lifecycle rule for
+retention. It answered "what happened, eventually, if you go get the
+object and parse it yourself". *(Superseded 2026-08-11, #1148: the archive
+is retired; this store is the raw record.)*
 
 The third record is the pod log, and it is the closest thing to a durable
 transcript Lore has today. `GET /api/agent-logs/{name}`
@@ -54,7 +55,7 @@ fed at the same tee, not a new database.
 
 - The first cut delivers storage plus a cursor-paged read API: the table, the repository port with its Postgres adapter and in-memory double, the flagged ingest tee, and one HTTP read route.
 - The turn-view UI is **out of scope**. This feature stops at the read API; rendering turns on the run detail page is a follow-up.
-- The write is live from the first deploy. There is no flag and no pilot, so the projection, the SSE live view and the GCS archive continuing to work byte-for-byte is a property that has to be tested rather than a state an operator can restore by flipping something off.
+- The write is live from the first deploy. There is no flag and no pilot, so the projection and the SSE live view continuing to work byte-for-byte is a property that has to be tested rather than a state an operator can restore by flipping something off. (This originally listed the GCS archive too; it was retired the same day, #1148.)
 
 ## FR1 — The `pipeline.agent_run_turns` table
 
@@ -97,9 +98,9 @@ is driven from the **existing single pass** in `parseAgentSink`
 produces the cost rows and the projection rows.
 
 - Turn collection is unconditional: every `/api/agent-events` POST collects turns, with no feature flag and nothing for an operator to switch on. ([validated by `agent-sink-turns.test.ts:21`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L21), [`agent-events-turns.test.ts:54`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L54))
-- Collecting turns perturbs nothing else. The cost rows and the run-visualization rows are byte-for-byte what they would be without the turn store, so the projection, the SSE view and the GCS archive are unaffected. With no off switch in production this property is the only thing standing between the store and a regression in the outputs that were already there. ([validated by `agent-sink-turns.test.ts:33`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L33), [`agent-sink-turns.test.ts:25`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L25), [`agent-events-turns.test.ts:68`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L68))
+- Collecting turns perturbs nothing else. The cost rows and the run-visualization rows are byte-for-byte what they would be without the turn store, so the projection and the SSE view are unaffected. With no off switch in production this property is the only thing standing between the store and a regression in the outputs that were already there. ([validated by `agent-sink-turns.test.ts:33`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L33), [`agent-sink-turns.test.ts:25`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L25), [`agent-events-turns.test.ts:68`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L68))
 - A turn is built from the envelope the single pass **already parsed** — the collector re-parses nothing and re-serializes nothing, taking the raw line the scanner already yielded as the stored envelope. ([validated by `agent-run-turns.test.ts:16`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L16), [`agent-run-turns.test.ts:29`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L29), [`agent-run-turns.test.ts:36`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L36), [`agent-sink-turns.test.ts:41`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L41), [`agent-sink-turns.test.ts:51`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L51))
-- The stored envelope is redacted with the same `redactSecrets` the GCS archive uses, before it ever reaches the database, because a queryable store raises a redaction miss from "buried in GCS" to "searchable". ([validated by `agent-run-turns.test.ts:46`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L46))
+- The stored envelope is redacted with the same `redactSecrets` the GCS archive used, before it ever reaches the database, because a queryable store raises a redaction miss from "buried in GCS" to "searchable". ([validated by `agent-run-turns.test.ts:46`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L46))
 - Redaction is verified not to have broken the line's JSON: an unchanged line is kept as-is, and a redacted line that no longer parses is dropped rather than risking a batch-wide insert failure. ([validated by `agent-run-turns.test.ts:29`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L29), [`agent-run-turns.test.ts:58`](apps/floor/src/jobs/agent/agent-run-turns.test.ts#L58))
 - A dropped turn is counted and warned about, never silent. The private-key pattern is not anchored inside one JSON string, so an agent can emit a `BEGIN`/`END` pair straddling JSON structure and thereby keep its own line out of the transcript; a store justified by fidelity has to make that loss visible. ([validated by `agent-sink-turns.test.ts:90`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L90), [`agent-sink-turns.test.ts:97`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L97), [`agent-sink-turns.test.ts:106`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L106), [`agent-sink-turns.test.ts:110`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L110), [`agent-events-turns.test.ts:108`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L108), [`agent-events-turns.test.ts:126`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L126))
 - Turns left out by the per-batch cap are counted and warned about too, separately from the redaction drops. With both paths counted, every way the sink can lose a turn is visible, which is what lets "this transcript is complete" be read off the metrics instead of assumed. ([validated by `agent-sink-turns.test.ts:123`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L123), [`agent-sink-turns.test.ts:130`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L130), [`agent-sink-turns.test.ts:134`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L134), [`agent-sink-turns.test.ts:138`](apps/floor/src/jobs/agent/agent-sink-turns.test.ts#L138), [`agent-events-turns.test.ts:140`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L140))
@@ -192,18 +193,21 @@ the existing `GET /api/agent-events/{assemblyLineId}` history route.
   of a redaction miss from "buried in GCS" to "searchable", which is why
   the redaction step is specified as a tested control on the write path
   rather than a courtesy.
-- Nothing reads the store yet. It is a second, richer archive with a read
-  API and no consumer until the turn-view UI lands, which is the follow-up
-  this feature deliberately stops short of.
+- Nothing reads the store yet. It is the sole raw record (since #1148
+  retired the GCS archive) with a read API and no consumer until the
+  turn-view UI lands, which is the follow-up this feature deliberately
+  stops short of.
 
 ## Out of Scope
 
 - The turn-view UI on the run detail page. This feature stops at the read
   API.
-- Retiring or shortening the GCS raw archive. It stays exactly as it is,
-  and it is what makes a conservative 30-day horizon a safe bet: turns
-  pruned from the table are still in the archive, unindexed and painful to
-  reach, but not gone.
+- Retiring or shortening the GCS raw archive was out of scope here, with the
+  archive framed as the post-prune fallback that made a conservative 30-day
+  horizon a safe bet. *(Superseded 2026-08-11, #1148:)* the archive is retired —
+  this store is the sole raw record, and turns pruned past the 30-day horizon
+  are gone. The accepted answer to "we needed it longer" is extending this
+  table's retention, one knob on one store, not resurrecting a second copy.
 - Content-addressed dedup of repeated blobs, and any storage-side
   compression beyond what Postgres TOAST does for free.
 - Wiring full-fidelity node context carryover or turn-level forking to the
