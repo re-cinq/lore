@@ -1000,8 +1000,6 @@ spec:
     {description}
 
     {context}
-
-    {context}
   permission_mode: bypass
   max_turns: 40
   resources:

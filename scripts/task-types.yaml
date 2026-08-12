@@ -462,8 +462,6 @@ task_types:
       ## This round
 
       {description}
-
-      {context}
     target_repo: null
     timeout_minutes: 15
     review_required: false
