@@ -41,7 +41,7 @@ dgraphUrl: http://host.minikube.internal:8081
 # start. Mint the token with `claude setup-token` (npm run dev-setup does it for you).
 agentLlmSecretKey: CLAUDE_CODE_OAUTH_TOKEN
 
-# v0.10.1 controller + agent, pinned by digest as the PAIR the shared values.yaml
+# v0.10.2 controller + agent, pinned by digest as the PAIR the shared values.yaml
 # insists on. Both halves are load-bearing for every capability here: the recipe
 # fields (output.watch, resources.conversation) are read by the controller, and the
 # files they name are read and written by the supervisor, which rides in the AGENT
@@ -49,13 +49,13 @@ agentLlmSecretKey: CLAUDE_CODE_OAUTH_TOKEN
 # "the feature does nothing" rather than as an error. Local-only on purpose; the
 # shared values.yaml still pins v0.8.1 for GKE, so bumping prod stays a deliberate,
 # separate decision.
-#   docker buildx imagetools inspect ghcr.io/re-cinq/ai-agent-controller:v0.10.1
+#   docker buildx imagetools inspect ghcr.io/re-cinq/ai-agent-controller:v0.10.2
 controller:
   image:
-    digest: "sha256:15a57b86e596a7b6357f5e950490c9a2d5ee23611da7ba2669f5dedac78e33ff"
+    digest: "sha256:8162b3581084ed880e9afebd287d6efc5d6c7f135de041218dbc672b3e1bde56"
   # Nested under `controller` because that is where the template reads it
   # (.Values.controller.agentImage). A top-level key here is silently ignored and
   # falls back to the shared v0.8.1 digest — which injects a supervisor with no
   # file-watch, so the artifact event is never raised and the round dies exactly as
   # it did before the feature existed.
-  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:9b4ca1eafb12f8758ab5cd9cf495445f299a9bcfc4c51595863d778383bf687d"
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:7b66e56518cb71061271fb36d70d5a3d8348d9c0d1260e32ba7bb829b1f451af"
