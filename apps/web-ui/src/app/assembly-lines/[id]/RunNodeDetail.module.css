@@ -42,6 +42,11 @@
   background: var(--info-bg);
   color: var(--info);
 }
+/* Parked, not executing: warning tone, never the running blue. */
+.pillWaiting {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
 .pillIdle {
   border: 1px solid var(--border);
   color: var(--text-muted);
@@ -69,6 +74,11 @@
 .whyRunning {
   border-left-color: var(--info);
   background: var(--info-bg);
+}
+/* Parked, not executing: warning tone, never the running blue. */
+.whyWaiting {
+  border-left-color: var(--warning);
+  background: var(--warning-bg);
 }
 .whyIdle {
   border-left-color: var(--border);

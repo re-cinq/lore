@@ -258,3 +258,57 @@ describe("describeNode", () => {
     expect(detail.failures).toEqual([]);
   });
 });
+
+describe("describeNode on a parked wait node", () => {
+  const planning = {
+    name: "feature-planning",
+    description: "d",
+    version: 1 as const,
+    entry: "analyze",
+    exit: "done",
+    nodes: [
+      { id: "analyze", type: "agent" as const },
+      {
+        id: "author",
+        type: "wait" as const,
+        signal: "author_feedback" as const,
+      },
+      { id: "done", type: "retrospective" as const },
+    ],
+    edges: [
+      { from: "analyze", to: "author", on: "success" as const },
+      { from: "author", to: "analyze", on: "changes_requested" as const },
+      { from: "author", to: "done", on: "success" as const },
+    ],
+  };
+
+  it("says the round is waiting for you rather than in progress", () => {
+    // The row seeds `running`, so without the signal this panel told the author
+    // their round was still working while it was in fact waiting on them.
+    const detail = describeNode({
+      nodeId: "author",
+      definition: planning,
+      row: row({ nodeId: "author", outcome: null }),
+      state: state({ status: "running" }),
+      reason: null,
+    });
+
+    expect(detail).toMatchObject({
+      tone: "waiting",
+      statusLabel: "Waiting for you",
+    });
+    expect(detail.why).toMatch(/waiting for you/i);
+  });
+
+  it("keeps the verdict once the author has answered", () => {
+    expect(
+      describeNode({
+        nodeId: "author",
+        definition: planning,
+        row: row({ nodeId: "author", outcome: "changes_requested" }),
+        state: state({ status: "running" }),
+        reason: null,
+      }),
+    ).toMatchObject({ tone: "warn", statusLabel: "Changes requested" });
+  });
+});

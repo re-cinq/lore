@@ -15,8 +15,12 @@
   overflow-wrap: anywhere;
 }
 
-.readme > :first-child { margin-top: 0; }
-.readme > :last-child { margin-bottom: 0; }
+.readme > :first-child {
+  margin-top: 0;
+}
+.readme > :last-child {
+  margin-bottom: 0;
+}
 
 /* Headings */
 .readme h1,
@@ -29,12 +33,29 @@
   font-weight: 600;
   line-height: 1.3;
 }
-.readme h1 { font-size: 1.7em; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
-.readme h2 { font-size: 1.4em; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
-.readme h3 { font-size: 1.2em; }
-.readme h4 { font-size: 1.05em; }
-.readme h5 { font-size: 0.95em; }
-.readme h6 { font-size: 0.9em; color: var(--text-muted); }
+.readme h1 {
+  font-size: 1.7em;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.readme h2 {
+  font-size: 1.4em;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.readme h3 {
+  font-size: 1.2em;
+}
+.readme h4 {
+  font-size: 1.05em;
+}
+.readme h5 {
+  font-size: 0.95em;
+}
+.readme h6 {
+  font-size: 0.9em;
+  color: var(--text-muted);
+}
 
 /* Block spacing */
 .readme p,
@@ -43,19 +64,34 @@
 .readme blockquote,
 .readme pre,
 .readme table,
-.readme details { margin: 0 0 16px; }
+.readme details {
+  margin: 0 0 16px;
+}
 
 /* Lists (restore indentation killed by the global reset) */
 .readme ul,
-.readme ol { padding-left: 1.6em; }
-.readme li { margin: 4px 0; }
+.readme ol {
+  padding-left: 1.6em;
+}
+.readme li {
+  margin: 4px 0;
+}
 .readme li > ul,
-.readme li > ol { margin: 4px 0; }
-.readme li::marker { color: var(--text-muted); }
+.readme li > ol {
+  margin: 4px 0;
+}
+.readme li::marker {
+  color: var(--text-muted);
+}
 
 /* Links */
-.readme a { color: var(--accent); text-decoration: none; }
-.readme a:hover { text-decoration: underline; }
+.readme a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.readme a:hover {
+  text-decoration: underline;
+}
 
 /* Blockquote */
 .readme blockquote {
@@ -65,8 +101,15 @@
 }
 
 /* Rule + images */
-.readme hr { border: 0; border-top: 1px solid var(--border); margin: 24px 0; }
-.readme img { max-width: 100%; height: auto; }
+.readme hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 24px 0;
+}
+.readme img {
+  max-width: 100%;
+  height: auto;
+}
 
 /* Inline + block code */
 .readme code {
@@ -110,8 +153,14 @@
   letter-spacing: normal;
   font-size: inherit;
 }
-.readme th { background: var(--bg-surface); font-weight: 600; color: var(--text); }
-.readme tbody tr:nth-child(2n) td { background: var(--bg-hover); }
+.readme th {
+  background: var(--bg-surface);
+  font-weight: 600;
+  color: var(--text);
+}
+.readme tbody tr:nth-child(2n) td {
+  background: var(--bg-hover);
+}
 
 .toggle {
   margin-top: 12px;
