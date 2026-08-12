@@ -207,4 +207,23 @@ describe("FullTranscriptPanel", () => {
 
     expect(await screen.findByText(/Failed to load turns/)).toBeTruthy();
   });
+
+  it("a failed walk retries when the panel is reopened", async () => {
+    const fetchMock = stubFetch(
+      new Response("{}", { status: 500 }),
+      turnsResponse([wireTurn("1", "implement")]),
+    );
+    const { container } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" />,
+    );
+
+    await openPanel(container);
+    expect(await screen.findByText(/Failed to load turns/)).toBeTruthy();
+
+    toggle(container, false);
+    await openPanel(container);
+
+    expect(await screen.findByText(/full text of turn 1/)).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

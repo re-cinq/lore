@@ -107,6 +107,9 @@ export default function FullTranscriptPanel({
       } catch (e) {
         if (!disposedRef.current) {
           setError(e instanceof Error ? e.message : String(e));
+          // A failed walk re-arms the gate, so closing and reopening the
+          // panel retries instead of pinning the error until a page reload.
+          startedRef.current = false;
         }
       }
     }
@@ -161,7 +164,9 @@ export default function FullTranscriptPanel({
                       iteration {turn.iteration}
                     </span>
                   )}
-                  <time dateTime={turn.createdAt}>{turn.createdAt}</time>
+                  <time dateTime={turn.createdAt}>
+                    {new Date(turn.createdAt).toLocaleString()}
+                  </time>
                 </summary>
                 <pre className={styles.envelope}>{envelopePretty(turn)}</pre>
               </details>
