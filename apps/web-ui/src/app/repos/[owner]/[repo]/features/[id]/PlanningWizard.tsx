@@ -11,7 +11,8 @@ import RunningCard from "./RunningCard";
 import FailureBlock from "./FailureBlock";
 import { isPlanningActive } from "../feature-status";
 import { isRewind, lineageLabel, rewindOptions } from "@/lib/round-picker";
-import { specPhaseOf, type FeatureRunPayload } from "@/lib/feature-run";
+import type { FeatureRunPayload } from "@/lib/feature-run";
+import { specPhaseOf } from "@/lib/spec-phase";
 import type {
   FeatureWithIterations,
   FeatureRow,
