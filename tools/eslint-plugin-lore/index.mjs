@@ -1,3 +1,4 @@
+import defaultExportMatchesFilename from "./rules/default-export-matches-filename.mjs";
 import preferEnforceTrue from "./rules/prefer-enforce-true.mjs";
 import noCatchAsControlFlow from "./rules/no-catch-as-control-flow.mjs";
 import noInfraSdkInFloor from "./rules/no-infra-sdk-in-floor.mjs";
@@ -18,6 +19,7 @@ import requireStatusMatchesCoverage from "./rules/require-status-matches-coverag
 export default {
   meta: { name: "eslint-plugin-lore", version: "0.1.0" },
   rules: {
+    "default-export-matches-filename": defaultExportMatchesFilename,
     "prefer-enforce-true": preferEnforceTrue,
     "no-catch-as-control-flow": noCatchAsControlFlow,
     "no-infra-sdk-in-floor": noInfraSdkInFloor,
