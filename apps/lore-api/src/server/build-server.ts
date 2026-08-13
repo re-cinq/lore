@@ -77,7 +77,6 @@ import { stationDataRoutes } from "../api/routes/repos/station-data.js";
 import { traceAdrsRoute } from "../api/routes/trace/trace-adrs.js";
 import { traceSpecsRoute } from "../api/routes/trace/trace-specs.js";
 import { featuresRoutes } from "../api/routes/features/features.js";
-import { assemblyLineRoutes } from "../api/routes/assembly-lines/assembly-lines.js";
 import { openApiJsonRoute, docsRoute } from "../api/routes/openapi/openapi.js";
 
 // 1 MB body cap applied to every native route via the server payload default.
@@ -143,7 +142,6 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     openApiJsonRoute(getPool),
     docsRoute(getPool),
     ...featuresRoutes(getPool),
-    ...assemblyLineRoutes(),
   ];
 }
 

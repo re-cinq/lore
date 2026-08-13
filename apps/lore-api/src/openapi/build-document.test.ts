@@ -164,7 +164,6 @@ describe("generateOpenApi — tag grouping", () => {
       "Tasks",
       "Repositories",
       "Features",
-      "Assembly Lines",
       "Agents",
       "Ingestion",
       "Traceability",

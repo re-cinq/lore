@@ -144,11 +144,6 @@ const CATEGORY_ORDER: Array<{ name: string; description: string }> = [
     description: "Onboarded repositories and their status.",
   },
   { name: "Features", description: "Feature-planning iterations." },
-  {
-    name: "Assembly Lines",
-    description:
-      "Assembly line runs and the definition catalog — which node ran, and the Station (and therefore the recipe) each one dispatches to.",
-  },
   { name: "Agents", description: "Per-repo agent definitions." },
   { name: "Ingestion", description: "Content and graph ingestion." },
   {
@@ -183,7 +178,6 @@ const TAG_RULES: Array<[RegExp, string]> = [
     "Tasks",
   ],
   [/^\/api\/(usage|analytics|agent-stats)\b/, "Analytics"],
-  [/^\/api\/assembly-line/, "Assembly Lines"],
   [/\/features\b/, "Features"],
   [/\/agent-definitions\b/, "Agents"],
   [/\/settings\/dark-factory\b/, "Dark Factory"],
