@@ -9,7 +9,7 @@ import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import { SubmitButton } from "@/components/SubmitButton";
 import { useState, useTransition } from "react";
 import StatusBadge from "../StatusBadge";
-import { isPlanningActive } from "../feature-status";
+import { isLifecycleActive } from "../feature-status";
 import PlanningWizard from "./PlanningWizard";
 import DecompositionView from "./DecompositionView";
 import Markdown from "@/components/Markdown";
@@ -127,7 +127,13 @@ export default function FeatureDetailView({
         </CollapsibleCard>
       )}
 
-      {isPlanningActive(feature.status) ? (
+      {/* The wizard stays mounted for as long as the LIFECYCLE is moving, which
+          includes an open spec PR: the line is parked on `merged`, and merging it
+          resumes the walk into decomposition. Gating on `isPlanningActive` unmounted
+          it the moment the PR was stamped, so the awaiting-merge and decomposing
+          views were unreachable on a fresh page load. The wizard decides WHEN the
+          settled view takes over, because only the line knows. */}
+      {isLifecycleActive(feature.status) ? (
         <PlanningWizard
           owner={owner}
           repo={repo}
@@ -136,6 +142,14 @@ export default function FeatureDetailView({
           refine={refine}
           finalize={finalize}
           onCreateDraft={onCreateDraft}
+          settledView={
+            <FinalizedView
+              owner={owner}
+              repo={repo}
+              feature={feature}
+              decomposition={decomposition}
+            />
+          }
         />
       ) : (
         <FinalizedView

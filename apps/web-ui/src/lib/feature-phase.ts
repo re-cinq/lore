@@ -20,6 +20,9 @@ import { isPlanningActive } from "@/app/repos/[owner]/[repo]/features/feature-st
 interface Working {
   nodeId: string;
   since?: string;
+  /** The NODE's attempt, not the planning round's — a node sent back for a
+   *  correction mints a new row, and the two counts are unrelated. */
+  nodeIteration?: number;
 }
 
 export type FeaturePhase =
@@ -100,6 +103,7 @@ function phaseFromLine(run: FeaturePhaseInput["run"]): FeaturePhase | null {
     kind,
     nodeId: working.nodeId,
     since: working.startedAt,
+    nodeIteration: working.iteration,
   } as FeaturePhase;
 }
 

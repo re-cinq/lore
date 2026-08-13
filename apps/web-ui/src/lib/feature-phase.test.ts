@@ -33,6 +33,7 @@ describe("featurePhaseOf — read from the line", () => {
     ).toEqual({
       kind: "planning",
       nodeId: "analyze",
+      nodeIteration: 1,
       since: "2026-08-13T10:00:00Z",
     });
   });
@@ -126,6 +127,21 @@ it("reports awaiting-merge while the spec PR is open", () => {
       feature: feature("pr-open"),
     }),
   ).toMatchObject({ kind: "awaiting-merge", nodeId: "merged" });
+});
+
+it("carries the NODE's attempt count, not the round's", () => {
+  // The decompose node can be sent back for a correction, which mints a second row
+  // for the same node. That retry count is the line's, and has nothing to do with
+  // how many planning ROUNDS the author ran before the PR existed.
+  expect(
+    featurePhaseOf({
+      run: run("running", [
+        { ...node("decompose", "changes_requested"), iteration: 1 },
+        { ...node("decompose", null), iteration: 2 },
+      ]),
+      feature: feature("pr-open"),
+    }),
+  ).toMatchObject({ kind: "decomposing", nodeIteration: 2 });
 });
 
 it("reports decomposing for both nodes of the decomposition tail", () => {
