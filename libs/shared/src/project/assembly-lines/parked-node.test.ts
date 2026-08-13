@@ -58,7 +58,9 @@ describe("parkedNode", () => {
 
   it("reports nothing for a line that is no longer open", () => {
     for (const status of ["finished", "failed", "cancelled", null]) {
-      expect(parkedNode(status, [node("merged", 1, null)], "merged")).toBeNull();
+      expect(
+        parkedNode(status, [node("merged", 1, null)], "merged"),
+      ).toBeNull();
     }
   });
 

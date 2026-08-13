@@ -247,7 +247,9 @@ describe("rework: a step sends work back to the step that fed it", () => {
   it("routes the station's objection back to decompose, then fails rather than looping", async () => {
     // The decompose/issues pair is the TAIL of feature-planning now, not its own
     // line — the objection loop is unchanged, only its home is.
-    const decompose = (await loadBuiltinAssemblyLines()).get("feature-planning");
+    const decompose = (await loadBuiltinAssemblyLines()).get(
+      "feature-planning",
+    );
 
     expect(decompose).toBeDefined();
     const visits: NodeVisit[] = [

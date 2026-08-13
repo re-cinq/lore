@@ -46,9 +46,7 @@ export interface DecomposeResumeDeps {
 }
 
 /** Bind the pool to the real reporter — the production `report`. */
-export function poolReporter(
-  pool: Pool,
-): DecomposeResumeDeps["report"] {
+export function poolReporter(pool: Pool): DecomposeResumeDeps["report"] {
   return (target, outcome) => reportToParkedNode(pool, target, outcome);
 }
 
