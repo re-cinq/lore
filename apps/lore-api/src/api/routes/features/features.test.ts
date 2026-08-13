@@ -657,7 +657,9 @@ describe("accepting the plan resumes the parked node", () => {
       ];
 
       vi.mocked(projectFor).mockResolvedValue({
-        features: fakeFeatures(),
+        features: fakeFeatures({
+          get: vi.fn().mockResolvedValue({ id: "f1", iterations: [] }),
+        }),
         assemblyLines: fakeAssemblyLines(),
         tasks: { specTasksForFeature: vi.fn().mockResolvedValue(tasks) },
       } as never);
@@ -667,10 +669,26 @@ describe("accepting the plan resumes the parked node", () => {
       expect(JSON.parse(res.payload)).toEqual({ tasks });
     });
 
+    it("404s for a feature id that does not exist", async () => {
+      // An unknown id is not an empty tree — reporting {tasks: []} for a typo
+      // would look like success.
+      vi.mocked(projectFor).mockResolvedValue({
+        features: fakeFeatures({ get: vi.fn().mockResolvedValue(null) }),
+        assemblyLines: fakeAssemblyLines(),
+        tasks: { specTasksForFeature: vi.fn() },
+      } as never);
+
+      expect((await req("GET", `${base}/nope/decomposition`)).statusCode).toBe(
+        404,
+      );
+    });
+
     it("returns an empty list for a feature never decomposed", async () => {
       // Honest empty rather than a 404: the feature exists, its tree does not yet.
       vi.mocked(projectFor).mockResolvedValue({
-        features: fakeFeatures(),
+        features: fakeFeatures({
+          get: vi.fn().mockResolvedValue({ id: "f1", iterations: [] }),
+        }),
         assemblyLines: fakeAssemblyLines(),
         tasks: { specTasksForFeature: vi.fn().mockResolvedValue([]) },
       } as never);

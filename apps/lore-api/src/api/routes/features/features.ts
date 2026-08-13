@@ -93,12 +93,12 @@ async function resolveDispatch(
 ): Promise<
   { kind: "legacy" } | ({ kind: "resume"; lineId: string } & ParkedTarget)
 > {
-  const first = [...iterations].sort((a, b) => a.iteration - b.iteration)[0];
+  const taskId = firstTaskId(iterations);
 
-  if (!first?.task_id) {
+  if (!taskId) {
     return { kind: "legacy" };
   }
-  const lines = await project.assemblyLines.listForTask(first.task_id);
+  const lines = await project.assemblyLines.listForTask(taskId);
   const line = lines.find((l) => l.definitionName === PLANNING_DEFINITION);
 
   if (!line) {
@@ -119,6 +119,16 @@ async function resolveDispatch(
  * MUST be the `owner/repo` slug — it lands verbatim in `target_repo`, which the
  * pod clones as `github.com/<target_repo>.git`.
  */
+/** The task that owns a feature's line: the FIRST round's. Later rounds are
+ *  resumes that mint no task, so nothing after it can identify the line. */
+function firstTaskId(
+  iterations: readonly { iteration: number; task_id: string | null }[],
+): string | null {
+  return (
+    [...iterations].sort((a, b) => a.iteration - b.iteration)[0]?.task_id ?? null
+  );
+}
+
 /** The id of the feature's planning line, or null. Resolved the way
  *  {@link resolveDispatch} does — the FIRST round's task owns the line for its
  *  whole life, and later rounds are resumes that mint no task of their own. */
@@ -126,12 +136,12 @@ async function planningLineId(
   project: { assemblyLines: Pick<AssemblyLinesPort, "listForTask"> },
   iterations: readonly { iteration: number; task_id: string | null }[],
 ): Promise<string | null> {
-  const first = [...iterations].sort((a, b) => a.iteration - b.iteration)[0];
+  const taskId = firstTaskId(iterations);
 
-  if (!first?.task_id) {
+  if (!taskId) {
     return null;
   }
-  const lines = await project.assemblyLines.listForTask(first.task_id);
+  const lines = await project.assemblyLines.listForTask(taskId);
 
   return (
     lines.find((l) => l.definitionName === PLANNING_DEFINITION)?.id ?? null
@@ -276,6 +286,13 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: (request, h) =>
         run(h, async () => {
           const project = await projectFor(repoOf(request.params));
+
+          // An unknown id is NOT an empty tree. The empty list is for a feature
+          // that exists and has not been decomposed yet; conflating the two would
+          // report success for a typo.
+          if (!(await project.features.get(request.params.id))) {
+            return h.response({ error: "feature not found" }).code(404);
+          }
 
           return h.response({
             tasks: await project.tasks.specTasksForFeature(request.params.id),
