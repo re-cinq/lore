@@ -1,6 +1,7 @@
 "use client";
 
 import { submittedFeedback } from "@/lib/submitted-feedback";
+import { SubmitButton } from "@/components/SubmitButton";
 import type { SectionAnswers } from "@/lib/feature-types";
 
 const PRE_STYLE: React.CSSProperties = {
@@ -83,9 +84,14 @@ export default function FailureBlock({
           </dl>
         </details>
       )}
-      <button type="button" disabled={pending} onClick={onRetry}>
-        {pending ? "Retrying…" : "Retry"}
-      </button>
+      <SubmitButton
+        type="button"
+        pending={pending}
+        pendingLabel="Retrying…"
+        onClick={onRetry}
+      >
+        Retry
+      </SubmitButton>
     </div>
   );
 }

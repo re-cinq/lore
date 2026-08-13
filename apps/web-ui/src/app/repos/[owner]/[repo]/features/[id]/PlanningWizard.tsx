@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { SubmitButton } from "@/components/SubmitButton";
 import GapSections, {
   emptyFeedback,
   toUserAnswers,
@@ -252,9 +253,14 @@ export default function PlanningWizard({
       <div
         style={{ display: "flex", gap: 10, marginTop: 8, alignItems: "center" }}
       >
-        <button type="button" disabled={pending} onClick={submitRefine}>
-          {pending ? "Working…" : "Refine again"}
-        </button>
+        <SubmitButton
+          type="button"
+          pending={pending}
+          pendingLabel="Working…"
+          onClick={submitRefine}
+        >
+          Refine again
+        </SubmitButton>
         <button
           type="button"
           className="button"

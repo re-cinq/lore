@@ -38,4 +38,37 @@ describe("SubmitButton", () => {
     render(<SubmitButton>Go</SubmitButton>);
     expect(screen.getByRole("button", { name: "Go" })).toBeDisabled();
   });
+
+  it("uses the pending prop when the caller drives its own transition", () => {
+    // useTransition and useActionState produce the boolean themselves. Without an
+    // override each call site rebuilds the button, which is how seven copies of
+    // `disabled={pending}` ended up in one vertical.
+    formStatus.mockReturnValue({ pending: false });
+    render(
+      <SubmitButton pending pendingLabel="Deleting…">
+        Delete
+      </SubmitButton>,
+    );
+    expect(screen.getByRole("button", { name: "Deleting…" })).toBeDisabled();
+  });
+
+  it("lets an explicit false override a pending form", () => {
+    formStatus.mockReturnValue({ pending: true });
+    render(<SubmitButton pending={false}>Go</SubmitButton>);
+    expect(screen.getByRole("button", { name: "Go" })).not.toBeDisabled();
+  });
+
+  it("stays disabled when the caller also passes disabled", () => {
+    // `disabled` used to sit BEFORE the prop spread, so a caller passing it
+    // silently UN-disabled the button for the duration of the submit.
+    formStatus.mockReturnValue({ pending: true });
+    render(<SubmitButton disabled={false}>Go</SubmitButton>);
+    expect(screen.getByRole("button", { name: "Go" })).toBeDisabled();
+  });
+
+  it("disables on the caller's own disabled even when nothing is pending", () => {
+    formStatus.mockReturnValue({ pending: false });
+    render(<SubmitButton disabled>Go</SubmitButton>);
+    expect(screen.getByRole("button", { name: "Go" })).toBeDisabled();
+  });
 });

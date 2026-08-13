@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormError } from "@/components/FormError";
 import styles from "./OnboardView.module.css";
 
 export type OnboardState = { error?: string; fullName?: string } | null;
@@ -53,11 +54,7 @@ export default function OnboardView({
           {onboarded.length > 0 &&
             ` Already onboarded: ${onboarded.map((r) => r.full_name).join(", ")}`}
         </p>
-        {state?.error && (
-          <p role="alert" style={{ color: "var(--danger)" }}>
-            {state.error}
-          </p>
-        )}
+        <FormError message={state?.error} />
         <SubmitButton className={styles.submit} pendingLabel="Onboarding…">
           Onboard Repository
         </SubmitButton>
