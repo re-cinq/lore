@@ -43,6 +43,7 @@
     "@vitejs/plugin-react": "^6.0.2",
     "@vitest/coverage-v8": "^4.1.10",
     "jsdom": "^29.1.1",
+    "sass": "^1.80.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
   }

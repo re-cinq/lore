@@ -63,7 +63,19 @@ export default tseslint.config(
       "lore/no-io-in-view": "error",
       "lore/require-spec-link": "error",
       "lore/default-export-matches-filename": "error",
+      "lore/no-inline-styles": "warn",
     },
+  },
+
+  // SVG transforms and measured iframe heights are computed per render — there is
+  // no class that can express them, so these turn the style rule off by path
+  // rather than accumulating inline disables.
+  {
+    files: [
+      "apps/web-ui/src/app/repos/**/graph/**",
+      "apps/web-ui/src/app/repos/**/features/[id]/MockupSection.tsx",
+    ],
+    rules: { "lore/no-inline-styles": "off" },
   },
 
   // Reserved Next filenames outside the features vertical still declare their

@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 
+import path from "node:path";
+
 const nextConfig: NextConfig = {
   output: "standalone",
+  // `@/` is a TypeScript path alias — Sass cannot see it. Putting src/ on the
+  // load path lets a module write `@use "styles/tokens"` instead of counting
+  // ../ hops back up from wherever it happens to live.
+  sassOptions: { includePaths: [path.join(process.cwd(), "src")] },
   serverExternalPackages: [
     "@google-cloud/storage",
     "octokit",
