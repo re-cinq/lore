@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sectionsOf as mirrorSectionsOf } from "./feature-types";
+import { sectionsOf as mirrorSectionsOf } from "./gap-sections";
 import type { GapResult } from "./feature-types";
 // web-ui can't import the @re-cinq/lore-shared PACKAGE (workspace + Docker isolation,
 // heavy deps), so sectionsOf is hand-duplicated. This CI-only test (runs in a full

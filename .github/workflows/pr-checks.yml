@@ -120,6 +120,15 @@ jobs:
           - name: builtin-definitions-drift
             build: npm run build -w @re-cinq/lore-shared
             test: bash scripts/check-builtin-definitions-drift.sh
+          # The OpenAPI artifact + the client types generated from it. web-ui's Docker
+          # context (apps/web-ui) cannot reach lore-api at build time, so both are
+          # COMMITTED rather than generated during the image build — which means only
+          # a guard keeps them honest. This fails the moment a route's shape changes
+          # without regenerating. Needs shared + server-core prebuilt; the script
+          # builds lore-api itself.
+          - name: openapi-drift
+            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core
+            test: bash scripts/check-openapi-drift.sh
           # Skill-docs guard. /lore-help renders each platform skill from that
           # skill's own `## Help` block, so a skill without one is invisible in
           # the index. Pure markdown check — no build needed.

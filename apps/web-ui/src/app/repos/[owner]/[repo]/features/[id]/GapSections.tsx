@@ -2,7 +2,7 @@
 
 import MockupSection from "./MockupSection";
 import Markdown from "@/components/Markdown";
-import { sectionsOf } from "@/lib/feature-types";
+import { sectionsOf } from "@/lib/gap-sections";
 import type {
   GapResult,
   GapQuestion,

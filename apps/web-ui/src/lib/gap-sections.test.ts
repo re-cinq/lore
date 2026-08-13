@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sectionsOf } from "./feature-types";
+import { sectionsOf } from "./gap-sections";
 import type { GapResult } from "./feature-types";
 
 // Unit coverage for the web-ui mirror's legacy-shape normalization (the branch the

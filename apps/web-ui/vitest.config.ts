@@ -19,6 +19,9 @@ export default defineConfig({
         // IO / config glue — not unit-testable without a live DB / auth / GitHub.
         // The container/presentational split keeps render logic in *View.tsx
         // (covered) and confines IO to these files and the page.tsx containers.
+        // Generated types only — no runtime code to cover, and a 0% file would
+        // drag the thresholds down for nothing.
+        "src/lib/api/schema.d.ts",
         "src/lib/db.ts",
         "src/lib/trace-api.ts",
         "src/lib/webhook-api.ts",
