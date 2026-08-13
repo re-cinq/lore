@@ -50,21 +50,36 @@ export interface WriteResult {
 
 // ── Write ────────────────────────────────────────────────────────────
 
-export async function writeMemory(
-  key: string,
-  value: string,
-  agentId?: string,
-  ttl?: number,
-  embedding?: number[],
-  repo?: string,
-): Promise<WriteResult> {
-  const agent = resolveAgentId(agentId);
+type MemoryTxClient = {
+  query: PgPool["query"];
+  release: () => void;
+};
+
+function hasConnect(
+  p: PgPool,
+): p is PgPool & { connect(): Promise<MemoryTxClient> } {
+  return typeof (p as { connect?: unknown }).connect === "function";
+}
+
+interface UpsertArgs {
+  key: string;
+  value: string;
+  agent: string;
+  ttl?: number;
+  embedding?: number[];
+  repo?: string;
+}
+
+async function upsertMemoryWithVersion(
+  db: Pick<PgPool, "query">,
+  { key, value, agent, ttl, embedding, repo }: UpsertArgs,
+): Promise<{ memoryId: string; version: number }> {
   const expiresAt = ttl ? `now() + interval '${ttl} seconds'` : null;
 
   // Check if key already exists for this repo (or agent if no repo)
   const lookupField = repo ? "repo" : "agent_id";
   const lookupValue = repo || agent;
-  const existing = await pool!.query(
+  const existing = await db.query(
     `SELECT id, version FROM memory.memories
      WHERE ${lookupField} = $1 AND key = $2 AND is_deleted = FALSE
      ORDER BY version DESC LIMIT 1`,
@@ -79,7 +94,7 @@ export async function writeMemory(
     version = (existing.rows[0].version as number) + 1;
     memoryId = existing.rows[0].id as string;
 
-    await pool!.query(
+    await db.query(
       `UPDATE memory.memories
        SET value = $1, version = $2, embedding = $3,
            ttl_seconds = $4, expires_at = ${expiresAt ? expiresAt : "NULL"},
@@ -96,7 +111,7 @@ export async function writeMemory(
   } else {
     // New memory
     version = 1;
-    const result = await pool!.query(
+    const result = await db.query(
       `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
        VALUES ($1, $2, $3, $4, 1, $5, ${expiresAt ? expiresAt : "NULL"}, $6)
        RETURNING id, created_at`,
@@ -114,13 +129,63 @@ export async function writeMemory(
   }
 
   // Always insert a version record
-  await pool!.query(
+  await db.query(
     `INSERT INTO memory.memory_versions (memory_id, version, value, embedding)
      VALUES ($1, $2, $3, $4)`,
     [memoryId, version, value, embedding ? `[${embedding.join(",")}]` : null],
   );
 
-  // Audit log
+  return { memoryId, version };
+}
+
+export async function writeMemory(
+  key: string,
+  value: string,
+  agentId?: string,
+  ttl?: number,
+  embedding?: number[],
+  repo?: string,
+): Promise<WriteResult> {
+  const agent = resolveAgentId(agentId);
+
+  // The memories row and its version row must land together: prod ran for
+  // months with memory.memory_versions missing, and the sequential writes
+  // left version-less memories behind on every call (#1154). connect() is
+  // feature-detected locally rather than declared on the PgPool port: pg's
+  // PoolClient carries an incompatible inherited connect(), so widening the
+  // port breaks every client-as-pool call site. A pool double without
+  // connect() keeps the plain sequential path.
+  const db = pool!;
+  const client = hasConnect(db) ? await db.connect() : null;
+  let memoryId: string;
+  let version: number;
+
+  try {
+    if (client) {
+      await client.query("BEGIN");
+    }
+
+    ({ memoryId, version } = await upsertMemoryWithVersion(client ?? db, {
+      key,
+      value,
+      agent,
+      ttl,
+      embedding,
+      repo,
+    }));
+
+    if (client) {
+      await client.query("COMMIT");
+    }
+  } catch (err) {
+    // Best-effort: the connection may already be dead, and that failure must
+    // not mask the original error.
+    await client?.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client?.release();
+  }
+
   await auditLog(agent, "write", key);
 
   const row = await pool!.query(
