@@ -20,12 +20,17 @@ import { isPlanningActive } from "@/app/repos/[owner]/[repo]/features/feature-st
 interface Working {
   nodeId: string;
   since?: string;
+  /** The NODE's attempt, not the planning round's — a node sent back for a
+   *  correction mints a new row, and the two counts are unrelated. */
+  nodeIteration?: number;
 }
 
 export type FeaturePhase =
   | ({ kind: "planning" } & Partial<Working>)
   | ({ kind: "awaiting-author" } & Partial<Working>)
   | ({ kind: "writing-spec" } & Working)
+  | ({ kind: "awaiting-merge" } & Working)
+  | ({ kind: "decomposing" } & Working)
   | { kind: "done" }
   | { kind: "failed" };
 
@@ -37,6 +42,9 @@ const NODE_PHASE: Record<string, FeaturePhase["kind"]> = {
   "analyse-specs": "writing-spec",
   write: "writing-spec",
   push: "writing-spec",
+  merged: "awaiting-merge",
+  decompose: "decomposing",
+  issues: "decomposing",
 };
 
 /** A task state that means the round is still going. Any other value means it
@@ -95,6 +103,7 @@ function phaseFromLine(run: FeaturePhaseInput["run"]): FeaturePhase | null {
     kind,
     nodeId: working.nodeId,
     since: working.startedAt,
+    nodeIteration: working.iteration,
   } as FeaturePhase;
 }
 

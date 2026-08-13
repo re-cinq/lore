@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createFeature } from "@/lib/feature-api";
+import { createFeature } from "@/lib/api/features";
 import { getAssemblyLineDefinition } from "@/lib/api/assembly-lines";
 import SmartFeatureCreateView from "./SmartFeatureCreateView";
 
