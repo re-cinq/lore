@@ -89,3 +89,17 @@ under the `graph-extraction` job name. ([validated by `helpers.test.ts:17`](apps
 
 `triggerAgentSpecTrace` is a no-op that resolves to undefined when there is no DB
 pool. ([validated by `spec-trace-trigger.test.ts:37`](apps/lore-api/src/api/routes/spec-trace-trigger.test.ts#L37))
+
+### Anthropic cost sync window
+
+The daily `anthropic_cost_sync` cron (07:00 UTC) is the sole Anthropic Admin API
+caller —
+the cost report only changes once a day, so `/spend` reads the synced rows from
+the database rather than proxying the API per request (ADR-043) — and its
+`reportWindow` opens the request at today's UTC midnight minus 30
+days and deliberately sends no `ending_at` — the API returns only buckets that
+end strictly *before* that bound, so an `ending_at` at tomorrow's midnight
+would exclude the current day's bucket — leaving exactly 31 candidate daily
+buckets, the documented `1d` maximum, so the limit can never truncate one, the
+first of the month is still covered on the 31st, and a window crossing a month
+boundary loses no bucket. ([validated by `anthropic-cost-sync.test.ts:28`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L28), [`anthropic-cost-sync.test.ts:34`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L34), [`anthropic-cost-sync.test.ts:40`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L40), [`anthropic-cost-sync.test.ts:46`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L46), [`anthropic-cost-sync.test.ts:53`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L53), [`anthropic-cost-sync.test.ts:59`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L59))

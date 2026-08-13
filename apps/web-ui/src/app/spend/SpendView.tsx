@@ -65,6 +65,15 @@ export interface LoreByTaskTypeRow {
 export interface SpendViewProps {
   orgMtd: OrgMtdRow;
   orgAvailable: boolean;
+  /**
+   * Today's Lore-computed spend (pipeline.llm_calls). Anthropic's cost report
+   * is daily-granularity and never emits the in-progress day, so the billed
+   * MTD figure always ends at yesterday — this is the only number that can
+   * bring it current, and llm_calls has been verified token-exact against
+   * Anthropic's hourly usage report. Optional so callers without it render
+   * exactly as before.
+   */
+  loreTodayUsd?: number;
   orgByModel: OrgByModelRow[];
   orgDaily: OrgDailyRow[];
   loreMtd: LoreMtdRow;
@@ -83,6 +92,7 @@ const num = (n: number) => Number(n).toLocaleString();
 export default function SpendView({
   orgMtd,
   orgAvailable,
+  loreTodayUsd,
   orgByModel,
   orgDaily,
   loreMtd,
@@ -130,6 +140,16 @@ export default function SpendView({
             <div className={`meta ${styles.subnote}`}>
               as of {new Date(orgMtd.as_of as string).toLocaleString()}
             </div>
+            {/* Anthropic's cost report never includes the in-progress day, so
+                the billed figure ends at yesterday. Surface today separately
+                and labeled rather than folding it in: the sum would silently
+                mix an authoritative number with a computed one. */}
+            {loreTodayUsd !== undefined && loreTodayUsd > 0 && (
+              <div className={`meta ${styles.subnote}`}>
+                billed through yesterday — + {usd(loreTodayUsd)} today
+                (Lore-computed)
+              </div>
+            )}
           </div>
         )}
       </div>

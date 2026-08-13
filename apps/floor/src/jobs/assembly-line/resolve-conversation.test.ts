@@ -221,7 +221,11 @@ describe("resolveConversation rewind", () => {
 });
 
 describe("a line whose rounds are revisits of one node", () => {
-  const thread = { kind: "args" as const, value: "feature-9", nodeId: "analyze" };
+  const thread = {
+    kind: "args" as const,
+    value: "feature-9",
+    nodeId: "analyze",
+  };
 
   /** Round N of the SAME line — the merged planning line's shape. */
   const savedRound = async (
@@ -245,9 +249,9 @@ describe("a line whose rounds are revisits of one node", () => {
 
     await savedRound(store, 1);
 
-    expect(
-      (await resolveConversation(node(), task, 2, deps(store)))?.id,
-    ).toBe("round-1");
+    expect((await resolveConversation(node(), task, 2, deps(store)))?.id).toBe(
+      "round-1",
+    );
   });
 
   it("never resumes the round it is itself re-running", async () => {
@@ -274,9 +278,9 @@ describe("a line whose rounds are revisits of one node", () => {
       args: { feature_id: "feature-9", resume_from_iteration: 1 },
     };
 
-    expect((await resolveConversation(node(), rewound, 4, deps(store)))?.id).toBe(
-      "round-1",
-    );
+    expect(
+      (await resolveConversation(node(), rewound, 4, deps(store)))?.id,
+    ).toBe("round-1");
   });
 
   it("starts fresh when the round the author picked saved nothing", async () => {
@@ -291,8 +295,8 @@ describe("a line whose rounds are revisits of one node", () => {
       args: { feature_id: "feature-9", resume_from_iteration: 9 },
     };
 
-    expect((await resolveConversation(node(), rewound, 4, deps(store)))?.id).toBe(
-      "",
-    );
+    expect(
+      (await resolveConversation(node(), rewound, 4, deps(store)))?.id,
+    ).toBe("");
   });
 });

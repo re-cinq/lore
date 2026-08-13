@@ -14,7 +14,7 @@ vi.mock("../../../kernel/queues.js", () => ({
 }));
 
 vi.mock("../../../kernel/archives.js", () => ({
-  agentEventsArchive: () => archive,
+  conversationArchive: () => archive,
 }));
 
 const ORIG = process.env.LORE_AGENT_INTERNAL_TOKEN;

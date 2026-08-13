@@ -15,10 +15,12 @@ import SpendView, {
 const MTD = "created_at >= date_trunc('month', current_date)";
 
 export default async function SpendPage() {
-  // Authoritative org-wide spend from Anthropic's Admin Cost/Usage API, cached
-  // by the anthropic_cost_sync cron. Optional: queryAllowMissing degrades to []
-  // when the table or the admin key is absent, and the view hides these
-  // sections. Everything below runs off pipeline.llm_calls with no admin key.
+  // Anthropic's authoritative billed cost from pipeline.anthropic_cost_daily,
+  // written by the daily anthropic_cost_sync cron (07:00 UTC). The cost report
+  // only ever changes once a day (buckets close at UTC midnight and the
+  // in-progress day is not emitted), so a daily sync is sufficient and no
+  // per-request Anthropic call could show more. queryAllowMissing degrades to
+  // [] when the migration/table is absent, and the view hides these sections.
   const orgMtdRow = (
     await queryAllowMissing<OrgMtdRow>(
       `SELECT
@@ -51,6 +53,16 @@ export default async function SpendPage() {
      FROM pipeline.anthropic_cost_daily
      WHERE bucket_date >= date_trunc('month', current_date)
      GROUP BY bucket_date ORDER BY bucket_date DESC`,
+  );
+
+  // Today's Lore-computed spend, used to bring the billed MTD figure current:
+  // Anthropic's cost report is daily-granularity and never emits the
+  // in-progress day, so the billed total always ends at yesterday. llm_calls
+  // is verified token-exact against Anthropic's hourly usage report, and the
+  // UTC current_date boundary matches the report's UTC day buckets.
+  const loreToday = await queryOne<{ cost_usd: number }>(
+    `SELECT COALESCE(SUM(cost_usd), 0)::float8 AS cost_usd
+     FROM pipeline.llm_calls WHERE created_at >= current_date`,
   );
 
   // Lore-computed cost (pipeline.llm_calls) — always available, no admin key.
@@ -115,6 +127,7 @@ export default async function SpendPage() {
     <SpendView
       orgMtd={orgMtd}
       orgAvailable={orgAvailable}
+      loreTodayUsd={loreToday?.cost_usd ?? 0}
       orgByModel={orgByModel}
       orgDaily={orgDaily}
       loreMtd={loreMtd}

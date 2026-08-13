@@ -13,7 +13,7 @@
 import type { ServerRoute } from "@hapi/hapi";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { conversations } from "../../../kernel/queues.js";
-import { agentEventsArchive } from "../../../kernel/archives.js";
+import { conversationArchive } from "../../../kernel/archives.js";
 import { rawBytes } from "../raw-body.js";
 
 /** Where a conversation's archive lives in the bucket. */
@@ -26,7 +26,7 @@ export const agentConversationSaveRoute: ServerRoute = {
   options: { auth: "internal-token", payload: { parse: false } },
   handler: async (request, h) => {
     const id = request.params.id;
-    const archive = agentEventsArchive();
+    const archive = conversationArchive();
 
     // No bucket configured (a laptop without GCS) is not an error: the run still
     // succeeded, and the only cost is that the NEXT run starts fresh.
@@ -63,7 +63,7 @@ export const agentConversationFetchRoute: ServerRoute = {
   handler: async (request, h) => {
     try {
       const record = await conversations().byConversationId(request.params.id);
-      const archive = agentEventsArchive();
+      const archive = conversationArchive();
 
       if (!record?.objectKey || !archive) {
         return h.response({ error: "not found" }).code(404);

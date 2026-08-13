@@ -793,6 +793,546 @@ describe("finish is first-writer-wins", () => {
   });
 });
 
+// ── Definition hashing (specs/fork-rerun-from-node FR4): the stamp names the
+//    graph a line's node rows were produced by, so a fork can refuse to replay
+//    them against a definition that has since changed.
+describe("stampDefinitionHash", () => {
+  it("issues a write-once UPDATE guarded on a null hash (Pg)", async () => {
+    const { pool, calls } = fakePool();
+
+    await new PgAssemblyLines(pool).stampDefinitionHash("al-1", "hash-1");
+
+    expect(calls[0]?.text).toContain("SET definition_hash = $2");
+    expect(calls[0]?.text).toContain("definition_hash IS NULL");
+    expect(calls[0]?.params).toEqual(["al-1", "hash-1"]);
+  });
+
+  it("records the hash on a line that has none", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await port.start({ definitionName: "general", repo: "o/r" });
+
+    await port.stampDefinitionHash(id, "hash-1");
+
+    expect(await port.getById(id)).toMatchObject({ definitionHash: "hash-1" });
+  });
+
+  it("never overwrites an already-stamped hash, so a redelivered start cannot rewrite history", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await port.start({ definitionName: "general", repo: "o/r" });
+
+    await port.stampDefinitionHash(id, "hash-1");
+    await port.stampDefinitionHash(id, "hash-2");
+
+    expect(await port.getById(id)).toMatchObject({ definitionHash: "hash-1" });
+  });
+
+  it("throws on an unknown line id", async () => {
+    const port = new InMemoryAssemblyLines();
+
+    await expect(port.stampDefinitionHash("nope", "hash-1")).rejects.toThrow(
+      new Error('no assembly line "nope"'),
+    );
+  });
+});
+
+// ── Fork-and-rerun (specs/fork-rerun-from-node FR1–FR3): the double is the
+//    behavioural spec — the Pg adapter's resume CTE has to match it row for row.
+describe("InMemoryAssemblyLines resumeFrom", () => {
+  const HASH = "hash-implementation";
+
+  async function terminalSource(port: InMemoryAssemblyLines): Promise<string> {
+    const id = await port.start({
+      definitionName: "implementation",
+      repo: "o/r",
+      branch: "lore/implementation/x",
+      taskId: "task-9",
+      args: { spec: "specs/x/spec.md" },
+    });
+
+    await port.stampDefinitionHash(id, HASH);
+    await port.markRunning(id);
+
+    for (const visit of [
+      { nodeId: "implement", iteration: 1, outcome: "success" },
+      { nodeId: "review", iteration: 1, outcome: "changes_requested" },
+      { nodeId: "implement", iteration: 2, outcome: "success" },
+      { nodeId: "review", iteration: 2, outcome: "failed" },
+    ]) {
+      const { nodeRowId } = await port.ensureNodeStart({
+        assemblyLineId: id,
+        nodeId: visit.nodeId,
+        iteration: visit.iteration,
+        agentCrName: `${id.slice(0, 12)}-${visit.nodeId}`,
+      });
+
+      await port.finishNodeOnce(
+        nodeRowId,
+        visit.outcome,
+        `sha-${visit.nodeId}`,
+      );
+    }
+    await port.finish(id, "error", "node failed");
+
+    return id;
+  }
+
+  it("mints a fresh line inheriting branch, taskId and args from the source", async () => {
+    const port = new InMemoryAssemblyLines();
+    const source = await terminalSource(port);
+
+    const fork = await port.start({
+      definitionName: "implementation",
+      repo: "o/r",
+      definitionHash: HASH,
+      resumeFrom: { lineId: source, nodeId: "implement" },
+    });
+
+    expect(fork).not.toBe(source);
+    expect(await port.getById(fork)).toMatchObject({
+      status: "queued",
+      branch: "lore/implementation/x",
+      taskId: "task-9",
+      args: { spec: "specs/x/spec.md" },
+      definitionHash: HASH,
+      resumedFromLineId: source,
+      resumedFromNodeId: "implement",
+    });
+  });
+
+  it("copies the source rows through the chosen node's latest completed row, in visit order, with agent CR names nulled", async () => {
+    const port = new InMemoryAssemblyLines();
+    const source = await terminalSource(port);
+
+    const fork = await port.start({
+      definitionName: "implementation",
+      repo: "o/r",
+      definitionHash: HASH,
+      resumeFrom: { lineId: source, nodeId: "implement" },
+    });
+
+    expect(
+      (await port.listNodes(fork)).map((n) => ({
+        nodeId: n.nodeId,
+        iteration: n.iteration,
+        outcome: n.outcome,
+        commitSha: n.commitSha,
+        agentCrName: n.agentCrName,
+      })),
+    ).toEqual([
+      {
+        nodeId: "implement",
+        iteration: 1,
+        outcome: "success",
+        commitSha: "sha-implement",
+        agentCrName: null,
+      },
+      {
+        nodeId: "review",
+        iteration: 1,
+        outcome: "changes_requested",
+        commitSha: "sha-review",
+        agentCrName: null,
+      },
+      {
+        nodeId: "implement",
+        iteration: 2,
+        outcome: "success",
+        commitSha: "sha-implement",
+        agentCrName: null,
+      },
+    ]);
+  });
+
+  it("leaves the source line and its node rows untouched", async () => {
+    const port = new InMemoryAssemblyLines();
+    const source = await terminalSource(port);
+
+    await port.start({
+      definitionName: "implementation",
+      repo: "o/r",
+      definitionHash: HASH,
+      resumeFrom: { lineId: source, nodeId: "review" },
+    });
+
+    expect(await port.getById(source)).toMatchObject({
+      status: "failed",
+      outcome: "error",
+      resumedFromLineId: null,
+    });
+    expect(await port.listNodes(source)).toHaveLength(4);
+  });
+
+  it("replaces args wholesale when the fork supplies them", async () => {
+    const port = new InMemoryAssemblyLines();
+    const source = await terminalSource(port);
+
+    const fork = await port.start({
+      definitionName: "implementation",
+      repo: "o/r",
+      definitionHash: HASH,
+      args: { spec: "specs/y/spec.md" },
+      resumeFrom: { lineId: source, nodeId: "implement" },
+    });
+
+    expect(await port.getById(fork)).toMatchObject({
+      args: { spec: "specs/y/spec.md" },
+    });
+  });
+
+  it("emits one assembly_line.start event carrying the fork parentage", async () => {
+    const port = new InMemoryAssemblyLines();
+    const source = await terminalSource(port);
+
+    const fork = await port.start({
+      definitionName: "implementation",
+      repo: "o/r",
+      definitionHash: HASH,
+      resumeFrom: { lineId: source, nodeId: "implement" },
+    });
+
+    expect(port.events.at(-1)).toMatchObject({
+      eventName: "assembly_line.start",
+      source: "internal",
+      dedupeKey: `assembly_line.start:${fork}`,
+      params: {
+        assemblyLineId: fork,
+        branch: "lore/implementation/x",
+        taskId: "task-9",
+        resumedFrom: { lineId: source, nodeId: "implement" },
+      },
+    });
+  });
+
+  it("records no parentage and no event resumedFrom on a plain start", async () => {
+    const port = new InMemoryAssemblyLines();
+
+    const id = await port.start({ definitionName: "general", repo: "o/r" });
+
+    expect(await port.getById(id)).toMatchObject({
+      resumedFromLineId: null,
+      resumedFromNodeId: null,
+    });
+    expect(port.events[0]?.params.resumedFrom).toBeNull();
+  });
+
+  it("writes nothing when validation rejects the fork", async () => {
+    const port = new InMemoryAssemblyLines();
+    const source = await terminalSource(port);
+    const rowsBefore = port.rows.length;
+    const nodesBefore = port.nodes.length;
+    const eventsBefore = port.events.length;
+
+    await expect(
+      port.start({
+        definitionName: "implementation",
+        repo: "o/r",
+        definitionHash: "hash-drifted",
+        resumeFrom: { lineId: source, nodeId: "implement" },
+      }),
+    ).rejects.toThrow(/has changed since that run/);
+    expect(port.rows).toHaveLength(rowsBefore);
+    expect(port.nodes).toHaveLength(nodesBefore);
+    expect(port.events).toHaveLength(eventsBefore);
+  });
+
+  it("refuses a live source line", async () => {
+    const port = new InMemoryAssemblyLines();
+    const source = await terminalSource(port);
+    const live = await port.start({
+      definitionName: "implementation",
+      repo: "o/r",
+      branch: "lore/implementation/y",
+    });
+
+    await port.stampDefinitionHash(live, HASH);
+    await port.markRunning(live);
+
+    await expect(
+      port.start({
+        definitionName: "implementation",
+        repo: "o/r",
+        definitionHash: HASH,
+        resumeFrom: { lineId: live, nodeId: "implement" },
+      }),
+    ).rejects.toThrow(/is still running/);
+    expect(await port.listNodes(source)).toHaveLength(4);
+  });
+});
+
+describe("PgAssemblyLines resumeFrom", () => {
+  const HASH = "hash-implementation";
+  const AT = new Date("2026-08-07T10:00:00Z");
+
+  function sourceRow(over: Record<string, unknown> = {}) {
+    return {
+      id: "src",
+      definition_name: "implementation",
+      task_id: "task-9",
+      repo: "re-cinq/lore",
+      branch: "lore/implementation/x",
+      args: { spec: "specs/x/spec.md" },
+      status: "failed",
+      outcome: "error",
+      reason: null,
+      definition_hash: HASH,
+      resumed_from_line_id: null,
+      resumed_from_node_id: null,
+      inherited_node_count: 0,
+      created_at: AT,
+      started_at: AT,
+      finished_at: AT,
+      ...over,
+    };
+  }
+
+  function sourceNode(id: number, nodeId: string, iteration: number) {
+    return {
+      id,
+      assembly_line_id: "src",
+      node_id: nodeId,
+      iteration,
+      outcome: "success",
+      agent_cr_name: `src12345678-${nodeId}`,
+      commit_sha: `sha-${id}`,
+      started_at: AT,
+      finished_at: AT,
+    };
+  }
+
+  const NODE_ROWS = [
+    sourceNode(11, "implement", 1),
+    sourceNode(12, "review", 1),
+    sourceNode(13, "implement", 2),
+  ];
+
+  function resumeInput(over: Record<string, unknown> = {}) {
+    return {
+      definitionName: "implementation",
+      repo: "re-cinq/lore",
+      definitionHash: HASH,
+      resumeFrom: { lineId: "src", nodeId: "review" },
+      ...over,
+    };
+  }
+
+  it("reads the source line and its nodes before writing anything", async () => {
+    const { pool, calls } = fakePool([
+      [sourceRow()],
+      NODE_ROWS,
+      [{ id: "al-9" }],
+    ]);
+
+    const id = await new PgAssemblyLines(pool).start(resumeInput());
+
+    expect(id).toBe("al-9");
+    expect(calls[0]?.text).toContain("FROM pipeline.assembly_lines");
+    expect(calls[1]?.text).toContain("FROM pipeline.assembly_line_nodes");
+    expect(calls).toHaveLength(3);
+  });
+
+  it("writes the line row, the start event and the copied node rows in one statement", async () => {
+    const { pool, calls } = fakePool([
+      [sourceRow()],
+      NODE_ROWS,
+      [{ id: "al-9" }],
+    ]);
+
+    await new PgAssemblyLines(pool).start(resumeInput());
+    const sql = calls[2]?.text ?? "";
+
+    expect(sql).toContain("INSERT INTO pipeline.assembly_lines");
+    expect(sql).toContain("INSERT INTO pipeline.events");
+    expect(sql).toContain("INSERT INTO pipeline.assembly_line_nodes");
+    expect(sql).toContain("'assembly_line.start:' || al.id");
+  });
+
+  it("bounds the copy by the cutoff row id, scoped to the source line and ordered by id", async () => {
+    const { pool, calls } = fakePool([
+      [sourceRow()],
+      NODE_ROWS,
+      [{ id: "al-9" }],
+    ]);
+
+    await new PgAssemblyLines(pool).start(resumeInput());
+    const sql = calls[2]?.text ?? "";
+
+    expect(sql).toContain("WHERE n.assembly_line_id = $7");
+    expect(sql).toContain("AND n.id <= $9::bigint");
+    expect(sql).toContain("ORDER BY n.id");
+    // cutoff is the LATEST completed "review" row — id 12, not the line's last row
+    expect(calls[2]?.params?.[8]).toBe("12");
+  });
+
+  it("binds the inherited branch, taskId, args, hash and parentage", async () => {
+    const { pool, calls } = fakePool([
+      [sourceRow()],
+      NODE_ROWS,
+      [{ id: "al-9" }],
+    ]);
+
+    await new PgAssemblyLines(pool).start(resumeInput());
+
+    expect(calls[2]?.params).toEqual([
+      "implementation",
+      "task-9",
+      "re-cinq/lore",
+      "lore/implementation/x",
+      JSON.stringify({ spec: "specs/x/spec.md" }),
+      HASH,
+      "src",
+      "review",
+      "12",
+      2,
+    ]);
+  });
+
+  it("binds overridden args instead of the source's", async () => {
+    const { pool, calls } = fakePool([
+      [sourceRow()],
+      NODE_ROWS,
+      [{ id: "al-9" }],
+    ]);
+
+    await new PgAssemblyLines(pool).start(
+      resumeInput({ args: { spec: "specs/y/spec.md" } }),
+    );
+
+    expect(calls[2]?.params?.[4]).toBe(
+      JSON.stringify({ spec: "specs/y/spec.md" }),
+    );
+  });
+
+  it("copies the source's outcome, commit sha and timestamps but nulls the agent CR name", async () => {
+    const { pool, calls } = fakePool([
+      [sourceRow()],
+      NODE_ROWS,
+      [{ id: "al-9" }],
+    ]);
+
+    await new PgAssemblyLines(pool).start(resumeInput());
+    const sql = calls[2]?.text ?? "";
+
+    expect(sql).toContain(
+      "n.node_id, n.iteration, n.outcome, NULL, n.commit_sha, n.started_at, n.finished_at",
+    );
+  });
+
+  it("issues no write when the source line is still running", async () => {
+    const { pool, calls } = fakePool([[sourceRow({ status: "running" })], []]);
+
+    await expect(
+      new PgAssemblyLines(pool).start(resumeInput()),
+    ).rejects.toThrow(/is still running/);
+    expect(calls.every((c) => c.text.includes("SELECT"))).toBe(true);
+  });
+
+  it("issues no write when the definition hash drifted", async () => {
+    const { pool, calls } = fakePool([
+      [sourceRow({ definition_hash: "other" })],
+      NODE_ROWS,
+    ]);
+
+    await expect(
+      new PgAssemblyLines(pool).start(resumeInput()),
+    ).rejects.toThrow(/has changed since that run/);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("binds {} when neither the input nor the source row carries args", async () => {
+    const { pool, calls } = fakePool([
+      [sourceRow({ args: null })],
+      NODE_ROWS,
+      [{ id: "al-9" }],
+    ]);
+
+    await new PgAssemblyLines(pool).start(resumeInput());
+
+    expect(calls[2]?.params?.[4]).toBe(JSON.stringify({}));
+  });
+
+  it("keeps the plain start on its own two-CTE statement with five parameters", async () => {
+    const { pool, calls } = fakePool([[{ id: "al-1" }]]);
+
+    await new PgAssemblyLines(pool).start({
+      definitionName: "general",
+      repo: "re-cinq/lore",
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.params).toHaveLength(5);
+    expect(calls[0]?.text).not.toContain(
+      "INSERT INTO pipeline.assembly_line_nodes",
+    );
+  });
+});
+
+describe("AssemblyLines facade resumeFrom", () => {
+  it("passes resumeFrom and definitionHash through, filling the repo from its scope", async () => {
+    const port = new InMemoryAssemblyLines();
+    const facade = new AssemblyLines("re-cinq/lore", port);
+    const source = await facade.start("general", { branch: "feat/x" });
+
+    await port.stampDefinitionHash(source, "hash-general");
+    await port.markRunning(source);
+    const { nodeRowId } = await port.ensureNodeStart({
+      assemblyLineId: source,
+      nodeId: "work",
+      iteration: 1,
+    });
+
+    await port.finishNodeOnce(nodeRowId, "success");
+    await port.finish(source, "completed");
+
+    const fork = await facade.start("general", {
+      definitionHash: "hash-general",
+      resumeFrom: { lineId: source, nodeId: "work" },
+    });
+
+    expect(await facade.getById(fork)).toMatchObject({
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      resumedFromLineId: source,
+    });
+    expect(await port.listNodes(fork)).toHaveLength(1);
+  });
+});
+
+describe("plain start agrees across the adapter and the double", () => {
+  it("states an explicit null parentage in the event rather than omitting the key", async () => {
+    const { pool, calls } = fakePool([[{ id: "al-1" }]]);
+    const port = new InMemoryAssemblyLines();
+
+    await new PgAssemblyLines(pool).start({
+      definitionName: "general",
+      repo: "re-cinq/lore",
+    });
+    await port.start({ definitionName: "general", repo: "re-cinq/lore" });
+
+    expect(calls[0]?.text).toContain("'resumedFrom', NULL::jsonb");
+    expect(port.events[0]?.params).toHaveProperty("resumedFrom", null);
+  });
+
+  it("stores no definition hash, because the caller's hash is a resume input the Floor re-stamps", async () => {
+    const { pool, calls } = fakePool([[{ id: "al-1" }]]);
+    const port = new InMemoryAssemblyLines();
+
+    await new PgAssemblyLines(pool).start({
+      definitionName: "general",
+      repo: "re-cinq/lore",
+      definitionHash: "hash-general",
+    });
+    const id = await port.start({
+      definitionName: "general",
+      repo: "re-cinq/lore",
+      definitionHash: "hash-general",
+    });
+
+    expect(calls[0]?.text).not.toContain("definition_hash");
+    expect(calls[0]?.params).not.toContain("hash-general");
+    expect(await port.getById(id)).toMatchObject({ definitionHash: null });
+  });
+});
+
 describe("AssemblyLinesPort mergeArgs", () => {
   it("adds a produced artifact to the line without disturbing what start() set", async () => {
     // How one node's output reaches the next: args are the line's shared channel,

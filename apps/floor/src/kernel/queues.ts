@@ -22,6 +22,7 @@ import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { PgJobRuns } from "@re-cinq/lore-shared/project/job-runs/job-runs-pg.js";
 import { PgAgentRunEvents } from "@re-cinq/lore-shared/project/agent-run-events/agent-run-events-pg.js";
 import { PgConversations } from "@re-cinq/lore-shared/project/conversations/conversations-pg.js";
+import { PgAgentRunTurns } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-pg.js";
 import { PgEvalRuns } from "@re-cinq/lore-shared/project/evals/evals-pg.js";
 import { PgCost } from "@re-cinq/lore-shared/project/cost/cost-pg.js";
 import { PgContextCore } from "@re-cinq/lore-shared/project/context-core/context-core-pg.js";
@@ -40,6 +41,7 @@ let usageSingleton: PgUsage | undefined;
 let jobRunsSingleton: PgJobRuns | undefined;
 let agentRunEventsSingleton: PgAgentRunEvents | undefined;
 let conversationsSingleton: PgConversations | undefined;
+let agentRunTurnsSingleton: PgAgentRunTurns | undefined;
 let evalRunsSingleton: PgEvalRuns | undefined;
 let costSingleton: PgCost | undefined;
 let contextCoreSingleton: PgContextCore | undefined;
@@ -96,6 +98,10 @@ export const agentRunEvents = (): PgAgentRunEvents =>
 /** Conversations a run can continue (pipeline.agent_conversations). */
 export const conversations = (): PgConversations =>
   (conversationsSingleton ??= new PgConversations(getPool()));
+/** Full-fidelity run transcripts (pipeline.agent_run_turns), written on every
+ *  agent-events POST and read by the turn history route. */
+export const agentRunTurns = (): PgAgentRunTurns =>
+  (agentRunTurnsSingleton ??= new PgAgentRunTurns(getPool()));
 
 /** Eval-run results (pipeline.eval_runs), written by the eval-runner cron. */
 export const evalRuns = (): PgEvalRuns =>

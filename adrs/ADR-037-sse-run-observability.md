@@ -31,6 +31,15 @@ write-only archive. The Alternatives section below answers "why not just read th
 archive?" directly, because an ADR that enshrined the wrong premise would
 mislead every later reader.
 
+> **Amendment (2026-08-11, #1148).** The GCS archive described above is retired.
+> `pipeline.agent_run_turns` (`specs/turn-level-transcript-store`) now holds the
+> full redacted stream — keyed by run, correlated to assembly-line nodes, 30-day
+> retention, readable at `GET /api/agent-turns/{assemblyLineId}` — which is
+> strictly stronger than the archive on every axis the Alternatives section used
+> to reject reading it. The sink's durable outputs are the three Postgres row
+> families; existing `__agent_events__/` objects age out via the bucket's
+> lifecycle rule.
+
 Two constraints shape the decision:
 
 **The Floor is pinned to one replica, and that pin is an admitted limitation
@@ -119,8 +128,9 @@ Rejected. The archive is keyed by ingest timestamp rather than by run, has no
 cursor, and cannot be tailed — it
 supports post-hoc replay of a blob, not a live view or a resumable stream.
 Serving a run page from it would mean fetching and parsing whole NDJSON objects
-per view. It remains valuable as a raw audit substrate, and this feature does not
-change or retire it.
+per view. It remained valuable as a raw audit substrate until
+`pipeline.agent_run_turns` subsumed that role, and was retired then (see the
+amendment in Context, #1148).
 
 **WebSocket.** Rejected. The traffic is unidirectional server-to-client; a
 WebSocket buys a full duplex channel nothing needs, in exchange for a protocol

@@ -8,31 +8,36 @@ import { GcsArchive } from "@re-cinq/lore-shared/project/archive/archive-gcs.js"
 import { FileArchive } from "@re-cinq/lore-shared/project/archive/archive-file.js";
 import type { ArchivePort } from "@re-cinq/lore-shared/project/archive/archive-port.js";
 
-let agentEventsSingleton: ArchivePort | null | undefined;
+let conversationSingleton: ArchivePort | null | undefined;
 let jobRunLogsSingleton: ArchivePort | undefined;
 
 /**
- * Raw agent-event NDJSON streams (#687) and agent conversation archives.
+ * Agent CONVERSATION archives — the tarball a run saves so a later run can resume
+ * it (ai-agent-subsystem#188).
  *
- * A bucket wins. `LORE_ARCHIVE_DIR` is the single-machine fallback, and it is
- * OPT-IN rather than a default: a cluster that lost its bucket config would
- * otherwise start writing conversations to pod-local disk that vanishes with the
- * pod, which looks like continuity right up until it isn't. Neither set stays a
- * dormant no-op, as before.
+ * This singleton used to serve the raw agent-event NDJSON streams too; #1149 retired
+ * that archive in favour of `agent_run_turns`, leaving conversations as the only
+ * consumer. The env var keeps its old name because it is deployment config that
+ * cluster values already set — renaming it would silently un-configure the bucket.
+ *
+ * A bucket wins. `LORE_ARCHIVE_DIR` is the single-machine fallback, and it is OPT-IN
+ * rather than a default: a cluster that lost its bucket config would otherwise start
+ * writing conversations to pod-local disk that vanishes with the pod, which looks
+ * like continuity right up until it isn't.
  */
-export function agentEventsArchive(): ArchivePort | null {
-  if (agentEventsSingleton === undefined) {
+export function conversationArchive(): ArchivePort | null {
+  if (conversationSingleton === undefined) {
     const bucket = process.env.LORE_AGENT_EVENTS_BUCKET;
     const dir = process.env.LORE_ARCHIVE_DIR;
 
-    agentEventsSingleton = bucket
+    conversationSingleton = bucket
       ? new GcsArchive(bucket)
       : dir
         ? new FileArchive(dir)
         : null;
   }
 
-  return agentEventsSingleton;
+  return conversationSingleton;
 }
 
 /** Scheduler job-run logs (redacted before save, CMEK-encrypted at rest). */

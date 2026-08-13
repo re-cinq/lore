@@ -19,21 +19,24 @@ import {
   agentRunEvents,
   taskStore,
   assemblyLines,
+  agentRunTurns,
 } from "../../../kernel/queues.js";
 import { projectFor } from "../../../composition/project-boot.js";
 import { deliverPlanningResults } from "../../../jobs/agent/planning-result.js";
 import { deliverArtifact } from "../../../jobs/agent/artifact-args.js";
 import {
   parseAgentSink,
-  agentEventsArchiveKey,
   type LlmCallRow,
   type AgentFileEvent,
 } from "../../../jobs/agent/agent-events.js";
 import { agentEventBus } from "../../../jobs/agent/agent-event-bus.js";
-import { archiveAgentEvents } from "../../../jobs/agent/agent-events-store.js";
+import { MAX_RUN_TURNS_PER_BATCH } from "../../../jobs/agent/agent-run-turns.js";
 import { writeAuditLog } from "../../../jobs/lib/audit.js";
 import { rawBody } from "../raw-body.js";
-import type { AgentRunEventInsert } from "@re-cinq/lore-shared";
+import type {
+  AgentRunEventInsert,
+  AgentRunTurnInsert,
+} from "@re-cinq/lore-shared";
 import type { AuditLogEntry } from "@re-cinq/lore-shared/project/audit/audit-port.js";
 import type {
   LlmCallRecord,
@@ -45,8 +48,9 @@ type AnomalyKind =
   | "cost_uncorrelated"
   | "cost_failed"
   | "run_events_failed"
-  | "archive_failed"
-  | "archive_shed";
+  | "run_turns_failed"
+  | "turn_dropped_redaction"
+  | "turn_dropped_cap";
 
 /** Counts ingest anomalies so a silent problem shows on a dashboard. No-op
  *  until the OTEL SDK is registered (otel-init), so free in tests. */
@@ -54,7 +58,7 @@ const anomalyCounter = metrics
   .getMeter("lore-floor")
   .createCounter("lore.agent_events.anomalies", {
     description:
-      "Agent-events ingest anomalies: uncorrelated/failed cost rows, viz/archive failures",
+      "Agent-events ingest anomalies: uncorrelated/failed cost rows, viz/turn failures",
   });
 
 function countAnomaly(kind: AnomalyKind, n = 1): void {
@@ -64,13 +68,14 @@ function countAnomaly(kind: AnomalyKind, n = 1): void {
 }
 
 /**
- * Above this body size the run-visualization projection and the full-body GCS
- * archive copy are skipped — cost accounting (the terminal `result` line) is
- * still recorded. These are the only body-proportional allocations left after
- * the single-pass parse, so bounding them keeps a pathological report from
- * OOM-ing the single (replicaCount: 1) Floor replica at its memory limit. The
- * dropped viz is a nice-to-have; full fidelity remains in the raw NDJSON the
- * agent subsystem streams, and cost/billing is unaffected.
+ * Above this body size the run-visualization projection and the turn transcript
+ * are skipped — cost accounting (the terminal `result` line) is still recorded.
+ * These are the only body-proportional allocations left after the single-pass
+ * parse, so bounding them keeps a pathological report from OOM-ing the single
+ * (replicaCount: 1) Floor replica at its memory limit. Above the gate the Floor
+ * keeps only the cost rows — the pod's stdout in Cloud Logging is the sole
+ * remaining copy of an oversized stream (#1109) — and cost/billing is
+ * unaffected.
  */
 const MAX_VIZ_BODY_BYTES = 8 * 1024 * 1024;
 
@@ -145,49 +150,6 @@ export function costDegradedAudit(s: CostIngestSummary): AuditLogEntry | null {
 }
 
 /**
- * Each in-flight archive pins the raw body plus its redacted copy (≤2× the 8MB
- * viz cap) until GCS resolves, so unbounded fire-and-forget stacked ~16MB per
- * concurrent POST and OOM-crash-looped the then-512Mi Floor the first time the
- * bucket env was set (2026-07-24). Beyond this many concurrent uploads the
- * body is shed — counted, cost ingestion untouched, and the run's own raw
- * stream still exists on the agent-subsystem side.
- */
-const MAX_ARCHIVES_IN_FLIGHT = 2;
-let archivesInFlight = 0;
-
-/**
- * Archive the raw NDJSON for replay (redacted, dormant until a bucket is set).
- * Fire-and-forget behind a small in-flight bound: a failed or shed archive
- * must never fail cost-row ingestion.
- */
-function archiveRaw(body: string, rows: readonly LlmCallRow[]): void {
-  if (archivesInFlight >= MAX_ARCHIVES_IN_FLIGHT) {
-    countAnomaly("archive_shed");
-    console.warn(
-      `[floor] events archive shed: ${archivesInFlight} uploads already in flight`,
-    );
-
-    return;
-  }
-  const key = agentEventsArchiveKey(
-    new Date().toISOString(),
-    rows.map((r) => r.taskId),
-  );
-
-  // Retention is handled by the task-logs bucket's log_retention_days lifecycle
-  // rule (the bucket LORE_AGENT_EVENTS_BUCKET points at); no app-side pruning.
-  archivesInFlight++;
-  void archiveAgentEvents(body, key)
-    .catch((err) => {
-      countAnomaly("archive_failed");
-      console.warn(`[floor] events archive skipped: ${errorMessage(err)}`);
-    })
-    .finally(() => {
-      archivesInFlight--;
-    });
-}
-
-/**
  * Persist the per-tool-call run-visualization projection and fan it out (#876).
  * Publishing happens strictly AFTER the insert resolves, so a live subscriber can
  * never see an id that `listSince` cannot replay on reconnect — that ordering is
@@ -246,6 +208,25 @@ async function recordPlanningResults(
 }
 
 /**
+ * Persist the full-fidelity turn transcript (specs/turn-level-transcript-store).
+ * Skip-not-fail like `recordRunEvents`, and for a stronger reason: the store is
+ * non-authoritative until piloted, so it must never be able to fail the cost
+ * sink that is this endpoint's actual contract.
+ */
+async function recordRunTurns(
+  rows: readonly AgentRunTurnInsert[],
+): Promise<number> {
+  try {
+    return (await agentRunTurns().insertBatch(rows)).length;
+  } catch (err) {
+    countAnomaly("run_turns_failed");
+    console.warn(`[floor] agent_run_turns skipped: ${errorMessage(err)}`);
+
+    return 0;
+  }
+}
+
+/**
  * Every OTHER declared artifact becomes the next node's input, merged into its
  * line's args. Best-effort like the planning delivery above: a run that produced its
  * file has already succeeded, and losing the handoff must not retroactively fail it —
@@ -272,17 +253,45 @@ export const agentEventsRoute: ServerRoute = {
     // records the exception on the request span — no per-handler try/catch.
     const rawNdjson = rawBody(request);
     const oversized = Buffer.byteLength(rawNdjson, "utf8") > MAX_VIZ_BODY_BYTES;
-    const { costRows, runEvents, fileEvents } = parseAgentSink(
-      rawNdjson,
-      !oversized,
-    );
+    // Turns ride the SAME single pass as the cost rows and the projection, and
+    // reuse the same oversized gate — no second parse, no second size rule.
+    // Collection is unconditional: there is no flag, so the oversized gate is
+    // the only thing that can switch it off.
+    const {
+      costRows,
+      runEvents,
+      fileEvents,
+      turns,
+      turnsDropped,
+      turnsCapped,
+    } = parseAgentSink(rawNdjson, !oversized, !oversized);
     const cost = await recordAgentCosts(costRows);
     const vizRows = oversized ? 0 : await recordRunEvents(runEvents);
+    const turnRows = turns.length > 0 ? await recordRunTurns(turns) : 0;
     // Declared artifacts ride the same sink as cost + telemetry, so a planning
     // round's result lands here rather than needing its own channel.
     const planningRounds = await recordPlanningResults(fileEvents);
 
     await mergeArtifacts(fileEvents);
+
+    if (turnsDropped > 0) {
+      // Visible, not silent: redaction that breaks a line's JSON is the store's
+      // only lossy path, and an agent can provoke it to keep a line out of its
+      // own transcript.
+      countAnomaly("turn_dropped_redaction", turnsDropped);
+      console.warn(
+        `[floor] ${turnsDropped} turn(s) dropped: redaction left the line unparseable`,
+      );
+    }
+
+    if (turnsCapped > 0) {
+      // The other lossy path. Counted for the same reason: a transcript store
+      // that quietly truncates is worse than one that says it truncated.
+      countAnomaly("turn_dropped_cap", turnsCapped);
+      console.warn(
+        `[floor] ${turnsCapped} turn(s) dropped: batch cap of ${MAX_RUN_TURNS_PER_BATCH} reached`,
+      );
+    }
 
     const audit = costDegradedAudit(cost);
 
@@ -304,12 +313,11 @@ export const agentEventsRoute: ServerRoute = {
       "agent_events.failed": cost.failed,
       "agent_events.viz_rows": vizRows,
       "agent_events.planning_rounds": planningRounds,
+      "agent_events.turn_rows": turnRows,
+      "agent_events.turns_dropped": turnsDropped,
+      "agent_events.turns_capped": turnsCapped,
       "agent_events.oversized": oversized,
     });
-
-    if (!oversized) {
-      archiveRaw(rawNdjson, costRows);
-    }
 
     return h
       .response({

@@ -175,7 +175,13 @@ cronJobs:
     schedule: "0 4 * * *"
   - name: anthropic-cost-sync
     job: anthropic_cost_sync
-    schedule: "0 7 * * *"  # daily, after the prior billing day settles
+    # Daily, deliberately (ADR-043 amendment): the cost report only changes
+    # once a day — buckets close at UTC midnight and the in-progress day is
+    # never emitted — so one sync after the day settles is sufficient.
+    # Yesterday's spend therefore appears at 07:00 UTC; between midnight and
+    # then it is in neither the billed rows nor the /spend today-line, an
+    # accepted trade-off for not running 23 no-op syncs a day.
+    schedule: "0 7 * * *"
 
   # Heavy LLM / embedding jobs — bigger memory + longer deadline
   - name: context-reindex
