@@ -76,7 +76,11 @@ describe("RunningCard", () => {
     // Node labels are split across SVG <text>/<tspan>, so assert on the graph's
     // own data attributes rather than on rendered text.
     expect(document.querySelector('[data-node="analyze"]')).toBeTruthy();
-    expect(document.querySelector('[data-edge="analyze->done"]')).toBeTruthy();
+    // analyze -> author, the real first edge. This asserted "analyze->done" while
+    // the hand-transcribed mirror claimed the line was two nodes long.
+    expect(
+      document.querySelector('[data-edge="analyze->author"]'),
+    ).toBeTruthy();
   });
 
   it("renders no run visualization while the round has no assembly line", () => {
