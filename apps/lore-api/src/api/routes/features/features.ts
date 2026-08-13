@@ -15,6 +15,7 @@ import {
   canFinalize,
   latestReadyGap,
   resolveRoundBasis,
+  latestReadyIteration,
 } from "@re-cinq/lore-shared/project/features/features-port.js";
 import { decideRoundDispatch } from "@re-cinq/lore-shared/feature-planning/round-dispatch.js";
 import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
@@ -92,12 +93,12 @@ async function resolveDispatch(
 ): Promise<
   { kind: "legacy" } | ({ kind: "resume"; lineId: string } & ParkedTarget)
 > {
-  const first = [...iterations].sort((a, b) => a.iteration - b.iteration)[0];
+  const taskId = firstTaskId(iterations);
 
-  if (!first?.task_id) {
+  if (!taskId) {
     return { kind: "legacy" };
   }
-  const lines = await project.assemblyLines.listForTask(first.task_id);
+  const lines = await project.assemblyLines.listForTask(taskId);
   const line = lines.find((l) => l.definitionName === PLANNING_DEFINITION);
 
   if (!line) {
@@ -118,6 +119,36 @@ async function resolveDispatch(
  * MUST be the `owner/repo` slug — it lands verbatim in `target_repo`, which the
  * pod clones as `github.com/<target_repo>.git`.
  */
+/** The task that owns a feature's line: the FIRST round's. Later rounds are
+ *  resumes that mint no task, so nothing after it can identify the line. */
+function firstTaskId(
+  iterations: readonly { iteration: number; task_id: string | null }[],
+): string | null {
+  return (
+    [...iterations].sort((a, b) => a.iteration - b.iteration)[0]?.task_id ??
+    null
+  );
+}
+
+/** The id of the feature's planning line, or null. Resolved the way
+ *  {@link resolveDispatch} does — the FIRST round's task owns the line for its
+ *  whole life, and later rounds are resumes that mint no task of their own. */
+async function planningLineId(
+  project: { assemblyLines: Pick<AssemblyLinesPort, "listForTask"> },
+  iterations: readonly { iteration: number; task_id: string | null }[],
+): Promise<string | null> {
+  const taskId = firstTaskId(iterations);
+
+  if (!taskId) {
+    return null;
+  }
+  const lines = await project.assemblyLines.listForTask(taskId);
+
+  return (
+    lines.find((l) => l.definitionName === PLANNING_DEFINITION)?.id ?? null
+  );
+}
+
 async function kickPlanning(
   repoFullName: string,
   featureId: string,
@@ -215,6 +246,58 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           }
 
           return h.response(feature);
+        }),
+    },
+
+    // GET .../features/:id/status — the planning wizard's 4s poll in one call.
+    //
+    // Deliberately NOT a `?view=` param on GET :id — that route carries EVERY
+    // round's gap_result (mockup markup plus a repo stylesheet each), which must
+    // not be re-sent every four seconds.
+    {
+      method: "GET",
+      path: `${BASE}/{id}/status`,
+      options: bearerScope("read"),
+      handler: (request, h) =>
+        run(h, async () => {
+          const project = await projectFor(repoOf(request.params));
+          const feature = await project.features.get(request.params.id);
+
+          if (!feature) {
+            return h.response({ error: "feature not found" }).code(404);
+          }
+          const { iterations, ...row } = feature;
+
+          return h.response({
+            feature: row,
+            latest_iteration: iterations[iterations.length - 1] ?? null,
+            last_ready_iteration: latestReadyIteration(iterations),
+            // The line the run graph hangs on. From round 2 a resumed round mints
+            // no task, so only the OWNING task — the first round's — can resolve it.
+            assembly_line_id: await planningLineId(project, iterations),
+          });
+        }),
+    },
+
+    // GET .../features/:id/decomposition — the spec-tasks the merged spec became.
+    {
+      method: "GET",
+      path: `${BASE}/{id}/decomposition`,
+      options: bearerScope("read"),
+      handler: (request, h) =>
+        run(h, async () => {
+          const project = await projectFor(repoOf(request.params));
+
+          // An unknown id is NOT an empty tree. The empty list is for a feature
+          // that exists and has not been decomposed yet; conflating the two would
+          // report success for a typo.
+          if (!(await project.features.get(request.params.id))) {
+            return h.response({ error: "feature not found" }).code(404);
+          }
+
+          return h.response({
+            tasks: await project.tasks.specTasksForFeature(request.params.id),
+          });
         }),
     },
 
