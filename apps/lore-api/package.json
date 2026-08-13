@@ -1,7 +1,7 @@
 {
   "name": "@re-cinq/lore-api",
   "version": "0.1.0",
-  "description": "Lore API — HTTPS REST backend serving org context, ingest, tasks, and webhooks",
+  "description": "Lore API \u2014 HTTPS REST backend serving org context, ingest, tasks, and webhooks",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "gen:openapi": "node dist/openapi/gen-openapi.js",
-    "gen:api-types": "openapi-typescript openapi.json -o ../web-ui/src/lib/api/schema.d.ts && npx --no-install prettier --write ../web-ui/src/lib/api/schema.d.ts"
+    "gen:api-types": "npx --yes openapi-typescript@7.13.0 openapi.json -o ../web-ui/src/lib/api/schema.d.ts && npx --no-install prettier --write ../web-ui/src/lib/api/schema.d.ts"
   },
   "dependencies": {
     "@google-cloud/opentelemetry-cloud-monitoring-exporter": "^0.20.0",
@@ -47,7 +47,6 @@
     "@types/node": "^22.13.10",
     "@types/pg": "^8.11.0",
     "@vitest/coverage-v8": "^4.1.10",
-    "openapi-typescript": "^7.13.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   }
