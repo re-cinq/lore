@@ -204,6 +204,7 @@ The system MUST surface features as a first-class browsable entity per repo.
 - FR-1.4: The list degrades to an empty state when the `lore.features` table is absent (pre-migration safety) rather than erroring.
 - FR-1.5: The feature GET endpoint returns 404 for an unknown feature id. ([validated by handleFeaturesRoute returns 404 for a missing feature on GET](apps/lore-api/src/api/routes/features/features.test.ts#L339))
 
+- FR-1.6: *(added 2026-08-13)* An irreversible action on the detail view is framed by a shared `DangerZone`: what it is, what it costs, and the caller's own controls. The view composed `"spec-card danger-zone"` by hand and depended on three globals.css selectors; both now live in the component. The controls stay `children` because confirmation flows differ — a two-step confirm here, a typed name elsewhere — and baking one in would make the second caller fight it. ([validated by labels the section 'Danger zone' without being told](apps/web-ui/src/components/DangerZone.test.tsx#L7), [`DangerZone.test.tsx:14`](apps/web-ui/src/components/DangerZone.test.tsx#L14), [`DangerZone.test.tsx:25`](apps/web-ui/src/components/DangerZone.test.tsx#L25), [`DangerZone.test.tsx:36`](apps/web-ui/src/components/DangerZone.test.tsx#L36), [`DangerZone.test.tsx:47`](apps/web-ui/src/components/DangerZone.test.tsx#L47))
 ### FR-2: Smart Feature Creation & Planning
 
 The system MUST analyze a feature prompt in the context of the whole project.
