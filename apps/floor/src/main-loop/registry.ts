@@ -12,6 +12,7 @@ import * as cron from "../jobs/cron.js";
 import * as detect from "../jobs/detect/fan-out.js";
 import * as kubernetes from "../jobs/kubernetes.js";
 import { assemblyLineStart } from "../jobs/assembly-line/start-event-handler.js";
+import { assemblyLineResume } from "../jobs/assembly-line/resume-event-handler.js";
 import { agentNodeTerminal } from "../jobs/assembly-line/node-event-handler.js";
 import {
   codeReviewOnTrigger,
@@ -77,6 +78,9 @@ export function buildRegistry(): Map<string, EventHandler> {
     //    a top-level family — the assembly line is a primary concept, its producer
     //    spans shared/mcp/floor rather than one source) ──
     ["assembly_line.start", assemblyLineStart],
+    // A `wait` node's worker reporting in: the planning wizard, or the spec-PR
+    // webhook. Same two steps as a terminal CR — record the node, advance the walk.
+    ["assembly_line.resume", assemblyLineResume],
 
     // ── Kubernetes (the Agent-CR watch emits on terminal phase) ──
     ["kubernetes.agent.succeeded", kubernetes.agentSucceeded],

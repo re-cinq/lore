@@ -42,6 +42,8 @@ export interface FeatureIterationRow {
   status: IterationStatus;
   user_answers: SectionAnswers | null;
   gap_result: GapResult | null;
+  /** The round this one forked from — set only when the author rewound. */
+  parent_iteration?: number | null;
   created_at: string;
 }
 
@@ -61,9 +63,12 @@ export interface SectionAnswers {
 // optional so old stored results still render via sectionsOf().
 export interface GapMockup {
   title?: string;
-  format?: "svg";
+  format?: "svg" | "mermaid" | "html";
   markup: string;
   section?: string;
+  /** Pixel height an `html` mockup needs — its frame is sandboxed with no
+   *  same-origin access, so it cannot measure itself. */
+  height?: number;
 }
 export interface GapQuestion {
   id: string;
@@ -80,6 +85,8 @@ export interface GapSection {
 }
 export interface GapResult {
   sections?: GapSection[];
+  /** CSS lifted from the PLANNED repo, shared by every mockup in this result. */
+  mockup_stylesheet?: string;
   // legacy shape (pre-dynamic-sections) — normalized by sectionsOf for old results:
   architecture?: {
     summary: string;

@@ -250,6 +250,18 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     };
   }
 
+  async listLabels(repo: string): Promise<string[]> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const labels = await ok.paginate(ok.rest.issues.listLabelsForRepo, {
+      owner,
+      repo: name,
+      per_page: 100,
+    });
+
+    return labels.map((l) => l.name);
+  }
+
   async createLabels(
     repo: string,
     labels: Array<{ name: string; color?: string; description?: string }>,
@@ -340,6 +352,23 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       });
     } catch {
       /* label might not exist */
+    }
+  }
+
+  async branchExists(repo: string, branch: string): Promise<boolean> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+
+    try {
+      await ok.rest.git.getRef({ owner, repo: name, ref: `heads/${branch}` });
+
+      return true;
+    } catch (err) {
+      if ((err as { status?: number }).status === 404) {
+        return false;
+      }
+
+      throw err;
     }
   }
 

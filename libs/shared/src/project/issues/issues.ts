@@ -23,6 +23,11 @@ export class IssueCollection {
     return this.github.getIssue(this.repo, number);
   }
 
+  /** Every label this repo defines — what an agent's chosen labels are checked against. */
+  listLabels(): Promise<string[]> {
+    return this.github.listLabels(this.repo);
+  }
+
   create(title: string, body: string, labels?: string[]): Promise<IssueRef> {
     return this.github.createIssue(this.repo, title, body, labels);
   }

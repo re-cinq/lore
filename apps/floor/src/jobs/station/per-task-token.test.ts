@@ -114,6 +114,32 @@ describe("injectRepoToken", () => {
       },
     ]);
   });
+  it("wires resources.conversation onto the per-task clone when the run continues one", () => {
+    // Per-RUN, so it cannot live on the shared catalog recipe — same reason as the
+    // repo token.
+    const continued = injectRepoToken(
+      catalogDef,
+      {
+        ...spec,
+        conversation: {
+          source: "http://floor:8080/api/agent-conversations",
+          id: "round-2",
+          pin: "round-3",
+          headersSecret: "agent-events-auth",
+        },
+      },
+      "GH_TOKEN_abc12345",
+      "pt-abc12345",
+    );
+
+    expect(continued.spec?.resources?.conversation).toEqual({
+      source: "http://floor:8080/api/agent-conversations",
+      id: "round-2",
+      pin: "round-3",
+      headers_secret: "agent-events-auth",
+    });
+  });
+
   it("omits ref when the spec has no branch", () => {
     const repo = injectRepoToken(catalogDef, { ...spec, branch: "" }, "k", "n")
       .spec?.resources?.repos?.[0];

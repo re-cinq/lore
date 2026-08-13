@@ -17,11 +17,17 @@ import { metrics } from "@opentelemetry/api";
 import {
   usage,
   agentRunEvents,
+  taskStore,
+  assemblyLines,
   agentRunTurns,
 } from "../../../kernel/queues.js";
+import { projectFor } from "../../../composition/project-boot.js";
+import { deliverPlanningResults } from "../../../jobs/agent/planning-result.js";
+import { deliverArtifact } from "../../../jobs/agent/artifact-args.js";
 import {
   parseAgentSink,
   type LlmCallRow,
+  type AgentFileEvent,
 } from "../../../jobs/agent/agent-events.js";
 import { agentEventBus } from "../../../jobs/agent/agent-event-bus.js";
 import { MAX_RUN_TURNS_PER_BATCH } from "../../../jobs/agent/agent-run-turns.js";
@@ -168,6 +174,40 @@ async function recordRunEvents(
 }
 
 /**
+ * Settle any planning rounds whose artifact arrived in this batch. Skip-not-fail
+ * like the projections above: a delivery failure must never 500 the sink, which
+ * also carries cost and viz rows for unrelated runs.
+ */
+async function recordPlanningResults(
+  fileEvents: readonly AgentFileEvent[],
+): Promise<number> {
+  if (fileEvents.length === 0) {
+    return 0;
+  }
+
+  try {
+    return await deliverPlanningResults(fileEvents, {
+      tasks: taskStore(),
+      featuresFor: projectFor,
+      // The round number the LINE is on. A resumed round mints no task, so the task's
+      // own value is stuck at the feature's first round (FR6.22).
+      roundOf: async (taskId) => {
+        const open = (await assemblyLines().listForTask(taskId)).filter(
+          (line) => line.status === "running" || line.status === "queued",
+        );
+        const round = open[open.length - 1]?.args?.iteration;
+
+        return typeof round === "number" ? round : undefined;
+      },
+    });
+  } catch (err) {
+    console.warn(`[floor] planning results skipped: ${errorMessage(err)}`);
+
+    return 0;
+  }
+}
+
+/**
  * Persist the full-fidelity turn transcript (specs/turn-level-transcript-store).
  * Skip-not-fail like `recordRunEvents`, and for a stronger reason: the store is
  * non-authoritative until piloted, so it must never be able to fail the cost
@@ -186,6 +226,24 @@ async function recordRunTurns(
   }
 }
 
+/**
+ * Every OTHER declared artifact becomes the next node's input, merged into its
+ * line's args. Best-effort like the planning delivery above: a run that produced its
+ * file has already succeeded, and losing the handoff must not retroactively fail it —
+ * the consuming node reports the missing input itself.
+ */
+async function mergeArtifacts(
+  fileEvents: readonly AgentFileEvent[],
+): Promise<void> {
+  for (const fileEvent of fileEvents) {
+    try {
+      await deliverArtifact(fileEvent, { assemblyLines: assemblyLines() });
+    } catch (err) {
+      console.warn(`[floor] artifact not merged: ${errorMessage(err)}`);
+    }
+  }
+}
+
 export const agentEventsRoute: ServerRoute = {
   method: "POST",
   path: "/api/agent-events",
@@ -199,11 +257,22 @@ export const agentEventsRoute: ServerRoute = {
     // reuse the same oversized gate — no second parse, no second size rule.
     // Collection is unconditional: there is no flag, so the oversized gate is
     // the only thing that can switch it off.
-    const { costRows, runEvents, turns, turnsDropped, turnsCapped } =
-      parseAgentSink(rawNdjson, !oversized, !oversized);
+    const {
+      costRows,
+      runEvents,
+      fileEvents,
+      turns,
+      turnsDropped,
+      turnsCapped,
+    } = parseAgentSink(rawNdjson, !oversized, !oversized);
     const cost = await recordAgentCosts(costRows);
     const vizRows = oversized ? 0 : await recordRunEvents(runEvents);
     const turnRows = turns.length > 0 ? await recordRunTurns(turns) : 0;
+    // Declared artifacts ride the same sink as cost + telemetry, so a planning
+    // round's result lands here rather than needing its own channel.
+    const planningRounds = await recordPlanningResults(fileEvents);
+
+    await mergeArtifacts(fileEvents);
 
     if (turnsDropped > 0) {
       // Visible, not silent: redaction that breaks a line's JSON is the store's
@@ -243,6 +312,7 @@ export const agentEventsRoute: ServerRoute = {
       "agent_events.uncorrelated": cost.uncorrelated,
       "agent_events.failed": cost.failed,
       "agent_events.viz_rows": vizRows,
+      "agent_events.planning_rounds": planningRounds,
       "agent_events.turn_rows": turnRows,
       "agent_events.turns_dropped": turnsDropped,
       "agent_events.turns_capped": turnsCapped,

@@ -18,6 +18,7 @@ import { runRetrospectiveStation } from "./stations/retrospective.js";
 import { runDetectStation } from "./stations/detect.js";
 import { runCommentTriageStation } from "./stations/comment-triage.js";
 import { runIngestStation } from "./stations/ingest.js";
+import { runIssuesStation } from "./stations/issues.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 
 export type StationRunner = (
@@ -34,6 +35,7 @@ export const stations: Record<string, StationRunner> = {
   "comment-triage": runCommentTriageStation,
   ingest: (input, env) =>
     runIngestStation(input, { workspaceDir: join(env.workspaceDir, "target") }),
+  issues: (input) => runIssuesStation(input),
 };
 
 export async function runStation(

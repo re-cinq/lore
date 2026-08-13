@@ -138,12 +138,14 @@ export { advanceLine };
  *  advance, and the reaper tick. */
 export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   const [
-    { assemblyLines, jobRuns },
+    { assemblyLines, jobRuns, taskStore, conversations },
     { loadBuiltinAssemblyLines },
     { agentCrBackend, projectFor },
     { buildPrompt },
     { cleanupPerTaskToken },
     { KubeAgentApi },
+    { settleTaskForLine },
+    { resolveConversation },
   ] = await Promise.all([
     import("../../kernel/queues.js"),
     import("@re-cinq/lore-assembly-lines"),
@@ -151,6 +153,8 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     import("../../kernel/config.js"),
     import("../watcher/agent-watcher.js"),
     import("../station/kube-agent-api.js"),
+    import("./settle-task.js"),
+    import("./resolve-conversation.js"),
   ]);
   const kubeApi = new KubeAgentApi();
 
@@ -164,6 +168,29 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     cleanupToken: cleanupPerTaskToken,
     jobRuns: jobRuns(),
     notifyFailure: notifyLineFailure,
+    resolveConversation: (node, task, iteration, priorOutcome) =>
+      resolveConversation(
+        node,
+        task,
+        iteration,
+        {
+          conversations: conversations(),
+          // The URL the POD must reach, which is the same sink host it already posts
+          // telemetry to — not the Floor's own view of itself.
+          registryUrl: `${process.env.LORE_FLOOR_POD_URL ?? ""}/api/agent-conversations`,
+          headersSecret: "agent-events-auth",
+          // Rewind: `args.resume_from_task` names the round the author chose, and the
+          // conversation it reserved is keyed by the assembly line that ran it.
+          linesForTask: async (taskId) =>
+            (await assemblyLines().listForTask(taskId)).map((line) => line.id),
+        },
+        priorOutcome,
+      ),
+    settleTask: (row, outcome, reason) =>
+      settleTaskForLine(row, outcome, reason, {
+        tasks: taskStore(),
+        featuresFor: projectFor,
+      }),
     readAgentStatus: (name) => kubeApi.getStatus(name),
     alertBilling: async (repo, nodeType, status) => {
       await maybeAlertBilling(repo, nodeType, status, {

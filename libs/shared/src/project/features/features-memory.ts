@@ -95,6 +95,7 @@ export class InMemoryFeatures implements FeaturesPort {
     repo: string,
     id: string,
     userAnswers: unknown,
+    parentIteration: number | null = null,
   ): Promise<FeatureIteration> {
     const feature = this.find(repo, id);
 
@@ -113,6 +114,7 @@ export class InMemoryFeatures implements FeaturesPort {
       status: "running",
       user_answers: userAnswers ?? null,
       gap_result: null,
+      parent_iteration: parentIteration,
       created_at: now,
       updated_at: now,
     };

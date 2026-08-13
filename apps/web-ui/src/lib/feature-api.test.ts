@@ -5,6 +5,7 @@ import {
   finalizeFeature,
   splitFeature,
   deleteFeature,
+  enforceOk,
 } from "./feature-api";
 
 describe("feature-api", () => {
@@ -158,6 +159,38 @@ describe("feature-api", () => {
       status: "error",
       message: "HTTP 500",
     });
+  });
+
+  it("enforceOk returns the data when the call succeeded", () => {
+    expect(
+      enforceOk("Starting a planning round", {
+        status: "ok" as const,
+        data: { task_id: "t1", iteration: 4 },
+      }),
+    ).toEqual({ task_id: "t1", iteration: 4 });
+  });
+
+  it("enforceOk throws the API message when the call errored", () => {
+    expect(() =>
+      enforceOk("Starting a planning round", {
+        status: "error" as const,
+        message: "A planning round (round 3) is already running",
+      }),
+    ).toThrow(
+      new Error(
+        "Starting a planning round failed: A planning round (round 3) is already running",
+      ),
+    );
+  });
+
+  it("enforceOk throws naming the missing env when unconfigured", () => {
+    expect(() =>
+      enforceOk("Deleting the feature", { status: "unconfigured" as const }),
+    ).toThrow(
+      new Error(
+        "Deleting the feature is unavailable: the web UI has no LORE_API_URL plus LORE_ADMIN_TOKEN or LORE_INGEST_TOKEN configured.",
+      ),
+    );
   });
 
   it("maps a thrown fetch to an error result", async () => {

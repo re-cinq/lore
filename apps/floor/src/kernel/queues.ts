@@ -21,6 +21,7 @@ import { PgAudit } from "@re-cinq/lore-shared/project/audit/audit-pg.js";
 import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { PgJobRuns } from "@re-cinq/lore-shared/project/job-runs/job-runs-pg.js";
 import { PgAgentRunEvents } from "@re-cinq/lore-shared/project/agent-run-events/agent-run-events-pg.js";
+import { PgConversations } from "@re-cinq/lore-shared/project/conversations/conversations-pg.js";
 import { PgAgentRunTurns } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-pg.js";
 import { PgEvalRuns } from "@re-cinq/lore-shared/project/evals/evals-pg.js";
 import { PgCost } from "@re-cinq/lore-shared/project/cost/cost-pg.js";
@@ -39,6 +40,7 @@ let auditLogSingleton: PgAudit | undefined;
 let usageSingleton: PgUsage | undefined;
 let jobRunsSingleton: PgJobRuns | undefined;
 let agentRunEventsSingleton: PgAgentRunEvents | undefined;
+let conversationsSingleton: PgConversations | undefined;
 let agentRunTurnsSingleton: PgAgentRunTurns | undefined;
 let evalRunsSingleton: PgEvalRuns | undefined;
 let costSingleton: PgCost | undefined;
@@ -93,6 +95,9 @@ export const jobRuns = (): PgJobRuns =>
 export const agentRunEvents = (): PgAgentRunEvents =>
   (agentRunEventsSingleton ??= new PgAgentRunEvents(getPool()));
 
+/** Conversations a run can continue (pipeline.agent_conversations). */
+export const conversations = (): PgConversations =>
+  (conversationsSingleton ??= new PgConversations(getPool()));
 /** Full-fidelity run transcripts (pipeline.agent_run_turns), written on every
  *  agent-events POST and read by the turn history route. */
 export const agentRunTurns = (): PgAgentRunTurns =>

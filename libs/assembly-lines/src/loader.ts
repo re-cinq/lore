@@ -13,7 +13,20 @@ const NodeType = z.enum([
   "detect",
   "comment-triage",
   "ingest",
+  // Files the GitHub Issues + spec-tasks a decomposition calls for. A station, not
+  // an agent: the judgement (which stories, which labels) already happened upstream,
+  // and this only writes what the artifact says.
+  "issues",
+  // A station whose worker is OUTSIDE the pod system — a person in the wizard, or a
+  // spec PR merging. It dispatches nothing and parks the line until the surface named
+  // by `signal` reports an outcome, over HTTP, on the same station contract a pod
+  // reports over stdout.
+  "wait",
 ]);
+
+/** Who completes a `wait` node. `author_feedback` is the planning wizard (refine /
+ *  accept); `pr_merged` is the GitHub webhook. */
+const WaitSignal = z.enum(["author_feedback", "pr_merged"]);
 const EdgeCondition = z.enum([
   "success",
   "changes_requested",
@@ -41,10 +54,22 @@ const NodeSchema = z.object({
   validator: z.string().optional(),
   condition_ref: z.string().optional(),
   job_ref: z.string().optional(),
+  /** Required for `wait`: the surface that reports this node's outcome. */
+  signal: WaitSignal.optional(),
   /** Custom station (agent-definitions name) overriding the default `def-<type>`. */
   station_ref: z.string().optional(),
   /** Per-node run timeout; falls back to the referenced Station's deadline. */
   timeout_minutes: z.number().int().positive().optional(),
+  /** Continue a previous run instead of starting a fresh conversation.
+   *  `node` names the work continued (validated against this definition below);
+   *  `key` identifies WHICH thread, so two features running the same definition
+   *  concurrently never continue each other. */
+  continues: z
+    .object({
+      node: z.string(),
+      key: z.string(),
+    })
+    .optional(),
   description: z.string().optional(),
 });
 
@@ -74,8 +99,11 @@ export type EdgeConditionValue = z.infer<typeof EdgeCondition>;
 // specs/6-dark-factory/contracts/station-contract.md): every type yields
 // `failed` on an infrastructure failure (CR phase Failed, station timeout) and
 // `success` as the fallback; only agent output carries the LORE_NODE_RESULT /
-// REVIEW_RESULT verdict lines that yield `changes_requested` (the builtin
-// stations in apps/lore-station never emit it).
+// REVIEW_RESULT verdict lines that yield `changes_requested` — with ONE exception:
+// `issues` is the first station that judges its input rather than merely acting on
+// it (a label the repo does not have, a story with no tasks), so it can send the
+// decomposition back. Listing it here is what forces every definition using the node
+// to route that outcome, since selectEdge does not fall through.
 const PRODUCIBLE_OUTCOMES: Record<
   z.infer<typeof NodeType>,
   readonly EdgeConditionValue[]
@@ -88,6 +116,9 @@ const PRODUCIBLE_OUTCOMES: Record<
   detect: ["success", "failed"],
   "comment-triage": ["success", "failed"],
   ingest: ["success", "failed"],
+  issues: ["success", "changes_requested", "failed"],
+  // accept / merged, refine, and abandoned — a human can do all three.
+  wait: ["success", "changes_requested", "failed"],
 };
 
 /** Producible outcomes of `node` with no matching edge, under `selectEdge`
@@ -277,6 +308,38 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
     );
   }
 
+  // A wait node with no signal can never be completed — nothing would know to report
+  // it. Reject at load, exactly as a detect node with no job_ref is rejected.
+  for (const n of wf.nodes) {
+    enforceTrue(
+      n.type !== "wait" || n.signal,
+      Error,
+      `wait node "${n.id}" requires signal`,
+    );
+  }
+
+  // A `continues` reference must name a real node and a resolvable thread key.
+  // Both fail at LOAD because the runtime failure is invisible: an unresolvable
+  // reference would silently start a fresh conversation, which looks exactly like a
+  // continued one that happened to remember nothing.
+  for (const n of wf.nodes) {
+    if (!n.continues) {
+      continue;
+    }
+
+    enforceTrue(
+      nodeIds.has(n.continues.node),
+      loadError,
+      `node "${n.id}" in assembly line "${wf.name}" continues unknown node "${n.continues.node}"`,
+    );
+    enforceTrue(
+      isThreadKey(n.continues.key),
+      loadError,
+      `node "${n.id}" in assembly line "${wf.name}" has invalid continues.key "${n.continues.key}" ` +
+        `(expected "line", "task" or "args.<name>")`,
+    );
+  }
+
   // Every outcome a node can produce must route somewhere — an uncovered
   // outcome would otherwise crash the walk at runtime (`nextTransition`'s
   // no-edge failure) instead of failing here at load.
@@ -296,6 +359,16 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
   detectCycles(wf, source);
 }
 
+/** The thread a `continues` reference belongs to: this run (`line`), this task across
+ *  attempts (`task`), or whatever value the run carries under `args.<name>`. The
+ *  args form keeps the engine domain-free — Lore keys planning threads by
+ *  `args.feature_id` exactly as detect lines already carry `args.job_run_id`. */
+export function isThreadKey(key: string): boolean {
+  return (
+    key === "line" || key === "task" || /^args\.[a-z][a-z0-9_]*$/.test(key)
+  );
+}
+
 function detectCycles(wf: AssemblyLine, source: string): void {
   const adj = new Map<string, AssemblyLineEdge[]>();
 
@@ -311,6 +384,8 @@ function detectCycles(wf: AssemblyLine, source: string): void {
   const GRAY = 1;
   const BLACK = 2;
   const color = new Map<string, number>();
+
+  const typeOf = new Map(wf.nodes.map((n) => [n.id, n.type]));
 
   for (const n of wf.nodes) {
     color.set(n.id, WHITE);
@@ -344,7 +419,17 @@ function detectCycles(wf: AssemblyLine, source: string): void {
       const c = color.get(e.to);
 
       if (c === GRAY) {
-        if (!e.iteration_max) {
+        // The rule exists so two AGENTS cannot argue indefinitely. A back-edge with a
+        // `wait` node at EITHER end is exempt: leaving one, the human has just
+        // decided; entering one, the human decides before anything else runs. Either
+        // way a person gates every pass, so the runaway this guards against cannot
+        // happen. Keyed strictly on the endpoints' types — a cycle between two agents
+        // is still bounded, so this cannot become a way to write an unbounded agent
+        // loop.
+        const humanGated =
+          typeOf.get(e.from) === "wait" || typeOf.get(e.to) === "wait";
+
+        if (!e.iteration_max && !humanGated) {
           throw new AssemblyLineLoadError(
             `back-edge ${e.from} → ${e.to} requires iteration_max`,
             source,

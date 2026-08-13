@@ -5,6 +5,7 @@ import * as path from "node:path";
 import * as fs from "node:fs";
 import { queryAllowMissing } from "@/lib/db";
 import { formatStationConversation } from "@/lib/station-conversation";
+import { fetchFeatureRun } from "@/lib/feature-run";
 import type { FeatureRow, FeatureIterationRow } from "@/lib/feature-types";
 
 /** The local Docker Station's live log for a task, rendered as the model's
@@ -74,6 +75,9 @@ export async function GET(
     `SELECT * FROM lore.feature_iterations WHERE feature_id = $1 AND gap_result IS NOT NULL ORDER BY iteration DESC LIMIT 1`,
     [id],
   );
+  // The round's assembly line, so the wizard can render the live run graph +
+  // transcript while the analyze node works.
+  const run = await fetchFeatureRun(latestIteration?.task_id);
 
   return NextResponse.json({
     feature,
@@ -81,5 +85,6 @@ export async function GET(
     task,
     liveOutput,
     lastReady: ready[0] ?? null,
+    run,
   });
 }

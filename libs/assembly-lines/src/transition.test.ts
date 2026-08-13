@@ -217,3 +217,68 @@ describe("nextTransition walks every builtin assembly line to finish on success"
     }
   });
 });
+
+describe("rework: a step sends work back to the step that fed it", () => {
+  it("routes write's objection back to analyse, then fails rather than looping", async () => {
+    // The whole point of bounding rework: analyse gets ONE correction. A second
+    // objection has to end the line, or two agents disagreeing spend the day at it.
+    const finalize = (await loadBuiltinAssemblyLines()).get("feature-finalize");
+
+    expect(finalize).toBeDefined();
+    const visits: NodeVisit[] = [
+      { nodeId: "analyse", iteration: 1, outcome: "success" },
+      { nodeId: "write", iteration: 1, outcome: "changes_requested" },
+    ];
+
+    expect(nextTransition(finalize!, visits)).toMatchObject({
+      kind: "launch",
+      nodeId: "analyse",
+      iteration: 2,
+    });
+
+    visits.push(
+      { nodeId: "analyse", iteration: 2, outcome: "success" },
+      { nodeId: "write", iteration: 2, outcome: "changes_requested" },
+    );
+
+    expect(nextTransition(finalize!, visits).kind).toBe("fail");
+  });
+
+  it("routes the station's objection back to decompose, then fails rather than looping", async () => {
+    const decompose = (await loadBuiltinAssemblyLines()).get(
+      "feature-decompose",
+    );
+
+    expect(decompose).toBeDefined();
+    const visits: NodeVisit[] = [
+      { nodeId: "decompose", iteration: 1, outcome: "success" },
+      { nodeId: "issues", iteration: 1, outcome: "changes_requested" },
+    ];
+
+    expect(nextTransition(decompose!, visits)).toMatchObject({
+      kind: "launch",
+      nodeId: "decompose",
+      iteration: 2,
+    });
+
+    visits.push(
+      { nodeId: "decompose", iteration: 2, outcome: "success" },
+      { nodeId: "issues", iteration: 2, outcome: "changes_requested" },
+    );
+
+    expect(nextTransition(decompose!, visits).kind).toBe("fail");
+  });
+
+  it("ends the line when analyse asks the AUTHOR for changes", async () => {
+    // No upstream node to loop to — the input is the plan a human accepted, so the
+    // walk routes straight to the exit. Returning the feature to the author is the
+    // settlement's job, not the graph's.
+    const finalize = (await loadBuiltinAssemblyLines()).get("feature-finalize");
+
+    expect(
+      nextTransition(finalize!, [
+        { nodeId: "analyse", iteration: 1, outcome: "changes_requested" },
+      ]),
+    ).toEqual({ kind: "finish" });
+  });
+});

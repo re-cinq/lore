@@ -9,8 +9,10 @@
 // code, or a failed review renders green.
 
 import type { NodeRunStatus } from "./run-event-reducer";
+import type { DefinitionNode } from "./assembly-line-definition";
 
-export type NodeStatusTone = "idle" | "running" | "ok" | "warn" | "err";
+export type NodeStatusTone =
+  "idle" | "running" | "waiting" | "ok" | "warn" | "err";
 
 export interface NodeStatusVisual {
   tone: NodeStatusTone;
@@ -50,12 +52,32 @@ export function resultVisual(result: string): NodeStatusVisual {
     : { tone: "ok", label: "Completed" };
 }
 
+/** Whose move it is, for a node parked on a worker outside the pod system. */
+const WAIT_LABELS: Record<NonNullable<DefinitionNode["signal"]>, string> = {
+  author_feedback: "Waiting for you",
+  pr_merged: "Waiting for the spec PR",
+};
+
 /** The node badge: the recorded verdict when the node has one (authoritative),
  *  otherwise its execution status (Pending while idle, Running in flight). This is
- *  what keeps a failed-verdict node from rendering as its clean process exit. */
+ *  what keeps a failed-verdict node from rendering as its clean process exit.
+ *
+ *  A `wait` node passes its `signal` and is the one exception to "open means
+ *  running": its row seeds `running` like any other open node, but no pod exists,
+ *  so a spinner would promise work that is not happening — and the worker it waits
+ *  on may well be the person reading the screen. */
 export function nodeRunVisual(
   outcome: string | null,
   status: NodeRunStatus,
+  waitSignal?: DefinitionNode["signal"],
 ): NodeStatusVisual {
-  return outcome === null ? VISUALS[status] : outcomeVisual(outcome);
+  if (outcome !== null) {
+    return outcomeVisual(outcome);
+  }
+
+  // Only a REACHED wait is parked; an unvisited one is still Pending, and asking
+  // for input the line cannot accept would be worse than saying nothing.
+  return waitSignal && status === "running"
+    ? { tone: "waiting", label: WAIT_LABELS[waitSignal] }
+    : VISUALS[status];
 }

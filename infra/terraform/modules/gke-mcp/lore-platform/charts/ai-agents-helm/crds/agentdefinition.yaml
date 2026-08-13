@@ -139,6 +139,21 @@ spec:
                         type: string
                     skills_source:
                       type: string
+                    conversation:
+                      type: object
+                      properties:
+                        source:
+                          type: string
+                          description: "Base URL the prior conversation state is fetched from."
+                        id:
+                          type: string
+                          description: "Conversation to continue; empty starts a fresh one."
+                        pin:
+                          type: string
+                          description: "Id this run's state is saved as; empty means it is not saved."
+                        headers_secret:
+                          type: string
+                          description: "Secret holding the Authorization header for the fetch."
                 output:
                   type: object
                   properties:
@@ -195,6 +210,20 @@ spec:
                             type: string
                           path:
                             type: string
+                    watch:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - event
+                          - path
+                        properties:
+                          event:
+                            type: string
+                            description: "Event name raised when the file is produced."
+                          path:
+                            type: string
+                            description: "File to read; relative paths resolve against WORKSPACE_DIR."
                 tool_config:
                   type: object
                   description: "Raw passthrough for tool-specific knobs."

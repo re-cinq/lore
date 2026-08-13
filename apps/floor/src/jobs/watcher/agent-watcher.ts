@@ -53,6 +53,7 @@ import {
   decideTokenReclaim,
   runOutcomeFromTaskStatus,
   type ReviewResult,
+  decideFeatureLink,
 } from "./agent-watcher-logic.js";
 import {
   KubeTokenProvisioner,
@@ -612,27 +613,27 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       prNumber: pr.number,
     });
 
-    // feature-finalize: link the PR back to the feature row (ADR-027).
-    if (taskType === "feature-finalize") {
-      try {
-        const contextBundle = (await taskStore().getById(taskId))
-          ?.context_bundle as
-          { feature_id?: string; slug?: string } | undefined;
-        const featureId = contextBundle?.feature_id;
-        const slug = contextBundle?.slug;
+    // Link the spec PR back to the feature row (ADR-027). Keyed on the task carrying
+    // a feature, not on its type: the merged line runs a feature's whole life under
+    // one feature-planning task (FR6.26).
+    try {
+      const link = decideFeatureLink(
+        taskType,
+        (await taskStore().getById(taskId))?.context_bundle as
+          { feature_id?: string; slug?: string } | undefined,
+      );
 
-        if (featureId) {
-          await prProject.features.transitionStatus(featureId, "pr-open", {
-            spec_pr_url: pr.url,
-            spec_pr_number: pr.number,
-            ...(slug ? { spec_path: `specs/${slug}/spec.md` } : {}),
-          });
-        }
-      } catch (err) {
-        console.warn(
-          `[agent-watcher] feature-finalize link failed for ${taskId}: ${errorMessage(err)}`,
-        );
+      if (link) {
+        await prProject.features.transitionStatus(link.featureId, "pr-open", {
+          spec_pr_url: pr.url,
+          spec_pr_number: pr.number,
+          ...(link.slug ? { spec_path: `specs/${link.slug}/spec.md` } : {}),
+        });
       }
+    } catch (err) {
+      console.warn(
+        `[agent-watcher] feature link failed for ${taskId}: ${errorMessage(err)}`,
+      );
     }
 
     console.log(`[agent-watcher] Task ${taskId} → PR ${pr.url}`);

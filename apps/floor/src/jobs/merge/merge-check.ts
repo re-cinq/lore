@@ -17,7 +17,7 @@ import {
 } from "@re-cinq/lore-shared";
 import type { Project, StatusFlipResult } from "@re-cinq/lore-shared";
 import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
-import { decideDecomposeKick } from "../task/handle-feature-decompose.js";
+import { decideDecomposeKick } from "../task/decompose-kick.js";
 
 /**
  * Fallback: when a feature-request task's PR merges and the webhook was missed,

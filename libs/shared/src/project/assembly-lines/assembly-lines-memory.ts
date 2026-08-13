@@ -227,6 +227,14 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }
 
+  async mergeArgs(id: string, patch: Record<string, unknown>): Promise<void> {
+    const row = this.rows.find((r) => r.id === id);
+
+    if (row) {
+      row.args = { ...row.args, ...patch };
+    }
+  }
+
   async getById(id: string): Promise<AssemblyLineRecord | null> {
     return this.rows.find((r) => r.id === id) ?? null;
   }

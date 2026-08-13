@@ -153,6 +153,11 @@
 .iconRunning {
   fill: var(--info);
 }
+/* Parked on a worker outside the pod system — deliberately NOT the running fill,
+   because nothing is executing and a person may be the one being waited on. */
+.iconWaiting {
+  fill: var(--warning);
+}
 .iconIdle {
   fill: none;
   stroke: var(--border);

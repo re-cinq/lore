@@ -47,6 +47,13 @@ env:
   TASK_TYPES_PATH: /config/task-types.yaml
   PORT: "8080"
   LORE_INGEST_URL: ""
+  # The Floor's address AS A RUN POD REACHES IT — the base a pod fetches its prior
+  # conversation archive from (`<this>/api/agent-conversations/<id>`), not the Floor's
+  # own view of itself. Same host the pods already POST telemetry to
+  # (ai-agents `agentEventsUrl`); minikube overrides it to host.minikube.internal.
+  # Empty would make the URL RELATIVE inside the pod, so every resume fetch fails and
+  # conversation continuity silently never happens.
+  LORE_FLOOR_POD_URL: http://lore-floor.lore-floor.svc.cluster.local:8080
   LORE_LOG_BUCKET: ""
   # Web-UI base url. When set, task UUIDs in PR/issue bodies link to the
   # pipeline page (lore-api/agent linkify). Empty → UUIDs stay plain text.

@@ -44,6 +44,11 @@ export {
 } from "./loader.js";
 
 export { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
+export {
+  resolveNodeStation,
+  builtinStationName,
+  type NodeStation,
+} from "./node-station.js";
 
 export { definitionHash } from "./definition-hash.js";
 

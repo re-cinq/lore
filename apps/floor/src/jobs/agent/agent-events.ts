@@ -81,9 +81,53 @@ function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
   };
 }
 
+/** A file the run declared under `output.watch` and the subsystem raised once the
+ *  agent exited (`{"kind":"file"}`). The delivery channel for an agent whose
+ *  deliverable is an artifact rather than its prose — see the subsystem's
+ *  notification-api reference. `content` and `reason` are mutually exclusive: a
+ *  declared artifact the agent never produced still reports, carrying why. */
+export interface AgentFileEvent {
+  taskId: string;
+  agentCrName: string | null;
+  /** The recipe-declared event name, so one run can raise several artifacts. */
+  event: string;
+  path: string;
+  content: string | null;
+  reason: string | null;
+}
+
+const str = (x: unknown): string | null => (typeof x === "string" ? x : null);
+
+/** Project a `kind:"file"` envelope. Null for every other line, for an artifact
+ *  with no name (nothing could route it) and for one with no task attribution
+ *  (nothing to act on) — the same skip-don't-throw rule the cost projection uses. */
+function fileEventFromEnvelope(envelope: unknown): AgentFileEvent | null {
+  const { source, event: ev } = unwrapAttribution(envelope);
+  const taskId = typeof source?.task === "string" ? source.task : "";
+
+  if (!taskId || !isObject(ev) || ev.kind !== "file") {
+    return null;
+  }
+  const event = str(ev.event);
+
+  if (!event) {
+    return null;
+  }
+
+  return {
+    taskId,
+    agentCrName: typeof source?.agent === "string" ? source.agent : null,
+    event,
+    path: str(ev.path) ?? "",
+    content: str(ev.content),
+    reason: str(ev.reason),
+  };
+}
+
 export interface AgentSink {
   costRows: LlmCallRow[];
   runEvents: AgentRunEventInsert[];
+  fileEvents: AgentFileEvent[];
   /** Full-fidelity turns, empty unless `collectTurns` (specs/turn-level-transcript-store). */
   turns: AgentRunTurnInsert[];
   /** Turns lost because redaction left their line unparseable. Reported rather
@@ -143,6 +187,7 @@ export function parseAgentSink(
 ): AgentSink {
   const costRows: LlmCallRow[] = [];
   const runEvents: AgentRunEventInsert[] = [];
+  const fileEvents: AgentFileEvent[] = [];
   const turns: AgentRunTurnInsert[] = [];
   let turnsDropped = 0;
   let turnsCapped = 0;
@@ -162,6 +207,11 @@ export function parseAgentSink(
 
     if (costRow) {
       costRows.push(costRow);
+    }
+    const fileEvent = fileEventFromEnvelope(envelope);
+
+    if (fileEvent) {
+      fileEvents.push(fileEvent);
     }
 
     const wantTurn = collectTurns && turns.length < MAX_RUN_TURNS_PER_BATCH;
@@ -191,7 +241,7 @@ export function parseAgentSink(
     }
   }
 
-  return { costRows, runEvents, turns, turnsDropped, turnsCapped };
+  return { costRows, runEvents, fileEvents, turns, turnsDropped, turnsCapped };
 }
 
 /** The cost projection alone (skips blank, unparseable, and non-`result` lines,

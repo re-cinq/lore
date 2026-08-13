@@ -118,7 +118,7 @@ function runBadge(node: VisibleNode): NodeStatusVisual {
     return resultVisual(node.result);
   }
 
-  return nodeRunVisual(node.verdict, node.status);
+  return nodeRunVisual(node.verdict, node.status, node.signal);
 }
 
 const ICON_FILL: Record<string, string | undefined> = {
@@ -126,6 +126,7 @@ const ICON_FILL: Record<string, string | undefined> = {
   warn: styles.iconWarn,
   err: styles.iconErr,
   running: styles.iconRunning,
+  waiting: styles.iconWaiting,
   idle: styles.iconIdle,
   neutral: styles.iconIdle,
 };
@@ -182,6 +183,13 @@ function StatusIcon({
       ) : null}
       {tone === "running" ? (
         <circle cx={cx} cy={cy} r={2.4 * s} className={styles.iconInner} />
+      ) : null}
+      {/* Pause bars: the walk is held here, not working. */}
+      {tone === "waiting" ? (
+        <path
+          className={styles.iconGlyph}
+          d={`M ${cx - 1.6 * s} ${cy - 2.6 * s} L ${cx - 1.6 * s} ${cy + 2.6 * s} M ${cx + 1.6 * s} ${cy - 2.6 * s} L ${cx + 1.6 * s} ${cy + 2.6 * s}`}
+        />
       ) : null}
     </g>
   );

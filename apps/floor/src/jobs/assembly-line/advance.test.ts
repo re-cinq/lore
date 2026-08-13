@@ -63,6 +63,25 @@ edges:
     on: failed
 `);
 
+/** A line whose entry node is parked on the author — the shape stage 1 introduces. */
+const authorGated = parseAssemblyLine(`
+name: author-gated
+description: a line that waits on the author
+version: 1
+entry: author
+exit: done
+nodes:
+  - id: author
+    type: wait
+    signal: author_feedback
+  - id: done
+    type: retrospective
+edges:
+  - from: author
+    to: done
+    on: always
+`);
+
 function makeDeps(port: InMemoryAssemblyLines) {
   const launched: LoreTaskSpec[] = [];
   const cleaned: string[] = [];
@@ -129,6 +148,97 @@ describe("advanceLine", () => {
     expect(port.nodes).toEqual([
       expect.objectContaining({ nodeId: "review", iteration: 1 }),
     ]);
+  });
+
+  it("dispatches the resumed round's feedback as the CR's description, not just its prompt", async () => {
+    // The recipe the pod runs renders {description}; spec.prompt is not what
+    // reaches the agent. Setting only the prompt left every resumed round being
+    // handed the full draft again — the re-briefing this feature exists to end.
+    const port = new InMemoryAssemblyLines();
+    const id = await port.start({
+      definitionName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: {
+        description: "the whole draft",
+        round_feedback: "<RoundFeedback/>",
+      },
+    });
+
+    await port.markRunning(id);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(id, {
+      ...deps,
+      resolveConversation: async () => ({
+        source: "http://floor/api/agent-conversations",
+        id: "round-1",
+        pin: "round-2",
+        headersSecret: "agent-events-auth",
+      }),
+    });
+
+    expect(launched[0]).toMatchObject({
+      description: "<RoundFeedback/>",
+      prompt: "code-review::<RoundFeedback/>",
+    });
+  });
+
+  it("dispatches the full composition when nothing was resumed", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await port.start({
+      definitionName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: {
+        description: "the whole draft",
+        round_feedback: "<RoundFeedback/>",
+      },
+    });
+
+    await port.markRunning(id);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(id, {
+      ...deps,
+      resolveConversation: async () => ({
+        source: "http://floor/api/agent-conversations",
+        id: "",
+        pin: "round-1",
+        headersSecret: "agent-events-auth",
+      }),
+    });
+
+    expect(launched[0]).toMatchObject({
+      description: "the whole draft",
+      prompt: "code-review::the whole draft",
+    });
+  });
+
+  it("records a wait node but launches nothing — its worker is not a pod", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await port.start({
+      definitionName: "author-gated",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { description: "plan it" },
+    });
+
+    await port.markRunning(id);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(id, {
+      ...deps,
+      definitions: async () =>
+        new Map<string, AssemblyLine>([["author-gated", authorGated]]),
+    });
+
+    // The row exists, so the walk parks on it and the graph can show it — but no CR
+    // was dispatched, because the person is the worker.
+    expect(port.nodes).toEqual([
+      expect.objectContaining({ nodeId: "author", iteration: 1 }),
+    ]);
+    expect(launched).toEqual([]);
   });
 
   it("converges a duplicate advance onto one node row and one idempotent launch", async () => {
@@ -519,6 +629,23 @@ edges:
     expect(notified).toEqual([
       { id, outcome: "error", reason: "station exploded" },
     ]);
+  });
+
+  it("settles the backing task once for the winning finisher only", async () => {
+    const port = new InMemoryAssemblyLines();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+    const settled: { outcome: string; reason?: string }[] = [];
+
+    deps.settleTask = async (_row, outcome, reason) => {
+      settled.push({ outcome, reason });
+    };
+    const row = (await port.getById(id))!;
+
+    await finishLine(row, "error", "station exploded", deps);
+    await finishLine(row, "error", "late racer", deps);
+
+    expect(settled).toEqual([{ outcome: "error", reason: "station exploded" }]);
   });
 
   it("finishes the line even when the failure notifier throws", async () => {

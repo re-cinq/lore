@@ -145,6 +145,158 @@ edges:
     ).toThrow(/"b" has no outgoing edges/);
   });
 
+  it("accepts a wait node and an unbounded back-edge out of it", () => {
+    // A wait node's worker is a HUMAN. The iteration_max rule exists so two agents
+    // cannot argue indefinitely; a person deciding each pass cannot run away, so the
+    // refine loop is legitimately unbounded.
+    const wf = parseAssemblyLine(`
+name: feature
+description: plan a feature with the author in the loop
+version: 1
+entry: analyze
+exit: done
+nodes:
+  - id: analyze
+    type: agent
+    prompt_ref: feature-planning
+  - id: author
+    type: wait
+    signal: author_feedback
+  - id: done
+    type: retrospective
+edges:
+  - from: analyze
+    to: author
+    on: success
+  - from: analyze
+    to: done
+    on: changes_requested
+  - from: analyze
+    to: done
+    on: failed
+  - from: author
+    to: analyze
+    on: changes_requested
+  - from: author
+    to: done
+    on: success
+  - from: author
+    to: done
+    on: failed
+`);
+
+    expect(wf.nodes.find((n) => n.id === "author")).toMatchObject({
+      type: "wait",
+      signal: "author_feedback",
+    });
+  });
+
+  it("still requires iteration_max on a back-edge between two agents", () => {
+    // The exemption is keyed strictly on the SOURCE node's type — it must not become
+    // a way to write an unbounded agent loop.
+    expect(() =>
+      parseAssemblyLine(`
+name: feature
+description: two agents arguing
+version: 1
+entry: a
+exit: done
+nodes:
+  - id: a
+    type: agent
+    prompt_ref: x
+  - id: b
+    type: agent
+    prompt_ref: y
+  - id: done
+    type: retrospective
+edges:
+  - from: a
+    to: b
+    on: success
+  - from: a
+    to: done
+    on: changes_requested
+  - from: a
+    to: done
+    on: failed
+  - from: b
+    to: a
+    on: changes_requested
+  - from: b
+    to: done
+    on: success
+  - from: b
+    to: done
+    on: failed
+`),
+    ).toThrow(/back-edge b → a requires iteration_max/);
+  });
+
+  it("rejects a wait node with no signal", () => {
+    // Nothing could ever complete it: the signal names the surface that reports it.
+    expect(() =>
+      parseAssemblyLine(`
+name: feature
+description: a wait nobody can end
+version: 1
+entry: author
+exit: done
+nodes:
+  - id: author
+    type: wait
+  - id: done
+    type: retrospective
+edges:
+  - from: author
+    to: done
+    on: always
+`),
+    ).toThrow(/wait node "author" requires signal/);
+  });
+
+  it("accepts an issues station node", () => {
+    // A node type the enum does not know fails at LOAD, which is the point: the YAML
+    // is the contract, so a station that has no runner cannot be scheduled.
+    const wf = parseAssemblyLine(`
+name: feature-decompose
+description: decompose a merged spec, then file the issues
+version: 1
+entry: decompose
+exit: done
+nodes:
+  - id: decompose
+    type: agent
+    prompt_ref: feature-decompose
+  - id: issues
+    type: issues
+  - id: done
+    type: retrospective
+edges:
+  - from: decompose
+    to: issues
+    on: success
+  - from: issues
+    to: done
+    on: success
+  - from: issues
+    to: decompose
+    on: changes_requested
+    iteration_max: 1
+  - from: decompose
+    to: done
+    on: changes_requested
+  - from: decompose
+    to: done
+    on: failed
+  - from: issues
+    to: done
+    on: failed
+`);
+
+    expect(wf.nodes.find((n) => n.id === "issues")?.type).toBe("issues");
+  });
+
   it("requires iteration_max on cycles", () => {
     expect(() =>
       parseAssemblyLine(`
@@ -354,6 +506,7 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
       "code-review-recheck",
       "code-review-reply",
       "comment-triage",
+      "feature-decompose",
       "feature-finalize",
       "feature-planning",
       "gap-detect",
@@ -667,5 +820,71 @@ describe("loadAssemblyLineDir — code-review-recheck line", () => {
         .map((e) => e.on)
         .sort(),
     ).toEqual(["changes_requested", "failed", "success"]);
+  });
+});
+
+describe("parseAssemblyLine — continues", () => {
+  const line = (continues: string) => `
+name: planning
+description: d
+version: 1
+entry: analyze
+exit: done
+nodes:
+  - id: analyze
+    type: agent
+${continues}
+  - id: done
+    type: retrospective
+edges:
+  - from: analyze
+    to: done
+    on: always
+`;
+
+  it("accepts a node reference keyed by an arg", () => {
+    const wf = parseAssemblyLine(
+      line("    continues:\n      node: analyze\n      key: args.feature_id"),
+    );
+
+    expect(wf.nodes[0].continues).toEqual({
+      node: "analyze",
+      key: "args.feature_id",
+    });
+  });
+
+  it("accepts the built-in line and task keys", () => {
+    expect(
+      parseAssemblyLine(
+        line("    continues:\n      node: analyze\n      key: line"),
+      ).nodes[0].continues?.key,
+    ).toBe("line");
+    expect(
+      parseAssemblyLine(
+        line("    continues:\n      node: analyze\n      key: task"),
+      ).nodes[0].continues?.key,
+    ).toBe("task");
+  });
+
+  it("rejects a reference to a node that does not exist", () => {
+    // An unresolvable reference would silently start a fresh conversation at runtime,
+    // which is indistinguishable from one that continued and remembered nothing.
+    expect(() =>
+      parseAssemblyLine(
+        line("    continues:\n      node: reviewe\n      key: line"),
+      ),
+    ).toThrow(/continues unknown node "reviewe"/);
+  });
+
+  it("rejects a thread key that resolves to nothing", () => {
+    expect(() =>
+      parseAssemblyLine(
+        line("    continues:\n      node: analyze\n      key: feature"),
+      ),
+    ).toThrow(/invalid continues.key "feature"/);
+  });
+
+  it("leaves a node without continues alone", () => {
+    expect(parseAssemblyLine(line("")).nodes[0].continues).toBeUndefined();
   });
 });

@@ -182,7 +182,7 @@ useful granularity.
 
 ### FR5 — Resilience
 
-- FR5.1. A failure to persist visualization rows never fails the request; `POST /api/agent-events` continues to return success and to record its cost rows. ([validated by `agent-events.test.ts:97`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L97), [`agent-events.test.ts:112`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L112), [`agent-events.test.ts:122`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L122), [`agent-events.test.ts:130`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L130))
+- FR5.1. A failure to persist visualization rows never fails the request; `POST /api/agent-events` continues to return success and to record its cost rows. ([validated by `agent-events.test.ts:97`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L97), [`agent-events.test.ts:112`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L112), [`agent-events.test.ts:118`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L122), [`agent-events.test.ts:130`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L130))
 
 - FR5.2. A single malformed or unprojectable line never drops the rest of its batch. ([validated by `agent-events.test.ts:79`](apps/floor/src/jobs/agent/agent-events.test.ts#L79))
 

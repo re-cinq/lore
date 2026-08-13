@@ -14,7 +14,7 @@ import { setStatus, insertEvent } from "./task-helpers.js";
  * 'awaiting-input' — that implies a result is waiting for the user.
  */
 export async function revertFeatureAfterFailure(
-  project: Project,
+  project: Pick<Project, "features">,
   featureId: string,
 ): Promise<void> {
   const feature = await project.features.get(featureId);

@@ -11,6 +11,11 @@ export interface AgentCatalogConfig {
   prompt_template: string;
   model?: string;
   timeout_minutes?: number;
+  /** A file this run is expected to produce, raised as a named `kind:"file"` event
+   *  once the agent exits (ai-agent-subsystem#188). Declared for recipes whose
+   *  deliverable is an artifact rather than their prose — without it the file never
+   *  leaves the pod. `path` resolves against WORKSPACE_DIR, not the agent's cwd. */
+  watch?: { event: string; path: string };
 }
 
 /** A builtin station recipe (non-LLM node run by the exec vendor). */
@@ -33,6 +38,15 @@ const API_VERSION = "agents.re-cinq.com/v1alpha1";
 // glibc base; the subsystem's init container injects the claude runtime + supervisor.
 const BASE_IMAGE = "node:22-bookworm";
 const SEED_LABELS = { "app.kubernetes.io/managed-by": "lore-catalog-seed" };
+// Where the init clones the target repo ($WORKSPACE_DIR/<repo name>), and therefore
+// the only writable directory the agent prompts can mean by "the working directory".
+// Left unset, the container inherits the base image's `/`, which is NOT writable: a
+// feature-planning agent produced a complete result.json, failed to place it
+// (`cp: cannot create regular file '/result.json': Permission denied`), wrote it to
+// $HOME instead, and exited 0 — so the run "succeeded" while the round it was for
+// failed with no result posted (2026-08-10, laptop minikube).
+const REPO_WORKDIR = "/workspace/target";
+
 // Placeholder for the per-cluster sink URL; catalogChartYaml swaps it for the helm value.
 const EVENTS_URL_SENTINEL = "__AGENT_EVENTS_URL__";
 
@@ -41,8 +55,12 @@ const EVENTS_URL_SENTINEL = "__AGENT_EVENTS_URL__";
 const MCP_URL_SENTINEL = "__LORE_MCP_URL__";
 
 // Placeholder for the gateway's /skills registry base URL; catalogChartYaml swaps it
-// for the helm value. Empty ⇒ the ai-agent-subsystem init skips the skill fetch
-// (resources.skillsSource gate), so this is inert until the gateway is deployed.
+// for the helm value and omits the whole skills block when that value is empty.
+// The block MUST be omitted rather than rendered with an empty source: a recipe
+// declaring `skills` with `skills_source: null` is not inert. The init runs its
+// skills step, fetches nothing, reports success, and the agent container then dies
+// with `Settings file not found: $HOME/.claude/settings.json` — the file that step
+// fetches from `<source>/settings.json` (2026-08-10, laptop minikube).
 const SKILLS_SOURCE_SENTINEL = "__LORE_SKILLS_URL__";
 
 // Placeholder for the per-cluster Lore API base URL every lore-station pod calls
@@ -145,6 +163,11 @@ export function buildAgentDefinition(
             headers_secret: "agent-events-auth",
           },
         ],
+        // A recipe whose deliverable is a file declares it here: the subsystem
+        // raises it as a named `kind:"file"` event on the sink above once the
+        // agent exits, which is the only way the artifact leaves the pod
+        // (ai-agent-subsystem#188).
+        ...(cfg.watch ? { watch: [cfg.watch] } : {}),
       },
     },
   };
@@ -167,6 +190,7 @@ export function buildStation(
             {
               name: "agent",
               image: BASE_IMAGE,
+              workingDir: REPO_WORKDIR,
               resources: {
                 requests: { cpu: "250m", memory: "512Mi" },
                 limits: { cpu: "1", memory: "1Gi" },
@@ -286,14 +310,20 @@ export function catalogChartYaml(
     "# Seeded catalog (ADR-031, re-cinq/lore#698). Guarded by .Values.seedCatalog so\n" +
     "# operators stop re-seeding after first install; the web UI owns these thereafter.\n";
   const docs = buildCatalog(taskTypes, stationTypes).map((cr) =>
-    stringify({
-      ...cr,
-      metadata: {
-        ...cr.metadata,
-        namespace: NAMESPACE_SENTINEL,
-        annotations: { "helm.sh/resource-policy": "keep" },
+    stringify(
+      {
+        ...cr,
+        metadata: {
+          ...cr.metadata,
+          namespace: NAMESPACE_SENTINEL,
+          annotations: { "helm.sh/resource-policy": "keep" },
+        },
       },
-    }),
+      // Literal (`|`), never folded (`>-`): a prompt carries an indented JSON schema
+      // and code blocks, and folding rewraps them — the recipe the pod runs would
+      // then differ from the task-types.yaml it was generated from, silently.
+      { blockQuote: "literal" },
+    ),
   );
   const body = `${header}{{- if .Values.seedCatalog }}\n---\n${docs.join("---\n")}{{- end }}\n`;
 
@@ -307,7 +337,18 @@ export function catalogChartYaml(
       `{{- if .Values.loreMcpUrl }}\n${indent}mcp_servers:\n${items}{{- end }}\n`,
   );
 
-  return guarded
+  // Same guard for the skills block, and for a sharper reason: an unset registry URL
+  // renders `skills: [...]` beside `skills_source: null`, and that pair is not inert.
+  // The subsystem's init runs its skills step, fetches nothing, reports SUCCESS — and
+  // the agent container then dies on the `$HOME/.claude/settings.json` that step was
+  // supposed to deliver. A recipe must never ask for skills it has no source for.
+  const skillsGuarded = guarded.replace(
+    /^( *)skills:\n((?:\1 .*\n)*)\1skills_source: (.*)\n/gm,
+    (_m, indent: string, items: string, source: string) =>
+      `{{- if .Values.loreSkillsUrl }}\n${indent}skills:\n${items}${indent}skills_source: ${source}\n{{- end }}\n`,
+  );
+
+  return skillsGuarded
     .replaceAll(LLM_SECRET_SENTINEL, "{{ .Values.agentLlmSecretKey }}")
     .replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}")
     .replaceAll(MCP_URL_SENTINEL, "{{ .Values.loreMcpUrl }}")

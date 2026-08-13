@@ -159,7 +159,7 @@ A test builds the document from `routeList(() => null)` and asserts:
   extension, `requestBody` (converted zod schema for covered routes; lifted domain
   schema for agents/dark-factory; freeform `object` for features/tokens), and the
   shared error responses referenced from `components.responses`; the document
-  defaults `servers` to the relative root when no `serverUrl` is given. ([validated by `build-document.test.ts:29`](apps/lore-api/src/openapi/build-document.test.ts#L29), [validated by `build-document.test.ts:33`](apps/lore-api/src/openapi/build-document.test.ts#L33), [validated by `build-document.test.ts:209`](apps/lore-api/src/openapi/build-document.test.ts#L209))
+  defaults `servers` to the relative root when no `serverUrl` is given. ([validated by `build-document.test.ts:29`](apps/lore-api/src/openapi/build-document.test.ts#L29), [validated by `build-document.test.ts:33`](apps/lore-api/src/openapi/build-document.test.ts#L33), [validated by `build-document.test.ts:210`](apps/lore-api/src/openapi/build-document.test.ts#L210))
 - **FR4** Auth is modelled as a `bearerAuth` security scheme; authed operations set
   `security: [{ bearerAuth: [] }]`, HMAC webhook operations set `security: []`. ([validated by `build-document.test.ts:13`](apps/lore-api/src/openapi/build-document.test.ts#L13), [`build-document.test.ts:148`](apps/lore-api/src/openapi/build-document.test.ts#L148))
 - **FR5** `GET /api/openapi.json` (read scope) serves the document. `GET /api/docs`
@@ -175,7 +175,7 @@ A test builds the document from `routeList(() => null)` and asserts:
 - **FR8** Operations are grouped into Redoc sidebar categories: the tags are
   declared in canonical order (only those in use, each with a description), a
   representative operation of each resource carries its tag, and every operation is
-  assigned exactly one declared category. ([validated by `build-document.test.ts:160`](apps/lore-api/src/openapi/build-document.test.ts#L160), [validated by `build-document.test.ts:179`](apps/lore-api/src/openapi/build-document.test.ts#L179), [validated by `coverage.test.ts:49`](apps/lore-api/src/openapi/coverage.test.ts#L49))
+  assigned exactly one declared category. ([validated by `build-document.test.ts:160`](apps/lore-api/src/openapi/build-document.test.ts#L160), [validated by `build-document.test.ts:180`](apps/lore-api/src/openapi/build-document.test.ts#L180), [validated by `coverage.test.ts:49`](apps/lore-api/src/openapi/coverage.test.ts#L49))
 
 ## Success Criteria
 

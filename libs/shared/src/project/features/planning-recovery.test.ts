@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   decidePlanningRecovery,
   PLANNING_RECOVERY_STALE_MS,
+  PLANNING_STARTUP_GRACE_MS,
   type FeatureIteration,
 } from "./features-port.js";
 import type { GapResult } from "../../feature-planning/gap-result.js";
@@ -21,6 +22,7 @@ function iter(over: Partial<FeatureIteration>): FeatureIteration {
     status: "ready",
     user_answers: null,
     gap_result: null,
+    parent_iteration: null,
     created_at: new Date(now).toISOString(),
     updated_at: new Date(now).toISOString(),
     ...over,
@@ -28,11 +30,11 @@ function iter(over: Partial<FeatureIteration>): FeatureIteration {
 }
 
 describe("decidePlanningRecovery", () => {
-  it("orphans a running round whose runtime is gone (isActive false), regardless of age", () => {
+  it("orphans a running round whose runtime is gone once it is past the startup grace", () => {
     const latest = iter({
       iteration: 2,
       status: "running",
-      created_at: new Date(now - 60_000).toISOString(),
+      created_at: new Date(now - 5 * 60_000).toISOString(),
     });
 
     expect(
@@ -133,6 +135,65 @@ describe("decidePlanningRecovery", () => {
         iterations: [],
         featureStatus: "planning",
         isActive: false,
+        nowMs: now,
+      }),
+    ).toEqual({ kind: "none" });
+  });
+});
+
+describe("decidePlanningRecovery — startup grace", () => {
+  const running = (ageMs: number): FeatureIteration =>
+    iter({
+      iteration: 2,
+      status: "running",
+      created_at: new Date(now - ageMs).toISOString(),
+    });
+
+  it("leaves a just-started round alone when no runtime is visible yet", () => {
+    // The Agent CR does not exist for the first seconds of a round: the task row is
+    // written, then the line, then the CR. A probe in that window means "not born
+    // yet", not "died" — round 10 was force-failed 32s in and only survived because
+    // the delivered result overrode the reaper.
+    expect(
+      decidePlanningRecovery({
+        iterations: [running(32_000)],
+        featureStatus: "planning",
+        isActive: false,
+        nowMs: now,
+      }),
+    ).toEqual({ kind: "none" });
+  });
+
+  it("orphans a round past the grace window whose runtime is gone", () => {
+    expect(
+      decidePlanningRecovery({
+        iterations: [running(PLANNING_STARTUP_GRACE_MS + 1_000)],
+        featureStatus: "planning",
+        isActive: false,
+        nowMs: now,
+      }),
+    ).toEqual({ kind: "orphan", iteration: 2 });
+  });
+
+  it("still force-fails a wedged round past the stale window even while active", () => {
+    // Staleness is independent of the probe: a container that never exits must not
+    // be protected by the grace window.
+    expect(
+      decidePlanningRecovery({
+        iterations: [running(PLANNING_RECOVERY_STALE_MS + 1_000)],
+        featureStatus: "planning",
+        isActive: true,
+        nowMs: now,
+      }),
+    ).toEqual({ kind: "orphan", iteration: 2 });
+  });
+
+  it("leaves a live round inside the grace window alone", () => {
+    expect(
+      decidePlanningRecovery({
+        iterations: [running(5_000)],
+        featureStatus: "planning",
+        isActive: true,
         nowMs: now,
       }),
     ).toEqual({ kind: "none" });

@@ -1332,3 +1332,66 @@ describe("plain start agrees across the adapter and the double", () => {
     expect(await port.getById(id)).toMatchObject({ definitionHash: null });
   });
 });
+
+describe("AssemblyLinesPort mergeArgs", () => {
+  it("adds a produced artifact to the line without disturbing what start() set", async () => {
+    // How one node's output reaches the next: args are the line's shared channel,
+    // and a node that produces a plan merges it in for the node that consumes it.
+    const lines = new InMemoryAssemblyLines();
+    const id = await lines.start({
+      definitionName: "feature-finalize",
+      repo: "re-cinq/lore",
+      branch: "spec/x",
+      args: { description: "the accepted plan" },
+    });
+
+    await lines.mergeArgs(id, { spec_plan: '{"changes":[]}' });
+
+    expect((await lines.getById(id))?.args).toEqual({
+      description: "the accepted plan",
+      spec_plan: '{"changes":[]}',
+    });
+  });
+
+  it("keeps earlier merges, so an objection joins the plan rather than replacing it", async () => {
+    const lines = new InMemoryAssemblyLines();
+    const id = await lines.start({
+      definitionName: "feature-finalize",
+      repo: "re-cinq/lore",
+      args: { description: "d" },
+    });
+
+    await lines.mergeArgs(id, { spec_plan: "p" });
+    await lines.mergeArgs(id, { write_objection: "path does not exist" });
+
+    expect((await lines.getById(id))?.args).toMatchObject({
+      description: "d",
+      spec_plan: "p",
+      write_objection: "path does not exist",
+    });
+  });
+
+  it("overwrites a key a re-run replaces, so a stale objection cannot survive", async () => {
+    // The upstream node re-runs after an objection; its NEW output must win, or the
+    // consumer would read the plan that was already rejected.
+    const lines = new InMemoryAssemblyLines();
+    const id = await lines.start({
+      definitionName: "feature-finalize",
+      repo: "re-cinq/lore",
+      args: {},
+    });
+
+    await lines.mergeArgs(id, { spec_plan: "first" });
+    await lines.mergeArgs(id, { spec_plan: "second" });
+
+    expect((await lines.getById(id))?.args).toEqual({ spec_plan: "second" });
+  });
+
+  it("is a no-op for a line that does not exist", async () => {
+    const lines = new InMemoryAssemblyLines();
+
+    await expect(
+      lines.mergeArgs("00000000-0000-0000-0000-000000000000", { a: 1 }),
+    ).resolves.toBeUndefined();
+  });
+});

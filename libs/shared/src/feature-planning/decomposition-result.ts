@@ -11,6 +11,9 @@ export interface DecompTask {
   parallelizable: boolean;
   phase: number; // 0 when the agent gives no phase
   file_path?: string;
+  /** Labels the agent chose from the repo's REAL label list. Validated before use —
+   *  see decideIssueWork; GitHub would otherwise create an invented one silently. */
+  labels?: string[];
 }
 
 export interface UserStory {
@@ -18,6 +21,8 @@ export interface UserStory {
   summary: string;
   acceptance_criteria: string[];
   tasks: DecompTask[];
+  /** Labels for this story's Issue, chosen from the repo's real label list. */
+  labels?: string[];
 }
 
 export interface DecompositionResult {
@@ -81,6 +86,11 @@ function normalizeTask(raw: unknown, index: number): DecompTask {
   if (typeof filePath === "string" && filePath) {
     task.file_path = filePath;
   }
+  const labels = asStringList(t.labels);
+
+  if (labels.length) {
+    task.labels = labels;
+  }
 
   return task;
 }
@@ -99,7 +109,7 @@ function normalizeStory(raw: unknown): UserStory {
   enforceTrue(title, Error, "decomposition: each story needs a title");
   const tasksRaw = Array.isArray(s.tasks) ? s.tasks : [];
 
-  return {
+  const story: UserStory = {
     title,
     summary: typeof s.summary === "string" ? s.summary : "",
     acceptance_criteria: asStringList(
@@ -107,6 +117,13 @@ function normalizeStory(raw: unknown): UserStory {
     ),
     tasks: tasksRaw.map(normalizeTask),
   };
+  const labels = asStringList(s.labels);
+
+  if (labels.length) {
+    story.labels = labels;
+  }
+
+  return story;
 }
 
 /** Parse + normalize an agent's raw decomposition into the canonical shape.

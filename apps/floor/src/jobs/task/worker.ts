@@ -19,14 +19,12 @@ import {
 import { linkifyMarkdown, selectStationBackend } from "@re-cinq/lore-shared";
 import type { Project } from "@re-cinq/lore-shared";
 import { slugify, setStatus, insertEvent } from "./task-helpers.js";
-import { taskQueue, settings } from "../../kernel/queues.js";
+import { taskQueue, settings, assemblyLines } from "../../kernel/queues.js";
 import type { TaskQueueRepository } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import { composeIssueBody } from "./issue-body.js";
 import { handleFeatureRequest } from "./handle-feature-request.js";
 import { handleClaudeCodeTask } from "./handle-claude-code-task.js";
-import { handleFeaturePlanning } from "./handle-feature-planning.js";
 import { handleFeatureFinalize } from "./handle-feature-finalize.js";
-import { handleFeatureDecompose } from "./handle-feature-decompose.js";
 import { handleOnboard } from "./handle-onboard.js";
 
 // Re-export the task handlers so existing import sites (e.g. the onboard
@@ -36,6 +34,18 @@ export { handleFeatureRequest } from "./handle-feature-request.js";
 export { handleClaudeCodeTask } from "./handle-claude-code-task.js";
 export { handleOnboard } from "./handle-onboard.js";
 
+/** The feature lifecycle task types. They share two behaviours: each runs its own
+ *  assembly line regardless of dark-factory, and none opens a per-TASK Issue — the
+ *  decompose line files Issues itself, one per user story. Changing this set changes
+ *  both, which is why it is one named decision rather than two inline predicates. */
+export function isFeatureLifecycleType(taskType: string): boolean {
+  return (
+    taskType === "feature-planning" ||
+    taskType === "feature-finalize" ||
+    taskType === "feature-decompose"
+  );
+}
+
 // ── Crash recovery ────────────────────────────────────────────────────
 
 /** Dependencies of {@link recoverStaleTasks}; side-effects are injectable so the
@@ -44,14 +54,31 @@ export interface RecoverStaleDeps {
   queue: Pick<TaskQueueRepository, "findRecoverable">;
   setStatus: typeof setStatus;
   insertEvent: typeof insertEvent;
+  /** True while an assembly line for this task is still queued or running. */
+  hasOpenLine: (taskId: string) => Promise<boolean>;
 }
 
 /**
  * Reset tasks that have been stuck in running/queued for over 30 minutes
  * back to pending so they can be retried.
+ *
+ * "Stuck" is inferred from age, which stopped being sufficient once a line could
+ * legitimately stay open for days: a merged planning line parks on its author for as
+ * long as the person takes, and the task that owns it stays `running` that whole
+ * time. Without the open-line check the sweep read that as a crash and re-dispatched
+ * it on EVERY Floor boot — a fresh planning agent, and a bill, per restart. The line
+ * is the authority on whether work is still in flight; the clock is only a hint.
  */
 export async function recoverStaleTasks(
-  deps: RecoverStaleDeps = { queue: taskQueue(), setStatus, insertEvent },
+  deps: RecoverStaleDeps = {
+    queue: taskQueue(),
+    setStatus,
+    insertEvent,
+    hasOpenLine: async (taskId) =>
+      (await assemblyLines().listForTask(taskId)).some(
+        (line) => line.status === "running" || line.status === "queued",
+      ),
+  },
 ): Promise<number> {
   const stale = await deps.queue.findRecoverable();
 
@@ -64,6 +91,12 @@ export async function recoverStaleTasks(
       console.log(
         `[floor] Skipping stale implementation task ${row.id} — managed by LoreTask CRD`,
       );
+      continue;
+    }
+
+    // Not stale — its line is still walking (or parked on a person, which is the
+    // same thing to everyone but the clock).
+    if (await deps.hasOpenLine(row.id)) {
       continue;
     }
     await deps.setStatus(row.id, "pending");
@@ -140,32 +173,25 @@ async function processTask(task: PipelineTask): Promise<void> {
   const targetRepo = task.target_repo || "re-cinq/lore";
   const project = await projectFor(targetRepo);
 
-  // Feature decomposition (ADR-029): a merged spec → user-story Issues + spec-tasks.
-  // Pure LLM analysis + coordinator-side Issue/pipeline writes → always in-process,
-  // never a Station (it mutates no repo files).
-  if (task.task_type === "feature-decompose") {
-    await handleFeatureDecompose(task, targetRepo);
+  // The feature lifecycle runs through the Station (Docker locally, K8s on the
+  // cluster; ADR-028), forced below regardless of dark-factory. Only finalize keeps
+  // an in-process arm, behind the explicit LORE_STATION_BACKEND=inprocess hatch for a
+  // dev without Docker/creds — planning and decompose lost theirs when their prompts
+  // became the recipe the pod runs, because a second execution path meant a second
+  // prompt that silently drifted.
+  //
+  // It also gates Issue creation: these types must not open a per-TASK Issue. The
+  // decompose line files its own, one per user story, from the labels the agent chose.
+  const isFeaturePlanningType = isFeatureLifecycleType(task.task_type);
 
-    return;
-  }
-
-  // Feature planning + finalize run through the Station (Docker locally, K8s on
-  // the cluster; ADR-028), forced below regardless of dark-factory. The explicit
-  // LORE_STATION_BACKEND=inprocess escape hatch keeps the lightweight in-process
-  // handlers for a dev without Docker/creds.
-  const isFeaturePlanningType =
-    task.task_type === "feature-planning" ||
-    task.task_type === "feature-finalize";
-
+  // No in-process arm for feature-planning: its prompt is the recipe the pod runs
+  // (scripts/task-types.yaml), and a second execution path meant a second prompt
+  // that silently drifted — the agent was asked for a GapResult it was never shown.
   if (
-    isFeaturePlanningType &&
+    task.task_type === "feature-finalize" &&
     selectStationBackend(process.env) === "inprocess"
   ) {
-    if (task.task_type === "feature-planning") {
-      await handleFeaturePlanning(task, targetRepo);
-    } else {
-      await handleFeatureFinalize(task, targetRepo);
-    }
+    await handleFeatureFinalize(task, targetRepo);
 
     return;
   }

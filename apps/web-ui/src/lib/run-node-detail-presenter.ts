@@ -110,6 +110,15 @@ function whyText(
     return `In progress — ${noun} is running.`;
   }
 
+  // A parked wait node has no pod and no progress to report; what the reader needs
+  // is whose move it is, since it is often their own.
+  if (tone === "waiting") {
+    return input.definition?.nodes.find((node) => node.id === input.nodeId)
+      ?.signal === "pr_merged"
+      ? "Parked — waiting for the spec PR to merge."
+      : "Parked — waiting for you to review this round.";
+  }
+
   if (tone === "ok") {
     return `Ran ${noun} and emitted ${input.row?.outcome ?? "success"} in ${duration}.${
       terminal ? " Final step of the run." : ""
@@ -134,9 +143,11 @@ function whyText(
 export function describeNode(input: NodeDetailInput): NodeDetail {
   // The verdict on the walk row is authoritative; the execution status only fills
   // in while a node is still in flight (no recorded outcome yet).
+  const node = input.definition?.nodes.find((n) => n.id === input.nodeId);
   const visual = nodeRunVisual(
     input.row?.outcome ?? null,
     input.state?.status ?? "idle",
+    node?.signal,
   );
   const terminal = isTerminal(input.definition, input.nodeId);
   const durationSeconds = input.row?.durationSeconds ?? null;

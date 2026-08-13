@@ -1,6 +1,8 @@
 import { initOtel, shutdownOtel } from "./otel-init.js";
+import { createShutdown } from "./shutdown.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { initPool } from "./kernel/db.js";
+import { awaitSoleFloor } from "./kernel/single-instance.js";
 import { usage } from "./kernel/queues.js";
 import { loadTaskTypes } from "./kernel/config.js";
 import { recoverStaleTasks, startWorker } from "./jobs/task/worker.js";
@@ -26,7 +28,6 @@ async function main(): Promise<void> {
   console.log("[floor] Lore Floor Service starting...");
 
   await initOtel();
-  process.on("SIGTERM", () => void shutdownOtel());
 
   initPool();
   Llm.configure({ usage: usage() });
@@ -45,6 +46,32 @@ async function main(): Promise<void> {
   if (recovered > 0) {
     console.log(`[floor] Recovered ${recovered} stale tasks`);
   }
+
+  const port = parseInt(process.env.PORT || "8080", 10);
+  // Awaited: the stop function is half of the shutdown contract, and a fire-and-
+  // forgotten start left a late failure with nowhere to surface.
+  const stopServing = await startHealthServer(port, getJobStatus);
+  // ONE owner of the process lifecycle. Any handler overrides Node's default
+  // terminate, so the Floor must exit itself or the drain loop keeps it alive with
+  // nothing listening — the zombie shape this replaces.
+  const shutdown = createShutdown({
+    stopServing,
+    flushTelemetry: shutdownOtel,
+    exit: (code) => process.exit(code),
+  });
+
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
+  process.on("SIGINT", () => void shutdown("SIGINT"));
+
+  // Nothing below may run twice. Two Floors do not corrupt a row — SKIP LOCKED just
+  // SPLITS the stream between them, so a stale instance quietly handles some events
+  // with whatever code it loaded while the log you are reading stays clean.
+  //
+  // Deliberately AFTER the health server and the signal handlers: a Floor waiting its
+  // turn is healthy, and if it served nothing while waiting, a liveness probe would
+  // kill it — reproducing the crash-loop the wait exists to avoid — and any monitor
+  // would report the outgoing Floor's successor as down.
+  await awaitSoleFloor();
 
   // ── Layer 2: the drain loop + reaper over pipeline.events ──
   const registry = buildRegistry();
@@ -65,10 +92,6 @@ async function main(): Promise<void> {
 
   void startScheduler();
   void startWorker();
-
-  const port = parseInt(process.env.PORT || "8080", 10);
-
-  void startHealthServer(port, getJobStatus);
 
   console.log("[floor] Lore Floor Service ready");
 }

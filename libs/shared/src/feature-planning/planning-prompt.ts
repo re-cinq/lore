@@ -56,6 +56,78 @@ function tag(name: string, body: string): string {
   return `<${name}>\n${body}\n</${name}>`;
 }
 
+export interface RoundFeedbackInput {
+  /** Which round this is, 1-based — the agent uses it to know it is refining. */
+  round: number;
+  /** The round being reacted to, read only for its section and question TEXT. */
+  priorGap: GapResult | null;
+  answers: SectionAnswers | null;
+}
+
+/**
+ * The turn for a round that CONTINUES the previous one's conversation.
+ *
+ * The agent already holds its own last draft, so restating it would re-brief the
+ * model on what it just said. This carries only what is new: the author's reaction,
+ * nested under the section it lands on, with each question's asked text quoted
+ * beside its answer — an id alone would not survive the CLI compacting the turn
+ * that asked it.
+ *
+ * Sections the author left alone are omitted entirely: silence is not feedback, and
+ * listing every untouched section would grow this turn back into the full draft it
+ * exists to avoid. Pairs with composePlanningPrompt(), the fallback for round one
+ * and for any run that could not resume.
+ */
+export function composeRoundFeedback(input: RoundFeedbackInput): string {
+  const touched = sectionsOf(input.priorGap)
+    .map((section) => feedbackBlock(section, input.answers))
+    .filter((block): block is string => block !== null);
+  const note = input.answers?.free_form?.trim();
+
+  if (note) {
+    touched.push(tag("OtherUserComments", note));
+  }
+
+  const body = touched.length ? `${touched.join("\n")}\n` : "";
+
+  return `<RoundFeedback round="${input.round}">\n${body}</RoundFeedback>`;
+}
+
+/** One section's feedback, or null when the author said nothing about it. */
+function feedbackBlock(
+  section: GapSection,
+  answers: SectionAnswers | null,
+): string | null {
+  const feedback = answers?.sections?.[section.title];
+  const comment = feedback?.comment?.trim();
+  const answered = (section.questions ?? []).filter(
+    (q) => feedback || answers?.questions?.[q.id]?.trim(),
+  );
+
+  if (!feedback && !answered.length) {
+    return null;
+  }
+  const title = section.title.replace(/"/g, "'");
+  const direction = feedback?.direction ?? "refine";
+  const parts: string[] = [];
+
+  if (comment) {
+    parts.push(tag("UserComment", comment));
+  }
+
+  for (const question of answered) {
+    const answer = answers?.questions?.[question.id]?.trim() || "(unanswered)";
+
+    parts.push(
+      `<Question id="${question.id}">\n<Asked>${question.question}</Asked>\n<Answer>${answer}</Answer>\n</Question>`,
+    );
+  }
+
+  return parts.length
+    ? `<Section title="${title}" direction="${direction}">\n${parts.join("\n")}\n</Section>`
+    : `<Section title="${title}" direction="${direction}"/>`;
+}
+
 function currentDraftSpec(
   gap: GapResult | null,
   answers: SectionAnswers | null,

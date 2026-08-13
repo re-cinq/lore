@@ -6,7 +6,6 @@ import {
   type AgentDefinitionInput,
   type AgentDefsPort,
 } from "./agent-defs-port.js";
-import { PLANNING_INSTRUCTIONS } from "../../feature-planning/planning-instructions.js";
 import { DECOMPOSITION_INSTRUCTIONS } from "../../feature-planning/decomposition-instructions.js";
 
 /**
@@ -87,16 +86,9 @@ export class AgentDefsYaml implements AgentDefsPort {
             project_id: null,
           });
         }
-        // feature-planning's canonical prompt is the typed, parse-tested
-        // PLANNING_INSTRUCTIONS constant — not the task-types.yaml prompt_template
-        // (which carries only the container's {description}+result.json wrapper).
-        // Override it so the code/offline layer matches the DB-seeded org default.
-        const fp = map.get("feature-planning");
-
-        if (fp) {
-          map.set("feature-planning", { ...fp, prompt: PLANNING_INSTRUCTIONS });
-        }
-        // Same for feature-decompose: its canonical prompt is DECOMPOSITION_INSTRUCTIONS,
+        // feature-planning is NOT overridden: its prompt_template IS the canonical
+        // prompt now, and the recipe the pod runs is generated from it.
+        // feature-decompose still is: its canonical prompt is DECOMPOSITION_INSTRUCTIONS,
         // matching the DB-seeded org default (migration 0020).
         const fd = map.get("feature-decompose");
 
