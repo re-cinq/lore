@@ -82,7 +82,7 @@ available to agents — the authoritative interface.
   version row atomically: when the pool provides a client (`connect()`), the
   write runs inside one transaction, so a
   failed version insert rolls the memories insert back instead of leaving a
-  version-less memory behind (#1154). ([validated by `memory.test.ts:388`](libs/server-core/src/features/memory/memory.test.ts#L388), [`memory.test.ts:413`](libs/server-core/src/features/memory/memory.test.ts#L413))
+  version-less memory behind (#1154). ([validated by `memory.test.ts:388`](libs/server-core/src/features/memory/memory.test.ts#L388), [`memory.test.ts:413`](libs/server-core/src/features/memory/memory.test.ts#L413), [`memory.test.ts:432`](libs/server-core/src/features/memory/memory.test.ts#L432))
 
 - **`lore_read_memory(key, agent_id?, version?)`** — returns the latest
   version by default. Pass `version="all"` for full version history. ([validated by `memory.test.ts:110`](libs/server-core/src/features/memory/memory.test.ts#L110), [`memory.test.ts:137`](libs/server-core/src/features/memory/memory.test.ts#L137))

@@ -428,4 +428,50 @@ describe("writeMemory transactional write", () => {
     expect(pool.client.release).toHaveBeenCalled();
     expect(pool.poolCalls).toEqual([]);
   });
+
+  it("rolls back the version-bump update when the version insert fails", async () => {
+    const versionInsertError = new Error(
+      'relation "memory.memory_versions" does not exist',
+    );
+    const clientCalls: { sql: string; params: any[] }[] = [];
+    const client = {
+      query: vi.fn(
+        async (sql: string, params: any[] = []): Promise<{ rows: any[] }> => {
+          clientCalls.push({ sql, params });
+
+          if (/INSERT INTO memory\.memory_versions/.test(sql)) {
+            throw versionInsertError;
+          }
+
+          if (/SELECT id, version FROM memory\.memories/.test(sql)) {
+            return { rows: [{ id: "mem-tx-2", version: 3 }] };
+          }
+
+          return { rows: [] };
+        },
+      ),
+      release: vi.fn(),
+    };
+    const poolQuery = vi.fn(async (): Promise<{ rows: any[] }> => ({
+      rows: [],
+    }));
+    const pool = {
+      query: poolQuery,
+      connect: vi.fn(async () => client),
+    };
+
+    setMemoryPool(pool);
+
+    await expect(writeMemory("tx-key", "tx-value", "agent-tx")).rejects.toThrow(
+      'relation "memory.memory_versions" does not exist',
+    );
+
+    const sqls = clientCalls.map((c) => c.sql);
+
+    expect(sqls.some((s) => /UPDATE memory\.memories/.test(s))).toBe(true);
+    expect(sqls).toContain("ROLLBACK");
+    expect(sqls).not.toContain("COMMIT");
+    expect(client.release).toHaveBeenCalled();
+    expect(poolQuery).not.toHaveBeenCalled();
+  });
 });
