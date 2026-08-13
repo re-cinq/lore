@@ -27,6 +27,7 @@ import {
   type TaskListResult,
   type FindOpenLikeInput,
   type DriftTaskRow,
+  type FeatureTaskRow,
 } from "./task-store-port.js";
 
 /**
@@ -166,6 +167,21 @@ export class PgTaskStore implements TaskStorePort {
     );
 
     return rows as DriftTaskRow[];
+  }
+
+  async specTasksForFeature(
+    repo: string,
+    featureId: string,
+  ): Promise<FeatureTaskRow[]> {
+    const { rows } = await this.pool.query<FeatureTaskRow>(
+      `SELECT description, status, context_bundle FROM pipeline.tasks
+        WHERE target_repo = $1 AND task_type = 'spec-task'
+          AND context_bundle->>'feature_id' = $2
+        ORDER BY context_bundle->>'spec_task_id'`,
+      [repo, featureId],
+    );
+
+    return rows as FeatureTaskRow[];
   }
 
   private async byStatus(
