@@ -3,6 +3,8 @@
 import Link from "next/link";
 import CollapsibleCard from "@/components/CollapsibleCard";
 import { DangerZone } from "@/components/DangerZone";
+import { FeatureAssemblyLine } from "@/components/FeatureAssemblyLine";
+import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import { useState, useTransition } from "react";
 import StatusBadge from "../StatusBadge";
 import { isPlanningActive } from "../feature-status";
@@ -72,6 +74,7 @@ export default function FeatureDetailView({
   feature,
   timeoutMinutes,
   decomposition,
+  definition = null,
   refine,
   finalize,
   split,
@@ -82,6 +85,7 @@ export default function FeatureDetailView({
   feature: FeatureWithIterations;
   timeoutMinutes: number;
   decomposition: { stories: DecompStoryGroup[]; total: number };
+  definition?: AssemblyLineDefinition | null;
   refine: (
     userAnswers: SectionAnswers,
     fromIteration?: number,
@@ -117,6 +121,11 @@ export default function FeatureDetailView({
           </Link>
         </div>
       </div>
+
+      <FeatureAssemblyLine
+        definition={definition}
+        title="This feature's assembly line"
+      />
 
       {feature.original_prompt && (
         <CollapsibleCard title="Your prompt" defaultOpen>

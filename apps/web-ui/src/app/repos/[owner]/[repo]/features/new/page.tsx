@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createFeature } from "@/lib/feature-api";
+import { getAssemblyLineDefinition } from "@/lib/api/assembly-lines";
 import SmartFeatureCreateView from "./SmartFeatureCreateView";
 
 export default async function NewFeature({
@@ -35,5 +36,9 @@ export default async function NewFeature({
     };
   }
 
-  return <SmartFeatureCreateView action={create} />;
+  // Fetched here, not in the view: the Floor owns the YAML, and a preview that
+  // needs a web-ui rebuild to catch up would defeat the point.
+  const definition = await getAssemblyLineDefinition("feature-planning");
+
+  return <SmartFeatureCreateView action={create} definition={definition} />;
 }

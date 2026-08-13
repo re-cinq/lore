@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { revalidatePath } from "next/cache";
+import { getAssemblyLineDefinition } from "@/lib/api/assembly-lines";
 import { redirect } from "next/navigation";
 import { queryAllowMissing } from "@/lib/db";
 import {
@@ -93,8 +94,11 @@ export default async function FeatureDetail({
     redirect(`/repos/${owner}/${repo}/features`);
   }
 
+  const definition = await getAssemblyLineDefinition("feature-planning");
+
   return (
     <FeatureDetailView
+      definition={definition}
       owner={owner}
       repo={repo}
       feature={full}
