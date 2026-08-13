@@ -105,7 +105,10 @@ writeFileSync(DEST, file);
 // Prettier owns the final shape. Without this the repo's format job reflows the
 // generated file and the drift check then compares against something the generator
 // never produces — it would fail on every run, for no real drift.
-execFileSync("npx", ["prettier", "--write", DEST], {
+// --no-install: if prettier is not already in node_modules, fail loudly rather
+// than silently fetching a different version and producing output the drift
+// check can never match.
+execFileSync("npx", ["--no-install", "prettier", "--write", DEST], {
   cwd: ROOT,
   stdio: "ignore",
 });
