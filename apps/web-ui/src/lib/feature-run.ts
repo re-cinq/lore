@@ -11,10 +11,12 @@ import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import {
   fetchAssemblyLineRunNodes,
   fetchLatestRunForTask,
+  fetchRunTokens,
   type AssemblyLineRun,
   type AssemblyLineRunNode,
 } from "./assembly-line-runs";
 import { definitionForRun } from "./run-graph-definition";
+import type { RunTokens } from "./run-tokens";
 
 /** Exactly the props RunVisualizationPanel needs, serialized over the poll route. */
 export interface FeatureRunPayload {
@@ -27,6 +29,8 @@ export interface FeatureRunPayload {
   /** True when the graph was inferred from visit rows — the caller hides edge labels. */
   synthetic: boolean;
   nodes: AssemblyLineRunNode[];
+  /** What the run has spent so far, or null when it has reported nothing yet. */
+  tokens: RunTokens | null;
 }
 
 /** Shape a run + its visit rows into the poll payload, resolving the graph to draw.
@@ -34,6 +38,7 @@ export interface FeatureRunPayload {
 export function toFeatureRunPayload(
   run: AssemblyLineRun,
   nodes: AssemblyLineRunNode[],
+  tokens: RunTokens | null = null,
 ): FeatureRunPayload {
   const { definition, synthetic } = definitionForRun(run.definitionName, nodes);
 
@@ -46,6 +51,7 @@ export function toFeatureRunPayload(
     definition,
     synthetic,
     nodes,
+    tokens,
   };
 }
 
@@ -89,7 +95,11 @@ export async function fetchFeatureRun(
       return null;
     }
 
-    return toFeatureRunPayload(run, await fetchAssemblyLineRunNodes(run.id));
+    return toFeatureRunPayload(
+      run,
+      await fetchAssemblyLineRunNodes(run.id),
+      await fetchRunTokens(run.id),
+    );
   } catch {
     return null;
   }
