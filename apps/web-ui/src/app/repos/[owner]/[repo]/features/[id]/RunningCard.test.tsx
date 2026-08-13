@@ -35,6 +35,7 @@ const run: FeatureRunPayload = {
   definition: featurePlanningDefinition,
   synthetic: false,
   nodes: [],
+  tokens: null,
 };
 
 afterEach(() => {
@@ -135,5 +136,107 @@ describe("the card during the spec phase", () => {
     render(<RunningCard iteration={3} since={undefined} timeoutMinutes={15} />);
 
     expect(screen.getByText(/round 3/i)).toBeTruthy();
+  });
+});
+
+// What the card says about TIME and SPEND while a node runs.
+//
+// The budget it showed was the feature-planning AGENT DEFINITION's timeout — a
+// number nothing enforces, and one number for a line whose nodes have separate
+// budgets, so the spec phase counted against the planning round's clock. The real
+// bar is the reaper's: the node's own `timeout_minutes` plus its grace.
+describe("the time budget", () => {
+  const at = (nodeId: string) => ({
+    ...run,
+    definition: featurePlanningDefinition,
+    nodeId,
+  });
+
+  it("counts against the WORKING NODE's kill budget, not the round's", () => {
+    render(
+      <RunningCard
+        iteration={1}
+        since={new Date().toISOString()}
+        timeoutMinutes={15}
+        nodeId="analyze"
+        run={at("analyze")}
+      />,
+    );
+
+    // feature-planning declares no per-node timeout, so the reaper's own default
+    // (60) plus its 2-minute grace is what actually kills the pod.
+    expect(screen.getByRole("timer")).toHaveTextContent("/ 62:00");
+  });
+
+  it("falls back to the round's budget for a feature that resolves no line", () => {
+    render(
+      <RunningCard
+        iteration={1}
+        since={new Date().toISOString()}
+        timeoutMinutes={15}
+        run={null}
+      />,
+    );
+
+    expect(screen.getByRole("timer")).toHaveTextContent("/ 15:00");
+  });
+
+  it("names the budget as the kill deadline it is", () => {
+    render(
+      <RunningCard
+        iteration={1}
+        since={new Date().toISOString()}
+        timeoutMinutes={15}
+        nodeId="analyze"
+        run={at("analyze")}
+      />,
+    );
+
+    expect(screen.getByRole("timer").getAttribute("aria-label")).toMatch(
+      /before it is stopped/i,
+    );
+  });
+});
+
+describe("the token counter", () => {
+  it("reports what the run has spent so far", () => {
+    render(
+      <RunningCard
+        iteration={1}
+        since={new Date().toISOString()}
+        timeoutMinutes={15}
+        run={{ ...run, tokens: { input: 64010, output: 5, total: 64015 } }}
+      />,
+    );
+
+    expect(screen.getByText(/64\.0k tokens/)).toBeTruthy();
+  });
+
+  it("breaks the total into prompt and completion for the reader who wants it", () => {
+    render(
+      <RunningCard
+        iteration={1}
+        since={new Date().toISOString()}
+        timeoutMinutes={15}
+        run={{ ...run, tokens: { input: 64010, output: 5, total: 64015 } }}
+      />,
+    );
+
+    expect(screen.getByText(/64\.0k tokens/).getAttribute("title")).toEqual(
+      "64,010 prompt (including cached) + 5 completion",
+    );
+  });
+
+  it("says nothing at all before the run has reported any usage", () => {
+    render(
+      <RunningCard
+        iteration={1}
+        since={new Date().toISOString()}
+        timeoutMinutes={15}
+        run={{ ...run, tokens: null }}
+      />,
+    );
+
+    expect(screen.queryByText(/tokens/)).toBeNull();
   });
 });

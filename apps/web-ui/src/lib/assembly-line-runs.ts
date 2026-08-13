@@ -10,6 +10,7 @@
 // column and falls back to task_id for rows predating it.
 
 import { queryAllowMissing } from "./db";
+import { sumTurnUsage, type RunTokens, type TurnUsageRow } from "./run-tokens";
 
 /** Raw run row: pipeline.assembly_lines LEFT JOIN pipeline.tasks + a cost lateral. */
 export interface AssemblyLineRunRow {
@@ -207,4 +208,53 @@ export async function fetchAssemblyLineRunNodes(
   );
 
   return rows.map(toAssemblyLineRunNode);
+}
+
+/**
+ * A line's usage so far, or null when it has reported none yet (and on any error:
+ * the wizard's poll must keep reporting the round's status even when usage is
+ * unavailable — a pre-0037 database included).
+ *
+ * `pipeline.agent_run_turns`, NOT `pipeline.llm_calls`: the cost table is
+ * authoritative and carries dollars, but a row lands only when an agent run ENDS,
+ * which for a planning round is the moment the card showing the number disappears.
+ * Turns arrive while the pod streams, so they are the only source that can answer
+ * "so far" while something is still running. `lore_ui` is granted SELECT on the
+ * table by migration 0037.
+ *
+ * The usage object rides inside the untruncated envelope, so the extraction is
+ * SQL-side: summing four scalars beats shipping every turn of a long run to Node
+ * every four seconds.
+ */
+export async function fetchRunTokens(
+  assemblyLineId: string | null | undefined,
+): Promise<RunTokens | null> {
+  if (!assemblyLineId) {
+    return null;
+  }
+
+  try {
+    const rows = await queryAllowMissing<TurnUsageRow>(
+      `SELECT
+         COALESCE(SUM((usage->>'input_tokens')::bigint), 0)::int AS input_tokens,
+         COALESCE(SUM((usage->>'output_tokens')::bigint), 0)::int AS output_tokens,
+         COALESCE(SUM((usage->>'cache_creation_input_tokens')::bigint), 0)::int
+           AS cache_creation_tokens,
+         COALESCE(SUM((usage->>'cache_read_input_tokens')::bigint), 0)::int
+           AS cache_read_tokens
+       FROM (
+         SELECT envelope->'event'->'message'->'usage' AS usage
+           FROM pipeline.agent_run_turns
+          WHERE assembly_line_id = $1
+            AND envelope->'event'->'message' ? 'usage'
+       ) turns`,
+      [assemblyLineId],
+    );
+    const summed = sumTurnUsage(rows);
+
+    // The aggregate always answers one row; an all-zero one means no usage yet.
+    return summed && summed.total > 0 ? summed : null;
+  } catch {
+    return null;
+  }
 }
