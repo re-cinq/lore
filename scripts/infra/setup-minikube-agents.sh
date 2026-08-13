@@ -107,6 +107,16 @@ kubectl -n "$NAMESPACE" create secret docker-registry ghcr-pull-secret \
 # created by the controller under this namespace's DEFAULT ServiceAccount, so without
 # the pull secret bound there every run dies ImagePullBackOff/401 (terraform does the
 # same via kubernetes_default_service_account.ai_agents).
+#
+# The ServiceAccount controller creates `default` asynchronously, AFTER the namespace
+# exists — so on a cluster that was just started the patch below loses the race and
+# fails NotFound, taking all of `npm start` with it. A warm cluster always has the
+# account, which is why this only ever bites a from-scratch run.
+for _ in $(seq 1 30); do
+  kubectl -n "$NAMESPACE" get serviceaccount default >/dev/null 2>&1 && break
+  sleep 1
+done
+
 kubectl -n "$NAMESPACE" patch serviceaccount default \
   -p '{"imagePullSecrets":[{"name":"ghcr-pull-secret"}]}' >/dev/null
 log "ghcr-pull-secret applied and bound to the default ServiceAccount"
