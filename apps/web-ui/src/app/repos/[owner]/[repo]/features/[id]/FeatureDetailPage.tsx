@@ -1,14 +1,5 @@
-import { revalidatePath } from "next/cache";
 import { getAssemblyLineDefinition } from "@/lib/api/assembly-lines";
-import { redirect } from "next/navigation";
 import { queryAllowMissing } from "@/lib/db";
-import {
-  refineFeature,
-  finalizeFeature,
-  splitFeature,
-  deleteFeature,
-} from "@/lib/api/features";
-import { enforceOk } from "@/lib/api/result";
 import { listAgents } from "@/lib/agents-api";
 import {
   groupDecomposition,
@@ -18,9 +9,14 @@ import type {
   FeatureRow,
   FeatureIterationRow,
   FeatureWithIterations,
-  SectionAnswers,
 } from "@/lib/feature-types";
 import FeatureDetailView from "./FeatureDetailView";
+import {
+  refineFeatureAction,
+  finalizeFeatureAction,
+  splitFeatureAction,
+  deleteFeatureAction,
+} from "./actions";
 
 export default async function FeatureDetailPage({
   params,
@@ -64,34 +60,6 @@ export default async function FeatureDetailPage({
     (await listAgents(fullName)).find((a) => a.name === "feature-planning")
       ?.timeout_minutes ?? 15;
 
-  async function refine(userAnswers: SectionAnswers, fromIteration?: number) {
-    "use server";
-    enforceOk(
-      "Starting a planning round",
-      await refineFeature(fullName, id, userAnswers, fromIteration),
-    );
-    revalidatePath(`/repos/${owner}/${repo}/features/${id}`);
-  }
-  async function finalize() {
-    "use server";
-    enforceOk("Finalizing the spec", await finalizeFeature(fullName, id));
-    revalidatePath(`/repos/${owner}/${repo}/features/${id}`);
-  }
-  async function split(title: string, prompt: string) {
-    "use server";
-    enforceOk(
-      "Splitting the feature",
-      await splitFeature(fullName, id, title, prompt),
-    );
-    revalidatePath(`/repos/${owner}/${repo}/features`);
-  }
-  async function del() {
-    "use server";
-    enforceOk("Deleting the feature", await deleteFeature(fullName, id));
-    revalidatePath(`/repos/${owner}/${repo}/features`);
-    redirect(`/repos/${owner}/${repo}/features`);
-  }
-
   const definition = await getAssemblyLineDefinition("feature-planning");
 
   return (
@@ -102,10 +70,10 @@ export default async function FeatureDetailPage({
       feature={full}
       timeoutMinutes={planningTimeoutMinutes}
       decomposition={decomposition}
-      refine={refine}
-      finalize={finalize}
-      split={split}
-      del={del}
+      refine={refineFeatureAction.bind(null, fullName, id)}
+      finalize={finalizeFeatureAction.bind(null, fullName, id)}
+      split={splitFeatureAction.bind(null, fullName, id)}
+      del={deleteFeatureAction.bind(null, fullName, id)}
     />
   );
 }
