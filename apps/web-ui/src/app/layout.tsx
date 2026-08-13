@@ -28,8 +28,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
+    // THEME_SCRIPT stamps data-theme-family / data-color-scheme onto <html> before
+    // React hydrates — that is the whole point of it, and why there is no flash of
+    // the wrong theme. So the server HTML and the client DOM differ on this element
+    // by design, and React's hydration diff says so on every page load. Suppressing
+    // it covers THIS element's own attributes only, not the tree, so a real mismatch
+    // anywhere inside still reports. Without it the warning is permanent noise, and
+    // permanent noise is what a genuine mismatch hides behind.
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${inter.variable} ${ibmPlexMono.variable} ${gohu.variable}`}
     >
       <body>
