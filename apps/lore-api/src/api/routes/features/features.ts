@@ -125,7 +125,8 @@ function firstTaskId(
   iterations: readonly { iteration: number; task_id: string | null }[],
 ): string | null {
   return (
-    [...iterations].sort((a, b) => a.iteration - b.iteration)[0]?.task_id ?? null
+    [...iterations].sort((a, b) => a.iteration - b.iteration)[0]?.task_id ??
+    null
   );
 }
 
