@@ -255,11 +255,10 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: `${BASE}/{id}`,
-      options: zodResponse(
-        bearerScope("read"),
-        FeatureWithIterationsSchema,
-        { name: "FeatureWithIterations", errors: [404] },
-      ),
+      options: zodResponse(bearerScope("read"), FeatureWithIterationsSchema, {
+        name: "FeatureWithIterations",
+        errors: [404],
+      }),
       handler: (request, h) =>
         run(h, async () => {
           const feature = await (
@@ -311,11 +310,10 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: `${BASE}/{id}/decomposition`,
-      options: zodResponse(
-        bearerScope("read"),
-        FeatureDecompositionSchema,
-        { name: "FeatureDecomposition", errors: [404] },
-      ),
+      options: zodResponse(bearerScope("read"), FeatureDecompositionSchema, {
+        name: "FeatureDecomposition",
+        errors: [404],
+      }),
       handler: (request, h) =>
         run(h, async () => {
           const project = await projectFor(repoOf(request.params));

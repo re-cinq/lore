@@ -341,7 +341,6 @@ function resolveBody(
   return jsonBody(FREEFORM_BODY);
 }
 
-
 /** Resolve a route's declared success body, register it as a named component, and
  *  record coverage. A name registered twice with DIFFERENT shapes is a hard error:
  *  the document would serve the second and generate a client type that lies about
@@ -385,7 +384,12 @@ function buildOperation(
   const publicOp = isPublic(route);
   const scope = scopeOf(route);
   const hasBody = WRITE_METHODS.has(method);
-  const success = registerResponse(route, `${method} ${route.path}`, schemas, coverage);
+  const success = registerResponse(
+    route,
+    `${method} ${route.path}`,
+    schemas,
+    coverage,
+  );
   const op: Operation = {
     operationId: operationId(method, normPath),
     summary: `${method} ${normPath}`,
