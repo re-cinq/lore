@@ -1,0 +1,31 @@
+@use "styles/tokens" as t;
+
+.specCard {
+  margin-bottom: 12px;
+}
+
+.header {
+  @include t.row-between(12px);
+  margin-bottom: 12px;
+}
+
+.titleRow {
+  @include t.row(10px);
+}
+
+.title {
+  margin: 0;
+}
+
+.links {
+  @include t.row(12px);
+}
+
+.prompt {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.confirmRow {
+  @include t.row(10px);
+}

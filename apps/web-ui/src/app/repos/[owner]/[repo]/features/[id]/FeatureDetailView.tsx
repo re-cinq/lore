@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import styles from "./FeatureDetailView.module.scss";
 import CollapsibleCard from "@/components/CollapsibleCard";
 import { DangerZone } from "@/components/DangerZone";
 import { FeatureAssemblyLine } from "@/components/FeatureAssemblyLine";
@@ -31,7 +32,7 @@ function FinalizedView({
 }) {
   return (
     <div>
-      <div className="spec-card" style={{ marginBottom: 12 }}>
+      <div className={`spec-card ${styles.specCard}`}>
         {feature.spec_pr_url ? (
           <p>
             Spec PR:{" "}
@@ -103,20 +104,12 @@ export default function FeatureDetailView({
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-          marginBottom: 12,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <h2 style={{ margin: 0 }}>{feature.title}</h2>
+      <div className={styles.header}>
+        <div className={styles.titleRow}>
+          <h2 className={styles.title}>{feature.title}</h2>
           <StatusBadge status={feature.status} />
         </div>
-        <div style={{ display: "flex", gap: 12 }}>
+        <div className={styles.links}>
           <Link href={`${base}/graph`} className="meta">
             View in graph →
           </Link>
@@ -130,9 +123,7 @@ export default function FeatureDetailView({
 
       {feature.original_prompt && (
         <CollapsibleCard title="Your prompt" defaultOpen>
-          <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>
-            {feature.original_prompt}
-          </p>
+          <p className={styles.prompt}>{feature.original_prompt}</p>
         </CollapsibleCard>
       )}
 
@@ -157,7 +148,7 @@ export default function FeatureDetailView({
 
       <DangerZone description="Permanently delete this feature and all its planning rounds. This cannot be undone.">
         {confirmingDelete ? (
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <div className={styles.confirmRow}>
             <span>
               Delete &ldquo;{feature.title}&rdquo; and all its rounds?
             </span>
