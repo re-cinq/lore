@@ -13,7 +13,7 @@
   },
   "scripts": {
     "build": "tsc && npm run copy:assembly-lines",
-    "copy:assembly-lines": "mkdir -p dist/assembly-lines && cp -f src/assembly-lines/*.yaml dist/assembly-lines/ 2>/dev/null || true",
+    "copy:assembly-lines": "rm -rf dist/assembly-lines && mkdir -p dist/assembly-lines && cp -f src/assembly-lines/*.yaml dist/assembly-lines/",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

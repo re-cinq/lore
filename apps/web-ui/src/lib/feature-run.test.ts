@@ -51,7 +51,20 @@ describe("toFeatureRunPayload", () => {
         name: "feature-planning",
         entry: "analyze",
         exit: "done",
-        edges: [{ from: "analyze", to: "done", on: "always" }],
+        // The real graph, generated from the YAML. This assertion used to read
+        // `[{ from: "analyze", to: "done" }]` — the hand-transcribed 2-node shape
+        // that had not matched the definition for months.
+        nodes: [
+          { id: "analyze", type: "agent" },
+          { id: "author", type: "wait", signal: "author_feedback" },
+          { id: "analyse-specs", type: "agent" },
+          { id: "write", type: "agent" },
+          { id: "push", type: "agent" },
+          { id: "merged", type: "wait", signal: "pr_merged" },
+          { id: "decompose", type: "agent" },
+          { id: "issues", type: "issues" },
+          { id: "done", type: "retrospective" },
+        ],
       },
     });
   });
