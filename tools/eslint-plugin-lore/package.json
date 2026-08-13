@@ -5,6 +5,6 @@
   "type": "module",
   "main": "index.mjs",
   "scripts": {
-    "test": "node --test rules/"
+    "test": "node --test rules/*.test.mjs"
   }
 }

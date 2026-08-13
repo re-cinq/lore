@@ -123,6 +123,10 @@ jobs:
           # would notice. Several are at `error` repo-wide, where a crashing rule
           # red-lights every PR with a stack trace instead of a finding. Plain
           # `node --test` on .mjs sources: no build, no install, no workspace deps.
+          # The script passes the test files EXPLICITLY rather than the rules/
+          # directory: node 22 (this runner) resolves a bare directory as a module
+          # entry point and dies with MODULE_NOT_FOUND, while node 20 (local) scans
+          # it — so the directory form passes locally and fails here.
           - name: eslint-rules
             test: npm test --prefix tools/eslint-plugin-lore
           # web-ui is NOT an npm workspace — it has its own lockfile and does
