@@ -1,0 +1,26 @@
+// Mixins for the layout decisions the inline styles kept repeating.
+//
+// `display:flex; align-items:center; gap:N` appeared dozens of times as an inline
+// object, so a spacing change meant editing dozens of components. These are the
+// shared shapes; anything genuinely one-off stays a plain rule in its own module.
+//
+// The `var(--…)` design tokens are NOT replaced. They carry the theme family ×
+// colour scheme and are resolved by the browser, which is exactly what a SCSS
+// variable could not do — SCSS wraps them, it does not supersede them.
+
+@mixin row($gap: 10px) {
+  display: flex;
+  align-items: center;
+  gap: $gap;
+}
+
+@mixin row-between($gap: 12px) {
+  @include row($gap);
+  justify-content: space-between;
+}
+
+@mixin stack($gap: 8px) {
+  display: flex;
+  flex-direction: column;
+  gap: $gap;
+}
