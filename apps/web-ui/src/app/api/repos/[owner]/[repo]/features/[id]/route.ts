@@ -5,7 +5,7 @@ import * as path from "node:path";
 import * as fs from "node:fs";
 import { queryAllowMissing } from "@/lib/db";
 import { formatStationConversation } from "@/lib/station-conversation";
-import { fetchFeatureRun } from "@/lib/feature-run";
+import { fetchFeatureRun, runTaskIdFor } from "@/lib/feature-run";
 import type { FeatureRow, FeatureIterationRow } from "@/lib/feature-types";
 
 /** The local Docker Station's live log for a task, rendered as the model's
@@ -75,9 +75,24 @@ export async function GET(
     `SELECT * FROM lore.feature_iterations WHERE feature_id = $1 AND gap_result IS NOT NULL ORDER BY iteration DESC LIMIT 1`,
     [id],
   );
-  // The round's assembly line, so the wizard can render the live run graph +
-  // transcript while the analyze node works.
-  const run = await fetchFeatureRun(latestIteration?.task_id);
+  // The task that OWNS the feature's planning line — the earliest round that named
+  // one. On the merged line a refine is a resume, so every round after the first
+  // has a null task_id and only this can resolve the line. Narrow select on
+  // purpose: the poll runs every 4s and iteration rows carry gap_result payloads.
+  const owning = await queryAllowMissing<{ task_id: string | null }>(
+    `SELECT task_id FROM lore.feature_iterations
+      WHERE feature_id = $1 AND task_id IS NOT NULL
+      ORDER BY iteration ASC LIMIT 1`,
+    [id],
+  );
+  // The feature's assembly line, so the wizard can render the live run graph +
+  // transcript while the current node works.
+  const run = await fetchFeatureRun(
+    runTaskIdFor({
+      latestIterationTaskId: latestIteration?.task_id,
+      owningTaskId: owning[0]?.task_id,
+    }),
+  );
 
   return NextResponse.json({
     feature,

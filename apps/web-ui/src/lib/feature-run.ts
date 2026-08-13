@@ -49,6 +49,28 @@ export function toFeatureRunPayload(
   };
 }
 
+/**
+ * Which task's assembly line the wizard should draw. Pure.
+ *
+ * Two eras have to work at once. A LEGACY feature mints a task per round, and that
+ * round's own line is the one to show — so the round's own task wins whenever it
+ * has one. On the MERGED line a refine is a resume: the API answers
+ * `task_id: null` and nothing attaches one, so from round 2 onward the latest round
+ * names no task, `fetchFeatureRun` was handed null, and the run graph silently
+ * vanished for the rest of the feature's life.
+ *
+ * The fallback is the line's OWNING task — the earliest round that named one, which
+ * is how `resolveDispatch` in lore-api finds the same line. An empty string is
+ * treated as absent: it is not a task id, and passing it on would resolve nothing
+ * while hiding the real owner.
+ */
+export function runTaskIdFor(input: {
+  latestIterationTaskId?: string | null;
+  owningTaskId?: string | null;
+}): string | null {
+  return input.latestIterationTaskId || input.owningTaskId || null;
+}
+
 /** The run to visualize for a planning round, or null when the round has no task
  *  yet, no run row yet (pre-0025 DBs included), or the lookup fails. Never throws:
  *  the wizard's poll must keep reporting the round's status even when run
