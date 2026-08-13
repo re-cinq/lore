@@ -44,7 +44,6 @@ export const FeatureSchema = z.object({
   updated_at: z.string(),
 });
 
-<<<<<<< HEAD
 // The gap-analysis payload a planning round produces, and the author's reply to it.
 // Both are stored as jsonb and were typed `unknown` here at first, which generated
 // `unknown` for the client — the one field the planning UI spends all its time
@@ -129,21 +128,14 @@ export const SectionAnswersSchema = z.object({
   free_form: z.string().optional(),
 });
 
-=======
->>>>>>> origin/main
 export const FeatureIterationSchema = z.object({
   id: z.string(),
   feature_id: z.string(),
   iteration: z.number().int(),
   task_id: z.string().nullable(),
   status: IterationStatusSchema,
-<<<<<<< HEAD
   user_answers: SectionAnswersSchema.nullable(),
   gap_result: GapResultSchema.nullable(),
-=======
-  user_answers: z.unknown().nullable(),
-  gap_result: z.unknown().nullable(),
->>>>>>> origin/main
   parent_iteration: z.number().int().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
