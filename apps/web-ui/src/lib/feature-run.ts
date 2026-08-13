@@ -11,11 +11,12 @@ import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import {
   fetchAssemblyLineRunNodes,
   fetchLatestRunForTask,
+  fetchRunTokens,
   type AssemblyLineRun,
   type AssemblyLineRunNode,
 } from "./assembly-line-runs";
 import { definitionForRun } from "./run-graph-definition";
-import { fetchRunTokens, type RunTokens } from "./run-tokens";
+import type { RunTokens } from "./run-tokens";
 
 /** Exactly the props RunVisualizationPanel needs, serialized over the poll route. */
 export interface FeatureRunPayload {
