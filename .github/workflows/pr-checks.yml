@@ -112,11 +112,35 @@ jobs:
           - name: catalog-drift
             build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines
             test: bash scripts/check-catalog-drift.sh
+          # web-ui's builtin assembly-line graphs are GENERATED from the YAMLs —
+          # it is outside the workspace and carries no YAML parser, so it needs a
+          # copy, and the hand copy rotted (feature-planning claimed 2 nodes while
+          # the YAML had 9, and 8 lines were missing outright). This fails the moment
+          # a definition changes without regenerating.
+          - name: builtin-definitions-drift
+            build: npm run build -w @re-cinq/lore-shared
+            test: bash scripts/check-builtin-definitions-drift.sh
           # Skill-docs guard. /lore-help renders each platform skill from that
           # skill's own `## Help` block, so a skill without one is invisible in
           # the index. Pure markdown check — no build needed.
           - name: skill-help
             test: bash scripts/check-skill-help.sh
+          # The lint rules' OWN tests. Every rule in tools/eslint-plugin-lore has a
+          # RuleTester suite, and until now nothing ran them — so a rule could start
+          # over-reporting, stop reporting, or crash on an edge-case AST and nothing
+          # would notice. Several are at `error` repo-wide, where a crashing rule
+          # red-lights every PR with a stack trace instead of a finding. Plain
+          # `node --test` on .mjs sources: no build, no install, no workspace deps.
+          # The script passes the test files EXPLICITLY rather than the rules/
+          # directory: node 22 (this runner) resolves a bare directory as a module
+          # entry point and dies with MODULE_NOT_FOUND, while node 20 (local) scans
+          # it — so the directory form passes locally and fails here.
+          # Needs shared BUILT: three rules read spec status/coverage through
+          # rules/lib/lore-shared.mjs, which imports @re-cinq/lore-shared/dist. Same
+          # dependency the lint-web-ui entry documents.
+          - name: eslint-rules
+            build: npm run build -w @re-cinq/lore-shared
+            test: npm test --prefix tools/eslint-plugin-lore
           # web-ui is NOT an npm workspace — it has its own lockfile and does
           # not depend on @re-cinq/lore-shared. Install and test in-place.
           - name: web-ui

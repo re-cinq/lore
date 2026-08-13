@@ -14,7 +14,6 @@ const BADGES: Record<FeatureStatus, StatusBadge> = {
   "spec-ready": { label: "Spec ready", color: "var(--chart-statement)" },
   "pr-open": { label: "PR open", color: "var(--chart-spec)" },
   implemented: { label: "Implemented", color: "var(--chart-test)" },
-  split: { label: "Split", color: "var(--chart-adr)" },
 };
 
 export function statusBadge(status: FeatureStatus): StatusBadge {

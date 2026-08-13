@@ -66,6 +66,13 @@ build_mcp_server() {
   fi
   echo "[lore] Building shared + server-core + MCP adapter ..."
   npm run build -w @re-cinq/lore-shared -w @re-cinq/lore-server-core -w @re-cinq/lore-mcp 2>&1 || { echo "[lore] Error: build failed."; return 1; }
+  # Stamp the built SHA so the MCP self-update check (the lore_update tool /
+  # lore-update.sh) can tell when the running adapter is behind origin/main.
+  # Without this, a fresh install has no marker and the check falls back to the
+  # checkout HEAD — which advances on the SessionStart pull and masks the drift.
+  # See specs/mcp-self-update/spec.md.
+  mkdir -p "$HOME/.lore"
+  git rev-parse HEAD > "$HOME/.lore/mcp-build-head" 2>/dev/null || true
   cd - >/dev/null
 }
 

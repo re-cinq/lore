@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import CollapsibleCard from "@/components/CollapsibleCard";
+import { DangerZone } from "@/components/DangerZone";
 import { useState, useTransition } from "react";
 import StatusBadge from "../StatusBadge";
 import { isPlanningActive } from "../feature-status";
@@ -144,12 +145,7 @@ export default function FeatureDetailView({
         />
       )}
 
-      <div className="spec-card danger-zone">
-        <h3>Danger zone</h3>
-        <p className="meta">
-          Permanently delete this feature and all its planning rounds. This
-          cannot be undone.
-        </p>
+      <DangerZone description="Permanently delete this feature and all its planning rounds. This cannot be undone.">
         {confirmingDelete ? (
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <span>
@@ -181,7 +177,7 @@ export default function FeatureDetailView({
             Delete feature
           </button>
         )}
-      </div>
+      </DangerZone>
     </div>
   );
 }

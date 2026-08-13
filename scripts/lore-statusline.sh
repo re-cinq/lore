@@ -67,8 +67,17 @@ if [ -f "$CACHE" ]; then
 
     STALE=$(jq -r '.stale // false' "$CACHE")
 
+    # MCP self-update drift: the built adapter SHA is behind the installed
+    # checkout's HEAD (source pulled but not rebuilt yet). Cheap, no network —
+    # the MCP's fetch-based check drives the richer "N behind" agent prompt.
+    MCP_UPD=""
+    BUILD_HEAD=$(cat "$HOME/.lore/mcp-build-head" 2>/dev/null)
+    LORE_HEAD=$(git -C "$HOME/.re-cinq/lore" rev-parse HEAD 2>/dev/null)
+    [ -n "$BUILD_HEAD" ] && [ -n "$LORE_HEAD" ] && [ "$BUILD_HEAD" != "$LORE_HEAD" ] && MCP_UPD="1"
+
     PARTS=""
     [ "$STALE" = "true" ] && PARTS="${YELLOW}⚠ stale${RESET}"
+    [ -n "$MCP_UPD" ] && PARTS="${PARTS:+$PARTS · }${YELLOW}⟳ MCP update — restart${RESET}"
     [ "$PENDING" -gt 0 ] && PARTS="${PARTS:+$PARTS · }${RED}${PENDING} new${RESET}"
     [ "$LOCAL" -gt 0 ] && PARTS="${PARTS:+$PARTS · }${CYAN}${LOCAL} local${RESET}"
     [ "$RUNNING" -gt 0 ] && PARTS="${PARTS:+$PARTS · }${YELLOW}${RUNNING} running${RESET}"

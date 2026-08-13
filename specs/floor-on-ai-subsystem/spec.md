@@ -300,7 +300,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `<source>/settings.json`. A laptop minikube therefore points the value at the mcp
     adapter running in HTTP-gateway mode on the host
     (`http://host.minikube.internal:3002/skills`, served by `npm start`) rather than
-    leaving it empty ([validated by `agent-catalog.test.ts:198`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L198); implemented by [`agent-catalog.ts:319`](apps/floor/src/jobs/agent/agent-catalog.ts#L319))
+    leaving it empty ([validated by `agent-catalog.test.ts:198`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L198); implemented by [`agent-catalog.ts:363`](apps/floor/src/jobs/agent/agent-catalog.ts#L363))
 
 27. *(added 2026-08-10)* The agent container MUST run in the cloned repo
     (`/workspace/target`), not the base image's default directory. Left unset, the
@@ -310,7 +310,9 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     16 KB GapResult, failed to place it (`cp: cannot create regular file
     '/result.json': Permission denied`), wrote it to `$HOME` instead, and exited 0 —
     so the run reported success while the round it existed for failed with no result
-    posted ([validated by `agent-catalog.test.ts:138`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L138); implemented by [`agent-catalog.ts:170`](apps/floor/src/jobs/agent/agent-catalog.ts#L170))
+    posted. Read-only recipes (the review family) opt out via `repo_workdir: false` —
+    see statement 31 (#1160)
+    ([validated by `agent-catalog.test.ts:138`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L138); implemented by [`agent-catalog.ts:211`](apps/floor/src/jobs/agent/agent-catalog.ts#L211))
 
 28. *(added 2026-08-10)* A run whose deliverable is a **file** MUST declare it, so the
     artifact can leave the pod. The subsystem streams what an agent *says*
@@ -322,7 +324,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     delivery path. `feature-planning` declares `planning.result` →
     `target/result.json`; the path resolves against `WORKSPACE_DIR`, not the agent's
     cwd. A recipe whose deliverable is its own output declares nothing
-    ([validated by `agent-catalog.test.ts:94`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L94), [`agent-catalog.test.ts:105`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L105); implemented by [`agent-catalog.ts:157`](apps/floor/src/jobs/agent/agent-catalog.ts#L157))
+    ([validated by `agent-catalog.test.ts:94`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L94), [`agent-catalog.test.ts:105`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L105); implemented by [`agent-catalog.ts:173`](apps/floor/src/jobs/agent/agent-catalog.ts#L173))
 
 29. *(added 2026-08-10)* The Floor MUST project those artifact events off the
     telemetry sink. The sink carries every run's events, so a file event with no name
@@ -333,6 +335,21 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     artifact raised under another event name, a task that is not a planning round, and
     a task that no longer exists are each a no-op, and a delivery that throws must not
     500 an ingest carrying cost and run-viz rows for unrelated runs ([validated by `planning-result.test.ts:64`](apps/floor/src/jobs/agent/planning-result.test.ts#L64), [`planning-result.test.ts:75`](apps/floor/src/jobs/agent/planning-result.test.ts#L75), [`planning-result.test.ts:86`](apps/floor/src/jobs/agent/planning-result.test.ts#L86), [`planning-result.test.ts:99`](apps/floor/src/jobs/agent/planning-result.test.ts#L109), [`planning-result.test.ts:110`](apps/floor/src/jobs/agent/planning-result.test.ts#L120), [`planning-result.test.ts:130`](apps/floor/src/jobs/agent/planning-result.test.ts#L141), [`planning-result.test.ts:143`](apps/floor/src/jobs/agent/planning-result.test.ts#L155), [`planning-result.test.ts:153`](apps/floor/src/jobs/agent/planning-result.test.ts#L165); implemented by [`planning-result.ts:44`](apps/floor/src/jobs/agent/planning-result.ts#L44))
+
+31. *(added 2026-08-13)* The review family's recipes (`review`, `code-review`,
+    `code-review-recheck`, `code-review-refine`) are read-only toward the checkout:
+    they MUST NOT install dependencies or build in it. GKE Autopilot caps a pod that
+    declares no ephemeral-storage at 1Gi, and one `npm ci` in the clone exceeds it
+    and evicts the pod mid-review ([#1160](https://github.com/re-cinq/lore/issues/1160)).
+    Three layers: the prompts state the rule and the disk budget; the family drops
+    the container `workingDir` via `repo_workdir: false`, so the pod is not started
+    inside the checkout it is only meant to read (the posture that held from #783
+    until #1141); and package-manager/build commands are declared in the recipe's
+    `disallowed_tools` — appended after the base pipeline-tool deny, a recipe that
+    declares none keeps the base deny alone. The declared denies are dormant under
+    the current `permission_mode: "bypass"` (the CLI skips deny-rule evaluation in
+    that mode) and become enforced when the family moves to an enforcing mode
+    ([validated by `agent-catalog.test.ts:365`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L365), [`agent-catalog.test.ts:375`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L375), [`agent-catalog.test.ts:381`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L381); implemented by [`agent-catalog.ts:166`](apps/floor/src/jobs/agent/agent-catalog.ts#L166), [`agent-catalog.ts:209`](apps/floor/src/jobs/agent/agent-catalog.ts#L209))
 
 ## Out of scope
 

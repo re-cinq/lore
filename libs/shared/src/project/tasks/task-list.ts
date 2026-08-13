@@ -7,6 +7,7 @@ import type {
   CreatedTask,
   RetriedTask,
   DriftTaskRow,
+  FeatureTaskRow,
   FindOpenLikeInput,
 } from "./task-store-port.js";
 import { Task } from "./task.js";
@@ -62,6 +63,11 @@ export class TaskList {
     specPath: string,
   ): Promise<DriftTaskRow[]> {
     return this.store.driftTasksForSpec(this.repo, taskType, specPath);
+  }
+
+  /** Spec-tasks the feature's merged spec decomposed into (ADR-029). */
+  specTasksForFeature(featureId: string): Promise<FeatureTaskRow[]> {
+    return this.store.specTasksForFeature(this.repo, featureId);
   }
 
   /** Open (per statuses) tasks of one type whose description starts with the prefix — job dedup. */

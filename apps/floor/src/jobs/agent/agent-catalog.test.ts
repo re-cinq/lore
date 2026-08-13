@@ -354,3 +354,37 @@ describe("station catalog (exec vendor recipes)", () => {
     expect(out).not.toContain("__STATION_IMAGE__");
   });
 });
+
+describe("read-only review recipes (#1160)", () => {
+  const reviewer: AgentCatalogConfig = {
+    prompt_template: "Review the diff.",
+    disallowed_tools: ["Bash(npm:*)", "Bash(npx:*)"],
+    repo_workdir: false,
+  };
+
+  it("appends the recipe's disallowed_tools after the base pipeline-tool deny", () => {
+    expect(
+      buildAgentDefinition("code-review", reviewer).spec?.disallowed_tools,
+    ).toEqual([
+      "mcp__lore__lore_create_pipeline_task",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+    ]);
+  });
+
+  it("keeps only the base deny when the recipe declares no disallowed_tools", () => {
+    expect(
+      buildAgentDefinition("implementation", impl).spec?.disallowed_tools,
+    ).toEqual(["mcp__lore__lore_create_pipeline_task"]);
+  });
+
+  it("omits the container workingDir when repo_workdir is false", () => {
+    const containers = (
+      buildStation("code-review", reviewer).spec?.template as {
+        spec: { containers: Array<{ name: string; workingDir?: string }> };
+      }
+    ).spec.containers;
+
+    expect(containers[0].workingDir).toBeUndefined();
+  });
+});

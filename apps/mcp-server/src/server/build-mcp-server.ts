@@ -7,6 +7,7 @@ import { registerUsageTools } from "../mcp/tools/usage-tools.js";
 import { registerSpecTraceTools } from "../mcp/tools/spec-trace-tools.js";
 import { registerLocalRunnerTools } from "../mcp/tools/local-runner-tools.local.js";
 import { registerSpecTraceLocalTools } from "../mcp/tools/spec-trace-tools.local.js";
+import { registerUpdateTools } from "../mcp/tools/update-tools.js";
 
 /**
  * Conventions that hold for every lore_ tool. Stated once here instead of
@@ -38,8 +39,8 @@ function resolveServerMode(): ServerMode {
  *
  * `serverMode` defaults to LORE_MCP_SERVER_MODE. In `agent` mode the pipeline
  * tools (lore_create_pipeline_task — the recursion vector), the local-runner
- * tools (laptop-only worktree spawning) and the local spec-trace runners are
- * NOT registered.
+ * tools (laptop-only worktree spawning), the local spec-trace runners and
+ * lore_update (laptop-only self-rebuild) are NOT registered.
  */
 export function buildMcpServer(
   opts: { serverMode?: ServerMode } = {},
@@ -60,6 +61,9 @@ export function buildMcpServer(
     registerPipelineTools(server);
     registerLocalRunnerTools(server);
     registerSpecTraceLocalTools(server);
+    // lore_update rebuilds ~/.re-cinq/lore — a laptop-only checkout that the
+    // gateway's agent pods do not have.
+    registerUpdateTools(server);
   }
 
   return server;

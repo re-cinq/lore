@@ -5,12 +5,12 @@
 // than minting a line per round. Features whose planning started before that line
 // existed have no parked node, and must keep the old path or they strand mid-plan.
 
-/** The parked-node facts this decision needs — an `assembly_line_nodes` row. */
-export interface ParkedNode {
-  nodeId: string;
-  iteration: number;
-  outcome: string | null;
-}
+import {
+  parkedNode,
+  type ParkedNode,
+} from "../project/assembly-lines/parked-node.js";
+
+export type { ParkedNode };
 
 export type RoundDispatch =
   { kind: "resume"; nodeId: string; iteration: number } | { kind: "legacy" };
@@ -22,20 +22,17 @@ const AUTHOR_NODE = "author";
  * Resume the parked author node when the feature's line is open and waiting;
  * otherwise mint a line the old way.
  *
- * "Waiting" is an author row with no outcome yet. A row that already has one has
- * been reported; completing it again would either be ignored or, worse, advance a
- * walk that has already moved on.
+ * What counts as parked belongs to the assembly line, not to feature planning —
+ * the same rule decides whether a merged spec PR can be reported — so it lives in
+ * `parkedNode`. What is feature-planning-specific is the FALLBACK: a feature whose
+ * planning predates the merged line has no parked node and must keep the old path
+ * or it strands mid-plan.
  */
 export function decideRoundDispatch(
   status: string | null,
   nodes: readonly ParkedNode[],
 ): RoundDispatch {
-  if (status !== "running" && status !== "queued") {
-    return { kind: "legacy" };
-  }
-  const parked = nodes.find(
-    (n) => n.nodeId === AUTHOR_NODE && n.outcome === null,
-  );
+  const parked = parkedNode(status, nodes, AUTHOR_NODE);
 
   return parked
     ? { kind: "resume", nodeId: parked.nodeId, iteration: parked.iteration }

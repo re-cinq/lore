@@ -154,7 +154,9 @@ IMPORTANT: You have the Lore MCP server (lore-context). Follow these rules stric
 
 4. CRITICAL — LOCAL TASK EXECUTION: When the user says "run locally", "run this locally", "do this in the background", "background task", or "local task", you MUST call the lore_run_task_locally MCP tool. Do NOT do the work yourself. The tool spawns a separate background Claude Code process in an isolated git worktree. This frees the current session for other work. NEVER interpret "run locally" as an instruction to do the work in this session — ALWAYS delegate via the tool.
 
-5. BEFORE SESSION ENDS: Call lore_write_memory with key "session-summary/{repo}/{date}" summarizing decisions, corrections, and non-obvious learnings. Call lore_write_episode with raw session observations for passive fact extraction.`;
+5. BEFORE SESSION ENDS: Call lore_write_memory with key "session-summary/{repo}/{date}" summarizing decisions, corrections, and non-obvious learnings. Call lore_write_episode with raw session observations for passive fact extraction.
+
+6. MCP SELF-UPDATE: If lore_assemble_context output contains "lore_mcp_update_available", tell the user their local Lore MCP is behind origin/main and offer to run the lore_update tool. Call lore_update ONLY after the user agrees; it rebuilds the adapter, and the user must restart Claude Code afterward to load the new code.`;
 
   // Always replace — strip ALL old Lore prompts and write fresh
   if (settings.systemPromptSuffix) {

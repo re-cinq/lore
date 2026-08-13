@@ -321,10 +321,16 @@ spec:
   description: Lore review task recipe (seeded).
   model: claude-haiku-4-5-20251001
   prompt: |-
-    Review PR #{pr_number} on this branch. Check the code against:
-    1. The spec in specs/ directory
-    2. Conventions in CLAUDE.md and ADRs in adrs/
+    Review PR #{pr_number} on this branch. The PR branch is checked out at
+    /workspace/target — read the spec, conventions, and code from there
+    (e.g. `git -C /workspace/target diff main...HEAD`). Check the code against:
+    1. The spec in /workspace/target/specs/
+    2. Conventions in /workspace/target/CLAUDE.md and ADRs in /workspace/target/adrs/
     3. Code quality, type safety, security
+
+    Do NOT install dependencies or run builds or tests — the pod has a 1Gi
+    disk budget and exceeding it evicts the pod mid-review; CI already runs
+    the suite. Review from the source tree and the diff alone.
 
     Post specific review comments on the PR using gh pr review.
     Then output exactly one of:
@@ -354,6 +360,19 @@ spec:
 {{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
+    - Bash(npm:*)
+    - Bash(npx:*)
+    - Bash(yarn:*)
+    - Bash(pnpm:*)
+    - Bash(bun:*)
+    - Bash(pip:*)
+    - Bash(pip3:*)
+    - Bash(uv:*)
+    - Bash(cargo:*)
+    - Bash(go:*)
+    - Bash(make:*)
+    - Bash(bash:*)
+    - Bash(sh:*)
   output:
     sinks:
       - type: stdout
@@ -378,7 +397,6 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
-          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m
@@ -413,7 +431,10 @@ spec:
     Review this pull request against the repo's conventions (CLAUDE.md),
     ADRs in adrs/, and any spec in specs/. Check correctness, type safety,
     security, and simplicity. Do NOT edit code and do NOT post comments
-    yourself — Lore posts your findings for you.
+    yourself — Lore posts your findings for you. Do NOT install dependencies
+    or run builds or tests (`npm ci`, `npm install`, and friends) — the pod
+    has a 1Gi disk budget and exceeding it evicts the pod mid-review; CI
+    already runs the suite. Review from the source tree and the diff alone.
 
     Emit a fenced REVIEW_FINDINGS block (one finding per point) then the
     verdict. Be liberal with concrete `suggestion` fixes. Each `subject` is
@@ -463,6 +484,19 @@ spec:
 {{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
+    - Bash(npm:*)
+    - Bash(npx:*)
+    - Bash(yarn:*)
+    - Bash(pnpm:*)
+    - Bash(bun:*)
+    - Bash(pip:*)
+    - Bash(pip3:*)
+    - Bash(uv:*)
+    - Bash(cargo:*)
+    - Bash(go:*)
+    - Bash(make:*)
+    - Bash(bash:*)
+    - Bash(sh:*)
   output:
     sinks:
       - type: stdout
@@ -487,7 +521,6 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
-          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m
@@ -524,7 +557,10 @@ spec:
     Re-assess against the repo's conventions (CLAUDE.md), ADRs, and specs:
     confirm the prior concerns are resolved and flag only NEW significant issues
     the latest commits introduced. Do NOT edit code and do NOT post comments
-    yourself — Lore posts your findings for you.
+    yourself — Lore posts your findings for you. Do NOT install dependencies
+    or run builds or tests — the pod has a 1Gi disk budget and exceeding it
+    evicts the pod; CI runs the suite. Re-check from the source tree and the
+    diff alone.
 
     Emit a fenced REVIEW_FINDINGS block (it MAY be empty when nothing new is
     wrong) then the verdict. Same schema as the full review:
@@ -562,6 +598,19 @@ spec:
 {{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
+    - Bash(npm:*)
+    - Bash(npx:*)
+    - Bash(yarn:*)
+    - Bash(pnpm:*)
+    - Bash(bun:*)
+    - Bash(pip:*)
+    - Bash(pip3:*)
+    - Bash(uv:*)
+    - Bash(cargo:*)
+    - Bash(go:*)
+    - Bash(make:*)
+    - Bash(bash:*)
+    - Bash(sh:*)
   output:
     sinks:
       - type: stdout
@@ -586,7 +635,6 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
-          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m
@@ -619,6 +667,10 @@ spec:
       `git -C /workspace/target commit -am "<message>"`.
     - intent = answer: do NOT change code.
     The human's comment is quoted in the task above — act on that.
+
+    Do NOT install dependencies or run builds or tests (`npm ci` and friends)
+    — the pod has a 1Gi disk budget and exceeding it evicts the pod, taking
+    your commit with it. Commit the change and let the PR's CI validate it.
 
     Emit your reply as a fenced block; Lore posts it in-thread for you:
 
@@ -656,6 +708,19 @@ spec:
 {{- end }}
   disallowed_tools:
     - mcp__lore__lore_create_pipeline_task
+    - Bash(npm:*)
+    - Bash(npx:*)
+    - Bash(yarn:*)
+    - Bash(pnpm:*)
+    - Bash(bun:*)
+    - Bash(pip:*)
+    - Bash(pip3:*)
+    - Bash(uv:*)
+    - Bash(cargo:*)
+    - Bash(go:*)
+    - Bash(make:*)
+    - Bash(bash:*)
+    - Bash(sh:*)
   output:
     sinks:
       - type: stdout
@@ -680,7 +745,6 @@ spec:
       containers:
         - name: agent
           image: node:22-bookworm
-          workingDir: /workspace/target
           resources:
             requests:
               cpu: 250m
@@ -1238,7 +1302,8 @@ spec:
 
     Write the agreed draft to specs/<slug>/spec.md (following this repo's
     spec conventions and the metadata-table format), commit it, and stop.
-    Do not implement code. The watcher opens the PR.
+    Do not implement code. Lore opens the PR from your pushed branch — you
+    have no `gh` and no GitHub token, so do not try to open one yourself.
 
     {context}
   permission_mode: bypass
@@ -1336,6 +1401,9 @@ spec:
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+    watch:
+      - event: feature.decomposition
+        path: target/decomposition.json
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station

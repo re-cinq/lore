@@ -1,6 +1,12 @@
 // Group a feature's spec-task rows (ADR-029) into the story tree the detail view
-// renders. Pure — the page does the DB read, this shapes it. Mirrors the
-// metadata the feature-decompose handler writes into context_bundle.
+// renders. Pure — the page does the DB read, this shapes it.
+//
+// The context_bundle contract is owned by the `issues` STATION
+// (apps/lore-station/src/stations/issues.ts), not by the retired in-process
+// feature-decompose handler this used to name. That drift is what made the view
+// permanently empty: the station published the agent's own `id` and no
+// `feature_id`, so the page's `context_bundle->>'feature_id'` filter matched
+// nothing at all.
 
 export interface DecompTaskRow {
   description: string;

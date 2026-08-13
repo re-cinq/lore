@@ -31,6 +31,19 @@ function fakeStore(rows: PipelineTask[]): TaskStorePort {
     pending: async (repo) => byStatus(repo, "pending"),
     running: async (repo) => byStatus(repo, "running"),
     executed: async (repo) => byStatus(repo, "merged"),
+    specTasksForFeature: async (repo, featureId) =>
+      rows
+        .filter(
+          (r) =>
+            r.target_repo === repo &&
+            r.task_type === "spec-task" &&
+            r.context_bundle?.["feature_id"] === featureId,
+        )
+        .map((r) => ({
+          description: r.description ?? "",
+          status: r.status ?? "",
+          context_bundle: r.context_bundle ?? null,
+        })),
     findOpenLike: async ({ repo, taskType, descriptionPrefix, statuses }) =>
       rows.filter(
         (r) =>

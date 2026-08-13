@@ -99,12 +99,22 @@ function storyBody(story: {
 }
 
 /** One spec-task, carrying the story Issue it implements so the work is traceable
- *  back to the user-facing slice it belongs to. */
+ *  back to the user-facing slice it belongs to.
+ *
+ *  The bundle is written key by key rather than spread from the artifact. Spreading
+ *  published the agent's own vocabulary: `id` where every OTHER producer and reader
+ *  of a spec-task says `spec_task_id` (the tasks.md sync, `lore_list_pipeline_tasks`,
+ *  the decomposition view), and no `feature_id` at all — so the UI's
+ *  `context_bundle->>'feature_id'` filter matched zero rows, always, and a decomposed
+ *  feature rendered an empty tree. ADR-029's promise was that both producers share
+ *  the row shape; this is what makes that true. */
 function taskInput(
   planned: PlannedTask,
   input: StationInput,
   filed: number[],
 ): Parameters<ReturnType<typeof createStationProject>["tasks"]["create"]>[0] {
+  const featureId = input.params.feature_id;
+
   return {
     description: planned.description,
     taskType: "spec-task",
@@ -114,9 +124,17 @@ function taskInput(
     // stable across a re-drive of the same run, distinct for a genuine re-run.
     taskGroupId: input.assembly_line_id,
     contextBundle: {
-      ...planned.task,
+      spec_task_id: planned.task.id,
+      depends_on: planned.task.depends_on,
+      parallelizable: planned.task.parallelizable,
+      phase: planned.task.phase,
+      ...(planned.task.file_path ? { file_path: planned.task.file_path } : {}),
+      ...(planned.task.labels ? { labels: planned.task.labels } : {}),
       story_issue: filed[planned.storyIndex],
       assembly_line_id: input.assembly_line_id,
+      // Absent rather than null when the line carries no feature: the UI filter is a
+      // JSON text match, and a literal "null" would match nothing while looking set.
+      ...(featureId ? { feature_id: featureId } : {}),
     },
   };
 }

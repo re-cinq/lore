@@ -208,6 +208,21 @@ describe("InMemoryTaskStore status writes", () => {
   });
 });
 
+/** A spec-task row as the issues station files it (feature_id + spec_task_id). */
+const specTask = (
+  id: string,
+  featureId: string,
+  specTaskId: string,
+  description: string,
+) => ({
+  id,
+  target_repo: "a/b",
+  task_type: "spec-task",
+  status: "pending",
+  description,
+  context_bundle: { feature_id: featureId, spec_task_id: specTaskId },
+});
+
 describe("InMemoryTaskStore dedup reads", () => {
   it("findOpenLike matches type, statuses, and the description prefix — % stays a wildcard", async () => {
     const seed: SeedStoreTask[] = [
@@ -287,6 +302,62 @@ describe("InMemoryTaskStore dedup reads", () => {
     expect(
       await store.driftTasksForSpec("a/b", "spec-drift", "specs/x/spec.md"),
     ).toEqual([{ status: "pending", created_at: at(1), issue_number: 7 }]);
+  });
+
+  it("specTasksForFeature keys on the context bundle's feature_id", async () => {
+    const store = new InMemoryTaskStore([
+      specTask("t2", "feat-1", "T002", "wire the poll"),
+      specTask("t1", "feat-1", "T001", "add the port method"),
+      specTask("t3", "feat-OTHER", "T001", "someone else's work"),
+      {
+        id: "t4",
+        target_repo: "a/b",
+        task_type: "spec-task",
+        status: "pending",
+        context_bundle: null,
+      },
+      {
+        id: "t5",
+        target_repo: "a/b",
+        // A feature's Issues are not its spec-tasks.
+        task_type: "implementation",
+        status: "pending",
+        context_bundle: { feature_id: "feat-1", spec_task_id: "T009" },
+      },
+    ]);
+
+    expect(await store.specTasksForFeature("a/b", "feat-1")).toEqual([
+      {
+        description: "add the port method",
+        status: "pending",
+        context_bundle: { feature_id: "feat-1", spec_task_id: "T001" },
+      },
+      {
+        description: "wire the poll",
+        status: "pending",
+        context_bundle: { feature_id: "feat-1", spec_task_id: "T002" },
+      },
+    ]);
+  });
+
+  it("specTasksForFeature scopes to the repo", async () => {
+    const store = new InMemoryTaskStore([
+      { ...specTask("t1", "feat-1", "T001", "ours"), target_repo: "a/b" },
+      { ...specTask("t2", "feat-1", "T002", "theirs"), target_repo: "c/d" },
+    ]);
+
+    expect(
+      (await store.specTasksForFeature("a/b", "feat-1")).map(
+        (t) => t.description,
+      ),
+    ).toEqual(["ours"]);
+  });
+
+  it("specTasksForFeature returns nothing for a feature with no tasks", async () => {
+    // The honest empty case: a feature that was never decomposed.
+    expect(
+      await new InMemoryTaskStore([]).specTasksForFeature("a/b", "feat-1"),
+    ).toEqual([]);
   });
 });
 

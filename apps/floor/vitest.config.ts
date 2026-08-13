@@ -23,6 +23,7 @@ export default defineConfig({
         "src/jobs/agent/agent-event-bus.ts",
         "src/jobs/assembly-line/floor-assembly-line.ts",
         "src/jobs/assembly-line/assembly-line-station-backend.ts",
+        "src/jobs/assembly-line/spec-pr.ts",
         "src/jobs/station/agent-backend.ts",
         "src/jobs/station/agent-cr-station-backend.ts",
         "src/jobs/station/http-context-source.ts",

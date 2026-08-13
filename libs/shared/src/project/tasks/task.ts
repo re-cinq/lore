@@ -28,6 +28,13 @@ export class Task {
     return this.row.pr_url;
   }
 
+  /** Why the task failed, when it did. The planning poll surfaces this so a hard
+   *  crash that left the round's iteration at `running` still shows a failure and a
+   *  retry rather than an endless spinner. */
+  get failureReason(): string | null {
+    return this.row.failure_reason ?? null;
+  }
+
   async claim(agentId: string): Promise<this> {
     this.row = await this.store.transition(this.id, "claim", { agentId });
 

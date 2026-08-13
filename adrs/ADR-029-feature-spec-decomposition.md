@@ -10,6 +10,63 @@ domains: [agent, pipeline, web-ui]
 
 This ADR adds a feature-decompose agent that runs in-process when a feature's spec PR merges, turning the merged spec into a user-story-to-task tree — one GitHub Issue per story plus spec-task rows wired into the existing implementation pipeline.
 
+> **Amendment 2026-08-13 — decomposition is the tail of ONE feature line, not a
+> separately-triggered run.** Two decisions below are superseded: "Trigger: automatic,
+> on spec-PR merge" (which mints a `feature-decompose` task) and "In-process in the
+> coordinator, not a Station" (which predates the station cutover). The *outputs* —
+> a story/task tree, Issues per story, `spec-task` rows — are unchanged.
+>
+> **What went wrong.** The trigger was a task-type predicate:
+> [decompose-kick.ts](../apps/floor/src/jobs/task/decompose-kick.ts) fires only when a
+> merged PR belongs to a `feature-finalize` task. Once finalize became a *resume* of the
+> feature-planning line ([features.ts](../apps/lore-api/src/api/routes/features/features.ts))
+> the owning task is `feature-planning`, the predicate stops matching, and **decomposition
+> never starts** — silently, with nothing logged. Every feature planned on the merged line
+> is affected.
+>
+> **The replacement.** [feature-planning.yaml](../libs/assembly-lines/src/assembly-lines/feature-planning.yaml)
+> gains a `merged` node of type `wait` with `signal: pr_merged`, followed by the
+> `decompose` and `issues` nodes lifted from
+> [feature-decompose.yaml](../libs/assembly-lines/src/assembly-lines/feature-decompose.yaml),
+> which is retired. One line now spans the whole feature lifecycle:
+>
+> ```
+> analyze → author(wait: author_feedback) → analyse-specs → write → push
+>         → merged(wait: pr_merged) → decompose → issues → done
+> ```
+>
+> **Why a wait node rather than a fixed predicate.** The `pr_merged` signal is already
+> declared in the loader's `WaitSignal` union
+> ([loader.ts](../libs/assembly-lines/src/loader.ts)) and already rendered by the run
+> visualization as "Waiting for the spec PR"
+> ([run-node-status.ts](../apps/web-ui/src/lib/run-node-status.ts)) — no definition had
+> ever used it. The seam existed; this uses it. A person merging a PR is a station in
+> exactly the sense ADR-027's `author` node already established: the moments a human acts
+> become steps in the graph rather than gaps between runs.
+>
+> **The trigger becomes a resume, not an insert.**
+> [merge-check.ts](../apps/floor/src/jobs/merge/merge-check.ts) resolves the line via
+> `findOpenByPr` ([assembly-lines-port.ts](../libs/shared/src/project/assembly-lines/assembly-lines-port.ts))
+> and reports to the parked node with an `assembly_line.resume` event, handled by the
+> existing [resume-event-handler.ts](../apps/floor/src/jobs/assembly-line/resume-event-handler.ts).
+> That is the same mechanism finalize already uses, so no new event type is introduced and
+> `decompose-kick.ts` is deleted rather than corrected. This depends on the `push` node
+> stamping `pr_number` on the line — `findOpenByPr` cannot resolve a line whose PR was
+> never recorded.
+>
+> **Execution moved to a pod.** "In-process in the coordinator" was superseded by the
+> station cutover (ADR-031): `decompose` is an agent node and `issues` is a station
+> ([issues.ts](../apps/lore-station/src/stations/issues.ts)) reaching the database over
+> HTTP, so the coordinator-credentials argument below no longer applies.
+>
+> **Alternative rejected.** Keep two lines and widen the kick predicate to also match a
+> `feature-planning` task whose line reached `push`. It repairs the symptom but leaves two
+> rows describing one feature's progress, which every reader — UI, retrospective, cost
+> accounting — then has to correlate by `feature_id`.
+>
+> **Migration.** A line resolves its definition at start, so features already in flight on
+> the two-line shape settle on the old path. No data migration.
+
 ## Context
 
 Smart feature planning (ADR-027) ends at a merged `specs/<slug>/spec.md` PR plus,

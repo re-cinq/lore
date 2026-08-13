@@ -63,6 +63,35 @@ nodes:
     station_ref: feature-finalize
     description: Commit + open/update the PR branch.
 
+  # Merging the spec PR is a station outcome like any other — the reviewer is this
+  # node's worker, exactly as the author is the `author` node's. Modelling the wait
+  # as a node is what lets decomposition follow as an EDGE. It used to be a SECOND
+  # line, started by minting a task when a `feature-finalize` PR merged; the moment
+  # finalize became a resume of THIS line that predicate stopped matching, and
+  # nothing decomposed, and nothing said so.
+  - id: merged
+    type: wait
+    signal: pr_merged
+    description: The spec PR is open — waiting for a human to merge it.
+
+  - id: decompose
+    type: agent
+    prompt_ref: feature-decompose
+    # Names its own Station for the same reason analyse-specs and write do: an agent
+    # node without `station_ref` resolves the Station named after the LINE's task
+    # type, which here is feature-planning — so this node would run the planning
+    # prompt, emit a planning result, and report success for having done so.
+    station_ref: feature-decompose
+    model: claude-sonnet-4-6
+    description: >
+      Break the merged spec into stories + tasks with labels from the repo's REAL
+      label list. Emits decomposition.json, which the Floor merges into the line as
+      args.feature_decomposition for the issues station.
+
+  - id: issues
+    type: issues
+    description: File the Issues + spec-tasks the decomposition calls for.
+
   - id: done
     type: retrospective
     description: Terminal marker (the executor halts on exit).
@@ -123,9 +152,67 @@ edges:
     to: done
     on: failed
 
+  # The branch is pushed and the spec PR is open; the line hands over to whoever
+  # reviews it rather than ending. `always` because push either opened the PR or it
+  # did not, and a line parked on `merged` with no PR simply never resumes — which is
+  # visible, unlike the old shape where the line finished and the feature just stopped.
   - from: push
-    to: done
+    to: merged
     on: always
+
+  - from: merged
+    to: decompose
+    on: success
+
+  # A reviewer asked for changes on the spec PR. That is the same shape as the spec
+  # analysis having a question: an objection to a plan a PERSON accepted, answerable
+  # only by that person — so it returns to the author rather than ending the line.
+  # Unbounded like the author's own loop, and legal without `iteration_max` because
+  # BOTH ends are wait nodes: leaving one a human has just decided, entering one a
+  # human decides before anything else runs. Two agents can still not argue forever.
+  - from: merged
+    to: author
+    on: changes_requested
+
+  # The PR was closed without merging — abandoned or superseded. Not a failure of the
+  # machine, so it settles rather than erroring, but it must be routed either way
+  # because selectEdge does not fall through.
+  - from: merged
+    to: done
+    on: failed
+
+  - from: decompose
+    to: issues
+    on: success
+
+  # decompose has no upstream NODE — its input is a spec a human merged. A spec it
+  # cannot break down is a question for the author, not something to re-run, so the
+  # line ends rather than looping.
+  - from: decompose
+    to: done
+    on: changes_requested
+
+  - from: decompose
+    to: done
+    on: failed
+
+  - from: issues
+    to: done
+    on: success
+
+  # The station is the first thing to read the decomposition as DATA, so it is where a
+  # label the repo does not have, or a story with no tasks, actually shows. It sends
+  # the artifact back with the objection rather than dropping the label silently —
+  # GitHub would CREATE an invented label on the spot. One correction, then the budget
+  # is exhausted and the line fails.
+  - from: issues
+    to: decompose
+    on: changes_requested
+    iteration_max: 1
+
+  - from: issues
+    to: done
+    on: failed
 
   # The author walked away, or the feature was closed. Not a failure of the machine,
   # so it settles rather than erroring — but it must be routed either way, because

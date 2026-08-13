@@ -146,6 +146,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     { KubeAgentApi },
     { settleTaskForLine },
     { resolveConversation },
+    { stampLinePr },
   ] = await Promise.all([
     import("../../kernel/queues.js"),
     import("@re-cinq/lore-assembly-lines"),
@@ -155,6 +156,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     import("../station/kube-agent-api.js"),
     import("./settle-task.js"),
     import("./resolve-conversation.js"),
+    import("./spec-pr.js"),
   ]);
   const kubeApi = new KubeAgentApi();
 
@@ -191,6 +193,15 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
         tasks: taskStore(),
         featuresFor: projectFor,
       }),
+    stampPr: async (row) => {
+      const project = await projectFor(row.repo);
+
+      await stampLinePr(row, {
+        pulls: project.pulls,
+        assemblyLines: assemblyLines(),
+        features: project.features,
+      });
+    },
     readAgentStatus: (name) => kubeApi.getStatus(name),
     alertBilling: async (repo, nodeType, status) => {
       await maybeAlertBilling(repo, nodeType, status, {
