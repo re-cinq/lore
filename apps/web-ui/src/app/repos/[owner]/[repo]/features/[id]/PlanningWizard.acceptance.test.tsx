@@ -313,10 +313,7 @@ describe("a feature whose spec PR is open", () => {
   });
 
   it("shows the settled view once the line finished", async () => {
-    mount(
-      poll("finished", [node("issues", "success")], prOpen),
-      prOpen,
-    );
+    mount(poll("finished", [node("issues", "success")], prOpen), prOpen);
     await tick();
 
     expect(await screen.findByTestId("settled")).toBeInTheDocument();
@@ -324,7 +321,12 @@ describe("a feature whose spec PR is open", () => {
 
   it("shows the settled view for a legacy feature that resolves no line", async () => {
     mount(
-      { feature: feature(prOpen), latestIteration: round(), task: null, run: null },
+      {
+        feature: feature(prOpen),
+        latestIteration: round(),
+        task: null,
+        run: null,
+      },
       prOpen,
     );
     await tick();
