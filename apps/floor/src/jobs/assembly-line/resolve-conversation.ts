@@ -83,8 +83,12 @@ export async function resolveConversation(
   task: FloorAssemblyLineTask,
   iteration: number,
   deps: ResolveConversationDeps,
-  /** Outcome of this node's most recent visit — how a retry is told from a round. */
-  priorOutcome: string | null = null,
+  /** Outcome of this node's most recent visit — how a retry is told from a round.
+   *  REQUIRED, deliberately: with a default, the production wiring passed a
+   *  three-parameter lambda and TypeScript accepted it (fewer params is assignable),
+   *  so every retry silently inherited the failed attempt's context while the unit
+   *  tests — which call this directly — stayed green. */
+  priorOutcome: string | null,
 ): Promise<LoreTaskSpec["conversation"] | undefined> {
   if (!node.continues || !mayContinue(priorOutcome)) {
     return undefined;
@@ -108,6 +112,10 @@ export async function resolveConversation(
   // must not resume itself. Scoped to (line, iteration) rather than the line, or a
   // line whose rounds are revisits excludes every earlier round of itself — which is
   // the whole conversation, silently.
+  // Excluding THIS (line, iteration) cannot hide a sibling: exactly one dispatch runs
+  // per node execution — the row is written before the CR and the walk is replayed from
+  // it — so the only conversation this pair can name is the one this run is about to
+  // reserve below.
   const prior = await deps.conversations.latestFor(resolved.thread, {
     exclude: { assemblyLineId: task.assemblyLineId, iteration },
     ...(from ? { from } : {}),

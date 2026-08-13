@@ -82,6 +82,10 @@ export class PgConversations implements ConversationsPort {
          FROM pipeline.agent_conversations
         WHERE key_kind = $1 AND key_value = $2 AND node_id = $3
           AND object_key IS NOT NULL
+          -- COALESCE(iteration, 1) is deliberate: rows written before migration 0038
+          -- carry NULL, and a line then ran exactly one execution — so a legacy row IS
+          -- iteration 1. Matching it against every iteration instead would hide round 1
+          -- from every later round of a merged line.
           -- Exclude / select a NODE EXECUTION, not a line: on a line whose rounds
           -- are revisits they all share the id, so matching by line alone would
           -- exclude a run's own siblings (killing continuity) or resume the wrong

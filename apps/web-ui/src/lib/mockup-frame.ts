@@ -32,7 +32,12 @@ svg, img, table { max-width: 100%; }`;
 /** The frame's document for one mockup's markup, with the planned repo's
  *  stylesheet layered over the reset so the repo's own rules win. */
 export function mockupFrameSrcdoc(markup: string, stylesheet?: string): string {
-  const css = stylesheet?.trim() ? `${RESET}\n${stylesheet}` : RESET;
+  // The stylesheet is LLM-authored and goes into `<style>…</style>` verbatim, so a
+  // literal `</style>` inside it would end the block early and everything after it
+  // would be parsed as HTML — sandboxed, but still a way to smuggle markup past the
+  // mockup sanitizer, which never sees the stylesheet.
+  const safe = stylesheet?.replace(/<\/style>/gi, "<\\/style>") ?? "";
+  const css = safe.trim() ? `${RESET}\n${safe}` : RESET;
 
   return `<style>${css}</style>${markup}`;
 }

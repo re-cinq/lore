@@ -40,7 +40,9 @@ describe("resolveConversation", () => {
     });
     await store.attachArchive("round-4", "k/round-4", 10);
 
-    expect(await resolveConversation(node(), task, 1, deps(store))).toEqual({
+    expect(
+      await resolveConversation(node(), task, 1, deps(store), null),
+    ).toEqual({
       source: "http://floor:8080/api/agent-conversations",
       id: "round-4",
       pin: "new-id",
@@ -50,7 +52,13 @@ describe("resolveConversation", () => {
 
   it("starts fresh but still reserves a save id on the first round", async () => {
     const store = new InMemoryConversations();
-    const result = await resolveConversation(node(), task, 1, deps(store));
+    const result = await resolveConversation(
+      node(),
+      task,
+      1,
+      deps(store),
+      null,
+    );
 
     expect(result).toMatchObject({ id: "", pin: "new-id" });
     expect(await store.byConversationId("new-id")).toBeTruthy();
@@ -67,7 +75,13 @@ describe("resolveConversation", () => {
       assemblyLineId: "line-1",
     });
     await store.attachArchive("round-4", "k/round-4", 10);
-    const result = await resolveConversation(node(), task, 1, deps(store));
+    const result = await resolveConversation(
+      node(),
+      task,
+      1,
+      deps(store),
+      null,
+    );
 
     expect(result?.pin).not.toBe(result?.id);
     expect((await store.byConversationId("round-4"))?.objectKey).toBe(
@@ -82,6 +96,7 @@ describe("resolveConversation", () => {
         task,
         1,
         deps(new InMemoryConversations()),
+        null,
       ),
     ).toBeUndefined();
   });
@@ -103,7 +118,7 @@ describe("resolveConversation", () => {
     const bare = { ...task, args: {} };
 
     expect(
-      await resolveConversation(node(), bare, 1, deps(store)),
+      await resolveConversation(node(), bare, 1, deps(store), null),
     ).toBeUndefined();
     expect(store.rows).toEqual([]);
   });
@@ -118,9 +133,9 @@ describe("resolveConversation", () => {
     });
     await store.attachArchive("mine", "k/mine", 10);
 
-    expect((await resolveConversation(node(), task, 1, deps(store)))?.id).toBe(
-      "",
-    );
+    expect(
+      (await resolveConversation(node(), task, 1, deps(store), null))?.id,
+    ).toBe("");
   });
 });
 
@@ -161,6 +176,7 @@ describe("resolveConversation rewind", () => {
         rewinding,
         1,
         withLines(store, { "task-round-2": ["line-2"] }),
+        null,
       ),
     ).toMatchObject({ id: "round-2" });
   });
@@ -187,6 +203,7 @@ describe("resolveConversation rewind", () => {
         rewinding,
         1,
         withLines(store, { "task-round-2": ["line-2"] }),
+        null,
       ),
     ).toMatchObject({ id: "" });
   });
@@ -195,7 +212,13 @@ describe("resolveConversation rewind", () => {
     const store = new InMemoryConversations();
 
     expect(
-      await resolveConversation(node(), rewinding, 1, withLines(store, {})),
+      await resolveConversation(
+        node(),
+        rewinding,
+        1,
+        withLines(store, {}),
+        null,
+      ),
     ).toMatchObject({ id: "" });
   });
 
@@ -215,7 +238,7 @@ describe("resolveConversation rewind", () => {
     await store.attachArchive("round-4", "k/round-4.tgz", 10);
 
     expect(
-      await resolveConversation(node(), task, 1, withLines(store, {})),
+      await resolveConversation(node(), task, 1, withLines(store, {}), null),
     ).toMatchObject({ id: "round-4" });
   });
 });
@@ -249,9 +272,9 @@ describe("a line whose rounds are revisits of one node", () => {
 
     await savedRound(store, 1);
 
-    expect((await resolveConversation(node(), task, 2, deps(store)))?.id).toBe(
-      "round-1",
-    );
+    expect(
+      (await resolveConversation(node(), task, 2, deps(store), null))?.id,
+    ).toBe("round-1");
   });
 
   it("never resumes the round it is itself re-running", async () => {
@@ -259,9 +282,9 @@ describe("a line whose rounds are revisits of one node", () => {
 
     await savedRound(store, 2);
 
-    expect((await resolveConversation(node(), task, 2, deps(store)))?.id).toBe(
-      "",
-    );
+    expect(
+      (await resolveConversation(node(), task, 2, deps(store), null))?.id,
+    ).toBe("");
   });
 
   it("rewinds to the round the author picked by its iteration", async () => {
@@ -279,7 +302,7 @@ describe("a line whose rounds are revisits of one node", () => {
     };
 
     expect(
-      (await resolveConversation(node(), rewound, 4, deps(store)))?.id,
+      (await resolveConversation(node(), rewound, 4, deps(store), null))?.id,
     ).toBe("round-1");
   });
 
@@ -296,7 +319,7 @@ describe("a line whose rounds are revisits of one node", () => {
     };
 
     expect(
-      (await resolveConversation(node(), rewound, 4, deps(store)))?.id,
+      (await resolveConversation(node(), rewound, 4, deps(store), null))?.id,
     ).toBe("");
   });
 });

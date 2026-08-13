@@ -103,3 +103,19 @@ describe("sanitizeMockupMarkup", () => {
     expect(sanitizeMockupMarkup(factory, "<p>hi</p>", {})).toBe("");
   });
 });
+
+describe("a stylesheet that tries to close its own style block", () => {
+  it("neutralises </style> so agent CSS cannot escape into markup", () => {
+    // The stylesheet is LLM-authored and goes into `<style>…</style>` verbatim. A
+    // literal `</style>` inside it ends the block early and everything after it is
+    // parsed as HTML — inside a sandboxed frame, but still not what the author of
+    // the plan asked for, and a way to smuggle markup past the mockup sanitizer.
+    const doc = mockupFrameSrcdoc(
+      "<p>x</p>",
+      "a{}</style><img src=x onerror=1>",
+    );
+
+    expect(doc).not.toContain("</style><img");
+    expect(doc.match(/<\/style>/g)).toHaveLength(1);
+  });
+});

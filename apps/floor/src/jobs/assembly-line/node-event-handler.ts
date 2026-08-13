@@ -168,18 +168,24 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     cleanupToken: cleanupPerTaskToken,
     jobRuns: jobRuns(),
     notifyFailure: notifyLineFailure,
-    resolveConversation: (node, task, iteration) =>
-      resolveConversation(node, task, iteration, {
-        conversations: conversations(),
-        // The URL the POD must reach, which is the same sink host it already posts
-        // telemetry to — not the Floor's own view of itself.
-        registryUrl: `${process.env.LORE_FLOOR_POD_URL ?? ""}/api/agent-conversations`,
-        headersSecret: "agent-events-auth",
-        // Rewind: `args.resume_from_task` names the round the author chose, and the
-        // conversation it reserved is keyed by the assembly line that ran it.
-        linesForTask: async (taskId) =>
-          (await assemblyLines().listForTask(taskId)).map((line) => line.id),
-      }),
+    resolveConversation: (node, task, iteration, priorOutcome) =>
+      resolveConversation(
+        node,
+        task,
+        iteration,
+        {
+          conversations: conversations(),
+          // The URL the POD must reach, which is the same sink host it already posts
+          // telemetry to — not the Floor's own view of itself.
+          registryUrl: `${process.env.LORE_FLOOR_POD_URL ?? ""}/api/agent-conversations`,
+          headersSecret: "agent-events-auth",
+          // Rewind: `args.resume_from_task` names the round the author chose, and the
+          // conversation it reserved is keyed by the assembly line that ran it.
+          linesForTask: async (taskId) =>
+            (await assemblyLines().listForTask(taskId)).map((line) => line.id),
+        },
+        priorOutcome,
+      ),
     settleTask: (row, outcome, reason) =>
       settleTaskForLine(row, outcome, reason, {
         tasks: taskStore(),

@@ -26,7 +26,10 @@ export interface PlanningResultDeps {
   roundOf(taskId: string): Promise<number | undefined>;
 }
 
-/** What the delivery did, for the caller's log line and span. */
+/** What the DELIVERY did — never the round's verdict, which only the line's terminal
+ *  settlement (settleTaskForLine) records. `failed` here means "a run that declared an
+ *  artifact produced none", which is worth a log line; `skipped` means "not mine to
+ *  handle" and would bury it among the many events this sink ignores. */
 export type PlanningDelivery =
   | { outcome: "ready" }
   | { outcome: "failed"; error: string }
