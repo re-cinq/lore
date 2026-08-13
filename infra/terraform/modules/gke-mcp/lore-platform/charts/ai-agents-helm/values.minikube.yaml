@@ -18,6 +18,14 @@ networkPolicy:
 # The host Floor's NDJSON cost sink (`npm start` serves :8080).
 agentEventsUrl: http://host.minikube.internal:8080/api/agent-events
 
+# The host skills registry (`npm start` serves it on :3002 — the mcp adapter in
+# HTTP-gateway mode). A run pod's init fetches its skills AND its
+# $HOME/.claude/settings.json from here; leaving this empty is not a no-op, it is
+# fatal — the init skips the fetch, reports success, and the agent container then
+# dies with "Settings file not found: /agent/.claude/settings.json". The registry
+# is unauthenticated by design, so unlike loreMcpUrl this needs no headers secret.
+loreSkillsUrl: http://host.minikube.internal:3002/skills
+
 # The host Lore API the station recipes read/write through (dev-local runs it on
 # :3001, not the in-cluster :3000).
 loreApiUrl: http://host.minikube.internal:3001
@@ -25,3 +33,29 @@ loreApiUrl: http://host.minikube.internal:3001
 # The host Dgraph the ingest-station recipes project into. docker compose publishes
 # its HTTP port on :8081 (dodging the Floor's :8080), not the in-cluster :8080.
 dgraphUrl: http://host.minikube.internal:8081
+
+# A laptop has no org API credit and no ESO. The agent container runs the real `claude`
+# CLI, which authenticates from CLAUDE_CODE_OAUTH_TOKEN just as happily as from an API
+# key — so a local run bills the developer's own subscription. setup-minikube-agents.sh
+# writes this same key into agent-secrets; the two must agree or the run pods fail to
+# start. Mint the token with `claude setup-token` (npm run dev-setup does it for you).
+agentLlmSecretKey: CLAUDE_CODE_OAUTH_TOKEN
+
+# v0.10.3 controller + agent, pinned by digest as the PAIR the shared values.yaml
+# insists on. Both halves are load-bearing for every capability here: the recipe
+# fields (output.watch, resources.conversation) are read by the controller, and the
+# files they name are read and written by the supervisor, which rides in the AGENT
+# image. A half-bump renders the recipe field inert — a mismatch that presents as
+# "the feature does nothing" rather than as an error. Local-only on purpose; the
+# shared values.yaml still pins v0.8.1 for GKE, so bumping prod stays a deliberate,
+# separate decision.
+#   docker buildx imagetools inspect ghcr.io/re-cinq/ai-agent-controller:v0.10.3
+controller:
+  image:
+    digest: "sha256:6ad1473fb975aaf93017aa477df596ed16619bafa6bda8e2df5903eb4fcd66a5"
+  # Nested under `controller` because that is where the template reads it
+  # (.Values.controller.agentImage). A top-level key here is silently ignored and
+  # falls back to the shared v0.8.1 digest — which injects a supervisor with no
+  # file-watch, so the artifact event is never raised and the round dies exactly as
+  # it did before the feature existed.
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:4a026231f20b38308e6302a858ed43270d069b2b46b669a653ff0f719cb33d44"

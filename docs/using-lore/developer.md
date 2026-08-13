@@ -4,6 +4,8 @@
 
 Once you've run `scripts/install.sh`, there's nothing to configure per repo. Open Claude Code in any onboarded repo and the context is already there.
 
+**Lost? Type `/lore-help`.** It answers in the terminal what this guide answers on the web: what Lore is, how a session works, every Lore skill (documented by the skills themselves), and an "I want to…" router that points at the right skill *or* tool. `/lore-help <skill>` gives one skill's full entry; `/lore-help "how do I hand this to an agent?"` routes a plain-English question.
+
 ---
 
 ## Get org context in Claude Code
@@ -59,7 +61,7 @@ Add a `lore` label to any Issue on an onboarded repo — or open one with the Lo
 The label determines the task type:
 
 - `lore` → general task
-- `lore:implementation` → implementation task (ephemeral Job pod)
+- `lore:implementation` → implementation task (runs on the ai-agent-subsystem)
 - `lore:review` → review task
 - `lore:runbook` → runbook task
 

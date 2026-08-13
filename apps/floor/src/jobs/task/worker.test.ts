@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { recoverStaleTasks } from "./worker.js";
+import { recoverStaleTasks, isFeatureLifecycleType } from "./worker.js";
 import { slugify } from "./task-helpers.js";
 import { InMemoryTaskQueue } from "@re-cinq/lore-shared/project/tasks/task-queue-memory.js";
 
@@ -213,6 +213,7 @@ describe("recoverStaleTasks", () => {
       queue,
       setStatus,
       insertEvent,
+      hasOpenLine: async () => false,
     });
 
     expect(recovered).toBe(2);
@@ -221,5 +222,81 @@ describe("recoverStaleTasks", () => {
     expect(insertEvent).toHaveBeenCalledWith("task-4", "running", "pending", {
       reason: "crash-recovery",
     });
+  });
+});
+
+describe("recoverStaleTasks and a line that is legitimately idle", () => {
+  const NOW = Date.UTC(2026, 5, 30, 12, 0, 0);
+  const OLD = new Date(NOW - 31 * 60_000).toISOString();
+
+  const staleQueue = () =>
+    new InMemoryTaskQueue(
+      [
+        {
+          id: "task-1",
+          status: "running",
+          task_type: "feature-planning",
+          updated_at: OLD,
+        },
+      ],
+      () => NOW,
+    );
+
+  it("leaves a task alone while its assembly line is still open", async () => {
+    // A merged planning line parks on the author for as long as the person takes, and
+    // its owning task stays `running` for the feature's whole life. The sweep read
+    // that as a crashed task and re-dispatched it on EVERY Floor boot — a fresh
+    // planning agent, and a bill, per restart.
+    const setStatus = vi.fn();
+
+    const recovered = await recoverStaleTasks({
+      queue: staleQueue(),
+      setStatus,
+      insertEvent: vi.fn(),
+      hasOpenLine: async () => true,
+    });
+
+    expect({ recovered, calls: setStatus.mock.calls }).toEqual({
+      recovered: 0,
+      calls: [],
+    });
+  });
+
+  it("still recovers a stale task whose line has finished or never existed", async () => {
+    // The guard must not swallow the real case: a task with no live line behind it is
+    // exactly what crash recovery is for.
+    const setStatus = vi.fn();
+
+    const recovered = await recoverStaleTasks({
+      queue: staleQueue(),
+      setStatus,
+      insertEvent: vi.fn(),
+      hasOpenLine: async () => false,
+    });
+
+    expect(recovered).toBe(1);
+    expect(setStatus).toHaveBeenCalledWith("task-1", "pending");
+  });
+});
+
+describe("isFeatureLifecycleType", () => {
+  it("covers planning, finalize and decompose", () => {
+    // One decision, two consumers: which task types run their own assembly line, and
+    // which must NOT open a per-task Issue. decompose was missing from both when its
+    // in-process handler was retired, so it would have run without a line and opened
+    // an Issue the decompose line then duplicated per story.
+    expect(
+      ["feature-planning", "feature-finalize", "feature-decompose"].map(
+        isFeatureLifecycleType,
+      ),
+    ).toEqual([true, true, true]);
+  });
+
+  it("excludes the task types that do open their own issue", () => {
+    expect(
+      ["implementation", "review", "spec-task", "general"].map(
+        isFeatureLifecycleType,
+      ),
+    ).toEqual([false, false, false, false]);
   });
 });

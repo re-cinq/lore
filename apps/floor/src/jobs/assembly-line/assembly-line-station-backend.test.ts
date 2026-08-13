@@ -41,6 +41,44 @@ describe("AssemblyLineStationBackend", () => {
     expect(await backend.isActive()).toBe(true);
   });
 
+  it("threads the feature id into the line's args so a thread key can name it", async () => {
+    // `continues.key: args.feature_id` resolves against these args — the engine
+    // never learns what a feature is, it just carries what the caller put here.
+    const port = new InMemoryAssemblyLines();
+    const backend = new AssemblyLineStationBackend(port);
+
+    await backend.launch({ ...spec("t1"), featureId: "feature-9" });
+
+    expect(port.rows[0].args).toMatchObject({ feature_id: "feature-9" });
+  });
+
+  it("threads the round-feedback turn so a resumed run can send only what is new", async () => {
+    const port = new InMemoryAssemblyLines();
+    const backend = new AssemblyLineStationBackend(port);
+
+    await backend.launch({
+      ...spec("t1"),
+      roundFeedback: '<RoundFeedback round="4"/>',
+      resumeFromTask: "task-round-1",
+    });
+
+    expect(port.rows[0].args).toMatchObject({
+      round_feedback: '<RoundFeedback round="4"/>',
+      // The round the conversation is resumed FROM, which rewind names explicitly.
+      resume_from_task: "task-round-1",
+    });
+  });
+
+  it("carries no feature id for a run that has none", async () => {
+    const port = new InMemoryAssemblyLines();
+    const backend = new AssemblyLineStationBackend(port);
+
+    await backend.launch(spec("t1"));
+
+    expect(port.rows[0].args).not.toHaveProperty("feature_id");
+    expect(port.rows[0].args).not.toHaveProperty("round_feedback");
+  });
+
   it("two launches of the same task mint distinct assembly line ids", async () => {
     const port = new InMemoryAssemblyLines();
     const backend = new AssemblyLineStationBackend(port);

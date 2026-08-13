@@ -10,10 +10,19 @@ import { registerBearerAuth } from "./auth.js";
 import { registerRequestTracing } from "./tracing.js";
 import { healthRoute } from "./routes/health.js";
 import { agentEventsRoute } from "./routes/agent-events.js";
+import {
+  agentConversationFetchRoute,
+  agentConversationSaveRoute,
+} from "./routes/agent-conversations.js";
 import { agentLogsRoute } from "./routes/agent-logs.js";
 import { agentEventsStreamRoute } from "./routes/agent-events-stream.js";
 import { agentEventsHistoryRoute } from "./routes/agent-events-history.js";
+import { agentTurnsHistoryRoute } from "./routes/agent-turns-history.js";
 import { assemblyLineDefinitionsRoute } from "./routes/assembly-line-definitions.js";
+import {
+  assemblyLineReadRoute,
+  assemblyLineCatalogRoute,
+} from "./routes/assembly-line-reads.js";
 import { githubWebhookRoute } from "./routes/github-webhook.js";
 import { ciIngestRoute } from "./routes/ci-ingest.js";
 import { ciTestsRoute } from "./routes/ci-tests.js";
@@ -45,9 +54,14 @@ export function buildServer(opts: {
   server.route([
     healthRoute(opts.getJobStatus),
     agentEventsRoute,
+    agentConversationSaveRoute,
+    agentConversationFetchRoute,
     agentEventsStreamRoute(),
     agentEventsHistoryRoute(),
+    agentTurnsHistoryRoute(),
     assemblyLineDefinitionsRoute(),
+    assemblyLineReadRoute(),
+    assemblyLineCatalogRoute(),
     agentLogsRoute(opts.podLogSource, opts.podLogArchive),
     githubWebhookRoute,
     ciIngestRoute,
@@ -58,19 +72,25 @@ export function buildServer(opts: {
   return server;
 }
 
+/**
+ * Start the HTTP server and return how to stop it.
+ *
+ * It deliberately registers NO signal handler: it used to stop itself on SIGTERM
+ * while another handler flushed telemetry, and neither exited — so the Floor stopped
+ * serving and lived on. Process lifecycle belongs to one owner (index.ts), which
+ * needs the stop function rather than a competing handler.
+ */
 export async function startHealthServer(
   port: number,
   getJobStatus: () => unknown,
-): Promise<void> {
+): Promise<() => Promise<void>> {
   const server = buildServer({ getJobStatus, port });
-
-  process.on("SIGTERM", () => {
-    void server.stop();
-  });
 
   try {
     await server.start();
     console.log(`[floor] Health server on :${port}/healthz`);
+
+    return () => server.stop();
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
 

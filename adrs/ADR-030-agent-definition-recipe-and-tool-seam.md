@@ -57,7 +57,7 @@ and `kind: Workflow` reuse the same envelope.
 The recipe `spec` is **headless** config (`claude --print` is non-interactive) and **tool-agnostic
 where possible**. Beyond today's `model/timeout/prompt`, the `spec` adds: `description`,
 `append_system_prompt`, `allowed_tools[]`, `disallowed_tools[]`, `permission_mode`, `max_turns`,
-`resources` (env / secrets / mcp_servers / repos), `output` (format / schema / select / sinks),
+`resources` (env / secrets / mcp_servers / repos / skills / skills_source), `output` (format / schema / select / sinks),
 and a `tool_config` raw passthrough for the rarely-tuned long tail. The recipe carries **no
 `image` and no compute** — those are the Station's. The full field set + per-property examples
 live in `specs/agent-station-model/`.
@@ -144,3 +144,48 @@ definition" row drops "execution image".
   `resolveExecutionImage`/`settings.execution.image` retired.
 - The canonical glossary stays [`specs/glossary.md`](../specs/glossary.md); this ADR enriches the
   "Agent definition" and "Station" rows there.
+
+## Update (2026-08): the `resources.mcp_servers` seam, realized
+
+The `resources.mcp_servers` field from Decision 1 is no longer schema-only. Agent recipes now carry
+a live Lore MCP endpoint, and the ai-agent-subsystem controller renders it into the headless `claude`
+invocation via `--mcp-config` (see [ADR-031](./ADR-031-agent-station-crds.md)). Two points settle how
+it lands inside Decision 4's security model:
+
+- **Transport is `http`, not stdio.** A shared `lore-mcp` gateway — the `apps/mcp-server` process run
+  with `LORE_MCP_HTTP=1` + `LORE_MCP_SERVER_MODE=agent` — serves the read/memory/search tool subset
+  over MCP-over-HTTP behind a public `:443` host with bearer auth. Because the entry is reached over an
+  egress-host-checked `http` URL (Decision 4, "Egress hosts"), the stdio `mcp_servers[].command`
+  two-key gate (Decision 4, "Command execution") does not apply — nothing executes in the pod.
+- **The seed carries it.** `buildAgentDefinition` emits `resources.mcp_servers: [{ name: lore,
+  transport: http, url: <gateway>, headers_secret: lore-mcp-auth }]` and lists
+  `lore_create_pipeline_task` in `disallowed_tools` (closing the task-recursion vector), mirroring the
+  already-shipped `output.sinks[].http` + `headers_secret` precedent proven to reach a public endpoint
+  under the agent-pod NetworkPolicy.
+
+The rest of the seam (`output` fan-out, the `AgentTool` port for codex/cursor, the `StationDefinition`
+record) stays designed-but-unrealized, so this ADR remains **draft**.
+
+## Update (2026-08): the `resources.skills` seam (registry-fetch)
+
+`resources` gains **`skills`** (string[] names) + **`skills_source`** (a registry base URL), so a
+station carries the skills + org settings a fully-configured Claude Code session has — the run's
+agent isn't just prompt + tools. The seam is **consumer-agnostic**: the recipe declares intent + a
+URL; the ai-agent-subsystem init **fetches** and knows nothing of the registry.
+
+- **Mechanism, not content.** The subsystem bakes no skills. Its init fetches
+  `<skills_source>/settings.json` (org session hooks) and `<skills_source>/<name>.tar.gz` per named
+  skill, extracting them into the run's `$HOME/.claude` (HOME=/agent), where headless `claude --print`
+  auto-loads user-scope skills + settings trust-free (project scope under cwd `/` is skipped). It also
+  stages the target repo's own `.claude/skills`. The Claude adapter emits `--settings`; skills need no
+  flag. A recipe URL never enters the init's shell (read from `$AGENT_SKILLS_SOURCE`); names are
+  validated.
+- **Lore is the registry.** The `lore-mcp` gateway serves the curated agent skill bundles +
+  `settings.json` (baked into *its* image — Lore content in a Lore service, never the subsystem);
+  `buildAgentDefinition` seeds `skills_source: <gateway>/skills` + the per-task-type skill names.
+- **Why fetch, not baked or inline.** Baking Lore skills into the subsystem image would make it
+  Lore-aware; inlining content bloats the CR and can't carry multi-file skills. A name + URL keeps the
+  subsystem agnostic and is exactly the "define in Lore, referenced by name" model.
+- **Security.** Skill *names* + a URL are inert references (no gate). Executable content (a skill's
+  frontmatter hooks, the `settings.json` hooks) is org-authored and org-hosted. A future recipe-supplied
+  *inline* hooks/settings field would be two-key gated per Decision 4.

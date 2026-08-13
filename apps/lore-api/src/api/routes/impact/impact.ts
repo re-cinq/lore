@@ -19,6 +19,7 @@ import {
   buildImpactAnnotations,
   buildImpactComment,
   type ChangedRange,
+  type ChangedDoc,
   type ImpactReport,
 } from "@re-cinq/lore-shared";
 import { z } from "zod";
@@ -32,7 +33,15 @@ const ImpactBody = z.preprocess(
   z.object({
     commit: z.string().optional(),
     base: z.string().optional(),
+    graphCommit: z.string().nullish(),
+    // Wire format. Absent means a protocol-1 client, whose diff was computed
+    // against the base-branch tip — the server suppresses those findings.
+    protocol: z.number().optional(),
     files: z.unknown().optional(),
+    // Head content of changed spec/ADR files. The client already has the
+    // checkout, so sending it here avoids a GitHub round-trip and works on fork
+    // PRs. Left unknown for the same fail-soft reason as `files`.
+    docs: z.unknown().optional(),
   }),
 );
 
@@ -58,8 +67,9 @@ export function impactRoute(): ServerRoute {
       const repo = `${request.params.owner}/${request.params.repo}`;
       const body = request.payload as ImpactBody;
       const files = Array.isArray(body.files) ? body.files : [];
+      const docs = Array.isArray(body.docs) ? body.docs : [];
 
-      const report = await safeComputeImpact(repo, files);
+      const report = await safeComputeImpact(repo, files, docs, body.protocol);
       const annotations =
         report.status === "ok" ? buildImpactAnnotations(report, files) : [];
       const comment = buildImpactComment(report);
@@ -78,6 +88,8 @@ export function impactRoute(): ServerRoute {
 async function safeComputeImpact(
   repo: string,
   files: ChangedRange[],
+  docs: ChangedDoc[],
+  protocol: number | undefined,
 ): Promise<ImpactReport> {
   const dgraph = createDgraphClient(process.env);
 
@@ -86,7 +98,7 @@ async function safeComputeImpact(
   }
 
   try {
-    return await computeImpact(dgraph, repo, files);
+    return await computeImpact(dgraph, repo, files, { docs, protocol });
   } catch (err) {
     const reason =
       err instanceof Error ? (err.stack ?? err.message) : String(err);

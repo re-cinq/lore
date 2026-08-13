@@ -9,11 +9,18 @@
 // this mapper consumes unwrapAttribution and peels nothing of its own (#875).
 
 import { unwrapAttribution } from "@re-cinq/lore-assembly-lines";
-import type { AgentRunEventInsert } from "@re-cinq/lore-shared";
+import type {
+  AgentRunEventInsert,
+  AgentRunTurnInsert,
+} from "@re-cinq/lore-shared";
 import {
   rowsFromEnvelope,
   MAX_RUN_EVENTS_PER_BATCH,
 } from "./agent-run-events.js";
+import {
+  turnFromEnvelope,
+  MAX_RUN_TURNS_PER_BATCH,
+} from "./agent-run-turns.js";
 
 export interface LlmCallRow {
   /** Always non-empty — rowFromEnvelope returns null when the envelope carries
@@ -74,9 +81,63 @@ function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
   };
 }
 
+/** A file the run declared under `output.watch` and the subsystem raised once the
+ *  agent exited (`{"kind":"file"}`). The delivery channel for an agent whose
+ *  deliverable is an artifact rather than its prose — see the subsystem's
+ *  notification-api reference. `content` and `reason` are mutually exclusive: a
+ *  declared artifact the agent never produced still reports, carrying why. */
+export interface AgentFileEvent {
+  taskId: string;
+  agentCrName: string | null;
+  /** The recipe-declared event name, so one run can raise several artifacts. */
+  event: string;
+  path: string;
+  content: string | null;
+  reason: string | null;
+}
+
+const str = (x: unknown): string | null => (typeof x === "string" ? x : null);
+
+/** Project a `kind:"file"` envelope. Null for every other line, for an artifact
+ *  with no name (nothing could route it) and for one with no task attribution
+ *  (nothing to act on) — the same skip-don't-throw rule the cost projection uses. */
+function fileEventFromEnvelope(envelope: unknown): AgentFileEvent | null {
+  const { source, event: ev } = unwrapAttribution(envelope);
+  const taskId = typeof source?.task === "string" ? source.task : "";
+
+  if (!taskId || !isObject(ev) || ev.kind !== "file") {
+    return null;
+  }
+  const event = str(ev.event);
+
+  if (!event) {
+    return null;
+  }
+
+  return {
+    taskId,
+    agentCrName: typeof source?.agent === "string" ? source.agent : null,
+    event,
+    path: str(ev.path) ?? "",
+    content: str(ev.content),
+    reason: str(ev.reason),
+  };
+}
+
 export interface AgentSink {
   costRows: LlmCallRow[];
   runEvents: AgentRunEventInsert[];
+  fileEvents: AgentFileEvent[];
+  /** Full-fidelity turns, empty unless `collectTurns` (specs/turn-level-transcript-store). */
+  turns: AgentRunTurnInsert[];
+  /** Turns lost because redaction left their line unparseable. Reported rather
+   *  than swallowed: a store justified by fidelity must make its own losses
+   *  visible, and an agent can trigger the drop on purpose. */
+  turnsDropped: number;
+  /** Turns lost to MAX_RUN_TURNS_PER_BATCH. The other half of the same
+   *  property: every path that loses a turn is counted, so "the transcript is
+   *  complete" is a claim the metrics can actually support. */
+  turnsCapped: number;
 }
 
 /** Yield each `\n`-delimited line without materializing the whole array.
@@ -99,19 +160,37 @@ function* lines(body: string): Generator<string> {
 }
 
 /**
- * Parse the Agent NDJSON sink body ONCE into the per-run llm_calls cost rows
- * and, when `projectRunEvents`, the per-tool-call run-visualization rows (capped
- * at MAX_RUN_EVENTS_PER_BATCH). Parsing each line a single time rather than once
- * per projection, and streaming the split rather than arraying it, bound the
- * peak memory a large body holds — the regression that OOM-looped the single
- * Floor replica. Blank, unparseable and task-less lines are skipped; nothing throws.
+ * Parse the Agent NDJSON sink body ONCE into the per-run llm_calls cost rows;
+ * when `projectRunEvents`, the per-tool-call run-visualization rows (capped at
+ * MAX_RUN_EVENTS_PER_BATCH); and when `collectTurns`, the full-fidelity turn
+ * rows (capped at MAX_RUN_TURNS_PER_BATCH). Parsing each line a single time
+ * rather than once per projection, and streaming the split rather than arraying
+ * it, bound the peak memory a large body holds — the regression that OOM-looped
+ * the single Floor replica. Turn collection reuses that same parse and the line
+ * string the scanner already yielded, so it adds no parse and no serialization;
+ * `collectTurns` is on by default — turn collection is unconditional in
+ * production, with no feature flag. The argument exists so the cost-only path
+ * can opt out, and so tests can assert that collecting turns perturbs neither
+ * the cost rows nor the projection.
+ *
+ * Blank and unparseable lines are skipped. A task-less line yields no cost row
+ * and no visualization row, but IS still collected as a turn — the turn store
+ * keeps what it cannot label. The only turn loss is a line whose redaction left
+ * it unparseable (`turnsDropped`) or one the per-batch cap left out
+ * (`turnsCapped`) — both counted rather than swallowed, so every lost turn is
+ * visible. Nothing throws.
  */
 export function parseAgentSink(
   ndjson: string,
   projectRunEvents = true,
+  collectTurns = true,
 ): AgentSink {
   const costRows: LlmCallRow[] = [];
   const runEvents: AgentRunEventInsert[] = [];
+  const fileEvents: AgentFileEvent[] = [];
+  const turns: AgentRunTurnInsert[] = [];
+  let turnsDropped = 0;
+  let turnsCapped = 0;
 
   for (const line of lines(ndjson)) {
     if (!line.trim()) {
@@ -129,6 +208,26 @@ export function parseAgentSink(
     if (costRow) {
       costRows.push(costRow);
     }
+    const fileEvent = fileEventFromEnvelope(envelope);
+
+    if (fileEvent) {
+      fileEvents.push(fileEvent);
+    }
+
+    const wantTurn = collectTurns && turns.length < MAX_RUN_TURNS_PER_BATCH;
+
+    if (collectTurns && !wantTurn) {
+      turnsCapped++;
+    }
+    const turn = wantTurn ? turnFromEnvelope(envelope, line) : null;
+
+    if (wantTurn && turn === null) {
+      turnsDropped++;
+    }
+
+    if (turn) {
+      turns.push(turn);
+    }
 
     if (!projectRunEvents || runEvents.length >= MAX_RUN_EVENTS_PER_BATCH) {
       continue;
@@ -142,25 +241,11 @@ export function parseAgentSink(
     }
   }
 
-  return { costRows, runEvents };
+  return { costRows, runEvents, fileEvents, turns, turnsDropped, turnsCapped };
 }
 
 /** The cost projection alone (skips blank, unparseable, and non-`result` lines,
  *  and lines with no resolvable task id). */
 export function parseAgentEvents(ndjson: string): LlmCallRow[] {
-  return parseAgentSink(ndjson, false).costRows;
-}
-
-/** GCS object key for an archived raw NDJSON sink batch (#687). Partitioned by UTC
- *  date for lifecycle rules; the full received instant keeps same-second batches
- *  distinct, and the first task id tags the object for eyeballing. */
-export function agentEventsArchiveKey(
-  receivedAtIso: string,
-  taskIds: readonly string[],
-): string {
-  const date = receivedAtIso.slice(0, 10);
-  const instant = receivedAtIso.replace(/[:.]/g, "-");
-  const tag = taskIds.length > 0 ? taskIds[0] : "unknown";
-
-  return `__agent_events__/${date}/${instant}-${tag}.ndjson`;
+  return parseAgentSink(ndjson, false, false).costRows;
 }

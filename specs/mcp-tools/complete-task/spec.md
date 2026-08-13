@@ -39,8 +39,10 @@ Marks a claimed ('running') spec-task as 'completed' and returns which dependent
 
 ## Behavior
 
-1. `getPool()`. If null, return `"lore_complete_task requires PostgreSQL (LORE_DB_HOST not set)."`.
-2. Delegate to `completeTask(pool, task_id)`
+1. `POST /api/spec-tasks/complete` with `{task_id}` via `proxyToApi`. The MCP
+   adapter holds no pool (ADR-032), so the completion and the dependents scan run
+   in lore-api ([`POST /api/spec-tasks/complete`](../../api-routes/spec-tasks/spec.md)).
+2. The route delegates to `completeTask(pool, task_id)`
    ([handler](../../../libs/server-core/src/features/pipeline/tasks.ts#L51)). It:
    1. `SELECT id, status, context_bundle, target_repo FROM pipeline.tasks WHERE id = $1`. If no row → `{ completed: false, unblocked: [] }`.
    2. If `status !== 'running'` → `{ completed: false, unblocked: [] }` (no write).
@@ -49,11 +51,12 @@ Marks a claimed ('running') spec-task as 'completed' and returns which dependent
    5. Read `spec_task_id` + `spec_slug` from `context_bundle`. If either is missing → `{ completed: true, unblocked: [] }` (skips the dependents query).
    6. Else query dependents: `pipeline.tasks` of `task_type = 'spec-task'`, same `target_repo` + `spec_slug`, `status = 'pending'`, whose `depends_on` array contains this `spec_task_id`, and for which no remaining dependency is unsatisfied (the same `NOT EXISTS` shape `lore_ready_tasks` uses).
    7. Map dependents to `"{spec_task_id}: {description}"` → `{ completed: true, unblocked }`.
-3. If `result.completed` is false, return
+3. If the response reports `completed: false`, return
    `"Could not complete task {task_id}. It may not be in 'running' state."`.
 4. Otherwise build `"Task {task_id} completed."`; if `unblocked` is non-empty,
    append `"\n\nNewly unblocked tasks:\n"` + each as `"- {entry}"`. Return it.
-5. Any thrown error → `"Error completing task: {message}"`.
+5. **Failure** — `not_configured` → the not-configured text; `denied` → the
+   denial text; `unreachable` → the `unreachableError("completing a task", detail)` text.
 
 ## Output
 
@@ -63,9 +66,10 @@ throws.
 
 ## Dependencies & side effects
 
-- `getPool()`, `completeTask`.
-- DB: read + `UPDATE` on `pipeline.tasks`; best-effort `INSERT` into `pipeline.task_events`; a dependents read query.
-- No env vars beyond the DB pool's.
+- `proxyToApi` and the shared proxy error helpers.
+- Server-side: `completeTask` — read + `UPDATE` on `pipeline.tasks`, a
+  best-effort `INSERT` into `pipeline.task_events`, and a dependents read query.
+- Env: `LORE_API_URL`, `LORE_INGEST_TOKEN`. No database handle.
 
 ## Acceptance Criteria
 
@@ -82,9 +86,13 @@ descriptors. ([validated by `returns formatted descriptors for newly unblocked s
 When the completed task carries no `spec_slug`/`spec_task_id` the dependents
 query is skipped. ([validated by `marks a running task completed and records the transition, no slug scan`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L214))
 
-The no-pool guard and the message-framing (success/unblocked-list/not-running)
-run only inside the tool handler. *(untested: handler-only orchestration around
-`getPool` with no unit seam; the DB logic it delegates to is covered above.)*
+Newly unblocked dependents are appended to the completion message as a bullet
+list. ([validated by `lore_complete_task lists the newly unblocked dependents`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L416))
+
+A task that was not running renders the not-running message. ([validated by `lore_complete_task reports a task that was not running`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L430))
+
+An unconfigured API yields the not-configured message rather than a PostgreSQL
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L440))
 
 ## Out of Scope
 

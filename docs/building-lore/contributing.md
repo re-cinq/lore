@@ -6,29 +6,101 @@
 
 ## Run the full stack locally
 
-`scripts/install.sh` runs once per machine and configures the MCP server, skills, hooks, statusline, and agent ID — that's enough to *use* Lore against a deployed backend. To run the **entire** stack on your own machine instead:
+`scripts/install.sh` runs once per machine and configures the MCP server, skills, hooks, statusline, and agent ID — that's enough to *use* Lore against a deployed backend. To run the **entire** stack on your own machine instead, work through the three steps below. From a fresh clone they are the whole path.
+
+### Prerequisites
+
+`npm run dev-setup` checks for these and fails listing **every** one that is missing, so install them before you start:
+
+| Tool | Needed for |
+|------|-----------|
+| Node.js >= 20 | the npm workspaces (`libs/*` and the TypeScript apps) |
+| `docker` + `docker compose` v2 | the Postgres and Dgraph containers |
+| `minikube` | the local Kubernetes cluster that agent runs execute on |
+| `kubectl` | talking to that cluster |
+| `helm` | installing the ai-agent-subsystem chart into it |
+| `claude` | `claude setup-token` mints the agent LLM credential |
+
+Go is needed only if you are working on `apps/lore-code-trace`; nothing in the stack below builds it.
+
+### 1. Install dependencies
 
 ```bash
-npm start
+npm install
 ```
 
-This runs `scripts/dev-local.sh`, which brings up a Docker Postgres (pgvector, data persisted to the git-ignored `.lore-pgdata/`), builds `libs/shared` → `libs/assembly-lines` → `apps/mcp-server` → `apps/floor`, then runs all four components under `concurrently` with live reload.
+`npm start` does **not** do this for you. It does install `apps/web-ui`'s separate dependency tree on first run — that app has its own lockfile and is not a workspace.
+
+### 2. `npm run dev-setup` — one-time credential bootstrap
+
+Interactive by design: it prompts for credentials a machine cannot invent, and touches nothing outside your machine. It creates `.env.local` from `.env.local.example` and fills the gaps:
+
+- **The agent LLM credential** — runs `claude setup-token` and stores the result as `CLAUDE_CODE_OAUTH_TOKEN`, so laptop runs bill a subscription rather than org API credit. `ANTHROPIC_API_KEY` wins if both are set.
+- **`GITHUB_TOKEN`** — a PAT with `repo` scope; the agent pods clone and push with it. Skipped when the GitHub App triple is configured, since the App outranks the PAT.
+- **`GHCR_USER` + `GHCR_TOKEN`** — a PAT with `read:packages`; `ghcr.io/re-cinq/ai-agent` is a private package.
+- **`LORE_STATION_BACKEND=k8s`** — sends agent runs to minikube pods. Left at the default `inprocess`, no run is ever isolated.
+
+When `infra/terraform/secrets.tfvars` is present it offers — never silently — to import the ghcr pull pair and the GitHub App triple from it, so a deployer mints no new PATs. `anthropic_api_key` is deliberately never imported: it would move a laptop run onto org billing, the exact thing the subscription token avoids.
+
+Already-set values are never overwritten, so re-running after adding one tool or one token costs nothing.
+
+### 3. `npm start`
+
+Runs `scripts/dev-local.sh`, which is unattended and re-runnable:
+
+1. Brings up Postgres (pgvector) and Dgraph from `infra/compose.yaml`, waiting on their healthchecks. Data persists in the git-ignored `.lore-pgdata/` and `.lore-dgraphdata/` bind mounts.
+2. Applies the schemas — `scripts/infra/setup-local-schema.sh` for Postgres, then the two Dgraph schema scripts.
+3. **When `LORE_STATION_BACKEND=k8s`**, runs `scripts/infra/setup-minikube-agents.sh`: starts minikube, installs the ai-agent-subsystem into the `ai-agents` namespace, and writes `.lore-kubeconfig-minikube` — a kubeconfig holding **only** the minikube context. The Floor is pinned to that file so its Agent CR dispatch can never follow a stray `current-context` into a real cluster.
+4. Installs `apps/web-ui` dependencies on first run, builds `libs/shared` → `libs/assembly-lines` → `libs/server-core` → `apps/lore-api` → `apps/mcp-server` → `apps/floor`, then runs everything under `concurrently` with live reload.
 
 Ports:
 
 | Component | Port |
 |-----------|------|
 | web-ui | `:3000` |
-| mcp-server | `:3001` |
-| floor | `:8080` |
+| Lore API | `:3001` |
+| skills registry (mcp-server in HTTP-gateway mode) | `:3002` |
+| Floor | `:8080` |
 | Postgres | `:5432` |
+| Dgraph — HTTP / gRPC | `:8081` / `:9080` |
+
+Dgraph's HTTP port is published as `:8081` so it never collides with the Floor's `:8080`. The stdio MCP server (`apps/mcp-server`) is built here but launched on demand by Claude Code, not run as a daemon; the `:3002` entry is that same adapter in gateway mode, serving the skills bundle a run pod fetches at startup.
+
+Watch agent runs with:
+
+```bash
+KUBECONFIG=.lore-kubeconfig-minikube kubectl -n ai-agents get agents -w
+```
+
+On first run, `scripts/infra/setup-local-schema.sh` bootstraps the `lore`/`lore_ui` roles, the pgvector extension, and all schemas by shimming `kubectl` → `docker exec` so the existing `setup-*.sh` scripts run unmodified against the container (no SQL duplication). It then applies the `ui-helm/migrations/*.sql` incremental migrations the same way the GKE Helm hook does — tracked in `lore.schema_migrations`, in filename order, one transaction per file, skipping already-applied ones — so migration-added tables exist locally even though local dev has no Helm hook.
 
 Useful sub-commands:
 
 - `npm run db:up` / `npm run db:down` — manage the Postgres container on its own
 - `npm run db:schema` — apply the schema DDL
+- `npm run services:up` / `npm run services:down` — both containers via compose
 
-On first run, `scripts/infra/setup-local-schema.sh` bootstraps the `lore`/`lore_ui` roles, the pgvector extension, and all schemas by shimming `kubectl` → `docker exec` so the existing `setup-*.sh` scripts run unmodified against the container (no SQL duplication). It then applies the `ui-helm/migrations/*.sql` incremental migrations the same way the GKE Helm hook does — tracked in `lore.schema_migrations`, in filename order, one transaction per file, skipping already-applied ones — so migration-added tables exist locally even though local dev has no Helm hook. `npm start` runs this automatically once Postgres is ready.
+If a service dies with `EADDRINUSE`, a previous stack is still holding the port: `concurrently -k` does not reliably reap its children, so services can outlive the run that started them and stay bound to `:3000`/`:3001`/`:3002`/`:8080`. `dev-local.sh` sweeps those four ports before starting, but that sweep happens once — anything that comes back after it still wins the port, and because one failing child tears down the whole stack, a single collision costs you the entire run. Check with `ss -lptn 'sport = :3002'` and kill what you find before re-running.
+
+`db:up` and `dgraph:up` run a bare `docker run` rather than compose. They reuse the same container names and bind mounts, but a container compose did not create is one compose will not adopt — so a stack brought up that way makes the next `npm start` die with `Conflict. The container name "/lore-postgres" is already in use`, behind the misleading `backing services did not become healthy — check 'docker compose logs'`. Prefer `services:up`; if you hit the conflict, `docker rm -f lore-postgres lore-dgraph` and re-run. The data survives — it lives in the bind mount, not the container.
+
+### Working in a git worktree
+
+Run `scripts/worktree-bootstrap.sh` once per worktree. A fresh `git worktree` has no `node_modules` and no built workspace libs, so module resolution escapes into the main checkout's (possibly stale) install and `eslint`/`tsc` fail or go falsely green. The `.claude/settings.json` SessionStart hook runs it automatically, but only when the checkout has no `node_modules` yet — after editing `libs/*/src`, re-run it yourself so package-level `tsc --noEmit` sees the fresh types (vitest reads source, `tsc` reads `dist`).
+
+### Starting over from scratch
+
+To re-test this path end to end, tear the local stack down:
+
+```bash
+minikube delete                                  # removes its own kubectl context, leaves others alone
+docker rm -f lore-postgres lore-dgraph
+rm -f .env.local .lore-kubeconfig-minikube .lore-nextauth-secret
+docker run --rm -v "$PWD:/work" alpine:3.20 \
+  sh -c 'rm -rf /work/.lore-pgdata /work/.lore-dgraphdata /work/.lore-archive'
+```
+
+The data dirs are written by the containers as root, so a plain `rm -rf` hits `Permission denied` — the throwaway container removes them without sudo. Back up `.env.local` first if the credentials in it are not easily re-minted. `.lore-nextauth-secret` is regenerated automatically on the next `npm start`.
 
 ### Logging into the web UI
 
@@ -55,17 +127,20 @@ Optionally set `GITHUB_ALLOWED_ORG` in the same file to restrict login to one or
 lore/
 ├── apps/                       # deployable services
 │   ├── floor/                  # Floor — coordinator runtime (TypeScript: task runner, scheduler, controllers)
-│   ├── mcp-server/             # MCP server (serves context + memory + pipeline)
+│   ├── lore-api/               # Remote REST backend (/api/*) on GKE — DB / GitHub / GCS / tree-sitter
+│   ├── mcp-server/             # Local stdio MCP adapter — proxies every op to the Lore API
+│   ├── lore-station/           # Station pod image (runs one non-agent assembly-line node per pod)
+│   ├── lore-code-trace/        # Go binary — runs a repo's test suite in CI and posts the trace
 │   ├── web-ui/                 # Next.js dashboard (repo-centric UI, GitHub OAuth)
 │   └── vscode-extension/       # VS Code extension (spec ↔ code highlighting)
 ├── libs/                       # shared libraries (consumed by apps)
 │   ├── shared/                 # @re-cinq/lore-shared — chunker, redact, Project facade, types
-│   └── assembly-lines/         # @re-cinq/lore-assembly-lines — execution kernel (supervisor, assembly lines)
+│   ├── server-core/            # @re-cinq/lore-server-core — light business logic shared by both deployables
+│   └── assembly-lines/         # @re-cinq/lore-assembly-lines — assembly-line loader, graph, node outcomes
 ├── infra/                      # deploy & runtime
-│   ├── terraform/modules/      # Helm charts (floor-helm, lore-api-helm, ui-helm, lore-db-helm), LoreTask CRD
-│   ├── docker/claude-runner/   # Ephemeral container for Claude Code in K8s Jobs
-│   ├── k8s/                    # Ingress manifests, CronJobs
-│   └── compose.yaml            # Local Postgres/Dgraph for the dev stack
+│   ├── terraform/modules/      # Terraform + the `lore-platform` umbrella Helm chart
+│   │                           #   (floor / lore-api / ui / lore-db / ai-agents subcharts)
+│   └── compose.yaml            # Local Postgres + Dgraph for the dev stack
 ├── scripts/                    # install.sh, lore-doctor, infra setup scripts
 ├── adrs/                       # Architecture decision records (MADR format)
 ├── specs/                      # Feature specifications (speckit workflow)
@@ -75,13 +150,14 @@ lore/
 └── .github/workflows/          # CI: build + push containers for Floor, MCP, UI
 ```
 
-npm workspaces live under `apps/*` + `libs/*`; `web-ui` is a standalone Next.js app (its own lockfile, not a workspace).
+npm workspaces cover `libs/*` and the TypeScript apps (`floor`, `lore-api`, `lore-station`, `mcp-server`, `vscode-extension`). `web-ui` is a standalone Next.js app (its own lockfile, not a workspace), and `lore-code-trace` is a Go module.
 
 ## Tech stack
 
 | Layer | Technology |
 |-------|-----------|
 | MCP Server | TypeScript, `@modelcontextprotocol/sdk`, Zod |
+| Lore API | TypeScript, `@hapi/hapi` (REST), Zod, `pg`, Octokit, tree-sitter |
 | Floor | TypeScript, `@anthropic-ai/sdk`, Claude Code (headless) |
 | Web UI | Next.js 15, NextAuth v4 (GitHub OAuth) |
 | Database | PostgreSQL 16 + pgvector (CloudNativePG) |
@@ -105,7 +181,7 @@ Architecture decisions are documented as ADRs in `adrs/` (MADR format).
 
 ## Development workflow
 
-Use the `/lore-feature` skill to start or continue a feature — it guides you through spec → plan → tasks → implementation interactively. When you're ready to open a PR, `/lore-pr` drafts a description from your spec and changed files against the template in `.github/pull_request_template.md`. Full conventions live in [CLAUDE.md](../../CLAUDE.md); the PR checklist is in the root [CONTRIBUTING.md](../../CONTRIBUTING.md).
+Use the `/lore-feature` skill to start or continue a feature — it guides you through spec → plan → tasks → implementation interactively. When you're ready to open a PR, `/lore-pr` drafts a description from your spec and changed files against the template in `.github/PULL_REQUEST_TEMPLATE.md`. Full conventions live in [CLAUDE.md](../../CLAUDE.md); the PR checklist is in the root [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ---
 

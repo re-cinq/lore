@@ -1,0 +1,61 @@
+name: feature-decompose
+description: >
+  Turn a merged feature spec into implementable work: the agent breaks it into user
+  stories and tasks and chooses labels from the repo's REAL label list (ADR-029),
+  then the issues station files one Issue per story and one spec-task per task. The
+  agent judges; the station only writes what the artifact says.
+version: 1
+entry: decompose
+exit: done
+
+nodes:
+  - id: decompose
+    type: agent
+    prompt_ref: feature-decompose
+    model: claude-sonnet-4-6
+    description: >
+      Break the merged spec into stories + tasks with labels. Emits
+      decomposition.json, which the Floor merges into the line as
+      args.feature_decomposition for the issues station.
+
+  - id: issues
+    type: issues
+    description: File the Issues + spec-tasks the decomposition calls for.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker.
+
+edges:
+  - from: decompose
+    to: issues
+    on: success
+
+  # decompose has no upstream NODE — its input is a spec a human merged. A spec it
+  # cannot break down is a question for the author, not something to re-run, so the
+  # line ends rather than looping.
+  - from: decompose
+    to: done
+    on: changes_requested
+
+  - from: decompose
+    to: done
+    on: failed
+
+  - from: issues
+    to: done
+    on: success
+
+  # The station is the first thing to read the decomposition as DATA, so it is where
+  # a label the repo does not have, or a story with no tasks, actually shows. It sends
+  # the artifact back with the objection rather than dropping the label silently —
+  # GitHub would CREATE an invented label on the spot. One correction, then the budget
+  # is exhausted and the line fails.
+  - from: issues
+    to: decompose
+    on: changes_requested
+    iteration_max: 1
+
+  - from: issues
+    to: done
+    on: failed

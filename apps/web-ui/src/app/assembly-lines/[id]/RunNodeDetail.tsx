@@ -14,6 +14,7 @@ const PILL_CLASS: Record<NodeStatusTone, string> = {
   warn: styles.pillWarn,
   err: styles.pillErr,
   running: styles.pillRunning,
+  waiting: styles.pillWaiting,
   idle: styles.pillIdle,
 };
 
@@ -22,6 +23,7 @@ const WHY_CLASS: Record<NodeStatusTone, string> = {
   warn: styles.whyWarn,
   err: styles.whyErr,
   running: styles.whyRunning,
+  waiting: styles.whyWaiting,
   idle: styles.whyIdle,
 };
 

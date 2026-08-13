@@ -151,15 +151,23 @@ install_skills() {
   CURRENT_STEP="install platform skills"
   echo "[lore] Installing platform skills ..."
   mkdir -p "$HOME/.claude/skills"
+  # These are Lore-owned vendored files, so an existing copy is refreshed rather
+  # than skipped: skipping meant a skill edited upstream never reached a machine
+  # that had installed once, and /lore-help then documented behaviour the
+  # installed copy did not have. A hand-edited copy is overwritten — the
+  # "Updated" line says so.
   for skill_dir in "$LORE_DIR/.claude/skills/"*/; do
     [ -d "$skill_dir" ] || continue
     name="$(basename "$skill_dir")"
     dest="$HOME/.claude/skills/$name"
     if [ ! -d "$dest" ]; then
       cp -r "$skill_dir" "$dest"
-      echo "  Installed /$(basename "$skill_dir")"
+      echo "  Installed /$name"
+    elif diff -rq "$skill_dir" "$dest" >/dev/null 2>&1; then
+      echo "  Up to date /$name"
     else
-      echo "  Skipped /$(basename "$skill_dir") (already exists)"
+      cp -r "$skill_dir/." "$dest/"
+      echo "  Updated /$name"
     fi
   done
 }

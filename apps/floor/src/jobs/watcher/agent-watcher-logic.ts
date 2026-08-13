@@ -5,6 +5,7 @@
 // is IO-bound and untested, as loretask-watcher is; this is the testable core.
 
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
+import { isFeatureLifecycleType } from "../task/worker.js";
 
 export const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 export const TASK_TYPE_LABEL = "lore.re-cinq.com/task-type";
@@ -84,4 +85,23 @@ export function runOutcomeFromTaskStatus(
   // status, so the CR phase decides — a Failed CR (e.g. crash, or Failed with no
   // failureReason so handleFailure never ran) must not close its row as completed.
   return phase === "Failed" ? "failed" : "completed";
+}
+
+/** The feature a completed run's PR belongs to, or null when it belongs to none.
+ *
+ *  Keyed on the task carrying a feature — NOT on the task type being
+ *  `feature-finalize`. The merged line runs a feature's whole life under one
+ *  `feature-planning` task (FR6.26), so the old check silently stopped linking: push
+ *  opened the spec PR, nothing flipped the feature to `pr-open`, and the wizard sat on
+ *  "Creating the spec PR…" forever while the work had in fact completed. A planning
+ *  ROUND never reaches here — only a run that produced a PR does. */
+export function decideFeatureLink(
+  taskType: string,
+  contextBundle: { feature_id?: string; slug?: string } | undefined,
+): { featureId: string; slug: string | undefined } | null {
+  if (!isFeatureLifecycleType(taskType) || !contextBundle?.feature_id) {
+    return null;
+  }
+
+  return { featureId: contextBundle.feature_id, slug: contextBundle.slug };
 }

@@ -8,12 +8,9 @@ For a non-engineer, plain-language overview of what these tools are for, read th
 
 ## MCP server structure
 
-**Dual transport.** The server (`@re-cinq/lore-mcp`) runs in one of two modes, selected by `MCP_TRANSPORT`:
+**Local stdio adapter.** The shipped MCP server (`@re-cinq/lore-mcp`, `apps/mcp-server`) runs on the developer's machine over **stdio**, registered by `scripts/install.sh`. It holds no database pool: it auto-detects the current repo from the git remote and **proxies** operations to the shared backend over `LORE_API_URL` (bearer `LORE_INGEST_TOKEN`). Proxied reads pass through a read-through cache (`platform/proxy-cache.ts`); writes invalidate the caches they affect. The remote backend it talks to is `@re-cinq/lore-api`, a plain REST service that owns the direct PostgreSQL + pgvector access behind `/api/*` (ADR-032).
 
-- **stdio (default) — local proxy.** Runs on the developer's machine via `scripts/install.sh`. It auto-detects the current repo from the git remote and proxies most operations to the shared GKE backend over `LORE_API_URL` (bearer `LORE_INGEST_TOKEN`). Proxied reads pass through a read-through cache (`platform/proxy-cache.ts`); writes invalidate the caches they affect.
-- **http (Streamable HTTP) — shared GKE server.** The cluster deployment in the `lore-api` namespace. When `LORE_DB_HOST` is set it talks to PostgreSQL + pgvector directly instead of proxying.
-
-Most tools branch on `LORE_DB_HOST` (equivalently `isMemoryDbAvailable()`): present → direct DB; absent → proxy to `LORE_API_URL`, with a `~/.lore` file fallback only for a subset of memory tools and only when no API is configured at all.
+**One code path per handler.** The adapter holds no database pool — not in stdio mode, not in the HTTP gateway — so every data operation is an HTTP call to `LORE_API_URL` (bearer `LORE_INGEST_TOKEN`). A `~/.lore` file fallback exists for a subset of memory tools, and only when no API is configured at all. Handlers that used to carry a second, direct-DB branch no longer do: that branch was unreachable after the ADR-032 split, which is what made ten tools answer "requires PostgreSQL (LORE_DB_HOST not set)" on every call. The per-tool "Where it runs" notes below name the endpoint each tool calls.
 
 **How tools register.** Each category lives in one file and exposes a `registerXTools(server, deps)` function called at startup. Inside, every tool is declared with:
 
@@ -41,7 +38,7 @@ Every tool is namespaced with the **`lore_` prefix** (Anthropic-recommended name
 
 ## Tool reference
 
-41 tools across seven categories. For each: purpose, when to use / not use, parameters (only what the zod shape actually declares), return shape, where it runs, and cache/mutation notes.
+40 tools across seven categories. For each: purpose, when to use / not use, parameters (only what the zod shape actually declares), return shape, where it runs, and cache/mutation notes.
 
 ### Context & knowledge
 
@@ -221,7 +218,7 @@ One-line purpose: report one agent's combined memory health and learning statist
 | `agent_id` | no | ambient | Override the resolved agent ID to inspect a specific agent. |
 
 - **Returns:** JSON with `agent_id`, `memory_count`, `last_active`, `snapshot_count`, `total_memories`, `total_facts`, `active_facts`, `invalidated_facts`, `total_searches`, `shared_pools_created`, and `recent_episodes {total_count, latest: [{id, source, ref, created_at, content_preview, fact_count}]}`.
-- **Where it runs:** **direct DB only.** Unlike the other memory tools it does NOT proxy to `LORE_API_URL`; with no DB it returns `Agent stats requires PostgreSQL (LORE_DB_HOST not set).`
+- **Where it runs:** proxies `GET /api/agent-stats` (read scope) over `LORE_API_URL`; the `memory.*` aggregation runs in lore-api. No file fallback.
 - **Cache/mutation:** read-only.
 
 ### Task pipeline
@@ -305,7 +302,7 @@ One-line purpose: cancel a SERVER-SIDE pipeline task by UUID.
 | `task_id` | yes | — | UUID of a non-terminal task (not merged/failed/cancelled). |
 
 - **Returns:** the new status as JSON; rejected for already merged/failed/cancelled tasks (`Cannot cancel task in {state} state`).
-- **Where it runs:** **direct Postgres only** (`LORE_DB_HOST`) — no stdio/API-proxy path.
+- **Where it runs:** proxies `POST /api/task` with `{action:"cancel"}` (task scope). The server refuses an unknown id (404) or a terminal state (409) and the refusal reaches you verbatim.
 - **Cache/mutation:** WRITE. Flips to `cancelled`, best-effort stops a running GKE agent, records a `cancelled` event.
 
 #### `lore_retry_task`
@@ -320,7 +317,7 @@ One-line purpose: re-run a failed or escalated task by cloning it into a NEW tas
 | `task_id` | yes | — | UUID of the original `failed` or `needs-human-help` task. |
 
 - **Returns:** the new task `{id, status, retry_of}` as JSON. Only `failed` / `needs-human-help` tasks are retryable (others rejected, e.g. `Cannot retry task in running state`).
-- **Where it runs:** **direct Postgres only** — no stdio/API-proxy path.
+- **Where it runs:** proxies `POST /api/task` with `{action:"retry"}` (task scope).
 - **Cache/mutation:** WRITE. Inserts a new `pipeline.tasks` row + `pending` event (re-running the trust gate) and marks the original `retried`.
 
 #### `lore_list_task_group`
@@ -335,7 +332,7 @@ One-line purpose: list every task sharing one `task_group_id`, with a completed/
 | `group_id` | yes | — | Task-group UUID (the value passed as `group_id` to `lore_create_pipeline_task`). |
 
 - **Returns:** a `completed/total` summary line plus rows as JSON (`id, description, task_type, status, target_repo, pr_url, created_at`); `No tasks found for group {id}` when empty.
-- **Where it runs:** **direct Postgres only** (via the DB pool) — no stdio/API-proxy path.
+- **Where it runs:** proxies `GET /api/task-groups/{id}` (read scope); the rollup is computed server-side.
 - **Cache/mutation:** read-only.
 
 #### `lore_sync_tasks`
@@ -352,7 +349,7 @@ One-line purpose: parse a speckit `tasks.md` and idempotently upsert each item a
 | `spec_slug` | yes | — | Feature slug grouping these spec-tasks within the repo (disambiguates on re-sync). |
 
 - **Returns:** a `Synced N tasks (M new)` summary. Re-running after edits updates rows in place rather than duplicating.
-- **Where it runs:** **direct Postgres only** (via the DB pool) — no stdio/API-proxy path.
+- **Where it runs:** proxies `POST /api/spec-tasks/sync` (task scope) with the raw markdown — the `tasks.md` grammar is parsed server-side. The repo is auto-detected locally.
 - **Cache/mutation:** WRITE (upserts spec-task rows).
 
 #### `lore_ready_tasks`
@@ -367,7 +364,7 @@ One-line purpose: list the repo's spec-tasks that are `pending` AND whose every 
 | `repo` | no | auto-detect | Repo to scan as `owner/repo`. |
 
 - **Returns:** a markdown bullet list of `spec_task_id (uuid): description`; `No ready tasks…` when nothing qualifies.
-- **Where it runs:** **direct Postgres only** (via the DB pool) — no stdio/API-proxy path.
+- **Where it runs:** proxies `GET /api/spec-tasks/ready` (read scope). The repo is auto-detected locally.
 - **Cache/mutation:** read-only.
 
 #### `lore_claim_task`
@@ -383,7 +380,7 @@ One-line purpose: atomically lock one `pending` spec-task and flip it to `runnin
 | `agent_id` | no | resolved | Identifier of the claiming agent, recorded as owner; resolved from `LORE_AGENT_ID` / `~/.lore/agent-id` / generated when omitted. |
 
 - **Returns:** a claim-success message, or already-claimed/not-found text.
-- **Where it runs:** **direct Postgres only** — no stdio/API-proxy path.
+- **Where it runs:** proxies `POST /api/spec-tasks/claim` (task scope); the claiming agent id is resolved on your machine and sent with the request.
 - **Cache/mutation:** WRITE. Locks via `SELECT … FOR UPDATE SKIP LOCKED` inside a transaction (status + `agent_id`), best-effort records a `running` event.
 
 #### `lore_complete_task`
@@ -398,7 +395,7 @@ One-line purpose: mark a `running` spec-task `completed` and report which depend
 | `task_id` | yes | — | UUID of the running spec-task to mark completed. |
 
 - **Returns:** a completion message plus newly-unblocked `spec_task_id: description` entries. Only `running` tasks complete (others: `Could not complete…it may not be in running state`).
-- **Where it runs:** **direct Postgres only** — no stdio/API-proxy path.
+- **Where it runs:** proxies `POST /api/spec-tasks/complete` (task scope).
 - **Cache/mutation:** WRITE. Sets `status='completed'`, best-effort records a `completed` event.
 
 #### `lore_get_task_logs`
@@ -581,30 +578,16 @@ One-line purpose: view or update the local task-runner config (`~/.lore/local-ru
 
 ### Spec-trace
 
-#### `lore_ingest_graph`
-
-One-line purpose: build (or rebuild) the spec-traceability graph by creating one zero-LLM ingestion pipeline task per requested kind.
-
-- **When to use:** populate or refresh the graph (write/build side).
-- **When not to use:** READ a spec's coverage from the built graph → `lore-query-trace`; enumerate/execute tests locally → `lore_list_tests` / `lore_run_test`.
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `repo` | no | auto-detect | Target repo as `owner/repo`; falls back to the git-remote-detected repo. |
-| `kinds` | no | all three | Array of any of `specs`, `adrs`, `tests`. One pipeline task is created per kind. |
-| `ref` | no | default branch | Git branch or commit SHA to ingest at; passed through as the created task's branch. |
-| `force` | no | `false` | When true, the `specs`/`adrs` projection re-processes every file even if its content hash is unchanged. No effect on `tests` (which always re-runs the full suite). |
-
-- **Returns:** the count, the group id, a `  • {kind}: {task_id}` line per created task, and a "Skipped (already in flight)" note when any kind was skipped.
-- **Where it runs:** **direct-DB only** (`LORE_DB_HOST`); does not proxy over `LORE_API_URL`; returns "Database not available" with no pool. The agent runner picks up `specs`/`adrs` automatically; `tests` are run locally via `lore_run_task_locally`.
-- **Cache/mutation:** WRITE — inserts one `pipeline.tasks` row per non-skipped kind. Idempotent: a kind with an in-flight task (`pending`/`queued`/`running`/`running-local`) for this repo is skipped so re-runs never stack duplicates.
+> The trace graph is (re)built out of band — by the repo's CI ingest workflow and by
+> `lore_ingest_files` for on-demand doc ingestion — not by an MCP tool. The tools below
+> only READ the graph or run tests locally.
 
 #### `lore-query-trace`
 
 One-line purpose: query the spec-traceability graph for a spec — which statements are validated/implemented/decided by what, and which are drifted or violated.
 
 - **When to use:** READ a spec's coverage and needs-attention from the already-built main-branch graph.
-- **When not to use:** (re)build the graph → `lore_ingest_graph`; enumerate/run tests locally → `lore_list_tests` / `lore_run_test`.
+- **When not to use:** enumerate/run tests locally → `lore_list_tests` / `lore_run_test`. (The graph is (re)built by CI ingest / `lore_ingest_files`, not by an MCP tool.)
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -621,7 +604,7 @@ One-line purpose: query the spec-traceability graph for a spec — which stateme
 One-line purpose: enumerate the current repo's tests by running its declared `list` command from `.lore/test-commands.yml` in your local checkout.
 
 - **When to use:** discover what tests exist and their selectors before executing one.
-- **When not to use:** run a single test → `lore_run_test`; read already-computed coverage without execution → `lore-query-trace`; (re)build the graph → `lore_ingest_graph`.
+- **When not to use:** run a single test → `lore_run_test`; read already-computed coverage without execution → `lore-query-trace`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -636,7 +619,7 @@ One-line purpose: enumerate the current repo's tests by running its declared `li
 One-line purpose: run a single test by its runner-native selector and report the code it covers.
 
 - **When to use:** run ONE test and learn what it covers.
-- **When not to use:** discover available tests/selectors → `lore_list_tests`; read coverage without running → `lore-query-trace`; (re)build the graph → `lore_ingest_graph`.
+- **When not to use:** discover available tests/selectors → `lore_list_tests`; read coverage without running → `lore-query-trace`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -708,7 +691,7 @@ One-line purpose: report the CALLING agent's own task count and token totals acr
 | `agent_id` | no | auto-detect | Agent whose usage to report (e.g. `loredana@re-cinq.com` or a UUID); auto-detected via `resolveAgentId`. Pass only to inspect a different agent than the caller's own. |
 
 - **Returns:** JSON `{agent_id, usage: {today, 7_day, 30_day}}` where each window is `{tasks, input_tokens, output_tokens}`; tokens come from `pipeline.llm_calls` joined to that agent's `pipeline.tasks`.
-- **Where it runs:** **direct Postgres only** (`LORE_DB_HOST`); does not proxy over `LORE_API_URL`.
+- **Where it runs:** proxies `GET /api/usage` (read scope); the windowed SQL runs in lore-api.
 - **Cache/mutation:** read-only.
 
 #### `lore_get_analytics`
@@ -723,7 +706,7 @@ One-line purpose: return ORG-WIDE pipeline analytics for one fixed window.
 | `period` | no | `month` | Window for the `created_at` filter: `today` (since current_date), `week` (start of ISO week), `month` (start of calendar month), `all` (no time filter). |
 
 - **Returns:** JSON `{period, usage: {llm_calls, input_tokens, output_tokens}, tasks: {total, succeeded, failed}, by_type: [{task_type, tasks}]}`. `succeeded` = status `pr-created` or `merged`; `failed` = status `failed`. Note: `by_type[].tasks` comes back as a numeric STRING (raw pg bigint, not coerced).
-- **Where it runs:** **direct Postgres only** (`LORE_DB_HOST`); does not proxy over `LORE_API_URL`.
+- **Where it runs:** proxies `GET /api/analytics` (read scope); the aggregate queries run in lore-api.
 - **Cache/mutation:** read-only.
 
 ---
@@ -786,7 +769,6 @@ Quick-reference for the confusable clusters.
 
 | Use | Tool |
 |---|---|
-| (Re)build the trace graph by creating per-kind ingestion tasks (specs/adrs/tests). Write path; requires direct DB; idempotent unless `force`. | `lore_ingest_graph` |
 | READ a spec's coverage/needs-attention from the already-built main-branch graph. Read path over the API. | `lore-query-trace` |
 | Enumerate the repo's tests via its manifest in your local checkout. Local-only; refused on the shared cluster. | `lore_list_tests` |
 | Execute ONE test by selector and see what code it covers. Local-only; refused on the shared cluster. | `lore_run_test` |

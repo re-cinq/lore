@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import CollapsibleCard from "@/components/CollapsibleCard";
 import { useState, useTransition } from "react";
 import StatusBadge from "../StatusBadge";
 import { isPlanningActive } from "../feature-status";
@@ -43,7 +44,7 @@ function FinalizedView({
             )}
           </p>
         ) : (
-          <p className="meta">Finalizing — opening the spec PR…</p>
+          <p className="meta">Creating the spec PR…</p>
         )}
       </div>
       <DecompositionView
@@ -53,9 +54,12 @@ function FinalizedView({
         total={decomposition.total}
       />
       {feature.draft_spec_md && (
-        <div className="spec-card">
+        <CollapsibleCard
+          title="Draft spec"
+          hint={`${feature.draft_spec_md.split("\n").length} lines`}
+        >
           <Markdown markdown={feature.draft_spec_md} />
-        </div>
+        </CollapsibleCard>
       )}
     </div>
   );
@@ -77,7 +81,10 @@ export default function FeatureDetailView({
   feature: FeatureWithIterations;
   timeoutMinutes: number;
   decomposition: { stories: DecompStoryGroup[]; total: number };
-  refine: (userAnswers: SectionAnswers) => Promise<void>;
+  refine: (
+    userAnswers: SectionAnswers,
+    fromIteration?: number,
+  ) => Promise<void>;
   finalize: () => Promise<void>;
   split: (title: string, prompt: string) => Promise<void>;
   del: () => Promise<void>;
@@ -111,12 +118,11 @@ export default function FeatureDetailView({
       </div>
 
       {feature.original_prompt && (
-        <div className="spec-card" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginTop: 0 }}>Your prompt</h3>
+        <CollapsibleCard title="Your prompt" defaultOpen>
           <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>
             {feature.original_prompt}
           </p>
-        </div>
+        </CollapsibleCard>
       )}
 
       {isPlanningActive(feature.status) ? (

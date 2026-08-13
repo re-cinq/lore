@@ -259,3 +259,22 @@ in a pod); ingest gains per-chunk isolation, hard deadlines, and horizontal head
 Detailed FRs/AC belong to a speckit feature under `specs/` when this amendment is
 accepted; scope note lives in
 [`specs/spec-traceability-graph/spec.md`](../specs/spec-traceability-graph/spec.md) open question 8.
+
+## Amendment (2026-08): agents consume `resources.mcp_servers`
+
+The recipe's `resources.mcp_servers` (defined in [ADR-030](./ADR-030-agent-definition-recipe-and-tool-seam.md))
+was modeled but never injected. It is now realized end-to-end so an agent pod gets **live** Lore tools
+for the run's duration, not only the one-shot pre-run context hydration:
+
+- **Controller wiring.** The ai-agent-subsystem controller renders each `resources.mcp_servers[]` entry
+  into a `.mcp.json` and passes `--mcp-config` (with `--strict-mcp-config`, since the pod cwd is `/`
+  and auto-load won't fire) on the headless `claude` command; `headers_secret` resolves to the entry's
+  `Authorization: Bearer` header. `disallowed_tools`/`allowed_tools` flow into
+  `--disallowedTools`/`--allowedTools`.
+- **Egress + gateway resolution.** The `agent-job-egress` NetworkPolicy allows egress only to public
+  `:443` (DNS excepted), so in-cluster ClusterIPs are unreachable from a pod. The tools are therefore
+  served by a shared **`lore-mcp` gateway** (`apps/mcp-server` in HTTP/agent mode) exposed at a public
+  `:443` host — the same shape the already-shipped `output.sinks[].http` + `headers_secret` uses to
+  reach a public endpoint under this policy. No NetworkPolicy change is needed. The gateway itself is a
+  normal Deployment (not under `agent-job-egress`), so gateway→lore-api uses the in-cluster ClusterIP
+  while agent→gateway is public `:443`.

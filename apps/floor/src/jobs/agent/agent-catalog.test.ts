@@ -32,8 +32,19 @@ describe("buildAgentDefinition", () => {
         permission_mode: "bypass",
         max_turns: 40,
         resources: {
-          secrets: [{ name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" }],
+          secrets: [{ name: "__LLM_SECRET_KEY__", ref: "__LLM_SECRET_KEY__" }],
+          mcp_servers: [
+            {
+              name: "lore",
+              transport: "http",
+              url: "__LORE_MCP_URL__",
+              headers_secret: "lore-mcp-auth",
+            },
+          ],
+          skills: ["lore-context"],
+          skills_source: "__LORE_SKILLS_URL__",
         },
+        disallowed_tools: ["mcp__lore__lore_create_pipeline_task"],
         output: {
           sinks: [
             { type: "stdout" },
@@ -48,11 +59,21 @@ describe("buildAgentDefinition", () => {
     });
   });
 
-  it("declares ANTHROPIC_API_KEY in resources.secrets so the controller injects the model key", () => {
+  it("declares the LLM-credential sentinel in resources.secrets so the controller injects whichever key the cluster supplies", () => {
     expect(
       buildAgentDefinition("implementation", impl).spec?.resources,
     ).toEqual({
-      secrets: [{ name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" }],
+      secrets: [{ name: "__LLM_SECRET_KEY__", ref: "__LLM_SECRET_KEY__" }],
+      mcp_servers: [
+        {
+          name: "lore",
+          transport: "http",
+          url: "__LORE_MCP_URL__",
+          headers_secret: "lore-mcp-auth",
+        },
+      ],
+      skills: ["lore-context"],
+      skills_source: "__LORE_SKILLS_URL__",
     });
   });
 
@@ -68,6 +89,24 @@ describe("buildAgentDefinition", () => {
     expect(resources?.env).toEqual([
       { name: "LORE_API_URL", value: "__LORE_API_URL__" },
     ]);
+  });
+
+  it("declares a produced artifact so it can leave the pod", () => {
+    const planning = buildAgentDefinition("feature-planning", {
+      prompt_template: "plan {description}",
+      watch: { event: "planning.result", path: "target/result.json" },
+    });
+
+    expect(planning.spec?.output?.watch).toEqual([
+      { event: "planning.result", path: "target/result.json" },
+    ]);
+  });
+
+  it("declares no artifact for a recipe whose deliverable is its output", () => {
+    expect(
+      buildAgentDefinition("general", { prompt_template: "do {description}" })
+        .spec?.output?.watch,
+    ).toBeUndefined();
   });
 
   it("omits model when the recipe has none", () => {
@@ -94,6 +133,16 @@ describe("buildStation", () => {
       name: "agent",
       image: "node:22-bookworm",
     });
+  });
+
+  it("runs the agent in the cloned repo, the one writable directory its prompts name", () => {
+    const containers = (
+      buildStation("implementation", impl).spec?.template as {
+        spec: { containers: Array<{ name: string; workingDir?: string }> };
+      }
+    ).spec.containers;
+
+    expect(containers[0].workingDir).toBe("/workspace/target");
   });
 
   it("defaults the deadline to 30 when the recipe has no timeout", () => {
@@ -140,6 +189,23 @@ describe("catalogChartYaml", () => {
 
     expect(withStation).toContain("value: {{ .Values.loreApiUrl }}");
     expect(withStation).not.toContain("__LORE_API_URL__");
+  });
+  it("templates the LLM credential key with the helm value, as both env name and secret ref (no sentinel leaks)", () => {
+    expect(out).toContain("- name: {{ .Values.agentLlmSecretKey }}");
+    expect(out).toContain("ref: {{ .Values.agentLlmSecretKey }}");
+    expect(out).not.toContain("__LLM_SECRET_KEY__");
+  });
+  it("guards the skills block behind .Values.loreSkillsUrl so no recipe asks for skills it cannot fetch", () => {
+    expect(out).toContain("{{- if .Values.loreSkillsUrl }}");
+    expect(out).toContain("skills_source: {{ .Values.loreSkillsUrl }}");
+    expect(out).not.toContain("__LORE_SKILLS_URL__");
+    // The guard opens immediately before `skills:` and closes after `skills_source:`
+    // — an unguarded skills list renders `skills_source: null`, which the init
+    // treats as a successful no-op and the agent then dies on the missing
+    // settings.json it was supposed to fetch.
+    expect(out).toMatch(
+      /\{\{- if \.Values\.loreSkillsUrl \}\}\n *skills:\n(?: +- .*\n)+ *skills_source: \{\{ \.Values\.loreSkillsUrl \}\}\n\{\{- end \}\}/,
+    );
   });
   it("stamps each CR namespace with the helm value (umbrella spans namespaces)", () => {
     expect(out).toContain("namespace: {{ .Values.namespace }}");

@@ -114,6 +114,32 @@ describe("injectRepoToken", () => {
       },
     ]);
   });
+  it("wires resources.conversation onto the per-task clone when the run continues one", () => {
+    // Per-RUN, so it cannot live on the shared catalog recipe — same reason as the
+    // repo token.
+    const continued = injectRepoToken(
+      catalogDef,
+      {
+        ...spec,
+        conversation: {
+          source: "http://floor:8080/api/agent-conversations",
+          id: "round-2",
+          pin: "round-3",
+          headersSecret: "agent-events-auth",
+        },
+      },
+      "GH_TOKEN_abc12345",
+      "pt-abc12345",
+    );
+
+    expect(continued.spec?.resources?.conversation).toEqual({
+      source: "http://floor:8080/api/agent-conversations",
+      id: "round-2",
+      pin: "round-3",
+      headers_secret: "agent-events-auth",
+    });
+  });
+
   it("omits ref when the spec has no branch", () => {
     const repo = injectRepoToken(catalogDef, { ...spec, branch: "" }, "k", "n")
       .spec?.resources?.repos?.[0];
@@ -122,7 +148,7 @@ describe("injectRepoToken", () => {
   });
   it("tolerates a catalog AgentDefinition with no labels", () => {
     const def = injectRepoToken(
-      { kind: "AgentDefinition", spec: { model: "m" } },
+      { kind: "AgentDefinition", spec: { model: "m", prompt: "p" } },
       spec,
       "k",
       "n",
@@ -131,6 +157,20 @@ describe("injectRepoToken", () => {
     expect(def.metadata?.labels).toEqual({
       "lore.re-cinq.com/task-id": spec.taskId,
     });
+  });
+  it("throws when the catalog recipe has no prompt", () => {
+    // The contracts type makes prompt required, but the cluster can still hand back
+    // a catalog row without one — that is the case the guard exists for, so the
+    // fixture has to sidestep the compiler to reach it.
+    const promptless = {
+      kind: "AgentDefinition",
+      metadata: { name: "impl" },
+      spec: {},
+    } as AgentDefinition;
+
+    expect(() => injectRepoToken(promptless, spec, "k", "n")).toThrow(
+      new Error(`catalog recipe impl has no prompt; task ${spec.taskId}`),
+    );
   });
 });
 

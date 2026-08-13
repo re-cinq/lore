@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
-import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
+import {
+  definitionHash,
+  type AssemblyLine,
+} from "@re-cinq/lore-assembly-lines";
 import {
   createStartEventHandler,
   type StartEventHandlerDeps,
@@ -202,5 +205,58 @@ describe("createStartEventHandler", () => {
     await expect(
       createStartEventHandler(deps)({ definitionName: "implementation" }),
     ).rejects.toThrow("missing assemblyLineId");
+  });
+});
+
+// ── Definition hashing (specs/fork-rerun-from-node FR4): the start handler is
+//    the one place that holds both the row id and the resolved definition, so it
+//    is where the graph a run executed gets recorded.
+describe("createStartEventHandler definition hashing", () => {
+  it("stamps the resolved definition's content hash on the row", async () => {
+    const { port, assemblyLineId } = await seededPort("implementation");
+    const { deps } = makeDeps(port);
+
+    await createStartEventHandler(deps)(
+      params(assemblyLineId, "implementation"),
+    );
+
+    expect(await port.getById(assemblyLineId)).toMatchObject({
+      definitionHash: definitionHash(
+        TEST_DEFINITIONS.get("implementation") as AssemblyLine,
+      ),
+    });
+  });
+
+  it("leaves an earlier stamp alone when a redelivered start loads an edited definition", async () => {
+    const { port, assemblyLineId } = await seededPort("implementation");
+    const edited = new Map(TEST_DEFINITIONS);
+
+    edited.set("implementation", definition("implementation", ["agent"]));
+    const first = makeDeps(port);
+
+    await createStartEventHandler(first.deps)(
+      params(assemblyLineId, "implementation"),
+    );
+    const original = (await port.getById(assemblyLineId))?.definitionHash;
+    const second = makeDeps(port, { definitions: async () => edited });
+
+    await createStartEventHandler(second.deps)(
+      params(assemblyLineId, "implementation"),
+    );
+
+    expect(await port.getById(assemblyLineId)).toMatchObject({
+      definitionHash: original,
+    });
+  });
+
+  it("stamps nothing when the definition does not resolve", async () => {
+    const { port, assemblyLineId } = await seededPort("onboard");
+    const { deps } = makeDeps(port);
+
+    await createStartEventHandler(deps)(params(assemblyLineId, "onboard"));
+
+    expect(await port.getById(assemblyLineId)).toMatchObject({
+      definitionHash: null,
+    });
   });
 });

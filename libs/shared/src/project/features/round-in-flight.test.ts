@@ -16,6 +16,7 @@ function iter(over: Partial<FeatureIteration>): FeatureIteration {
     status: "ready",
     user_answers: null,
     gap_result: null,
+    parent_iteration: null,
     created_at: new Date(now).toISOString(),
     updated_at: new Date(now).toISOString(),
     ...over,

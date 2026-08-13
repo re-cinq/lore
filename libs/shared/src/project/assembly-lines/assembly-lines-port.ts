@@ -1,9 +1,28 @@
+/** Fork parentage: the terminal line to inherit from, and the last node to inherit. */
+export interface AssemblyLineResumeFrom {
+  lineId: string;
+  /** Rows through THIS node's latest completed row are copied; the walk resumes
+   *  at its successor. */
+  nodeId: string;
+}
+
 export interface AssemblyLineStartInput {
   definitionName: string;
   repo: string;
   branch?: string;
   taskId?: string;
   args?: Record<string, unknown>;
+  /** Content hash of the definition the caller loaded. Required with
+   *  {@link resumeFrom} — it is the drift guard's left-hand side. */
+  definitionHash?: string;
+  /**
+   * Fork-and-rerun (specs/fork-rerun-from-node): seed the new line with the
+   * source's node rows through `nodeId`, so the ordinary replay-derived walk
+   * resumes at the successor instead of re-running the green prefix. `branch`
+   * and `taskId` are inherited and must not be passed; `args` are inherited
+   * unless overridden.
+   */
+  resumeFrom?: AssemblyLineResumeFrom;
 }
 
 export interface AssemblyLineNodeStartInput {
@@ -35,6 +54,17 @@ export interface AssemblyLineRecord {
   status: "queued" | "running" | "finished" | "failed";
   outcome: string | null;
   reason: string | null;
+  /** Content hash of the definition this execution ran; null for rows that
+   *  predate the column or whose definition never resolved. */
+  definitionHash: string | null;
+  /** Fork parentage — null for a line that was not forked. */
+  resumedFromLineId: string | null;
+  resumedFromNodeId: string | null;
+  /** Node rows copied from the fork source, fixed at fork time (0 for a plain
+   *  start). The overlap guard's "no work of its own yet" test compares the
+   *  line's CURRENT row count against this; recomputing the prefix instead
+   *  would let a back-edge revisit re-arm the guard mid-walk. */
+  inheritedNodeCount: number;
   createdAt: Date;
   startedAt: Date | null;
   finishedAt: Date | null;
@@ -53,12 +83,34 @@ export interface AssemblyLinesPort {
    */
   start(input: AssemblyLineStartInput): Promise<string>;
   markRunning(id: string): Promise<void>;
+  /**
+   * Record the content hash of the definition this execution ran, once. Never
+   * overwrites an already-stamped value: the hash names the graph the line's
+   * node rows were produced by, so a redelivered start loading a since-edited
+   * definition must not rewrite what the rows actually came from.
+   *
+   * Unknown id: the Pg UPDATE simply matches no row, while the in-memory double
+   * throws — the same deliberate asymmetry `markRunning` carries, so a caller
+   * bug surfaces in tests instead of vanishing in production.
+   */
+  stampDefinitionHash(id: string, hash: string): Promise<void>;
   /** `outcome: "error"` closes the row as `failed`; anything else as `finished`.
    *  First writer decides — returns true only for the call that closed the row,
    *  so racing finishers (node event vs reaper) can gate once-only side effects
    *  (failure notification) on the win. */
   finish(id: string, outcome: string, reason?: string): Promise<boolean>;
   getById(id: string): Promise<AssemblyLineRecord | null>;
+  /**
+   * Merge a patch into the line's `args` — how one node's output reaches the next,
+   * and how a node's objection reaches the node that fed it.
+   *
+   * ADDITIVE by key: a key the patch does not mention is untouched, so a later merge
+   * can never make an earlier node's input vanish from under the replay. A key the
+   * patch DOES mention is replaced, because an upstream node re-running after an
+   * objection must supersede the output that was rejected. A line that does not
+   * exist is a no-op, not an error: the artifact sink is fire-and-forget.
+   */
+  mergeArgs(id: string, patch: Record<string, unknown>): Promise<void>;
   listForTask(taskId: string): Promise<AssemblyLineRecord[]>;
   /**
    * Event-driven transition primitives: the walk state is derived from node rows,

@@ -2,7 +2,7 @@
 // folder: a spec like `specs/1-lore-platform/` holds spec.md + plan.md +
 // data-model.md + tasks.md (+ checklists/, contracts/ …), and the list page shows
 // it as a single card titled from spec.md, with every file listed in the card and
-// coverage summed across the folder. Pure value-in/value-out.
+// the coverage of spec.md alone (see `docCoverage`). Pure value-in/value-out.
 
 export interface SpecGroupCoverage {
   testable: number;
@@ -60,25 +60,24 @@ function orderSpecFirst(a: SpecSummaryInput, b: SpecSummaryInput): number {
   return rank(a) - rank(b) || a.filePath.localeCompare(b.filePath);
 }
 
-function sumCoverage(items: SpecSummaryInput[]): SpecGroupCoverage {
-  let testable = 0;
-  let covered = 0;
-  let untestable = 0;
-
-  for (const { coverage } of items) {
-    if (!coverage) {
-      continue;
-    }
-    testable += coverage.testable;
-    covered += coverage.covered;
-    untestable += coverage.untestable ?? 0;
+/**
+ * The card reports its primary document's coverage, not the folder's sum. Only
+ * a folder's `spec.md` (and ADR bodies) is under the statement-link rules
+ * (eslint.config.mjs) — plan.md / tasks.md / research.md are exploratory and
+ * nothing will ever link their statements — so summing the folder buried a
+ * fully-linked spec under hundreds of statements that are not in the gate's
+ * denominator (`specs/1-lore-platform` read 126/597 for a 126/126 spec).
+ */
+function docCoverage({ coverage }: SpecSummaryInput): SpecGroupCoverage {
+  if (!coverage) {
+    return { testable: 0, covered: 0, untestable: 0, ratio: 0 };
   }
 
   return {
-    testable,
-    covered,
-    untestable,
-    ratio: testable > 0 ? covered / testable : 0,
+    testable: coverage.testable,
+    covered: coverage.covered,
+    untestable: coverage.untestable ?? 0,
+    ratio: coverage.testable > 0 ? coverage.covered / coverage.testable : 0,
   };
 }
 
@@ -102,7 +101,7 @@ export function groupSpecSummaries(summaries: SpecSummaryInput[]): SpecGroup[] {
       key,
       title: primary.title || basename(key),
       description: primary.description,
-      coverage: sumCoverage(sorted),
+      coverage: docCoverage(primary),
       files: sorted.map((s) => ({ filePath: s.filePath, title: s.title })),
     });
   }

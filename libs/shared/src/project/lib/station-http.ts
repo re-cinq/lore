@@ -89,6 +89,12 @@ class GitHubHttp {
       })
     ).issues;
   }
+  /** The http client is already repo-scoped (the repo is in its base URL), so the
+   *  port's `repo` argument is unused here — same as listIssues above. */
+  async listLabels(_repo: string): Promise<string[]> {
+    return (await this.http.get<{ labels: string[] }>("/labels")).labels;
+  }
+
   async createIssue(
     _repo: string,
     title: string,

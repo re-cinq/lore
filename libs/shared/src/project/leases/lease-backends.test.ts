@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
+import { fakePgPool } from "../../test-helpers/fake-pg-pool.js";
 import {
   DbLeaseBackend,
   FileLeaseBackend,
@@ -9,31 +10,11 @@ import {
   type ExpiredLease,
 } from "./lease-backends.js";
 
-// ── pg.Pool mock ───────────────────────────────────────────────────────
-
-type Call = { sql: string; values: unknown[] };
-
-function mockPool(responses: Array<{ rowCount: number; rows?: unknown[] }>) {
-  const calls: Call[] = [];
-  let i = 0;
-  const pool = {
-    query: vi.fn(async (sql: string, values: unknown[]) => {
-      calls.push({ sql, values });
-      const r = responses[i++] ?? { rowCount: 0, rows: [] };
-
-      return { rowCount: r.rowCount, rows: r.rows ?? [] };
-    }),
-  };
-  // The lease module only uses `pool.query`; satisfy the type via cast.
-
-  return { pool: pool as any, calls };
-}
-
 // ── DbLeaseBackend ─────────────────────────────────────────────────────
 
 describe("DbLeaseBackend.acquire", () => {
   it("returns acquired:true on first acquire (no prior row)", async () => {
-    const { pool, calls } = mockPool([
+    const { pool, calls } = fakePgPool([
       { rowCount: 1, rows: [{ previous_holder: null }] },
     ]);
     const backend = new DbLeaseBackend(pool);
@@ -41,17 +22,17 @@ describe("DbLeaseBackend.acquire", () => {
 
     expect(r).toEqual({ acquired: true });
     expect(calls).toHaveLength(1);
-    expect(calls[0].sql).toContain("INSERT INTO pipeline.task_leases");
-    expect(calls[0].sql).toContain("ON CONFLICT (branch_name)");
-    expect(calls[0].sql).toContain(
+    expect(calls[0].text).toContain("INSERT INTO pipeline.task_leases");
+    expect(calls[0].text).toContain("ON CONFLICT (branch_name)");
+    expect(calls[0].text).toContain(
       "WHERE pipeline.task_leases.expires_at < now()",
     );
-    expect(calls[0].sql).toContain("WITH prev AS");
-    expect(calls[0].values).toEqual(["branch-x", "task-1", "pod-A", 600]);
+    expect(calls[0].text).toContain("WITH prev AS");
+    expect(calls[0].params).toEqual(["branch-x", "task-1", "pod-A", 600]);
   });
 
   it("returns acquired:true with tookOverFrom on takeover (T027)", async () => {
-    const { pool } = mockPool([
+    const { pool } = fakePgPool([
       { rowCount: 1, rows: [{ previous_holder: "pod-A" }] },
     ]);
     const r = await new DbLeaseBackend(pool).acquire(
@@ -64,7 +45,7 @@ describe("DbLeaseBackend.acquire", () => {
   });
 
   it("returns acquired:false with currentHolder when lease still valid", async () => {
-    const { pool, calls } = mockPool([
+    const { pool, calls } = fakePgPool([
       { rowCount: 0, rows: [] },
       { rowCount: 1, rows: [{ holder: "pod-A" }] },
     ]);
@@ -76,22 +57,22 @@ describe("DbLeaseBackend.acquire", () => {
 
     expect(r).toEqual({ acquired: false, currentHolder: "pod-A" });
     expect(calls).toHaveLength(2);
-    expect(calls[1].sql).toContain("SELECT holder FROM pipeline.task_leases");
+    expect(calls[1].text).toContain("SELECT holder FROM pipeline.task_leases");
   });
 
   it("uses default TTL of 600s when not specified", async () => {
-    const { pool, calls } = mockPool([
+    const { pool, calls } = fakePgPool([
       { rowCount: 1, rows: [{ previous_holder: null }] },
     ]);
 
     await new DbLeaseBackend(pool).acquire("b", "t", "h");
-    expect(calls[0].values).toEqual(["b", "t", "h", 600]);
+    expect(calls[0].params).toEqual(["b", "t", "h", 600]);
   });
 });
 
 describe("DbLeaseBackend.refresh", () => {
   it("returns true when current holder refreshes", async () => {
-    const { pool, calls } = mockPool([{ rowCount: 1 }]);
+    const { pool, calls } = fakePgPool([{ rowCount: 1 }]);
     const ok = await new DbLeaseBackend(pool).refresh(
       "branch-x",
       "pod-A",
@@ -100,39 +81,39 @@ describe("DbLeaseBackend.refresh", () => {
     );
 
     expect(ok).toBe(true);
-    expect(calls[0].sql).toContain("UPDATE pipeline.task_leases");
-    expect(calls[0].sql).toContain("WHERE branch_name = $1 AND holder = $4");
-    expect(calls[0].values).toEqual(["branch-x", 600, "implement", "pod-A"]);
+    expect(calls[0].text).toContain("UPDATE pipeline.task_leases");
+    expect(calls[0].text).toContain("WHERE branch_name = $1 AND holder = $4");
+    expect(calls[0].params).toEqual(["branch-x", 600, "implement", "pod-A"]);
   });
 
   it("returns false when not held by holder", async () => {
-    const { pool } = mockPool([{ rowCount: 0 }]);
+    const { pool } = fakePgPool([{ rowCount: 0 }]);
     const ok = await new DbLeaseBackend(pool).refresh("branch-x", "pod-stale");
 
     expect(ok).toBe(false);
   });
 
   it("preserves existing phase via COALESCE when phase omitted", async () => {
-    const { pool, calls } = mockPool([{ rowCount: 1 }]);
+    const { pool, calls } = fakePgPool([{ rowCount: 1 }]);
 
     await new DbLeaseBackend(pool).refresh("branch-x", "pod-A");
-    expect(calls[0].values).toEqual(["branch-x", 600, null, "pod-A"]);
-    expect(calls[0].sql).toContain("COALESCE($3, phase)");
+    expect(calls[0].params).toEqual(["branch-x", 600, null, "pod-A"]);
+    expect(calls[0].text).toContain("COALESCE($3, phase)");
   });
 });
 
 describe("DbLeaseBackend.release", () => {
   it("returns true when holder releases its own lease", async () => {
-    const { pool, calls } = mockPool([{ rowCount: 1 }]);
+    const { pool, calls } = fakePgPool([{ rowCount: 1 }]);
     const ok = await new DbLeaseBackend(pool).release("branch-x", "pod-A");
 
     expect(ok).toBe(true);
-    expect(calls[0].sql).toContain("DELETE FROM pipeline.task_leases");
-    expect(calls[0].values).toEqual(["branch-x", "pod-A"]);
+    expect(calls[0].text).toContain("DELETE FROM pipeline.task_leases");
+    expect(calls[0].params).toEqual(["branch-x", "pod-A"]);
   });
 
   it("returns false when not held (idempotent)", async () => {
-    const { pool } = mockPool([{ rowCount: 0 }]);
+    const { pool } = fakePgPool([{ rowCount: 0 }]);
     const ok = await new DbLeaseBackend(pool).release("branch-x", "pod-A");
 
     expect(ok).toBe(false);
@@ -148,20 +129,20 @@ describe("DbLeaseBackend.reapExpired", () => {
       holder: "pod-a",
       expires_at: new Date("2026-06-03T09:00:00Z"),
     };
-    const { pool, calls } = mockPool([{ rowCount: 1, rows: [row] }]);
+    const { pool, calls } = fakePgPool([{ rowCount: 1, rows: [row] }]);
     const expired = await new DbLeaseBackend(pool).reapExpired(cutoff);
 
     expect(expired).toEqual([row]);
-    expect(calls[0].sql).toContain("DELETE FROM pipeline.task_leases");
-    expect(calls[0].sql).toContain("WHERE expires_at < $1");
-    expect(calls[0].sql).toContain(
+    expect(calls[0].text).toContain("DELETE FROM pipeline.task_leases");
+    expect(calls[0].text).toContain("WHERE expires_at < $1");
+    expect(calls[0].text).toContain(
       "RETURNING branch_name, task_id, holder, expires_at",
     );
-    expect(calls[0].values).toEqual([cutoff]);
+    expect(calls[0].params).toEqual([cutoff]);
   });
 
   it("returns an empty array when nothing is past the cutoff", async () => {
-    const { pool } = mockPool([{ rowCount: 0, rows: [] }]);
+    const { pool } = fakePgPool([{ rowCount: 0, rows: [] }]);
 
     expect(
       await new DbLeaseBackend(pool).reapExpired(

@@ -29,7 +29,7 @@ beforeAll(async () => {
     },
   };
 
-  registerMemoryTools(fakeServer as never, { getPool: () => null });
+  registerMemoryTools(fakeServer as never);
   queryGraph = handlers["lore_query_graph"];
 });
 
@@ -79,8 +79,10 @@ describe("lore_query_graph remote proxy (no local DB)", () => {
   });
 });
 
-describe("lore_agent_stats (no local DB)", () => {
-  it("returns the requires-PostgreSQL message when no pool is configured", async () => {
+describe("lore_agent_stats remote proxy (no local DB)", () => {
+  let agentStats: ToolHandler;
+
+  beforeEach(async () => {
     const { registerMemoryTools } = await import("./memory-tools.js");
     const handlers: Record<string, ToolHandler> = {};
     const fakeServer = {
@@ -94,10 +96,44 @@ describe("lore_agent_stats (no local DB)", () => {
       },
     };
 
-    registerMemoryTools(fakeServer as never, { getPool: () => null });
+    registerMemoryTools(fakeServer as never);
+    agentStats = handlers["lore_agent_stats"];
+    process.env.LORE_API_URL = "https://lore-api.example.com";
+    process.env.LORE_INGEST_TOKEN = "tok";
+    process.env.LORE_AGENT_ID = "agent-7";
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.unstubAllGlobals();
+  });
 
-    const result = await handlers["lore_agent_stats"]({});
+  it("proxies to GET /api/agent-stats for the resolved agent and prints the JSON", async () => {
+    const stats = { memory_count: 4, recent_episodes: { total_count: 17 } };
 
-    expect(result.content[0].text).toMatch(/requires PostgreSQL/);
+    fetchMock.mockResolvedValue({ ok: true, json: async () => stats });
+
+    const result = await agentStats({});
+    const [calledUrl, opts] = fetchMock.mock.calls[0];
+
+    expect(calledUrl).toBe(
+      "https://lore-api.example.com/api/agent-stats?agent_id=agent-7",
+    );
+    expect(
+      (opts as { headers: Record<string, string> }).headers.Authorization,
+    ).toBe("Bearer tok");
+    expect(JSON.parse(result.content[0].text)).toEqual(stats);
+  });
+
+  it("reports a missing API configuration instead of a PostgreSQL message", async () => {
+    delete process.env.LORE_API_URL;
+
+    const result = await agentStats({});
+
+    expect(result.content[0].text).toContain(
+      "Lore API not configured for fetching agent stats",
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -1,50 +1,33 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
+import { fakePgPool } from "../../test-helpers/fake-pg-pool.js";
 import { PgTaskQueue } from "./task-queue-pg.js";
 import { InMemoryTaskQueue, type SeedTask } from "./task-queue-memory.js";
-
-// ── pg.Pool mock ───────────────────────────────────────────────────────
-
-type Call = { sql: string; values: unknown[] };
-
-function mockPool(responses: Array<{ rows?: unknown[] }>) {
-  const calls: Call[] = [];
-  let i = 0;
-  const pool = {
-    query: vi.fn(async (sql: string, values: unknown[]) => {
-      calls.push({ sql, values });
-
-      return { rows: responses[i++]?.rows ?? [] };
-    }),
-  };
-
-  return { pool: pool as any, calls };
-}
 
 // ── PgTaskQueue: SQL shape ─────────────────────────────────────────────
 
 describe("PgTaskQueue.claimNextPending", () => {
   it("selects one pending task, immediate-first then oldest, with the 30s grace", async () => {
-    const { pool, calls } = mockPool([
+    const { pool, calls } = fakePgPool([
       { rows: [{ id: "t1", status: "pending" }] },
     ]);
     const task = await new PgTaskQueue(pool).claimNextPending();
 
     expect(task).toEqual({ id: "t1", status: "pending" });
-    expect(calls[0].sql).toContain("WHERE status = 'pending'");
-    expect(calls[0].sql).toContain("priority = 'immediate'");
-    expect(calls[0].sql).toContain("now() - interval '30 seconds'");
-    expect(calls[0].sql).toContain("LIMIT 1");
+    expect(calls[0].text).toContain("WHERE status = 'pending'");
+    expect(calls[0].text).toContain("priority = 'immediate'");
+    expect(calls[0].text).toContain("now() - interval '30 seconds'");
+    expect(calls[0].text).toContain("LIMIT 1");
   });
 
   it("drops the dead `status != 'running-local'` predicate", async () => {
-    const { pool, calls } = mockPool([{ rows: [] }]);
+    const { pool, calls } = fakePgPool([{ rows: [] }]);
 
     await new PgTaskQueue(pool).claimNextPending();
-    expect(calls[0].sql).not.toContain("running-local");
+    expect(calls[0].text).not.toContain("running-local");
   });
 
   it("returns null when nothing is runnable", async () => {
-    const { pool } = mockPool([{ rows: [] }]);
+    const { pool } = fakePgPool([{ rows: [] }]);
 
     expect(await new PgTaskQueue(pool).claimNextPending()).toBeNull();
   });
@@ -52,39 +35,39 @@ describe("PgTaskQueue.claimNextPending", () => {
 
 describe("PgTaskQueue.findRecoverable", () => {
   it("filters running/queued past the minute interval", async () => {
-    const { pool, calls } = mockPool([
+    const { pool, calls } = fakePgPool([
       { rows: [{ id: "t1", task_type: "general" }] },
     ]);
     const rows = await new PgTaskQueue(pool).findRecoverable(30);
 
     expect(rows).toEqual([{ id: "t1", task_type: "general" }]);
-    expect(calls[0].sql).toContain("status IN ('running', 'queued')");
-    expect(calls[0].sql).toContain("($1 || ' minutes')::interval");
-    expect(calls[0].values).toEqual(["30"]);
+    expect(calls[0].text).toContain("status IN ('running', 'queued')");
+    expect(calls[0].text).toContain("($1 || ' minutes')::interval");
+    expect(calls[0].params).toEqual(["30"]);
   });
 });
 
 describe("PgTaskQueue.claimSpecTask", () => {
   it("returns true when the CAS updates a still-pending row, defaulting the claimer", async () => {
-    const { pool, calls } = mockPool([{ rows: [{ id: "t1" }] }]);
+    const { pool, calls } = fakePgPool([{ rows: [{ id: "t1" }] }]);
 
     expect(await new PgTaskQueue(pool).claimSpecTask("t1")).toBe(true);
-    expect(calls[0].sql).toContain("WHERE id = $1 AND status = 'pending'");
-    expect(calls[0].sql).toContain("agent_id = $2");
-    expect(calls[0].values).toEqual(["t1", "spec-task-executor"]);
+    expect(calls[0].text).toContain("WHERE id = $1 AND status = 'pending'");
+    expect(calls[0].text).toContain("agent_id = $2");
+    expect(calls[0].params).toEqual(["t1", "spec-task-executor"]);
   });
 
   it("records the caller-supplied claimer", async () => {
-    const { pool, calls } = mockPool([{ rows: [{ id: "t1" }] }]);
+    const { pool, calls } = fakePgPool([{ rows: [{ id: "t1" }] }]);
 
     expect(await new PgTaskQueue(pool).claimSpecTask("t1", "agent-9")).toBe(
       true,
     );
-    expect(calls[0].values).toEqual(["t1", "agent-9"]);
+    expect(calls[0].params).toEqual(["t1", "agent-9"]);
   });
 
   it("returns false when the row was already claimed", async () => {
-    const { pool } = mockPool([{ rows: [] }]);
+    const { pool } = fakePgPool([{ rows: [] }]);
 
     expect(await new PgTaskQueue(pool).claimSpecTask("t1")).toBe(false);
   });
@@ -92,25 +75,25 @@ describe("PgTaskQueue.claimSpecTask", () => {
 
 describe("PgTaskQueue.findReadySpecTasks", () => {
   it("stays org-wide with no params when no repo is given", async () => {
-    const { pool, calls } = mockPool([{ rows: [] }]);
+    const { pool, calls } = fakePgPool([{ rows: [] }]);
 
     await new PgTaskQueue(pool).findReadySpecTasks();
-    expect(calls[0].sql).not.toContain("t.target_repo = $1");
-    expect(calls[0].values).toEqual([]);
+    expect(calls[0].text).not.toContain("t.target_repo = $1");
+    expect(calls[0].params).toEqual([]);
   });
 
   it("scopes to one repo when given", async () => {
-    const { pool, calls } = mockPool([{ rows: [] }]);
+    const { pool, calls } = fakePgPool([{ rows: [] }]);
 
     await new PgTaskQueue(pool).findReadySpecTasks("a/b");
-    expect(calls[0].sql).toContain("AND t.target_repo = $1");
-    expect(calls[0].values).toEqual(["a/b"]);
+    expect(calls[0].text).toContain("AND t.target_repo = $1");
+    expect(calls[0].params).toEqual(["a/b"]);
   });
 });
 
 describe("PgTaskQueue.completeSpecTask", () => {
   it("returns completed false for an unknown task", async () => {
-    const { pool } = mockPool([{ rows: [] }]);
+    const { pool } = fakePgPool([{ rows: [] }]);
 
     expect(await new PgTaskQueue(pool).completeSpecTask("missing")).toEqual({
       completed: false,
@@ -119,7 +102,7 @@ describe("PgTaskQueue.completeSpecTask", () => {
   });
 
   it("returns completed false when the task is not running", async () => {
-    const { pool } = mockPool([
+    const { pool } = fakePgPool([
       { rows: [{ status: "pending", context_bundle: {}, target_repo: "a/b" }] },
     ]);
 
@@ -130,7 +113,7 @@ describe("PgTaskQueue.completeSpecTask", () => {
   });
 
   it("flips to completed and skips the readiness scan without slug metadata", async () => {
-    const { pool, calls } = mockPool([
+    const { pool, calls } = fakePgPool([
       { rows: [{ status: "running", context_bundle: {}, target_repo: "a/b" }] }, // load
       { rows: [] }, // UPDATE completed
     ]);
@@ -139,12 +122,12 @@ describe("PgTaskQueue.completeSpecTask", () => {
       completed: true,
       unblocked: [],
     });
-    expect(calls[1].sql).toContain("status = 'completed'");
+    expect(calls[1].text).toContain("status = 'completed'");
     expect(calls).toHaveLength(2);
   });
 
   it("reports same-spec dependents unblocked by the completion", async () => {
-    const { pool } = mockPool([
+    const { pool } = fakePgPool([
       {
         rows: [
           {
@@ -197,18 +180,18 @@ describe("PgTaskQueue.completeSpecTask", () => {
 
 describe("PgTaskQueue org-wide reads", () => {
   it("awaitingApproval selects approval-gated tasks carrying an issue", async () => {
-    const { pool, calls } = mockPool([
+    const { pool, calls } = fakePgPool([
       { rows: [{ id: "t1", target_repo: "a/b", issue_number: 7 }] },
     ]);
     const rows = await new PgTaskQueue(pool).awaitingApproval();
 
     expect(rows).toEqual([{ id: "t1", target_repo: "a/b", issue_number: 7 }]);
-    expect(calls[0].sql).toContain("status = 'awaiting_approval'");
-    expect(calls[0].sql).toContain("issue_number IS NOT NULL");
+    expect(calls[0].text).toContain("status = 'awaiting_approval'");
+    expect(calls[0].text).toContain("issue_number IS NOT NULL");
   });
 
   it("distinctTargetRepos returns the ascending non-null repo set", async () => {
-    const { pool, calls } = mockPool([
+    const { pool, calls } = fakePgPool([
       { rows: [{ target_repo: "a/b" }, { target_repo: "c/d" }] },
     ]);
 
@@ -216,12 +199,12 @@ describe("PgTaskQueue org-wide reads", () => {
       "a/b",
       "c/d",
     ]);
-    expect(calls[0].sql).toContain("SELECT DISTINCT target_repo");
-    expect(calls[0].sql).toContain("target_repo IS NOT NULL");
+    expect(calls[0].text).toContain("SELECT DISTINCT target_repo");
+    expect(calls[0].text).toContain("target_repo IS NOT NULL");
   });
 
   it("prInfo returns the PR coordinates for one task id", async () => {
-    const { pool, calls } = mockPool([
+    const { pool, calls } = fakePgPool([
       { rows: [{ pr_number: 12, target_repo: "a/b", target_branch: "main" }] },
     ]);
 
@@ -230,12 +213,12 @@ describe("PgTaskQueue org-wide reads", () => {
       target_repo: "a/b",
       target_branch: "main",
     });
-    expect(calls[0].sql).toContain("pr_number, target_repo, target_branch");
-    expect(calls[0].values).toEqual(["t1"]);
+    expect(calls[0].text).toContain("pr_number, target_repo, target_branch");
+    expect(calls[0].params).toEqual(["t1"]);
   });
 
   it("prInfo returns null for an unknown task", async () => {
-    const { pool } = mockPool([{ rows: [] }]);
+    const { pool } = fakePgPool([{ rows: [] }]);
 
     expect(await new PgTaskQueue(pool).prInfo("nope")).toBeNull();
   });
@@ -598,16 +581,16 @@ describe("InMemoryTaskQueue.findReadySpecTasks", () => {
 
 describe("countUnmergedInGroup", () => {
   it("PgTaskQueue counts group rows whose status is not merged", async () => {
-    const { pool, calls } = mockPool([{ rows: [{ cnt: "2" }] }]);
+    const { pool, calls } = fakePgPool([{ rows: [{ cnt: "2" }] }]);
 
     expect(await new PgTaskQueue(pool).countUnmergedInGroup("g1")).toBe(2);
-    expect(calls[0].sql).toContain("task_group_id = $1");
-    expect(calls[0].sql).toContain("status <> 'merged'");
-    expect(calls[0].values).toEqual(["g1"]);
+    expect(calls[0].text).toContain("task_group_id = $1");
+    expect(calls[0].text).toContain("status <> 'merged'");
+    expect(calls[0].params).toEqual(["g1"]);
   });
 
   it("PgTaskQueue returns 0 when the count row is absent", async () => {
-    const { pool } = mockPool([{ rows: [] }]);
+    const { pool } = fakePgPool([{ rows: [] }]);
 
     expect(await new PgTaskQueue(pool).countUnmergedInGroup("g1")).toBe(0);
   });
@@ -624,5 +607,77 @@ describe("countUnmergedInGroup", () => {
     seed[1].status = "merged";
     expect(await q.countUnmergedInGroup("g1")).toBe(0);
     expect(await q.countUnmergedInGroup("g2")).toBe(1);
+  });
+});
+
+describe("setColumns", () => {
+  it("PgTaskQueue writes only the given allow-listed columns, without status or updated_at", async () => {
+    const { pool, calls } = fakePgPool([{ rows: [] }]);
+
+    await new PgTaskQueue(pool).setColumns("t1", {
+      issue_number: 7,
+      issue_url: "https://github.com/a/b/issues/7",
+    });
+    expect(calls[0].text).toContain(
+      "UPDATE pipeline.tasks SET issue_number = $1, issue_url = $2 WHERE id = $3",
+    );
+    expect(calls[0].text).not.toContain("status");
+    expect(calls[0].text).not.toContain("updated_at");
+    expect(calls[0].params).toEqual([
+      7,
+      "https://github.com/a/b/issues/7",
+      "t1",
+    ]);
+  });
+
+  it("PgTaskQueue throws on a column outside SETTABLE_TASK_COLUMNS instead of silently dropping it", async () => {
+    const { pool, calls } = fakePgPool([{ rows: [] }]);
+
+    await expect(
+      new PgTaskQueue(pool).setColumns("t1", { statuss: "merged" }),
+    ).rejects.toThrow(
+      new Error(
+        'setColumns: unknown task column "statuss" (not in SETTABLE_TASK_COLUMNS)',
+      ),
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it("PgTaskQueue issues no SQL for an empty column set", async () => {
+    const { pool, calls } = fakePgPool([{ rows: [] }]);
+
+    await new PgTaskQueue(pool).setColumns("t1", {});
+    expect(calls).toHaveLength(0);
+  });
+
+  it("InMemory assigns allow-listed columns onto the seeded task", async () => {
+    const seed: SeedTask[] = [{ id: "t1", status: "running" }];
+    const q = new InMemoryTaskQueue(seed);
+
+    await q.setColumns("t1", { review_iteration: 2, pr_number: 12 });
+    expect(seed[0]).toMatchObject({
+      status: "running",
+      review_iteration: 2,
+      pr_number: 12,
+    });
+  });
+
+  it("InMemory throws on a column outside SETTABLE_TASK_COLUMNS, mirroring the Pg adapter", async () => {
+    const seed: SeedTask[] = [{ id: "t1", status: "running" }];
+    const q = new InMemoryTaskQueue(seed);
+
+    await expect(q.setColumns("t1", { issue_numberr: 7 })).rejects.toThrow(
+      new Error(
+        'setColumns: unknown task column "issue_numberr" (not in SETTABLE_TASK_COLUMNS)',
+      ),
+    );
+    expect(seed[0]).toEqual({ id: "t1", status: "running" });
+  });
+
+  it("InMemory is a no-op for an unknown task id", async () => {
+    const q = new InMemoryTaskQueue([{ id: "t1" }]);
+
+    await q.setColumns("missing", { issue_number: 7 });
+    expect(q.tasks).toEqual([{ id: "t1" }]);
   });
 });

@@ -60,7 +60,7 @@ no-ops on a fresh DB that already built the new name from 0015. ([validated by `
 - **FR4 — Yaml prompt inheritance.** A seeded org row that leaves `prompt` null
   inherits the prompt from the yaml base. ([validated by `agent-defs-pg.test.ts:68`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L68))
 - **FR5 — Offline fallback.** `AgentDefsYaml` resolves task types from
-  `task-types.yaml` and refuses writes (read-only without a DB). ([validated by `agent-defs-yaml.test.ts:133`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L133))
+  `task-types.yaml` and refuses writes (read-only without a DB). ([validated by `agent-defs-yaml.test.ts:133`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L134))
 - **FR5a — Base task-types reader.** The `pipeline-config` reader that
   `AgentDefsYaml` resolves over parses the project's `task-types.yaml`
   (`loadTaskTypes`, pointed at by `TASK_TYPES_PATH`), loading an empty config

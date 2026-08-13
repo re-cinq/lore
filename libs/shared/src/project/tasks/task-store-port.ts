@@ -33,10 +33,34 @@ export const OPEN_TASK_STATES = [
 
 export type TaskAction = "claim" | "cancel" | "retry";
 
+/**
+ * The status groups behind the pending/running/executed views and the
+ * transition target per action. Shared by the Pg adapter and the in-memory
+ * double so the views cannot drift between them.
+ */
+export const PENDING_STATUSES = ["pending", "queued", "awaiting_approval"];
+export const RUNNING_STATUSES = [
+  "running",
+  "running-local",
+  "review",
+  "pr-created",
+];
+export const EXECUTED_STATUSES = ["completed", "merged", "failed", "cancelled"];
+
+export const NEXT_STATUS: Record<TaskAction, string> = {
+  claim: "running-local",
+  cancel: "cancelled",
+  retry: "retried",
+};
+
 /** Dedup lookup: open (per `statuses`) tasks of one type whose description starts with a prefix. */
 export interface FindOpenLikeInput {
   repo: string;
   taskType: string;
+  /**
+   * Matched as an unescaped SQL LIKE prefix (`<prefix>%`, no ESCAPE clause):
+   * a literal `%` or `_` in the prefix acts as a wildcard in both adapters.
+   */
   descriptionPrefix: string;
   statuses: readonly string[];
 }

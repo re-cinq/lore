@@ -10,7 +10,10 @@
 // into one connector and list inside the source node, while outcomes that branch
 // to different steps stay separate and color-coded.
 
-import type { AssemblyLineDefinition } from "./assembly-line-definition";
+import type {
+  AssemblyLineDefinition,
+  DefinitionNode,
+} from "./assembly-line-definition";
 import type { NodeRunStatus } from "./run-event-reducer";
 import { edgeKey } from "./run-taken-edges";
 
@@ -43,6 +46,8 @@ export interface VisibleNode {
   status: NodeRunStatus;
   /** Run mode: on the reached terminal, the run's final result. Null elsewhere. */
   result: string | null;
+  /** For a `wait` node: whose move it is while the node sits open. */
+  signal?: DefinitionNode["signal"];
 }
 
 export interface VisibleEdge {
@@ -163,6 +168,7 @@ function runGraph(
       verdict: run.verdicts[node.id] ?? null,
       status: run.statuses[node.id] ?? "idle",
       result: terminals.has(node.id) ? run.result : null,
+      signal: node.signal,
     }));
 
   return { mode: "run", nodes, edges };

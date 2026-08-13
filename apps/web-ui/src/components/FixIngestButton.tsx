@@ -4,16 +4,19 @@ import { useState, useTransition } from "react";
 import Icon from "@/components/Icon";
 
 /**
- * Overview-level action: opens a fix-PR installing the ingest workflow on
- * every misaligned repo. Disabled while in flight; reports how many PRs
- * were opened.
+ * Overview-level action: opens a fix-PR installing one workflow on every
+ * misaligned repo. Disabled while in flight; reports how many PRs were opened.
  */
-export default function FixIngestButton({
+export function FixWorkflowButton({
   repos,
   action,
+  label,
+  title,
 }: {
   repos: string[];
   action: (repos: string[]) => Promise<{ opened: number; prs: string[] }>;
+  label: string;
+  title: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState<number | null>(null);
@@ -33,7 +36,7 @@ export default function FixIngestButton({
           setDone(opened);
         })
       }
-      title="Open a PR installing the latest .github/workflows/lore-ingest.yml on each flagged repo"
+      title={title}
     >
       {pending ? (
         "opening PRs…"
@@ -41,10 +44,23 @@ export default function FixIngestButton({
         `opened ${done} PR${done === 1 ? "" : "s"}`
       ) : (
         <>
-          <Icon name="warning" size={13} inline /> Fix ingest workflow (
-          {repos.length})
+          <Icon name="warning" size={13} inline /> {label} ({repos.length})
         </>
       )}
     </button>
+  );
+}
+
+/** The ingest-workflow instance, kept as its own component for existing callers. */
+export default function FixIngestButton(props: {
+  repos: string[];
+  action: (repos: string[]) => Promise<{ opened: number; prs: string[] }>;
+}) {
+  return (
+    <FixWorkflowButton
+      {...props}
+      label="Fix ingest workflow"
+      title="Open a PR installing the latest .github/workflows/lore-ingest.yml on each flagged repo"
+    />
   );
 }

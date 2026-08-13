@@ -48,6 +48,9 @@ export interface FeatureIteration {
   status: IterationStatus;
   user_answers: unknown | null;
   gap_result: GapResult | null;
+  /** The round this one continued from — set when the author rewound to an earlier
+   *  round instead of the latest. Null for a normal next round. */
+  parent_iteration: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -73,6 +76,20 @@ export interface FeaturePatch {
   issue_url?: string;
 }
 
+/**
+ * Columns a {@link FeaturePatch} may set, in a fixed order for stable params.
+ * Shared by the Pg adapter (dynamic SQL) and the in-memory double so both apply
+ * exactly the same patch surface.
+ */
+export const PATCH_COLUMNS: (keyof FeaturePatch)[] = [
+  "draft_spec_md",
+  "spec_path",
+  "spec_pr_url",
+  "spec_pr_number",
+  "issue_number",
+  "issue_url",
+];
+
 export interface FeaturesPort {
   /** Insert a draft feature (status `draft`); slug + path derived from title. */
   create(repo: string, input: CreateFeatureInput): Promise<Feature>;
@@ -91,6 +108,7 @@ export interface FeaturesPort {
     repo: string,
     id: string,
     userAnswers: unknown,
+    parentIteration?: number | null,
   ): Promise<FeatureIteration>;
   /** Link a spawned planning task to its iteration row (repo-scoped). */
   attachIterationTask(
@@ -179,6 +197,14 @@ export function roundInFlight(
  *  is never killed; the primary orphan signal is the dead container/pod probe. */
 export const PLANNING_RECOVERY_STALE_MS = 30 * 60_000;
 
+/** How long after a round starts the runtime probe is not yet trusted to mean
+ *  "dead". A round is a task row, then an assembly line, then an Agent CR, then a
+ *  pod — the CR does not exist for the first seconds, so a probe in that window says
+ *  "not born yet", not "died". Round 10 was force-failed 32s in and survived only
+ *  because the delivered result overrode the reaper (2026-08-10). Generous enough to
+ *  cover a controller restart or image pull, far short of the round timeout. */
+export const PLANNING_STARTUP_GRACE_MS = 2 * 60_000;
+
 /** What the feature-planning reaper should do for one mid-planning feature. */
 export type PlanningRecovery =
   | { kind: "none" }
@@ -190,7 +216,8 @@ export type PlanningRecovery =
  * Pure — the reaper resolves `isActive` (the runtime probe of the latest running
  * iteration's task) and persists the outcome.
  *
- * - latest `running` + (runtime gone OR older than `windowMs`) → `orphan`: the
+ * - latest `running` + (runtime gone past the startup grace OR older than
+ *   `windowMs`) → `orphan`: the
  *   round's container/pod died (e.g. a restart) but the row was never closed, so
  *   the wizard "analyzes" forever. Mark it failed + revert the feature.
  * - latest `ready` with a result while the feature is still `planning` → the
@@ -218,9 +245,14 @@ export function decidePlanningRecovery(args: {
   }
 
   if (latest.status === "running") {
-    const stale = nowMs - Date.parse(latest.created_at) > windowMs;
+    const ageMs = nowMs - Date.parse(latest.created_at);
+    const stale = ageMs > windowMs;
+    // Inside the grace window an absent runtime means the CR has not been created
+    // yet, so the probe cannot be read as "died". Staleness still orphans: a wedged
+    // container that never exits must not be protected by the grace period.
+    const startingUp = ageMs < PLANNING_STARTUP_GRACE_MS;
 
-    return !isActive || stale
+    return (!isActive && !startingUp) || stale
       ? { kind: "orphan", iteration: latest.iteration }
       : { kind: "none" };
   }
@@ -245,4 +277,45 @@ export function slugifyFeatureTitle(title: string): string {
     .slice(0, 60);
 
   return slug || "feature";
+}
+
+/** The round a new round builds on: the one the author rewound to, or the latest
+ *  ready one. A rewind target that is not a READY round is rejected rather than
+ *  silently ignored — continuing from a failed round means continuing from nothing,
+ *  and the author would see a fresh start dressed as a rewind. */
+export type RoundBasis =
+  { ok: true; basis: FeatureIteration | null } | { ok: false; error: string };
+
+export function resolveRoundBasis(
+  iterations: FeatureIteration[],
+  fromIteration?: number,
+): RoundBasis {
+  if (fromIteration === undefined) {
+    return { ok: true, basis: latestReadyIteration(iterations) };
+  }
+  const chosen = iterations.find((it) => it.iteration === fromIteration);
+
+  if (!chosen) {
+    return { ok: false, error: `no round ${fromIteration} for this feature` };
+  }
+
+  return chosen.status === "ready" && chosen.gap_result
+    ? { ok: true, basis: chosen }
+    : {
+        ok: false,
+        error: `round ${fromIteration} produced no result to continue from`,
+      };
+}
+
+/** The newest round that produced a result, or null. */
+export function latestReadyIteration(
+  iterations: FeatureIteration[],
+): FeatureIteration | null {
+  for (let i = iterations.length - 1; i >= 0; i--) {
+    if (iterations[i].status === "ready" && iterations[i].gap_result) {
+      return iterations[i];
+    }
+  }
+
+  return null;
 }

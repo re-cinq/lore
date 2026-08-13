@@ -5,7 +5,7 @@ as subcharts under `charts/`:
 
 | Subchart (value key) | Namespace    | Workload |
 |----------------------|--------------|----------|
-| `lore-floor`         | `lore-floor` | Floor coordinator + 11 cron jobs |
+| `lore-floor`         | `lore-floor` | Floor coordinator + 8 cron jobs |
 | `lore-api`           | `lore-api`   | Lore REST API server |
 | `lore-ui`            | `lore-ui`    | Next.js web UI (+ DB migrate hook) |
 | `lore-db-helm`       | `lore-db`    | CNPG ownership-reconciler hook |
@@ -31,20 +31,25 @@ work as-is.
   `helm_release.lore_platform` with all env/secret config via a nested `values`
   block, and `reuse_values = true` so a `terraform apply` merges config on top
   of the live release **without** resetting image tags.
-- **CI** (`.github/workflows/build-{floor,mcp,ui}.yml`) bumps a single
-  service's image per push:
+- **CI** (`.github/workflows/build-{floor,lore-api,ui}.yml`) bumps a single
+  service's image per push, each through `scripts/ci/deploy-lore-platform.sh`:
 
   ```
   helm upgrade --install lore-platform <this chart> \
     --namespace lore-floor \
-    --set <subchart>.image.tag=<git-sha> \
+    --set-string <subchart>.image.tag=<git-sha> \
     --reset-then-reuse-values --cleanup-on-fail
   ```
 
   `--reset-then-reuse-values` keeps the other subcharts' tags and the
-  Terraform-supplied config intact. The three deploy jobs share a GitHub Actions
-  `concurrency` group (`helm-lore-platform-deploy`) so they never run two helm
-  upgrades against the release at once.
+  Terraform-supplied config intact (`--set-string`, never `--set`, so an
+  all-digits short SHA is not coerced to a float and re-rendered as
+  `InvalidImageName` on the next reuse). Several build workflows can fire at
+  once (a `libs/shared` change rebuilds floor + lore-api), so instead of a
+  GitHub `concurrency` group — which keeps only one pending run and cancels the
+  rest — the deploy script serializes on Helm's own release lock: it retries
+  while another deploy holds the lock and clears only a stale (>5 min) leftover
+  from a dead run.
 
 Not deployed by this chart (stays Terraform-owned): the GKE cluster, the
 namespaces, ESO + ExternalSecrets, the two ingresses, the CNPG cluster CR, and

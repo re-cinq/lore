@@ -61,3 +61,16 @@ Create the PR:
 git push -u origin HEAD
 gh pr create --title "..." --body "..."
 ```
+
+## Help
+
+<!-- lore-help:begin -->
+**Summary.** Draft a PR description from the spec, the diff, and the ADRs the change touches.
+**Usage:** `/lore-pr`
+**Use when.** The branch is ready and you want a description that says what problem it solves and what was rejected, not "adds X feature".
+**Not for.** Reviewing the change for defects, or judging whether it should merge.
+**Examples**
+- `/lore-pr` — reads the spec, `git diff main`, `tasks.md` and `adrs/`, drafts the full description, asks one round of edits, then pushes and opens the PR
+- If nothing in the tree records what you rejected, it asks you exactly one question — "what other approaches did you consider?" — because that section cannot be inferred from a diff
+**Related:** `/lore-feature`
+<!-- lore-help:end -->

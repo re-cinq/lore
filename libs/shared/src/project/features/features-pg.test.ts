@@ -86,6 +86,9 @@ describe("PgFeatures.appendIteration", () => {
       "f1",
       2,
       JSON.stringify({ free_form: "x" }),
+      // A normal next round continues the latest, so it records no parent — only a
+      // REWIND names the earlier round it forked from.
+      null,
     ]);
     expect(row).toEqual({ id: "it1", iteration: 2 });
   });

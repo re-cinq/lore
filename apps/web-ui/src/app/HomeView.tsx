@@ -1,5 +1,7 @@
 import { type IngestWorkflowStatus } from "@/lib/ingest-workflow";
-import FixIngestButton from "@/components/FixIngestButton";
+import FixIngestButton, {
+  FixWorkflowButton,
+} from "@/components/FixIngestButton";
 import Icon from "@/components/Icon";
 import Link from "next/link";
 import styles from "./HomeView.module.css";
@@ -22,6 +24,10 @@ export interface HomeViewProps {
   misaligned: string[];
   /** Overview action wired to the Fix-ingest button ("actions up"). */
   fixIngestWorkflows: (
+    repos: string[],
+  ) => Promise<{ opened: number; prs: string[] }>;
+  impactMisaligned: string[];
+  fixTraceImpactWorkflows: (
     repos: string[],
   ) => Promise<{ opened: number; prs: string[] }>;
 }
@@ -72,6 +78,8 @@ export default function HomeView({
   ingestStatus,
   misaligned,
   fixIngestWorkflows,
+  impactMisaligned,
+  fixTraceImpactWorkflows,
 }: HomeViewProps) {
   return (
     <div>
@@ -79,6 +87,12 @@ export default function HomeView({
         <h1>Repositories</h1>
         <div className={styles.headerActions}>
           <FixIngestButton repos={misaligned} action={fixIngestWorkflows} />
+          <FixWorkflowButton
+            repos={impactMisaligned}
+            action={fixTraceImpactWorkflows}
+            label="Fix spec-impact workflow"
+            title="Open a PR installing the latest .github/workflows/lore-trace-impact.yml. Until it lands, this repo's impact findings are suppressed."
+          />
           <Link href="/onboard">
             <button>+ Add Repo</button>
           </Link>

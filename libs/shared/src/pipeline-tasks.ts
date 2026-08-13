@@ -14,11 +14,12 @@ import type { PgPool } from "./memory-store.js";
 // Feature planning + finalize produce only analysis and a spec-doc PR (no code),
 // so they are allowed from the docs tier up (ADR-027 / specs/7-feature-planning).
 const FEATURE_PLANNING = ["feature-planning", "feature-finalize"];
+
 // Onboarding is allowed at every tier: it produces a docs-only scaffolding PR
 // and is gated against duplicates by its own dedicated guard (onboard-guard.ts).
 // Restricting it to `full` only 500s the reonboard repair path on repos the
 // trust ladder has auto-promoted below that.
-const TRUST_LEVELS: Record<string, string[]> = {
+export const TRUST_LEVELS: Record<string, string[]> = {
   docs: ["gap-fill", "runbook", "onboard", ...FEATURE_PLANNING],
   tests: ["gap-fill", "runbook", "onboard", "review", ...FEATURE_PLANNING],
   implementation: [
@@ -42,6 +43,28 @@ const TRUST_LEVELS: Record<string, string[]> = {
     ...FEATURE_PLANNING,
   ],
 };
+
+/**
+ * Throws when the repo's trust level does not allow the task type; a missing or
+ * unknown level passes (backward compatibility). Exported so the in-memory task
+ * store applies the exact same gate as {@link createTask}.
+ */
+export function enforceTrustAllowsTaskType(
+  trustLevel: string | undefined,
+  taskType: string,
+  repo: string,
+): void {
+  if (!trustLevel || !TRUST_LEVELS[trustLevel]) {
+    return;
+  }
+  const allowed = TRUST_LEVELS[trustLevel];
+
+  enforceTrue(
+    allowed.includes(taskType),
+    Error,
+    `Task type "${taskType}" not allowed at trust level "${trustLevel}" for ${repo}. Allowed: ${allowed.join(", ")}`,
+  );
+}
 
 export interface CreateTaskInput {
   description: string;
@@ -121,17 +144,8 @@ export async function createTask(
         const settings = (repoRows[0].settings as {
           trust?: { level?: string };
         }) || { trust: undefined };
-        const trustLevel = settings.trust?.level;
 
-        if (trustLevel && TRUST_LEVELS[trustLevel]) {
-          const allowed = TRUST_LEVELS[trustLevel];
-
-          enforceTrue(
-            allowed.includes(taskType),
-            Error,
-            `Task type "${taskType}" not allowed at trust level "${trustLevel}" for ${repo}. Allowed: ${allowed.join(", ")}`,
-          );
-        }
+        enforceTrustAllowsTaskType(settings.trust?.level, taskType, repo);
       }
     } catch (err) {
       if (
@@ -293,8 +307,10 @@ export async function listTasks(
 /**
  * Columns setTaskStatus may write alongside `status` (allowlisted to prevent SQL
  * injection via dynamic keys). Superset of what the agent's setStatus needed.
+ * Exported so the in-memory task store filters `extra` identically — note this
+ * gate SKIPS unknown keys silently (unlike setColumns, which throws).
  */
-const ALLOWED_TASK_COLUMNS = new Set([
+export const ALLOWED_TASK_COLUMNS = new Set([
   "pr_url",
   "pr_number",
   "target_branch",

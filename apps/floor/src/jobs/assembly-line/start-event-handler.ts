@@ -11,7 +11,10 @@ import type {
   AssemblyLinesPort,
   AssemblyLineRecord,
 } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
-import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
+import {
+  definitionHash,
+  type AssemblyLine,
+} from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
 
 export interface StartEventHandlerDeps {
@@ -93,6 +96,14 @@ export function createStartEventHandler(
       return;
     }
 
+    // Record WHICH graph this run executes, once (specs/fork-rerun-from-node
+    // FR4). This is the only place holding both the row id and the resolved
+    // definition; a later fork replays this run's node rows against the current
+    // definition and refuses when the hashes disagree.
+    await deps.assemblyLines.stampDefinitionHash(
+      assemblyLineId,
+      definitionHash(definition),
+    );
     await deps.assemblyLines.markRunning(assemblyLineId);
 
     // Launch the entry node and return — the walk advances on

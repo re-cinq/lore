@@ -90,6 +90,36 @@ describe("decideNodeRecovery", () => {
     ).toEqual({ kind: "timeout" });
   });
 
+  it("never times out a node whose worker is a human", async () => {
+    // The one test that proves a feature can wait a week. Every other node has a
+    // budget because a pod that stops reporting is stuck; a node parked on a person
+    // is not stuck, and "how long may someone take to answer" has no defensible
+    // number — so the budget does not apply rather than being made very large.
+    expect(
+      decideNodeRecovery({
+        node: { ...node(60 * 24 * 7), agentCrName: null },
+        timeoutMinutes: 15,
+        status: null,
+        nodeType: "wait",
+        nowMs,
+      }),
+    ).toEqual({ kind: "wait" });
+  });
+
+  it("still times out an agent node with no CR", async () => {
+    // The exemption is keyed on the node TYPE, not on the absence of a CR — a
+    // dispatched node that never produced one is exactly the stuck case.
+    expect(
+      decideNodeRecovery({
+        node: { ...node(60 * 24 * 7), agentCrName: null },
+        timeoutMinutes: 15,
+        status: null,
+        nodeType: "agent",
+        nowMs,
+      }),
+    ).toEqual({ kind: "timeout" });
+  });
+
   it("waits on a live in-budget CR", () => {
     expect(
       decideNodeRecovery({

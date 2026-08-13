@@ -32,6 +32,14 @@ export interface AgentRunOpts {
   darkFactory?: { workflowName: string; baseBranch: string };
   /** BYO execution container (ADR-025); omitted → controller default. */
   image?: string;
+  /** The feature a planning run belongs to, threaded into the line's args so a
+   *  definition can key a conversation thread on `args.feature_id`. */
+  featureId?: string;
+  /** The round's feedback-only turn, used instead of `description` when the run
+   *  resumes a conversation. */
+  roundFeedback?: string;
+  /** The task whose run this one continues (rewind). */
+  resumeFromTask?: string;
 }
 
 export interface AgentRunnerPort {

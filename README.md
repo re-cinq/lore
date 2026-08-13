@@ -27,9 +27,9 @@ Beyond context, Lore is an **agent operating system**. It runs background agents
 ## Repository layout
 
 ```
-apps/        deployable services        floor · mcp-server · web-ui · vscode-extension
-libs/        shared libraries           shared (@re-cinq/lore-shared) · assembly-lines (@re-cinq/lore-assembly-lines)
-infra/       deploy & runtime           terraform · docker · k8s · compose.yaml
+apps/        deployable services        floor · lore-api · mcp-server · web-ui · vscode-extension
+libs/        shared libraries           shared (@re-cinq/lore-shared) · assembly-lines (@re-cinq/lore-assembly-lines) · server-core (@re-cinq/lore-server-core)
+infra/       deploy & runtime           terraform · compose.yaml
 specs/       speckit specs (spec/plan/tasks/contracts) — first-class, links into code
 adrs/        architecture decision records (MADR)
 runbooks/    incident & operational runbooks        teams/  per-team CLAUDE.md
@@ -160,6 +160,20 @@ cd lore && scripts/install.sh
 ```
 
 This configures the MCP server, skills, hooks, statusline, and agent ID. The MCP server runs locally over stdio but proxies all operations to the GKE backend — so the backend must be deployed first. See [docs/INSTALL.md](docs/INSTALL.md) for the complete deployment guide.
+
+Then open Claude Code and type **`/lore-help`** — what Lore does, how a session works, every skill, and which one fits the job you're on.
+
+### Developing Lore itself
+
+To run the whole stack on your own machine instead of against a deployed backend:
+
+```bash
+npm install
+npm run dev-setup   # one-time: toolchain check + credentials into .env.local
+npm start           # Postgres + Dgraph + minikube agents + every service, live reload
+```
+
+This needs Node.js >= 20 plus `docker`, `docker compose` v2, `minikube`, `kubectl`, `helm`, and `claude` on your PATH. [Contributing](docs/building-lore/contributing.md#run-the-full-stack-locally) walks through all three steps, the ports, and how to tear it all down and start over.
 
 ## License
 

@@ -2,7 +2,9 @@ name: feature-planning
 description: >
   One interactive planning round: analyze the feature request against the project
   (with the prior feature timeline in context) and emit a structured GapResult.
-  No commit, no PR — the pod posts result.json back to the features API.
+  No commit, no PR — the run declares result.json as a produced artifact
+  (`output.watch`), the subsystem raises it as a `planning.result` event, and the
+  Floor persists it as the round's result.
 version: 1
 entry: analyze
 exit: done
@@ -12,7 +14,54 @@ nodes:
     type: agent
     prompt_ref: feature-planning
     model: claude-sonnet-4-6
+    # Each round continues the previous round's conversation for the SAME feature, so
+    # the agent keeps what it read and decided instead of being re-briefed. Keyed by
+    # an arg rather than a built-in: the engine never learns what a feature is.
+    continues:
+      node: analyze
+      key: args.feature_id
     description: Produce the GapResult JSON for this round (written to result.json).
+
+  # The author reading the round IS a station — the wizard is its worker, reporting
+  # over `assembly_line.resume` instead of stdout. Modelling the pause as a node is
+  # what lets one line span a whole feature: the moments a person acts stop being
+  # gaps between runs and become steps you can see in the graph.
+  - id: author
+    type: wait
+    signal: author_feedback
+    description: The author reviews the round — refine, accept, or abandon.
+
+  # Accepting the plan starts the spec work on the SAME line: the author's accept is
+  # a station outcome like any other, so what follows it is an edge, not a new run.
+  - id: analyse-specs
+    type: agent
+    prompt_ref: spec-analysis
+    # The Station carries the RECIPE — prompt template AND output.watch. Without this
+    # the node resolves the Station named after the LINE's task type and runs
+    # feature-planning's recipe: it would emit a planning result instead of
+    # spec-plan.json, and report success for having done so.
+    station_ref: spec-analysis
+    model: claude-sonnet-4-6
+    description: >
+      Decide which specs this feature changes. Emits spec-plan.json, which the Floor
+      merges into the line as args.spec_plan for the write node.
+
+  - id: write
+    type: agent
+    prompt_ref: feature-finalize
+    station_ref: feature-finalize
+    model: claude-sonnet-4-6
+    description: Apply the change set — amend what it says to amend, create what it says to create.
+
+  - id: push
+    type: agent
+    prompt_ref: push-only
+    # No `push-only` Station exists; the old finalize line reached this node with
+    # feature-finalize inherited from its task type, and naming it keeps that exact
+    # recipe. Left inherited, the merged line would run the PLANNING recipe here —
+    # the node meant to commit and push running a prompt that writes result.json.
+    station_ref: feature-finalize
+    description: Commit + open/update the PR branch.
 
   - id: done
     type: retrospective
@@ -20,5 +69,81 @@ nodes:
 
 edges:
   - from: analyze
+    to: author
+    on: success
+
+  # An agent node can produce this outcome, so the graph must route it; planning
+  # asks for no review, so it reaches the author exactly as success does.
+  - from: analyze
+    to: author
+    on: changes_requested
+
+  # Unbounded on purpose. The back-edge rule exists to stop two agents arguing
+  # forever; here a person decides each pass, so there is no runaway to bound — and
+  # any number picked would silently kill a feature that needed one more round.
+  - from: author
+    to: analyze
+    on: changes_requested
+
+  - from: author
+    to: analyse-specs
+    on: success
+
+  - from: analyse-specs
+    to: write
+    on: success
+
+  # The analysis has no upstream NODE — its input is a plan a PERSON accepted, so a
+  # question about that plan can only be answered by that person. This used to end the
+  # line, with settle-task faking a task failure to surface the objection; now it is an
+  # ordinary edge back to the station whose worker is the author.
+  - from: analyse-specs
+    to: author
+    on: changes_requested
+
+  - from: analyse-specs
+    to: done
+    on: failed
+
+  - from: write
+    to: push
+    on: success
+
+  # The change set was unusable — a spec path that does not exist, or an instruction to
+  # amend a spec that does not cover the area. The objection rides back through args and
+  # analyse-specs re-runs against it. ONE correction: unlike the author's loop, which is
+  # unbounded because a person decides each pass, two agents disagreeing without a
+  # referee will do so all day.
+  - from: write
+    to: analyse-specs
+    on: changes_requested
+    iteration_max: 1
+
+  - from: write
+    to: done
+    on: failed
+
+  - from: push
     to: done
     on: always
+
+  # The author walked away, or the feature was closed. Not a failure of the machine,
+  # so it settles rather than erroring — but it must be routed either way, because
+  # selectEdge does not fall through.
+  - from: author
+    to: done
+    on: failed
+
+  # One retry for a node that genuinely failed — a crashed pod, a non-zero exit, a
+  # timeout. Planning is a single expensive LLM pass with no partial state to lose,
+  # so re-running it is cheaper than making the author click Retry. A second failure
+  # exhausts the budget and fails the line (selectEdge does not fall through), which
+  # settle-task then reports on the round with the line's reason.
+  #
+  # Note this cannot catch the other shape: an agent that exits 0 having produced no
+  # usable artifact leaves the node `success`, so the line completes and the round is
+  # failed by the delivery check rather than retried here.
+  - from: analyze
+    to: analyze
+    on: failed
+    iteration_max: 1

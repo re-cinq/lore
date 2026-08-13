@@ -61,15 +61,15 @@ export function specToAgent(
   const parameters: Record<string, string> = {
     description: spec.description,
     prompt: spec.prompt,
+    // Always present, empty when there is nothing to hydrate: the subsystem's
+    // renderPrompt leaves an unknown placeholder INTACT (so typos surface), which
+    // means an omitted parameter ships the literal token `{context}` to the model.
+    context: context ?? "",
     ...(spec.parameters ?? {}),
   };
 
   if (spec.prNumber !== undefined) {
     parameters.pr_number = String(spec.prNumber);
-  }
-
-  if (context) {
-    parameters.context = context;
   }
 
   return {

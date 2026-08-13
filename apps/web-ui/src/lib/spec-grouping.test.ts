@@ -16,7 +16,7 @@ describe("specGroupKey", () => {
 });
 
 describe("groupSpecSummaries", () => {
-  it("collapses a folder of md files into one card titled from spec.md with all files and summed coverage", () => {
+  it("collapses a folder of md files into one card titled from spec.md, listing every file but reporting only spec.md's coverage", () => {
     const groups = groupSpecSummaries([
       {
         filePath: "specs/auth/plan.md",
@@ -37,7 +37,7 @@ describe("groupSpecSummaries", () => {
         key: "specs/auth",
         title: "Auth Spec",
         description: "auth stuff",
-        coverage: { testable: 6, covered: 4, untestable: 1, ratio: 4 / 6 },
+        coverage: { testable: 4, covered: 3, untestable: 1, ratio: 0.75 },
         files: [
           { filePath: "specs/auth/spec.md", title: "Auth Spec" },
           { filePath: "specs/auth/plan.md", title: "Plan" },

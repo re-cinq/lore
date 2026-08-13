@@ -49,8 +49,17 @@ export function decideNodeRecovery(input: {
   node: AssemblyLineNodeRecord;
   timeoutMinutes: number | undefined;
   status: AgentNodeStatus | null;
+  /** The definition's node type. `wait` nodes have no budget — see below. */
+  nodeType?: string;
   nowMs: number;
 }): NodeRecovery {
+  // A node whose worker is a HUMAN is never stuck, it is parked. Every other node
+  // has a budget because a pod that stops reporting has died; "how long may a person
+  // take to answer" has no defensible number, so the budget does not apply at all
+  // rather than being set very large and silently killing a feature next month.
+  if (input.nodeType === "wait") {
+    return { kind: "wait" };
+  }
   const budgetMs =
     ((input.timeoutMinutes ?? DEFAULT_TIMEOUT_MINUTES) +
       TIMEOUT_BUFFER_MINUTES) *
@@ -159,6 +168,7 @@ export async function assemblyLineReaperJob(
         node: openNode,
         timeoutMinutes: node.timeout_minutes,
         status,
+        nodeType: node.type,
         nowMs,
       });
 

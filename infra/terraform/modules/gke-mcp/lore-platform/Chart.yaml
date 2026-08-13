@@ -38,3 +38,5 @@ dependencies:
     version: "0.1.0"
   - name: ai-agents
     version: "0.1.0"
+  - name: lore-mcp-gateway
+    version: "0.1.0"

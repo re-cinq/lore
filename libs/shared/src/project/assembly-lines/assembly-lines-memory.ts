@@ -1,5 +1,6 @@
 import { enforceTrue } from "../../lib/enforce.js";
 import { randomUUID } from "node:crypto";
+import { resolveResumePrefix } from "./resume.js";
 import type {
   AssemblyLinesPort,
   AssemblyLineStartInput,
@@ -27,6 +28,24 @@ export interface SeedAssemblyLineNode {
   finishedAt: Date | null;
 }
 
+/** A fork inherits branch and taskId from its source and its args unless the
+ *  caller overrides them; a plain start is passed through untouched. */
+function inheritFromSource(
+  input: AssemblyLineStartInput,
+  source: AssemblyLineRecord | null,
+): AssemblyLineStartInput {
+  if (!source) {
+    return input;
+  }
+
+  return {
+    ...input,
+    branch: source.branch ?? undefined,
+    taskId: source.taskId ?? undefined,
+    args: input.args ?? source.args,
+  };
+}
+
 /**
  * In-memory {@link AssemblyLinesPort}: the behavioral spec of the Pg adapter,
  * computed over seeded rows. `clock` is injectable so ordering-dependent reads
@@ -40,9 +59,39 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
   constructor(public clock: () => Date = () => new Date()) {}
 
   async start(input: AssemblyLineStartInput): Promise<string> {
+    const resumeFrom = input.resumeFrom;
+    const source = resumeFrom ? await this.getById(resumeFrom.lineId) : null;
+    // Validate the fork BEFORE minting anything, so a rejected resume leaves no
+    // half-created line behind (the Pg adapter gets the same property from its
+    // read-then-one-CTE shape).
+    const inherited = resumeFrom
+      ? resolveResumePrefix(
+          input,
+          source,
+          await this.listNodes(resumeFrom.lineId),
+        ).prefix
+      : [];
     const id = randomUUID();
+    const row = this.newRow(id, inheritFromSource(input, source));
 
-    this.rows.push(this.newRow(id, input));
+    row.inheritedNodeCount = inherited.length;
+    // A fork carries its source's hash; a plain start carries none until the
+    // Floor stamps it — `input.definitionHash` is a resume INPUT, and the Pg
+    // plain-start CTE likewise never writes it.
+    row.definitionHash = source?.definitionHash ?? null;
+    this.rows.push(row);
+
+    for (const node of inherited) {
+      this.nodes.push({
+        ...node,
+        id: String(this.nodes.length + 1),
+        assemblyLineId: id,
+        // Copied rows never carry the source's CR name: the run-viz and cost
+        // correlation joins resolve agent_cr_name -> newest node row, and an
+        // echoed name would steal the source's late-arriving rows.
+        agentCrName: null,
+      });
+    }
     this.events.push({
       eventName: "assembly_line.start",
       source: "internal",
@@ -50,9 +99,10 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
         assemblyLineId: id,
         definitionName: input.definitionName,
         repo: input.repo,
-        branch: input.branch ?? null,
-        taskId: input.taskId ?? null,
-        args: input.args ?? {},
+        branch: row.branch,
+        taskId: row.taskId,
+        args: row.args,
+        resumedFrom: input.resumeFrom ?? null,
       },
       dedupeKey: `assembly_line.start:${id}`,
     });
@@ -70,6 +120,13 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
 
     row.status = "running";
     row.startedAt = this.clock();
+  }
+
+  async stampDefinitionHash(id: string, hash: string): Promise<void> {
+    const row = this.mustFind(id);
+
+    // Write-once (mirrors the Pg guard on a null hash).
+    row.definitionHash = row.definitionHash ?? hash;
   }
 
   async finish(id: string, outcome: string, reason?: string): Promise<boolean> {
@@ -170,6 +227,14 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }
 
+  async mergeArgs(id: string, patch: Record<string, unknown>): Promise<void> {
+    const row = this.rows.find((r) => r.id === id);
+
+    if (row) {
+      row.args = { ...row.args, ...patch };
+    }
+  }
+
   async getById(id: string): Promise<AssemblyLineRecord | null> {
     return this.rows.find((r) => r.id === id) ?? null;
   }
@@ -240,6 +305,10 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
       status: "queued",
       outcome: null,
       reason: null,
+      definitionHash: null,
+      resumedFromLineId: input.resumeFrom?.lineId ?? null,
+      resumedFromNodeId: input.resumeFrom?.nodeId ?? null,
+      inheritedNodeCount: 0,
       createdAt: this.clock(),
       startedAt: null,
       finishedAt: null,

@@ -1,6 +1,6 @@
 import type { PgPool } from "../../memory-store.js";
 import type { PipelineTask } from "../../types.js";
-import { unblockedBy } from "./task-queue-port.js";
+import { enforceSettableTaskColumns, unblockedBy } from "./task-queue-port.js";
 import type {
   TaskQueueRepository,
   RecoverableTask,
@@ -15,19 +15,6 @@ import type {
   TaskContextRefs,
   InsertTaskInput,
 } from "./task-queue-port.js";
-
-/** Columns setColumns may write (allow-listed to keep the dynamic SQL injection-safe). */
-const SETTABLE_TASK_COLUMNS = new Set([
-  "issue_number",
-  "issue_url",
-  "review_iteration",
-  "pr_url",
-  "pr_number",
-  "target_branch",
-  "failure_reason",
-  "log_url",
-  "agent_id",
-]);
 
 /**
  * Postgres-backed {@link TaskQueueRepository}. The SQL is the org-wide
@@ -336,14 +323,12 @@ export class PgTaskQueue implements TaskQueueRepository {
     taskId: string,
     columns: Record<string, unknown>,
   ): Promise<void> {
+    enforceSettableTaskColumns(columns);
     const setClauses: string[] = [];
     const params: unknown[] = [];
     let idx = 1;
 
     for (const [key, value] of Object.entries(columns)) {
-      if (!SETTABLE_TASK_COLUMNS.has(key)) {
-        continue;
-      }
       setClauses.push(`${key} = $${idx}`);
       params.push(value);
       idx++;

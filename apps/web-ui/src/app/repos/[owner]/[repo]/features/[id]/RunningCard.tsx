@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { formatSeconds } from "@/lib/format-time";
+import RunVisualizationPanel from "@/app/assembly-lines/[id]/RunVisualizationPanel";
+import type { FeatureRunPayload } from "@/lib/feature-run";
 
 /** Elapsed / budget (m:ss / mm:00) from when the running round started, ticking every
  *  second. Turns red and announces once elapsed passes the round's timeout. */
@@ -65,16 +67,27 @@ export default function RunningCard({
   since,
   timeoutMinutes,
   liveOutput,
+  run,
+  phase = "round",
 }: {
   iteration: number;
   since: string | undefined;
   timeoutMinutes: number;
   liveOutput?: string | null;
+  run?: FeatureRunPayload | null;
+  /** Which half of the line is working: a planning ROUND, or the SPEC work that
+   *  follows the author's accept. Both run on the same line and get the same card —
+   *  before this the spec phase showed a row of disabled buttons and no graph. */
+  phase?: "round" | "spec";
 }) {
+  const spec = phase === "spec";
+
   return (
     <div className="spec-card">
       <p style={{ display: "flex", alignItems: "center", margin: 0 }}>
-        Analyzing your feature against the project… (round {iteration})
+        {spec
+          ? "Writing the spec — deciding which specs change, then writing them…"
+          : `Analyzing your feature against the project… (round ${iteration})`}
         <span className="planning-dots" aria-hidden="true">
           <span />
           <span />
@@ -83,8 +96,22 @@ export default function RunningCard({
         <ElapsedTimer since={since} timeoutMinutes={timeoutMinutes} />
       </p>
       <p className="meta">
-        The planning agent is running. This refreshes automatically.
+        {spec
+          ? "The spec PR opens when this finishes. This refreshes automatically."
+          : "The planning agent is running. This refreshes automatically."}
       </p>
+      {run && (
+        <RunVisualizationPanel
+          runId={run.id}
+          runStatus={run.status}
+          startedAt={run.startedAt}
+          definition={run.definition}
+          showEdgeLabels={!run.synthetic}
+          nodes={run.nodes}
+          repo={run.repo}
+          reason={run.reason}
+        />
+      )}
       {liveOutput && <pre style={PRE_STYLE}>{liveOutput}</pre>}
     </div>
   );

@@ -9,6 +9,7 @@
 
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 
@@ -45,6 +46,15 @@ export function injectRepoToken(
   tokenKey: string,
   name: string,
 ): AgentDefinition {
+  // The subsystem rejects a promptless AgentDefinition at admission
+  // (ai-agent-subsystem#155), so a catalog row missing one can only produce a
+  // per-task clone the API server refuses — fail here, where the task id is known.
+  enforceTrue(
+    catalog.spec?.prompt,
+    Error,
+    `catalog recipe ${catalog.metadata?.name} has no prompt; task ${spec.taskId}`,
+  );
+
   return {
     ...catalog,
     metadata: {
@@ -58,6 +68,19 @@ export function injectRepoToken(
       ...catalog.spec,
       resources: {
         ...(catalog.spec?.resources ?? {}),
+        // The conversation is per-RUN (which previous run, saved as which id), so it
+        // rides the per-task clone exactly as the repo token does — the shared
+        // catalog recipe cannot carry it.
+        ...(spec.conversation
+          ? {
+              conversation: {
+                source: spec.conversation.source,
+                id: spec.conversation.id,
+                pin: spec.conversation.pin,
+                headers_secret: spec.conversation.headersSecret,
+              },
+            }
+          : {}),
         repos: [
           {
             name: "target",

@@ -214,22 +214,32 @@ const isAlreadyExists = (e: unknown): boolean =>
   (e as { status?: number }).status === 422;
 
 /**
- * Open (or reuse) a PR that installs the canonical lore-ingest workflow on
- * `repo`. Idempotent: re-uses a stable branch and the existing open PR if a
- * prior run already opened one. Returns the PR url+number, or null if the
- * App isn't configured.
+ * Open (or reuse) a PR that installs one canonical workflow file on `repo`.
+ * Idempotent: re-uses a stable branch and the existing open PR if a prior run
+ * already opened one. Returns the PR url+number, or null if the App isn't
+ * configured.
  */
-export async function openIngestWorkflowPR(
+async function openWorkflowPR(
   repo: string,
-  path: string,
-  content: string,
+  {
+    path,
+    content,
+    branch,
+    title,
+    body,
+  }: {
+    path: string;
+    content: string;
+    branch: string;
+    title: string;
+    body: string;
+  },
 ): Promise<{ url: string; number: number } | null> {
   if (!isGitHubConfigured()) {
     return null;
   }
   const ok = await octokit();
   const [owner, name] = split(repo);
-  const branch = "lore/fix-ingest-workflow";
 
   const { data: repoData } = await ok.rest.repos.get({ owner, repo: name });
   const base = repoData.default_branch;
@@ -286,8 +296,8 @@ export async function openIngestWorkflowPR(
       repo: name,
       head: branch,
       base,
-      title: "lore: install context ingest workflow",
-      body: "This PR installs (or repairs) `.github/workflows/lore-ingest.yml` so pushes to context files trigger Lore re-ingestion.\n\nOpened from the Lore dashboard.",
+      title,
+      body,
     });
 
     return { url: pr.html_url, number: pr.number };
@@ -305,6 +315,36 @@ export async function openIngestWorkflowPR(
 
     return pr ? { url: pr.html_url, number: pr.number } : null;
   }
+}
+
+/** Install (or repair) the context-ingest workflow. */
+export async function openIngestWorkflowPR(
+  repo: string,
+  path: string,
+  content: string,
+): Promise<{ url: string; number: number } | null> {
+  return openWorkflowPR(repo, {
+    path,
+    content,
+    branch: "lore/fix-ingest-workflow",
+    title: "lore: install context ingest workflow",
+    body: "This PR installs (or repairs) `.github/workflows/lore-ingest.yml` so pushes to context files trigger Lore re-ingestion.\n\nOpened from the Lore dashboard.",
+  });
+}
+
+/** Install (or repair) the advisory pre-merge spec-impact workflow. */
+export async function openTraceImpactWorkflowPR(
+  repo: string,
+  path: string,
+  content: string,
+): Promise<{ url: string; number: number } | null> {
+  return openWorkflowPR(repo, {
+    path,
+    content,
+    branch: "lore/fix-trace-impact-workflow",
+    title: "lore: update spec-impact workflow",
+    body: "This PR installs (or repairs) `.github/workflows/lore-trace-impact.yml`. The previous version computed its diff against the base-branch tip instead of the merge base, so it attributed unrelated changes to the PR; findings from it are suppressed until this lands.\n\nOpened from the Lore dashboard.",
+  });
 }
 
 export async function getRepoMeta(repo: string): Promise<RepoMeta | null> {

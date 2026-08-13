@@ -23,7 +23,7 @@
 **Checklist**
 
 - [ ] Lint passes (`npm run lint` or equivalent in the changed workspace)
-- [ ] Types check (`npm run typecheck` or `tsc --noEmit`)
+- [ ] Types check (`tsc --noEmit` in the changed workspace)
 - [ ] Tests pass for changed packages
 - [ ] No secrets, tokens, API keys, or credentials in the diff
 - [ ] Migrations are idempotent (if `ui-helm/migrations/` was touched)

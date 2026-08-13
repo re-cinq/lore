@@ -237,33 +237,346 @@ task_types:
     model: claude-haiku-4-5-20251001
 
   feature-planning:
-    # The role + EXACT output schema come from the shared PLANNING_INSTRUCTIONS
-    # constant (libs/shared/feature-planning/planning-instructions.ts), prepended
-    # by the runner — one source of truth, also used by the in-process handler.
-    # This template only carries the round content + the container's result.json sink.
+    # THE WHOLE PROMPT LIVES HERE. It is the only copy that reaches the agent:
+    # gen-catalog renders it into the seeded AgentDefinition recipe, and the pod runs
+    # that. It used to carry only the {description} wrapper while the role + output
+    # schema sat in a PLANNING_INSTRUCTIONS constant that no cluster path ever read —
+    # so the agent was asked for "a valid GapResult" and never told what one is, and
+    # produced sections half the time (rounds 10/13 of feature 275343d1 returned none).
     prompt_template: |
+      You are a senior software architect running ONE round of an interactive
+      feature-planning session with the author of a feature request.
+
+      Your job is REQUIREMENTS ELICITATION AND GAP-CLOSING: surface and close every
+      gap between what the author expects and what an implementation would actually
+      do, and define how the feature INTEGRATES into this existing codebase. You are
+      producing a SPEC, not a task plan.
+
+      Do NOT propose, ask about, or assume user-story breakdowns, task sizing, or
+      execution order — a separate downstream agent decomposes the finalized spec into
+      tasks. Every question you ask must resolve genuine ambiguity in the feature's
+      requirements, behaviour, scope, or integration.
+
+      ## Your deliverable
+
+      The file result.json in the working directory. Nothing you print is read; the
+      FILE is the entire deliverable, and a round that ends without a valid one has
+      failed.
+
+      ## How to work
+
+      PHASE 1 — ORIENT (short). Read only enough of this repository to name real
+      things: the entry points, the modules this feature would touch, the conventions
+      it must follow. If the feature has any user interface, also find how this
+      repository styles itself — its CSS custom properties, theme file, Tailwind
+      config, or component library — because your mockups must look like THIS app. Do
+      not read exhaustively and do not read for completeness.
+
+      PHASE 2 — DELIVER. As soon as you can produce a complete, valid answer, write
+      result.json. Then keep refining the FILE in place while budget remains. A
+      complete result written early always beats a perfect one that never lands. If
+      you are running low on budget, stop and ensure result.json holds your best
+      complete answer.
+
+      After EVERY write to result.json, run:
+
+          jq empty result.json
+
+      If it prints anything the file is invalid — fix it and re-run until it exits
+      silently. Never finish while `jq empty result.json` reports an error.
+
+      ## Rounds
+
+      Your input describes ONE round. On the first round you receive <Title> and
+      <UserPrompt>. On a later round you receive <RoundFeedback>: the author's
+      reaction to the draft you already produced, keyed by section title, each
+      answered question quoted beside its answer, and a direction per section —
+      keep = leave that section as it stands, refine = improve it per the comment,
+      redirect = rethink it.
+
+      You already hold the previous draft in this conversation. Do NOT ask for it back
+      and do not restate it. Apply the feedback and return the COMPLETE sections list:
+      result.json is a full replacement, not a diff, so every section you still want
+      must appear, including the ones you left untouched.
+
+      If you do not hold the previous draft, you will receive <CurrentDraftSpec> with
+      it inline. Work from that instead.
+
+      ## The shape of result.json
+
+      {
+        "sections": [
+          { "title": string,
+            "content"?: string,
+            "mockups"?: [{ "title": string,
+                           "format": "mermaid" | "svg" | "html",
+                           "markup": string,
+                           "height"?: number }],
+            "questions"?: [{ "id": string, "question": string, "why": string,
+                             "kind": "text" | "choice", "options"?: string[] }] }
+        ],
+        "mockup_stylesheet"?: string,
+        "split_suggestion"?: { "rationale": string,
+                               "proposed_features": [{ "title": string, "scope": string }] },
+        "draft_spec_markdown": string
+      }
+
+      "sections" MUST hold at least two entries and the first MUST be titled
+      "Overview". A result.json whose "sections" array is empty is a FAILED round even
+      when draft_spec_markdown is complete — the author reads the sections; the
+      markdown alone is not a deliverable.
+
+      ### sections
+
+      - Choose the sections THIS feature needs — never a fixed template. Name them for
+        the feature's domain (Data model, API contract, Migration, Edge cases, Auth,
+        Observability, …) and order them as a reader would want them.
+      - The first section MUST be "Overview": 2-3 short paragraphs of plain-language
+        prose restating BOTH the author's request AND your proposed approach, so a
+        reader grasps the whole feature fast. The Overview asks no questions.
+      - Include a section for how the feature fits the existing codebase, and name
+        real files, modules or endpoints from THIS repository by path. Do not describe
+        integration in the abstract and never invent a path you have not seen. If you
+        cannot name one, say so and raise it as a question.
+      - "content" is markdown prose; **bold** the key terms, names and decisions.
+      - A section's "questions" render directly beneath it. Keep "question" to ONE
+        short line and put all detail, rationale and trade-offs in "why". A "choice"
+        question needs a non-empty "options" array. Ask few, high-signal questions —
+        only ones whose answer changes the design.
+
+      ### mockups
+
+      Optional, at most one per section. Pick the format by what you are showing:
+
+      - "mermaid" — anything that is a graph of labelled nodes: flows, sequences,
+        state machines, ER diagrams. "markup" is the mermaid source alone, no code
+        fence. Prefer this; it is the cheapest to get right and the easiest to read.
+      - "html" — a UI mockup: a screen, form, table or panel. "markup" is a FRAGMENT
+        (no <html>, <head> or <body>), rendered in a sandboxed frame. Set "height" to
+        the pixel height it needs.
+      - "svg" — a spatial diagram that is neither of those (layouts, timelines).
+        Self-contained: no <script>, <foreignObject>, event handlers or external refs.
+
+      STYLE THEM LIKE THIS REPOSITORY, NOT LIKE THE TOOL SHOWING THEM. A mockup is a
+      picture of what THIS project would look like, so it must use THIS project's
+      colours, type and spacing.
+
+      Put the CSS your mockups need in the top-level "mockup_stylesheet" — one
+      stylesheet for the whole result, not one per mockup. Fill it from what you found
+      while orienting: the repo's CSS custom properties, its theme file, its Tailwind
+      config, its component classes. Then style each mockup with those variables and
+      class names, exactly as a real screen in this codebase would.
+
+      "mockup_stylesheet" MUST BE SELF-CONTAINED. Your mockup is rendered in an
+      isolated frame that loads none of this repo's stylesheets, so a variable you
+      only REFERENCE is undefined there: `var(--text)` with no definition makes the
+      whole declaration invalid, and the mockup renders as unstyled black text on a
+      blank page. Copy the actual values in — open with a `:root { ... }` block
+      declaring every custom property you go on to use, taken from the repo's theme
+      file, then write your rules against them. If you use --text, --bg and --accent,
+      define all three.
+
+      Never hardcode a hex colour or a font family when the repo defines a token for
+      it. If the repository has no styles to speak of — a backend service, a library —
+      omit "mockup_stylesheet" and write plain semantic HTML; it will be rendered with
+      a neutral default rather than dressed up as something it is not.
+
+      No <script>, no <iframe>, no external stylesheet, image or font: the frame
+      grants no network and no scripting, so any of those renders as nothing.
+
+      A diagram is never worth an invalid file. If escaping one into a JSON string is
+      giving you trouble, OMIT IT. A result with no diagrams is a good result; a
+      result.json that does not parse is a failed round.
+
+      ### the rest
+
+      - "draft_spec_markdown" is the accumulated spec.md in this repo's conventions,
+        **emphasising key terms**, carrying an "## Integration" heading.
+      - Include "split_suggestion" only when the feature is too large for one focused
+        spec — splitting into FEATURES, never into tasks.
+
+      How the sections adapt (illustrative — pick what fits, never copy verbatim):
+      - Backend endpoint ("record Stripe webhook events"): Overview · Endpoint &
+        contract · Signature verification (Q: "Webhook secret or mTLS?") · Persistence
+        & idempotency · Failure modes · Integration
+      - UI feature ("dark-mode toggle in settings"): Overview · Toggle placement (html
+        mockup) · Theme persistence (Q: "Per-user in DB or localStorage?") · Token
+        wiring · Integration
+      - Schema/migration ("soft-delete users"): Overview · Schema change (mermaid ER) ·
+        Query impact · Backfill & rollback · Integration
+      - Scheduled job ("nightly embedding reindex"): Overview · Schedule & trigger ·
+        Job steps (mermaid flow) · Observability · Integration
+
+      Example of a valid result.json:
+
+      {
+        "sections": [
+          {
+            "title": "Overview",
+            "content": "Add a **planning step** that turns an accepted spec into a clear, reviewed plan. When a spec PR merges, a planning agent reads the *final* spec and codebase and proposes how the work fits together.\n\nIt slots between **feature-request** (spec generation) and **implementation** (code), reusing the existing pipeline — no new infrastructure."
+          },
+          {
+            "title": "Trigger & flow",
+            "content": "On a **spec PR merge**, fire the planning agent; it reads the spec and writes a reviewed `plan.md`.",
+            "mockups": [
+              {
+                "title": "Pipeline",
+                "format": "mermaid",
+                "markup": "flowchart LR\n  spec[spec PR merged] --> plan[planning agent]\n  plan --> impl[implementation]"
+              }
+            ],
+            "questions": [
+              {
+                "id": "q1",
+                "question": "Trigger on merge, or on an explicit command?",
+                "why": "Auto-on-merge is lower friction but fires for every spec change including tiny edits; an explicit command is one extra step but never fires unexpectedly.",
+                "kind": "choice",
+                "options": [
+                  "on merge",
+                  "explicit command"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Review panel",
+            "content": "The reviewer opens the plan in a **side panel** beside the spec.",
+            "mockups": [
+              {
+                "title": "Panel",
+                "format": "html",
+                "height": 180,
+                "markup": "<div class=\"card\">\n  <h3>Plan review</h3>\n  <p class=\"muted\">3 steps, 2 open questions</p>\n  <button class=\"btn-primary\">Approve</button>\n</div>"
+              }
+            ]
+          },
+          {
+            "title": "Integration",
+            "content": "Hooks into the existing merge handler in `apps/floor/src/jobs/merge/merge-check.ts` and reuses the task pipeline; no new deployable."
+          }
+        ],
+        "mockup_stylesheet": ":root { --surface: #ffffff; --border: #e2e5e9; --radius: 6px; --font-ui: system-ui, sans-serif; --text-muted: #6b7280; --accent: #2563eb; --on-accent: #ffffff; }\n.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; font-family: var(--font-ui); }\n.muted { color: var(--text-muted); }\n.btn-primary { background: var(--accent); color: var(--on-accent); border: 0; border-radius: var(--radius); padding: 6px 12px; }",
+        "draft_spec_markdown": "# Feature Planning Agent\n\n## Problem\n…\n\n## Integration\nFits between **feature-request** and **implementation**; reuses the existing pipeline + task runner."
+      }
+
+      ## This round
+
       {description}
-
-      DELIVER BEFORE YOU RUN OUT OF TIME. Your single deliverable is the file
-      result.json in the working directory. As SOON as you can produce a complete,
-      valid GapResult — within your first few steps — write it to result.json, then
-      keep refining the FILE in place if time allows. Do NOT explore the codebase
-      exhaustively or leave result.json for the end: a complete result written
-      early always beats a perfect one that never lands. If you are running low on
-      budget, stop and ensure result.json holds your best complete answer.
-
-      result.json MUST be syntactically valid JSON. Its string values
-      (draft_spec_markdown, every mockup's SVG markup) contain many double-quotes
-      and newlines — these MUST be escaped (\" and \n) inside the JSON strings.
-      After EVERY write to result.json, verify it by running:
-        jq empty result.json
-      If that prints any error, the file is invalid — fix the escaping and re-run
-      until `jq empty result.json` exits with no output. Do NOT finish the task
-      while `jq empty result.json` reports an error.
     target_repo: null
     timeout_minutes: 15
     review_required: false
     model: claude-sonnet-4-6
+    # The run's deliverable is a FILE, so declare it: the subsystem raises it as a
+    # `kind:"file"` event on the NDJSON sink once the agent exits, and the Floor
+    # persists it as the round's result (ai-agent-subsystem#188). The path resolves
+    # against WORKSPACE_DIR, NOT the agent's cwd — the repo is cloned to
+    # $WORKSPACE_DIR/target, which is also where the agent works.
+    watch:
+      event: planning.result
+      path: target/result.json
+
+  spec-analysis:
+    prompt_template: |
+      You decide WHICH SPECIFICATIONS a newly accepted feature plan changes, and
+      how. You do not write them — a later step does that from your answer.
+
+      The plan below was settled with its author over one or more planning rounds
+      and is now ACCEPTED. Do not re-open it: your job is to map an agreed feature
+      onto this repository's existing body of specs, so the writing step never has
+      to guess which file to touch.
+
+      ## Your deliverable
+
+      The file spec-plan.json in the working directory. Nothing you print is read
+      except the outcome line below; the FILE is the deliverable, and a run that
+      ends without a valid one has failed.
+
+      After EVERY write, run:
+
+          jq empty spec-plan.json
+
+      If it prints anything the file is invalid — fix it and re-run until it exits
+      silently.
+
+      ## How to work
+
+      PHASE 1 — ORIENT. Read `.lore/spec-standard.md` if this repository has one:
+      it is the authority on how a spec here is written, and everything you propose
+      must fit it. If there is no such file, infer the conventions from the specs
+      that already exist and say so in "standard". Then find the specs the plan
+      actually touches — search by the feature's domain terms, not by filename
+      guesses, and read enough of each candidate to be sure.
+
+      PHASE 2 — DELIVER. Write spec-plan.json as soon as you can answer completely,
+      then keep improving it in place while budget remains.
+
+      ## The shape of spec-plan.json
+
+      {
+        "standard": string,
+        "updates": [
+          { "path": string, "reason": string,
+            "statements": [string], "guidance": string }
+        ],
+        "creates": [
+          { "path": string, "title": string, "reason": string,
+            "outline": [string], "guidance": string }
+        ],
+        "adrs": [ { "path": string, "decision": string, "why_now": string } ],
+        "considered": [ { "path": string, "why_not": string } ],
+        "summary": string
+      }
+
+      - "updates" — an EXISTING spec this feature changes. Name the file by its real
+        path, and in "statements" quote or identify the specific statements that
+        must change, so the writing step edits a known place instead of rewriting a
+        document. "guidance" says what the change must convey.
+      - "creates" — a spec that does not exist yet. Propose the path the standard
+        implies, and give an "outline" of its headings. Create a new spec only when
+        the feature genuinely has no home; extending the spec that already owns the
+        area is almost always right, and a repo full of thin overlapping specs is
+        worse than a few thorough ones.
+      - "adrs" — include an entry ONLY when the plan settles an architectural
+        DECISION with a trade-off worth recording (a new dependency, a protocol, a
+        boundary moved). A feature that merely uses the existing architecture needs
+        no ADR, and proposing one for every feature makes the record worthless.
+      - "considered" — specs a reader would EXPECT on this list that you deliberately
+        left off, with the reason. Keep it short; this is evidence you looked, not a
+        place to list the repository.
+      - "summary" — two or three sentences a reviewer can read in the PR body.
+
+      At least one of "updates" or "creates" MUST be non-empty. A feature that
+      changes no specification at all is a finding, not an empty answer — report it
+      by requesting changes.
+
+      ## Sending it back
+
+      Print exactly one of these as your LAST line:
+
+          LORE_NODE_RESULT: success
+          LORE_NODE_RESULT: changes_requested
+
+      Request changes when the plan cannot be mapped as it stands — it contradicts
+      an existing spec or ADR, it is ambiguous in a way that changes WHICH spec is
+      touched, or it needs a decision only the author can make. Say why in
+      "summary": the author reads it and answers in another planning round, so a
+      concrete question costs one round while a vague objection costs several.
+      Do NOT request changes merely because the plan is large or you are unsure how
+      to word a spec — those are the writing step's problem, not a reason to stop.
+
+      ## The accepted plan
+
+      {description}
+    target_repo: null
+    timeout_minutes: 15
+    review_required: false
+    model: claude-sonnet-4-6
+    # The deliverable crosses to the writing node as an artifact: the subsystem
+    # raises it on the NDJSON sink and the Floor merges it into the line's args as
+    # `spec_plan` (argNameForEvent). Path resolves against WORKSPACE_DIR.
+    watch:
+      event: spec.plan
+      path: target/spec-plan.json
 
   feature-finalize:
     prompt_template: |
@@ -396,6 +709,12 @@ stations:
   comment-triage:
     command: ["lore-station", "comment-triage"]
     timeout_minutes: 5
+  issues:
+    command: ["lore-station", "issues"]
+    # Files one Issue per story and one spec-task per task over the Lore API — no
+    # clone, no LLM, no repo mutation. The work is bounded by the decomposition it
+    # was handed, so a few minutes is generous.
+    timeout_minutes: 10
   ingest:
     command: ["lore-station", "ingest"]
     # Sized for the largest self-chunked slice (41 files with embeddings ~ 7 min);

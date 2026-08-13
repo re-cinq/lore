@@ -16,7 +16,8 @@
 // AgentRunEventInsert has no correlation fields to fill.
 //
 // The row is a projection, not an archive: payloads are truncated to bound JSONB
-// growth, and full fidelity stays the GCS NDJSON archive's job.
+// growth, and untruncated payloads stay the agent_run_turns transcript's job
+// (specs/turn-level-transcript-store; capped per batch, overflow counted).
 
 import { unwrapAttribution } from "@re-cinq/lore-assembly-lines";
 import type {
@@ -283,7 +284,9 @@ export function rowsFromEnvelope(envelope: unknown): AgentRunEventInsert[] {
  *  project. Row payloads are already byte-capped; this bounds their COUNT so a
  *  pathological run (tens of MB of stream-json in one body) cannot materialize
  *  an unbounded row set and OOM the single (replicaCount: 1) Floor replica.
- *  Beyond the cap, projection stops — full fidelity stays the GCS archive's job.
+ *  Beyond the cap, projection stops. The agent_run_turns transcript
+ *  (specs/turn-level-transcript-store) keeps the stream up to its own equal
+ *  per-batch cap, with overflow counted (turn_dropped_cap) rather than silent.
  *  Enforced by parseAgentSink (agent-events.ts), the single-pass line scanner
  *  that projects this file's rowsFromEnvelope over the sink body. */
 export const MAX_RUN_EVENTS_PER_BATCH = 10_000;

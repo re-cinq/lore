@@ -23,7 +23,7 @@ flowchart TB
     end
 
     subgraph gke["GKE cluster"]
-        MCP["MCP server<br/>(Streamable HTTP)"]
+        MCP["Lore API<br/>(REST, /api/*)"]
         AGENT["Floor<br/>worker + scheduler + HTTP :8080"]
         CTRL["agent-controller<br/>(ai-agent-subsystem, ai-agents ns)"]
         POD["Agent CR pods<br/>(one per assembly-line node)"]
@@ -40,10 +40,9 @@ flowchart TB
 
     MCPL -->|"proxy all ops (LORE_API_URL)"| MCP
     GHA -->|"POST /api/ingest (changed files)"| MCP
-    GH -->|"webhooks: PR · review · comment"| MCP
+    GH -->|"webhooks: PR · review · comment<br/>(POST /api/webhook/github)"| AGENT
     SLACK -->|"slash command"| MCP
     MCP -->|"read / write"| DB
-    MCP -->|"POST /api/trigger/*"| AGENT
     UI --> DB
     AGENT -->|"poll pending tasks"| DB
     AGENT -->|"create CR"| CTRL
@@ -59,7 +58,7 @@ How one pipeline task goes from created to merged. Simple tasks call the Anthrop
 ```mermaid
 flowchart TB
     START(["Task created<br/>MCP · Web UI · Slack · Issue label"]) --> Q["pipeline.tasks<br/>status = pending"]
-    Q --> W["Agent worker<br/>polls every 10s"]
+    Q --> W["Floor worker<br/>claims pending tasks"]
     W --> TYPE{"task_type?"}
     TYPE -->|"feature-request / onboard"| LLM["Direct Anthropic API<br/>generate spec / docs"]
     TYPE -->|"implementation / review / general"| CR["Start assembly line:<br/>one Agent CR per node"]
@@ -78,28 +77,26 @@ flowchart TB
 
 ## Scheduling and ingestion
 
-There are two live scheduling layers (split per ADR-019). Hot-path jobs run inside the agent pod; heavy batch jobs run as isolated K8s CronJob pods via `node dist/job-runner.js <job>`. Context reaches the vector store two ways: the push-triggered `/api/ingest` doorbell (immediate, changed files only) and the nightly `context-reindex` crawl (full reconciliation, deletes orphans).
+There are two live scheduling layers (split per ADR-019). Hot-path jobs run in-process inside the Floor; heavy batch jobs run as isolated K8s CronJob pods via `node dist/delivery/job-runner.js <job>`. Context reaches the vector store two ways: the push-triggered `/api/ingest` doorbell (immediate, changed files only) and the nightly `context-reindex` crawl (full reconciliation, deletes orphans).
 
 ```mermaid
 flowchart LR
-    subgraph inproc["In-process scheduler (agent pod · 30s tick)"]
+    subgraph inproc["In-process scheduler (Floor · 30s tick)"]
         direction TB
         J1["merge_check · 1m"]
         J2["approval_check · 1m"]
-        J3["review_reactor · hourly Mon-Fri (webhook safety net)"]
         J4["agent_watcher_reconcile · 1m (k8s-watch safety net)"]
         J5["spec_task_executor · 1m"]
         J6["stale_task_check · hourly"]
+        J7["detection family (fan out per-repo assembly lines):<br/>gap-detection · Mon · spec-drift · Mon<br/>spec-coverage validate · daily · backfill · Mon"]
     end
 
     subgraph k8scron["K8s CronJobs (ADR-019)"]
         direction TB
         C1["context-reindex · 0 2 * * *<br/>full repo crawl + embeddings"]
-        C2["spec-coverage-validate · daily"]
-        C3["spec-coverage-backfill · weekly"]
-        C4["spec-drift / gap-detection · weekly"]
         C5["memory-ttl / importance-decay / consolidation"]
         C6["eval-runner · daily · autoresearch · weekly"]
+        C7["context-core-builder · daily · anthropic-cost-sync · daily"]
     end
 
     PUSH["git push to main<br/>(whitelisted paths incl. specs/**)"] -->|"GitHub Action → POST /api/ingest"| ING["ingestFiles(): classify →<br/>upsert chunks → embed"]
@@ -107,15 +104,14 @@ flowchart LR
     ING --> DB[("{team}.chunks<br/>+ pgvector embeddings")]
 ```
 
-> A legacy GCP Cloud Scheduler nightly (`lore-nightly-full-reindex` in `terraform/.../cloud-scheduler.tf`) still calls the `delegate_task` tool that was retired with the prior agent runtime (ADR-007). It is superseded by the `context-reindex` CronJob above and is safe to remove.
-
 The full job registry — every schedule and what it does — is in [Scheduled Jobs](scheduled-jobs.md).
 
 ## Key components
 
 | Component | What it does |
 |-----------|-------------|
-| **MCP Server** | Serves org context to Claude Code via the MCP protocol. Hybrid search (vector + BM25). Agent memory. Task CRUD. Push-triggered ingest API. Per-client scoped tokens. Rate-limited. |
+| **Lore API** | The remote REST backend (`/api/*`) on GKE (ADR-032). Hybrid search (vector + BM25), agent memory, task CRUD, the push-triggered ingest API, per-client scoped tokens, rate-limited. |
+| **MCP Server** | A thin local stdio adapter that speaks the MCP protocol to Claude Code and proxies every operation to the Lore API via `LORE_API_URL`. Also hosts the local task runner. |
 | **Floor** | Processes pipeline tasks. Calls the Claude API for simple tasks; dispatches complex tasks (implementation) as `Agent` CRs on the ai-agent-subsystem — one pod per assembly-line node, advanced by the event-driven walk. Runs the scheduled maintenance jobs. Creates PRs via the GitHub App. Every task automatically opens a GitHub Issue on the target repo so developers see what Lore is doing without checking the dashboard; Issues are updated on status changes and closed when the PR is created. |
 | **ai-agent-subsystem** | The external agent-controller (`ai-agents` namespace) watches `Agent` custom resources (→ `Station` PodTemplate → `AgentDefinition` recipe) and stamps an ephemeral Job pod per run. Agent pods clone the target repo, run Claude Code, commit, and push; deterministic nodes (validate/gate/retrospective/detect) run the `lore-station` image via the `exec` vendor. Tasks survive Floor deploys and run in parallel with full isolation. Pods run as non-root with dropped capabilities and an egress-restricted NetworkPolicy. |
 | **Web UI** | Next.js dashboard with GitHub OAuth. Repo-centric view. One-click onboarding. Pipeline monitoring. Analytics dashboard. Global settings. |
@@ -156,8 +152,8 @@ The Floor chooses an execution mode based on the task type configured in `task-t
 
 | Mode | When | How |
 |------|------|-----|
-| **API call** | Onboarding, runbooks, gap-fill, review, review-reactor fixes | Direct `@anthropic-ai/sdk` call to Claude Haiku. Fast, lightweight. Plain text in, plain text out. |
-| **Claude Code (Agent CR)** | Implementation, refactoring, complex analysis | Creates an `Agent` CR (or, for task types with a workflow, a Floor-driven assembly line: one CR per node) → the ai-agent-subsystem controller spawns an ephemeral, isolated pod per run. Full tool access, isolated resources, survives Floor deploys. |
+| **API call** | Onboarding, feature-request generation, review-reactor fixes | Direct `@anthropic-ai/sdk` call to Claude Haiku. Fast, lightweight. Plain text in, plain text out. |
+| **Claude Code (Agent CR)** | Implementation, refactoring, runbooks, gap-fill, review, complex analysis | Creates an `Agent` CR (or, for task types with a workflow, a Floor-driven assembly line: one CR per node) → the ai-agent-subsystem controller spawns an ephemeral, isolated pod per run. Full tool access, isolated resources, survives Floor deploys. |
 | **Multi-agent** | Large implementation tasks | Multiple Agent CRs run in parallel, each on a different part of the task (e.g. one agent per file or module). Results merge into a single PR. |
 | **Feature request** | PM intent | Fetches repo context, generates spec/data-model/tasks as individual files. Each artifact gets its own focused LLM call. |
 | **Local runner** | Developer says "run locally" | Background `claude --print` in an isolated git worktree on the developer's machine. Uses the Claude Code subscription — zero API cost. Non-blocking; PR created via `gh`. |

@@ -24,6 +24,7 @@ import {
   type FloorAssemblyLineTask,
 } from "./floor-assembly-line.js";
 import { isFailureOutcome } from "./notify-failure.js";
+import { roundContent } from "./round-content.js";
 
 export interface AdvanceDeps {
   assemblyLines: AssemblyLinesPort;
@@ -47,6 +48,23 @@ export interface AdvanceDeps {
     outcome: string,
     reason?: string,
   ) => Promise<void>;
+  /** Resolve a node's `continues` declaration into the conversation this run should
+   *  continue and save as. Optional seam — a composition without it simply never
+   *  continues, which is the pre-feature behaviour. */
+  resolveConversation?: (
+    node: AssemblyLine["nodes"][number],
+    task: FloorAssemblyLineTask,
+    iteration: number,
+    priorOutcome: string | null,
+  ) => Promise<LoreTaskSpec["conversation"] | undefined>;
+  /** Close the line's backing pipeline task — and, for a planning round, its feature
+   *  iteration — so a failed line stops reading as "still running" everywhere
+   *  downstream. Optional seam, same as notifyFailure. */
+  settleTask?: (
+    row: AssemblyLineRecord,
+    outcome: string,
+    reason?: string,
+  ) => Promise<void>;
 }
 
 /** A walk that reached exit still failed as a whole when a node failed on the way
@@ -61,6 +79,14 @@ export function lineOutcomeFromVisits(visits: NodeVisit[]): {
   return failed
     ? { outcome: "failed", reason: `node "${failed.nodeId}" failed` }
     : { outcome: "completed" };
+}
+
+/** The outcome of a node's most recent recorded visit, or null if it has never run.
+ *  Distinguishes a retry (its own last attempt failed) from a next round. */
+function priorOutcomeOf(visits: NodeVisit[], nodeId: string): string | null {
+  const own = visits.filter((v) => v.nodeId === nodeId);
+
+  return own.length ? (own[own.length - 1].outcome ?? null) : null;
 }
 
 function visitFailed(outcome: StageOutcome | null): boolean {
@@ -141,8 +167,16 @@ export async function advanceLine(
   // DETERMINISTICALLY-chosen winner — the one with the smaller row id — so at most
   // one side backs off (a naive "any other running" would make BOTH defer and skip
   // detection for the tick).
+  //
+  // "Not yet started" is `nodes.length === row.inheritedNodeCount` rather than a
+  // recomputed prefix: a fork starts life with its source's rows, but its own walk
+  // may REVISIT the node it resumed from (implementation.yaml loops
+  // validate -> implement). Deriving the prefix from the current rows makes the
+  // count grow back, re-arming this guard mid-walk and closing a RUNNING fork as
+  // lease_held — paid work lost. The stored count never moves, so the test is
+  // false forever after the first launch.
   if (
-    nodes.length === 0 &&
+    nodes.length === row.inheritedNodeCount &&
     row.branch &&
     !BRANCH_SHARED_WORKSPACE.has(row.definitionName)
   ) {
@@ -206,16 +240,37 @@ export async function advanceLine(
     `AssemblyLine ${definition.name}: unknown node "${transition.nodeId}"`,
   );
   const task = taskFromRow(row);
+  // Resolved BEFORE the prompt: whether this run resumes a conversation decides how
+  // much round content the prompt must carry. Only agent nodes hold one — a station
+  // runs a deterministic command.
+  const conversation =
+    node.type === "agent" && deps.resolveConversation
+      ? await deps.resolveConversation(
+          node,
+          task,
+          transition.iteration,
+          priorOutcomeOf(visits, transition.nodeId),
+        )
+      : undefined;
+  // The round content BOTH fields carry. The recipe the pod runs renders
+  // {description}, so setting only the prompt hands a resumed round the full draft
+  // again — and the two disagreeing about what this run is working from is a bug in
+  // either direction.
+  const content = roundContent(task, conversation);
   // Iteration rides into the CR name + labels so a revisited node runs a fresh pod.
   const spec =
     node.type === "agent"
       ? nodeAgentSpec(
           node,
-          task,
-          deps.resolvePrompt(node.prompt_ref ?? node.type, task.description),
+          { ...task, description: content },
+          deps.resolvePrompt(node.prompt_ref ?? node.type, content),
           transition.iteration,
         )
       : nodeStationSpec(node, task, transition.iteration);
+
+  if (conversation) {
+    spec.conversation = conversation;
+  }
 
   // Row before CR: a crash in between leaves an open row the reaper resolves by
   // reading the (deterministically named) CR; a rowless CR would be invisible.
@@ -225,6 +280,14 @@ export async function advanceLine(
     iteration: transition.iteration,
     agentCrName: spec.name,
   });
+
+  // A `wait` node's worker is outside the pod system — a person in the wizard, or a
+  // spec PR merging. The row is what parks the walk and lets the graph show whose
+  // move it is; nothing is dispatched, and the outcome arrives later as a resume.
+  if (node.type === "wait") {
+    return;
+  }
+
   await deps.launch(spec);
 }
 
@@ -261,6 +324,13 @@ export async function finishLine(
   // closes 0 rows yet still reaches here, so cleanupToken MUST be idempotent
   // (cleanupPerTaskToken swallows 404s); the double-reclaim is a harmless no-op.
   await deps.cleanupToken(row.taskId ?? row.id);
+
+  // The winning finisher also settles the backing task. Without this a line-backed
+  // task stays `running` with a NULL failure_reason forever — the watcher's
+  // post-completion path returns early for node CRs, so nobody else ever closes it.
+  if (closedNow && deps.settleTask) {
+    await deps.settleTask(row, outcome, reason);
+  }
 
   // Only the winning finisher tells the user — losers would duplicate the Slack
   // message and PR comment. Never let a notification failure poison the close.

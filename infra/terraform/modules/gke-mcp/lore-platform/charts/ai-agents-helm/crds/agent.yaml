@@ -44,6 +44,8 @@ spec:
               properties:
                 stationRef:
                   type: string
+                  pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                  maxLength: 253
                   description: "The Station to run in (which selects the recipe)."
                 taskId:
                   type: string
@@ -64,10 +66,10 @@ spec:
                 phase:
                   type: string
                   enum:
-                    - Pending
-                    - Running
-                    - Succeeded
-                    - Failed
+                    - "Pending"
+                    - "Running"
+                    - "Succeeded"
+                    - "Failed"
                 jobName:
                   type: string
                 startedAt:

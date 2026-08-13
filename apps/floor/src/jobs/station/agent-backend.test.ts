@@ -54,10 +54,13 @@ describe("context hydration (D5)", () => {
       specToAgent(baseSpec, "conventions + ADRs").spec?.parameters?.context,
     ).toBe("conventions + ADRs");
   });
-  it("specToAgent omits context when not provided", () => {
-    expect(specToAgent(baseSpec).spec?.parameters).not.toHaveProperty(
-      "context",
-    );
+  it("specToAgent fills context with an empty string when not provided", () => {
+    // The subsystem's renderPrompt leaves an UNKNOWN placeholder intact on purpose,
+    // so typos surface in the rendered prompt. The cost is that a run with nothing to
+    // hydrate shipped the literal token `{context}` to the model — observed verbatim
+    // at the end of a live planning pod's argv. A parameter that is always present,
+    // empty when there is nothing to say, renders to nothing instead.
+    expect(specToAgent(baseSpec).spec?.parameters?.context).toBe("");
   });
   it("launch injects the assembled context into the Agent parameters", async () => {
     const api = new FakeAgentApi();
@@ -81,19 +84,19 @@ describe("context hydration (D5)", () => {
       hydrate: false,
     });
     expect(assembled).toBe(0);
-    expect(api.created[0].spec?.parameters).not.toHaveProperty("context");
+    expect(api.created[0].spec?.parameters?.context).toBe("");
   });
-  it("launch omits context when the source returns undefined", async () => {
+  it("launch fills context with an empty string when the source returns undefined", async () => {
     const api = new FakeAgentApi();
 
     await new AgentCrBackend(api, ctx(undefined)).launch(baseSpec);
-    expect(api.created[0].spec?.parameters).not.toHaveProperty("context");
+    expect(api.created[0].spec?.parameters?.context).toBe("");
   });
   it("launch works with no context source (legacy)", async () => {
     const api = new FakeAgentApi();
 
     await new AgentCrBackend(api).launch(baseSpec);
-    expect(api.created[0].spec?.parameters).not.toHaveProperty("context");
+    expect(api.created[0].spec?.parameters?.context).toBe("");
   });
 });
 
@@ -112,7 +115,11 @@ describe("specToAgent", () => {
         taskId: "abcdef1234567890",
         targetRepo: "re-cinq/lore",
         branch: "lore/impl-abcdef12",
-        parameters: { description: "Implement the thing", prompt: "do it" },
+        parameters: {
+          description: "Implement the thing",
+          prompt: "do it",
+          context: "",
+        },
       },
     });
   });

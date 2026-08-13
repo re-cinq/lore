@@ -3,7 +3,6 @@ import { writeFileSync, rmSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { AgentDefsYaml } from "./agent-defs-yaml.js";
-import { PLANNING_INSTRUCTIONS } from "../../feature-planning/planning-instructions.js";
 import { DECOMPOSITION_INSTRUCTIONS } from "../../feature-planning/decomposition-instructions.js";
 
 /**
@@ -80,7 +79,7 @@ describe("AgentDefsYaml", () => {
     ).toBeNull();
   });
 
-  it("serves PLANNING_INSTRUCTIONS as the feature-planning prompt, not the yaml wrapper", async () => {
+  it("serves the feature-planning prompt straight from the yaml template", async () => {
     const fp = join(dir, "fp.yaml");
 
     writeFileSync(
@@ -89,8 +88,8 @@ describe("AgentDefsYaml", () => {
         "task_types:",
         "  feature-planning:",
         "    prompt_template: |",
+        "      You are a senior software architect.",
         "      {description}",
-        "      Write the resulting JSON object to result.json.",
         "    timeout_minutes: 15",
         "    model: claude-sonnet-4-6",
         "",
@@ -101,7 +100,9 @@ describe("AgentDefsYaml", () => {
       "feature-planning",
     );
 
-    expect(def?.prompt).toBe(PLANNING_INSTRUCTIONS);
+    expect(def?.prompt).toBe(
+      "You are a senior software architect.\n{description}\n",
+    );
     expect(def?.model).toBe("claude-sonnet-4-6");
     expect(def?.timeout_minutes).toBe(15);
   });

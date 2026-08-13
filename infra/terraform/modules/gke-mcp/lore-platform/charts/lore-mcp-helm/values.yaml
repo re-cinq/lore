@@ -1,0 +1,42 @@
+# Deploy into the existing lore-api namespace so the gateway reuses that
+# namespace's lore-ingest-token + ghcr-pull-secret ExternalSecrets — no new
+# namespace/ExternalSecret needed.
+namespace: lore-api
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/re-cinq/lore-mcp
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: ghcr-pull-secret
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: 512Mi
+  requests:
+    cpu: "100m"
+    memory: 256Mi
+
+env:
+  LORE_MCP_HTTP: "1"
+  LORE_MCP_SERVER_MODE: agent
+  LORE_MCP_PORT: "8080"
+  # In-cluster lore-api. The gateway is a normal Deployment (NOT under the
+  # agent-job NetworkPolicy), so it may use the ClusterIP directly — only the
+  # agent→gateway hop must be public :443 (Terraform-owned Ingress).
+  LORE_API_URL: http://lore-api.lore-api.svc.cluster.local:3000
+  LORE_TEAM: platform
+
+# The gateway proxies to lore-api with this token AND requires it as the incoming
+# Bearer (v1: agent pods present the same token via the lore-mcp-auth headers_secret).
+ingestTokenSecret:
+  name: lore-ingest-token
+  key: token
