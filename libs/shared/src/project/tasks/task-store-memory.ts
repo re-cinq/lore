@@ -20,6 +20,7 @@ import {
   type TaskListResult,
   type FindOpenLikeInput,
   type DriftTaskRow,
+  type FeatureTaskRow,
 } from "./task-store-port.js";
 
 /**
@@ -376,6 +377,31 @@ export class InMemoryTaskStore implements TaskStorePort {
         created_at: t.created_at ?? "",
         issue_number: t.issue_number ?? null,
       }));
+  }
+
+  async specTasksForFeature(
+    repo: string,
+    featureId: string,
+  ): Promise<FeatureTaskRow[]> {
+    // context_bundle->>'feature_id' extracts text; a NULL bundle matches nothing.
+    return this.tasks
+      .filter(
+        (t) =>
+          t.target_repo === repo &&
+          t.task_type === "spec-task" &&
+          t.context_bundle?.["feature_id"] != null &&
+          String(t.context_bundle["feature_id"]) === featureId,
+      )
+      .map((t) => ({
+        description: t.description ?? "",
+        status: t.status ?? "",
+        context_bundle: t.context_bundle ?? null,
+      }))
+      .sort((a, b) =>
+        String(a.context_bundle?.["spec_task_id"] ?? "").localeCompare(
+          String(b.context_bundle?.["spec_task_id"] ?? ""),
+        ),
+      );
   }
 
   private byStatus(repo: string, statuses: string[]): PipelineTask[] {
