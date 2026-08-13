@@ -145,4 +145,69 @@ describe("runIssuesStation", () => {
       outcome: "failed",
     });
   });
+
+  it("stamps the feature a spec-task belongs to", async () => {
+    // The join key the whole decomposition view hangs on. Without it the UI's
+    // `context_bundle->>'feature_id'` filter matched zero rows — always — so a
+    // decomposed feature rendered an empty task tree, and merge-check's
+    // spec-status flip never fired either.
+    const fake = fakeProject([
+      "area:web-ui",
+      "area:floor",
+      "lore-managed",
+      "user-story",
+    ]);
+
+    await runIssuesStation(
+      input({
+        feature_decomposition: DECOMPOSITION,
+        feature_id: "1cc0d9de-2b7f-4a35-9d1f-8f6f0a2f4e21",
+      }),
+      { project: fake.project },
+    );
+
+    expect(fake.tasks[0]).toMatchObject({
+      contextBundle: { feature_id: "1cc0d9de-2b7f-4a35-9d1f-8f6f0a2f4e21" },
+    });
+  });
+
+  it("names the spec-task id the way every other consumer reads it", async () => {
+    // The agent's artifact calls it `id`; every reader of a spec-task's
+    // context_bundle — the tasks.md sync, lore_list_pipeline_tasks, the decomposition
+    // view — calls it `spec_task_id`. Spreading the raw task made these rows the only
+    // ones that disagreed, so they rendered with a blank id.
+    const fake = fakeProject([
+      "area:web-ui",
+      "area:floor",
+      "lore-managed",
+      "user-story",
+    ]);
+
+    await runIssuesStation(input({ feature_decomposition: DECOMPOSITION }), {
+      project: fake.project,
+    });
+
+    expect(fake.tasks[0]).toMatchObject({
+      contextBundle: { spec_task_id: "T001", phase: 1 },
+    });
+  });
+
+  it("omits the feature id when the line carries none", async () => {
+    // A decomposition can be driven without a feature row behind it; the tasks are
+    // still valid work, they just have nothing to link back to.
+    const fake = fakeProject([
+      "area:web-ui",
+      "area:floor",
+      "lore-managed",
+      "user-story",
+    ]);
+
+    await runIssuesStation(input({ feature_decomposition: DECOMPOSITION }), {
+      project: fake.project,
+    });
+
+    expect(
+      (fake.tasks[0].contextBundle as Record<string, unknown>).feature_id,
+    ).toBeUndefined();
+  });
 });
