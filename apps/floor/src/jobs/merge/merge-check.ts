@@ -7,7 +7,7 @@ import {
   assemblyLines,
 } from "../../kernel/queues.js";
 import { getPool } from "../../kernel/db.js";
-import { resumeDecomposition } from "./decompose-resume.js";
+import { poolReporter, resumeDecomposition } from "./decompose-resume.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { writeEpisodeWithCuration } from "../lib/episode-writer.js";
 import {
@@ -336,11 +336,13 @@ async function handleMergedTask(
   // (ADR-029 amendment, FR6.32). Nothing is minted: the old kick created a
   // feature-decompose task on a task-type predicate that stopped matching the
   // moment finalize became a resume, so nothing decomposed and nothing said so.
-  if (task.pr_number) {
+  const pool = getPool();
+
+  if (task.pr_number && pool) {
     try {
       await resumeDecomposition(
         { repo: task.target_repo, prNumber: task.pr_number },
-        { assemblyLines: assemblyLines(), pool: getPool() },
+        { assemblyLines: assemblyLines(), report: poolReporter(pool) },
       );
     } catch (err) {
       console.error(

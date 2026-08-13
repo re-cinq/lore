@@ -423,7 +423,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           const dispatch = await resolveDispatch(project, feature.iterations);
 
           if (dispatch.kind === "resume") {
-            await reportToParkedNode(enforcePool(getPool()), dispatch, "success", {});
+            await reportToParkedNode(enforcePool(getPool()), dispatch, "success");
 
             return h.response({ assembly_line_id: dispatch.lineId }).code(202);
           }

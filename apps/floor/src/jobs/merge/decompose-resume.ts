@@ -40,15 +40,28 @@ export function decideMergeResume(
 
 export interface DecomposeResumeDeps {
   assemblyLines: Pick<AssemblyLinesPort, "findOpenByPr" | "listNodes">;
-  pool: Pool | null;
-  /** Seam so a test can record the report without a database. */
-  report?: typeof reportToParkedNode;
+  /** Deliver the resume. Production binds the pool here so this module never holds
+   *  a nullable one it would have to cast away; a test records instead. */
+  report: (target: ParkedTarget, outcome: "success") => Promise<void>;
+}
+
+/** Bind the pool to the real reporter — the production `report`. */
+export function poolReporter(
+  pool: Pool,
+): DecomposeResumeDeps["report"] {
+  return (target, outcome) => reportToParkedNode(pool, target, outcome);
 }
 
 /**
  * Report the merge to whichever open line for this PR is parked on its `merged`
- * node. At most one is: a PR may also carry a code-review line, which has no such
- * node, and inventing a target for it would advance a walk that never asked to wait.
+ * node.
+ *
+ * Called for EVERY merged task, not only a feature's — a merged PR is not labelled
+ * "this was a spec PR", and the task type that opened it is exactly the signal that
+ * stopped being reliable. That is safe because the target is not the PR but a node:
+ * only a line actually parked on `merged` qualifies, so an implementation or
+ * code-review line sharing the PR is passed over rather than advanced by a walk step
+ * it never asked to wait for.
  */
 export async function resumeDecomposition(
   pr: { repo: string; prNumber: number },
@@ -67,11 +80,7 @@ export async function resumeDecomposition(
       continue;
     }
 
-    await (deps.report ?? reportToParkedNode)(
-      deps.pool as Pool,
-      target,
-      "success",
-    );
+    await deps.report(target, "success");
 
     return;
   }

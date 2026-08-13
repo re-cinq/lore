@@ -381,7 +381,7 @@ the cluster path ever recorded a cause.
 
 **Flow:**
 1. A finalized feature's spec PR is merged to `main`.
-2. The merge kicks `feature-decompose`; the agent reads the spec and returns a story/task tree.
+2. The merge resumes the planning line's parked `merged` wait node; the `decompose` node reads the spec and returns a story/task tree, on that same line.
 3. One Issue is opened per user story; one `spec-task` row is created per task, linked to its story and feature.
 4. The implementation pipeline picks up the tasks under the repo's trust gate.
 

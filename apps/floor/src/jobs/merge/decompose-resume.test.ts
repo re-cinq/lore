@@ -7,10 +7,7 @@
 
 import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
-import type {
-  ParkedTarget,
-  reportToParkedNode,
-} from "@re-cinq/lore-shared/project/assembly-lines/parked-node.js";
+import type { ParkedTarget } from "@re-cinq/lore-shared/project/assembly-lines/parked-node.js";
 import { decideMergeResume, resumeDecomposition } from "./decompose-resume.js";
 
 const REPO = "re-cinq/lore";
@@ -56,11 +53,7 @@ describe("decideMergeResume", () => {
 /** Records the events a resume would insert, standing in for the pool. */
 function recorder() {
   const events: (ParkedTarget & { outcome: string })[] = [];
-  const report: typeof reportToParkedNode = async (
-    _pool,
-    target,
-    outcome,
-  ) => {
+  const report = async (target: ParkedTarget, outcome: string) => {
     events.push({ ...target, outcome });
   };
 
@@ -93,7 +86,7 @@ describe("resumeDecomposition", () => {
 
     await resumeDecomposition(
       { repo: REPO, prNumber: 42 },
-      { assemblyLines: lines, pool: null, report: rec.report },
+      { assemblyLines: lines, report: rec.report },
     );
 
     expect(rec.events).toEqual([
@@ -106,11 +99,7 @@ describe("resumeDecomposition", () => {
 
     await resumeDecomposition(
       { repo: REPO, prNumber: 999 },
-      {
-        assemblyLines: new InMemoryAssemblyLines(),
-        pool: null,
-        report: rec.report,
-      },
+      { assemblyLines: new InMemoryAssemblyLines(), report: rec.report },
     );
 
     expect(rec.events).toEqual([]);
@@ -137,7 +126,7 @@ describe("resumeDecomposition", () => {
 
     await resumeDecomposition(
       { repo: REPO, prNumber: 7 },
-      { assemblyLines: lines, pool: null, report: rec.report },
+      { assemblyLines: lines, report: rec.report },
     );
 
     expect(rec.events).toEqual([]);
@@ -159,7 +148,7 @@ describe("resumeDecomposition", () => {
 
     await resumeDecomposition(
       { repo: REPO, prNumber: 42 },
-      { assemblyLines: lines, pool: null, report: rec.report },
+      { assemblyLines: lines, report: rec.report },
     );
 
     expect(rec.events).toEqual([
