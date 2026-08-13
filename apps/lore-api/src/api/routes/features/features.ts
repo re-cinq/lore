@@ -18,7 +18,7 @@ import {
 } from "@re-cinq/lore-shared/project/features/features-port.js";
 import { decideRoundDispatch } from "@re-cinq/lore-shared/feature-planning/round-dispatch.js";
 import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
-import { insertEvent } from "@re-cinq/lore-shared";
+import { reportToParkedNode } from "@re-cinq/lore-shared/project/assembly-lines/parked-node.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../../platform/project-boot.js";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
@@ -113,31 +113,6 @@ async function resolveDispatch(
     : { kind: "legacy" };
 }
 
-/**
- * Report a station outcome to the node a line is parked on.
- *
- * The author IS a station (FR6.19), so a round and an accept differ only in the
- * outcome they report. Deliberately NOT swallowed the way the ingest triggers are: an
- * event that fails to land loses the work, and a 202 would say it started.
- */
-async function reportToParkedNode(
-  pool: Pool | null,
-  target: { lineId: string } & ParkedTarget,
-  outcome: "success" | "changes_requested",
-  args: Record<string, unknown>,
-): Promise<void> {
-  await insertEvent(enforcePool(pool), {
-    eventName: "assembly_line.resume",
-    source: "internal",
-    params: {
-      assemblyLineId: target.lineId,
-      nodeId: target.nodeId,
-      iteration: target.iteration,
-      outcome,
-      args,
-    },
-  });
-}
 
 /**
  * Kick a feature-planning Station for the next round of a feature. `repoFullName`
@@ -333,7 +308,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           });
 
           if (dispatch.kind === "resume") {
-            await reportToParkedNode(getPool(), dispatch, "changes_requested", {
+            await reportToParkedNode(enforcePool(getPool()), dispatch, "changes_requested", {
               description,
               round_feedback: roundFeedback,
               iteration: row.iteration,
@@ -448,7 +423,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           const dispatch = await resolveDispatch(project, feature.iterations);
 
           if (dispatch.kind === "resume") {
-            await reportToParkedNode(getPool(), dispatch, "success", {});
+            await reportToParkedNode(enforcePool(getPool()), dispatch, "success", {});
 
             return h.response({ assembly_line_id: dispatch.lineId }).code(202);
           }
