@@ -78,6 +78,11 @@ available to agents — the authoritative interface.
   `(agent, key, version=1)` collision; an append bumps the version and
   concatenates on an `(agent, key)` collision. ([validated by `memory.test.ts:39`](libs/shared/src/project/memory/memory.test.ts#L39), [`memory-store-bridge.test.ts:45`](libs/shared/src/project/memory/memory-store-bridge.test.ts#L45), [`memory-lifecycle.test.ts:128`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L128), [`memory-lifecycle.test.ts:381`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L381), [`memory-lifecycle.test.ts:143`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L143), [`memory-lifecycle.test.ts:391`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L391))
 
+- The memories row and its version row are written atomically: when the pool
+  provides a client (`connect()`), the write runs inside one transaction, so a
+  failed version insert rolls the memories insert back instead of leaving a
+  version-less memory behind (#1154). ([validated by `memory.test.ts:388`](libs/server-core/src/features/memory/memory.test.ts#L388), [`memory.test.ts:413`](libs/server-core/src/features/memory/memory.test.ts#L413))
+
 - **`lore_read_memory(key, agent_id?, version?)`** — returns the latest
   version by default. Pass `version="all"` for full version history. ([validated by `memory.test.ts:110`](libs/server-core/src/features/memory/memory.test.ts#L110), [`memory.test.ts:137`](libs/server-core/src/features/memory/memory.test.ts#L137))
 

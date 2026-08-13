@@ -334,3 +334,98 @@ describe("agentStats", () => {
     });
   });
 });
+
+describe("writeMemory transactional write", () => {
+  function txPool(versionInsertError?: Error) {
+    const clientCalls: { sql: string; params: any[] }[] = [];
+    const poolCalls: { sql: string; params: any[] }[] = [];
+    const client = {
+      query: vi.fn(
+        async (sql: string, params: any[] = []): Promise<{ rows: any[] }> => {
+          clientCalls.push({ sql, params });
+
+          if (
+            versionInsertError &&
+            /INSERT INTO memory\.memory_versions/.test(sql)
+          ) {
+            throw versionInsertError;
+          }
+
+          if (/SELECT id, version FROM memory\.memories/.test(sql)) {
+            return { rows: [] };
+          }
+
+          if (/INSERT INTO memory\.memories/.test(sql)) {
+            return { rows: [{ id: "mem-tx-1", created_at: "2026-08-13" }] };
+          }
+
+          return { rows: [] };
+        },
+      ),
+      release: vi.fn(),
+    };
+    const pool = {
+      query: vi.fn(
+        async (sql: string, params: any[] = []): Promise<{ rows: any[] }> => {
+          poolCalls.push({ sql, params });
+
+          if (/SELECT created_at FROM memory\.memories/.test(sql)) {
+            return { rows: [{ created_at: "2026-08-13" }] };
+          }
+
+          return { rows: [] };
+        },
+      ),
+      connect: vi.fn(async () => client),
+      clientCalls,
+      poolCalls,
+      client,
+    };
+
+    return pool;
+  }
+
+  it("commits the memories insert and the version insert in one transaction", async () => {
+    const pool = txPool();
+
+    setMemoryPool(pool);
+
+    const result = await writeMemory("tx-key", "tx-value", "agent-tx");
+
+    expect(result).toEqual({
+      key: "tx-key",
+      version: 1,
+      agent_id: "agent-tx",
+      created_at: "2026-08-13",
+    });
+
+    const sqls = pool.clientCalls.map((c) => c.sql);
+
+    expect(sqls[0]).toBe("BEGIN");
+    expect(sqls.at(-1)).toBe("COMMIT");
+    expect(sqls.some((s) => /INSERT INTO memory\.memories/.test(s))).toBe(true);
+    expect(
+      sqls.some((s) => /INSERT INTO memory\.memory_versions/.test(s)),
+    ).toBe(true);
+    expect(pool.client.release).toHaveBeenCalled();
+  });
+
+  it("rolls back the memories insert when the version insert fails", async () => {
+    const pool = txPool(
+      new Error('relation "memory.memory_versions" does not exist'),
+    );
+
+    setMemoryPool(pool);
+
+    await expect(writeMemory("tx-key", "tx-value", "agent-tx")).rejects.toThrow(
+      'relation "memory.memory_versions" does not exist',
+    );
+
+    const sqls = pool.clientCalls.map((c) => c.sql);
+
+    expect(sqls).toContain("ROLLBACK");
+    expect(sqls).not.toContain("COMMIT");
+    expect(pool.client.release).toHaveBeenCalled();
+    expect(pool.poolCalls).toEqual([]);
+  });
+});
