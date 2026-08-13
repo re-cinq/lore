@@ -37,3 +37,14 @@ export function isPlanningActive(status: FeatureStatus): boolean {
     status === "spec-ready"
   );
 }
+
+// A feature's lifecycle is still moving until it ships. Wider than
+// `isPlanningActive` on purpose: the spec PR being open is a WAITING STATE on the
+// same assembly line — the line is parked on `merged`, and merging it resumes the
+// walk into decomposition. Gating the wizard on `isPlanningActive` unmounted it the
+// moment the PR was stamped, so the awaiting-merge and decomposing views could only
+// ever appear to a reader who was already watching; opening the page fresh showed
+// the finished view for a feature that was still working.
+export function isLifecycleActive(status: FeatureStatus): boolean {
+  return isPlanningActive(status) || status === "pr-open";
+}
