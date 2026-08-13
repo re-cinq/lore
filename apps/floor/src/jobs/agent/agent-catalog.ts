@@ -16,6 +16,18 @@ export interface AgentCatalogConfig {
    *  deliverable is an artifact rather than their prose — without it the file never
    *  leaves the pod. `path` resolves against WORKSPACE_DIR, not the agent's cwd. */
   watch?: { event: string; path: string };
+  /** Extra tool denies appended after the base pipeline-tool deny. The review
+   *  family declares package installs and builds here: Autopilot caps an
+   *  undeclared pod at 1Gi ephemeral storage, and one `npm ci` in the clone
+   *  evicts the pod mid-review (#1160). NOTE: the CLI does not evaluate deny
+   *  rules under permission_mode "bypass" (the current mode), so today these
+   *  document intent and the prompt + repo_workdir carry the prevention; they
+   *  become enforced when the recipe moves to an enforcing permission mode. */
+  disallowed_tools?: string[];
+  /** Default true: the agent container starts in the cloned repo (REPO_WORKDIR).
+   *  False omits workingDir — for read-only recipes (the review family) that must
+   *  not be invited to build in the checkout they are only meant to read (#1160). */
+  repo_workdir?: boolean;
 }
 
 /** A builtin station recipe (non-LLM node run by the exec vendor). */
@@ -149,8 +161,12 @@ export function buildAgentDefinition(
         skills_source: SKILLS_SOURCE_SENTINEL,
       },
       // Defense-in-depth (the gateway already omits it in agent mode): an agent
-      // must never spawn more pipeline work from inside a run.
-      disallowed_tools: ["mcp__lore__lore_create_pipeline_task"],
+      // must never spawn more pipeline work from inside a run. Recipe-declared
+      // denies (e.g. the review family's package-install ban, #1160) append after.
+      disallowed_tools: [
+        "mcp__lore__lore_create_pipeline_task",
+        ...(cfg.disallowed_tools ?? []),
+      ],
       // D8 (#687): stream NDJSON run output to the Floor's /api/agent-events sink for
       // cost accounting. URL is per-cluster (.Values.agentEventsUrl); headers_secret
       // carries the Authorization header from agent-secrets.
@@ -190,7 +206,9 @@ export function buildStation(
             {
               name: "agent",
               image: BASE_IMAGE,
-              workingDir: REPO_WORKDIR,
+              ...(cfg.repo_workdir === false
+                ? {}
+                : { workingDir: REPO_WORKDIR }),
               resources: {
                 requests: { cpu: "250m", memory: "512Mi" },
                 limits: { cpu: "1", memory: "1Gi" },
