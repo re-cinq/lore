@@ -14,6 +14,11 @@ import type { ServerRoute, RouteOptions } from "@hapi/hapi";
 import type { ZodType } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { getZodSchema } from "../server/plugins/zod-validate.js";
+import {
+  getResponseMeta,
+  type OpenApiResponseMeta,
+} from "../server/plugins/zod-response.js";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { bucketFor } from "../server/plugins/rate-limit.js";
 import {
   WILDCARD_METHODS,
@@ -58,6 +63,8 @@ export interface Coverage {
   bodyless: string[]; // write route that legitimately carries no request body
   uncovered: string[]; // write method with neither a schema nor a sidecar entry — drift
   excluded: string[]; // operational non-API paths
+  responses: string[]; // "METHOD path" with a declared success body
+  responsesMissing: string[]; // still documented generically
 }
 
 /** A route with `payload.parse === false` self-handles its body (webhooks: HMAC/form). */
@@ -255,16 +262,36 @@ function operationId(method: string, normPath: string): string {
 function responsesFor(
   isPublicOp: boolean,
   hasBody: boolean,
+  success?: { meta: OpenApiResponseMeta; ref: JsonSchema },
 ): Record<string, JsonSchema> {
-  const responses: Record<string, JsonSchema> = {
-    "200": {
-      description:
-        "Successful response (2xx; the response body is not described — see info.description)",
-    },
-  };
+  // A declared contract REPLACES the generic 200 rather than joining it: two
+  // success statuses would make the generated client type `RealBody | unknown`,
+  // which is the same as no type at all.
+  const responses: Record<string, JsonSchema> = success
+    ? {
+        [String(success.meta.status)]: {
+          description: success.meta.description,
+          content: { "application/json": { schema: success.ref } },
+        },
+      }
+    : {
+        "200": {
+          description:
+            "Successful response (2xx; the response body is not described — see info.description)",
+        },
+      };
+  const declared = new Set<number>(success?.meta.errors ?? []);
 
-  if (hasBody) {
+  if (hasBody || declared.has(400)) {
     responses["400"] = { $ref: "#/components/responses/BadRequest" };
+  }
+
+  if (declared.has(404)) {
+    responses["404"] = { $ref: "#/components/responses/NotFound" };
+  }
+
+  if (declared.has(409)) {
+    responses["409"] = { $ref: "#/components/responses/Conflict" };
   }
 
   if (!isPublicOp) {
@@ -314,23 +341,58 @@ function resolveBody(
   return jsonBody(FREEFORM_BODY);
 }
 
+
+/** Resolve a route's declared success body, register it as a named component, and
+ *  record coverage. A name registered twice with DIFFERENT shapes is a hard error:
+ *  the document would serve the second and generate a client type that lies about
+ *  the first. */
+function registerResponse(
+  route: ServerRoute,
+  key: string,
+  schemas: Record<string, JsonSchema>,
+  coverage: Coverage,
+): { meta: OpenApiResponseMeta; ref: JsonSchema } | undefined {
+  const meta = getResponseMeta(optionsOf(route).plugins);
+
+  if (!meta) {
+    coverage.responsesMissing.push(key);
+
+    return undefined;
+  }
+  const converted = toRequestSchema(meta.schema);
+  const existing = schemas[meta.name];
+
+  enforceTrue(
+    existing === undefined ||
+      JSON.stringify(existing) === JSON.stringify(converted),
+    Error,
+    `openapi: response schema "${meta.name}" is registered with two different shapes (at ${key})`,
+  );
+  schemas[meta.name] = converted;
+  coverage.responses.push(key);
+
+  return { meta, ref: { $ref: `#/components/schemas/${meta.name}` } };
+}
+
 function buildOperation(
   route: ServerRoute,
   method: string,
   normPath: string,
   coverage: Coverage,
+  schemas: Record<string, JsonSchema>,
 ): Operation {
   const { params, hasOptional } = pathParameters(route.path);
   const publicOp = isPublic(route);
   const scope = scopeOf(route);
   const hasBody = WRITE_METHODS.has(method);
+  const success = registerResponse(route, `${method} ${route.path}`, schemas, coverage);
   const op: Operation = {
     operationId: operationId(method, normPath),
     summary: `${method} ${normPath}`,
     tags: [tagFor(normPath)],
     security: publicOp ? [] : [{ bearerAuth: [] }],
     "x-rate-limit-bucket": bucketFor(route.path),
-    responses: responsesFor(publicOp, hasBody),
+    responses: responsesFor(publicOp, hasBody, success),
   };
 
   if (scope) {
@@ -368,6 +430,13 @@ export function generateOpenApi(
   routes: ServerRoute[],
   opts: GenerateOptions = {},
 ): { document: OpenApiDocument; coverage: Coverage } {
+  const schemas: Record<string, JsonSchema> = {
+    Error: {
+      type: "object",
+      properties: { error: { type: "string" } },
+      required: ["error"],
+    },
+  };
   const paths: Record<string, Record<string, Operation>> = {};
   const coverage: Coverage = {
     covered: [],
@@ -377,6 +446,8 @@ export function generateOpenApi(
     bodyless: [],
     uncovered: [],
     excluded: [],
+    responses: [],
+    responsesMissing: [],
   };
 
   for (const route of routes) {
@@ -387,7 +458,13 @@ export function generateOpenApi(
     const normPath = normalizePath(route.path);
 
     for (const method of methodsOf(route)) {
-      const operation = buildOperation(route, method, normPath, coverage);
+      const operation = buildOperation(
+        route,
+        method,
+        normPath,
+        coverage,
+        schemas,
+      );
 
       (paths[normPath] ??= {})[method.toLowerCase()] = operation;
     }
@@ -421,13 +498,7 @@ export function generateOpenApi(
     paths,
     components: {
       securitySchemes: { bearerAuth: { type: "http", scheme: "bearer" } },
-      schemas: {
-        Error: {
-          type: "object",
-          properties: { error: { type: "string" } },
-          required: ["error"],
-        },
-      },
+      schemas,
       responses: errorResponses(),
     },
   };
@@ -461,6 +532,11 @@ function errorResponses(): Record<string, JsonSchema> {
 
   return {
     BadRequest: { description: "Malformed or invalid request", ...body },
+    NotFound: { description: "No such resource", ...body },
+    Conflict: {
+      description: "Not allowed in the resource's current state",
+      ...body,
+    },
     Unauthorized: { description: "Missing bearer token", ...body },
     Forbidden: { description: "Token lacks the required scope", ...body },
     PayloadTooLarge: {

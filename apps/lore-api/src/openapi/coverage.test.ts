@@ -98,3 +98,56 @@ describe("OpenAPI document is structurally valid 3.1", () => {
     }
   });
 });
+
+describe("Features responses are declaratively described", () => {
+  const featureOps = Object.entries(document.paths).flatMap(([path, item]) =>
+    Object.entries(item as Record<string, { tags: string[] }>)
+      .filter(([, op]) => op.tags?.[0] === "Features")
+      .map(([method, op]) => ({ label: `${method.toUpperCase()} ${path}`, op })),
+  );
+
+  it("finds the Features surface at all", () => {
+    expect(featureOps.length).toBeGreaterThan(0);
+  });
+
+  // Scoped to the Features tag ON PURPOSE. The other ~40 routes are
+  // request-focused by design (info.description says so), so a document-wide
+  // assertion would red-light them for a contract they never claimed. Widen the
+  // tag list as each surface adopts zodResponse — never by weakening this.
+  it("gives every Features operation a schema'd success body", () => {
+    for (const { label, op } of featureOps) {
+      const responses = (op as unknown as { responses: Record<string, unknown> })
+        .responses;
+      const hit = Object.entries(responses).find(([code]) =>
+        code.startsWith("2"),
+      );
+
+      expect(hit, `${label} has no 2xx`).toBeDefined();
+      expect(hit?.[1], `${label} success body`).toHaveProperty([
+        "content",
+        "application/json",
+      ]);
+    }
+  });
+
+  it("resolves every Features success schema to a registered component", () => {
+    for (const { label, op } of featureOps) {
+      const responses = (op as unknown as { responses: Record<string, unknown> })
+        .responses;
+      const [, success] = Object.entries(responses).find(([c]) =>
+        c.startsWith("2"),
+      )!;
+      const ref = (
+        success as {
+          content: { "application/json": { schema: { $ref?: string } } };
+        }
+      ).content["application/json"].schema.$ref;
+
+      expect(ref, `${label} $ref`).toBeDefined();
+      expect(
+        document.components.schemas[ref!.split("/").pop()!],
+        `${label} -> ${ref}`,
+      ).toBeDefined();
+    }
+  });
+});
