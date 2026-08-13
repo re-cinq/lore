@@ -8,7 +8,11 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
 import type { ParkedTarget } from "@re-cinq/lore-shared/project/assembly-lines/parked-node.js";
-import { decideMergeResume, resumeDecomposition } from "./decompose-resume.js";
+import {
+  decideMergeResume,
+  decideResumeFromClosedPr,
+  resumeDecomposition,
+} from "./decompose-resume.js";
 
 const REPO = "re-cinq/lore";
 
@@ -154,5 +158,54 @@ describe("resumeDecomposition", () => {
     expect(rec.events).toEqual([
       { lineId: id, nodeId: "merged", iteration: 1, outcome: "success" },
     ]);
+  });
+});
+
+// WHICH closed-PR events reach the resume at all.
+//
+// The resume had exactly one caller — handleMergedTask, reached only for tasks the
+// mergeable sweep returns (`status IN ('pr-created','review') AND pr_number IS NOT
+// NULL`). A feature-planning task is `running` and carries no PR: the push node
+// stamps the LINE's args, not the task row. So no spec PR could ever reach the
+// resume, on any deployment, webhook or cron. The fix is to read the merge where it
+// actually arrives — the closed-PR event, which names the repo and the number that
+// `findOpenByPr` matches on.
+describe("decideResumeFromClosedPr", () => {
+  it("resumes for a merged PR, naming the repo and number findOpenByPr matches on", () => {
+    expect(
+      decideResumeFromClosedPr({
+        repo: REPO,
+        pr_number: 1225,
+        merged: true,
+      }),
+    ).toEqual({ repo: REPO, prNumber: 1225 });
+  });
+
+  it("ignores a PR closed without merging, which settles a line rather than advancing it", () => {
+    expect(
+      decideResumeFromClosedPr({ repo: REPO, pr_number: 1225, merged: false }),
+    ).toEqual(null);
+  });
+
+  it("ignores an event carrying no PR number", () => {
+    expect(decideResumeFromClosedPr({ repo: REPO, merged: true })).toEqual(
+      null,
+    );
+  });
+
+  it("ignores an event carrying no repo", () => {
+    expect(decideResumeFromClosedPr({ pr_number: 1225, merged: true })).toEqual(
+      null,
+    );
+  });
+
+  it("ignores a pr_number that is not a number", () => {
+    expect(
+      decideResumeFromClosedPr({
+        repo: REPO,
+        pr_number: "1225",
+        merged: true,
+      }),
+    ).toEqual(null);
   });
 });
