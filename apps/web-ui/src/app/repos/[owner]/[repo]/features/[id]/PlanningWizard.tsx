@@ -9,6 +9,8 @@ import GapSections, {
   type FeedbackState,
 } from "./GapSections";
 import RunningCard from "./RunningCard";
+import SpecPrCard from "./SpecPrCard";
+import DecompositionProgressCard from "./DecompositionProgressCard";
 import FailureBlock from "./FailureBlock";
 import { isPlanningActive } from "../feature-status";
 import { isRewind, lineageLabel, rewindOptions } from "@/lib/round-picker";
@@ -186,6 +188,24 @@ export default function PlanningWizard({
   // `finalizing` only bridges the gap until the first poll shows the line moving, and
   // never survives it finishing: a line that ends without producing a PR must give the
   // controls back rather than leave a progress card running forever.
+  // The spec PR is open and the line is parked on `merged` — waiting on a PERSON,
+  // not on the machine. Before the merged line this state was invisible.
+  if (phase.kind === "awaiting-merge") {
+    return <SpecPrCard feature={data.feature} />;
+  }
+
+  // The merge resumed the line: decompose is breaking the spec down, or the
+  // issues station is filing what it produced.
+  if (phase.kind === "decomposing") {
+    return (
+      <DecompositionProgressCard
+        nodeId={phase.nodeId}
+        since={phase.since}
+        iteration={latest?.iteration}
+      />
+    );
+  }
+
   const working = phase.kind === "planning" || phase.kind === "writing-spec";
   const showSpec =
     phase.kind === "writing-spec" ||

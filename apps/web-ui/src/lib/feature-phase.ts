@@ -26,6 +26,8 @@ export type FeaturePhase =
   | ({ kind: "planning" } & Partial<Working>)
   | ({ kind: "awaiting-author" } & Partial<Working>)
   | ({ kind: "writing-spec" } & Working)
+  | ({ kind: "awaiting-merge" } & Working)
+  | ({ kind: "decomposing" } & Working)
   | { kind: "done" }
   | { kind: "failed" };
 
@@ -37,6 +39,9 @@ const NODE_PHASE: Record<string, FeaturePhase["kind"]> = {
   "analyse-specs": "writing-spec",
   write: "writing-spec",
   push: "writing-spec",
+  merged: "awaiting-merge",
+  decompose: "decomposing",
+  issues: "decomposing",
 };
 
 /** A task state that means the round is still going. Any other value means it

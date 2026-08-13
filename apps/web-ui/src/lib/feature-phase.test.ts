@@ -117,6 +117,28 @@ describe("featurePhaseOf — read from the line", () => {
   });
 });
 
+it("reports awaiting-merge while the spec PR is open", () => {
+  // The `merged` wait node: the branch is pushed, the PR is open, and the line
+  // is parked until a human merges it.
+  expect(
+    featurePhaseOf({
+      run: run("running", [node("push", "success"), node("merged", null)]),
+      feature: feature("pr-open"),
+    }),
+  ).toMatchObject({ kind: "awaiting-merge", nodeId: "merged" });
+});
+
+it("reports decomposing for both nodes of the decomposition tail", () => {
+  for (const id of ["decompose", "issues"]) {
+    expect(
+      featurePhaseOf({
+        run: run("running", [node("merged", "success"), node(id, null)]),
+        feature: feature("pr-open"),
+      }),
+    ).toMatchObject({ kind: "decomposing", nodeId: id });
+  }
+});
+
 describe("featurePhaseOf — the legacy fallback", () => {
   // A feature whose planning predates the merged line minted a task per round and
   // resolves no line at all. It must keep working.
