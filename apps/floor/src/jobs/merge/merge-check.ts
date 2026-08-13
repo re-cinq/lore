@@ -4,8 +4,10 @@ import {
   taskQueue,
   settings,
   memoryLifecycle,
+  assemblyLines,
 } from "../../kernel/queues.js";
 import { getPool } from "../../kernel/db.js";
+import { poolReporter, resumeDecomposition } from "./decompose-resume.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { writeEpisodeWithCuration } from "../lib/episode-writer.js";
 import {
@@ -17,7 +19,6 @@ import {
 } from "@re-cinq/lore-shared";
 import type { Project, StatusFlipResult } from "@re-cinq/lore-shared";
 import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
-import { decideDecomposeKick } from "../task/decompose-kick.js";
 
 /**
  * Fallback: when a feature-request task's PR merges and the webhook was missed,
@@ -329,29 +330,23 @@ async function handleMergedTask(
       );
     }
   }
-  // When a finalized feature's spec PR merges, decompose it into stories +
-  // spec-tasks (ADR-029). The decompose handler is idempotent on the slug.
-  const decompose = decideDecomposeKick(task);
 
-  if (decompose.kick) {
+  // When a spec PR merges, the line that pushed it is parked on its `merged` wait
+  // node — resume it, and decomposition runs as the tail of that same line
+  // (ADR-029 amendment, FR6.32). Nothing is minted: the old kick created a
+  // feature-decompose task on a task-type predicate that stopped matching the
+  // moment finalize became a resume, so nothing decomposed and nothing said so.
+  const pool = getPool();
+
+  if (task.pr_number && pool) {
     try {
-      await taskQueue().insertTask({
-        description: `Decompose feature: ${decompose.slug ?? decompose.featureId}`,
-        taskType: "feature-decompose",
-        targetRepo: task.target_repo,
-        status: "pending",
-        contextBundle: {
-          feature_id: decompose.featureId,
-          slug: decompose.slug,
-        },
-        createdBy: "merge-check",
-      });
-      console.log(
-        `[job] merge-check: kicked feature-decompose for ${decompose.slug ?? decompose.featureId}`,
+      await resumeDecomposition(
+        { repo: task.target_repo, prNumber: task.pr_number },
+        { assemblyLines: assemblyLines(), report: poolReporter(pool) },
       );
     } catch (err) {
       console.error(
-        `[job] merge-check: could not kick decompose for ${task.id}: ${errorMessage(err)}`,
+        `[job] merge-check: could not resume decomposition for ${task.id}: ${errorMessage(err)}`,
       );
     }
   }
