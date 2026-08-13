@@ -62,6 +62,22 @@ export default tseslint.config(
       "lore/max-boolean-operators": ["error", { max: 2 }],
       "lore/no-io-in-view": "error",
       "lore/require-spec-link": "error",
+      "lore/default-export-matches-filename": "error",
+    },
+  },
+
+  // Reserved Next filenames outside the features vertical still declare their
+  // component inline (57 of them). The convention lands vertical by vertical:
+  // delete a path from `ignores` as each one converts, and delete this whole
+  // block when the list is empty. Non-reserved files are already at zero
+  // violations, so that half is enforced everywhere from day one.
+  {
+    files: [
+      "apps/web-ui/src/app/**/{page,layout,error,loading,template,not-found,global-error,default}.tsx",
+    ],
+    ignores: ["apps/web-ui/src/app/repos/**/features/**"],
+    rules: {
+      "lore/default-export-matches-filename": ["error", { reserved: "off" }],
     },
   },
 
