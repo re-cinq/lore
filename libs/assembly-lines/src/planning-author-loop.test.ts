@@ -205,7 +205,7 @@ describe("feature-planning after the author accepts", () => {
         visit("write", 2, "success"),
         visit("push", 2, "success"),
       ]),
-    ).toEqual({ kind: "finish" });
+    ).toEqual({ kind: "launch", nodeId: "merged", iteration: 2 });
   });
 });
 
@@ -233,5 +233,149 @@ describe("the merged line's agent nodes name their own recipes", () => {
       write: "feature-finalize",
       push: "feature-finalize",
     });
+  });
+});
+
+describe("feature-planning after the spec PR is pushed", () => {
+  // The decomposition tail. It used to be a SECOND line, started by minting a
+  // `feature-decompose` task when a `feature-finalize` PR merged — a predicate that
+  // stopped matching the moment finalize became a resume of this line, so nothing
+  // decomposed and nothing said so. Merging the tail in makes the merge a node
+  // outcome like any other.
+  const pushed: NodeVisit[] = [
+    visit("analyze", 1, "success"),
+    visit("author", 1, "success"),
+    visit("analyse-specs", 1, "success"),
+    visit("write", 1, "success"),
+    visit("push", 1, "success"),
+  ];
+
+  it("parks on the merged node once the branch is pushed", async () => {
+    expect(nextTransition(await planning(), pushed)).toEqual({
+      kind: "launch",
+      nodeId: "merged",
+      iteration: 1,
+    });
+  });
+
+  it("waits while the spec PR is open", async () => {
+    // The person reviewing the spec PR is this node's worker, exactly as the author
+    // is the `author` node's. An open PR is not a stalled line.
+    expect(
+      nextTransition(await planning(), [...pushed, visit("merged", 1, null)]),
+    ).toEqual({ kind: "await" });
+  });
+
+  it("decomposes the spec once the PR merges", async () => {
+    expect(
+      nextTransition(await planning(), [
+        ...pushed,
+        visit("merged", 1, "success"),
+      ]),
+    ).toEqual({ kind: "launch", nodeId: "decompose", iteration: 1 });
+  });
+
+  it("sends a change request on the spec PR back to the author", async () => {
+    // A reviewer objecting to the spec is an objection to a plan a PERSON accepted,
+    // so only that person can answer it — the same reasoning that routes the spec
+    // analysis's question to the author instead of ending the line.
+    expect(
+      nextTransition(await planning(), [
+        ...pushed,
+        visit("merged", 1, "changes_requested"),
+      ]),
+    ).toEqual({ kind: "launch", nodeId: "author", iteration: 2 });
+  });
+
+  it("ends the line when the spec PR is closed without merging", async () => {
+    // Not a failure of the machine — the feature was abandoned or superseded. It
+    // still needs an edge, because selectEdge does not fall through.
+    expect(
+      nextTransition(await planning(), [
+        ...pushed,
+        visit("merged", 1, "failed"),
+      ]),
+    ).toEqual({ kind: "finish" });
+  });
+
+  it("files the issues once the decomposition lands", async () => {
+    expect(
+      nextTransition(await planning(), [
+        ...pushed,
+        visit("merged", 1, "success"),
+        visit("decompose", 1, "success"),
+      ]),
+    ).toEqual({ kind: "launch", nodeId: "issues", iteration: 1 });
+  });
+
+  it("ends the line when the spec cannot be decomposed", async () => {
+    // decompose has no upstream NODE — its input is a spec a human merged, so a spec
+    // it cannot break down is a question for the author, not something to re-run.
+    expect(
+      nextTransition(await planning(), [
+        ...pushed,
+        visit("merged", 1, "success"),
+        visit("decompose", 1, "changes_requested"),
+      ]),
+    ).toEqual({ kind: "finish" });
+  });
+
+  it("returns a decomposition the repo cannot accept to the agent, once", async () => {
+    // The station is the first thing to read the decomposition as DATA, so it is
+    // where a label the repo does not have actually shows. It sends the artifact
+    // back rather than letting GitHub CREATE an invented label on the spot.
+    expect(
+      nextTransition(await planning(), [
+        ...pushed,
+        visit("merged", 1, "success"),
+        visit("decompose", 1, "success"),
+        visit("issues", 1, "changes_requested"),
+      ]),
+    ).toEqual({ kind: "launch", nodeId: "decompose", iteration: 2 });
+  });
+
+  it("fails the line rather than let issues and decompose argue twice", async () => {
+    expect(
+      nextTransition(await planning(), [
+        ...pushed,
+        visit("merged", 1, "success"),
+        visit("decompose", 1, "success"),
+        visit("issues", 1, "changes_requested"),
+        visit("decompose", 2, "success"),
+        visit("issues", 2, "changes_requested"),
+      ]),
+    ).toMatchObject({ kind: "fail", outcome: "iteration_max" });
+  });
+
+  it("finishes once the issues are filed", async () => {
+    expect(
+      nextTransition(await planning(), [
+        ...pushed,
+        visit("merged", 1, "success"),
+        visit("decompose", 1, "success"),
+        visit("issues", 1, "success"),
+      ]),
+    ).toEqual({ kind: "finish" });
+  });
+
+  it("runs one line from the first round to the filed issues", async () => {
+    // The whole lifecycle under one line id: refine, accept, analyse, write, push,
+    // wait for the merge, decompose, file. Nothing here starts a second run — which
+    // is the entire point, since the old shape needed a fresh task at the merge and
+    // that task was never created.
+    expect(
+      nextTransition(await planning(), [
+        visit("analyze", 1, "success"),
+        visit("author", 1, "changes_requested"),
+        visit("analyze", 2, "success"),
+        visit("author", 2, "success"),
+        visit("analyse-specs", 2, "success"),
+        visit("write", 2, "success"),
+        visit("push", 2, "success"),
+        visit("merged", 2, "success"),
+        visit("decompose", 2, "success"),
+        visit("issues", 2, "success"),
+      ]),
+    ).toEqual({ kind: "finish" });
   });
 });

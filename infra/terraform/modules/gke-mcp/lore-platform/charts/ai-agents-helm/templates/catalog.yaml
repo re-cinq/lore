@@ -1401,6 +1401,9 @@ spec:
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+    watch:
+      - event: feature.decomposition
+        path: target/decomposition.json
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station

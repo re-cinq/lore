@@ -643,15 +643,26 @@ task_types:
     model: claude-sonnet-4-6
 
   feature-decompose:
-    # Runs in-process (ADR-029), never a Station. The role + EXACT output schema
-    # come from the shared DECOMPOSITION_INSTRUCTIONS constant (served as the org
-    # agent-definition prompt); this entry only carries model/timeout defaults.
+    # The role + EXACT output schema come from the shared DECOMPOSITION_INSTRUCTIONS
+    # constant (served as the org agent-definition prompt); this entry carries the
+    # model/timeout defaults and the artifact contract.
+    #
+    # No longer in-process (the ADR-029 note this replaced): decomposition is the
+    # tail of the feature-planning line, so this is the recipe its `decompose` node
+    # names via `station_ref`.
     prompt_template: |
       {description}
     target_repo: null
     timeout_minutes: 15
     review_required: false
     model: claude-sonnet-4-6
+    # The deliverable crosses to the `issues` station as an artifact: the subsystem
+    # raises it on the NDJSON sink and the Floor merges it into the line's args as
+    # `feature_decomposition` (argNameForEvent turns every non-alphanumeric run into
+    # `_`), which is the key issues.ts reads. Path resolves against WORKSPACE_DIR.
+    watch:
+      event: feature.decomposition
+      path: target/decomposition.json
 
   onboard:
     prompt_template: |
