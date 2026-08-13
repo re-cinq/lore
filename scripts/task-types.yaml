@@ -635,7 +635,8 @@ task_types:
 
       Write the agreed draft to specs/<slug>/spec.md (following this repo's
       spec conventions and the metadata-table format), commit it, and stop.
-      Do not implement code. The watcher opens the PR.
+      Do not implement code. Lore opens the PR from your pushed branch — you
+      have no `gh` and no GitHub token, so do not try to open one yourself.
     target_repo: null
     timeout_minutes: 15
     review_required: false
