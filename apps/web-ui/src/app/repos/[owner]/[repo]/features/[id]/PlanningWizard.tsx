@@ -189,6 +189,9 @@ export default function PlanningWizard({
           "since" in phase ? (phase.since ?? latest?.created_at) : undefined
         }
         timeoutMinutes={timeoutMinutes}
+        // Which node is working, so the card counts against THAT node's kill
+        // deadline rather than the planning round's unenforced budget.
+        nodeId={"nodeId" in phase ? phase.nodeId : undefined}
         liveOutput={data.liveOutput}
         run={data.run}
         phase={showSpec ? "spec" : "round"}
