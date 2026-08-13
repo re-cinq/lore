@@ -1,5 +1,8 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth-options";
+import { userCanAccessRepo } from "@/lib/user-repo-access";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as fs from "node:fs";
@@ -36,6 +39,23 @@ export async function GET(
 ) {
   const { owner, repo, id } = await params;
   const fullName = `${owner}/${repo}`;
+  // Authorize BEFORE reading anything. The repo is in the path, so nothing has to
+  // be looked up first — which also means a 404 cannot be used to probe which
+  // feature ids exist in a repo the caller has no access to.
+  const session = (await getServerSession(authOptions)) as {
+    accessToken?: string;
+  } | null;
+
+  if (!session?.accessToken) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!(await userCanAccessRepo(session.accessToken, fullName))) {
+    return NextResponse.json(
+      { error: "Access denied — you do not have access to this repo" },
+      { status: 403 },
+    );
+  }
   const features = await queryAllowMissing<FeatureRow>(
     `SELECT * FROM lore.features WHERE id = $1 AND repo = $2`,
     [id, fullName],
