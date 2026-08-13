@@ -323,7 +323,6 @@ export {
   type MemoryStore,
   type WriteResult,
   type PgPool,
-  type PgClient,
   type DgraphClientPort,
   type DgraphTxn,
 } from "./memory-store.js";

@@ -19,9 +19,8 @@ const LINE_COLUMNS = `id, definition_name, task_id, repo, branch, args, status, 
  * Postgres-backed {@link AssemblyLinesPort} over `pipeline.assembly_lines` /
  * `pipeline.assembly_line_nodes` (migration 0025). `start` writes the row and
  * the `assembly_line.start` event in ONE data-modifying CTE — atomic without
- * checking out a client ({@link PgPool}'s `connect()` is optional and most
- * doubles only script `query`). The event columns mirror the shared
- * `insertEvent` writer (`events.ts`).
+ * `pool.connect()`, which the narrow {@link PgPool} does not expose. The event
+ * columns mirror the shared `insertEvent` writer (`events.ts`).
  */
 export class PgAssemblyLines implements AssemblyLinesPort {
   constructor(private readonly pool: PgPool) {}

@@ -50,6 +50,17 @@ export interface WriteResult {
 
 // ── Write ────────────────────────────────────────────────────────────
 
+type MemoryTxClient = {
+  query: PgPool["query"];
+  release: () => void;
+};
+
+function hasConnect(
+  p: PgPool,
+): p is PgPool & { connect(): Promise<MemoryTxClient> } {
+  return typeof (p as { connect?: unknown }).connect === "function";
+}
+
 interface UpsertArgs {
   key: string;
   value: string;
@@ -139,9 +150,13 @@ export async function writeMemory(
 
   // The memories row and its version row must land together: prod ran for
   // months with memory.memory_versions missing, and the sequential writes
-  // left version-less memories behind on every call (#1154). A pool double
-  // without connect() keeps the plain sequential path.
-  const client = pool!.connect ? await pool!.connect() : null;
+  // left version-less memories behind on every call (#1154). connect() is
+  // feature-detected locally rather than declared on the PgPool port: pg's
+  // PoolClient carries an incompatible inherited connect(), so widening the
+  // port breaks every client-as-pool call site. A pool double without
+  // connect() keeps the plain sequential path.
+  const db = pool!;
+  const client = hasConnect(db) ? await db.connect() : null;
   let memoryId: string;
   let version: number;
 
@@ -150,7 +165,7 @@ export async function writeMemory(
       await client.query("BEGIN");
     }
 
-    ({ memoryId, version } = await upsertMemoryWithVersion(client ?? pool!, {
+    ({ memoryId, version } = await upsertMemoryWithVersion(client ?? db, {
       key,
       value,
       agent,

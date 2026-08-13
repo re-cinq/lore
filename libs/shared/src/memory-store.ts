@@ -13,26 +13,11 @@ import { enforceTrue } from "./lib/enforce.js";
  * The pg pool port the Postgres backend depends on. Owned by the seam
  * module so the contract lives with the interface, not the implementation.
  */
-export type PgClient = {
-  query<T = Record<string, unknown>>(
-    text: string,
-    params?: unknown[],
-  ): Promise<{ rows: T[] }>;
-  release(): void;
-};
-
 export type PgPool = {
   query<T = Record<string, unknown>>(
     text: string,
     params?: unknown[],
   ): Promise<{ rows: T[] }>;
-  /**
-   * Optional because most doubles (and some adapters) only script `query`.
-   * When present (the real `pg.Pool` is), writers that need atomicity check
-   * out a client and run BEGIN/COMMIT; when absent they fall back to
-   * sequential pool queries.
-   */
-  connect?(): Promise<PgClient>;
 };
 
 /**
