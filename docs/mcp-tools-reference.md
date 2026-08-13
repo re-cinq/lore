@@ -38,7 +38,7 @@ Every tool is namespaced with the **`lore_` prefix** (Anthropic-recommended name
 
 ## Tool reference
 
-40 tools across seven categories. For each: purpose, when to use / not use, parameters (only what the zod shape actually declares), return shape, where it runs, and cache/mutation notes.
+41 tools across seven categories. For each: purpose, when to use / not use, parameters (only what the zod shape actually declares), return shape, where it runs, and cache/mutation notes.
 
 ### Context & knowledge
 
@@ -575,6 +575,21 @@ One-line purpose: view or update the local task-runner config (`~/.lore/local-ru
 - **Returns:** the resulting config as pretty JSON. Called with no update args (or only `max_concurrent: 0`) it is read-only and returns the current config (built-in defaults — `enabled:false`, `max_concurrent:2`, the four standard task_types, model `claude-sonnet-4-6` — when the file is absent).
 - **Where it runs:** local machine; no DB, no network.
 - **Cache/mutation:** overwrites only the provided fields and persists.
+
+#### `lore_update`
+
+One-line purpose: rebuild the installed local MCP adapter (`~/.re-cinq/lore`) from the latest `origin/main`.
+
+- **When to use:** only after the user consents — `lore_assemble_context` prefixes `lore_mcp_update_available` when the running adapter is behind `origin/main` (the SessionStart hook pulls the checkout but never rebuilds `dist/`).
+- **When not to use:** unprompted, or on the shared gateway — the tool is not registered in `agent` server mode, and an agent pod has no checkout to rebuild.
+
+| Parameter | Required | Default | Description |
+|---|---|---|---|
+| _(none)_ | — | — | Takes no input. |
+
+- **Returns:** the updater's combined output plus `Restart Claude Code to load the rebuilt MCP.` — a running process cannot hot-swap its own code.
+- **Where it runs:** local machine; runs the audited `scripts/lore-update.sh` (`git pull` + `npm ci --ignore-scripts` + build shared→server-core→mcp). No DB, no API.
+- **Cache/mutation:** rewrites the installed `dist/` and the `~/.lore/mcp-build-head` marker; resets the cached update status.
 
 ### Spec-trace
 
