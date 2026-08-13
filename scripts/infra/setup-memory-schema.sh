@@ -246,6 +246,16 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
   GRANT USAGE ON SCHEMA memory TO lore;
   GRANT ALL ON ALL TABLES IN SCHEMA memory TO lore;
   ALTER DEFAULT PRIVILEGES IN SCHEMA memory GRANT ALL ON TABLES TO lore;
+
+  -- Web-ui read access on clusters where it connects as lore_ui (#1154):
+  -- superuser-created tables inherit nothing, so the converge run must grant.
+  DO \$\$
+  BEGIN
+    IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'lore_ui') THEN
+      GRANT USAGE ON SCHEMA memory TO lore_ui;
+      GRANT SELECT ON ALL TABLES IN SCHEMA memory TO lore_ui;
+    END IF;
+  END \$\$;
 "
 
 echo "[lore] Memory schema created."

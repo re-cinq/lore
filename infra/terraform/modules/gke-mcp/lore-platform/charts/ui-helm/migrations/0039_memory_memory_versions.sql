@@ -44,5 +44,5 @@ BEGIN
   END IF;
 EXCEPTION
   WHEN insufficient_privilege THEN
-    RAISE NOTICE 'skip memory.memory_versions (runner cannot create in schema memory); run setup-memory-schema.sh as the superuser to converge';
+    RAISE NOTICE 'skip memory.memory_versions convergence (insufficient privilege on CREATE or GRANT); run setup-memory-schema.sh as the superuser to converge';
 END$$;
