@@ -86,6 +86,26 @@ describe("getAssemblyLineDefinition", () => {
     expect(await getAssemblyLineDefinition("feature-planning")).toBeNull();
   });
 
+  it("returns null for a payload missing the entry the layout roots on", async () => {
+    // The cast is a claim, not a check: a truncated payload would otherwise reach
+    // the layout code as a shape it does not expect.
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ ...definition, entry: undefined }), {
+        status: 200,
+      }),
+    );
+    expect(await getAssemblyLineDefinition("feature-planning")).toBeNull();
+  });
+
+  it("returns null for a payload carrying no edges array", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ ...definition, edges: undefined }), {
+        status: 200,
+      }),
+    );
+    expect(await getAssemblyLineDefinition("feature-planning")).toBeNull();
+  });
+
   it("escapes the name rather than pasting it into the path", async () => {
     await getAssemblyLineDefinition("a/b");
 

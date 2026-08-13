@@ -59,6 +59,18 @@ describe("FeatureAssemblyLine", () => {
     ).toBeInTheDocument();
   });
 
+  it("takes the caller's title, which the detail page relies on", () => {
+    render(
+      <FeatureAssemblyLine
+        definition={planning}
+        title="This feature's assembly line"
+      />,
+    );
+    expect(
+      screen.getByText("This feature's assembly line"),
+    ).toBeInTheDocument();
+  });
+
   it("suppresses the inner graph heading, which the card already provides", () => {
     // RunGraphView hardcodes an <h2>Graph</h2>; under "Plan a new feature" that
     // reads as a second, competing section title.

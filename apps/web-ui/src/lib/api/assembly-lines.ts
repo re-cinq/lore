@@ -35,10 +35,24 @@ export async function getAssemblyLineDefinition(
     }
     const body = (await res.json()) as AssemblyLineDefinition;
 
-    // A definition with no nodes cannot be drawn, and an error envelope would
-    // otherwise reach the renderer as a shape it does not expect.
-    return Array.isArray(body?.nodes) && body.nodes.length > 0 ? body : null;
+    // The cast is a claim, not a check. An error envelope or a truncated payload
+    // would otherwise reach the layout code as a shape it does not expect, so
+    // confirm the fields it actually dereferences: the graph, and the entry the
+    // layout roots on.
+    return isDrawable(body) ? body : null;
   } catch {
     return null;
   }
+}
+
+/** Everything the graph layout dereferences. */
+function isDrawable(body: AssemblyLineDefinition | null): boolean {
+  return (
+    !!body &&
+    typeof body.name === "string" &&
+    typeof body.entry === "string" &&
+    Array.isArray(body.edges) &&
+    Array.isArray(body.nodes) &&
+    body.nodes.length > 0
+  );
 }

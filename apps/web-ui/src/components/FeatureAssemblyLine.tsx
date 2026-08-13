@@ -28,7 +28,7 @@ export function FeatureAssemblyLine({
 
   return (
     <CollapsibleCard title={title} hint={definition.description} defaultOpen>
-      <p className="meta">{definition.name}</p>
+      <p className="meta">Assembly line: {definition.name}</p>
       <RunGraphView
         graph={deriveVisibleGraph(definition, null, "definition")}
         definition={definition}
