@@ -5,6 +5,7 @@ import CollapsibleCard from "@/components/CollapsibleCard";
 import { DangerZone } from "@/components/DangerZone";
 import { FeatureAssemblyLine } from "@/components/FeatureAssemblyLine";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
+import { SubmitButton } from "@/components/SubmitButton";
 import { useState, useTransition } from "react";
 import StatusBadge from "../StatusBadge";
 import { isPlanningActive } from "../feature-status";
@@ -160,31 +161,32 @@ export default function FeatureDetailView({
             <span>
               Delete &ldquo;{feature.title}&rdquo; and all its rounds?
             </span>
-            <button
+            <SubmitButton
               type="button"
               className="danger"
               onClick={() => startTransition(() => del())}
-              disabled={pending}
+              pending={pending}
+              pendingLabel="Deleting…"
             >
-              {pending ? "Deleting…" : "Confirm delete"}
-            </button>
-            <button
+              Confirm delete
+            </SubmitButton>
+            <SubmitButton
               type="button"
               onClick={() => setConfirmingDelete(false)}
-              disabled={pending}
+              pending={pending}
             >
               Cancel
-            </button>
+            </SubmitButton>
           </div>
         ) : (
-          <button
+          <SubmitButton
             type="button"
             className="danger"
             onClick={() => setConfirmingDelete(true)}
-            disabled={pending}
+            pending={pending}
           >
             Delete feature
-          </button>
+          </SubmitButton>
         )}
       </DangerZone>
     </div>

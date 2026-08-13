@@ -3,6 +3,8 @@
 import { useActionState } from "react";
 import { FeatureAssemblyLine } from "@/components/FeatureAssemblyLine";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
+import { FormError } from "@/components/FormError";
+import { SubmitButton } from "@/components/SubmitButton";
 
 type CreateAction = (
   prev: { error?: string } | null,
@@ -41,10 +43,10 @@ export default function SmartFeatureCreateView({
           placeholder="What should it do, for whom, and why?"
         />
       </label>
-      {state?.error && <p style={{ color: "var(--danger)" }}>{state.error}</p>}
-      <button type="submit" disabled={pending}>
-        {pending ? "Starting planning…" : "Start planning"}
-      </button>
+      <FormError message={state?.error} />
+      <SubmitButton pending={pending} pendingLabel="Starting planning…">
+        Start planning
+      </SubmitButton>
     </form>
   );
 }
