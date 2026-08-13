@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useCallback,
   useEffect,
   useRef,
   useState,
@@ -21,28 +20,12 @@ import DecompositionProgressCard from "./DecompositionProgressCard";
 import FailureBlock from "./FailureBlock";
 import { isPlanningActive } from "../feature-status";
 import { isRewind, lineageLabel, rewindOptions } from "@/lib/round-picker";
-import type { FeatureRunPayload } from "@/lib/feature-run";
 import { featurePhaseOf } from "@/lib/feature-phase";
+import { useFeaturePlanningPoll } from "./useFeaturePlanningPoll";
 import type {
   FeatureWithIterations,
-  FeatureRow,
-  FeatureIterationRow,
   SectionAnswers,
 } from "@/lib/feature-types";
-
-const POLL_MS = 4000;
-
-interface Poll {
-  feature: FeatureRow;
-  latestIteration: FeatureIterationRow | null;
-  task?: { status: string; failure_reason: string | null } | null;
-  liveOutput?: string | null;
-  /** Most recent iteration that produced a result — shown even if the latest round failed. */
-  lastReady?: FeatureIterationRow | null;
-  /** The round's assembly line, for the live run visualization. Absent until the
-   *  first poll returns (and null when the round has no run row). */
-  run?: FeatureRunPayload | null;
-}
 
 export default function PlanningWizard({
   owner,
@@ -70,39 +53,29 @@ export default function PlanningWizard({
   settledView: ReactNode;
 }) {
   const router = useRouter();
-  const [data, setData] = useState<Poll>({
-    feature,
-    latestIteration: feature.iterations[feature.iterations.length - 1] ?? null,
+  // Seeded from the server render so the first paint is not empty; the hook's mount
+  // fetch replaces it with the fields only the poll carries (task, run, live output).
+  const { data, refresh: fetchLatest } = useFeaturePlanningPoll({
+    owner,
+    repo,
+    featureId: feature.id,
+    initial: {
+      feature,
+      latestIteration:
+        feature.iterations[feature.iterations.length - 1] ?? null,
+      task: null,
+      liveOutput: null,
+      lastReady: null,
+      run: null,
+    },
   });
   const [feedback, setFeedback] = useState<FeedbackState>(emptyFeedback());
   /** Which round the next one continues from; undefined = the latest. */
   const [continueFrom, setContinueFrom] = useState<number | undefined>();
   const [pending, startTransition] = useTransition();
   const [finalizing, setFinalizing] = useState(false);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   /** Iteration whose completion already triggered a server refresh. */
   const refreshedFor = useRef<number | null>(null);
-
-  const fetchLatest = useCallback(async (): Promise<Poll | null> => {
-    const r = await fetch(
-      `/api/repos/${owner}/${repo}/features/${feature.id}`,
-      { cache: "no-store" },
-    );
-
-    if (!r.ok) {
-      return null;
-    }
-
-    try {
-      const json = (await r.json()) as Poll;
-
-      setData(json);
-
-      return json;
-    } catch {
-      return null;
-    }
-  }, [owner, repo, feature.id]);
 
   const latest = data.latestIteration;
   // One value instead of five booleans rebuilt from the round's task. The LINE says
@@ -117,25 +90,6 @@ export default function PlanningWizard({
   });
   const latestReady = latest?.status === "ready" && !!latest.gap_result;
   const failed = phase.kind === "failed";
-
-  // Polls while the WIZARD is on screen, not only while a planning round runs. The
-  // spec phase runs no round, so the old guard stopped polling exactly when the line
-  // was working — and since the initial payload carries no `run`, a RELOAD mid-phase
-  // showed the decision row, offered the button again, and never learned otherwise.
-  // Pressing it then mints a second line, which is how one feature collected seven
-  // branches. The wizard only renders while planning is unfinished, so polling for as
-  // long as it is mounted costs one GET per interval on one page.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount; state is set inside the async fetch
-    void fetchLatest();
-    timer.current = setInterval(() => void fetchLatest(), POLL_MS);
-
-    return () => {
-      if (timer.current) {
-        clearInterval(timer.current);
-      }
-    };
-  }, [fetchLatest]);
 
   // The poll updates THIS component, but the draft spec renders from the server's
   // copy of the feature (FeatureDetailView reads feature.draft_spec_md). Without a
@@ -171,24 +125,16 @@ export default function PlanningWizard({
       await fetchLatest();
     });
 
-  // After finalize, the feature-finalize task runs async (no intermediate status). Poll
-  // until the feature leaves the planning phase (→ pr-open), then refresh the server
-  // component so the parent swaps the wizard for the FinalizedView.
+  // After finalize, the feature-finalize task runs async (no intermediate status). The
+  // poll is already running, so this only watches its payload: once the feature leaves
+  // the planning phase (→ pr-open), refresh the server component so the parent swaps
+  // the wizard for the FinalizedView. A second interval here would just re-ask the
+  // same route on its own schedule.
   useEffect(() => {
-    if (!finalizing) {
-      return;
+    if (finalizing && !isPlanningActive(data.feature.status)) {
+      router.refresh();
     }
-    const tick = async () => {
-      const json = await fetchLatest();
-
-      if (json && !isPlanningActive(json.feature.status)) {
-        router.refresh();
-      }
-    };
-    const id = setInterval(() => void tick(), POLL_MS);
-
-    return () => clearInterval(id);
-  }, [finalizing, fetchLatest, router]);
+  }, [finalizing, data.feature.status, router]);
 
   const iteration = latest?.iteration ?? data.feature.current_iteration;
 
