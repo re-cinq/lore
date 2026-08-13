@@ -42,10 +42,9 @@ describe("canFinalize", () => {
       "planning",
       "pr-open",
       "implemented",
-      "split",
     ];
 
-    expect(other.map(canFinalize)).toEqual([false, false, false, false, false]);
+    expect(other.map(canFinalize)).toEqual([false, false, false, false]);
   });
 });
 

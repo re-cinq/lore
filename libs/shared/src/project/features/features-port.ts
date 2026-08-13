@@ -8,14 +8,23 @@ import type { GapResult } from "../../feature-planning/gap-result.js";
  * and ADR-027. SQL lives in the pg adapter.
  */
 
+/** The lifecycle states a feature can actually reach.
+ *
+ *  `split` was declared here and rendered as a badge but never written by any code
+ *  path. It could not be: `/split` creates a CHILD and leaves the parent untouched,
+ *  and the author may create one child per proposed sub-feature — so there is no
+ *  moment the machine can call the parent "split" without guessing. Reviving it
+ *  means an explicit author action ("this feature is now its children"), which is
+ *  product surface, not a status default. The DB CHECK constraint still permits the
+ *  value; it is a harmless superset, and `statusBadge` falls back for anything it
+ *  does not know. */
 export type FeatureStatus =
   | "draft"
   | "planning"
   | "awaiting-input"
   | "spec-ready"
   | "pr-open"
-  | "implemented"
-  | "split";
+  | "implemented";
 
 export type IterationStatus = "running" | "ready" | "failed";
 

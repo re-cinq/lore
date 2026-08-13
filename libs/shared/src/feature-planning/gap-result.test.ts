@@ -437,7 +437,7 @@ describe("isPlanningPhase", () => {
 
   it("returns false once the feature has left planning", () => {
     expect(
-      ["pr-open", "implemented", "split", "anything-else"].map(isPlanningPhase),
-    ).toEqual([false, false, false, false]);
+      ["pr-open", "implemented", "anything-else"].map(isPlanningPhase),
+    ).toEqual([false, false, false]);
   });
 });

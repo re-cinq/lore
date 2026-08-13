@@ -10,8 +10,7 @@ export type FeatureStatus =
   | "awaiting-input"
   | "spec-ready"
   | "pr-open"
-  | "implemented"
-  | "split";
+  | "implemented";
 
 export type IterationStatus = "running" | "ready" | "failed";
 
