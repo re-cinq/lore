@@ -24,6 +24,18 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../../platform/project-boot.js";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
+import {
+  FeatureListSchema,
+  FeaturePollSchema,
+  FeatureDecompositionSchema,
+  FeatureWithIterationsSchema,
+  FeatureCreatedSchema,
+  RoundStartedSchema,
+  FinalizeStartedSchema,
+  FeatureSchema,
+  OkSchema,
+} from "./features-schema.js";
 
 /**
  * /api/repos/:owner/:repo/features[...] — the smart feature-planning surface.
@@ -182,7 +194,9 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: BASE,
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), FeatureListSchema, {
+        name: "FeatureList",
+      }),
       handler: (request, h) =>
         run(h, async () => {
           const status =
@@ -197,7 +211,14 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "POST",
       path: BASE,
-      options: { ...bearerScope("write"), payload: WRITE_PAYLOAD },
+      options: {
+        ...zodResponse(bearerScope("write"), FeatureCreatedSchema, {
+          name: "FeatureCreated",
+          status: 201,
+          errors: [400],
+        }),
+        payload: WRITE_PAYLOAD,
+      },
       handler: (request, h) =>
         run(h, async () => {
           const body = request.payload as {
@@ -234,7 +255,10 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: `${BASE}/{id}`,
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), FeatureWithIterationsSchema, {
+        name: "FeatureWithIterations",
+        errors: [404],
+      }),
       handler: (request, h) =>
         run(h, async () => {
           const feature = await (
@@ -257,7 +281,10 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: `${BASE}/{id}/status`,
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), FeaturePollSchema, {
+        name: "FeaturePoll",
+        errors: [404],
+      }),
       handler: (request, h) =>
         run(h, async () => {
           const project = await projectFor(repoOf(request.params));
@@ -283,7 +310,10 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: `${BASE}/{id}/decomposition`,
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), FeatureDecompositionSchema, {
+        name: "FeatureDecomposition",
+        errors: [404],
+      }),
       handler: (request, h) =>
         run(h, async () => {
           const project = await projectFor(repoOf(request.params));
@@ -305,7 +335,10 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "DELETE",
       path: `${BASE}/{id}`,
-      options: bearerScope("write"),
+      options: zodResponse(bearerScope("write"), OkSchema, {
+        name: "Ok",
+        errors: [404],
+      }),
       handler: (request, h) =>
         run(h, async () => {
           const deleted = await (
@@ -324,7 +357,14 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "POST",
       path: `${BASE}/{id}/iterations`,
-      options: { ...bearerScope("write"), payload: WRITE_PAYLOAD },
+      options: {
+        ...zodResponse(bearerScope("write"), RoundStartedSchema, {
+          name: "RoundStarted",
+          status: 202,
+          errors: [400, 404, 409],
+        }),
+        payload: WRITE_PAYLOAD,
+      },
       handler: (request, h) =>
         run(h, async () => {
           const repo = repoOf(request.params);
@@ -442,7 +482,13 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "POST",
       path: `${BASE}/{id}/iterations/{n}/result`,
-      options: { ...bearerScope("write"), payload: WRITE_PAYLOAD },
+      options: {
+        ...zodResponse(bearerScope("write"), OkSchema, {
+          name: "Ok",
+          errors: [400, 404],
+        }),
+        payload: WRITE_PAYLOAD,
+      },
       handler: (request, h) =>
         run(h, async () => {
           const id = request.params.id;
@@ -485,7 +531,14 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "POST",
       path: `${BASE}/{id}/finalize`,
-      options: { ...bearerScope("write"), payload: WRITE_PAYLOAD },
+      options: {
+        ...zodResponse(bearerScope("write"), FinalizeStartedSchema, {
+          name: "FinalizeStarted",
+          status: 202,
+          errors: [404, 409],
+        }),
+        payload: WRITE_PAYLOAD,
+      },
       handler: (request, h) =>
         run(h, async () => {
           const repo = repoOf(request.params);
@@ -535,7 +588,14 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "POST",
       path: `${BASE}/{id}/split`,
-      options: { ...bearerScope("write"), payload: WRITE_PAYLOAD },
+      options: {
+        ...zodResponse(bearerScope("write"), FeatureSchema, {
+          name: "Feature",
+          status: 201,
+          errors: [400, 404, 409],
+        }),
+        payload: WRITE_PAYLOAD,
+      },
       handler: (request, h) =>
         run(h, async () => {
           const parentId = request.params.id;
