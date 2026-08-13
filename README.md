@@ -163,18 +163,6 @@ This configures the MCP server, skills, hooks, statusline, and agent ID. The MCP
 
 Then open Claude Code and type **`/lore-help`** — what Lore does, how a session works, every skill, and which one fits the job you're on.
 
-### Developing Lore itself
-
-To run the whole stack on your own machine instead of against a deployed backend:
-
-```bash
-npm install
-npm run dev-setup   # one-time: toolchain check + credentials into .env.local
-npm start           # Postgres + Dgraph + minikube agents + every service, live reload
-```
-
-This needs Node.js >= 20 plus `docker`, `docker compose` v2, `minikube`, `kubectl`, `helm`, and `claude` on your PATH. [Contributing](docs/building-lore/contributing.md#run-the-full-stack-locally) walks through all three steps, the ports, and how to tear it all down and start over.
-
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).
