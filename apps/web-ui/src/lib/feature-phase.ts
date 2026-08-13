@@ -91,7 +91,11 @@ function phaseFromLine(run: FeaturePhaseInput["run"]): FeaturePhase | null {
     return null;
   }
 
-  return { kind, nodeId: working.nodeId, since: working.startedAt } as FeaturePhase;
+  return {
+    kind,
+    nodeId: working.nodeId,
+    since: working.startedAt,
+  } as FeaturePhase;
 }
 
 /** The pre-merged-line derivation, kept for features that resolve no line. */

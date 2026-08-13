@@ -196,7 +196,9 @@ export default function PlanningWizard({
         iteration={iteration}
         // The working NODE's start, not the round's — a spec node that began 20
         // minutes after the round must not read as 20 minutes over budget.
-        since={"since" in phase ? (phase.since ?? latest?.created_at) : undefined}
+        since={
+          "since" in phase ? (phase.since ?? latest?.created_at) : undefined
+        }
         timeoutMinutes={timeoutMinutes}
         liveOutput={data.liveOutput}
         run={data.run}

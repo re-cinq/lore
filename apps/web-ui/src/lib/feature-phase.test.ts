@@ -95,7 +95,10 @@ describe("featurePhaseOf — read from the line", () => {
   it("reports failed for a line that ended failed", () => {
     expect(
       featurePhaseOf({
-        run: { ...run("finished", [node("analyze", "success")]), outcome: "failed" },
+        run: {
+          ...run("finished", [node("analyze", "success")]),
+          outcome: "failed",
+        },
         feature: feature("planning"),
       }),
     ).toMatchObject({ kind: "failed" });
