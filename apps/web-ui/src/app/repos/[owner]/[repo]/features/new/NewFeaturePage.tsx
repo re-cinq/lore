@@ -1,7 +1,6 @@
-import { redirect } from "next/navigation";
-import { createFeature } from "@/lib/api/features";
 import { getAssemblyLineDefinition } from "@/lib/api/assembly-lines";
 import SmartFeatureCreateView from "./SmartFeatureCreateView";
+import { createFeatureAction } from "./actions";
 
 export default async function NewFeaturePage({
   params,
@@ -11,34 +10,14 @@ export default async function NewFeaturePage({
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
-  async function create(
-    _prev: { error?: string } | null,
-    formData: FormData,
-  ): Promise<{ error?: string }> {
-    "use server";
-    const title = (formData.get("title") as string)?.trim();
-    const prompt = (formData.get("prompt") as string)?.trim();
-
-    if (!title || !prompt) {
-      return { error: "Title and prompt are required." };
-    }
-    const result = await createFeature(fullName, title, prompt);
-
-    if (result.status === "ok") {
-      redirect(`/repos/${owner}/${repo}/features/${result.data.id}`);
-    }
-
-    return {
-      error:
-        result.status === "unconfigured"
-          ? "Feature API is not configured (LORE_API_URL / token)."
-          : result.message,
-    };
-  }
-
   // Fetched here, not in the view: the Floor owns the YAML, and a preview that
   // needs a web-ui rebuild to catch up would defeat the point.
   const definition = await getAssemblyLineDefinition("feature-planning");
 
-  return <SmartFeatureCreateView action={create} definition={definition} />;
+  return (
+    <SmartFeatureCreateView
+      action={createFeatureAction.bind(null, fullName)}
+      definition={definition}
+    />
+  );
 }
