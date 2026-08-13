@@ -79,8 +79,7 @@ async function harness(
     definitionName: "feature-planning",
     repo: REPO,
     branch: "feature/dark-factory-rollback",
-    args:
-      options.withFeature === false ? {} : { feature_id: feature.id },
+    args: options.withFeature === false ? {} : { feature_id: feature.id },
   });
 
   return {
