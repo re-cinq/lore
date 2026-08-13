@@ -7,8 +7,8 @@ import {
   finalizeFeature,
   splitFeature,
   deleteFeature,
-  enforceOk,
-} from "@/lib/feature-api";
+} from "@/lib/api/features";
+import { enforceOk } from "@/lib/api/result";
 import { listAgents } from "@/lib/agents-api";
 import {
   groupDecomposition,
