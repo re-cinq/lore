@@ -54,6 +54,10 @@ export interface RunGraphViewProps {
   /** Source definition — supplies layout entry/exit and the graph name. */
   definition: AssemblyLineDefinition | null;
   onSelectNode?: (nodeId: string) => void;
+  /** Section heading. `null` renders none, for a caller that titles the section
+   *  itself — a second "Graph" inside a card called "How planning works" reads as
+   *  two competing titles. */
+  heading?: string | null;
 }
 
 interface FittedView {
@@ -208,6 +212,7 @@ export default function RunGraphView({
   graph,
   definition,
   onSelectNode,
+  heading = "Graph",
 }: RunGraphViewProps) {
   if (graph.nodes.length === 0) {
     return (
@@ -234,7 +239,7 @@ export default function RunGraphView({
 
   return (
     <section className={styles.panel}>
-      <h2 className={styles.heading}>Graph</h2>
+      {heading !== null && <h2 className={styles.heading}>{heading}</h2>}
       <svg
         className={styles.svg}
         style={{ maxWidth: `${view.width}px` }}
