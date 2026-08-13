@@ -12,7 +12,7 @@ import FailureBlock from "./FailureBlock";
 import { isPlanningActive } from "../feature-status";
 import { isRewind, lineageLabel, rewindOptions } from "@/lib/round-picker";
 import type { FeatureRunPayload } from "@/lib/feature-run";
-import { specPhaseOf } from "@/lib/spec-phase";
+import { featurePhaseOf } from "@/lib/feature-phase";
 import type {
   FeatureWithIterations,
   FeatureRow,
@@ -21,10 +21,6 @@ import type {
 } from "@/lib/feature-types";
 
 const POLL_MS = 4000;
-
-// A planning round is genuinely in flight only while its task is in one of these
-// non-terminal states; any other state means the round settled (ready or failed).
-const RUNNING_TASK_STATUSES = new Set(["pending", "queued", "running"]);
 
 interface Poll {
   feature: FeatureRow;
@@ -94,15 +90,18 @@ export default function PlanningWizard({
   }, [owner, repo, feature.id]);
 
   const latest = data.latestIteration;
-  const task = data.task;
-  // The round settled but produced nothing usable (failed, or stuck 'running' with no
-  // gap_result after the task ended) — the user must see it + retry, never an endless spinner.
-  const taskActive = !task || RUNNING_TASK_STATUSES.has(task.status);
+  // One value instead of five booleans rebuilt from the round's task. The LINE says
+  // which node is working; the round's own rows only decide for a legacy feature
+  // that resolves no line. `latestReady` still gates the server refresh + which
+  // analysis to show, which is a question about the DATA rather than about the phase.
+  const phase = featurePhaseOf({
+    run: data.run,
+    feature: data.feature,
+    latestIteration: latest,
+    task: data.task,
+  });
   const latestReady = latest?.status === "ready" && !!latest.gap_result;
-  const settledUnusable = !latestReady && !taskActive;
-  const failed =
-    task?.status === "failed" || latest?.status === "failed" || settledUnusable;
-  const running = (!latest || latest.status === "running") && !failed;
+  const failed = phase.kind === "failed";
 
   // Polls while the WIZARD is on screen, not only while a planning round runs. The
   // spec phase runs no round, so the old guard stopped polling exactly when the line
@@ -183,24 +182,25 @@ export default function PlanningWizard({
   // with everything disabled — a greyed "Refine again" beside a primary relabelled
   // "Creating the spec PR…" — offered two dead controls and hid the run graph, which
   // only ever rendered here.
-  // Read from the LINE, not from "did the author just press the button": a line that
-  // finishes without producing a PR must give the controls back rather than leave a
-  // progress card running forever. `finalizing` only bridges the gap until the first
-  // poll shows the line moving, and never survives it finishing.
-  const spec = specPhaseOf(data.run);
+  // `finalizing` only bridges the gap until the first poll shows the line moving, and
+  // never survives it finishing: a line that ends without producing a PR must give the
+  // controls back rather than leave a progress card running forever.
+  const working = phase.kind === "planning" || phase.kind === "writing-spec";
   const showSpec =
-    spec.running ||
+    phase.kind === "writing-spec" ||
     (finalizing && (data.run?.status ?? "running") === "running");
 
-  if (running || showSpec) {
+  if (working || showSpec) {
     return (
       <RunningCard
         iteration={iteration}
-        since={running ? latest?.created_at : spec.since}
+        // The working NODE's start, not the round's — a spec node that began 20
+        // minutes after the round must not read as 20 minutes over budget.
+        since={"since" in phase ? (phase.since ?? latest?.created_at) : undefined}
         timeoutMinutes={timeoutMinutes}
         liveOutput={data.liveOutput}
         run={data.run}
-        phase={running ? "round" : "spec"}
+        phase={showSpec ? "spec" : "round"}
       />
     );
   }
