@@ -25,6 +25,7 @@ import {
 } from "./floor-assembly-line.js";
 import { isFailureOutcome } from "./notify-failure.js";
 import { roundContent } from "./round-content.js";
+import { decidePrStamp } from "./spec-pr.js";
 
 export interface AdvanceDeps {
   assemblyLines: AssemblyLinesPort;
@@ -65,6 +66,11 @@ export interface AdvanceDeps {
     outcome: string,
     reason?: string,
   ) => Promise<void>;
+  /** Ensure the PR the `push` node produced exists and is recorded on the line
+   *  (`args.pr_number`), moving a feature-carrying line to `pr-open`. Nothing else
+   *  does it: the push recipe defers to a watcher that ignores assembly-line CRs.
+   *  Optional seam, same as notifyFailure. */
+  stampPr?: (row: AssemblyLineRecord) => Promise<void>;
 }
 
 /** A walk that reached exit still failed as a whole when a node failed on the way
@@ -369,5 +375,48 @@ export async function finishNodeAndAdvance(
     await deps.assemblyLines.finishNodeOnce(target.id, input.result.outcome);
   }
 
+  await maybeStampPr(input.assemblyLineId, input.nodeId, input.result, deps);
   await advanceLine(input.assemblyLineId, deps);
+}
+
+/** Record the PR a successful `push` node produced, before the walk moves on.
+ *
+ *  Runs here rather than inside `advanceLine` because it is a reaction to a node
+ *  FINISHING — advanceLine is also driven by the start handler and the reaper,
+ *  where nothing just pushed. It never throws: a line whose stamp failed is worth
+ *  advancing anyway, and the reaper re-drives it. */
+async function maybeStampPr(
+  assemblyLineId: string,
+  nodeId: string,
+  result: NodeResult,
+  deps: AdvanceDeps,
+): Promise<void> {
+  if (!deps.stampPr) {
+    return;
+  }
+
+  try {
+    const row = await deps.assemblyLines.getById(assemblyLineId);
+
+    if (!row) {
+      return;
+    }
+    const node = (await deps.definitions())
+      .get(row.definitionName)
+      ?.nodes.find((n) => n.id === nodeId);
+
+    if (
+      !decidePrStamp({
+        promptRef: node?.prompt_ref,
+        outcome: result.outcome,
+        args: row.args,
+      })
+    ) {
+      return;
+    }
+
+    await deps.stampPr(row);
+  } catch (err) {
+    console.error("[spec-pr] stamp failed:", (err as Error).message);
+  }
 }
