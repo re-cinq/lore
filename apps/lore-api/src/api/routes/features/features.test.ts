@@ -573,4 +573,131 @@ describe("accepting the plan resumes the parked node", () => {
     expect(res.statusCode).toBe(202);
     expect(res.result).toEqual({ task_id: "fin" });
   });
+
+  describe("GET .../features/:id/status — the wizard's poll", () => {
+    const feature = {
+      id: "f1",
+      repo: "re-cinq/lore",
+      title: "T",
+      status: "planning",
+      iterations: [
+        { ...readyIteration({ sections: [] }), iteration: 1 },
+        {
+          ...readyIteration(null),
+          iteration: 2,
+          status: "running",
+          task_id: "t2",
+          gap_result: null,
+        },
+      ],
+    };
+
+    it("returns the feature without every round's gap payload", async () => {
+      // The whole point of a separate route: GET .../features/:id carries every
+      // round's gap_result — mockup markup plus a stylesheet each — which must not
+      // be re-sent every 4 seconds.
+      useProject(fakeFeatures({ get: vi.fn().mockResolvedValue(feature) }));
+      const res = await req("GET", `${base}/f1/status`);
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.payload).feature).not.toHaveProperty("iterations");
+    });
+
+    it("carries the newest round and the newest that produced a result", async () => {
+      useProject(fakeFeatures({ get: vi.fn().mockResolvedValue(feature) }));
+      const body = JSON.parse((await req("GET", `${base}/f1/status`)).payload);
+
+      expect(body.latest_iteration).toMatchObject({ iteration: 2 });
+      expect(body.last_ready_iteration).toMatchObject({ iteration: 1 });
+    });
+
+    it("resolves the line that owns the feature's planning", async () => {
+      // From round 2 on, a resumed round mints no task — only the OWNING task can
+      // resolve the line, which is what the run graph hangs on.
+      useProject(
+        fakeFeatures({ get: vi.fn().mockResolvedValue(feature) }),
+        fakeAssemblyLines({
+          listForTask: vi
+            .fn()
+            .mockResolvedValue([
+              { id: "line-1", definitionName: "feature-planning" },
+            ]),
+        }),
+      );
+      const body = JSON.parse((await req("GET", `${base}/f1/status`)).payload);
+
+      expect(body.assembly_line_id).toBe("line-1");
+    });
+
+    it("reports no line for a feature whose rounds name no task", async () => {
+      useProject(
+        fakeFeatures({
+          get: vi.fn().mockResolvedValue({ ...feature, iterations: [] }),
+        }),
+      );
+      const body = JSON.parse((await req("GET", `${base}/f1/status`)).payload);
+
+      expect(body.assembly_line_id).toBeNull();
+    });
+
+    it("404s for a feature that does not exist", async () => {
+      useProject(fakeFeatures({ get: vi.fn().mockResolvedValue(null) }));
+      expect((await req("GET", `${base}/nope/status`)).statusCode).toBe(404);
+    });
+  });
+
+  describe("GET .../features/:id/decomposition", () => {
+    it("returns the feature's spec-tasks", async () => {
+      const tasks = [
+        {
+          description: "add the port method",
+          status: "pending",
+          context_bundle: { spec_task_id: "T001", feature_id: "f1" },
+        },
+      ];
+
+      vi.mocked(projectFor).mockResolvedValue({
+        features: fakeFeatures({
+          get: vi.fn().mockResolvedValue({ id: "f1", iterations: [] }),
+        }),
+        assemblyLines: fakeAssemblyLines(),
+        tasks: { specTasksForFeature: vi.fn().mockResolvedValue(tasks) },
+      } as never);
+      const res = await req("GET", `${base}/f1/decomposition`);
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.payload)).toEqual({ tasks });
+    });
+
+    it("404s for a feature id that does not exist", async () => {
+      // An unknown id is not an empty tree — reporting {tasks: []} for a typo
+      // would look like success.
+      vi.mocked(projectFor).mockResolvedValue({
+        features: fakeFeatures({ get: vi.fn().mockResolvedValue(null) }),
+        assemblyLines: fakeAssemblyLines(),
+        tasks: { specTasksForFeature: vi.fn() },
+      } as never);
+
+      expect((await req("GET", `${base}/nope/decomposition`)).statusCode).toBe(
+        404,
+      );
+    });
+
+    it("returns an empty list for a feature never decomposed", async () => {
+      // Honest empty rather than a 404: the feature exists, its tree does not yet.
+      vi.mocked(projectFor).mockResolvedValue({
+        features: fakeFeatures({
+          get: vi.fn().mockResolvedValue({ id: "f1", iterations: [] }),
+        }),
+        assemblyLines: fakeAssemblyLines(),
+        tasks: { specTasksForFeature: vi.fn().mockResolvedValue([]) },
+      } as never);
+
+      expect(
+        JSON.parse((await req("GET", `${base}/f1/decomposition`)).payload),
+      ).toEqual({
+        tasks: [],
+      });
+    });
+  });
 });

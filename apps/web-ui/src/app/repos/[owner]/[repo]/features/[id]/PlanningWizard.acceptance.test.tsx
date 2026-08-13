@@ -49,13 +49,16 @@ const round = (
   ...over,
 });
 
-const feature = (): FeatureWithIterations =>
+const feature = (
+  over: Partial<FeatureWithIterations> = {},
+): FeatureWithIterations =>
   ({
     id: "f1",
     title: "Define the spec standard",
     status: "awaiting-input",
     current_iteration: 3,
     iterations: [round()],
+    ...over,
   }) as unknown as FeatureWithIterations;
 
 /** One node row as the poll payload carries it. */
@@ -70,8 +73,12 @@ const node = (nodeId: string, outcome: string | null) => ({
 });
 
 /** A poll response: the feature, its latest round, and the line's current shape. */
-const poll = (status: string, nodes: ReturnType<typeof node>[]) => ({
-  feature: feature(),
+const poll = (
+  status: string,
+  nodes: ReturnType<typeof node>[],
+  over: Partial<FeatureWithIterations> = {},
+) => ({
+  feature: feature(over),
   latestIteration: round(),
   task: { status: "completed", failure_reason: null },
   run: {
@@ -111,7 +118,7 @@ async function tick() {
   });
 }
 
-function mount(initial: object) {
+function mount(initial: object, over: Partial<FeatureWithIterations> = {}) {
   const srv = server(initial);
 
   vi.stubGlobal("fetch", srv.fetch);
@@ -121,11 +128,12 @@ function mount(initial: object) {
     <PlanningWizard
       owner="re-cinq"
       repo="lore"
-      feature={feature()}
+      feature={feature(over)}
       timeoutMinutes={15}
       refine={vi.fn().mockResolvedValue(undefined)}
       finalize={finalize}
       onCreateDraft={vi.fn()}
+      settledView={<div data-testid="settled" />}
     />,
   );
 
@@ -280,5 +288,49 @@ describe("reloading the page while the spec work runs", () => {
     expect(
       screen.getByRole("button", { name: /create the spec pr/i }),
     ).toBeTruthy();
+  });
+});
+
+// The detail page keeps the wizard mounted for as long as the LIFECYCLE is moving,
+// which now includes an open spec PR — so these states must survive a fresh page
+// load, not only a session that was already watching when the line got there.
+describe("a feature whose spec PR is open", () => {
+  const prOpen: Partial<FeatureWithIterations> = {
+    status: "pr-open",
+    spec_pr_url: "https://gh/pr/7",
+    spec_pr_number: 7,
+  };
+
+  it("shows the spec PR card while the line waits on the merge", async () => {
+    mount(
+      poll("running", [node("push", "success"), node("merged", null)], prOpen),
+      prOpen,
+    );
+    await tick();
+
+    expect(await screen.findByText(/waiting/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("settled")).toBeNull();
+  });
+
+  it("shows the settled view once the line finished", async () => {
+    mount(poll("finished", [node("issues", "success")], prOpen), prOpen);
+    await tick();
+
+    expect(await screen.findByTestId("settled")).toBeInTheDocument();
+  });
+
+  it("shows the settled view for a legacy feature that resolves no line", async () => {
+    mount(
+      {
+        feature: feature(prOpen),
+        latestIteration: round(),
+        task: null,
+        run: null,
+      },
+      prOpen,
+    );
+    await tick();
+
+    expect(await screen.findByTestId("settled")).toBeInTheDocument();
   });
 });

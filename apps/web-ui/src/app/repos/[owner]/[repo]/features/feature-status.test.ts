@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   statusBadge,
   isPlanningActive,
+  isLifecycleActive,
   featureStatusColor,
 } from "./feature-status";
 
@@ -39,5 +40,19 @@ describe("isPlanningActive", () => {
   it("returns false once a PR exists or the feature shipped", () => {
     expect(isPlanningActive("pr-open")).toBe(false);
     expect(isPlanningActive("implemented")).toBe(false);
+  });
+});
+
+describe("isLifecycleActive", () => {
+  it("returns true through planning and while the spec PR is open", () => {
+    expect(isLifecycleActive("draft")).toBe(true);
+    expect(isLifecycleActive("planning")).toBe(true);
+    expect(isLifecycleActive("awaiting-input")).toBe(true);
+    expect(isLifecycleActive("spec-ready")).toBe(true);
+    expect(isLifecycleActive("pr-open")).toBe(true);
+  });
+
+  it("returns false once the feature is implemented", () => {
+    expect(isLifecycleActive("implemented")).toBe(false);
   });
 });
