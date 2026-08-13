@@ -68,9 +68,39 @@ export const FLOOR_EVENT_LOCK_KEY = 8_140_311;
  * its connection, which is what makes a killed Floor release it with no cleanup. A
  * pooled client would hand the lock to whichever job borrowed it next.
  */
+/**
+ * Watch the connection the lock lives on.
+ *
+ * The client is checked out of the pool and never released, so the pool's own error
+ * handler — which covers IDLE clients — never sees it. When Postgres restarted, the
+ * client emitted an unhandled `error` and the process died: seven crash-restarts
+ * until systemd's start limit gave up and left the Floor dead. A database blip must
+ * not be a permanent outage.
+ *
+ * Exiting IS the correct response, because the lock died with the connection and this
+ * process no longer holds the right to drain — it just has to be a deliberate exit
+ * the supervisor can restart, not an unhandled event.
+ */
+export function guardLockConnection(
+  client: { on(event: "error", handler: (err: Error) => void): unknown },
+  deps: { log: (message: string) => void; exit: (code: number) => void },
+): void {
+  client.on("error", (err) => {
+    deps.log(
+      `event lock connection lost (${err.message}) — exiting so the next instance can take it`,
+    );
+    deps.exit(1);
+  });
+}
+
 export async function awaitSoleFloor(): Promise<void> {
   const { getPool } = await import("./db.js");
   const client = await getPool().connect();
+
+  guardLockConnection(client, {
+    log: (message) => console.error(`[floor] ${message}`),
+    exit: (code) => process.exit(code),
+  });
 
   await awaitSoleInstance({
     tryAcquire: async () => {

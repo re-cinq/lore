@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { awaitSoleInstance } from "./single-instance.js";
+import { awaitSoleInstance, guardLockConnection } from "./single-instance.js";
 
 /** Records what happened, so the tests assert the sequence rather than a mock. */
 function harness(acquireOn: number) {
@@ -67,5 +67,37 @@ describe("awaitSoleInstance", () => {
     await awaitSoleInstance(h.deps, { intervalMs: 10 });
 
     expect(h.log[h.log.length - 1]).toMatch(/acquired|took over/i);
+  });
+});
+
+describe("the lock connection dying", () => {
+  // The lock lives on a client checked out of the pool and never released. The
+  // pool's own error handler covers IDLE clients only, so when Postgres restarted
+  // (57P01 admin_shutdown) this client emitted an unhandled 'error' and took the
+  // whole Floor down — seven times, until systemd's start limit gave up and left it
+  // dead. A database blip must not be a permanent outage.
+  it("reports the lost lock and exits, rather than dying on an unhandled event", async () => {
+    const log: string[] = [];
+    const exits: number[] = [];
+    let onError: ((err: Error) => void) | undefined;
+    const client = {
+      on: (event: string, handler: (err: Error) => void) => {
+        if (event === "error") {
+          onError = handler;
+        }
+      },
+    };
+
+    guardLockConnection(client, {
+      log: (m) => log.push(m),
+      exit: (code) => exits.push(code),
+    });
+
+    expect(onError).toBeTypeOf("function");
+    onError?.(new Error("terminating connection due to administrator command"));
+
+    expect(exits).toEqual([1]);
+    expect(log.join(" ")).toMatch(/lock|connection/i);
+    expect(log.join(" ")).toContain("administrator command");
   });
 });
