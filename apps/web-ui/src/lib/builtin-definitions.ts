@@ -80,33 +80,6 @@ export const commentTriageDefinition: AssemblyLineDefinition = {
   ],
 };
 
-export const featureDecomposeDefinition: AssemblyLineDefinition = {
-  name: "feature-decompose",
-  description:
-    "Turn a merged feature spec into implementable work: the agent breaks it into user stories and tasks and chooses labels from the repo's REAL label list (ADR-029), then the issues station files one Issue per story and one spec-task per task. The agent judges; the station only writes what the artifact says.",
-  version: 1,
-  entry: "decompose",
-  exit: "done",
-  nodes: [
-    { id: "decompose", type: "agent" },
-    { id: "issues", type: "issues" },
-    { id: "done", type: "retrospective" },
-  ],
-  edges: [
-    { from: "decompose", to: "issues", on: "success" },
-    { from: "decompose", to: "done", on: "changes_requested" },
-    { from: "decompose", to: "done", on: "failed" },
-    { from: "issues", to: "done", on: "success" },
-    {
-      from: "issues",
-      to: "decompose",
-      on: "changes_requested",
-      iteration_max: 1,
-    },
-    { from: "issues", to: "done", on: "failed" },
-  ],
-};
-
 export const featureFinalizeDefinition: AssemblyLineDefinition = {
   name: "feature-finalize",
   description:
@@ -365,7 +338,6 @@ export const builtinDefinitions: AssemblyLineDefinition[] = [
   codeReviewRecheckDefinition,
   codeReviewReplyDefinition,
   commentTriageDefinition,
-  featureDecomposeDefinition,
   featureFinalizeDefinition,
   featurePlanningDefinition,
   gapDetectDefinition,
