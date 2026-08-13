@@ -127,7 +127,11 @@ jobs:
           # directory: node 22 (this runner) resolves a bare directory as a module
           # entry point and dies with MODULE_NOT_FOUND, while node 20 (local) scans
           # it — so the directory form passes locally and fails here.
+          # Needs shared BUILT: three rules read spec status/coverage through
+          # rules/lib/lore-shared.mjs, which imports @re-cinq/lore-shared/dist. Same
+          # dependency the lint-web-ui entry documents.
           - name: eslint-rules
+            build: npm run build -w @re-cinq/lore-shared
             test: npm test --prefix tools/eslint-plugin-lore
           # web-ui is NOT an npm workspace — it has its own lockfile and does
           # not depend on @re-cinq/lore-shared. Install and test in-place.
