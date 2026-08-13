@@ -44,14 +44,98 @@ export const FeatureSchema = z.object({
   updated_at: z.string(),
 });
 
+// The gap-analysis payload a planning round produces, and the author's reply to it.
+// Both are stored as jsonb and were typed `unknown` here at first, which generated
+// `unknown` for the client — the one field the planning UI spends all its time
+// rendering. Everything is optional because a row stored before the current
+// contract must still deserialize.
+//
+// The four LEGACY fields (`architecture`, `user_flows`, top-level `mockups` and
+// `questions`) are part of the contract on purpose: the web UI reads gap results
+// straight from Postgres on its planning pages, so there is no server hop that
+// could normalize them away, and dropping them from the schema would silently lose
+// data on rows written before `sections[]` existed.
+
+export const GapMockupSchema = z.object({
+  title: z.string().optional(),
+  format: z.enum(["svg", "mermaid", "html"]).optional(),
+  markup: z.string(),
+  section: z.string().optional(),
+  /** Pixel height an `html` mockup needs — its frame is sandboxed with no
+   *  same-origin access, so it cannot measure itself. */
+  height: z.number().optional(),
+});
+
+export const GapQuestionSchema = z.object({
+  id: z.string(),
+  question: z.string(),
+  why: z.string().optional(),
+  kind: z.enum(["text", "choice"]).optional(),
+  options: z.array(z.string()).optional(),
+});
+
+export const GapSectionSchema = z.object({
+  title: z.string(),
+  content: z.string().optional(),
+  mockups: z.array(GapMockupSchema).optional(),
+  questions: z.array(GapQuestionSchema).optional(),
+});
+
+export const GapResultSchema = z.object({
+  sections: z.array(GapSectionSchema).optional(),
+  /** CSS lifted from the PLANNED repo, shared by every mockup in this result. */
+  mockup_stylesheet: z.string().optional(),
+  architecture: z
+    .object({
+      summary: z.string(),
+      components: z.array(
+        z.object({
+          name: z.string(),
+          responsibility: z.string(),
+          touchpoints: z.array(z.string()),
+        }),
+      ),
+    })
+    .optional(),
+  user_flows: z
+    .array(z.object({ name: z.string(), steps: z.array(z.string()) }))
+    .optional(),
+  mockups: z.array(GapMockupSchema).optional(),
+  questions: z.array(GapQuestionSchema).optional(),
+  split_suggestion: z
+    .object({
+      rationale: z.string(),
+      proposed_features: z.array(
+        z.object({ title: z.string(), scope: z.string() }),
+      ),
+    })
+    .optional(),
+  draft_spec_markdown: z.string().optional(),
+});
+
+export const SectionDirectionSchema = z.enum(["keep", "refine", "redirect"]);
+
+export const SectionAnswersSchema = z.object({
+  sections: z
+    .record(
+      z.object({
+        comment: z.string().optional(),
+        direction: SectionDirectionSchema.optional(),
+      }),
+    )
+    .optional(),
+  questions: z.record(z.string()).optional(),
+  free_form: z.string().optional(),
+});
+
 export const FeatureIterationSchema = z.object({
   id: z.string(),
   feature_id: z.string(),
   iteration: z.number().int(),
   task_id: z.string().nullable(),
   status: IterationStatusSchema,
-  user_answers: z.unknown().nullable(),
-  gap_result: z.unknown().nullable(),
+  user_answers: SectionAnswersSchema.nullable(),
+  gap_result: GapResultSchema.nullable(),
   parent_iteration: z.number().int().nullable(),
   created_at: z.string(),
   updated_at: z.string(),

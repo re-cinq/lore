@@ -45,7 +45,9 @@ const round = (
   status: "ready",
   user_answers: null,
   gap_result: gap,
+  parent_iteration: null,
   created_at: "2026-08-12T18:00:00Z",
+  updated_at: "2026-08-12T18:00:00Z",
   ...over,
 });
 

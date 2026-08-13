@@ -1,7 +1,7 @@
 {
   "name": "@re-cinq/lore-api",
   "version": "0.1.0",
-  "description": "Lore API — HTTPS REST backend serving org context, ingest, tasks, and webhooks",
+  "description": "Lore API \u2014 HTTPS REST backend serving org context, ingest, tasks, and webhooks",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -11,18 +11,17 @@
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "gen:openapi": "node dist/openapi/gen-openapi.js",
+    "gen:api-types": "npx --yes openapi-typescript@7.13.0 openapi.json -o ../web-ui/src/lib/api/schema.d.ts && npx --no-install prettier --write ../web-ui/src/lib/api/schema.d.ts"
   },
   "dependencies": {
-    "@re-cinq/lore-shared": "*",
-    "@re-cinq/lore-server-core": "*",
-    "@re-cinq/agent-contracts": "^0.10.0",
-    "@hapi/boom": "^10.0.1",
-    "@hapi/hapi": "21.4.9",
-    "@kubernetes/client-node": "^1.4.0",
     "@google-cloud/opentelemetry-cloud-monitoring-exporter": "^0.20.0",
     "@google-cloud/opentelemetry-cloud-trace-exporter": "^2.4.0",
     "@google-cloud/storage": "^7.19.0",
+    "@hapi/boom": "^10.0.1",
+    "@hapi/hapi": "21.4.9",
+    "@kubernetes/client-node": "^1.4.0",
     "@octokit/auth-app": "^7.1.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-metrics-otlp-grpc": "^0.57.0",
@@ -30,6 +29,9 @@
     "@opentelemetry/sdk-metrics": "^1.30.0",
     "@opentelemetry/sdk-node": "^0.57.0",
     "@opentelemetry/sdk-trace-node": "^1.30.0",
+    "@re-cinq/agent-contracts": "^0.10.0",
+    "@re-cinq/lore-server-core": "*",
+    "@re-cinq/lore-shared": "*",
     "glob": "^11.0.1",
     "minimatch": "^10.0.1",
     "octokit": "^4.1.0",

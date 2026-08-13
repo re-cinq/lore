@@ -25,6 +25,9 @@ export default tseslint.config(
       "apps/lore-code-trace/**",
       "tools/eslint-plugin-lore/**",
       "**/next-env.d.ts",
+      // Generated from apps/lore-api/openapi.json by openapi-typescript — its
+      // output does not follow the repo's stylistic rules and must not be edited.
+      "apps/web-ui/src/lib/api/schema.d.ts",
     ],
   },
 
