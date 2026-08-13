@@ -19,6 +19,32 @@ This ADR runs feature planning and finalize as interactive Stations, persists fe
 > behind the explicit `LORE_STATION_BACKEND=inprocess` escape hatch (a dev machine
 > without Docker/credentials).
 
+> **Amendment 2026-08-13 — one line spans the whole feature lifecycle.** The two-definition
+> split described immediately above is gone, and so is the separate decomposition run that
+> [ADR-029](./ADR-029-feature-spec-decomposition.md) introduced.
+> [feature-planning.yaml](../libs/assembly-lines/src/assembly-lines/feature-planning.yaml)
+> is now the whole lifecycle:
+>
+> ```
+> analyze → author(wait: author_feedback) → analyse-specs → write → push
+>         → merged(wait: pr_merged) → decompose → issues → done
+> ```
+>
+> The `author` node this ADR's design implies — the point where the author refines or
+> accepts a round — became a real `wait` node when the finalize line was folded in, and a
+> planning round is now a *resume* of the parked node rather than a new task. The
+> `merged` node applies the same idea to the spec PR: `pr_merged` was a declared but unused
+> `WaitSignal` in [loader.ts](../libs/assembly-lines/src/loader.ts), and using it turns the
+> "wait for a human to merge" gap into a step you can see in the graph. ADR-029 carries the
+> full rationale and the defect that forced it.
+>
+> Consequences for this ADR's decisions: **"Result transport is a pod POST"** still holds
+> for a planning round; **finalize no longer commits as its own task** — the `write` and
+> `push` nodes do it on the same line; and the feature's `pr-open` transition belongs to
+> the `push` node's terminal handler, not to
+> [agent-watcher.ts](../apps/floor/src/jobs/watcher/agent-watcher.ts), which returns early
+> for every assembly-line node CR.
+
 ## Context
 
 Spec authoring is the most context-dependent step in the Lore pipeline and the
