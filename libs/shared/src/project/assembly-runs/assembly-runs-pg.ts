@@ -39,7 +39,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
          RETURNING id
        ), ev AS (
          INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
-         SELECT 'assembly_line.start', 'internal',
+         SELECT 'assembly_run.start', 'internal',
                 jsonb_build_object(
                   'assemblyLineId', al.id,
                   'blueprintName', $1,
@@ -49,7 +49,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
                   'args', $5::jsonb,
                   'resumedFrom', NULL::jsonb
                 ),
-                $3, 'assembly_line.start:' || al.id
+                $3, 'assembly_run.start:' || al.id
          FROM al
        )
        SELECT id FROM al`,
@@ -118,7 +118,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
          RETURNING id
        ), ev AS (
          INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
-         SELECT 'assembly_line.start', 'internal',
+         SELECT 'assembly_run.start', 'internal',
                 jsonb_build_object(
                   'assemblyLineId', al.id,
                   'blueprintName', $1,
@@ -128,7 +128,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
                   'args', $5::jsonb,
                   'resumedFrom', jsonb_build_object('lineId', $7, 'nodeId', $8)
                 ),
-                $3, 'assembly_line.start:' || al.id
+                $3, 'assembly_run.start:' || al.id
          FROM al
        ), copied AS (
          INSERT INTO pipeline.station_runs

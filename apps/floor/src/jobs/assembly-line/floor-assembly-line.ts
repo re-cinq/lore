@@ -42,7 +42,13 @@ export function nodeAgentName(
 
 /** The CR name only carries a 12-char prefix; these labels carry the full identity
  *  so the k8s watch maps a terminal node CR back to its (line, node, iteration). */
-export const ASSEMBLY_LINE_ID_LABEL = "lore.re-cinq.com/assembly-line-id";
+export const ASSEMBLY_RUN_ID_LABEL = "lore.re-cinq.com/assembly-run-id";
+/** The PRE-RENAME label. Written no longer; still READ, because Agent CRs created
+ *  by the previous image outlive a rollout by up to a node's whole timeout, and a
+ *  Floor that could not see them would route every in-flight NODE CR into the
+ *  single-agent PR path. DELETE once no CR predates the rename. */
+export const LEGACY_ASSEMBLY_LINE_ID_LABEL =
+  "lore.re-cinq.com/assembly-line-id";
 export const NODE_ID_LABEL = "lore.re-cinq.com/node-id";
 export const NODE_ITERATION_LABEL = "lore.re-cinq.com/node-iteration";
 /** The station run this pod IS (FR6.39). The three labels above name the visit
@@ -56,7 +62,7 @@ function nodeLabels(
   iteration: number,
 ): Record<string, string> {
   return {
-    [ASSEMBLY_LINE_ID_LABEL]: task.assemblyLineId,
+    [ASSEMBLY_RUN_ID_LABEL]: task.assemblyLineId,
     [NODE_ID_LABEL]: node.id,
     [NODE_ITERATION_LABEL]: String(iteration),
   };

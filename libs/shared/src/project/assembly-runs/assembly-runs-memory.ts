@@ -102,7 +102,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       });
     }
     this.events.push({
-      eventName: "assembly_line.start",
+      eventName: "assembly_run.start",
       source: "internal",
       params: {
         assemblyLineId: id,
@@ -113,7 +113,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
         args: row.args,
         resumedFrom: input.resumeFrom ?? null,
       },
-      dedupeKey: `assembly_line.start:${id}`,
+      dedupeKey: `assembly_run.start:${id}`,
     });
 
     return id;

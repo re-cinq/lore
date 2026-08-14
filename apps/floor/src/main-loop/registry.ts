@@ -79,9 +79,16 @@ export function buildRegistry(): Map<string, EventHandler> {
     // ── Assembly lines (project.assemblyLines.start() inserts row + event atomically;
     //    a top-level family — the assembly line is a primary concept, its producer
     //    spans shared/mcp/floor rather than one source) ──
-    ["assembly_line.start", assemblyLineStart],
-    // A `wait` node's worker reporting in: the planning wizard, or the spec-PR
+    ["assembly_run.start", assemblyLineStart],
+    // A HUMAN station's worker reporting in: the planning wizard, or the spec-PR
     // webhook. Same two steps as a terminal CR — record the node, advance the walk.
+    ["assembly_run.resume", assemblyLineResume],
+    // The PRE-RENAME names, still handled. Rows sit in `pipeline.events` across a
+    // deploy, so a start or resume queued by the old image would otherwise find no
+    // handler and dead-letter — losing a run, or a person's review.
+    // DELETE once no unhandled event predates the rename: the events table is
+    // pruned after handling, so one retention window is enough.
+    ["assembly_line.start", assemblyLineStart],
     ["assembly_line.resume", assemblyLineResume],
 
     // ── Kubernetes (the Agent-CR watch emits on terminal phase) ──

@@ -379,7 +379,12 @@ export async function processAgentCr(
   // Assembly-line NODE CRs advance via kubernetes.agent_node.* transitions —
   // the single-agent PR path must never see them (per-CR dedupe would otherwise
   // route every node of a task-backed line into PR creation).
-  if (agent.metadata?.labels?.["lore.re-cinq.com/assembly-line-id"]) {
+  // Either spelling: a CR created before the rename carries the old one, and
+  // missing it would route an assembly-line node into PR creation.
+  if (
+    agent.metadata?.labels?.["lore.re-cinq.com/assembly-run-id"] ??
+    agent.metadata?.labels?.["lore.re-cinq.com/assembly-line-id"]
+  ) {
     return;
   }
 

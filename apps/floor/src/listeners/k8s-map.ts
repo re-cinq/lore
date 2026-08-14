@@ -12,7 +12,11 @@ import { k8sDedupeKey, k8sAgentNodeDedupeKey } from "../main-loop/dedupe.js";
 /** Mirror of agent-watcher-logic's TASK_ID_LABEL (the AgentCrBackend sets it on every CR). */
 const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 /** Mirror of floor-assembly-line's labels: full line uuid + node id + iteration. */
-const ASSEMBLY_LINE_ID_LABEL = "lore.re-cinq.com/assembly-line-id";
+const ASSEMBLY_RUN_ID_LABEL = "lore.re-cinq.com/assembly-run-id";
+/** Pre-rename spelling — CRs from the previous image outlive a rollout, and one
+ *  missed here becomes an assembly-line node the walk never advances past.
+ *  DELETE once no CR predates the rename. */
+const LEGACY_ASSEMBLY_LINE_ID_LABEL = "lore.re-cinq.com/assembly-line-id";
 const NODE_ID_LABEL = "lore.re-cinq.com/node-id";
 const NODE_ITERATION_LABEL = "lore.re-cinq.com/node-iteration";
 
@@ -47,7 +51,8 @@ export function mapAgentToEvent(agent: AgentLike): EventInput | null {
     return null;
   }
   const action = TERMINAL_ACTIONS[phase as TerminalPhase];
-  const assemblyLineId = labels[ASSEMBLY_LINE_ID_LABEL];
+  const assemblyLineId =
+    labels[ASSEMBLY_RUN_ID_LABEL] ?? labels[LEGACY_ASSEMBLY_LINE_ID_LABEL];
   const nodeId = labels[NODE_ID_LABEL];
   const iteration = Number(labels[NODE_ITERATION_LABEL] ?? "1");
   const agentName = agent.metadata?.name ?? null;

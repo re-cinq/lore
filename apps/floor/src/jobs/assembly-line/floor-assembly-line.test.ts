@@ -43,7 +43,7 @@ describe("nodeAgentSpec", () => {
       model: "claude-sonnet-4-6",
       name: "a1b2c3d4e5f6-implement",
       extraLabels: {
-        "lore.re-cinq.com/assembly-line-id": "a1b2c3d4e5f6a7b8",
+        "lore.re-cinq.com/assembly-run-id": "a1b2c3d4e5f6a7b8",
         "lore.re-cinq.com/node-id": "implement",
         "lore.re-cinq.com/node-iteration": "1",
       },
@@ -76,14 +76,14 @@ describe("nodeAgentSpec", () => {
     expect(spec.extraLabels?.["lore.re-cinq.com/node-iteration"]).toBe("2");
   });
 
-  it("labels the CR with the full assembly-line id, node id and iteration (event-driven transitions)", () => {
+  it("labels the CR with the full assembly-run id, node id and iteration (event-driven transitions)", () => {
     // The CR name only carries a 12-char prefix; the labels carry the full uuid so
     // the k8s watch can map a terminal node CR back to its (line, node, iteration).
     expect(
       nodeAgentSpec(cloneNode({ id: "implement", type: "agent" }), task, "p")
         .extraLabels,
     ).toEqual({
-      "lore.re-cinq.com/assembly-line-id": "a1b2c3d4e5f6a7b8",
+      "lore.re-cinq.com/assembly-run-id": "a1b2c3d4e5f6a7b8",
       "lore.re-cinq.com/node-id": "implement",
       "lore.re-cinq.com/node-iteration": "1",
     });
@@ -91,7 +91,7 @@ describe("nodeAgentSpec", () => {
       nodeStationSpec(cloneNode({ id: "wrap", type: "retrospective" }), task)
         .extraLabels,
     ).toEqual({
-      "lore.re-cinq.com/assembly-line-id": "a1b2c3d4e5f6a7b8",
+      "lore.re-cinq.com/assembly-run-id": "a1b2c3d4e5f6a7b8",
       "lore.re-cinq.com/node-id": "wrap",
       "lore.re-cinq.com/node-iteration": "1",
     });

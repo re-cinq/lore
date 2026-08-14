@@ -211,7 +211,7 @@ describe("features routes", () => {
     );
 
     expect(insert).toBeDefined();
-    expect(JSON.stringify(insert)).toContain("assembly_line.resume");
+    expect(JSON.stringify(insert)).toContain("assembly_run.resume");
     // The author asked for changes: the edge back to another round.
     expect(JSON.stringify(insert)).toContain("changes_requested");
   });

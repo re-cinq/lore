@@ -63,11 +63,30 @@ const RunsQuery = z.object({
 
 type RunsQuery = z.infer<typeof RunsQuery>;
 
+/**
+ * The canonical paths are `/api/assembly-runs/*` (FR6.41 — the runtime model is an
+ * AssemblyRun; an assembly line is the blueprint). Every route is ALSO served at
+ * its pre-rename `/api/assembly-lines/*` path, because web-ui ships as a separate
+ * image in the same umbrella release and would otherwise 404 against a newer API
+ * for the length of a rollout.
+ *
+ * DELETE the aliases once no deployed client calls them.
+ */
+function withLegacyAlias(routes: ServerRoute[]): ServerRoute[] {
+  return routes.flatMap((route) => [
+    route,
+    {
+      ...route,
+      path: route.path.replace("/api/assembly-runs", "/api/assembly-lines"),
+    },
+  ]);
+}
+
 export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
-  return [
+  return withLegacyAlias([
     {
       method: "GET",
-      path: "/api/assembly-lines",
+      path: "/api/assembly-runs",
       options: {
         ...bearerScope("read"),
         validate: { query: zodValidate(RunsQuery) },
@@ -113,7 +132,7 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
 
     {
       method: "GET",
-      path: "/api/assembly-lines/{id}",
+      path: "/api/assembly-runs/{id}",
       options: bearerScope("read"),
       handler: async (request, h) => {
         const pool = getPool();
@@ -144,7 +163,7 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
 
     {
       method: "GET",
-      path: "/api/assembly-lines/{id}/nodes",
+      path: "/api/assembly-runs/{id}/nodes",
       options: bearerScope("read"),
       handler: async (request, h) => {
         const pool = getPool();
@@ -176,7 +195,7 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
 
     {
       method: "GET",
-      path: "/api/assembly-lines/{id}/token-usage",
+      path: "/api/assembly-runs/{id}/token-usage",
       options: bearerScope("read"),
       handler: async (request, h) => {
         const pool = getPool();
@@ -219,5 +238,5 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
         }
       },
     },
-  ];
+  ]);
 }
