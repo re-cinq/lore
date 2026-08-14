@@ -17,6 +17,8 @@ export interface AgentRunTurnRow {
   taskId: string | null;
   agentCrName: string | null;
   assemblyLineId: string | null;
+  /** The station visit this turn belongs to (FR6.39). */
+  stationRunId: string | null;
   nodeId: string | null;
   iteration: number | null;
   /** The raw stream-json line kind, as emitted; not narrowed to a union, so a
@@ -72,6 +74,8 @@ export function compareTurnIdAscending(
 
 /** A node identity the correlation lookup can resolve an `agentCrName` to. */
 export interface AgentRunTurnNodeRef {
+  /** The visit's own id — what correlated rows key on. */
+  stationRunId?: string | null;
   agentCrName: string;
   assemblyLineId: string;
   nodeId: string;

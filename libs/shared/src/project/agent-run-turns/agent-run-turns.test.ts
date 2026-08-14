@@ -70,6 +70,7 @@ describe("InMemoryAgentRunTurns insertBatch", () => {
     expect(row).toMatchObject({
       agentCrName: "task-scoped-cr",
       assemblyLineId: null,
+      stationRunId: null,
       nodeId: null,
       iteration: null,
     });
@@ -119,6 +120,7 @@ describe("InMemoryAgentRunTurns insertBatch", () => {
       taskId: "task-1",
       agentCrName: "a1b2c3d4-implement",
       assemblyLineId: null,
+      stationRunId: null,
       nodeId: null,
       iteration: null,
       eventType: "assistant",
@@ -400,6 +402,7 @@ describe("compareTurnIdAscending", () => {
     taskId: null,
     agentCrName: null,
     assemblyLineId: null,
+    stationRunId: null,
     nodeId: null,
     iteration: null,
     eventType: null,

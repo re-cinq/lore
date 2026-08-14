@@ -288,8 +288,18 @@ describe("InMemoryAssemblyRuns double", () => {
       entry: "analyze",
       exit: "done",
       nodes: [
-        { id: "analyze", type: "agent", station: "feature-planning" },
-        { id: "done", type: "retrospective", station: "def-retrospective" },
+        {
+          id: "analyze",
+          type: "agent",
+          station: "feature-planning",
+          station_inherited: true,
+        },
+        {
+          id: "done",
+          type: "retrospective",
+          station: "def-retrospective",
+          station_inherited: true,
+        },
       ],
       edges: [{ from: "analyze", to: "done", on: "success" }],
     };

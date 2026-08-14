@@ -16,6 +16,7 @@ export interface RunStreamEvent {
   taskId: string;
   agentCrName: string | null;
   assemblyLineId: string | null;
+  stationRunId: string | null;
   nodeId: string | null;
   iteration: number | null;
   eventType: AgentRunEventType;
@@ -99,6 +100,7 @@ export function parseRunStreamRow(value: unknown): RunStreamEvent | null {
     taskId,
     agentCrName: str(body.agentCrName),
     assemblyLineId: str(body.assemblyLineId),
+    stationRunId: str(body.stationRunId),
     nodeId: str(body.nodeId),
     iteration: num(body.iteration),
     eventType,

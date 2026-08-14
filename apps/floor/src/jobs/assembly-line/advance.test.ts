@@ -132,6 +132,35 @@ async function runningLine(port: InMemoryAssemblyRuns) {
 }
 
 describe("advanceLine reads the run's own graph", () => {
+  it("labels the dispatched CR with the station run id", async () => {
+    // The id is what telemetry keys on (FR6.39). Putting it on the CR is what
+    // makes a running pod traceable back to its visit from Kubernetes alone,
+    // rather than by re-deriving the visit from the CR's NAME.
+    const port = new InMemoryAssemblyRuns();
+    const id = await port.start({
+      blueprintName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/label",
+      args: { description: "Review pull request #9", pr_number: 9 },
+    });
+
+    await port.stampBlueprint(
+      id,
+      "hash-code-review",
+      snapshotGraph(codeReviewLike, "code-review"),
+    );
+    await port.markRunning(id);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(id, deps);
+
+    const rows = await port.listStationRuns(id);
+
+    expect(launched[0]?.extraLabels?.["lore.re-cinq.com/station-run-id"]).toBe(
+      rows[0].stationRunId,
+    );
+  });
+
   it("walks the stamped clone, never re-reading the blueprint file", async () => {
     // The point of the clone: editing a YAML mid-run must not change the graph a
     // run in flight is walking. The deps here would resolve a DIFFERENT graph, so

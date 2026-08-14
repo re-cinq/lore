@@ -45,6 +45,10 @@ export function nodeAgentName(
 export const ASSEMBLY_LINE_ID_LABEL = "lore.re-cinq.com/assembly-line-id";
 export const NODE_ID_LABEL = "lore.re-cinq.com/node-id";
 export const NODE_ITERATION_LABEL = "lore.re-cinq.com/node-iteration";
+/** The station run this pod IS (FR6.39). The three labels above name the visit
+ *  compositely; this one names it outright, so a pod found in the cluster maps
+ *  back to its telemetry without re-deriving anything from the CR name. */
+export const STATION_RUN_ID_LABEL = "lore.re-cinq.com/station-run-id";
 
 function nodeLabels(
   node: SnapshotNode,

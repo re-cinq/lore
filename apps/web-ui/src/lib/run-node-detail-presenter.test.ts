@@ -20,6 +20,7 @@ const event = (over: Partial<RunStreamEvent> = {}): RunStreamEvent => ({
   taskId: "t",
   agentCrName: "cr-1",
   assemblyLineId: "al",
+  stationRunId: null,
   nodeId: "implement",
   iteration: 1,
   eventType: "message",

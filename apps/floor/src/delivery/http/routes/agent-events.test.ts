@@ -20,6 +20,7 @@ const insertedRow = (assemblyLineId: string | null): AgentRunEventRow => ({
   taskId: "task-uuid-1",
   agentCrName: "cr-1",
   assemblyLineId,
+  stationRunId: null,
   nodeId: "review",
   iteration: 1,
   eventType: "result",

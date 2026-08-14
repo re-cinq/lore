@@ -73,6 +73,7 @@ describe("RunNodeDetail", () => {
       taskId: "t",
       agentCrName: "cr-1",
       assemblyLineId: "al",
+      stationRunId: null,
       nodeId: "implement",
       iteration: 1,
       eventType: "tool_result",

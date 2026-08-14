@@ -8,6 +8,7 @@ function event(over: Partial<RunStreamEvent> = {}): RunStreamEvent {
     taskId: "task-1",
     agentCrName: null,
     assemblyLineId: "run-1",
+    stationRunId: null,
     nodeId: "implement",
     iteration: 1,
     eventType: "message",

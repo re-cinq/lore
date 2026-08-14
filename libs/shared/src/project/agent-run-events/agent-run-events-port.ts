@@ -23,6 +23,9 @@ export interface AgentRunEventRow {
   taskId: string;
   agentCrName: string | null;
   assemblyLineId: string | null;
+  /** The station visit this line belongs to (FR6.39) — the id readers key on,
+   *  resolved at write time from the CR name. Null for a CR that names no visit. */
+  stationRunId: string | null;
   nodeId: string | null;
   iteration: number | null;
   eventType: AgentRunEventType;
@@ -55,6 +58,9 @@ export interface AgentRunEventInsert {
 
 /** A node identity the correlation lookup can resolve an `agentCrName` to. */
 export interface AgentRunEventNodeRef {
+  /** The visit's own id — what correlated rows key on. Nullable as well as
+   *  optional: a seeded node may predate station-run identity. */
+  stationRunId?: string | null;
   agentCrName: string;
   assemblyLineId: string;
   nodeId: string;

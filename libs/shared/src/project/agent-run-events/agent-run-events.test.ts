@@ -38,6 +38,7 @@ describe("InMemoryAgentRunEvents insertBatch", () => {
     repo.registerNode({
       agentCrName: "a1b2c3d4-implement",
       assemblyLineId: "line-1",
+      stationRunId: null,
       nodeId: "implement",
       iteration: 1,
     });
@@ -101,6 +102,7 @@ describe("InMemoryAgentRunEvents insertBatch", () => {
     repo.registerNode({
       agentCrName: "a1b2c3d4-implement",
       assemblyLineId: "line-1",
+      stationRunId: null,
       nodeId: "implement",
       iteration: 1,
     });
@@ -121,6 +123,7 @@ describe("InMemoryAgentRunEvents insertBatch", () => {
       taskId: "task-1",
       agentCrName: "a1b2c3d4-implement",
       assemblyLineId: "line-1",
+      stationRunId: null,
       nodeId: "implement",
       iteration: 1,
       eventType: "tool_call",
@@ -155,6 +158,7 @@ describe("InMemoryAgentRunEvents insertBatch", () => {
     repo.registerNode({
       agentCrName: "a1b2c3d4-implement",
       assemblyLineId: "line-1",
+      stationRunId: null,
       nodeId: "implement",
       iteration: 1,
     });
@@ -182,6 +186,7 @@ describe("InMemoryAgentRunEvents listSince", () => {
     repo.registerNode({
       agentCrName: "cr-a",
       assemblyLineId: "line-1",
+      stationRunId: null,
       nodeId: "implement",
       iteration: 1,
     });
@@ -252,6 +257,7 @@ describe("InMemoryAgentRunEvents listSince", () => {
     repo.registerNode({
       agentCrName: "cr-a",
       assemblyLineId: "line-1",
+      stationRunId: null,
       nodeId: "implement",
       iteration: 1,
     });
@@ -333,6 +339,20 @@ describe("PgAgentRunEvents adapter", () => {
     ]);
   });
 
+  it("insertBatch correlates the station run id, so telemetry keys on an id not a name", async () => {
+    // The correlation used to end at (line, node, iteration) and every reader
+    // re-derived which visit that was from a CR NAME. The station run id names
+    // the visit outright.
+    const { pool, calls } = fakePool([[]]);
+
+    await new PgAgentRunEvents(pool).insertBatch([
+      { taskId: "task-1", agentCrName: "cr-a", eventType: "message" },
+    ]);
+
+    expect(calls[0]?.text).toContain("correlated.station_run_id");
+    expect(calls[0]?.text).toContain("node.station_run_id");
+  });
+
   it("insertBatch maps a bigint id to a string and returns rows ascending by id", async () => {
     const { pool } = fakePool([
       [
@@ -341,6 +361,7 @@ describe("PgAgentRunEvents adapter", () => {
           task_id: "task-1",
           agent_cr_name: "cr-a",
           assembly_run_id: "line-1",
+          station_run_id: "3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f607",
           node_id: "implement",
           iteration: 2,
           event_type: "tool_result",
@@ -382,6 +403,7 @@ describe("PgAgentRunEvents adapter", () => {
       taskId: "task-1",
       agentCrName: "cr-a",
       assemblyLineId: "line-1",
+      stationRunId: "3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f607",
       nodeId: "implement",
       iteration: 2,
       eventType: "tool_result",

@@ -23,6 +23,7 @@ import {
 import {
   nodeAgentSpec,
   nodeStationSpec,
+  STATION_RUN_ID_LABEL,
   type FloorAssemblyLineTask,
 } from "./floor-assembly-line.js";
 import { isFailureOutcome } from "./notify-failure.js";
@@ -292,12 +293,20 @@ export async function advanceLine(
 
   // Row before CR: a crash in between leaves an open row the reaper resolves by
   // reading the (deterministically named) CR; a rowless CR would be invisible.
-  await deps.assemblyLines.ensureStationRun({
+  const { stationRunId } = await deps.assemblyLines.ensureStationRun({
     assemblyRunId: assemblyLineId,
     nodeId: node.id,
     iteration: transition.iteration,
     agentCrName: spec.name,
   });
+
+  // Labelled AFTER the row exists, because the row is what mints the id — and a
+  // converged duplicate returns the id already minted, so a re-dispatch of the
+  // same visit carries the same label rather than a second identity.
+  spec.extraLabels = {
+    ...spec.extraLabels,
+    [STATION_RUN_ID_LABEL]: stationRunId,
+  };
 
   // A `wait` node's worker is outside the pod system — a person in the wizard, or a
   // spec PR merging. The row is what parks the walk and lets the graph show whose

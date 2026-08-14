@@ -29,13 +29,13 @@ export class PgUsage implements UsagePort {
     // so the sink can surface it (#945).
     const { rows } = await this.pool.query<{ correlated: boolean }>(
       `INSERT INTO pipeline.llm_calls
-         (task_id, assembly_run_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms, status, error)
-       SELECT t.id, COALESCE(node.assembly_run_id, al.id), $3, $4, $5, $6, $7, $8, $9, $10
+         (task_id, assembly_run_id, station_run_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms, status, error)
+       SELECT t.id, COALESCE(node.assembly_run_id, al.id), node.station_run_id, $3, $4, $5, $6, $7, $8, $9, $10
          FROM (SELECT $1::uuid AS given, $2::text AS cr) g
          LEFT JOIN pipeline.tasks t ON t.id = g.given
          LEFT JOIN pipeline.assembly_runs al ON al.id = g.given AND t.id IS NULL
          LEFT JOIN LATERAL (
-           SELECT n.assembly_run_id
+           SELECT n.assembly_run_id, n.station_run_id
              FROM pipeline.station_runs n
             WHERE n.agent_cr_name = g.cr
             ORDER BY n.id DESC

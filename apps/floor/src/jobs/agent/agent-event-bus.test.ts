@@ -12,6 +12,7 @@ const row = (assemblyLineId: string, id = "1"): AgentRunEventRow => ({
   taskId: "task-1",
   agentCrName: "cr-1",
   assemblyLineId,
+  stationRunId: null,
   nodeId: "review",
   iteration: 1,
   eventType: "message",

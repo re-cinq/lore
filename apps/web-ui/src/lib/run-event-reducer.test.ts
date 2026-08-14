@@ -19,6 +19,7 @@ function event(over: Partial<RunStreamEvent> = {}): RunStreamEvent {
     taskId: "task-1",
     agentCrName: "abcd1234-implement",
     assemblyLineId: "line-1",
+    stationRunId: null,
     nodeId: "implement",
     iteration: 1,
     eventType: "tool_call",
