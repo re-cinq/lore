@@ -1,0 +1,5 @@
+@use "styles/tokens" as t;
+
+.card {
+  @include t.stack(10px);
+}

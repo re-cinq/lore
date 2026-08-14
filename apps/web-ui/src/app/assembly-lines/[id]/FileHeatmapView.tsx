@@ -35,10 +35,16 @@ function Bar({ touch }: { touch: FileTouch }) {
         <span
           className={styles.fill}
           data-fill
-          style={{ width: `${touch.weight * 100}%` }}
+          style={{ ["--fill-width" as string]: `${touch.weight * 100}%` }}
         >
-          <span className={styles.read} style={{ flexGrow: touch.reads }} />
-          <span className={styles.write} style={{ flexGrow: touch.writes }} />
+          <span
+            className={styles.read}
+            style={{ ["--read-share" as string]: touch.reads }}
+          />
+          <span
+            className={styles.write}
+            style={{ ["--write-share" as string]: touch.writes }}
+          />
         </span>
       </span>
       <span className={styles.counts}>

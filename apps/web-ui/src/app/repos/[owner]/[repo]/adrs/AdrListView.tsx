@@ -41,7 +41,7 @@ export default function AdrListView({
 
   if (adrs.length === 0) {
     return (
-      <p style={{ color: "var(--text-muted)" }}>
+      <p className="muted">
         No ADRs in the graph yet. ADRs are projected automatically by CI on
         every push to <code>main</code> — push an
         <code>adrs/</code> change (or re-run the <strong>lore-ingest</strong>{" "}
@@ -84,7 +84,7 @@ export default function AdrListView({
         />
       ))}
       {ordered.length === 0 && (
-        <p style={{ color: "var(--text-muted)" }}>No ADRs match this filter.</p>
+        <p className="muted">No ADRs match this filter.</p>
       )}
     </div>
   );

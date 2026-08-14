@@ -14,6 +14,17 @@
   font-size: var(--fs-xs);
 }
 
+.valueActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.valueAction {
+  padding: 2px 8px;
+  font-size: var(--fs-xs);
+}
+
 .emptyCell {
   text-align: center;
   color: var(--text-muted);

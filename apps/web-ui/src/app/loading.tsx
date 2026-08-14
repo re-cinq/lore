@@ -1,3 +1,4 @@
+import styles from "./loading.module.scss";
 import Skeleton from "@/components/Skeleton";
 
 // Root-level fallback: also covers every route without a closer loading.tsx
@@ -9,10 +10,10 @@ export default function RootLoading() {
       <Skeleton width={220} height={26} />
       <div className="repo-grid">
         {Array.from({ length: 6 }, (_, i) => (
-          <div className="repo-card" key={i}>
+          <div className={`repo-card ${styles.card}`} key={i}>
             <Skeleton width="60%" height={18} />
-            <Skeleton width="45%" style={{ marginTop: 12 }} />
-            <Skeleton width="55%" style={{ marginTop: 8 }} />
+            <Skeleton width="45%" />
+            <Skeleton width="55%" />
           </div>
         ))}
       </div>

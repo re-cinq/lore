@@ -39,8 +39,11 @@
   opacity: 0.85;
 }
 
+/* Anchored to the hovered statement; the view passes the measured point. */
 .popover {
   position: absolute;
+  left: var(--popover-x);
+  top: var(--popover-y);
   z-index: 60;
   width: 360px;
   max-width: 80vw;

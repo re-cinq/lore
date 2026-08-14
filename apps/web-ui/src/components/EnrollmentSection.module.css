@@ -1,10 +1,10 @@
-/* Repo enrollment checklist — co-located with EnrollmentSection.tsx. Only the
-   per-status icon color is computed at render (from check.status) and stays
-   inline; everything else is static. */
+/* Repo enrollment checklist — co-located with EnrollmentSection.tsx. The row
+   hands over its check's colour as --status-color; everything else is static. */
 
 .statusIcon {
   display: flex;
   flex-shrink: 0;
+  color: var(--status-color);
 }
 
 .label {

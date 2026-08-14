@@ -24,7 +24,7 @@ export default async function RepoAdrDetail({
 
   return (
     <div>
-      <p className="meta" style={{ marginBottom: 12 }}>
+      <p className="meta page-lede">
         <Link href={adrsLink}>← ADRs</Link>
       </p>
       {source ? (
@@ -33,7 +33,7 @@ export default async function RepoAdrDetail({
           <SpecDocument repo={fullName} content={body} statements={[]} />
         </>
       ) : (
-        <p style={{ color: "var(--text-muted)" }}>
+        <p className="muted">
           No graph data for <code>{filePath}</code>. ADRs are projected
           automatically by CI on push to <code>main</code>; refresh after the
           next ingest.

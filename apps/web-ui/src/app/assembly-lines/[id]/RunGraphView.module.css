@@ -10,6 +10,7 @@
 .svg {
   display: block;
   width: 100%;
+  max-width: var(--graph-width);
   height: auto;
   max-height: 26rem;
   overflow: visible;

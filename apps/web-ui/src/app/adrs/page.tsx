@@ -12,7 +12,7 @@ export default async function AdrsPage() {
   return (
     <div>
       <h1>ADRs</h1>
-      <p className="meta" style={{ marginBottom: 16 }}>
+      <p className="meta page-lede">
         Architecture decision records in the traceability graph across all repos
         ({adrs.length}).
       </p>

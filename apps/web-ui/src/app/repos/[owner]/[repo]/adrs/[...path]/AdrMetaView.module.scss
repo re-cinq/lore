@@ -1,0 +1,19 @@
+@use "styles/tokens" as t;
+
+.header {
+  @include t.row(8px);
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.field {
+  font-size: var(--fs-xs);
+}
+
+.domain {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}

@@ -1,0 +1,10 @@
+@use "styles/tokens" as t;
+
+.page {
+  @include t.stack(12px);
+  margin-top: 16px;
+}
+
+.result {
+  @include t.stack(8px);
+}

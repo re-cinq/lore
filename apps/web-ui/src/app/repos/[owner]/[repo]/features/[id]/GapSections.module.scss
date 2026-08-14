@@ -1,0 +1,39 @@
+@use "styles/tokens" as t;
+
+// The card frame, its h3 margins and the full-width form controls all come from
+// the global `.spec-card` rules — only what those do not already say lives here.
+
+.feedback {
+  margin-top: 10px;
+}
+
+.directionRow {
+  margin-bottom: 6px;
+}
+
+.commentInput {
+  min-height: 250px;
+}
+
+.question {
+  margin-bottom: 10px;
+}
+
+.questionLabel {
+  display: block;
+  font-weight: 600;
+}
+
+.questionWhy {
+  margin: 2px 0;
+}
+
+.splitRow {
+  @include t.row-between(8px);
+  margin-bottom: 6px;
+}
+
+.freeFormCount {
+  margin: 2px 0 0;
+  text-align: right;
+}

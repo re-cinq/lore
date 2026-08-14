@@ -1,0 +1,15 @@
+@use "styles/tokens" as t;
+
+.chips {
+  @include t.row(8px);
+  margin-top: 16px;
+}
+
+.chip {
+  border-radius: var(--radius-pill);
+}
+
+.card {
+  @include t.stack(8px);
+  margin-top: 12px;
+}

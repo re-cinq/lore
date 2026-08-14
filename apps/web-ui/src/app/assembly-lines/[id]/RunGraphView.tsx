@@ -242,7 +242,7 @@ export default function RunGraphView({
       {heading !== null && <h2 className={styles.heading}>{heading}</h2>}
       <svg
         className={styles.svg}
-        style={{ maxWidth: `${view.width}px` }}
+        style={{ ["--graph-width" as string]: `${view.width}px` }}
         role="img"
         aria-labelledby={titleId}
         viewBox={view.viewBox}

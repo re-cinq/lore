@@ -4,6 +4,7 @@
 // a link to every file in the folder. Types mirror the API JSON — web-ui is not a
 // workspace member, so it cannot import @re-cinq/lore-shared.
 import Link from "next/link";
+import styles from "./SpecCard.module.scss";
 import SpecStatusPill from "@/components/SpecStatusPill";
 import type { SpecStatusInfo } from "@/lib/spec-status";
 
@@ -18,16 +19,6 @@ export interface SpecCardProps {
   detailsHref?: string;
 }
 
-const chip: React.CSSProperties = {
-  border: "1px solid var(--border)",
-  borderRadius: 4,
-  padding: "2px 8px",
-  fontSize: "var(--fs-xs)",
-  fontFamily: "monospace",
-  color: "var(--text)",
-  textDecoration: "none",
-};
-
 export default function SpecCard({
   title,
   description,
@@ -37,40 +28,22 @@ export default function SpecCard({
   detailsHref,
 }: SpecCardProps) {
   return (
-    <div
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: 6,
-        padding: 12,
-        marginBottom: 8,
-      }}
-    >
-      <h3
-        style={{
-          margin: "0 0 4px",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
+    <div className={styles.card}>
+      <h3 className={styles.title}>
         {title}
         {status && <SpecStatusPill info={status} />}
       </h3>
-      {description && (
-        <p style={{ margin: "0 0 8px", color: "var(--text-muted)" }}>
-          {description}
-        </p>
-      )}
+      {description && <p className={styles.note}>{description}</p>}
       {coverage && coverage.testable > 0 && (
-        <p style={{ margin: "0 0 8px", color: "var(--text-muted)" }}>
+        <p className={styles.note}>
           Coverage: {coverage.covered} / {coverage.testable} (
           {Math.round(coverage.ratio * 100)}%)
         </p>
       )}
       {files ? (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        <div className={styles.files}>
           {files.map((f) => (
-            <Link key={f.href} href={f.href} style={chip}>
+            <Link key={f.href} href={f.href} className={styles.fileChip}>
               {f.label}
             </Link>
           ))}

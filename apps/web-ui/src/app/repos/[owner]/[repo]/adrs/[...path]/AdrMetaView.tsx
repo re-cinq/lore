@@ -3,16 +3,9 @@
 // domain chips, and cross-links — `relates` to the owning spec's detail page,
 // `amends` to the amended ADR's detail page.
 import Link from "next/link";
+import styles from "./AdrMetaView.module.scss";
 import SpecStatusPill from "@/components/SpecStatusPill";
 import { statusInfoFromValue } from "@/lib/spec-status";
-
-const chip: React.CSSProperties = {
-  border: "1px solid var(--border)",
-  borderRadius: 4,
-  padding: "1px 8px",
-  fontSize: "var(--fs-xs)",
-  color: "var(--text-muted)",
-};
 
 const scalar = (value: string | string[] | undefined): string | undefined =>
   typeof value === "string" ? value : undefined;
@@ -39,28 +32,16 @@ export default function AdrMetaView({
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        alignItems: "center",
-        gap: 8,
-        marginBottom: 16,
-      }}
-    >
+    <div className={styles.header}>
       {statusInfo && <SpecStatusPill info={statusInfo} />}
-      {date && (
-        <span className="meta" style={{ fontSize: "var(--fs-xs)" }}>
-          {date}
-        </span>
-      )}
+      {date && <span className={`meta ${styles.field}`}>{date}</span>}
       {domains.map((domain) => (
-        <span key={domain} style={chip}>
+        <span key={domain} className={styles.domain}>
           {domain}
         </span>
       ))}
       {relates && (
-        <span className="meta" style={{ fontSize: "var(--fs-xs)" }}>
+        <span className={`meta ${styles.field}`}>
           relates:{" "}
           <Link
             href={`/repos/${owner}/${repo}/specs/${encodeURIComponent(relates)}`}
@@ -70,7 +51,7 @@ export default function AdrMetaView({
         </span>
       )}
       {amends && (
-        <span className="meta" style={{ fontSize: "var(--fs-xs)" }}>
+        <span className={`meta ${styles.field}`}>
           amends:{" "}
           <Link
             href={`/repos/${owner}/${repo}/adrs/${encodeURIComponent(amends)}`}

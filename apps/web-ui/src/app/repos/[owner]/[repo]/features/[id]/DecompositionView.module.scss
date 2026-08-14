@@ -1,0 +1,53 @@
+// The status colour is data, not a decision the component should carry: the
+// `data-status` attribute selects it here, so there is no colour map in the TSX.
+
+.status {
+  display: inline-block;
+  min-width: 72px;
+  margin-right: 8px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  background: var(--chart-neutral);
+  color: var(--text-on-accent);
+  font-size: var(--fs-xs);
+  text-align: center;
+
+  &[data-status="running"] {
+    background: var(--chart-spec);
+  }
+
+  &[data-status="pr-created"],
+  &[data-status="review"] {
+    background: var(--info);
+  }
+
+  &[data-status="completed"],
+  &[data-status="merged"] {
+    background: var(--success);
+  }
+
+  &[data-status="failed"] {
+    background: var(--danger);
+  }
+}
+
+.story {
+  margin-bottom: 12px;
+}
+
+.storyTitle {
+  margin: 0 0 6px;
+}
+
+// Overrides the global `.spec-card ul` indent — the status chips are the marker.
+.taskList {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.taskItem {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 4px;
+}

@@ -36,8 +36,12 @@
   border-radius: var(--radius-sm);
 }
 
+/* The three measurements below are the row's data — how heavy this file's traffic
+   was, and how it split between reads and writes. The view hands them over as
+   custom properties; the rules themselves stay here. */
 .fill {
   display: flex;
+  width: var(--fill-width);
   min-width: 2px;
   height: 100%;
   overflow: hidden;
@@ -45,11 +49,13 @@
 }
 
 .read {
+  flex-grow: var(--read-share);
   height: 100%;
   background: var(--info);
 }
 
 .write {
+  flex-grow: var(--write-share);
   height: 100%;
   background: var(--warning);
 }

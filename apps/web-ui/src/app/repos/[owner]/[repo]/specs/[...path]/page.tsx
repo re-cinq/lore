@@ -5,6 +5,7 @@ import { toStatementInfo } from "@/lib/trace-statement-info";
 import { parseSpecStatus } from "@/lib/spec-status";
 import SpecStatusPill from "@/components/SpecStatusPill";
 import SpecDocument from "./SpecDocument";
+import styles from "./page.module.scss";
 
 export default async function RepoSpecDetail({
   params,
@@ -28,15 +29,7 @@ export default async function RepoSpecDetail({
 
   return (
     <div>
-      <p
-        className="meta"
-        style={{
-          marginBottom: 12,
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-        }}
-      >
+      <p className={`meta ${styles.breadcrumb}`}>
         <Link href={specsLink}>← Specs</Link>
         {status && <SpecStatusPill info={status} />}
       </p>
@@ -47,7 +40,7 @@ export default async function RepoSpecDetail({
           statements={statements}
         />
       ) : (
-        <p style={{ color: "var(--text-muted)" }}>
+        <p className="muted">
           No graph data for <code>{filePath}</code>. Build the graph from the{" "}
           <strong>Graph</strong> tab and run the <code>ingest-*</code> tasks,
           then refresh.

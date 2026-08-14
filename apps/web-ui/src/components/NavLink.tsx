@@ -1,7 +1,6 @@
 "use client";
 
 import Link, { useLinkStatus } from "next/link";
-import type { CSSProperties } from "react";
 
 /**
  * Label for a nav link with a pending state. While the link's navigation is in
@@ -39,13 +38,11 @@ export default function NavLink({
   label,
   active,
   className,
-  style,
 }: {
   href: string;
   label: string;
   active: boolean;
   className?: string;
-  style?: CSSProperties;
 }) {
   const classes = [className, active ? "active" : ""].filter(Boolean).join(" ");
 
@@ -53,7 +50,6 @@ export default function NavLink({
     <Link
       href={href}
       className={classes}
-      style={style}
       aria-current={active ? "page" : undefined}
     >
       <NavLabelLive label={label} />

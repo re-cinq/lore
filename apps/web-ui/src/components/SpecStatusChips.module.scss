@@ -1,0 +1,40 @@
+@use "styles/tokens" as t;
+
+.chips {
+  margin-bottom: 12px;
+}
+
+.row {
+  @include t.row(6px);
+  flex-wrap: wrap;
+}
+
+// Layered on the global `.badge`: same pill metrics, made pressable.
+.chip {
+  @include t.row(6px);
+  display: inline-flex;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+
+  &[aria-pressed="true"] {
+    background: var(--info-bg);
+    border-color: var(--accent);
+  }
+}
+
+// The colour is one value out of the lifecycle palette the pills and the graph
+// share, so it arrives from the caller rather than being restated here.
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dot-color);
+}
+
+.legend {
+  margin: 6px 0 0;
+  font-size: var(--fs-2xs);
+}

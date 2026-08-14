@@ -10,6 +10,7 @@
 // filter chips — the graph is the source of truth for list and statuses alike.
 import { useState } from "react";
 import Link from "next/link";
+import styles from "./GlobalDocsView.module.scss";
 import DocListControls from "@/components/DocListControls";
 import SpecStatusChips from "@/components/SpecStatusChips";
 import SpecStatusPill from "@/components/SpecStatusPill";
@@ -40,7 +41,7 @@ export default function GlobalDocsView({
   const [query, setQuery] = useState("");
 
   if (docs.length === 0) {
-    return <p style={{ color: "var(--text-muted)" }}>{emptyHint}</p>;
+    return <p className={styles.hint}>{emptyHint}</p>;
   }
 
   const statusOf = (repo: string, filePath: string) =>
@@ -75,22 +76,14 @@ export default function GlobalDocsView({
         kind={kind}
       />
       {[...byRepo.entries()].map(([repo, paths]) => (
-        <section key={repo} style={{ marginBottom: 20 }}>
-          <h2 style={{ fontSize: "var(--fs-base)" }}>{repo}</h2>
-          <ul style={{ listStyle: "none", padding: 0 }}>
+        <section key={repo} className={styles.repoGroup}>
+          <h2 className={styles.repoName}>{repo}</h2>
+          <ul className={styles.docList}>
             {paths.map((filePath) => {
               const info = statusOf(repo, filePath);
 
               return (
-                <li
-                  key={filePath}
-                  style={{
-                    marginBottom: 4,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
+                <li key={filePath} className={styles.docItem}>
                   <Link href={hrefFor(kind, repo, filePath)}>{filePath}</Link>
                   {info && <SpecStatusPill info={info} />}
                 </li>
@@ -99,9 +92,7 @@ export default function GlobalDocsView({
           </ul>
         </section>
       ))}
-      {byRepo.size === 0 && (
-        <p style={{ color: "var(--text-muted)" }}>{noMatchHint}</p>
-      )}
+      {byRepo.size === 0 && <p className={styles.hint}>{noMatchHint}</p>}
     </div>
   );
 }

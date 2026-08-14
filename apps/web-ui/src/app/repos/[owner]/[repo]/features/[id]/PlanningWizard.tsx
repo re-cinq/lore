@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
+import styles from "./PlanningWizard.module.scss";
 import { SubmitButton } from "@/components/SubmitButton";
 import GapSections, {
   emptyFeedback,
@@ -120,9 +121,13 @@ export default function PlanningWizard({
 
   const submitFinalize = () =>
     startTransition(async () => {
+      console.log("finalizing");
       setFinalizing(true);
+      console.log("finalizing: await finalize");
       await finalize();
+      console.log("finalizing: await fetchLatest");
       await fetchLatest();
+      console.log("finalizing: done");
     });
 
   // After finalize, the feature-finalize task runs async (no intermediate status). The
@@ -234,16 +239,14 @@ export default function PlanningWizard({
   // banner above the preserved sections so the user can fix + retry without losing it.
   return (
     <div>
-      {failed && <div style={{ marginBottom: 12 }}>{failureBlock}</div>}
+      {failed && <div className={styles.failureSlot}>{failureBlock}</div>}
       <GapSections
         gap={gap}
         feedback={feedback}
         onChange={setFeedback}
         onCreateDraft={onCreateDraft}
       />
-      <div
-        style={{ display: "flex", gap: 10, marginTop: 8, alignItems: "center" }}
-      >
+      <div className={styles.actions}>
         <SubmitButton
           type="button"
           pending={pending}
@@ -261,7 +264,7 @@ export default function PlanningWizard({
           Create the spec PR
         </button>
         {rounds.length > 1 && (
-          <label className="meta" style={{ marginLeft: "auto" }}>
+          <label className={`meta ${styles.continueFrom}`}>
             Continue from{" "}
             <select
               value={continueFrom ?? rounds[0].iteration}
@@ -280,7 +283,7 @@ export default function PlanningWizard({
         )}
       </div>
       {rewinding && (
-        <p className="meta" role="status" style={{ marginTop: 6 }}>
+        <p className={`meta ${styles.rewindNote}`} role="status">
           This round continues round {continueFrom} — rounds after it stay on
           record but are not carried forward.
         </p>

@@ -1,0 +1,35 @@
+@use "styles/tokens" as t;
+
+// Deliberately not the global `.spec-card`: this is a list row, and that class
+// restyles every h3 inside it as a mono accent heading.
+.card {
+  margin-bottom: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.title {
+  @include t.row(8px);
+  margin: 0 0 4px;
+}
+
+.note {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+}
+
+.files {
+  @include t.row(6px);
+  flex-wrap: wrap;
+}
+
+.fileChip {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: monospace;
+  font-size: var(--fs-xs);
+  text-decoration: none;
+}

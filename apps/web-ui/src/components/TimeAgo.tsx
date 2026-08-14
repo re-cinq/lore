@@ -1,3 +1,4 @@
+import styles from "./TimeAgo.module.scss";
 import { formatRelativeTime } from "@/lib/assembly-line-presenter";
 
 export function TimeAgo({
@@ -22,7 +23,7 @@ export function TimeAgo({
     <time dateTime={iso} suppressHydrationWarning>
       {parsed.toLocaleString()}
       {inline ? " " : <br />}
-      <span className="meta" style={{ fontSize: "0.85em" }}>
+      <span className={`meta ${styles.relative}`}>
         ({formatRelativeTime(iso, nowMs)})
       </span>
     </time>

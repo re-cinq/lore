@@ -26,7 +26,9 @@ describe("RunTimelineView", () => {
       <RunTimelineView ticks={[tick()]} runStartedAt={START} now={END} />,
     );
 
-    expect(ticksOf(container)[0].style.left).toBe("50%");
+    expect(ticksOf(container)[0].style.getPropertyValue("--tick-left")).toBe(
+      "50%",
+    );
   });
 
   it("leaves a visible gap to the now edge for a node still running", () => {
@@ -38,7 +40,9 @@ describe("RunTimelineView", () => {
       />,
     );
 
-    expect(ticksOf(container)[0].style.left).toBe("0%");
+    expect(ticksOf(container)[0].style.getPropertyValue("--tick-left")).toBe(
+      "0%",
+    );
   });
 
   it("colors each tick by its event type", () => {

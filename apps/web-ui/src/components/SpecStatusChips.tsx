@@ -1,5 +1,6 @@
 "use client";
 
+import styles from "./SpecStatusChips.module.scss";
 import {
   SPEC_STATUS_COLOR,
   SPEC_STATUS_ORDER,
@@ -61,32 +62,15 @@ export default function SpecStatusChips({
     <button
       key={filter}
       type="button"
-      className="badge"
+      className={`badge ${styles.chip}`}
       aria-pressed={active === filter}
       onClick={() => onChange(filter)}
-      style={{
-        cursor: "pointer",
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        border:
-          active === filter
-            ? "1px solid var(--accent)"
-            : "1px solid var(--border)",
-        background: active === filter ? "var(--info-bg)" : "var(--bg-surface)",
-        color: "var(--text)",
-      }}
     >
       {color && (
         <span
           aria-hidden
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            background: color,
-            display: "inline-block",
-          }}
+          className={styles.dot}
+          style={{ ["--dot-color" as string]: color }}
         />
       )}
       {label} ({count})
@@ -94,19 +78,14 @@ export default function SpecStatusChips({
   );
 
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+    <div className={styles.chips}>
+      <div className={styles.row}>
         {chip("all", "All", total)}
         {present.map((s) =>
           chip(s, LABEL[s], counts[s] ?? 0, SPEC_STATUS_COLOR[s]),
         )}
       </div>
-      <p
-        className="meta"
-        style={{ margin: "6px 0 0", fontSize: "var(--fs-2xs)" }}
-      >
-        {LEGEND[kind]}
-      </p>
+      <p className={`meta ${styles.legend}`}>{LEGEND[kind]}</p>
     </div>
   );
 }

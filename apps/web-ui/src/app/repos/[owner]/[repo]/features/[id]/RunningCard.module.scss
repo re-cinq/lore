@@ -1,0 +1,21 @@
+@use "styles/tokens" as t;
+
+.status {
+  @include t.row(0);
+  margin: 0;
+}
+
+.counter {
+  margin-left: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+// Past the budget the reaper will actually kill the node at — not a soft target.
+.overBudget {
+  color: var(--danger);
+}
+
+.output {
+  @include t.log-block(220px);
+  margin-top: 8px;
+}

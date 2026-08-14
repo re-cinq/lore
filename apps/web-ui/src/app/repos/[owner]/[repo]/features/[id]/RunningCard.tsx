@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import styles from "./RunningCard.module.scss";
 import { formatSeconds } from "@/lib/format-time";
 import { nodeBudgetMinutes } from "@/lib/node-budget";
 import { formatTokens, type RunTokens } from "@/lib/run-tokens";
@@ -42,12 +43,7 @@ function ElapsedTimer({
           ? "Past its budget — the reaper stops a node that overruns"
           : undefined
       }
-      className="meta"
-      style={{
-        marginLeft: 8,
-        fontVariantNumeric: "tabular-nums",
-        color: over ? "var(--danger)" : undefined,
-      }}
+      className={`meta ${styles.counter} ${over ? styles.overBudget : ""}`}
     >
       · {formatSeconds(secs)} / {timeoutMinutes}:00
     </span>
@@ -64,27 +60,13 @@ function TokenCount({ tokens }: { tokens: RunTokens | null | undefined }) {
 
   return (
     <span
-      className="meta"
+      className={`meta ${styles.counter}`}
       title={`${tokens.input.toLocaleString()} prompt (including cached) + ${tokens.output.toLocaleString()} completion`}
-      style={{ marginLeft: 8, fontVariantNumeric: "tabular-nums" }}
     >
       · {formatTokens(tokens.total)} tokens
     </span>
   );
 }
-
-const PRE_STYLE: React.CSSProperties = {
-  whiteSpace: "pre-wrap",
-  wordBreak: "break-word",
-  maxHeight: 220,
-  overflow: "auto",
-  background: "var(--bg-elevated)",
-  border: "1px solid var(--border)",
-  borderRadius: 6,
-  padding: 10,
-  fontSize: "var(--fs-xs)",
-  marginTop: 8,
-};
 
 export default function RunningCard({
   iteration,
@@ -116,7 +98,7 @@ export default function RunningCard({
 
   return (
     <div className="spec-card">
-      <p style={{ display: "flex", alignItems: "center", margin: 0 }}>
+      <p className={styles.status}>
         {spec
           ? "Writing the spec — deciding which specs change, then writing them…"
           : `Analyzing your feature against the project… (round ${iteration})`}
@@ -145,7 +127,7 @@ export default function RunningCard({
           reason={run.reason}
         />
       )}
-      {liveOutput && <pre style={PRE_STYLE}>{liveOutput}</pre>}
+      {liveOutput && <pre className={styles.output}>{liveOutput}</pre>}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { ThemeFamily } from "@/lib/theme/types";
+import styles from "./Icon.module.scss";
 
 // Drive the `family` branch directly: the real ThemeProvider seeds family from
 // the DOM/inline-script, which is irrelevant here. We only care that Icon maps
@@ -136,17 +137,17 @@ describe("Icon aria handling", () => {
 });
 
 describe("Icon inline prop", () => {
-  it("applies the -0.125em baseline alignment when inline is set", () => {
+  it("marks the glyph inline when inline is set, so the stylesheet nudges its baseline", () => {
     family.mockReturnValue("elegant");
     const { container } = render(<Icon name="warning" inline />);
     const svg = container.querySelector("svg")!;
 
-    expect(svg.style.verticalAlign).toBe("-0.125em");
+    expect(svg.getAttribute("class")).toContain(styles.inline);
   });
 
-  it("sets no inline style when inline is omitted, leaving alignment to the caller", () => {
+  it("carries no inline class when inline is omitted, leaving alignment to the caller", () => {
     const svg = svgOf("warning", "elegant");
 
-    expect(svg.style.verticalAlign).toBe("");
+    expect(svg.getAttribute("class")).not.toContain(styles.inline);
   });
 });

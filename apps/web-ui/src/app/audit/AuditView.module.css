@@ -1,3 +1,12 @@
 .count {
   margin-bottom: 12px;
 }
+
+/* The entry's raw JSON metadata, folded into the row without taking it over. */
+.metadata {
+  margin: 4px 0 0;
+  max-width: 420px;
+  overflow-x: auto;
+  font-size: var(--fs-xs);
+  white-space: pre-wrap;
+}

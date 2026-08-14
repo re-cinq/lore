@@ -83,7 +83,7 @@ export default function AuditView({
   return (
     <div>
       <h1>Audit Trail</h1>
-      <p className="meta" style={{ marginBottom: 16 }}>
+      <p className="meta page-lede">
         Every memory read and write across the org, in time order. Filter by
         agent or operation.
       </p>
@@ -134,15 +134,7 @@ export default function AuditView({
                 {e.metadata ? (
                   <details>
                     <summary className="meta">view</summary>
-                    <pre
-                      style={{
-                        margin: "4px 0 0",
-                        fontSize: "var(--fs-xs)",
-                        whiteSpace: "pre-wrap",
-                        maxWidth: 420,
-                        overflowX: "auto",
-                      }}
-                    >
+                    <pre className={styles.metadata}>
                       {JSON.stringify(e.metadata, null, 2)}
                     </pre>
                   </details>

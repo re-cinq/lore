@@ -1,0 +1,23 @@
+@use "styles/tokens" as t;
+
+.hint {
+  color: var(--text-muted);
+}
+
+.repoGroup {
+  margin-bottom: 20px;
+}
+
+.repoName {
+  font-size: var(--fs-base);
+}
+
+.docList {
+  padding: 0;
+  list-style: none;
+}
+
+.docItem {
+  @include t.row(8px);
+  margin-bottom: 4px;
+}

@@ -110,7 +110,9 @@ export default function HomeView({
                 title={freshnessIndicator(r.last_ingested_at).label}
                 className={styles.freshnessDot}
                 style={{
-                  backgroundColor: freshnessIndicator(r.last_ingested_at).color,
+                  ["--dot-color" as string]: freshnessIndicator(
+                    r.last_ingested_at,
+                  ).color,
                 }}
               />
               {r.full_name}
@@ -130,7 +132,7 @@ export default function HomeView({
                   <span
                     className={`badge ${styles.ingestBadge}`}
                     title={`${badge.label} — fixable from the dashboard`}
-                    style={{ backgroundColor: badge.color }}
+                    style={{ ["--badge-color" as string]: badge.color }}
                   >
                     <Icon name="warning" size={12} inline /> {badge.label}
                   </span>

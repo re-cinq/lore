@@ -5,4 +5,11 @@
   padding: 0;
   color: var(--accent);
   text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Both callers disable the button while their transition is in flight, so the
+   in-flight cursor follows from that rather than from a computed style prop. */
+.button:disabled {
+  cursor: default;
 }
