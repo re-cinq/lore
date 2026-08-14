@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { query, queryOne, getRepoSchema } from "@/lib/db";
 import { getRepo } from "@/lib/api/repos";
+import { getRepoActivityCounts } from "@/lib/api/activity";
 import { getReadme, checkRepoFiles } from "@/lib/github";
 import { getWebhookStatus, getWebhookSecret } from "@/lib/webhook-api";
 import { computeEnrollmentChecks } from "@/lib/enrollment";
@@ -30,9 +31,7 @@ export default async function RepoOverview({
     localMcpRow,
     githubFiles,
     webhook,
-    darkTasksRow,
-    autoMergedRow,
-    escalationsRow,
+    activityCounts,
   ] = await Promise.all([
     getReadme(fullName).catch(() => null),
     getRepo(fullName).then((result) =>
@@ -66,28 +65,13 @@ export default async function RepoOverview({
       ".github/workflows/lore-ingest.yml": null,
     })),
     getWebhookStatus(fullName).catch(() => null),
-    // Dark Factory dashboard counts (T052) — best-effort, each falls back to
-    // null on DB error so the panel never breaks the page.
-    queryOne<{ c: number }>(
-      `SELECT count(*)::int as c FROM pipeline.tasks
-        WHERE target_repo = $1 AND created_at >= now() - interval '7 days'`,
-      [fullName],
-    ).catch(() => null),
-    queryOne<{ c: number }>(
-      `SELECT count(*)::int as c FROM pipeline.audit_log
-        WHERE repo = $1
-          AND event_type = 'auto_merge_decision'
-          AND payload->>'outcome' = 'merged'
-          AND created_at >= now() - interval '7 days'`,
-      [fullName],
-    ).catch(() => null),
-    queryOne<{ c: number }>(
-      `SELECT count(*)::int as c FROM pipeline.audit_log
-        WHERE repo = $1
-          AND event_type = 'escalation_issued'
-          AND created_at >= now() - interval '7 days'`,
-      [fullName],
-    ).catch(() => null),
+    // Dark Factory dashboard counts (T052) — best-effort, each figure falls back
+    // to null so the panel never breaks the page.
+    getRepoActivityCounts(fullName).then((r) =>
+      r.status === "ok"
+        ? r.data
+        : { tasks: null, auto_merged: null, escalations: null },
+    ),
   ]);
 
   // Second batch: the chunk queries need the resolved schema, and the webhook
@@ -142,9 +126,9 @@ export default async function RepoOverview({
   };
   const darkFactoryEnabled = repoSettings.dark_factory?.enabled === true;
   const trustLevel = repoSettings.trust?.level ?? "unset";
-  const darkTasksWeek = darkTasksRow?.c ?? 0;
-  const autoMergedWeek = autoMergedRow?.c ?? 0;
-  const escalationsWeek = escalationsRow?.c ?? 0;
+  const darkTasksWeek = activityCounts.tasks ?? 0;
+  const autoMergedWeek = activityCounts.auto_merged ?? 0;
+  const escalationsWeek = activityCounts.escalations ?? 0;
 
   return (
     <RepoOverviewView

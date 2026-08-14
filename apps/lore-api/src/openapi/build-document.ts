@@ -184,7 +184,7 @@ const TAG_RULES: Array<[RegExp, string]> = [
     /^\/api\/(task|tasks|task-logs|job-run-logs|spec-tasks|task-groups|assembly-lines)\b/,
     "Tasks",
   ],
-  [/^\/api\/(usage|analytics|agent-stats)\b/, "Analytics"],
+  [/^\/api\/(usage|analytics|agent-stats|memory-audit|events|job-runs)\b/, "Analytics"],
   [/\/features\b/, "Features"],
   [/\/agent-definitions\b/, "Agents"],
   [/\/settings\/dark-factory\b/, "Dark Factory"],

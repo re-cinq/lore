@@ -45,7 +45,7 @@ describe("deriveVisibleGraph run mode", () => {
 
     expect(graph.nodes.map((n) => n.id)).toEqual(["review", "done"]);
     expect(graph.edges).toEqual([
-      { from: "review", to: "done", tone: "neutral" },
+      { from: "review", to: "done", tone: "neutral", taken: true },
     ]);
   });
 
@@ -63,7 +63,7 @@ describe("deriveVisibleGraph run mode", () => {
 
     expect(graph.edges).toHaveLength(1);
     expect(graph.edges).toEqual([
-      { from: "review", to: "done", tone: "neutral" },
+      { from: "review", to: "done", tone: "neutral", taken: true },
     ]);
   });
 
@@ -147,5 +147,52 @@ describe("deriveVisibleGraph definition mode", () => {
     const graph = deriveVisibleGraph(codeReviewDefinition, null, "run");
 
     expect(graph.mode).toBe("definition");
+  });
+});
+
+describe("deriveVisibleGraph run mode over a part-run line", () => {
+  const midRun = runData({
+    executed: new Set(["implement", "validate"]),
+    verdicts: { implement: "success" },
+    statuses: { implement: "succeeded", validate: "running" },
+    taken: new Set(["implement-validate-success"]),
+  });
+
+  it("keeps every step of the line, with the unreached ones idle", () => {
+    const graph = deriveVisibleGraph(implementationDefinition, midRun, "run");
+
+    expect(graph.nodes.map((n) => n.id)).toEqual([
+      "implement",
+      "validate",
+      "push",
+      "review",
+      "address",
+      "retrospective",
+      "done",
+    ]);
+    expect(graph.nodes.find((n) => n.id === "push")).toMatchObject({
+      status: "idle",
+      verdict: null,
+      outcomes: [],
+    });
+  });
+
+  it("marks the traversed hop taken and the untraversed ones not", () => {
+    const graph = deriveVisibleGraph(implementationDefinition, midRun, "run");
+    const hop = (from: string, to: string) =>
+      graph.edges.find((e) => e.from === from && e.to === to);
+
+    expect(hop("implement", "validate")).toMatchObject({ taken: true });
+    expect(hop("push", "review")).toMatchObject({ taken: false });
+  });
+
+  it("leaves the result off a terminal the walk never reached", () => {
+    const graph = deriveVisibleGraph(
+      implementationDefinition,
+      runData({ executed: new Set(["implement"]), result: "failed" }),
+      "run",
+    );
+
+    expect(graph.nodes.find((n) => n.id === "done")?.result).toBeNull();
   });
 });

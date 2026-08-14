@@ -4,6 +4,7 @@
   @include t.row(8px);
   align-items: baseline;
   cursor: pointer;
+  flex-flow: wrap;
 }
 
 .body {

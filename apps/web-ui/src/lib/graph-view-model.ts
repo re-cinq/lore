@@ -54,6 +54,9 @@ export interface VisibleEdge {
   from: string;
   to: string;
   tone: ConnectorTone;
+  /** Run mode: did the walk traverse this hop? Absent in definition mode, where
+   *  nothing has run and "taken" would be a claim about a run that isn't there. */
+  taken?: boolean;
 }
 
 export interface VisibleGraph {
@@ -73,6 +76,11 @@ export function outcomeTone(outcome: string): ConnectorTone {
   }
 
   return outcome === "success" ? "ok" : "neutral";
+}
+
+/** One drawn connector per node pair, however many conditions route along it. */
+function pairKey(from: string, to: string): string {
+  return `${from}->${to}`;
 }
 
 function terminalIds(definition: AssemblyLineDefinition): Set<string> {
@@ -132,44 +140,59 @@ function definitionGraph(definition: AssemblyLineDefinition): VisibleGraph {
   return { mode: "definition", nodes, edges };
 }
 
-/** Run mode: only the executed nodes and the connectors the walk actually took. */
+/** Run mode: the whole line with each step's current state. Every step is drawn —
+ *  a step the walk has not reached yet is idle, which reads as Pending — and each
+ *  hop says whether the walk took it, so the path so far stands out from the road
+ *  still ahead instead of the graph appearing one node at a time. */
 function runGraph(
   definition: AssemblyLineDefinition,
   run: RunData,
 ): VisibleGraph {
-  const takenEdges = definition.edges.filter((edge) =>
-    run.taken.has(edgeKey(edge)),
-  );
-  const involved = new Set(run.executed);
+  const reached = new Set(run.executed);
+  const takenPairs = new Set<string>();
+
+  // Collected before the connectors are built: several conditions can share one
+  // hop (review→done on success/changes_requested/failed), and the walk taking
+  // any of them makes the drawn connector a taken one.
+  for (const edge of definition.edges) {
+    if (run.taken.has(edgeKey(edge))) {
+      takenPairs.add(pairKey(edge.from, edge.to));
+      reached.add(edge.from);
+      reached.add(edge.to);
+    }
+  }
+
   const seen = new Set<string>();
   const edges: VisibleEdge[] = [];
 
-  for (const edge of takenEdges) {
-    involved.add(edge.from);
-    involved.add(edge.to);
-
-    const pair = `${edge.from}->${edge.to}`;
+  for (const edge of definition.edges) {
+    const pair = pairKey(edge.from, edge.to);
 
     if (seen.has(pair)) {
       continue;
     }
 
     seen.add(pair);
-    edges.push({ from: edge.from, to: edge.to, tone: "neutral" });
+    edges.push({
+      from: edge.from,
+      to: edge.to,
+      tone: "neutral",
+      taken: takenPairs.has(pair),
+    });
   }
 
   const terminals = terminalIds(definition);
-  const nodes = definition.nodes
-    .filter((node) => involved.has(node.id))
-    .map((node) => ({
-      id: node.id,
-      type: node.type,
-      outcomes: [],
-      verdict: run.verdicts[node.id] ?? null,
-      status: run.statuses[node.id] ?? "idle",
-      result: terminals.has(node.id) ? run.result : null,
-      signal: node.signal,
-    }));
+  const nodes = definition.nodes.map((node) => ({
+    id: node.id,
+    type: node.type,
+    outcomes: [],
+    verdict: run.verdicts[node.id] ?? null,
+    status: run.statuses[node.id] ?? "idle",
+    // Only a terminal the walk actually reached carries the result; on an
+    // unreached one it would announce an ending that never happened.
+    result: terminals.has(node.id) && reached.has(node.id) ? run.result : null,
+    signal: node.signal,
+  }));
 
   return { mode: "run", nodes, edges };
 }

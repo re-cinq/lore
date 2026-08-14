@@ -803,6 +803,17 @@ fed by IO `*Panel` containers that own fetching and polling. ([validated by `Tim
   authoritative but a row lands only when a run ENDS, which is the
   moment the card showing the number disappears. ([validated by `assembly-lines.test.ts:36`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L36), [`assembly-lines.test.ts:40`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L40), [`assembly-lines.test.ts:52`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L52), [`assembly-lines.test.ts:68`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L68), [`assembly-lines.test.ts:77`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L77), [`assembly-lines.test.ts:88`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L88), [`assembly-lines.test.ts:100`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L100), [`assembly-lines.test.ts:110`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L110), [`assembly-lines.test.ts:120`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L120), [`assembly-lines.test.ts:132`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L132), [`assembly-lines.test.ts:143`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L143), [`assembly-lines.test.ts:155`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L155), [`assembly-lines.test.ts:170`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L170), [`assembly-lines.test.ts:180`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L180))
 
+- FR-19.20: lore-api serves the activity reads the audit, gaps, events,
+  job-run and repo-overview views need, all under the `read` scope:
+  `GET /api/memory-audit` (agent / operation filters plus a
+  `zero_results` lens for the gap view, answering a page AND the unpaged
+  total the pager needs), `GET /api/events` (repo-scoped, newest first,
+  repo required), `GET /api/job-runs/{id}`, and
+  `GET /api/repos/{owner}/{repo}/activity-counts` (7-day tasks,
+  auto-merges and escalations). A count the database cannot answer is
+  NULL, never zero: an unmigrated cluster must not render as "nothing
+  happened", and no dashboard figure may take its page down. ([validated by `activity.test.ts:31`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L31), [`activity.test.ts:35`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L35), [`activity.test.ts:49`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L49), [`activity.test.ts:60`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L60), [`activity.test.ts:70`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L70), [`activity.test.ts:83`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L83), [`activity.test.ts:94`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L94), [`activity.test.ts:98`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L98), [`activity.test.ts:112`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L112), [`activity.test.ts:125`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L125), [`activity.test.ts:135`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L135), [`activity.test.ts:148`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L148))
+
 ### FR-20: Project Facade Ports (Phase 1)
 
 The `Project` facade (ADR-024) exposes every data capability — tasks,

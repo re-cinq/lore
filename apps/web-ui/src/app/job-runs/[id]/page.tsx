@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { queryOne } from "@/lib/db";
+import { getJobRun } from "@/lib/api/activity";
 import { Storage } from "@google-cloud/storage";
 import JobRunView, { JobRunRow } from "./JobRunView";
 
@@ -33,12 +33,8 @@ export default async function JobRunPage({
 }) {
   const { id } = await params;
 
-  const run = await queryOne<JobRunRow>(
-    `SELECT id, job_name, status, started_at, completed_at, result_summary, error, log_path
-     FROM pipeline.job_runs
-     WHERE id = $1`,
-    [id],
-  );
+  const result = await getJobRun(id);
+  const run: JobRunRow | null = result.status === "ok" ? result.data : null;
 
   const logs = run ? await fetchLogs(run.log_path) : null;
 

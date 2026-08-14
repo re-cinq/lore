@@ -58,13 +58,14 @@
 .edge:hover {
   stroke-width: 3;
 }
-.dim .edge:hover {
+.edge.dim:hover {
   opacity: 1;
 }
 
-/* Run overlay: the traversed branch is bold and solid, the rest fade back so the
-   path the run took reads at a glance. Absent (definition-only view) → neither. */
-.taken .edge {
+/* Run overlay: the hop the walk took is bold and solid, the road still ahead
+   fades back, so the run's position reads at a glance. Absent (definition-only
+   view) → neither. */
+.taken {
   stroke-width: 3.5;
   stroke-dasharray: none;
 }

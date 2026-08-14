@@ -71,6 +71,7 @@ import {
 } from "../api/routes/agent-definitions/agents.js";
 import { usageRoute } from "../api/routes/analytics/usage.js";
 import { analyticsRoute } from "../api/routes/analytics/analytics.js";
+import { activityRoutes } from "../api/routes/analytics/activity.js";
 import { agentStatsRoute } from "../api/routes/analytics/agent-stats.js";
 import { impactRoute } from "../api/routes/impact/impact.js";
 import { impactBaseRoute } from "../api/routes/impact/impact-base.js";
@@ -137,6 +138,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     agentsDeleteRoute(getPool),
     usageRoute(getPool),
     analyticsRoute(getPool),
+    ...activityRoutes(getPool),
     agentStatsRoute(getPool),
     impactRoute(),
     impactBaseRoute(),
