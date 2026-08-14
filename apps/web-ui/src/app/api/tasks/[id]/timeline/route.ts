@@ -1,15 +1,9 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { queryOne } from "@/lib/db";
+import { getTask } from "@/lib/api/tasks";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { serverError } from "@/lib/api-error";
-
-interface Task {
-  id: string;
-  status: string;
-  target_repo: string;
-}
+import { serverError, upstreamError } from "@/lib/api-error";
 
 async function checkRepoAccess(
   accessToken: string,
@@ -44,18 +38,15 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const task = await queryOne<Task>(
-      `SELECT id, status, target_repo FROM pipeline.tasks WHERE id = $1`,
-      [id],
-    );
+    const task = await getTask(id);
 
-    if (!task) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    if (task.status !== "ok") {
+      return upstreamError("Timeline", task);
     }
 
     const hasAccess = await checkRepoAccess(
       session.accessToken,
-      task.target_repo,
+      task.data.target_repo,
     );
 
     if (!hasAccess) {

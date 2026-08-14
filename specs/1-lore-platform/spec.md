@@ -750,11 +750,30 @@ fed by IO `*Panel` containers that own fetching and polling. ([validated by `Tim
   finished run back to coordinated polling and attaching a retry's
   fresh run in its place. ([validated by `TaskRefreshProvider.test.tsx:147`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L147), [`TaskRefreshProvider.test.tsx:157`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L157), [`TaskRefreshProvider.test.tsx:177`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L177), [`TaskRefreshProvider.test.tsx:193`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L193), [`TaskRefreshProvider.test.tsx:206`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L206), [`TaskRefreshProvider.test.tsx:218`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L218), [`TaskRefreshProvider.test.tsx:232`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L232), [`TaskRefreshProvider.test.tsx:243`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L243), [`TaskRefreshProvider.test.tsx:254`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L254), [`TaskRefreshProvider.test.tsx:269`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L269), [`TaskRefreshProvider.test.tsx:288`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L288), [`TaskRefreshProvider.test.tsx:309`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L309), [`TaskRefreshProvider.test.tsx:336`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L336), [`TaskRefreshProvider.test.tsx:357`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L357), [`TaskRefreshProvider.test.tsx:388`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L388), [`TaskRefreshProvider.test.tsx:414`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L414), [`TaskRefreshProvider.test.tsx:440`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L440), [`TaskRefreshProvider.test.tsx:470`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L470), [`TaskRefreshProvider.test.tsx:489`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L489))
 - FR-19.14: `GET /api/tasks/[id]/runs` serves the task's per-attempt
-  run rows newest first from `pipeline.assembly_lines`, behind the
-  timeline route's auth ladder (401 without a session, 404 for an
-  unknown task, 403 without repo access), returning an empty list on
-  pre-0025 databases, exporting `force-dynamic`, and mapping a thrown
-  lookup to a 500. ([validated by `route.test.ts:31`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L31), [`route.test.ts:36`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L36), [`route.test.ts:45`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L45), [`route.test.ts:54`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L54), [`route.test.ts:67`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L67), [`route.test.ts:92`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L92), [`route.test.ts:103`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L103), [`route.test.ts:111`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L111))
+  run rows newest first, behind the timeline route's auth ladder (401
+  without a session, 404 for an unknown task, 403 without repo access),
+  returning an empty list on pre-0025 databases, exporting
+  `force-dynamic`, and mapping a thrown lookup to a 500. The rows come
+  from lore-api's `GET /api/tasks/{id}/runs`, not from
+  `pipeline.assembly_lines` directly: the repo this route authorizes
+  against and the runs it returns must be read through one source, or
+  the two can disagree about which task they describe. ([validated by `route.test.ts:34`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L34), [`route.test.ts:39`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L39), [`route.test.ts:48`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L48), [`route.test.ts:61`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L61), [`route.test.ts:77`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L77), [`route.test.ts:102`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L102), [`route.test.ts:110`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L110), [`route.test.ts:118`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L118), [`route.test.ts:127`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L127))
+
+- FR-19.15: lore-api serves those rows at `GET /api/tasks/{id}/runs`,
+  under the `read` scope: 503 without a pool, 404 for a task that does
+  not exist, the run rows newest first, and an empty list — not a 500 —
+  when the database predates migration 0025 and has no
+  `pipeline.assembly_lines` table. The 404 comes before the run query
+  deliberately: an unknown id and a task with no runs both answered
+  `{runs: []}` before, which reads as "nothing started yet" for a task
+  that never existed. ([validated by `task-runs.test.ts:30`](apps/lore-api/src/api/routes/tasks/task-runs.test.ts#L30), [`task-runs.test.ts:36`](apps/lore-api/src/api/routes/tasks/task-runs.test.ts#L36), [`task-runs.test.ts:46`](apps/lore-api/src/api/routes/tasks/task-runs.test.ts#L46), [`task-runs.test.ts:72`](apps/lore-api/src/api/routes/tasks/task-runs.test.ts#L72))
+- FR-19.16: The two task transitions the UI offers are shared seams in
+  `libs/shared`, not route-local SQL. `escalateTask` (run-now) refuses an
+  unknown id and anything past `pending`, sets `priority = 'immediate'`,
+  and records the transition carrying the priority it replaced.
+  `cancelTask` treats `completed`, `merged`, `failed` and `cancelled` as
+  terminal — `completed` was missing, so the web UI's own guard refused
+  a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/pipeline-tasks.escalate.test.ts#L25), [`pipeline-tasks.escalate.test.ts:39`](libs/shared/src/pipeline-tasks.escalate.test.ts#L39), [`pipeline-tasks.escalate.test.ts:56`](libs/shared/src/pipeline-tasks.escalate.test.ts#L56), [`pipeline-tasks.escalate.test.ts:64`](libs/shared/src/pipeline-tasks.escalate.test.ts#L64), [`pipeline-tasks.escalate.test.ts:77`](libs/shared/src/pipeline-tasks.escalate.test.ts#L77), [`pipeline-tasks.escalate.test.ts:88`](libs/shared/src/pipeline-tasks.escalate.test.ts#L88))
 
 ### FR-20: Project Facade Ports (Phase 1)
 

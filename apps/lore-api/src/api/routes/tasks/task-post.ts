@@ -1,6 +1,10 @@
-import { errorMessage, cancelPipelineTask } from "@re-cinq/lore-shared";
+import {
+  errorMessage,
+  cancelPipelineTask,
+  escalatePipelineTask,
+} from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type { ServerRoute, ResponseToolkit } from "@hapi/hapi";
 import { z } from "zod";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { getTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
@@ -28,6 +32,26 @@ const TaskBody = z.object({
 });
 
 type TaskBody = z.infer<typeof TaskBody>;
+
+/**
+ * Run a refusable state transition (cancel, run-now). Both shared seams throw
+ * "Task not found" for an unknown id and a state message otherwise, which are a
+ * 404 and a 409 — one mapping, so the two branches cannot drift apart.
+ */
+async function refusable<T extends object>(
+  h: ResponseToolkit,
+  transition: () => Promise<T>,
+) {
+  try {
+    return h.response(await transition());
+  } catch (err) {
+    const message = errorMessage(err);
+
+    return h
+      .response({ error: message })
+      .code(message === "Task not found" ? 404 : 409);
+  }
+}
 
 export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
   return {
@@ -59,15 +83,18 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
         // state is refused instead of silently no-op'ing, and the transition
         // lands in pipeline.task_events like every other status change.
         if (parsed.action === "cancel" && parsed.task_id) {
-          try {
-            return h.response(await cancelPipelineTask(pool, parsed.task_id));
-          } catch (err) {
-            const message = errorMessage(err);
+          const taskId = parsed.task_id;
 
-            return h
-              .response({ error: message })
-              .code(message === "Task not found" ? 404 : 409);
-          }
+          return refusable(h, () => cancelPipelineTask(pool, taskId));
+        }
+
+        // Run-now action — the escalation the task page's button performs.
+        // Refuses a task past `pending` rather than no-op'ing, and records the
+        // transition, which the bare `set-priority` action below does not.
+        if (parsed.action === "run-now" && parsed.task_id) {
+          const taskId = parsed.task_id;
+
+          return refusable(h, () => escalatePipelineTask(pool, taskId));
         }
 
         // Set priority action

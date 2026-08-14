@@ -104,6 +104,37 @@ describe("POST /api/task", () => {
     });
   });
 
+  it("escalates a pending task to immediate", async () => {
+    const res = await post(
+      { action: "run-now", task_id: "t1" },
+      poolWithTask("pending"),
+    );
+
+    expect(res.result).toEqual({ task_id: "t1", priority: "immediate" });
+  });
+
+  it("returns 404 when escalating a task that does not exist", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [] });
+    const res = await post({ action: "run-now", task_id: "gone" }, pool);
+
+    expect(res.statusCode).toBe(404);
+    expect(res.result).toEqual({ error: "Task not found" });
+  });
+
+  it("returns 409 when escalating a running task", async () => {
+    const res = await post(
+      { action: "run-now", task_id: "t1" },
+      poolWithTask("running"),
+    );
+
+    expect(res.statusCode).toBe(409);
+    expect(res.result).toEqual({
+      error: "Can only escalate pending tasks, current status: running",
+    });
+  });
+
   it("sets immediate priority", async () => {
     const pool = makePool();
 

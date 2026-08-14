@@ -29,6 +29,7 @@ import { graphRoute } from "../api/routes/graph/graph.js";
 import { getTaskRoute } from "../api/routes/tasks/get-task.js";
 import { listTasksRoute } from "../api/routes/tasks/list-tasks.js";
 import { timelineRoute } from "../api/routes/tasks/task-timeline.js";
+import { taskRunsRoute } from "../api/routes/tasks/task-runs.js";
 import { taskByPrRoute } from "../api/routes/tasks/task-by-pr.js";
 import {
   taskLogsGetRoute,
@@ -100,6 +101,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     getTaskRoute(),
     listTasksRoute(),
     timelineRoute(getPool),
+    taskRunsRoute(getPool),
     taskByPrRoute(getPool),
     taskLogsGetRoute(getPool),
     jobRunLogsRoute(),

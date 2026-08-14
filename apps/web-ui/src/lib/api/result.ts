@@ -8,7 +8,11 @@
 export type ApiResult<T = unknown> =
   | { status: "ok"; data: T }
   | { status: "unconfigured" }
-  | { status: "error"; message: string };
+  /** `code` is the UPSTREAM HTTP status, absent when the call never reached a
+   *  server. A proxy route needs it to answer 404 for a missing task and 409 for
+   *  a refused transition — matching on the message text instead would couple
+   *  every proxy to lore-api's exact wording. */
+  | { status: "error"; message: string; code?: number };
 
 /** Response → result. An unparseable body is an empty object, not a throw: a 502
  *  from a proxy is HTML, and the status code is the news either way. */
@@ -19,6 +23,7 @@ export async function toApiResult<T>(res: Response): Promise<ApiResult<T>> {
     return {
       status: "error",
       message: (data as { error?: string }).error ?? `HTTP ${res.status}`,
+      code: res.status,
     };
   }
 
