@@ -814,6 +814,22 @@ fed by IO `*Panel` containers that own fetching and polling. ([validated by `Tim
   NULL, never zero: an unmigrated cluster must not render as "nothing
   happened", and no dashboard figure may take its page down. ([validated by `activity.test.ts:31`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L31), [`activity.test.ts:35`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L35), [`activity.test.ts:49`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L49), [`activity.test.ts:60`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L60), [`activity.test.ts:70`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L70), [`activity.test.ts:83`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L83), [`activity.test.ts:94`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L94), [`activity.test.ts:98`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L98), [`activity.test.ts:112`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L112), [`activity.test.ts:125`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L125), [`activity.test.ts:135`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L135), [`activity.test.ts:148`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L148))
 
+- FR-19.21: lore-api serves the memory browse reads under the `read`
+  scope — `GET /api/graph-browse` (counts, type breakdown, entity list,
+  and the selected entity's edges), `GET /api/pools` and
+  `GET /api/pools/{name}`, `GET /api/episodes`, `GET /api/memories`
+  and `GET /api/memory-search`. Shaped per SCREEN, not per table: the
+  graph explorer renders four reads at once, and four endpoints would
+  cost four round trips for a page that is the only caller of each.
+  Edges are read ONLY when an entity is selected — the explorer's most
+  expensive query must not run on every page view — and invalidated ones
+  stay hidden unless asked for. `/api/memories` returns each memory with
+  its version history and facts, skipping the fact read for a memory
+  whose `has_facts` says it has none; the page it replaced fanned out up
+  to 201 round trips for one screen. `/api/memory-search` is LEXICAL
+  (ts_rank over raw text), the search page's question — the embedding
+  search remains `POST /api/memory`. ([validated by `memory-browse.test.ts:31`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L31), [`memory-browse.test.ts:35`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L35), [`memory-browse.test.ts:51`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L51), [`memory-browse.test.ts:64`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L64), [`memory-browse.test.ts:78`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L78), [`memory-browse.test.ts:91`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L91), [`memory-browse.test.ts:106`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L106), [`memory-browse.test.ts:117`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L117), [`memory-browse.test.ts:130`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L130), [`memory-browse.test.ts:140`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L140), [`memory-browse.test.ts:153`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L153), [`memory-browse.test.ts:164`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L164), [`memory-browse.test.ts:179`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L179), [`memory-browse.test.ts:189`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L189), [`memory-browse.test.ts:218`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L218), [`memory-browse.test.ts:195`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L195), [`memory-browse.test.ts:230`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L230))
+
 ### FR-20: Project Facade Ports (Phase 1)
 
 The `Project` facade (ADR-024) exposes every data capability — tasks,

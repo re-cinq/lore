@@ -47,6 +47,7 @@ import {
   specTasksCompleteRoute,
 } from "../api/routes/spec-tasks/spec-tasks.js";
 import { memoryRoute } from "../api/routes/memory/memory.js";
+import { memoryBrowseRoutes } from "../api/routes/memory/memory-browse.js";
 import { episodeRoute } from "../api/routes/memory/episode.js";
 import { sessionSummaryRoute } from "../api/routes/memory/session-summary.js";
 import { ingestRoute } from "../api/routes/ingest/ingest.js";
@@ -118,6 +119,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     specTasksCompleteRoute(getPool),
     taskLogsPostRoute(),
     memoryRoute(getPool),
+    ...memoryBrowseRoutes(getPool),
     episodeRoute(getPool),
     sessionSummaryRoute(getPool),
     ingestRoute(getPool),

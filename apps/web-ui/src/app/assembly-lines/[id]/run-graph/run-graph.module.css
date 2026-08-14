@@ -208,14 +208,20 @@
   fill: var(--danger);
 }
 
+/* The station being worked right now: its border crawls, so the eye finds the
+   live step without reading a single label. Motion only — the stroke color and
+   the "Running" text already carry the meaning for anyone who has it turned off. */
 @media (prefers-reduced-motion: no-preference) {
   .running .box {
-    animation: pulse 1.6s ease-in-out infinite;
+    stroke-dasharray: 10 6;
+    animation: marching-border 1s linear infinite;
   }
 }
 
-@keyframes pulse {
-  50% {
-    opacity: 0.55;
+@keyframes marching-border {
+  to {
+    /* One full dash + gap: the pattern lands back on itself, so the loop has no
+       visible seam. */
+    stroke-dashoffset: -16;
   }
 }

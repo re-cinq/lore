@@ -179,12 +179,18 @@ const UNCATEGORIZED = "Other";
 const TAG_RULES: Array<[RegExp, string]> = [
   [/^\/api\/(openapi\.json|docs)$/, "Meta"],
   [/^\/api\/(context|graph)\b/, "Context"],
-  [/^\/api\/(memory|episode|session-summary)\b/, "Memory"],
+  [
+    /^\/api\/(memory|memories|memory-search|memory-audit|episode|episodes|pools|graph-browse|session-summary)\b/,
+    "Memory",
+  ],
   [
     /^\/api\/(task|tasks|task-logs|job-run-logs|spec-tasks|task-groups|assembly-lines)\b/,
     "Tasks",
   ],
-  [/^\/api\/(usage|analytics|agent-stats|memory-audit|events|job-runs)\b/, "Analytics"],
+  [
+    /^\/api\/(usage|analytics|agent-stats|memory-audit|events|job-runs)\b/,
+    "Analytics",
+  ],
   [/\/features\b/, "Features"],
   [/\/agent-definitions\b/, "Agents"],
   [/\/settings\/dark-factory\b/, "Dark Factory"],

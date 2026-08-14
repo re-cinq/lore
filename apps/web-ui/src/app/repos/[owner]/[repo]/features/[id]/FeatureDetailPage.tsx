@@ -1,5 +1,10 @@
 import { getAssemblyLineDefinition } from "@/lib/api/assembly-lines";
-import { getFeature, getFeatureDecomposition } from "@/lib/api/features";
+import {
+  getFeature,
+  getFeatureDecomposition,
+  getFeatureStatus,
+} from "@/lib/api/features";
+import { fetchFeatureRunById } from "@/lib/feature-run";
 import { listAgents } from "@/lib/agents-api";
 import {
   groupDecomposition,
@@ -48,9 +53,20 @@ export default async function FeatureDetailPage({
 
   const definition = await getAssemblyLineDefinition("feature-planning");
 
+  // The line this feature is on, so the card above draws where the walk actually
+  // is rather than everything it could ever do. lore-api resolved which line the
+  // feature hangs on (from round 2 a resumed round mints no task of its own), so
+  // the id comes from the status endpoint rather than from the latest round.
+  const status = await getFeatureStatus(fullName, id);
+  const run =
+    status.status === "ok"
+      ? await fetchFeatureRunById(status.data.assembly_line_id)
+      : null;
+
   return (
     <FeatureDetailView
       definition={definition}
+      run={run}
       owner={owner}
       repo={repo}
       feature={full}
