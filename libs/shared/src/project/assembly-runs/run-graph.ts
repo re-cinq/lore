@@ -87,7 +87,9 @@ export function resolveRoute(
   const resolved = route.replace(/\{args\.([a-zA-Z0-9_]+)\}/g, (_, name) => {
     const value = args[name];
 
-    if (typeof value !== "string" && typeof value !== "number") {
+    // An empty string is a missing value wearing quotes: substituting it builds
+    // exactly the half-built href the null contract exists to prevent.
+    if ((typeof value !== "string" && typeof value !== "number") || value === "") {
       missing = true;
 
       return "";
