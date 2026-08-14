@@ -114,6 +114,20 @@ Polling remains the correct pattern for every non-streaming view; this decision
 introduces streaming for run observability only, and is not a licence to convert
 existing polled views.
 
+**Amendment 2026-08-14 — telemetry correlates on an id, not on a name.** Rows
+were attributed to a node by matching `agent_cr_name`, a string assembled from a
+12-hex prefix of the run id plus the node id and iteration, resolved through a
+`LEFT JOIN LATERAL` whose tie-break was "newest matching node row wins". That is
+a guess wearing a join's clothing: two runs colliding on their id prefix
+attribute one's tool calls to the other, silently, and the relationship cannot be
+expressed as a foreign key even in principle. A StationRun now carries a
+`station_run_id` (ADR-024 amendment), the Floor puts it on the CR's labels
+because it is the party that named the CR, and `agent_run_events` /
+`agent_run_turns` / `llm_calls` key on it. The CR name survives as a Kubernetes
+resource name and stops being an identity. The pod is deliberately NOT required
+to echo the id back: the Floor already knows it at write time, so the correlation
+improves without a change in the external ai-agent-subsystem repo.
+
 Cross-references: ADR-015 (webhook-driven review reactor) and its event-bus
 amendment own Floor-internal triggering through `pipeline.events`; this ADR owns
 browser transport and deliberately does not route through that bus, because a
