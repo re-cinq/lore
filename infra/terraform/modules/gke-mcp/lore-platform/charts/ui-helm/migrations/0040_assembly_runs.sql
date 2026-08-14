@@ -128,13 +128,14 @@ DO $$ BEGIN
 END $$;
 
 -- The telemetry + cost tables (agent_run_events / agent_run_turns / llm_calls)
--- keep `assembly_line_id` DELIBERATELY. Their tables are not renamed, so a
--- compat view cannot cover a renamed COLUMN on them — a view needs a name, and
--- the table already has it. That leaves no way for a rolled-back Floor to write
--- the column it knows, and telemetry ingest is a batch insert: one unknown
--- column fails the whole batch, so the run visualization dies rather than
--- degrades. Vocabulary consistency on three pointer columns is not worth an
--- un-rollbackable deploy; they get their own change, after this one has settled.
+-- and `agent_conversations` (0036) keep `assembly_line_id` DELIBERATELY. Their
+-- tables are not renamed, so a compat view cannot cover a renamed COLUMN on
+-- them — a view needs a name, and the table already has it. That leaves no way
+-- for a rolled-back Floor to write the column it knows, and telemetry ingest is
+-- a batch insert: one unknown column fails the whole batch, so the run
+-- visualization dies rather than degrades. Vocabulary consistency on four
+-- pointer columns is not worth an un-rollbackable deploy; they get their own
+-- change (the writer-flip follow-up), after this one has settled.
 
 -- ---------------------------------------------------------------- new columns
 
@@ -218,8 +219,10 @@ CREATE OR REPLACE VIEW pipeline.assembly_line_nodes AS
     FROM pipeline.station_runs;
 
 -- Grants: a rename carries the base tables' ACLs, but the new views need their
--- own. Guarded on the role existing, like 0009/0017/0031, so this migration
--- never fails on a cluster that connects the web UI as `lore`.
+-- own. Same split as 0009/0017/0031: `lore` unguarded (it is the role this
+-- migration connects as — if it is missing, nothing got this far), `lore_ui`
+-- guarded so the migration never fails on a cluster that connects the web UI
+-- as `lore`.
 GRANT ALL ON pipeline.assembly_lines      TO lore;
 GRANT ALL ON pipeline.assembly_line_nodes TO lore;
 
