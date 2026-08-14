@@ -775,6 +775,19 @@ fed by IO `*Panel` containers that own fetching and polling. ([validated by `Tim
   terminal — `completed` was missing, so the web UI's own guard refused
   a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/pipeline-tasks.escalate.test.ts#L25), [`pipeline-tasks.escalate.test.ts:39`](libs/shared/src/pipeline-tasks.escalate.test.ts#L39), [`pipeline-tasks.escalate.test.ts:56`](libs/shared/src/pipeline-tasks.escalate.test.ts#L56), [`pipeline-tasks.escalate.test.ts:64`](libs/shared/src/pipeline-tasks.escalate.test.ts#L64), [`pipeline-tasks.escalate.test.ts:77`](libs/shared/src/pipeline-tasks.escalate.test.ts#L77), [`pipeline-tasks.escalate.test.ts:88`](libs/shared/src/pipeline-tasks.escalate.test.ts#L88))
 
+- FR-19.17: lore-api serves one `lore.repos` row at
+  `GET /api/repos/{owner}/{repo}` under the `read` scope, reading it
+  through the Project facade for the repo in the path, 404 for a repo
+  with no row and 500 for a failed lookup. It returns the record WHOLE
+  rather than a per-caller projection: nine web-ui call sites across
+  five files each selected a different column subset of this row, and
+  projecting per caller would move that duplication into the API
+  instead of removing it. ([validated by `repo-record.test.ts:49`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L49), [`repo-record.test.ts:58`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L58), [`repo-record.test.ts:66`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L66), [`repo-record.test.ts:75`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L75))
+- FR-19.18: `SettingsPort.record(repo)` is that read — the whole row or
+  null — implemented by the Pg adapter against `lore.repos` and by the
+  in-memory double over its seeded rows, so a caller that needs more
+  than `rawSettings` or `team` has one place to get it. ([validated by returns the seeded row for an onboarded repo](libs/shared/src/project/settings/settings-record.test.ts#L36), [`settings-record.test.ts:46`](libs/shared/src/project/settings/settings-record.test.ts#L46), [`settings-record.test.ts:54`](libs/shared/src/project/settings/settings-record.test.ts#L54), [`settings-record.test.ts:65`](libs/shared/src/project/settings/settings-record.test.ts#L65))
+
 ### FR-20: Project Facade Ports (Phase 1)
 
 The `Project` facade (ADR-024) exposes every data capability — tasks,
@@ -988,7 +1001,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
     only when a POST actually changes the team value (settings-only updates
     and same-value posts emit nothing; clearing a team normalizes empty
     string to null), and a failed event insert degrades to the nightly
-    relocation instead of failing the settings write ([validated by `route.test.ts:39`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L39), [`route.test.ts:55`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L55), [`route.test.ts:63`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L63), [`route.test.ts:71`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L71), [`route.test.ts:79`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L79))
+    relocation instead of failing the settings write ([validated by `route.test.ts:41`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L41), [`route.test.ts:57`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L57), [`route.test.ts:68`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L68), [`route.test.ts:76`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L76), [`route.test.ts:87`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L87))
   - The Floor's `team_changed` handler re-reads the team from `lore.repos`
     rather than trusting the event payload, resolves it through the uncached
     single-sourced `chunkSchemaOrOrgShared` (never the per-repo memoized

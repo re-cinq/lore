@@ -23,7 +23,7 @@ export function repoRecordRoute(): ServerRoute {
 
       try {
         const project = await projectFor(repo);
-        const record = await project.settings.record(repo);
+        const record = await project.settings.record();
 
         if (!record) {
           return h.response({ error: "Repo not found" }).code(404);

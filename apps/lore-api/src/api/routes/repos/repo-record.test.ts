@@ -7,6 +7,7 @@ vi.mock("../../../platform/project-boot.js", () => ({
   projectFor: vi.fn(async () => ({ settings: fakeSettings })),
 }));
 
+import { projectFor } from "../../../platform/project-boot.js";
 import { buildServer } from "../../../server/build-server.js";
 import {
   makePool,
@@ -59,7 +60,7 @@ describe("GET /api/repos/{owner}/{repo}", () => {
 
     await get();
 
-    expect(fakeSettings.record).toHaveBeenCalledWith("re-cinq/lore");
+    expect(projectFor).toHaveBeenCalledWith("re-cinq/lore");
   });
 
   it("returns 404 for a repo with no row", async () => {

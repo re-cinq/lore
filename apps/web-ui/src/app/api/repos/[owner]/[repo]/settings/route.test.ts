@@ -3,13 +3,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const query = vi.fn<(text: string, params?: unknown[]) => Promise<unknown[]>>();
-const queryOne =
-  vi.fn<(text: string, params?: unknown[]) => Promise<unknown | null>>();
+const getRepo = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   query: (text: string, params?: unknown[]) => query(text, params),
-  queryOne: (text: string, params?: unknown[]) => queryOne(text, params),
 }));
+vi.mock("@/lib/api/repos", () => ({ getRepo }));
 
 const { POST } = await import("./route");
 
@@ -30,9 +29,12 @@ function teamChangedInserts(): Array<unknown[] | undefined> {
 
 beforeEach(() => {
   query.mockReset().mockResolvedValue([]);
-  queryOne
+  getRepo
     .mockReset()
-    .mockResolvedValue({ full_name: "re-cinq/lore", team: null });
+    .mockResolvedValue({
+      status: "ok",
+      data: { full_name: "re-cinq/lore", team: null, settings: null },
+    });
 });
 
 describe("settings POST team change", () => {
@@ -53,7 +55,10 @@ describe("settings POST team change", () => {
   });
 
   it("emits no event when the posted team equals the stored team", async () => {
-    queryOne.mockResolvedValue({ full_name: "re-cinq/lore", team: "platform" });
+    getRepo.mockResolvedValue({
+      status: "ok",
+      data: { full_name: "re-cinq/lore", team: "platform", settings: null },
+    });
 
     await POST(postRequest({ team: "platform" }) as never, { params });
 
@@ -69,7 +74,10 @@ describe("settings POST team change", () => {
   });
 
   it("emits an event when a team is cleared, normalizing empty string to null", async () => {
-    queryOne.mockResolvedValue({ full_name: "re-cinq/lore", team: "platform" });
+    getRepo.mockResolvedValue({
+      status: "ok",
+      data: { full_name: "re-cinq/lore", team: "platform", settings: null },
+    });
 
     await POST(postRequest({ team: "" }) as never, { params });
 

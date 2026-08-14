@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic";
 import { listRepos } from "@/lib/api/repos";
-import { query } from "@/lib/db";
 import { checkRepoAccess } from "@/lib/github";
 import { createOnboardTask } from "@/lib/onboard";
 import { revalidatePath } from "next/cache";
