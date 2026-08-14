@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { listRepos } from "@/lib/api/repos";
 import { query } from "@/lib/db";
 import { checkRepoAccess } from "@/lib/github";
 import { createOnboardTask } from "@/lib/onboard";
@@ -54,9 +55,11 @@ async function onboardRepo(
 }
 
 export default async function OnboardPage() {
-  const onboarded = await query<{ full_name: string }>(
-    `SELECT full_name FROM lore.repos`,
-  );
+  const repoList = await listRepos();
+  const onboarded =
+    repoList.status === "ok"
+      ? repoList.data.repos.map((repo) => ({ full_name: repo.full_name }))
+      : [];
 
   return <OnboardView onboarded={onboarded} onboardRepoAction={onboardRepo} />;
 }

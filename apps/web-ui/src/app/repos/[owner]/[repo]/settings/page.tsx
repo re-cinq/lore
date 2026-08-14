@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
-import { query, queryOne } from "@/lib/db";
+import { query } from "@/lib/db";
+import { getRepo, listRepos } from "@/lib/api/repos";
 import { revalidatePath } from "next/cache";
 import { parseSettingsForm } from "@/lib/settings-form";
 import SettingsView, { type RepoSettingsShape } from "./SettingsView";
@@ -56,19 +57,24 @@ export default async function RepoSettings({
 }) {
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
-  const repoData = await queryOne<{
-    team: string | null;
-    settings: RepoSettingsShape | null;
-  }>(`SELECT team, settings FROM lore.repos WHERE full_name = $1`, [fullName]);
+  const record = await getRepo(fullName);
 
-  if (!repoData) {
+  if (record.status !== "ok") {
     return <div>Repo not found</div>;
   }
+  const repoData = {
+    team: record.data.team,
+    settings: record.data.settings as RepoSettingsShape | null,
+  };
 
-  const allRepos = await query<Repo>(
-    `SELECT full_name FROM lore.repos WHERE full_name != $1 ORDER BY full_name`,
-    [fullName],
-  );
+  const repoList = await listRepos();
+  const allRepos: Repo[] =
+    repoList.status === "ok"
+      ? repoList.data.repos
+          .filter((r) => r.full_name !== fullName)
+          .map((r) => ({ full_name: r.full_name }))
+          .sort((a, b) => a.full_name.localeCompare(b.full_name))
+      : [];
 
   return (
     <SettingsView

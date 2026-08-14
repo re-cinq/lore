@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { query, queryOne } from "@/lib/db";
-import { serverError } from "@/lib/api-error";
+import { query } from "@/lib/db";
+import { getRepo } from "@/lib/api/repos";
+import { serverError, upstreamError } from "@/lib/api-error";
 
 export async function GET(
   _request: NextRequest,
@@ -10,16 +11,14 @@ export async function GET(
   try {
     const { owner, repo } = await params;
     const fullName = `${owner}/${repo}`;
-    const repoData = await queryOne(
-      `SELECT full_name, team, settings FROM lore.repos WHERE full_name = $1`,
-      [fullName],
-    );
+    const record = await getRepo(fullName);
 
-    if (!repoData) {
-      return NextResponse.json({ error: "Repo not found" }, { status: 404 });
+    if (record.status !== "ok") {
+      return upstreamError("Settings", record);
     }
+    const { full_name, team, settings } = record.data;
 
-    return NextResponse.json(repoData);
+    return NextResponse.json({ full_name, team, settings });
   } catch (err) {
     return serverError("settings.GET", err);
   }
@@ -35,14 +34,12 @@ export async function POST(
     const body = await request.json();
 
     // Verify the repo exists
-    const existing = await queryOne<{ full_name: string; team: string | null }>(
-      `SELECT full_name, team FROM lore.repos WHERE full_name = $1`,
-      [fullName],
-    );
+    const record = await getRepo(fullName);
 
-    if (!existing) {
-      return NextResponse.json({ error: "Repo not found" }, { status: 404 });
+    if (record.status !== "ok") {
+      return upstreamError("Settings", record);
     }
+    const existing = record.data;
 
     // Build update fields
     const updates: string[] = [];
@@ -96,12 +93,17 @@ export async function POST(
       }
     }
 
-    const updated = await queryOne(
-      `SELECT full_name, team, settings FROM lore.repos WHERE full_name = $1`,
-      [fullName],
-    );
+    const updated = await getRepo(fullName);
 
-    return NextResponse.json(updated);
+    if (updated.status !== "ok") {
+      return upstreamError("Settings", updated);
+    }
+
+    return NextResponse.json({
+      full_name: updated.data.full_name,
+      team: updated.data.team,
+      settings: updated.data.settings,
+    });
   } catch (err) {
     return serverError("settings.POST", err);
   }

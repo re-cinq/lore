@@ -6,6 +6,17 @@ export interface OnboardedRepo {
   last_ingested_at: Date | null;
 }
 
+/** One `lore.repos` row, as the UI and the settings routes read it. */
+export interface RepoRecord {
+  full_name: string;
+  team: string | null;
+  settings: Record<string, unknown> | null;
+  onboarded_at: Date | string | null;
+  last_ingested_at: Date | string | null;
+  onboarding_pr_url: string | null;
+  onboarding_pr_merged: boolean;
+}
+
 /** A repo whose onboarding PR is open and unmerged (the merge-check poll set). */
 export interface PendingOnboardingRepo {
   id: string;
@@ -28,6 +39,13 @@ export interface SettingsPort {
   setRepoSecret(repo: string, name: string, value: string): Promise<void>;
 
   // ── raw lore.repos record ops (relocated from Floor inline SQL) ──
+  /**
+   * The whole `lore.repos` row, or null when the repo has none. Exists because
+   * every caller wanted a different column subset of the same row — five web-ui
+   * pages each SELECTed their own — so the port serves the record and the caller
+   * picks. Prefer `rawSettings`/`team` when that is genuinely all you need.
+   */
+  record(repo: string): Promise<RepoRecord | null>;
   /** The raw settings JSONB for a repo, or null when there is no row / no settings. */
   rawSettings(repo: string): Promise<Record<string, unknown> | null>;
   /** Overwrite the settings JSONB for a repo. */

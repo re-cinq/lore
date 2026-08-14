@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { query, queryOne, getRepoSchema } from "@/lib/db";
+import { getRepo } from "@/lib/api/repos";
 import { getReadme, checkRepoFiles } from "@/lib/github";
 import { getWebhookStatus, getWebhookSecret } from "@/lib/webhook-api";
 import { computeEnrollmentChecks } from "@/lib/enrollment";
@@ -34,21 +35,8 @@ export default async function RepoOverview({
     escalationsRow,
   ] = await Promise.all([
     getReadme(fullName).catch(() => null),
-    queryOne<{
-      settings?: {
-        dark_factory?: { enabled?: boolean };
-        trust?: { level?: string };
-      };
-      onboarded_at: string;
-      last_ingested_at?: string;
-      team?: string;
-      onboarding_pr_url?: string;
-      onboarding_pr_merged?: boolean;
-    }>(
-      `SELECT settings, onboarded_at, last_ingested_at, team,
-              onboarding_pr_url, onboarding_pr_merged
-       FROM lore.repos WHERE full_name = $1`,
-      [fullName],
+    getRepo(fullName).then((result) =>
+      result.status === "ok" ? result.data : null,
     ),
     query(
       `SELECT id, description, status, agent_id, pr_url, created_at
@@ -147,8 +135,13 @@ export default async function RepoOverview({
     localMcp,
   });
 
-  const darkFactoryEnabled = repoInfo?.settings?.dark_factory?.enabled === true;
-  const trustLevel = repoInfo?.settings?.trust?.level ?? "unset";
+  // The record carries settings as opaque JSONB; this page reads two keys of it.
+  const repoSettings = (repoInfo?.settings ?? {}) as {
+    dark_factory?: { enabled?: boolean };
+    trust?: { level?: string };
+  };
+  const darkFactoryEnabled = repoSettings.dark_factory?.enabled === true;
+  const trustLevel = repoSettings.trust?.level ?? "unset";
   const darkTasksWeek = darkTasksRow?.c ?? 0;
   const autoMergedWeek = autoMergedRow?.c ?? 0;
   const escalationsWeek = escalationsRow?.c ?? 0;

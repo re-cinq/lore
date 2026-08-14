@@ -23,6 +23,7 @@ import { healthzRoute } from "../api/routes/healthz/healthz.js";
 import { distRoute } from "../api/routes/dist/dist.js";
 import { repoStatusRoute } from "../api/routes/repos/repo-status.js";
 import { reposRoute } from "../api/routes/repos/repos.js";
+import { repoRecordRoute } from "../api/routes/repos/repo-record.js";
 import { prStatusRoute } from "../api/routes/repos/pr-status.js";
 import { contextRoute } from "../api/routes/context/context.js";
 import { graphRoute } from "../api/routes/graph/graph.js";
@@ -95,6 +96,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     distRoute(),
     repoStatusRoute(getPool),
     reposRoute(getPool),
+    repoRecordRoute(),
     prStatusRoute(),
     contextRoute(getPool),
     graphRoute(getPool),

@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { listRepos } from "@/lib/api/repos";
 import { query, queryAllChunks } from "@/lib/db";
 import SearchView, {
   type SearchResult,
@@ -14,9 +15,13 @@ export default async function SearchPage({
   let results: SearchResult[] = [];
 
   // Populate repo filter dropdown
-  const repos = await query<SearchRepoOption>(
-    `SELECT full_name FROM lore.repos ORDER BY full_name`,
-  );
+  const repoList = await listRepos();
+  const repos: SearchRepoOption[] =
+    repoList.status === "ok"
+      ? repoList.data.repos
+          .map((repo) => ({ full_name: repo.full_name }))
+          .sort((a, b) => a.full_name.localeCompare(b.full_name))
+      : [];
 
   if (q) {
     // Search memories using inline to_tsvector (no generated column on memory.memories)

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import { query, queryOne } from "@/lib/db";
+import { query } from "@/lib/db";
+import { getRepo } from "@/lib/api/repos";
 import {
   resolveDarkFactorySettings,
   type DarkFactorySettings,
@@ -43,10 +44,8 @@ export default async function DarkFactoryPage({
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
-  const repoData = await queryOne<{ settings: Record<string, unknown> | null }>(
-    `SELECT settings FROM lore.repos WHERE full_name = $1`,
-    [fullName],
-  );
+  const repoRecord = await getRepo(fullName);
+  const repoData = repoRecord.status === "ok" ? repoRecord.data : null;
 
   if (!repoData) {
     return <div>Repo not found</div>;

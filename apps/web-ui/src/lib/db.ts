@@ -140,12 +140,18 @@ export const getChunkSchemas = memoizeWithTtl(async (): Promise<string[]> => {
   return schemas;
 }, SCHEMA_CATALOG_TTL_MS);
 
-/** Resolve the chunk schema for a given repo (provisioned team schema or org_shared fallback). */
-export async function getRepoSchema(fullName: string): Promise<string> {
-  const row = await queryOne<{ team: string | null }>(
+/** The repo's team, or null when it has no `lore.repos` row. One query, two
+ *  callers — both schema resolvers needed exactly this and asked separately. */
+async function repoTeam(fullName: string): Promise<{ team: string | null } | null> {
+  return queryOne<{ team: string | null }>(
     `SELECT team FROM lore.repos WHERE full_name = $1`,
     [fullName],
   );
+}
+
+/** Resolve the chunk schema for a given repo (provisioned team schema or org_shared fallback). */
+export async function getRepoSchema(fullName: string): Promise<string> {
+  const row = await repoTeam(fullName);
 
   return pickSchema(row?.team, await listChunkSchemas());
 }
@@ -157,10 +163,7 @@ export async function getRepoSchema(fullName: string): Promise<string> {
 export async function getRepoSchemaAndTeam(
   fullName: string,
 ): Promise<{ schema: string; team: string } | null> {
-  const row = await queryOne<{ team: string | null }>(
-    `SELECT team FROM lore.repos WHERE full_name = $1`,
-    [fullName],
-  );
+  const row = await repoTeam(fullName);
 
   if (row === null) {
     return null;
