@@ -68,6 +68,22 @@ export interface RunGraph {
   edges: RunGraphEdge[];
 }
 
+/** The one `{args.<name>}` grammar. Kept as source fragments — never a shared
+ *  `g`-flag RegExp instance, whose `lastIndex` state would leak between the
+ *  loader's validation pass and this file's resolution pass. */
+const ARG_NAME = "[a-zA-Z0-9_]+";
+
+/** Every braced placeholder's inner text, in order — what a validator iterates. */
+export function routePlaceholders(route: string): string[] {
+  return [...route.matchAll(/\{([^}]*)\}/g)].map(([, inner]) => inner);
+}
+
+/** Whether an inner text is a placeholder `resolveRoute` can resolve. The loader
+ *  validates with THIS predicate so "valid" and "resolvable" cannot drift. */
+export function isRouteArgPlaceholder(inner: string): boolean {
+  return new RegExp(`^args\\.${ARG_NAME}$`).test(inner);
+}
+
 /**
  * Resolve a human station's `route` against a run's args.
  *
@@ -84,19 +100,25 @@ export function resolveRoute(
     return null;
   }
   let missing = false;
-  const resolved = route.replace(/\{args\.([a-zA-Z0-9_]+)\}/g, (_, name) => {
-    const value = args[name];
+  const resolved = route.replace(
+    new RegExp(`\\{args\\.(${ARG_NAME})\\}`, "g"),
+    (_, name) => {
+      const value = args[name];
 
-    // An empty string is a missing value wearing quotes: substituting it builds
-    // exactly the half-built href the null contract exists to prevent.
-    if ((typeof value !== "string" && typeof value !== "number") || value === "") {
-      missing = true;
+      // An empty string is a missing value wearing quotes: substituting it builds
+      // exactly the half-built href the null contract exists to prevent.
+      if (
+        (typeof value !== "string" && typeof value !== "number") ||
+        value === ""
+      ) {
+        missing = true;
 
-      return "";
-    }
+        return "";
+      }
 
-    return String(value);
-  });
+      return String(value);
+    },
+  );
 
   return missing ? null : resolved;
 }

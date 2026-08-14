@@ -18,6 +18,11 @@
  * `pr_review` — the GitHub PR view: merged, changes requested, or closed
  * unmerged. Reported by webhook rather than by a form this platform serves.
  */
+import {
+  routePlaceholders,
+  isRouteArgPlaceholder,
+} from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+
 export const HUMAN_STATION_TYPES = ["feature_review", "pr_review"] as const;
 
 export type HumanStationType = (typeof HUMAN_STATION_TYPES)[number];
@@ -34,18 +39,17 @@ export function isHumanStation(nodeType: string | null | undefined): boolean {
   return typeof nodeType === "string" && HUMAN.has(nodeType);
 }
 
-/** Placeholder syntax a `route` may use: `{args.<name>}`, and nothing else. */
-export const ROUTE_PLACEHOLDER = /\{([^}]*)\}/g;
-
 /**
  * The placeholders in `route` that are NOT `{args.<name>}`.
  *
  * Routes resolve against the run's args and nothing else, which is what keeps
  * the engine domain-free — it still never learns what a feature is, it only
- * reads the value the run carries.
+ * reads the value the run carries. Built on the grammar `resolveRoute` reads
+ * with (shared owns it) so the loader can never bless a placeholder that
+ * resolves to a dead link.
  */
 export function invalidRoutePlaceholders(route: string): string[] {
-  return [...route.matchAll(ROUTE_PLACEHOLDER)]
-    .filter(([, inner]) => !/^args\.[a-zA-Z0-9_]+$/.test(inner))
-    .map(([whole]) => whole);
+  return routePlaceholders(route)
+    .filter((inner) => !isRouteArgPlaceholder(inner))
+    .map((inner) => `{${inner}}`);
 }

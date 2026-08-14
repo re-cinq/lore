@@ -1,5 +1,35 @@
 import { describe, it, expect } from "vitest";
-import { resolveRoute } from "./run-graph.js";
+import {
+  resolveRoute,
+  routePlaceholders,
+  isRouteArgPlaceholder,
+} from "./run-graph.js";
+
+describe("route placeholder grammar", () => {
+  it("lists every braced placeholder's inner text", () => {
+    expect(
+      routePlaceholders("/repos/{args.repo}/features/{feature.id}"),
+    ).toEqual(["args.repo", "feature.id"]);
+  });
+
+  it("accepts only args.<name> as a resolvable placeholder", () => {
+    expect(isRouteArgPlaceholder("args.feature_id")).toBe(true);
+    expect(isRouteArgPlaceholder("feature.id")).toBe(false);
+    expect(isRouteArgPlaceholder("args.a.b")).toBe(false);
+    expect(isRouteArgPlaceholder("")).toBe(false);
+  });
+
+  it("what the grammar accepts, resolveRoute resolves — one grammar, two readers", () => {
+    // The loader validates with these helpers; drift between "valid" and
+    // "resolvable" would bless a route that renders as a dead link forever.
+    const route = "/repos/{args.repo}";
+
+    expect(routePlaceholders(route).every(isRouteArgPlaceholder)).toBe(true);
+    expect(resolveRoute(route, { repo: "re-cinq/lore" })).toBe(
+      "/repos/re-cinq/lore",
+    );
+  });
+});
 
 describe("resolveRoute", () => {
   it("substitutes every placeholder from the run's args", () => {
