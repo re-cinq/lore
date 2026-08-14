@@ -61,3 +61,39 @@ export function onboardRepo(
     body: { repo: fullName, ...(options.reonboard ? { reonboard: true } : {}) },
   });
 }
+
+/** Org-wide `lore.settings` plus the repo count the settings page shows. */
+export function getOrgSettings(): Promise<
+  ApiResult<{
+    settings: { key: string; value: string; updated_at: string }[];
+    repo_count: number;
+  }>
+> {
+  return apiFetch("lore-api", "/api/settings");
+}
+
+/** Upsert org settings by key. A blank value leaves the stored one alone — the
+ *  form posts every field and an untouched secret arrives empty. */
+export function putOrgSettings(
+  entries: { key: string; value: string }[],
+): Promise<ApiResult<{ ok: true }>> {
+  return apiFetch("lore-api", "/api/settings", {
+    method: "PUT",
+    body: { entries },
+  });
+}
+
+/**
+ * The general (non-privileged) repo settings write. lore-api REFUSES a patch
+ * touching a privileged dark-factory field (403) — those go through the
+ * dark-factory endpoint and its CODEOWNER approval PR.
+ */
+export function putRepoSettings(
+  repo: string,
+  patch: { team?: string | null; settings?: Record<string, unknown> },
+): Promise<ApiResult<{ ok: true }>> {
+  return apiFetch("lore-api", `/api/repos/${repo}/settings`, {
+    method: "PUT",
+    body: patch,
+  });
+}

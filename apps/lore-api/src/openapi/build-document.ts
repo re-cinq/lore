@@ -178,7 +178,7 @@ const UNCATEGORIZED = "Other";
 /** Path→category rules, first match wins; ordered specific → general. */
 const TAG_RULES: Array<[RegExp, string]> = [
   [/^\/api\/(openapi\.json|docs)$/, "Meta"],
-  [/^\/api\/(context|graph)\b/, "Context"],
+  [/^\/api\/(context|graph|chunks|chunk-types)\b/, "Context"],
   [
     /^\/api\/(memory|memories|memory-search|memory-audit|episode|episodes|pools|graph-browse|session-summary)\b/,
     "Memory",
@@ -200,7 +200,7 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/\/events\/\{id\}\/payload$/, "Ingestion"],
   [/\/webhook/, "Webhooks"],
   [/^\/api\/tokens\b/, "Tokens"],
-  [/^\/api\/(repos|repo-status|pr-status|onboard)\b/, "Repositories"],
+  [/^\/api\/(repos|repo-status|pr-status|onboard|settings)\b/, "Repositories"],
 ];
 
 /** The sidebar category for a normalized path. */

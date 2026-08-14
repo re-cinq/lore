@@ -869,6 +869,32 @@ fed by IO `*Panel` containers that own fetching and polling. ([validated by `Tim
   action, where a dropped event left a parent pointing at a revision the
   timeline could not explain. ([validated by [`pipeline-tasks.escalate.test.ts:126`](libs/shared/src/pipeline-tasks.escalate.test.ts#L126), [`pipeline-tasks.escalate.test.ts:135`](libs/shared/src/pipeline-tasks.escalate.test.ts#L135), [`pipeline-tasks.escalate.test.ts:155`](libs/shared/src/pipeline-tasks.escalate.test.ts#L155), [`pipeline-tasks.escalate.test.ts:170`](libs/shared/src/pipeline-tasks.escalate.test.ts#L170), [`pipeline-tasks.escalate.test.ts:182`](libs/shared/src/pipeline-tasks.escalate.test.ts#L182), [`pipeline-tasks.escalate.test.ts:202`](libs/shared/src/pipeline-tasks.escalate.test.ts#L202), [`pipeline-tasks.escalate.test.ts:214`](libs/shared/src/pipeline-tasks.escalate.test.ts#L214), [`pipeline-tasks.escalate.test.ts:222`](libs/shared/src/pipeline-tasks.escalate.test.ts#L222))
 
+- FR-19.25: lore-api serves the org-wide `lore.settings` under the
+  `admin` scope — `GET /api/settings` (the entries plus the repo count
+  the settings page shows) and `PUT /api/settings`, whose writable keys
+  are an ALLOWLIST: that table holds the ingest token and the approval
+  config, so a route upserting any key a caller named would let one
+  invent settings the platform then reads. A blank value leaves the
+  stored one alone rather than erasing it, because the form posts every
+  field and an untouched secret arrives empty.
+  `GET /api/repos/{owner}/{repo}/sessions` answers how many
+  developers have run a local session against a repo. ([validated by [`org-settings.test.ts:44`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L44), [`org-settings.test.ts:50`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L50), [`org-settings.test.ts:67`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L67), [`org-settings.test.ts:83`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L83), [`org-settings.test.ts:97`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L97), [`org-settings.test.ts:107`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L107), [`org-settings.test.ts:118`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L118), [`org-settings.test.ts:69`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L69), [`org-settings.test.ts:85`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L85), [`org-settings.test.ts:99`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L99), [`org-settings.test.ts:109`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L109), [`org-settings.test.ts:120`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L120))
+
+- FR-19.26: lore-api serves the context browser's chunk reads —
+  `GET /api/chunks` (ranked, org-wide or repo-scoped, one row past the
+  page size so a caller detects a further page without a COUNT),
+  `GET /api/chunk-types`, `GET /api/chunks/by-path`, and
+  `GET /api/repos/{owner}/{repo}/chunk-summary`. Chunks live in per-team
+  schemas plus `org_shared`, so a global read is a UNION ALL across every
+  PROVISIONED schema: the catalog is the source of truth, not
+  `lore.repos.team`, which is free text and can name a schema nobody ever
+  created — unioning that would fail every chunk read, and dropping a real
+  one would silently show a page missing another team's chunks. The chip
+  set is deliberately unfiltered by the active type so a chip never
+  disappears the moment it is selected. Moving this read, and the union
+  builder with it, is what let web-ui stop holding a Postgres pool at all.
+  ([validated by [`chunks-browse.test.ts:62`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L62), [`chunks-browse.test.ts:66`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L66), [`chunks-browse.test.ts:83`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L83), [`chunks-browse.test.ts:97`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L97), [`chunks-browse.test.ts:110`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L110), [`chunks-browse.test.ts:124`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L124), [`chunks-browse.test.ts:138`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L138), [`chunks-browse.test.ts:162`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L162), [`chunks-browse.test.ts:190`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L190), [`chunks-browse.test.ts:212`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L212), [`chunks-browse.test.ts:242`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L242), [`chunks-browse.test.ts:243`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L243))
+
 ### FR-20: Project Facade Ports (Phase 1)
 
 The `Project` facade (ADR-024) exposes every data capability — tasks,
@@ -1078,11 +1104,17 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
     relocation target in every adapter — self-relocation would dedupe
     rows against themselves and delete them ([validated by `chunks.test.ts:735`](libs/shared/src/project/chunks/chunks.test.ts#L735), [`chunks.test.ts:746`](libs/shared/src/project/chunks/chunks.test.ts#L746), [`chunks.test.ts:758`](libs/shared/src/project/chunks/chunks.test.ts#L758))
   - The station HTTP adapter refuses relocation as Floor-only ([validated by `chunks-http.test.ts:94`](libs/shared/src/project/chunks/chunks-http.test.ts#L94))
-  - The web-ui settings route emits one `internal.repo.team_changed` event
-    only when a POST actually changes the team value (settings-only updates
-    and same-value posts emit nothing; clearing a team normalizes empty
-    string to null), and a failed event insert degrades to the nightly
-    relocation instead of failing the settings write ([validated by `route.test.ts:41`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L41), [`route.test.ts:57`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L57), [`route.test.ts:68`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L68), [`route.test.ts:76`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L76), [`route.test.ts:87`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L87))
+  - `PUT /api/repos/:o/:r/settings` on lore-api emits one
+    `internal.repo.team_changed` event only when the write actually changes
+    the team value (settings-only patches and same-value writes emit
+    nothing), and a failed event insert degrades to the nightly relocation
+    instead of failing the settings write that already happened. It REFUSES
+    a patch touching a privileged dark-factory field (403, writing nothing
+    at all) rather than merging it: that JSONB shares a column with the
+    fields the CODEOWNER-approval ceremony guards, so a blanket merge here
+    would be a way around that ceremony. The web-ui route forwards to it,
+    normalizing a cleared team to null, and passes the refusal through
+    with its status ([validated by forwards a team change to lore-api](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L37), [`route.test.ts:48`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L48), [`route.test.ts:56`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L56), [`route.test.ts:66`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L66), [`route.test.ts:81`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L81), [`repo-settings.test.ts:39`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L39), [`repo-settings.test.ts:43`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L43), [`repo-settings.test.ts:51`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L51), [`repo-settings.test.ts:69`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L69), [`repo-settings.test.ts:86`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L86), [`repo-settings.test.ts:100`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L100), [`repo-settings.test.ts:118`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L118), [`repo-settings.test.ts:133`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L133), [`repo-settings.test.ts:147`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L147), [`repo-settings.test.ts:165`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L165), [`repo-settings.test.ts:182`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L182), [`repo-settings.test.ts:196`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L196), [`repo-settings.test.ts:74`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L74), [`repo-settings.test.ts:91`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L91), [`repo-settings.test.ts:105`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L105), [`repo-settings.test.ts:123`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L123), [`repo-settings.test.ts:138`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L138), [`repo-settings.test.ts:154`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L154), [`repo-settings.test.ts:174`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L174), [`repo-settings.test.ts:191`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L191), [`repo-settings.test.ts:205`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L205))
   - The Floor's `team_changed` handler re-reads the team from `lore.repos`
     rather than trusting the event payload, resolves it through the uncached
     single-sourced `chunkSchemaOrOrgShared` (never the per-repo memoized

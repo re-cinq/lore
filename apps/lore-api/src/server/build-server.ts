@@ -24,8 +24,11 @@ import { distRoute } from "../api/routes/dist/dist.js";
 import { repoStatusRoute } from "../api/routes/repos/repo-status.js";
 import { reposRoute } from "../api/routes/repos/repos.js";
 import { repoRecordRoute } from "../api/routes/repos/repo-record.js";
+import { orgSettingsRoutes } from "../api/routes/repos/org-settings.js";
+import { repoSettingsRoute } from "../api/routes/repos/repo-settings.js";
 import { prStatusRoute } from "../api/routes/repos/pr-status.js";
 import { contextRoute } from "../api/routes/context/context.js";
+import { chunkBrowseRoutes } from "../api/routes/context/chunks-browse.js";
 import { graphRoute } from "../api/routes/graph/graph.js";
 import { getTaskRoute } from "../api/routes/tasks/get-task.js";
 import { listTasksRoute } from "../api/routes/tasks/list-tasks.js";
@@ -105,8 +108,11 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     repoStatusRoute(getPool),
     reposRoute(getPool),
     repoRecordRoute(),
+    ...orgSettingsRoutes(getPool),
+    repoSettingsRoute(getPool),
     prStatusRoute(),
     contextRoute(getPool),
+    ...chunkBrowseRoutes(getPool),
     graphRoute(getPool),
     getTaskRoute(),
     listTasksRoute(),

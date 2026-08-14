@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pickSchema, ORG_SHARED_SCHEMA } from "./repo-schema";
+import { pickSchema, ORG_SHARED_SCHEMA } from "./repo-schema.js";
 
 describe("pickSchema", () => {
   it("returns the team's own schema when it is provisioned", () => {

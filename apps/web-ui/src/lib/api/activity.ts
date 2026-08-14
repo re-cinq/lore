@@ -131,3 +131,11 @@ export function getAnalyticsOverview(): Promise<
 > {
   return apiFetch("lore-api", "/api/analytics-overview");
 }
+
+/** How many distinct developers have run a local session against this repo, and
+ *  when the last one was. Null when the repo has none. */
+export function getRepoSessions(
+  repo: string,
+): Promise<ApiResult<{ devs: number; last: string | null }>> {
+  return apiFetch("lore-api", `/api/repos/${repo}/sessions`);
+}

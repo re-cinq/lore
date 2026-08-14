@@ -110,10 +110,12 @@ export async function getOnboardedReposWithCounts(
     `SELECT r.id, r.owner, r.name, r.full_name, r.team,
             r.onboarded_at, r.last_ingested_at,
             r.onboarding_pr_url, r.onboarding_pr_merged, r.settings,
-            COALESCE(tc.task_count, 0)::int AS task_count
+            COALESCE(tc.task_count, 0)::int AS task_count,
+            COALESCE(tc.active_agents, 0)::int AS active_agents
      FROM lore.repos r
      LEFT JOIN (
-       SELECT target_repo, COUNT(*) AS task_count
+       SELECT target_repo, COUNT(*) AS task_count,
+              COUNT(DISTINCT agent_id) FILTER (WHERE status = 'running') AS active_agents
        FROM pipeline.tasks
        GROUP BY target_repo
      ) tc ON tc.target_repo = r.full_name

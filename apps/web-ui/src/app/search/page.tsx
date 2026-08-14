@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { listRepos } from "@/lib/api/repos";
 import { searchMemory } from "@/lib/api/memory";
-import { queryAllChunks } from "@/lib/db";
+import { getChunks } from "@/lib/api/chunks";
 import SearchView, {
   type SearchResult,
   type SearchRepoOption,
@@ -32,28 +32,12 @@ export default async function SearchPage({
       ? memoryHits.data.results
       : []) as unknown as SearchResult[];
 
-    // Search repo chunks across all schemas (scoped by repo if filtered)
-    const chunkResults = await queryAllChunks<SearchResult>(
-      (schema, offset) => {
-        const repoFilter = repo ? `AND c.repo = $${offset + 1}` : "";
+    // Chunk hits come from lore-api, which owns the schema union.
+    const chunkHits = await getChunks({ repo, q, limit: 20 });
+    const chunkResults = (chunkHits.status === "ok"
+      ? chunkHits.data.chunks
+      : []) as unknown as SearchResult[];
 
-        return {
-          sql: `SELECT c.file_path as key, substring(c.content, 1, 300) as value,
-                       'ingestion' as agent_id,
-                       ts_rank(c.search_tsv, websearch_to_tsquery('english', $${offset})) as score,
-                       'chunk' as source,
-                       c.repo as repo
-                FROM ${schema}.chunks c
-                WHERE c.search_tsv @@ websearch_to_tsquery('english', $${offset})
-                  ${repoFilter}`,
-          params: repo ? [q, repo] : [q],
-        };
-      },
-      [],
-      { orderBy: "score DESC", limit: 20 },
-    );
-
-    // Merge and sort by score descending, capped at 30
     const allResults = [...memoryResults, ...chunkResults];
 
     results = allResults.sort((a, b) => b.score - a.score).slice(0, 30);

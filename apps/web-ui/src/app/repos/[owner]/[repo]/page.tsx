@@ -1,7 +1,11 @@
 export const dynamic = "force-dynamic";
-import { query, queryOne, getRepoSchema } from "@/lib/db";
+import { getRepoChunkSummary } from "@/lib/api/chunks";
 import { getRepo } from "@/lib/api/repos";
-import { getRepoActivityCounts } from "@/lib/api/activity";
+import {
+  getRepoActivityCounts,
+  getRepoEvents,
+  getRepoSessions,
+} from "@/lib/api/activity";
 import { getRepoTasks } from "@/lib/api/tasks";
 import { getReadme, checkRepoFiles } from "@/lib/github";
 import { getWebhookStatus, getWebhookSecret } from "@/lib/webhook-api";
@@ -28,7 +32,6 @@ export default async function RepoOverview({
     repoInfo,
     recentTasks,
     latestEvents,
-    schema,
     localMcpRow,
     githubFiles,
     webhook,
@@ -44,18 +47,10 @@ export default async function RepoOverview({
     // Latest event-bus activity for this repo (fail-soft — repo is a first-class
     // column since migration 0024, so only github.* / internal.* events match; the
     // full, infinite-scrolling list lives at /repos/:o/:r/events).
-    query<RepoEvent>(
-      `SELECT id, event_name, source, params, status, captured_at
-       FROM pipeline.events WHERE repo = $1
-       ORDER BY captured_at DESC LIMIT 10`,
-      [fullName],
-    ).catch(() => []),
-    getRepoSchema(fullName),
-    queryOne<{ devs: number; last: string | Date | null }>(
-      `SELECT count(DISTINCT agent_id)::int AS devs, max(created_at) AS last
-         FROM memory.episodes WHERE source = 'session' AND ref = $1`,
-      [fullName],
-    ).catch(() => null),
+    getRepoEvents(fullName, 10).then((r) =>
+      r.status === "ok" ? (r.data.events as unknown as RepoEvent[]) : [],
+    ),
+    getRepoSessions(fullName).then((r) => (r.status === "ok" ? r.data : null)),
     checkRepoFiles(fullName, [
       "AGENTS.md",
       ".github/workflows/lore-ingest.yml",
@@ -73,20 +68,14 @@ export default async function RepoOverview({
     ),
   ]);
 
-  // Second batch: the chunk queries need the resolved schema, and the webhook
-  // secret is fetched (admin-scoped) only when the hook needs setting up by
-  // hand — revealed so it can be pasted into GitHub alongside the URL, never
+  // Second batch: the webhook secret is fetched (admin-scoped) only when the
+  // hook needs setting up by hand — revealed so it can be pasted into GitHub alongside the URL, never
   // reaching the client for an already-wired repo.
   const webhookNeedsSetup = webhook !== null && webhook.state !== "configured";
-  const [contextCount, conventionRows, webhookSecret] = await Promise.all([
-    queryOne<{ count: number }>(
-      `SELECT count(*)::int as count FROM ${schema}.chunks WHERE repo = $1`,
-      [fullName],
-    ).catch(() => null),
-    query<{ file_path: string }>(
-      `SELECT DISTINCT file_path FROM ${schema}.chunks WHERE repo = $1 AND file_path IN ('AGENTS.md','CLAUDE.md')`,
-      [fullName],
-    ).catch(() => []),
+  const [chunkSummary, webhookSecret] = await Promise.all([
+    getRepoChunkSummary(fullName).then((r) =>
+      r.status === "ok" ? r.data : { count: 0, convention_files: [] },
+    ),
     webhookNeedsSetup
       ? getWebhookSecret(fullName).catch(() => null)
       : Promise.resolve(null),
@@ -110,8 +99,8 @@ export default async function RepoOverview({
     onboardingPrMerged: repoInfo?.onboarding_pr_merged === true,
     onboardingPrUrl: repoInfo?.onboarding_pr_url ?? null,
     lastIngestedAt: iso(repoInfo?.last_ingested_at),
-    chunkCount: contextCount?.count ?? 0,
-    hasConventions: conventionRows.length > 0,
+    chunkCount: chunkSummary.count,
+    hasConventions: chunkSummary.convention_files.length > 0,
     team: repoInfo?.team ?? null,
     githubFiles,
     webhook: webhookWithSecret,

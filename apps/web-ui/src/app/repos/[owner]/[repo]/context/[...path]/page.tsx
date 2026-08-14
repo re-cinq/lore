@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { query, getRepoSchema } from "@/lib/db";
+import { getChunksByPath } from "@/lib/api/chunks";
 import ContextFileView, { type ContextFileChunk } from "../ContextFileView";
 
 export default async function RepoContextFile({
@@ -11,17 +11,10 @@ export default async function RepoContextFile({
   const fullName = `${owner}/${repo}`;
   const filePath = path.map(decodeURIComponent).join("/");
 
-  const schema = await getRepoSchema(fullName);
-
-  const chunks = await query<ContextFileChunk>(
-    `SELECT id, content_type, content, metadata
-     FROM ${schema}.chunks
-     WHERE repo = $1 AND file_path = $2
-     ORDER BY (metadata->>'chunk_index')::int NULLS LAST,
-              (metadata->>'start_line')::int NULLS LAST,
-              ingested_at`,
-    [fullName, filePath],
-  );
+  const result = await getChunksByPath(filePath, fullName);
+  const chunks = (result.status === "ok"
+    ? result.data.chunks
+    : []) as unknown as ContextFileChunk[];
 
   return (
     <ContextFileView
