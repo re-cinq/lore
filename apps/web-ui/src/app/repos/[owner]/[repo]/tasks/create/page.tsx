@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { query } from "@/lib/db";
+import { createTask as queueTask } from "@/lib/api/tasks";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import RepoTaskCreateView from "./RepoTaskCreateView";
@@ -17,28 +17,25 @@ async function createTask(formData: FormData) {
 
   const resolvedPriority = priority === "immediate" ? "immediate" : "normal";
 
-  await query(
-    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, priority)
-     VALUES ($1, $2, $3, 'ui', $4)`,
-    [description, taskType, targetRepo, resolvedPriority],
-  );
-  // Also insert the initial event
-  const task = await query(
-    `SELECT id FROM pipeline.tasks ORDER BY created_at DESC LIMIT 1`,
-  );
+  // lore-api returns the id of the task it just created. The previous code
+  // inserted, then read back the NEWEST task in the whole table to learn which
+  // one was its own — so two concurrent submissions, from any repo by any user,
+  // and this page attached its pending event to a stranger's task and sent the
+  // author to that task's page.
+  const created = await queueTask({
+    description,
+    taskType,
+    targetRepo,
+    priority: resolvedPriority,
+    createdBy: "ui",
+  });
 
-  if (task[0]) {
-    await query(
-      `INSERT INTO pipeline.task_events (task_id, to_status) VALUES ($1, 'pending')`,
-      [task[0].id],
-    );
-  }
   revalidatePath(`/repos/${targetRepo}/tasks`);
   // Land on the task detail (Run Now / Cancel live there); fall back to the repo
-  // tab if the just-created row couldn't be resolved.
+  // tab when the submission failed.
   redirect(
-    task[0]
-      ? `/tasks/${task[0].id}`
+    created.status === "ok"
+      ? `/tasks/${created.data.task_id}`
       : `/repos/${targetRepo.split("/")[0]}/${targetRepo.split("/")[1]}/tasks`,
   );
 }

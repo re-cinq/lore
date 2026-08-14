@@ -29,3 +29,35 @@ export function listRepos(): Promise<
 > {
   return apiFetch("lore-api", "/api/repos");
 }
+
+/** The onboarding result lore-api answers with when the guard clears. */
+export interface OnboardResult {
+  repo_id: string;
+  task_id: string;
+  status: string;
+}
+
+/** The 409 body when the guard refuses: which block fired, and the task holding
+ *  the repo when that is the reason. */
+export interface OnboardBlockedBody {
+  blocked: "in-flight" | "already-onboarded" | "pr-open";
+  error: string;
+  task_id: string | null;
+}
+
+/**
+ * Queue an `onboard` task for a repo. lore-api owns the duplicate guard: it runs
+ * the state read and both writes inside ONE transaction holding a per-repo
+ * advisory lock, so concurrent submissions serialize and at most one task is
+ * queued. web-ui used to run that same transaction itself against its own mirror
+ * of the guard — two copies of a rule whose whole job is to be single.
+ */
+export function onboardRepo(
+  fullName: string,
+  options: { reonboard?: boolean } = {},
+): Promise<ApiResult<OnboardResult>> {
+  return apiFetch("lore-api", "/api/onboard", {
+    method: "POST",
+    body: { repo: fullName, ...(options.reonboard ? { reonboard: true } : {}) },
+  });
+}

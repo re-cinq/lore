@@ -29,12 +29,10 @@ function teamChangedInserts(): Array<unknown[] | undefined> {
 
 beforeEach(() => {
   query.mockReset().mockResolvedValue([]);
-  getRepo
-    .mockReset()
-    .mockResolvedValue({
-      status: "ok",
-      data: { full_name: "re-cinq/lore", team: null, settings: null },
-    });
+  getRepo.mockReset().mockResolvedValue({
+    status: "ok",
+    data: { full_name: "re-cinq/lore", team: null, settings: null },
+  });
 });
 
 describe("settings POST team change", () => {

@@ -666,6 +666,9 @@
                   "description": {
                     "type": "string"
                   },
+                  "created_by": {
+                    "type": "string"
+                  },
                   "task_type": {
                     "type": "string"
                   },

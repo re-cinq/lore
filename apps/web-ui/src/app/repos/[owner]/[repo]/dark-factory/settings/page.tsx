@@ -29,7 +29,9 @@ async function saveDarkFactory(
   const fullName = formData.get("full_name") as string;
 
   const repoRow = await getRepo(fullName);
-  const cur = (repoRow.status === "ok" ? (repoRow.data.settings ?? {}) : {}) as RepoSettings;
+  const cur = (
+    repoRow.status === "ok" ? (repoRow.data.settings ?? {}) : {}
+  ) as RepoSettings;
   const resolved = resolveDarkFactorySettings(cur.dark_factory ?? null);
   const current: CurrentSettings = {
     dark_factory: { ...resolved, execution: cur.dark_factory?.execution },

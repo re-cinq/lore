@@ -1951,6 +1951,7 @@ export interface operations {
           pr_url?: string;
           error?: string;
           description?: string;
+          created_by?: string;
           task_type?: string;
           target_repo?: string;
           group_id?: string;

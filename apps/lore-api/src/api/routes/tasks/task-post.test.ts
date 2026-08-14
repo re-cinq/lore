@@ -208,6 +208,36 @@ describe("POST /api/task", () => {
     );
   });
 
+  it("attributes the task to the caller-supplied created_by", async () => {
+    vi.mocked(createTask).mockResolvedValue({ task_id: "t1" } as never);
+    await post({ description: "d", created_by: "bogdan@re-cinq.com" });
+
+    expect(createTask).toHaveBeenCalledWith(
+      "d",
+      "general",
+      undefined,
+      "bogdan@re-cinq.com",
+      undefined,
+      "normal",
+      undefined,
+    );
+  });
+
+  it("attributes to remote-mcp when the caller names nobody", async () => {
+    vi.mocked(createTask).mockResolvedValue({ task_id: "t1" } as never);
+    await post({ description: "d" });
+
+    expect(createTask).toHaveBeenCalledWith(
+      "d",
+      "general",
+      undefined,
+      "remote-mcp",
+      undefined,
+      "normal",
+      undefined,
+    );
+  });
+
   it("falls back to general for an unknown type", async () => {
     vi.mocked(createTask).mockResolvedValue({ task_id: "c2" } as any);
     await post({

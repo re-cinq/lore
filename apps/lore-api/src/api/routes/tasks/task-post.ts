@@ -25,6 +25,9 @@ const TaskBody = z.object({
   pr_url: z.string().optional(),
   error: z.string().optional(),
   description: z.string().optional(),
+  /** Who queued it. The web UI names the signed-in author; an unnamed caller is
+   *  the remote MCP adapter, which is the historical default. */
+  created_by: z.string().optional(),
   task_type: z.string().optional(),
   target_repo: z.string().optional(),
   group_id: z.string().optional(),
@@ -167,6 +170,7 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
           priority,
           group_id,
           context,
+          created_by,
         } = parsed;
 
         if (!description?.trim()) {
@@ -192,7 +196,7 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
           description,
           resolvedType,
           target_repo,
-          "remote-mcp",
+          created_by || "remote-mcp",
           (context as Record<string, unknown>) || undefined,
           priority || "normal",
           group_id || undefined,

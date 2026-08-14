@@ -142,7 +142,9 @@ export const getChunkSchemas = memoizeWithTtl(async (): Promise<string[]> => {
 
 /** The repo's team, or null when it has no `lore.repos` row. One query, two
  *  callers — both schema resolvers needed exactly this and asked separately. */
-async function repoTeam(fullName: string): Promise<{ team: string | null } | null> {
+async function repoTeam(
+  fullName: string,
+): Promise<{ team: string | null } | null> {
   return queryOne<{ team: string | null }>(
     `SELECT team FROM lore.repos WHERE full_name = $1`,
     [fullName],

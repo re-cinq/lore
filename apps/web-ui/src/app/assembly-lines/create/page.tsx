@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { listRepos } from "@/lib/api/repos";
-import { query } from "@/lib/db";
+import { createTask as queueTask } from "@/lib/api/tasks";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -23,20 +23,21 @@ async function createTask(formData: FormData) {
     "ui") as string;
   const resolvedPriority = priority === "immediate" ? "immediate" : "normal";
 
-  const result = await query(
-    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, priority)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [description, taskType, targetRepo, createdBy, resolvedPriority],
-  );
+  const created = await queueTask({
+    description,
+    taskType,
+    targetRepo,
+    priority: resolvedPriority,
+    createdBy,
+  });
 
-  await query(
-    `INSERT INTO pipeline.task_events (task_id, to_status) VALUES ($1, 'pending')`,
-    [result[0].id],
-  );
+  if (created.status !== "ok") {
+    return;
+  }
   // Land on the task detail — a fresh task has no run row yet (it only appears in
   // the run list once execution starts), and Run Now / Cancel live on task detail.
   revalidatePath("/assembly-lines");
-  redirect(`/tasks/${result[0].id}`);
+  redirect(`/tasks/${created.data.task_id}`);
 }
 
 export default async function CreateTaskPage() {

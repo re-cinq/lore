@@ -32,6 +32,45 @@ export interface TaskLogs {
   totalSize: number;
 }
 
+export interface CreatedTask {
+  task_id: string;
+  task_type: string;
+  status: string;
+  priority: string;
+  created_at: string;
+}
+
+/**
+ * Queue a task. lore-api inserts the row and its pending `task_events` entry and
+ * RETURNS the new id.
+ *
+ * The id matters: the create pages used to insert, then re-read the newest task
+ * in the whole table to learn which one they had just made. Two concurrent
+ * submissions — from any repo, by any user — and the second one wins that read,
+ * so the first page attached its pending event to a stranger's task and
+ * redirected the author there.
+ */
+export function createTask(input: {
+  description: string;
+  taskType?: string;
+  targetRepo?: string;
+  priority?: string;
+  createdBy?: string;
+  contextBundle?: Record<string, unknown>;
+}): Promise<ApiResult<CreatedTask>> {
+  return apiFetch("lore-api", "/api/task", {
+    method: "POST",
+    body: {
+      description: input.description,
+      ...(input.taskType ? { task_type: input.taskType } : {}),
+      ...(input.targetRepo ? { target_repo: input.targetRepo } : {}),
+      ...(input.priority ? { priority: input.priority } : {}),
+      ...(input.createdBy ? { created_by: input.createdBy } : {}),
+      ...(input.contextBundle ? { context: input.contextBundle } : {}),
+    },
+  });
+}
+
 export function getTask(id: string): Promise<ApiResult<Task>> {
   return apiFetch("lore-api", `/api/task/${encodeURIComponent(id)}`);
 }

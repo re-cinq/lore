@@ -34,7 +34,9 @@ describe("getRepo", () => {
 
   it("returns the record on 200", async () => {
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ full_name: "re-cinq/lore", team: "platform" })),
+      new Response(
+        JSON.stringify({ full_name: "re-cinq/lore", team: "platform" }),
+      ),
     );
 
     expect(await getRepo("re-cinq/lore")).toEqual({
@@ -45,10 +47,12 @@ describe("getRepo", () => {
 
   it("reports a missing repo as a 404 result rather than throwing", async () => {
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ error: "Repo not found" }), { status: 404 }),
+      new Response(JSON.stringify({ error: "Repo not found" }), {
+        status: 404,
+      }),
     );
 
-    expect(await getRepo("re-cinq/gone")).toEqual({
+    expect(await getRepo("re-cinq/gone")).toMatchObject({
       status: "error",
       message: "Repo not found",
       code: 404,

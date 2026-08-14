@@ -186,7 +186,7 @@ The system MUST onboard new repos by creating a PR. ([validated by `worker.onboa
   ingest-workflow statuses before revalidating so the re-rendered page
   refetches them ([validated by `actions.test.ts:27`](apps/web-ui/src/app/actions.test.ts#L27), [`actions.test.ts:51`](apps/web-ui/src/app/actions.test.ts#L51), [`actions.test.ts:66`](apps/web-ui/src/app/actions.test.ts#L66))
 - FR-2.5: Tracks the onboarding PR in the pipeline (status: pending
-  until merged). ([validated by `onboard.test.ts:70`](apps/web-ui/src/lib/onboard.test.ts#L70))
+  until merged). ([validated by `onboard.test.ts:16`](apps/web-ui/src/lib/onboard.test.ts#L16))
 - FR-2.6: After merge, adds repo to the registry and triggers
   initial ingestion; re-onboarding creates an onboard task and
   redirects to the new task page (or back to the repo when none is

@@ -12,7 +12,7 @@ export type ApiResult<T = unknown> =
    *  server. A proxy route needs it to answer 404 for a missing task and 409 for
    *  a refused transition — matching on the message text instead would couple
    *  every proxy to lore-api's exact wording. */
-  | { status: "error"; message: string; code?: number };
+  | { status: "error"; message: string; code?: number; body?: unknown };
 
 /** Response → result. An unparseable body is an empty object, not a throw: a 502
  *  from a proxy is HTML, and the status code is the news either way. */
@@ -24,6 +24,10 @@ export async function toApiResult<T>(res: Response): Promise<ApiResult<T>> {
       status: "error",
       message: (data as { error?: string }).error ?? `HTTP ${res.status}`,
       code: res.status,
+      // The whole parsed body, because a refusal often says more than its
+      // message: the onboard guard names which block fired and which task holds
+      // the repo, and a caller that kept only `error` could not act on either.
+      body: data,
     };
   }
 
