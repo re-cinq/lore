@@ -156,6 +156,16 @@ jobs:
             install: npm ci --prefix apps/web-ui --ignore-scripts
             # Run with coverage so the vitest.config.ts thresholds gate CI.
             test: npm run test:coverage --prefix apps/web-ui
+          # The Next production build. Nothing else in this matrix can see the
+          # SERVER/CLIENT boundary: vitest imports every module happily under jsdom,
+          # and eslint's no-io-in-view only catches a DIRECT `@/lib/db` import — a
+          # client component importing a pure-looking helper that transitively
+          # reaches `db` compiles, tests green, and then dies at bundle time on
+          # "Can't resolve 'fs'". Until now that only surfaced in the image build on
+          # main, or on a developer's dev server.
+          - name: web-ui-build
+            install: npm ci --prefix apps/web-ui --ignore-scripts
+            test: npm run build --prefix apps/web-ui
           # Type-mirror drift guard. web-ui can't import @re-cinq/lore-shared, so it
           # hand-mirrors the feature-planning types — this typecheck fails the moment
           # the canonical shared types gain a key (or a status union changes) the
