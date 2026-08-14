@@ -4,8 +4,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { getMemoryAudit, getRepoEvents, getJobRun, getRepoActivityCounts } =
-  await import("./activity");
+const {
+  getMemoryAudit,
+  getRepoEvents,
+  getJobRun,
+  getRepoActivityCounts,
+  getSpend,
+  getAnalyticsOverview,
+} = await import("./activity");
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -95,6 +101,44 @@ describe("getRepoActivityCounts", () => {
     expect(await getRepoActivityCounts("re-cinq/lore")).toEqual({
       status: "ok",
       data: { tasks: 12, auto_merged: null, escalations: 0 },
+    });
+  });
+});
+
+describe("getSpend", () => {
+  it("reads the whole spend screen in one call", async () => {
+    await getSpend();
+
+    expect(url()).toEqual("http://api:3000/api/spend");
+  });
+
+  it("carries the org-unavailable flag through", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ org_available: false, lore_today_usd: 4 })),
+    );
+
+    expect(await getSpend()).toMatchObject({
+      status: "ok",
+      data: { org_available: false, lore_today_usd: 4 },
+    });
+  });
+});
+
+describe("getAnalyticsOverview", () => {
+  it("reads the analytics screen in one call", async () => {
+    await getAnalyticsOverview();
+
+    expect(url()).toEqual("http://api:3000/api/analytics-overview");
+  });
+
+  it("passes a null task summary through rather than inventing zeroes", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ task_summary: null, job_runs: [] })),
+    );
+
+    expect(await getAnalyticsOverview()).toMatchObject({
+      status: "ok",
+      data: { task_summary: null },
     });
   });
 });

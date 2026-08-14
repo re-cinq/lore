@@ -843,6 +843,20 @@ fed by IO `*Panel` containers that own fetching and polling. ([validated by `Tim
   aggregates stay SQL-side because the alternative is shipping the whole
   pipeline history to Node for one dashboard row per agent. ([validated by [`task-views.test.ts:31`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L31), [`task-views.test.ts:37`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L37), [`task-views.test.ts:48`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L48), [`task-views.test.ts:52`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L52), [`task-views.test.ts:66`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L66), [`task-views.test.ts:79`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L79), [`task-views.test.ts:90`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L90), [`task-views.test.ts:102`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L102), [`task-views.test.ts:117`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L117), [`task-views.test.ts:135`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L135))
 
+- FR-19.23: lore-api serves the two spend/analytics screens whole —
+  `GET /api/spend` (ten month-to-date aggregates) and
+  `GET /api/analytics-overview` (six reads). Spend draws on BOTH cost
+  sources deliberately: `pipeline.anthropic_cost_daily` is Anthropic's
+  authoritative billed figure, but its buckets close at UTC midnight and
+  the in-progress day is never emitted, so the billed total always ends
+  at yesterday and `pipeline.llm_calls` — token-exact against the hourly
+  report, available with no admin key — is what brings it current. The
+  billed reads degrade to empty on a cluster without the table, and
+  availability is decided by the `as_of` STAMP rather than a row count:
+  only the stamp separates "synced, nothing owed" from "never synced",
+  and the view hides the section for the second instead of showing a
+  confident zero. ([validated by [`spend.test.ts:33`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L33), [`spend.test.ts:37`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L37), [`spend.test.ts:49`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L49), [`spend.test.ts:79`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L79), [`spend.test.ts:83`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L83), [`spend.test.ts:99`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L99), [`spend.test.ts:122`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L122), [`spend.test.ts:135`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L135))
+
 ### FR-20: Project Facade Ports (Phase 1)
 
 The `Project` facade (ADR-024) exposes every data capability — tasks,

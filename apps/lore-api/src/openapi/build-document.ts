@@ -188,7 +188,7 @@ const TAG_RULES: Array<[RegExp, string]> = [
     "Tasks",
   ],
   [
-    /^\/api\/(usage|analytics|agent-stats|memory-audit|events|job-runs)\b/,
+    /^\/api\/(usage|analytics|analytics-overview|spend|agent-stats|memory-audit|events|job-runs)\b/,
     "Analytics",
   ],
   [/\/features\b/, "Features"],

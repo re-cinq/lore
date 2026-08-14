@@ -95,3 +95,39 @@ export function getRepoActivityCounts(repo: string): Promise<
 > {
   return apiFetch("lore-api", `/api/repos/${repo}/activity-counts`);
 }
+
+/** The whole spend screen: billed figures from the daily Anthropic sync, Lore's
+ *  own computed figures, and every month-to-date breakdown they render with.
+ *  `org_available` is false when the sync has never run — the view hides the
+ *  billed sections rather than showing a confident zero. */
+export function getSpend(): Promise<
+  ApiResult<{
+    org_available: boolean;
+    org_mtd: Record<string, unknown>;
+    org_by_model: Record<string, unknown>[];
+    org_daily: Record<string, unknown>[];
+    lore_today_usd: number;
+    lore_mtd: Record<string, unknown>;
+    lore_by_model: Record<string, unknown>[];
+    lore_by_kind: Record<string, unknown>[];
+    lore_daily: Record<string, unknown>[];
+    lore_by_repo: Record<string, unknown>[];
+    lore_by_task_type: Record<string, unknown>[];
+  }>
+> {
+  return apiFetch("lore-api", "/api/spend");
+}
+
+/** The analytics screen's six reads in one call. */
+export function getAnalyticsOverview(): Promise<
+  ApiResult<{
+    task_summary: Record<string, unknown> | null;
+    usage_by_task_type: Record<string, unknown>[];
+    usage_by_repo: Record<string, unknown>[];
+    daily_usage: Record<string, unknown>[];
+    latency_stats: Record<string, unknown>[];
+    job_runs: Record<string, unknown>[];
+  }>
+> {
+  return apiFetch("lore-api", "/api/analytics-overview");
+}
