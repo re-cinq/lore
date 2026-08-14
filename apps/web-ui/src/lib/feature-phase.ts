@@ -13,6 +13,7 @@
 
 import type { AssemblyLineRunNode } from "./assembly-line-runs";
 import type { FeatureStatus } from "./feature-types";
+import { humanStation } from "./human-station";
 import { isPlanningActive } from "@/app/repos/[owner]/[repo]/features/feature-status";
 
 /** Which node a phase is working, and when that node started — so an elapsed timer
@@ -34,15 +35,6 @@ export type FeaturePhase =
   | { kind: "done" }
   | { kind: "failed" };
 
-/** Whose move it is, straight off a HUMAN station's declared type (FR6.40).
- *
- *  This takes PRECEDENCE over the node-id map below, which is what removes the
- *  fragile half: a human station added or renamed in the blueprint reports its
- *  phase without anyone remembering to edit a list in the view. */
-const HUMAN_STATION_PHASE: Record<string, FeaturePhase["kind"]> = {
-  feature_review: "awaiting-author",
-  pr_review: "awaiting-merge",
-};
 
 /**
  * Node id -> the STAGE it belongs to, for the nodes a person is not working.
@@ -120,10 +112,13 @@ function phaseFromLine(run: FeaturePhaseInput["run"]): FeaturePhase | null {
   // The LAST open row: a revisit mints a new one, and an earlier open row is a node
   // the walk has already moved past.
   const working = [...run.nodes].reverse().find((n) => n.outcome === null);
+  // A HUMAN station's phase reads straight off its declared type (FR6.40),
+  // taking precedence over the node-id map — a station added or renamed in the
+  // blueprint reports its phase without anyone editing a list in the view.
   const kind = working
-    ? (HUMAN_STATION_PHASE[
-        run.graph?.nodes.find((n) => n.id === working.nodeId)?.type ?? ""
-      ] ?? NODE_PHASE[working.nodeId])
+    ? (humanStation(
+        run.graph?.nodes.find((n) => n.id === working.nodeId)?.type,
+      )?.phase ?? NODE_PHASE[working.nodeId])
     : undefined;
 
   if (!working || !kind) {

@@ -1,11 +1,5 @@
-/** Mirrors `isHumanStation` in @re-cinq/lore-assembly-lines; web-ui cannot import
- *  it, and the drift guard on DefinitionNodeType keeps the set honest. */
-const HUMAN_STATION_TYPES: ReadonlySet<string> = new Set([
-  "feature_review",
-  "pr_review",
-]);
-
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
+import { humanStation } from "./human-station";
 
 /**
  * How long a node may run before the Floor kills it.
@@ -36,7 +30,8 @@ export function nodeBudgetMinutes(
   }
   const node = definition.nodes.find((n) => n.id === nodeId);
 
-  if (!node || HUMAN_STATION_TYPES.has(node.type)) {
+  // A human station has no budget: nobody kills a person for taking a week.
+  if (!node || humanStation(node.type)) {
     return null;
   }
 

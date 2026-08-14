@@ -9,6 +9,7 @@
 // code, or a failed review renders green.
 
 import type { NodeRunStatus } from "./run-event-reducer";
+import { humanStation } from "./human-station";
 
 export type NodeStatusTone =
   "idle" | "running" | "waiting" | "ok" | "warn" | "err";
@@ -51,13 +52,6 @@ export function resultVisual(result: string): NodeStatusVisual {
     : { tone: "ok", label: "Completed" };
 }
 
-/** Whose move it is, for a station parked on a worker outside the pod system.
- *  Keyed on the node TYPE, which now names the form contract outright — the badge
- *  no longer needs a second field to say what the type already says. */
-const HUMAN_STATION_LABELS: Record<string, string> = {
-  feature_review: "Waiting for you",
-  pr_review: "Waiting for the spec PR",
-};
 
 /** The node badge: the recorded verdict when the node has one (authoritative),
  *  otherwise its execution status (Pending while idle, Running in flight). This is
@@ -78,7 +72,7 @@ export function nodeRunVisual(
 
   // Only a REACHED human station is parked; an unvisited one is still Pending, and
   // asking for input the run cannot accept would be worse than saying nothing.
-  const humanLabel = nodeType ? HUMAN_STATION_LABELS[nodeType] : undefined;
+  const humanLabel = humanStation(nodeType)?.label;
 
   return humanLabel && status === "running"
     ? { tone: "waiting", label: humanLabel }

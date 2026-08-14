@@ -7,6 +7,7 @@ import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import type { AssemblyLineRunNode } from "./assembly-line-runs";
 import type { NodeRunState } from "./run-event-reducer";
 import { nodeRunVisual, type NodeStatusTone } from "./run-node-status";
+import { humanStation } from "./human-station";
 import { formatDuration } from "./assembly-line-presenter";
 
 export interface NodeDetailInput {
@@ -113,10 +114,10 @@ function whyText(
   // A parked human station has no pod and no progress to report; what the reader
   // needs is whose move it is, since it is often their own.
   if (tone === "waiting") {
-    return input.definition?.nodes.find((node) => node.id === input.nodeId)
-      ?.type === "pr_review"
-      ? "Parked — waiting for the spec PR to merge."
-      : "Parked — waiting for you to review this round.";
+    return (
+      humanStation(type)?.whyParked ??
+      "Parked — waiting for you to review this round."
+    );
   }
 
   if (tone === "ok") {

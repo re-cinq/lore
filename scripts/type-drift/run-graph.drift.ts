@@ -24,6 +24,9 @@ import type {
   RunGraph as MirrorGraph,
 } from "../../apps/web-ui/src/lib/run-graph.js";
 
+import type { HumanStationType as CanonHumanStationType } from "../../libs/assembly-lines/src/human-station.js";
+import type { HumanStationType as MirrorHumanStationType } from "../../apps/web-ui/src/lib/human-station.js";
+
 type MirrorsExactly<Canon, Mirror> = [Canon] extends [Mirror]
   ? [Mirror] extends [Canon]
     ? true
@@ -33,3 +36,11 @@ type MirrorsExactly<Canon, Mirror> = [Canon] extends [Mirror]
 export const _node: MirrorsExactly<CanonNode, MirrorNode> = true;
 export const _edge: MirrorsExactly<CanonEdge, MirrorEdge> = true;
 export const _graph: MirrorsExactly<CanonGraph, MirrorGraph> = true;
+
+// The human-station type set: web-ui's HUMAN_STATIONS record is keyed on this
+// union, so a libs-side addition goes red here and then red at every consumer
+// until the record answers for the new member.
+export const _humanStationType: MirrorsExactly<
+  CanonHumanStationType,
+  MirrorHumanStationType
+> = true;
