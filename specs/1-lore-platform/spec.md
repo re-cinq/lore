@@ -830,6 +830,19 @@ fed by IO `*Panel` containers that own fetching and polling. ([validated by `Tim
   (ts_rank over raw text), the search page's question — the embedding
   search remains `POST /api/memory`. ([validated by `memory-browse.test.ts:31`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L31), [`memory-browse.test.ts:35`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L35), [`memory-browse.test.ts:51`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L51), [`memory-browse.test.ts:64`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L64), [`memory-browse.test.ts:78`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L78), [`memory-browse.test.ts:91`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L91), [`memory-browse.test.ts:106`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L106), [`memory-browse.test.ts:117`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L117), [`memory-browse.test.ts:130`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L130), [`memory-browse.test.ts:140`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L140), [`memory-browse.test.ts:153`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L153), [`memory-browse.test.ts:164`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L164), [`memory-browse.test.ts:179`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L179), [`memory-browse.test.ts:189`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L189), [`memory-browse.test.ts:218`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L218), [`memory-browse.test.ts:195`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L195), [`memory-browse.test.ts:230`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L230))
 
+- FR-19.22: lore-api serves the task-shaped dashboard reads under the
+  `read` scope — `GET /api/repo-tasks` (a repo's most recent, empty on a
+  database with no `pipeline.tasks`), `GET /api/task-stats` (org totals),
+  `GET /api/agent-activity` (per-agent task counts and spend, org-wide or
+  repo-scoped), `GET /api/tasks/{id}/runtime` (its transitions and LLM
+  calls) and `GET /api/audit-log` (a repo's entries, filtered to the
+  decision types the caller renders). Agent activity FULL OUTER JOINs the
+  task agents with the memory agents: an agent that only ever wrote
+  memories — a developer's local MCP — appears in no task row, and
+  dropping it would hide exactly the agents a human recognises. The
+  aggregates stay SQL-side because the alternative is shipping the whole
+  pipeline history to Node for one dashboard row per agent. ([validated by [`task-views.test.ts:31`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L31), [`task-views.test.ts:37`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L37), [`task-views.test.ts:48`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L48), [`task-views.test.ts:52`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L52), [`task-views.test.ts:66`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L66), [`task-views.test.ts:79`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L79), [`task-views.test.ts:90`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L90), [`task-views.test.ts:102`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L102), [`task-views.test.ts:117`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L117), [`task-views.test.ts:135`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L135))
+
 ### FR-20: Project Facade Ports (Phase 1)
 
 The `Project` facade (ADR-024) exposes every data capability — tasks,

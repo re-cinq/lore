@@ -112,3 +112,59 @@ export function getTaskLogs(
     `/api/task-logs?task_id=${encodeURIComponent(id)}&offset=${offset}`,
   );
 }
+
+// ── dashboard reads ──────────────────────────────────────────────────
+
+/** A repo's most recent tasks. Empty (not an error) on a database with no
+ *  `pipeline.tasks` — the panel renders without them. */
+export function getRepoTasks(
+  repo: string,
+  limit = 15,
+): Promise<ApiResult<{ tasks: Record<string, unknown>[] }>> {
+  const params = new URLSearchParams({ repo, limit: String(limit) });
+
+  return apiFetch("lore-api", `/api/repo-tasks?${params}`);
+}
+
+export function getTaskStats(): Promise<
+  ApiResult<{ total: number; today: number }>
+> {
+  return apiFetch("lore-api", "/api/task-stats");
+}
+
+/** Per-agent task counts and spend, org-wide or scoped to one repo. */
+export function getAgentActivity(
+  repo?: string,
+): Promise<ApiResult<{ agents: Record<string, unknown>[] }>> {
+  return apiFetch(
+    "lore-api",
+    repo
+      ? `/api/agent-activity?repo=${encodeURIComponent(repo)}`
+      : "/api/agent-activity",
+  );
+}
+
+/** One task's transition trail and its LLM calls. */
+export function getTaskRuntime(id: string): Promise<
+  ApiResult<{
+    events: Record<string, unknown>[];
+    llm_calls: Record<string, unknown>[];
+  }>
+> {
+  return apiFetch("lore-api", `/api/tasks/${encodeURIComponent(id)}/runtime`);
+}
+
+/** A repo's audit entries, filtered to the decision types the caller renders. */
+export function getAuditLog(
+  repo: string,
+  eventTypes: readonly string[],
+  limit = 25,
+): Promise<ApiResult<{ entries: Record<string, unknown>[] }>> {
+  const params = new URLSearchParams({
+    repo,
+    event_types: eventTypes.join(","),
+    limit: String(limit),
+  });
+
+  return apiFetch("lore-api", `/api/audit-log?${params}`);
+}

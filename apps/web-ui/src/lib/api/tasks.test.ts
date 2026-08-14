@@ -16,6 +16,11 @@ const {
   runTaskNow,
   getTaskRuns,
   getTaskLogs,
+  getRepoTasks,
+  getTaskStats,
+  getAgentActivity,
+  getTaskRuntime,
+  getAuditLog,
 } = await import("./tasks");
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -150,5 +155,53 @@ describe("getTaskLogs", () => {
     await getTaskLogs("t1", 0);
 
     expect(url()).toEqual("http://api:3000/api/task-logs?task_id=t1&offset=0");
+  });
+});
+
+describe("dashboard reads", () => {
+  it("asks for a repo's recent tasks with a limit", async () => {
+    await getRepoTasks("re-cinq/lore", 5);
+
+    expect(url()).toContain("repo=re-cinq%2Flore");
+    expect(url()).toContain("limit=5");
+  });
+
+  it("defaults the repo task list to 15", async () => {
+    await getRepoTasks("re-cinq/lore");
+
+    expect(url()).toContain("limit=15");
+  });
+
+  it("reads the org-wide task totals", async () => {
+    await getTaskStats();
+
+    expect(url()).toEqual("http://api:3000/api/task-stats");
+  });
+
+  it("reads agent activity org-wide when no repo is given", async () => {
+    await getAgentActivity();
+
+    expect(url()).toEqual("http://api:3000/api/agent-activity");
+  });
+
+  it("scopes agent activity to a repo when one is given", async () => {
+    await getAgentActivity("re-cinq/lore");
+
+    expect(url()).toEqual(
+      "http://api:3000/api/agent-activity?repo=re-cinq%2Flore",
+    );
+  });
+
+  it("reads one task's runtime trail", async () => {
+    await getTaskRuntime("t1");
+
+    expect(url()).toEqual("http://api:3000/api/tasks/t1/runtime");
+  });
+
+  it("names the audit event types the caller renders", async () => {
+    await getAuditLog("re-cinq/lore", ["auto_merge_decision", "escalation"]);
+
+    expect(url()).toContain("event_types=auto_merge_decision%2Cescalation");
+    expect(url()).toContain("limit=25");
   });
 });

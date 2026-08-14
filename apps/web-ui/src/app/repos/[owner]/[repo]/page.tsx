@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { query, queryOne, getRepoSchema } from "@/lib/db";
 import { getRepo } from "@/lib/api/repos";
 import { getRepoActivityCounts } from "@/lib/api/activity";
+import { getRepoTasks } from "@/lib/api/tasks";
 import { getReadme, checkRepoFiles } from "@/lib/github";
 import { getWebhookStatus, getWebhookSecret } from "@/lib/webhook-api";
 import { computeEnrollmentChecks } from "@/lib/enrollment";
@@ -37,10 +38,8 @@ export default async function RepoOverview({
     getRepo(fullName).then((result) =>
       result.status === "ok" ? result.data : null,
     ),
-    query(
-      `SELECT id, description, status, agent_id, pr_url, created_at
-       FROM pipeline.tasks WHERE target_repo = $1 ORDER BY created_at DESC LIMIT 5`,
-      [fullName],
+    getRepoTasks(fullName, 5).then((r) =>
+      r.status === "ok" ? r.data.tasks : [],
     ),
     // Latest event-bus activity for this repo (fail-soft — repo is a first-class
     // column since migration 0024, so only github.* / internal.* events match; the

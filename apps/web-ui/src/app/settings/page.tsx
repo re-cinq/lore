@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { getTaskStats } from "@/lib/api/tasks";
 import { query, queryOne } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import SettingsView, { type SettingsApprovalConfig } from "./SettingsView";
@@ -81,11 +82,8 @@ export default async function SettingsPage() {
     `SELECT count(*)::int as count FROM lore.repos`,
   );
 
-  const taskStats = await queryOne<{ total: number; today: number }>(
-    `SELECT count(*)::int as total,
-            count(*) FILTER (WHERE created_at > current_date)::int as today
-     FROM pipeline.tasks`,
-  );
+  const stats = await getTaskStats();
+  const taskStats = stats.status === "ok" ? stats.data : null;
 
   let approvalConfig: SettingsApprovalConfig = {
     required: false,
