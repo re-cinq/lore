@@ -1,6 +1,11 @@
 import "server-only";
 import { apiFetch } from "./client";
 import type { ApiResult } from "./result";
+import type {
+  FeatureRow,
+  FeatureIterationRow,
+  FeatureWithIterations,
+} from "@/lib/feature-types";
 
 // The feature-planning operations, typed at one place instead of at each call
 // site. Replaces src/lib/feature-api.ts, whose private `send()` hand-rolled the
@@ -69,4 +74,59 @@ export function deleteFeature(
   id: string,
 ): Promise<ApiResult<{ ok: true }>> {
   return apiFetch("lore-api", `${base(repo)}/${id}`, { method: "DELETE" });
+}
+
+// ── reads ────────────────────────────────────────────────────────────
+//
+// The feature pages used to SELECT `lore.features` / `lore.feature_iterations`
+// themselves, duplicating reads lore-api already served — including one pair
+// (`FeatureDetailPage` and `feature-poll`) running the same two queries
+// side by side.
+
+export function listFeatures(
+  repo: string,
+): Promise<ApiResult<{ features: FeatureRow[] }>> {
+  return apiFetch("lore-api", base(repo));
+}
+
+/** A feature and every round it has been through. 404 for an id this repo does
+ *  not hold — which is NOT the same as a feature with no rounds. */
+export function getFeature(
+  repo: string,
+  id: string,
+): Promise<ApiResult<FeatureWithIterations>> {
+  return apiFetch("lore-api", `${base(repo)}/${id}`);
+}
+
+/** The wizard's 4s poll: the row, its latest round, the most recent round that
+ *  produced a result, and the line the run graph hangs on. Deliberately not the
+ *  full feature — that carries every round's mockups and repo stylesheet. */
+export function getFeatureStatus(
+  repo: string,
+  id: string,
+): Promise<
+  ApiResult<{
+    feature: FeatureRow;
+    latest_iteration: FeatureIterationRow | null;
+    last_ready_iteration: FeatureIterationRow | null;
+    assembly_line_id: string | null;
+  }>
+> {
+  return apiFetch("lore-api", `${base(repo)}/${id}/status`);
+}
+
+/** The spec-tasks a merged spec decomposed into (ADR-029). */
+export function getFeatureDecomposition(
+  repo: string,
+  id: string,
+): Promise<
+  ApiResult<{
+    tasks: {
+      description: string;
+      status: string;
+      context_bundle: Record<string, unknown> | null;
+    }[];
+  }>
+> {
+  return apiFetch("lore-api", `${base(repo)}/${id}/decomposition`);
 }

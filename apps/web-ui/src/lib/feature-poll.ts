@@ -1,10 +1,7 @@
-import { queryAllowMissing } from "@/lib/db";
+import { getFeatureStatus } from "@/lib/api/features";
+import { getTask } from "@/lib/api/tasks";
 import { formatStationConversation } from "@/lib/station-conversation";
-import {
-  fetchFeatureRun,
-  runTaskIdFor,
-  type FeatureRunPayload,
-} from "@/lib/feature-run";
+import { fetchFeatureRunById, type FeatureRunPayload } from "@/lib/feature-run";
 import type { FeatureRow, FeatureIterationRow } from "@/lib/feature-types";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -54,48 +51,38 @@ export async function loadFeaturePoll(
   fullName: string,
   id: string,
 ): Promise<FeaturePollPayload | null> {
-  const features = await queryAllowMissing<FeatureRow>(
-    `SELECT * FROM lore.features WHERE id = $1 AND repo = $2`,
-    [id, fullName],
-  );
-  const feature = features[0] ?? null;
+  // One call for the row, its latest round, and the most recent round that
+  // produced a result — lore-api built this endpoint for exactly this 4s poll,
+  // and it deliberately omits every round's gap_result (mockup markup plus a
+  // repo stylesheet each), which the full feature read would re-send every four
+  // seconds.
+  const status = await getFeatureStatus(fullName, id);
 
-  if (!feature) {
+  if (status.status !== "ok") {
     return null;
   }
-  const iterations = await queryAllowMissing<FeatureIterationRow>(
-    `SELECT * FROM lore.feature_iterations WHERE feature_id = $1 ORDER BY iteration DESC LIMIT 1`,
-    [id],
-  );
-  const latestIteration = iterations[0] ?? null;
+  const {
+    feature,
+    latest_iteration: latestIteration,
+    last_ready_iteration,
+  } = status.data;
   let task: { status: string; failure_reason: string | null } | null = null;
 
   if (latestIteration?.task_id) {
     // Surface the task's status/failure so the wizard shows a failure and a retry
     // even when a hard crash left the iteration stuck at 'running'.
-    const tasks = await queryAllowMissing<{
-      status: string;
-      failure_reason: string | null;
-    }>(`SELECT status, failure_reason FROM pipeline.tasks WHERE id = $1`, [
-      latestIteration.task_id,
-    ]);
+    const row = await getTask(latestIteration.task_id);
 
-    task = tasks[0] ?? null;
+    task =
+      row.status === "ok"
+        ? {
+            status: row.data.status,
+            failure_reason:
+              (row.data as unknown as { failure_reason?: string | null })
+                .failure_reason ?? null,
+          }
+        : null;
   }
-  const ready = await queryAllowMissing<FeatureIterationRow>(
-    `SELECT * FROM lore.feature_iterations WHERE feature_id = $1 AND gap_result IS NOT NULL ORDER BY iteration DESC LIMIT 1`,
-    [id],
-  );
-  // The task that OWNS the feature's line — the earliest round that named one. On
-  // the merged line a refine is a resume, so every round after the first has a
-  // null task_id and only this resolves the line. Narrow select on purpose: this
-  // runs every 4s and iteration rows carry gap_result payloads.
-  const owning = await queryAllowMissing<{ task_id: string | null }>(
-    `SELECT task_id FROM lore.feature_iterations
-      WHERE feature_id = $1 AND task_id IS NOT NULL
-      ORDER BY iteration ASC LIMIT 1`,
-    [id],
-  );
 
   return {
     feature,
@@ -105,12 +92,10 @@ export async function loadFeaturePoll(
       latestIteration?.task_id && task?.status === "running"
         ? liveStationLog(latestIteration.task_id)
         : null,
-    lastReady: ready[0] ?? null,
-    run: await fetchFeatureRun(
-      runTaskIdFor({
-        latestIterationTaskId: latestIteration?.task_id,
-        owningTaskId: owning[0]?.task_id,
-      }),
-    ),
+    lastReady: last_ready_iteration,
+    // The endpoint already resolved which line the graph hangs on: from round 2
+    // a resumed round mints no task, so only the OWNING task can resolve it and
+    // the server is the one that knows which that was.
+    run: await fetchFeatureRunById(status.data.assembly_line_id),
   };
 }

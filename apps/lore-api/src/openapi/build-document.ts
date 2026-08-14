@@ -181,7 +181,7 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/^\/api\/(context|graph)\b/, "Context"],
   [/^\/api\/(memory|episode|session-summary)\b/, "Memory"],
   [
-    /^\/api\/(task|tasks|task-logs|job-run-logs|spec-tasks|task-groups)\b/,
+    /^\/api\/(task|tasks|task-logs|job-run-logs|spec-tasks|task-groups|assembly-lines)\b/,
     "Tasks",
   ],
   [/^\/api\/(usage|analytics|agent-stats)\b/, "Analytics"],

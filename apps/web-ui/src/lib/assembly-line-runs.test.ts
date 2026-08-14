@@ -1,9 +1,18 @@
-import { describe, it, expect } from "vitest";
-import {
-  toAssemblyLineRun,
-  toAssemblyLineRunNode,
-  type AssemblyLineRunRow,
-  type AssemblyLineRunNodeRow,
+// @vitest-environment node
+//
+// The module now reaches lore-api for its reads, so it pulls the server-only
+// client. These cases still exercise only the pure row mappers.
+
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
+const { toAssemblyLineRun, toAssemblyLineRunNode } =
+  await import("./assembly-line-runs");
+
+import type {
+  AssemblyLineRunRow,
+  AssemblyLineRunNodeRow,
 } from "./assembly-line-runs";
 
 const baseRow: AssemblyLineRunRow = {

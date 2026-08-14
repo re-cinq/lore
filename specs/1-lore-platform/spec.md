@@ -788,6 +788,21 @@ fed by IO `*Panel` containers that own fetching and polling. ([validated by `Tim
   in-memory double over its seeded rows, so a caller that needs more
   than `rawSettings` or `team` has one place to get it. ([validated by returns the seeded row for an onboarded repo](libs/shared/src/project/settings/settings-record.test.ts#L36), [`settings-record.test.ts:46`](libs/shared/src/project/settings/settings-record.test.ts#L46), [`settings-record.test.ts:54`](libs/shared/src/project/settings/settings-record.test.ts#L54), [`settings-record.test.ts:65`](libs/shared/src/project/settings/settings-record.test.ts#L65))
 
+- FR-19.19: lore-api serves the run views' four reads under the `read`
+  scope — `GET /api/assembly-lines` (filterable by status, repo, or a
+  `task_id` that answers the newest attempt first, default limit 50),
+  `GET /api/assembly-lines/{id}`, `.../nodes` in visit order, and
+  `.../token-usage`, which sums the four usage scalars across the run's
+  turns SQL-side. The SQL moved verbatim from web-ui, LATERAL cost
+  fallback included: a run whose `llm_calls` predate per-line
+  attribution still costs what its task cost. Every read degrades to
+  empty — a 404 for the by-id one — rather than 500 on a database
+  predating the tables, because a run view is additive and a page must
+  not go down over an unmigrated cluster. Token usage reads
+  `pipeline.agent_run_turns`, not `llm_calls`: the cost table is
+  authoritative but a row lands only when a run ENDS, which is the
+  moment the card showing the number disappears. ([validated by `assembly-lines.test.ts:36`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L36), [`assembly-lines.test.ts:40`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L40), [`assembly-lines.test.ts:52`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L52), [`assembly-lines.test.ts:68`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L68), [`assembly-lines.test.ts:77`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L77), [`assembly-lines.test.ts:88`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L88), [`assembly-lines.test.ts:100`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L100), [`assembly-lines.test.ts:110`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L110), [`assembly-lines.test.ts:120`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L120), [`assembly-lines.test.ts:132`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L132), [`assembly-lines.test.ts:143`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L143), [`assembly-lines.test.ts:155`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L155), [`assembly-lines.test.ts:170`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L170), [`assembly-lines.test.ts:180`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L180))
+
 ### FR-20: Project Facade Ports (Phase 1)
 
 The `Project` facade (ADR-024) exposes every data capability — tasks,
