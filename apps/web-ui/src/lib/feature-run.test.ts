@@ -17,7 +17,7 @@ import type {
 
 const planningRun: AssemblyLineRun = {
   id: "ae7918b1-4baa-41fc-8b34-deb1be4cddf9",
-  definitionName: "feature-planning",
+  blueprintName: "feature-planning",
   taskId: "e25bc81a-469a-42a8-ab08-ed824b2160d8",
   repo: "re-cinq/lore",
   branch: "lore/feature-planning/assembly-lines-live-view",
@@ -82,7 +82,7 @@ describe("toFeatureRunPayload", () => {
   });
 
   it("marks a run of an unknown definition synthetic", () => {
-    const custom = { ...planningRun, definitionName: "bespoke-line" };
+    const custom = { ...planningRun, blueprintName: "bespoke-line" };
 
     expect(toFeatureRunPayload(custom, [analyzeNode])).toMatchObject({
       synthetic: true,

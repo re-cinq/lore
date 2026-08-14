@@ -33,7 +33,7 @@ export interface AssemblyLineRunViewProps {
 }
 
 /** Run detail — the per-attempt execution: header facts + the node timeline from
- *  pipeline.assembly_line_nodes. Pure render. */
+ *  pipeline.station_runs. Pure render. */
 export default function AssemblyLineRunView({
   run,
   nodes,
@@ -45,7 +45,7 @@ export default function AssemblyLineRunView({
   return (
     <div>
       <div className={styles.header}>
-        <h1>{run.definitionName}</h1>
+        <h1>{run.blueprintName}</h1>
         <span className={`${styles.status} ${styles[visual.tone]}`}>
           {visual.label}
         </span>

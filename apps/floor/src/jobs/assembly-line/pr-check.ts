@@ -11,9 +11,9 @@
  */
 
 import type {
-  AssemblyLineNodeRecord,
-  AssemblyLineRecord,
-} from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+  StationRunRecord,
+  AssemblyRunRecord,
+} from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { isFailureOutcome } from "./notify-failure.js";
@@ -30,13 +30,13 @@ const CHECK_NAME_ALIAS: Record<string, string> = {
   "code-review-recheck": "code-review",
 };
 
-export function checkName(definitionName: string): string {
-  return CHECK_NAME_ALIAS[definitionName] ?? definitionName;
+export function checkName(blueprintName: string): string {
+  return CHECK_NAME_ALIAS[blueprintName] ?? blueprintName;
 }
 
 export function assemblyLineCheck(
-  line: AssemblyLineRecord,
-  nodes: readonly AssemblyLineNodeRecord[],
+  line: AssemblyRunRecord,
+  nodes: readonly StationRunRecord[],
   uiUrl?: string,
 ): CheckRunInput | null {
   const prNumber = Number(line.args.pr_number);
@@ -46,7 +46,7 @@ export function assemblyLineCheck(
   if (!prNumber || !headSha) {
     return null;
   }
-  const displayName = checkName(line.definitionName);
+  const displayName = checkName(line.blueprintName);
   const base = {
     headSha,
     name: `lore/${displayName}`,
@@ -58,7 +58,7 @@ export function assemblyLineCheck(
     return {
       ...base,
       status: "in_progress",
-      summary: `Running — ${line.definitionName}.`,
+      summary: `Running — ${line.blueprintName}.`,
     };
   }
 
@@ -68,8 +68,8 @@ export function assemblyLineCheck(
 }
 
 function terminal(
-  line: AssemblyLineRecord,
-  nodes: readonly AssemblyLineNodeRecord[],
+  line: AssemblyRunRecord,
+  nodes: readonly StationRunRecord[],
 ): {
   conclusion: NonNullable<CheckRunInput["conclusion"]>;
   summary: string;
@@ -80,13 +80,13 @@ function terminal(
   if (isFailureOutcome(line.outcome ?? "")) {
     const why = line.reason ? ` — ${line.reason}` : "";
     const rerunHint =
-      line.definitionName === "code-review"
+      line.blueprintName === "code-review"
         ? " Comment `@lore review` to re-run."
         : "";
 
     return {
       conclusion: "failure",
-      summary: `${line.definitionName} failed${why}.${rerunHint}`,
+      summary: `${line.blueprintName} failed${why}.${rerunHint}`,
     };
   }
 
@@ -113,10 +113,8 @@ function terminal(
   return { conclusion: "success", summary: "Approved." };
 }
 
-function latestNodeOutcomes(
-  nodes: readonly AssemblyLineNodeRecord[],
-): string[] {
-  const latest = new Map<string, AssemblyLineNodeRecord>();
+function latestNodeOutcomes(nodes: readonly StationRunRecord[]): string[] {
+  const latest = new Map<string, StationRunRecord>();
 
   for (const node of nodes) {
     const prev = latest.get(node.nodeId);
@@ -132,8 +130,8 @@ function latestNodeOutcomes(
 /** Best-effort publish — a check failure (e.g. missing `checks: write`) never fails the line. */
 export async function publishPrCheck(
   repo: CheckPublisher,
-  line: AssemblyLineRecord,
-  nodes: readonly AssemblyLineNodeRecord[],
+  line: AssemblyRunRecord,
+  nodes: readonly StationRunRecord[],
   uiUrl?: string,
 ): Promise<void> {
   const check = assemblyLineCheck(line, nodes, uiUrl);
@@ -156,7 +154,7 @@ export async function publishPrCheck(
       repo: line.repo,
       payload: {
         assembly_line_id: line.id,
-        definition: line.definitionName,
+        definition: line.blueprintName,
         check: check.name,
         error: message,
       },

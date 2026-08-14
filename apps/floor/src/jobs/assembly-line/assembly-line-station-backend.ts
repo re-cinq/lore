@@ -1,6 +1,6 @@
 // AssemblyLine StationBackend (ADR-031 D4, #688): the agent-cr execution path for task
 // types that have an assembly line. launch() is a pure producer now — it calls
-// project-level assemblyLines.start(), which persists the pipeline.assembly_lines row
+// project-level assemblyLines.start(), which persists the pipeline.assembly_runs row
 // and the assembly_line.start event atomically; the Floor event loop claims the event
 // and walks the assembly line (dispatching a per-node Agent CR). The agent-watcher
 // resolves task completion (PR) from those Agents, unchanged.
@@ -10,14 +10,14 @@ import type {
   StationBackend,
   StationLaunchResult,
 } from "@re-cinq/lore-shared";
-import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 
 export class AssemblyLineStationBackend implements StationBackend {
-  constructor(private readonly assemblyLines: AssemblyLinesPort) {}
+  constructor(private readonly assemblyLines: AssemblyRunsPort) {}
 
   async launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
     const assemblyLineId = await this.assemblyLines.start({
-      definitionName: spec.taskType,
+      blueprintName: spec.taskType,
       repo: spec.targetRepo,
       branch: spec.branch,
       taskId: spec.taskId,

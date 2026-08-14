@@ -4,7 +4,7 @@ import type {
   StationBackend,
   StationLaunchResult,
 } from "@re-cinq/lore-shared";
-import type { AssemblyLineStartInput } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type { AssemblyRunStartInput } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import {
   shouldUseAssemblyLine,
   AgentCrStationBackend,
@@ -55,7 +55,7 @@ describe("shouldUseAssemblyLine", () => {
 function makeBackend(openTaskIds: string[] = []) {
   const assemblyLine = new FakeBackend("assembly-line");
   const single = new FakeBackend("single");
-  const started: AssemblyLineStartInput[] = [];
+  const started: AssemblyRunStartInput[] = [];
   const backend = new AgentCrStationBackend(
     assemblyLine,
     single,
@@ -99,7 +99,7 @@ describe("AgentCrStationBackend", () => {
 
     expect(started).toEqual([
       {
-        definitionName: "runbook",
+        blueprintName: "runbook",
         repo: "o/r",
         branch: "b",
         taskId: "task-7",

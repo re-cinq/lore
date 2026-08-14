@@ -4,10 +4,10 @@ import { loadBuiltinAssemblyLines } from "@re-cinq/lore-assembly-lines";
 import { registerBearerAuth } from "../auth.js";
 
 const getById = vi.fn();
-const listNodes = vi.fn();
+const listStationRuns = vi.fn();
 
 vi.mock("../../../kernel/queues.js", () => ({
-  assemblyLines: () => ({ getById, listNodes }),
+  assemblyLines: () => ({ getById, listStationRuns }),
 }));
 
 const { assemblyLineReadRoute, assemblyLineCatalogRoute } =
@@ -27,7 +27,7 @@ afterEach(() => {
 
 const line = (over: Record<string, unknown> = {}) => ({
   id: "line-1",
-  definitionName: "feature-planning",
+  blueprintName: "feature-planning",
   taskId: "task-1",
   repo: "re-cinq/lore",
   status: "running",
@@ -65,7 +65,7 @@ const get = (url: string) =>
 describe("GET /api/assembly-lines/{id}", () => {
   it("returns the line with its nodes", async () => {
     getById.mockResolvedValue(line());
-    listNodes.mockResolvedValue([node("analyze", "success")]);
+    listStationRuns.mockResolvedValue([node("analyze", "success")]);
 
     const res = await get("/api/assembly-lines/line-1");
 
@@ -82,7 +82,7 @@ describe("GET /api/assembly-lines/{id}", () => {
     // on the merged planning line ran the planning prompt and reported success. One
     // GET would have shown it.
     getById.mockResolvedValue(line());
-    listNodes.mockResolvedValue([node("analyze", "success")]);
+    listStationRuns.mockResolvedValue([node("analyze", "success")]);
 
     const res = await get("/api/assembly-lines/line-1");
 
@@ -97,7 +97,7 @@ describe("GET /api/assembly-lines/{id}", () => {
 
   it("reports a wait node as having no station, since a person is its worker", async () => {
     getById.mockResolvedValue(line());
-    listNodes.mockResolvedValue([node("author", null)]);
+    listStationRuns.mockResolvedValue([node("author", null)]);
 
     const res = await get("/api/assembly-lines/line-1");
 
@@ -120,8 +120,8 @@ describe("GET /api/assembly-lines/{id}", () => {
     // A line whose definition was renamed or removed must remain inspectable — the
     // node rows are the record of what actually ran, and refusing to serve them would
     // hide exactly the run someone is trying to debug.
-    getById.mockResolvedValue(line({ definitionName: "gone" }));
-    listNodes.mockResolvedValue([node("analyze", "success")]);
+    getById.mockResolvedValue(line({ blueprintName: "gone" }));
+    listStationRuns.mockResolvedValue([node("analyze", "success")]);
 
     const res = await get("/api/assembly-lines/line-1");
 

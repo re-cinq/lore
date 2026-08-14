@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from "vitest";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
+import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import { InMemoryFeatures } from "@re-cinq/lore-shared/project/features/features-memory.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { decidePrStamp, stampLinePr, type SpecPrPorts } from "./spec-pr.js";
@@ -58,7 +58,7 @@ const pullRef = (branch: string, number: number): PullRef => ({
 
 interface Harness {
   ports: SpecPrPorts;
-  lines: InMemoryAssemblyLines;
+  lines: InMemoryAssemblyRuns;
   features: InMemoryFeatures;
   pulls: FakePulls;
   lineId: string;
@@ -68,7 +68,7 @@ interface Harness {
 async function harness(
   options: { existingPulls?: PullRef[]; withFeature?: boolean } = {},
 ): Promise<Harness> {
-  const lines = new InMemoryAssemblyLines();
+  const lines = new InMemoryAssemblyRuns();
   const features = new InMemoryFeatures();
   const pulls = new FakePulls(options.existingPulls ?? []);
   const feature = await features.create(REPO, {
@@ -76,7 +76,7 @@ async function harness(
     prompt: "Make rollback one command",
   });
   const lineId = await lines.start({
-    definitionName: "feature-planning",
+    blueprintName: "feature-planning",
     repo: REPO,
     branch: "feature/dark-factory-rollback",
     args: options.withFeature === false ? {} : { feature_id: feature.id },

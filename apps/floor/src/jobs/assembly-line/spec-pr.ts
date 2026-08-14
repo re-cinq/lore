@@ -17,7 +17,7 @@
  * a PR is a rule, and rules are worth testing without a GitHub double.
  */
 
-import type { AssemblyLineRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import type {
   Feature,
@@ -88,7 +88,7 @@ async function existingPrFor(
  *  forever, which is a worse failure than a stale feature status a later run can
  *  still correct. */
 export async function stampLinePr(
-  row: AssemblyLineRecord,
+  row: AssemblyRunRecord,
   ports: SpecPrPorts,
 ): Promise<void> {
   const branch = row.branch;

@@ -45,7 +45,7 @@ describe("PgUsage adapter", () => {
     ]);
   });
 
-  it("routes the id to task_id and resolves assembly_line_id from the CR name at insert", async () => {
+  it("routes the id to task_id and resolves assembly_run_id from the CR name at insert", async () => {
     const { pool, calls } = fakePool();
 
     await new PgUsage(pool).logLlmCall({
@@ -63,10 +63,10 @@ describe("PgUsage adapter", () => {
       "LEFT JOIN pipeline.tasks t ON t.id = g.given",
     );
     expect(calls[0]?.text).toContain(
-      "LEFT JOIN pipeline.assembly_lines al ON al.id = g.given AND t.id IS NULL",
+      "LEFT JOIN pipeline.assembly_runs al ON al.id = g.given AND t.id IS NULL",
     );
     expect(calls[0]?.text).toContain("n.agent_cr_name = g.cr");
-    expect(calls[0]?.text).toContain("COALESCE(node.assembly_line_id, al.id)");
+    expect(calls[0]?.text).toContain("COALESCE(node.assembly_run_id, al.id)");
     expect(calls[0]?.params?.[0]).toBe("d6f1c2a0-0000-0000-0000-000000000000");
     expect(calls[0]?.params?.[1]).toBe("abc12345-review");
     expect(calls[0]?.params?.[6]).toBe(0.5);
@@ -144,7 +144,7 @@ describe("PgUsage adapter", () => {
       durationMs: 10,
     });
 
-    expect(calls[0]?.text).toContain("assembly_line_id");
+    expect(calls[0]?.text).toContain("assembly_run_id");
     expect(calls[0]?.params?.[0]).toBeNull();
   });
 

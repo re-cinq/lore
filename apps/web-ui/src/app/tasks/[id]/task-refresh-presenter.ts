@@ -22,7 +22,7 @@ export const STREAM_HEARTBEAT_POLL_MS = 30_000;
 export const EVENT_REFRESH_MIN_GAP_MS = 3_000;
 
 /**
- * The task-page projection of a pipeline.assembly_lines row. `created_at` is a
+ * The task-page projection of a pipeline.assembly_runs row. `created_at` is a
  * Date when the rows come off the server component's pg query (RSC serializes
  * Date as Date) and a string when they come off the JSON discovery route.
  */

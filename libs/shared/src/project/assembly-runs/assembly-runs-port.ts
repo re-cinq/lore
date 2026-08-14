@@ -1,20 +1,48 @@
+import type { RunGraph } from "./run-graph.js";
+
+export type AssemblyRunStatus = "queued" | "running" | "finished" | "failed";
+
+/**
+ * The filter `list` accepts. Every field is optional and ANDed; an empty query
+ * is "every run, newest first, up to the limit".
+ */
+export interface AssemblyRunQuery {
+  /** Canonical `owner/repo`. A repo ID is resolved to this by the caller — the
+   *  run stores the name, as every repo-scoped port here does. */
+  repo?: string;
+  /** One blueprint, or several (the PR-lifecycle choreography asks by family). */
+  blueprintName?: string | readonly string[];
+  status?: readonly AssemblyRunStatus[];
+  taskId?: string;
+  /** Matches `args->>'pr_number'`. */
+  prNumber?: number;
+  createdAfter?: Date;
+  /** Defaults to 50. */
+  limit?: number;
+}
+
 /** Fork parentage: the terminal line to inherit from, and the last node to inherit. */
-export interface AssemblyLineResumeFrom {
+export interface AssemblyRunResumeFrom {
   lineId: string;
   /** Rows through THIS node's latest completed row are copied; the walk resumes
    *  at its successor. */
   nodeId: string;
 }
 
-export interface AssemblyLineStartInput {
-  definitionName: string;
+export interface AssemblyRunStartInput {
+  blueprintName: string;
   repo: string;
   branch?: string;
   taskId?: string;
   args?: Record<string, unknown>;
+  /** The CLONE — the blueprint's graph as this run will walk it, Stations already
+   *  resolved (FR6.38). Optional only so a caller that cannot load the blueprint
+   *  still starts a run; such a run falls back to resolving by name, exactly as
+   *  every run did before the column existed. */
+  graph?: RunGraph;
   /** Content hash of the definition the caller loaded. Required with
    *  {@link resumeFrom} — it is the drift guard's left-hand side. */
-  definitionHash?: string;
+  blueprintHash?: string;
   /**
    * Fork-and-rerun (specs/fork-rerun-from-node): seed the new line with the
    * source's node rows through `nodeId`, so the ordinary replay-derived walk
@@ -22,19 +50,23 @@ export interface AssemblyLineStartInput {
    * and `taskId` are inherited and must not be passed; `args` are inherited
    * unless overridden.
    */
-  resumeFrom?: AssemblyLineResumeFrom;
+  resumeFrom?: AssemblyRunResumeFrom;
 }
 
-export interface AssemblyLineNodeStartInput {
-  assemblyLineId: string;
+export interface StationRunStartInput {
+  assemblyRunId: string;
   nodeId: string;
   iteration: number;
   agentCrName?: string;
 }
 
-export interface AssemblyLineNodeRecord {
+export interface StationRunRecord {
+  /** The row's physical id — ALSO its visit order, which the replay depends on. */
   id: string;
-  assemblyLineId: string;
+  /** The station run's public identity: what telemetry and cost rows key on
+   *  instead of string-matching an Agent CR name (FR6.39). */
+  stationRunId: string;
+  assemblyRunId: string;
   nodeId: string;
   iteration: number;
   outcome: string | null;
@@ -44,9 +76,9 @@ export interface AssemblyLineNodeRecord {
   finishedAt: Date | null;
 }
 
-export interface AssemblyLineRecord {
+export interface AssemblyRunRecord {
   id: string;
-  definitionName: string;
+  blueprintName: string;
   taskId: string | null;
   repo: string;
   branch: string | null;
@@ -54,11 +86,15 @@ export interface AssemblyLineRecord {
   status: "queued" | "running" | "finished" | "failed";
   outcome: string | null;
   reason: string | null;
-  /** Content hash of the definition this execution ran; null for rows that
-   *  predate the column or whose definition never resolved. */
-  definitionHash: string | null;
+  /** Content hash of the blueprint this run executed; null for rows that
+   *  predate the column or whose blueprint never resolved. */
+  blueprintHash: string | null;
+  /** The blueprint's graph as THIS run recorded it — what the walk and every
+   *  reader work from. Null for rows started before the clone existed, which
+   *  fall back to resolving the blueprint by name (FR6.38). */
+  graph: RunGraph | null;
   /** Fork parentage — null for a line that was not forked. */
-  resumedFromLineId: string | null;
+  resumedFromRunId: string | null;
   resumedFromNodeId: string | null;
   /** Node rows copied from the fork source, fixed at fork time (0 for a plain
    *  start). The overlap guard's "no work of its own yet" test compares the
@@ -71,17 +107,17 @@ export interface AssemblyLineRecord {
 }
 
 /**
- * `pipeline.assembly_lines` + `pipeline.assembly_line_nodes` — first-class
+ * `pipeline.assembly_runs` + `pipeline.station_runs` — first-class
  * identity for one assembly line execution (per attempt, unlike the task id
  * which is stable across retries) plus the per-node trace.
  */
-export interface AssemblyLinesPort {
+export interface AssemblyRunsPort {
   /**
    * Mint a fresh assemblyLineId, persist the row (status `queued`), and insert
    * the `assembly_line.start` event in the same atomic statement so the Floor
    * event loop picks the assembly line up. Returns the assemblyLineId.
    */
-  start(input: AssemblyLineStartInput): Promise<string>;
+  start(input: AssemblyRunStartInput): Promise<string>;
   markRunning(id: string): Promise<void>;
   /**
    * Record the content hash of the definition this execution ran, once. Never
@@ -99,7 +135,7 @@ export interface AssemblyLinesPort {
    *  so racing finishers (node event vs reaper) can gate once-only side effects
    *  (failure notification) on the win. */
   finish(id: string, outcome: string, reason?: string): Promise<boolean>;
-  getById(id: string): Promise<AssemblyLineRecord | null>;
+  getById(id: string): Promise<AssemblyRunRecord | null>;
   /**
    * Merge a patch into the line's `args` — how one node's output reaches the next,
    * and how a node's objection reaches the node that fed it.
@@ -111,32 +147,39 @@ export interface AssemblyLinesPort {
    * exist is a no-op, not an error: the artifact sink is fire-and-forget.
    */
   mergeArgs(id: string, patch: Record<string, unknown>): Promise<void>;
-  listForTask(taskId: string): Promise<AssemblyLineRecord[]>;
+  /**
+   * The ONE filtered read. Every finder below is a one-line caller of it, so the
+   * SQL exists once — before this, "every code-review run on this repo" had no
+   * answer at all, because the port only offered lookups by task, by PR, and by
+   * openness. Newest first, id as the tiebreak so the order is total.
+   */
+  list(query: AssemblyRunQuery): Promise<AssemblyRunRecord[]>;
+  listForTask(taskId: string): Promise<AssemblyRunRecord[]>;
   /**
    * Event-driven transition primitives: the walk state is derived from node rows,
    * so duplicate/concurrent advancers must converge structurally.
    */
-  /** Insert-or-noop on the UNIQUE (assembly_line_id, node_id, iteration) key. */
-  ensureNodeStart(
-    input: AssemblyLineNodeStartInput,
-  ): Promise<{ nodeRowId: string; created: boolean }>;
+  /** Insert-or-noop on the UNIQUE (assembly_run_id, node_id, iteration) key. */
+  ensureStationRun(
+    input: StationRunStartInput,
+  ): Promise<{ nodeRowId: string; stationRunId: string; created: boolean }>;
   /** Compare-and-set the outcome (`WHERE outcome IS NULL`); true when this call won. */
-  finishNodeOnce(
+  finishStationRunOnce(
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
   ): Promise<boolean>;
   /** The line's node rows in visit order (row id). */
-  listNodes(assemblyLineId: string): Promise<AssemblyLineNodeRecord[]>;
+  listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]>;
   /** Open (`queued`/`running`) lines, oldest first — the reaper's work list. */
-  listOpen(): Promise<AssemblyLineRecord[]>;
+  listOpen(): Promise<AssemblyRunRecord[]>;
   /**
    * Open (`queued`/`running`) assembly lines whose `args.pr_number` matches — the
    * PR-scoped lookup the code-review choreography uses. NOT only code-review lines:
    * a feature-planning line carries the spec PR it pushed, which is how a merge
    * finds the line parked on `merged`.
    */
-  findOpenByPr(repo: string, prNumber: number): Promise<AssemblyLineRecord[]>;
+  findOpenByPr(repo: string, prNumber: number): Promise<AssemblyRunRecord[]>;
   /**
    * Close open lines for the repo+PR with `outcome`; returns the count closed.
    *

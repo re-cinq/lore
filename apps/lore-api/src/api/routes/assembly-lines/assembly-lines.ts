@@ -25,22 +25,22 @@ const missingTable = (err: unknown) =>
 
 // `cost_usd` falls back to the TASK's calls when a call predates per-line
 // attribution — dropping that fallback silently zeroes the cost of every run
-// started before `llm_calls.assembly_line_id` existed.
+// started before `llm_calls.assembly_run_id` existed.
 const RUN_SELECT = `
-  SELECT al.id, al.definition_name, al.task_id, al.repo, al.branch,
+  SELECT al.id, al.blueprint_name, al.task_id, al.repo, al.branch,
          al.status, al.outcome, al.reason,
          al.created_at, al.started_at, al.finished_at,
          (al.args->>'pr_number')::int AS args_pr_number,
          t.pr_url, t.pr_number AS task_pr_number,
          COALESCE(t.created_by, al.args->>'actor') AS created_by,
          cost.cost_usd
-    FROM pipeline.assembly_lines al
+    FROM pipeline.assembly_runs al
     LEFT JOIN pipeline.tasks t ON t.id = al.task_id
     LEFT JOIN LATERAL (
       SELECT SUM(lc.cost_usd)::float AS cost_usd
         FROM pipeline.llm_calls lc
-       WHERE lc.assembly_line_id = al.id
-          OR (lc.assembly_line_id IS NULL
+       WHERE lc.assembly_run_id = al.id
+          OR (lc.assembly_run_id IS NULL
               AND al.task_id IS NOT NULL
               AND lc.task_id = al.task_id)
     ) cost ON true`;
@@ -146,8 +146,8 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
           const { rows } = await pool.query(
             `SELECT node_id, iteration, outcome, agent_cr_name, commit_sha,
                     started_at, finished_at
-               FROM pipeline.assembly_line_nodes
-              WHERE assembly_line_id = $1
+               FROM pipeline.station_runs
+              WHERE assembly_run_id = $1
               ORDER BY id`,
             [request.params.id],
           );
@@ -192,7 +192,7 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
              FROM (
                SELECT envelope->'event'->'message'->'usage' AS usage
                  FROM pipeline.agent_run_turns
-                WHERE assembly_line_id = $1
+                WHERE assembly_run_id = $1
                   AND envelope->'event'->'message' ? 'usage'
              ) turns`,
             [request.params.id],

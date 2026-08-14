@@ -31,7 +31,7 @@ describe("linkifyMarkdown", () => {
 
   it("links a task uuid to the web-ui pipeline page when uiUrl is set", () => {
     expect(linkifyMarkdown(`task ${uuid} done`, ctx)).toBe(
-      `task [${uuid}](https://lore.example/assembly-lines/${uuid}) done`,
+      `task [${uuid}](https://lore.example/assembly-runs/${uuid}) done`,
     );
   });
 

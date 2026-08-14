@@ -53,7 +53,7 @@ describe("dispatchSpecTrace", () => {
     // lines of one push never collide; the clone ref rides args.ref.
     expect(started).toEqual([
       {
-        definitionName: "ingest",
+        blueprintName: "ingest",
         repo: "re-cinq/lore",
         branch: "ingest/specs/abc123",
         args: { kind: "specs", ref: "abc123" },
@@ -202,7 +202,7 @@ describe("dispatchSpecTrace", () => {
 
     expect(started).toEqual([
       {
-        definitionName: "ingest",
+        blueprintName: "ingest",
         repo: "re-cinq/lore",
         branch: "ingest/test-report/abc123/4711",
         args: { kind: "test-report", ref: "abc123", payload_event_id: "4711" },

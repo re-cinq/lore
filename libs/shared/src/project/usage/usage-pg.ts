@@ -17,7 +17,7 @@ export class PgUsage implements UsagePort {
   async logLlmCall(record: LlmCallRecord): Promise<LlmCallResult> {
     // Correlate at write time (mirroring agent-run-events-pg):
     //   task_id          — the given id when it is a task
-    //   assembly_line_id — resolved from the Agent CR name against
+    //   assembly_run_id — resolved from the Agent CR name against
     //                      assembly_line_nodes (the exact attempt, so a
     //                      task-backed run gets per-attempt cost, #947); falls
     //                      back to the given id when it is itself a line id (the
@@ -29,19 +29,19 @@ export class PgUsage implements UsagePort {
     // so the sink can surface it (#945).
     const { rows } = await this.pool.query<{ correlated: boolean }>(
       `INSERT INTO pipeline.llm_calls
-         (task_id, assembly_line_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms, status, error)
-       SELECT t.id, COALESCE(node.assembly_line_id, al.id), $3, $4, $5, $6, $7, $8, $9, $10
+         (task_id, assembly_run_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms, status, error)
+       SELECT t.id, COALESCE(node.assembly_run_id, al.id), $3, $4, $5, $6, $7, $8, $9, $10
          FROM (SELECT $1::uuid AS given, $2::text AS cr) g
          LEFT JOIN pipeline.tasks t ON t.id = g.given
-         LEFT JOIN pipeline.assembly_lines al ON al.id = g.given AND t.id IS NULL
+         LEFT JOIN pipeline.assembly_runs al ON al.id = g.given AND t.id IS NULL
          LEFT JOIN LATERAL (
-           SELECT n.assembly_line_id
-             FROM pipeline.assembly_line_nodes n
+           SELECT n.assembly_run_id
+             FROM pipeline.station_runs n
             WHERE n.agent_cr_name = g.cr
             ORDER BY n.id DESC
             LIMIT 1
          ) node ON true
-       RETURNING (task_id IS NOT NULL OR assembly_line_id IS NOT NULL) AS correlated`,
+       RETURNING (task_id IS NOT NULL OR assembly_run_id IS NOT NULL) AS correlated`,
       [
         record.taskId ?? null,
         record.agentCrName ?? null,

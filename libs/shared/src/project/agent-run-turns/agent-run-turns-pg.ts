@@ -11,7 +11,7 @@ interface AgentRunTurnDbRow {
   id: string | number;
   task_id: string | null;
   agent_cr_name: string | null;
-  assembly_line_id: string | null;
+  assembly_run_id: string | null;
   node_id: string | null;
   iteration: number | null;
   event_type: string | null;
@@ -19,7 +19,7 @@ interface AgentRunTurnDbRow {
   created_at: Date;
 }
 
-const SELECT_COLUMNS = `id, task_id, agent_cr_name, assembly_line_id, node_id,
+const SELECT_COLUMNS = `id, task_id, agent_cr_name, assembly_run_id, node_id,
          iteration, event_type, envelope, created_at`;
 
 function toRow(row: AgentRunTurnDbRow): AgentRunTurnRow {
@@ -27,7 +27,7 @@ function toRow(row: AgentRunTurnDbRow): AgentRunTurnRow {
     id: String(row.id),
     taskId: row.task_id,
     agentCrName: row.agent_cr_name,
-    assemblyLineId: row.assembly_line_id,
+    assemblyLineId: row.assembly_run_id,
     nodeId: row.node_id,
     iteration: row.iteration,
     eventType: row.event_type,
@@ -69,10 +69,10 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
 
     const { rows: inserted } = await this.pool.query<AgentRunTurnDbRow>(
       `INSERT INTO pipeline.agent_run_turns (
-         task_id, agent_cr_name, assembly_line_id, node_id, iteration,
+         task_id, agent_cr_name, assembly_run_id, node_id, iteration,
          event_type, envelope
        )
-       SELECT v.task_id, v.agent_cr_name, correlated.assembly_line_id,
+       SELECT v.task_id, v.agent_cr_name, correlated.assembly_run_id,
               correlated.node_id, correlated.iteration, v.event_type,
               v.envelope::jsonb
        FROM jsonb_to_recordset($1::jsonb) AS v(
@@ -82,8 +82,8 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
        -- DESC tie-break only fires when two DIFFERENT lines collide on their
        -- 12-hex id prefix + node id + iteration; the newest node row wins then.
        LEFT JOIN LATERAL (
-         SELECT node.assembly_line_id, node.node_id, node.iteration
-         FROM pipeline.assembly_line_nodes node
+         SELECT node.assembly_run_id, node.node_id, node.iteration
+         FROM pipeline.station_runs node
          WHERE node.agent_cr_name = v.agent_cr_name
          ORDER BY node.id DESC
          LIMIT 1
@@ -100,7 +100,7 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
     afterId: string,
     limit: number,
   ): Promise<AgentRunTurnRow[]> {
-    return this.page("assembly_line_id", assemblyLineId, afterId, limit);
+    return this.page("assembly_run_id", assemblyLineId, afterId, limit);
   }
 
   async listByTask(
@@ -128,7 +128,7 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
   /** The two reads differ only in which correlation column scopes them; the
    *  column name is a literal from this file, never caller input. */
   private async page(
-    scopeColumn: "assembly_line_id" | "task_id",
+    scopeColumn: "assembly_run_id" | "task_id",
     scopeValue: string,
     afterId: string,
     limit: number,

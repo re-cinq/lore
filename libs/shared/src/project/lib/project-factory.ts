@@ -43,10 +43,10 @@ export async function createProject(
 
   ports.set("chunks", new PgChunks(pgPool));
 
-  const { PgAssemblyLines } =
-    await import("../assembly-lines/assembly-lines-pg.js");
+  const { PgAssemblyRuns } =
+    await import("../assembly-runs/assembly-runs-pg.js");
 
-  ports.set("assemblyLines", new PgAssemblyLines(pgPool));
+  ports.set("assemblyLines", new PgAssemblyRuns(pgPool));
 
   const { PlatformGitHub } = await import("./platform-github.js");
   const github = new PlatformGitHub(env);

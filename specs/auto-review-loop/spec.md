@@ -433,17 +433,17 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L604))
 - code-review-recheck is a fast Haiku recheck→done graph routing every verdict to done. ([validated by](libs/assembly-lines/src/loader.test.ts#L806))
 
-### `libs/shared/src/project/assembly-lines/assembly-lines.test.ts`
+### `libs/shared/src/project/assembly-runs/assembly-runs.test.ts`
 
-- markRunning transitions the matching row to running with started_at. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L284))
-- throws on unknown ids for markRunning and returns false for finishNodeOnce. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L394))
-- getById returns the record and null for unknown ids. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L406))
-- listForTask and getById pass through to the port. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L583))
-- ensureNodeStart enforces exactly one returned row (invariant names itself). ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L746))
-- finishNodeOnce CASes on a null outcome and reports whether it won. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L758))
-- listOpen selects queued and running rows oldest-first. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L807))
-- does not overwrite an already-terminal row (InMemory). ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L818))
-- guards the Pg UPDATE on a non-terminal status. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L833))
+- markRunning transitions the matching row to running with started_at. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L479))
+- throws on unknown ids for markRunning and returns false for finishNodeOnce. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L589))
+- getById returns the record and null for unknown ids. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L603))
+- listForTask and getById pass through to the port. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L780))
+- ensureNodeStart enforces exactly one returned row (invariant names itself). ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L949))
+- finishNodeOnce CASes on a null outcome and reports whether it won. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L961))
+- listOpen selects queued and running rows oldest-first. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1012))
+- does not overwrite an already-terminal row (InMemory). ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1023))
+- guards the Pg UPDATE on a non-terminal status. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1038))
 
 ### `libs/shared/src/project/issues/issues.test.ts`
 

@@ -86,7 +86,7 @@ export interface AgentRunTurnNodeRef {
 export interface AgentRunTurnsRepository {
   /**
    * Insert a batch, resolving `agentCrName` to (`assemblyLineId`, `nodeId`,
-   * `iteration`) against `pipeline.assembly_line_nodes` at write time. A turn
+   * `iteration`) against `pipeline.station_runs` at write time. A turn
    * that correlates to nothing is still inserted, with `agentCrName` retained
    * and the three correlated fields left null. Returns the persisted rows
    * ascending by id.

@@ -8,7 +8,7 @@ import type {
 /** A `pipeline.llm_calls` row as the double persists it. */
 export interface StoredLlmCall {
   task_id: string | null;
-  assembly_line_id: string | null;
+  assembly_run_id: string | null;
   job_name: string | null;
   model: string;
   input_tokens: number;
@@ -45,7 +45,7 @@ export class InMemoryUsage implements UsagePort {
     this.taskIds.add(id);
   }
 
-  /** Seed a `pipeline.assembly_lines` id (the `al.id = g.given` fallback join). */
+  /** Seed a `pipeline.assembly_runs` id (the `al.id = g.given` fallback join). */
   registerAssemblyLine(id: string): void {
     this.assemblyLineIds.add(id);
   }
@@ -64,7 +64,7 @@ export class InMemoryUsage implements UsagePort {
     const given = record.taskId ?? null;
     const taskId = given !== null && this.taskIds.has(given) ? given : null;
     // The lateral join is independent of the task join; a NULL CR matches no
-    // node. COALESCE(node.assembly_line_id, al.id) — and al joins only when the
+    // node. COALESCE(node.assembly_run_id, al.id) — and al joins only when the
     // given id is not a task (`t.id IS NULL`).
     const node =
       record.agentCrName == null
@@ -80,7 +80,7 @@ export class InMemoryUsage implements UsagePort {
 
     this.rows.push({
       task_id: taskId,
-      assembly_line_id: assemblyLineId,
+      assembly_run_id: assemblyLineId,
       job_name: record.jobName ?? null,
       model: record.model,
       input_tokens: record.inputTokens,

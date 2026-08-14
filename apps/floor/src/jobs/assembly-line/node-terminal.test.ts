@@ -11,7 +11,7 @@ import type {
   AuditLogEntry,
   AuditPort,
 } from "@re-cinq/lore-shared/project/audit/audit-port.js";
-import type { AssemblyLineRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { AssemblyLineNode } from "@re-cinq/lore-assembly-lines";
 import type { CreateReviewInput } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 
@@ -60,10 +60,10 @@ const row = (args: Record<string, unknown> = { pr_number: 841 }) =>
   ({
     id: "line-1",
     repo: "re-cinq/lore",
-    definitionName: "code-review",
+    blueprintName: "code-review",
     status: "running",
     args,
-  }) as unknown as AssemblyLineRecord;
+  }) as unknown as AssemblyRunRecord;
 
 function ports() {
   const reviews: Array<{ number: number; input: CreateReviewInput }> = [];

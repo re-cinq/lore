@@ -18,11 +18,11 @@ describe("InMemoryUsage.logLlmCall", () => {
     expect(result).toEqual({ correlated: true });
     expect(usage.rows[0]).toMatchObject({
       task_id: "task-1",
-      assembly_line_id: null,
+      assembly_run_id: null,
     });
   });
 
-  it("falls back to assembly_line_id when the given id is a line, not a task", async () => {
+  it("falls back to assembly_run_id when the given id is a line, not a task", async () => {
     const usage = new InMemoryUsage();
 
     usage.registerAssemblyLine("line-1");
@@ -31,7 +31,7 @@ describe("InMemoryUsage.logLlmCall", () => {
     expect(result).toEqual({ correlated: true });
     expect(usage.rows[0]).toMatchObject({
       task_id: null,
-      assembly_line_id: "line-1",
+      assembly_run_id: "line-1",
     });
   });
 
@@ -43,7 +43,7 @@ describe("InMemoryUsage.logLlmCall", () => {
     const result = await usage.logLlmCall({ ...CALL, agentCrName: "cr-a" });
 
     expect(result).toEqual({ correlated: true });
-    expect(usage.rows[0]).toMatchObject({ assembly_line_id: "line-new" });
+    expect(usage.rows[0]).toMatchObject({ assembly_run_id: "line-new" });
   });
 
   it("stores an unknown-but-valid uuid uncorrelated, both ids null, instead of rejecting it", async () => {
@@ -58,7 +58,7 @@ describe("InMemoryUsage.logLlmCall", () => {
     expect(usage.rows).toHaveLength(1);
     expect(usage.rows[0]).toMatchObject({
       task_id: null,
-      assembly_line_id: null,
+      assembly_run_id: null,
     });
   });
 

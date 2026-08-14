@@ -16,7 +16,7 @@ import {
   type AssemblyLineNode,
   type NodeResult,
 } from "@re-cinq/lore-assembly-lines";
-import type { AssemblyLineRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { finishNodeAndAdvance, type AdvanceDeps } from "./advance.js";
 import {
   maybePostReview,
@@ -48,7 +48,7 @@ export function normalizeAgentStatus(status: AgentNodeStatus): AgentNodeStatus {
 }
 
 export interface NodeTerminalInput {
-  row: AssemblyLineRecord;
+  row: AssemblyRunRecord;
   node: AssemblyLineNode;
   nodeId: string;
   iteration?: number;
@@ -133,7 +133,7 @@ const REVIEW_PROMPT_REFS = new Set(["code-review", "code-review-recheck"]);
  * the silent no-parse are audited rather than warned away.
  */
 export async function postReviewFromNode(
-  row: AssemblyLineRecord,
+  row: AssemblyRunRecord,
   node: AssemblyLineNode,
   output?: string,
   ports: ReviewPorts = {},
@@ -260,7 +260,7 @@ function replyRunMarker(
  * else a plain PR comment). Absent block or a throw is audited, never fatal.
  */
 export async function postReplyFromNode(
-  row: AssemblyLineRecord,
+  row: AssemblyRunRecord,
   node: AssemblyLineNode,
   output?: string,
   ports: ReplyPorts = {},
@@ -379,7 +379,7 @@ async function replyAlreadyPosted(
 /** The reply-side twin of `review_post_deduped` (#1004): this run's marker is
  *  already on the PR, so the reply post was skipped. */
 async function auditDedupedReply(
-  row: AssemblyLineRecord,
+  row: AssemblyRunRecord,
   prNumber: number,
   marker: string,
   ports: ReplyPorts,
@@ -402,7 +402,7 @@ async function auditDedupedReply(
  *  so the post was skipped. Audited so a dedupe firing is visible next to the
  *  duplicate it prevented. */
 async function auditDedupedPost(
-  row: AssemblyLineRecord,
+  row: AssemblyRunRecord,
   prNumber: number,
   marker: string,
   ports: ReviewPorts,
@@ -426,7 +426,7 @@ async function auditDedupedPost(
  *  downgrade is invisible at the PR, so it gets an audit row like its siblings
  *  `review_findings_unparsed` and `review_post_failed`. */
 async function auditFallbackPost(
-  row: AssemblyLineRecord,
+  row: AssemblyRunRecord,
   prNumber: number,
   error: string,
   ports: ReviewPorts,
@@ -448,7 +448,7 @@ async function auditFallbackPost(
 /** The exact state that produced the outage: a verdict was reached, no findings
  *  parsed, and nothing at all was logged. */
 async function auditUnparsedFindings(
-  row: AssemblyLineRecord,
+  row: AssemblyRunRecord,
   prNumber: number,
   output: string | undefined,
   ports: ReviewPorts,
@@ -481,7 +481,7 @@ export async function publishCheck(
 ): Promise<void> {
   const [row, nodes] = await Promise.all([
     deps.assemblyLines.getById(assemblyLineId),
-    deps.assemblyLines.listNodes(assemblyLineId),
+    deps.assemblyLines.listStationRuns(assemblyLineId),
   ]);
 
   if (!row || !(Number(row.args.pr_number) > 0)) {

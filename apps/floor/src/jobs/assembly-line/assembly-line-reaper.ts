@@ -19,7 +19,7 @@ import {
   type AssemblyLine,
   type AssemblyLineNode,
 } from "@re-cinq/lore-assembly-lines";
-import type { AssemblyLineNodeRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { advanceLine, finishLine, taskFromRow } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { nodeAgentSpec, nodeStationSpec } from "./floor-assembly-line.js";
@@ -46,7 +46,7 @@ export type NodeRecovery =
 
 /** Pure per-open-node decision from the node row's age and the CR's live status. */
 export function decideNodeRecovery(input: {
-  node: AssemblyLineNodeRecord;
+  node: StationRunRecord;
   timeoutMinutes: number | undefined;
   status: AgentNodeStatus | null;
   /** The definition's node type. `wait` nodes have no budget — see below. */
@@ -98,7 +98,7 @@ export async function assemblyLineReaperJob(
 
   for (const row of open) {
     try {
-      const definition = definitions.get(row.definitionName);
+      const definition = definitions.get(row.blueprintName);
 
       if (!definition) {
         // Single-CR run record (FR6.8): normally the agent-watcher closes it, but
@@ -146,7 +146,7 @@ export async function assemblyLineReaperJob(
         continue;
       }
 
-      const nodes = await deps.assemblyLines.listNodes(row.id);
+      const nodes = await deps.assemblyLines.listStationRuns(row.id);
       const openNode = nodes.find((n) => n.outcome === null);
 
       if (!openNode) {
@@ -212,7 +212,7 @@ export async function assemblyLineReaperJob(
       }
     } catch (err) {
       console.error(
-        `[assembly-line-reaper] ${row.definitionName}/${row.id}: ${(err as Error).message}`,
+        `[assembly-line-reaper] ${row.blueprintName}/${row.id}: ${(err as Error).message}`,
       );
     }
   }

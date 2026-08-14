@@ -6,8 +6,8 @@
 // feature planned on the merged line was ever decomposed — silently.
 
 import { describe, it, expect } from "vitest";
-import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
-import type { ParkedTarget } from "@re-cinq/lore-shared/project/assembly-lines/parked-node.js";
+import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
+import type { ParkedTarget } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 import {
   decideMergeResume,
   decideResumeFromClosedPr,
@@ -65,17 +65,17 @@ function recorder() {
 }
 
 async function lineParkedOnMerge(prNumber: number) {
-  const lines = new InMemoryAssemblyLines();
+  const lines = new InMemoryAssemblyRuns();
   const id = await lines.start({
-    definitionName: "feature-planning",
+    blueprintName: "feature-planning",
     repo: REPO,
     branch: "feature/x",
     args: { pr_number: prNumber, feature_id: "feat-1" },
   });
 
   await lines.markRunning(id);
-  await lines.ensureNodeStart({
-    assemblyLineId: id,
+  await lines.ensureStationRun({
+    assemblyRunId: id,
     nodeId: "merged",
     iteration: 1,
   });
@@ -103,7 +103,7 @@ describe("resumeDecomposition", () => {
 
     await resumeDecomposition(
       { repo: REPO, prNumber: 999 },
-      { assemblyLines: new InMemoryAssemblyLines(), report: rec.report },
+      { assemblyLines: new InMemoryAssemblyRuns(), report: rec.report },
     );
 
     expect(rec.events).toEqual([]);
@@ -112,17 +112,17 @@ describe("resumeDecomposition", () => {
   it("does nothing when the PR's line is not parked on the merge", async () => {
     // An implementation line's PR merging must not report into it — it has no
     // merged node, and inventing one would advance a walk that never asked to wait.
-    const lines = new InMemoryAssemblyLines();
+    const lines = new InMemoryAssemblyRuns();
     const id = await lines.start({
-      definitionName: "implementation",
+      blueprintName: "implementation",
       repo: REPO,
       branch: "feature/y",
       args: { pr_number: 7 },
     });
 
     await lines.markRunning(id);
-    await lines.ensureNodeStart({
-      assemblyLineId: id,
+    await lines.ensureStationRun({
+      assemblyRunId: id,
       nodeId: "review",
       iteration: 1,
     });
@@ -141,7 +141,7 @@ describe("resumeDecomposition", () => {
     // merged node is a resume target.
     const { lines, id } = await lineParkedOnMerge(42);
     const reviewId = await lines.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: REPO,
       branch: "feature/x",
       args: { pr_number: 42 },

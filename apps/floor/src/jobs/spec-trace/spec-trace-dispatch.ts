@@ -12,7 +12,7 @@
 import { chunkGlobsForKind } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { EventInput } from "../../main-loop/types.js";
-import type { AssemblyLineStartInput } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type { AssemblyRunStartInput } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { graphIngestAuditEntry } from "./spec-trace-audit.js";
 import type { AuditLogEntry } from "@re-cinq/lore-shared/project/audit/audit-port.js";
 
@@ -38,7 +38,7 @@ export interface SpecTraceDispatchDeps {
   /** Required for the force-without-glob path, which self-chunks into child events. */
   insertEvent?: (input: EventInput) => Promise<void>;
   /** Starts the ingest-station line — the ONLY execution path (FR6). */
-  startLine?: (input: AssemblyLineStartInput) => Promise<string>;
+  startLine?: (input: AssemblyRunStartInput) => Promise<string>;
   /** The scheduling event's id — payload kinds hand their body off by
    *  reference through it (FR3), never inline through station_input. */
   eventId?: string;
@@ -138,7 +138,7 @@ export async function dispatchSpecTrace(
     );
     const ref = p.commit || p.branch || "main";
     const lineId = await deps.startLine!({
-      definitionName: "ingest",
+      blueprintName: "ingest",
       repo,
       // The line's branch is the overlap-guard lease key: per kind, so the
       // specs/adrs/test-report lines of one push never take each other's lease
@@ -188,7 +188,7 @@ export async function dispatchSpecTrace(
   // payload), so chunks must never take each other's lease — only a re-drive
   // of the same event dedupes.
   const lineId = await deps.startLine!({
-    definitionName: "ingest",
+    blueprintName: "ingest",
     repo,
     branch: ingestLineBranch(kind, ref, deps.eventId),
     args: { kind, ref, payload_event_id: deps.eventId },

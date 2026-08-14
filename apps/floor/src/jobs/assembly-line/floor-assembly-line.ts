@@ -12,7 +12,7 @@ export interface FloorAssemblyLineTask {
    *  Feeds the lease + audit + `Lore-Task:` trailer; a synthetic id there violates
    *  task_leases_task_fk. Token keying + CR labels use `taskId` instead. */
   pipelineTaskId: string | null;
-  /** Per-attempt id (pipeline.assembly_lines) — CR names key on this, not the task. */
+  /** Per-attempt id (pipeline.assembly_runs) — CR names key on this, not the task. */
   assemblyLineId: string;
   taskType: string;
   description: string;
@@ -150,6 +150,11 @@ export function nodeStationSpec(
     clone: CLONING_STATION_TYPES.has(node.type),
     parameters: {
       station_input: JSON.stringify({
+        // Keeps the PRE-RENAME name deliberately: this JSON is the station pod
+        // contract, and `apps/lore-station` — a separately built and deployed
+        // image — parses `assembly_line_id`. Renaming one side alone breaks
+        // every station run. Both sides move together, with the contract doc, or
+        // not at all.
         assembly_line_id: task.assemblyLineId,
         node_id: node.id,
         node_type: node.type,

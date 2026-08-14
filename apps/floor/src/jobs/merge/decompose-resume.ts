@@ -13,13 +13,13 @@
  */
 
 import type { Pool } from "pg";
-import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import {
   parkedNode,
   reportToParkedNode,
   type ParkedNode,
   type ParkedTarget,
-} from "@re-cinq/lore-shared/project/assembly-lines/parked-node.js";
+} from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 
 /** The wait node a line parks on while its spec PR is open. */
 const MERGED_NODE = "merged";
@@ -69,7 +69,7 @@ export function decideResumeFromClosedPr(
 }
 
 export interface DecomposeResumeDeps {
-  assemblyLines: Pick<AssemblyLinesPort, "findOpenByPr" | "listNodes">;
+  assemblyLines: Pick<AssemblyRunsPort, "findOpenByPr" | "listStationRuns">;
   /** Deliver the resume. Production binds the pool here so this module never holds
    *  a nullable one it would have to cast away; a test records instead. */
   report: (target: ParkedTarget, outcome: "success") => Promise<void>;
@@ -101,7 +101,7 @@ export async function resumeDecomposition(
     const target = decideMergeResume(
       line.id,
       line.status,
-      await deps.assemblyLines.listNodes(line.id),
+      await deps.assemblyLines.listStationRuns(line.id),
     );
 
     if (!target) {

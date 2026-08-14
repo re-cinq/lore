@@ -6,7 +6,7 @@ import { PullRequests } from "../pulls/pull-requests.js";
 import { Settings } from "../settings/settings.js";
 import { Memory } from "../memory/memory.js";
 import { TaskList } from "../tasks/task-list.js";
-import { AssemblyLines } from "../assembly-lines/assembly-lines.js";
+import { AssemblyRuns } from "../assembly-runs/assembly-runs.js";
 import { Notify } from "../notify/notify.js";
 import { KnowledgeView } from "../knowledge/knowledge.js";
 import { TestSuite } from "../test-runner/test-suite.js";
@@ -25,7 +25,7 @@ import type { PullRequestsPort } from "../pulls/pull-requests-port.js";
 import type { SettingsPort } from "../settings/settings-port.js";
 import type { MemoryPort } from "../memory/memory-port.js";
 import type { TaskStorePort } from "../tasks/task-store-port.js";
-import type { AssemblyLinesPort } from "../assembly-lines/assembly-lines-port.js";
+import type { AssemblyRunsPort } from "../assembly-runs/assembly-runs-port.js";
 import type { NotifyPort } from "../notify/notify-port.js";
 import type { KnowledgePort } from "../knowledge/knowledge-port.js";
 import type { TestRunnerPort } from "../test-runner/test-runner-port.js";
@@ -81,11 +81,11 @@ export class Project {
     return new TaskList(this.fullName, this.port<TaskStorePort>("tasks"));
   }
 
-  /** First-class assembly line runs (pipeline.assembly_lines); start() fires the assembly_line.start event. */
-  get assemblyLines(): AssemblyLines {
-    return new AssemblyLines(
+  /** First-class assembly line runs (pipeline.assembly_runs); start() fires the assembly_line.start event. */
+  get assemblyLines(): AssemblyRuns {
+    return new AssemblyRuns(
       this.fullName,
-      this.port<AssemblyLinesPort>("assemblyLines"),
+      this.port<AssemblyRunsPort>("assemblyLines"),
     );
   }
 

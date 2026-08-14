@@ -60,11 +60,11 @@ function chainEdges(nodes: readonly DefinitionNode[]): DefinitionEdge[] {
  * neither a known name nor a single visit row has no graph to draw at all.
  */
 export function definitionForRun(
-  definitionName: string,
+  blueprintName: string,
   visitRows: readonly AssemblyLineRunNode[],
 ): RunGraphDefinition {
   const builtin = builtinDefinitions.find(
-    (candidate) => candidate.name === definitionName,
+    (candidate) => candidate.name === blueprintName,
   );
 
   if (builtin) {
@@ -79,7 +79,7 @@ export function definitionForRun(
 
   return {
     definition: {
-      name: definitionName,
+      name: blueprintName,
       description: "Inferred from the recorded walk; edges are not declared.",
       version: 1,
       entry: nodes[0].id,

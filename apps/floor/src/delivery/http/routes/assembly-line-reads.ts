@@ -1,7 +1,7 @@
 // Read access to assembly lines over HTTP.
 //
 // Until now nothing outside the web UI could see a line: the UI reads
-// `pipeline.assembly_lines` straight from Postgres, and no service exposed it. So
+// `pipeline.assembly_runs` straight from Postgres, and no service exposed it. So
 // "which node is this line on, which Station is that, which recipe does it run" was
 // answerable only by something holding a database connection.
 //
@@ -79,10 +79,10 @@ export function assemblyLineReadRoute(
 
       enforceTrue(line !== null, Boom.notFound, "assembly line not found");
       const [rows, definitions] = await Promise.all([
-        assemblyLines().listNodes(line.id),
+        assemblyLines().listStationRuns(line.id),
         load(),
       ]);
-      const definition = definitions.get(line.definitionName);
+      const definition = definitions.get(line.blueprintName);
 
       return {
         line,
@@ -90,7 +90,7 @@ export function assemblyLineReadRoute(
         // A line's task type IS its definition name: a line is started per task type,
         // and an agent node with no station_ref resolves against exactly that.
         nodes: rows.map((row) =>
-          describeNode(row, definition, line.definitionName),
+          describeNode(row, definition, line.blueprintName),
         ),
       };
     },

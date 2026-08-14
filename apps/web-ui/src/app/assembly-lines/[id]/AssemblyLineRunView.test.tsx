@@ -10,7 +10,7 @@ import type {
 
 const run = (over: Partial<AssemblyLineRun> = {}): AssemblyLineRun => ({
   id: "al-1",
-  definitionName: "code-review",
+  blueprintName: "code-review",
   taskId: null,
   repo: "re-cinq/lore",
   branch: "feat/x",

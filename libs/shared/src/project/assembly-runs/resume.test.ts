@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { resumeCutoffIndex, resolveResumePrefix } from "./resume.js";
 import type {
-  AssemblyLineNodeRecord,
-  AssemblyLineRecord,
-  AssemblyLineStartInput,
-} from "./assembly-lines-port.js";
+  StationRunRecord,
+  AssemblyRunRecord,
+  AssemblyRunStartInput,
+} from "./assembly-runs-port.js";
 
 const HASH = "a".repeat(64);
 const AT = new Date("2026-08-07T10:00:00Z");
@@ -14,10 +14,11 @@ function node(
   nodeId: string,
   iteration: number,
   outcome: string | null,
-): AssemblyLineNodeRecord {
+): StationRunRecord {
   return {
     id,
-    assemblyLineId: "src",
+    stationRunId: `station-run-${id}`,
+    assemblyRunId: "src",
     nodeId,
     iteration,
     outcome,
@@ -28,12 +29,11 @@ function node(
   };
 }
 
-function source(
-  overrides: Partial<AssemblyLineRecord> = {},
-): AssemblyLineRecord {
+function source(overrides: Partial<AssemblyRunRecord> = {}): AssemblyRunRecord {
   return {
     id: "src",
-    definitionName: "implementation",
+    graph: null,
+    blueprintName: "implementation",
     taskId: "task-9",
     repo: "re-cinq/lore",
     branch: "lore/implementation/x",
@@ -41,8 +41,8 @@ function source(
     status: "failed",
     outcome: "error",
     reason: "node failed",
-    definitionHash: HASH,
-    resumedFromLineId: null,
+    blueprintHash: HASH,
+    resumedFromRunId: null,
     resumedFromNodeId: null,
     inheritedNodeCount: 0,
     createdAt: AT,
@@ -53,12 +53,12 @@ function source(
 }
 
 function input(
-  overrides: Partial<AssemblyLineStartInput> = {},
-): AssemblyLineStartInput {
+  overrides: Partial<AssemblyRunStartInput> = {},
+): AssemblyRunStartInput {
   return {
-    definitionName: "implementation",
+    blueprintName: "implementation",
     repo: "re-cinq/lore",
-    definitionHash: HASH,
+    blueprintHash: HASH,
     resumeFrom: { lineId: "src", nodeId: "implement" },
     ...overrides,
   };
@@ -155,11 +155,7 @@ describe("resolveResumePrefix", () => {
 
   it("rejects a resumeFrom start with no definition hash to compare", () => {
     expect(() =>
-      resolveResumePrefix(
-        input({ definitionHash: undefined }),
-        source(),
-        NODES,
-      ),
+      resolveResumePrefix(input({ blueprintHash: undefined }), source(), NODES),
     ).toThrow(
       new Error(
         "resume-from start requires definitionHash — the current definition's content hash",
@@ -186,7 +182,7 @@ describe("resolveResumePrefix", () => {
   it("rejects a source line that ran another definition", () => {
     expect(() =>
       resolveResumePrefix(
-        input({ definitionName: "code-review" }),
+        input({ blueprintName: "code-review" }),
         source(),
         NODES,
       ),
@@ -212,16 +208,16 @@ describe("resolveResumePrefix", () => {
 
   it("rejects a source line whose definition hash was never stamped", () => {
     expect(() =>
-      resolveResumePrefix(input(), source({ definitionHash: null }), NODES),
+      resolveResumePrefix(input(), source({ blueprintHash: null }), NODES),
     ).toThrow(
       new Error(
-        'resume-from source line "src" predates definition hashing — backfill pipeline.assembly_lines.definition_hash before forking it',
+        'resume-from source line "src" predates definition hashing — backfill pipeline.assembly_runs.blueprint_hash before forking it',
       ),
     );
   });
 
   it("rejects a source line whose definition hash differs from the current one", () => {
-    const drifted = source({ definitionHash: "b".repeat(64) });
+    const drifted = source({ blueprintHash: "b".repeat(64) });
 
     expect(() => resolveResumePrefix(input(), drifted, NODES)).toThrow(
       /definition "implementation" has changed since that run \(bbbbbbbbbbbb ≠ aaaaaaaaaaaa\)/,

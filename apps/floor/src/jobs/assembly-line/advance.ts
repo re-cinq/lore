@@ -8,9 +8,9 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import type {
-  AssemblyLinesPort,
-  AssemblyLineRecord,
-} from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+  AssemblyRunsPort,
+  AssemblyRunRecord,
+} from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import {
   nextTransition,
   type AssemblyLine,
@@ -28,7 +28,7 @@ import { roundContent } from "./round-content.js";
 import { decidePrStamp } from "./spec-pr.js";
 
 export interface AdvanceDeps {
-  assemblyLines: AssemblyLinesPort;
+  assemblyLines: AssemblyRunsPort;
   /** The loaded builtin assembly line YAMLs — the walk's transition table. */
   definitions: () => Promise<ReadonlyMap<string, AssemblyLine>>;
   /** Dispatch one node's Agent CR (agentCrBackend().launch — 409 is a no-op). */
@@ -45,7 +45,7 @@ export interface AdvanceDeps {
   /** User-facing failure notification (Slack + PR comment), fired once per line by
    *  the winning finisher. Optional seam — tests and partial compositions omit it. */
   notifyFailure?: (
-    row: AssemblyLineRecord,
+    row: AssemblyRunRecord,
     outcome: string,
     reason?: string,
   ) => Promise<void>;
@@ -62,7 +62,7 @@ export interface AdvanceDeps {
    *  iteration — so a failed line stops reading as "still running" everywhere
    *  downstream. Optional seam, same as notifyFailure. */
   settleTask?: (
-    row: AssemblyLineRecord,
+    row: AssemblyRunRecord,
     outcome: string,
     reason?: string,
   ) => Promise<void>;
@@ -70,7 +70,7 @@ export interface AdvanceDeps {
    *  (`args.pr_number`), moving a feature-carrying line to `pr-open`. Nothing else
    *  does it: the push recipe defers to a watcher that ignores assembly-line CRs.
    *  Optional seam, same as notifyFailure. */
-  stampPr?: (row: AssemblyLineRecord) => Promise<void>;
+  stampPr?: (row: AssemblyRunRecord) => Promise<void>;
 }
 
 /** A walk that reached exit still failed as a whole when a node failed on the way
@@ -110,12 +110,12 @@ function visitFailed(outcome: StageOutcome | null): boolean {
 }
 
 /** The walk task shape, derived from the persisted row instead of an in-memory task. */
-export function taskFromRow(row: AssemblyLineRecord): FloorAssemblyLineTask {
+export function taskFromRow(row: AssemblyRunRecord): FloorAssemblyLineTask {
   return {
     taskId: row.taskId ?? row.id,
     pipelineTaskId: row.taskId,
     assemblyLineId: row.id,
-    taskType: row.definitionName,
+    taskType: row.blueprintName,
     description: String(row.args.description ?? ""),
     targetRepo: row.repo,
     branch: row.branch ?? "",
@@ -156,14 +156,14 @@ export async function advanceLine(
     return;
   }
 
-  const definition = (await deps.definitions()).get(row.definitionName);
+  const definition = (await deps.definitions()).get(row.blueprintName);
 
   if (!definition) {
     // A single-CR run record (FR6.8) — the agent-watcher owns its lifecycle.
     return;
   }
 
-  const nodes = await deps.assemblyLines.listNodes(assemblyLineId);
+  const nodes = await deps.assemblyLines.listStationRuns(assemblyLineId);
 
   // Overlap guard (branch-lease parity): a second not-yet-started run on the same
   // repo+branch defers to the one already in flight — the detect fan-out relies on
@@ -184,13 +184,13 @@ export async function advanceLine(
   if (
     nodes.length === row.inheritedNodeCount &&
     row.branch &&
-    !BRANCH_SHARED_WORKSPACE.has(row.definitionName)
+    !BRANCH_SHARED_WORKSPACE.has(row.blueprintName)
   ) {
     // Defer only to a strictly-older winner (earlier createdAt, ties broken by id):
     // the single oldest open row on the branch proceeds, all others defer. A stale
     // winner that never progresses is re-driven / failed by the reaper, so it can't
     // wedge the branch permanently.
-    const isOlder = (other: AssemblyLineRecord): boolean => {
+    const isOlder = (other: AssemblyRunRecord): boolean => {
       const dt = other.createdAt.getTime() - row.createdAt.getTime();
 
       return dt < 0 || (dt === 0 && other.id < row.id);
@@ -280,8 +280,8 @@ export async function advanceLine(
 
   // Row before CR: a crash in between leaves an open row the reaper resolves by
   // reading the (deterministically named) CR; a rowless CR would be invisible.
-  await deps.assemblyLines.ensureNodeStart({
-    assemblyLineId,
+  await deps.assemblyLines.ensureStationRun({
+    assemblyRunId: assemblyLineId,
     nodeId: node.id,
     iteration: transition.iteration,
     agentCrName: spec.name,
@@ -299,7 +299,7 @@ export async function advanceLine(
 
 /** Close the row, reclaim the token, and settle the detect fan-out's job_run. */
 export async function finishLine(
-  row: AssemblyLineRecord,
+  row: AssemblyRunRecord,
   outcome: string,
   reason: string | undefined,
   deps: AdvanceDeps,
@@ -315,7 +315,7 @@ export async function finishLine(
     if (outcome === "completed") {
       await deps.jobRuns.complete(
         jobRunId,
-        `station run: ${row.definitionName}:${row.repo} ${outcome}`,
+        `station run: ${row.blueprintName}:${row.repo} ${outcome}`,
       );
     } else if (outcome === "lease_held") {
       await deps.jobRuns.complete(jobRunId, `skipped: ${reason}`);
@@ -362,7 +362,7 @@ export async function finishNodeAndAdvance(
   },
   deps: AdvanceDeps,
 ): Promise<void> {
-  const nodes = await deps.assemblyLines.listNodes(input.assemblyLineId);
+  const nodes = await deps.assemblyLines.listStationRuns(input.assemblyLineId);
   const forNode = nodes.filter((n) => n.nodeId === input.nodeId);
   const target =
     input.iteration !== undefined
@@ -372,7 +372,10 @@ export async function finishNodeAndAdvance(
       : forNode.filter((n) => n.outcome === null).at(-1);
 
   if (target) {
-    await deps.assemblyLines.finishNodeOnce(target.id, input.result.outcome);
+    await deps.assemblyLines.finishStationRunOnce(
+      target.id,
+      input.result.outcome,
+    );
   }
 
   await maybeStampPr(input.assemblyLineId, input.nodeId, input.result, deps);
@@ -402,7 +405,7 @@ async function maybeStampPr(
       return;
     }
     const node = (await deps.definitions())
-      .get(row.definitionName)
+      .get(row.blueprintName)
       ?.nodes.find((n) => n.id === nodeId);
 
     if (

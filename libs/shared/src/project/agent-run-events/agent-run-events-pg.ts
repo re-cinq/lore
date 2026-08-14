@@ -11,7 +11,7 @@ interface AgentRunEventDbRow {
   id: string | number;
   task_id: string;
   agent_cr_name: string | null;
-  assembly_line_id: string | null;
+  assembly_run_id: string | null;
   node_id: string | null;
   iteration: number | null;
   event_type: string;
@@ -24,7 +24,7 @@ interface AgentRunEventDbRow {
   created_at: Date;
 }
 
-const SELECT_COLUMNS = `id, task_id, agent_cr_name, assembly_line_id, node_id,
+const SELECT_COLUMNS = `id, task_id, agent_cr_name, assembly_run_id, node_id,
          iteration, event_type, tool_name, tool_use_id, is_error,
          file_paths, summary, payload, created_at`;
 
@@ -33,7 +33,7 @@ function toRow(row: AgentRunEventDbRow): AgentRunEventRow {
     id: String(row.id),
     taskId: row.task_id,
     agentCrName: row.agent_cr_name,
-    assemblyLineId: row.assembly_line_id,
+    assemblyLineId: row.assembly_run_id,
     nodeId: row.node_id,
     iteration: row.iteration,
     eventType: row.event_type as AgentRunEventType,
@@ -85,10 +85,10 @@ export class PgAgentRunEvents implements AgentRunEventsRepository {
 
     const { rows: inserted } = await this.pool.query<AgentRunEventDbRow>(
       `INSERT INTO pipeline.agent_run_events (
-         task_id, agent_cr_name, assembly_line_id, node_id, iteration,
+         task_id, agent_cr_name, assembly_run_id, node_id, iteration,
          event_type, tool_name, tool_use_id, is_error, file_paths, summary, payload
        )
-       SELECT v.task_id, v.agent_cr_name, correlated.assembly_line_id,
+       SELECT v.task_id, v.agent_cr_name, correlated.assembly_run_id,
               correlated.node_id, correlated.iteration, v.event_type,
               v.tool_name, v.tool_use_id, v.is_error, v.file_paths,
               v.summary, v.payload
@@ -104,8 +104,8 @@ export class PgAgentRunEvents implements AgentRunEventsRepository {
        -- node rows null agent_cr_name (assembly-lines-pg startResumed), so a
        -- fork never matches its source's CR names here.
        LEFT JOIN LATERAL (
-         SELECT node.assembly_line_id, node.node_id, node.iteration
-         FROM pipeline.assembly_line_nodes node
+         SELECT node.assembly_run_id, node.node_id, node.iteration
+         FROM pipeline.station_runs node
          WHERE node.agent_cr_name = v.agent_cr_name
          ORDER BY node.id DESC
          LIMIT 1
@@ -125,7 +125,7 @@ export class PgAgentRunEvents implements AgentRunEventsRepository {
     const { rows } = await this.pool.query<AgentRunEventDbRow>(
       `SELECT ${SELECT_COLUMNS}
          FROM pipeline.agent_run_events
-        WHERE assembly_line_id = $1
+        WHERE assembly_run_id = $1
           AND id > $2::bigint
         ORDER BY id ASC
         LIMIT $3`,

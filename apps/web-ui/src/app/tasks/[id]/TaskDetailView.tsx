@@ -35,7 +35,7 @@ export interface TaskDetailTask {
 export type TaskDetailEvent = TaskRuntimeEvent;
 export type TaskDetailLlmCall = TaskRuntimeLlmCall;
 
-/** One per-attempt run row (pipeline.assembly_lines) backing this task. */
+/** One per-attempt run row (pipeline.assembly_runs) backing this task. */
 export interface TaskRunRow {
   id: string;
   status: string;

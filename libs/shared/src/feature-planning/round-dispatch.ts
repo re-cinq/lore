@@ -8,7 +8,7 @@
 import {
   parkedNode,
   type ParkedNode,
-} from "../project/assembly-lines/parked-node.js";
+} from "../project/assembly-runs/parked-node.js";
 
 export type { ParkedNode };
 
