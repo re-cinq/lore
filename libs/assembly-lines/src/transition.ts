@@ -4,7 +4,6 @@
 // definition + the visit history, so duplicate/concurrent advancers converge and
 // a Floor restart loses nothing (spec 6-dark-factory FR6).
 
-
 /**
  * What the walk actually reads: an identity, an entry, an exit, and edges. NOT the
  * whole blueprint — narrowing it to this is what lets one replay serve both a

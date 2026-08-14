@@ -113,7 +113,6 @@ const findingsText = (verdict: string) =>
     "```",
   ].join("\n");
 
-
 describe("normalizeAgentStatus", () => {
   it("unwraps the NDJSON envelope into the agent text", () => {
     const output = JSON.stringify({
