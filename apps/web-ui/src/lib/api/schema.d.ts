@@ -2515,6 +2515,7 @@ export interface operations {
           error?: string;
           description?: string;
           created_by?: string;
+          feedback?: string;
           task_type?: string;
           target_repo?: string;
           group_id?: string;

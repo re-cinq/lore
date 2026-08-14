@@ -135,6 +135,46 @@ describe("POST /api/task", () => {
     });
   });
 
+  it("queues a revision and answers with the new task id", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: "t1", status: "pr-created", task_type: "implementation" }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "rev-1" }] })
+      .mockResolvedValue({ rows: [] });
+    const res = await post(
+      { action: "revise", task_id: "t1", feedback: "tighten it" },
+      pool,
+    );
+
+    expect(res.result).toEqual({ task_id: "t1", revision_task_id: "rev-1" });
+  });
+
+  it("returns 404 when revising a task that does not exist", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [] });
+    const res = await post(
+      { action: "revise", task_id: "gone", feedback: "x" },
+      pool,
+    );
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 409 when revising with blank feedback", async () => {
+    const res = await post(
+      { action: "revise", task_id: "t1", feedback: "   " },
+      poolWithTask("pr-created"),
+    );
+
+    expect(res.statusCode).toBe(409);
+    expect(res.result).toEqual({ error: "Feedback is required" });
+  });
+
   it("sets immediate priority", async () => {
     const pool = makePool();
 

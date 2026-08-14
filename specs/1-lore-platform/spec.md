@@ -857,6 +857,18 @@ fed by IO `*Panel` containers that own fetching and polling. ([validated by `Tim
   and the view hides the section for the second instead of showing a
   confident zero. ([validated by [`spend.test.ts:33`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L33), [`spend.test.ts:37`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L37), [`spend.test.ts:49`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L49), [`spend.test.ts:79`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L79), [`spend.test.ts:83`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L83), [`spend.test.ts:99`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L99), [`spend.test.ts:122`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L122), [`spend.test.ts:135`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L135))
 
+- FR-19.24: `reviseTask` is the human feedback loop as ONE seam: it
+  queues a follow-up task on the parent's branch and PR at immediate
+  priority (a person is waiting), records the request on the parent
+  naming the revision it spawned, and parks the parent at
+  `revision-requested`. A feature-request revises as a feature-request
+  and everything else as an implementation. It refuses an unknown id and
+  refuses blank feedback rather than queueing an empty revision. The web
+  UI reaches it through `POST /api/task` with `action: "revise"`; the
+  three writes were previously three separate statements in a server
+  action, where a dropped event left a parent pointing at a revision the
+  timeline could not explain. ([validated by [`pipeline-tasks.escalate.test.ts:126`](libs/shared/src/pipeline-tasks.escalate.test.ts#L126), [`pipeline-tasks.escalate.test.ts:135`](libs/shared/src/pipeline-tasks.escalate.test.ts#L135), [`pipeline-tasks.escalate.test.ts:155`](libs/shared/src/pipeline-tasks.escalate.test.ts#L155), [`pipeline-tasks.escalate.test.ts:170`](libs/shared/src/pipeline-tasks.escalate.test.ts#L170), [`pipeline-tasks.escalate.test.ts:182`](libs/shared/src/pipeline-tasks.escalate.test.ts#L182), [`pipeline-tasks.escalate.test.ts:202`](libs/shared/src/pipeline-tasks.escalate.test.ts#L202), [`pipeline-tasks.escalate.test.ts:214`](libs/shared/src/pipeline-tasks.escalate.test.ts#L214), [`pipeline-tasks.escalate.test.ts:222`](libs/shared/src/pipeline-tasks.escalate.test.ts#L222))
+
 ### FR-20: Project Facade Ports (Phase 1)
 
 The `Project` facade (ADR-024) exposes every data capability — tasks,

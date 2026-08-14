@@ -97,6 +97,18 @@ export function runTaskNow(
   });
 }
 
+/** Queue a revision of a task from human feedback. Refuses an unknown id (404)
+ *  or blank feedback (409) rather than queueing an empty revision. */
+export function reviseTask(
+  id: string,
+  feedback: string,
+): Promise<ApiResult<{ task_id: string; revision_task_id: string }>> {
+  return apiFetch("lore-api", "/api/task", {
+    method: "POST",
+    body: { action: "revise", task_id: id, feedback },
+  });
+}
+
 export function getTaskRuns(
   id: string,
 ): Promise<ApiResult<{ runs: TaskRun[] }>> {

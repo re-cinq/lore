@@ -988,6 +988,9 @@
                   "created_by": {
                     "type": "string"
                   },
+                  "feedback": {
+                    "type": "string"
+                  },
                   "task_type": {
                     "type": "string"
                   },

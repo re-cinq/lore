@@ -488,6 +488,58 @@ export async function escalateTask(
   return { task_id: taskId, priority: "immediate" };
 }
 
+/**
+ * Queue a revision of a task from human feedback: a follow-up task on the SAME
+ * branch and PR, at immediate priority because a person is waiting on the loop,
+ * plus the request recorded on the parent and the parent moved to
+ * `revision-requested`.
+ *
+ * One seam rather than three writes at the call site: the event names the
+ * revision it spawned, so a parent whose event is missing leaves an orphan the
+ * timeline cannot explain.
+ */
+export async function reviseTask(
+  pool: PgPool,
+  taskId: string,
+  feedback: string,
+): Promise<{ task_id: string; revision_task_id: string }> {
+  const task = await getTask(pool, taskId);
+
+  enforceTrue(task, Error, "Task not found");
+  enforceTrue(Boolean(feedback.trim()), Error, "Feedback is required");
+
+  const { rows } = await pool.query<{ id: string }>(
+    `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
+     VALUES ($1, $2, $3, $4, $5, 'immediate') RETURNING id`,
+    [
+      `Revise based on feedback: ${feedback.substring(0, 200)}`,
+      task.task_type === "feature-request"
+        ? "feature-request"
+        : "implementation",
+      task.target_repo,
+      "ui-feedback",
+      JSON.stringify({
+        parent_task_id: taskId,
+        branch: task.target_branch,
+        pr_number: task.pr_number,
+        feedback,
+      }),
+    ],
+  );
+  const revisionTaskId = rows[0].id;
+
+  await recordEvent(pool, taskId, task.status, "revision-requested", {
+    feedback,
+    revision_task_id: revisionTaskId,
+  });
+  await pool.query(
+    `UPDATE pipeline.tasks SET status = 'revision-requested', updated_at = now() WHERE id = $1`,
+    [taskId],
+  );
+
+  return { task_id: taskId, revision_task_id: revisionTaskId };
+}
+
 export async function markTaskMerged(
   pool: PgPool,
   taskId: string,

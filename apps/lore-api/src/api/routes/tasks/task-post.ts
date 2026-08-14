@@ -2,6 +2,7 @@ import {
   errorMessage,
   cancelPipelineTask,
   escalatePipelineTask,
+  revisePipelineTask,
 } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute, ResponseToolkit } from "@hapi/hapi";
@@ -28,6 +29,8 @@ const TaskBody = z.object({
   /** Who queued it. The web UI names the signed-in author; an unnamed caller is
    *  the remote MCP adapter, which is the historical default. */
   created_by: z.string().optional(),
+  /** The human's words, carried into the revision task's context bundle. */
+  feedback: z.string().optional(),
   task_type: z.string().optional(),
   target_repo: z.string().optional(),
   group_id: z.string().optional(),
@@ -98,6 +101,17 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
           const taskId = parsed.task_id;
 
           return refusable(h, () => escalatePipelineTask(pool, taskId));
+        }
+
+        // Revise action — the task page's feedback loop: queue a follow-up on
+        // the same branch, record the request on the parent, and park the
+        // parent at revision-requested. One seam, so a parent can never be left
+        // pointing at a revision the timeline cannot explain.
+        if (parsed.action === "revise" && parsed.task_id) {
+          const taskId = parsed.task_id;
+          const feedback = parsed.feedback ?? "";
+
+          return refusable(h, () => revisePipelineTask(pool, taskId, feedback));
         }
 
         // Set priority action
