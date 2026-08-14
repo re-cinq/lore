@@ -11,7 +11,7 @@ interface AgentRunEventDbRow {
   id: string | number;
   task_id: string;
   agent_cr_name: string | null;
-  assembly_run_id: string | null;
+  assembly_line_id: string | null;
   station_run_id: string | null;
   node_id: string | null;
   iteration: number | null;
@@ -25,7 +25,7 @@ interface AgentRunEventDbRow {
   created_at: Date;
 }
 
-const SELECT_COLUMNS = `id, task_id, agent_cr_name, assembly_run_id, station_run_id, node_id,
+const SELECT_COLUMNS = `id, task_id, agent_cr_name, assembly_line_id, station_run_id, node_id,
          iteration, event_type, tool_name, tool_use_id, is_error,
          file_paths, summary, payload, created_at`;
 
@@ -34,7 +34,7 @@ function toRow(row: AgentRunEventDbRow): AgentRunEventRow {
     id: String(row.id),
     taskId: row.task_id,
     agentCrName: row.agent_cr_name,
-    assemblyLineId: row.assembly_run_id,
+    assemblyLineId: row.assembly_line_id,
     stationRunId: row.station_run_id,
     nodeId: row.node_id,
     iteration: row.iteration,
@@ -87,7 +87,7 @@ export class PgAgentRunEvents implements AgentRunEventsRepository {
 
     const { rows: inserted } = await this.pool.query<AgentRunEventDbRow>(
       `INSERT INTO pipeline.agent_run_events (
-         task_id, agent_cr_name, assembly_run_id, station_run_id, node_id, iteration,
+         task_id, agent_cr_name, assembly_line_id, station_run_id, node_id, iteration,
          event_type, tool_name, tool_use_id, is_error, file_paths, summary, payload
        )
        SELECT v.task_id, v.agent_cr_name, correlated.assembly_run_id,
@@ -132,7 +132,7 @@ export class PgAgentRunEvents implements AgentRunEventsRepository {
     const { rows } = await this.pool.query<AgentRunEventDbRow>(
       `SELECT ${SELECT_COLUMNS}
          FROM pipeline.agent_run_events
-        WHERE assembly_run_id = $1
+        WHERE assembly_line_id = $1
           AND id > $2::bigint
         ORDER BY id ASC
         LIMIT $3`,

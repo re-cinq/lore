@@ -8,8 +8,13 @@
 --
 --   pipeline.assembly_lines      -> pipeline.assembly_runs
 --   pipeline.assembly_line_nodes -> pipeline.station_runs
---   *.assembly_line_id           -> *.assembly_run_id
+--   station_runs.assembly_line_id-> station_runs.assembly_run_id
 --   assembly_runs.definition_*   -> assembly_runs.blueprint_*
+--
+-- ONLY those two tables. The telemetry tables that merely POINT at a run keep
+-- their column name — see the note further down; a renamed column on a
+-- same-named table has no compat shim, and that is the difference between a
+-- deploy you can roll back and one you cannot.
 --
 -- RENAME, not create-and-backfill: a rename is metadata-only, so it copies no
 -- rows, keeps every index, constraint, sequence and grant attached, and cannot
@@ -48,9 +53,8 @@
 -- the old write path work verbatim. Without that one column the statement fails
 -- with `column "xmax" does not exist` for the whole rollout.
 --
--- The telemetry tables get no views. Their writes are already skip-not-fail and
--- FK-free by design (0031, 0037), so a couple of minutes of best-effort
--- tool-call rows is a smaller price than a permanently half-renamed schema.
+-- The telemetry tables get no views and need none: nothing about them is renamed
+-- here, only added to.
 --
 -- ADD COLUMN with a volatile DEFAULT (gen_random_uuid()) REWRITES station_runs
 -- under an ACCESS EXCLUSIVE lock — the table is small today and the hook runs at
@@ -123,22 +127,14 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- The telemetry + cost tables point AT a run; rename their pointer to match.
-DO $$
-DECLARE
-  target TEXT;
-BEGIN
-  FOREACH target IN ARRAY ARRAY['agent_run_events', 'agent_run_turns', 'llm_calls'] LOOP
-    IF EXISTS (SELECT 1 FROM information_schema.columns
-                WHERE table_schema = 'pipeline' AND table_name = target
-                  AND column_name = 'assembly_line_id')
-    THEN
-      EXECUTE format(
-        'ALTER TABLE pipeline.%I RENAME COLUMN assembly_line_id TO assembly_run_id',
-        target);
-    END IF;
-  END LOOP;
-END $$;
+-- The telemetry + cost tables (agent_run_events / agent_run_turns / llm_calls)
+-- keep `assembly_line_id` DELIBERATELY. Their tables are not renamed, so a
+-- compat view cannot cover a renamed COLUMN on them — a view needs a name, and
+-- the table already has it. That leaves no way for a rolled-back Floor to write
+-- the column it knows, and telemetry ingest is a batch insert: one unknown
+-- column fails the whole batch, so the run visualization dies rather than
+-- degrades. Vocabulary consistency on three pointer columns is not worth an
+-- un-rollbackable deploy; they get their own change, after this one has settled.
 
 -- ---------------------------------------------------------------- new columns
 
@@ -174,8 +170,6 @@ ALTER INDEX IF EXISTS pipeline.idx_assembly_lines_resumed_from RENAME TO idx_ass
 ALTER INDEX IF EXISTS pipeline.assembly_line_nodes_al_idx     RENAME TO station_runs_run_idx;
 ALTER INDEX IF EXISTS pipeline.assembly_line_nodes_attempt_uniq RENAME TO station_runs_attempt_uniq;
 ALTER INDEX IF EXISTS pipeline.assembly_line_nodes_cr_name_idx RENAME TO station_runs_cr_name_idx;
-ALTER INDEX IF EXISTS pipeline.agent_run_events_line_idx      RENAME TO agent_run_events_run_idx;
-ALTER INDEX IF EXISTS pipeline.agent_run_turns_line_idx       RENAME TO agent_run_turns_run_idx;
 
 -- Runs are browsed BY BLUEPRINT ("every code-review run") and by repo+blueprint.
 -- The 0025 indexes cover repo, status and task; nothing covered the blueprint,

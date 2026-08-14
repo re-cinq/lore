@@ -67,7 +67,7 @@ export async function reportToParkedNode(
   args: Record<string, unknown> = {},
 ): Promise<void> {
   await insertEvent(pool, {
-    eventName: "assembly_run.resume",
+    eventName: "assembly_line.resume",
     source: "internal",
     params: {
       assemblyLineId: target.lineId,

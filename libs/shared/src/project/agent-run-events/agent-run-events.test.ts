@@ -360,7 +360,7 @@ describe("PgAgentRunEvents adapter", () => {
           id: "9007199254740995",
           task_id: "task-1",
           agent_cr_name: "cr-a",
-          assembly_run_id: "line-1",
+          assembly_line_id: "line-1",
           station_run_id: "3f2a1b4c-5d6e-4f70-8a91-b2c3d4e5f607",
           node_id: "implement",
           iteration: 2,
@@ -377,7 +377,7 @@ describe("PgAgentRunEvents adapter", () => {
           id: "9007199254740994",
           task_id: "task-1",
           agent_cr_name: null,
-          assembly_run_id: null,
+          assembly_line_id: null,
           node_id: null,
           iteration: null,
           event_type: "message",
@@ -422,7 +422,7 @@ describe("PgAgentRunEvents adapter", () => {
 
     await new PgAgentRunEvents(pool).listSince("line-1", "42", 500);
 
-    expect(calls[0]?.text).toContain("assembly_run_id = $1");
+    expect(calls[0]?.text).toContain("assembly_line_id = $1");
     expect(calls[0]?.text).toContain("id > $2::bigint");
     expect(calls[0]?.text).toContain("ORDER BY id ASC");
     expect(calls[0]?.text).toContain("LIMIT $3");

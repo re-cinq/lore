@@ -200,7 +200,7 @@ describe("features routes", () => {
     expect(res.statusCode).toBe(202);
     expect(res.result).toMatchObject({
       iteration: 2,
-      assembly_run_id: "line-1",
+      assembly_line_id: "line-1",
       task_id: null,
     });
     // A task here would start a SECOND line for the same feature.
@@ -211,7 +211,7 @@ describe("features routes", () => {
     );
 
     expect(insert).toBeDefined();
-    expect(JSON.stringify(insert)).toContain("assembly_run.resume");
+    expect(JSON.stringify(insert)).toContain("assembly_line.resume");
     // The author asked for changes: the edge back to another round.
     expect(JSON.stringify(insert)).toContain("changes_requested");
   });
@@ -544,7 +544,7 @@ describe("accepting the plan resumes the parked node", () => {
     });
 
     expect(res.statusCode).toBe(202);
-    expect(res.result).toMatchObject({ assembly_run_id: "line-1" });
+    expect(res.result).toMatchObject({ assembly_line_id: "line-1" });
     expect(createTask).not.toHaveBeenCalled();
 
     const insert = pool.query.mock.calls.find((c) =>
@@ -626,7 +626,7 @@ describe("accepting the plan resumes the parked node", () => {
       );
       const body = JSON.parse((await req("GET", `${base}/f1/status`)).payload);
 
-      expect(body.assembly_run_id).toBe("line-1");
+      expect(body.assembly_line_id).toBe("line-1");
     });
 
     it("reports no line for a feature whose rounds name no task", async () => {
@@ -637,7 +637,7 @@ describe("accepting the plan resumes the parked node", () => {
       );
       const body = JSON.parse((await req("GET", `${base}/f1/status`)).payload);
 
-      expect(body.assembly_run_id).toBeNull();
+      expect(body.assembly_line_id).toBeNull();
     });
 
     it("404s for a feature that does not exist", async () => {

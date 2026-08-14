@@ -43,7 +43,7 @@ describe("nodeAgentSpec", () => {
       model: "claude-sonnet-4-6",
       name: "a1b2c3d4e5f6-implement",
       extraLabels: {
-        "lore.re-cinq.com/assembly-run-id": "a1b2c3d4e5f6a7b8",
+        "lore.re-cinq.com/assembly-line-id": "a1b2c3d4e5f6a7b8",
         "lore.re-cinq.com/node-id": "implement",
         "lore.re-cinq.com/node-iteration": "1",
       },
@@ -83,7 +83,7 @@ describe("nodeAgentSpec", () => {
       nodeAgentSpec(cloneNode({ id: "implement", type: "agent" }), task, "p")
         .extraLabels,
     ).toEqual({
-      "lore.re-cinq.com/assembly-run-id": "a1b2c3d4e5f6a7b8",
+      "lore.re-cinq.com/assembly-line-id": "a1b2c3d4e5f6a7b8",
       "lore.re-cinq.com/node-id": "implement",
       "lore.re-cinq.com/node-iteration": "1",
     });
@@ -91,7 +91,7 @@ describe("nodeAgentSpec", () => {
       nodeStationSpec(cloneNode({ id: "wrap", type: "retrospective" }), task)
         .extraLabels,
     ).toEqual({
-      "lore.re-cinq.com/assembly-run-id": "a1b2c3d4e5f6a7b8",
+      "lore.re-cinq.com/assembly-line-id": "a1b2c3d4e5f6a7b8",
       "lore.re-cinq.com/node-id": "wrap",
       "lore.re-cinq.com/node-iteration": "1",
     });

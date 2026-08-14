@@ -299,7 +299,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             last_ready_iteration: latestReadyIteration(iterations),
             // The line the run graph hangs on. From round 2 a resumed round mints
             // no task, so only the OWNING task — the first round's — can resolve it.
-            assembly_run_id: await planningLineId(project, iterations),
+            assembly_line_id: await planningLineId(project, iterations),
           });
         }),
     },
@@ -454,7 +454,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             return h
               .response({
                 iteration: row.iteration,
-                assembly_run_id: dispatch.lineId,
+                assembly_line_id: dispatch.lineId,
                 task_id: null,
               })
               .code(202);
@@ -567,7 +567,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
               "success",
             );
 
-            return h.response({ assembly_run_id: dispatch.lineId }).code(202);
+            return h.response({ assembly_line_id: dispatch.lineId }).code(202);
           }
           const task = await createTask(
             `Finalize feature: ${feature.title}`,

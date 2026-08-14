@@ -24,7 +24,7 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 describe("PgAssemblyRuns adapter", () => {
-  it("start inserts the assembly line row and the assembly_run.start event in one atomic statement", async () => {
+  it("start inserts the assembly line row and the assembly_line.start event in one atomic statement", async () => {
     const { pool, calls } = fakePool([[{ id: "al-1" }]]);
 
     const id = await new PgAssemblyRuns(pool).start({
@@ -41,9 +41,9 @@ describe("PgAssemblyRuns adapter", () => {
 
     expect(sql).toContain("INSERT INTO pipeline.assembly_runs");
     expect(sql).toContain("INSERT INTO pipeline.events");
-    expect(sql).toContain("'assembly_run.start'");
+    expect(sql).toContain("'assembly_line.start'");
     expect(sql).toContain("'internal'");
-    expect(sql).toContain("'assembly_run.start:' || al.id");
+    expect(sql).toContain("'assembly_line.start:' || al.id");
     expect(calls[0]?.params).toEqual([
       "implementation",
       "task-9",
@@ -246,7 +246,7 @@ describe("PgAssemblyRuns adapter", () => {
 });
 
 describe("InMemoryAssemblyRuns double", () => {
-  it("start seeds a queued row with a fresh uuid and one assembly_run.start event", async () => {
+  it("start seeds a queued row with a fresh uuid and one assembly_line.start event", async () => {
     const assemblyLines = new InMemoryAssemblyRuns();
 
     const id = await assemblyLines.start({
@@ -268,9 +268,9 @@ describe("InMemoryAssemblyRuns double", () => {
     ]);
     expect(assemblyLines.events).toMatchObject([
       {
-        eventName: "assembly_run.start",
+        eventName: "assembly_line.start",
         source: "internal",
-        dedupeKey: `assembly_run.start:${id}`,
+        dedupeKey: `assembly_line.start:${id}`,
         params: {
           assemblyLineId: id,
           blueprintName: "implementation",
@@ -1262,7 +1262,7 @@ describe("InMemoryAssemblyRuns resumeFrom", () => {
     });
   });
 
-  it("emits one assembly_run.start event carrying the fork parentage", async () => {
+  it("emits one assembly_line.start event carrying the fork parentage", async () => {
     const port = new InMemoryAssemblyRuns();
     const source = await terminalSource(port);
 
@@ -1274,9 +1274,9 @@ describe("InMemoryAssemblyRuns resumeFrom", () => {
     });
 
     expect(port.events.at(-1)).toMatchObject({
-      eventName: "assembly_run.start",
+      eventName: "assembly_line.start",
       source: "internal",
-      dedupeKey: `assembly_run.start:${fork}`,
+      dedupeKey: `assembly_line.start:${fork}`,
       params: {
         assemblyLineId: fork,
         branch: "lore/implementation/x",
@@ -1426,7 +1426,7 @@ describe("PgAssemblyRuns resumeFrom", () => {
     expect(sql).toContain("INSERT INTO pipeline.assembly_runs");
     expect(sql).toContain("INSERT INTO pipeline.events");
     expect(sql).toContain("INSERT INTO pipeline.station_runs");
-    expect(sql).toContain("'assembly_run.start:' || al.id");
+    expect(sql).toContain("'assembly_line.start:' || al.id");
   });
 
   it("bounds the copy by the cutoff row id, scoped to the source line and ordered by id", async () => {

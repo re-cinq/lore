@@ -319,7 +319,7 @@ describe("PgAgentRunTurns adapter", () => {
           id: "9007199254740995",
           task_id: "task-1",
           agent_cr_name: "cr-a",
-          assembly_run_id: "line-1",
+          assembly_line_id: "line-1",
           node_id: "implement",
           iteration: 2,
           event_type: "assistant",
@@ -330,7 +330,7 @@ describe("PgAgentRunTurns adapter", () => {
           id: "9007199254740994",
           task_id: null,
           agent_cr_name: null,
-          assembly_run_id: null,
+          assembly_line_id: null,
           node_id: null,
           iteration: null,
           event_type: null,
@@ -364,7 +364,7 @@ describe("PgAgentRunTurns adapter", () => {
 
     await new PgAgentRunTurns(pool).listByLine("line-1", "42", 500);
 
-    expect(calls[0]?.text).toContain("assembly_run_id = $1");
+    expect(calls[0]?.text).toContain("assembly_line_id = $1");
     expect(calls[0]?.text).toContain("id > $2::bigint");
     expect(calls[0]?.text).toContain("ORDER BY id ASC");
     expect(calls[0]?.text).toContain("LIMIT $3");

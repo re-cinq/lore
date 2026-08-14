@@ -43,10 +43,9 @@ export function nodeAgentName(
 /** The CR name only carries a 12-char prefix; these labels carry the full identity
  *  so the k8s watch maps a terminal node CR back to its (line, node, iteration). */
 export const ASSEMBLY_RUN_ID_LABEL = "lore.re-cinq.com/assembly-run-id";
-/** The PRE-RENAME label. Written no longer; still READ, because Agent CRs created
- *  by the previous image outlive a rollout by up to a node's whole timeout, and a
- *  Floor that could not see them would route every in-flight NODE CR into the
- *  single-agent PR path. DELETE once no CR predates the rename. */
+/** The label still WRITTEN. Emitted under the PRE-RENAME name deliberately. Expand/contract only works readers-first: every consumer must ACCEPT both spellings in one release before any producer emits the new one. Flipping a writer early breaks two directions at once — a not-yet-rolled peer, and a rollback. The writer flips in a follow-up, once every deployed reader accepts both. A CR labelled with the new name and read by a
+ *  rolled-back Floor is invisible to it, and every in-flight NODE CR would be
+ *  routed into the single-agent PR path. */
 export const LEGACY_ASSEMBLY_LINE_ID_LABEL =
   "lore.re-cinq.com/assembly-line-id";
 export const NODE_ID_LABEL = "lore.re-cinq.com/node-id";
@@ -62,7 +61,7 @@ function nodeLabels(
   iteration: number,
 ): Record<string, string> {
   return {
-    [ASSEMBLY_RUN_ID_LABEL]: task.assemblyLineId,
+    [LEGACY_ASSEMBLY_LINE_ID_LABEL]: task.assemblyLineId,
     [NODE_ID_LABEL]: node.id,
     [NODE_ITERATION_LABEL]: String(iteration),
   };

@@ -11,7 +11,7 @@ interface AgentRunTurnDbRow {
   id: string | number;
   task_id: string | null;
   agent_cr_name: string | null;
-  assembly_run_id: string | null;
+  assembly_line_id: string | null;
   station_run_id: string | null;
   node_id: string | null;
   iteration: number | null;
@@ -20,7 +20,7 @@ interface AgentRunTurnDbRow {
   created_at: Date;
 }
 
-const SELECT_COLUMNS = `id, task_id, agent_cr_name, assembly_run_id, station_run_id, node_id,
+const SELECT_COLUMNS = `id, task_id, agent_cr_name, assembly_line_id, station_run_id, node_id,
          iteration, event_type, envelope, created_at`;
 
 function toRow(row: AgentRunTurnDbRow): AgentRunTurnRow {
@@ -28,7 +28,7 @@ function toRow(row: AgentRunTurnDbRow): AgentRunTurnRow {
     id: String(row.id),
     taskId: row.task_id,
     agentCrName: row.agent_cr_name,
-    assemblyLineId: row.assembly_run_id,
+    assemblyLineId: row.assembly_line_id,
     stationRunId: row.station_run_id,
     nodeId: row.node_id,
     iteration: row.iteration,
@@ -71,7 +71,7 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
 
     const { rows: inserted } = await this.pool.query<AgentRunTurnDbRow>(
       `INSERT INTO pipeline.agent_run_turns (
-         task_id, agent_cr_name, assembly_run_id, station_run_id, node_id,
+         task_id, agent_cr_name, assembly_line_id, station_run_id, node_id,
          iteration, event_type, envelope
        )
        SELECT v.task_id, v.agent_cr_name, correlated.assembly_run_id,
@@ -104,7 +104,7 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
     afterId: string,
     limit: number,
   ): Promise<AgentRunTurnRow[]> {
-    return this.page("assembly_run_id", assemblyLineId, afterId, limit);
+    return this.page("assembly_line_id", assemblyLineId, afterId, limit);
   }
 
   async listByTask(
@@ -132,7 +132,7 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
   /** The two reads differ only in which correlation column scopes them; the
    *  column name is a literal from this file, never caller input. */
   private async page(
-    scopeColumn: "assembly_run_id" | "task_id",
+    scopeColumn: "assembly_line_id" | "task_id",
     scopeValue: string,
     afterId: string,
     limit: number,
