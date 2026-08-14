@@ -113,6 +113,84 @@ describe("GET /api/assembly-lines/{id}", () => {
     });
   });
 
+  it("describes nodes from the run's OWN graph even when the blueprint is gone", async () => {
+    // The clone is the record (FR6.38): a rename or delete of the YAML must not
+    // make a run's history undrawable, and an EDIT must not rewrite it.
+    getById.mockResolvedValue(
+      line({
+        blueprintName: "renamed-away",
+        graph: {
+          name: "renamed-away",
+          entry: "author",
+          exit: "author",
+          nodes: [
+            {
+              id: "author",
+              type: "feature_review",
+              station: null,
+              station_inherited: false,
+              route: "/repos/{args.repo}/features/{args.feature_id}",
+            },
+          ],
+          edges: [],
+        },
+        args: { repo: "re-cinq/lore", feature_id: "feat-1" },
+      }),
+    );
+    listStationRuns.mockResolvedValue([node("author", null)]);
+
+    const res = await server(async () => new Map()).inject({
+      method: "GET",
+      url: "/api/assembly-lines/line-1",
+      headers: { authorization: "Bearer ingest-secret" },
+    });
+
+    expect(res.result).toMatchObject({
+      definitionKnown: true,
+      nodes: [
+        {
+          nodeId: "author",
+          type: "feature_review",
+          station: null,
+          route: "/repos/re-cinq/lore/features/feat-1",
+        },
+      ],
+    });
+  });
+
+  it("prefers the stored graph's station over the current blueprint's answer", async () => {
+    getById.mockResolvedValue(
+      line({
+        blueprintName: "feature-planning",
+        graph: {
+          name: "feature-planning",
+          entry: "analyze",
+          exit: "analyze",
+          nodes: [
+            {
+              id: "analyze",
+              type: "agent",
+              station: "the-station-the-run-RAN",
+              station_inherited: false,
+            },
+          ],
+          edges: [],
+        },
+      }),
+    );
+    listStationRuns.mockResolvedValue([node("analyze", "success")]);
+
+    // The CURRENT blueprint says something else — an edit after the run started.
+    const res = await get("/api/assembly-lines/line-1");
+
+    expect(
+      (res.result as { nodes: Record<string, unknown>[] }).nodes[0],
+    ).toMatchObject({
+      station: "the-station-the-run-RAN",
+      stationInherited: false,
+    });
+  });
+
   it("returns 404 for a line that does not exist", async () => {
     getById.mockResolvedValue(null);
 

@@ -26,7 +26,11 @@ import {
   resolveNodeStation,
   type AssemblyLine,
 } from "@re-cinq/lore-assembly-lines";
-import { resolveRoute } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import {
+  resolveRoute,
+  type RunGraphNode,
+} from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import { graphForRun } from "../../../jobs/assembly-line/graph-for-run.js";
 import { assemblyLines } from "../../../kernel/queues.js";
 
 interface NodeRow {
@@ -39,18 +43,16 @@ interface NodeRow {
   finishedAt: Date | null;
 }
 
-/** A node row joined to what the definition says about that node. Definition facts are
- *  null when the definition is unknown — a renamed or deleted definition must still
- *  leave its RUNS inspectable, since the rows are the record of what actually ran. */
+/** A node row joined to what the run's OWN graph says about that node (FR6.38 —
+ *  station and route were resolved once, at clone time; re-deriving them from the
+ *  current YAML is how an edited blueprint rewrote a run's history). Graph facts
+ *  are null when the run predates clones AND its blueprint is gone — the rows are
+ *  the record of what actually ran, so they still serve. */
 function describeNode(
   row: NodeRow,
-  definition: AssemblyLine | undefined,
-  lineTaskType: string,
+  node: RunGraphNode | undefined,
   args: Record<string, unknown> = {},
 ) {
-  const node = definition?.nodes.find((n) => n.id === row.nodeId);
-  const station = node ? resolveNodeStation(node, lineTaskType) : null;
-
   return {
     nodeId: row.nodeId,
     iteration: row.iteration,
@@ -67,8 +69,8 @@ function describeNode(
     // when the run does not carry every placeholder: a half-built href sends the
     // reader somewhere that does not exist, which is worse than no link.
     route: resolveRoute(node?.route, args),
-    station: station?.station ?? null,
-    stationInherited: station?.inherited ?? false,
+    station: node?.station ?? null,
+    stationInherited: node?.station_inherited ?? false,
   };
 }
 
@@ -85,19 +87,22 @@ export function assemblyLineReadRoute(
       const line = await assemblyLines().getById(request.params.id);
 
       enforceTrue(line !== null, Boom.notFound, "assembly line not found");
-      const [rows, definitions] = await Promise.all([
+      const [rows, graph] = await Promise.all([
         assemblyLines().listStationRuns(line.id),
-        load(),
+        // The run's own clone; a blueprint loaded by name only for rows stamped
+        // before clones existed (same rule as the walk and the reaper).
+        graphForRun(line, load),
       ]);
-      const definition = definitions.get(line.blueprintName);
 
       return {
         line,
-        definitionKnown: Boolean(definition),
-        // A line's task type IS its definition name: a line is started per task type,
-        // and an agent node with no station_ref resolves against exactly that.
+        definitionKnown: Boolean(graph),
         nodes: rows.map((row) =>
-          describeNode(row, definition, line.blueprintName, line.args),
+          describeNode(
+            row,
+            graph?.nodes.find((n) => n.id === row.nodeId),
+            line.args,
+          ),
         ),
       };
     },
