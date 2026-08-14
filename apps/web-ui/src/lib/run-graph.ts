@@ -2,7 +2,10 @@
 //
 // A hand mirror of `RunGraph` in `@re-cinq/lore-shared`, for the same reason every
 // other mirror here exists: web-ui is excluded from the npm workspace and built in
-// an isolated Docker context, so it cannot import the canonical type.
+// an isolated Docker context, so it cannot import the canonical type. Guarded by
+// `scripts/type-drift/run-graph.drift.ts` (`npm run typecheck:drift`), exact both
+// ways — a shared-side field change goes red here instead of silently narrowing
+// the graph the run views draw.
 //
 // This REPLACES the transcribed blueprint catalog that used to live in
 // `builtin-definitions.ts` — 350 lines of YAML copied by hand, which went stale
@@ -13,7 +16,7 @@ export interface RunGraphNode {
   id: string;
   type: string;
   station: string | null;
-  station_inherited?: boolean;
+  station_inherited: boolean;
   route?: string;
   prompt_ref?: string;
   model?: string;

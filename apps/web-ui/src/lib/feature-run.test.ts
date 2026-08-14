@@ -29,6 +29,7 @@ const planningRun: AssemblyLineRun = {
     nodes: featurePlanningDefinition.nodes.map((node) => ({
       ...node,
       station: null,
+      station_inherited: false,
     })),
     edges: featurePlanningDefinition.edges,
   },
