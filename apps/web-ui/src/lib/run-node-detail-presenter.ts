@@ -98,13 +98,11 @@ function erroredSteps(state: NodeRunState | undefined): FailedStep[] {
 
 function whyText(
   input: NodeDetailInput,
+  type: string | undefined,
   tone: NodeStatusTone,
   terminal: boolean,
   duration: string,
 ): string {
-  const type = input.definition?.nodes.find(
-    (node) => node.id === input.nodeId,
-  )?.type;
   const noun = type ? `the ${type} node` : "this step";
 
   if (tone === "running") {
@@ -142,9 +140,10 @@ function whyText(
 }
 
 export function describeNode(input: NodeDetailInput): NodeDetail {
+  // The ONE lookup — every fact below reads this node, not its own find.
+  const node = input.definition?.nodes.find((n) => n.id === input.nodeId);
   // The verdict on the walk row is authoritative; the execution status only fills
   // in while a node is still in flight (no recorded outcome yet).
-  const node = input.definition?.nodes.find((n) => n.id === input.nodeId);
   const visual = nodeRunVisual(
     input.row?.outcome ?? null,
     input.state?.status ?? "idle",
@@ -159,16 +158,20 @@ export function describeNode(input: NodeDetailInput): NodeDetail {
   return {
     tone: visual.tone,
     statusLabel,
-    why: whyText(input, visual.tone, terminal, formatDuration(durationSeconds)),
+    why: whyText(
+      input,
+      node?.type,
+      visual.tone,
+      terminal,
+      formatDuration(durationSeconds),
+    ),
     // Only a failed node lists errored steps: a succeeded node can carry errored
     // tool calls it retried past, which are not the reason for anything.
     failures: visual.tone === "err" ? erroredSteps(input.state) : [],
     files: uniqueFiles(input.state),
     eventCount: input.state?.transcript.length ?? 0,
     droppedCount: input.state?.droppedCount ?? 0,
-    nodeType:
-      input.definition?.nodes.find((node) => node.id === input.nodeId)?.type ??
-      null,
+    nodeType: node?.type ?? null,
     outcomeLabel: running ? "in progress" : (input.row?.outcome ?? "—"),
     durationLabel: running ? "running" : formatDuration(durationSeconds),
     iteration: input.row?.iteration ?? input.state?.iteration ?? 0,
