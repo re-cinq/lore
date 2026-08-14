@@ -323,15 +323,20 @@ export class PgAssemblyLines implements AssemblyLinesPort {
     repo: string,
     prNumber: number,
     outcome: string,
+    definitions?: readonly string[],
   ): Promise<number> {
-    const { rows } = await this.pool.query(
+    // A null $4 means "every definition" — the caller that owns only part of the
+    // PR's lifecycle passes its own family instead, so closing a PR cannot close a
+    // line that merely references it.
+    const { rows } = await this.pool.query<{ id: string }>(
       `UPDATE pipeline.assembly_lines
           SET status = 'finished', outcome = $1, finished_at = now()
         WHERE repo = $2
           AND (args->>'pr_number')::int = $3
           AND status IN ('queued', 'running')
+          AND ($4::text[] IS NULL OR definition_name = ANY($4::text[]))
       RETURNING id`,
-      [outcome, repo, prNumber],
+      [outcome, repo, prNumber, definitions ? [...definitions] : null],
     );
 
     return rows.length;

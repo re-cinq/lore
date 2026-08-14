@@ -224,7 +224,9 @@ describe("PgAssemblyLines adapter", () => {
     expect(calls[0]?.text).toContain("WHERE repo = $2");
     expect(calls[0]?.text).toContain("(args->>'pr_number')::int = $3");
     expect(calls[0]?.text).toContain("status IN ('queued', 'running')");
-    expect(calls[0]?.params).toEqual(["pr_closed", "re-cinq/lore", 42]);
+    // $4 null = every definition; a caller owning only part of a PR's lifecycle
+    // passes its own family instead.
+    expect(calls[0]?.params).toEqual(["pr_closed", "re-cinq/lore", 42, null]);
   });
 
   it("hasReviewedPr matches repo + code-review + args pr_number", async () => {
@@ -471,6 +473,50 @@ describe("InMemoryAssemblyLines double", () => {
     const found = await assemblyLines.findOpenByPr("r/a", 42);
 
     expect(found.map((r) => r.id)).toEqual([open]);
+  });
+
+  // A merged spec PR closes the code-review line for that PR — and used to close the
+  // FEATURE-PLANNING line parked on `merged` for the same PR, killing the feature one
+  // step before decomposition. The port's doc asserted "only code-review lines carry
+  // pr_number in args", which stopped being true when the push node began stamping it
+  // on the planning line.
+  it("finishOpenByPr leaves a line outside the named definitions alone", async () => {
+    const assemblyLines = new InMemoryAssemblyLines();
+    const review = await assemblyLines.start({
+      definitionName: "code-review",
+      repo: "r/a",
+      args: { pr_number: 42 },
+    });
+    const planning = await assemblyLines.start({
+      definitionName: "feature-planning",
+      repo: "r/a",
+      args: { pr_number: 42 },
+    });
+
+    const count = await assemblyLines.finishOpenByPr("r/a", 42, "pr_closed", [
+      "code-review",
+    ]);
+
+    expect(count).toBe(1);
+    expect(await assemblyLines.getById(review)).toMatchObject({
+      status: "finished",
+    });
+    expect(await assemblyLines.getById(planning)).toMatchObject({
+      status: "queued",
+      outcome: null,
+    });
+  });
+
+  it("finishOpenByPr with no definition filter still closes every open line", async () => {
+    const assemblyLines = new InMemoryAssemblyLines();
+
+    await assemblyLines.start({
+      definitionName: "feature-planning",
+      repo: "r/a",
+      args: { pr_number: 42 },
+    });
+
+    expect(await assemblyLines.finishOpenByPr("r/a", 42, "pr_closed")).toBe(1);
   });
 
   it("finishOpenByPr closes only the open matching rows and returns the count", async () => {

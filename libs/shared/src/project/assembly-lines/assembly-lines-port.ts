@@ -132,15 +132,26 @@ export interface AssemblyLinesPort {
   listOpen(): Promise<AssemblyLineRecord[]>;
   /**
    * Open (`queued`/`running`) assembly lines whose `args.pr_number` matches — the
-   * PR-scoped lookup the code-review choreography uses. Only code-review lines
-   * carry `pr_number` in args, so this is naturally scoped to them.
+   * PR-scoped lookup the code-review choreography uses. NOT only code-review lines:
+   * a feature-planning line carries the spec PR it pushed, which is how a merge
+   * finds the line parked on `merged`.
    */
   findOpenByPr(repo: string, prNumber: number): Promise<AssemblyLineRecord[]>;
-  /** Close every open line for the repo+PR with `outcome`; returns the count closed. */
+  /**
+   * Close open lines for the repo+PR with `outcome`; returns the count closed.
+   *
+   * `definitions` NARROWS it to those definition names, and the PR-lifecycle
+   * choreography must pass its own family. The unfiltered form used to be safe
+   * because only code-review lines carried `pr_number` in args — an invariant that
+   * ended when the push node began stamping the spec PR on the FEATURE-PLANNING
+   * line. Merging a spec PR then closed the very line that was parked waiting for
+   * that merge, one step before decomposition.
+   */
   finishOpenByPr(
     repo: string,
     prNumber: number,
     outcome: string,
+    definitions?: readonly string[],
   ): Promise<number>;
   /**
    * True when any `code-review` line (any status) has ever run for the repo+PR —

@@ -46,8 +46,12 @@ export class AssemblyLines {
     return this.port.findOpenByPr(this.repo, prNumber);
   }
 
-  finishOpenByPr(prNumber: number, outcome: string): Promise<number> {
-    return this.port.finishOpenByPr(this.repo, prNumber, outcome);
+  finishOpenByPr(
+    prNumber: number,
+    outcome: string,
+    definitions?: readonly string[],
+  ): Promise<number> {
+    return this.port.finishOpenByPr(this.repo, prNumber, outcome, definitions);
   }
 
   hasReviewedPr(prNumber: number): Promise<boolean> {
