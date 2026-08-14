@@ -14,10 +14,24 @@ import type {
   AssemblyLineRun,
   AssemblyLineRunNode,
 } from "./assembly-line-runs";
+import { featurePlanningDefinition } from "./definition-fixtures";
 
 const planningRun: AssemblyLineRun = {
   id: "ae7918b1-4baa-41fc-8b34-deb1be4cddf9",
   blueprintName: "feature-planning",
+  // A real run carries its clone, stamped at start — so the wizard can draw the
+  // whole graph before a single node row exists. That used to come from a
+  // name lookup against a transcription of the yaml.
+  graph: {
+    name: featurePlanningDefinition.name,
+    entry: featurePlanningDefinition.entry,
+    exit: featurePlanningDefinition.exit,
+    nodes: featurePlanningDefinition.nodes.map((node) => ({
+      ...node,
+      station: null,
+    })),
+    edges: featurePlanningDefinition.edges,
+  },
   taskId: "e25bc81a-469a-42a8-ab08-ed824b2160d8",
   repo: "re-cinq/lore",
   branch: "lore/feature-planning/assembly-lines-live-view",
@@ -57,7 +71,7 @@ describe("toFeatureRunPayload", () => {
         name: "feature-planning",
         entry: "analyze",
         exit: "done",
-        // The real graph, generated from the YAML. This assertion used to read
+        // The graph the RUN recorded. This assertion used to read
         // `[{ from: "analyze", to: "done" }]` — the hand-transcribed 2-node shape
         // that had not matched the definition for months.
         nodes: [
@@ -85,8 +99,15 @@ describe("toFeatureRunPayload", () => {
     ]);
   });
 
-  it("marks a run of an unknown definition synthetic", () => {
-    const custom = { ...planningRun, blueprintName: "bespoke-line" };
+  it("marks a run with no recorded graph synthetic", () => {
+    // "Unknown definition" stopped being the interesting case once runs carry
+    // their own graph: what matters now is a run stamped before clones existed,
+    // whose blueprint is not recoverable from the row.
+    const custom = {
+      ...planningRun,
+      blueprintName: "bespoke-line",
+      graph: null,
+    };
 
     expect(toFeatureRunPayload(custom, [analyzeNode])).toMatchObject({
       synthetic: true,

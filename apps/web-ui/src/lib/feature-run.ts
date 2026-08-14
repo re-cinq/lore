@@ -41,7 +41,11 @@ export function toFeatureRunPayload(
   nodes: AssemblyLineRunNode[],
   tokens: RunTokens | null = null,
 ): FeatureRunPayload {
-  const { definition, synthetic } = definitionForRun(run.blueprintName, nodes);
+  const { definition, synthetic } = definitionForRun(
+    run.blueprintName,
+    nodes,
+    run.graph,
+  );
 
   return {
     id: run.id,

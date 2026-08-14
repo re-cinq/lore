@@ -34,15 +34,39 @@ export type FeaturePhase =
   | { kind: "done" }
   | { kind: "failed" };
 
-/** Node id -> the phase it represents. The spec nodes share one phase because the
- *  author has no decision to make while any of them runs. */
+/** Whose move it is, straight off a HUMAN station's declared type (FR6.40).
+ *
+ *  This takes PRECEDENCE over the node-id map below, which is what removes the
+ *  fragile half: a human station added or renamed in the blueprint reports its
+ *  phase without anyone remembering to edit a list in the view. */
+const HUMAN_STATION_PHASE: Record<string, FeaturePhase["kind"]> = {
+  feature_review: "awaiting-author",
+  pr_review: "awaiting-merge",
+};
+
+/**
+ * Node id -> the STAGE it belongs to, for the nodes a person is not working.
+ *
+ * This half is NOT derivable and is not pretending to be: `analyze`, `write` and
+ * `decompose` are all `agent` nodes, so the type says nothing about which stage of
+ * a feature they serve. Deriving it would need the blueprint to declare a phase per
+ * node — a real option, and the only way to delete this map outright. Until then it
+ * is domain knowledge about ONE blueprint living in the view, and a node added to
+ * feature-planning without an entry here reports no phase.
+ *
+ * The spec nodes share one phase because the author has no decision to make while
+ * any of them runs.
+ */
 const NODE_PHASE: Record<string, FeaturePhase["kind"]> = {
   analyze: "planning",
+  // The two human stations are ALSO listed here, as the fallback for runs stamped
+  // before clones existed: those carry no graph, so their type cannot be read and
+  // the id is all there is. A run that HAS a graph never reaches these entries.
   author: "awaiting-author",
+  merged: "awaiting-merge",
   "analyse-specs": "writing-spec",
   write: "writing-spec",
   push: "writing-spec",
-  merged: "awaiting-merge",
   decompose: "decomposing",
   issues: "decomposing",
 };
@@ -56,6 +80,9 @@ export interface FeaturePhaseInput {
     status: string;
     outcome?: string | null;
     nodes: readonly AssemblyLineRunNode[];
+    /** The run's own graph, so a human station's phase reads off its declared
+     *  type rather than off a transcribed list of node ids. */
+    graph?: { nodes: readonly { id: string; type: string }[] } | null;
   } | null;
   feature: { status: FeatureStatus };
   latestIteration?: { status: string; gap_result: unknown } | null;
@@ -93,7 +120,11 @@ function phaseFromLine(run: FeaturePhaseInput["run"]): FeaturePhase | null {
   // The LAST open row: a revisit mints a new one, and an earlier open row is a node
   // the walk has already moved past.
   const working = [...run.nodes].reverse().find((n) => n.outcome === null);
-  const kind = working ? NODE_PHASE[working.nodeId] : undefined;
+  const kind = working
+    ? (HUMAN_STATION_PHASE[
+        run.graph?.nodes.find((n) => n.id === working.nodeId)?.type ?? ""
+      ] ?? NODE_PHASE[working.nodeId])
+    : undefined;
 
   if (!working || !kind) {
     return null;

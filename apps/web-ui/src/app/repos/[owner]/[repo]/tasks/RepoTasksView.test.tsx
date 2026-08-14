@@ -14,6 +14,7 @@ beforeEach(() => {
 const run = (over: Partial<AssemblyLineRun> = {}): AssemblyLineRun => ({
   id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
   blueprintName: "implementation",
+  graph: null,
   taskId: "task-9",
   repo: "re-cinq/lore",
   branch: "lore/impl-x",

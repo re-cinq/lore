@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { stepViews } from "./step-presenter";
-import { implementationDefinition } from "./builtin-definitions";
+import { implementationDefinition } from "./definition-fixtures";
 import type { AssemblyLineRunNode } from "./assembly-line-runs";
 
 const node = (

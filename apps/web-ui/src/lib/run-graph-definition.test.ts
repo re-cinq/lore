@@ -1,10 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { definitionForRun } from "./run-graph-definition";
-import {
-  codeReviewDefinition,
-  implementationDefinition,
-} from "./builtin-definitions";
 import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { RunGraph } from "./run-graph";
+
+const storedGraph: RunGraph = {
+  name: "code-review",
+  entry: "review",
+  exit: "done",
+  nodes: [
+    { id: "review", type: "agent", station: "code-review" },
+    { id: "done", type: "retrospective", station: "def-retrospective" },
+  ],
+  edges: [{ from: "review", to: "done", on: "success" }],
+};
 
 const row = (
   nodeId: string,
@@ -19,21 +27,39 @@ const row = (
   ...over,
 });
 
+describe("definitionForRun on a run carrying its own graph", () => {
+  it("draws the graph the run RECORDED, not a transcription of today's yaml", () => {
+    // The whole point of the clone: a blueprint edited or renamed after the run
+    // must not change what that run is shown to have walked.
+    const { definition, synthetic } = definitionForRun(
+      "code-review",
+      [row("review")],
+      storedGraph,
+    );
+
+    expect(synthetic).toBe(false);
+    expect(definition?.entry).toBe("review");
+    expect(definition?.nodes.map((n) => n.id)).toEqual(["review", "done"]);
+    expect(definition?.edges).toEqual([
+      { from: "review", to: "done", on: "success" },
+    ]);
+  });
+
+  it("falls back to the inferred chain for a run stamped before clones existed", () => {
+    // Those rows carry no graph and are not recoverable — the blueprint a
+    // historical run used is not derivable from the row. An inferred chain of the
+    // nodes it actually visited beats showing nothing.
+    const { definition, synthetic } = definitionForRun("code-review", [
+      row("review"),
+      row("done"),
+    ]);
+
+    expect(synthetic).toBe(true);
+    expect(definition?.nodes.map((n) => n.id)).toEqual(["review", "done"]);
+  });
+});
+
 describe("definitionForRun", () => {
-  it("returns the implementation builtin for definition name implementation", () => {
-    expect(definitionForRun("implementation", [])).toEqual({
-      definition: implementationDefinition,
-      synthetic: false,
-    });
-  });
-
-  it("returns the code-review builtin for definition name code-review", () => {
-    expect(definitionForRun("code-review", [])).toEqual({
-      definition: codeReviewDefinition,
-      synthetic: false,
-    });
-  });
-
   it("returns synthetic true for an unknown definition name with visit rows", () => {
     expect(definitionForRun("bespoke", [row("draft")])).toMatchObject({
       synthetic: true,

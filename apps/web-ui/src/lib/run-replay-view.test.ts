@@ -9,7 +9,7 @@ import type { NodeRunState } from "./run-event-reducer";
 import {
   codeReviewDefinition,
   implementationDefinition,
-} from "./builtin-definitions";
+} from "./definition-fixtures";
 
 function row(over: Partial<AssemblyLineRunNode> = {}): AssemblyLineRunNode {
   return {

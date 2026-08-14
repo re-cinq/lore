@@ -9,6 +9,7 @@
 // assembly_run_id (migration 0032) for cost. The cost lateral prefers that
 // column and falls back to task_id for rows predating it.
 
+import type { RunGraph } from "./run-graph";
 import { apiFetch } from "./api/client";
 import { sumTurnUsage, type RunTokens, type TurnUsageRow } from "./run-tokens";
 
@@ -16,6 +17,8 @@ import { sumTurnUsage, type RunTokens, type TurnUsageRow } from "./run-tokens";
 export interface AssemblyLineRunRow {
   id: string;
   blueprint_name: string;
+  /** The blueprint clone this run recorded (FR6.38); null for pre-clone rows. */
+  graph: RunGraph | null;
   task_id: string | null;
   repo: string;
   branch: string | null;
@@ -35,6 +38,7 @@ export interface AssemblyLineRunRow {
 export interface AssemblyLineRun {
   id: string;
   blueprintName: string;
+  graph: RunGraph | null;
   taskId: string | null;
   repo: string;
   branch: string | null;
@@ -99,6 +103,7 @@ export function toAssemblyLineRun(row: AssemblyLineRunRow): AssemblyLineRun {
   return {
     id: row.id,
     blueprintName: row.blueprint_name,
+    graph: row.graph ?? null,
     taskId: row.task_id,
     repo: row.repo,
     branch: row.branch,

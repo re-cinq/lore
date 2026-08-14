@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import RunNodeDetail from "./RunNodeDetail";
-import { implementationDefinition } from "@/lib/builtin-definitions";
+import { implementationDefinition } from "@/lib/definition-fixtures";
 import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
 import type { NodeRunState } from "@/lib/run-event-reducer";
 

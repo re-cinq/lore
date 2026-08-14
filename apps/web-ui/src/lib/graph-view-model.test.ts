@@ -7,7 +7,7 @@ import {
 import {
   codeReviewDefinition,
   implementationDefinition,
-} from "./builtin-definitions";
+} from "./definition-fixtures";
 
 const runData = (over: Partial<RunData> = {}): RunData => ({
   executed: new Set<string>(),

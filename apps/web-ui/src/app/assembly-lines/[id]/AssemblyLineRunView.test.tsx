@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import AssemblyLineRunView from "./AssemblyLineRunView";
-import { implementationDefinition } from "@/lib/builtin-definitions";
+import { implementationDefinition } from "@/lib/definition-fixtures";
 import type {
   AssemblyLineRun,
   AssemblyLineRunNode,
@@ -11,6 +11,7 @@ import type {
 const run = (over: Partial<AssemblyLineRun> = {}): AssemblyLineRun => ({
   id: "al-1",
   blueprintName: "code-review",
+  graph: null,
   taskId: null,
   repo: "re-cinq/lore",
   branch: "feat/x",

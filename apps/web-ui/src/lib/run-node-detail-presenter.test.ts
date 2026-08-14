@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { describeNode } from "./run-node-detail-presenter";
-import { implementationDefinition } from "./builtin-definitions";
+import { implementationDefinition } from "./definition-fixtures";
 import type { AssemblyLineRunNode } from "./assembly-line-runs";
 import type { NodeRunState } from "./run-event-reducer";
 import type { RunStreamEvent } from "./run-stream-types";

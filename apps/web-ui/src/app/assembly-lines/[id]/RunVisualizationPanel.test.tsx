@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import RunVisualizationPanel from "./RunVisualizationPanel";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
-import { codeReviewDefinition } from "@/lib/builtin-definitions";
+import { codeReviewDefinition } from "@/lib/definition-fixtures";
 import { HISTORY_PAGE_LIMIT } from "./run-stream-presenter";
 
 const definition: AssemblyLineDefinition = {

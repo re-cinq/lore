@@ -28,6 +28,10 @@ const missingTable = (err: unknown) =>
 // started before `llm_calls.assembly_run_id` existed.
 const RUN_SELECT = `
   SELECT al.id, al.blueprint_name, al.task_id, al.repo, al.branch,
+         -- The CLONE (FR6.38). Serving it is what lets a reader draw the graph a
+         -- run ACTUALLY walked, instead of a UI-side transcription of the current
+         -- YAML that goes wrong the moment a blueprint is edited or renamed.
+         al.graph,
          al.status, al.outcome, al.reason,
          al.created_at, al.started_at, al.finished_at,
          (al.args->>'pr_number')::int AS args_pr_number,
@@ -48,6 +52,9 @@ const RUN_SELECT = `
 const RunsQuery = z.object({
   status: z.string().max(40).optional(),
   repo: z.string().max(200).optional(),
+  /** Browse by blueprint — "every code-review run", which nothing could ask for
+   *  before (FR6.42). */
+  blueprint: z.string().max(200).optional(),
   /** A task-centric caller (the planning wizard) knows only its task id; the run
    *  to draw is the newest attempt, since a retry mints a fresh row. */
   task_id: z.string().max(100).optional(),
@@ -71,7 +78,7 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
         if (!pool) {
           return h.response({ error: DB_UNAVAILABLE }).code(503);
         }
-        const { status, repo, task_id, limit } =
+        const { status, repo, blueprint, task_id, limit } =
           request.query as unknown as RunsQuery;
 
         try {
@@ -84,9 +91,13 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
                 `${RUN_SELECT}
                   WHERE ($1::text IS NULL OR al.status = $1)
                     AND ($2::text IS NULL OR al.repo = $2)
-                  ORDER BY al.created_at DESC
-                  LIMIT $3`,
-                [status ?? null, repo ?? null, limit],
+                    AND ($3::text IS NULL OR al.blueprint_name = $3)
+                  -- id breaks the tie: two runs created in the same millisecond
+                  -- would otherwise come back in an order Postgres may vary
+                  -- between calls, which reads as rows jumping around the list.
+                  ORDER BY al.created_at DESC, al.id DESC
+                  LIMIT $4`,
+                [status ?? null, repo ?? null, blueprint ?? null, limit],
               );
 
           return h.response({ runs: rows });

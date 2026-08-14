@@ -1,12 +1,16 @@
-// Which definition graph a run should draw, resolved without IO.
+// Which graph a run should draw, resolved without IO.
 //
-// The Floor endpoint for this (spec FR3.2, `GET /api/assembly-line-definitions/
-// {name}`) is not shipped yet, so the primary source is the hand-transcribed
-// builtin set. A run of a definition outside that set — a custom line, or a
-// builtin whose YAML changed after the transcription — falls back to a chain
-// synthesized from the walk's own visit rows: the nodes are real, the edges are
-// a presentational guess, and `synthetic` is how the caller knows to suppress
-// edge labels rather than show a condition nobody asserted.
+// The run CARRIES its graph (FR6.38): a clone of the blueprint, stamped at start,
+// which is what makes a run drawable years later and immune to a blueprint edited
+// or renamed since. That replaced a hand-transcribed catalog of the builtin YAMLs
+// — 350 lines that could only ever describe the CURRENT blueprint, never the one a
+// given run actually walked.
+//
+// Rows stamped before clones existed carry none, and no backfill is possible: the
+// blueprint a historical run used is not recoverable from the row. Those fall back
+// to a chain synthesized from the walk's own visit rows — the nodes are real, the
+// edges are a presentational guess, and `synthetic` is how the caller knows to
+// suppress edge labels rather than show a condition nobody asserted.
 
 import type {
   AssemblyLineDefinition,
@@ -14,7 +18,7 @@ import type {
   DefinitionNode,
 } from "./assembly-line-definition";
 import type { AssemblyLineRunNode } from "./assembly-line-runs";
-import { builtinDefinitions } from "./builtin-definitions";
+import type { RunGraph } from "./run-graph";
 
 export interface RunGraphDefinition {
   definition: AssemblyLineDefinition | null;
@@ -54,21 +58,38 @@ function chainEdges(nodes: readonly DefinitionNode[]): DefinitionEdge[] {
   }));
 }
 
+/** The stored graph, in the shape the view draws. `description` and `version` are
+ *  authoring metadata the clone deliberately omits — a run needs the route, not the
+ *  prose — so they are filled here rather than persisted per run. */
+function fromRunGraph(graph: RunGraph): AssemblyLineDefinition {
+  return {
+    name: graph.name,
+    description: "",
+    version: 1,
+    entry: graph.entry,
+    exit: graph.exit,
+    nodes: graph.nodes.map((node) => ({
+      ...node,
+      type: node.type as DefinitionNode["type"],
+    })),
+    edges: graph.edges.map((edge) => ({
+      ...edge,
+      on: edge.on as DefinitionEdge["on"],
+    })),
+  };
+}
+
 /**
- * The definition to draw for a run. A known name resolves to its declared
- * graph; anything else synthesizes one from the visit rows, and a run with
- * neither a known name nor a single visit row has no graph to draw at all.
+ * The graph to draw for a run: its own clone when it has one, otherwise a chain
+ * synthesized from the visit rows. A run with neither has no graph to draw at all.
  */
 export function definitionForRun(
   blueprintName: string,
   visitRows: readonly AssemblyLineRunNode[],
+  graph?: RunGraph | null,
 ): RunGraphDefinition {
-  const builtin = builtinDefinitions.find(
-    (candidate) => candidate.name === blueprintName,
-  );
-
-  if (builtin) {
-    return { definition: builtin, synthetic: false };
+  if (graph) {
+    return { definition: fromRunGraph(graph), synthetic: false };
   }
 
   const nodes = visitedNodes(visitRows);

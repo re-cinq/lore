@@ -51,6 +51,7 @@ export default async function AssemblyLineResolverPage({
     const { definition, synthetic } = definitionForRun(
       run.blueprintName,
       nodes,
+      run.graph,
     );
 
     return (

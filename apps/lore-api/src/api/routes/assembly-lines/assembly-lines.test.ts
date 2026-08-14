@@ -49,19 +49,35 @@ describe("assembly-line reads", () => {
       expect(res.result).toEqual({ runs });
     });
 
-    it("passes status, repo and limit to the query as bound parameters", async () => {
+    it("passes status, repo, blueprint and limit to the query as bound parameters", async () => {
       const pool = makePool();
 
       pool.query.mockResolvedValue({ rows: [] });
       await get(
-        "/api/assembly-lines?status=running&repo=re-cinq/lore&limit=5",
+        "/api/assembly-lines?status=running&repo=re-cinq/lore&blueprint=code-review&limit=5",
         pool,
       );
 
       expect(pool.query.mock.calls[0][1]).toEqual([
         "running",
         "re-cinq/lore",
+        "code-review",
         5,
+      ]);
+    });
+
+    it("narrows to one blueprint on its own, which nothing could ask for before", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      await get("/api/assembly-lines?blueprint=code-review", pool);
+
+      expect(pool.query.mock.calls[0][0]).toContain("al.blueprint_name = $3");
+      expect(pool.query.mock.calls[0][1]).toEqual([
+        null,
+        null,
+        "code-review",
+        50,
       ]);
     });
 
@@ -71,7 +87,7 @@ describe("assembly-line reads", () => {
       pool.query.mockResolvedValue({ rows: [] });
       await get("/api/assembly-lines", pool);
 
-      expect(pool.query.mock.calls[0][1]).toEqual([null, null, 50]);
+      expect(pool.query.mock.calls[0][1]).toEqual([null, null, null, 50]);
     });
 
     it("returns the newest run for a task when task_id is given", async () => {
