@@ -38,5 +38,6 @@ export function memoizedPromise<T>(load: () => Promise<T>): () => Promise<T> {
  * Floor's node-terminal path used to re-read and re-parse it on every event.
  * This is the ONE cache — callers must not wrap their own around it.
  */
-export const loadBuiltinAssemblyLines: () => Promise<Map<string, AssemblyLine>> =
-  memoizedPromise(() => loadAssemblyLineDir(ASSEMBLY_LINES_DIR));
+export const loadBuiltinAssemblyLines: () => Promise<
+  Map<string, AssemblyLine>
+> = memoizedPromise(() => loadAssemblyLineDir(ASSEMBLY_LINES_DIR));

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   loadBuiltinAssemblyLines,
   memoizedPromise,
@@ -35,9 +36,7 @@ describe("memoizedPromise", () => {
     const memoized = memoizedPromise(async () => {
       calls += 1;
 
-      if (calls === 1) {
-        throw new Error("transient I/O");
-      }
+      enforceTrue(calls !== 1, Error, "transient I/O");
 
       return "recovered";
     });

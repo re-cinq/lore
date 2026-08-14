@@ -8,7 +8,9 @@ const node = (nodeId: string, iteration: number, outcome: string | null) => ({
   outcome,
 });
 
-const graphWith = (...typedNodes: Array<[id: string, type: string]>): RunGraph => ({
+const graphWith = (
+  ...typedNodes: Array<[id: string, type: string]>
+): RunGraph => ({
   name: "feature-planning",
   entry: typedNodes[0][0],
   exit: typedNodes[typedNodes.length - 1][0],
@@ -104,7 +106,13 @@ describe("parkedHumanNode", () => {
 
   it("falls back to the given node id for a run stamped before clones existed", () => {
     expect(
-      parkedHumanNode("running", [node("merged", 1, null)], null, "pr_review", "merged"),
+      parkedHumanNode(
+        "running",
+        [node("merged", 1, null)],
+        null,
+        "pr_review",
+        "merged",
+      ),
     ).toEqual({ nodeId: "merged", iteration: 1, outcome: null });
   });
 
@@ -125,7 +133,10 @@ describe("parkedHumanNode", () => {
       parkedHumanNode(
         "running",
         [node("first-review", 1, null), node("second-review", 1, null)],
-        graphWith(["first-review", "pr_review"], ["second-review", "pr_review"]),
+        graphWith(
+          ["first-review", "pr_review"],
+          ["second-review", "pr_review"],
+        ),
         "pr_review",
         "merged",
       ),

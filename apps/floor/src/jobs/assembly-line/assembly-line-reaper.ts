@@ -208,7 +208,13 @@ export async function assemblyLineReaperJob(
         );
       } else if (recovery.kind === "relaunch") {
         await deps.launch(
-          specForNode(node, row, openNode.iteration, deps, openNode.stationRunId),
+          specForNode(
+            node,
+            row,
+            openNode.iteration,
+            deps,
+            openNode.stationRunId,
+          ),
         );
         relaunched++;
       }

@@ -8,7 +8,12 @@ const storedGraph: RunGraph = {
   entry: "review",
   exit: "done",
   nodes: [
-    { id: "review", type: "agent", station: "code-review", station_inherited: true },
+    {
+      id: "review",
+      type: "agent",
+      station: "code-review",
+      station_inherited: true,
+    },
     {
       id: "done",
       type: "retrospective",

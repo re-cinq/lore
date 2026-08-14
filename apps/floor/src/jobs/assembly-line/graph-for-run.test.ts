@@ -8,7 +8,12 @@ const storedGraph: RunGraph = {
   entry: "review",
   exit: "done",
   nodes: [
-    { id: "review", type: "agent", station: "code-review", station_inherited: true },
+    {
+      id: "review",
+      type: "agent",
+      station: "code-review",
+      station_inherited: true,
+    },
   ],
   edges: [],
 };
@@ -28,7 +33,9 @@ describe("graphForRun", () => {
     const graph = await graphForRun(
       { graph: storedGraph, blueprintName: "code-review" },
       () => {
-        throw new Error("the catalog must not load when the row carries its graph");
+        throw new Error(
+          "the catalog must not load when the row carries its graph",
+        );
       },
     );
 

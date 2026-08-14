@@ -35,7 +35,6 @@ export type FeaturePhase =
   | { kind: "done" }
   | { kind: "failed" };
 
-
 /**
  * Node id -> the STAGE it belongs to, for the nodes a person is not working.
  *
@@ -116,9 +115,8 @@ function phaseFromLine(run: FeaturePhaseInput["run"]): FeaturePhase | null {
   // taking precedence over the node-id map — a station added or renamed in the
   // blueprint reports its phase without anyone editing a list in the view.
   const kind = working
-    ? (humanStation(
-        run.graph?.nodes.find((n) => n.id === working.nodeId)?.type,
-      )?.phase ?? NODE_PHASE[working.nodeId])
+    ? (humanStation(run.graph?.nodes.find((n) => n.id === working.nodeId)?.type)
+        ?.phase ?? NODE_PHASE[working.nodeId])
     : undefined;
 
   if (!working || !kind) {

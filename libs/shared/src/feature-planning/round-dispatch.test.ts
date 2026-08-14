@@ -24,8 +24,18 @@ const graphWithAuthor = (authorNodeId: string): RunGraph => ({
   entry: "analyze",
   exit: authorNodeId,
   nodes: [
-    { id: "analyze", type: "agent", station: "feature-planning", station_inherited: true },
-    { id: authorNodeId, type: "feature_review", station: null, station_inherited: false },
+    {
+      id: "analyze",
+      type: "agent",
+      station: "feature-planning",
+      station_inherited: true,
+    },
+    {
+      id: authorNodeId,
+      type: "feature_review",
+      station: null,
+      station_inherited: false,
+    },
   ],
   edges: [],
 });
@@ -57,7 +67,10 @@ describe("decideRoundDispatch", () => {
     expect(
       decideRoundDispatch(
         "running",
-        [node({ iteration: 1, outcome: "changes_requested" }), node({ iteration: 2 })],
+        [
+          node({ iteration: 1, outcome: "changes_requested" }),
+          node({ iteration: 2 }),
+        ],
         graphWithAuthor("author"),
       ),
     ).toEqual({ kind: "resume", nodeId: "author", iteration: 2 });
@@ -65,7 +78,9 @@ describe("decideRoundDispatch", () => {
 
   it("falls back to a fresh line when the feature has none", () => {
     // A feature whose planning predates the merged line.
-    expect(decideRoundDispatch(null, [], GRAPHLESS)).toEqual({ kind: "legacy" });
+    expect(decideRoundDispatch(null, [], GRAPHLESS)).toEqual({
+      kind: "legacy",
+    });
   });
 
   it("falls back to a fresh line when the line has already finished", () => {

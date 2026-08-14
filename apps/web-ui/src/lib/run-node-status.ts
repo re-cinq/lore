@@ -52,7 +52,6 @@ export function resultVisual(result: string): NodeStatusVisual {
     : { tone: "ok", label: "Completed" };
 }
 
-
 /** The node badge: the recorded verdict when the node has one (authoritative),
  *  otherwise its execution status (Pending while idle, Running in flight). This is
  *  what keeps a failed-verdict node from rendering as its clean process exit.

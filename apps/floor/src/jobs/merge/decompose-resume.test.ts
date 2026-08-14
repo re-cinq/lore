@@ -73,7 +73,12 @@ describe("decideMergeResume", () => {
     // The same definition parks twice. Reporting a merge into the author's node
     // would tell the walk the plan was accepted.
     expect(
-      decideMergeResume("line-1", "running", [node("author", 2, null)], GRAPHLESS),
+      decideMergeResume(
+        "line-1",
+        "running",
+        [node("author", 2, null)],
+        GRAPHLESS,
+      ),
     ).toBeNull();
   });
 
@@ -91,7 +96,12 @@ describe("decideMergeResume", () => {
 
   it("ignores a line that is no longer open", () => {
     expect(
-      decideMergeResume("line-1", "finished", [node("merged", 1, null)], GRAPHLESS),
+      decideMergeResume(
+        "line-1",
+        "finished",
+        [node("merged", 1, null)],
+        GRAPHLESS,
+      ),
     ).toBeNull();
   });
 });
