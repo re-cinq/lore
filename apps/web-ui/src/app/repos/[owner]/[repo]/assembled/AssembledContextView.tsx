@@ -52,7 +52,7 @@ function statusLabel(section: TraceSection): string {
 }
 
 /** A horizontal used/total bar reused for budget + per-section allocation.
- *  The fill width is the one genuinely dynamic value, kept inline. */
+ *  The fill width is the one genuinely dynamic value, handed to the stylesheet. */
 function Bar({ used, total }: { used: number; total: number }) {
   const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
 
@@ -61,7 +61,7 @@ function Bar({ used, total }: { used: number; total: number }) {
       <div
         data-token-bar
         className={styles.barFill}
-        style={{ width: `${pct}%` }}
+        style={{ ["--fill-width" as string]: `${pct}%` }}
       />
     </div>
   );

@@ -10,15 +10,8 @@ export default function StatusBadge({ status }: { status: FeatureStatus }) {
     <span
       role="status"
       aria-label={`Feature status: ${badge.label}`}
-      style={{
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: "var(--radius-pill)",
-        fontSize: "var(--fs-xs)",
-        fontWeight: 600,
-        color: "var(--text-on-accent)",
-        background: badge.color,
-      }}
+      className="status-pill"
+      style={{ ["--pill-color" as string]: badge.color }}
     >
       {badge.label}
     </span>

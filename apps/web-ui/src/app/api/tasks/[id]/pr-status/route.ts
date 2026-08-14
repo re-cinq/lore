@@ -1,14 +1,8 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { queryOne } from "@/lib/db";
+import { getTask } from "@/lib/api/tasks";
 import { getPRDetails, isGitHubConfigured } from "@/lib/github";
-import { serverError } from "@/lib/api-error";
-
-interface Task {
-  target_repo: string;
-  pr_number: number | null;
-  pr_url: string | null;
-}
+import { serverError, upstreamError } from "@/lib/api-error";
 
 export async function GET(
   _req: Request,
@@ -17,16 +11,13 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const task = await queryOne<Task>(
-      `SELECT target_repo, pr_number, pr_url FROM pipeline.tasks WHERE id = $1`,
-      [id],
-    );
+    const task = await getTask(id);
 
-    if (!task) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    if (task.status !== "ok") {
+      return upstreamError("PR status", task);
     }
 
-    if (!task.pr_number) {
+    if (!task.data.pr_number) {
       return NextResponse.json(
         { error: "No PR for this task" },
         { status: 404 },
@@ -40,7 +31,10 @@ export async function GET(
       );
     }
 
-    const details = await getPRDetails(task.target_repo, task.pr_number);
+    const details = await getPRDetails(
+      task.data.target_repo,
+      task.data.pr_number,
+    );
 
     return NextResponse.json(details);
   } catch (err) {

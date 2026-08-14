@@ -1,14 +1,22 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { query } from "@/lib/db";
-import { serverError } from "@/lib/api-error";
+import { listRepos } from "@/lib/api/repos";
+import { serverError, upstreamError } from "@/lib/api-error";
 
 export async function GET() {
   try {
-    // Get onboarded repos
-    const onboarded = await query(
-      `SELECT full_name, onboarding_pr_merged, last_ingested_at FROM lore.repos ORDER BY onboarded_at DESC`,
-    );
+    const repos = await listRepos();
+
+    if (repos.status !== "ok") {
+      return upstreamError("Repos", repos);
+    }
+    // lore-api already orders by onboarded_at DESC; this route only ever needed
+    // three of the columns it returns.
+    const onboarded = repos.data.repos.map((repo) => ({
+      full_name: repo.full_name,
+      onboarding_pr_merged: repo.onboarding_pr_merged,
+      last_ingested_at: repo.last_ingested_at,
+    }));
 
     // Get repos from GitHub App installation
     // For now, return just the onboarded list + a few known repos

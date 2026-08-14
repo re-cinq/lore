@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import EventsView from "./EventsView";
-import { type RepoEvent } from "./pagination";
+import type { RepoEvent } from "./pagination";
 
 const event = (over: Partial<RepoEvent>): RepoEvent => ({
   id: 1,

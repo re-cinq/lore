@@ -178,13 +178,19 @@ const UNCATEGORIZED = "Other";
 /** Path→category rules, first match wins; ordered specific → general. */
 const TAG_RULES: Array<[RegExp, string]> = [
   [/^\/api\/(openapi\.json|docs)$/, "Meta"],
-  [/^\/api\/(context|graph)\b/, "Context"],
-  [/^\/api\/(memory|episode|session-summary)\b/, "Memory"],
+  [/^\/api\/(context|graph|chunks|chunk-types)\b/, "Context"],
   [
-    /^\/api\/(task|tasks|task-logs|job-run-logs|spec-tasks|task-groups)\b/,
+    /^\/api\/(memory|memories|memory-search|memory-audit|episode|episodes|pools|graph-browse|session-summary)\b/,
+    "Memory",
+  ],
+  [
+    /^\/api\/(task|tasks|task-logs|task-stats|repo-tasks|agent-activity|audit-log|job-run-logs|spec-tasks|task-groups|assembly-lines)\b/,
     "Tasks",
   ],
-  [/^\/api\/(usage|analytics|agent-stats)\b/, "Analytics"],
+  [
+    /^\/api\/(usage|analytics|analytics-overview|spend|agent-stats|memory-audit|events|job-runs)\b/,
+    "Analytics",
+  ],
   [/\/features\b/, "Features"],
   [/\/agent-definitions\b/, "Agents"],
   [/\/settings\/dark-factory\b/, "Dark Factory"],
@@ -194,7 +200,7 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/\/events\/\{id\}\/payload$/, "Ingestion"],
   [/\/webhook/, "Webhooks"],
   [/^\/api\/tokens\b/, "Tokens"],
-  [/^\/api\/(repos|repo-status|pr-status|onboard)\b/, "Repositories"],
+  [/^\/api\/(repos|repo-status|pr-status|onboard|settings)\b/, "Repositories"],
 ];
 
 /** The sidebar category for a normalized path. */

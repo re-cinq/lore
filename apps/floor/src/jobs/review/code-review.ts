@@ -29,6 +29,17 @@ import { projectFor } from "../../composition/project-boot.js";
 import { shouldAutoReview } from "./should-auto-review.js";
 import { loreTaskRef } from "../task/issue-body.js";
 
+/** The definitions THIS choreography owns. A PR's close ends these and nothing
+ *  else: other lines may carry the same `pr_number` without having asked to be
+ *  ended by it — a feature-planning line parks on `merged` waiting for exactly the
+ *  event that used to kill it. */
+const REVIEW_DEFINITIONS = [
+  "code-review",
+  "code-review-recheck",
+  "code-review-reply",
+  "comment-triage",
+] as const;
+
 /** A GitHub App / bot login ends with `[bot]`; only human actors drive the review. */
 export function isBotActor(login: string): boolean {
   return login.endsWith("[bot]");
@@ -151,7 +162,11 @@ export interface CodeReviewProject {
       definitionName: string,
       opts: { branch?: string; args?: Record<string, unknown> },
     ): Promise<string>;
-    finishOpenByPr(prNumber: number, outcome: string): Promise<number>;
+    finishOpenByPr(
+      prNumber: number,
+      outcome: string,
+      definitions?: readonly string[],
+    ): Promise<number>;
     hasReviewedPr(prNumber: number): Promise<boolean>;
   };
 }
@@ -443,7 +458,16 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     const { repo, pr_number } = params as unknown as OpenParams;
     const project = await deps.project(repo);
 
-    await project.assemblyLines.finishOpenByPr(pr_number, "pr_closed");
+    // ONLY this choreography's own lines. Closing a PR used to close every open
+    // line carrying that number, which since the push node started stamping the
+    // spec PR meant a merged spec PR closed the FEATURE-PLANNING line parked on
+    // `merged` — killing the feature exactly one step before decomposition, on the
+    // same event that was supposed to advance it.
+    await project.assemblyLines.finishOpenByPr(
+      pr_number,
+      "pr_closed",
+      REVIEW_DEFINITIONS,
+    );
   };
 
   return { onTrigger, onComment, onReviewSubmitted, onCommentTriaged, onClose };

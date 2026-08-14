@@ -11,7 +11,7 @@ export default async function SpecsPage() {
   return (
     <div>
       <h1>Specs</h1>
-      <p className="meta" style={{ marginBottom: 16 }}>
+      <p className="meta page-lede">
         Spec documents in the traceability graph across all repos (
         {specs.length}).
       </p>

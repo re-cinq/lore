@@ -104,6 +104,77 @@ describe("POST /api/task", () => {
     });
   });
 
+  it("escalates a pending task to immediate", async () => {
+    const res = await post(
+      { action: "run-now", task_id: "t1" },
+      poolWithTask("pending"),
+    );
+
+    expect(res.result).toEqual({ task_id: "t1", priority: "immediate" });
+  });
+
+  it("returns 404 when escalating a task that does not exist", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [] });
+    const res = await post({ action: "run-now", task_id: "gone" }, pool);
+
+    expect(res.statusCode).toBe(404);
+    expect(res.result).toEqual({ error: "Task not found" });
+  });
+
+  it("returns 409 when escalating a running task", async () => {
+    const res = await post(
+      { action: "run-now", task_id: "t1" },
+      poolWithTask("running"),
+    );
+
+    expect(res.statusCode).toBe(409);
+    expect(res.result).toEqual({
+      error: "Can only escalate pending tasks, current status: running",
+    });
+  });
+
+  it("queues a revision and answers with the new task id", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ id: "t1", status: "pr-created", task_type: "implementation" }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "rev-1" }] })
+      .mockResolvedValue({ rows: [] });
+    const res = await post(
+      { action: "revise", task_id: "t1", feedback: "tighten it" },
+      pool,
+    );
+
+    expect(res.result).toEqual({ task_id: "t1", revision_task_id: "rev-1" });
+  });
+
+  it("returns 404 when revising a task that does not exist", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [] });
+    const res = await post(
+      { action: "revise", task_id: "gone", feedback: "x" },
+      pool,
+    );
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 409 when revising with blank feedback", async () => {
+    const res = await post(
+      { action: "revise", task_id: "t1", feedback: "   " },
+      poolWithTask("pr-created"),
+    );
+
+    expect(res.statusCode).toBe(409);
+    expect(res.result).toEqual({ error: "Feedback is required" });
+  });
+
   it("sets immediate priority", async () => {
     const pool = makePool();
 
@@ -169,6 +240,36 @@ describe("POST /api/task", () => {
     expect(createTask).toHaveBeenCalledWith(
       "do it",
       "review",
+      undefined,
+      "remote-mcp",
+      undefined,
+      "normal",
+      undefined,
+    );
+  });
+
+  it("attributes the task to the caller-supplied created_by", async () => {
+    vi.mocked(createTask).mockResolvedValue({ task_id: "t1" } as never);
+    await post({ description: "d", created_by: "bogdan@re-cinq.com" });
+
+    expect(createTask).toHaveBeenCalledWith(
+      "d",
+      "general",
+      undefined,
+      "bogdan@re-cinq.com",
+      undefined,
+      "normal",
+      undefined,
+    );
+  });
+
+  it("attributes to remote-mcp when the caller names nobody", async () => {
+    vi.mocked(createTask).mockResolvedValue({ task_id: "t1" } as never);
+    await post({ description: "d" });
+
+    expect(createTask).toHaveBeenCalledWith(
+      "d",
+      "general",
       undefined,
       "remote-mcp",
       undefined,

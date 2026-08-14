@@ -1,15 +1,16 @@
 import { getAssemblyLineDefinition } from "@/lib/api/assembly-lines";
-import { queryAllowMissing } from "@/lib/db";
+import {
+  getFeature,
+  getFeatureDecomposition,
+  getFeatureStatus,
+} from "@/lib/api/features";
+import { fetchFeatureRunById } from "@/lib/feature-run";
 import { listAgents } from "@/lib/agents-api";
 import {
   groupDecomposition,
   type DecompTaskRow,
 } from "@/lib/decomposition-view";
-import type {
-  FeatureRow,
-  FeatureIterationRow,
-  FeatureWithIterations,
-} from "@/lib/feature-types";
+import type { FeatureWithIterations } from "@/lib/feature-types";
 import FeatureDetailView from "./FeatureDetailView";
 import {
   refineFeatureAction,
@@ -26,11 +27,8 @@ export default async function FeatureDetailPage({
   const { owner, repo, id } = await params;
   const fullName = `${owner}/${repo}`;
 
-  const features = await queryAllowMissing<FeatureRow>(
-    `SELECT * FROM lore.features WHERE id = $1 AND repo = $2`,
-    [id, fullName],
-  );
-  const feature = features[0];
+  const result = await getFeature(fullName, id);
+  const feature = result.status === "ok" ? result.data : null;
 
   if (!feature) {
     return (
@@ -39,20 +37,13 @@ export default async function FeatureDetailPage({
       </div>
     );
   }
-  const iterations = await queryAllowMissing<FeatureIterationRow>(
-    `SELECT * FROM lore.feature_iterations WHERE feature_id = $1 ORDER BY iteration ASC`,
-    [id],
-  );
-  const full: FeatureWithIterations = { ...feature, iterations };
+  const full: FeatureWithIterations = feature;
 
   // The story/task tree a merged spec decomposed into (ADR-029), if any.
-  const decompRows = await queryAllowMissing<DecompTaskRow>(
-    `SELECT description, status, context_bundle FROM pipeline.tasks
-      WHERE task_type = 'spec-task' AND target_repo = $2 AND context_bundle->>'feature_id' = $1
-      ORDER BY context_bundle->>'spec_task_id'`,
-    [id, fullName],
+  const decomp = await getFeatureDecomposition(fullName, id);
+  const decomposition = groupDecomposition(
+    decomp.status === "ok" ? (decomp.data.tasks as DecompTaskRow[]) : [],
   );
-  const decomposition = groupDecomposition(decompRows);
 
   // The planning round's time budget (the feature-planning agent's timeout), resolved
   // once for the wizard's elapsed/total timer. Defaults to 15 if unresolved.
@@ -62,9 +53,20 @@ export default async function FeatureDetailPage({
 
   const definition = await getAssemblyLineDefinition("feature-planning");
 
+  // The line this feature is on, so the card above draws where the walk actually
+  // is rather than everything it could ever do. lore-api resolved which line the
+  // feature hangs on (from round 2 a resumed round mints no task of its own), so
+  // the id comes from the status endpoint rather than from the latest round.
+  const status = await getFeatureStatus(fullName, id);
+  const run =
+    status.status === "ok"
+      ? await fetchFeatureRunById(status.data.assembly_line_id)
+      : null;
+
   return (
     <FeatureDetailView
       definition={definition}
+      run={run}
       owner={owner}
       repo={repo}
       feature={full}

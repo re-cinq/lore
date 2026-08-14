@@ -8,6 +8,8 @@ export {
   setTaskStatus,
   updateTaskStatus,
   cancelTask as cancelPipelineTask,
+  escalateTask as escalatePipelineTask,
+  reviseTask as revisePipelineTask,
   markTaskMerged,
   type CreateTaskInput,
   type CreatedTask,

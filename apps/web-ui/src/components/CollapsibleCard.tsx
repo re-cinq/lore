@@ -8,6 +8,7 @@
 // The same idiom is already used for the failure block's "Your input for this round".
 
 import type { ReactNode } from "react";
+import styles from "./CollapsibleCard.module.scss";
 
 export default function CollapsibleCard({
   title,
@@ -26,23 +27,13 @@ export default function CollapsibleCard({
   children: ReactNode;
 }) {
   return (
-    <div
-      className={`spec-card ${className}`.trim()}
-      style={{ marginBottom: 12 }}
-    >
+    <div className={`spec-card ${className}`.trim()}>
       <details open={defaultOpen}>
-        <summary
-          style={{
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "baseline",
-            gap: 8,
-          }}
-        >
+        <summary className={styles.summary}>
           <strong>{title}</strong>
           {hint ? <span className="meta">{hint}</span> : null}
         </summary>
-        <div style={{ marginTop: 10 }}>{children}</div>
+        <div className={styles.body}>{children}</div>
       </details>
     </div>
   );

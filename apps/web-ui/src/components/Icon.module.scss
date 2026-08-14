@@ -1,0 +1,4 @@
+// Nudges a glyph onto the text baseline when it sits inside a run of prose.
+.inline {
+  vertical-align: -0.125em;
+}

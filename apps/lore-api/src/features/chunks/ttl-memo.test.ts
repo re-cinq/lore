@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { memoizeWithTtl } from "./ttl-memo";
+import { memoizeWithTtl } from "./ttl-memo.js";
 
 describe("memoizeWithTtl", () => {
   beforeEach(() => {

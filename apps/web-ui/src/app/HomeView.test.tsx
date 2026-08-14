@@ -158,7 +158,7 @@ describe("HomeView", () => {
     ]);
     const dot = screen.getByTitle("Fresh (< 24h)");
 
-    expect(dot).toHaveStyle({ backgroundColor: "var(--success)" });
+    expect(dot.style.getPropertyValue("--dot-color")).toBe("var(--success)");
   });
 
   it("uses the stale freshness indicator for an ingest within a week", () => {
@@ -169,9 +169,9 @@ describe("HomeView", () => {
     renderHome([
       repo({ full_name: "re-cinq/lore", last_ingested_at: threeDaysAgo }),
     ]);
-    expect(screen.getByTitle("Stale (< 7d)")).toHaveStyle({
-      backgroundColor: "var(--warning)",
-    });
+    expect(
+      screen.getByTitle("Stale (< 7d)").style.getPropertyValue("--dot-color"),
+    ).toBe("var(--warning)");
   });
 
   it("uses the outdated freshness indicator for an ingest older than a week", () => {
@@ -182,16 +182,18 @@ describe("HomeView", () => {
     renderHome([
       repo({ full_name: "re-cinq/lore", last_ingested_at: tenDaysAgo }),
     ]);
-    expect(screen.getByTitle("Outdated (> 7d)")).toHaveStyle({
-      backgroundColor: "var(--danger)",
-    });
+    expect(
+      screen
+        .getByTitle("Outdated (> 7d)")
+        .style.getPropertyValue("--dot-color"),
+    ).toBe("var(--danger)");
   });
 
   it("uses the never-ingested freshness indicator when last_ingested_at is null", () => {
     renderHome([repo({ full_name: "re-cinq/lore", last_ingested_at: null })]);
-    expect(screen.getByTitle("Never ingested")).toHaveStyle({
-      backgroundColor: "var(--text-muted)",
-    });
+    expect(
+      screen.getByTitle("Never ingested").style.getPropertyValue("--dot-color"),
+    ).toBe("var(--text-muted)");
   });
 
   it("renders the Fix-ingest button wired to the injected action when repos are misaligned", () => {

@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { query } from "@/lib/db";
+import { getPool } from "@/lib/api/memory";
 import PoolDetailView, { PoolEntryRow } from "./PoolDetailView";
 
 interface PoolInfo {
@@ -17,17 +17,9 @@ export default async function PoolDetailPage({
   const { name } = await params;
   const poolName = decodeURIComponent(name);
 
-  // Fetch pool metadata
-  const pools = await query<PoolInfo>(
-    `
-    SELECT id, name, created_by, created_at
-    FROM memory.shared_pools
-    WHERE name = $1
-  `,
-    [poolName],
-  );
+  const result = await getPool(poolName);
 
-  if (pools.length === 0) {
+  if (result.status !== "ok") {
     return (
       <PoolDetailView
         poolName={poolName}
@@ -38,21 +30,8 @@ export default async function PoolDetailPage({
       />
     );
   }
-
-  const pool = pools[0];
-
-  // Fetch all entries in this pool
-  const entries = await query<PoolEntryRow>(
-    `
-    SELECT m.id, m.key, m.value, m.agent_id, m.version, m.created_at
-    FROM memory.memories m
-    WHERE m.pool_id = $1
-      AND m.is_deleted = FALSE
-      AND (m.expires_at IS NULL OR m.expires_at > now())
-    ORDER BY m.created_at DESC
-  `,
-    [pool.id],
-  );
+  const pool = result.data.pool as unknown as PoolInfo;
+  const entries = result.data.entries as unknown as PoolEntryRow[];
 
   return (
     <PoolDetailView

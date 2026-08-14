@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { queryOne } from "@/lib/db";
+import { getRepo } from "@/lib/api/repos";
 import { revalidatePath } from "next/cache";
 import {
   parsePrivilegedChanges,
@@ -28,11 +28,10 @@ async function saveDarkFactory(
   "use server";
   const fullName = formData.get("full_name") as string;
 
-  const repoRow = await queryOne<{ settings: RepoSettings }>(
-    `SELECT settings FROM lore.repos WHERE full_name = $1`,
-    [fullName],
-  );
-  const cur = (repoRow?.settings ?? {}) as RepoSettings;
+  const repoRow = await getRepo(fullName);
+  const cur = (
+    repoRow.status === "ok" ? (repoRow.data.settings ?? {}) : {}
+  ) as RepoSettings;
   const resolved = resolveDarkFactorySettings(cur.dark_factory ?? null);
   const current: CurrentSettings = {
     dark_factory: { ...resolved, execution: cur.dark_factory?.execution },
@@ -60,15 +59,12 @@ export default async function RepoDarkFactory({
 }) {
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
-  const repoData = await queryOne<{ settings: RepoSettings | null }>(
-    `SELECT settings FROM lore.repos WHERE full_name = $1`,
-    [fullName],
-  );
+  const repoData = await getRepo(fullName);
 
-  if (!repoData) {
+  if (repoData.status !== "ok") {
     return <div>Repo not found</div>;
   }
-  const settings = repoData.settings ?? {};
+  const settings = (repoData.data.settings ?? {}) as RepoSettings;
   const resolved = resolveDarkFactorySettings(settings.dark_factory ?? null);
 
   return (

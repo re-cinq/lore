@@ -1,34 +1,11 @@
 "use client";
 
+import styles from "./DecompositionView.module.scss";
 import type { DecompStoryGroup } from "@/lib/decomposition-view";
-
-const STATUS_COLOR: Record<string, string> = {
-  pending: "var(--chart-neutral)",
-  queued: "var(--chart-neutral)",
-  running: "var(--chart-spec)",
-  "pr-created": "var(--info)",
-  review: "var(--info)",
-  completed: "var(--success)",
-  merged: "var(--success)",
-  failed: "var(--danger)",
-};
 
 function TaskStatus({ status }: { status: string }) {
   return (
-    <span
-      className="meta"
-      style={{
-        display: "inline-block",
-        minWidth: 72,
-        textAlign: "center",
-        marginRight: 8,
-        padding: "0 6px",
-        borderRadius: "var(--radius-sm)",
-        fontSize: "var(--fs-xs)",
-        color: "var(--text-on-accent)",
-        background: STATUS_COLOR[status] ?? "var(--chart-neutral)",
-      }}
-    >
+    <span className={`meta ${styles.status}`} data-status={status}>
       {status}
     </span>
   );
@@ -52,16 +29,16 @@ export default function DecompositionView({
   }
 
   return (
-    <div className="spec-card" style={{ marginBottom: 12 }}>
-      <h3 style={{ marginTop: 0 }}>
+    <div className="spec-card">
+      <h3>
         Decomposition{" "}
         <span className="meta">
           · {stories.length} stories · {total} tasks
         </span>
       </h3>
       {stories.map((s, i) => (
-        <div key={s.storyIssue ?? `tasks-${i}`} style={{ marginBottom: 12 }}>
-          <h4 style={{ margin: "0 0 6px" }}>
+        <div key={s.storyIssue ?? `tasks-${i}`} className={styles.story}>
+          <h4 className={styles.storyTitle}>
             {s.storyIssue !== null ? (
               <a
                 href={`https://github.com/${owner}/${repo}/issues/${s.storyIssue}`}
@@ -74,16 +51,9 @@ export default function DecompositionView({
               "Tasks"
             )}
           </h4>
-          <ul style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
+          <ul className={styles.taskList}>
             {s.tasks.map((t) => (
-              <li
-                key={t.specTaskId}
-                style={{
-                  marginBottom: 4,
-                  display: "flex",
-                  alignItems: "baseline",
-                }}
-              >
+              <li key={t.specTaskId} className={styles.taskItem}>
                 <TaskStatus status={t.status} />
                 <span>{t.description}</span>
               </li>

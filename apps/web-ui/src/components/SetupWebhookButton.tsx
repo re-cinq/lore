@@ -18,7 +18,6 @@ export default function SetupWebhookButton({
       disabled={pending}
       onClick={() => startTransition(() => action())}
       className={styles.button}
-      style={{ cursor: pending ? "default" : "pointer" }}
     >
       {pending ? "setting up…" : text}
     </button>

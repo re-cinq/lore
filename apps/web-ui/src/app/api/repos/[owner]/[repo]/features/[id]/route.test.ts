@@ -13,16 +13,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getServerSession = vi.fn();
 const userCanAccessRepo = vi.fn();
-const queryAllowMissing = vi.fn();
-const fetchFeatureRun = vi.fn();
+const getFeatureStatus = vi.fn();
+const fetchFeatureRunById = vi.fn();
 
+vi.mock("server-only", () => ({}));
 vi.mock("next-auth", () => ({ getServerSession }));
 vi.mock("@/lib/auth-options", () => ({ authOptions: {} }));
 vi.mock("@/lib/user-repo-access", () => ({ userCanAccessRepo }));
-vi.mock("@/lib/db", () => ({ queryAllowMissing }));
+vi.mock("@/lib/api/features", () => ({ getFeatureStatus }));
+vi.mock("@/lib/api/tasks", () => ({ getTask: vi.fn() }));
 vi.mock("@/lib/feature-run", () => ({
-  fetchFeatureRun,
-  runTaskIdFor: () => null,
+  fetchFeatureRunById,
 }));
 vi.mock("@/lib/station-conversation", () => ({
   formatStationConversation: () => null,
@@ -40,8 +41,8 @@ const req = new Request("http://localhost/api/repos/re-cinq/lore/features/x");
 
 beforeEach(() => {
   vi.clearAllMocks();
-  queryAllowMissing.mockResolvedValue([]);
-  fetchFeatureRun.mockResolvedValue(null);
+  getFeatureStatus.mockResolvedValue({ status: "error", message: "not found" });
+  fetchFeatureRunById.mockResolvedValue(null);
 });
 
 describe("GET feature poll authorization", () => {
@@ -72,7 +73,7 @@ describe("GET feature poll authorization", () => {
 
     await GET(req, { params });
 
-    expect(queryAllowMissing).not.toHaveBeenCalled();
+    expect(getFeatureStatus).not.toHaveBeenCalled();
   });
 
   it("checks access against the repo named in the path", async () => {
@@ -89,6 +90,6 @@ describe("GET feature poll authorization", () => {
     userCanAccessRepo.mockResolvedValue(true);
 
     expect((await GET(req, { params })).status).toBe(404);
-    expect(queryAllowMissing).toHaveBeenCalled();
+    expect(getFeatureStatus).toHaveBeenCalled();
   });
 });

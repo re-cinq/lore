@@ -258,8 +258,13 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     repo: string,
     prNumber: number,
     outcome: string,
+    definitions?: readonly string[],
   ): Promise<number> {
-    const open = this.rows.filter((r) => this.matchesOpenPr(r, repo, prNumber));
+    const open = this.rows.filter(
+      (r) =>
+        this.matchesOpenPr(r, repo, prNumber) &&
+        (!definitions || definitions.includes(r.definitionName)),
+    );
 
     for (const row of open) {
       row.status = "finished";

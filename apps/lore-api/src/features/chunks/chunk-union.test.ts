@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildChunkUnionQuery } from "./chunk-union";
+import { buildChunkUnionQuery } from "./chunk-union.js";
 
 const selectByType = (schema: string, paramOffset: number) => ({
   sql: `SELECT id FROM ${schema}.chunks WHERE content_type = $${paramOffset}`,

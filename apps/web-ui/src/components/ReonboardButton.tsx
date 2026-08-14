@@ -18,7 +18,6 @@ export default function ReonboardButton({
       disabled={pending}
       onClick={() => startTransition(() => action())}
       className={styles.button}
-      style={{ cursor: pending ? "default" : "pointer" }}
     >
       {pending ? "opening PR…" : text}
     </button>

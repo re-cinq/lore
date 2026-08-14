@@ -4,8 +4,12 @@ import Link from "next/link";
 import styles from "./FeatureDetailView.module.scss";
 import CollapsibleCard from "@/components/CollapsibleCard";
 import { DangerZone } from "@/components/DangerZone";
-import { FeatureAssemblyLine } from "@/components/FeatureAssemblyLine";
+import {
+  FeatureAssemblyLine,
+  type AssemblyLineRunSummary,
+} from "@/components/FeatureAssemblyLine";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
+import { featurePhaseOf } from "@/lib/feature-phase";
 import { SubmitButton } from "@/components/SubmitButton";
 import { useState, useTransition } from "react";
 import StatusBadge from "../StatusBadge";
@@ -77,6 +81,7 @@ export default function FeatureDetailView({
   timeoutMinutes,
   decomposition,
   definition = null,
+  run = null,
   refine,
   finalize,
   split,
@@ -88,6 +93,7 @@ export default function FeatureDetailView({
   timeoutMinutes: number;
   decomposition: { stories: DecompStoryGroup[]; total: number };
   definition?: AssemblyLineDefinition | null;
+  run?: AssemblyLineRunSummary | null;
   refine: (
     userAnswers: SectionAnswers,
     fromIteration?: number,
@@ -101,6 +107,13 @@ export default function FeatureDetailView({
   const onCreateDraft = (title: string, prompt: string) =>
     startTransition(() => split(title, prompt));
   const base = `/repos/${owner}/${repo}`;
+  // One graph per page. While a node is working, the wizard's RunningCard draws
+  // the same line from its own 4s poll; this card is rendered on the server, so
+  // leaving both up would put a frozen twin above a live graph.
+  const phase = featurePhaseOf({ run, feature });
+  const liveGraphBelow =
+    run !== null &&
+    (phase.kind === "planning" || phase.kind === "writing-spec");
 
   return (
     <div>
@@ -116,10 +129,13 @@ export default function FeatureDetailView({
         </div>
       </div>
 
-      <FeatureAssemblyLine
-        definition={definition}
-        title="This feature's assembly line"
-      />
+      {liveGraphBelow ? null : (
+        <FeatureAssemblyLine
+          definition={definition}
+          run={run}
+          title="This feature's assembly line"
+        />
+      )}
 
       {feature.original_prompt && (
         <CollapsibleCard title="Your prompt" defaultOpen>

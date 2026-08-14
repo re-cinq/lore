@@ -28,7 +28,10 @@ function CheckRow({
 
   return (
     <div className="enroll-row">
-      <span className={styles.statusIcon} style={{ color: s.color }}>
+      <span
+        className={styles.statusIcon}
+        style={{ ["--status-color" as string]: s.color }}
+      >
         <Icon name={s.icon} size={14} />
       </span>
       <span className={styles.label}>{check.label}</span>

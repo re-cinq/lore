@@ -43,8 +43,12 @@ describe("FileHeatmapView", () => {
     const fill = (path: string) =>
       container.querySelector<HTMLElement>(`[data-path="${path}"] [data-fill]`);
 
-    expect(fill("src/a.ts")?.style.width).toBe("100%");
-    expect(fill("src/b.ts")?.style.width).toBe("50%");
+    expect(fill("src/a.ts")?.style.getPropertyValue("--fill-width")).toBe(
+      "100%",
+    );
+    expect(fill("src/b.ts")?.style.getPropertyValue("--fill-width")).toBe(
+      "50%",
+    );
   });
 
   it("labels each bar with read and write counts so meaning is not hue-only", () => {

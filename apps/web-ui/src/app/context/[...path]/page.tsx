@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { queryAllChunks } from "@/lib/db";
+import { getChunksByPath } from "@/lib/api/chunks";
 import ContextFileView, {
   type ContextFileGroup,
   type ContextFileChunk,
@@ -21,12 +21,10 @@ export default async function GlobalContextFile({
   const { path } = await params;
   const filePath = path.map(decodeURIComponent).join("/");
 
-  const rows = await queryAllChunks<ContextFileRow>((schema, offset) => ({
-    sql: `SELECT id, content_type, content, metadata, repo
-          FROM ${schema}.chunks
-          WHERE file_path = $${offset}`,
-    params: [filePath],
-  }));
+  const result = await getChunksByPath(filePath);
+  const rows = (result.status === "ok"
+    ? result.data.chunks
+    : []) as unknown as ContextFileRow[];
 
   // A file path is normally unique to one repo, but the global view spans every
   // team schema — group by repo so each repo's chunks render independently.

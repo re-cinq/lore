@@ -9,7 +9,7 @@
 // assembly_line_id (migration 0032) for cost. The cost lateral prefers that
 // column and falls back to task_id for rows predating it.
 
-import { queryAllowMissing } from "./db";
+import { apiFetch } from "./api/client";
 import { sumTurnUsage, type RunTokens, type TurnUsageRow } from "./run-tokens";
 
 /** Raw run row: pipeline.assembly_lines LEFT JOIN pipeline.tasks + a cost lateral. */
@@ -129,24 +129,17 @@ export function toAssemblyLineRunNode(
   };
 }
 
-const RUN_SELECT = `
-  SELECT al.id, al.definition_name, al.task_id, al.repo, al.branch,
-         al.status, al.outcome, al.reason,
-         al.created_at, al.started_at, al.finished_at,
-         (al.args->>'pr_number')::int AS args_pr_number,
-         t.pr_url, t.pr_number AS task_pr_number,
-         COALESCE(t.created_by, al.args->>'actor') AS created_by,
-         cost.cost_usd
-    FROM pipeline.assembly_lines al
-    LEFT JOIN pipeline.tasks t ON t.id = al.task_id
-    LEFT JOIN LATERAL (
-      SELECT SUM(lc.cost_usd)::float AS cost_usd
-        FROM pipeline.llm_calls lc
-       WHERE lc.assembly_line_id = al.id
-          OR (lc.assembly_line_id IS NULL
-              AND al.task_id IS NOT NULL
-              AND lc.task_id = al.task_id)
-    ) cost ON true`;
+/** Rows come from lore-api, which owns the SQL (the join onto tasks and the cost
+ *  lateral moved there verbatim). Every read answers empty rather than throwing:
+ *  a run view is additive, and a pre-0025 database must not take a page down. */
+async function readRuns(query: string): Promise<AssemblyLineRun[]> {
+  const result = await apiFetch<{ runs: AssemblyLineRunRow[] }>(
+    "lore-api",
+    `/api/assembly-lines${query}`,
+  );
+
+  return result.status === "ok" ? result.data.runs.map(toAssemblyLineRun) : [];
+}
 
 /** The run list, filterable by status and repo (both SQL-side). Empty on pre-0025 DBs. */
 export async function fetchAssemblyLineRuns(
@@ -156,28 +149,30 @@ export async function fetchAssemblyLineRuns(
     limit?: number;
   } = {},
 ): Promise<AssemblyLineRun[]> {
-  const rows = await queryAllowMissing<AssemblyLineRunRow>(
-    `${RUN_SELECT}
-     WHERE ($1::text IS NULL OR al.status = $1)
-       AND ($2::text IS NULL OR al.repo = $2)
-     ORDER BY al.created_at DESC
-     LIMIT $3`,
-    [opts.status ?? null, opts.repo ?? null, opts.limit ?? 50],
-  );
+  const params = new URLSearchParams();
 
-  return rows.map(toAssemblyLineRun);
+  if (opts.status) {
+    params.set("status", opts.status);
+  }
+
+  if (opts.repo) {
+    params.set("repo", opts.repo);
+  }
+  params.set("limit", String(opts.limit ?? 50));
+
+  return readRuns(`?${params}`);
 }
 
 /** One run by id, or null (also null on pre-0025 DBs so the resolver falls through). */
 export async function fetchAssemblyLineRun(
   id: string,
 ): Promise<AssemblyLineRun | null> {
-  const rows = await queryAllowMissing<AssemblyLineRunRow>(
-    `${RUN_SELECT} WHERE al.id = $1`,
-    [id],
+  const result = await apiFetch<AssemblyLineRunRow>(
+    "lore-api",
+    `/api/assembly-lines/${encodeURIComponent(id)}`,
   );
 
-  return rows.length > 0 ? toAssemblyLineRun(rows[0]) : null;
+  return result.status === "ok" ? toAssemblyLineRun(result.data) : null;
 }
 
 /** The newest run for a task, or null. A task-centric page (the feature planning
@@ -186,28 +181,23 @@ export async function fetchAssemblyLineRun(
 export async function fetchLatestRunForTask(
   taskId: string,
 ): Promise<AssemblyLineRun | null> {
-  const rows = await queryAllowMissing<AssemblyLineRunRow>(
-    `${RUN_SELECT} WHERE al.task_id = $1 ORDER BY al.created_at DESC LIMIT 1`,
-    [taskId],
-  );
+  const runs = await readRuns(`?task_id=${encodeURIComponent(taskId)}&limit=1`);
 
-  return rows.length > 0 ? toAssemblyLineRun(rows[0]) : null;
+  return runs[0] ?? null;
 }
 
 /** The run's node executions in visit order. */
 export async function fetchAssemblyLineRunNodes(
   id: string,
 ): Promise<AssemblyLineRunNode[]> {
-  const rows = await queryAllowMissing<AssemblyLineRunNodeRow>(
-    `SELECT node_id, iteration, outcome, agent_cr_name, commit_sha,
-            started_at, finished_at
-       FROM pipeline.assembly_line_nodes
-      WHERE assembly_line_id = $1
-      ORDER BY id`,
-    [id],
+  const result = await apiFetch<{ nodes: AssemblyLineRunNodeRow[] }>(
+    "lore-api",
+    `/api/assembly-lines/${encodeURIComponent(id)}/nodes`,
   );
 
-  return rows.map(toAssemblyLineRunNode);
+  return result.status === "ok"
+    ? result.data.nodes.map(toAssemblyLineRunNode)
+    : [];
 }
 
 /**
@@ -233,28 +223,16 @@ export async function fetchRunTokens(
     return null;
   }
 
-  try {
-    const rows = await queryAllowMissing<TurnUsageRow>(
-      `SELECT
-         COALESCE(SUM((usage->>'input_tokens')::bigint), 0)::int AS input_tokens,
-         COALESCE(SUM((usage->>'output_tokens')::bigint), 0)::int AS output_tokens,
-         COALESCE(SUM((usage->>'cache_creation_input_tokens')::bigint), 0)::int
-           AS cache_creation_tokens,
-         COALESCE(SUM((usage->>'cache_read_input_tokens')::bigint), 0)::int
-           AS cache_read_tokens
-       FROM (
-         SELECT envelope->'event'->'message'->'usage' AS usage
-           FROM pipeline.agent_run_turns
-          WHERE assembly_line_id = $1
-            AND envelope->'event'->'message' ? 'usage'
-       ) turns`,
-      [assemblyLineId],
-    );
-    const summed = sumTurnUsage(rows);
+  const result = await apiFetch<{ usage: TurnUsageRow | null }>(
+    "lore-api",
+    `/api/assembly-lines/${encodeURIComponent(assemblyLineId)}/token-usage`,
+  );
 
-    // The aggregate always answers one row; an all-zero one means no usage yet.
-    return summed && summed.total > 0 ? summed : null;
-  } catch {
+  if (result.status !== "ok" || !result.data.usage) {
     return null;
   }
+  const summed = sumTurnUsage([result.data.usage]);
+
+  // The aggregate always answers one row; an all-zero one means no usage yet.
+  return summed && summed.total > 0 ? summed : null;
 }

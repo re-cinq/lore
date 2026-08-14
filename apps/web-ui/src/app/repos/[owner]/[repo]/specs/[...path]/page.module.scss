@@ -1,0 +1,6 @@
+@use "styles/tokens" as t;
+
+.breadcrumb {
+  @include t.row(10px);
+  margin-bottom: 12px;
+}

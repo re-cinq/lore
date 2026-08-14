@@ -2,7 +2,7 @@
 // run page: the status-transition events (pipeline.task_events) and the LLM
 // cost/token rows (pipeline.llm_calls). Both are keyed by task_id.
 
-import { query } from "./db";
+import { getTaskRuntime } from "./api/tasks";
 
 export interface TaskRuntimeEvent {
   id: string;
@@ -22,17 +22,22 @@ export interface TaskRuntimeLlmCall {
   created_at: string;
 }
 
-export function fetchTaskEvents(taskId: string): Promise<TaskRuntimeEvent[]> {
-  return query<TaskRuntimeEvent>(
-    `SELECT * FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at`,
-    [taskId],
-  );
+export async function fetchTaskEvents(
+  taskId: string,
+): Promise<TaskRuntimeEvent[]> {
+  const result = await getTaskRuntime(taskId);
+
+  return (result.status === "ok"
+    ? result.data.events
+    : []) as unknown as TaskRuntimeEvent[];
 }
 
-export function fetchLlmCalls(taskId: string): Promise<TaskRuntimeLlmCall[]> {
-  return query<TaskRuntimeLlmCall>(
-    `SELECT model, input_tokens, output_tokens, duration_ms, status, error, created_at
-       FROM pipeline.llm_calls WHERE task_id = $1 ORDER BY created_at`,
-    [taskId],
-  );
+export async function fetchLlmCalls(
+  taskId: string,
+): Promise<TaskRuntimeLlmCall[]> {
+  const result = await getTaskRuntime(taskId);
+
+  return (result.status === "ok"
+    ? result.data.llm_calls
+    : []) as unknown as TaskRuntimeLlmCall[];
 }

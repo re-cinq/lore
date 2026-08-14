@@ -1,5 +1,7 @@
 export const dynamic = "force-dynamic";
-import { query, queryAllChunks } from "@/lib/db";
+import { listRepos } from "@/lib/api/repos";
+import { searchMemory } from "@/lib/api/memory";
+import { getChunks } from "@/lib/api/chunks";
 import SearchView, {
   type SearchResult,
   type SearchRepoOption,
@@ -14,72 +16,29 @@ export default async function SearchPage({
   let results: SearchResult[] = [];
 
   // Populate repo filter dropdown
-  const repos = await query<SearchRepoOption>(
-    `SELECT full_name FROM lore.repos ORDER BY full_name`,
-  );
+  const repoList = await listRepos();
+  const repos: SearchRepoOption[] =
+    repoList.status === "ok"
+      ? repoList.data.repos
+          .map((repo) => ({ full_name: repo.full_name }))
+          .sort((a, b) => a.full_name.localeCompare(b.full_name))
+      : [];
 
   if (q) {
-    // Search memories using inline to_tsvector (no generated column on memory.memories)
-    const memoryResults = await query<SearchResult>(
-      `
-      SELECT key, substring(value, 1, 300) as value, agent_id,
-             ts_rank(to_tsvector('english', value), plainto_tsquery($1)) as score,
-             'memory' as source,
-             NULL as repo
-      FROM memory.memories
-      WHERE is_deleted = FALSE
-        AND (expires_at IS NULL OR expires_at > now())
-        AND to_tsvector('english', value) @@ plainto_tsquery($1)
-      ORDER BY score DESC
-      LIMIT 20
-    `,
-      [q],
-    );
+    // One call for both the memory and the fact hits: lore-api runs the same
+    // two ranked searches and returns them as one list.
+    const memoryHits = await searchMemory(q);
+    const memoryResults = (memoryHits.status === "ok"
+      ? memoryHits.data.results
+      : []) as unknown as SearchResult[];
 
-    // Search facts table (includes episode-derived facts, excludes invalidated by default)
-    const factResults = await query<SearchResult>(
-      `
-      SELECT COALESCE(m.key, e.source || ':' || COALESCE(e.ref, e.id::text)) as key,
-             substring(f.fact_text, 1, 300) as value,
-             COALESCE(m.agent_id, e.agent_id) as agent_id,
-             ts_rank(to_tsvector('english', f.fact_text), plainto_tsquery($1)) as score,
-             CASE WHEN f.episode_id IS NOT NULL THEN 'episode' ELSE 'fact' END as source,
-             NULL as repo
-      FROM memory.facts f
-      LEFT JOIN memory.memories m ON m.id = f.memory_id
-      LEFT JOIN memory.episodes e ON e.id = f.episode_id
-      WHERE (m.id IS NULL OR (m.is_deleted = FALSE AND (m.expires_at IS NULL OR m.expires_at > now())))
-        AND f.valid_to IS NULL
-        AND to_tsvector('english', f.fact_text) @@ plainto_tsquery($1)
-      ORDER BY score DESC
-      LIMIT 20
-    `,
-      [q],
-    );
+    // Chunk hits come from lore-api, which owns the schema union.
+    const chunkHits = await getChunks({ repo, q, limit: 20 });
+    const chunkResults = (chunkHits.status === "ok"
+      ? chunkHits.data.chunks
+      : []) as unknown as SearchResult[];
 
-    // Search repo chunks across all schemas (scoped by repo if filtered)
-    const chunkResults = await queryAllChunks<SearchResult>(
-      (schema, offset) => {
-        const repoFilter = repo ? `AND c.repo = $${offset + 1}` : "";
-
-        return {
-          sql: `SELECT c.file_path as key, substring(c.content, 1, 300) as value,
-                       'ingestion' as agent_id,
-                       ts_rank(c.search_tsv, websearch_to_tsquery('english', $${offset})) as score,
-                       'chunk' as source,
-                       c.repo as repo
-                FROM ${schema}.chunks c
-                WHERE c.search_tsv @@ websearch_to_tsquery('english', $${offset})
-                  ${repoFilter}`,
-          params: repo ? [q, repo] : [q],
-        };
-      },
-      [],
-      { orderBy: "score DESC", limit: 20 },
-    );
-
-    // Merge and sort by score descending, capped at 30
-    const allResults = [...memoryResults, ...factResults, ...chunkResults];
+    const allResults = [...memoryResults, ...chunkResults];
 
     results = allResults.sort((a, b) => b.score - a.score).slice(0, 30);
   }

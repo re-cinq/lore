@@ -16,14 +16,18 @@
   gap: 0.5rem;
 }
 
+/* Both colours below come from the freshness/ingest palettes in lib — the card
+   hands the value over, the rule stays here. */
 .freshnessDot {
   display: inline-block;
   width: 10px;
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
+  background: var(--dot-color);
 }
 
 .ingestBadge {
+  background: var(--badge-color);
   color: white;
 }

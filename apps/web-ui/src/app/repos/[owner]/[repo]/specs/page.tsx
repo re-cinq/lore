@@ -19,7 +19,7 @@ export default async function RepoSpecs({
 
   return (
     <div>
-      <p className="meta" style={{ marginBottom: 12 }}>
+      <p className="meta page-lede">
         Specs in the traceability graph for <code>{fullName}</code> (
         {specs.length}).
       </p>

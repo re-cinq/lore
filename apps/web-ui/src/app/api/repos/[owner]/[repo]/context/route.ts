@@ -1,11 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { query, getRepoSchema } from "@/lib/db";
 import { previewBlock } from "@/lib/preview-block";
-import {
-  CONTEXT_PAGE_SIZE,
-  contextChunkQuery,
-} from "@/app/repos/[owner]/[repo]/context/pagination";
+import { fetchRepoChunks } from "@/app/repos/[owner]/[repo]/context/context-data";
 import { serverError } from "@/lib/api-error";
 import type { RepoContextChunk } from "@/app/repos/[owner]/[repo]/context/RepoContextView";
 
@@ -27,23 +23,13 @@ export async function GET(
   );
 
   try {
-    const schema = await getRepoSchema(fullName);
-    const { sql, params: sqlParams } = contextChunkQuery(
-      schema,
-      fullName,
-      type,
-      q,
-      offset,
-    );
-    const rows = await query<RepoContextChunk>(sql, sqlParams);
-
-    const hasMore = rows.length > CONTEXT_PAGE_SIZE;
-    const chunks = rows.slice(0, CONTEXT_PAGE_SIZE).map((c) => ({
+    const page = await fetchRepoChunks(fullName, type, q, offset);
+    const chunks = (page.chunks as unknown as RepoContextChunk[]).map((c) => ({
       ...c,
       content: previewBlock(c.content, c.content_type),
     }));
 
-    return NextResponse.json({ chunks, hasMore });
+    return NextResponse.json({ chunks, hasMore: page.hasMore });
   } catch (err) {
     return serverError("repo-context", err);
   }

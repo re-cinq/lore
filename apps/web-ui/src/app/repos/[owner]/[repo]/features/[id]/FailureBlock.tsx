@@ -1,21 +1,9 @@
 "use client";
 
+import styles from "./FailureBlock.module.scss";
 import { submittedFeedback } from "@/lib/submitted-feedback";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { SectionAnswers } from "@/lib/feature-types";
-
-const PRE_STYLE: React.CSSProperties = {
-  whiteSpace: "pre-wrap",
-  wordBreak: "break-word",
-  maxHeight: 260,
-  overflow: "auto",
-  background: "var(--bg-elevated)",
-  border: "1px solid var(--border)",
-  borderRadius: 6,
-  padding: 10,
-  fontSize: "var(--fs-xs)",
-  margin: "8px 0",
-};
 
 export default function FailureBlock({
   iteration,
@@ -42,14 +30,8 @@ export default function FailureBlock({
   const submitted = submittedFeedback(answers);
 
   return (
-    <div
-      className="spec-card"
-      style={{ borderColor: "var(--danger)" }}
-      role="alert"
-    >
-      <p style={{ color: "var(--danger)", fontWeight: 600, margin: 0 }}>
-        Planning round {iteration} failed.
-      </p>
+    <div className={`spec-card ${styles.failure}`} role="alert">
+      <p className={styles.headline}>Planning round {iteration} failed.</p>
       {!diagnosis && (
         <p className="meta">
           The run finished without producing a result, and recorded no reason.
@@ -58,7 +40,7 @@ export default function FailureBlock({
           the likely one.
         </p>
       )}
-      {diagnosis && <pre style={PRE_STYLE}>{diagnosis}</pre>}
+      {diagnosis && <pre className={styles.diagnosis}>{diagnosis}</pre>}
       {run && (
         <p className="meta">
           <a href={`/assembly-lines/${run.id}`}>
@@ -67,17 +49,17 @@ export default function FailureBlock({
         </p>
       )}
       {submitted.length > 0 && (
-        <details style={{ margin: "8px 0" }} open>
+        <details className={styles.submitted} open>
           <summary className="meta">Your input for this round — kept</summary>
-          <dl style={{ margin: "6px 0 0" }}>
+          <dl className={styles.submittedList}>
             {submitted.map((line) => (
-              <div key={line.heading} style={{ marginBottom: 6 }}>
-                <dt className="meta" style={{ fontWeight: 600 }}>
+              <div key={line.heading} className={styles.submittedItem}>
+                <dt className={`meta ${styles.submittedHeading}`}>
                   {line.heading}
                   {line.direction ? ` — ${line.direction}` : ""}
                 </dt>
                 {line.body && (
-                  <dd style={{ margin: "2px 0 0 12px" }}>{line.body}</dd>
+                  <dd className={styles.submittedBody}>{line.body}</dd>
                 )}
               </div>
             ))}

@@ -1,0 +1,19 @@
+@use "styles/tokens" as t;
+
+.card {
+  @include t.stack(12px);
+}
+
+.stats {
+  @include t.row(24px);
+  margin-top: 16px;
+}
+
+.sectionHeading {
+  margin-top: 24px;
+}
+
+.rows {
+  @include t.stack(10px);
+  margin-top: 10px;
+}

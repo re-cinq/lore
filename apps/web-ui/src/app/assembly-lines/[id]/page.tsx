@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
+import { getTask } from "@/lib/api/tasks";
 import { redirect } from "next/navigation";
-import { queryOne } from "@/lib/db";
 import {
   fetchAssemblyLineRun,
   fetchAssemblyLineRunNodes,
@@ -85,12 +85,10 @@ export default async function AssemblyLineResolverPage({
     );
   }
 
-  const task = await queryOne<{ id: string }>(
-    `SELECT id FROM pipeline.tasks WHERE id = $1`,
-    [id],
-  );
+  // The id may be a TASK id rather than a run id — the old links pointed here.
+  const taskResult = await getTask(id);
 
-  if (task) {
+  if (taskResult.status === "ok") {
     redirect(`/tasks/${id}`);
   }
 

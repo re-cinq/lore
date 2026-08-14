@@ -1,3 +1,5 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+
 export interface ChunkUnionOrder {
   orderBy: string;
   limit: number;
@@ -9,9 +11,11 @@ export type ChunkSelectFn = (
 ) => { sql: string; params: unknown[] };
 
 const enforcePositiveInteger = (limit: number): void => {
-  if (!Number.isInteger(limit) || limit <= 0) {
-    throw new Error(`chunk-union limit must be a positive integer: ${limit}`);
-  }
+  enforceTrue(
+    !(!Number.isInteger(limit) || limit <= 0),
+    Error,
+    `chunk-union limit must be a positive integer: ${limit}`,
+  );
 };
 
 const SAFE_ORDER_TERM_RE = /^[a-z_][a-z0-9_]*(\s+(ASC|DESC))?$/i;
@@ -22,9 +26,11 @@ const enforceOrderByTerms = (orderBy: string): void => {
     .map((term) => term.trim())
     .every((term) => SAFE_ORDER_TERM_RE.test(term));
 
-  if (!safe) {
-    throw new Error(`chunk-union orderBy contains an unsafe term: ${orderBy}`);
-  }
+  enforceTrue(
+    safe,
+    Error,
+    `chunk-union orderBy contains an unsafe term: ${orderBy}`,
+  );
 };
 
 /**

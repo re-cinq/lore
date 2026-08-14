@@ -23,12 +23,19 @@ import { healthzRoute } from "../api/routes/healthz/healthz.js";
 import { distRoute } from "../api/routes/dist/dist.js";
 import { repoStatusRoute } from "../api/routes/repos/repo-status.js";
 import { reposRoute } from "../api/routes/repos/repos.js";
+import { repoRecordRoute } from "../api/routes/repos/repo-record.js";
+import { orgSettingsRoutes } from "../api/routes/repos/org-settings.js";
+import { repoSettingsRoute } from "../api/routes/repos/repo-settings.js";
 import { prStatusRoute } from "../api/routes/repos/pr-status.js";
 import { contextRoute } from "../api/routes/context/context.js";
+import { chunkBrowseRoutes } from "../api/routes/context/chunks-browse.js";
 import { graphRoute } from "../api/routes/graph/graph.js";
 import { getTaskRoute } from "../api/routes/tasks/get-task.js";
 import { listTasksRoute } from "../api/routes/tasks/list-tasks.js";
 import { timelineRoute } from "../api/routes/tasks/task-timeline.js";
+import { taskRunsRoute } from "../api/routes/tasks/task-runs.js";
+import { taskViewRoutes } from "../api/routes/tasks/task-views.js";
+import { assemblyLineRoutes } from "../api/routes/assembly-lines/assembly-lines.js";
 import { taskByPrRoute } from "../api/routes/tasks/task-by-pr.js";
 import {
   taskLogsGetRoute,
@@ -44,6 +51,7 @@ import {
   specTasksCompleteRoute,
 } from "../api/routes/spec-tasks/spec-tasks.js";
 import { memoryRoute } from "../api/routes/memory/memory.js";
+import { memoryBrowseRoutes } from "../api/routes/memory/memory-browse.js";
 import { episodeRoute } from "../api/routes/memory/episode.js";
 import { sessionSummaryRoute } from "../api/routes/memory/session-summary.js";
 import { ingestRoute } from "../api/routes/ingest/ingest.js";
@@ -68,6 +76,11 @@ import {
 } from "../api/routes/agent-definitions/agents.js";
 import { usageRoute } from "../api/routes/analytics/usage.js";
 import { analyticsRoute } from "../api/routes/analytics/analytics.js";
+import { activityRoutes } from "../api/routes/analytics/activity.js";
+import {
+  spendRoute,
+  analyticsOverviewRoute,
+} from "../api/routes/analytics/spend.js";
 import { agentStatsRoute } from "../api/routes/analytics/agent-stats.js";
 import { impactRoute } from "../api/routes/impact/impact.js";
 import { impactBaseRoute } from "../api/routes/impact/impact-base.js";
@@ -94,12 +107,19 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     distRoute(),
     repoStatusRoute(getPool),
     reposRoute(getPool),
+    repoRecordRoute(),
+    ...orgSettingsRoutes(getPool),
+    repoSettingsRoute(getPool),
     prStatusRoute(),
     contextRoute(getPool),
+    ...chunkBrowseRoutes(getPool),
     graphRoute(getPool),
     getTaskRoute(),
     listTasksRoute(),
     timelineRoute(getPool),
+    taskRunsRoute(getPool),
+    ...taskViewRoutes(getPool),
+    ...assemblyLineRoutes(getPool),
     taskByPrRoute(getPool),
     taskLogsGetRoute(getPool),
     jobRunLogsRoute(),
@@ -111,6 +131,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     specTasksCompleteRoute(getPool),
     taskLogsPostRoute(),
     memoryRoute(getPool),
+    ...memoryBrowseRoutes(getPool),
     episodeRoute(getPool),
     sessionSummaryRoute(getPool),
     ingestRoute(getPool),
@@ -131,6 +152,9 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     agentsDeleteRoute(getPool),
     usageRoute(getPool),
     analyticsRoute(getPool),
+    ...activityRoutes(getPool),
+    spendRoute(getPool),
+    analyticsOverviewRoute(getPool),
     agentStatsRoute(getPool),
     impactRoute(),
     impactBaseRoute(),

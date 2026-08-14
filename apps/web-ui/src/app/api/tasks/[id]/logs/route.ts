@@ -1,18 +1,12 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { queryOne } from "@/lib/db";
+import { getTask } from "@/lib/api/tasks";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { serverError } from "@/lib/api-error";
+import { serverError, upstreamError } from "@/lib/api-error";
 import { Storage } from "@google-cloud/storage";
 
 const BUCKET = process.env.LORE_LOG_BUCKET || "lore-task-logs";
-
-interface Task {
-  id: string;
-  status: string;
-  target_repo: string;
-}
 
 async function checkRepoAccess(
   accessToken: string,
@@ -50,14 +44,12 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const task = await queryOne<Task>(
-      `SELECT id, status, target_repo FROM pipeline.tasks WHERE id = $1`,
-      [id],
-    );
+    const result = await getTask(id);
 
-    if (!task) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    if (result.status !== "ok") {
+      return upstreamError("Logs", result);
     }
+    const task = result.data;
 
     // Repo access check
     const hasAccess = await checkRepoAccess(

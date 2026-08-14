@@ -36,7 +36,7 @@ export default function SpecListView({
 
   if (specs.length === 0) {
     return (
-      <p style={{ color: "var(--text-muted)" }}>
+      <p className="muted">
         No specs in the graph yet. Specs are projected automatically by CI on
         every push to <code>main</code> — push a<code>specs/</code> change (or
         re-run the <strong>lore-ingest</strong> workflow), then refresh.
@@ -85,9 +85,7 @@ export default function SpecListView({
         />
       ))}
       {visible.length === 0 && (
-        <p style={{ color: "var(--text-muted)" }}>
-          No specs match this status filter.
-        </p>
+        <p className="muted">No specs match this status filter.</p>
       )}
     </div>
   );

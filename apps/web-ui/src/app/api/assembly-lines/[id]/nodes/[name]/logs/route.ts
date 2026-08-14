@@ -2,8 +2,10 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { queryOne } from "@/lib/db";
-import { fetchAssemblyLineRun } from "@/lib/assembly-line-runs";
+import {
+  fetchAssemblyLineRun,
+  fetchAssemblyLineRunNodes,
+} from "@/lib/assembly-line-runs";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { serverError } from "@/lib/api-error";
 
@@ -44,12 +46,8 @@ export async function GET(
       );
     }
 
-    const node = await queryOne<{ agent_cr_name: string }>(
-      `SELECT agent_cr_name FROM pipeline.assembly_line_nodes
-        WHERE assembly_line_id = $1 AND agent_cr_name = $2
-        LIMIT 1`,
-      [id, name],
-    );
+    const nodes = await fetchAssemblyLineRunNodes(id);
+    const node = nodes.find((n) => n.agentCrName === name);
 
     if (!node) {
       return NextResponse.json(

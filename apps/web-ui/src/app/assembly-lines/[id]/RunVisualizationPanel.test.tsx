@@ -546,7 +546,7 @@ describe("replay scrubber", () => {
     expect(screen.queryByRole("slider")).not.toBeInTheDocument();
   });
 
-  it("seeking to mid-run shows the running node and hides steps that have not run", async () => {
+  it("seeking to mid-run shows the running node and pends the ones ahead", async () => {
     stubHistory(runLoop);
     useFakeEventSource();
 
@@ -556,8 +556,8 @@ describe("replay scrubber", () => {
     await scrubTo(1);
 
     expect(nodeStatus(container, "implement")).toContain("Running");
-    // validate has not participated at this cursor — run mode does not draw it.
-    expect(container.querySelector('[data-node="validate"]')).toBeNull();
+    // validate has not run at this cursor — drawn, but reading as pending.
+    expect(nodeStatus(container, "validate")).toContain("Pending");
   });
 
   it("moves the scrubber to the event a timeline tick seeks to", async () => {
@@ -583,7 +583,7 @@ describe("replay scrubber", () => {
     await settle();
     await scrubTo(1);
 
-    expect(container.querySelector('[data-node="validate"]')).toBeNull();
+    expect(nodeStatus(container, "validate")).toContain("Pending");
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: /back to live/i }));
@@ -717,7 +717,7 @@ describe("replay rewinds the run graph (regression)", () => {
   const nodeText = (container: HTMLElement, id: string) =>
     container.querySelector(`[data-node="${id}"]`)?.textContent ?? "";
 
-  it("shows no verdict badges, no nodes and no taken path at cursor zero", async () => {
+  it("shows pending nodes, no verdict badges and no taken path at cursor zero", async () => {
     stubHistory(reviewHistory);
     useFakeEventSource();
 
@@ -726,9 +726,9 @@ describe("replay rewinds the run graph (regression)", () => {
     await settle();
     await scrubTo(0);
 
-    expect(container.querySelector('[data-node="review"]')).toBeNull();
-    expect(container.querySelector('[data-node="done"]')).toBeNull();
-    expect(container.querySelector("[data-edge]")).toBeNull();
+    expect(nodeText(container, "review")).toContain("Pending");
+    expect(nodeText(container, "done")).toContain("Pending");
+    expect(container.querySelectorAll('[data-taken="true"]')).toHaveLength(0);
   });
 
   it("holds the recorded verdict back while the node is still running at the cursor", async () => {
@@ -742,8 +742,8 @@ describe("replay rewinds the run graph (regression)", () => {
 
     expect(nodeText(container, "review")).toContain("Running");
     expect(nodeText(container, "review")).not.toContain("Failed");
-    // Unreached at this cursor: no taken edge yet, so done is not drawn.
-    expect(container.querySelector('[data-node="done"]')).toBeNull();
+    // Unreached at this cursor: drawn as the step ahead, still pending.
+    expect(nodeText(container, "done")).toContain("Pending");
   });
 
   it("shows the walk row's failed verdict, not the clean pod exit, once the result replays", async () => {
@@ -843,7 +843,9 @@ describe("stream give-up and history polling", () => {
     await settle();
     await failStream(6);
 
-    expect(container.querySelector('[data-node="validate"]')).toBeNull();
+    const validate = container.querySelector('[data-node="validate"]');
+
+    expect(validate?.getAttribute("data-tone")).toBe("idle");
 
     fetchMock.mockClear();
     fetchMock.mockResolvedValue({

@@ -1,0 +1,28 @@
+@use "styles/tokens" as t;
+
+// Both controls are the same bordered surface; only their padding and the way
+// they take up the row differ.
+@mixin field {
+  padding: 4px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+}
+
+.controls {
+  @include t.row(8px);
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.search {
+  @include field;
+  flex: 1 1 220px;
+  max-width: 360px;
+}
+
+.sort {
+  @include field;
+  padding: 4px 8px;
+}

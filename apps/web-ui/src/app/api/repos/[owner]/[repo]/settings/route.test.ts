@@ -1,15 +1,17 @@
 // @vitest-environment node
+//
+// The route is now a proxy: lore-api owns the write, the privileged-field
+// refusal, and the `internal.repo.team_changed` event (all covered by
+// repo-settings.test.ts there). What is left to prove here is that this route
+// forwards the caller's patch faithfully and does not flatten a refusal.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const query = vi.fn<(text: string, params?: unknown[]) => Promise<unknown[]>>();
-const queryOne =
-  vi.fn<(text: string, params?: unknown[]) => Promise<unknown | null>>();
+const getRepo = vi.fn();
+const putRepoSettings = vi.fn();
 
-vi.mock("@/lib/db", () => ({
-  query: (text: string, params?: unknown[]) => query(text, params),
-  queryOne: (text: string, params?: unknown[]) => queryOne(text, params),
-}));
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/api/repos", () => ({ getRepo, putRepoSettings }));
 
 const { POST } = await import("./route");
 
@@ -22,74 +24,69 @@ function postRequest(body: Record<string, unknown>): Request {
   });
 }
 
-function teamChangedInserts(): Array<unknown[] | undefined> {
-  return query.mock.calls
-    .filter(([text]) => text.includes("INSERT INTO pipeline.events"))
-    .map(([, values]) => values);
-}
-
 beforeEach(() => {
-  query.mockReset().mockResolvedValue([]);
-  queryOne
-    .mockReset()
-    .mockResolvedValue({ full_name: "re-cinq/lore", team: null });
+  vi.clearAllMocks();
+  putRepoSettings.mockResolvedValue({ status: "ok", data: { ok: true } });
+  getRepo.mockResolvedValue({
+    status: "ok",
+    data: { full_name: "re-cinq/lore", team: "platform", settings: {} },
+  });
 });
 
-describe("settings POST team change", () => {
-  it("emits one internal.repo.team_changed event when the team value changes", async () => {
+describe("settings POST", () => {
+  it("forwards a team change to lore-api", async () => {
     const res = await POST(postRequest({ team: "platform" }) as never, {
       params,
     });
 
     expect(res.status).toBe(200);
-
-    const inserts = teamChangedInserts();
-
-    expect(inserts).toHaveLength(1);
-    expect(inserts[0]).toEqual([
-      JSON.stringify({ repo: "re-cinq/lore" }),
-      "re-cinq/lore",
-    ]);
+    expect(putRepoSettings).toHaveBeenCalledWith("re-cinq/lore", {
+      team: "platform",
+    });
   });
 
-  it("emits no event when the posted team equals the stored team", async () => {
-    queryOne.mockResolvedValue({ full_name: "re-cinq/lore", team: "platform" });
+  it("normalizes a cleared team to null", async () => {
+    await POST(postRequest({ team: "" }) as never, { params });
 
-    await POST(postRequest({ team: "platform" }) as never, { params });
-
-    expect(teamChangedInserts()).toHaveLength(0);
+    expect(putRepoSettings).toHaveBeenCalledWith("re-cinq/lore", {
+      team: null,
+    });
   });
 
-  it("emits no event on a settings-only update", async () => {
+  it("forwards a settings-only patch without naming a team", async () => {
     await POST(postRequest({ settings: { auto_review: true } }) as never, {
       params,
     });
 
-    expect(teamChangedInserts()).toHaveLength(0);
+    expect(putRepoSettings).toHaveBeenCalledWith("re-cinq/lore", {
+      settings: { auto_review: true },
+    });
   });
 
-  it("emits an event when a team is cleared, normalizing empty string to null", async () => {
-    queryOne.mockResolvedValue({ full_name: "re-cinq/lore", team: "platform" });
-
-    await POST(postRequest({ team: "" }) as never, { params });
-
-    expect(teamChangedInserts()).toHaveLength(1);
-  });
-
-  it("returns the updated row even when the event insert fails", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    query.mockImplementation(async (text) => {
-      if (text.includes("INSERT INTO pipeline.events")) {
-        throw new Error("permission denied");
-      }
-
-      return [];
+  it("forwards a privileged-field refusal with its 403 rather than flattening it", async () => {
+    putRepoSettings.mockResolvedValue({
+      status: "error",
+      message: "privileged dark-factory fields (enabled) are written through …",
+      code: 403,
     });
 
+    const res = await POST(
+      postRequest({ settings: { dark_factory: { enabled: true } } }) as never,
+      { params },
+    );
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns the stored row after a successful write", async () => {
     const res = await POST(postRequest({ team: "platform" }) as never, {
       params,
     });
 
-    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      full_name: "re-cinq/lore",
+      team: "platform",
+      settings: {},
+    });
   });
 });

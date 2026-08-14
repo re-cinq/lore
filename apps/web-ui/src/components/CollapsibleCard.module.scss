@@ -1,0 +1,12 @@
+@use "styles/tokens" as t;
+
+.summary {
+  @include t.row(8px);
+  align-items: baseline;
+  cursor: pointer;
+  flex-flow: wrap;
+}
+
+.body {
+  margin-top: 10px;
+}

@@ -24,18 +24,18 @@ of files, and nothing followed the OS light/dark preference.
 
 A token-driven theming system with **three theme families**, each with
 **light + dark variants and OS auto-switching**, its own font, and its own
-icon set ([token parity per family](apps/web-ui/src/app/theme-tokens.test.ts#L66), [icon set per family](apps/web-ui/src/components/Icon.test.tsx#L58)). The current dark-only look is
+icon set ([token parity per family](apps/web-ui/src/app/theme-tokens.test.ts#L66), [icon set per family](apps/web-ui/src/components/Icon.test.tsx#L59)). The current dark-only look is
 replaced ([now light + dark per family](apps/web-ui/src/app/theme-tokens.test.ts#L66)).
 
 - **Elegant** — Figma-like. `Inter` font, rounded corners, soft shadows, and a
   subtle frosted-glass feel (translucent + `backdrop-filter` blur) on elevated
   surfaces. Palette modeled on apple.com/mac (light `#f5f5f7`/`#1d1d1f`/`#0071e3`,
-  dark `#000`/`#f5f5f7`/`#2997ff`). Icons: **Lucide**. ([validated by `Icon.test.tsx:33`](apps/web-ui/src/components/Icon.test.tsx#L33))
+  dark `#000`/`#f5f5f7`/`#2997ff`). Icons: **Lucide**. ([validated by `Icon.test.tsx:33`](apps/web-ui/src/components/Icon.test.tsx#L34))
 - **Retro** — Tokyo Night terminal (redesigned post-ship; originally an amber
   CRT). `GohuFont` bitmap body text + `IBM Plex Mono` headings/code, sharp
   corners, soft blue-grey text (`#c0caf5`) on `#1a1b26`, blue accent
   (`#7aa2f7`), accent-glow shadows; the light scheme is Tokyo Night Day.
-  Icons: **Pixelarticons**. ([validated by `Icon.test.tsx:58`](apps/web-ui/src/components/Icon.test.tsx#L58), [validated by `renders the pixelarticons glyph for the retro family`](apps/web-ui/src/components/Icon.test.tsx#L46))
+  Icons: **Pixelarticons**. ([validated by `Icon.test.tsx:58`](apps/web-ui/src/components/Icon.test.tsx#L59), [validated by `renders the pixelarticons glyph for the retro family`](apps/web-ui/src/components/Icon.test.tsx#L47))
 
 ### Architecture
 
@@ -108,7 +108,7 @@ The `Icon` component defaults its width and height to 16 when no size is given
 alongside the iconify base classes (and none when omitted), exposes an
 `aria-label` when one is passed (marking the glyph aria-hidden and label-less
 otherwise), and applies the -0.125em baseline alignment only when `inline` is
-set. ([validated by `Icon.test.tsx:69`](apps/web-ui/src/components/Icon.test.tsx#L81), [`Icon.test.tsx:76`](apps/web-ui/src/components/Icon.test.tsx#L88), [`Icon.test.tsx:87`](apps/web-ui/src/components/Icon.test.tsx#L99), [`Icon.test.tsx:96`](apps/web-ui/src/components/Icon.test.tsx#L108), [`Icon.test.tsx:107`](apps/web-ui/src/components/Icon.test.tsx#L119), [`Icon.test.tsx:117`](apps/web-ui/src/components/Icon.test.tsx#L129), [`Icon.test.tsx:127`](apps/web-ui/src/components/Icon.test.tsx#L139), [`Icon.test.tsx:135`](apps/web-ui/src/components/Icon.test.tsx#L147))
+set. ([validated by `Icon.test.tsx:69`](apps/web-ui/src/components/Icon.test.tsx#L82), [`Icon.test.tsx:76`](apps/web-ui/src/components/Icon.test.tsx#L89), [`Icon.test.tsx:87`](apps/web-ui/src/components/Icon.test.tsx#L100), [`Icon.test.tsx:96`](apps/web-ui/src/components/Icon.test.tsx#L109), [`Icon.test.tsx:107`](apps/web-ui/src/components/Icon.test.tsx#L120), [`Icon.test.tsx:117`](apps/web-ui/src/components/Icon.test.tsx#L130), [`Icon.test.tsx:127`](apps/web-ui/src/components/Icon.test.tsx#L140), [`Icon.test.tsx:135`](apps/web-ui/src/components/Icon.test.tsx#L148))
 
 ### Type Scale
 
@@ -168,4 +168,4 @@ xs 12 / base 16 / xl 25 ([retro pins body sizes to 14px](apps/web-ui/src/app/the
   token-only rule, scoped under `[data-theme-family='chicago']` and imported
   after `globals.css` so it stays inert for the other families. Icons reuse the
   Pixelarticons set, whose blocky glyphs read as period-correct chrome next to
-  the beveled controls. ([validated by `Icon.test.tsx:67`](apps/web-ui/src/components/Icon.test.tsx#L67))
+  the beveled controls. ([validated by `Icon.test.tsx:67`](apps/web-ui/src/components/Icon.test.tsx#L68))

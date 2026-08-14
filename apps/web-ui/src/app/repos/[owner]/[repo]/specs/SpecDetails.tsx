@@ -529,7 +529,10 @@ export default function SpecDetails({
         {hover && hovered && (
           <div
             className={styles.popover}
-            style={{ left: hover.x, top: hover.y }}
+            style={{
+              ["--popover-x" as string]: `${hover.x}px`,
+              ["--popover-y" as string]: `${hover.y}px`,
+            }}
             role="tooltip"
           >
             <StatementPopover statement={hovered} repo={repo} branch={branch} />

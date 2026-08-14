@@ -1,12 +1,8 @@
 export const dynamic = "force-dynamic";
-import { query } from "@/lib/db";
+import { listEpisodes } from "@/lib/api/memory";
 import EpisodesView, { type EpisodeRow } from "./EpisodesView";
 
 const PAGE_SIZE = 30;
-
-interface CountResult {
-  count: number;
-}
 
 export default async function EpisodesPage({
   searchParams,
@@ -16,38 +12,15 @@ export default async function EpisodesPage({
   const { source, offset: offsetStr } = await searchParams;
   const offset = Math.max(0, parseInt(offsetStr || "0", 10) || 0);
 
-  const conditions: string[] = [];
-  const params: unknown[] = [];
-  const paramIndex = 1;
-
-  if (source && source.trim()) {
-    conditions.push(`e.source = $${paramIndex}`);
-    params.push(source.trim());
-  }
-
-  const whereClause =
-    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-
-  const [{ count: totalCount }] = await query<CountResult>(
-    `
-    SELECT count(*)::int as count FROM memory.episodes e ${whereClause}
-  `,
-    params,
-  );
-
-  const episodes = await query<EpisodeRow>(
-    `
-    SELECT e.id, e.agent_id, e.source, e.ref,
-           LEFT(e.content, 300) as content_preview,
-           (SELECT count(*)::int FROM memory.facts f WHERE f.episode_id = e.id) as fact_count,
-           e.created_at
-    FROM memory.episodes e
-    ${whereClause}
-    ORDER BY e.created_at DESC
-    LIMIT ${PAGE_SIZE} OFFSET ${offset}
-  `,
-    params,
-  );
+  const page = await listEpisodes({
+    source,
+    limit: PAGE_SIZE,
+    offset,
+  });
+  const totalCount = page.status === "ok" ? page.data.total : 0;
+  const episodes = (page.status === "ok"
+    ? page.data.episodes
+    : []) as unknown as EpisodeRow[];
 
   const sources = ["manual", "session", "pr-review", "ci"];
 

@@ -8,6 +8,8 @@
 // region (nesting a second one is an a11y regression), AgentForm needs inline
 // spans in a flex row, and SaveResultBanner is a five-branch status banner over a
 // different union. Three of those five sites are different knowledge.
+import styles from "./FormError.module.scss";
+
 export function FormError({
   message,
   className,
@@ -22,8 +24,7 @@ export function FormError({
   return (
     <p
       role="alert"
-      className={className}
-      style={{ color: "var(--danger)", margin: "4px 0 0" }}
+      className={[styles.error, className].filter(Boolean).join(" ")}
     >
       {message}
     </p>

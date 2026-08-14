@@ -78,3 +78,40 @@ describe("FeatureAssemblyLine", () => {
     expect(screen.queryByRole("heading", { name: "Graph" })).toBeNull();
   });
 });
+
+describe("FeatureAssemblyLine with a run", () => {
+  const node = (nodeId: string, outcome: string | null) => ({
+    nodeId,
+    iteration: 1,
+    outcome,
+    agentCrName: null,
+    commitSha: null,
+    durationSeconds: null,
+  });
+  const midRun = {
+    status: "running",
+    nodes: [node("analyze", "success"), node("author", null)],
+  };
+  const nodeText = (id: string) =>
+    document.querySelector(`[data-node="${id}"]`)?.textContent ?? "";
+
+  it("names each step's current status instead of its possible outcomes", () => {
+    render(<FeatureAssemblyLine definition={planning} run={midRun} />);
+
+    expect(nodeText("analyze")).toContain("Succeeded");
+    expect(nodeText("push")).toContain("Pending");
+    expect(document.querySelector("[data-outcome]")).toBeNull();
+  });
+
+  it("says whose move it is on the step the line is parked on", () => {
+    render(<FeatureAssemblyLine definition={planning} run={midRun} />);
+
+    expect(nodeText("author")).toContain("Waiting for you");
+  });
+
+  it("draws the declared graph when the run resolves to nothing", () => {
+    render(<FeatureAssemblyLine definition={planning} run={null} />);
+
+    expect(document.querySelector("[data-outcome]")).toBeTruthy();
+  });
+});

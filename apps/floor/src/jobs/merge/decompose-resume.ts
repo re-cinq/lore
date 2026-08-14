@@ -38,6 +38,36 @@ export function decideMergeResume(
     : null;
 }
 
+/**
+ * Whether a closed-PR event should resume a line, and for which PR. Pure.
+ *
+ * The resume used to hang off `handleMergedTask`, which the mergeable sweep only
+ * reaches for a task whose OWN row carries a PR (`status IN ('pr-created','review')
+ * AND pr_number IS NOT NULL`). A feature-planning task is `running` and carries
+ * none — the push node stamps the LINE's args, which is what `findOpenByPr` reads —
+ * so no spec PR ever reached the resume, on any deployment. Reading the merge off
+ * the event itself needs no task row at all.
+ *
+ * An unmerged close is deliberately not a resume: it settles the line rather than
+ * advancing it into decomposition.
+ */
+export function decideResumeFromClosedPr(
+  params: Record<string, unknown>,
+): { repo: string; prNumber: number } | null {
+  const repo = params.repo;
+  const prNumber = params.pr_number;
+
+  if (params.merged !== true) {
+    return null;
+  }
+
+  if (typeof repo !== "string" || typeof prNumber !== "number") {
+    return null;
+  }
+
+  return { repo, prNumber };
+}
+
 export interface DecomposeResumeDeps {
   assemblyLines: Pick<AssemblyLinesPort, "findOpenByPr" | "listNodes">;
   /** Deliver the resume. Production binds the pool here so this module never holds

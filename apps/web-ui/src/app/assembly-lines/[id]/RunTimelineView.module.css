@@ -9,9 +9,12 @@
   border-radius: var(--radius-pill);
 }
 
+/* `left` is the tick's own timestamp mapped onto the rail — handed over by the
+   view as --tick-left. */
 .tick {
   position: absolute;
   top: 50%;
+  left: var(--tick-left);
   width: 8px;
   height: 8px;
   padding: 0;

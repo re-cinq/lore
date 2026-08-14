@@ -46,9 +46,11 @@ the `by-pr` / `timeline` / `/api/tasks` GET routes; method `POST` + exact path
 |-----------------|---------------------------------|----------------------------------------------|
 | `retry`         | `task_id`                       | —                                            |
 | `cancel`        | `task_id`                       | —                                            |
+| `run-now`       | `task_id`                       | —                                            |
+| `revise`        | `task_id`, `feedback`           | —                                            |
 | `set-priority`  | `task_id`, `priority`           | — (`priority` other than `immediate` → `normal`) |
 | _(none)_ status | `task_id`, `status`             | `pr_url`, `error`                            |
-| _(none)_ create | `description` (non-blank)       | `task_type`, `target_repo`, `priority`, `context` |
+| _(none)_ create | `description` (non-blank)       | `task_type`, `target_repo`, `priority`, `context`, `created_by` |
 
 `status` must be one of `running`, `pr-created`, `completed`, `failed`,
 `needs-human-help`, `cancelled`. `task_type` is validated against
@@ -81,16 +83,28 @@ the `by-pr` / `timeline` / `/api/tasks` GET routes; method `POST` + exact path
    with `{ error: <message> }`. A cancel is never a silent no-op — the caller
    learns why it was refused, which is what `lore_cancel_task` reports.
 
-   This route is the only cancel path for the MCP tool: the adapter holds no pool
-   (ADR-032). The web UI cancels through its own Next.js route against the
-   database directly.
-5. **Set priority** — if `parsed.action === "set-priority"` **and** `task_id`
+   This route is the only cancel path for BOTH callers: the MCP adapter holds no
+   pool (ADR-032), and the web UI's `/api/tasks/[id]/cancel` proxy now forwards
+   here instead of running its own SQL. That is what closed a real split — the
+   proxy guarded with the UI's `isCancellable` (terminal at `completed`) while
+   this seam did not list `completed`, so the same click answered 400 in the
+   browser and 200 through the API. `completed` is now terminal here too.
+
+5. **Run now** — if `parsed.action === "run-now"` **and** `parsed.task_id`: call
+   the shared `escalatePipelineTask(pool, task_id)`, which refuses anything past
+   `pending`, sets `priority = 'immediate'`, and records the transition in
+   `pipeline.task_events` with the priority it left behind. Return `200
+   { task_id, priority: "immediate" }`; its throws map exactly as cancel's do.
+   Distinct from `set-priority` below, which is the MCP's blunt repricing: it
+   writes no event and reports success even when the `AND status = 'pending'`
+   guard matched no row.
+6. **Set priority** — if `parsed.action === "set-priority"` **and** `task_id`
    **and** `priority`: resolve `priority === "immediate" ? "immediate" : "normal"`,
    then `UPDATE pipeline.tasks SET priority = $1, updated_at = now() WHERE id = $2
    AND status = 'pending'` with `[resolvedPriority, task_id]`. Return
    `200 { ok: true, task_id, priority: resolvedPriority }`. (Only `pending` tasks
    are repriced; the response echoes the requested priority regardless of rows hit.)
-6. **Status update** — if there is **no** `action` **and** both `task_id` and
+7. **Status update** — if there is **no** `action` **and** both `task_id` and
    `status` are present (local-runner progress report):
    1. Reject with `400 { error: "invalid status: <status>" }` if `status` is not
       in the allow-list above.
@@ -99,13 +113,19 @@ the `by-pr` / `timeline` / `/api/tasks` GET routes; method `POST` + exact path
       is present, pushing values in order. Push `task_id` last.
    3. `UPDATE pipeline.tasks SET <clauses> WHERE id = $<last>`.
    4. Return `200 { ok: true, task_id, status }`.
-7. **Create (default)** — destructure `{ description, task_type, target_repo,
-   priority, context }`:
+8. **Create (default)** — destructure `{ description, task_type, target_repo,
+   priority, context, created_by }`:
    1. If `description?.trim()` is falsy → `400 { error: "description is required" }`.
    2. `resolvedType = getTaskTypes().includes(task_type || "") ? task_type : "general"`.
-   3. `createTask(description, resolvedType, target_repo, "remote-mcp", context || undefined, priority || "normal")`.
-   4. Return `200` with the `createTask` result.
-8. **Catch-all** — any thrown error logs `"[api/task] error:"` and returns
+   3. `createTask(description, resolvedType, target_repo, created_by || "remote-mcp", context || undefined, priority || "normal")`.
+      `created_by` is what preserves authorship now that the web UI's create
+      pages queue through this route: they name the signed-in author, and an
+      unnamed caller is the MCP adapter, the historical default.
+   4. Return `200` with the `createTask` result, which CARRIES THE NEW ID — the
+      create pages redirect to it. They used to insert and then read back the
+      newest row in the whole table to find their own task, which two concurrent
+      submissions turn into the wrong task.
+9. **Catch-all** — any thrown error logs `"[api/task] error:"` and returns
    `500 { error: err.message }`.
 
 Branch precedence is strict top-to-bottom: a `set-priority` action with no
@@ -150,33 +170,43 @@ Cancelling an unknown task id answers 404 rather than reporting success. ([valid
 
 Cancelling a merged task answers 409 with the refusal reason. ([validated by `returns 409 when cancelling a merged task`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L95))
 
-A `cancel` action records the status transition in `pipeline.task_events`. ([validated by `cancel records a task_events row for the status transition`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L250))
+A `cancel` action records the status transition in `pipeline.task_events`. ([validated by `cancel records a task_events row for the status transition`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L351))
 
-`set-priority` with `immediate` echoes `immediate`. ([validated by `sets immediate priority`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L107))
+A `run-now` action escalates a pending task and answers with its new priority. ([validated by `escalates a pending task to immediate`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L107))
 
-`set-priority` with any other value normalizes to `normal`. ([validated by `normalizes a non-immediate priority`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L123))
+Escalating an unknown task id answers 404 rather than reporting success. ([validated by `returns 404 when escalating a task that does not exist`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L116))
 
-`set-priority` updates only `pending` tasks with the resolved priority. ([validated by `set-priority updates only pending tasks with the resolved priority`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L266))
+Escalating a task past `pending` answers 409 with the refusal reason, because a caller told "ok" for a task that never moved cannot tell the difference. ([validated by `returns 409 when escalating a running task`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L126))
 
-`set-priority` missing `priority` falls through to the create branch and 400s on the missing description. ([validated by `set-priority without a priority falls through to create and 400s`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L280))
+A `revise` action queues a follow-up task from human feedback and answers with its id; an unknown task is 404 and blank feedback is 409, because an empty revision is worse than a refusal. ([validated by queues a revision and answers with the new task id](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L138), [`task-post.test.ts:156`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L156), [`task-post.test.ts:168`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L168))
 
-A status update with `pr_url` and `error` returns the status envelope and writes all three columns. ([validated by `updates status with pr_url and error`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L135))
+`set-priority` with `immediate` echoes `immediate`. ([validated by `sets immediate priority`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L178))
 
-A status update without optional fields still returns the status envelope. ([validated by `updates status without optional fields`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L151))
+`set-priority` with any other value normalizes to `normal`. ([validated by `normalizes a non-immediate priority`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L194))
 
-An out-of-allow-list status returns 400. ([validated by `rejects an invalid status`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L160))
+`set-priority` updates only `pending` tasks with the resolved priority. ([validated by `set-priority updates only pending tasks with the resolved priority`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L367))
 
-A create with a known `task_type` calls `createTask` with that type. ([validated by `creates a task with a known type`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L166))
+`set-priority` missing `priority` falls through to the create branch and 400s on the missing description. ([validated by `set-priority without a priority falls through to create and 400s`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L381))
 
-A create with an unknown `task_type` falls back to `general`. ([validated by `falls back to general for an unknown type`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L180))
+A status update with `pr_url` and `error` returns the status envelope and writes all three columns. ([validated by `updates status with pr_url and error`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L206))
 
-A create with no `task_type` defaults to `general`. ([validated by `defaults to general when no task_type is provided`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L199))
+A status update without optional fields still returns the status envelope. ([validated by `updates status without optional fields`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L222))
 
-A create threads `group_id` through to `createTask` as its trailing argument when provided. ([validated by `task-post.test.ts:213`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L213))
+An out-of-allow-list status returns 400. ([validated by `rejects an invalid status`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L231))
 
-A blank `description` returns 400. ([validated by `returns 400 when description is blank`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L227))
+A create with a known `task_type` calls `createTask` with that type. ([validated by `creates a task with a known type`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L237))
 
-Invalid JSON returns 500. ([validated by `returns 400 on invalid JSON`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L233))
+A create attributes the task to the caller's `created_by`, falling back to `remote-mcp` when none is named. ([validated by attributes the task to the caller-supplied created_by](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L251), [`task-post.test.ts:266`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L266))
+
+A create with an unknown `task_type` falls back to `general`. ([validated by `falls back to general for an unknown type`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L281))
+
+A create with no `task_type` defaults to `general`. ([validated by `defaults to general when no task_type is provided`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L300))
+
+A create threads `group_id` through to `createTask` as its trailing argument when provided. ([validated by `task-post.test.ts:314`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L314))
+
+A blank `description` returns 400. ([validated by `returns 400 when description is blank`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L328))
+
+Invalid JSON returns 500. ([validated by `returns 400 on invalid JSON`](apps/lore-api/src/api/routes/tasks/task-post.test.ts#L334))
 
 The route counts against the `task` rate bucket (60/min): the 61st POST to `/api/task` in the window trips 429. ([validated by `rate-limit.test.ts:60`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L60))
 

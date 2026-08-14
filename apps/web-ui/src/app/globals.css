@@ -695,6 +695,12 @@ pre {
   color: var(--text-muted);
   font-size: var(--fs-sm);
 }
+
+/* The one-line lede under a page's h1, saying what the page lists. Every list
+   page had its own inline margin, which is why they had all drifted apart. */
+.page-lede {
+  margin-bottom: 16px;
+}
 .memory-list {
   margin-top: 16px;
 }
@@ -939,8 +945,11 @@ pre {
 }
 
 /* Skeleton placeholder blocks for route-level loading.tsx files. Sized by the
-   consumer via inline style; token-driven so it tracks theme/scheme. */
+   consumer through --skeleton-width/-height; token-driven so it tracks
+   theme/scheme. */
 .skeleton {
+  width: var(--skeleton-width, 100%);
+  height: var(--skeleton-height, 14px);
   background: var(--bg-hover);
   border-radius: var(--radius-sm);
   animation: skeleton-pulse 1.5s ease-in-out infinite;

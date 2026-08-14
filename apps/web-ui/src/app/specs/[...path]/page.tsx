@@ -7,6 +7,7 @@ import {
 } from "@/lib/trace-api";
 import { toStatementInfo } from "@/lib/trace-statement-info";
 import SpecDocument from "@/app/repos/[owner]/[repo]/specs/[...path]/SpecDocument";
+import styles from "./page.module.scss";
 
 export default async function SpecDetailPage({
   params,
@@ -60,7 +61,7 @@ export default async function SpecDetailPage({
         </div>
       ) : (
         docs.map(({ repo, source, statements }) => (
-          <div key={repo} style={{ marginBottom: 24 }}>
+          <div key={repo} className={styles.repoBlock}>
             <p className="meta">
               repo: {repo} ·{" "}
               <Link

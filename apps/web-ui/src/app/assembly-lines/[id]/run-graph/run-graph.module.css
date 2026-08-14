@@ -10,6 +10,7 @@
 .svg {
   display: block;
   width: 100%;
+  max-width: var(--graph-width);
   height: auto;
   max-height: 26rem;
   overflow: visible;
@@ -57,13 +58,14 @@
 .edge:hover {
   stroke-width: 3;
 }
-.dim .edge:hover {
+.edge.dim:hover {
   opacity: 1;
 }
 
-/* Run overlay: the traversed branch is bold and solid, the rest fade back so the
-   path the run took reads at a glance. Absent (definition-only view) → neither. */
-.taken .edge {
+/* Run overlay: the hop the walk took is bold and solid, the road still ahead
+   fades back, so the run's position reads at a glance. Absent (definition-only
+   view) → neither. */
+.taken {
   stroke-width: 3.5;
   stroke-dasharray: none;
 }
@@ -206,14 +208,20 @@
   fill: var(--danger);
 }
 
+/* The station being worked right now: its border crawls, so the eye finds the
+   live step without reading a single label. Motion only — the stroke color and
+   the "Running" text already carry the meaning for anyone who has it turned off. */
 @media (prefers-reduced-motion: no-preference) {
   .running .box {
-    animation: pulse 1.6s ease-in-out infinite;
+    stroke-dasharray: 10 6;
+    animation: marching-border 1s linear infinite;
   }
 }
 
-@keyframes pulse {
-  50% {
-    opacity: 0.55;
+@keyframes marching-border {
+  to {
+    /* One full dash + gap: the pattern lands back on itself, so the loop has no
+       visible seam. */
+    stroke-dashoffset: -16;
   }
 }

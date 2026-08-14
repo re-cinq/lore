@@ -5,6 +5,7 @@ import lucideIcons from "@iconify-json/lucide/icons.json";
 import pixelIcons from "@iconify-json/pixelarticons/icons.json";
 import type { IconifyJSON } from "@iconify/types";
 import { useTheme } from "@/lib/theme/ThemeProvider";
+import styles from "./Icon.module.scss";
 import { ICONS, type IconName } from "./icon-map";
 
 // Register both collections once, at module load, so icons render inline with
@@ -41,8 +42,9 @@ export default function Icon({
       icon={ICONS[family][name]}
       width={size}
       height={size}
-      className={className}
-      style={inline ? { verticalAlign: "-0.125em" } : undefined}
+      className={[className, inline ? styles.inline : ""]
+        .filter(Boolean)
+        .join(" ")}
       aria-hidden={aria ? undefined : true}
       aria-label={aria}
     />

@@ -15,13 +15,20 @@ describe("toApiResult", () => {
           status: 404,
         }),
       ),
-    ).toEqual({ status: "error", message: "feature not found" });
+    ).toEqual({
+      status: "error",
+      message: "feature not found",
+      code: 404,
+      body: { error: "feature not found" },
+    });
   });
 
   it("falls back to the status when the body names no reason", async () => {
     expect(await toApiResult(new Response("{}", { status: 500 }))).toEqual({
       status: "error",
       message: "HTTP 500",
+      code: 500,
+      body: {},
     });
   });
 
@@ -29,7 +36,31 @@ describe("toApiResult", () => {
     // A 502 from a proxy is HTML; the status code is the news either way.
     expect(
       await toApiResult(new Response("<html>bad gateway", { status: 502 })),
-    ).toEqual({ status: "error", message: "HTTP 502" });
+    ).toEqual({ status: "error", message: "HTTP 502", code: 502, body: {} });
+  });
+});
+
+describe("toApiResult error body", () => {
+  it("carries the parsed body so a caller can read fields beyond the message", async () => {
+    // The onboard guard answers 409 with { blocked, error, task_id }; a proxy that
+    // only kept `error` could not tell the submitter which task blocked them.
+    const res = await toApiResult(
+      new Response(
+        JSON.stringify({
+          error: "already in flight",
+          blocked: "in-flight",
+          task_id: "t7",
+        }),
+        { status: 409 },
+      ),
+    );
+
+    expect(res).toMatchObject({
+      status: "error",
+      message: "already in flight",
+      code: 409,
+      body: { blocked: "in-flight", task_id: "t7" },
+    });
   });
 });
 

@@ -9,6 +9,7 @@ import type {
   SettingsPort,
   OnboardedRepo,
   PendingOnboardingRepo,
+  RepoRecord,
 } from "./settings-port.js";
 
 /** The repo-config writes the settings adapter delegates to (the GitHub adapter). */
@@ -73,6 +74,17 @@ export class PgSettings implements SettingsPort {
 
   setRepoSecret(repo: string, name: string, value: string): Promise<void> {
     return this.writer().setRepoSecret(repo, name, value);
+  }
+
+  async record(repo: string): Promise<RepoRecord | null> {
+    const { rows } = await this.pool.query<RepoRecord>(
+      `SELECT full_name, team, settings, onboarded_at, last_ingested_at,
+              onboarding_pr_url, onboarding_pr_merged
+         FROM lore.repos WHERE full_name = $1`,
+      [repo],
+    );
+
+    return rows[0] ?? null;
   }
 
   async rawSettings(repo: string): Promise<Record<string, unknown> | null> {

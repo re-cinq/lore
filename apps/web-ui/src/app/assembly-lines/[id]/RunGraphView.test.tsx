@@ -41,7 +41,7 @@ const renderGraph = (
   );
 
 describe("RunGraphView run mode", () => {
-  it("draws only the executed nodes and a single connector for a failed run", () => {
+  it("draws both steps and a single connector for a failed review run", () => {
     const { container } = renderGraph(
       codeReviewDefinition,
       failedReviewRun,
@@ -188,5 +188,49 @@ describe("RunGraphView interaction", () => {
     );
 
     expect(getByText(/no assembly-line graph/i)).toBeInTheDocument();
+  });
+});
+
+describe("RunGraphView current state", () => {
+  const startedRun = runData({
+    executed: new Set(["implement"]),
+    statuses: { implement: "running" },
+  });
+
+  it("draws every step of the line, the unreached ones as Pending", () => {
+    const { container } = renderGraph(
+      implementationDefinition,
+      startedRun,
+      "run",
+    );
+
+    expect(container.querySelectorAll("[data-node]")).toHaveLength(7);
+    expect(nodeEl(container, "implement")).toHaveTextContent("Running");
+    expect(nodeEl(container, "push")).toHaveTextContent("Pending");
+  });
+
+  it("names the step and its status, never its possible outcomes", () => {
+    const { container } = renderGraph(
+      implementationDefinition,
+      startedRun,
+      "run",
+    );
+
+    expect(container.querySelectorAll("[data-outcome]")).toHaveLength(0);
+    expect(container.textContent).not.toContain("Possible outcomes");
+  });
+
+  it("marks the untraversed connectors so they can fade back", () => {
+    const { container } = renderGraph(
+      implementationDefinition,
+      startedRun,
+      "run",
+    );
+    const takenOf = (pair: string) =>
+      container
+        .querySelector(`[data-edge="${pair}"]`)
+        ?.getAttribute("data-taken");
+
+    expect(takenOf("push->review")).toBe("false");
   });
 });

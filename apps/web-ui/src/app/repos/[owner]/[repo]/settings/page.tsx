@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { query, queryOne } from "@/lib/db";
+import { getRepo, listRepos, putRepoSettings } from "@/lib/api/repos";
 import { revalidatePath } from "next/cache";
 import { parseSettingsForm } from "@/lib/settings-form";
 import SettingsView, { type RepoSettingsShape } from "./SettingsView";
@@ -22,26 +22,23 @@ async function saveSettings(
   const updates = parseSettingsForm(formData);
   const selectedRepos = updates.cross_repo_repos as string[];
 
-  await query(
-    `UPDATE lore.repos SET team = $1, settings = COALESCE(settings, '{}') || $2::jsonb WHERE full_name = $3`,
-    [team || null, JSON.stringify(updates), fullName],
-  );
+  await putRepoSettings(fullName, { team: team || null, settings: updates });
 
   // Bidirectional cross-repo linkage: add this repo to each linked repo's list.
   for (const linkedRepo of selectedRepos) {
-    await query(
-      `UPDATE lore.repos
-       SET settings = jsonb_set(
-         jsonb_set(COALESCE(settings, '{}'), '{cross_repo}', 'true'),
-         '{cross_repo_repos}',
-         (SELECT COALESCE(jsonb_agg(DISTINCT val), '[]') FROM (
-           SELECT val FROM jsonb_array_elements_text(COALESCE(settings->'cross_repo_repos', '[]')) val
-           UNION SELECT $1
-         ) sub)
-       )
-       WHERE full_name = $2`,
-      [fullName, linkedRepo],
-    );
+    const linked = await getRepo(linkedRepo);
+    const current =
+      (linked.status === "ok" ? linked.data.settings : null) ?? {};
+    const existing = Array.isArray(current.cross_repo_repos)
+      ? (current.cross_repo_repos as string[])
+      : [];
+
+    await putRepoSettings(linkedRepo, {
+      settings: {
+        cross_repo: true,
+        cross_repo_repos: [...new Set([...existing, fullName])],
+      },
+    });
   }
 
   revalidatePath(`/repos/${fullName}/settings`);
@@ -56,19 +53,24 @@ export default async function RepoSettings({
 }) {
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
-  const repoData = await queryOne<{
-    team: string | null;
-    settings: RepoSettingsShape | null;
-  }>(`SELECT team, settings FROM lore.repos WHERE full_name = $1`, [fullName]);
+  const record = await getRepo(fullName);
 
-  if (!repoData) {
+  if (record.status !== "ok") {
     return <div>Repo not found</div>;
   }
+  const repoData = {
+    team: record.data.team,
+    settings: record.data.settings as RepoSettingsShape | null,
+  };
 
-  const allRepos = await query<Repo>(
-    `SELECT full_name FROM lore.repos WHERE full_name != $1 ORDER BY full_name`,
-    [fullName],
-  );
+  const repoList = await listRepos();
+  const allRepos: Repo[] =
+    repoList.status === "ok"
+      ? repoList.data.repos
+          .filter((r) => r.full_name !== fullName)
+          .map((r) => ({ full_name: r.full_name }))
+          .sort((a, b) => a.full_name.localeCompare(b.full_name))
+      : [];
 
   return (
     <SettingsView

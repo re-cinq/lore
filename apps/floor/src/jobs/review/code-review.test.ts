@@ -427,6 +427,26 @@ describe("onClose", () => {
       outcome: "pr_closed",
     });
   });
+
+  // Closing a PR used to finish EVERY open line carrying that number. Since the
+  // push node began stamping the spec PR on the feature-planning line, that meant a
+  // MERGED spec PR closed the very line parked on `merged` waiting for it — killing
+  // the feature one step before decomposition, on the same event meant to advance
+  // it. Observed on line 7505be4d: merged node resumed to success, line finished
+  // `pr_closed`, decompose never launched.
+  it("leaves a feature-planning line parked on the same PR alone", async () => {
+    const { port, handlers } = harness(openPr());
+    const facade = new AssemblyLines(REPO, port);
+    const planning = await facade.start("feature-planning", {
+      args: { pr_number: 42 },
+    });
+
+    await handlers.onClose({ repo: REPO, pr_number: 42 });
+
+    expect(await facade.getById(planning)).toMatchObject({
+      outcome: null,
+    });
+  });
 });
 
 describe("onTrigger re-check routing", () => {

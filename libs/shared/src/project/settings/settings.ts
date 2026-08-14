@@ -1,5 +1,5 @@
 import type { ResolvedDarkFactorySettings } from "../../dark-factory-settings.js";
-import type { SettingsPort } from "./settings-port.js";
+import type { SettingsPort, RepoRecord } from "./settings-port.js";
 
 /**
  * project.settings — resolved repo settings + repo config writes, repo bound.
@@ -25,6 +25,11 @@ export class Settings {
 
   setRepoSecret(name: string, value: string): Promise<void> {
     return this.settings.setRepoSecret(this.repo, name, value);
+  }
+
+  /** The whole `lore.repos` row — the read the UI's repo pages share. */
+  record(): Promise<RepoRecord | null> {
+    return this.settings.record(this.repo);
   }
 
   rawSettings(): Promise<Record<string, unknown> | null> {

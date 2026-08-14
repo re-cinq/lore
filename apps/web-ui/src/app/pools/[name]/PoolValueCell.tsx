@@ -3,8 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./PoolDetailView.module.css";
 
-const btnStyle = { padding: "2px 8px", fontSize: "var(--fs-xs)" };
-
 export function PoolValueCell({ value }: { value: string }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -38,12 +36,11 @@ export function PoolValueCell({ value }: { value: string }) {
   return (
     <td className={styles.valueCell}>
       <pre className={styles.valuePre}>{shown}</pre>
-      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+      <div className={styles.valueActions}>
         {long && (
           <button
             type="button"
-            className="btn-secondary"
-            style={btnStyle}
+            className={`btn-secondary ${styles.valueAction}`}
             onClick={() => setExpanded((v) => !v)}
           >
             {expanded ? "Show less" : "Show more"}
@@ -51,8 +48,7 @@ export function PoolValueCell({ value }: { value: string }) {
         )}
         <button
           type="button"
-          className="btn-secondary"
-          style={btnStyle}
+          className={`btn-secondary ${styles.valueAction}`}
           onClick={() => void copy()}
         >
           {copied ? "Copied" : "Copy"}

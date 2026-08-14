@@ -1,9 +1,15 @@
-import { describe, it, expect } from "vitest";
-import {
-  fetchFeatureRun,
-  runTaskIdFor,
-  toFeatureRunPayload,
-} from "./feature-run";
+// @vitest-environment node
+//
+// feature-run reaches assembly-line-runs, which now reads through the
+// server-only lore-api client.
+
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
+const { fetchFeatureRun, runTaskIdFor, toFeatureRunPayload } =
+  await import("./feature-run");
+
 import type {
   AssemblyLineRun,
   AssemblyLineRunNode,

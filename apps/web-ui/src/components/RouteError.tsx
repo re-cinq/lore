@@ -1,5 +1,7 @@
 "use client";
 
+import styles from "./RouteError.module.scss";
+
 export default function RouteError({
   error,
   reset,
@@ -14,7 +16,7 @@ export default function RouteError({
         {error.message ||
           "An unexpected error occurred while loading this page."}
       </p>
-      <button onClick={reset} style={{ marginTop: 12 }}>
+      <button onClick={reset} className={styles.retry}>
         Try again
       </button>
     </div>

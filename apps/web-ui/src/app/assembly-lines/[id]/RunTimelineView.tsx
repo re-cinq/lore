@@ -42,7 +42,7 @@ export default function RunTimelineView({
               className={`${styles.tick} ${styles[tone]}`}
               data-tone={tone}
               data-node={tick.nodeId}
-              style={{ left }}
+              style={{ ["--tick-left" as string]: left }}
               title={title}
               onClick={() => onSeek(tick.id)}
             />
@@ -52,7 +52,7 @@ export default function RunTimelineView({
               className={`${styles.tick} ${styles[tone]}`}
               data-tone={tone}
               data-node={tick.nodeId}
-              style={{ left }}
+              style={{ ["--tick-left" as string]: left }}
               title={title}
             />
           );

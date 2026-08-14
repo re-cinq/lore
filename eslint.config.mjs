@@ -76,7 +76,10 @@ export default tseslint.config(
   {
     files: [
       "apps/web-ui/src/app/repos/**/graph/**",
-      "apps/web-ui/src/app/repos/**/features/[id]/MockupSection.tsx",
+      // `*`, not the literal `[id]` segment: minimatch reads `[id]` as a character
+      // class, so the bracketed form silently matched nothing and the file kept
+      // reporting.
+      "apps/web-ui/src/app/repos/**/features/*/MockupSection.tsx",
     ],
     rules: { "lore/no-inline-styles": "off" },
   },
@@ -125,6 +128,14 @@ export default tseslint.config(
   },
 
   // web-ui: Next 15 / React 19, browser + node globals, react-hooks correctness rules.
+  //
+  // `no-sql-in-web-ui` is an ERROR now that the last of the 143 queries has moved
+  // behind lore-api. It shipped as a warning while the debt existed, so it marked
+  // every site without red-lighting a repo that could not be fixed in one change;
+  // that condition is gone, and a warning in a pile of thousands is a wish rather
+  // than a fence. `pg` is no longer a web-ui dependency either, so a new query
+  // would have to reintroduce the driver to run at all — this rule is what says
+  // so at review time instead of at deploy time.
   {
     files: ["apps/web-ui/**/*.{ts,tsx}"],
     languageOptions: {
@@ -134,6 +145,7 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       "react-hooks/set-state-in-effect": "error",
+      "lore/no-sql-in-web-ui": "error",
     },
   },
 

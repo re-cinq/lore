@@ -21,7 +21,7 @@ export default async function RepoAdrs({
 
   return (
     <div>
-      <p className="meta" style={{ marginBottom: 12 }}>
+      <p className="meta page-lede">
         Architecture decision records in the traceability graph ({adrs.length}).
       </p>
       <AdrListView owner={owner} repo={repo} adrs={adrs} statuses={statuses} />

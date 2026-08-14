@@ -24,3 +24,18 @@
   flex-direction: column;
   gap: $gap;
 }
+
+// A scrollable, wrapping block of agent output — a failure diagnosis, a live pod
+// tail. Every one of them was the same nine declarations inline, differing only in
+// how tall it is allowed to grow, so that is the one thing the caller passes.
+@mixin log-block($max-height: 240px) {
+  max-height: $max-height;
+  overflow: auto;
+  padding: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: var(--fs-xs);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

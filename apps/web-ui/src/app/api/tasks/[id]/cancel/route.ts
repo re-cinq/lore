@@ -1,50 +1,33 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { query, queryOne } from "@/lib/db";
-import { serverError } from "@/lib/api-error";
-import { isCancellable } from "@/lib/task-status";
+import { cancelTask } from "@/lib/api/tasks";
+import { serverError, upstreamError } from "@/lib/api-error";
 
-interface Task {
-  id: string;
-  status: string;
-}
-
+/**
+ * POST /api/tasks/[id]/cancel — cancel a task, then bounce back to its page.
+ *
+ * The state rules (unknown id → 404, terminal task → 409) live in lore-api's
+ * cancel seam, which also records the transition in pipeline.task_events. This
+ * route forwards the refusal it was given rather than re-deciding it: two copies
+ * of "which statuses are cancellable" is how the browser came to answer 400 for
+ * a completed task while the API answered 200.
+ */
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
 
   try {
-    const task = await queryOne<Task>(
-      `SELECT id, status FROM pipeline.tasks WHERE id = $1`,
-      [id],
-    );
+    const result = await cancelTask(id);
 
-    if (!task) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    if (result.status !== "ok") {
+      return upstreamError("Cancel", result);
     }
 
-    if (!isCancellable(task.status)) {
-      return NextResponse.json(
-        { error: `Cannot cancel task in ${task.status} state` },
-        { status: 400 },
-      );
-    }
-
-    await query(
-      `UPDATE pipeline.tasks SET status = 'cancelled', failure_reason = 'Cancelled by user', updated_at = now() WHERE id = $1`,
-      [id],
-    );
-    await query(
-      `INSERT INTO pipeline.task_events (task_id, from_status, to_status, metadata) VALUES ($1, $2, 'cancelled', $3)`,
-      [id, task.status, JSON.stringify({ cancelled_by: "ui" })],
-    );
-
-    const host =
-      _req.headers.get("x-forwarded-host") || _req.headers.get("host");
-    const proto = _req.headers.get("x-forwarded-proto") || "https";
-    const base = host ? `${proto}://${host}` : _req.url;
+    const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+    const proto = req.headers.get("x-forwarded-proto") || "https";
+    const base = host ? `${proto}://${host}` : req.url;
 
     return NextResponse.redirect(new URL(`/tasks/${id}`, base));
   } catch (err) {

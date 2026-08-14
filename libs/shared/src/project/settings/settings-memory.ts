@@ -7,6 +7,7 @@ import type {
   SettingsPort,
   OnboardedRepo,
   PendingOnboardingRepo,
+  RepoRecord,
 } from "./settings-port.js";
 
 /** A seeded `lore.repos` row for the in-memory settings double. */
@@ -71,6 +72,24 @@ export class InMemorySettings implements SettingsPort {
     value: string,
   ): Promise<void> {
     this.secrets.push({ repo, name, value });
+  }
+
+  async record(repo: string): Promise<RepoRecord | null> {
+    const row = this.row(repo);
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      full_name: row.full_name,
+      team: row.team ?? null,
+      settings: row.settings ?? null,
+      onboarded_at: null,
+      last_ingested_at: row.last_ingested_at ?? null,
+      onboarding_pr_url: row.onboarding_pr_url ?? null,
+      onboarding_pr_merged: row.onboarding_pr_merged ?? false,
+    };
   }
 
   async rawSettings(repo: string): Promise<Record<string, unknown> | null> {

@@ -9,6 +9,7 @@
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import {
+  fetchAssemblyLineRun,
   fetchAssemblyLineRunNodes,
   fetchLatestRunForTask,
   fetchRunTokens,
@@ -81,6 +82,35 @@ export function runTaskIdFor(input: {
  *  yet, no run row yet (pre-0025 DBs included), or the lookup fails. Never throws:
  *  the wizard's poll must keep reporting the round's status even when run
  *  visualization is unavailable. */
+/** The run to visualize, given the line id lore-api already resolved for the
+ *  round. Preferred over `fetchFeatureRun`: from round 2 a resumed round mints no
+ *  task, so only the server — which knows the OWNING task — can name the line.
+ *  Never throws; the wizard's poll must keep reporting the round's status even
+ *  when run visualization is unavailable. */
+export async function fetchFeatureRunById(
+  assemblyLineId: string | null | undefined,
+): Promise<FeatureRunPayload | null> {
+  if (!assemblyLineId) {
+    return null;
+  }
+
+  try {
+    const run = await fetchAssemblyLineRun(assemblyLineId);
+
+    if (!run) {
+      return null;
+    }
+
+    return toFeatureRunPayload(
+      run,
+      await fetchAssemblyLineRunNodes(run.id),
+      await fetchRunTokens(run.id),
+    );
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchFeatureRun(
   taskId: string | null | undefined,
 ): Promise<FeatureRunPayload | null> {

@@ -750,11 +750,150 @@ fed by IO `*Panel` containers that own fetching and polling. ([validated by `Tim
   finished run back to coordinated polling and attaching a retry's
   fresh run in its place. ([validated by `TaskRefreshProvider.test.tsx:147`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L147), [`TaskRefreshProvider.test.tsx:157`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L157), [`TaskRefreshProvider.test.tsx:177`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L177), [`TaskRefreshProvider.test.tsx:193`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L193), [`TaskRefreshProvider.test.tsx:206`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L206), [`TaskRefreshProvider.test.tsx:218`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L218), [`TaskRefreshProvider.test.tsx:232`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L232), [`TaskRefreshProvider.test.tsx:243`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L243), [`TaskRefreshProvider.test.tsx:254`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L254), [`TaskRefreshProvider.test.tsx:269`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L269), [`TaskRefreshProvider.test.tsx:288`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L288), [`TaskRefreshProvider.test.tsx:309`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L309), [`TaskRefreshProvider.test.tsx:336`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L336), [`TaskRefreshProvider.test.tsx:357`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L357), [`TaskRefreshProvider.test.tsx:388`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L388), [`TaskRefreshProvider.test.tsx:414`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L414), [`TaskRefreshProvider.test.tsx:440`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L440), [`TaskRefreshProvider.test.tsx:470`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L470), [`TaskRefreshProvider.test.tsx:489`](apps/web-ui/src/app/tasks/[id]/TaskRefreshProvider.test.tsx#L489))
 - FR-19.14: `GET /api/tasks/[id]/runs` serves the task's per-attempt
-  run rows newest first from `pipeline.assembly_lines`, behind the
-  timeline route's auth ladder (401 without a session, 404 for an
-  unknown task, 403 without repo access), returning an empty list on
-  pre-0025 databases, exporting `force-dynamic`, and mapping a thrown
-  lookup to a 500. ([validated by `route.test.ts:31`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L31), [`route.test.ts:36`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L36), [`route.test.ts:45`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L45), [`route.test.ts:54`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L54), [`route.test.ts:67`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L67), [`route.test.ts:92`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L92), [`route.test.ts:103`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L103), [`route.test.ts:111`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L111))
+  run rows newest first, behind the timeline route's auth ladder (401
+  without a session, 404 for an unknown task, 403 without repo access),
+  returning an empty list on pre-0025 databases, exporting
+  `force-dynamic`, and mapping a thrown lookup to a 500. The rows come
+  from lore-api's `GET /api/tasks/{id}/runs`, not from
+  `pipeline.assembly_lines` directly: the repo this route authorizes
+  against and the runs it returns must be read through one source, or
+  the two can disagree about which task they describe. ([validated by `route.test.ts:34`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L34), [`route.test.ts:39`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L39), [`route.test.ts:48`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L48), [`route.test.ts:61`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L61), [`route.test.ts:77`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L77), [`route.test.ts:102`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L102), [`route.test.ts:110`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L110), [`route.test.ts:118`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L118), [`route.test.ts:127`](apps/web-ui/src/app/api/tasks/[id]/runs/route.test.ts#L127))
+
+- FR-19.15: lore-api serves those rows at `GET /api/tasks/{id}/runs`,
+  under the `read` scope: 503 without a pool, 404 for a task that does
+  not exist, the run rows newest first, and an empty list — not a 500 —
+  when the database predates migration 0025 and has no
+  `pipeline.assembly_lines` table. The 404 comes before the run query
+  deliberately: an unknown id and a task with no runs both answered
+  `{runs: []}` before, which reads as "nothing started yet" for a task
+  that never existed. ([validated by `task-runs.test.ts:30`](apps/lore-api/src/api/routes/tasks/task-runs.test.ts#L30), [`task-runs.test.ts:36`](apps/lore-api/src/api/routes/tasks/task-runs.test.ts#L36), [`task-runs.test.ts:46`](apps/lore-api/src/api/routes/tasks/task-runs.test.ts#L46), [`task-runs.test.ts:72`](apps/lore-api/src/api/routes/tasks/task-runs.test.ts#L72))
+- FR-19.16: The two task transitions the UI offers are shared seams in
+  `libs/shared`, not route-local SQL. `escalateTask` (run-now) refuses an
+  unknown id and anything past `pending`, sets `priority = 'immediate'`,
+  and records the transition carrying the priority it replaced.
+  `cancelTask` treats `completed`, `merged`, `failed` and `cancelled` as
+  terminal — `completed` was missing, so the web UI's own guard refused
+  a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/pipeline-tasks.escalate.test.ts#L25), [`pipeline-tasks.escalate.test.ts:39`](libs/shared/src/pipeline-tasks.escalate.test.ts#L39), [`pipeline-tasks.escalate.test.ts:56`](libs/shared/src/pipeline-tasks.escalate.test.ts#L56), [`pipeline-tasks.escalate.test.ts:64`](libs/shared/src/pipeline-tasks.escalate.test.ts#L64), [`pipeline-tasks.escalate.test.ts:77`](libs/shared/src/pipeline-tasks.escalate.test.ts#L77), [`pipeline-tasks.escalate.test.ts:88`](libs/shared/src/pipeline-tasks.escalate.test.ts#L88))
+
+- FR-19.17: lore-api serves one `lore.repos` row at
+  `GET /api/repos/{owner}/{repo}` under the `read` scope, reading it
+  through the Project facade for the repo in the path, 404 for a repo
+  with no row and 500 for a failed lookup. It returns the record WHOLE
+  rather than a per-caller projection: nine web-ui call sites across
+  five files each selected a different column subset of this row, and
+  projecting per caller would move that duplication into the API
+  instead of removing it. ([validated by `repo-record.test.ts:49`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L49), [`repo-record.test.ts:58`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L58), [`repo-record.test.ts:66`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L66), [`repo-record.test.ts:75`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L75))
+- FR-19.18: `SettingsPort.record(repo)` is that read — the whole row or
+  null — implemented by the Pg adapter against `lore.repos` and by the
+  in-memory double over its seeded rows, so a caller that needs more
+  than `rawSettings` or `team` has one place to get it. ([validated by returns the seeded row for an onboarded repo](libs/shared/src/project/settings/settings-record.test.ts#L36), [`settings-record.test.ts:46`](libs/shared/src/project/settings/settings-record.test.ts#L46), [`settings-record.test.ts:54`](libs/shared/src/project/settings/settings-record.test.ts#L54), [`settings-record.test.ts:65`](libs/shared/src/project/settings/settings-record.test.ts#L65))
+
+- FR-19.19: lore-api serves the run views' four reads under the `read`
+  scope — `GET /api/assembly-lines` (filterable by status, repo, or a
+  `task_id` that answers the newest attempt first, default limit 50),
+  `GET /api/assembly-lines/{id}`, `.../nodes` in visit order, and
+  `.../token-usage`, which sums the four usage scalars across the run's
+  turns SQL-side. The SQL moved verbatim from web-ui, LATERAL cost
+  fallback included: a run whose `llm_calls` predate per-line
+  attribution still costs what its task cost. Every read degrades to
+  empty — a 404 for the by-id one — rather than 500 on a database
+  predating the tables, because a run view is additive and a page must
+  not go down over an unmigrated cluster. Token usage reads
+  `pipeline.agent_run_turns`, not `llm_calls`: the cost table is
+  authoritative but a row lands only when a run ENDS, which is the
+  moment the card showing the number disappears. ([validated by `assembly-lines.test.ts:36`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L36), [`assembly-lines.test.ts:40`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L40), [`assembly-lines.test.ts:52`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L52), [`assembly-lines.test.ts:68`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L68), [`assembly-lines.test.ts:77`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L77), [`assembly-lines.test.ts:88`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L88), [`assembly-lines.test.ts:100`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L100), [`assembly-lines.test.ts:110`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L110), [`assembly-lines.test.ts:120`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L120), [`assembly-lines.test.ts:132`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L132), [`assembly-lines.test.ts:143`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L143), [`assembly-lines.test.ts:155`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L155), [`assembly-lines.test.ts:170`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L170), [`assembly-lines.test.ts:180`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L180))
+
+- FR-19.20: lore-api serves the activity reads the audit, gaps, events,
+  job-run and repo-overview views need, all under the `read` scope:
+  `GET /api/memory-audit` (agent / operation filters plus a
+  `zero_results` lens for the gap view, answering a page AND the unpaged
+  total the pager needs), `GET /api/events` (repo-scoped, newest first,
+  repo required), `GET /api/job-runs/{id}`, and
+  `GET /api/repos/{owner}/{repo}/activity-counts` (7-day tasks,
+  auto-merges and escalations). A count the database cannot answer is
+  NULL, never zero: an unmigrated cluster must not render as "nothing
+  happened", and no dashboard figure may take its page down. ([validated by `activity.test.ts:31`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L31), [`activity.test.ts:35`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L35), [`activity.test.ts:49`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L49), [`activity.test.ts:60`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L60), [`activity.test.ts:70`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L70), [`activity.test.ts:83`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L83), [`activity.test.ts:94`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L94), [`activity.test.ts:98`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L98), [`activity.test.ts:112`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L112), [`activity.test.ts:125`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L125), [`activity.test.ts:135`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L135), [`activity.test.ts:148`](apps/lore-api/src/api/routes/analytics/activity.test.ts#L148))
+
+- FR-19.21: lore-api serves the memory browse reads under the `read`
+  scope — `GET /api/graph-browse` (counts, type breakdown, entity list,
+  and the selected entity's edges), `GET /api/pools` and
+  `GET /api/pools/{name}`, `GET /api/episodes`, `GET /api/memories`
+  and `GET /api/memory-search`. Shaped per SCREEN, not per table: the
+  graph explorer renders four reads at once, and four endpoints would
+  cost four round trips for a page that is the only caller of each.
+  Edges are read ONLY when an entity is selected — the explorer's most
+  expensive query must not run on every page view — and invalidated ones
+  stay hidden unless asked for. `/api/memories` returns each memory with
+  its version history and facts, skipping the fact read for a memory
+  whose `has_facts` says it has none; the page it replaced fanned out up
+  to 201 round trips for one screen. `/api/memory-search` is LEXICAL
+  (ts_rank over raw text), the search page's question — the embedding
+  search remains `POST /api/memory`. ([validated by `memory-browse.test.ts:31`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L31), [`memory-browse.test.ts:35`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L35), [`memory-browse.test.ts:51`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L51), [`memory-browse.test.ts:64`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L64), [`memory-browse.test.ts:78`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L78), [`memory-browse.test.ts:91`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L91), [`memory-browse.test.ts:106`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L106), [`memory-browse.test.ts:117`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L117), [`memory-browse.test.ts:130`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L130), [`memory-browse.test.ts:140`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L140), [`memory-browse.test.ts:153`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L153), [`memory-browse.test.ts:164`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L164), [`memory-browse.test.ts:179`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L179), [`memory-browse.test.ts:189`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L189), [`memory-browse.test.ts:218`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L218), [`memory-browse.test.ts:195`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L195), [`memory-browse.test.ts:230`](apps/lore-api/src/api/routes/memory/memory-browse.test.ts#L230))
+
+- FR-19.22: lore-api serves the task-shaped dashboard reads under the
+  `read` scope — `GET /api/repo-tasks` (a repo's most recent, empty on a
+  database with no `pipeline.tasks`), `GET /api/task-stats` (org totals),
+  `GET /api/agent-activity` (per-agent task counts and spend, org-wide or
+  repo-scoped), `GET /api/tasks/{id}/runtime` (its transitions and LLM
+  calls) and `GET /api/audit-log` (a repo's entries, filtered to the
+  decision types the caller renders). Agent activity FULL OUTER JOINs the
+  task agents with the memory agents: an agent that only ever wrote
+  memories — a developer's local MCP — appears in no task row, and
+  dropping it would hide exactly the agents a human recognises. The
+  aggregates stay SQL-side because the alternative is shipping the whole
+  pipeline history to Node for one dashboard row per agent. ([validated by [`task-views.test.ts:31`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L31), [`task-views.test.ts:37`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L37), [`task-views.test.ts:48`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L48), [`task-views.test.ts:52`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L52), [`task-views.test.ts:66`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L66), [`task-views.test.ts:79`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L79), [`task-views.test.ts:90`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L90), [`task-views.test.ts:102`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L102), [`task-views.test.ts:117`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L117), [`task-views.test.ts:135`](apps/lore-api/src/api/routes/tasks/task-views.test.ts#L135))
+
+- FR-19.23: lore-api serves the two spend/analytics screens whole —
+  `GET /api/spend` (ten month-to-date aggregates) and
+  `GET /api/analytics-overview` (six reads). Spend draws on BOTH cost
+  sources deliberately: `pipeline.anthropic_cost_daily` is Anthropic's
+  authoritative billed figure, but its buckets close at UTC midnight and
+  the in-progress day is never emitted, so the billed total always ends
+  at yesterday and `pipeline.llm_calls` — token-exact against the hourly
+  report, available with no admin key — is what brings it current. The
+  billed reads degrade to empty on a cluster without the table, and
+  availability is decided by the `as_of` STAMP rather than a row count:
+  only the stamp separates "synced, nothing owed" from "never synced",
+  and the view hides the section for the second instead of showing a
+  confident zero. ([validated by [`spend.test.ts:33`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L33), [`spend.test.ts:37`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L37), [`spend.test.ts:49`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L49), [`spend.test.ts:79`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L79), [`spend.test.ts:83`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L83), [`spend.test.ts:99`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L99), [`spend.test.ts:122`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L122), [`spend.test.ts:135`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L135))
+
+- FR-19.24: `reviseTask` is the human feedback loop as ONE seam: it
+  queues a follow-up task on the parent's branch and PR at immediate
+  priority (a person is waiting), records the request on the parent
+  naming the revision it spawned, and parks the parent at
+  `revision-requested`. A feature-request revises as a feature-request
+  and everything else as an implementation. It refuses an unknown id and
+  refuses blank feedback rather than queueing an empty revision. The web
+  UI reaches it through `POST /api/task` with `action: "revise"`; the
+  three writes were previously three separate statements in a server
+  action, where a dropped event left a parent pointing at a revision the
+  timeline could not explain. ([validated by [`pipeline-tasks.escalate.test.ts:126`](libs/shared/src/pipeline-tasks.escalate.test.ts#L126), [`pipeline-tasks.escalate.test.ts:135`](libs/shared/src/pipeline-tasks.escalate.test.ts#L135), [`pipeline-tasks.escalate.test.ts:155`](libs/shared/src/pipeline-tasks.escalate.test.ts#L155), [`pipeline-tasks.escalate.test.ts:170`](libs/shared/src/pipeline-tasks.escalate.test.ts#L170), [`pipeline-tasks.escalate.test.ts:182`](libs/shared/src/pipeline-tasks.escalate.test.ts#L182), [`pipeline-tasks.escalate.test.ts:202`](libs/shared/src/pipeline-tasks.escalate.test.ts#L202), [`pipeline-tasks.escalate.test.ts:214`](libs/shared/src/pipeline-tasks.escalate.test.ts#L214), [`pipeline-tasks.escalate.test.ts:222`](libs/shared/src/pipeline-tasks.escalate.test.ts#L222))
+
+- FR-19.25: lore-api serves the org-wide `lore.settings` under the
+  `admin` scope — `GET /api/settings` (the entries plus the repo count
+  the settings page shows) and `PUT /api/settings`, whose writable keys
+  are an ALLOWLIST: that table holds the ingest token and the approval
+  config, so a route upserting any key a caller named would let one
+  invent settings the platform then reads. A blank value leaves the
+  stored one alone rather than erasing it, because the form posts every
+  field and an untouched secret arrives empty.
+  `GET /api/repos/{owner}/{repo}/sessions` answers how many
+  developers have run a local session against a repo. ([validated by [`org-settings.test.ts:44`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L44), [`org-settings.test.ts:50`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L50), [`org-settings.test.ts:67`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L67), [`org-settings.test.ts:83`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L83), [`org-settings.test.ts:97`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L97), [`org-settings.test.ts:107`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L107), [`org-settings.test.ts:118`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L118), [`org-settings.test.ts:69`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L69), [`org-settings.test.ts:85`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L85), [`org-settings.test.ts:99`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L99), [`org-settings.test.ts:109`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L109), [`org-settings.test.ts:120`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L120))
+
+- FR-19.26: lore-api serves the context browser's chunk reads —
+  `GET /api/chunks` (ranked, org-wide or repo-scoped, one row past the
+  page size so a caller detects a further page without a COUNT),
+  `GET /api/chunk-types`, `GET /api/chunks/by-path`, and
+  `GET /api/repos/{owner}/{repo}/chunk-summary`. Chunks live in per-team
+  schemas plus `org_shared`, so a global read is a UNION ALL across every
+  PROVISIONED schema: the catalog is the source of truth, not
+  `lore.repos.team`, which is free text and can name a schema nobody ever
+  created — unioning that would fail every chunk read, and dropping a real
+  one would silently show a page missing another team's chunks. The chip
+  set is deliberately unfiltered by the active type so a chip never
+  disappears the moment it is selected. Moving this read, and the union
+  builder with it, is what let web-ui stop holding a Postgres pool at all.
+  ([validated by [`chunks-browse.test.ts:62`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L62), [`chunks-browse.test.ts:66`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L66), [`chunks-browse.test.ts:83`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L83), [`chunks-browse.test.ts:97`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L97), [`chunks-browse.test.ts:110`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L110), [`chunks-browse.test.ts:124`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L124), [`chunks-browse.test.ts:138`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L138), [`chunks-browse.test.ts:162`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L162), [`chunks-browse.test.ts:190`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L190), [`chunks-browse.test.ts:212`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L212), [`chunks-browse.test.ts:242`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L242), [`chunks-browse.test.ts:243`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L243))
 
 ### FR-20: Project Facade Ports (Phase 1)
 
@@ -965,11 +1104,17 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
     relocation target in every adapter — self-relocation would dedupe
     rows against themselves and delete them ([validated by `chunks.test.ts:735`](libs/shared/src/project/chunks/chunks.test.ts#L735), [`chunks.test.ts:746`](libs/shared/src/project/chunks/chunks.test.ts#L746), [`chunks.test.ts:758`](libs/shared/src/project/chunks/chunks.test.ts#L758))
   - The station HTTP adapter refuses relocation as Floor-only ([validated by `chunks-http.test.ts:94`](libs/shared/src/project/chunks/chunks-http.test.ts#L94))
-  - The web-ui settings route emits one `internal.repo.team_changed` event
-    only when a POST actually changes the team value (settings-only updates
-    and same-value posts emit nothing; clearing a team normalizes empty
-    string to null), and a failed event insert degrades to the nightly
-    relocation instead of failing the settings write ([validated by `route.test.ts:39`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L39), [`route.test.ts:55`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L55), [`route.test.ts:63`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L63), [`route.test.ts:71`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L71), [`route.test.ts:79`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L79))
+  - `PUT /api/repos/:o/:r/settings` on lore-api emits one
+    `internal.repo.team_changed` event only when the write actually changes
+    the team value (settings-only patches and same-value writes emit
+    nothing), and a failed event insert degrades to the nightly relocation
+    instead of failing the settings write that already happened. It REFUSES
+    a patch touching a privileged dark-factory field (403, writing nothing
+    at all) rather than merging it: that JSONB shares a column with the
+    fields the CODEOWNER-approval ceremony guards, so a blanket merge here
+    would be a way around that ceremony. The web-ui route forwards to it,
+    normalizing a cleared team to null, and passes the refusal through
+    with its status ([validated by forwards a team change to lore-api](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L37), [`route.test.ts:48`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L48), [`route.test.ts:56`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L56), [`route.test.ts:66`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L66), [`route.test.ts:81`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L81), [`repo-settings.test.ts:39`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L39), [`repo-settings.test.ts:43`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L43), [`repo-settings.test.ts:51`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L51), [`repo-settings.test.ts:69`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L69), [`repo-settings.test.ts:86`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L86), [`repo-settings.test.ts:100`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L100), [`repo-settings.test.ts:118`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L118), [`repo-settings.test.ts:133`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L133), [`repo-settings.test.ts:147`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L147), [`repo-settings.test.ts:165`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L165), [`repo-settings.test.ts:182`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L182), [`repo-settings.test.ts:196`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L196), [`repo-settings.test.ts:74`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L74), [`repo-settings.test.ts:91`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L91), [`repo-settings.test.ts:105`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L105), [`repo-settings.test.ts:123`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L123), [`repo-settings.test.ts:138`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L138), [`repo-settings.test.ts:154`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L154), [`repo-settings.test.ts:174`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L174), [`repo-settings.test.ts:191`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L191), [`repo-settings.test.ts:205`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L205))
   - The Floor's `team_changed` handler re-reads the team from `lore.repos`
     rather than trusting the event payload, resolves it through the uncached
     single-sourced `chunkSchemaOrOrgShared` (never the per-repo memoized

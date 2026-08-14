@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
-import { query, queryOne } from "@/lib/db";
+import { getTaskStats } from "@/lib/api/tasks";
+import { getOrgSettings, putOrgSettings } from "@/lib/api/repos";
 import { revalidatePath } from "next/cache";
 import SettingsView, { type SettingsApprovalConfig } from "./SettingsView";
 
@@ -10,15 +11,9 @@ async function saveSettings(formData: FormData) {
     { key: "ingest_token", value: formData.get("ingest_token") as string },
   ];
 
-  for (const { key, value } of entries) {
-    if (value?.trim()) {
-      await query(
-        `INSERT INTO lore.settings (key, value) VALUES ($1, $2)
-         ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()`,
-        [key, value.trim()],
-      );
-    }
-  }
+  await putOrgSettings(
+    entries.map(({ key, value }) => ({ key, value: value ?? "" })),
+  );
   revalidatePath("/settings");
 }
 
@@ -44,11 +39,9 @@ async function saveApprovalConfig(formData: FormData) {
   }
   const config = { required, label, auto_approve, repos };
 
-  await query(
-    `INSERT INTO lore.settings (key, value) VALUES ('approval_config', $1)
-     ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()`,
-    [JSON.stringify(config)],
-  );
+  await putOrgSettings([
+    { key: "approval_config", value: JSON.stringify(config) },
+  ]);
   revalidatePath("/settings");
 }
 
@@ -57,35 +50,21 @@ async function regenerateToken() {
   const crypto = await import("crypto");
   const newToken = crypto.randomBytes(32).toString("hex");
 
-  await query(
-    `INSERT INTO lore.settings (key, value) VALUES ('ingest_token', $1)
-     ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()`,
-    [newToken],
-  );
+  await putOrgSettings([{ key: "ingest_token", value: newToken }]);
   revalidatePath("/settings");
 }
 
 export default async function SettingsPage() {
-  const settings = await query<{
-    key: string;
-    value: string;
-    updated_at: string;
-  }>(`SELECT key, value, updated_at FROM lore.settings ORDER BY key`);
+  const org = await getOrgSettings();
   const settingsMap: Record<string, string> = {};
 
-  for (const s of settings) {
-    settingsMap[s.key] = s.value;
+  for (const entry of org.status === "ok" ? org.data.settings : []) {
+    settingsMap[entry.key] = entry.value;
   }
+  const repoCount = { count: org.status === "ok" ? org.data.repo_count : 0 };
 
-  const repoCount = await queryOne<{ count: number }>(
-    `SELECT count(*)::int as count FROM lore.repos`,
-  );
-
-  const taskStats = await queryOne<{ total: number; today: number }>(
-    `SELECT count(*)::int as total,
-            count(*) FILTER (WHERE created_at > current_date)::int as today
-     FROM pipeline.tasks`,
-  );
+  const stats = await getTaskStats();
+  const taskStats = stats.status === "ok" ? stats.data : null;
 
   let approvalConfig: SettingsApprovalConfig = {
     required: false,

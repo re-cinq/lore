@@ -1,29 +1,27 @@
 export const dynamic = "force-dynamic";
 
-import { query } from "@/lib/db";
+import { getMemoryAudit } from "@/lib/api/activity";
+import { listMemories } from "@/lib/api/memory";
 import GapsView, {
   type ZeroResultSearchRow,
   type GapMemoryRow,
 } from "./GapsView";
 
 export default async function GapsPage() {
-  const zeroResultSearches = await query<ZeroResultSearchRow>(`
-    SELECT memory_key, metadata, created_at
-    FROM memory.audit_log
-    WHERE operation = 'search'
-      AND metadata->>'result_count' = '0'
-    ORDER BY created_at DESC
-    LIMIT 20
-  `);
+  const searches = await getMemoryAudit({
+    operation: "search",
+    zeroResults: true,
+    limit: 20,
+  });
+  const zeroResultSearches: ZeroResultSearchRow[] =
+    searches.status === "ok"
+      ? (searches.data.entries as unknown as ZeroResultSearchRow[])
+      : [];
 
-  const gapMemories = await query<GapMemoryRow>(`
-    SELECT key, value, created_at
-    FROM memory.memories
-    WHERE agent_id = 'klaus-gap-detection'
-      AND is_deleted = FALSE
-    ORDER BY created_at DESC
-    LIMIT 10
-  `);
+  const memories = await listMemories("klaus-gap-detection", 10);
+  const gapMemories = (memories.status === "ok"
+    ? memories.data.memories
+    : []) as unknown as GapMemoryRow[];
 
   return (
     <GapsView

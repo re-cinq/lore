@@ -1,0 +1,18 @@
+@use "styles/tokens" as t;
+
+.failureSlot {
+  margin-bottom: 12px;
+}
+
+.actions {
+  @include t.row(10px);
+  margin-top: 8px;
+}
+
+.continueFrom {
+  margin-left: auto;
+}
+
+.rewindNote {
+  margin-top: 6px;
+}

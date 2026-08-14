@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import styles from "./SmartFeatureCreateView.module.scss";
 import { FeatureAssemblyLine } from "@/components/FeatureAssemblyLine";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import { FormError } from "@/components/FormError";
@@ -21,7 +22,7 @@ export default function SmartFeatureCreateView({
   const [state, formAction, pending] = useActionState(action, null);
 
   return (
-    <form action={formAction} className="task-form" style={{ maxWidth: 720 }}>
+    <form action={formAction} className={`task-form ${styles.form}`}>
       <h2>Plan a new feature</h2>
 
       <FeatureAssemblyLine definition={definition} />

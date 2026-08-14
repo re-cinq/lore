@@ -1,0 +1,36 @@
+@use "styles/tokens" as t;
+
+.failure {
+  border-color: var(--danger);
+}
+
+.headline {
+  margin: 0;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.diagnosis {
+  @include t.log-block(260px);
+  margin: 8px 0;
+}
+
+.submitted {
+  margin: 8px 0;
+}
+
+.submittedList {
+  margin: 6px 0 0;
+}
+
+.submittedItem {
+  margin-bottom: 6px;
+}
+
+.submittedHeading {
+  font-weight: 600;
+}
+
+.submittedBody {
+  margin: 2px 0 0 12px;
+}

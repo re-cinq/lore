@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import styles from "./CancelTaskButton.module.scss";
 
 export function CancelTaskButton({ taskId }: { taskId: string }) {
   const [confirming, setConfirming] = useState(false);
@@ -21,7 +22,7 @@ export function CancelTaskButton({ taskId }: { taskId: string }) {
     <form
       action={`/api/tasks/${taskId}/cancel`}
       method="POST"
-      style={{ display: "flex", gap: 10, alignItems: "center" }}
+      className={styles.confirm}
     >
       <span>Cancel this task?</span>
       <button type="submit" className="danger">

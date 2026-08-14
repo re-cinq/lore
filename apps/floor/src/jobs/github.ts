@@ -16,6 +16,12 @@ import { getPool } from "../kernel/db.js";
 import { projectFor } from "../composition/project-boot.js";
 import { settings, taskStore, taskQueue } from "../kernel/queues.js";
 import { tryAutoMergeForCompletedTask } from "./merge/auto-merge-trigger.js";
+import {
+  decideResumeFromClosedPr,
+  poolReporter,
+  resumeDecomposition,
+} from "./merge/decompose-resume.js";
+import { assemblyLines } from "../kernel/queues.js";
 import type { EventHandler } from "../main-loop/types.js";
 
 /** Resolve the backing pipeline task for a PR and re-evaluate auto-merge (no-op if none). */
@@ -127,6 +133,35 @@ export const issuesLabeled: EventHandler = async (params) => {
     ),
     issues.addLabel(issue.number, "lore-managed"),
   ]);
+};
+
+/**
+ * pull_request closed+merged: wake the line that was waiting for that PR.
+ *
+ * The resume already existed but was unreachable. Its only caller was
+ * `handleMergedTask`, which the mergeable sweep reaches only for a task whose OWN
+ * row carries a PR — and a feature-planning task is `running` with a null
+ * `pr_number`, because the push node stamps the LINE's args (which is what
+ * `findOpenByPr` matches on) and nothing copies it back. So a merged spec PR
+ * decomposed on no deployment: not by webhook, not by the cron that is supposed to
+ * be the webhook's safety net.
+ *
+ * Reading the merge here needs no task row. `resumeDecomposition` still targets a
+ * NODE rather than the PR, so a code-review or implementation line sharing the same
+ * PR is passed over rather than advanced by a step it never waited for.
+ */
+export const specPrResumeLine: EventHandler = async (params) => {
+  const pr = decideResumeFromClosedPr(params);
+  const pool = getPool();
+
+  if (!pr || !pool) {
+    return;
+  }
+
+  await resumeDecomposition(pr, {
+    assemblyLines: assemblyLines(),
+    report: poolReporter(pool),
+  });
 };
 
 /** pull_request closed+merged: a merged spec PR → sync its tasks.md into spec-tasks. */

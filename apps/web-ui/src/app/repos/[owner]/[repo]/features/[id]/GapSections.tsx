@@ -1,6 +1,7 @@
 "use client";
 
 import MockupSection from "./MockupSection";
+import styles from "./GapSections.module.scss";
 import Markdown from "@/components/Markdown";
 import { sectionsOf } from "@/lib/gap-sections";
 import type {
@@ -50,8 +51,8 @@ function SectionFeedback({
     });
 
   return (
-    <div style={{ marginTop: 10 }}>
-      <div style={{ marginBottom: 6 }}>
+    <div className={styles.feedback}>
+      <div className={styles.directionRow}>
         <select
           value={current.direction ?? "keep"}
           onChange={(e) =>
@@ -65,7 +66,7 @@ function SectionFeedback({
         </select>
       </div>
       <textarea
-        style={{ minHeight: 250 }}
+        className={styles.commentInput}
         placeholder="Comment / direction for this section"
         value={current.comment ?? ""}
         onChange={(e) => set({ comment: e.target.value })}
@@ -91,15 +92,11 @@ function QuestionInput({
     });
 
   return (
-    <div style={{ marginBottom: 10 }}>
-      <label htmlFor={q.id} style={{ display: "block", fontWeight: 600 }}>
+    <div className={styles.question}>
+      <label htmlFor={q.id} className={styles.questionLabel}>
         {q.question}
       </label>
-      {q.why && (
-        <p className="meta" style={{ margin: "2px 0" }}>
-          {q.why}
-        </p>
-      )}
+      {q.why && <p className={`meta ${styles.questionWhy}`}>{q.why}</p>}
       {q.kind === "choice" && q.options ? (
         <select
           id={q.id}
@@ -116,7 +113,6 @@ function QuestionInput({
       ) : (
         <input
           id={q.id}
-          style={{ width: "100%" }}
           value={feedback.questions[q.id] ?? ""}
           onChange={(e) => set(e.target.value)}
         />
@@ -135,11 +131,8 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div
-      className={highlight ? "spec-card overview" : "spec-card"}
-      style={{ marginBottom: 12 }}
-    >
-      <h3 style={{ marginTop: 0 }}>{title}</h3>
+    <div className={highlight ? "spec-card overview" : "spec-card"}>
+      <h3>{title}</h3>
       {children}
     </div>
   );
@@ -214,16 +207,7 @@ export default function GapSections({
         <SectionCard title="This feature looks large — consider splitting">
           <p>{gap.split_suggestion.rationale}</p>
           {(gap.split_suggestion.proposed_features ?? []).map((p, i) => (
-            <div
-              key={i}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 8,
-                marginBottom: 6,
-              }}
-            >
+            <div key={i} className={styles.splitRow}>
               <span>
                 <strong>{p.title}</strong> —{" "}
                 <span className="meta">{p.scope}</span>
@@ -241,14 +225,13 @@ export default function GapSections({
 
       <SectionCard title="Anything else?">
         <textarea
-          style={{ width: "100%" }}
           rows={3}
           maxLength={FREE_FORM_MAX}
           placeholder="Free-form direction for the next round"
           value={feedback.free_form}
           onChange={(e) => onChange({ ...feedback, free_form: e.target.value })}
         />
-        <p className="meta" style={{ margin: "2px 0 0", textAlign: "right" }}>
+        <p className={`meta ${styles.freeFormCount}`}>
           {feedback.free_form.length}/{FREE_FORM_MAX}
         </p>
       </SectionCard>

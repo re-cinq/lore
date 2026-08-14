@@ -1,6 +1,11 @@
-import { errorMessage, cancelPipelineTask } from "@re-cinq/lore-shared";
+import {
+  errorMessage,
+  cancelPipelineTask,
+  escalatePipelineTask,
+  revisePipelineTask,
+} from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
-import type { ServerRoute } from "@hapi/hapi";
+import type { ServerRoute, ResponseToolkit } from "@hapi/hapi";
 import { z } from "zod";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { getTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
@@ -21,6 +26,11 @@ const TaskBody = z.object({
   pr_url: z.string().optional(),
   error: z.string().optional(),
   description: z.string().optional(),
+  /** Who queued it. The web UI names the signed-in author; an unnamed caller is
+   *  the remote MCP adapter, which is the historical default. */
+  created_by: z.string().optional(),
+  /** The human's words, carried into the revision task's context bundle. */
+  feedback: z.string().optional(),
   task_type: z.string().optional(),
   target_repo: z.string().optional(),
   group_id: z.string().optional(),
@@ -28,6 +38,26 @@ const TaskBody = z.object({
 });
 
 type TaskBody = z.infer<typeof TaskBody>;
+
+/**
+ * Run a refusable state transition (cancel, run-now). Both shared seams throw
+ * "Task not found" for an unknown id and a state message otherwise, which are a
+ * 404 and a 409 — one mapping, so the two branches cannot drift apart.
+ */
+async function refusable<T extends object>(
+  h: ResponseToolkit,
+  transition: () => Promise<T>,
+) {
+  try {
+    return h.response(await transition());
+  } catch (err) {
+    const message = errorMessage(err);
+
+    return h
+      .response({ error: message })
+      .code(message === "Task not found" ? 404 : 409);
+  }
+}
 
 export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
   return {
@@ -59,15 +89,29 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
         // state is refused instead of silently no-op'ing, and the transition
         // lands in pipeline.task_events like every other status change.
         if (parsed.action === "cancel" && parsed.task_id) {
-          try {
-            return h.response(await cancelPipelineTask(pool, parsed.task_id));
-          } catch (err) {
-            const message = errorMessage(err);
+          const taskId = parsed.task_id;
 
-            return h
-              .response({ error: message })
-              .code(message === "Task not found" ? 404 : 409);
-          }
+          return refusable(h, () => cancelPipelineTask(pool, taskId));
+        }
+
+        // Run-now action — the escalation the task page's button performs.
+        // Refuses a task past `pending` rather than no-op'ing, and records the
+        // transition, which the bare `set-priority` action below does not.
+        if (parsed.action === "run-now" && parsed.task_id) {
+          const taskId = parsed.task_id;
+
+          return refusable(h, () => escalatePipelineTask(pool, taskId));
+        }
+
+        // Revise action — the task page's feedback loop: queue a follow-up on
+        // the same branch, record the request on the parent, and park the
+        // parent at revision-requested. One seam, so a parent can never be left
+        // pointing at a revision the timeline cannot explain.
+        if (parsed.action === "revise" && parsed.task_id) {
+          const taskId = parsed.task_id;
+          const feedback = parsed.feedback ?? "";
+
+          return refusable(h, () => revisePipelineTask(pool, taskId, feedback));
         }
 
         // Set priority action
@@ -140,6 +184,7 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
           priority,
           group_id,
           context,
+          created_by,
         } = parsed;
 
         if (!description?.trim()) {
@@ -165,7 +210,7 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
           description,
           resolvedType,
           target_repo,
-          "remote-mcp",
+          created_by || "remote-mcp",
           (context as Record<string, unknown>) || undefined,
           priority || "normal",
           group_id || undefined,

@@ -1,11 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { query } from "@/lib/db";
-import {
-  EVENTS_PAGE_SIZE,
-  repoEventsQuery,
-  type RepoEvent,
-} from "@/app/repos/[owner]/[repo]/events/pagination";
+import { fetchRepoEvents } from "@/app/repos/[owner]/[repo]/events/events-data";
 import { serverError } from "@/lib/api-error";
 
 // Subsequent-page endpoint for the per-repo events list. The first page is
@@ -25,13 +20,7 @@ export async function GET(
   );
 
   try {
-    const { sql, params: sqlParams } = repoEventsQuery(fullName, offset);
-    const rows = await query<RepoEvent>(sql, sqlParams);
-
-    const hasMore = rows.length > EVENTS_PAGE_SIZE;
-    const events = rows.slice(0, EVENTS_PAGE_SIZE);
-
-    return NextResponse.json({ events, hasMore });
+    return NextResponse.json(await fetchRepoEvents(fullName, offset));
   } catch (err) {
     return serverError("repo-events", err);
   }

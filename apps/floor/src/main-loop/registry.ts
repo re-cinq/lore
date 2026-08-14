@@ -54,7 +54,9 @@ export function buildRegistry(): Map<string, EventHandler> {
     ["github.pull_request.ready_for_review", codeReviewOnTrigger],
     [
       "github.pull_request.closed",
-      withExtra(github.specPrMerge, codeReviewOnClose),
+      // specPrResumeLine is the one that wakes a line parked on `merged`. It rides
+      // as an EXTRA so a throw in it cannot stop the spec-task sync, and vice versa.
+      withExtra(github.specPrMerge, github.specPrResumeLine, codeReviewOnClose),
     ],
     [
       "github.pull_request_review.submitted",
