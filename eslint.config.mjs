@@ -128,6 +128,11 @@ export default tseslint.config(
   },
 
   // web-ui: Next 15 / React 19, browser + node globals, react-hooks correctness rules.
+  //
+  // `no-sql-in-web-ui` warns rather than errors: the UI predates the lore-api
+  // contract and 51 files still query Postgres directly. A warning marks every
+  // one of them as debt without red-lighting the repo; it graduates to "error"
+  // once the last query moves behind an API route.
   {
     files: ["apps/web-ui/**/*.{ts,tsx}"],
     languageOptions: {
@@ -137,6 +142,7 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       "react-hooks/set-state-in-effect": "error",
+      "lore/no-sql-in-web-ui": "warn",
     },
   },
 
