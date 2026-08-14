@@ -17,49 +17,14 @@
 //     resolved station. Renaming them into another convention would buy nothing
 //     and cost a translation layer on every read; keeping them means the walk
 //     (`nextTransition`) consumes a stored graph and a freshly loaded one through
-//     the same structural type. `libs/shared` mirrors this shape as `RunGraph`
-//     rather than importing it, since that package cannot depend on this one.
+//     the same structural type. The shape itself is `RunGraph`, owned by
+//     `@re-cinq/lore-shared` (the persisted wire format lives with the port that
+//     stores it); this package depends on shared, so it imports the type instead
+//     of keeping a hand-mirror that can drift.
 
 import type { AssemblyLine } from "./loader.js";
 import { resolveNodeStation } from "./node-station.js";
-
-/** One node, as a run records it. Mirrors `RunGraph` in `@re-cinq/lore-shared`. */
-export interface SnapshotNode {
-  id: string;
-  type: string;
-  /** Resolved once, here — see the header. */
-  station: string | null;
-  station_inherited: boolean;
-  route?: string;
-  prompt_ref?: string;
-  model?: string;
-  timeout_minutes?: number;
-  /** Station knobs — `nodeStationSpec` passes these through as pod params, so a
-   *  clone that dropped them would dispatch a station with no input. */
-  validator?: string;
-  condition_ref?: string;
-  job_ref?: string;
-  /** Which prior run this node continues, and which thread it belongs to — the
-   *  conversation seam (FR6.24). Dropped from the clone, a resumed round would
-   *  silently start a fresh conversation and still succeed. */
-  continues?: { node: string; key: string };
-  description?: string;
-}
-
-export interface SnapshotEdge {
-  from: string;
-  to: string;
-  on: string;
-  iteration_max?: number;
-}
-
-export interface SnapshotGraph {
-  name: string;
-  entry: string;
-  exit: string;
-  nodes: SnapshotNode[];
-  edges: SnapshotEdge[];
-}
+import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 
 /**
  * The blueprint as a run will record it.
@@ -75,7 +40,7 @@ export interface SnapshotGraph {
 export function snapshotGraph(
   definition: AssemblyLine,
   lineTaskType: string,
-): SnapshotGraph {
+): RunGraph {
   return {
     name: definition.name,
     entry: definition.entry,

@@ -2,7 +2,7 @@
 // Agent CR — this module is the pure spec-building core the event-driven walk
 // (advance.ts) uses: names, identity labels, and the agent/station dispatch specs.
 
-import type { SnapshotNode } from "@re-cinq/lore-assembly-lines";
+import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { stationName } from "../agent/agent-catalog.js";
 
@@ -56,7 +56,7 @@ export const NODE_ITERATION_LABEL = "lore.re-cinq.com/node-iteration";
 export const STATION_RUN_ID_LABEL = "lore.re-cinq.com/station-run-id";
 
 function nodeLabels(
-  node: SnapshotNode,
+  node: RunGraphNode,
   task: FloorAssemblyLineTask,
   iteration: number,
 ): Record<string, string> {
@@ -78,7 +78,7 @@ function cloneRef(task: FloorAssemblyLineTask): string {
 /** Pure: the Agent dispatch spec for one agent-node. Prompt is resolved per node; model
  *  from the node (else inherited); repo/branch/description from the task. */
 export function nodeAgentSpec(
-  node: SnapshotNode,
+  node: RunGraphNode,
   task: FloorAssemblyLineTask,
   prompt: string,
   iteration = 1,
@@ -125,7 +125,7 @@ const STATION_PARAM_FIELDS = [
  *  input rides one JSON parameter; the Station defaults to `def-<type>` unless
  *  the node names a custom one via `station_ref`. */
 export function nodeStationSpec(
-  node: SnapshotNode,
+  node: RunGraphNode,
   task: FloorAssemblyLineTask,
   iteration = 1,
 ): LoreTaskSpec {

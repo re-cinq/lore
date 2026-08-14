@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { SnapshotNode } from "@re-cinq/lore-assembly-lines";
+import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import {
   nodeAgentName,
   nodeAgentSpec,
@@ -20,8 +20,8 @@ const task: FloorAssemblyLineTask = {
 /** A clone node. `station` / `station_inherited` are what `snapshotGraph` resolves;
  *  defaulted here so a test about names, labels or outcomes need not restate them. */
 function cloneNode(
-  over: Partial<SnapshotNode> & { id: string; type: string },
-): SnapshotNode {
+  over: Partial<RunGraphNode> & { id: string; type: string },
+): RunGraphNode {
   return { station: null, station_inherited: false, ...over };
 }
 

@@ -57,12 +57,9 @@ export {
   invalidRoutePlaceholders,
   type HumanStationType,
 } from "./human-station.js";
-export {
-  snapshotGraph,
-  type SnapshotGraph,
-  type SnapshotNode,
-  type SnapshotEdge,
-} from "./snapshot-graph.js";
+// The graph type itself is `RunGraph` from `@re-cinq/lore-shared` (the persisted
+// wire format lives with the port that stores it) — import it from there.
+export { snapshotGraph } from "./snapshot-graph.js";
 
 export { RelayExecutor, type RelayResult } from "./relay/relay-executor.js";
 export { RELAY_SCRIPT } from "./relay/relay-script.js";

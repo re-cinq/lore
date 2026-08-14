@@ -8,8 +8,8 @@
 //     fields for authors' convenience; this is what a RUN needs in order to be
 //     replayable years later, and the two are free to drift apart on purpose.
 //
-// `libs/assembly-lines` produces it (`snapshotGraph`) and the result is
-// structurally assignable here, so neither side imports the other. Field names are
+// `libs/assembly-lines` produces it: `snapshotGraph` IMPORTS these types (that
+// package depends on this one, so the import runs downhill). Field names are
 // the BLUEPRINT's, because the graph is a copy of one: renaming them would buy
 // nothing and cost a translation on every read, and it lets the walk consume a
 // stored graph and a freshly loaded one through the same structural type.
@@ -43,7 +43,6 @@ export interface RunGraphNode {
   validator?: string;
   condition_ref?: string;
   job_ref?: string;
-  signal?: string;
   /** Which prior run this node continues, and which thread it belongs to. */
   continues?: { node: string; key: string };
   description?: string;

@@ -12,24 +12,24 @@ import type {
   AuditPort,
 } from "@re-cinq/lore-shared/project/audit/audit-port.js";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import type { SnapshotNode } from "@re-cinq/lore-assembly-lines";
+import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { CreateReviewInput } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 
-const reviewNode: SnapshotNode = {
+const reviewNode: RunGraphNode = {
   station: null,
   station_inherited: false,
   id: "review",
   type: "agent",
   prompt_ref: "code-review",
 };
-const plainNode: SnapshotNode = {
+const plainNode: RunGraphNode = {
   station: null,
   station_inherited: false,
   id: "detect",
   type: "detect",
   job_ref: "x",
 };
-const refineNode: SnapshotNode = {
+const refineNode: RunGraphNode = {
   station: null,
   station_inherited: false,
   id: "reply",
@@ -775,7 +775,7 @@ describe("postReplyFromNode without a known iteration", () => {
 });
 
 describe("postReviewFromNode for the fast re-check node", () => {
-  const recheckNode: SnapshotNode = {
+  const recheckNode: RunGraphNode = {
     station: null,
     station_inherited: false,
     id: "recheck",

@@ -16,11 +16,11 @@ import {
   nextTransition,
   snapshotGraph,
   type AssemblyLine,
-  type SnapshotNode,
   type NodeVisit,
   type NodeResult,
   type StageOutcome,
 } from "@re-cinq/lore-assembly-lines";
+import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import {
   nodeAgentSpec,
   nodeStationSpec,
@@ -63,7 +63,7 @@ export interface AdvanceDeps {
    *  continue and save as. Optional seam — a composition without it simply never
    *  continues, which is the pre-feature behaviour. */
   resolveConversation?: (
-    node: SnapshotNode,
+    node: RunGraphNode,
     task: FloorAssemblyLineTask,
     iteration: number,
     priorOutcome: string | null,
