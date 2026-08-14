@@ -6,10 +6,10 @@
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
-  snapshotGraph,
   stationNodeOutcome,
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
+import { graphForRun } from "./graph-for-run.js";
 import type { EventHandler } from "../../main-loop/types.js";
 import { advanceLine, type AdvanceDeps } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
@@ -54,12 +54,7 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
       return;
     }
 
-    // The run's own graph decides which node this event names (FR6.38); a
-    // blueprint loaded by name is the fallback for rows stamped before clones.
-    const blueprint = (await deps.definitions()).get(row.blueprintName);
-    const graph =
-      row.graph ??
-      (blueprint ? snapshotGraph(blueprint, row.blueprintName) : undefined);
+    const graph = await graphForRun(row, deps.definitions);
     const node = graph?.nodes.find((n) => n.id === nodeId);
 
     if (!node) {

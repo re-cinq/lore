@@ -14,12 +14,12 @@ import type {
 import {
   isHumanStation,
   nextTransition,
-  snapshotGraph,
   type AssemblyLine,
   type NodeVisit,
   type NodeResult,
   type StageOutcome,
 } from "@re-cinq/lore-assembly-lines";
+import { graphForRun } from "./graph-for-run.js";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import {
   nodeAgentSpec,
@@ -166,11 +166,7 @@ export async function advanceLine(
     return;
   }
 
-  // The run's OWN graph decides the walk (FR6.38): editing a blueprint must not
-  // change the route of a run already in flight, and a run whose blueprint was
-  // renamed or deleted must still finish. Only a row stamped before clones
-  // existed falls back to resolving by name.
-  const graph = row.graph ?? (await fallbackGraph(row.blueprintName, deps));
+  const graph = await graphForRun(row, deps.definitions);
 
   if (!graph) {
     // A single-CR run record (FR6.8) — the agent-watcher owns its lifecycle.
@@ -320,18 +316,6 @@ export async function advanceLine(
   await deps.launch(spec);
 }
 
-/** The graph for a run stamped before clones existed: load the blueprint by name
- *  and snapshot it on the fly, so everything downstream sees ONE shape. Undefined
- *  when no such blueprint exists, which is how a single-CR record is recognised. */
-async function fallbackGraph(
-  blueprintName: string,
-  deps: AdvanceDeps,
-): Promise<ReturnType<typeof snapshotGraph> | undefined> {
-  const definition = (await deps.definitions()).get(blueprintName);
-
-  return definition ? snapshotGraph(definition, blueprintName) : undefined;
-}
-
 /** Close the row, reclaim the token, and settle the detect fan-out's job_run. */
 export async function finishLine(
   row: AssemblyRunRecord,
@@ -439,9 +423,9 @@ async function maybeStampPr(
     if (!row) {
       return;
     }
-    const node = (
-      row.graph ?? (await fallbackGraph(row.blueprintName, deps))
-    )?.nodes.find((n) => n.id === nodeId);
+    const node = (await graphForRun(row, deps.definitions))?.nodes.find(
+      (n) => n.id === nodeId,
+    );
 
     if (
       !decidePrStamp({

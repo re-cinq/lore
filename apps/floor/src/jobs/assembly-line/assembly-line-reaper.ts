@@ -15,10 +15,10 @@
 
 import {
   isHumanStation,
-  snapshotGraph,
   stationNodeOutcome,
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
+import { graphForRun } from "./graph-for-run.js";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { advanceLine, finishLine, taskFromRow } from "./advance.js";
@@ -88,7 +88,6 @@ export async function assemblyLineReaperJob(
   deps: AssemblyLineReaperDeps,
 ): Promise<string> {
   const open = await deps.assemblyLines.listOpen();
-  const definitions = await deps.definitions();
   const nowMs = Date.now();
   let resolved = 0;
   let relaunched = 0;
@@ -99,14 +98,9 @@ export async function assemblyLineReaperJob(
 
   for (const row of open) {
     try {
-      // Same rule the walk follows (FR6.38): the run's OWN graph decides, and a
-      // blueprint loaded by name is only the fallback for rows stamped before
-      // clones existed. Reaping a run against a since-edited graph would resolve
-      // a node the run never had.
-      const blueprint = definitions.get(row.blueprintName);
-      const graph =
-        row.graph ??
-        (blueprint ? snapshotGraph(blueprint, row.blueprintName) : undefined);
+      // Same rule the walk follows (FR6.38): reaping a run against a
+      // since-edited graph would resolve a node the run never had.
+      const graph = await graphForRun(row, deps.definitions);
 
       if (!graph) {
         // Single-CR run record (FR6.8): normally the agent-watcher closes it, but
