@@ -220,3 +220,35 @@ describe("nodeStationSpec (station pod contract)", () => {
     ).toBe("abc123");
   });
 });
+
+describe("station-run id label", () => {
+  it("stamps the visit's station-run id on both spec shapes when passed", () => {
+    const agent = nodeAgentSpec(
+      cloneNode({ id: "implement", type: "agent" }),
+      task,
+      "p",
+      1,
+      "3f6c1c9a-run",
+    );
+    const station = nodeStationSpec(
+      cloneNode({ id: "wrap", type: "retrospective" }),
+      task,
+      1,
+      "3f6c1c9a-run",
+    );
+
+    expect(agent.extraLabels?.["lore.re-cinq.com/station-run-id"]).toBe(
+      "3f6c1c9a-run",
+    );
+    expect(station.extraLabels?.["lore.re-cinq.com/station-run-id"]).toBe(
+      "3f6c1c9a-run",
+    );
+  });
+
+  it("omits the label when no station-run id is passed", () => {
+    expect(
+      nodeAgentSpec(cloneNode({ id: "implement", type: "agent" }), task, "p")
+        .extraLabels,
+    ).not.toHaveProperty("lore.re-cinq.com/station-run-id");
+  });
+});

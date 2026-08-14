@@ -59,11 +59,16 @@ function nodeLabels(
   node: RunGraphNode,
   task: FloorAssemblyLineTask,
   iteration: number,
+  stationRunId?: string,
 ): Record<string, string> {
   return {
     [LEGACY_ASSEMBLY_LINE_ID_LABEL]: task.assemblyLineId,
     [NODE_ID_LABEL]: node.id,
     [NODE_ITERATION_LABEL]: String(iteration),
+    // Part of the spec builders so every dispatch path carries it — the reaper's
+    // relaunch built the same spec without it, and the label's first consumer
+    // would have silently lost every relaunched pod.
+    ...(stationRunId ? { [STATION_RUN_ID_LABEL]: stationRunId } : {}),
   };
 }
 
@@ -82,6 +87,7 @@ export function nodeAgentSpec(
   task: FloorAssemblyLineTask,
   prompt: string,
   iteration = 1,
+  stationRunId?: string,
 ): LoreTaskSpec {
   return {
     taskId: task.taskId,
@@ -101,7 +107,7 @@ export function nodeAgentSpec(
       ? { stationRef: node.station }
       : {}),
     name: nodeAgentName(task.assemblyLineId, node.id, iteration),
-    extraLabels: nodeLabels(node, task, iteration),
+    extraLabels: nodeLabels(node, task, iteration, stationRunId),
   };
 }
 
@@ -128,6 +134,7 @@ export function nodeStationSpec(
   node: RunGraphNode,
   task: FloorAssemblyLineTask,
   iteration = 1,
+  stationRunId?: string,
 ): LoreTaskSpec {
   const params: Record<string, string> = {};
 
@@ -155,7 +162,7 @@ export function nodeStationSpec(
     targetRepo: task.targetRepo,
     branch: cloneRef(task),
     name: nodeAgentName(task.assemblyLineId, node.id, iteration),
-    extraLabels: nodeLabels(node, task, iteration),
+    extraLabels: nodeLabels(node, task, iteration, stationRunId),
     stationRef: node.station ?? stationName(node.type),
     // Stations render only {station_input} — never hydrate (D5 is for agent
     // nodes); an empty description otherwise assembles an unbounded context.

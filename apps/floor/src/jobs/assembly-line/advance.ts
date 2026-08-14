@@ -22,9 +22,9 @@ import {
 import { graphForRun } from "./graph-for-run.js";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import {
+  nodeAgentName,
   nodeAgentSpec,
   nodeStationSpec,
-  STATION_RUN_ID_LABEL,
   type FloorAssemblyLineTask,
 } from "./floor-assembly-line.js";
 import { isFailureOutcome } from "./notify-failure.js";
@@ -273,6 +273,18 @@ export async function advanceLine(
   // again — and the two disagreeing about what this run is working from is a bug in
   // either direction.
   const content = roundContent(task, conversation);
+  // Row before CR: a crash in between leaves an open row the reaper resolves by
+  // reading the (deterministically named) CR; a rowless CR would be invisible.
+  // The row is also what MINTS the station-run id — a converged duplicate returns
+  // the id already minted, so a re-dispatch of the same visit carries the same
+  // label rather than a second identity.
+  const { stationRunId } = await deps.assemblyLines.ensureStationRun({
+    assemblyRunId: assemblyLineId,
+    nodeId: node.id,
+    iteration: transition.iteration,
+    agentCrName: nodeAgentName(assemblyLineId, node.id, transition.iteration),
+  });
+
   // Iteration rides into the CR name + labels so a revisited node runs a fresh pod.
   const spec =
     node.type === "agent"
@@ -281,29 +293,13 @@ export async function advanceLine(
           { ...task, description: content },
           deps.resolvePrompt(node.prompt_ref ?? node.type, content),
           transition.iteration,
+          stationRunId,
         )
-      : nodeStationSpec(node, task, transition.iteration);
+      : nodeStationSpec(node, task, transition.iteration, stationRunId);
 
   if (conversation) {
     spec.conversation = conversation;
   }
-
-  // Row before CR: a crash in between leaves an open row the reaper resolves by
-  // reading the (deterministically named) CR; a rowless CR would be invisible.
-  const { stationRunId } = await deps.assemblyLines.ensureStationRun({
-    assemblyRunId: assemblyLineId,
-    nodeId: node.id,
-    iteration: transition.iteration,
-    agentCrName: spec.name,
-  });
-
-  // Labelled AFTER the row exists, because the row is what mints the id — and a
-  // converged duplicate returns the id already minted, so a re-dispatch of the
-  // same visit carries the same label rather than a second identity.
-  spec.extraLabels = {
-    ...spec.extraLabels,
-    [STATION_RUN_ID_LABEL]: stationRunId,
-  };
 
   // A human station's worker is outside the pod system — a person in the wizard,
   // or a reviewer on the PR page. The row is what parks the walk and lets the graph

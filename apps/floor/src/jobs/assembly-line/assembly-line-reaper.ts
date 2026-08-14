@@ -207,7 +207,9 @@ export async function assemblyLineReaperJob(
           `[assembly-line-reaper] node ${openNode.nodeId} of ${row.id} timed out (${node.type === "agent" ? "agent" : "station"}-timeout)`,
         );
       } else if (recovery.kind === "relaunch") {
-        await deps.launch(specForNode(node, row, openNode.iteration, deps));
+        await deps.launch(
+          specForNode(node, row, openNode.iteration, deps, openNode.stationRunId),
+        );
         relaunched++;
       }
     } catch (err) {
@@ -225,6 +227,7 @@ function specForNode(
   row: Parameters<typeof taskFromRow>[0],
   iteration: number,
   deps: NodeEventDeps,
+  stationRunId?: string,
 ) {
   const task = taskFromRow(row);
 
@@ -234,6 +237,7 @@ function specForNode(
         task,
         deps.resolvePrompt(node.prompt_ref ?? node.type, task.description),
         iteration,
+        stationRunId,
       )
-    : nodeStationSpec(node, task, iteration);
+    : nodeStationSpec(node, task, iteration, stationRunId);
 }

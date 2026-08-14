@@ -288,3 +288,32 @@ describe("assemblyLineReaperJob", () => {
     expect(h.launched).toEqual([]);
   });
 });
+
+describe("relaunch label parity", () => {
+  it("a reaper relaunch carries the SAME station-run id label the first launch did", async () => {
+    // The advance path stamps the label from ensureStationRun; a relaunch that
+    // dropped it would hand the label's first consumer a pod with no identity.
+    const h = harness();
+    const id = await h.port.start({
+      blueprintName: "code-review",
+      repo: "o/r",
+      args: {},
+    });
+
+    await h.port.markRunning(id);
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-review`,
+    });
+    // No status for the CR name: decideNodeRecovery says relaunch.
+
+    await assemblyLineReaperJob(h.deps);
+
+    expect(h.launched).toHaveLength(1);
+    expect(h.launched[0].extraLabels?.["lore.re-cinq.com/station-run-id"]).toBe(
+      h.port.nodes[0].stationRunId,
+    );
+  });
+});
