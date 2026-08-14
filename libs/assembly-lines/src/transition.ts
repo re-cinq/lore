@@ -4,7 +4,29 @@
 // definition + the visit history, so duplicate/concurrent advancers converge and
 // a Floor restart loses nothing (spec 6-dark-factory FR6).
 
-import type { AssemblyLine, AssemblyLineEdge } from "./loader.js";
+
+/**
+ * What the walk actually reads: an identity, an entry, an exit, and edges. NOT the
+ * whole blueprint — narrowing it to this is what lets one replay serve both a
+ * freshly loaded definition and the CLONE a run carries (FR6.38), with no
+ * conversion between them and no second copy of the routing rules.
+ *
+ * `on` is a plain string rather than the loader's union so a graph read back out
+ * of jsonb satisfies it; the routing below compares it, never switches on it.
+ */
+export interface WalkEdge {
+  from: string;
+  to: string;
+  on: string;
+  iteration_max?: number;
+}
+
+export interface WalkGraph {
+  name: string;
+  entry: string;
+  exit: string;
+  edges: readonly WalkEdge[];
+}
 import type { StageOutcome } from "./node-types.js";
 
 /** One node row's contribution to the walk state (outcome null = still running). */
@@ -25,10 +47,10 @@ const DEFAULT_MAX_NODES = 200;
 /** The executor's edge rule, extracted: exact-outcome match preferred over `always`;
  *  null when nothing matches. */
 export function selectEdge(
-  assemblyLine: AssemblyLine,
+  assemblyLine: WalkGraph,
   from: string,
   outcome: StageOutcome,
-): AssemblyLineEdge | null {
+): WalkEdge | null {
   const candidates = assemblyLine.edges.filter(
     (e) => e.from === from && (e.on === outcome || e.on === "always"),
   );
@@ -51,7 +73,7 @@ export function selectEdge(
  * unbounded back-edge, where a person decides each pass and no budget applies.
  */
 export function nextTransition(
-  assemblyLine: AssemblyLine,
+  assemblyLine: WalkGraph,
   visits: NodeVisit[],
   maxNodes = DEFAULT_MAX_NODES,
 ): Transition {

@@ -14,10 +14,10 @@
 //   - single-CR (definition-less) row, backing task terminal → close from status
 
 import {
+  snapshotGraph,
   stationNodeOutcome,
   type AgentNodeStatus,
-  type AssemblyLine,
-  type AssemblyLineNode,
+  type SnapshotNode,
 } from "@re-cinq/lore-assembly-lines";
 import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { advanceLine, finishLine, taskFromRow } from "./advance.js";
@@ -98,9 +98,16 @@ export async function assemblyLineReaperJob(
 
   for (const row of open) {
     try {
-      const definition = definitions.get(row.blueprintName);
+      // Same rule the walk follows (FR6.38): the run's OWN graph decides, and a
+      // blueprint loaded by name is only the fallback for rows stamped before
+      // clones existed. Reaping a run against a since-edited graph would resolve
+      // a node the run never had.
+      const blueprint = definitions.get(row.blueprintName);
+      const graph =
+        row.graph ??
+        (blueprint ? snapshotGraph(blueprint, row.blueprintName) : undefined);
 
-      if (!definition) {
+      if (!graph) {
         // Single-CR run record (FR6.8): normally the agent-watcher closes it, but
         // a crash between the task's post-handler status write and that close (or
         // a dropped terminal event past the reconcile window) leaves it open
@@ -155,7 +162,7 @@ export async function assemblyLineReaperJob(
         continue;
       }
 
-      const node = definition.nodes.find((n) => n.id === openNode.nodeId);
+      const node = graph.nodes.find((n) => n.id === openNode.nodeId);
 
       if (!node) {
         continue;
@@ -205,9 +212,7 @@ export async function assemblyLineReaperJob(
           `[assembly-line-reaper] node ${openNode.nodeId} of ${row.id} timed out (${node.type === "agent" ? "agent" : "station"}-timeout)`,
         );
       } else if (recovery.kind === "relaunch") {
-        await deps.launch(
-          specForNode(definition, node, row, openNode.iteration, deps),
-        );
+        await deps.launch(specForNode(node, row, openNode.iteration, deps));
         relaunched++;
       }
     } catch (err) {
@@ -221,8 +226,7 @@ export async function assemblyLineReaperJob(
 }
 
 function specForNode(
-  definition: AssemblyLine,
-  node: AssemblyLineNode,
+  node: SnapshotNode,
   row: Parameters<typeof taskFromRow>[0],
   iteration: number,
   deps: NodeEventDeps,

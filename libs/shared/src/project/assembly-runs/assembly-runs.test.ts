@@ -50,8 +50,6 @@ describe("PgAssemblyRuns adapter", () => {
       "re-cinq/lore",
       "lore/implementation/x-12345678",
       JSON.stringify({ spec: "specs/x/spec.md" }),
-      // No blueprint loaded by this caller, so no clone to store.
-      null,
     ]);
   });
 
@@ -69,7 +67,6 @@ describe("PgAssemblyRuns adapter", () => {
       "re-cinq/lore",
       null,
       "{}",
-      null,
     ]);
   });
 
@@ -284,7 +281,7 @@ describe("InMemoryAssemblyRuns double", () => {
     ]);
   });
 
-  it("start stores the cloned graph, and getById returns it", async () => {
+  it("stampBlueprint stores the hash and the cloned graph together", async () => {
     const assemblyRuns = new InMemoryAssemblyRuns();
     const graph = {
       name: "feature-planning",
@@ -296,17 +293,41 @@ describe("InMemoryAssemblyRuns double", () => {
       ],
       edges: [{ from: "analyze", to: "done", on: "success" }],
     };
-
     const id = await assemblyRuns.start({
       blueprintName: "feature-planning",
       repo: "re-cinq/lore",
-      graph,
     });
 
-    expect((await assemblyRuns.getById(id))?.graph).toEqual(graph);
+    await assemblyRuns.stampBlueprint(id, "hash-1", graph);
+
+    expect(await assemblyRuns.getById(id)).toMatchObject({
+      blueprintHash: "hash-1",
+      graph,
+    });
   });
 
-  it("getById returns a null graph for a run started without one", async () => {
+  it("stampBlueprint never overwrites a graph already stamped", async () => {
+    // Same write-once rule the hash carries, and for the same reason: the stored
+    // graph names what this run's station rows were produced by, so a redelivered
+    // start that loaded a since-edited blueprint must not re-point it.
+    const assemblyRuns = new InMemoryAssemblyRuns();
+    const first = { name: "a", entry: "x", exit: "x", nodes: [], edges: [] };
+    const second = { name: "b", entry: "y", exit: "y", nodes: [], edges: [] };
+    const id = await assemblyRuns.start({
+      blueprintName: "a",
+      repo: "re-cinq/lore",
+    });
+
+    await assemblyRuns.stampBlueprint(id, "hash-1", first);
+    await assemblyRuns.stampBlueprint(id, "hash-2", second);
+
+    expect(await assemblyRuns.getById(id)).toMatchObject({
+      blueprintHash: "hash-1",
+      graph: first,
+    });
+  });
+
+  it("getById returns a null graph for a run whose blueprint was never stamped", async () => {
     const assemblyRuns = new InMemoryAssemblyRuns();
     const id = await assemblyRuns.start({
       blueprintName: "general",
@@ -1047,22 +1068,23 @@ describe("finish is first-writer-wins", () => {
 // ── Definition hashing (specs/fork-rerun-from-node FR4): the stamp names the
 //    graph a line's node rows were produced by, so a fork can refuse to replay
 //    them against a definition that has since changed.
-describe("stampDefinitionHash", () => {
+describe("stampBlueprint", () => {
   it("issues a write-once UPDATE guarded on a null hash (Pg)", async () => {
     const { pool, calls } = fakePool();
 
-    await new PgAssemblyRuns(pool).stampDefinitionHash("al-1", "hash-1");
+    await new PgAssemblyRuns(pool).stampBlueprint("al-1", "hash-1");
 
     expect(calls[0]?.text).toContain("SET blueprint_hash = $2");
     expect(calls[0]?.text).toContain("blueprint_hash IS NULL");
-    expect(calls[0]?.params).toEqual(["al-1", "hash-1"]);
+    // Third bind is the clone; null when the caller resolved no graph.
+    expect(calls[0]?.params).toEqual(["al-1", "hash-1", null]);
   });
 
   it("records the hash on a line that has none", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await port.start({ blueprintName: "general", repo: "o/r" });
 
-    await port.stampDefinitionHash(id, "hash-1");
+    await port.stampBlueprint(id, "hash-1");
 
     expect(await port.getById(id)).toMatchObject({ blueprintHash: "hash-1" });
   });
@@ -1071,8 +1093,8 @@ describe("stampDefinitionHash", () => {
     const port = new InMemoryAssemblyRuns();
     const id = await port.start({ blueprintName: "general", repo: "o/r" });
 
-    await port.stampDefinitionHash(id, "hash-1");
-    await port.stampDefinitionHash(id, "hash-2");
+    await port.stampBlueprint(id, "hash-1");
+    await port.stampBlueprint(id, "hash-2");
 
     expect(await port.getById(id)).toMatchObject({ blueprintHash: "hash-1" });
   });
@@ -1080,7 +1102,7 @@ describe("stampDefinitionHash", () => {
   it("throws on an unknown line id", async () => {
     const port = new InMemoryAssemblyRuns();
 
-    await expect(port.stampDefinitionHash("nope", "hash-1")).rejects.toThrow(
+    await expect(port.stampBlueprint("nope", "hash-1")).rejects.toThrow(
       new Error('no assembly line "nope"'),
     );
   });
@@ -1100,7 +1122,7 @@ describe("InMemoryAssemblyRuns resumeFrom", () => {
       args: { spec: "specs/x/spec.md" },
     });
 
-    await port.stampDefinitionHash(id, HASH);
+    await port.stampBlueprint(id, HASH);
     await port.markRunning(id);
 
     for (const visit of [
@@ -1295,7 +1317,7 @@ describe("InMemoryAssemblyRuns resumeFrom", () => {
       branch: "lore/implementation/y",
     });
 
-    await port.stampDefinitionHash(live, HASH);
+    await port.stampBlueprint(live, HASH);
     await port.markRunning(live);
 
     await expect(
@@ -1434,6 +1456,9 @@ describe("PgAssemblyRuns resumeFrom", () => {
       "review",
       "12",
       2,
+      // The source's clone rides along: a fork replays its rows, so it must walk
+      // the same graph. Null here because this fixture's source predates the column.
+      null,
     ]);
   });
 
@@ -1501,7 +1526,7 @@ describe("PgAssemblyRuns resumeFrom", () => {
     expect(calls[2]?.params?.[4]).toBe(JSON.stringify({}));
   });
 
-  it("keeps the plain start on its own two-CTE statement with six parameters", async () => {
+  it("keeps the plain start on its own two-CTE statement with five parameters", async () => {
     const { pool, calls } = fakePool([[{ id: "al-1" }]]);
 
     await new PgAssemblyRuns(pool).start({
@@ -1510,7 +1535,7 @@ describe("PgAssemblyRuns resumeFrom", () => {
     });
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.params).toHaveLength(6);
+    expect(calls[0]?.params).toHaveLength(5);
     expect(calls[0]?.text).not.toContain("INSERT INTO pipeline.station_runs");
   });
 });
@@ -1521,7 +1546,7 @@ describe("AssemblyRuns facade resumeFrom", () => {
     const facade = new AssemblyRuns("re-cinq/lore", port);
     const source = await facade.start("general", { branch: "feat/x" });
 
-    await port.stampDefinitionHash(source, "hash-general");
+    await port.stampBlueprint(source, "hash-general");
     await port.markRunning(source);
     const { nodeRowId } = await port.ensureStationRun({
       assemblyRunId: source,

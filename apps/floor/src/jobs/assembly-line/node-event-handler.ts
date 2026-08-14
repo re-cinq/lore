@@ -6,6 +6,7 @@
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
+  snapshotGraph,
   stationNodeOutcome,
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
@@ -53,10 +54,15 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
       return;
     }
 
-    const definition = (await deps.definitions()).get(row.blueprintName);
-    const node = definition?.nodes.find((n) => n.id === nodeId);
+    // The run's own graph decides which node this event names (FR6.38); a
+    // blueprint loaded by name is the fallback for rows stamped before clones.
+    const blueprint = (await deps.definitions()).get(row.blueprintName);
+    const graph =
+      row.graph ??
+      (blueprint ? snapshotGraph(blueprint, row.blueprintName) : undefined);
+    const node = graph?.nodes.find((n) => n.id === nodeId);
 
-    if (!definition || !node) {
+    if (!node) {
       return;
     }
 

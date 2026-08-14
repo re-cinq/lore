@@ -1,6 +1,7 @@
 import { enforceTrue } from "../../lib/enforce.js";
 import { randomUUID } from "node:crypto";
 import { resolveResumePrefix } from "./resume.js";
+import type { RunGraph } from "./run-graph.js";
 import type {
   AssemblyRunQuery,
   AssemblyRunsPort,
@@ -81,6 +82,9 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     // Floor stamps it — `input.blueprintHash` is a resume INPUT, and the Pg
     // plain-start CTE likewise never writes it.
     row.blueprintHash = source?.blueprintHash ?? null;
+    // A fork replays its source's rows, so it MUST walk the same graph — the
+    // hash guard already proved the current blueprint still matches it.
+    row.graph = source?.graph ?? null;
     this.rows.push(row);
 
     for (const node of inherited) {
@@ -127,11 +131,22 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     row.startedAt = this.clock();
   }
 
-  async stampDefinitionHash(id: string, hash: string): Promise<void> {
+  async stampBlueprint(
+    id: string,
+    hash: string,
+    graph?: RunGraph,
+  ): Promise<void> {
     const row = this.mustFind(id);
 
-    // Write-once (mirrors the Pg guard on a null hash).
-    row.blueprintHash = row.blueprintHash ?? hash;
+    // Write-once, guarded on the HASH for both fields (mirrors the Pg WHERE):
+    // the pair describes one blueprint, so stamping them independently could
+    // leave a row whose graph and hash came from different loads.
+    if (row.blueprintHash !== null) {
+      return;
+    }
+
+    row.blueprintHash = hash;
+    row.graph = graph ?? null;
   }
 
   async finish(id: string, outcome: string, reason?: string): Promise<boolean> {
@@ -355,7 +370,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       repo: input.repo,
       branch: input.branch ?? null,
       args: input.args ?? {},
-      graph: input.graph ?? null,
+      graph: null,
       status: "queued",
       outcome: null,
       reason: null,

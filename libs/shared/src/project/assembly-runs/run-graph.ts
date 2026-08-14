@@ -8,8 +8,11 @@
 //     fields for authors' convenience; this is what a RUN needs in order to be
 //     replayable years later, and the two are free to drift apart on purpose.
 //
-// `libs/assembly-lines` converts one into the other (`snapshotGraph`) and the
-// result is structurally assignable here, so neither side imports the other.
+// `libs/assembly-lines` produces it (`snapshotGraph`) and the result is
+// structurally assignable here, so neither side imports the other. Field names are
+// the BLUEPRINT's, because the graph is a copy of one: renaming them would buy
+// nothing and cost a translation on every read, and it lets the walk consume a
+// stored graph and a freshly loaded one through the same structural type.
 //
 // The Station is RESOLVED here rather than derived on read. An agent node that
 // declares no `station_ref` inherits the one named after its run's blueprint, and
@@ -27,15 +30,22 @@ export interface RunGraphNode {
   /** True when the Station name came from the node's TYPE or its run's blueprint
    *  rather than from the node itself — the case that silently becomes wrong when
    *  a node is reused on a blueprint whose task type differs. */
-  stationInherited?: boolean;
+  station_inherited: boolean;
   /** Where a HUMAN station's worker acts (FR6.40). Relative — a page this
    *  platform serves; absolute — a surface it does not own, such as a GitHub PR.
    *  `{args.x}` placeholders resolve against the run's args AT READ TIME, because
    *  a value like `pr_url` does not exist until a node has produced it. */
   route?: string;
-  promptRef?: string;
+  prompt_ref?: string;
   model?: string;
-  timeoutMinutes?: number;
+  timeout_minutes?: number;
+  /** Station knobs passed through to the pod as params. */
+  validator?: string;
+  condition_ref?: string;
+  job_ref?: string;
+  signal?: string;
+  /** Which prior run this node continues, and which thread it belongs to. */
+  continues?: { node: string; key: string };
   description?: string;
 }
 
@@ -44,7 +54,7 @@ export interface RunGraphEdge {
   from: string;
   to: string;
   on: string;
-  iterationMax?: number;
+  iteration_max?: number;
 }
 
 /**

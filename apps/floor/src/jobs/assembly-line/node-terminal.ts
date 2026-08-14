@@ -13,7 +13,7 @@ import {
   resultTextFromOutput,
   parseReviewVerdict,
   type AgentNodeStatus,
-  type AssemblyLineNode,
+  type SnapshotNode,
   type NodeResult,
 } from "@re-cinq/lore-assembly-lines";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
@@ -49,7 +49,7 @@ export function normalizeAgentStatus(status: AgentNodeStatus): AgentNodeStatus {
 
 export interface NodeTerminalInput {
   row: AssemblyRunRecord;
-  node: AssemblyLineNode;
+  node: SnapshotNode;
   nodeId: string;
   iteration?: number;
   result: NodeResult;
@@ -134,7 +134,7 @@ const REVIEW_PROMPT_REFS = new Set(["code-review", "code-review-recheck"]);
  */
 export async function postReviewFromNode(
   row: AssemblyRunRecord,
-  node: AssemblyLineNode,
+  node: SnapshotNode,
   output?: string,
   ports: ReviewPorts = {},
 ): Promise<ReviewPostOutcome> {
@@ -261,7 +261,7 @@ function replyRunMarker(
  */
 export async function postReplyFromNode(
   row: AssemblyRunRecord,
-  node: AssemblyLineNode,
+  node: SnapshotNode,
   output?: string,
   ports: ReplyPorts = {},
 ): Promise<ReplyPostOutcome> {

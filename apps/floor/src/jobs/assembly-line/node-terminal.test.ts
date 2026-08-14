@@ -12,20 +12,26 @@ import type {
   AuditPort,
 } from "@re-cinq/lore-shared/project/audit/audit-port.js";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import type { AssemblyLineNode } from "@re-cinq/lore-assembly-lines";
+import type { SnapshotNode } from "@re-cinq/lore-assembly-lines";
 import type { CreateReviewInput } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 
-const reviewNode: AssemblyLineNode = {
+const reviewNode: SnapshotNode = {
+  station: null,
+  station_inherited: false,
   id: "review",
   type: "agent",
   prompt_ref: "code-review",
 };
-const plainNode: AssemblyLineNode = {
+const plainNode: SnapshotNode = {
+  station: null,
+  station_inherited: false,
   id: "detect",
   type: "detect",
   job_ref: "x",
 };
-const refineNode: AssemblyLineNode = {
+const refineNode: SnapshotNode = {
+  station: null,
+  station_inherited: false,
   id: "reply",
   type: "agent",
   prompt_ref: "code-review-refine",
@@ -106,6 +112,7 @@ const findingsText = (verdict: string) =>
     }),
     "```",
   ].join("\n");
+
 
 describe("normalizeAgentStatus", () => {
   it("unwraps the NDJSON envelope into the agent text", () => {
@@ -769,7 +776,9 @@ describe("postReplyFromNode without a known iteration", () => {
 });
 
 describe("postReviewFromNode for the fast re-check node", () => {
-  const recheckNode: AssemblyLineNode = {
+  const recheckNode: SnapshotNode = {
+    station: null,
+    station_inherited: false,
     id: "recheck",
     type: "agent",
     prompt_ref: "code-review-recheck",

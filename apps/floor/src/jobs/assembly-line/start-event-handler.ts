@@ -13,6 +13,7 @@ import type {
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import {
   definitionHash,
+  snapshotGraph,
   type AssemblyLine,
 } from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
@@ -103,13 +104,16 @@ export function createStartEventHandler(
       return;
     }
 
-    // Record WHICH graph this run executes, once (specs/fork-rerun-from-node
-    // FR4). This is the only place holding both the row id and the resolved
-    // definition; a later fork replays this run's node rows against the current
-    // definition and refuses when the hashes disagree.
-    await deps.assemblyLines.stampDefinitionHash(
+    // Record WHICH blueprint this run executes, once (FR6.38, and
+    // specs/fork-rerun-from-node FR4). This is the only place holding both the
+    // row id and a RESOLVED blueprint — `start` is called by lore-api and by
+    // choreographies that deliberately ship no definitions — so it is where the
+    // hash AND the graph the run will walk get recorded. Everything downstream
+    // reads the clone instead of re-reading the file.
+    await deps.assemblyLines.stampBlueprint(
       assemblyLineId,
       definitionHash(definition),
+      snapshotGraph(definition, blueprintName),
     );
     await deps.assemblyLines.markRunning(assemblyLineId);
 

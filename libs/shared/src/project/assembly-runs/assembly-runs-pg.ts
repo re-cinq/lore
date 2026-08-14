@@ -34,8 +34,8 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
 
     const { rows } = await this.pool.query(
       `WITH al AS (
-         INSERT INTO pipeline.assembly_runs (blueprint_name, task_id, repo, branch, args, graph)
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
+         INSERT INTO pipeline.assembly_runs (blueprint_name, task_id, repo, branch, args)
+         VALUES ($1, $2, $3, $4, $5::jsonb)
          RETURNING id
        ), ev AS (
          INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
@@ -59,7 +59,6 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
         input.repo,
         input.branch ?? null,
         JSON.stringify(input.args ?? {}),
-        input.graph ? JSON.stringify(input.graph) : null,
       ],
     );
 
@@ -113,9 +112,9 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     const { rows } = await this.pool.query(
       `WITH al AS (
          INSERT INTO pipeline.assembly_runs
-           (blueprint_name, task_id, repo, branch, args, blueprint_hash,
+           (blueprint_name, task_id, repo, branch, args, blueprint_hash, graph,
             resumed_from_run_id, resumed_from_node_id, inherited_node_count)
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $10)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $11::jsonb, $7, $8, $10)
          RETURNING id
        ), ev AS (
          INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
@@ -154,22 +153,30 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
         resumeFrom.nodeId,
         cutoffNodeRowId,
         prefix.length,
+        // A fork replays its source's rows, so it walks the same graph.
+        source.graph ? JSON.stringify(source.graph) : null,
       ],
     );
 
     return rows[0].id as string;
   }
 
-  async stampDefinitionHash(id: string, hash: string): Promise<void> {
-    // Write-once: the stored hash is the graph this line's node rows were
-    // produced by. A redelivered start that loads a since-edited definition
-    // would otherwise silently re-point the row at a graph it never ran.
+  async stampBlueprint(
+    id: string,
+    hash: string,
+    graph?: RunGraph,
+  ): Promise<void> {
+    // Write-once, both columns under ONE guard on the hash: the pair describes a
+    // single blueprint, and stamping them independently could leave a row whose
+    // graph and hash came from different loads. A redelivered start that loaded a
+    // since-edited blueprint would otherwise re-point the row at a graph it never
+    // ran.
     await this.pool.query(
       `UPDATE pipeline.assembly_runs
-         SET blueprint_hash = $2
+         SET blueprint_hash = $2, graph = $3::jsonb
        WHERE id = $1
          AND blueprint_hash IS NULL`,
-      [id, hash],
+      [id, hash, graph ? JSON.stringify(graph) : null],
     );
   }
 

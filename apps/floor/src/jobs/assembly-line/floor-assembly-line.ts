@@ -2,7 +2,7 @@
 // Agent CR — this module is the pure spec-building core the event-driven walk
 // (advance.ts) uses: names, identity labels, and the agent/station dispatch specs.
 
-import type { AssemblyLineNode } from "@re-cinq/lore-assembly-lines";
+import type { SnapshotNode } from "@re-cinq/lore-assembly-lines";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { stationName } from "../agent/agent-catalog.js";
 
@@ -47,7 +47,7 @@ export const NODE_ID_LABEL = "lore.re-cinq.com/node-id";
 export const NODE_ITERATION_LABEL = "lore.re-cinq.com/node-iteration";
 
 function nodeLabels(
-  node: AssemblyLineNode,
+  node: SnapshotNode,
   task: FloorAssemblyLineTask,
   iteration: number,
 ): Record<string, string> {
@@ -69,7 +69,7 @@ function cloneRef(task: FloorAssemblyLineTask): string {
 /** Pure: the Agent dispatch spec for one agent-node. Prompt is resolved per node; model
  *  from the node (else inherited); repo/branch/description from the task. */
 export function nodeAgentSpec(
-  node: AssemblyLineNode,
+  node: SnapshotNode,
   task: FloorAssemblyLineTask,
   prompt: string,
   iteration = 1,
@@ -86,7 +86,11 @@ export function nodeAgentSpec(
     // default — code-review-reply's node runs on code-review-refine. Without
     // this, the CR resolves a Station named after the LINE, which only existed
     // as a stale pre-#840-rename object until a catalog deploy pruned it.
-    ...(node.station_ref ? { stationRef: node.station_ref } : {}),
+    // The clone resolved it already, so an INHERITED station is left unset here
+    // and the subsystem applies the same task-type default it always did.
+    ...(node.station && !node.station_inherited
+      ? { stationRef: node.station }
+      : {}),
     name: nodeAgentName(task.assemblyLineId, node.id, iteration),
     extraLabels: nodeLabels(node, task, iteration),
   };
@@ -112,7 +116,7 @@ const STATION_PARAM_FIELDS = [
  *  input rides one JSON parameter; the Station defaults to `def-<type>` unless
  *  the node names a custom one via `station_ref`. */
 export function nodeStationSpec(
-  node: AssemblyLineNode,
+  node: SnapshotNode,
   task: FloorAssemblyLineTask,
   iteration = 1,
 ): LoreTaskSpec {
@@ -143,7 +147,7 @@ export function nodeStationSpec(
     branch: cloneRef(task),
     name: nodeAgentName(task.assemblyLineId, node.id, iteration),
     extraLabels: nodeLabels(node, task, iteration),
-    stationRef: node.station_ref ?? stationName(node.type),
+    stationRef: node.station ?? stationName(node.type),
     // Stations render only {station_input} — never hydrate (D5 is for agent
     // nodes); an empty description otherwise assembles an unbounded context.
     hydrate: false,

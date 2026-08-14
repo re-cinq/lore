@@ -51,6 +51,12 @@ export {
 } from "./node-station.js";
 
 export { definitionHash } from "./definition-hash.js";
+export {
+  snapshotGraph,
+  type SnapshotGraph,
+  type SnapshotNode,
+  type SnapshotEdge,
+} from "./snapshot-graph.js";
 
 export { RelayExecutor, type RelayResult } from "./relay/relay-executor.js";
 export { RELAY_SCRIPT } from "./relay/relay-script.js";

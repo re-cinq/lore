@@ -92,8 +92,6 @@ describe("Project wiring", () => {
       "re-cinq/lore",
       null,
       "{}",
-      // No blueprint graph — this caller starts by name only.
-      null,
     ]);
   });
 });

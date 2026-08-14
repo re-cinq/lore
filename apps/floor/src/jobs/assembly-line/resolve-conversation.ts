@@ -7,7 +7,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
-import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
+import type { SnapshotNode } from "@re-cinq/lore-assembly-lines";
 import type {
   ConversationsPort,
   ExecutionRef,
@@ -79,7 +79,7 @@ const NO_SUCH_LINE = "00000000-0000-0000-0000-000000000000";
  * naming an arg the run does not carry is a wiring bug, not a fresh conversation.
  */
 export async function resolveConversation(
-  node: AssemblyLine["nodes"][number],
+  node: SnapshotNode,
   task: FloorAssemblyLineTask,
   iteration: number,
   deps: ResolveConversationDeps,

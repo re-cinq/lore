@@ -5,6 +5,7 @@ import {
   parseAssemblyLine,
   type AssemblyLine,
 } from "@re-cinq/lore-assembly-lines";
+import { snapshotGraph } from "@re-cinq/lore-assembly-lines";
 import {
   advanceLine,
   finishLine,
@@ -129,6 +130,60 @@ async function runningLine(port: InMemoryAssemblyRuns) {
 
   return id;
 }
+
+describe("advanceLine reads the run's own graph", () => {
+  it("walks the stamped clone, never re-reading the blueprint file", async () => {
+    // The point of the clone: editing a YAML mid-run must not change the graph a
+    // run in flight is walking. The deps here would resolve a DIFFERENT graph, so
+    // a walk that consulted them would launch the wrong node.
+    const port = new InMemoryAssemblyRuns();
+    const id = await port.start({
+      blueprintName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { description: "Review pull request #7", pr_number: 7 },
+    });
+
+    await port.stampBlueprint(
+      id,
+      "hash-code-review",
+      snapshotGraph(codeReviewLike, "code-review"),
+    );
+    await port.markRunning(id);
+    const { deps, launched } = makeDeps(port);
+
+    deps.definitions = async () => {
+      throw new Error("the walk must not read the blueprint file");
+    };
+    await advanceLine(id, deps);
+
+    expect(launched.map((s) => s.name)).toEqual([
+      `${id.substring(0, 12)}-review`,
+    ]);
+  });
+
+  it("falls back to the blueprint by name for a run stamped before clones existed", async () => {
+    // Rows predating the column carry no graph; they must stay walkable, or the
+    // migration would strand every run that was open when it was applied.
+    const port = new InMemoryAssemblyRuns();
+    const id = await port.start({
+      blueprintName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/y",
+      args: { description: "Review pull request #8", pr_number: 8 },
+    });
+
+    await port.markRunning(id);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(id, deps);
+
+    expect((await port.getById(id))?.graph).toBeNull();
+    expect(launched.map((s) => s.name)).toEqual([
+      `${id.substring(0, 12)}-review`,
+    ]);
+  });
+});
 
 describe("advanceLine", () => {
   it("launches the entry node CR with the row's description in the prompt", async () => {
@@ -796,7 +851,7 @@ describe("advanceLine on a forked line", () => {
       args: { description: "Review pull request #7", pr_number: 7 },
     });
 
-    await port.stampDefinitionHash(id, HASH);
+    await port.stampBlueprint(id, HASH);
     await port.markRunning(id);
 
     const { nodeRowId } = await port.ensureStationRun({
@@ -982,7 +1037,7 @@ describe("advanceLine overlap guard on a fork that revisits its resume node", ()
       args: { description: "implement the spec" },
     });
 
-    await port.stampDefinitionHash(id, "hash-back-edge");
+    await port.stampBlueprint(id, "hash-back-edge");
     await port.markRunning(id);
     const { nodeRowId } = await port.ensureStationRun({
       assemblyRunId: id,

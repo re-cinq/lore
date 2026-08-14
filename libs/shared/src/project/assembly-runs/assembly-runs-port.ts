@@ -35,11 +35,6 @@ export interface AssemblyRunStartInput {
   branch?: string;
   taskId?: string;
   args?: Record<string, unknown>;
-  /** The CLONE — the blueprint's graph as this run will walk it, Stations already
-   *  resolved (FR6.38). Optional only so a caller that cannot load the blueprint
-   *  still starts a run; such a run falls back to resolving by name, exactly as
-   *  every run did before the column existed. */
-  graph?: RunGraph;
   /** Content hash of the definition the caller loaded. Required with
    *  {@link resumeFrom} — it is the drift guard's left-hand side. */
   blueprintHash?: string;
@@ -120,16 +115,23 @@ export interface AssemblyRunsPort {
   start(input: AssemblyRunStartInput): Promise<string>;
   markRunning(id: string): Promise<void>;
   /**
-   * Record the content hash of the definition this execution ran, once. Never
-   * overwrites an already-stamped value: the hash names the graph the line's
-   * node rows were produced by, so a redelivered start loading a since-edited
-   * definition must not rewrite what the rows actually came from.
+   * Record WHICH blueprint this run executes — its content hash and the cloned
+   * graph — once.
+   *
+   * Stamped here rather than passed to {@link start} because this is the only
+   * moment that holds both the row id and a RESOLVED blueprint: `start` is called
+   * by lore-api and by choreographies that deliberately do not ship the
+   * definitions, so a graph parameter there could only ever be null.
+   *
+   * Never overwrites an already-stamped value. The pair names the graph this
+   * run's station rows were produced by, so a redelivered start that loaded a
+   * since-edited blueprint must not rewrite what the rows actually came from.
    *
    * Unknown id: the Pg UPDATE simply matches no row, while the in-memory double
    * throws — the same deliberate asymmetry `markRunning` carries, so a caller
    * bug surfaces in tests instead of vanishing in production.
    */
-  stampDefinitionHash(id: string, hash: string): Promise<void>;
+  stampBlueprint(id: string, hash: string, graph?: RunGraph): Promise<void>;
   /** `outcome: "error"` closes the row as `failed`; anything else as `finished`.
    *  First writer decides — returns true only for the call that closed the row,
    *  so racing finishers (node event vs reaper) can gate once-only side effects

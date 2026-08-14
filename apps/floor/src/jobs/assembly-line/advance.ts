@@ -13,7 +13,9 @@ import type {
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import {
   nextTransition,
+  snapshotGraph,
   type AssemblyLine,
+  type SnapshotNode,
   type NodeVisit,
   type NodeResult,
   type StageOutcome,
@@ -29,7 +31,13 @@ import { decidePrStamp } from "./spec-pr.js";
 
 export interface AdvanceDeps {
   assemblyLines: AssemblyRunsPort;
-  /** The loaded builtin assembly line YAMLs — the walk's transition table. */
+  /**
+   * The loaded builtin blueprints — the FALLBACK only. A run stamped since
+   * FR6.38 carries its own graph and the walk reads that, so this is consulted
+   * for rows that predate the clone (and to decide, for a row with neither, that
+   * it is a single-CR record the agent-watcher owns). Delete once no open run
+   * lacks a graph.
+   */
   definitions: () => Promise<ReadonlyMap<string, AssemblyLine>>;
   /** Dispatch one node's Agent CR (agentCrBackend().launch — 409 is a no-op). */
   launch: (spec: LoreTaskSpec) => Promise<void>;
@@ -53,7 +61,7 @@ export interface AdvanceDeps {
    *  continue and save as. Optional seam — a composition without it simply never
    *  continues, which is the pre-feature behaviour. */
   resolveConversation?: (
-    node: AssemblyLine["nodes"][number],
+    node: SnapshotNode,
     task: FloorAssemblyLineTask,
     iteration: number,
     priorOutcome: string | null,
@@ -156,9 +164,13 @@ export async function advanceLine(
     return;
   }
 
-  const definition = (await deps.definitions()).get(row.blueprintName);
+  // The run's OWN graph decides the walk (FR6.38): editing a blueprint must not
+  // change the route of a run already in flight, and a run whose blueprint was
+  // renamed or deleted must still finish. Only a row stamped before clones
+  // existed falls back to resolving by name.
+  const graph = row.graph ?? (await fallbackGraph(row.blueprintName, deps));
 
-  if (!definition) {
+  if (!graph) {
     // A single-CR run record (FR6.8) — the agent-watcher owns its lifecycle.
     return;
   }
@@ -221,7 +233,7 @@ export async function advanceLine(
     iteration: n.iteration,
     outcome: n.outcome as StageOutcome | null,
   }));
-  const transition = nextTransition(definition, visits);
+  const transition = nextTransition(graph, visits);
 
   if (transition.kind === "await") {
     return;
@@ -238,12 +250,12 @@ export async function advanceLine(
     return;
   }
 
-  const node = definition.nodes.find((n) => n.id === transition.nodeId);
+  const node = graph.nodes.find((n) => n.id === transition.nodeId);
 
   enforceTrue(
     node,
     Error,
-    `AssemblyLine ${definition.name}: unknown node "${transition.nodeId}"`,
+    `AssemblyLine ${graph.name}: unknown node "${transition.nodeId}"`,
   );
   const task = taskFromRow(row);
   // Resolved BEFORE the prompt: whether this run resumes a conversation decides how
@@ -295,6 +307,18 @@ export async function advanceLine(
   }
 
   await deps.launch(spec);
+}
+
+/** The graph for a run stamped before clones existed: load the blueprint by name
+ *  and snapshot it on the fly, so everything downstream sees ONE shape. Undefined
+ *  when no such blueprint exists, which is how a single-CR record is recognised. */
+async function fallbackGraph(
+  blueprintName: string,
+  deps: AdvanceDeps,
+): Promise<ReturnType<typeof snapshotGraph> | undefined> {
+  const definition = (await deps.definitions()).get(blueprintName);
+
+  return definition ? snapshotGraph(definition, blueprintName) : undefined;
 }
 
 /** Close the row, reclaim the token, and settle the detect fan-out's job_run. */
@@ -404,9 +428,9 @@ async function maybeStampPr(
     if (!row) {
       return;
     }
-    const node = (await deps.definitions())
-      .get(row.blueprintName)
-      ?.nodes.find((n) => n.id === nodeId);
+    const node = (
+      row.graph ?? (await fallbackGraph(row.blueprintName, deps))
+    )?.nodes.find((n) => n.id === nodeId);
 
     if (
       !decidePrStamp({
