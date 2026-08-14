@@ -13,6 +13,7 @@
 // line whose task type differs.
 
 import type { AssemblyLine } from "./loader.js";
+import { isHumanStation } from "./human-station.js";
 
 /** The builtin Station for a node type. Underscores are not valid in an RFC-1123
  *  resource name, so `github_action` becomes `def-github-action`. */
@@ -26,17 +27,14 @@ export interface NodeStation {
   inherited: boolean;
 }
 
-/**
- * Resolve a node's Station, given the task type of the line it runs on.
- *
- * A `wait` node has no Station at all: its worker is a person (or a merging PR), so
- * there is nothing to dispatch and naming a Station would imply otherwise.
- */
+/** Resolve a node's Station, given the task type of the line it runs on. */
 export function resolveNodeStation(
   node: AssemblyLine["nodes"][number],
   lineTaskType: string,
 ): NodeStation {
-  if (node.type === "wait") {
+  // A human station has no Station at all: its worker is a person, so there is
+  // nothing to dispatch and naming one would imply otherwise.
+  if (isHumanStation(node.type)) {
     return { station: null, inherited: false };
   }
 

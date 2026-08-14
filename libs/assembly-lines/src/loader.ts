@@ -3,6 +3,11 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import {
+  HUMAN_STATION_TYPES,
+  invalidRoutePlaceholders,
+  isHumanStation,
+} from "./human-station.js";
 
 const NodeType = z.enum([
   "agent",
@@ -17,16 +22,13 @@ const NodeType = z.enum([
   // an agent: the judgement (which stories, which labels) already happened upstream,
   // and this only writes what the artifact says.
   "issues",
-  // A station whose worker is OUTSIDE the pod system — a person in the wizard, or a
-  // spec PR merging. It dispatches nothing and parks the line until the surface named
-  // by `signal` reports an outcome, over HTTP, on the same station contract a pod
-  // reports over stdout.
-  "wait",
+  // Stations whose worker is OUTSIDE the pod system — a PERSON. They dispatch
+  // nothing and park the run until the page named by `route` reports an outcome,
+  // over HTTP, on the same station contract a pod reports over stdout. The TYPE
+  // names the form contract; `route` names where that form lives (FR6.40).
+  ...HUMAN_STATION_TYPES,
 ]);
 
-/** Who completes a `wait` node. `author_feedback` is the planning wizard (refine /
- *  accept); `pr_merged` is the GitHub webhook. */
-const WaitSignal = z.enum(["author_feedback", "pr_merged"]);
 const EdgeCondition = z.enum([
   "success",
   "changes_requested",
@@ -54,8 +56,11 @@ const NodeSchema = z.object({
   validator: z.string().optional(),
   condition_ref: z.string().optional(),
   job_ref: z.string().optional(),
-  /** Required for `wait`: the surface that reports this node's outcome. */
-  signal: WaitSignal.optional(),
+  /** Required for a HUMAN station: the page its worker acts on. Relative — a page
+   *  this platform serves; absolute — one it does not own, such as a GitHub PR.
+   *  `{args.x}` placeholders resolve against the run's args at READ time, since a
+   *  value like `pr_url` does not exist until a node has produced it. */
+  route: z.string().optional(),
   /** Custom station (agent-definitions name) overriding the default `def-<type>`. */
   station_ref: z.string().optional(),
   /** Per-node run timeout; falls back to the referenced Station's deadline. */
@@ -117,8 +122,9 @@ const PRODUCIBLE_OUTCOMES: Record<
   "comment-triage": ["success", "failed"],
   ingest: ["success", "failed"],
   issues: ["success", "changes_requested", "failed"],
-  // accept / merged, refine, and abandoned — a human can do all three.
-  wait: ["success", "changes_requested", "failed"],
+  // accept / merged, refine, and abandoned — a person can do all three.
+  feature_review: ["success", "changes_requested", "failed"],
+  pr_review: ["success", "changes_requested", "failed"],
 };
 
 /** Producible outcomes of `node` with no matching edge, under `selectEdge`
@@ -308,13 +314,24 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
     );
   }
 
-  // A wait node with no signal can never be completed — nothing would know to report
-  // it. Reject at load, exactly as a detect node with no job_ref is rejected.
+  // A human station with no route leaves its worker with nowhere to go: the run
+  // parks on it and nothing can tell anyone whose move it is. Reject at load,
+  // exactly as a detect node with no job_ref is rejected.
   for (const n of wf.nodes) {
     enforceTrue(
-      n.type !== "wait" || n.signal,
+      !isHumanStation(n.type) || n.route,
       Error,
-      `wait node "${n.id}" requires signal`,
+      `human station "${n.id}" requires route`,
+    );
+
+    const invalid = n.route ? invalidRoutePlaceholders(n.route) : [];
+
+    // A placeholder reaching outside `args` could only be filled by the engine
+    // knowing what a feature is — the one thing it must never learn.
+    enforceTrue(
+      invalid.length === 0,
+      Error,
+      `node "${n.id}": route placeholder "${invalid[0]}" is not an {args.<name>} reference`,
     );
   }
 
@@ -427,7 +444,8 @@ function detectCycles(wf: AssemblyLine, source: string): void {
         // is still bounded, so this cannot become a way to write an unbounded agent
         // loop.
         const humanGated =
-          typeOf.get(e.from) === "wait" || typeOf.get(e.to) === "wait";
+          isHumanStation(typeOf.get(e.from)) ||
+          isHumanStation(typeOf.get(e.to));
 
         if (!e.iteration_max && !humanGated) {
           throw new AssemblyLineLoadError(

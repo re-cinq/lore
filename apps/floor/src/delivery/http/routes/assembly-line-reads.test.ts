@@ -95,8 +95,10 @@ describe("GET /api/assembly-lines/{id}", () => {
     });
   });
 
-  it("reports a wait node as having no station, since a person is its worker", async () => {
-    getById.mockResolvedValue(line());
+  it("reports a human station with no Station and a resolved route", async () => {
+    getById.mockResolvedValue(
+      line({ args: { repo: "re-cinq/lore", feature_id: "feat-1" } }),
+    );
     listStationRuns.mockResolvedValue([node("author", null)]);
 
     const res = await get("/api/assembly-lines/line-1");
@@ -104,9 +106,10 @@ describe("GET /api/assembly-lines/{id}", () => {
     expect(
       (res.result as { nodes: Record<string, unknown>[] }).nodes[0],
     ).toMatchObject({
-      type: "wait",
+      type: "feature_review",
       station: null,
-      signal: "author_feedback",
+      // Resolved against the RUN's args, so the reader gets a link they can follow.
+      route: "/repos/re-cinq/lore/features/feat-1",
     });
   });
 

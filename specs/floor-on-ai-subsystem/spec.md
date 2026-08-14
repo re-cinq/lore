@@ -204,7 +204,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     rendered prompt appended; no CRD schema change. ([validated by agentForModel exec routing test](../ai-agent-subsystem/packages/agentcore/source/agentcore/vendors/select.d))
 
 16. Node YAML accepts optional `station_ref` (custom station, default `def-<type>`) and
-    `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](libs/assembly-lines/src/loader.test.ts#L409))
+    `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](libs/assembly-lines/src/loader.test.ts#L460))
 
 17. `nodeStationSpec` builds the CR spec: stationRef, `parameters.station_input` JSON
     (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L130), [honors an explicit station_ref override](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L171), [agent nodes thread station_ref too — a renamed recipe (code-review-refine) still resolves](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L102))

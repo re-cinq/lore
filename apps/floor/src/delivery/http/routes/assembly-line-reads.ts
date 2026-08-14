@@ -26,6 +26,7 @@ import {
   resolveNodeStation,
   type AssemblyLine,
 } from "@re-cinq/lore-assembly-lines";
+import { resolveRoute } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import { assemblyLines } from "../../../kernel/queues.js";
 
 interface NodeRow {
@@ -45,6 +46,7 @@ function describeNode(
   row: NodeRow,
   definition: AssemblyLine | undefined,
   lineTaskType: string,
+  args: Record<string, unknown> = {},
 ) {
   const node = definition?.nodes.find((n) => n.id === row.nodeId);
   const station = node ? resolveNodeStation(node, lineTaskType) : null;
@@ -59,7 +61,12 @@ function describeNode(
     finishedAt: row.finishedAt,
     type: node?.type ?? null,
     promptRef: node?.prompt_ref ?? null,
-    signal: node?.signal ?? null,
+    // The page a HUMAN station's worker acts on, resolved against THIS run's args
+    // (FR6.40) — `pr_url` does not exist until the push node opened the PR, so a
+    // route resolved any earlier would name a page that is not there yet. Null
+    // when the run does not carry every placeholder: a half-built href sends the
+    // reader somewhere that does not exist, which is worse than no link.
+    route: resolveRoute(node?.route, args),
     station: station?.station ?? null,
     stationInherited: station?.inherited ?? false,
   };
@@ -90,7 +97,7 @@ export function assemblyLineReadRoute(
         // A line's task type IS its definition name: a line is started per task type,
         // and an agent node with no station_ref resolves against exactly that.
         nodes: rows.map((row) =>
-          describeNode(row, definition, line.blueprintName),
+          describeNode(row, definition, line.blueprintName, line.args),
         ),
       };
     },
@@ -123,7 +130,8 @@ export function assemblyLineCatalogRoute(
               id: node.id,
               type: node.type,
               promptRef: node.prompt_ref ?? null,
-              signal: node.signal ?? null,
+              // The catalog has no run, so no args: the TEMPLATE is the answer here.
+              route: node.route ?? null,
               station: station.station,
               stationInherited: station.inherited,
             };

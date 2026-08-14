@@ -110,11 +110,11 @@ function whyText(
     return `In progress — ${noun} is running.`;
   }
 
-  // A parked wait node has no pod and no progress to report; what the reader needs
-  // is whose move it is, since it is often their own.
+  // A parked human station has no pod and no progress to report; what the reader
+  // needs is whose move it is, since it is often their own.
   if (tone === "waiting") {
     return input.definition?.nodes.find((node) => node.id === input.nodeId)
-      ?.signal === "pr_merged"
+      ?.type === "pr_review"
       ? "Parked — waiting for the spec PR to merge."
       : "Parked — waiting for you to review this round.";
   }
@@ -147,7 +147,7 @@ export function describeNode(input: NodeDetailInput): NodeDetail {
   const visual = nodeRunVisual(
     input.row?.outcome ?? null,
     input.state?.status ?? "idle",
-    node?.signal,
+    node?.type,
   );
   const terminal = isTerminal(input.definition, input.nodeId);
   const durationSeconds = input.row?.durationSeconds ?? null;

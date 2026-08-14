@@ -101,7 +101,7 @@ describe("decideNodeRecovery", () => {
         node: { ...node(60 * 24 * 7), agentCrName: null },
         timeoutMinutes: 15,
         status: null,
-        nodeType: "wait",
+        nodeType: "feature_review",
         nowMs,
       }),
     ).toEqual({ kind: "wait" });

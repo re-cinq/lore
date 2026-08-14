@@ -73,8 +73,8 @@ entry: author
 exit: done
 nodes:
   - id: author
-    type: wait
-    signal: author_feedback
+    type: feature_review
+    route: /repos/{args.repo}/features/{args.feature_id}
   - id: done
     type: retrospective
 edges:

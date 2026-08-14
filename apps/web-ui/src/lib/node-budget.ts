@@ -1,3 +1,10 @@
+/** Mirrors `isHumanStation` in @re-cinq/lore-assembly-lines; web-ui cannot import
+ *  it, and the drift guard on DefinitionNodeType keeps the set honest. */
+const HUMAN_STATION_TYPES: ReadonlySet<string> = new Set([
+  "feature_review",
+  "pr_review",
+]);
+
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 
 /**
@@ -29,7 +36,7 @@ export function nodeBudgetMinutes(
   }
   const node = definition.nodes.find((n) => n.id === nodeId);
 
-  if (!node || node.type === "wait") {
+  if (!node || HUMAN_STATION_TYPES.has(node.type)) {
     return null;
   }
 

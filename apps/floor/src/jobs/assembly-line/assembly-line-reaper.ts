@@ -14,6 +14,7 @@
 //   - single-CR (definition-less) row, backing task terminal → close from status
 
 import {
+  isHumanStation,
   snapshotGraph,
   stationNodeOutcome,
   type AgentNodeStatus,
@@ -57,7 +58,7 @@ export function decideNodeRecovery(input: {
   // has a budget because a pod that stops reporting has died; "how long may a person
   // take to answer" has no defensible number, so the budget does not apply at all
   // rather than being set very large and silently killing a feature next month.
-  if (input.nodeType === "wait") {
+  if (isHumanStation(input.nodeType)) {
     return { kind: "wait" };
   }
   const budgetMs =

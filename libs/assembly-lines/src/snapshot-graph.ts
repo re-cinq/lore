@@ -39,7 +39,6 @@ export interface SnapshotNode {
   validator?: string;
   condition_ref?: string;
   job_ref?: string;
-  signal?: string;
   /** Which prior run this node continues, and which thread it belongs to — the
    *  conversation seam (FR6.24). Dropped from the clone, a resumed round would
    *  silently start a fresh conversation and still succeed. */
@@ -97,7 +96,7 @@ export function snapshotGraph(
         ...(node.validator ? { validator: node.validator } : {}),
         ...(node.condition_ref ? { condition_ref: node.condition_ref } : {}),
         ...(node.job_ref ? { job_ref: node.job_ref } : {}),
-        ...(node.signal ? { signal: node.signal } : {}),
+        ...(node.route ? { route: node.route } : {}),
         ...(node.continues ? { continues: { ...node.continues } } : {}),
         ...(node.description ? { description: node.description } : {}),
       };

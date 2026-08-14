@@ -12,6 +12,7 @@ import type {
   AssemblyRunRecord,
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import {
+  isHumanStation,
   nextTransition,
   snapshotGraph,
   type AssemblyLine,
@@ -308,10 +309,11 @@ export async function advanceLine(
     [STATION_RUN_ID_LABEL]: stationRunId,
   };
 
-  // A `wait` node's worker is outside the pod system — a person in the wizard, or a
-  // spec PR merging. The row is what parks the walk and lets the graph show whose
-  // move it is; nothing is dispatched, and the outcome arrives later as a resume.
-  if (node.type === "wait") {
+  // A human station's worker is outside the pod system — a person in the wizard,
+  // or a reviewer on the PR page. The row is what parks the walk and lets the graph
+  // show whose move it is; nothing is dispatched, and the outcome arrives later as
+  // a resume.
+  if (isHumanStation(node.type)) {
     return;
   }
 
