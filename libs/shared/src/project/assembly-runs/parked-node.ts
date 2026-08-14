@@ -14,6 +14,7 @@
 import type { Pool } from "pg";
 import { insertEvent } from "../../events.js";
 import { RUN_RESUME_EVENT } from "./run-events.js";
+import type { RunGraph } from "./run-graph.js";
 
 /** The parked-node facts a caller needs — an `assembly_line_nodes` row. */
 export interface ParkedNode {
@@ -45,6 +46,45 @@ export function parkedNode(
     [...nodes]
       .reverse()
       .find((n) => n.nodeId === nodeId && n.outcome === null) ?? null
+  );
+}
+
+/**
+ * The row parked on a HUMAN station of the given type, or null.
+ *
+ * Joining on the TYPE from the run's own graph — not on a hardcoded node id — is
+ * what survives a blueprint rename: the `pr_merged` join died of exactly that (a
+ * declared signal nothing matched, FR6.32), and an id constant is the same
+ * fragile key wearing a new name. The plain string compare is deliberate: this
+ * package cannot import the human-station registry (`libs/assembly-lines`
+ * depends on THIS one), and the caller names the type it waits for anyway.
+ *
+ * `fallbackNodeId` serves runs stamped before clones existed (graph null) —
+ * delete it with the other pre-clone fallbacks. Two graph nodes sharing the type
+ * resolve to the newest open row, the same rule as `parkedNode`.
+ */
+export function parkedHumanNode(
+  status: string | null,
+  nodes: readonly ParkedNode[],
+  graph: RunGraph | null,
+  humanType: string,
+  fallbackNodeId: string,
+): ParkedNode | null {
+  if (!graph) {
+    return parkedNode(status, nodes, fallbackNodeId);
+  }
+
+  if (!status || !OPEN_STATUSES.has(status)) {
+    return null;
+  }
+  const typedIds = new Set(
+    graph.nodes.filter((n) => n.type === humanType).map((n) => n.id),
+  );
+
+  return (
+    [...nodes]
+      .reverse()
+      .find((n) => typedIds.has(n.nodeId) && n.outcome === null) ?? null
   );
 }
 

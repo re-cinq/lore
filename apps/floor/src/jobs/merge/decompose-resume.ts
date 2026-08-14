@@ -14,24 +14,38 @@
 
 import type { Pool } from "pg";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import {
-  parkedNode,
+  parkedHumanNode,
   reportToParkedNode,
   type ParkedNode,
   type ParkedTarget,
 } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 
-/** The wait node a line parks on while its spec PR is open. */
+/** The spec-PR park is a `pr_review` station, located by TYPE from the run's own
+ *  graph — a renamed wait node keeps resuming (the pr_merged join died of a
+ *  hardcoded key exactly like this, FR6.32). */
+const MERGED_STATION_TYPE = "pr_review";
+
+/** The pre-clone fallback only: the node id pushed lines parked on before runs
+ *  carried their graph. */
 const MERGED_NODE = "merged";
 
 /** Where to report a merge for one candidate line, or null when it is not waiting
- *  for one. Pure — naming the node in a single place is the point. */
+ *  for one. Pure — naming the station type in a single place is the point. */
 export function decideMergeResume(
   lineId: string,
   status: string | null,
   nodes: readonly ParkedNode[],
+  graph: RunGraph | null,
 ): ParkedTarget | null {
-  const parked = parkedNode(status, nodes, MERGED_NODE);
+  const parked = parkedHumanNode(
+    status,
+    nodes,
+    graph,
+    MERGED_STATION_TYPE,
+    MERGED_NODE,
+  );
 
   return parked
     ? { lineId, nodeId: parked.nodeId, iteration: parked.iteration }
@@ -102,6 +116,7 @@ export async function resumeDecomposition(
       line.id,
       line.status,
       await deps.assemblyLines.listStationRuns(line.id),
+      line.graph,
     );
 
     if (!target) {

@@ -22,34 +22,76 @@ const node = (nodeId: string, iteration: number, outcome: string | null) => ({
   outcome,
 });
 
+/** A run stamped before clones existed — the id-based fallback path. */
+const GRAPHLESS = null;
+
 describe("decideMergeResume", () => {
   it("targets the merged node a pushed line is parked on", () => {
     expect(
-      decideMergeResume("line-1", "running", [
-        node("push", 1, "success"),
-        node("merged", 1, null),
-      ]),
+      decideMergeResume(
+        "line-1",
+        "running",
+        [node("push", 1, "success"), node("merged", 1, null)],
+        GRAPHLESS,
+      ),
     ).toEqual({ lineId: "line-1", nodeId: "merged", iteration: 1 });
+  });
+
+  it("targets a RENAMED wait node by its pr_review type from the run's graph", () => {
+    // The join that must survive a blueprint rename — a hardcoded id is how the
+    // pr_merged signal silently died (FR6.32).
+    expect(
+      decideMergeResume(
+        "line-1",
+        "running",
+        [node("await-spec-merge", 1, null)],
+        {
+          name: "feature-planning",
+          entry: "push",
+          exit: "await-spec-merge",
+          nodes: [
+            {
+              id: "push",
+              type: "github_action",
+              station: "def-github-action",
+              station_inherited: true,
+            },
+            {
+              id: "await-spec-merge",
+              type: "pr_review",
+              station: null,
+              station_inherited: false,
+            },
+          ],
+          edges: [],
+        },
+      ),
+    ).toEqual({ lineId: "line-1", nodeId: "await-spec-merge", iteration: 1 });
   });
 
   it("ignores a line parked on the author rather than the merge", () => {
     // The same definition parks twice. Reporting a merge into the author's node
     // would tell the walk the plan was accepted.
     expect(
-      decideMergeResume("line-1", "running", [node("author", 2, null)]),
+      decideMergeResume("line-1", "running", [node("author", 2, null)], GRAPHLESS),
     ).toBeNull();
   });
 
   it("ignores a merged node that already reported", () => {
     // A re-delivered webhook, or the merge-check cron seeing the same PR twice.
     expect(
-      decideMergeResume("line-1", "running", [node("merged", 1, "success")]),
+      decideMergeResume(
+        "line-1",
+        "running",
+        [node("merged", 1, "success")],
+        GRAPHLESS,
+      ),
     ).toBeNull();
   });
 
   it("ignores a line that is no longer open", () => {
     expect(
-      decideMergeResume("line-1", "finished", [node("merged", 1, null)]),
+      decideMergeResume("line-1", "finished", [node("merged", 1, null)], GRAPHLESS),
     ).toBeNull();
   });
 });

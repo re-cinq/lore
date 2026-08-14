@@ -119,6 +119,7 @@ async function resolveDispatch(
   const decision = decideRoundDispatch(
     line.status,
     await project.assemblyLines.listStationRuns(line.id),
+    line.graph,
   );
 
   return decision.kind === "resume"
