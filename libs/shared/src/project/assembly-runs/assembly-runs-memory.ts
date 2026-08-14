@@ -1,6 +1,7 @@
 import { enforceTrue } from "../../lib/enforce.js";
 import { randomUUID } from "node:crypto";
 import { resolveResumePrefix } from "./resume.js";
+import { RUN_START_EVENT } from "./run-events.js";
 import type { RunGraph } from "./run-graph.js";
 import type {
   AssemblyRunQuery,
@@ -102,7 +103,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       });
     }
     this.events.push({
-      eventName: "assembly_line.start",
+      eventName: RUN_START_EVENT,
       source: "internal",
       params: {
         assemblyLineId: id,
@@ -113,7 +114,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
         args: row.args,
         resumedFrom: input.resumeFrom ?? null,
       },
-      dedupeKey: `assembly_line.start:${id}`,
+      dedupeKey: `${RUN_START_EVENT}:${id}`,
     });
 
     return id;

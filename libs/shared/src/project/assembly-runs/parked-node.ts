@@ -13,6 +13,7 @@
 
 import type { Pool } from "pg";
 import { insertEvent } from "../../events.js";
+import { RUN_RESUME_EVENT } from "./run-events.js";
 
 /** The parked-node facts a caller needs — an `assembly_line_nodes` row. */
 export interface ParkedNode {
@@ -67,7 +68,7 @@ export async function reportToParkedNode(
   args: Record<string, unknown> = {},
 ): Promise<void> {
   await insertEvent(pool, {
-    eventName: "assembly_line.resume",
+    eventName: RUN_RESUME_EVENT,
     source: "internal",
     params: {
       assemblyLineId: target.lineId,
