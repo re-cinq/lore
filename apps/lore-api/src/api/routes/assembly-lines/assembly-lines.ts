@@ -26,12 +26,15 @@ const missingTable = (err: unknown) =>
 // `cost_usd` falls back to the TASK's calls when a call predates per-line
 // attribution — dropping that fallback silently zeroes the cost of every run
 // started before `llm_calls.assembly_run_id` existed.
-const RUN_SELECT = `
-  SELECT al.id, al.blueprint_name, al.task_id, al.repo, al.branch,
-         -- The CLONE (FR6.38). Serving it is what lets a reader draw the graph a
-         -- run ACTUALLY walked, instead of a UI-side transcription of the current
-         -- YAML that goes wrong the moment a blueprint is edited or renamed.
-         al.graph,
+//
+// `definition_name` doubles the blueprint name under its pre-rename spelling for
+// the web-ui image behind the legacy path alias — an old client that maps
+// `row.definition_name` would otherwise render blank names in the exact rollout
+// window the alias exists for. DELETE alongside the alias.
+const runSelect = (graphColumn: string) => `
+  SELECT al.id, al.blueprint_name, al.blueprint_name AS definition_name,
+         al.task_id, al.repo, al.branch,
+         ${graphColumn}
          al.status, al.outcome, al.reason,
          al.created_at, al.started_at, al.finished_at,
          (al.args->>'pr_number')::int AS args_pr_number,
@@ -48,6 +51,15 @@ const RUN_SELECT = `
               AND al.task_id IS NOT NULL
               AND lc.task_id = al.task_id)
     ) cost ON true`;
+
+// The CLONE (FR6.38). Serving it is what lets a reader draw the graph a run
+// ACTUALLY walked, instead of a UI-side transcription of the current YAML that
+// goes wrong the moment a blueprint is edited or renamed. Only the readers that
+// DRAW a run get it: the by-id read and the wizard's by-task read. The browse
+// list renders tables that never touch it, so shipping up to LIMIT graphs per
+// page would be pure transfer cost.
+const RUN_DETAIL_SELECT = runSelect("al.graph,");
+const RUN_BROWSE_SELECT = runSelect("");
 
 const RunsQuery = z.object({
   status: z.string().max(40).optional(),
@@ -103,11 +115,11 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
         try {
           const { rows } = task_id
             ? await pool.query(
-                `${RUN_SELECT} WHERE al.task_id = $1 ORDER BY al.created_at DESC LIMIT $2`,
+                `${RUN_DETAIL_SELECT} WHERE al.task_id = $1 ORDER BY al.created_at DESC LIMIT $2`,
                 [task_id, limit],
               )
             : await pool.query(
-                `${RUN_SELECT}
+                `${RUN_BROWSE_SELECT}
                   WHERE ($1::text IS NULL OR al.status = $1)
                     AND ($2::text IS NULL OR al.repo = $2)
                     AND ($3::text IS NULL OR al.blueprint_name = $3)
@@ -142,9 +154,10 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
         }
 
         try {
-          const { rows } = await pool.query(`${RUN_SELECT} WHERE al.id = $1`, [
-            request.params.id,
-          ]);
+          const { rows } = await pool.query(
+            `${RUN_DETAIL_SELECT} WHERE al.id = $1`,
+            [request.params.id],
+          );
 
           return rows.length > 0
             ? h.response(rows[0])

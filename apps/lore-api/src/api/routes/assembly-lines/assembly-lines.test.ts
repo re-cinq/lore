@@ -110,9 +110,54 @@ describe("assembly-line reads", () => {
       expect(res.statusCode).toBe(200);
       expect(res.result).toEqual({ runs: [] });
     });
+
+    it("browse rows skip the graph clone nothing in a table reads", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      await get("/api/assembly-lines?repo=re-cinq/lore", pool);
+
+      expect(pool.query.mock.calls[0][0]).not.toContain("al.graph");
+    });
+
+    it("by-task rows keep the graph (the wizard draws it)", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      await get("/api/assembly-lines?task_id=t1", pool);
+
+      expect(pool.query.mock.calls[0][0]).toContain("al.graph");
+    });
+
+    it("rows carry definition_name for the pre-rename web-ui behind the alias", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      await get("/api/assembly-lines", pool);
+      await get("/api/assembly-lines?task_id=t1", pool);
+
+      expect(pool.query.mock.calls[0][0]).toContain(
+        "al.blueprint_name AS definition_name",
+      );
+      expect(pool.query.mock.calls[1][0]).toContain(
+        "al.blueprint_name AS definition_name",
+      );
+    });
   });
 
   describe("GET /api/assembly-lines/{id}", () => {
+    it("selects the graph clone and the definition_name alias", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [{ id: "run-1" }] });
+      await get("/api/assembly-lines/run-1", pool);
+
+      expect(pool.query.mock.calls[0][0]).toContain("al.graph");
+      expect(pool.query.mock.calls[0][0]).toContain(
+        "al.blueprint_name AS definition_name",
+      );
+    });
+
     it("returns the run", async () => {
       const pool = makePool();
 
