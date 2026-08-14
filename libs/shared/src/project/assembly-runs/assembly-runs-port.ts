@@ -71,6 +71,15 @@ export interface StationRunRecord {
   finishedAt: Date | null;
 }
 
+/** The overlap guard's row: everything it compares, nothing it does not. */
+export interface OpenRunSummary {
+  id: string;
+  status: "queued" | "running";
+  repo: string;
+  branch: string | null;
+  createdAt: Date;
+}
+
 export interface AssemblyRunRecord {
   id: string;
   blueprintName: string;
@@ -175,6 +184,13 @@ export interface AssemblyRunsPort {
   listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]>;
   /** Open (`queued`/`running`) lines, oldest first — the reaper's work list. */
   listOpen(): Promise<AssemblyRunRecord[]>;
+  /**
+   * The overlap guard's read: open runs on one repo+branch, oldest first, as
+   * graph-less summaries. `listOpen` hauls every open run's graph clone org-wide;
+   * the guard compares five scalars, and its cost must not grow with runs on
+   * OTHER branches.
+   */
+  findOpenOnBranch(repo: string, branch: string): Promise<OpenRunSummary[]>;
   /**
    * Open (`queued`/`running`) assembly lines whose `args.pr_number` matches — the
    * PR-scoped lookup the code-review choreography uses. NOT only code-review lines:

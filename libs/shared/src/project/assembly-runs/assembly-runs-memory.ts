@@ -10,6 +10,7 @@ import type {
   StationRunStartInput,
   AssemblyRunRecord,
   StationRunRecord,
+  OpenRunSummary,
 } from "./assembly-runs-port.js";
 
 export interface SeedAssemblyLineEvent {
@@ -292,6 +293,21 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     return this.rows
       .filter((r) => r.status === "queued" || r.status === "running")
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+
+  async findOpenOnBranch(
+    repo: string,
+    branch: string,
+  ): Promise<OpenRunSummary[]> {
+    return (await this.listOpen())
+      .filter((r) => r.repo === repo && r.branch === branch)
+      .map((r) => ({
+        id: r.id,
+        status: r.status as "queued" | "running",
+        repo: r.repo,
+        branch: r.branch,
+        createdAt: r.createdAt,
+      }));
   }
 
   async mergeArgs(id: string, patch: Record<string, unknown>): Promise<void> {

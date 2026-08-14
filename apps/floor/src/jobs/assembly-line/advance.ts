@@ -199,20 +199,17 @@ export async function advanceLine(
     // Defer only to a strictly-older winner (earlier createdAt, ties broken by id):
     // the single oldest open row on the branch proceeds, all others defer. A stale
     // winner that never progresses is re-driven / failed by the reaper, so it can't
-    // wedge the branch permanently.
-    const isOlder = (other: AssemblyRunRecord): boolean => {
+    // wedge the branch permanently. The read is the branch-scoped graph-less
+    // summary — listOpen would haul every open run's graph clone org-wide to
+    // compare five scalars.
+    const isOlder = (other: { createdAt: Date; id: string }): boolean => {
       const dt = other.createdAt.getTime() - row.createdAt.getTime();
 
       return dt < 0 || (dt === 0 && other.id < row.id);
     };
-    const overlapping = (await deps.assemblyLines.listOpen()).some(
-      (other) =>
-        other.id !== row.id &&
-        (other.status === "queued" || other.status === "running") &&
-        other.repo === row.repo &&
-        other.branch === row.branch &&
-        isOlder(other),
-    );
+    const overlapping = (
+      await deps.assemblyLines.findOpenOnBranch(row.repo, row.branch)
+    ).some((other) => other.id !== row.id && isOlder(other));
 
     if (overlapping) {
       await finishLine(

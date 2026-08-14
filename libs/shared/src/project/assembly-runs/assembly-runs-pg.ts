@@ -11,6 +11,7 @@ import type {
   StationRunStartInput,
   AssemblyRunRecord,
   StationRunRecord,
+  OpenRunSummary,
 } from "./assembly-runs-port.js";
 
 /** Every column `toRecord` maps, single-sourced so the four read sites cannot drift. */
@@ -280,6 +281,35 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     );
 
     return rows.map((r) => toRecord(r as Parameters<typeof toRecord>[0]));
+  }
+
+  async findOpenOnBranch(
+    repo: string,
+    branch: string,
+  ): Promise<OpenRunSummary[]> {
+    const { rows } = await this.pool.query<{
+      id: string;
+      status: "queued" | "running";
+      repo: string;
+      branch: string | null;
+      created_at: Date;
+    }>(
+      `SELECT id, status, repo, branch, created_at
+         FROM pipeline.assembly_runs
+        WHERE status IN ('queued', 'running')
+          AND repo = $1
+          AND branch = $2
+        ORDER BY created_at, id`,
+      [repo, branch],
+    );
+
+    return rows.map((r) => ({
+      id: r.id,
+      status: r.status,
+      repo: r.repo,
+      branch: r.branch,
+      createdAt: new Date(r.created_at),
+    }));
   }
 
   async mergeArgs(id: string, patch: Record<string, unknown>): Promise<void> {

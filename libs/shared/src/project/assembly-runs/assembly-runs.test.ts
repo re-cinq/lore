@@ -1679,3 +1679,61 @@ describe("AssemblyRunsPort mergeArgs", () => {
     ).resolves.toBeUndefined();
   });
 });
+
+describe("findOpenOnBranch", () => {
+  it("selects only the guard's scalars — never the graph clone (Pg)", async () => {
+    const { pool, calls } = fakePool([[]]);
+
+    await new PgAssemblyRuns(pool).findOpenOnBranch("re-cinq/lore", "detect/x");
+
+    const sql = calls[0]?.text ?? "";
+
+    expect(sql).not.toContain("graph");
+    expect(sql).toContain("status IN ('queued', 'running')");
+    expect(calls[0]?.params).toEqual(["re-cinq/lore", "detect/x"]);
+  });
+
+  it("answers open runs on exactly that repo+branch, oldest first (InMemory)", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const older = await port.start({
+      blueprintName: "spec-drift",
+      repo: "re-cinq/lore",
+      branch: "detect/spec-drift/re-cinq/lore",
+      args: {},
+    });
+    const newer = await port.start({
+      blueprintName: "spec-drift",
+      repo: "re-cinq/lore",
+      branch: "detect/spec-drift/re-cinq/lore",
+      args: {},
+    });
+    const otherBranch = await port.start({
+      blueprintName: "spec-drift",
+      repo: "re-cinq/lore",
+      branch: "detect/spec-drift/other",
+      args: {},
+    });
+    const finished = await port.start({
+      blueprintName: "spec-drift",
+      repo: "re-cinq/lore",
+      branch: "detect/spec-drift/re-cinq/lore",
+      args: {},
+    });
+
+    await port.markRunning(finished);
+    await port.finish(finished, "completed");
+
+    const open = await port.findOpenOnBranch(
+      "re-cinq/lore",
+      "detect/spec-drift/re-cinq/lore",
+    );
+
+    expect(open.map((r) => r.id)).toEqual([older, newer]);
+    expect(open.map((r) => r.id)).not.toContain(otherBranch);
+    expect(open[0]).toMatchObject({
+      repo: "re-cinq/lore",
+      branch: "detect/spec-drift/re-cinq/lore",
+      status: "queued",
+    });
+  });
+});
