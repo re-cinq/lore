@@ -34,6 +34,10 @@ import {
 } from "../lib/episode-writer.js";
 import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
 import {
+  ASSEMBLY_RUN_ID_LABEL,
+  LEGACY_ASSEMBLY_LINE_ID_LABEL,
+} from "../assembly-line/floor-assembly-line.js";
+import {
   isTransientInfraFailure,
   MAX_INFRA_RETRIES,
 } from "../platform/infra-failure.js";
@@ -382,8 +386,8 @@ export async function processAgentCr(
   // Either spelling: a CR created before the rename carries the old one, and
   // missing it would route an assembly-line node into PR creation.
   if (
-    agent.metadata?.labels?.["lore.re-cinq.com/assembly-run-id"] ??
-    agent.metadata?.labels?.["lore.re-cinq.com/assembly-line-id"]
+    agent.metadata?.labels?.[ASSEMBLY_RUN_ID_LABEL] ??
+    agent.metadata?.labels?.[LEGACY_ASSEMBLY_LINE_ID_LABEL]
   ) {
     return;
   }

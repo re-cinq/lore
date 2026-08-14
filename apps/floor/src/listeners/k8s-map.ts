@@ -3,22 +3,23 @@
  * here; only terminal phases (Succeeded/Failed) produce an event, keyed on
  * task-id + phase so repeated MODIFIED notifications and re-list catch-ups
  * collapse to one row. No `@kubernetes/client-node` or `@re-cinq/agent-contracts`
- * import here — keeps the mapper unit-testable; the label is the CR contract.
+ * import here — keeps the mapper unit-testable; the label is the CR contract,
+ * and the label NAMES come from floor-assembly-line, the module that stamps them.
  */
 
 import type { EventInput } from "../main-loop/types.js";
 import { k8sDedupeKey, k8sAgentNodeDedupeKey } from "../main-loop/dedupe.js";
+import {
+  ASSEMBLY_RUN_ID_LABEL,
+  LEGACY_ASSEMBLY_LINE_ID_LABEL,
+  NODE_ID_LABEL,
+  NODE_ITERATION_LABEL,
+} from "../jobs/assembly-line/floor-assembly-line.js";
 
-/** Mirror of agent-watcher-logic's TASK_ID_LABEL (the AgentCrBackend sets it on every CR). */
+/** Mirror of agent-watcher-logic's TASK_ID_LABEL (the AgentCrBackend sets it on
+ *  every CR). A mirror, not an import: agent-watcher-logic drags the task worker
+ *  in with it, and this mapper stays dependency-light. */
 const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
-/** Mirror of floor-assembly-line's labels: full line uuid + node id + iteration. */
-const ASSEMBLY_RUN_ID_LABEL = "lore.re-cinq.com/assembly-run-id";
-/** Pre-rename spelling — CRs from the previous image outlive a rollout, and one
- *  missed here becomes an assembly-line node the walk never advances past.
- *  DELETE once no CR predates the rename. */
-const LEGACY_ASSEMBLY_LINE_ID_LABEL = "lore.re-cinq.com/assembly-line-id";
-const NODE_ID_LABEL = "lore.re-cinq.com/node-id";
-const NODE_ITERATION_LABEL = "lore.re-cinq.com/node-iteration";
 
 /** The terminal CR phases that produce an event, mapped to their event action. */
 const TERMINAL_ACTIONS = { Succeeded: "succeeded", Failed: "failed" } as const;
