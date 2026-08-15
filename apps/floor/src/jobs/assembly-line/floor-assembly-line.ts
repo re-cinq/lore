@@ -41,7 +41,11 @@ export function nodeAgentName(
 }
 
 /** The CR name only carries a 12-char prefix; these labels carry the full identity
- *  so the k8s watch maps a terminal node CR back to its (line, node, iteration). */
+ *  so the k8s watch maps a terminal node CR back to its (line, node, iteration).
+ *
+ *  The new spelling — ACCEPTED by every reader already, not yet written (the
+ *  expand phase). The writer flips in the follow-up (#1236), once every deployed
+ *  reader accepts both. */
 export const ASSEMBLY_RUN_ID_LABEL = "lore.re-cinq.com/assembly-run-id";
 /** The label still WRITTEN. Emitted under the PRE-RENAME name deliberately. Expand/contract only works readers-first: every consumer must ACCEPT both spellings in one release before any producer emits the new one. Flipping a writer early breaks two directions at once — a not-yet-rolled peer, and a rollback. The writer flips in a follow-up, once every deployed reader accepts both. A CR labelled with the new name and read by a
  *  rolled-back Floor is invisible to it, and every in-flight NODE CR would be

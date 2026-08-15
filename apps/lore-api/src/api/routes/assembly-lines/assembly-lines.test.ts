@@ -129,6 +129,18 @@ describe("assembly-line reads", () => {
       expect(pool.query.mock.calls[0][0]).toContain("al.graph");
     });
 
+    it("the cost lateral reads llm_calls.assembly_line_id — the column that exists", async () => {
+      // The telemetry tables deliberately kept the pre-rename column (0040);
+      // querying the new spelling here 42703s every run read after deploy.
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      await get("/api/assembly-lines", pool);
+
+      expect(pool.query.mock.calls[0][0]).toContain("lc.assembly_line_id");
+      expect(pool.query.mock.calls[0][0]).not.toContain("lc.assembly_run_id");
+    });
+
     it("rows carry definition_name for the pre-rename web-ui behind the alias", async () => {
       const pool = makePool();
 
@@ -201,6 +213,15 @@ describe("assembly-line reads", () => {
       expect(res.result).toEqual({ nodes });
     });
 
+    it("each node row carries its station_run_id — the visit's identity (FR6.39)", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      await get("/api/assembly-lines/run-1/nodes", pool);
+
+      expect(pool.query.mock.calls[0][0]).toContain("station_run_id");
+    });
+
     it("returns an empty list on a pre-0025 database", async () => {
       const pool = makePool();
 
@@ -226,6 +247,11 @@ describe("assembly-line reads", () => {
       const res = await get("/api/assembly-lines/run-1/token-usage", pool);
 
       expect(res.result).toEqual({ usage });
+      // agent_run_turns deliberately kept the pre-rename column (0040) —
+      // the new spelling here 42703s the endpoint after deploy.
+      expect(pool.query.mock.calls[0][0]).toContain(
+        "WHERE assembly_line_id = $1",
+      );
     });
 
     it("answers a null usage when the run has reported no turns yet", async () => {

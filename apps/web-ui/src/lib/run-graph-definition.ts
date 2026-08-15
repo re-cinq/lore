@@ -70,6 +70,9 @@ function fromRunGraph(graph: RunGraph): AssemblyLineDefinition {
     exit: graph.exit,
     nodes: graph.nodes.map((node) => ({
       ...node,
+      // Safe: node.type comes from snapshotGraph, which sources from the
+      // loader's node-type union — every value in a stored graph is a member of
+      // DefinitionNode["type"]. The drift guard keeps the unions aligned.
       type: node.type as DefinitionNode["type"],
     })),
     edges: graph.edges.map((edge) => ({

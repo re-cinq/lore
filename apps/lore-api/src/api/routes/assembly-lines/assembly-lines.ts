@@ -25,7 +25,9 @@ const missingTable = (err: unknown) =>
 
 // `cost_usd` falls back to the TASK's calls when a call predates per-line
 // attribution — dropping that fallback silently zeroes the cost of every run
-// started before `llm_calls.assembly_run_id` existed.
+// started before `llm_calls.assembly_line_id` existed. (That column keeps its
+// pre-rename spelling deliberately — 0040's telemetry carve-out; the new one
+// arrives with the writer-flip.)
 //
 // `definition_name` doubles the blueprint name under its pre-rename spelling for
 // the web-ui image behind the legacy path alias — an old client that maps
@@ -46,8 +48,8 @@ const runSelect = (graphColumn: string) => `
     LEFT JOIN LATERAL (
       SELECT SUM(lc.cost_usd)::float AS cost_usd
         FROM pipeline.llm_calls lc
-       WHERE lc.assembly_run_id = al.id
-          OR (lc.assembly_run_id IS NULL
+       WHERE lc.assembly_line_id = al.id
+          OR (lc.assembly_line_id IS NULL
               AND al.task_id IS NOT NULL
               AND lc.task_id = al.task_id)
     ) cost ON true`;
@@ -187,8 +189,8 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
 
         try {
           const { rows } = await pool.query(
-            `SELECT node_id, iteration, outcome, agent_cr_name, commit_sha,
-                    started_at, finished_at
+            `SELECT node_id, station_run_id, iteration, outcome, agent_cr_name,
+                    commit_sha, started_at, finished_at
                FROM pipeline.station_runs
               WHERE assembly_run_id = $1
               ORDER BY id`,
@@ -235,7 +237,7 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
              FROM (
                SELECT envelope->'event'->'message'->'usage' AS usage
                  FROM pipeline.agent_run_turns
-                WHERE assembly_run_id = $1
+                WHERE assembly_line_id = $1
                   AND envelope->'event'->'message' ? 'usage'
              ) turns`,
             [request.params.id],
