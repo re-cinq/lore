@@ -6,6 +6,37 @@ const AL_LABEL = "lore.re-cinq.com/assembly-line-id";
 const NODE_LABEL = "lore.re-cinq.com/node-id";
 const ITER_LABEL = "lore.re-cinq.com/node-iteration";
 
+describe("mapAgentToEvent reads both CR-label spellings", () => {
+  // Agent CRs created by the previous image outlive a rollout by up to a node's
+  // whole timeout. A CR whose run-id label goes unread is not a labelled node CR
+  // to this Floor — so it falls through to the single-agent path, which creates a
+  // PR per node. That failure only ever happens mid-rollout.
+  const labelled = (runLabel: string) => ({
+    metadata: {
+      name: "a1b2c3d4-review",
+      labels: {
+        [LABEL]: "a1b2c3d4-e5f6-4711-8000-000000000000",
+        [runLabel]: "a1b2c3d4-e5f6-4711-8000-000000000000",
+        [NODE_LABEL]: "review",
+        [ITER_LABEL]: "1",
+      },
+    },
+    status: { phase: "Succeeded" },
+  });
+
+  it("maps a CR carrying the pre-rename assembly-line-id label", () => {
+    expect(mapAgentToEvent(labelled(AL_LABEL))?.eventName).toBe(
+      "kubernetes.agent_node.succeeded",
+    );
+  });
+
+  it("maps a CR carrying the assembly-run-id label the writer flip will stamp", () => {
+    expect(
+      mapAgentToEvent(labelled("lore.re-cinq.com/assembly-run-id"))?.eventName,
+    ).toBe("kubernetes.agent_node.succeeded");
+  });
+});
+
 describe("mapAgentToEvent for assembly-line node CRs", () => {
   const nodeCr = (phase: string) => ({
     metadata: {
