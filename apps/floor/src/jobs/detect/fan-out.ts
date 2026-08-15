@@ -13,7 +13,7 @@
 //   VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
 // Omit `repo` for the full fan-out.
 
-import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { loadBuiltinAssemblyLines } from "@re-cinq/lore-assembly-lines";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { EventHandler } from "../../main-loop/types.js";
@@ -21,19 +21,19 @@ import { query } from "../../kernel/db.js";
 import { assemblyLines, jobRuns } from "../../kernel/queues.js";
 
 /** The old lease key, now the overlap-guard key (advanceLine defers duplicates). */
-export function detectBranchName(definitionName: string, repo: string): string {
-  return `detect/${definitionName}/${repo}`;
+export function detectBranchName(blueprintName: string, repo: string): string {
+  return `detect/${blueprintName}/${repo}`;
 }
 
 /** The definition's detect node's job_ref — the job-run name prefix. */
-async function builtinJobRef(definitionName: string): Promise<string> {
-  const definition = (await loadBuiltinAssemblyLines()).get(definitionName);
+async function builtinJobRef(blueprintName: string): Promise<string> {
+  const definition = (await loadBuiltinAssemblyLines()).get(blueprintName);
   const detectNode = definition?.nodes.find((n) => n.type === "detect");
 
   enforceTrue(
     typeof detectNode?.job_ref === "string" && detectNode.job_ref.length > 0,
     Error,
-    `assembly line "${definitionName}" has no detect node with job_ref`,
+    `assembly line "${blueprintName}" has no detect node with job_ref`,
   );
 
   return detectNode.job_ref;
@@ -132,7 +132,7 @@ const onboardedRepos = async (): Promise<string[]> =>
   (await query<{ repo: string }>(ONBOARDED_REPOS_SQL)).map((r) => r.repo);
 
 export interface DetectFanOutDeps {
-  assemblyLines: AssemblyLinesPort;
+  assemblyLines: AssemblyRunsPort;
   /** Pre-create the `<job_ref>:<repo>` pipeline.job_runs row; the walk closes it
    *  via `args.job_run_id` when the line reaches a terminal state. */
   jobRuns: {
@@ -144,7 +144,7 @@ export interface DetectFanOutDeps {
 }
 
 export function createDetectTickHandler(
-  definitionName: string,
+  blueprintName: string,
   deps: DetectFanOutDeps,
 ): EventHandler {
   return async (params) => {
@@ -155,7 +155,7 @@ export function createDetectTickHandler(
 
     if (repos.length === 0) {
       console.log(
-        `[detect] ${definitionName}: no target repos, nothing to start`,
+        `[detect] ${blueprintName}: no target repos, nothing to start`,
       );
 
       return;
@@ -173,9 +173,9 @@ export function createDetectTickHandler(
 
       try {
         id = await deps.assemblyLines.start({
-          definitionName,
+          blueprintName,
           repo,
-          branch: detectBranchName(definitionName, repo),
+          branch: detectBranchName(blueprintName, repo),
           args: { job_run_id: jobRunId },
         });
       } catch (err) {
@@ -189,7 +189,7 @@ export function createDetectTickHandler(
       }
 
       console.log(
-        `[detect] ${definitionName}: started assembly line ${id} for ${repo}`,
+        `[detect] ${blueprintName}: started assembly line ${id} for ${repo}`,
       );
     }
   };
@@ -197,14 +197,14 @@ export function createDetectTickHandler(
 
 const productionTick =
   (
-    definitionName: string,
+    blueprintName: string,
     listTargetRepos: () => Promise<string[]>,
   ): EventHandler =>
   (params) =>
-    createDetectTickHandler(definitionName, {
+    createDetectTickHandler(blueprintName, {
       assemblyLines: assemblyLines(),
       jobRuns: jobRuns(),
-      jobRef: () => builtinJobRef(definitionName),
+      jobRef: () => builtinJobRef(blueprintName),
       listTargetRepos,
     })(params);
 

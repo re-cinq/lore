@@ -25,16 +25,25 @@ const missingTable = (err: unknown) =>
 
 // `cost_usd` falls back to the TASK's calls when a call predates per-line
 // attribution — dropping that fallback silently zeroes the cost of every run
-// started before `llm_calls.assembly_line_id` existed.
-const RUN_SELECT = `
-  SELECT al.id, al.definition_name, al.task_id, al.repo, al.branch,
+// started before `llm_calls.assembly_line_id` existed. (That column keeps its
+// pre-rename spelling deliberately — 0040's telemetry carve-out; the new one
+// arrives with the writer-flip.)
+//
+// `definition_name` doubles the blueprint name under its pre-rename spelling for
+// the web-ui image behind the legacy path alias — an old client that maps
+// `row.definition_name` would otherwise render blank names in the exact rollout
+// window the alias exists for. DELETE alongside the alias.
+const runSelect = (graphColumn: string) => `
+  SELECT al.id, al.blueprint_name, al.blueprint_name AS definition_name,
+         al.task_id, al.repo, al.branch,
+         ${graphColumn}
          al.status, al.outcome, al.reason,
          al.created_at, al.started_at, al.finished_at,
          (al.args->>'pr_number')::int AS args_pr_number,
          t.pr_url, t.pr_number AS task_pr_number,
          COALESCE(t.created_by, al.args->>'actor') AS created_by,
          cost.cost_usd
-    FROM pipeline.assembly_lines al
+    FROM pipeline.assembly_runs al
     LEFT JOIN pipeline.tasks t ON t.id = al.task_id
     LEFT JOIN LATERAL (
       SELECT SUM(lc.cost_usd)::float AS cost_usd
@@ -45,9 +54,21 @@ const RUN_SELECT = `
               AND lc.task_id = al.task_id)
     ) cost ON true`;
 
+// The CLONE (FR6.38). Serving it is what lets a reader draw the graph a run
+// ACTUALLY walked, instead of a UI-side transcription of the current YAML that
+// goes wrong the moment a blueprint is edited or renamed. Only the readers that
+// DRAW a run get it: the by-id read and the wizard's by-task read. The browse
+// list renders tables that never touch it, so shipping up to LIMIT graphs per
+// page would be pure transfer cost.
+const RUN_DETAIL_SELECT = runSelect("al.graph,");
+const RUN_BROWSE_SELECT = runSelect("");
+
 const RunsQuery = z.object({
   status: z.string().max(40).optional(),
   repo: z.string().max(200).optional(),
+  /** Browse by blueprint — "every code-review run", which nothing could ask for
+   *  before (FR6.42). */
+  blueprint: z.string().max(200).optional(),
   /** A task-centric caller (the planning wizard) knows only its task id; the run
    *  to draw is the newest attempt, since a retry mints a fresh row. */
   task_id: z.string().max(100).optional(),
@@ -56,11 +77,30 @@ const RunsQuery = z.object({
 
 type RunsQuery = z.infer<typeof RunsQuery>;
 
+/**
+ * The canonical paths are `/api/assembly-runs/*` (FR6.41 — the runtime model is an
+ * AssemblyRun; an assembly line is the blueprint). Every route is ALSO served at
+ * its pre-rename `/api/assembly-lines/*` path, because web-ui ships as a separate
+ * image in the same umbrella release and would otherwise 404 against a newer API
+ * for the length of a rollout.
+ *
+ * DELETE the aliases once no deployed client calls them.
+ */
+function withLegacyAlias(routes: ServerRoute[]): ServerRoute[] {
+  return routes.flatMap((route) => [
+    route,
+    {
+      ...route,
+      path: route.path.replace("/api/assembly-runs", "/api/assembly-lines"),
+    },
+  ]);
+}
+
 export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
-  return [
+  return withLegacyAlias([
     {
       method: "GET",
-      path: "/api/assembly-lines",
+      path: "/api/assembly-runs",
       options: {
         ...bearerScope("read"),
         validate: { query: zodValidate(RunsQuery) },
@@ -71,22 +111,26 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
         if (!pool) {
           return h.response({ error: DB_UNAVAILABLE }).code(503);
         }
-        const { status, repo, task_id, limit } =
+        const { status, repo, blueprint, task_id, limit } =
           request.query as unknown as RunsQuery;
 
         try {
           const { rows } = task_id
             ? await pool.query(
-                `${RUN_SELECT} WHERE al.task_id = $1 ORDER BY al.created_at DESC LIMIT $2`,
+                `${RUN_DETAIL_SELECT} WHERE al.task_id = $1 ORDER BY al.created_at DESC LIMIT $2`,
                 [task_id, limit],
               )
             : await pool.query(
-                `${RUN_SELECT}
+                `${RUN_BROWSE_SELECT}
                   WHERE ($1::text IS NULL OR al.status = $1)
                     AND ($2::text IS NULL OR al.repo = $2)
-                  ORDER BY al.created_at DESC
-                  LIMIT $3`,
-                [status ?? null, repo ?? null, limit],
+                    AND ($3::text IS NULL OR al.blueprint_name = $3)
+                  -- id breaks the tie: two runs created in the same millisecond
+                  -- would otherwise come back in an order Postgres may vary
+                  -- between calls, which reads as rows jumping around the list.
+                  ORDER BY al.created_at DESC, al.id DESC
+                  LIMIT $4`,
+                [status ?? null, repo ?? null, blueprint ?? null, limit],
               );
 
           return h.response({ runs: rows });
@@ -102,7 +146,7 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
 
     {
       method: "GET",
-      path: "/api/assembly-lines/{id}",
+      path: "/api/assembly-runs/{id}",
       options: bearerScope("read"),
       handler: async (request, h) => {
         const pool = getPool();
@@ -112,9 +156,10 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
         }
 
         try {
-          const { rows } = await pool.query(`${RUN_SELECT} WHERE al.id = $1`, [
-            request.params.id,
-          ]);
+          const { rows } = await pool.query(
+            `${RUN_DETAIL_SELECT} WHERE al.id = $1`,
+            [request.params.id],
+          );
 
           return rows.length > 0
             ? h.response(rows[0])
@@ -133,7 +178,7 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
 
     {
       method: "GET",
-      path: "/api/assembly-lines/{id}/nodes",
+      path: "/api/assembly-runs/{id}/nodes",
       options: bearerScope("read"),
       handler: async (request, h) => {
         const pool = getPool();
@@ -144,10 +189,10 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
 
         try {
           const { rows } = await pool.query(
-            `SELECT node_id, iteration, outcome, agent_cr_name, commit_sha,
-                    started_at, finished_at
-               FROM pipeline.assembly_line_nodes
-              WHERE assembly_line_id = $1
+            `SELECT node_id, station_run_id, iteration, outcome, agent_cr_name,
+                    commit_sha, started_at, finished_at
+               FROM pipeline.station_runs
+              WHERE assembly_run_id = $1
               ORDER BY id`,
             [request.params.id],
           );
@@ -165,7 +210,7 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
 
     {
       method: "GET",
-      path: "/api/assembly-lines/{id}/token-usage",
+      path: "/api/assembly-runs/{id}/token-usage",
       options: bearerScope("read"),
       handler: async (request, h) => {
         const pool = getPool();
@@ -208,5 +253,5 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
         }
       },
     },
-  ];
+  ]);
 }

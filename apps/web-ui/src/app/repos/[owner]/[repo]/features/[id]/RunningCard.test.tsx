@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import RunningCard from "./RunningCard";
-import { featurePlanningDefinition } from "@/lib/builtin-definitions";
+import { featurePlanningDefinition } from "@/lib/definition-fixtures";
 import type { FeatureRunPayload } from "@/lib/feature-run";
 
 /** The panel opens an SSE stream for a live run; jsdom has no EventSource. */

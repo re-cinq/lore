@@ -17,9 +17,13 @@ const planning: AssemblyLineDefinition = {
   exit: "done",
   nodes: [
     { id: "analyze", type: "agent" },
-    { id: "author", type: "wait", signal: "author_feedback" },
+    {
+      id: "author",
+      type: "feature_review",
+      route: "/repos/{args.repo}/features/{args.feature_id}",
+    },
     { id: "push", type: "agent" },
-    { id: "merged", type: "wait", signal: "pr_merged" },
+    { id: "merged", type: "pr_review", route: "{args.pr_url}" },
     { id: "done", type: "retrospective" },
   ],
   edges: [

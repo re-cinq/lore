@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
+import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import {
   parseAssemblyLine,
   type AssemblyLine,
 } from "@re-cinq/lore-assembly-lines";
+import { snapshotGraph } from "@re-cinq/lore-assembly-lines";
 import {
   advanceLine,
   finishLine,
@@ -72,8 +73,8 @@ entry: author
 exit: done
 nodes:
   - id: author
-    type: wait
-    signal: author_feedback
+    type: feature_review
+    route: /repos/{args.repo}/features/{args.feature_id}
   - id: done
     type: retrospective
 edges:
@@ -82,7 +83,7 @@ edges:
     on: always
 `);
 
-function makeDeps(port: InMemoryAssemblyLines) {
+function makeDeps(port: InMemoryAssemblyRuns) {
   const launched: LoreTaskSpec[] = [];
   const cleaned: string[] = [];
   const jobRuns: string[] = [];
@@ -117,9 +118,9 @@ function makeDeps(port: InMemoryAssemblyLines) {
   return { deps, launched, cleaned, jobRuns, notified };
 }
 
-async function runningLine(port: InMemoryAssemblyLines) {
+async function runningLine(port: InMemoryAssemblyRuns) {
   const id = await port.start({
-    definitionName: "code-review",
+    blueprintName: "code-review",
     repo: "re-cinq/lore",
     branch: "feat/x",
     args: { description: "Review pull request #7", pr_number: 7 },
@@ -130,9 +131,92 @@ async function runningLine(port: InMemoryAssemblyLines) {
   return id;
 }
 
+describe("advanceLine reads the run's own graph", () => {
+  it("labels the dispatched CR with the station run id", async () => {
+    // The id is what telemetry keys on (FR6.39). Putting it on the CR is what
+    // makes a running pod traceable back to its visit from Kubernetes alone,
+    // rather than by re-deriving the visit from the CR's NAME.
+    const port = new InMemoryAssemblyRuns();
+    const id = await port.start({
+      blueprintName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/label",
+      args: { description: "Review pull request #9", pr_number: 9 },
+    });
+
+    await port.stampBlueprint(
+      id,
+      "hash-code-review",
+      snapshotGraph(codeReviewLike, "code-review"),
+    );
+    await port.markRunning(id);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(id, deps);
+
+    const rows = await port.listStationRuns(id);
+
+    expect(launched[0]?.extraLabels?.["lore.re-cinq.com/station-run-id"]).toBe(
+      rows[0].stationRunId,
+    );
+  });
+
+  it("walks the stamped clone, never re-reading the blueprint file", async () => {
+    // The point of the clone: editing a YAML mid-run must not change the graph a
+    // run in flight is walking. The deps here would resolve a DIFFERENT graph, so
+    // a walk that consulted them would launch the wrong node.
+    const port = new InMemoryAssemblyRuns();
+    const id = await port.start({
+      blueprintName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { description: "Review pull request #7", pr_number: 7 },
+    });
+
+    await port.stampBlueprint(
+      id,
+      "hash-code-review",
+      snapshotGraph(codeReviewLike, "code-review"),
+    );
+    await port.markRunning(id);
+    const { deps, launched } = makeDeps(port);
+
+    deps.definitions = async () => {
+      throw new Error("the walk must not read the blueprint file");
+    };
+    await advanceLine(id, deps);
+
+    expect(launched.map((s) => s.name)).toEqual([
+      `${id.substring(0, 12)}-review`,
+    ]);
+  });
+
+  it("falls back to the blueprint by name for a run stamped before clones existed", async () => {
+    // Rows predating the column carry no graph; they must stay walkable, or the
+    // migration would strand every run that was open when it was applied.
+    const port = new InMemoryAssemblyRuns();
+    const id = await port.start({
+      blueprintName: "code-review",
+      repo: "re-cinq/lore",
+      branch: "feat/y",
+      args: { description: "Review pull request #8", pr_number: 8 },
+    });
+
+    await port.markRunning(id);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(id, deps);
+
+    expect((await port.getById(id))?.graph).toBeNull();
+    expect(launched.map((s) => s.name)).toEqual([
+      `${id.substring(0, 12)}-review`,
+    ]);
+  });
+});
+
 describe("advanceLine", () => {
   it("launches the entry node CR with the row's description in the prompt", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps, launched } = makeDeps(port);
 
@@ -154,9 +238,9 @@ describe("advanceLine", () => {
     // The recipe the pod runs renders {description}; spec.prompt is not what
     // reaches the agent. Setting only the prompt left every resumed round being
     // handed the full draft again — the re-briefing this feature exists to end.
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const id = await port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "re-cinq/lore",
       branch: "feat/x",
       args: {
@@ -185,9 +269,9 @@ describe("advanceLine", () => {
   });
 
   it("dispatches the full composition when nothing was resumed", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const id = await port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "re-cinq/lore",
       branch: "feat/x",
       args: {
@@ -216,9 +300,9 @@ describe("advanceLine", () => {
   });
 
   it("records a wait node but launches nothing — its worker is not a pod", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const id = await port.start({
-      definitionName: "author-gated",
+      blueprintName: "author-gated",
       repo: "re-cinq/lore",
       branch: "feat/x",
       args: { description: "plan it" },
@@ -242,7 +326,7 @@ describe("advanceLine", () => {
   });
 
   it("converges a duplicate advance onto one node row and one idempotent launch", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps, launched } = makeDeps(port);
 
@@ -256,7 +340,7 @@ describe("advanceLine", () => {
   });
 
   it("does nothing while the newest node row is still open", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps, launched } = makeDeps(port);
 
@@ -268,14 +352,14 @@ describe("advanceLine", () => {
   });
 
   it("finishes the row completed and reclaims the token when the walk reaches exit", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps, cleaned } = makeDeps(port);
 
     await advanceLine(id, deps);
     const nodeRowId = port.nodes[0]!.id;
 
-    await port.finishNodeOnce(nodeRowId, "success");
+    await port.finishStationRunOnce(nodeRowId, "success");
     await advanceLine(id, deps);
 
     expect(await port.getById(id)).toMatchObject({
@@ -286,13 +370,13 @@ describe("advanceLine", () => {
   });
 
   it("skips rows that are not running and unknown definitions", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const queued = await port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "o/r",
     });
     const singleCr = await port.start({
-      definitionName: "runbook",
+      blueprintName: "runbook",
       repo: "o/r",
       taskId: "task-1",
     });
@@ -331,9 +415,9 @@ edges:
 
 describe("advanceLine revisited-node iteration (fresh CR per iteration)", () => {
   it("launches iteration 2 of a revisited node under a distinct, suffixed CR name", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const id = await port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "o/r",
       branch: "b",
       args: { description: "d" },
@@ -370,7 +454,7 @@ describe("advanceLine revisited-node iteration (fresh CR per iteration)", () => 
 
 describe("finishNodeAndAdvance", () => {
   it("records the outcome and launches the next node per the definition", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps, launched } = makeDeps(port);
 
@@ -394,7 +478,7 @@ describe("finishNodeAndAdvance", () => {
   });
 
   it("keeps the stored outcome when a duplicate event races the first writer", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps } = makeDeps(port);
 
@@ -423,14 +507,14 @@ describe("advanceLine overlap guard (detect lines, lease parity)", () => {
   function tickingPort() {
     let t = 1_000;
 
-    return new InMemoryAssemblyLines(() => new Date((t += 1000)));
+    return new InMemoryAssemblyRuns(() => new Date((t += 1000)));
   }
 
   it("finishes a newer duplicate as lease_held, leaving the older in flight", async () => {
     const port = tickingPort();
     const { deps, launched, jobRuns } = makeDeps(port);
     const first = await port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "o/r",
       branch: "detect/code-review/o-r",
     });
@@ -439,7 +523,7 @@ describe("advanceLine overlap guard (detect lines, lease parity)", () => {
     await advanceLine(first, deps);
 
     const second = await port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "o/r",
       branch: "detect/code-review/o-r",
       args: { job_run_id: "jr-2" },
@@ -463,12 +547,12 @@ describe("advanceLine overlap guard (detect lines, lease parity)", () => {
     const port = tickingPort();
     const { deps, launched } = makeDeps(port);
     const older = await port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "o/r",
       branch: "detect/code-review/o-r",
     });
     const newer = await port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "o/r",
       branch: "detect/code-review/o-r",
     });
@@ -487,7 +571,7 @@ describe("advanceLine overlap guard (detect lines, lease parity)", () => {
     const port = tickingPort();
     const { deps, launched } = makeDeps(port);
     const first = await port.start({
-      definitionName: "comment-triage",
+      blueprintName: "comment-triage",
       repo: "o/r",
       branch: "feat/pr-branch",
       args: { comment_id: 1 },
@@ -497,7 +581,7 @@ describe("advanceLine overlap guard (detect lines, lease parity)", () => {
     await advanceLine(first, deps);
 
     const second = await port.start({
-      definitionName: "comment-triage",
+      blueprintName: "comment-triage",
       repo: "o/r",
       branch: "feat/pr-branch",
       args: { comment_id: 2 },
@@ -515,10 +599,10 @@ describe("advanceLine overlap guard (detect lines, lease parity)", () => {
 
 describe("advanceLine job_runs bookkeeping (detect lines)", () => {
   it("completes the args.job_run_id run when the line finishes", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const { deps, jobRuns } = makeDeps(port);
     const id = await port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "o/r",
       branch: "b",
       args: { job_run_id: "jr-1" },
@@ -526,7 +610,7 @@ describe("advanceLine job_runs bookkeeping (detect lines)", () => {
 
     await port.markRunning(id);
     await advanceLine(id, deps);
-    await port.finishNodeOnce(port.nodes[0]!.id, "success");
+    await port.finishStationRunOnce(port.nodes[0]!.id, "success");
     await advanceLine(id, deps);
 
     expect(jobRuns).toEqual([expect.stringContaining("complete:jr-1:")]);
@@ -550,13 +634,13 @@ edges:
     to: done
     on: always
 `);
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const { deps, jobRuns } = makeDeps(port);
 
     deps.definitions = async () =>
       new Map<string, AssemblyLine>([["detect-like", successOnly]]);
     const id = await port.start({
-      definitionName: "detect-like",
+      blueprintName: "detect-like",
       repo: "o/r",
       branch: "detect/detect-like/o-r",
       args: { job_run_id: "jr-1" },
@@ -564,7 +648,7 @@ edges:
 
     await port.markRunning(id);
     await advanceLine(id, deps);
-    await port.finishNodeOnce(port.nodes[0]!.id, "failed");
+    await port.finishStationRunOnce(port.nodes[0]!.id, "failed");
     await advanceLine(id, deps);
 
     expect(await port.getById(id)).toMatchObject({ outcome: "failed" });
@@ -572,12 +656,12 @@ edges:
   });
 
   it("closes the line with outcome failed when a node failed on the way to exit", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps, notified } = makeDeps(port);
 
     await advanceLine(id, deps);
-    await port.finishNodeOnce(port.nodes[0]!.id, "failed");
+    await port.finishStationRunOnce(port.nodes[0]!.id, "failed");
     await advanceLine(id, deps);
 
     expect(await port.getById(id)).toMatchObject({ outcome: "failed" });
@@ -587,12 +671,12 @@ edges:
   });
 
   it("does not notify when the walk finishes completed", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps, notified } = makeDeps(port);
 
     await advanceLine(id, deps);
-    await port.finishNodeOnce(port.nodes[0]!.id, "success");
+    await port.finishStationRunOnce(port.nodes[0]!.id, "success");
     await advanceLine(id, deps);
 
     expect(await port.getById(id)).toMatchObject({ outcome: "completed" });
@@ -600,7 +684,7 @@ edges:
   });
 
   it("does not notify the lease_held defer of an overlapping duplicate", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const first = await runningLine(port);
     const second = await runningLine(port);
     const { deps, notified } = makeDeps(port);
@@ -618,7 +702,7 @@ edges:
   });
 
   it("notifies exactly once when racing finishers close the same failed line", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps, notified } = makeDeps(port);
     const row = (await port.getById(id))!;
@@ -632,7 +716,7 @@ edges:
   });
 
   it("settles the backing task once for the winning finisher only", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps } = makeDeps(port);
     const settled: { outcome: string; reason?: string }[] = [];
@@ -649,7 +733,7 @@ edges:
   });
 
   it("finishes the line even when the failure notifier throws", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps } = makeDeps(port);
 
@@ -669,9 +753,9 @@ edges:
 
 describe("taskFromRow", () => {
   it("derives the synthetic taskId for a task-less row and keeps the real one otherwise", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const taskless = await port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "o/r",
       args: { description: "d" },
     });
@@ -685,7 +769,7 @@ describe("taskFromRow", () => {
     });
 
     const taskful = await port.start({
-      definitionName: "implementation",
+      blueprintName: "implementation",
       repo: "o/r",
       taskId: "task-9",
     });
@@ -723,7 +807,7 @@ edges:
 `);
 
   it("does not defer a code-review-recheck line behind an older line on the same PR branch, so the verdict update is never silently dropped", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const launched: LoreTaskSpec[] = [];
     const deps: AdvanceDeps = {
       assemblyLines: port,
@@ -742,7 +826,7 @@ edges:
     };
 
     const older = await port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "o/r",
       branch: "feat/pr-branch",
       args: { pr_number: 1 },
@@ -752,7 +836,7 @@ edges:
     await advanceLine(older, deps);
 
     const recheck = await port.start({
-      definitionName: "code-review-recheck",
+      blueprintName: "code-review-recheck",
       repo: "o/r",
       branch: "feat/pr-branch",
       args: { pr_number: 1 },
@@ -777,49 +861,53 @@ describe("advanceLine on a forked line", () => {
    *  row ids, which are random uuids — a real coin flip. The port takes an
    *  injectable clock for exactly this, so every line here is unambiguously
    *  ordered and the guard's decision is the only variable under test. */
-  function orderedPort(): InMemoryAssemblyLines {
+  function orderedPort(): InMemoryAssemblyRuns {
     let tick = 0;
 
-    return new InMemoryAssemblyLines(
+    return new InMemoryAssemblyRuns(
       () => new Date(Date.UTC(2026, 7, 7) + ++tick * 1000),
     );
   }
 
   async function forkableLine(
-    port: InMemoryAssemblyLines,
+    port: InMemoryAssemblyRuns,
     branch = "feat/x",
   ): Promise<string> {
     const id = await port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "re-cinq/lore",
       branch,
       args: { description: "Review pull request #7", pr_number: 7 },
     });
 
-    await port.stampDefinitionHash(id, HASH);
+    await port.stampBlueprint(id, HASH);
     await port.markRunning(id);
 
-    const { nodeRowId } = await port.ensureNodeStart({
-      assemblyLineId: id,
+    const { nodeRowId } = await port.ensureStationRun({
+      assemblyRunId: id,
       nodeId: "review",
       iteration: 1,
       agentCrName: `${id.substring(0, 12)}-review`,
     });
 
-    await port.finishNodeOnce(nodeRowId, "changes_requested", "sha-review");
+    await port.finishStationRunOnce(
+      nodeRowId,
+      "changes_requested",
+      "sha-review",
+    );
     await port.finish(id, "failed", 'node "refine" failed');
 
     return id;
   }
 
   async function fork(
-    port: InMemoryAssemblyLines,
+    port: InMemoryAssemblyRuns,
     source: string,
   ): Promise<string> {
     const id = await port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "re-cinq/lore",
-      definitionHash: HASH,
+      blueprintHash: HASH,
       resumeFrom: { lineId: source, nodeId: "review" },
     });
 
@@ -841,7 +929,7 @@ describe("advanceLine on a forked line", () => {
       name: `${forked.substring(0, 12)}-refine`,
       branch: "feat/x",
     });
-    expect((await port.listNodes(forked)).map((n) => n.nodeId)).toEqual([
+    expect((await port.listStationRuns(forked)).map((n) => n.nodeId)).toEqual([
       "review",
       "refine",
     ]);
@@ -864,7 +952,7 @@ describe("advanceLine on a forked line", () => {
     const port = orderedPort();
     const source = await forkableLine(port);
     const holder = await port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "re-cinq/lore",
       branch: "feat/x",
       args: { pr_number: 7 },
@@ -903,7 +991,7 @@ describe("advanceLine on a forked line", () => {
 
     await advanceLine(forked, deps);
     const holder = await port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "re-cinq/lore",
       branch: "feat/x",
       args: { pr_number: 7 },
@@ -948,15 +1036,15 @@ edges:
 `);
 
 describe("advanceLine overlap guard on a fork that revisits its resume node", () => {
-  function orderedPort(): InMemoryAssemblyLines {
+  function orderedPort(): InMemoryAssemblyRuns {
     let tick = 0;
 
-    return new InMemoryAssemblyLines(
+    return new InMemoryAssemblyRuns(
       () => new Date(Date.UTC(2026, 7, 7) + ++tick * 1000),
     );
   }
 
-  function backEdgeDeps(port: InMemoryAssemblyLines) {
+  function backEdgeDeps(port: InMemoryAssemblyRuns) {
     const made = makeDeps(port);
 
     return {
@@ -970,24 +1058,24 @@ describe("advanceLine overlap guard on a fork that revisits its resume node", ()
   }
 
   /** A terminal source whose `implement` node completed once. */
-  async function source(port: InMemoryAssemblyLines): Promise<string> {
+  async function source(port: InMemoryAssemblyRuns): Promise<string> {
     const id = await port.start({
-      definitionName: "back-edge",
+      blueprintName: "back-edge",
       repo: "re-cinq/lore",
       branch: "feat/x",
       args: { description: "implement the spec" },
     });
 
-    await port.stampDefinitionHash(id, "hash-back-edge");
+    await port.stampBlueprint(id, "hash-back-edge");
     await port.markRunning(id);
-    const { nodeRowId } = await port.ensureNodeStart({
-      assemblyLineId: id,
+    const { nodeRowId } = await port.ensureStationRun({
+      assemblyRunId: id,
       nodeId: "implement",
       iteration: 1,
       agentCrName: `${id.substring(0, 12)}-implement`,
     });
 
-    await port.finishNodeOnce(nodeRowId, "success", "sha-implement");
+    await port.finishStationRunOnce(nodeRowId, "success", "sha-implement");
     await port.finish(id, "failed", "validate never ran");
 
     return id;
@@ -997,9 +1085,9 @@ describe("advanceLine overlap guard on a fork that revisits its resume node", ()
     const port = orderedPort();
     const from = await source(port);
     const forked = await port.start({
-      definitionName: "back-edge",
+      blueprintName: "back-edge",
       repo: "re-cinq/lore",
-      definitionHash: "hash-back-edge",
+      blueprintHash: "hash-back-edge",
       resumeFrom: { lineId: from, nodeId: "implement" },
     });
 
@@ -1019,7 +1107,7 @@ describe("advanceLine overlap guard on a fork that revisits its resume node", ()
       deps,
     );
     // A line with an EARLIER created_at becomes visible only now. That is not
-    // contrived: pipeline.assembly_lines defaults created_at to now(), which in
+    // contrived: pipeline.assembly_runs defaults created_at to now(), which in
     // Postgres is the TRANSACTION START time, so a transaction that began before
     // the fork but committed after it lands exactly here — older by timestamp,
     // yet invisible at the fork's first advance.
@@ -1027,7 +1115,7 @@ describe("advanceLine overlap guard on a fork that revisits its resume node", ()
 
     port.clock = () => new Date(Date.UTC(2026, 7, 6));
     const holder = await port.start({
-      definitionName: "back-edge",
+      blueprintName: "back-edge",
       repo: "re-cinq/lore",
       branch: "feat/x",
     });

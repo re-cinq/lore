@@ -23,6 +23,9 @@ export interface AgentRunEventRow {
   taskId: string;
   agentCrName: string | null;
   assemblyLineId: string | null;
+  /** The station visit this line belongs to (FR6.39) — the id readers key on,
+   *  resolved at write time from the CR name. Null for a CR that names no visit. */
+  stationRunId: string | null;
   nodeId: string | null;
   iteration: number | null;
   eventType: AgentRunEventType;
@@ -55,6 +58,9 @@ export interface AgentRunEventInsert {
 
 /** A node identity the correlation lookup can resolve an `agentCrName` to. */
 export interface AgentRunEventNodeRef {
+  /** The visit's own id — what correlated rows key on. Nullable as well as
+   *  optional: a seeded node may predate station-run identity. */
+  stationRunId?: string | null;
   agentCrName: string;
   assemblyLineId: string;
   nodeId: string;
@@ -69,7 +75,7 @@ export interface AgentRunEventNodeRef {
 export interface AgentRunEventsRepository {
   /**
    * Insert a batch, resolving `agentCrName` to (`assemblyLineId`, `nodeId`,
-   * `iteration`) against `pipeline.assembly_line_nodes` at write time. A row
+   * `iteration`) against `pipeline.station_runs` at write time. A row
    * that correlates to nothing is still inserted, with `agentCrName` retained
    * and the three correlated fields left null. Returns the persisted rows
    * ascending by id, so the caller can publish to the SSE bus without a

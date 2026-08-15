@@ -49,7 +49,7 @@ export default async function TaskDetailPage({
 
   const failedEvent = events.find((e) => e.to_status === "failed");
 
-  // The task's per-attempt run rows (pipeline.assembly_lines.task_id is non-unique
+  // The task's per-attempt run rows (pipeline.assembly_runs.task_id is non-unique
   // — a retry mints a fresh row) so the detail can link to each attempt's timeline.
   // queryAllowMissing: empty on pre-0025 DBs.
   const runResult = await getTaskRuns(id);

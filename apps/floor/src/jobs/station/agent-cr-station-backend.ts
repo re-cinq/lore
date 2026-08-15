@@ -9,7 +9,7 @@ import type {
   StationBackend,
   StationLaunchResult,
 } from "@re-cinq/lore-shared";
-import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 
 /** A task type runs on the assembly line when a builtin assembly line is defined for it. */
 export function shouldUseAssemblyLine(
@@ -25,7 +25,7 @@ export class AgentCrStationBackend implements StationBackend {
     private readonly singleAgent: StationBackend,
     private readonly assemblyLineNames: ReadonlySet<string>,
     private readonly assemblyLines: Pick<
-      AssemblyLinesPort,
+      AssemblyRunsPort,
       "start" | "listForTask"
     >,
   ) {}
@@ -36,7 +36,7 @@ export class AgentCrStationBackend implements StationBackend {
     }
 
     // Total coverage: single-CR tasks get a per-attempt run row too, so
-    // pipeline.assembly_lines is the complete execution history. The start
+    // pipeline.assembly_runs is the complete execution history. The start
     // handler marks it running; the agent-watcher finishes it at CR terminal.
     // Single CRs are keyed on taskId (not a per-attempt id), so a crash-recovery
     // re-dispatch reuses the same CR — skip start() when an open row already
@@ -47,7 +47,7 @@ export class AgentCrStationBackend implements StationBackend {
 
     if (!alreadyOpen) {
       await this.assemblyLines.start({
-        definitionName: spec.taskType,
+        blueprintName: spec.taskType,
         repo: spec.targetRepo,
         branch: spec.branch,
         taskId: spec.taskId,

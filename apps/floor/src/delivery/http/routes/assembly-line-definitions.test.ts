@@ -87,7 +87,10 @@ describe("GET /api/assembly-line-definitions/{name}", () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it("loads the definitions once across repeated requests", async () => {
+  it("delegates every request to the loader — caching is the loader's job", async () => {
+    // loadBuiltinAssemblyLines memoizes its own promise (the one cache; see
+    // builtin-assembly-lines.test.ts), so the route holding a second one would
+    // only hide the first going stale.
     process.env.LORE_INGEST_TOKEN = "ingest-secret";
     const load = vi.fn(loadBuiltinAssemblyLines);
     const server = definitionsServer(load);
@@ -101,6 +104,6 @@ describe("GET /api/assembly-line-definitions/{name}", () => {
     await Promise.all([request(), request()]);
     await request();
 
-    expect(load).toHaveBeenCalledTimes(1);
+    expect(load).toHaveBeenCalledTimes(3);
   });
 });

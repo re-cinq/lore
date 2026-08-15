@@ -8,17 +8,21 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import type {
-  AssemblyLinesPort,
-  AssemblyLineRecord,
-} from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+  AssemblyRunsPort,
+  AssemblyRunRecord,
+} from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import {
+  isHumanStation,
   nextTransition,
   type AssemblyLine,
   type NodeVisit,
   type NodeResult,
   type StageOutcome,
 } from "@re-cinq/lore-assembly-lines";
+import { graphForRun } from "./graph-for-run.js";
+import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import {
+  nodeAgentName,
   nodeAgentSpec,
   nodeStationSpec,
   type FloorAssemblyLineTask,
@@ -28,8 +32,14 @@ import { roundContent } from "./round-content.js";
 import { decidePrStamp } from "./spec-pr.js";
 
 export interface AdvanceDeps {
-  assemblyLines: AssemblyLinesPort;
-  /** The loaded builtin assembly line YAMLs — the walk's transition table. */
+  assemblyLines: AssemblyRunsPort;
+  /**
+   * The loaded builtin blueprints — the FALLBACK only. A run stamped since
+   * FR6.38 carries its own graph and the walk reads that, so this is consulted
+   * for rows that predate the clone (and to decide, for a row with neither, that
+   * it is a single-CR record the agent-watcher owns). Delete once no open run
+   * lacks a graph.
+   */
   definitions: () => Promise<ReadonlyMap<string, AssemblyLine>>;
   /** Dispatch one node's Agent CR (agentCrBackend().launch — 409 is a no-op). */
   launch: (spec: LoreTaskSpec) => Promise<void>;
@@ -45,7 +55,7 @@ export interface AdvanceDeps {
   /** User-facing failure notification (Slack + PR comment), fired once per line by
    *  the winning finisher. Optional seam — tests and partial compositions omit it. */
   notifyFailure?: (
-    row: AssemblyLineRecord,
+    row: AssemblyRunRecord,
     outcome: string,
     reason?: string,
   ) => Promise<void>;
@@ -53,7 +63,7 @@ export interface AdvanceDeps {
    *  continue and save as. Optional seam — a composition without it simply never
    *  continues, which is the pre-feature behaviour. */
   resolveConversation?: (
-    node: AssemblyLine["nodes"][number],
+    node: RunGraphNode,
     task: FloorAssemblyLineTask,
     iteration: number,
     priorOutcome: string | null,
@@ -62,7 +72,7 @@ export interface AdvanceDeps {
    *  iteration — so a failed line stops reading as "still running" everywhere
    *  downstream. Optional seam, same as notifyFailure. */
   settleTask?: (
-    row: AssemblyLineRecord,
+    row: AssemblyRunRecord,
     outcome: string,
     reason?: string,
   ) => Promise<void>;
@@ -70,7 +80,7 @@ export interface AdvanceDeps {
    *  (`args.pr_number`), moving a feature-carrying line to `pr-open`. Nothing else
    *  does it: the push recipe defers to a watcher that ignores assembly-line CRs.
    *  Optional seam, same as notifyFailure. */
-  stampPr?: (row: AssemblyLineRecord) => Promise<void>;
+  stampPr?: (row: AssemblyRunRecord) => Promise<void>;
 }
 
 /** A walk that reached exit still failed as a whole when a node failed on the way
@@ -110,12 +120,12 @@ function visitFailed(outcome: StageOutcome | null): boolean {
 }
 
 /** The walk task shape, derived from the persisted row instead of an in-memory task. */
-export function taskFromRow(row: AssemblyLineRecord): FloorAssemblyLineTask {
+export function taskFromRow(row: AssemblyRunRecord): FloorAssemblyLineTask {
   return {
     taskId: row.taskId ?? row.id,
     pipelineTaskId: row.taskId,
     assemblyLineId: row.id,
-    taskType: row.definitionName,
+    taskType: row.blueprintName,
     description: String(row.args.description ?? ""),
     targetRepo: row.repo,
     branch: row.branch ?? "",
@@ -156,14 +166,14 @@ export async function advanceLine(
     return;
   }
 
-  const definition = (await deps.definitions()).get(row.definitionName);
+  const graph = await graphForRun(row, deps.definitions);
 
-  if (!definition) {
+  if (!graph) {
     // A single-CR run record (FR6.8) — the agent-watcher owns its lifecycle.
     return;
   }
 
-  const nodes = await deps.assemblyLines.listNodes(assemblyLineId);
+  const nodes = await deps.assemblyLines.listStationRuns(assemblyLineId);
 
   // Overlap guard (branch-lease parity): a second not-yet-started run on the same
   // repo+branch defers to the one already in flight — the detect fan-out relies on
@@ -184,25 +194,22 @@ export async function advanceLine(
   if (
     nodes.length === row.inheritedNodeCount &&
     row.branch &&
-    !BRANCH_SHARED_WORKSPACE.has(row.definitionName)
+    !BRANCH_SHARED_WORKSPACE.has(row.blueprintName)
   ) {
     // Defer only to a strictly-older winner (earlier createdAt, ties broken by id):
     // the single oldest open row on the branch proceeds, all others defer. A stale
     // winner that never progresses is re-driven / failed by the reaper, so it can't
-    // wedge the branch permanently.
-    const isOlder = (other: AssemblyLineRecord): boolean => {
+    // wedge the branch permanently. The read is the branch-scoped graph-less
+    // summary — listOpen would haul every open run's graph clone org-wide to
+    // compare five scalars.
+    const isOlder = (other: { createdAt: Date; id: string }): boolean => {
       const dt = other.createdAt.getTime() - row.createdAt.getTime();
 
       return dt < 0 || (dt === 0 && other.id < row.id);
     };
-    const overlapping = (await deps.assemblyLines.listOpen()).some(
-      (other) =>
-        other.id !== row.id &&
-        (other.status === "queued" || other.status === "running") &&
-        other.repo === row.repo &&
-        other.branch === row.branch &&
-        isOlder(other),
-    );
+    const overlapping = (
+      await deps.assemblyLines.findOpenOnBranch(row.repo, row.branch)
+    ).some((other) => other.id !== row.id && isOlder(other));
 
     if (overlapping) {
       await finishLine(
@@ -221,7 +228,7 @@ export async function advanceLine(
     iteration: n.iteration,
     outcome: n.outcome as StageOutcome | null,
   }));
-  const transition = nextTransition(definition, visits);
+  const transition = nextTransition(graph, visits);
 
   if (transition.kind === "await") {
     return;
@@ -238,12 +245,12 @@ export async function advanceLine(
     return;
   }
 
-  const node = definition.nodes.find((n) => n.id === transition.nodeId);
+  const node = graph.nodes.find((n) => n.id === transition.nodeId);
 
   enforceTrue(
     node,
     Error,
-    `AssemblyLine ${definition.name}: unknown node "${transition.nodeId}"`,
+    `AssemblyLine ${graph.name}: unknown node "${transition.nodeId}"`,
   );
   const task = taskFromRow(row);
   // Resolved BEFORE the prompt: whether this run resumes a conversation decides how
@@ -263,6 +270,18 @@ export async function advanceLine(
   // again — and the two disagreeing about what this run is working from is a bug in
   // either direction.
   const content = roundContent(task, conversation);
+  // Row before CR: a crash in between leaves an open row the reaper resolves by
+  // reading the (deterministically named) CR; a rowless CR would be invisible.
+  // The row is also what MINTS the station-run id — a converged duplicate returns
+  // the id already minted, so a re-dispatch of the same visit carries the same
+  // label rather than a second identity.
+  const { stationRunId } = await deps.assemblyLines.ensureStationRun({
+    assemblyRunId: assemblyLineId,
+    nodeId: node.id,
+    iteration: transition.iteration,
+    agentCrName: nodeAgentName(assemblyLineId, node.id, transition.iteration),
+  });
+
   // Iteration rides into the CR name + labels so a revisited node runs a fresh pod.
   const spec =
     node.type === "agent"
@@ -271,26 +290,19 @@ export async function advanceLine(
           { ...task, description: content },
           deps.resolvePrompt(node.prompt_ref ?? node.type, content),
           transition.iteration,
+          stationRunId,
         )
-      : nodeStationSpec(node, task, transition.iteration);
+      : nodeStationSpec(node, task, transition.iteration, stationRunId);
 
   if (conversation) {
     spec.conversation = conversation;
   }
 
-  // Row before CR: a crash in between leaves an open row the reaper resolves by
-  // reading the (deterministically named) CR; a rowless CR would be invisible.
-  await deps.assemblyLines.ensureNodeStart({
-    assemblyLineId,
-    nodeId: node.id,
-    iteration: transition.iteration,
-    agentCrName: spec.name,
-  });
-
-  // A `wait` node's worker is outside the pod system — a person in the wizard, or a
-  // spec PR merging. The row is what parks the walk and lets the graph show whose
-  // move it is; nothing is dispatched, and the outcome arrives later as a resume.
-  if (node.type === "wait") {
+  // A human station's worker is outside the pod system — a person in the wizard,
+  // or a reviewer on the PR page. The row is what parks the walk and lets the graph
+  // show whose move it is; nothing is dispatched, and the outcome arrives later as
+  // a resume.
+  if (isHumanStation(node.type)) {
     return;
   }
 
@@ -299,7 +311,7 @@ export async function advanceLine(
 
 /** Close the row, reclaim the token, and settle the detect fan-out's job_run. */
 export async function finishLine(
-  row: AssemblyLineRecord,
+  row: AssemblyRunRecord,
   outcome: string,
   reason: string | undefined,
   deps: AdvanceDeps,
@@ -315,7 +327,7 @@ export async function finishLine(
     if (outcome === "completed") {
       await deps.jobRuns.complete(
         jobRunId,
-        `station run: ${row.definitionName}:${row.repo} ${outcome}`,
+        `station run: ${row.blueprintName}:${row.repo} ${outcome}`,
       );
     } else if (outcome === "lease_held") {
       await deps.jobRuns.complete(jobRunId, `skipped: ${reason}`);
@@ -362,7 +374,7 @@ export async function finishNodeAndAdvance(
   },
   deps: AdvanceDeps,
 ): Promise<void> {
-  const nodes = await deps.assemblyLines.listNodes(input.assemblyLineId);
+  const nodes = await deps.assemblyLines.listStationRuns(input.assemblyLineId);
   const forNode = nodes.filter((n) => n.nodeId === input.nodeId);
   const target =
     input.iteration !== undefined
@@ -372,7 +384,10 @@ export async function finishNodeAndAdvance(
       : forNode.filter((n) => n.outcome === null).at(-1);
 
   if (target) {
-    await deps.assemblyLines.finishNodeOnce(target.id, input.result.outcome);
+    await deps.assemblyLines.finishStationRunOnce(
+      target.id,
+      input.result.outcome,
+    );
   }
 
   await maybeStampPr(input.assemblyLineId, input.nodeId, input.result, deps);
@@ -401,9 +416,9 @@ async function maybeStampPr(
     if (!row) {
       return;
     }
-    const node = (await deps.definitions())
-      .get(row.definitionName)
-      ?.nodes.find((n) => n.id === nodeId);
+    const node = (await graphForRun(row, deps.definitions))?.nodes.find(
+      (n) => n.id === nodeId,
+    );
 
     if (
       !decidePrStamp({

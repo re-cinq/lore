@@ -10,8 +10,8 @@ import {
   type CodeReviewDeps,
   type CommentContext,
 } from "./code-review.js";
-import { AssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines.js";
-import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
+import { AssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs.js";
+import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import type {
   PullRef,
   ReviewComment,
@@ -54,7 +54,7 @@ function harness(
   autoReview = true,
   reviewComments: ReviewComment[] = [],
 ) {
-  const port = new InMemoryAssemblyLines();
+  const port = new InMemoryAssemblyRuns();
   const comments: Array<{ number: number; body: string }> = [];
   const project = {
     pulls: {
@@ -64,7 +64,7 @@ function harness(
       },
       listComments: async () => reviewComments,
     },
-    assemblyLines: new AssemblyLines(REPO, port),
+    assemblyLines: new AssemblyRuns(REPO, port),
   };
   const deps: CodeReviewDeps = {
     project: async () => project,
@@ -168,7 +168,7 @@ describe("onTrigger", () => {
 
     expect(port.rows).toMatchObject([
       {
-        definitionName: "code-review",
+        blueprintName: "code-review",
         args: {
           pr_number: 42,
           mode: "review",
@@ -184,13 +184,13 @@ describe("onTrigger", () => {
   it("starts a code-review-recheck line on a push to an already-reviewed PR", async () => {
     const { port, handlers } = harness(openPr());
 
-    await new AssemblyLines(REPO, port).start("code-review", {
+    await new AssemblyRuns(REPO, port).start("code-review", {
       args: { pr_number: 42 },
     });
 
     await handlers.onTrigger({ repo: REPO, pr_number: 42 });
 
-    expect(port.rows[1]?.definitionName).toBe("code-review-recheck");
+    expect(port.rows[1]?.blueprintName).toBe("code-review-recheck");
   });
 
   it("skips a draft PR", async () => {
@@ -215,7 +215,7 @@ describe("onComment", () => {
     });
 
     expect(port.rows).toMatchObject([
-      { definitionName: "code-review", args: { actor: "alice" } },
+      { blueprintName: "code-review", args: { actor: "alice" } },
     ]);
   });
 
@@ -233,7 +233,7 @@ describe("onComment", () => {
 
     expect(port.rows).toMatchObject([
       {
-        definitionName: "comment-triage",
+        blueprintName: "comment-triage",
         args: { comment_id: 7, in_reply_to_id: 5, actor: "alice" },
       },
     ]);
@@ -261,7 +261,7 @@ describe("onCommentTriaged", () => {
     await handlers.onCommentTriaged({ action: "address", context: ctx() });
 
     expect(port.rows).toMatchObject([
-      { definitionName: "code-review-reply", args: { intent: "address" } },
+      { blueprintName: "code-review-reply", args: { intent: "address" } },
     ]);
   });
 
@@ -363,7 +363,7 @@ describe("onReviewSubmitted", () => {
 
     expect(port.rows).toMatchObject([
       {
-        definitionName: "code-review-reply",
+        blueprintName: "code-review-reply",
         args: { intent: "address", actor: "alice" },
       },
     ]);
@@ -385,7 +385,7 @@ describe("onReviewSubmitted", () => {
 
     expect(port.rows).toMatchObject([
       {
-        definitionName: "code-review-reply",
+        blueprintName: "code-review-reply",
         args: { comment_body: "changes requested in a submitted review" },
       },
     ]);
@@ -417,7 +417,7 @@ describe("onReviewSubmitted", () => {
 describe("onClose", () => {
   it("finishes any open code-review lines for the PR", async () => {
     const { port, handlers } = harness(openPr());
-    const facade = new AssemblyLines(REPO, port);
+    const facade = new AssemblyRuns(REPO, port);
     const id = await facade.start("code-review", { args: { pr_number: 42 } });
 
     await handlers.onClose({ repo: REPO, pr_number: 42 });
@@ -436,7 +436,7 @@ describe("onClose", () => {
   // `pr_closed`, decompose never launched.
   it("leaves a feature-planning line parked on the same PR alone", async () => {
     const { port, handlers } = harness(openPr());
-    const facade = new AssemblyLines(REPO, port);
+    const facade = new AssemblyRuns(REPO, port);
     const planning = await facade.start("feature-planning", {
       args: { pr_number: 42 },
     });
@@ -453,14 +453,14 @@ describe("onTrigger re-check routing", () => {
   it("re-checks with the head sha and recheck mode and posts no per-push comment", async () => {
     const { port, comments, handlers } = harness(openPr());
 
-    await new AssemblyLines(REPO, port).start("code-review", {
+    await new AssemblyRuns(REPO, port).start("code-review", {
       args: { pr_number: 42 },
     });
 
     await handlers.onTrigger({ repo: REPO, pr_number: 42 });
 
     expect(port.rows[1]).toMatchObject({
-      definitionName: "code-review-recheck",
+      blueprintName: "code-review-recheck",
       args: { pr_number: 42, mode: "recheck", head_sha: "abc123" },
     });
     expect(comments).toHaveLength(0);
@@ -469,7 +469,7 @@ describe("onTrigger re-check routing", () => {
   it("skips the re-check on a bot-authored PR under the same loop guard as the first review", async () => {
     const { port, handlers } = harness(openPr({ author: "lore-app[bot]" }));
 
-    await new AssemblyLines(REPO, port).start("code-review", {
+    await new AssemblyRuns(REPO, port).start("code-review", {
       args: { pr_number: 42 },
     });
 

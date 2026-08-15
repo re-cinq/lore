@@ -7,7 +7,7 @@ import {
 } from "./run-event-reducer";
 import type { RunStreamEvent } from "./run-stream-types";
 import type { AssemblyLineRunNode } from "./assembly-line-runs";
-import { implementationDefinition } from "./builtin-definitions";
+import { implementationDefinition } from "./definition-fixtures";
 
 let nextId = 0;
 
@@ -19,6 +19,7 @@ function event(over: Partial<RunStreamEvent> = {}): RunStreamEvent {
     taskId: "task-1",
     agentCrName: "abcd1234-implement",
     assemblyLineId: "line-1",
+    stationRunId: null,
     nodeId: "implement",
     iteration: 1,
     eventType: "tool_call",

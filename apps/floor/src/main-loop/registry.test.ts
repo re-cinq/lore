@@ -36,6 +36,22 @@ describe("buildRegistry", () => {
     }
   });
 
+  it("registers both run-event spellings onto the same handlers (rollout shim)", () => {
+    // The emitters ship the legacy spelling until every Floor handles the new
+    // one; the registry must answer to both, with one handler each, or the
+    // flip release dead-letters whichever side moves first.
+    const registry = buildRegistry();
+
+    expect(registry.get("assembly_run.start")).toBe(
+      registry.get("assembly_line.start"),
+    );
+    expect(registry.get("assembly_run.resume")).toBe(
+      registry.get("assembly_line.resume"),
+    );
+    expect(registry.get("assembly_run.start")).toBeTypeOf("function");
+    expect(registry.get("assembly_run.resume")).toBeTypeOf("function");
+  });
+
   it("routes the post-ingest validate event through the detect tick (one substrate, FR5)", () => {
     // The same production handler serves the weekly cron and the post-ingest
     // trigger: params.repo narrows it to the one repo, and the validate core

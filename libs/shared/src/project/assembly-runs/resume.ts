@@ -9,15 +9,15 @@
 
 import { enforceTrue } from "../../lib/enforce.js";
 import type {
-  AssemblyLineNodeRecord,
-  AssemblyLineRecord,
-  AssemblyLineStartInput,
-} from "./assembly-lines-port.js";
+  StationRunRecord,
+  AssemblyRunRecord,
+  AssemblyRunStartInput,
+} from "./assembly-runs-port.js";
 
 /** Index (in visit order) of the latest COMPLETED row for `nodeId`, or -1 when
  *  the line never finished that node. */
 export function resumeCutoffIndex(
-  nodes: AssemblyLineNodeRecord[],
+  nodes: StationRunRecord[],
   nodeId: string,
 ): number {
   for (let i = nodes.length - 1; i >= 0; i--) {
@@ -32,8 +32,8 @@ export function resumeCutoffIndex(
 /** The validated fork: the source row (proven present and terminal) and the node
  *  rows the fork inherits. */
 export interface ResumePrefix {
-  source: AssemblyLineRecord;
-  prefix: AssemblyLineNodeRecord[];
+  source: AssemblyRunRecord;
+  prefix: StationRunRecord[];
 }
 
 /**
@@ -44,9 +44,9 @@ export interface ResumePrefix {
  * Throws before the caller writes anything.
  */
 export function resolveResumePrefix(
-  input: AssemblyLineStartInput,
-  source: AssemblyLineRecord | null,
-  nodes: AssemblyLineNodeRecord[],
+  input: AssemblyRunStartInput,
+  source: AssemblyRunRecord | null,
+  nodes: StationRunRecord[],
 ): ResumePrefix {
   const resumeFrom = input.resumeFrom;
 
@@ -66,7 +66,7 @@ export function resolveResumePrefix(
     "resume-from start inherits taskId from the source line — do not pass it",
   );
   enforceTrue(
-    input.definitionHash,
+    input.blueprintHash,
     Error,
     "resume-from start requires definitionHash — the current definition's content hash",
   );
@@ -81,9 +81,9 @@ export function resolveResumePrefix(
     `resume-from source line "${source.id}" belongs to repo "${source.repo}", not "${input.repo}"`,
   );
   enforceTrue(
-    source.definitionName === input.definitionName,
+    source.blueprintName === input.blueprintName,
     Error,
-    `resume-from source line "${source.id}" ran definition "${source.definitionName}", not "${input.definitionName}"`,
+    `resume-from source line "${source.id}" ran definition "${source.blueprintName}", not "${input.blueprintName}"`,
   );
   enforceTrue(
     source.status === "finished" || source.status === "failed",
@@ -91,14 +91,14 @@ export function resolveResumePrefix(
     `resume-from source line "${source.id}" is still ${source.status} — only a finished or failed line can be forked`,
   );
   enforceTrue(
-    source.definitionHash,
+    source.blueprintHash,
     Error,
-    `resume-from source line "${source.id}" predates definition hashing — backfill pipeline.assembly_lines.definition_hash before forking it`,
+    `resume-from source line "${source.id}" predates definition hashing — backfill pipeline.assembly_runs.blueprint_hash before forking it`,
   );
   enforceTrue(
-    source.definitionHash === input.definitionHash,
+    source.blueprintHash === input.blueprintHash,
     Error,
-    `resume-from source line "${source.id}": definition "${source.definitionName}" has changed since that run (${short(source.definitionHash)} ≠ ${short(input.definitionHash)})`,
+    `resume-from source line "${source.id}": definition "${source.blueprintName}" has changed since that run (${short(source.blueprintHash)} ≠ ${short(input.blueprintHash)})`,
   );
 
   const cutoff = resumeCutoffIndex(nodes, resumeFrom.nodeId);

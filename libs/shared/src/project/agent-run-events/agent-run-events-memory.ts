@@ -84,6 +84,7 @@ export class InMemoryAgentRunEvents implements AgentRunEventsRepository {
       taskId: insert.taskId,
       agentCrName: insert.agentCrName,
       assemblyLineId: node?.assemblyLineId ?? null,
+      stationRunId: node?.stationRunId ?? null,
       nodeId: node?.nodeId ?? null,
       iteration: node?.iteration ?? null,
       eventType: insert.eventType,

@@ -78,20 +78,20 @@ describe("nodeRunVisual", () => {
   });
 });
 
-describe("a parked wait node", () => {
+describe("a parked human station", () => {
   it("reads as waiting for you, not Running, while the author holds the round", () => {
     // A wait node's row seeds `running` like any other open node, because nothing
     // distinguishes them at that layer. But a wait node never dispatches a pod, so
     // the spinner would be promising work that is not happening — and the person it
     // is waiting for is the one reading the screen.
-    expect(nodeRunVisual(null, "running", "author_feedback")).toEqual({
+    expect(nodeRunVisual(null, "running", "feature_review")).toEqual({
       tone: "waiting",
       label: "Waiting for you",
     });
   });
 
-  it("names the other worker when the wait is on a PR", () => {
-    expect(nodeRunVisual(null, "running", "pr_merged")).toEqual({
+  it("names the other worker when the station is the PR view", () => {
+    expect(nodeRunVisual(null, "running", "pr_review")).toEqual({
       tone: "waiting",
       label: "Waiting for the spec PR",
     });
@@ -100,7 +100,7 @@ describe("a parked wait node", () => {
   it("stays Pending before the walk reaches it", () => {
     // Not yet parked — the round it belongs to has not happened. Announcing
     // "waiting for you" here would ask for input the line cannot accept.
-    expect(nodeRunVisual(null, "idle", "author_feedback")).toEqual({
+    expect(nodeRunVisual(null, "idle", "feature_review")).toEqual({
       tone: "idle",
       label: "Pending",
     });
@@ -108,7 +108,7 @@ describe("a parked wait node", () => {
 
   it("shows the recorded verdict once the author has answered", () => {
     expect(
-      nodeRunVisual("changes_requested", "running", "author_feedback"),
+      nodeRunVisual("changes_requested", "running", "feature_review"),
     ).toEqual({ tone: "warn", label: "Changes requested" });
   });
 });

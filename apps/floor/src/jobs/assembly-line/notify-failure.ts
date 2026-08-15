@@ -7,7 +7,7 @@
 // Best-effort by contract: a notification failure is audited, never thrown — it
 // must not fail the line transition or re-drive the event retry.
 
-import type { AssemblyLineRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { NotifyLevel } from "@re-cinq/lore-shared/project/notify/notify-port.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { writeAuditLog, type AuditLogEntry } from "../lib/audit.js";
@@ -35,28 +35,28 @@ export interface FailureNotice {
 
 /** Pure: what to say and where — the sends live in {@link notifyLineFailure}. */
 export function failureNotice(
-  row: AssemblyLineRecord,
+  row: AssemblyRunRecord,
   outcome: string,
   reason: string | undefined,
   uiUrl: string | undefined,
 ): FailureNotice {
   const runRef = loreTaskRef(row.id, uiUrl);
   const why = reason ? ` — ${reason}` : "";
-  const message = `Lore ${row.definitionName} run failed on ${row.repo} (${outcome}${why}): ${runRef}`;
+  const message = `Lore ${row.blueprintName} run failed on ${row.repo} (${outcome}${why}): ${runRef}`;
   const prNumber = Number(row.args.pr_number) || null;
 
   if (!prNumber) {
     return { message, prNumber: null, prComment: null };
   }
   const rerunHint =
-    row.definitionName === "code-review"
+    row.blueprintName === "code-review"
       ? " Comment `@lore review` to re-run the review."
       : "";
 
   return {
     message,
     prNumber,
-    prComment: `Lore ${row.definitionName} run failed (${outcome}${why}) — ${runRef}.${rerunHint}`,
+    prComment: `Lore ${row.blueprintName} run failed (${outcome}${why}) — ${runRef}.${rerunHint}`,
   };
 }
 
@@ -69,7 +69,7 @@ export interface FailureNotifyPorts {
 }
 
 export async function notifyLineFailure(
-  row: AssemblyLineRecord,
+  row: AssemblyRunRecord,
   outcome: string,
   reason?: string,
   ports: FailureNotifyPorts = {},
@@ -104,7 +104,7 @@ export async function notifyLineFailure(
 }
 
 async function attempt(
-  row: AssemblyLineRecord,
+  row: AssemblyRunRecord,
   channel: "notify" | "comment",
   audit: AuditPort | undefined,
   send: () => Promise<unknown>,
@@ -120,7 +120,7 @@ async function attempt(
       repo: row.repo,
       payload: {
         assembly_line_id: row.id,
-        definition: row.definitionName,
+        definition: row.blueprintName,
         channel,
         error: message,
       },

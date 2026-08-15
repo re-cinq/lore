@@ -36,7 +36,7 @@ function runBadge(node: VisibleNode): NodeStatusVisual {
     return resultVisual(node.result);
   }
 
-  return nodeRunVisual(node.verdict, node.status, node.signal);
+  return nodeRunVisual(node.verdict, node.status, node.nodeType);
 }
 
 /** The node read aloud: whatever its body shows, in words. */

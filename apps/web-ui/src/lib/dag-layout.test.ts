@@ -8,7 +8,7 @@ import {
   implementationDefinition,
   codeReviewDefinition,
   builtinDefinitions,
-} from "./builtin-definitions";
+} from "./definition-fixtures";
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 
 const twoNodeLine: AssemblyLineDefinition = {

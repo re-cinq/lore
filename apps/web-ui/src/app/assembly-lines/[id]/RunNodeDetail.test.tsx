@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import RunNodeDetail from "./RunNodeDetail";
-import { implementationDefinition } from "@/lib/builtin-definitions";
+import { implementationDefinition } from "@/lib/definition-fixtures";
 import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
 import type { NodeRunState } from "@/lib/run-event-reducer";
 
@@ -73,6 +73,7 @@ describe("RunNodeDetail", () => {
       taskId: "t",
       agentCrName: "cr-1",
       assemblyLineId: "al",
+      stationRunId: null,
       nodeId: "implement",
       iteration: 1,
       eventType: "tool_result",

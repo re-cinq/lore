@@ -7,6 +7,7 @@ import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import type { AssemblyLineRunNode } from "./assembly-line-runs";
 import type { NodeRunState } from "./run-event-reducer";
 import { nodeRunVisual, type NodeStatusTone } from "./run-node-status";
+import { humanStation } from "./human-station";
 import { formatDuration } from "./assembly-line-presenter";
 
 export interface NodeDetailInput {
@@ -97,26 +98,24 @@ function erroredSteps(state: NodeRunState | undefined): FailedStep[] {
 
 function whyText(
   input: NodeDetailInput,
+  type: string | undefined,
   tone: NodeStatusTone,
   terminal: boolean,
   duration: string,
 ): string {
-  const type = input.definition?.nodes.find(
-    (node) => node.id === input.nodeId,
-  )?.type;
   const noun = type ? `the ${type} node` : "this step";
 
   if (tone === "running") {
     return `In progress — ${noun} is running.`;
   }
 
-  // A parked wait node has no pod and no progress to report; what the reader needs
-  // is whose move it is, since it is often their own.
+  // A parked human station has no pod and no progress to report; what the reader
+  // needs is whose move it is, since it is often their own.
   if (tone === "waiting") {
-    return input.definition?.nodes.find((node) => node.id === input.nodeId)
-      ?.signal === "pr_merged"
-      ? "Parked — waiting for the spec PR to merge."
-      : "Parked — waiting for you to review this round.";
+    return (
+      humanStation(type)?.whyParked ??
+      "Parked — waiting for you to review this round."
+    );
   }
 
   if (tone === "ok") {
@@ -141,13 +140,14 @@ function whyText(
 }
 
 export function describeNode(input: NodeDetailInput): NodeDetail {
+  // The ONE lookup — every fact below reads this node, not its own find.
+  const node = input.definition?.nodes.find((n) => n.id === input.nodeId);
   // The verdict on the walk row is authoritative; the execution status only fills
   // in while a node is still in flight (no recorded outcome yet).
-  const node = input.definition?.nodes.find((n) => n.id === input.nodeId);
   const visual = nodeRunVisual(
     input.row?.outcome ?? null,
     input.state?.status ?? "idle",
-    node?.signal,
+    node?.type,
   );
   const terminal = isTerminal(input.definition, input.nodeId);
   const durationSeconds = input.row?.durationSeconds ?? null;
@@ -158,16 +158,20 @@ export function describeNode(input: NodeDetailInput): NodeDetail {
   return {
     tone: visual.tone,
     statusLabel,
-    why: whyText(input, visual.tone, terminal, formatDuration(durationSeconds)),
+    why: whyText(
+      input,
+      node?.type,
+      visual.tone,
+      terminal,
+      formatDuration(durationSeconds),
+    ),
     // Only a failed node lists errored steps: a succeeded node can carry errored
     // tool calls it retried past, which are not the reason for anything.
     failures: visual.tone === "err" ? erroredSteps(input.state) : [],
     files: uniqueFiles(input.state),
     eventCount: input.state?.transcript.length ?? 0,
     droppedCount: input.state?.droppedCount ?? 0,
-    nodeType:
-      input.definition?.nodes.find((node) => node.id === input.nodeId)?.type ??
-      null,
+    nodeType: node?.type ?? null,
     outcomeLabel: running ? "in progress" : (input.row?.outcome ?? "—"),
     durationLabel: running ? "running" : formatDuration(durationSeconds),
     iteration: input.row?.iteration ?? input.state?.iteration ?? 0,

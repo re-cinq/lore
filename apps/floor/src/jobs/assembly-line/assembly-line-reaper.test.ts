@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
+import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import {
   parseAssemblyLine,
@@ -38,7 +38,8 @@ const MIN = 60_000;
 describe("decideNodeRecovery", () => {
   const node = (ageMinutes: number) => ({
     id: "1",
-    assemblyLineId: "al-1",
+    stationRunId: "station-run-1",
+    assemblyRunId: "al-1",
     nodeId: "review",
     iteration: 1,
     outcome: null,
@@ -100,7 +101,7 @@ describe("decideNodeRecovery", () => {
         node: { ...node(60 * 24 * 7), agentCrName: null },
         timeoutMinutes: 15,
         status: null,
-        nodeType: "wait",
+        nodeType: "feature_review",
         nowMs,
       }),
     ).toEqual({ kind: "wait" });
@@ -133,7 +134,7 @@ describe("decideNodeRecovery", () => {
 });
 
 function harness() {
-  const port = new InMemoryAssemblyLines();
+  const port = new InMemoryAssemblyRuns();
   const launched: LoreTaskSpec[] = [];
   const statusByName: Record<string, AgentNodeStatus | null> = {};
   const taskStatusById: Record<string, string | null> = {};
@@ -158,7 +159,7 @@ describe("assemblyLineReaperJob", () => {
   it("resolves a dropped terminal event and advances the line to completion", async () => {
     const h = harness();
     const id = await h.port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "o/r",
       args: {},
     });
@@ -166,8 +167,8 @@ describe("assemblyLineReaperJob", () => {
     await h.port.markRunning(id);
     const crName = `${id.substring(0, 12)}-review`;
 
-    await h.port.ensureNodeStart({
-      assemblyLineId: id,
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
       nodeId: "review",
       iteration: 1,
       agentCrName: crName,
@@ -189,7 +190,7 @@ describe("assemblyLineReaperJob", () => {
   it("fails a timed-out node as agent-timeout and routes the failed edge", async () => {
     const h = harness();
     const id = await h.port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "o/r",
       args: {},
     });
@@ -199,8 +200,8 @@ describe("assemblyLineReaperJob", () => {
     const clock = h.port.clock;
 
     h.port.clock = () => old;
-    await h.port.ensureNodeStart({
-      assemblyLineId: id,
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
       nodeId: "review",
       iteration: 1,
       agentCrName: `${id.substring(0, 12)}-review`,
@@ -221,7 +222,7 @@ describe("assemblyLineReaperJob", () => {
 
     h.port.clock = () => old;
     const id = await h.port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "o/r",
       args: {},
     });
@@ -238,7 +239,7 @@ describe("assemblyLineReaperJob", () => {
   it("re-advances a running row with no open node (crash between transitions)", async () => {
     const h = harness();
     const id = await h.port.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: "o/r",
       args: {},
     });
@@ -255,7 +256,7 @@ describe("assemblyLineReaperJob", () => {
   it("leaves a single-CR row whose backing task is still running alone", async () => {
     const h = harness();
     const singleCr = await h.port.start({
-      definitionName: "runbook",
+      blueprintName: "runbook",
       repo: "o/r",
       taskId: "task-1",
     });
@@ -270,7 +271,7 @@ describe("assemblyLineReaperJob", () => {
   it("sweeps a crash-orphaned single-CR row whose backing task went terminal", async () => {
     const h = harness();
     const singleCr = await h.port.start({
-      definitionName: "runbook",
+      blueprintName: "runbook",
       repo: "o/r",
       taskId: "task-1",
     });
@@ -285,5 +286,34 @@ describe("assemblyLineReaperJob", () => {
       outcome: "pr_created",
     });
     expect(h.launched).toEqual([]);
+  });
+});
+
+describe("relaunch label parity", () => {
+  it("a reaper relaunch carries the SAME station-run id label the first launch did", async () => {
+    // The advance path stamps the label from ensureStationRun; a relaunch that
+    // dropped it would hand the label's first consumer a pod with no identity.
+    const h = harness();
+    const id = await h.port.start({
+      blueprintName: "code-review",
+      repo: "o/r",
+      args: {},
+    });
+
+    await h.port.markRunning(id);
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-review`,
+    });
+    // No status for the CR name: decideNodeRecovery says relaunch.
+
+    await assemblyLineReaperJob(h.deps);
+
+    expect(h.launched).toHaveLength(1);
+    expect(h.launched[0].extraLabels?.["lore.re-cinq.com/station-run-id"]).toBe(
+      h.port.nodes[0].stationRunId,
+    );
   });
 });

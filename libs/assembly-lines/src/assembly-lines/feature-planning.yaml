@@ -27,8 +27,12 @@ nodes:
   # what lets one line span a whole feature: the moments a person acts stop being
   # gaps between runs and become steps you can see in the graph.
   - id: author
-    type: wait
-    signal: author_feedback
+    type: feature_review
+    # The wizard is this station's worker, and the route says so outright. Before
+    # this, the interface kept its own map of which node id meant which screen —
+    # the blueprint's knowledge, transcribed into a view, silently missing any
+    # node nobody remembered to add.
+    route: /repos/{args.repo}/features/{args.feature_id}
     description: The author reviews the round — refine, accept, or abandon.
 
   # Accepting the plan starts the spec work on the SAME line: the author's accept is
@@ -70,9 +74,13 @@ nodes:
   # finalize became a resume of THIS line that predicate stopped matching, and
   # nothing decomposed, and nothing said so.
   - id: merged
-    type: wait
-    signal: pr_merged
-    description: The spec PR is open — waiting for a human to merge it.
+    type: pr_review
+    # The station IS the GitHub PR view — a page this platform does not own, which
+    # is why the route is absolute. It resolves only once `push` has opened the PR
+    # and stamped `pr_url` (FR6.33), so routes resolve at read time, never at clone
+    # time.
+    route: "{args.pr_url}"
+    description: The spec PR is open — the GitHub PR view is the station.
 
   - id: decompose
     type: agent

@@ -26,6 +26,7 @@ function row(id: string): AgentRunEventRow {
     taskId: "task-1",
     agentCrName: "05fc5491-implement",
     assemblyLineId: "line-1",
+    stationRunId: null,
     nodeId: "implement",
     iteration: 1,
     eventType: "tool_call",

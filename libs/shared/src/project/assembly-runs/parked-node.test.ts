@@ -1,10 +1,26 @@
 import { describe, it, expect } from "vitest";
-import { parkedNode } from "./parked-node.js";
+import { parkedNode, parkedHumanNode } from "./parked-node.js";
+import type { RunGraph } from "./run-graph.js";
 
 const node = (nodeId: string, iteration: number, outcome: string | null) => ({
   nodeId,
   iteration,
   outcome,
+});
+
+const graphWith = (
+  ...typedNodes: Array<[id: string, type: string]>
+): RunGraph => ({
+  name: "feature-planning",
+  entry: typedNodes[0][0],
+  exit: typedNodes[typedNodes.length - 1][0],
+  nodes: typedNodes.map(([id, type]) => ({
+    id,
+    type,
+    station: null,
+    station_inherited: false,
+  })),
+  edges: [],
 });
 
 describe("parkedNode", () => {
@@ -69,5 +85,61 @@ describe("parkedNode", () => {
     expect(
       parkedNode("queued", [node("author", 1, null)], "author"),
     ).toMatchObject({ nodeId: "author" });
+  });
+});
+
+describe("parkedHumanNode", () => {
+  it("locates the parked row by the graph node's TYPE, not its id", () => {
+    // The blueprint may name its wait node anything; the run's own graph carries
+    // the type, so a renamed node keeps resuming (the pr_merged join died of
+    // exactly this — FR6.32).
+    expect(
+      parkedHumanNode(
+        "running",
+        [node("await-spec-merge", 1, null)],
+        graphWith(["push", "github_action"], ["await-spec-merge", "pr_review"]),
+        "pr_review",
+        "merged",
+      ),
+    ).toEqual({ nodeId: "await-spec-merge", iteration: 1, outcome: null });
+  });
+
+  it("falls back to the given node id for a run stamped before clones existed", () => {
+    expect(
+      parkedHumanNode(
+        "running",
+        [node("merged", 1, null)],
+        null,
+        "pr_review",
+        "merged",
+      ),
+    ).toEqual({ nodeId: "merged", iteration: 1, outcome: null });
+  });
+
+  it("passes over a line parked on the OTHER human station type", () => {
+    expect(
+      parkedHumanNode(
+        "running",
+        [node("author", 1, null)],
+        graphWith(["author", "feature_review"], ["merged", "pr_review"]),
+        "pr_review",
+        "merged",
+      ),
+    ).toBeNull();
+  });
+
+  it("takes the newest open row when two graph nodes share the type", () => {
+    expect(
+      parkedHumanNode(
+        "running",
+        [node("first-review", 1, null), node("second-review", 1, null)],
+        graphWith(
+          ["first-review", "pr_review"],
+          ["second-review", "pr_review"],
+        ),
+        "pr_review",
+        "merged",
+      ),
+    ).toMatchObject({ nodeId: "second-review" });
   });
 });

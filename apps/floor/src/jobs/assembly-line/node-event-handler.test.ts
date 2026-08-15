@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
+import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import {
   parseAssemblyLine,
@@ -39,7 +39,7 @@ edges:
 `);
 
 function harness() {
-  const port = new InMemoryAssemblyLines();
+  const port = new InMemoryAssemblyRuns();
   const launched: LoreTaskSpec[] = [];
   const statusByName: Record<string, AgentNodeStatus | null> = {};
   const billingAlerts: Array<{ repo: string; nodeType: string }> = [];
@@ -63,7 +63,7 @@ function harness() {
 
 async function reviewInFlight(h: ReturnType<typeof harness>) {
   const id = await h.port.start({
-    definitionName: "code-review",
+    blueprintName: "code-review",
     repo: "o/r",
     branch: "b",
     args: { description: "Review PR #7" },
@@ -72,8 +72,8 @@ async function reviewInFlight(h: ReturnType<typeof harness>) {
   await h.port.markRunning(id);
   const crName = `${id.substring(0, 12)}-review`;
 
-  await h.port.ensureNodeStart({
-    assemblyLineId: id,
+  await h.port.ensureStationRun({
+    assemblyRunId: id,
     nodeId: "review",
     iteration: 1,
     agentCrName: crName,

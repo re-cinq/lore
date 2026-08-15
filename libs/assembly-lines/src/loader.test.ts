@@ -145,10 +145,10 @@ edges:
     ).toThrow(/"b" has no outgoing edges/);
   });
 
-  it("accepts a wait node and an unbounded back-edge out of it", () => {
-    // A wait node's worker is a HUMAN. The iteration_max rule exists so two agents
-    // cannot argue indefinitely; a person deciding each pass cannot run away, so the
-    // refine loop is legitimately unbounded.
+  it("accepts a human station and an unbounded back-edge out of it", () => {
+    // A human station's worker is a PERSON. The iteration_max rule exists so two
+    // agents cannot argue indefinitely; a person deciding each pass cannot run
+    // away, so the refine loop is legitimately unbounded.
     const wf = parseAssemblyLine(`
 name: feature
 description: plan a feature with the author in the loop
@@ -160,8 +160,8 @@ nodes:
     type: agent
     prompt_ref: feature-planning
   - id: author
-    type: wait
-    signal: author_feedback
+    type: feature_review
+    route: /repos/{args.repo}/features/{args.feature_id}
   - id: done
     type: retrospective
 edges:
@@ -186,8 +186,8 @@ edges:
 `);
 
     expect(wf.nodes.find((n) => n.id === "author")).toMatchObject({
-      type: "wait",
-      signal: "author_feedback",
+      type: "feature_review",
+      route: "/repos/{args.repo}/features/{args.feature_id}",
     });
   });
 
@@ -233,18 +233,19 @@ edges:
     ).toThrow(/back-edge b → a requires iteration_max/);
   });
 
-  it("rejects a wait node with no signal", () => {
-    // Nothing could ever complete it: the signal names the surface that reports it.
+  it("rejects a human station with no route", () => {
+    // A station whose worker is a person must say WHERE that person works, or the
+    // run can park on it with nothing able to tell anyone whose move it is.
     expect(() =>
       parseAssemblyLine(`
 name: feature
-description: a wait nobody can end
+description: a review nobody can find
 version: 1
 entry: author
 exit: done
 nodes:
   - id: author
-    type: wait
+    type: feature_review
   - id: done
     type: retrospective
 edges:
@@ -252,7 +253,57 @@ edges:
     to: done
     on: always
 `),
-    ).toThrow(/wait node "author" requires signal/);
+    ).toThrow(/human station "author" requires route/);
+  });
+
+  it("rejects a route placeholder that is not an args reference", () => {
+    // Placeholders resolve against the run's args and nothing else — that is what
+    // keeps the engine domain-free: it still never learns what a feature is.
+    expect(() =>
+      parseAssemblyLine(`
+name: feature
+description: a route reaching outside args
+version: 1
+entry: author
+exit: done
+nodes:
+  - id: author
+    type: feature_review
+    route: /repos/{repo}/features/{args.feature_id}
+  - id: done
+    type: retrospective
+edges:
+  - from: author
+    to: done
+    on: always
+`),
+    ).toThrow(/route placeholder "\{repo\}"/);
+  });
+
+  it("accepts an absolute route for a surface this platform does not own", () => {
+    // The GitHub PR view is a station like any other; its page simply is not ours.
+    const wf = parseAssemblyLine(`
+name: feature
+description: waiting on a spec PR
+version: 1
+entry: merged
+exit: done
+nodes:
+  - id: merged
+    type: pr_review
+    route: "{args.pr_url}"
+  - id: done
+    type: retrospective
+edges:
+  - from: merged
+    to: done
+    on: always
+`);
+
+    expect(wf.nodes.find((n) => n.id === "merged")).toMatchObject({
+      type: "pr_review",
+      route: "{args.pr_url}",
+    });
   });
 
   it("accepts an issues station node", () => {

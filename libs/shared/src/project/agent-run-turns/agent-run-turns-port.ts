@@ -17,6 +17,8 @@ export interface AgentRunTurnRow {
   taskId: string | null;
   agentCrName: string | null;
   assemblyLineId: string | null;
+  /** The station visit this turn belongs to (FR6.39). */
+  stationRunId: string | null;
   nodeId: string | null;
   iteration: number | null;
   /** The raw stream-json line kind, as emitted; not narrowed to a union, so a
@@ -72,6 +74,8 @@ export function compareTurnIdAscending(
 
 /** A node identity the correlation lookup can resolve an `agentCrName` to. */
 export interface AgentRunTurnNodeRef {
+  /** The visit's own id — what correlated rows key on. */
+  stationRunId?: string | null;
   agentCrName: string;
   assemblyLineId: string;
   nodeId: string;
@@ -86,7 +90,7 @@ export interface AgentRunTurnNodeRef {
 export interface AgentRunTurnsRepository {
   /**
    * Insert a batch, resolving `agentCrName` to (`assemblyLineId`, `nodeId`,
-   * `iteration`) against `pipeline.assembly_line_nodes` at write time. A turn
+   * `iteration`) against `pipeline.station_runs` at write time. A turn
    * that correlates to nothing is still inserted, with `agentCrName` retained
    * and the three correlated fields left null. Returns the persisted rows
    * ascending by id.

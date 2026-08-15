@@ -45,7 +45,7 @@ export class InMemoryUsage implements UsagePort {
     this.taskIds.add(id);
   }
 
-  /** Seed a `pipeline.assembly_lines` id (the `al.id = g.given` fallback join). */
+  /** Seed a `pipeline.assembly_runs` id (the `al.id = g.given` fallback join). */
   registerAssemblyLine(id: string): void {
     this.assemblyLineIds.add(id);
   }

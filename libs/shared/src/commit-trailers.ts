@@ -10,7 +10,12 @@ export interface Trailers {
 const STAGE_KEY = "Lore-Stage";
 const ITERATION_KEY = "Lore-Iteration";
 const TASK_KEY = "Lore-Task";
-const ASSEMBLY_LINE_KEY = "Lore-Assembly-Line";
+const ASSEMBLY_RUN_KEY = "Lore-Assembly-Run";
+/** The PRE-RENAME key, still READ and never written. Trailers live in git history,
+ *  which cannot be rewritten, so every commit Lore has ever authored carries this
+ *  spelling forever — the reader accepts both permanently, unlike the event-name
+ *  and CR-label shims, which have a deletion condition. */
+const LEGACY_ASSEMBLY_LINE_KEY = "Lore-Assembly-Line";
 const VALIDATES_KEY = "Lore-Validates";
 // Lore-Task is NOT required: task-less lines (code-review) commit without one.
 const REQUIRED_KEYS = [STAGE_KEY, ITERATION_KEY] as const;
@@ -18,7 +23,8 @@ const FIRST_CLASS_KEYS = [
   STAGE_KEY,
   ITERATION_KEY,
   TASK_KEY,
-  ASSEMBLY_LINE_KEY,
+  ASSEMBLY_RUN_KEY,
+  LEGACY_ASSEMBLY_LINE_KEY,
 ] as const;
 
 const TRAILER_LINE_RE = /^([A-Za-z][A-Za-z0-9-]*):\s*(.*)$/;
@@ -38,7 +44,7 @@ export function formatTrailers(t: Trailers): string {
   }
 
   if (t.assemblyLineId) {
-    lines.push(`${ASSEMBLY_LINE_KEY}: ${t.assemblyLineId}`);
+    lines.push(`${LEGACY_ASSEMBLY_LINE_KEY}: ${t.assemblyLineId}`);
   }
 
   if (t.extras) {
@@ -112,7 +118,8 @@ export function parseTrailers(message: string): Trailers | null {
     }
   }
 
-  const assemblyLineId = map.get(ASSEMBLY_LINE_KEY);
+  const assemblyLineId =
+    map.get(ASSEMBLY_RUN_KEY) ?? map.get(LEGACY_ASSEMBLY_LINE_KEY);
 
   return {
     stage: map.get(STAGE_KEY)!,

@@ -1,4 +1,5 @@
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
+import { humanStation } from "./human-station";
 
 /**
  * How long a node may run before the Floor kills it.
@@ -29,7 +30,8 @@ export function nodeBudgetMinutes(
   }
   const node = definition.nodes.find((n) => n.id === nodeId);
 
-  if (!node || node.type === "wait") {
+  // A human station has no budget: nobody kills a person for taking a week.
+  if (!node || humanStation(node.type)) {
     return null;
   }
 

@@ -8,17 +8,18 @@
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type {
-  AssemblyLinesPort,
-  AssemblyLineRecord,
-} from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+  AssemblyRunsPort,
+  AssemblyRunRecord,
+} from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import {
   definitionHash,
+  snapshotGraph,
   type AssemblyLine,
 } from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
 
 export interface StartEventHandlerDeps {
-  assemblyLines: AssemblyLinesPort;
+  assemblyLines: AssemblyRunsPort;
   /** The loaded builtin assembly line YAMLs — routing reads definition presence. */
   definitions: () => Promise<ReadonlyMap<string, AssemblyLine>>;
   /** Launch the line's entry node (advanceLine). The walk then advances on
@@ -27,7 +28,7 @@ export interface StartEventHandlerDeps {
   /** User-facing failure notification for the config-error close below — the only
    *  line closure that bypasses finishLine's seam. Optional, mirrors AdvanceDeps. */
   notifyFailure?: (
-    row: AssemblyLineRecord,
+    row: AssemblyRunRecord,
     outcome: string,
     reason?: string,
   ) => Promise<void>;
@@ -46,25 +47,32 @@ export function createStartEventHandler(
     );
     // Branch/args/description ride in the row itself — the walk reads them via
     // taskFromRow, so the event only needs identity + routing fields.
-    const definitionName = String(params.definitionName ?? "");
+    // `definitionName` is the pre-rename wire name for the same field. Rows sit in
+    // `pipeline.events` across a deploy, so a start queued by the old image would
+    // otherwise resolve to "" and be closed as a line with no definition.
+    // DELETE once no unhandled event predates the rename — the events table is
+    // pruned after handling, so one retention window is enough.
+    const blueprintName = String(
+      params.blueprintName ?? params.definitionName ?? "",
+    );
     const taskId = typeof params.taskId === "string" ? params.taskId : null;
 
     const definitions = await deps.definitions();
-    const definition = definitions.get(definitionName);
+    const definition = definitions.get(blueprintName);
 
     if (!definition) {
       // A task-backed row without a builtin definition is a single-CR run record
       // (onboard / review / runbook — total coverage): mark it running and return;
       // the agent-watcher finishes it when the task's one CR goes terminal.
       //
-      // Caveat: a task-backed start with a typo'd/unknown definitionName is
+      // Caveat: a task-backed start with a typo'd/unknown blueprintName is
       // indistinguishable from a legit single-CR here and becomes a silently
       // forever-running row (no CR was launched for it). Only reachable outside
       // AgentCrStationBackend (manual insert / future producer bug) — log it so
       // the silent failure leaves a breadcrumb.
       if (taskId) {
         console.warn(
-          `[assembly-line-start] task-backed row ${assemblyLineId} has no builtin definition "${definitionName}" — treating as single-CR (verify a CR was launched for task ${taskId})`,
+          `[assembly-line-start] task-backed row ${assemblyLineId} has no builtin definition "${blueprintName}" — treating as single-CR (verify a CR was launched for task ${taskId})`,
         );
         await deps.assemblyLines.markRunning(assemblyLineId);
 
@@ -73,7 +81,7 @@ export function createStartEventHandler(
 
       // Task-less + unknown definition is a config error, not a transient failure —
       // close the row and resolve so the loop never retries a line that can't exist.
-      const reason = `no assembly line defined for task type "${definitionName}"`;
+      const reason = `no assembly line defined for task type "${blueprintName}"`;
       const row = await deps.assemblyLines.getById(assemblyLineId);
       const closedNow = await deps.assemblyLines.finish(
         assemblyLineId,
@@ -96,13 +104,16 @@ export function createStartEventHandler(
       return;
     }
 
-    // Record WHICH graph this run executes, once (specs/fork-rerun-from-node
-    // FR4). This is the only place holding both the row id and the resolved
-    // definition; a later fork replays this run's node rows against the current
-    // definition and refuses when the hashes disagree.
-    await deps.assemblyLines.stampDefinitionHash(
+    // Record WHICH blueprint this run executes, once (FR6.38, and
+    // specs/fork-rerun-from-node FR4). This is the only place holding both the
+    // row id and a RESOLVED blueprint — `start` is called by lore-api and by
+    // choreographies that deliberately ship no definitions — so it is where the
+    // hash AND the graph the run will walk get recorded. Everything downstream
+    // reads the clone instead of re-reading the file.
+    await deps.assemblyLines.stampBlueprint(
       assemblyLineId,
       definitionHash(definition),
+      snapshotGraph(definition, blueprintName),
     );
     await deps.assemblyLines.markRunning(assemblyLineId);
 
@@ -169,7 +180,7 @@ async function publishStartCheck(assemblyLineId: string): Promise<void> {
     const nodes =
       row.status === "queued" || row.status === "running"
         ? []
-        : await assemblyLines().listNodes(assemblyLineId);
+        : await assemblyLines().listStationRuns(assemblyLineId);
     const project = await projectFor(row.repo);
 
     await publishPrCheck(project.repo, row, nodes, process.env.LORE_UI_URL);

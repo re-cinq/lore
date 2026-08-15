@@ -41,9 +41,12 @@ describe("nodeBudgetMinutes", () => {
     expect(nodeBudgetMinutes(def, "write")).toEqual(47);
   });
 
-  it("returns null for a wait node, which is parked rather than running", () => {
+  it("returns null for a human station, which is parked rather than running", () => {
     expect(
-      nodeBudgetMinutes(definition([{ id: "author", type: "wait" }]), "author"),
+      nodeBudgetMinutes(
+        definition([{ id: "author", type: "feature_review" }]),
+        "author",
+      ),
     ).toEqual(null);
   });
 

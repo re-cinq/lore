@@ -66,25 +66,25 @@ introduced for this feature must not collide with that name.
 
 Run observability is delivered over Server-Sent Events at
 `GET /api/agent-events/stream/{assemblyLineId}`, with catch-up-then-live
-semantics keyed on a row-id cursor. ([validated by `agent-events-stream.test.ts:511`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L511), [`agent-events-stream.test.ts:167`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L167), [`agent-events-stream.test.ts:238`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L238))
+semantics keyed on a row-id cursor. ([validated by `agent-events-stream.test.ts:511`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L512), [`agent-events-stream.test.ts:167`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L168), [`agent-events-stream.test.ts:238`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L239))
 
-The POST handler and the SSE subscribers are joined by an in-process pub/sub. ([validated by `agent-event-bus.test.ts:28`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L28)) A
+The POST handler and the SSE subscribers are joined by an in-process pub/sub. ([validated by `agent-event-bus.test.ts:28`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L29)) A
 subscriber registers against an assembly-line id; the ingest path publishes each
-projected row to matching subscribers after the write commits. ([validated by `agent-event-bus.test.ts:41`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L41))
+projected row to matching subscribers after the write commits. ([validated by `agent-event-bus.test.ts:41`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L42))
 
 Reconnection is lossless by construction rather than by buffering: the browser
 resends `Last-Event-ID`, and the server replays from the database before
-attaching to the live tail. ([validated by `agent-events-stream.test.ts:286`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L286), [`run-event-reducer.test.ts:224`](apps/web-ui/src/lib/run-event-reducer.test.ts#L224)) The bus is therefore best-effort and holds no
-backlog — durability lives in `pipeline.agent_run_events`, not in memory. ([validated by `agent-event-bus.test.ts:159`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L159))
+attaching to the live tail. ([validated by `agent-events-stream.test.ts:286`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L287), [`run-event-reducer.test.ts:224`](apps/web-ui/src/lib/run-event-reducer.test.ts#L225)) The bus is therefore best-effort and holds no
+backlog — durability lives in `pipeline.agent_run_events`, not in memory. ([validated by `agent-event-bus.test.ts:159`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L160))
 
 A subscriber that cannot keep up is disconnected rather than allowed to apply
 back-pressure to the ingest path, which shares a process with the cost sink and
-the Floor's job loops. ([validated by `agent-event-bus.test.ts:187`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L187), [`agent-events-stream.test.ts:419`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L419))
+the Floor's job loops. ([validated by `agent-event-bus.test.ts:187`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L188), [`agent-events-stream.test.ts:419`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L420))
 
-Both hops set `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`. ([validated by `agent-events-stream.test.ts:511`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L511), [`route.test.ts:149`](apps/web-ui/src/app/api/assembly-lines/[id]/events/stream/route.test.ts#L149))
+Both hops set `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`. ([validated by `agent-events-stream.test.ts:511`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L512), [`route.test.ts:149`](apps/web-ui/src/app/api/assembly-lines/[id]/events/stream/route.test.ts#L149))
 
 The `AgentRunEventRow` type is canonical in `libs/shared` and hand-mirrored in
-`apps/web-ui`, with a type-only drift guard under `scripts/type-drift/`. ([validated by `run-stream-types.test.ts:26`](apps/web-ui/src/lib/run-stream-types.test.ts#L26), [`run-stream-types.test.ts:66`](apps/web-ui/src/lib/run-stream-types.test.ts#L66))
+`apps/web-ui`, with a type-only drift guard under `scripts/type-drift/`. ([validated by `run-stream-types.test.ts:26`](apps/web-ui/src/lib/run-stream-types.test.ts#L27), [`run-stream-types.test.ts:66`](apps/web-ui/src/lib/run-stream-types.test.ts#L67))
 
 The definition DAG is laid out and rendered by hand in SVG, with no new
 dependency. ([validated by `dag-layout.test.ts:45`](apps/web-ui/src/lib/dag-layout.test.ts#L45), [`dag-layout.test.ts:147`](apps/web-ui/src/lib/dag-layout.test.ts#L147))
@@ -113,6 +113,20 @@ ever become the constraint, the same cursor supports falling back to polling
 Polling remains the correct pattern for every non-streaming view; this decision
 introduces streaming for run observability only, and is not a licence to convert
 existing polled views.
+
+**Amendment 2026-08-14 — telemetry correlates on an id, not on a name.** Rows
+were attributed to a node by matching `agent_cr_name`, a string assembled from a
+12-hex prefix of the run id plus the node id and iteration, resolved through a
+`LEFT JOIN LATERAL` whose tie-break was "newest matching node row wins". That is
+a guess wearing a join's clothing: two runs colliding on their id prefix
+attribute one's tool calls to the other, silently, and the relationship cannot be
+expressed as a foreign key even in principle. A StationRun now carries a
+`station_run_id` (ADR-024 amendment), the Floor puts it on the CR's labels
+because it is the party that named the CR, and `agent_run_events` /
+`agent_run_turns` / `llm_calls` key on it. The CR name survives as a Kubernetes
+resource name and stops being an identity. The pod is deliberately NOT required
+to echo the id back: the Floor already knows it at write time, so the correlation
+improves without a change in the external ai-agent-subsystem repo.
 
 Cross-references: ADR-015 (webhook-driven review reactor) and its event-bus
 amendment own Floor-internal triggering through `pipeline.events`; this ADR owns

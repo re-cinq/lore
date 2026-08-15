@@ -36,12 +36,15 @@ commits the platform to the manufacturing metaphor; this names the rest of it.
 |---|---|---|
 | **Factory** | the whole platform — Lore itself | 1 |
 | **Floor** | the coordinator runtime: dispatches Agents onto Stations, runs AssemblyLines, reaps leases | 1 → N |
-| **AssemblyLine** | a graph of Stations with distinct responsibilities that hand off / wait on each other | per task |
-| **Station** | the unit that runs exactly one node's work (a K8s Job pod, or a local sandbox/worktree) — an LLM Agent *or* a deterministic station run (validate/detect/…, ADR-031 amendment) | per node-run |
+| **AssemblyLine** | the **blueprint** — an authored, versioned, content-hashed graph of Stations that hand off / wait on each other (amendment 2026-08-14) | per task type |
+| **AssemblyRun** | one **execution** of an AssemblyLine, carrying a clone of the blueprint it runs (amendment 2026-08-14) | per attempt |
+| **Station** | the unit that runs exactly one node's work (a K8s Job pod, or a local sandbox/worktree) — an LLM Agent, a deterministic station run (validate/detect/…, ADR-031 amendment), *or* a **human station** whose worker is a person and whose `route` names the page they work on | per node |
+| **StationRun** | one **visit** to a Station within an AssemblyRun — `(run, node, iteration)`, identified by a `station_run_id` (amendment 2026-08-14) | per node-run |
 | **Agent** | one ephemeral run of the Claude CLI/API + a prompt (context + task) | per Station |
 | **Agent definition** | the stored *config* an Agent runs from — model, timeout, prompt, execution image — resolved per repo (project row → org default → `task-types.yaml`) | per task-type (× repo) |
 
-Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyLines ⊃ Stations ⊃ Agents.**
+Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyLines ⊃ Stations ⊃ Agents** — the design
+side; its runtime shadow is **AssemblyRun ⊃ StationRuns ⊃ Agents**.
 
 - **"Agent" is reserved** for sense #1 (the Claude-plus-prompt run). It is never
   the pod, the coordinator, or the workflow. Nuance since the ADR-031 amendment:
@@ -60,14 +63,32 @@ Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyLines ⊃ Stations ⊃ Agents.**
 - **Factory is the whole platform**, not the coordinator — so the coordinator is
   not named "Factory" (that would forbid ever saying "the Factory" about the
   product, and preclude multiple Floors).
+- **Amendment 2026-08-14 — a blueprint is not a run.** "AssemblyLine" named both
+  the authored YAML and one execution of it, and the table holding executions was
+  called `pipeline.assembly_lines`, so every sentence about either had to
+  disambiguate itself and the code could not: a run referenced its blueprint by
+  NAME and re-read the file on every step, which let an edit change the graph
+  under a walk in flight and left a renamed blueprint's own history undrawable.
+  An **AssemblyRun** therefore CLONES its AssemblyLine at start and reads the
+  clone thereafter, and a **StationRun** is one visit within it. The blueprint
+  side keeps the old names (`libs/assembly-lines`, the YAMLs, the loader, the
+  transition kernel) precisely because that is now all they mean.
+- **A Station's worker may be a person.** A **human station** is a Station like
+  any other — it reports the same outcome contract — and it declares the page its
+  worker acts on: a route this platform serves (the planning wizard's
+  `feature_review`) or one it does not (`pr_review`, the GitHub PR view). Naming
+  the surface in the blueprint is what stops each interface from keeping its own
+  private map of which node means which screen.
 
 Current-code mapping:
 
 | Term | Today's code |
 |---|---|
 | Floor | `apps/floor` (the `lore-floor` deployment) |
-| AssemblyLine | the assembly line YAML + supervisor graph (`@re-cinq/lore-assembly-lines`) |
-| Station | one `Agent` CR pod per node on the ai-agent-subsystem (`ai-agents` namespace) — `claude` for agent nodes, the `exec`-vendor `lore-station` image for non-agent nodes — or the local runner sandbox |
+| AssemblyLine | the assembly line YAML + transition kernel (`@re-cinq/lore-assembly-lines`) |
+| AssemblyRun | a `pipeline.assembly_runs` row, reached via `project.assemblyRuns` |
+| Station | one `Agent` CR pod per node on the ai-agent-subsystem (`ai-agents` namespace) — `claude` for agent nodes, the `exec`-vendor `lore-station` image for non-agent nodes — or the local runner sandbox; a human station dispatches nothing and serves a `route` instead |
+| StationRun | a `pipeline.station_runs` row, keyed by `station_run_id` |
 | Agent | the `claude --print` / `Llm` invocation |
 | Agent definition | the `lore.agent_definitions` table, reached via `project.agentDefs` |
 

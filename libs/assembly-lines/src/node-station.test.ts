@@ -37,9 +37,9 @@ describe("resolveNodeStation", () => {
     ).toMatchObject({ station: "def-github-action" });
   });
 
-  it("reports no station for a wait node, whose worker is a person", () => {
+  it("reports no station for a human station, whose worker is a person", () => {
     expect(
-      resolveNodeStation(node({ type: "wait" }), "feature-planning"),
+      resolveNodeStation(node({ type: "feature_review" }), "feature-planning"),
     ).toEqual({
       station: null,
       inherited: false,

@@ -2,7 +2,7 @@
 // Agent CR — this module is the pure spec-building core the event-driven walk
 // (advance.ts) uses: names, identity labels, and the agent/station dispatch specs.
 
-import type { AssemblyLineNode } from "@re-cinq/lore-assembly-lines";
+import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { stationName } from "../agent/agent-catalog.js";
 
@@ -12,7 +12,7 @@ export interface FloorAssemblyLineTask {
    *  Feeds the lease + audit + `Lore-Task:` trailer; a synthetic id there violates
    *  task_leases_task_fk. Token keying + CR labels use `taskId` instead. */
   pipelineTaskId: string | null;
-  /** Per-attempt id (pipeline.assembly_lines) — CR names key on this, not the task. */
+  /** Per-attempt id (pipeline.assembly_runs) — CR names key on this, not the task. */
   assemblyLineId: string;
   taskType: string;
   description: string;
@@ -41,20 +41,38 @@ export function nodeAgentName(
 }
 
 /** The CR name only carries a 12-char prefix; these labels carry the full identity
- *  so the k8s watch maps a terminal node CR back to its (line, node, iteration). */
-export const ASSEMBLY_LINE_ID_LABEL = "lore.re-cinq.com/assembly-line-id";
+ *  so the k8s watch maps a terminal node CR back to its (line, node, iteration).
+ *
+ *  The new spelling — ACCEPTED by every reader already, not yet written (the
+ *  expand phase). The writer flips in the follow-up (#1236), once every deployed
+ *  reader accepts both. */
+export const ASSEMBLY_RUN_ID_LABEL = "lore.re-cinq.com/assembly-run-id";
+/** The label still WRITTEN. Emitted under the PRE-RENAME name deliberately. Expand/contract only works readers-first: every consumer must ACCEPT both spellings in one release before any producer emits the new one. Flipping a writer early breaks two directions at once — a not-yet-rolled peer, and a rollback. The writer flips in a follow-up, once every deployed reader accepts both. A CR labelled with the new name and read by a
+ *  rolled-back Floor is invisible to it, and every in-flight NODE CR would be
+ *  routed into the single-agent PR path. */
+export const LEGACY_ASSEMBLY_LINE_ID_LABEL =
+  "lore.re-cinq.com/assembly-line-id";
 export const NODE_ID_LABEL = "lore.re-cinq.com/node-id";
 export const NODE_ITERATION_LABEL = "lore.re-cinq.com/node-iteration";
+/** The station run this pod IS (FR6.39). The three labels above name the visit
+ *  compositely; this one names it outright, so a pod found in the cluster maps
+ *  back to its telemetry without re-deriving anything from the CR name. */
+export const STATION_RUN_ID_LABEL = "lore.re-cinq.com/station-run-id";
 
 function nodeLabels(
-  node: AssemblyLineNode,
+  node: RunGraphNode,
   task: FloorAssemblyLineTask,
   iteration: number,
+  stationRunId?: string,
 ): Record<string, string> {
   return {
-    [ASSEMBLY_LINE_ID_LABEL]: task.assemblyLineId,
+    [LEGACY_ASSEMBLY_LINE_ID_LABEL]: task.assemblyLineId,
     [NODE_ID_LABEL]: node.id,
     [NODE_ITERATION_LABEL]: String(iteration),
+    // Part of the spec builders so every dispatch path carries it — the reaper's
+    // relaunch built the same spec without it, and the label's first consumer
+    // would have silently lost every relaunched pod.
+    ...(stationRunId ? { [STATION_RUN_ID_LABEL]: stationRunId } : {}),
   };
 }
 
@@ -69,10 +87,11 @@ function cloneRef(task: FloorAssemblyLineTask): string {
 /** Pure: the Agent dispatch spec for one agent-node. Prompt is resolved per node; model
  *  from the node (else inherited); repo/branch/description from the task. */
 export function nodeAgentSpec(
-  node: AssemblyLineNode,
+  node: RunGraphNode,
   task: FloorAssemblyLineTask,
   prompt: string,
   iteration = 1,
+  stationRunId?: string,
 ): LoreTaskSpec {
   return {
     taskId: task.taskId,
@@ -86,9 +105,13 @@ export function nodeAgentSpec(
     // default — code-review-reply's node runs on code-review-refine. Without
     // this, the CR resolves a Station named after the LINE, which only existed
     // as a stale pre-#840-rename object until a catalog deploy pruned it.
-    ...(node.station_ref ? { stationRef: node.station_ref } : {}),
+    // The clone resolved it already, so an INHERITED station is left unset here
+    // and the subsystem applies the same task-type default it always did.
+    ...(node.station && !node.station_inherited
+      ? { stationRef: node.station }
+      : {}),
     name: nodeAgentName(task.assemblyLineId, node.id, iteration),
-    extraLabels: nodeLabels(node, task, iteration),
+    extraLabels: nodeLabels(node, task, iteration, stationRunId),
   };
 }
 
@@ -112,9 +135,10 @@ const STATION_PARAM_FIELDS = [
  *  input rides one JSON parameter; the Station defaults to `def-<type>` unless
  *  the node names a custom one via `station_ref`. */
 export function nodeStationSpec(
-  node: AssemblyLineNode,
+  node: RunGraphNode,
   task: FloorAssemblyLineTask,
   iteration = 1,
+  stationRunId?: string,
 ): LoreTaskSpec {
   const params: Record<string, string> = {};
 
@@ -142,14 +166,19 @@ export function nodeStationSpec(
     targetRepo: task.targetRepo,
     branch: cloneRef(task),
     name: nodeAgentName(task.assemblyLineId, node.id, iteration),
-    extraLabels: nodeLabels(node, task, iteration),
-    stationRef: node.station_ref ?? stationName(node.type),
+    extraLabels: nodeLabels(node, task, iteration, stationRunId),
+    stationRef: node.station ?? stationName(node.type),
     // Stations render only {station_input} — never hydrate (D5 is for agent
     // nodes); an empty description otherwise assembles an unbounded context.
     hydrate: false,
     clone: CLONING_STATION_TYPES.has(node.type),
     parameters: {
       station_input: JSON.stringify({
+        // Keeps the PRE-RENAME name deliberately: this JSON is the station pod
+        // contract, and `apps/lore-station` — a separately built and deployed
+        // image — parses `assembly_line_id`. Renaming one side alone breaks
+        // every station run. Both sides move together, with the contract doc, or
+        // not at all.
         assembly_line_id: task.assemblyLineId,
         node_id: node.id,
         node_type: node.type,

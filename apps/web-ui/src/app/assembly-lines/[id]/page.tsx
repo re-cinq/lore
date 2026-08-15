@@ -19,7 +19,7 @@ const UUID_RE =
 
 /**
  * Resolver for `/assembly-lines/[id]`. The id disambiguates itself: a
- * `pipeline.assembly_lines` run renders the run detail; otherwise a
+ * `pipeline.assembly_runs` run renders the run detail; otherwise a
  * `pipeline.tasks` row redirects to the task detail at `/tasks/[id]` (so every
  * legacy task-UUID link — UUID linkification, repo overview, GitHub comments —
  * keeps working). A non-UUID or unknown id renders "Not found".
@@ -49,14 +49,15 @@ export default async function AssemblyLineResolverPage({
         ])
       : [[], []];
     const { definition, synthetic } = definitionForRun(
-      run.definitionName,
+      run.blueprintName,
       nodes,
+      run.graph,
     );
 
     return (
       <>
         <AssemblyLineRunView run={run} nodes={nodes} definition={definition} />
-        {run.definitionName === "code-review" && run.prNumber ? (
+        {run.blueprintName === "code-review" && run.prNumber ? (
           <TriggerReviewButton repo={run.repo} prNumber={run.prNumber} />
         ) : null}
         <RunVisualizationPanel

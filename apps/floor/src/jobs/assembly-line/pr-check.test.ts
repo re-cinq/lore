@@ -1,14 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { assemblyLineCheck } from "./pr-check.js";
 import type {
-  AssemblyLineNodeRecord,
-  AssemblyLineRecord,
-} from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+  StationRunRecord,
+  AssemblyRunRecord,
+} from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 
-function line(over: Partial<AssemblyLineRecord>): AssemblyLineRecord {
+function line(over: Partial<AssemblyRunRecord>): AssemblyRunRecord {
   return {
     id: "al-1",
-    definitionName: "code-review",
+    graph: null,
+    blueprintName: "code-review",
     taskId: null,
     repo: "re-cinq/lore",
     branch: "feat/x",
@@ -16,8 +17,8 @@ function line(over: Partial<AssemblyLineRecord>): AssemblyLineRecord {
     status: "running",
     outcome: null,
     reason: null,
-    definitionHash: null,
-    resumedFromLineId: null,
+    blueprintHash: null,
+    resumedFromRunId: null,
     resumedFromNodeId: null,
     inheritedNodeCount: 0,
     createdAt: new Date(0),
@@ -27,12 +28,11 @@ function line(over: Partial<AssemblyLineRecord>): AssemblyLineRecord {
   };
 }
 
-function nodeRow(
-  over: Partial<AssemblyLineNodeRecord>,
-): AssemblyLineNodeRecord {
+function nodeRow(over: Partial<StationRunRecord>): StationRunRecord {
   return {
     id: "n-1",
-    assemblyLineId: "al-1",
+    stationRunId: "station-run-1",
+    assemblyRunId: "al-1",
     nodeId: "review",
     iteration: 1,
     outcome: null,
@@ -183,7 +183,7 @@ describe("assemblyLineCheck check-name alias", () => {
   it("publishes a code-review-recheck line under the aliased lore/code-review check name so a required check is refreshed", () => {
     expect(
       assemblyLineCheck(
-        line({ definitionName: "code-review-recheck", status: "running" }),
+        line({ blueprintName: "code-review-recheck", status: "running" }),
         [],
       ),
     ).toMatchObject({ name: "lore/code-review", title: "Lore code-review" });

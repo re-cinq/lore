@@ -6,7 +6,7 @@ import RunGraphView from "./RunGraphView";
 import {
   codeReviewDefinition,
   implementationDefinition,
-} from "@/lib/builtin-definitions";
+} from "@/lib/definition-fixtures";
 import { deriveVisibleGraph, type RunData } from "@/lib/graph-view-model";
 
 const runData = (over: Partial<RunData> = {}): RunData => ({

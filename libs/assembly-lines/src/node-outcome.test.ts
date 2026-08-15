@@ -104,10 +104,9 @@ describe("stationNodeOutcome", () => {
       },
     });
     expect(
-      stationNodeOutcome(
-        { id: "implement", type: "agent" },
-        { phase: "Failed" },
-      ).extras?.["Lore-Validation-Status"],
+      stationNodeOutcome({ type: "agent" }, { phase: "Failed" }).extras?.[
+        "Lore-Validation-Status"
+      ],
     ).toBe("agent-failed");
   });
 });

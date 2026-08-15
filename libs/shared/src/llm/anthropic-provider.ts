@@ -5,7 +5,7 @@ import { enforceTrue } from "../lib/enforce.js";
  * Prompt caching, cost computation, retries and `pipeline.llm_calls` logging are
  * preserved; cost logging goes through an injected {@link UsagePort} (via
  * `Llm.configure`) so every row rides the 0032-aware routing SQL — a caller
- * passing an assembly-line id as `taskId` lands on `assembly_line_id` instead
+ * passing an assembly-line id as `taskId` lands on `assembly_run_id` instead
  * of being FK-rejected. Port absent → logging is skipped.
  */
 
@@ -131,7 +131,7 @@ export class AnthropicProvider implements LlmProvider {
 
     if (result && !result.correlated && req.taskId) {
       console.warn(
-        `[llm] cost row uncorrelated: id ${req.taskId} matched no pipeline.tasks or pipeline.assembly_lines row`,
+        `[llm] cost row uncorrelated: id ${req.taskId} matched no pipeline.tasks or pipeline.assembly_runs row`,
       );
     }
   }
@@ -161,7 +161,7 @@ export class AnthropicProvider implements LlmProvider {
 
     if (result && !result.correlated && req.taskId) {
       console.warn(
-        `[llm] failed-call cost row uncorrelated: id ${req.taskId} matched no pipeline.tasks or pipeline.assembly_lines row`,
+        `[llm] failed-call cost row uncorrelated: id ${req.taskId} matched no pipeline.tasks or pipeline.assembly_runs row`,
       );
     }
   }

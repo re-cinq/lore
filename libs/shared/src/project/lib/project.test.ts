@@ -84,7 +84,7 @@ describe("Project wiring", () => {
     });
 
     expect(assemblyLineId).toBe("al-1");
-    expect(capture[0].text).toContain("INSERT INTO pipeline.assembly_lines");
+    expect(capture[0].text).toContain("INSERT INTO pipeline.assembly_runs");
     expect(capture[0].text).toContain("'assembly_line.start'");
     expect(capture[0].params).toEqual([
       "implementation",

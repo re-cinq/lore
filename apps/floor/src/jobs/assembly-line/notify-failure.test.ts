@@ -1,6 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect } from "vitest";
-import type { AssemblyLineRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { AuditLogEntry } from "../lib/audit.js";
 import {
   isFailureOutcome,
@@ -9,11 +9,12 @@ import {
 } from "./notify-failure.js";
 
 function lineRow(
-  overrides: Partial<AssemblyLineRecord> = {},
-): AssemblyLineRecord {
+  overrides: Partial<AssemblyRunRecord> = {},
+): AssemblyRunRecord {
   return {
     id: "al-1",
-    definitionName: "code-review",
+    graph: null,
+    blueprintName: "code-review",
     taskId: null,
     repo: "re-cinq/lore",
     branch: "fix/thing",
@@ -21,8 +22,8 @@ function lineRow(
     status: "failed",
     outcome: "error",
     reason: null,
-    definitionHash: null,
-    resumedFromLineId: null,
+    blueprintHash: null,
+    resumedFromRunId: null,
     resumedFromNodeId: null,
     inheritedNodeCount: 0,
     createdAt: new Date("2026-07-17T06:20:00Z"),
@@ -83,7 +84,7 @@ describe("failureNotice", () => {
 
   it("omits the re-run hint for non-review definitions", () => {
     const notice = failureNotice(
-      lineRow({ definitionName: "comment-triage" }),
+      lineRow({ blueprintName: "comment-triage" }),
       "error",
       undefined,
       undefined,
@@ -94,7 +95,7 @@ describe("failureNotice", () => {
 
   it("yields no PR comment for a line without a pr_number", () => {
     const notice = failureNotice(
-      lineRow({ definitionName: "gap-detect", args: {} }),
+      lineRow({ blueprintName: "gap-detect", args: {} }),
       "error",
       "detect station exploded",
       undefined,
@@ -159,7 +160,7 @@ describe("notifyLineFailure", () => {
     const recorder = recordingPorts();
 
     await notifyLineFailure(
-      lineRow({ definitionName: "gap-detect", args: {} }),
+      lineRow({ blueprintName: "gap-detect", args: {} }),
       "error",
       undefined,
       recorder.ports,

@@ -11,21 +11,27 @@ import type {
   AuditLogEntry,
   AuditPort,
 } from "@re-cinq/lore-shared/project/audit/audit-port.js";
-import type { AssemblyLineRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
-import type { AssemblyLineNode } from "@re-cinq/lore-assembly-lines";
+import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { CreateReviewInput } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 
-const reviewNode: AssemblyLineNode = {
+const reviewNode: RunGraphNode = {
+  station: null,
+  station_inherited: false,
   id: "review",
   type: "agent",
   prompt_ref: "code-review",
 };
-const plainNode: AssemblyLineNode = {
+const plainNode: RunGraphNode = {
+  station: null,
+  station_inherited: false,
   id: "detect",
   type: "detect",
   job_ref: "x",
 };
-const refineNode: AssemblyLineNode = {
+const refineNode: RunGraphNode = {
+  station: null,
+  station_inherited: false,
   id: "reply",
   type: "agent",
   prompt_ref: "code-review-refine",
@@ -60,10 +66,10 @@ const row = (args: Record<string, unknown> = { pr_number: 841 }) =>
   ({
     id: "line-1",
     repo: "re-cinq/lore",
-    definitionName: "code-review",
+    blueprintName: "code-review",
     status: "running",
     args,
-  }) as unknown as AssemblyLineRecord;
+  }) as unknown as AssemblyRunRecord;
 
 function ports() {
   const reviews: Array<{ number: number; input: CreateReviewInput }> = [];
@@ -769,7 +775,9 @@ describe("postReplyFromNode without a known iteration", () => {
 });
 
 describe("postReviewFromNode for the fast re-check node", () => {
-  const recheckNode: AssemblyLineNode = {
+  const recheckNode: RunGraphNode = {
+    station: null,
+    station_inherited: false,
     id: "recheck",
     type: "agent",
     prompt_ref: "code-review-recheck",

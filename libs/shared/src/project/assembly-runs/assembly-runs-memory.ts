@@ -1,13 +1,17 @@
 import { enforceTrue } from "../../lib/enforce.js";
 import { randomUUID } from "node:crypto";
 import { resolveResumePrefix } from "./resume.js";
+import { RUN_START_EVENT } from "./run-events.js";
+import type { RunGraph } from "./run-graph.js";
 import type {
-  AssemblyLinesPort,
-  AssemblyLineStartInput,
-  AssemblyLineNodeStartInput,
-  AssemblyLineRecord,
-  AssemblyLineNodeRecord,
-} from "./assembly-lines-port.js";
+  AssemblyRunQuery,
+  AssemblyRunsPort,
+  AssemblyRunStartInput,
+  StationRunStartInput,
+  AssemblyRunRecord,
+  StationRunRecord,
+  OpenRunSummary,
+} from "./assembly-runs-port.js";
 
 export interface SeedAssemblyLineEvent {
   eventName: string;
@@ -18,7 +22,8 @@ export interface SeedAssemblyLineEvent {
 
 export interface SeedAssemblyLineNode {
   id: string;
-  assemblyLineId: string;
+  stationRunId: string;
+  assemblyRunId: string;
   nodeId: string;
   iteration: number;
   agentCrName: string | null;
@@ -31,9 +36,9 @@ export interface SeedAssemblyLineNode {
 /** A fork inherits branch and taskId from its source and its args unless the
  *  caller overrides them; a plain start is passed through untouched. */
 function inheritFromSource(
-  input: AssemblyLineStartInput,
-  source: AssemblyLineRecord | null,
-): AssemblyLineStartInput {
+  input: AssemblyRunStartInput,
+  source: AssemblyRunRecord | null,
+): AssemblyRunStartInput {
   if (!source) {
     return input;
   }
@@ -47,18 +52,18 @@ function inheritFromSource(
 }
 
 /**
- * In-memory {@link AssemblyLinesPort}: the behavioral spec of the Pg adapter,
+ * In-memory {@link AssemblyRunsPort}: the behavioral spec of the Pg adapter,
  * computed over seeded rows. `clock` is injectable so ordering-dependent reads
  * are deterministic in tests.
  */
-export class InMemoryAssemblyLines implements AssemblyLinesPort {
-  rows: AssemblyLineRecord[] = [];
+export class InMemoryAssemblyRuns implements AssemblyRunsPort {
+  rows: AssemblyRunRecord[] = [];
   nodes: SeedAssemblyLineNode[] = [];
   events: SeedAssemblyLineEvent[] = [];
 
   constructor(public clock: () => Date = () => new Date()) {}
 
-  async start(input: AssemblyLineStartInput): Promise<string> {
+  async start(input: AssemblyRunStartInput): Promise<string> {
     const resumeFrom = input.resumeFrom;
     const source = resumeFrom ? await this.getById(resumeFrom.lineId) : null;
     // Validate the fork BEFORE minting anything, so a rejected resume leaves no
@@ -68,7 +73,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
       ? resolveResumePrefix(
           input,
           source,
-          await this.listNodes(resumeFrom.lineId),
+          await this.listStationRuns(resumeFrom.lineId),
         ).prefix
       : [];
     const id = randomUUID();
@@ -76,16 +81,22 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
 
     row.inheritedNodeCount = inherited.length;
     // A fork carries its source's hash; a plain start carries none until the
-    // Floor stamps it — `input.definitionHash` is a resume INPUT, and the Pg
+    // Floor stamps it — `input.blueprintHash` is a resume INPUT, and the Pg
     // plain-start CTE likewise never writes it.
-    row.definitionHash = source?.definitionHash ?? null;
+    row.blueprintHash = source?.blueprintHash ?? null;
+    // A fork replays its source's rows, so it MUST walk the same graph — the
+    // hash guard already proved the current blueprint still matches it.
+    row.graph = source?.graph ?? null;
     this.rows.push(row);
 
     for (const node of inherited) {
       this.nodes.push({
         ...node,
         id: String(this.nodes.length + 1),
-        assemblyLineId: id,
+        // A copied row is a row of THIS run, so it gets its own identity — two
+        // runs sharing a station_run_id would merge their telemetry.
+        stationRunId: randomUUID(),
+        assemblyRunId: id,
         // Copied rows never carry the source's CR name: the run-viz and cost
         // correlation joins resolve agent_cr_name -> newest node row, and an
         // echoed name would steal the source's late-arriving rows.
@@ -93,18 +104,18 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
       });
     }
     this.events.push({
-      eventName: "assembly_line.start",
+      eventName: RUN_START_EVENT,
       source: "internal",
       params: {
         assemblyLineId: id,
-        definitionName: input.definitionName,
+        blueprintName: input.blueprintName,
         repo: input.repo,
         branch: row.branch,
         taskId: row.taskId,
         args: row.args,
         resumedFrom: input.resumeFrom ?? null,
       },
-      dedupeKey: `assembly_line.start:${id}`,
+      dedupeKey: `${RUN_START_EVENT}:${id}`,
     });
 
     return id;
@@ -122,11 +133,22 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     row.startedAt = this.clock();
   }
 
-  async stampDefinitionHash(id: string, hash: string): Promise<void> {
+  async stampBlueprint(
+    id: string,
+    hash: string,
+    graph?: RunGraph,
+  ): Promise<void> {
     const row = this.mustFind(id);
 
-    // Write-once (mirrors the Pg guard on a null hash).
-    row.definitionHash = row.definitionHash ?? hash;
+    // Write-once, guarded on the HASH for both fields (mirrors the Pg WHERE):
+    // the pair describes one blueprint, so stamping them independently could
+    // leave a row whose graph and hash came from different loads.
+    if (row.blueprintHash !== null) {
+      return;
+    }
+
+    row.blueprintHash = hash;
+    row.graph = graph ?? null;
   }
 
   async finish(id: string, outcome: string, reason?: string): Promise<boolean> {
@@ -145,14 +167,13 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     return true;
   }
 
-  private async recordNodeStart(
-    input: AssemblyLineNodeStartInput,
-  ): Promise<string> {
+  private async recordNodeStart(input: StationRunStartInput): Promise<string> {
     const id = String(this.nodes.length + 1);
 
     this.nodes.push({
       id,
-      assemblyLineId: input.assemblyLineId,
+      stationRunId: randomUUID(),
+      assemblyRunId: input.assemblyRunId,
       nodeId: input.nodeId,
       iteration: input.iteration,
       agentCrName: input.agentCrName ?? null,
@@ -178,24 +199,34 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     node.finishedAt = this.clock();
   }
 
-  async ensureNodeStart(
-    input: AssemblyLineNodeStartInput,
-  ): Promise<{ nodeRowId: string; created: boolean }> {
+  async ensureStationRun(
+    input: StationRunStartInput,
+  ): Promise<{ nodeRowId: string; stationRunId: string; created: boolean }> {
     const existing = this.nodes.find(
       (n) =>
-        n.assemblyLineId === input.assemblyLineId &&
+        n.assemblyRunId === input.assemblyRunId &&
         n.nodeId === input.nodeId &&
         n.iteration === input.iteration,
     );
 
+    // A converged duplicate returns the EXISTING station run id: the id names the
+    // visit, and minting a fresh one per call would give the same pod two names.
     if (existing) {
-      return { nodeRowId: existing.id, created: false };
+      return {
+        nodeRowId: existing.id,
+        stationRunId: existing.stationRunId,
+        created: false,
+      };
     }
+    const nodeRowId = await this.recordNodeStart(input);
+    const created = this.nodes.find((n) => n.id === nodeRowId);
 
-    return { nodeRowId: await this.recordNodeStart(input), created: true };
+    enforceTrue(created, Error, `station run row "${nodeRowId}" vanished`);
+
+    return { nodeRowId, stationRunId: created.stationRunId, created: true };
   }
 
-  async finishNodeOnce(
+  async finishStationRunOnce(
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
@@ -211,20 +242,72 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     return true;
   }
 
-  async listNodes(assemblyLineId: string): Promise<AssemblyLineNodeRecord[]> {
+  async listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]> {
     // Numeric-string ids (this double mints "1","2",…; Pg's BIGINT identity is
     // likewise numeric) — compare with numeric collation so the double stays
     // honest as the behavioral spec (a plain Number() diff would NaN on any
     // non-numeric id and silently no-op the sort).
     return this.nodes
-      .filter((n) => n.assemblyLineId === assemblyLineId)
+      .filter((n) => n.assemblyRunId === assemblyRunId)
       .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
   }
 
-  async listOpen(): Promise<AssemblyLineRecord[]> {
+  async list(query: AssemblyRunQuery): Promise<AssemblyRunRecord[]> {
+    const blueprints =
+      query.blueprintName === undefined
+        ? null
+        : new Set(
+            typeof query.blueprintName === "string"
+              ? [query.blueprintName]
+              : query.blueprintName,
+          );
+    const statuses = query.status ? new Set(query.status) : null;
+
+    return (
+      this.rows
+        .filter(
+          (row) =>
+            (query.repo === undefined || row.repo === query.repo) &&
+            (blueprints === null || blueprints.has(row.blueprintName)) &&
+            (statuses === null || statuses.has(row.status)) &&
+            (query.taskId === undefined || row.taskId === query.taskId) &&
+            (query.prNumber === undefined ||
+              Number(row.args.pr_number) === query.prNumber) &&
+            (query.createdAfter === undefined ||
+              row.createdAt >= query.createdAfter),
+        )
+        // Newest first, id as the tiebreak. The tiebreak buys STABILITY, not
+        // insertion order — run ids are random uuids, so two runs created in the
+        // same millisecond come back in a fixed but arbitrary order here and in
+        // Postgres alike. Callers that need chronology must not create ties.
+        .sort(
+          (a, b) =>
+            b.createdAt.getTime() - a.createdAt.getTime() ||
+            b.id.localeCompare(a.id),
+        )
+        .slice(0, query.limit ?? 50)
+    );
+  }
+
+  async listOpen(): Promise<AssemblyRunRecord[]> {
     return this.rows
       .filter((r) => r.status === "queued" || r.status === "running")
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+
+  async findOpenOnBranch(
+    repo: string,
+    branch: string,
+  ): Promise<OpenRunSummary[]> {
+    return (await this.listOpen())
+      .filter((r) => r.repo === repo && r.branch === branch)
+      .map((r) => ({
+        id: r.id,
+        status: r.status as "queued" | "running",
+        repo: r.repo,
+        branch: r.branch,
+        createdAt: r.createdAt,
+      }));
   }
 
   async mergeArgs(id: string, patch: Record<string, unknown>): Promise<void> {
@@ -235,11 +318,11 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     }
   }
 
-  async getById(id: string): Promise<AssemblyLineRecord | null> {
+  async getById(id: string): Promise<AssemblyRunRecord | null> {
     return this.rows.find((r) => r.id === id) ?? null;
   }
 
-  async listForTask(taskId: string): Promise<AssemblyLineRecord[]> {
+  async listForTask(taskId: string): Promise<AssemblyRunRecord[]> {
     return this.rows
       .filter((r) => r.taskId === taskId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
@@ -248,7 +331,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
   async findOpenByPr(
     repo: string,
     prNumber: number,
-  ): Promise<AssemblyLineRecord[]> {
+  ): Promise<AssemblyRunRecord[]> {
     return this.rows
       .filter((r) => this.matchesOpenPr(r, repo, prNumber))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
@@ -263,7 +346,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     const open = this.rows.filter(
       (r) =>
         this.matchesOpenPr(r, repo, prNumber) &&
-        (!definitions || definitions.includes(r.definitionName)),
+        (!definitions || definitions.includes(r.blueprintName)),
     );
 
     for (const row of open) {
@@ -279,13 +362,13 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     return this.rows.some(
       (r) =>
         r.repo === repo &&
-        r.definitionName === "code-review" &&
+        r.blueprintName === "code-review" &&
         Number(r.args.pr_number) === prNumber,
     );
   }
 
   private matchesOpenPr(
-    row: AssemblyLineRecord,
+    row: AssemblyRunRecord,
     repo: string,
     prNumber: number,
   ): boolean {
@@ -296,22 +379,20 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     );
   }
 
-  private newRow(
-    id: string,
-    input: AssemblyLineStartInput,
-  ): AssemblyLineRecord {
+  private newRow(id: string, input: AssemblyRunStartInput): AssemblyRunRecord {
     return {
       id,
-      definitionName: input.definitionName,
+      blueprintName: input.blueprintName,
       taskId: input.taskId ?? null,
       repo: input.repo,
       branch: input.branch ?? null,
       args: input.args ?? {},
+      graph: null,
       status: "queued",
       outcome: null,
       reason: null,
-      definitionHash: null,
-      resumedFromLineId: input.resumeFrom?.lineId ?? null,
+      blueprintHash: null,
+      resumedFromRunId: input.resumeFrom?.lineId ?? null,
       resumedFromNodeId: input.resumeFrom?.nodeId ?? null,
       inheritedNodeCount: 0,
       createdAt: this.clock(),
@@ -320,7 +401,7 @@ export class InMemoryAssemblyLines implements AssemblyLinesPort {
     };
   }
 
-  private mustFind(id: string): AssemblyLineRecord {
+  private mustFind(id: string): AssemblyRunRecord {
     const row = this.rows.find((r) => r.id === id);
 
     enforceTrue(row, Error, `no assembly line "${id}"`);

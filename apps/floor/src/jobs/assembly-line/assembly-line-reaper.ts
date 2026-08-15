@@ -14,12 +14,13 @@
 //   - single-CR (definition-less) row, backing task terminal → close from status
 
 import {
+  isHumanStation,
   stationNodeOutcome,
   type AgentNodeStatus,
-  type AssemblyLine,
-  type AssemblyLineNode,
 } from "@re-cinq/lore-assembly-lines";
-import type { AssemblyLineNodeRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import { graphForRun } from "./graph-for-run.js";
+import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { advanceLine, finishLine, taskFromRow } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { nodeAgentSpec, nodeStationSpec } from "./floor-assembly-line.js";
@@ -46,7 +47,7 @@ export type NodeRecovery =
 
 /** Pure per-open-node decision from the node row's age and the CR's live status. */
 export function decideNodeRecovery(input: {
-  node: AssemblyLineNodeRecord;
+  node: StationRunRecord;
   timeoutMinutes: number | undefined;
   status: AgentNodeStatus | null;
   /** The definition's node type. `wait` nodes have no budget — see below. */
@@ -57,7 +58,7 @@ export function decideNodeRecovery(input: {
   // has a budget because a pod that stops reporting has died; "how long may a person
   // take to answer" has no defensible number, so the budget does not apply at all
   // rather than being set very large and silently killing a feature next month.
-  if (input.nodeType === "wait") {
+  if (isHumanStation(input.nodeType)) {
     return { kind: "wait" };
   }
   const budgetMs =
@@ -87,7 +88,6 @@ export async function assemblyLineReaperJob(
   deps: AssemblyLineReaperDeps,
 ): Promise<string> {
   const open = await deps.assemblyLines.listOpen();
-  const definitions = await deps.definitions();
   const nowMs = Date.now();
   let resolved = 0;
   let relaunched = 0;
@@ -98,9 +98,11 @@ export async function assemblyLineReaperJob(
 
   for (const row of open) {
     try {
-      const definition = definitions.get(row.definitionName);
+      // Same rule the walk follows (FR6.38): reaping a run against a
+      // since-edited graph would resolve a node the run never had.
+      const graph = await graphForRun(row, deps.definitions);
 
-      if (!definition) {
+      if (!graph) {
         // Single-CR run record (FR6.8): normally the agent-watcher closes it, but
         // a crash between the task's post-handler status write and that close (or
         // a dropped terminal event past the reconcile window) leaves it open
@@ -146,7 +148,7 @@ export async function assemblyLineReaperJob(
         continue;
       }
 
-      const nodes = await deps.assemblyLines.listNodes(row.id);
+      const nodes = await deps.assemblyLines.listStationRuns(row.id);
       const openNode = nodes.find((n) => n.outcome === null);
 
       if (!openNode) {
@@ -155,7 +157,7 @@ export async function assemblyLineReaperJob(
         continue;
       }
 
-      const node = definition.nodes.find((n) => n.id === openNode.nodeId);
+      const node = graph.nodes.find((n) => n.id === openNode.nodeId);
 
       if (!node) {
         continue;
@@ -206,13 +208,19 @@ export async function assemblyLineReaperJob(
         );
       } else if (recovery.kind === "relaunch") {
         await deps.launch(
-          specForNode(definition, node, row, openNode.iteration, deps),
+          specForNode(
+            node,
+            row,
+            openNode.iteration,
+            deps,
+            openNode.stationRunId,
+          ),
         );
         relaunched++;
       }
     } catch (err) {
       console.error(
-        `[assembly-line-reaper] ${row.definitionName}/${row.id}: ${(err as Error).message}`,
+        `[assembly-line-reaper] ${row.blueprintName}/${row.id}: ${(err as Error).message}`,
       );
     }
   }
@@ -221,11 +229,11 @@ export async function assemblyLineReaperJob(
 }
 
 function specForNode(
-  definition: AssemblyLine,
-  node: AssemblyLineNode,
+  node: RunGraphNode,
   row: Parameters<typeof taskFromRow>[0],
   iteration: number,
   deps: NodeEventDeps,
+  stationRunId?: string,
 ) {
   const task = taskFromRow(row);
 
@@ -235,6 +243,7 @@ function specForNode(
         task,
         deps.resolvePrompt(node.prompt_ref ?? node.type, task.description),
         iteration,
+        stationRunId,
       )
-    : nodeStationSpec(node, task, iteration);
+    : nodeStationSpec(node, task, iteration, stationRunId);
 }

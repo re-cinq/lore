@@ -53,7 +53,7 @@ export function taskRunsRoute(getPool: () => Pool | null): ServerRoute {
       try {
         const { rows } = await pool.query<TaskRunRow>(
           `SELECT id, status, outcome, created_at
-             FROM pipeline.assembly_lines
+             FROM pipeline.assembly_runs
             WHERE task_id = $1
             ORDER BY created_at DESC`,
           [taskId],

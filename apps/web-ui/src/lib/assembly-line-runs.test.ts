@@ -17,7 +17,8 @@ import type {
 
 const baseRow: AssemblyLineRunRow = {
   id: "al-1",
-  definition_name: "implementation",
+  blueprint_name: "implementation",
+  graph: null,
   task_id: "task-9",
   repo: "re-cinq/lore",
   branch: "lore/impl-x",
@@ -38,7 +39,8 @@ describe("toAssemblyLineRun", () => {
   it("resolves the PR from the task join when pr_url is set", () => {
     expect(toAssemblyLineRun(baseRow)).toMatchObject({
       id: "al-1",
-      definitionName: "implementation",
+      blueprintName: "implementation",
+      graph: null,
       taskId: "task-9",
       prUrl: "https://github.com/re-cinq/lore/pull/42",
       prNumber: 42,

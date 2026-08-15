@@ -9,6 +9,7 @@ import {
   stationNodeOutcome,
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
+import { graphForRun } from "./graph-for-run.js";
 import type { EventHandler } from "../../main-loop/types.js";
 import { advanceLine, type AdvanceDeps } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
@@ -18,7 +19,7 @@ import {
   codeReviewOnCommentTriaged,
   type CommentContext,
 } from "../review/code-review.js";
-import type { AssemblyLineRecord } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 
 export interface NodeEventDeps extends AdvanceDeps {
@@ -53,10 +54,10 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
       return;
     }
 
-    const definition = (await deps.definitions()).get(row.definitionName);
-    const node = definition?.nodes.find((n) => n.id === nodeId);
+    const graph = await graphForRun(row, deps.definitions);
+    const node = graph?.nodes.find((n) => n.id === nodeId);
 
-    if (!definition || !node) {
+    if (!node) {
       return;
     }
 
@@ -89,11 +90,11 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
 /** When a comment-triage node goes terminal, read its classified action and start
  *  the routed follow-up line. Best-effort — a routing failure never fails the walk. */
 async function routeCommentTriage(
-  row: AssemblyLineRecord,
+  row: AssemblyRunRecord,
   nodeId: string,
   result: NodeResult,
 ): Promise<void> {
-  if (row.definitionName !== "comment-triage" || nodeId !== "triage") {
+  if (row.blueprintName !== "comment-triage" || nodeId !== "triage") {
     return;
   }
   const action = result.extras?.action;
@@ -115,7 +116,7 @@ async function routeCommentTriage(
   }
 }
 
-function contextFromRow(row: AssemblyLineRecord): CommentContext {
+function contextFromRow(row: AssemblyRunRecord): CommentContext {
   const a = row.args;
 
   return {

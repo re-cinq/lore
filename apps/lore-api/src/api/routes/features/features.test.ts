@@ -41,7 +41,7 @@ function fakeFeatures(overrides: Record<string, unknown> = {}) {
 function fakeAssemblyLines(overrides: Record<string, unknown> = {}) {
   return {
     listForTask: vi.fn().mockResolvedValue([]),
-    listNodes: vi.fn().mockResolvedValue([]),
+    listStationRuns: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }
@@ -179,11 +179,11 @@ describe("features routes", () => {
         listForTask: vi.fn().mockResolvedValue([
           {
             id: "line-1",
-            definitionName: "feature-planning",
+            blueprintName: "feature-planning",
             status: "running",
           },
         ]),
-        listNodes: vi.fn().mockResolvedValue([
+        listStationRuns: vi.fn().mockResolvedValue([
           { nodeId: "analyze", iteration: 1, outcome: "success" },
           { nodeId: "author", iteration: 1, outcome: null },
         ]),
@@ -414,11 +414,11 @@ describe("resume_from_iteration is a REWIND, not the ordinary basis", () => {
       listForTask: vi.fn().mockResolvedValue([
         {
           id: "line-1",
-          definitionName: "feature-planning",
+          blueprintName: "feature-planning",
           status: "running",
         },
       ]),
-      listNodes: vi
+      listStationRuns: vi
         .fn()
         .mockResolvedValue([{ nodeId: "author", iteration: 1, outcome: null }]),
     });
@@ -524,11 +524,11 @@ describe("accepting the plan resumes the parked node", () => {
         listForTask: vi.fn().mockResolvedValue([
           {
             id: "line-1",
-            definitionName: "feature-planning",
+            blueprintName: "feature-planning",
             status: "running",
           },
         ]),
-        listNodes: vi
+        listStationRuns: vi
           .fn()
           .mockResolvedValue([
             { nodeId: "author", iteration: 2, outcome: null },
@@ -620,7 +620,7 @@ describe("accepting the plan resumes the parked node", () => {
           listForTask: vi
             .fn()
             .mockResolvedValue([
-              { id: "line-1", definitionName: "feature-planning" },
+              { id: "line-1", blueprintName: "feature-planning" },
             ]),
         }),
       );

@@ -24,6 +24,33 @@ const run = (status: string, nodes: AssemblyLineRunNode[]) => ({
 const feature = (status: string) => ({ status }) as never;
 
 describe("featurePhaseOf — read from the line", () => {
+  it("reads a human station's phase from its declared type, not from a node-id list", () => {
+    // The node id here is in NO map. Before the type existed, a station added to
+    // the blueprint reported no phase at all until someone edited the view.
+    expect(
+      featurePhaseOf({
+        run: {
+          status: "running",
+          nodes: [
+            {
+              nodeId: "second-opinion",
+              iteration: 1,
+              outcome: null,
+              agentCrName: null,
+              commitSha: null,
+              durationSeconds: null,
+              startedAt: "2026-08-14T10:00:00.000Z",
+            },
+          ],
+          graph: {
+            nodes: [{ id: "second-opinion", type: "feature_review" }],
+          },
+        },
+        feature: { status: "planning" },
+      }),
+    ).toMatchObject({ kind: "awaiting-author", nodeId: "second-opinion" });
+  });
+
   it("reports planning while the analyze node works", () => {
     expect(
       featurePhaseOf({

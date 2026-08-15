@@ -21,6 +21,7 @@
   "include": [
     "run-stream-types.drift.ts",
     "assembly-line-definition.drift.ts",
+    "run-graph.drift.ts",
     "spec-status.drift.ts",
     "trace-types.drift.ts"
   ]

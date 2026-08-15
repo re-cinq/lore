@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
+import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import { createResumeEventHandler } from "./resume-event-handler.js";
 
 /** Records what the handler did, so the test asserts the PATH, not a mock's shape. */
 function harness() {
-  const lines = new InMemoryAssemblyLines();
+  const lines = new InMemoryAssemblyRuns();
   const finished: Array<{
     assemblyLineId: string;
     nodeId: string;
@@ -58,7 +58,7 @@ describe("createResumeEventHandler", () => {
     // args.description — the objection channel, reused rather than reinvented.
     const { handler, lines } = harness();
     const id = await lines.start({
-      definitionName: "feature",
+      blueprintName: "feature",
       repo: "re-cinq/lore",
       args: { description: "d" },
     });

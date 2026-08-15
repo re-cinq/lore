@@ -14,7 +14,8 @@ beforeEach(() => {
 
 const run = (over: Partial<AssemblyLineRun> = {}): AssemblyLineRun => ({
   id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
-  definitionName: "implementation",
+  blueprintName: "implementation",
+  graph: null,
   taskId: "task-9",
   repo: "re-cinq/lore",
   branch: "lore/impl-x",
@@ -98,16 +99,18 @@ describe("AssemblyLineRunsTable", () => {
     render(
       <AssemblyLineRunsTable
         runs={[
-          run({ id: "real-1", definitionName: "code-review" }),
+          run({ id: "real-1", blueprintName: "code-review" }),
           run({
             id: "skip-1",
-            definitionName: "comment-triage",
+            blueprintName: "comment-triage",
+            graph: null,
             status: "finished",
             outcome: "lease_held",
           }),
           run({
             id: "skip-2",
-            definitionName: "comment-triage",
+            blueprintName: "comment-triage",
+            graph: null,
             status: "finished",
             outcome: "lease_held",
           }),
@@ -128,10 +131,11 @@ describe("AssemblyLineRunsTable", () => {
     render(
       <AssemblyLineRunsTable
         runs={[
-          run({ id: "real-1", definitionName: "code-review" }),
+          run({ id: "real-1", blueprintName: "code-review" }),
           run({
             id: "skip-1",
-            definitionName: "comment-triage",
+            blueprintName: "comment-triage",
+            graph: null,
             status: "finished",
             outcome: "lease_held",
           }),

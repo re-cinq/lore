@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { describeNode } from "./run-node-detail-presenter";
-import { implementationDefinition } from "./builtin-definitions";
+import { implementationDefinition } from "./definition-fixtures";
 import type { AssemblyLineRunNode } from "./assembly-line-runs";
 import type { NodeRunState } from "./run-event-reducer";
 import type { RunStreamEvent } from "./run-stream-types";
@@ -20,6 +20,7 @@ const event = (over: Partial<RunStreamEvent> = {}): RunStreamEvent => ({
   taskId: "t",
   agentCrName: "cr-1",
   assemblyLineId: "al",
+  stationRunId: null,
   nodeId: "implement",
   iteration: 1,
   eventType: "message",
@@ -270,8 +271,8 @@ describe("describeNode on a parked wait node", () => {
       { id: "analyze", type: "agent" as const },
       {
         id: "author",
-        type: "wait" as const,
-        signal: "author_feedback" as const,
+        type: "feature_review" as const,
+        route: "/repos/{args.repo}/features/{args.feature_id}" as const,
       },
       { id: "done", type: "retrospective" as const },
     ],

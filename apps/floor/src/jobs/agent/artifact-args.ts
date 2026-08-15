@@ -10,16 +10,16 @@
 // a recipe declaration and a prompt, not a branch in here.
 
 import type {
-  AssemblyLineRecord,
-  AssemblyLinesPort,
-} from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+  AssemblyRunRecord,
+  AssemblyRunsPort,
+} from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { AgentFileEvent } from "./agent-events.js";
 
 /** The features API owns this one — see deliverPlanningResult. */
 const OWNED_ELSEWHERE = new Set(["planning.result"]);
 
 export interface ArtifactArgsDeps {
-  assemblyLines: Pick<AssemblyLinesPort, "listForTask" | "mergeArgs">;
+  assemblyLines: Pick<AssemblyRunsPort, "listForTask" | "mergeArgs">;
 }
 
 export type ArtifactDelivery =
@@ -68,9 +68,7 @@ export async function deliverArtifact(
 /** The line a fresh artifact belongs to: the most recently started one for the task.
  *  A task re-dispatched after a crash has more than one, and the artifact came from
  *  the run that is still going. */
-function newestOpen(
-  lines: AssemblyLineRecord[],
-): AssemblyLineRecord | undefined {
+function newestOpen(lines: AssemblyRunRecord[]): AssemblyRunRecord | undefined {
   return [...lines]
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
     .at(-1);

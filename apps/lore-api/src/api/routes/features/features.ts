@@ -18,8 +18,8 @@ import {
   latestReadyIteration,
 } from "@re-cinq/lore-shared/project/features/features-port.js";
 import { decideRoundDispatch } from "@re-cinq/lore-shared/feature-planning/round-dispatch.js";
-import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
-import { reportToParkedNode } from "@re-cinq/lore-shared/project/assembly-lines/parked-node.js";
+import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import { reportToParkedNode } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../../platform/project-boot.js";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
@@ -99,7 +99,7 @@ function enforcePool(pool: Pool | null): Pool {
  */
 async function resolveDispatch(
   project: {
-    assemblyLines: Pick<AssemblyLinesPort, "listForTask" | "listNodes">;
+    assemblyLines: Pick<AssemblyRunsPort, "listForTask" | "listStationRuns">;
   },
   iterations: readonly { iteration: number; task_id: string | null }[],
 ): Promise<
@@ -111,14 +111,15 @@ async function resolveDispatch(
     return { kind: "legacy" };
   }
   const lines = await project.assemblyLines.listForTask(taskId);
-  const line = lines.find((l) => l.definitionName === PLANNING_DEFINITION);
+  const line = lines.find((l) => l.blueprintName === PLANNING_DEFINITION);
 
   if (!line) {
     return { kind: "legacy" };
   }
   const decision = decideRoundDispatch(
     line.status,
-    await project.assemblyLines.listNodes(line.id),
+    await project.assemblyLines.listStationRuns(line.id),
+    line.graph,
   );
 
   return decision.kind === "resume"
@@ -146,7 +147,7 @@ function firstTaskId(
  *  {@link resolveDispatch} does — the FIRST round's task owns the line for its
  *  whole life, and later rounds are resumes that mint no task of their own. */
 async function planningLineId(
-  project: { assemblyLines: Pick<AssemblyLinesPort, "listForTask"> },
+  project: { assemblyLines: Pick<AssemblyRunsPort, "listForTask"> },
   iterations: readonly { iteration: number; task_id: string | null }[],
 ): Promise<string | null> {
   const taskId = firstTaskId(iterations);
@@ -156,9 +157,7 @@ async function planningLineId(
   }
   const lines = await project.assemblyLines.listForTask(taskId);
 
-  return (
-    lines.find((l) => l.definitionName === PLANNING_DEFINITION)?.id ?? null
-  );
+  return lines.find((l) => l.blueprintName === PLANNING_DEFINITION)?.id ?? null;
 }
 
 async function kickPlanning(

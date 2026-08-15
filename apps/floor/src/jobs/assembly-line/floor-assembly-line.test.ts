@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { AssemblyLineNode } from "@re-cinq/lore-assembly-lines";
+import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import {
   nodeAgentName,
   nodeAgentSpec,
@@ -17,13 +17,21 @@ const task: FloorAssemblyLineTask = {
   branch: "lore/impl-abcdef12",
 };
 
+/** A clone node. `station` / `station_inherited` are what `snapshotGraph` resolves;
+ *  defaulted here so a test about names, labels or outcomes need not restate them. */
+function cloneNode(
+  over: Partial<RunGraphNode> & { id: string; type: string },
+): RunGraphNode {
+  return { station: null, station_inherited: false, ...over };
+}
+
 describe("nodeAgentSpec", () => {
   it("builds a per-node spec: distinct name, node prompt + model, task repo/branch", () => {
-    const node: AssemblyLineNode = {
+    const node = cloneNode({
       id: "implement",
       type: "agent",
       model: "claude-sonnet-4-6",
-    };
+    });
 
     expect(nodeAgentSpec(node, task, "do it")).toEqual({
       taskId: "abcdef1234567890",
@@ -47,7 +55,7 @@ describe("nodeAgentSpec", () => {
 
   it("omits model when the node inherits it", () => {
     expect(
-      nodeAgentSpec({ id: "push", type: "agent" }, task, "p"),
+      nodeAgentSpec(cloneNode({ id: "push", type: "agent" }), task, "p"),
     ).not.toHaveProperty("model");
   });
 
@@ -57,24 +65,31 @@ describe("nodeAgentSpec", () => {
     expect(nodeAgentName(task.assemblyLineId, "review", 2)).toBe(
       "a1b2c3d4e5f6-review-2",
     );
-    const spec = nodeAgentSpec({ id: "review", type: "agent" }, task, "p", 2);
+    const spec = nodeAgentSpec(
+      cloneNode({ id: "review", type: "agent" }),
+      task,
+      "p",
+      2,
+    );
 
     expect(spec.name).toBe("a1b2c3d4e5f6-review-2");
     expect(spec.extraLabels?.["lore.re-cinq.com/node-iteration"]).toBe("2");
   });
 
-  it("labels the CR with the full assembly-line id, node id and iteration (event-driven transitions)", () => {
+  it("labels the CR with the full assembly-run id, node id and iteration (event-driven transitions)", () => {
     // The CR name only carries a 12-char prefix; the labels carry the full uuid so
     // the k8s watch can map a terminal node CR back to its (line, node, iteration).
     expect(
-      nodeAgentSpec({ id: "implement", type: "agent" }, task, "p").extraLabels,
+      nodeAgentSpec(cloneNode({ id: "implement", type: "agent" }), task, "p")
+        .extraLabels,
     ).toEqual({
       "lore.re-cinq.com/assembly-line-id": "a1b2c3d4e5f6a7b8",
       "lore.re-cinq.com/node-id": "implement",
       "lore.re-cinq.com/node-iteration": "1",
     });
     expect(
-      nodeStationSpec({ id: "wrap", type: "retrospective" }, task).extraLabels,
+      nodeStationSpec(cloneNode({ id: "wrap", type: "retrospective" }), task)
+        .extraLabels,
     ).toEqual({
       "lore.re-cinq.com/assembly-line-id": "a1b2c3d4e5f6a7b8",
       "lore.re-cinq.com/node-id": "wrap",
@@ -87,18 +102,19 @@ describe("nodeAgentSpec station_ref", () => {
   it("threads the node's station_ref so a renamed recipe still resolves (code-review-reply -> code-review-refine)", () => {
     expect(
       nodeAgentSpec(
-        {
+        cloneNode({
           id: "reply",
           type: "agent",
           prompt_ref: "code-review-refine",
-          station_ref: "code-review-refine",
-        },
+          station: "code-review-refine",
+        }),
         task,
         "prompt",
       ).stationRef,
     ).toBe("code-review-refine");
     expect(
-      nodeAgentSpec({ id: "reply", type: "agent" }, task, "prompt").stationRef,
+      nodeAgentSpec(cloneNode({ id: "reply", type: "agent" }), task, "prompt")
+        .stationRef,
     ).toBeUndefined();
   });
 });
@@ -106,13 +122,14 @@ describe("nodeAgentSpec station_ref", () => {
 describe("nodeStationSpec (station pod contract)", () => {
   it("sets hydrate false — a station CR never carries assembled context", () => {
     expect(
-      nodeStationSpec({ id: "ingest", type: "ingest" }, task).hydrate,
+      nodeStationSpec(cloneNode({ id: "ingest", type: "ingest" }), task)
+        .hydrate,
     ).toBe(false);
   });
 
   it("builds the station_input payload the pod parses, defaulting stationRef to def-<type>", () => {
     const spec = nodeStationSpec(
-      { id: "validate", type: "validate", validator: "lint" },
+      cloneNode({ id: "validate", type: "validate", validator: "lint" }),
       task,
     );
 
@@ -132,7 +149,7 @@ describe("nodeStationSpec (station pod contract)", () => {
 
   it("threads string + number line args into params, skipping non-primitive values", () => {
     const spec = nodeStationSpec(
-      { id: "triage", type: "comment-triage" },
+      cloneNode({ id: "triage", type: "comment-triage" }),
       {
         ...task,
         args: {
@@ -154,15 +171,19 @@ describe("nodeStationSpec (station pod contract)", () => {
   it("honors an explicit station_ref override (custom station image)", () => {
     expect(
       nodeStationSpec(
-        { id: "detect", type: "detect", station_ref: "def-custom-detect" },
+        cloneNode({
+          id: "detect",
+          type: "detect",
+          station: "def-custom-detect",
+        }),
         task,
       ).stationRef,
     ).toBe("def-custom-detect");
   });
 
   it("marks only ingest and validate nodes for cloning — detect/gate/retrospective/triage read via the API and a checkout of their synthetic lease-key branch would fail the init", () => {
-    const cloneByType = (type: AssemblyLineNode["type"]) =>
-      nodeStationSpec({ id: type, type }, task).clone;
+    const cloneByType = (type: string) =>
+      nodeStationSpec(cloneNode({ id: type, type }), task).clone;
 
     expect(cloneByType("ingest")).toBe(true);
     expect(cloneByType("validate")).toBe(true);
@@ -172,7 +193,8 @@ describe("nodeStationSpec (station pod contract)", () => {
     expect(cloneByType("comment-triage")).toBe(false);
     expect(cloneByType("github_action")).toBe(false);
     expect(
-      nodeAgentSpec({ id: "implement", type: "agent" }, task, "p").clone,
+      nodeAgentSpec(cloneNode({ id: "implement", type: "agent" }), task, "p")
+        .clone,
     ).toBeUndefined();
   });
 
@@ -182,12 +204,51 @@ describe("nodeStationSpec (station pod contract)", () => {
       branch: "ingest/specs/abc123",
       args: { kind: "specs", ref: "abc123" },
     };
-    const spec = nodeStationSpec({ id: "ingest", type: "ingest" }, ingestTask);
+    const spec = nodeStationSpec(
+      cloneNode({ id: "ingest", type: "ingest" }),
+      ingestTask,
+    );
 
     expect(spec.branch).toBe("abc123");
     expect(JSON.parse(spec.parameters!.station_input).branch).toBe("abc123");
     expect(
-      nodeAgentSpec({ id: "implement", type: "agent" }, ingestTask, "p").branch,
+      nodeAgentSpec(
+        cloneNode({ id: "implement", type: "agent" }),
+        ingestTask,
+        "p",
+      ).branch,
     ).toBe("abc123");
+  });
+});
+
+describe("station-run id label", () => {
+  it("stamps the visit's station-run id on both spec shapes when passed", () => {
+    const agent = nodeAgentSpec(
+      cloneNode({ id: "implement", type: "agent" }),
+      task,
+      "p",
+      1,
+      "3f6c1c9a-run",
+    );
+    const station = nodeStationSpec(
+      cloneNode({ id: "wrap", type: "retrospective" }),
+      task,
+      1,
+      "3f6c1c9a-run",
+    );
+
+    expect(agent.extraLabels?.["lore.re-cinq.com/station-run-id"]).toBe(
+      "3f6c1c9a-run",
+    );
+    expect(station.extraLabels?.["lore.re-cinq.com/station-run-id"]).toBe(
+      "3f6c1c9a-run",
+    );
+  });
+
+  it("omits the label when no station-run id is passed", () => {
+    expect(
+      nodeAgentSpec(cloneNode({ id: "implement", type: "agent" }), task, "p")
+        .extraLabels,
+    ).not.toHaveProperty("lore.re-cinq.com/station-run-id");
   });
 });

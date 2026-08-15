@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
+import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import {
   definitionHash,
+  snapshotGraph,
   type AssemblyLine,
 } from "@re-cinq/lore-assembly-lines";
 import {
@@ -10,12 +11,12 @@ import {
 } from "./start-event-handler.js";
 
 async function seededPort(
-  definitionName: string,
+  blueprintName: string,
   taskId: string | null = "task-9",
 ) {
-  const port = new InMemoryAssemblyLines();
+  const port = new InMemoryAssemblyRuns();
   const assemblyLineId = await port.start({
-    definitionName,
+    blueprintName,
     repo: "re-cinq/lore",
     branch: "lore/x",
     taskId: taskId ?? undefined,
@@ -53,7 +54,7 @@ const TEST_DEFINITIONS = new Map<string, AssemblyLine>([
 ]);
 
 function makeDeps(
-  port: InMemoryAssemblyLines,
+  port: InMemoryAssemblyRuns,
   over: Partial<StartEventHandlerDeps> = {},
 ) {
   const calls = {
@@ -73,12 +74,12 @@ function makeDeps(
 
 function params(
   assemblyLineId: string,
-  definitionName: string,
+  blueprintName: string,
   taskId: string | null = "task-9",
 ) {
   return {
     assemblyLineId,
-    definitionName,
+    blueprintName,
     repo: "re-cinq/lore",
     branch: "lore/x",
     taskId,
@@ -203,7 +204,7 @@ describe("createStartEventHandler", () => {
     const { deps } = makeDeps(port);
 
     await expect(
-      createStartEventHandler(deps)({ definitionName: "implementation" }),
+      createStartEventHandler(deps)({ blueprintName: "implementation" }),
     ).rejects.toThrow("missing assemblyLineId");
   });
 });
@@ -221,10 +222,28 @@ describe("createStartEventHandler definition hashing", () => {
     );
 
     expect(await port.getById(assemblyLineId)).toMatchObject({
-      definitionHash: definitionHash(
+      blueprintHash: definitionHash(
         TEST_DEFINITIONS.get("implementation") as AssemblyLine,
       ),
     });
+  });
+
+  it("stamps the CLONE of the resolved blueprint, stations already resolved", async () => {
+    // The run must stop depending on a file that can change under it, so the
+    // graph it will walk is recorded here, once, beside the hash.
+    const { port, assemblyLineId } = await seededPort("implementation");
+    const { deps } = makeDeps(port);
+
+    await createStartEventHandler(deps)(
+      params(assemblyLineId, "implementation"),
+    );
+
+    expect((await port.getById(assemblyLineId))?.graph).toEqual(
+      snapshotGraph(
+        TEST_DEFINITIONS.get("implementation") as AssemblyLine,
+        "implementation",
+      ),
+    );
   });
 
   it("leaves an earlier stamp alone when a redelivered start loads an edited definition", async () => {
@@ -237,7 +256,7 @@ describe("createStartEventHandler definition hashing", () => {
     await createStartEventHandler(first.deps)(
       params(assemblyLineId, "implementation"),
     );
-    const original = (await port.getById(assemblyLineId))?.definitionHash;
+    const original = (await port.getById(assemblyLineId))?.blueprintHash;
     const second = makeDeps(port, { definitions: async () => edited });
 
     await createStartEventHandler(second.deps)(
@@ -245,7 +264,7 @@ describe("createStartEventHandler definition hashing", () => {
     );
 
     expect(await port.getById(assemblyLineId)).toMatchObject({
-      definitionHash: original,
+      blueprintHash: original,
     });
   });
 
@@ -256,7 +275,7 @@ describe("createStartEventHandler definition hashing", () => {
     await createStartEventHandler(deps)(params(assemblyLineId, "onboard"));
 
     expect(await port.getById(assemblyLineId)).toMatchObject({
-      definitionHash: null,
+      blueprintHash: null,
     });
   });
 });

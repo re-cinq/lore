@@ -6,7 +6,6 @@
 // outcome "failed" as its normal result. Consumed by the Floor's node-event
 // handler + reaper and (parseNodeResult) by the lore-station pod itself.
 
-import type { AssemblyLineNode } from "./loader.js";
 import type { NodeResult, StageOutcome } from "./node-types.js";
 
 /** The slice of an Agent's status the outcome mapping reacts to. */
@@ -98,15 +97,21 @@ export function isBillingError(text: string | null | undefined): boolean {
   );
 }
 
-const failureKind = (node: AssemblyLineNode): string =>
+const failureKind = (node: NodeKind): string =>
   node.type === "agent" ? "agent" : "station";
+
+/** All this needs of a node is its TYPE, so a blueprint node and the clone a run
+ *  carries both satisfy it without conversion. */
+export interface NodeKind {
+  type: string;
+}
 
 /** Map a terminal Agent status to the node outcome (see precedence above).
  *  The set of outcomes this can return per node type is mirrored by
  *  PRODUCIBLE_OUTCOMES in loader.ts (the load-time edge-coverage check) — keep
  *  the two in sync when adding an outcome. */
 export function stationNodeOutcome(
-  node: AssemblyLineNode,
+  node: NodeKind,
   status: AgentNodeStatus,
 ): NodeResult {
   if (status.phase === "Failed") {

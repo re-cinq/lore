@@ -46,8 +46,10 @@ export interface VisibleNode {
   status: NodeRunStatus;
   /** Run mode: on the reached terminal, the run's final result. Null elsewhere. */
   result: string | null;
-  /** For a `wait` node: whose move it is while the node sits open. */
-  signal?: DefinitionNode["signal"];
+  /** The node's declared type. A HUMAN station uses it to say whose move it is
+   *  while the node sits open — the type names the form contract, so no second
+   *  field is needed to describe it. */
+  nodeType?: DefinitionNode["type"];
 }
 
 export interface VisibleEdge {
@@ -191,7 +193,7 @@ function runGraph(
     // Only a terminal the walk actually reached carries the result; on an
     // unreached one it would announce an ending that never happened.
     result: terminals.has(node.id) && reached.has(node.id) ? run.result : null,
-    signal: node.signal,
+    nodeType: node.type,
   }));
 
   return { mode: "run", nodes, edges };

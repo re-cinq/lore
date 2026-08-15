@@ -9,7 +9,7 @@
 // station and become a special case.
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import type { AssemblyLinesPort } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-port.js";
+import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { NodeResult, StageOutcome } from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
 
@@ -20,7 +20,7 @@ const OUTCOMES: ReadonlySet<string> = new Set<StageOutcome>([
 ]);
 
 export interface ResumeEventHandlerDeps {
-  assemblyLines: Pick<AssemblyLinesPort, "mergeArgs">;
+  assemblyLines: Pick<AssemblyRunsPort, "mergeArgs">;
   /** Record the node's outcome and advance — the shared path (advance.ts). */
   finishNodeAndAdvance: (input: {
     assemblyLineId: string;

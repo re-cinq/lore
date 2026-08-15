@@ -49,19 +49,35 @@ describe("assembly-line reads", () => {
       expect(res.result).toEqual({ runs });
     });
 
-    it("passes status, repo and limit to the query as bound parameters", async () => {
+    it("passes status, repo, blueprint and limit to the query as bound parameters", async () => {
       const pool = makePool();
 
       pool.query.mockResolvedValue({ rows: [] });
       await get(
-        "/api/assembly-lines?status=running&repo=re-cinq/lore&limit=5",
+        "/api/assembly-lines?status=running&repo=re-cinq/lore&blueprint=code-review&limit=5",
         pool,
       );
 
       expect(pool.query.mock.calls[0][1]).toEqual([
         "running",
         "re-cinq/lore",
+        "code-review",
         5,
+      ]);
+    });
+
+    it("narrows to one blueprint on its own, which nothing could ask for before", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      await get("/api/assembly-lines?blueprint=code-review", pool);
+
+      expect(pool.query.mock.calls[0][0]).toContain("al.blueprint_name = $3");
+      expect(pool.query.mock.calls[0][1]).toEqual([
+        null,
+        null,
+        "code-review",
+        50,
       ]);
     });
 
@@ -71,7 +87,7 @@ describe("assembly-line reads", () => {
       pool.query.mockResolvedValue({ rows: [] });
       await get("/api/assembly-lines", pool);
 
-      expect(pool.query.mock.calls[0][1]).toEqual([null, null, 50]);
+      expect(pool.query.mock.calls[0][1]).toEqual([null, null, null, 50]);
     });
 
     it("returns the newest run for a task when task_id is given", async () => {
@@ -94,9 +110,66 @@ describe("assembly-line reads", () => {
       expect(res.statusCode).toBe(200);
       expect(res.result).toEqual({ runs: [] });
     });
+
+    it("browse rows skip the graph clone nothing in a table reads", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      await get("/api/assembly-lines?repo=re-cinq/lore", pool);
+
+      expect(pool.query.mock.calls[0][0]).not.toContain("al.graph");
+    });
+
+    it("by-task rows keep the graph (the wizard draws it)", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      await get("/api/assembly-lines?task_id=t1", pool);
+
+      expect(pool.query.mock.calls[0][0]).toContain("al.graph");
+    });
+
+    it("the cost lateral reads llm_calls.assembly_line_id — the column that exists", async () => {
+      // The telemetry tables deliberately kept the pre-rename column (0040);
+      // querying the new spelling here 42703s every run read after deploy.
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      await get("/api/assembly-lines", pool);
+
+      expect(pool.query.mock.calls[0][0]).toContain("lc.assembly_line_id");
+      expect(pool.query.mock.calls[0][0]).not.toContain("lc.assembly_run_id");
+    });
+
+    it("rows carry definition_name for the pre-rename web-ui behind the alias", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      await get("/api/assembly-lines", pool);
+      await get("/api/assembly-lines?task_id=t1", pool);
+
+      expect(pool.query.mock.calls[0][0]).toContain(
+        "al.blueprint_name AS definition_name",
+      );
+      expect(pool.query.mock.calls[1][0]).toContain(
+        "al.blueprint_name AS definition_name",
+      );
+    });
   });
 
   describe("GET /api/assembly-lines/{id}", () => {
+    it("selects the graph clone and the definition_name alias", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [{ id: "run-1" }] });
+      await get("/api/assembly-lines/run-1", pool);
+
+      expect(pool.query.mock.calls[0][0]).toContain("al.graph");
+      expect(pool.query.mock.calls[0][0]).toContain(
+        "al.blueprint_name AS definition_name",
+      );
+    });
+
     it("returns the run", async () => {
       const pool = makePool();
 
@@ -140,6 +213,15 @@ describe("assembly-line reads", () => {
       expect(res.result).toEqual({ nodes });
     });
 
+    it("each node row carries its station_run_id — the visit's identity (FR6.39)", async () => {
+      const pool = makePool();
+
+      pool.query.mockResolvedValue({ rows: [] });
+      await get("/api/assembly-lines/run-1/nodes", pool);
+
+      expect(pool.query.mock.calls[0][0]).toContain("station_run_id");
+    });
+
     it("returns an empty list on a pre-0025 database", async () => {
       const pool = makePool();
 
@@ -165,6 +247,11 @@ describe("assembly-line reads", () => {
       const res = await get("/api/assembly-lines/run-1/token-usage", pool);
 
       expect(res.result).toEqual({ usage });
+      // agent_run_turns deliberately kept the pre-rename column (0040) —
+      // the new spelling here 42703s the endpoint after deploy.
+      expect(pool.query.mock.calls[0][0]).toContain(
+        "WHERE assembly_line_id = $1",
+      );
     });
 
     it("answers a null usage when the run has reported no turns yet", async () => {

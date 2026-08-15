@@ -1,4 +1,4 @@
-// First-class assembly line runs (pipeline.assembly_lines, migration 0025) — the
+// First-class assembly line runs (pipeline.assembly_runs, migration 0025) — the
 // per-attempt execution records that are THE "assembly line" in the UI. The old
 // task-chain grouping (the retired lib/assembly-lines.ts) is gone; the list, the
 // per-repo tab, and the run detail page all read through here. PR link / creator /
@@ -6,16 +6,19 @@
 // comment-triage — the webhook-driven family) fall back to args.pr_number for the
 // PR link, args.actor (the triggering commenter/reviewer/PR author) for the
 // creator, and their llm_calls rows carry the assembly-line id in
-// assembly_line_id (migration 0032) for cost. The cost lateral prefers that
+// assembly_run_id (migration 0032) for cost. The cost lateral prefers that
 // column and falls back to task_id for rows predating it.
 
+import type { RunGraph } from "./run-graph";
 import { apiFetch } from "./api/client";
 import { sumTurnUsage, type RunTokens, type TurnUsageRow } from "./run-tokens";
 
-/** Raw run row: pipeline.assembly_lines LEFT JOIN pipeline.tasks + a cost lateral. */
+/** Raw run row: pipeline.assembly_runs LEFT JOIN pipeline.tasks + a cost lateral. */
 export interface AssemblyLineRunRow {
   id: string;
-  definition_name: string;
+  blueprint_name: string;
+  /** The blueprint clone this run recorded (FR6.38); null for pre-clone rows. */
+  graph: RunGraph | null;
   task_id: string | null;
   repo: string;
   branch: string | null;
@@ -34,7 +37,8 @@ export interface AssemblyLineRunRow {
 
 export interface AssemblyLineRun {
   id: string;
-  definitionName: string;
+  blueprintName: string;
+  graph: RunGraph | null;
   taskId: string | null;
   repo: string;
   branch: string | null;
@@ -98,7 +102,8 @@ export function toAssemblyLineRun(row: AssemblyLineRunRow): AssemblyLineRun {
 
   return {
     id: row.id,
-    definitionName: row.definition_name,
+    blueprintName: row.blueprint_name,
+    graph: row.graph ?? null,
     taskId: row.task_id,
     repo: row.repo,
     branch: row.branch,

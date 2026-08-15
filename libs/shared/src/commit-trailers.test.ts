@@ -55,14 +55,14 @@ describe("formatTrailers with an assemblyLineId", () => {
     );
   });
 
-  it("omits the Lore-Assembly-Line trailer when assemblyLineId is unset", () => {
+  it("omits the Lore-Assembly-Run trailer when assemblyLineId is unset", () => {
     const out = formatTrailers({
       stage: "implement",
       iteration: 1,
       taskId: "abc-123",
     });
 
-    expect(out).not.toContain("Lore-Assembly-Line");
+    expect(out).not.toContain("Lore-Assembly-Run");
   });
 
   it("omits the Lore-Task trailer when taskId is empty (task-less line)", () => {
@@ -99,7 +99,27 @@ describe("parseTrailers", () => {
     expect(parseTrailers(formatTrailers(original))).toEqual(original);
   });
 
-  it("parses trailer blocks without Lore-Assembly-Line (pre-existing branches)", () => {
+  it("still reads the pre-rename Lore-Assembly-Line key", () => {
+    // git history cannot be rewritten: every commit Lore authored before the
+    // rename carries this spelling, so the reader keeps it FOREVER — unlike the
+    // event-name and CR-label shims, which have a deletion condition.
+    expect(
+      parseTrailers(
+        [
+          "work",
+          "",
+          "Lore-Stage: implement",
+          "Lore-Iteration: 1",
+          "Lore-Task: 22222222-3333-4444-8555-666666666666",
+          "Lore-Assembly-Line: 11111111-2222-4333-8444-555555555555",
+        ].join("\n"),
+      ),
+    ).toMatchObject({
+      assemblyLineId: "11111111-2222-4333-8444-555555555555",
+    });
+  });
+
+  it("parses trailer blocks without Lore-Assembly-Run (pre-existing branches)", () => {
     const parsed = parseTrailers(
       "Lore-Stage: review\nLore-Iteration: 2\nLore-Task: abc-123",
     );

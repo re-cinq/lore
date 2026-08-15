@@ -8,10 +8,8 @@
  * drift guard) requires `description` and `version` too, so a subset would
  * arrive at its consumer already broken.
  *
- * The load is memoized because `loadBuiltinAssemblyLines` re-reads and re-parses
- * the whole directory on every call, and the definitions are baked into the
- * image. Memoizing the promise (not the map) also collapses concurrent requests
- * into one read.
+ * No cache here: `loadBuiltinAssemblyLines` memoizes its own promise (the one
+ * cache), so a second wrap would only hide it going stale.
  */
 
 import Boom from "@hapi/boom";
@@ -23,24 +21,12 @@ import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
 export function assemblyLineDefinitionsRoute(
   load: () => Promise<Map<string, AssemblyLine>> = loadBuiltinAssemblyLines,
 ): ServerRoute {
-  let cached: Promise<Map<string, AssemblyLine>> | undefined;
-
   return {
     method: "GET",
     path: "/api/assembly-line-definitions/{name}",
     options: { auth: "ingest-token" },
     handler: async (request, h) => {
-      // Cache the promise, not just the value — but never cache a rejection:
-      // a transient I/O error at first call would otherwise fail every request
-      // for the process's lifetime.
-      if (!cached) {
-        cached = load().catch((err: unknown) => {
-          cached = undefined;
-          throw err;
-        });
-      }
-
-      const definitions = await cached;
+      const definitions = await load();
       const definition = definitions.get(request.params.name);
 
       enforceTrue(

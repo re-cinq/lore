@@ -330,7 +330,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `apps/floor/src/jobs/assembly-line/advance.test.ts`
 
-- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by](apps/floor/src/jobs/assembly-line/advance.test.ts#L725))
+- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by](apps/floor/src/jobs/assembly-line/advance.test.ts#L809))
 
 ### `apps/floor/src/jobs/merge/auto-merge.test.ts`
 
@@ -396,19 +396,19 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `apps/floor/src/jobs/assembly-line/node-terminal.test.ts`
 
-- A code-review node's findings are posted as one review against the line's PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L138))
-- A node that is not a code review posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L153))
-- A line carrying no `pr_number` posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L162))
-- A verdict that reaches no parseable findings MUST be audited as `review_findings_unparsed` rather than passing silently — that state is indistinguishable from a clean review at the PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L170))
-- An inline post that GitHub rejects and that is delivered as the top-level-comment fallback MUST be audited as `review_post_degraded` while the node still reports posted — a silent downgrade is invisible at the PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L190))
-- A post that throws MUST be audited as `review_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L226))
-- A code-review-refine node emits its reply as a fenced `REVIEW_REPLY` block (the pod has no `gh`); the Floor posts it in-thread when the line carries an `in_reply_to_id`. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L286))
-- A refine reply with no thread id falls back to a plain PR comment. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L303))
-- A node that is not a refine node posts no reply. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L317))
-- A refine node that emits no reply block MUST be audited as `review_reply_unparsed` rather than passing silently. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L332))
-- A reply post that throws MUST be audited as `review_reply_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L353))
-- A `code-review-recheck` node's changes-requested verdict is posted as a formal `REQUEST_CHANGES` review. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L778))
-- A `code-review-recheck` node's approving verdict is posted as a formal `APPROVE` review. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L792))
+- A code-review node's findings are posted as one review against the line's PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L145))
+- A node that is not a code review posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L160))
+- A line carrying no `pr_number` posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L169))
+- A verdict that reaches no parseable findings MUST be audited as `review_findings_unparsed` rather than passing silently — that state is indistinguishable from a clean review at the PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L177))
+- An inline post that GitHub rejects and that is delivered as the top-level-comment fallback MUST be audited as `review_post_degraded` while the node still reports posted — a silent downgrade is invisible at the PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L197))
+- A post that throws MUST be audited as `review_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L233))
+- A code-review-refine node emits its reply as a fenced `REVIEW_REPLY` block (the pod has no `gh`); the Floor posts it in-thread when the line carries an `in_reply_to_id`. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L293))
+- A refine reply with no thread id falls back to a plain PR comment. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L310))
+- A node that is not a refine node posts no reply. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L324))
+- A refine node that emits no reply block MUST be audited as `review_reply_unparsed` rather than passing silently. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L339))
+- A reply post that throws MUST be audited as `review_reply_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L360))
+- A `code-review-recheck` node's changes-requested verdict is posted as a formal `REQUEST_CHANGES` review. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L787))
+- A `code-review-recheck` node's approving verdict is posted as a formal `APPROVE` review. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L801))
 
 ### `apps/floor/src/listeners/github-map.test.ts`
 
@@ -428,22 +428,22 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/assembly-lines/src/loader.test.ts`
 
-- code-review is a suggestion-only review→done graph (no refine/auto-commit). ([validated by](libs/assembly-lines/src/loader.test.ts#L523))
-- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L571))
-- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L604))
-- code-review-recheck is a fast Haiku recheck→done graph routing every verdict to done. ([validated by](libs/assembly-lines/src/loader.test.ts#L806))
+- code-review is a suggestion-only review→done graph (no refine/auto-commit). ([validated by](libs/assembly-lines/src/loader.test.ts#L573))
+- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L621))
+- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L654))
+- code-review-recheck is a fast Haiku recheck→done graph routing every verdict to done. ([validated by](libs/assembly-lines/src/loader.test.ts#L856))
 
-### `libs/shared/src/project/assembly-lines/assembly-lines.test.ts`
+### `libs/shared/src/project/assembly-runs/assembly-runs.test.ts`
 
-- markRunning transitions the matching row to running with started_at. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L284))
-- throws on unknown ids for markRunning and returns false for finishNodeOnce. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L394))
-- getById returns the record and null for unknown ids. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L406))
-- listForTask and getById pass through to the port. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L583))
-- ensureNodeStart enforces exactly one returned row (invariant names itself). ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L746))
-- finishNodeOnce CASes on a null outcome and reports whether it won. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L758))
-- listOpen selects queued and running rows oldest-first. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L807))
-- does not overwrite an already-terminal row (InMemory). ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L818))
-- guards the Pg UPDATE on a non-terminal status. ([validated by](libs/shared/src/project/assembly-lines/assembly-lines.test.ts#L833))
+- markRunning transitions the matching row to running with started_at. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L510))
+- throws on unknown ids for markRunning and returns false for finishNodeOnce. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L620))
+- getById returns the record and null for unknown ids. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L634))
+- listForTask and getById pass through to the port. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L811))
+- ensureNodeStart enforces exactly one returned row (invariant names itself). ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L980))
+- finishNodeOnce CASes on a null outcome and reports whether it won. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L992))
+- listOpen selects queued and running rows oldest-first. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1043))
+- does not overwrite an already-terminal row (InMemory). ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1054))
+- guards the Pg UPDATE on a non-terminal status. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1069))
 
 ### `libs/shared/src/project/issues/issues.test.ts`
 

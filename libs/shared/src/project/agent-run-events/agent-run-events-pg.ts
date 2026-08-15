@@ -12,6 +12,7 @@ interface AgentRunEventDbRow {
   task_id: string;
   agent_cr_name: string | null;
   assembly_line_id: string | null;
+  station_run_id: string | null;
   node_id: string | null;
   iteration: number | null;
   event_type: string;
@@ -24,7 +25,7 @@ interface AgentRunEventDbRow {
   created_at: Date;
 }
 
-const SELECT_COLUMNS = `id, task_id, agent_cr_name, assembly_line_id, node_id,
+const SELECT_COLUMNS = `id, task_id, agent_cr_name, assembly_line_id, station_run_id, node_id,
          iteration, event_type, tool_name, tool_use_id, is_error,
          file_paths, summary, payload, created_at`;
 
@@ -34,6 +35,7 @@ function toRow(row: AgentRunEventDbRow): AgentRunEventRow {
     taskId: row.task_id,
     agentCrName: row.agent_cr_name,
     assemblyLineId: row.assembly_line_id,
+    stationRunId: row.station_run_id,
     nodeId: row.node_id,
     iteration: row.iteration,
     eventType: row.event_type as AgentRunEventType,
@@ -85,10 +87,11 @@ export class PgAgentRunEvents implements AgentRunEventsRepository {
 
     const { rows: inserted } = await this.pool.query<AgentRunEventDbRow>(
       `INSERT INTO pipeline.agent_run_events (
-         task_id, agent_cr_name, assembly_line_id, node_id, iteration,
+         task_id, agent_cr_name, assembly_line_id, station_run_id, node_id, iteration,
          event_type, tool_name, tool_use_id, is_error, file_paths, summary, payload
        )
-       SELECT v.task_id, v.agent_cr_name, correlated.assembly_line_id,
+       SELECT v.task_id, v.agent_cr_name, correlated.assembly_run_id,
+              correlated.station_run_id,
               correlated.node_id, correlated.iteration, v.event_type,
               v.tool_name, v.tool_use_id, v.is_error, v.file_paths,
               v.summary, v.payload
@@ -97,6 +100,9 @@ export class PgAgentRunEvents implements AgentRunEventsRepository {
          tool_use_id TEXT, is_error BOOLEAN, file_paths TEXT[], summary TEXT,
          payload JSONB
        )
+       -- The station run id is what downstream readers key on (FR6.39); the CR
+       -- name is resolved to it HERE, once, instead of every reader re-deriving
+       -- which visit a name meant.
        -- CR names are unique per line (a revisited node's iteration gets its
        -- own -<n> suffix), so the DESC tie-break only fires when two DIFFERENT
        -- lines collide on their 12-hex id prefix + node id + iteration; the
@@ -104,8 +110,9 @@ export class PgAgentRunEvents implements AgentRunEventsRepository {
        -- node rows null agent_cr_name (assembly-lines-pg startResumed), so a
        -- fork never matches its source's CR names here.
        LEFT JOIN LATERAL (
-         SELECT node.assembly_line_id, node.node_id, node.iteration
-         FROM pipeline.assembly_line_nodes node
+         SELECT node.assembly_run_id, node.station_run_id, node.node_id,
+                node.iteration
+         FROM pipeline.station_runs node
          WHERE node.agent_cr_name = v.agent_cr_name
          ORDER BY node.id DESC
          LIMIT 1

@@ -11,11 +11,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const findOpenByPr = vi.fn();
-const listNodes = vi.fn();
+const listStationRuns = vi.fn();
 const query = vi.fn();
 
 vi.mock("../kernel/queues.js", () => ({
-  assemblyLines: () => ({ findOpenByPr, listNodes }),
+  assemblyLines: () => ({ findOpenByPr, listStationRuns }),
   settings: () => ({}),
   taskStore: () => ({}),
   taskQueue: () => ({}),
@@ -42,7 +42,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   query.mockResolvedValue({ rows: [] });
   findOpenByPr.mockResolvedValue([{ id: LINE, status: "running" }]);
-  listNodes.mockResolvedValue([
+  listStationRuns.mockResolvedValue([
     { nodeId: "push", iteration: 1, outcome: "success" },
     { nodeId: "merged", iteration: 1, outcome: null },
   ]);
@@ -69,7 +69,7 @@ describe("specPrResumeLine", () => {
   });
 
   it("does nothing when the line is parked on no wait node", async () => {
-    listNodes.mockResolvedValue([
+    listStationRuns.mockResolvedValue([
       { nodeId: "push", iteration: 1, outcome: "success" },
     ]);
 
@@ -81,7 +81,7 @@ describe("specPrResumeLine", () => {
   it("passes over a line that is not waiting for this PR at all", async () => {
     // A code-review line shares the PR. It never waited on `merged`, so advancing
     // it would push it through a step it never asked for.
-    listNodes.mockResolvedValue([
+    listStationRuns.mockResolvedValue([
       { nodeId: "review", iteration: 1, outcome: null },
     ]);
 

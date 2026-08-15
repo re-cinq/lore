@@ -17,7 +17,10 @@ export type DefinitionNodeType =
   | "comment-triage"
   | "ingest"
   | "issues"
-  | "wait";
+  // Stations whose worker is a PERSON. The type names the form contract; `route`
+  // names the page it lives on (FR6.40).
+  | "feature_review"
+  | "pr_review";
 
 export type DefinitionEdgeCondition =
   "success" | "changes_requested" | "failed" | "always";
@@ -35,9 +38,11 @@ export interface DefinitionNode {
   description?: string;
   /** Which previous run this node continues, and what keys the thread. */
   continues?: { node: string; key: string };
-  /** For a `wait` node: which surface reports its outcome. A parked node is waiting
-   *  for a person or for a PR, and the graph should say which. */
-  signal?: "author_feedback" | "pr_merged";
+  /** Where a human station's worker acts. Relative — a page this app serves;
+   *  absolute — one it does not own, such as a GitHub PR. `{args.x}` placeholders
+   *  are resolved by the API against the run's args, so what reaches a view is
+   *  either a followable link or null. */
+  route?: string;
 }
 
 export interface DefinitionEdge {

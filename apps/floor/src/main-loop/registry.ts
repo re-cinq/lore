@@ -13,6 +13,10 @@ import * as detect from "../jobs/detect/fan-out.js";
 import * as kubernetes from "../jobs/kubernetes.js";
 import { assemblyLineStart } from "../jobs/assembly-line/start-event-handler.js";
 import { assemblyLineResume } from "../jobs/assembly-line/resume-event-handler.js";
+import {
+  RUN_START_EVENT,
+  RUN_RESUME_EVENT,
+} from "@re-cinq/lore-shared/project/assembly-runs/run-events.js";
 import { agentNodeTerminal } from "../jobs/assembly-line/node-event-handler.js";
 import {
   codeReviewOnTrigger,
@@ -79,10 +83,19 @@ export function buildRegistry(): Map<string, EventHandler> {
     // ── Assembly lines (project.assemblyLines.start() inserts row + event atomically;
     //    a top-level family — the assembly line is a primary concept, its producer
     //    spans shared/mcp/floor rather than one source) ──
-    ["assembly_line.start", assemblyLineStart],
-    // A `wait` node's worker reporting in: the planning wizard, or the spec-PR
+    ["assembly_run.start", assemblyLineStart],
+    // A HUMAN station's worker reporting in: the planning wizard, or the spec-PR
     // webhook. Same two steps as a terminal CR — record the node, advance the walk.
-    ["assembly_line.resume", assemblyLineResume],
+    ["assembly_run.resume", assemblyLineResume],
+    // The PRE-RENAME names — still what the writers emit (RUN_*_EVENT keeps the
+    // legacy spelling until every Floor answers to the new one), and what rows
+    // queued by the old image carry across a deploy. An unhandled name would
+    // dead-letter — losing a run, or a person's review.
+    // DELETE once the writer-flip release has shipped and no unhandled event
+    // predates it: the events table is pruned after handling, so one retention
+    // window is enough.
+    [RUN_START_EVENT, assemblyLineStart],
+    [RUN_RESUME_EVENT, assemblyLineResume],
 
     // ── Kubernetes (the Agent-CR watch emits on terminal phase) ──
     ["kubernetes.agent.succeeded", kubernetes.agentSucceeded],

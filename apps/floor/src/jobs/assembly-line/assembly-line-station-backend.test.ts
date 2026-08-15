@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
+import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { AssemblyLineStationBackend } from "./assembly-line-station-backend.js";
 
@@ -16,7 +16,7 @@ function spec(taskId: string): LoreTaskSpec {
 
 describe("AssemblyLineStationBackend", () => {
   it("launch starts the assembly line (row + start event) and returns its id as the ref", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const backend = new AssemblyLineStationBackend(port);
 
     const result = await backend.launch(spec("t-1"));
@@ -25,7 +25,7 @@ describe("AssemblyLineStationBackend", () => {
     expect(port.rows).toMatchObject([
       {
         id: result.ref,
-        definitionName: "implementation",
+        blueprintName: "implementation",
         repo: "o/r",
         branch: "lore/b",
         taskId: "t-1",
@@ -44,7 +44,7 @@ describe("AssemblyLineStationBackend", () => {
   it("threads the feature id into the line's args so a thread key can name it", async () => {
     // `continues.key: args.feature_id` resolves against these args — the engine
     // never learns what a feature is, it just carries what the caller put here.
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const backend = new AssemblyLineStationBackend(port);
 
     await backend.launch({ ...spec("t1"), featureId: "feature-9" });
@@ -53,7 +53,7 @@ describe("AssemblyLineStationBackend", () => {
   });
 
   it("threads the round-feedback turn so a resumed run can send only what is new", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const backend = new AssemblyLineStationBackend(port);
 
     await backend.launch({
@@ -70,7 +70,7 @@ describe("AssemblyLineStationBackend", () => {
   });
 
   it("carries no feature id for a run that has none", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const backend = new AssemblyLineStationBackend(port);
 
     await backend.launch(spec("t1"));
@@ -80,7 +80,7 @@ describe("AssemblyLineStationBackend", () => {
   });
 
   it("two launches of the same task mint distinct assembly line ids", async () => {
-    const port = new InMemoryAssemblyLines();
+    const port = new InMemoryAssemblyRuns();
     const backend = new AssemblyLineStationBackend(port);
 
     const first = await backend.launch(spec("t-1"));

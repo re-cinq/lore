@@ -1,30 +1,30 @@
 import type {
-  AssemblyLinesPort,
-  AssemblyLineStartInput,
-  AssemblyLineRecord,
-  AssemblyLineNodeRecord,
-} from "./assembly-lines-port.js";
+  AssemblyRunsPort,
+  AssemblyRunStartInput,
+  AssemblyRunRecord,
+  StationRunRecord,
+} from "./assembly-runs-port.js";
 
 /**
- * Repo-scoped facade over {@link AssemblyLinesPort}: fills `repo` from the
+ * Repo-scoped facade over {@link AssemblyRunsPort}: fills `repo` from the
  * Project's fullName so callers write
  * `project.assemblyLines.start("implementation", { taskId })`.
  */
-export class AssemblyLines {
+export class AssemblyRuns {
   constructor(
     private readonly repo: string,
-    private readonly port: AssemblyLinesPort,
+    private readonly port: AssemblyRunsPort,
   ) {}
 
   /** Fire-and-observe: returns the minted assemblyLineId immediately; the Floor event loop runs it. */
   start(
-    definitionName: string,
-    opts: Omit<AssemblyLineStartInput, "definitionName" | "repo"> = {},
+    blueprintName: string,
+    opts: Omit<AssemblyRunStartInput, "blueprintName" | "repo"> = {},
   ): Promise<string> {
-    return this.port.start({ definitionName, repo: this.repo, ...opts });
+    return this.port.start({ blueprintName, repo: this.repo, ...opts });
   }
 
-  getById(id: string): Promise<AssemblyLineRecord | null> {
+  getById(id: string): Promise<AssemblyRunRecord | null> {
     return this.port.getById(id);
   }
 
@@ -33,16 +33,16 @@ export class AssemblyLines {
     return this.port.mergeArgs(id, patch);
   }
 
-  listForTask(taskId: string): Promise<AssemblyLineRecord[]> {
+  listForTask(taskId: string): Promise<AssemblyRunRecord[]> {
     return this.port.listForTask(taskId);
   }
 
   /** The line's node rows — how a reader tells which node it is parked on. */
-  listNodes(id: string): Promise<AssemblyLineNodeRecord[]> {
-    return this.port.listNodes(id);
+  listStationRuns(id: string): Promise<StationRunRecord[]> {
+    return this.port.listStationRuns(id);
   }
 
-  findOpenByPr(prNumber: number): Promise<AssemblyLineRecord[]> {
+  findOpenByPr(prNumber: number): Promise<AssemblyRunRecord[]> {
     return this.port.findOpenByPr(this.repo, prNumber);
   }
 

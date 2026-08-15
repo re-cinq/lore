@@ -3,7 +3,7 @@ import { takenEdgeKeys } from "./run-taken-edges";
 import {
   codeReviewDefinition,
   implementationDefinition,
-} from "./builtin-definitions";
+} from "./definition-fixtures";
 import type { AssemblyLineRunNode } from "./assembly-line-runs";
 
 const node = (nodeId: string, outcome: string | null): AssemblyLineRunNode => ({

@@ -159,7 +159,7 @@ export interface CodeReviewProject {
   };
   assemblyLines: {
     start(
-      definitionName: string,
+      blueprintName: string,
       opts: { branch?: string; args?: Record<string, unknown> },
     ): Promise<string>;
     finishOpenByPr(

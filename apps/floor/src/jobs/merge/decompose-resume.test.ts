@@ -6,8 +6,8 @@
 // feature planned on the merged line was ever decomposed — silently.
 
 import { describe, it, expect } from "vitest";
-import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
-import type { ParkedTarget } from "@re-cinq/lore-shared/project/assembly-lines/parked-node.js";
+import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
+import type { ParkedTarget } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 import {
   decideMergeResume,
   decideResumeFromClosedPr,
@@ -22,34 +22,86 @@ const node = (nodeId: string, iteration: number, outcome: string | null) => ({
   outcome,
 });
 
+/** A run stamped before clones existed — the id-based fallback path. */
+const GRAPHLESS = null;
+
 describe("decideMergeResume", () => {
   it("targets the merged node a pushed line is parked on", () => {
     expect(
-      decideMergeResume("line-1", "running", [
-        node("push", 1, "success"),
-        node("merged", 1, null),
-      ]),
+      decideMergeResume(
+        "line-1",
+        "running",
+        [node("push", 1, "success"), node("merged", 1, null)],
+        GRAPHLESS,
+      ),
     ).toEqual({ lineId: "line-1", nodeId: "merged", iteration: 1 });
+  });
+
+  it("targets a RENAMED wait node by its pr_review type from the run's graph", () => {
+    // The join that must survive a blueprint rename — a hardcoded id is how the
+    // pr_merged signal silently died (FR6.32).
+    expect(
+      decideMergeResume(
+        "line-1",
+        "running",
+        [node("await-spec-merge", 1, null)],
+        {
+          name: "feature-planning",
+          entry: "push",
+          exit: "await-spec-merge",
+          nodes: [
+            {
+              id: "push",
+              type: "github_action",
+              station: "def-github-action",
+              station_inherited: true,
+            },
+            {
+              id: "await-spec-merge",
+              type: "pr_review",
+              station: null,
+              station_inherited: false,
+            },
+          ],
+          edges: [],
+        },
+      ),
+    ).toEqual({ lineId: "line-1", nodeId: "await-spec-merge", iteration: 1 });
   });
 
   it("ignores a line parked on the author rather than the merge", () => {
     // The same definition parks twice. Reporting a merge into the author's node
     // would tell the walk the plan was accepted.
     expect(
-      decideMergeResume("line-1", "running", [node("author", 2, null)]),
+      decideMergeResume(
+        "line-1",
+        "running",
+        [node("author", 2, null)],
+        GRAPHLESS,
+      ),
     ).toBeNull();
   });
 
   it("ignores a merged node that already reported", () => {
     // A re-delivered webhook, or the merge-check cron seeing the same PR twice.
     expect(
-      decideMergeResume("line-1", "running", [node("merged", 1, "success")]),
+      decideMergeResume(
+        "line-1",
+        "running",
+        [node("merged", 1, "success")],
+        GRAPHLESS,
+      ),
     ).toBeNull();
   });
 
   it("ignores a line that is no longer open", () => {
     expect(
-      decideMergeResume("line-1", "finished", [node("merged", 1, null)]),
+      decideMergeResume(
+        "line-1",
+        "finished",
+        [node("merged", 1, null)],
+        GRAPHLESS,
+      ),
     ).toBeNull();
   });
 });
@@ -65,17 +117,17 @@ function recorder() {
 }
 
 async function lineParkedOnMerge(prNumber: number) {
-  const lines = new InMemoryAssemblyLines();
+  const lines = new InMemoryAssemblyRuns();
   const id = await lines.start({
-    definitionName: "feature-planning",
+    blueprintName: "feature-planning",
     repo: REPO,
     branch: "feature/x",
     args: { pr_number: prNumber, feature_id: "feat-1" },
   });
 
   await lines.markRunning(id);
-  await lines.ensureNodeStart({
-    assemblyLineId: id,
+  await lines.ensureStationRun({
+    assemblyRunId: id,
     nodeId: "merged",
     iteration: 1,
   });
@@ -103,7 +155,7 @@ describe("resumeDecomposition", () => {
 
     await resumeDecomposition(
       { repo: REPO, prNumber: 999 },
-      { assemblyLines: new InMemoryAssemblyLines(), report: rec.report },
+      { assemblyLines: new InMemoryAssemblyRuns(), report: rec.report },
     );
 
     expect(rec.events).toEqual([]);
@@ -112,17 +164,17 @@ describe("resumeDecomposition", () => {
   it("does nothing when the PR's line is not parked on the merge", async () => {
     // An implementation line's PR merging must not report into it — it has no
     // merged node, and inventing one would advance a walk that never asked to wait.
-    const lines = new InMemoryAssemblyLines();
+    const lines = new InMemoryAssemblyRuns();
     const id = await lines.start({
-      definitionName: "implementation",
+      blueprintName: "implementation",
       repo: REPO,
       branch: "feature/y",
       args: { pr_number: 7 },
     });
 
     await lines.markRunning(id);
-    await lines.ensureNodeStart({
-      assemblyLineId: id,
+    await lines.ensureStationRun({
+      assemblyRunId: id,
       nodeId: "review",
       iteration: 1,
     });
@@ -141,7 +193,7 @@ describe("resumeDecomposition", () => {
     // merged node is a resume target.
     const { lines, id } = await lineParkedOnMerge(42);
     const reviewId = await lines.start({
-      definitionName: "code-review",
+      blueprintName: "code-review",
       repo: REPO,
       branch: "feature/x",
       args: { pr_number: 42 },

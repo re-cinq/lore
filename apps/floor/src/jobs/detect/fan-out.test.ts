@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { InMemoryAssemblyLines } from "@re-cinq/lore-shared/project/assembly-lines/assembly-lines-memory.js";
+import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import {
   activeSpecRepos,
   chunkSchemas,
@@ -39,7 +39,7 @@ describe("detectBranchName", () => {
 
 describe("createDetectTickHandler", () => {
   it("starts one spec-drift assembly line per target repo with branch, job_ref run and job_run_id", async () => {
-    const assemblyLines = new InMemoryAssemblyLines();
+    const assemblyLines = new InMemoryAssemblyRuns();
     const listed: number[] = [];
     const { started, jobRuns } = fakeJobRuns();
     const handler = createDetectTickHandler("spec-drift", {
@@ -64,20 +64,20 @@ describe("createDetectTickHandler", () => {
     ]);
     expect(
       assemblyLines.rows.map((r) => ({
-        definitionName: r.definitionName,
+        blueprintName: r.blueprintName,
         repo: r.repo,
         branch: r.branch,
         args: r.args,
       })),
     ).toEqual([
       {
-        definitionName: "spec-drift",
+        blueprintName: "spec-drift",
         repo: "re-cinq/lore",
         branch: "detect/spec-drift/re-cinq/lore",
         args: { job_run_id: "jr-1" },
       },
       {
-        definitionName: "spec-drift",
+        blueprintName: "spec-drift",
         repo: "re-cinq/other",
         branch: "detect/spec-drift/re-cinq/other",
         args: { job_run_id: "jr-2" },
@@ -86,7 +86,7 @@ describe("createDetectTickHandler", () => {
   });
 
   it("params.repo restricts the fan-out to that repo without enumerating", async () => {
-    const assemblyLines = new InMemoryAssemblyLines();
+    const assemblyLines = new InMemoryAssemblyRuns();
     const { jobRuns } = fakeJobRuns();
     const handler = createDetectTickHandler("gap-detect", {
       assemblyLines,
@@ -101,7 +101,7 @@ describe("createDetectTickHandler", () => {
 
     expect(assemblyLines.rows).toEqual([
       expect.objectContaining({
-        definitionName: "gap-detect",
+        blueprintName: "gap-detect",
         repo: "re-cinq/lore",
         branch: "detect/gap-detect/re-cinq/lore",
       }),
@@ -109,7 +109,7 @@ describe("createDetectTickHandler", () => {
   });
 
   it("no target repos starts nothing", async () => {
-    const assemblyLines = new InMemoryAssemblyLines();
+    const assemblyLines = new InMemoryAssemblyRuns();
     const { started, jobRuns } = fakeJobRuns();
     const handler = createDetectTickHandler("spec-coverage-validate", {
       assemblyLines,

@@ -29,7 +29,7 @@ export interface AssemblyLineRunsTableProps {
 }
 
 /**
- * The one assembly-line table — per-attempt runs from pipeline.assembly_lines.
+ * The one assembly-line table — per-attempt runs from pipeline.assembly_runs.
  * Data down, no actions up beyond a local toggle that reveals the hidden
  * coordination skips. Shared by the global list and the per-repo tab. PR link /
  * creator / cost come from the run's backing task; task-less runs (the
@@ -87,7 +87,7 @@ export default function AssemblyLineRunsTable({
               <tr key={run.id}>
                 <td>
                   <Link href={`/assembly-lines/${run.id}`}>
-                    {run.definitionName}
+                    {run.blueprintName}
                   </Link>
                   <span className={styles.subId}>
                     #{run.id.substring(0, 8)}
