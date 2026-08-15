@@ -15,6 +15,10 @@ const {
   finalizeFeature,
   splitFeature,
   deleteFeature,
+  listFeatures,
+  getFeature,
+  getFeatureStatus,
+  getFeatureDecomposition,
 } = await import("./features");
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -104,5 +108,35 @@ describe("deleteFeature", () => {
     expect(url()).toEqual("http://api:3000/api/repos/re-cinq/lore/features/f1");
     expect(init().method).toEqual("DELETE");
     expect(init().body).toBeUndefined();
+  });
+});
+
+describe("feature reads", () => {
+  it("lists the repo's features from the collection path", async () => {
+    await listFeatures("re-cinq/lore");
+
+    expect(url()).toEqual("http://api:3000/api/repos/re-cinq/lore/features");
+  });
+
+  it("reads one feature with its rounds from the feature path", async () => {
+    await getFeature("re-cinq/lore", "f1");
+
+    expect(url()).toEqual("http://api:3000/api/repos/re-cinq/lore/features/f1");
+  });
+
+  it("polls the round's status from the status path", async () => {
+    await getFeatureStatus("re-cinq/lore", "f1");
+
+    expect(url()).toEqual(
+      "http://api:3000/api/repos/re-cinq/lore/features/f1/status",
+    );
+  });
+
+  it("reads the decomposed spec-tasks from the decomposition path", async () => {
+    await getFeatureDecomposition("re-cinq/lore", "f1");
+
+    expect(url()).toEqual(
+      "http://api:3000/api/repos/re-cinq/lore/features/f1/decomposition",
+    );
   });
 });

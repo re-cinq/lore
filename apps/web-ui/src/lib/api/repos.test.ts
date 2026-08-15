@@ -6,7 +6,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { getRepo, listRepos } = await import("./repos");
+const {
+  getRepo,
+  listRepos,
+  onboardRepo,
+  getOrgSettings,
+  putOrgSettings,
+  putRepoSettings,
+} = await import("./repos");
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -80,5 +87,54 @@ describe("listRepos", () => {
       status: "ok",
       data: { repos: [{ full_name: "re-cinq/lore" }] },
     });
+  });
+});
+
+describe("repo writes and org settings", () => {
+  it("posts the repo (and only a true reonboard flag) to /api/onboard", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true })));
+
+    await onboardRepo("re-cinq/lore");
+    await onboardRepo("re-cinq/lore", { reonboard: true });
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({
+      repo: "re-cinq/lore",
+    });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toEqual({
+      repo: "re-cinq/lore",
+      reonboard: true,
+    });
+  });
+
+  it("reads org settings from /api/settings", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ settings: [], repo_count: 0 })),
+    );
+
+    await getOrgSettings();
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain("/api/settings");
+  });
+
+  it("PUTs org settings entries by key", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true })));
+
+    await putOrgSettings([{ key: "org_name", value: "re-cinq" }]);
+
+    expect(fetchMock.mock.calls[0][1].method).toEqual("PUT");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({
+      entries: [{ key: "org_name", value: "re-cinq" }],
+    });
+  });
+
+  it("PUTs the general repo-settings patch to the repo's settings path", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true })));
+
+    await putRepoSettings("re-cinq/lore", { team: "platform" });
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain(
+      "/api/repos/re-cinq/lore/settings",
+    );
+    expect(fetchMock.mock.calls[0][1].method).toEqual("PUT");
   });
 });
