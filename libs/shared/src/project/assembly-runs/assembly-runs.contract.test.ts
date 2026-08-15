@@ -1,0 +1,451 @@
+// The AssemblyRunsPort contract, run against EVERY implementation (#1230).
+//
+// Why this file exists. The port had two implementations tested in two different
+// universes: `InMemoryAssemblyRuns` was checked for BEHAVIOUR — so it quietly
+// became the spec — while `PgAssemblyRuns` was checked for SQL TEXT against a
+// fake pool, which proves only that the string typed is the string meant. Both
+// suites passed while the two disagreed, which is exactly how a renamed column
+// shipped green in #1228 and had to be fixed in review.
+//
+// There was even a `describe` titled "plain start agrees across the adapter and
+// the double" that asserted SQL text on one side and behaviour on the other.
+// That is not agreement; it is two unrelated assertions sharing a block.
+//
+// So: ONE set of expectations, executed against both. The in-memory run is
+// unconditional. The Postgres run needs a database with the migrations applied
+// and SKIPS when there is none, warning loudly — a suite that quietly tested
+// nothing would be worse than no suite.
+//
+// Where that database exists today: LOCALLY, via `npm run db:up &&
+// scripts/infra/setup-local-schema.sh`. NOT in CI. The Integration Tests
+// workflow hand-rolls a subset of the schema inline and never applies
+// `ui-helm/migrations/`, so `pipeline.assembly_runs` is absent there and this
+// half skips. Applying the chain to that baseline does not work either — 20 of
+// the migrations need tables the inline subset lacks (llm_calls, memories,
+// agent_definitions, chunks…), measured, not guessed.
+//
+// Closing that is a bigger change than this file: the integration database
+// should come from the same source as production rather than a parallel
+// hand-written one. Tracked separately — until then the Postgres half is a
+// local gate, and the honest reading of a green CI run is "the in-memory
+// implementation passed".
+//
+// Deliberately behavioural only. Nothing here asserts SQL text — that belongs in
+// the adapter's own file, where it is a test of the implementation. What is
+// asserted here is what any implementation must do, which is the thing the two
+// were free to disagree about.
+
+import { describe, it, expect, afterAll } from "vitest";
+import { randomUUID } from "node:crypto";
+import { Pool } from "pg";
+import { InMemoryAssemblyRuns } from "./assembly-runs-memory.js";
+import { PgAssemblyRuns } from "./assembly-runs-pg.js";
+import type { AssemblyRunsPort } from "./assembly-runs-port.js";
+import type { RunGraph } from "./run-graph.js";
+
+const PG_CONFIG = {
+  host: process.env.PGHOST ?? "localhost",
+  port: Number(process.env.PGPORT ?? 5432),
+  database: process.env.PGDATABASE ?? "lore",
+  user: process.env.PGUSER ?? "lore",
+  password: process.env.PGPASSWORD ?? "lore",
+};
+
+/**
+ * Reachable AND migrated. Reachability alone is not enough: a database that
+ * predates migration 0040 has no `pipeline.assembly_runs`, and every test would
+ * fail on a missing relation rather than skip.
+ */
+async function pgAvailable(): Promise<{ ok: boolean; why: string }> {
+  let probe: Pool | undefined;
+
+  try {
+    probe = new Pool({ ...PG_CONFIG, connectionTimeoutMillis: 1000 });
+
+    const { rows } = await probe.query<{ present: boolean }>(
+      `SELECT to_regclass('pipeline.assembly_runs') IS NOT NULL AS present`,
+    );
+
+    return rows[0]?.present
+      ? { ok: true, why: "" }
+      : {
+          ok: false,
+          why: "pipeline.assembly_runs is absent — migrations not applied",
+        };
+  } catch (err) {
+    return { ok: false, why: `unreachable: ${(err as Error).message}` };
+  } finally {
+    await probe?.end();
+  }
+}
+
+const pg = await pgAvailable();
+
+/**
+ * A skipped implementation must be VISIBLE. `console.warn` from module scope is
+ * swallowed by the runner, so the state is asserted as a named test instead —
+ * the reporter prints the reason either way.
+ *
+ * `LORE_REQUIRE_PG_CONTRACT=1` turns the skip into a failure. Any environment
+ * that is supposed to have a migrated database sets it, so the Postgres half can
+ * never quietly stop running there and leave a green tick meaning less than it
+ * did yesterday.
+ */
+describe("the Postgres implementation is actually exercised", () => {
+  it(
+    pg.ok
+      ? "runs against a migrated Postgres"
+      : `SKIPPED — ${pg.why} (in-memory alone proves nothing about the SQL)`,
+    () => {
+      expect(pg.ok || process.env.LORE_REQUIRE_PG_CONTRACT !== "1").toBe(true);
+    },
+  );
+});
+
+const GRAPH: RunGraph = {
+  name: "code-review",
+  entry: "review",
+  exit: "done",
+  nodes: [
+    {
+      id: "review",
+      type: "agent",
+      station: "code-review",
+      station_inherited: true,
+    },
+    {
+      id: "done",
+      type: "retrospective",
+      station: "def-retrospective",
+      station_inherited: true,
+    },
+  ],
+  edges: [{ from: "review", to: "done", on: "success" }],
+};
+
+interface Subject {
+  port: AssemblyRunsPort;
+  /** A repo nobody else in this file uses, so filtered reads see only their own rows. */
+  repo: string;
+  /** A task id the store will ACCEPT. `assembly_runs.task_id` is a real foreign
+   *  key in Postgres, so the contract cannot invent one — each implementation
+   *  supplies an id that exists for it. */
+  taskId: () => Promise<string>;
+}
+
+const pool = pg.ok ? new Pool(PG_CONFIG) : null;
+const pgRepos: string[] = [];
+
+afterAll(async () => {
+  if (pool) {
+    // Node rows cascade from the run rows; args/graph go with them.
+    await pool.query(
+      `DELETE FROM pipeline.assembly_runs WHERE repo = ANY($1)`,
+      [pgRepos],
+    );
+    await pool.query(`DELETE FROM pipeline.tasks WHERE target_repo = ANY($1)`, [
+      pgRepos,
+    ]);
+    await pool.end();
+  }
+});
+
+const IMPLEMENTATIONS: Array<[string, () => Subject]> = [
+  [
+    "in-memory",
+    () => ({
+      port: new InMemoryAssemblyRuns(),
+      repo: "re-cinq/contract",
+      taskId: async () => randomUUID(),
+    }),
+  ],
+];
+
+if (pool) {
+  IMPLEMENTATIONS.push([
+    "postgres",
+    () => {
+      const repo = `re-cinq/contract-${randomUUID()}`;
+
+      pgRepos.push(repo);
+
+      return {
+        port: new PgAssemblyRuns(pool),
+        repo,
+        taskId: async () => {
+          const { rows } = await pool.query<{ id: string }>(
+            `INSERT INTO pipeline.tasks (description, target_repo)
+             VALUES ('contract suite', $1) RETURNING id`,
+            [repo],
+          );
+
+          return rows[0].id;
+        },
+      };
+    },
+  ]);
+}
+
+describe.each(IMPLEMENTATIONS)(
+  "AssemblyRunsPort contract (%s)",
+  (_name, make) => {
+    it("start persists a queued run that getById reads back", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+
+      expect(await port.getById(id)).toMatchObject({
+        id,
+        blueprintName: "code-review",
+        repo,
+        status: "queued",
+        outcome: null,
+        graph: null,
+      });
+    });
+
+    it("stampBlueprint stores the hash and the cloned graph together", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+
+      await port.stampBlueprint(id, "hash-1", GRAPH);
+
+      expect(await port.getById(id)).toMatchObject({
+        blueprintHash: "hash-1",
+        graph: GRAPH,
+      });
+    });
+
+    it("stampBlueprint never overwrites a blueprint already stamped", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+
+      await port.stampBlueprint(id, "hash-1", GRAPH);
+      await port.stampBlueprint(id, "hash-2", { ...GRAPH, name: "other" });
+
+      expect(await port.getById(id)).toMatchObject({
+        blueprintHash: "hash-1",
+        graph: GRAPH,
+      });
+    });
+
+    it("markRunning moves a queued run to running", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+
+      await port.markRunning(id);
+
+      expect((await port.getById(id))?.status).toBe("running");
+    });
+
+    it("ensureStationRun mints a station run id and converges a duplicate onto it", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+      const first = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+      });
+      const duplicate = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      expect(first.created).toBe(true);
+      expect(duplicate.created).toBe(false);
+      expect(duplicate.stationRunId).toBe(first.stationRunId);
+      expect(duplicate.nodeRowId).toBe(first.nodeRowId);
+    });
+
+    it("a revisited node is a different visit with its own station run id", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+      const first = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+      });
+      const revisit = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 2,
+      });
+
+      expect(revisit.stationRunId).not.toBe(first.stationRunId);
+    });
+
+    it("finishStationRunOnce is compare-and-set: the first writer wins", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      expect(await port.finishStationRunOnce(nodeRowId, "success")).toBe(true);
+      expect(await port.finishStationRunOnce(nodeRowId, "failed")).toBe(false);
+      expect((await port.listStationRuns(id))[0]?.outcome).toBe("success");
+    });
+
+    it("listStationRuns returns the run's visits in visit order", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+
+      for (const node of ["review", "refine", "done"]) {
+        await port.ensureStationRun({
+          assemblyRunId: id,
+          nodeId: node,
+          iteration: 1,
+        });
+      }
+
+      expect((await port.listStationRuns(id)).map((row) => row.nodeId)).toEqual(
+        ["review", "refine", "done"],
+      );
+    });
+
+    it("finish closes the run, and a late finisher loses", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+
+      await port.markRunning(id);
+
+      expect(await port.finish(id, "completed")).toBe(true);
+      expect(await port.finish(id, "error", "late")).toBe(false);
+      expect(await port.getById(id)).toMatchObject({
+        status: "finished",
+        outcome: "completed",
+      });
+    });
+
+    it("finish with outcome error closes the run as failed", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+
+      await port.markRunning(id);
+      await port.finish(id, "error", "no blueprint");
+
+      expect(await port.getById(id)).toMatchObject({
+        status: "failed",
+        reason: "no blueprint",
+      });
+    });
+
+    it("mergeArgs is additive by key and replaces a key it names", async () => {
+      const { port, repo } = make();
+      const id = await port.start({
+        blueprintName: "code-review",
+        repo,
+        args: { description: "first", pr_number: 7 },
+      });
+
+      await port.mergeArgs(id, { spec_plan: "plan.json" });
+      await port.mergeArgs(id, { description: "second" });
+
+      expect((await port.getById(id))?.args).toMatchObject({
+        description: "second",
+        pr_number: 7,
+        spec_plan: "plan.json",
+      });
+    });
+
+    it("list narrows to one blueprint", async () => {
+      const { port, repo } = make();
+      const wanted = await port.start({ blueprintName: "code-review", repo });
+
+      await port.start({ blueprintName: "implementation", repo });
+
+      const ids = (await port.list({ repo, blueprintName: "code-review" })).map(
+        (run) => run.id,
+      );
+
+      expect(ids).toContain(wanted);
+      expect(ids).toHaveLength(1);
+    });
+
+    it("list narrows to one repo", async () => {
+      const { port, repo } = make();
+      const mine = await port.start({ blueprintName: "code-review", repo });
+
+      await port.start({ blueprintName: "code-review", repo: `${repo}-other` });
+
+      expect((await port.list({ repo })).map((run) => run.id)).toEqual([mine]);
+    });
+
+    it("list narrows by status", async () => {
+      const { port, repo } = make();
+      const running = await port.start({ blueprintName: "code-review", repo });
+
+      await port.markRunning(running);
+      await port.start({ blueprintName: "code-review", repo });
+
+      expect(
+        (await port.list({ repo, status: ["running"] })).map((run) => run.id),
+      ).toEqual([running]);
+    });
+
+    it("list caps at the limit", async () => {
+      const { port, repo } = make();
+
+      for (let i = 0; i < 3; i++) {
+        await port.start({ blueprintName: "code-review", repo });
+      }
+
+      expect(await port.list({ repo, limit: 2 })).toHaveLength(2);
+    });
+
+    it("findOpenByPr finds an open run by the PR stamped on its args", async () => {
+      const { port, repo } = make();
+      const id = await port.start({
+        blueprintName: "code-review",
+        repo,
+        args: { pr_number: 4242 },
+      });
+
+      await port.markRunning(id);
+
+      expect(
+        (await port.findOpenByPr(repo, 4242)).map((run) => run.id),
+      ).toEqual([id]);
+    });
+
+    it("finishOpenByPr closes only the definitions the caller names", async () => {
+      const { port, repo } = make();
+      const review = await port.start({
+        blueprintName: "code-review",
+        repo,
+        args: { pr_number: 99 },
+      });
+      const planning = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        args: { pr_number: 99 },
+      });
+
+      await port.markRunning(review);
+      await port.markRunning(planning);
+
+      expect(
+        await port.finishOpenByPr(repo, 99, "pr_closed", ["code-review"]),
+      ).toBe(1);
+      // The planning run was parked WAITING for that merge — closing it here is
+      // the bug FR6.37 was written about.
+      expect((await port.getById(planning))?.status).toBe("running");
+    });
+
+    it("listForTask returns the run started for a task", async () => {
+      const { port, repo, taskId: mintTask } = make();
+      const taskId = await mintTask();
+      const id = await port.start({
+        blueprintName: "code-review",
+        repo,
+        taskId,
+      });
+
+      expect((await port.listForTask(taskId)).map((run) => run.id)).toEqual([
+        id,
+      ]);
+    });
+  },
+);
