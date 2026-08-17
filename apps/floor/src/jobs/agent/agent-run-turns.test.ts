@@ -42,7 +42,7 @@ describe("turnFromEnvelope", () => {
     );
 
     expect(turnFromEnvelope(parsed, JSON.stringify(parsed))?.carried).toEqual({
-      assemblyLineId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      assemblyRunId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
       nodeId: "implement",
       iteration: 2,
       stationRunId: "11111111-2222-4333-8444-555555555555",
