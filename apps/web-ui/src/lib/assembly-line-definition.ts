@@ -30,7 +30,6 @@ export interface DefinitionNode {
   type: DefinitionNodeType;
   prompt_ref?: string;
   model?: string;
-  validator?: string;
   condition_ref?: string;
   job_ref?: string;
   station_ref?: string;

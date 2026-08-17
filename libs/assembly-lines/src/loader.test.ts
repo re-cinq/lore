@@ -22,7 +22,6 @@ nodes:
     prompt_ref: gap-fill
   - id: b
     type: validate
-    validator: all
   - id: c
     type: retrospective
 edges:
@@ -62,6 +61,67 @@ nodes:
   - id: a
     type: not-a-real-type
 edges: []
+`),
+    ).toThrow(/Schema violation/);
+  });
+
+  it("rejects a mistyped node key instead of discarding it", () => {
+    // `timeoutMinutes` is not the field name — `timeout_minutes` is. Without a
+    // strict schema the key is dropped in silence and the node runs with no
+    // timeout at all, which is the opposite of what the author asked for.
+    expect(() =>
+      parseAssemblyLine(`
+name: x
+description: d
+version: 1
+entry: a
+exit: a
+nodes:
+  - id: a
+    type: agent
+    timeoutMinutes: 30
+edges: []
+`),
+    ).toThrow(/Schema violation/);
+  });
+
+  it("rejects a mistyped top-level key instead of discarding it", () => {
+    expect(() =>
+      parseAssemblyLine(`
+name: x
+description: d
+version: 1
+entry: a
+exit: a
+nodes:
+  - id: a
+    type: agent
+edges: []
+onFailure: escalate
+`),
+    ).toThrow(/Schema violation/);
+  });
+
+  it("rejects a mistyped edge key instead of discarding it", () => {
+    // `iterationMax` silently dropped means an unbounded back-edge — the runaway
+    // the loader's cycle check exists to prevent.
+    expect(() =>
+      parseAssemblyLine(`
+name: x
+description: d
+version: 1
+entry: a
+exit: b
+nodes:
+  - id: a
+    type: agent
+  - id: b
+    type: retrospective
+edges:
+  - from: a
+    to: b
+    on: always
+    iterationMax: 3
 `),
     ).toThrow(/Schema violation/);
   });

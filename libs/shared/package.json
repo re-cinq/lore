@@ -14,6 +14,10 @@
       "types": "./dist/project/*.d.ts",
       "default": "./dist/project/*.js"
     },
+    "./http/*.js": {
+      "types": "./dist/http/*.d.ts",
+      "default": "./dist/http/*.js"
+    },
     "./detect/*.js": {
       "types": "./dist/detect/*.d.ts",
       "default": "./dist/detect/*.js"

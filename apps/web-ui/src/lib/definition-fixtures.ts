@@ -190,7 +190,7 @@ export const gapFillDefinition: AssemblyLineDefinition = {
   exit: "done",
   nodes: [
     { id: "draft", type: "agent" },
-    { id: "validate", type: "validate", validator: "all" },
+    { id: "validate", type: "validate" },
     { id: "push", type: "agent" },
     { id: "retrospective", type: "retrospective" },
     { id: "done", type: "retrospective" },
@@ -215,7 +215,7 @@ export const generalDefinition: AssemblyLineDefinition = {
   exit: "done",
   nodes: [
     { id: "implement", type: "agent" },
-    { id: "validate", type: "validate", validator: "all" },
+    { id: "validate", type: "validate" },
     { id: "push", type: "agent" },
     { id: "review", type: "agent" },
     { id: "retrospective", type: "retrospective" },
@@ -244,7 +244,7 @@ export const implementationDefinition: AssemblyLineDefinition = {
   exit: "done",
   nodes: [
     { id: "implement", type: "agent" },
-    { id: "validate", type: "validate", validator: "all" },
+    { id: "validate", type: "validate" },
     { id: "push", type: "agent" },
     { id: "review", type: "agent" },
     { id: "address", type: "agent" },

@@ -13,7 +13,6 @@ nodes:
 
   - id: validate
     type: validate
-    validator: all
     description: Run lint + typecheck on changed files.
 
   - id: push

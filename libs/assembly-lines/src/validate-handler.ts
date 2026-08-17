@@ -9,9 +9,14 @@ import type { NodeHandler } from "./node-types.js";
 
 export interface ValidateHandlerDeps {
   /**
-   * Control directory of the BYO toolchain relay (from `LORE_TOOLCHAIN_RELAY`).
-   * When set, validation commands run in the repo's sidecar container over the
-   * relay; otherwise they run locally in the kernel container.
+   * Control directory of the BYO toolchain relay. When set, validation commands
+   * run in the repo's sidecar container over the relay; otherwise they run
+   * locally in the kernel container.
+   *
+   * NOT SET BY ANY CALLER TODAY. This is the ADR-025 phase-3 seam: nothing reads
+   * `LORE_TOOLCHAIN_RELAY` yet, and the doc used to name that variable as though
+   * setting it would do something. Phase 3 is where the station reads it and
+   * passes the directory here.
    */
   relayDir?: string;
   /** Changed files, used to scope lint/typecheck steps. */

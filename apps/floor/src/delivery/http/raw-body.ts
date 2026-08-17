@@ -1,45 +1,14 @@
 /**
- * Raw request body as a string. Routes that need the unparsed bytes (HMAC
- * verification, NDJSON, parse-anything-as-JSON) set `options.payload.parse =
- * false`, so hapi delivers `request.payload` as a Buffer — this normalizes it.
- * Replaces the four hand-rolled `readBody()` copies of the old node:http server.
+ * Body helpers for the Floor HTTP server.
+ *
+ * `rawBody` / `rawBytes` live in `@re-cinq/lore-shared` — they were byte-identical
+ * here and in lore-api (#1051). Re-exported rather than re-imported at each call
+ * site so the ~20 route modules keep one import path.
  */
 
 import Boom from "@hapi/boom";
-import type { Request } from "@hapi/hapi";
 
-export function rawBody(request: Request): string {
-  const payload = request.payload;
-
-  if (Buffer.isBuffer(payload)) {
-    return payload.toString("utf8");
-  }
-
-  if (typeof payload === "string") {
-    return payload;
-  }
-
-  return "";
-}
-
-/**
- * Raw request body as BYTES, for content that is not text — an agent conversation
- * archive is gzip, and `rawBody`'s utf-8 decode replaces every invalid sequence with
- * U+FFFD, silently corrupting it. Routes handling binary must use this instead.
- */
-export function rawBytes(request: Request): Buffer {
-  const payload = request.payload;
-
-  if (Buffer.isBuffer(payload)) {
-    return payload;
-  }
-
-  if (typeof payload === "string") {
-    return Buffer.from(payload, "utf8");
-  }
-
-  return Buffer.alloc(0);
-}
+export { rawBody, rawBytes } from "@re-cinq/lore-shared/http/raw-body.js";
 
 /**
  * Parse a raw request body as JSON, or throw a 400 (`Boom.badRequest`). Routes

@@ -40,7 +40,7 @@ const EdgeCondition = z.enum([
 // default (definition-hash.ts hashes everything not in its IGNORED_KEYS
 // denylist), which makes stored fork hashes refuse to resume across the change.
 // That over-refusal is deliberate; add prose-only fields to IGNORED_KEYS.
-const NodeSchema = z.object({
+const NodeSchema = z.strictObject({
   // Node ids are embedded in the Agent CR NAME (`<id12>-<nodeId>`, DNS-1123) and
   // in a CR LABEL VALUE, so they must be DNS-label-safe: lowercase alnum + hyphen,
   // no leading/trailing hyphen, no underscore, and short enough to fit both. A
@@ -53,7 +53,6 @@ const NodeSchema = z.object({
   type: NodeType,
   prompt_ref: z.string().optional(),
   model: z.string().optional(),
-  validator: z.string().optional(),
   condition_ref: z.string().optional(),
   job_ref: z.string().optional(),
   /** Required for a HUMAN station: the page its worker acts on. Relative — a page
@@ -76,16 +75,26 @@ const NodeSchema = z.object({
     })
     .optional(),
   description: z.string().optional(),
+  // STRICT: a mistyped key used to be discarded in silence, so `timeoutMinutes:`
+  // (the field is `timeout_minutes`) meant a node with no timeout, and
+  // `prompt-ref:` a node with no prompt — the author's instruction dropped on the
+  // floor with nothing to read it back. A YAML typo is now a load failure, named
+  // and sourced.
+  //
+  // Strictness itself adds no field, so it does not move definitionHash.
 });
 
-const EdgeSchema = z.object({
+const EdgeSchema = z.strictObject({
   from: z.string(),
   to: z.string(),
   on: EdgeCondition,
   iteration_max: z.number().int().positive().optional(),
+  // STRICT for the same reason, and one worse case: a dropped `iterationMax`
+  // leaves a back-edge unbounded, which is exactly what the cycle check exists to
+  // refuse.
 });
 
-const AssemblyLineSchema = z.object({
+const AssemblyLineSchema = z.strictObject({
   name: z.string(),
   description: z.string(),
   version: z.literal(1),

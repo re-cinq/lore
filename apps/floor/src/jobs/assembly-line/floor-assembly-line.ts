@@ -124,7 +124,6 @@ const CLONING_STATION_TYPES = new Set(["ingest", "validate"]);
 /** Node knobs a station receives as its `params` (everything execution-relevant
  *  the YAML can say about the node, minus the routing fields). */
 const STATION_PARAM_FIELDS = [
-  "validator",
   "job_ref",
   "condition_ref",
   "prompt_ref",

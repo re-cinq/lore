@@ -46,6 +46,8 @@ We want hapi's declarative routing, first-class auth strategies, request
 lifecycle extensions, and per-route validation — **without a flag day**. The
 API must stay green and shippable after every single PR.
 
+- The server drains and THEN flushes telemetry on `SIGTERM`. It used to only call `server.stop()`, so every rollout discarded the last span and metric batch — the telemetry from the final minute of a pod that was, by definition, being replaced. Both steps are best-effort and independent: a server that will not stop is exactly when the last batch is most worth having, and a failed export (an unauthed environment has no project id) must not turn a clean shutdown into a SIGKILL. The sequence is a named function rather than an inline handler so it is testable without raising a real signal at the test runner. ([validated by stops the server, then flushes telemetry](apps/lore-api/src/server/http-server.test.ts#L5), [`http-server.test.ts:18`](apps/lore-api/src/server/http-server.test.ts#L18), [`http-server.test.ts:31`](apps/lore-api/src/server/http-server.test.ts#L31))
+
 ## Solution
 
 Adopt [hapi](https://hapi.dev) as the lore-api HTTP framework via the
