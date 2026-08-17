@@ -67,7 +67,7 @@ function nodeLabels(
   stationRunId?: string,
 ): Record<string, string> {
   return {
-    [LEGACY_ASSEMBLY_LINE_ID_LABEL]: task.assemblyLineId,
+    [ASSEMBLY_RUN_ID_LABEL]: task.assemblyLineId,
     [NODE_ID_LABEL]: node.id,
     [NODE_ITERATION_LABEL]: String(iteration),
     // Part of the spec builders so every dispatch path carries it — the reaper's

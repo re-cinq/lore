@@ -44,7 +44,7 @@ export function formatTrailers(t: Trailers): string {
   }
 
   if (t.assemblyLineId) {
-    lines.push(`${LEGACY_ASSEMBLY_LINE_KEY}: ${t.assemblyLineId}`);
+    lines.push(`${ASSEMBLY_RUN_KEY}: ${t.assemblyLineId}`);
   }
 
   if (t.extras) {

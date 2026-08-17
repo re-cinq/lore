@@ -83,19 +83,27 @@ export function buildRegistry(): Map<string, EventHandler> {
     // ── Assembly lines (project.assemblyLines.start() inserts row + event atomically;
     //    a top-level family — the assembly line is a primary concept, its producer
     //    spans shared/mcp/floor rather than one source) ──
-    ["assembly_run.start", assemblyLineStart],
+    // Through the constant: the live entry must track whatever the writers emit,
+    // so a future flip cannot leave the Floor deaf to the current spelling.
+    [RUN_START_EVENT, assemblyLineStart],
     // A HUMAN station's worker reporting in: the planning wizard, or the spec-PR
     // webhook. Same two steps as a terminal CR — record the node, advance the walk.
-    ["assembly_run.resume", assemblyLineResume],
-    // The PRE-RENAME names — still what the writers emit (RUN_*_EVENT keeps the
-    // legacy spelling until every Floor answers to the new one), and what rows
-    // queued by the old image carry across a deploy. An unhandled name would
-    // dead-letter — losing a run, or a person's review.
-    // DELETE once the writer-flip release has shipped and no unhandled event
-    // predates it: the events table is pruned after handling, so one retention
-    // window is enough.
-    [RUN_START_EVENT, assemblyLineStart],
     [RUN_RESUME_EVENT, assemblyLineResume],
+    // The PRE-RENAME names: what rows queued by an earlier image carry across a
+    // deploy. An unhandled name is marked dead with no retry — a lost run, or a
+    // person's plan-accept lost behind a 202.
+    //
+    // LITERAL, not `RUN_*_EVENT`. These entries once used those constants, and
+    // when the writer flip changed them the legacy reader silently vanished while
+    // the new name got registered twice — the registry stopped answering to the
+    // spelling still sitting in the events table. A frozen wire value has to be
+    // spelled out, precisely because the constant is the thing that moves.
+    // (Caught by the shim test, which is why it asserts both spellings by name.)
+    //
+    // DELETE once no unhandled event predates the writer flip: the events table
+    // is pruned after handling, so one retention window is enough.
+    ["assembly_line.start", assemblyLineStart],
+    ["assembly_line.resume", assemblyLineResume],
 
     // ── Kubernetes (the Agent-CR watch emits on terminal phase) ──
     ["kubernetes.agent.succeeded", kubernetes.agentSucceeded],
