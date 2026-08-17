@@ -83,7 +83,7 @@ export class InMemoryUsage implements UsagePort {
     // Stated beats both guesses, and beats them WHOLE: a carried identity brings
     // its own station run, never the lateral's.
     const assemblyLineId =
-      record.carried?.assemblyLineId ?? node?.assemblyLineId ?? lineFromGiven;
+      record.carried?.assemblyRunId ?? node?.assemblyLineId ?? lineFromGiven;
     const stationRunId = record.carried
       ? record.carried.stationRunId
       : (node?.stationRunId ?? null);

@@ -86,7 +86,7 @@ describe("PgUsage adapter", () => {
       outputTokens: 2,
       durationMs: 10,
       carried: {
-        assemblyLineId: "11111111-2222-4333-8444-555555555555",
+        assemblyRunId: "11111111-2222-4333-8444-555555555555",
         nodeId: "review",
         iteration: 1,
         stationRunId: "99999999-2222-4333-8444-555555555555",

@@ -74,7 +74,7 @@ describe("InMemoryAgentRunTurns insertBatch", () => {
     const [row] = await repo.insertBatch([
       turn({
         carried: {
-          assemblyLineId: "stated-line",
+          assemblyRunId: "stated-line",
           nodeId: "review",
           iteration: 3,
           stationRunId: "stated-station-run",
@@ -320,7 +320,7 @@ describe("PgAgentRunTurns adapter", () => {
     await new PgAgentRunTurns(pool).insertBatch([
       turn({
         carried: {
-          assemblyLineId: "line-9",
+          assemblyRunId: "line-9",
           nodeId: "review",
           iteration: 2,
           stationRunId: null,

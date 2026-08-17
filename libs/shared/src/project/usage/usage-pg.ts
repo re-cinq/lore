@@ -64,7 +64,7 @@ export class PgUsage implements UsagePort {
         record.durationMs,
         record.status ?? "success",
         record.error ?? null,
-        record.carried?.assemblyLineId ?? null,
+        record.carried?.assemblyRunId ?? null,
         record.carried?.stationRunId ?? null,
       ],
     );

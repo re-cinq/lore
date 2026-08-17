@@ -28,7 +28,7 @@
 
 /** The identity of one node visit, as stated by whoever produced the event. */
 export interface CarriedRunIdentity {
-  assemblyLineId: string;
+  assemblyRunId: string;
   nodeId: string;
   iteration: number;
   /** Null from a producer that knows the visit but not its station-run uuid. */
@@ -56,10 +56,10 @@ export function parseCarriedRunIdentity(
   }
 
   const fields = source as Record<string, unknown>;
-  const assemblyLineId = nonEmptyString(fields.assembly_run);
+  const assemblyRunId = nonEmptyString(fields.assembly_run);
   const nodeId = nonEmptyString(fields.node);
   const iteration = fields.iteration;
-  const namesTheVisit = assemblyLineId !== null && nodeId !== null;
+  const namesTheVisit = assemblyRunId !== null && nodeId !== null;
   const countsTheIteration =
     typeof iteration === "number" && Number.isInteger(iteration);
 
@@ -68,7 +68,7 @@ export function parseCarriedRunIdentity(
   }
 
   return {
-    assemblyLineId,
+    assemblyRunId,
     nodeId,
     iteration,
     stationRunId: nonEmptyString(fields.station_run),
