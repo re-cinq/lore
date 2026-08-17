@@ -78,7 +78,9 @@ export class InMemoryAgentRunEvents implements AgentRunEventsRepository {
   }
 
   private persist(insert: AgentRunEventInsert): AgentRunEventRow {
-    const node = this.correlate(insert.agentCrName);
+    // Stated beats inferred, and beats it WHOLE — never one field from each, which
+    // would pin the row to a run while guessing which visit produced it.
+    const node = insert.carried ?? this.correlate(insert.agentCrName);
     const row: AgentRunEventRow = {
       id: String(this.nextId++),
       taskId: insert.taskId,

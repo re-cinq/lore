@@ -30,6 +30,7 @@
 // assemblyLineId / nodeId / iteration from agentCrName in the same statement.
 
 import { unwrapAttribution } from "@re-cinq/lore-assembly-lines";
+import { parseCarriedRunIdentity } from "@re-cinq/lore-shared/project/run-identity/carried-run-identity.js";
 import { redactSecrets } from "@re-cinq/lore-shared";
 import type { AgentRunTurnInsert } from "@re-cinq/lore-shared";
 
@@ -96,6 +97,7 @@ export function turnFromEnvelope(
   return {
     taskId: str(source?.task),
     agentCrName: str(source?.agent),
+    carried: parseCarriedRunIdentity(source),
     eventType: isObject(event) ? str(event.type) : null,
     envelope,
   };

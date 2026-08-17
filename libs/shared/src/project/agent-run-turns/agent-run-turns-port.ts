@@ -35,9 +35,14 @@ export interface AgentRunTurnRow {
  * repository resolves them from `agentCrName` at write time — as are `id` and
  * `createdAt`, which the database mints.
  */
+import type { CarriedRunIdentity } from "../run-identity/carried-run-identity.js";
+
 export interface AgentRunTurnInsert {
   taskId: string | null;
   agentCrName: string | null;
+  /** The identity the turn STATED, when its producer knew it (#1147). Present it
+   *  and the `agentCrName` lookup is not consulted. */
+  carried?: CarriedRunIdentity | null;
   eventType: string | null;
   /**
    * The envelope as JSON **text**, not as a parsed object: the ingest path

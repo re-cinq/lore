@@ -1,3 +1,5 @@
+import type { CarriedRunIdentity } from "../run-identity/carried-run-identity.js";
+
 /**
  * One `pipeline.llm_calls` row — a single LLM invocation's token + cost
  * accounting. Written by the runner's agent node after each completion.
@@ -8,6 +10,9 @@ export interface LlmCallRecord {
    *  `assembly_line_nodes` row, the cost lands on that exact assembly-line
    *  attempt — giving task-backed runs per-attempt cost (#947). */
   agentCrName?: string | null;
+  /** The identity the event STATED, when its producer knew it (#1147). Present it
+   *  and neither the CR-name lookup nor the given-id fallback is consulted. */
+  carried?: CarriedRunIdentity | null;
   jobName?: string | null;
   model: string;
   inputTokens: number;

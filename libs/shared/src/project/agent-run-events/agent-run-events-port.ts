@@ -44,9 +44,18 @@ export interface AgentRunEventRow {
  * repository resolves them from `agentCrName` at write time — as are `id` and
  * `createdAt`, which the database mints.
  */
+import type { CarriedRunIdentity } from "../run-identity/carried-run-identity.js";
+
 export interface AgentRunEventInsert {
   taskId: string;
   agentCrName: string | null;
+  /**
+   * The identity the EVENT stated, when its producer knew it (#1147). Present it
+   * and the `agentCrName` lookup is not consulted at all; absent, the lookup
+   * stays in charge. One grouped object rather than four loose fields, so a
+   * half-stated identity is not expressible.
+   */
+  carried?: CarriedRunIdentity | null;
   eventType: AgentRunEventType;
   toolName?: string | null;
   toolUseId?: string | null;

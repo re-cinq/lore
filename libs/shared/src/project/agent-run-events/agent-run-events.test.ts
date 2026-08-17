@@ -58,6 +58,63 @@ describe("InMemoryAgentRunEvents insertBatch", () => {
     });
   });
 
+  it("takes the identity the event carried over the agent_cr_name lookup", async () => {
+    // The carried identity is STATED by the producer; the join only guesses. When
+    // both are available the stated one wins, or carrying it buys nothing.
+    const repo = new InMemoryAgentRunEvents();
+
+    repo.registerNode({
+      agentCrName: "a1b2c3d4-implement",
+      assemblyLineId: "guessed-line",
+      stationRunId: "guessed-station-run",
+      nodeId: "implement",
+      iteration: 1,
+    });
+
+    const [row] = await repo.insertBatch([
+      insert({
+        carried: {
+          assemblyLineId: "stated-line",
+          nodeId: "review",
+          iteration: 3,
+          stationRunId: "stated-station-run",
+        },
+      }),
+    ]);
+
+    expect(row).toMatchObject({
+      assemblyLineId: "stated-line",
+      nodeId: "review",
+      iteration: 3,
+      stationRunId: "stated-station-run",
+    });
+  });
+
+  it("keeps a carried identity that matches no node row at all", async () => {
+    // The whole point: attribution no longer depends on a node row being
+    // findable by name. A copied or re-created node row cannot strand the event.
+    const repo = new InMemoryAgentRunEvents();
+
+    const [row] = await repo.insertBatch([
+      insert({
+        agentCrName: null,
+        carried: {
+          assemblyLineId: "stated-line",
+          nodeId: "review",
+          iteration: 3,
+          stationRunId: null,
+        },
+      }),
+    ]);
+
+    expect(row).toMatchObject({
+      assemblyLineId: "stated-line",
+      nodeId: "review",
+      iteration: 3,
+      stationRunId: null,
+    });
+  });
+
   it("inserts the row with null assemblyLineId, nodeId and iteration when no node matches agent_cr_name", async () => {
     const repo = new InMemoryAgentRunEvents();
 
@@ -316,6 +373,46 @@ describe("PgAgentRunEvents adapter", () => {
     expect(calls[0]?.text).toContain("RETURNING *");
   });
 
+  it("insertBatch prefers the carried identity and skips the lookup for that row", async () => {
+    // SQL text, because a scripted pool answers any statement: the guard clause is
+    // the whole behaviour. The lateral is narrowed to rows that carry NO identity,
+    // so a stated row does no lookup work at all — and cannot silently take the
+    // guess if the two ever disagree.
+    const { pool, calls } = fakePool([[]]);
+
+    await new PgAgentRunEvents(pool).insertBatch([
+      insert({
+        carried: {
+          assemblyLineId: "line-9",
+          nodeId: "review",
+          iteration: 2,
+          stationRunId: null,
+        },
+      }),
+    ]);
+
+    expect(calls[0]?.text).toContain("v.assembly_run_id IS NULL");
+    expect(JSON.parse(String(calls[0]?.params?.[0]))[0]).toMatchObject({
+      assembly_run_id: "line-9",
+      node_id: "review",
+      iteration: 2,
+      station_run_id: null,
+    });
+  });
+
+  it("insertBatch sends a null carried identity so the lookup stays in charge", async () => {
+    const { pool, calls } = fakePool([[]]);
+
+    await new PgAgentRunEvents(pool).insertBatch([insert()]);
+
+    expect(JSON.parse(String(calls[0]?.params?.[0]))[0]).toMatchObject({
+      assembly_run_id: null,
+      node_id: null,
+      iteration: null,
+      station_run_id: null,
+    });
+  });
+
   it("insertBatch passes the batch as a single jsonb parameter", async () => {
     const { pool, calls } = fakePool([[]]);
 
@@ -328,6 +425,10 @@ describe("PgAgentRunEvents adapter", () => {
       {
         task_id: "task-1",
         agent_cr_name: "a1b2c3d4-implement",
+        assembly_run_id: null,
+        node_id: null,
+        iteration: null,
+        station_run_id: null,
         event_type: "tool_call",
         tool_name: null,
         tool_use_id: null,

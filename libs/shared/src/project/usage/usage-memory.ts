@@ -9,6 +9,7 @@ import type {
 export interface StoredLlmCall {
   task_id: string | null;
   assembly_line_id: string | null;
+  station_run_id: string | null;
   job_name: string | null;
   model: string;
   input_tokens: number;
@@ -24,6 +25,9 @@ export interface StoredLlmCall {
 export interface SeedUsageNode {
   agentCrName: string;
   assemblyLineId: string;
+  /** The visit's own id. Optional because a node seeded before station-run
+   *  identity has none; the adapter's lateral selects it either way. */
+  stationRunId?: string | null;
 }
 
 /**
@@ -76,11 +80,18 @@ export class InMemoryUsage implements UsagePort {
       taskId === null && given !== null && this.assemblyLineIds.has(given)
         ? given
         : null;
-    const assemblyLineId = node?.assemblyLineId ?? lineFromGiven;
+    // Stated beats both guesses, and beats them WHOLE: a carried identity brings
+    // its own station run, never the lateral's.
+    const assemblyLineId =
+      record.carried?.assemblyLineId ?? node?.assemblyLineId ?? lineFromGiven;
+    const stationRunId = record.carried
+      ? record.carried.stationRunId
+      : (node?.stationRunId ?? null);
 
     this.rows.push({
       task_id: taskId,
       assembly_line_id: assemblyLineId,
+      station_run_id: stationRunId,
       job_name: record.jobName ?? null,
       model: record.model,
       input_tokens: record.inputTokens,

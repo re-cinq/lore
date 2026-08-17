@@ -65,6 +65,10 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
     const batch = rows.map((row) => ({
       task_id: row.taskId,
       agent_cr_name: row.agentCrName,
+      assembly_run_id: row.carried?.assemblyLineId ?? null,
+      node_id: row.carried?.nodeId ?? null,
+      iteration: row.carried?.iteration ?? null,
+      station_run_id: row.carried?.stationRunId ?? null,
       event_type: row.eventType,
       envelope: row.envelope,
     }));
@@ -74,12 +78,23 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
          task_id, agent_cr_name, assembly_line_id, station_run_id, node_id,
          iteration, event_type, envelope
        )
-       SELECT v.task_id, v.agent_cr_name, correlated.assembly_run_id,
-              correlated.station_run_id,
-              correlated.node_id, correlated.iteration, v.event_type,
+       -- Every branch keys on the SAME predicate, so the identity comes whole
+       -- from one source — see agent-run-events-pg for why mixing is worse than
+       -- either alternative.
+       SELECT v.task_id, v.agent_cr_name,
+              CASE WHEN v.assembly_run_id IS NULL
+                   THEN correlated.assembly_run_id ELSE v.assembly_run_id END,
+              CASE WHEN v.assembly_run_id IS NULL
+                   THEN correlated.station_run_id ELSE v.station_run_id END,
+              CASE WHEN v.assembly_run_id IS NULL
+                   THEN correlated.node_id ELSE v.node_id END,
+              CASE WHEN v.assembly_run_id IS NULL
+                   THEN correlated.iteration ELSE v.iteration END,
+              v.event_type,
               v.envelope::jsonb
        FROM jsonb_to_recordset($1::jsonb) AS v(
-         task_id TEXT, agent_cr_name TEXT, event_type TEXT, envelope TEXT
+         task_id TEXT, agent_cr_name TEXT, assembly_run_id UUID, node_id TEXT,
+         iteration INT, station_run_id UUID, event_type TEXT, envelope TEXT
        )
        -- Same rule as agent_run_events: CR names are unique per line, so the
        -- DESC tie-break only fires when two DIFFERENT lines collide on their
@@ -89,6 +104,8 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
                 node.iteration
          FROM pipeline.station_runs node
          WHERE node.agent_cr_name = v.agent_cr_name
+           -- Only rows that carry no identity need the guess.
+           AND v.assembly_run_id IS NULL
          ORDER BY node.id DESC
          LIMIT 1
        ) correlated ON true
