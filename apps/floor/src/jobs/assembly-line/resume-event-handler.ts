@@ -20,7 +20,7 @@ const OUTCOMES: ReadonlySet<string> = new Set<StageOutcome>([
 ]);
 
 export interface ResumeEventHandlerDeps {
-  assemblyLines: Pick<AssemblyRunsPort, "mergeArgs">;
+  assemblyRuns: Pick<AssemblyRunsPort, "mergeArgs">;
   /** Record the node's outcome and advance — the shared path (advance.ts). */
   finishNodeAndAdvance: (input: {
     assemblyLineId: string;
@@ -64,7 +64,7 @@ export function createResumeEventHandler(
     const args = params.args;
 
     if (args && typeof args === "object" && !Array.isArray(args)) {
-      await deps.assemblyLines.mergeArgs(
+      await deps.assemblyRuns.mergeArgs(
         assemblyLineId,
         args as Record<string, unknown>,
       );
@@ -84,7 +84,7 @@ export function createResumeEventHandler(
  *  importing the registry never forces the DB pool or the K8s client. */
 export const assemblyLineResume: EventHandler = async (params) => {
   const [
-    { assemblyLines },
+    { assemblyRuns },
     { finishNodeAndAdvance },
     { productionNodeEventDeps },
   ] = await Promise.all([
@@ -94,7 +94,7 @@ export const assemblyLineResume: EventHandler = async (params) => {
   ]);
 
   const handler = createResumeEventHandler({
-    assemblyLines: assemblyLines(),
+    assemblyRuns: assemblyRuns(),
     // The SAME deps the node-event handler advances with: a station reporting from a
     // browser and one reporting from a pod must walk the graph identically.
     finishNodeAndAdvance: async (input) =>

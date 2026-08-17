@@ -21,7 +21,7 @@ import {
   poolReporter,
   resumeDecomposition,
 } from "./merge/decompose-resume.js";
-import { assemblyLines } from "../kernel/queues.js";
+import { assemblyRuns } from "../kernel/queues.js";
 import type { EventHandler } from "../main-loop/types.js";
 
 /** Resolve the backing pipeline task for a PR and re-evaluate auto-merge (no-op if none). */
@@ -159,7 +159,7 @@ export const specPrResumeLine: EventHandler = async (params) => {
   }
 
   await resumeDecomposition(pr, {
-    assemblyLines: assemblyLines(),
+    assemblyRuns: assemblyRuns(),
     report: poolReporter(pool),
   });
 };

@@ -64,7 +64,7 @@ function harness(
       },
       listComments: async () => reviewComments,
     },
-    assemblyLines: new AssemblyRuns(REPO, port),
+    assemblyRuns: new AssemblyRuns(REPO, port),
   };
   const deps: CodeReviewDeps = {
     project: async () => project,

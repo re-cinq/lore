@@ -39,11 +39,11 @@ describe("detectBranchName", () => {
 
 describe("createDetectTickHandler", () => {
   it("starts one spec-drift assembly line per target repo with branch, job_ref run and job_run_id", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
+    const assemblyRuns = new InMemoryAssemblyRuns();
     const listed: number[] = [];
     const { started, jobRuns } = fakeJobRuns();
     const handler = createDetectTickHandler("spec-drift", {
-      assemblyLines,
+      assemblyRuns,
       jobRuns,
       jobRef: async () => "spec_drift",
       listTargetRepos: async () => {
@@ -63,7 +63,7 @@ describe("createDetectTickHandler", () => {
       "spec_drift:re-cinq/other",
     ]);
     expect(
-      assemblyLines.rows.map((r) => ({
+      assemblyRuns.rows.map((r) => ({
         blueprintName: r.blueprintName,
         repo: r.repo,
         branch: r.branch,
@@ -86,10 +86,10 @@ describe("createDetectTickHandler", () => {
   });
 
   it("params.repo restricts the fan-out to that repo without enumerating", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
+    const assemblyRuns = new InMemoryAssemblyRuns();
     const { jobRuns } = fakeJobRuns();
     const handler = createDetectTickHandler("gap-detect", {
-      assemblyLines,
+      assemblyRuns,
       jobRuns,
       jobRef: async () => "gap_detection",
       listTargetRepos: async () => {
@@ -99,7 +99,7 @@ describe("createDetectTickHandler", () => {
 
     await handler({ repo: "re-cinq/lore" });
 
-    expect(assemblyLines.rows).toEqual([
+    expect(assemblyRuns.rows).toEqual([
       expect.objectContaining({
         blueprintName: "gap-detect",
         repo: "re-cinq/lore",
@@ -109,10 +109,10 @@ describe("createDetectTickHandler", () => {
   });
 
   it("no target repos starts nothing", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
+    const assemblyRuns = new InMemoryAssemblyRuns();
     const { started, jobRuns } = fakeJobRuns();
     const handler = createDetectTickHandler("spec-coverage-validate", {
-      assemblyLines,
+      assemblyRuns,
       jobRuns,
       jobRef: async () => "spec_coverage_validate",
       listTargetRepos: async () => [],
@@ -120,14 +120,14 @@ describe("createDetectTickHandler", () => {
 
     await handler({});
 
-    expect(assemblyLines.rows).toEqual([]);
+    expect(assemblyRuns.rows).toEqual([]);
     expect(started).toEqual([]);
   });
 
-  it("fails the just-created job_run when assemblyLines.start throws before rethrowing", async () => {
+  it("fails the just-created job_run when assemblyRuns.start throws before rethrowing", async () => {
     const { started, failed, jobRuns } = fakeJobRuns();
     const handler = createDetectTickHandler("spec-drift", {
-      assemblyLines: {
+      assemblyRuns: {
         start: async () => {
           throw new Error("db down");
         },

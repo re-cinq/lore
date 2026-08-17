@@ -83,7 +83,7 @@ export function decideResumeFromClosedPr(
 }
 
 export interface DecomposeResumeDeps {
-  assemblyLines: Pick<AssemblyRunsPort, "findOpenByPr" | "listStationRuns">;
+  assemblyRuns: Pick<AssemblyRunsPort, "findOpenByPr" | "listStationRuns">;
   /** Deliver the resume. Production binds the pool here so this module never holds
    *  a nullable one it would have to cast away; a test records instead. */
   report: (target: ParkedTarget, outcome: "success") => Promise<void>;
@@ -109,13 +109,13 @@ export async function resumeDecomposition(
   pr: { repo: string; prNumber: number },
   deps: DecomposeResumeDeps,
 ): Promise<void> {
-  const open = await deps.assemblyLines.findOpenByPr(pr.repo, pr.prNumber);
+  const open = await deps.assemblyRuns.findOpenByPr(pr.repo, pr.prNumber);
 
   for (const line of open) {
     const target = decideMergeResume(
       line.id,
       line.status,
-      await deps.assemblyLines.listStationRuns(line.id),
+      await deps.assemblyRuns.listStationRuns(line.id),
       line.graph,
     );
 

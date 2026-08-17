@@ -1,5 +1,5 @@
 // Handler for `assembly_line.start` (layer 3): the sole executor entry for assembly
-// lines. `project.assemblyLines.start()` inserted the row (queued) + this event
+// lines. `project.assemblyRuns.start()` inserted the row (queued) + this event
 // atomically; the loop claims it here. The handler validates, marks the row
 // running, and launches the ENTRY node's Agent CR — the walk then advances on
 // `kubernetes.agent_node.*` events (spec 6-dark-factory FR6.7/FR6.9), with the
@@ -19,7 +19,7 @@ import {
 import type { EventHandler } from "../../main-loop/types.js";
 
 export interface StartEventHandlerDeps {
-  assemblyLines: AssemblyRunsPort;
+  assemblyRuns: AssemblyRunsPort;
   /** The loaded builtin assembly line YAMLs — routing reads definition presence. */
   definitions: () => Promise<ReadonlyMap<string, AssemblyLine>>;
   /** Launch the line's entry node (advanceLine). The walk then advances on
@@ -69,7 +69,7 @@ export function createStartEventHandler(
         console.warn(
           `[assembly-line-start] task-backed row ${assemblyLineId} has no builtin definition "${blueprintName}" — treating as single-CR (verify a CR was launched for task ${taskId})`,
         );
-        await deps.assemblyLines.markRunning(assemblyLineId);
+        await deps.assemblyRuns.markRunning(assemblyLineId);
 
         return;
       }
@@ -77,8 +77,8 @@ export function createStartEventHandler(
       // Task-less + unknown definition is a config error, not a transient failure —
       // close the row and resolve so the loop never retries a line that can't exist.
       const reason = `no assembly line defined for task type "${blueprintName}"`;
-      const row = await deps.assemblyLines.getById(assemblyLineId);
-      const closedNow = await deps.assemblyLines.finish(
+      const row = await deps.assemblyRuns.getById(assemblyLineId);
+      const closedNow = await deps.assemblyRuns.finish(
         assemblyLineId,
         "error",
         reason,
@@ -105,12 +105,12 @@ export function createStartEventHandler(
     // choreographies that deliberately ship no definitions — so it is where the
     // hash AND the graph the run will walk get recorded. Everything downstream
     // reads the clone instead of re-reading the file.
-    await deps.assemblyLines.stampBlueprint(
+    await deps.assemblyRuns.stampBlueprint(
       assemblyLineId,
       definitionHash(definition),
       snapshotGraph(definition, blueprintName),
     );
-    await deps.assemblyLines.markRunning(assemblyLineId);
+    await deps.assemblyRuns.markRunning(assemblyLineId);
 
     // Launch the entry node and return — the walk advances on
     // `kubernetes.agent_node.*` events; a Floor restart loses nothing because
@@ -124,7 +124,7 @@ export function createStartEventHandler(
  *  importing the registry never forces the DB pool or the K8s client. */
 export const assemblyLineStart: EventHandler = async (params) => {
   const [
-    { assemblyLines },
+    { assemblyRuns },
     { loadBuiltinAssemblyLines },
     { advanceLine, productionNodeEventDeps },
   ] = await Promise.all([
@@ -136,7 +136,7 @@ export const assemblyLineStart: EventHandler = async (params) => {
   const { notifyLineFailure } = await import("./notify-failure.js");
 
   const handler = createStartEventHandler({
-    assemblyLines: assemblyLines(),
+    assemblyRuns: assemblyRuns(),
     definitions: loadBuiltinAssemblyLines,
     advance: async (assemblyLineId) =>
       advanceLine(assemblyLineId, await productionNodeEventDeps()),
@@ -159,13 +159,13 @@ async function publishStartCheck(assemblyLineId: string): Promise<void> {
   }
 
   try {
-    const [{ assemblyLines }, { projectFor }, { publishPrCheck }] =
+    const [{ assemblyRuns }, { projectFor }, { publishPrCheck }] =
       await Promise.all([
         import("../../kernel/queues.js"),
         import("../../composition/project-boot.js"),
         import("./pr-check.js"),
       ]);
-    const row = await assemblyLines().getById(assemblyLineId);
+    const row = await assemblyRuns().getById(assemblyLineId);
 
     if (!row || !(Number(row.args.pr_number) > 0)) {
       return;
@@ -177,7 +177,7 @@ async function publishStartCheck(assemblyLineId: string): Promise<void> {
     const nodes =
       row.status === "queued" || row.status === "running"
         ? []
-        : await assemblyLines().listStationRuns(assemblyLineId);
+        : await assemblyRuns().listStationRuns(assemblyLineId);
     const project = await projectFor(row.repo);
 
     await publishPrCheck(project.repo, row, nodes, process.env.LORE_UI_URL);

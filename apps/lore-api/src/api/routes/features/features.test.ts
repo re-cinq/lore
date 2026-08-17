@@ -48,9 +48,9 @@ function fakeAssemblyLines(overrides: Record<string, unknown> = {}) {
 
 function useProject(
   features: ReturnType<typeof fakeFeatures>,
-  assemblyLines = fakeAssemblyLines(),
+  assemblyRuns = fakeAssemblyLines(),
 ) {
-  vi.mocked(projectFor).mockResolvedValue({ features, assemblyLines } as never);
+  vi.mocked(projectFor).mockResolvedValue({ features, assemblyRuns } as never);
 
   return features;
 }
@@ -686,7 +686,7 @@ describe("accepting the plan resumes the parked node", () => {
         features: fakeFeatures({
           get: vi.fn().mockResolvedValue({ id: "f1", iterations: [] }),
         }),
-        assemblyLines: fakeAssemblyLines(),
+        assemblyRuns: fakeAssemblyLines(),
         tasks: { specTasksForFeature: vi.fn().mockResolvedValue(tasks) },
       } as never);
       const res = await req("GET", `${base}/f1/decomposition`);
@@ -700,7 +700,7 @@ describe("accepting the plan resumes the parked node", () => {
       // would look like success.
       vi.mocked(projectFor).mockResolvedValue({
         features: fakeFeatures({ get: vi.fn().mockResolvedValue(null) }),
-        assemblyLines: fakeAssemblyLines(),
+        assemblyRuns: fakeAssemblyLines(),
         tasks: { specTasksForFeature: vi.fn() },
       } as never);
 
@@ -715,7 +715,7 @@ describe("accepting the plan resumes the parked node", () => {
         features: fakeFeatures({
           get: vi.fn().mockResolvedValue({ id: "f1", iterations: [] }),
         }),
-        assemblyLines: fakeAssemblyLines(),
+        assemblyRuns: fakeAssemblyLines(),
         tasks: { specTasksForFeature: vi.fn().mockResolvedValue([]) },
       } as never);
 

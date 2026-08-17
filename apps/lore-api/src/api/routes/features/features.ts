@@ -100,7 +100,7 @@ function enforcePool(pool: Pool | null): Pool {
  */
 async function resolveDispatch(
   project: {
-    assemblyLines: Pick<AssemblyRunsPort, "listForTask" | "listStationRuns">;
+    assemblyRuns: Pick<AssemblyRunsPort, "listForTask" | "listStationRuns">;
   },
   iterations: readonly { iteration: number; task_id: string | null }[],
 ): Promise<
@@ -111,7 +111,7 @@ async function resolveDispatch(
   if (!taskId) {
     return { kind: "legacy" };
   }
-  const lines = await project.assemblyLines.listForTask(taskId);
+  const lines = await project.assemblyRuns.listForTask(taskId);
   const line = lines.find((l) => l.blueprintName === PLANNING_DEFINITION);
 
   if (!line) {
@@ -119,7 +119,7 @@ async function resolveDispatch(
   }
   const decision = decideRoundDispatch(
     line.status,
-    await project.assemblyLines.listStationRuns(line.id),
+    await project.assemblyRuns.listStationRuns(line.id),
     line.graph,
   );
 
@@ -148,7 +148,7 @@ function firstTaskId(
  *  {@link resolveDispatch} does — the FIRST round's task owns the line for its
  *  whole life, and later rounds are resumes that mint no task of their own. */
 async function planningLineId(
-  project: { assemblyLines: Pick<AssemblyRunsPort, "listForTask"> },
+  project: { assemblyRuns: Pick<AssemblyRunsPort, "listForTask"> },
   iterations: readonly { iteration: number; task_id: string | null }[],
 ): Promise<string | null> {
   const taskId = firstTaskId(iterations);
@@ -156,7 +156,7 @@ async function planningLineId(
   if (!taskId) {
     return null;
   }
-  const lines = await project.assemblyLines.listForTask(taskId);
+  const lines = await project.assemblyRuns.listForTask(taskId);
 
   return lines.find((l) => l.blueprintName === PLANNING_DEFINITION)?.id ?? null;
 }

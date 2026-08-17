@@ -89,7 +89,7 @@ function makeDeps(port: InMemoryAssemblyRuns) {
   const jobRuns: string[] = [];
   const notified: Array<{ id: string; outcome: string; reason?: string }> = [];
   const deps: AdvanceDeps = {
-    assemblyLines: port,
+    assemblyRuns: port,
     definitions: async () =>
       new Map<string, AssemblyLine>([
         ["code-review", codeReviewLike],
@@ -810,7 +810,7 @@ edges:
     const port = new InMemoryAssemblyRuns();
     const launched: LoreTaskSpec[] = [];
     const deps: AdvanceDeps = {
-      assemblyLines: port,
+      assemblyRuns: port,
       definitions: async () =>
         new Map<string, AssemblyLine>([
           ["code-review", codeReviewLike],

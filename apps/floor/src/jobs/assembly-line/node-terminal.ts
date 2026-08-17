@@ -480,8 +480,8 @@ export async function publishCheck(
   deps: AdvanceDeps,
 ): Promise<void> {
   const [row, nodes] = await Promise.all([
-    deps.assemblyLines.getById(assemblyLineId),
-    deps.assemblyLines.listStationRuns(assemblyLineId),
+    deps.assemblyRuns.getById(assemblyLineId),
+    deps.assemblyRuns.listStationRuns(assemblyLineId),
   ]);
 
   if (!row || !(Number(row.args.pr_number) > 0)) {

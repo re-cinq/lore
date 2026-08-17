@@ -79,7 +79,7 @@ describe("Project wiring", () => {
       {},
     );
 
-    const assemblyLineId = await project.assemblyLines.start("implementation", {
+    const assemblyLineId = await project.assemblyRuns.start("implementation", {
       taskId: "task-9",
     });
 

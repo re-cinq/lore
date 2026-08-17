@@ -19,7 +19,7 @@ import {
 import { linkifyMarkdown, selectStationBackend } from "@re-cinq/lore-shared";
 import type { Project } from "@re-cinq/lore-shared";
 import { slugify, setStatus, insertEvent } from "./task-helpers.js";
-import { taskQueue, settings, assemblyLines } from "../../kernel/queues.js";
+import { taskQueue, settings, assemblyRuns } from "../../kernel/queues.js";
 import type { TaskQueueRepository } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import { composeIssueBody } from "./issue-body.js";
 import { handleFeatureRequest } from "./handle-feature-request.js";
@@ -75,7 +75,7 @@ export async function recoverStaleTasks(
     setStatus,
     insertEvent,
     hasOpenLine: async (taskId) =>
-      (await assemblyLines().listForTask(taskId)).some(
+      (await assemblyRuns().listForTask(taskId)).some(
         (line) => line.status === "running" || line.status === "queued",
       ),
   },

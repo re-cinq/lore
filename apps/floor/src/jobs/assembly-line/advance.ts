@@ -32,7 +32,7 @@ import { roundContent } from "./round-content.js";
 import { decidePrStamp } from "./spec-pr.js";
 
 export interface AdvanceDeps {
-  assemblyLines: AssemblyRunsPort;
+  assemblyRuns: AssemblyRunsPort;
   /**
    * The loaded builtin blueprints — the FALLBACK only. A run stamped since
    * FR6.38 carries its own graph and the walk reads that, so this is consulted
@@ -160,7 +160,7 @@ export async function advanceLine(
   assemblyLineId: string,
   deps: AdvanceDeps,
 ): Promise<void> {
-  const row = await deps.assemblyLines.getById(assemblyLineId);
+  const row = await deps.assemblyRuns.getById(assemblyLineId);
 
   if (!row || row.status !== "running") {
     return;
@@ -173,7 +173,7 @@ export async function advanceLine(
     return;
   }
 
-  const nodes = await deps.assemblyLines.listStationRuns(assemblyLineId);
+  const nodes = await deps.assemblyRuns.listStationRuns(assemblyLineId);
 
   // Overlap guard (branch-lease parity): a second not-yet-started run on the same
   // repo+branch defers to the one already in flight — the detect fan-out relies on
@@ -208,7 +208,7 @@ export async function advanceLine(
       return dt < 0 || (dt === 0 && other.id < row.id);
     };
     const overlapping = (
-      await deps.assemblyLines.findOpenOnBranch(row.repo, row.branch)
+      await deps.assemblyRuns.findOpenOnBranch(row.repo, row.branch)
     ).some((other) => other.id !== row.id && isOlder(other));
 
     if (overlapping) {
@@ -275,7 +275,7 @@ export async function advanceLine(
   // The row is also what MINTS the station-run id — a converged duplicate returns
   // the id already minted, so a re-dispatch of the same visit carries the same
   // label rather than a second identity.
-  const { stationRunId } = await deps.assemblyLines.ensureStationRun({
+  const { stationRunId } = await deps.assemblyRuns.ensureStationRun({
     assemblyRunId: assemblyLineId,
     nodeId: node.id,
     iteration: transition.iteration,
@@ -336,7 +336,7 @@ export async function finishLine(
     }
   }
 
-  const closedNow = await deps.assemblyLines.finish(row.id, outcome, reason);
+  const closedNow = await deps.assemblyRuns.finish(row.id, outcome, reason);
 
   // finish is first-writer-wins — a losing racer (node event vs reaper re-advance)
   // closes 0 rows yet still reaches here, so cleanupToken MUST be idempotent
@@ -374,7 +374,7 @@ export async function finishNodeAndAdvance(
   },
   deps: AdvanceDeps,
 ): Promise<void> {
-  const nodes = await deps.assemblyLines.listStationRuns(input.assemblyLineId);
+  const nodes = await deps.assemblyRuns.listStationRuns(input.assemblyLineId);
   const forNode = nodes.filter((n) => n.nodeId === input.nodeId);
   const target =
     input.iteration !== undefined
@@ -384,7 +384,7 @@ export async function finishNodeAndAdvance(
       : forNode.filter((n) => n.outcome === null).at(-1);
 
   if (target) {
-    await deps.assemblyLines.finishStationRunOnce(
+    await deps.assemblyRuns.finishStationRunOnce(
       target.id,
       input.result.outcome,
     );
@@ -411,7 +411,7 @@ async function maybeStampPr(
   }
 
   try {
-    const row = await deps.assemblyLines.getById(assemblyLineId);
+    const row = await deps.assemblyRuns.getById(assemblyLineId);
 
     if (!row) {
       return;

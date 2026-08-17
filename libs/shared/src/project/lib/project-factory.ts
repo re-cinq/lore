@@ -46,7 +46,7 @@ export async function createProject(
   const { PgAssemblyRuns } =
     await import("../assembly-runs/assembly-runs-pg.js");
 
-  ports.set("assemblyLines", new PgAssemblyRuns(pgPool));
+  ports.set("assemblyRuns", new PgAssemblyRuns(pgPool));
 
   const { PlatformGitHub } = await import("./platform-github.js");
   const github = new PlatformGitHub(env);

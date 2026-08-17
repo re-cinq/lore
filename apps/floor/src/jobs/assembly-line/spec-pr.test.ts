@@ -90,7 +90,7 @@ async function harness(
     featureId: feature.id,
     ports: {
       pulls,
-      assemblyLines: lines,
+      assemblyRuns: lines,
       // Production passes `project.features`, which is already repo-bound; the
       // in-memory double is the raw port, so the test binds the repo the same way.
       features: {

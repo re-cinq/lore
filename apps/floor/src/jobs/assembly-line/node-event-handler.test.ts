@@ -44,7 +44,7 @@ function harness() {
   const statusByName: Record<string, AgentNodeStatus | null> = {};
   const billingAlerts: Array<{ repo: string; nodeType: string }> = [];
   const handler = createNodeEventHandler({
-    assemblyLines: port,
+    assemblyRuns: port,
     definitions: async () => new Map([["code-review", line]]),
     launch: async (spec) => {
       launched.push(spec);

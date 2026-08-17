@@ -44,9 +44,9 @@ describe("deliverArtifact", () => {
     const lines = new InMemoryAssemblyRuns();
     const id = await lineFor(lines);
 
-    expect(
-      await deliverArtifact(fileEvent(), { assemblyLines: lines }),
-    ).toEqual({ outcome: "merged", arg: "spec_plan" });
+    expect(await deliverArtifact(fileEvent(), { assemblyRuns: lines })).toEqual(
+      { outcome: "merged", arg: "spec_plan" },
+    );
     expect((await lines.getById(id))?.args).toMatchObject({
       description: "d",
       spec_plan: '{"changes":[]}',
@@ -62,7 +62,7 @@ describe("deliverArtifact", () => {
 
     expect(
       await deliverArtifact(fileEvent({ event: "planning.result" }), {
-        assemblyLines: lines,
+        assemblyRuns: lines,
       }),
     ).toMatchObject({ outcome: "skipped" });
   });
@@ -73,7 +73,7 @@ describe("deliverArtifact", () => {
     const id = await lineFor(lines);
 
     await deliverArtifact(fileEvent({ content: null, reason: "missing" }), {
-      assemblyLines: lines,
+      assemblyRuns: lines,
     });
 
     expect((await lines.getById(id))?.args).not.toHaveProperty("spec_plan");
@@ -85,7 +85,7 @@ describe("deliverArtifact", () => {
     await lineFor(lines);
     const second = await lineFor(lines);
 
-    await deliverArtifact(fileEvent(), { assemblyLines: lines });
+    await deliverArtifact(fileEvent(), { assemblyRuns: lines });
 
     expect((await lines.getById(second))?.args).toMatchObject({
       spec_plan: '{"changes":[]}',
@@ -96,7 +96,7 @@ describe("deliverArtifact", () => {
     const lines = new InMemoryAssemblyRuns();
 
     expect(
-      await deliverArtifact(fileEvent(), { assemblyLines: lines }),
+      await deliverArtifact(fileEvent(), { assemblyRuns: lines }),
     ).toMatchObject({ outcome: "skipped" });
   });
 });

@@ -80,7 +80,7 @@ export function buildRegistry(): Map<string, EventHandler> {
     // station pod, never inline in the Floor.
     ["internal.ingest.spec_coverage_validate", detect.specCoverageValidateTick],
 
-    // ── Assembly lines (project.assemblyLines.start() inserts row + event atomically;
+    // ── Assembly lines (project.assemblyRuns.start() inserts row + event atomically;
     //    a top-level family — the assembly line is a primary concept, its producer
     //    spans shared/mcp/floor rather than one source) ──
     // Through the constant: the live entry must track whatever the writers emit,

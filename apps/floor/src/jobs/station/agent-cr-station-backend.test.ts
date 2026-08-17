@@ -35,20 +35,20 @@ const spec = (taskType: string): LoreTaskSpec => ({
   branch: "b",
 });
 
-const assemblyLines = new Set(["implementation", "general", "gap-fill"]);
+const assemblyRuns = new Set(["implementation", "general", "gap-fill"]);
 
 describe("shouldUseAssemblyLine", () => {
   it("is true only when an assembly line exists for the task type", () => {
-    expect(shouldUseAssemblyLine("implementation", assemblyLines)).toBe(true);
-    expect(shouldUseAssemblyLine("onboard", assemblyLines)).toBe(false);
+    expect(shouldUseAssemblyLine("implementation", assemblyRuns)).toBe(true);
+    expect(shouldUseAssemblyLine("onboard", assemblyRuns)).toBe(false);
   });
 
   it("routes gap-fill to the assembly line and runbook to single-Agent (no runbook.yaml)", () => {
     // Pins the post-migration split: gap-fill.yaml exists so gap-fill runs the
     // Floor-side line (per-node Agent CRs); runbook has no assembly line so it
     // stays a single Agent. A future stray runbook.yaml is then a conscious choice.
-    expect(shouldUseAssemblyLine("gap-fill", assemblyLines)).toBe(true);
-    expect(shouldUseAssemblyLine("runbook", assemblyLines)).toBe(false);
+    expect(shouldUseAssemblyLine("gap-fill", assemblyRuns)).toBe(true);
+    expect(shouldUseAssemblyLine("runbook", assemblyRuns)).toBe(false);
   });
 });
 
@@ -59,7 +59,7 @@ function makeBackend(openTaskIds: string[] = []) {
   const backend = new AgentCrStationBackend(
     assemblyLine,
     single,
-    assemblyLines,
+    assemblyRuns,
     {
       start: async (input) => {
         started.push(input);

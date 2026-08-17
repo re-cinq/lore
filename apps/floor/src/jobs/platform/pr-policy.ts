@@ -179,7 +179,7 @@ export async function resolvePrForTaskFromDb(
     const project = await projectFor(row.target_repo);
 
     reviewInFlight =
-      (await project.assemblyLines.findOpenByPr(row.pr_number)).length > 0;
+      (await project.assemblyRuns.findOpenByPr(row.pr_number)).length > 0;
   } catch (err) {
     console.warn(
       "[pr-policy] review-in-flight lookup failed:",

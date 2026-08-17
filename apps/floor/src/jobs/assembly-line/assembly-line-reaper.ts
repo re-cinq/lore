@@ -87,7 +87,7 @@ export function decideNodeRecovery(input: {
 export async function assemblyLineReaperJob(
   deps: AssemblyLineReaperDeps,
 ): Promise<string> {
-  const open = await deps.assemblyLines.listOpen();
+  const open = await deps.assemblyRuns.listOpen();
   const nowMs = Date.now();
   let resolved = 0;
   let relaunched = 0;
@@ -148,7 +148,7 @@ export async function assemblyLineReaperJob(
         continue;
       }
 
-      const nodes = await deps.assemblyLines.listStationRuns(row.id);
+      const nodes = await deps.assemblyRuns.listStationRuns(row.id);
       const openNode = nodes.find((n) => n.outcome === null);
 
       if (!openNode) {

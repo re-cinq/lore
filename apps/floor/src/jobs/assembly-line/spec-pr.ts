@@ -54,7 +54,7 @@ export interface SpecPrPorts {
     list(): Promise<PullRef[]>;
     open(branch: string, title: string, body: string): Promise<PullRef>;
   };
-  assemblyLines: {
+  assemblyRuns: {
     mergeArgs(id: string, patch: Record<string, unknown>): Promise<void>;
   };
   features: {
@@ -104,7 +104,7 @@ export async function stampLinePr(
     (await existingPrFor(branch, ports.pulls)) ??
     (await ports.pulls.open(branch, title, prBody(branch, feature)));
 
-  await ports.assemblyLines.mergeArgs(row.id, {
+  await ports.assemblyRuns.mergeArgs(row.id, {
     pr_number: pr.number,
     pr_url: pr.url,
   });

@@ -19,7 +19,7 @@ import type { AgentFileEvent } from "./agent-events.js";
 const OWNED_ELSEWHERE = new Set(["planning.result"]);
 
 export interface ArtifactArgsDeps {
-  assemblyLines: Pick<AssemblyRunsPort, "listForTask" | "mergeArgs">;
+  assemblyRuns: Pick<AssemblyRunsPort, "listForTask" | "mergeArgs">;
 }
 
 export type ArtifactDelivery =
@@ -52,7 +52,7 @@ export async function deliverArtifact(
     return { outcome: "skipped", error: `no artifact (${fileEvent.reason})` };
   }
   const line = newestOpen(
-    await deps.assemblyLines.listForTask(fileEvent.taskId),
+    await deps.assemblyRuns.listForTask(fileEvent.taskId),
   );
 
   if (!line) {
@@ -60,7 +60,7 @@ export async function deliverArtifact(
   }
   const arg = argNameForEvent(fileEvent.event);
 
-  await deps.assemblyLines.mergeArgs(line.id, { [arg]: fileEvent.content });
+  await deps.assemblyRuns.mergeArgs(line.id, { [arg]: fileEvent.content });
 
   return { outcome: "merged", arg };
 }
