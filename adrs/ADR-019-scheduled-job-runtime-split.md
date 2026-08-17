@@ -162,7 +162,7 @@ Why the original objections no longer bind this family:
 3. **Independent controls (objection #4).** Event-bus retry/dead-letter (per
    repo, since each start event is its own row), the per-run branch lease
    (concurrency control, replacing `concurrencyPolicy: Forbid`), and
-   first-class `pipeline.assembly_lines` identity with per-node trace replace
+   first-class `pipeline.assembly_runs` identity with per-node trace replace
    the CronJob knobs.
 4. **On-demand trigger (objection #5).** Insert the tick event, optionally
    scoped: `INSERT INTO pipeline.events (event_name, source, params) VALUES
