@@ -1,4 +1,5 @@
 import "server-only";
+import type { RunIdCarrier } from "./run-id";
 import { apiFetch } from "./client";
 import type { ApiResult } from "./result";
 import type {
@@ -32,11 +33,12 @@ export function refineFeature(
   userAnswers: unknown,
   fromIteration?: number,
 ): Promise<
-  ApiResult<{
-    iteration: number;
-    task_id?: string | null;
-    assembly_line_id?: string;
-  }>
+  ApiResult<
+    {
+      iteration: number;
+      task_id?: string | null;
+    } & RunIdCarrier
+  >
 > {
   return apiFetch("lore-api", `${base(repo)}/${id}/iterations`, {
     method: "POST",
@@ -50,7 +52,7 @@ export function refineFeature(
 export function finalizeFeature(
   repo: string,
   id: string,
-): Promise<ApiResult<{ task_id?: string; assembly_line_id?: string }>> {
+): Promise<ApiResult<{ task_id?: string } & RunIdCarrier>> {
   return apiFetch("lore-api", `${base(repo)}/${id}/finalize`, {
     method: "POST",
     body: {},
@@ -105,12 +107,13 @@ export function getFeatureStatus(
   repo: string,
   id: string,
 ): Promise<
-  ApiResult<{
-    feature: FeatureRow;
-    latest_iteration: FeatureIterationRow | null;
-    last_ready_iteration: FeatureIterationRow | null;
-    assembly_line_id: string | null;
-  }>
+  ApiResult<
+    {
+      feature: FeatureRow;
+      latest_iteration: FeatureIterationRow | null;
+      last_ready_iteration: FeatureIterationRow | null;
+    } & RunIdCarrier
+  >
 > {
   return apiFetch("lore-api", `${base(repo)}/${id}/status`);
 }

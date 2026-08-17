@@ -35,6 +35,7 @@ import {
   FinalizeStartedSchema,
   FeatureSchema,
   OkSchema,
+  runIdBothSpellings,
 } from "./features-schema.js";
 
 /**
@@ -298,9 +299,9 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             feature: row,
             latest_iteration: iterations[iterations.length - 1] ?? null,
             last_ready_iteration: latestReadyIteration(iterations),
-            // The line the run graph hangs on. From round 2 a resumed round mints
-            // no task, so only the OWNING task — the first round's — can resolve it.
-            assembly_line_id: await planningLineId(project, iterations),
+            // The run the graph hangs on. From round 2 a resumed round mints no
+            // task, so only the OWNING task — the first round's — can resolve it.
+            ...runIdBothSpellings(await planningLineId(project, iterations)),
           });
         }),
     },
@@ -455,7 +456,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             return h
               .response({
                 iteration: row.iteration,
-                assembly_line_id: dispatch.lineId,
+                ...runIdBothSpellings(dispatch.lineId),
                 task_id: null,
               })
               .code(202);
@@ -568,7 +569,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
               "success",
             );
 
-            return h.response({ assembly_line_id: dispatch.lineId }).code(202);
+            return h.response(runIdBothSpellings(dispatch.lineId)).code(202);
           }
           const task = await createTask(
             `Finalize feature: ${feature.title}`,

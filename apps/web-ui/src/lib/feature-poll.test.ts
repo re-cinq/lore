@@ -21,6 +21,7 @@ function answerStatus(data: {
   latest_iteration?: unknown;
   last_ready_iteration?: unknown;
   assembly_line_id?: string | null;
+  assembly_run_id?: string | null;
 }) {
   getFeatureStatus.mockResolvedValue({
     status: "ok",
@@ -29,6 +30,7 @@ function answerStatus(data: {
       latest_iteration: data.latest_iteration ?? null,
       last_ready_iteration: data.last_ready_iteration ?? null,
       assembly_line_id: data.assembly_line_id ?? null,
+      assembly_run_id: data.assembly_run_id ?? null,
     },
   });
 }
@@ -132,6 +134,23 @@ describe("loadFeaturePoll", () => {
     // The second argument is the run whose graph the caller already holds —
     // undefined here, because this call names no cached graph.
     expect(fetchFeatureRunById).toHaveBeenCalledWith("line-7", undefined);
+  });
+
+  it("draws the run from assembly_run_id when the API sends the current spelling", async () => {
+    // The API emits both keys during the rename, and will emit only this one once
+    // the deprecated key is dropped. The loader must already be following it, or
+    // that drop silently blanks the wizard's run graph.
+    answerStatus({
+      latest_iteration: { iteration: 4, task_id: "t4" },
+      assembly_run_id: "run-7",
+      assembly_line_id: null,
+    });
+    fetchFeatureRunById.mockResolvedValue({ status: "running" });
+
+    expect((await loadFeaturePoll("re-cinq/lore", "f1"))?.run).toEqual({
+      status: "running",
+    });
+    expect(fetchFeatureRunById).toHaveBeenCalledWith("run-7", undefined);
   });
 
   it("draws no run for a round whose feature has no line yet", async () => {

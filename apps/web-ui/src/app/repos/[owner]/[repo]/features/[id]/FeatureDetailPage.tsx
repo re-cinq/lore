@@ -1,4 +1,5 @@
 import { getAssemblyLineDefinition } from "@/lib/api/assembly-lines";
+import { runIdOf } from "@/lib/api/run-id";
 import {
   getFeature,
   getFeatureDecomposition,
@@ -60,7 +61,7 @@ export default async function FeatureDetailPage({
   const status = await getFeatureStatus(fullName, id);
   const run =
     status.status === "ok"
-      ? await fetchFeatureRunById(status.data.assembly_line_id)
+      ? await fetchFeatureRunById(runIdOf(status.data))
       : null;
 
   return (
