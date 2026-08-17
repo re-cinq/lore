@@ -16,7 +16,7 @@ import {
   KubeCatalogApi,
 } from "../jobs/station/kube-token-provisioner.js";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
-import { AssemblyLineStationBackend } from "../jobs/assembly-line/assembly-line-station-backend.js";
+import { AssemblyLineStationBackend } from "../jobs/assembly-run/assembly-run-station-backend.js";
 import { assemblyRuns } from "../kernel/queues.js";
 import { AgentCrStationBackend } from "../jobs/station/agent-cr-station-backend.js";
 

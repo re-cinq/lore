@@ -34,7 +34,7 @@ autonomous software **factory** (Dark Factory, ADR-016, is a *mode* of it).
 | Term | Today |
 |---|---|
 | Floor | `apps/floor` (the `lore-floor` deployment) |
-| AssemblyLine | the YAML definitions + graph library (loader, `nextTransition`) in `@re-cinq/lore-assembly-lines`, walked event-driven by the Floor (`apps/floor/src/jobs/assembly-line/advance.ts`) |
+| AssemblyLine | the YAML definitions + graph library (loader, `nextTransition`) in `@re-cinq/lore-assembly-lines`, walked event-driven by the Floor (`apps/floor/src/jobs/assembly-run/advance.ts`) |
 | Station | one `Agent` CR pod per node on the ai-agent-subsystem — `claude` for agent nodes, the `exec`-vendor `lore-station` image for non-agent nodes — or the local runner sandbox |
 | Agent | a single `Agent` CR run (Claude Code in the pod); locally, the `claude --print` / `Llm` invocation |
 | Agent definition | the `lore.agent_definitions` table, reached via `project.agentDefs` (ADR-024) |

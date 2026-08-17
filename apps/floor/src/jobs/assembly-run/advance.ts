@@ -25,8 +25,8 @@ import {
   nodeAgentName,
   nodeAgentSpec,
   nodeStationSpec,
-  type FloorAssemblyLineTask,
-} from "./floor-assembly-line.js";
+  type FloorAssemblyRunTask,
+} from "./floor-assembly-run.js";
 import { isFailureOutcome } from "./notify-failure.js";
 import { roundContent } from "./round-content.js";
 import { decidePrStamp } from "./spec-pr.js";
@@ -64,7 +64,7 @@ export interface AdvanceDeps {
    *  continues, which is the pre-feature behaviour. */
   resolveConversation?: (
     node: RunGraphNode,
-    task: FloorAssemblyLineTask,
+    task: FloorAssemblyRunTask,
     iteration: number,
     priorOutcome: string | null,
   ) => Promise<LoreTaskSpec["conversation"] | undefined>;
@@ -120,7 +120,7 @@ function visitFailed(outcome: StageOutcome | null): boolean {
 }
 
 /** The walk task shape, derived from the persisted row instead of an in-memory task. */
-export function taskFromRow(row: AssemblyRunRecord): FloorAssemblyLineTask {
+export function taskFromRow(row: AssemblyRunRecord): FloorAssemblyRunTask {
   return {
     taskId: row.taskId ?? row.id,
     pipelineTaskId: row.taskId,

@@ -20,7 +20,7 @@ cluster gate. What exists instead:
 - The walk is **event-driven on the Floor**: state lives in
   `pipeline.assembly_runs` + `pipeline.station_runs`; terminal
   CR phases emit `kubernetes.agent_node.*` events, handled by
-  `apps/floor/src/jobs/assembly-line/node-event-handler.ts` and driven
+  `apps/floor/src/jobs/assembly-run/node-event-handler.ts` and driven
   through `advance.ts`; a
   per-minute reaper (`cron.assembly_line_reaper.tick`) resolves
   dropped events, relaunches missing CRs, and times out stuck nodes.

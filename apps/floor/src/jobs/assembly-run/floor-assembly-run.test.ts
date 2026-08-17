@@ -4,10 +4,10 @@ import {
   nodeAgentName,
   nodeAgentSpec,
   nodeStationSpec,
-  type FloorAssemblyLineTask,
-} from "./floor-assembly-line.js";
+  type FloorAssemblyRunTask,
+} from "./floor-assembly-run.js";
 
-const task: FloorAssemblyLineTask = {
+const task: FloorAssemblyRunTask = {
   taskId: "abcdef1234567890",
   pipelineTaskId: "abcdef1234567890",
   assemblyLineId: "a1b2c3d4e5f6a7b8",

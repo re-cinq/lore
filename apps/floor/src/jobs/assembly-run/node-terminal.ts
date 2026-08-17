@@ -190,7 +190,7 @@ export async function postReviewFromNode(
         repo: row.repo,
         payload: {
           pr_number: prNumber,
-          assembly_line_id: row.id,
+          assembly_run_id: row.id,
           error: message,
         },
       },
@@ -282,7 +282,7 @@ export async function postReplyFromNode(
         repo: row.repo,
         payload: {
           pr_number: prNumber,
-          assembly_line_id: row.id,
+          assembly_run_id: row.id,
           output_length: output?.length ?? 0,
         },
       },
@@ -330,7 +330,7 @@ export async function postReplyFromNode(
         repo: row.repo,
         payload: {
           pr_number: prNumber,
-          assembly_line_id: row.id,
+          assembly_run_id: row.id,
           error: message,
         },
       },
@@ -390,7 +390,7 @@ async function auditDedupedReply(
       repo: row.repo,
       payload: {
         pr_number: prNumber,
-        assembly_line_id: row.id,
+        assembly_run_id: row.id,
         marker,
       },
     },
@@ -413,7 +413,7 @@ async function auditDedupedPost(
       repo: row.repo,
       payload: {
         pr_number: prNumber,
-        assembly_line_id: row.id,
+        assembly_run_id: row.id,
         marker,
       },
     },
@@ -437,7 +437,7 @@ async function auditFallbackPost(
       repo: row.repo,
       payload: {
         pr_number: prNumber,
-        assembly_line_id: row.id,
+        assembly_run_id: row.id,
         error,
       },
     },
@@ -464,7 +464,7 @@ async function auditUnparsedFindings(
       repo: row.repo,
       payload: {
         pr_number: prNumber,
-        assembly_line_id: row.id,
+        assembly_run_id: row.id,
         verdict,
         output_length: output?.length ?? 0,
       },

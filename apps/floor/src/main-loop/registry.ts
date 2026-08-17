@@ -11,13 +11,13 @@ import * as internal from "../jobs/internal.js";
 import * as cron from "../jobs/cron.js";
 import * as detect from "../jobs/detect/fan-out.js";
 import * as kubernetes from "../jobs/kubernetes.js";
-import { assemblyLineStart } from "../jobs/assembly-line/start-event-handler.js";
-import { assemblyLineResume } from "../jobs/assembly-line/resume-event-handler.js";
+import { assemblyLineStart } from "../jobs/assembly-run/start-event-handler.js";
+import { assemblyLineResume } from "../jobs/assembly-run/resume-event-handler.js";
 import {
   RUN_START_EVENT,
   RUN_RESUME_EVENT,
 } from "@re-cinq/lore-shared/project/assembly-runs/run-events.js";
-import { agentNodeTerminal } from "../jobs/assembly-line/node-event-handler.js";
+import { agentNodeTerminal } from "../jobs/assembly-run/node-event-handler.js";
 import {
   codeReviewOnTrigger,
   codeReviewOnComment,

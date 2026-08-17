@@ -12,7 +12,7 @@ import type {
   ConversationsPort,
   ExecutionRef,
 } from "@re-cinq/lore-shared/project/conversations/conversations-port.js";
-import type { FloorAssemblyLineTask } from "./floor-assembly-line.js";
+import type { FloorAssemblyRunTask } from "./floor-assembly-run.js";
 import { mayContinue, resolveThread } from "./conversation-thread.js";
 
 export interface ResolveConversationDeps {
@@ -38,7 +38,7 @@ export interface ResolveConversationDeps {
  * the task it ran as. Null when the run rewound to nothing.
  */
 async function rewindTarget(
-  task: FloorAssemblyLineTask,
+  task: FloorAssemblyRunTask,
   deps: ResolveConversationDeps,
 ): Promise<ExecutionRef | null> {
   const rewoundTo = task.args?.resume_from_iteration;
@@ -80,7 +80,7 @@ const NO_SUCH_LINE = "00000000-0000-0000-0000-000000000000";
  */
 export async function resolveConversation(
   node: RunGraphNode,
-  task: FloorAssemblyLineTask,
+  task: FloorAssemblyRunTask,
   iteration: number,
   deps: ResolveConversationDeps,
   /** Outcome of this node's most recent visit — how a retry is told from a round.

@@ -91,7 +91,7 @@ describe("settleTaskForLine", () => {
       task_id: "t1",
       from_status: "running",
       to_status: "failed",
-      metadata: { assembly_line_id: "line-1", outcome: "failed" },
+      metadata: { assembly_run_id: "line-1", outcome: "failed" },
     });
   });
 

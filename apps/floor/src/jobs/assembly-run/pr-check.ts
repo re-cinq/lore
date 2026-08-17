@@ -153,7 +153,7 @@ export async function publishPrCheck(
       event_type: "pr_check_publish_failed",
       repo: line.repo,
       payload: {
-        assembly_line_id: line.id,
+        assembly_run_id: line.id,
         definition: line.blueprintName,
         check: check.name,
         error: message,

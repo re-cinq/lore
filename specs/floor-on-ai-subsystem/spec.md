@@ -188,7 +188,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     (`success`/`failed`/`changes_requested`) via `stationNodeOutcome` in the Floor's node-event
     handler; a forced Floor restart loses nothing because the walk is derived from the persisted
     `pipeline.assembly_line_nodes` rows, not held in memory — the original lease-heartbeat +
-    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:34`](libs/assembly-lines/src/node-outcome.test.ts#L34), [`advance.test.ts:106`](apps/floor/src/jobs/assembly-line/advance.test.ts#L328))
+    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:34`](libs/assembly-lines/src/node-outcome.test.ts#L34), [`advance.test.ts:106`](apps/floor/src/jobs/assembly-run/advance.test.ts#L328))
 12. A `github-action` assembly line node dispatches the referenced GitHub Actions run and gates on its
     conclusion.
 13. The cutover is reversible: flipping the cluster gate off routes new tasks back to LoreTask with
@@ -209,7 +209,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](libs/assembly-lines/src/loader.test.ts#L520))
 
 17. `nodeStationSpec` builds the CR spec: stationRef, `parameters.station_input` JSON
-    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L130), [honors an explicit station_ref override](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L172), [agent nodes thread station_ref too — a renamed recipe (code-review-refine) still resolves](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L102))
+    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L130), [honors an explicit station_ref override](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L172), [agent nodes thread station_ref too — a renamed recipe (code-review-refine) still resolves](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L102))
 
 18. A station pod ends with the claude-style result line carrying `LORE_NODE_RESULT: {outcome,
     extras}`; the Floor's `parseNodeResult` maps it (precedence: LORE_NODE_RESULT → REVIEW_RESULT →
@@ -226,7 +226,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     (no `LORE_STATION_NODES` flag, no in-process node handlers on that path); the in-process
     supervisor path (gap-fill/runbook), untouched at cutover time, has since been removed too —
     gap-fill runs on the Floor AssemblyLine and runbook as a single Agent CR, both via
-    `handleClaudeCodeTask` with no Floor-side clone or App token. ([validated by every non-agent node dispatches a station CR](apps/floor/src/jobs/assembly-line/floor-assembly-line.test.ts#L130))
+    `handleClaudeCodeTask` with no Floor-side clone or App token. ([validated by every non-agent node dispatches a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L130))
 
 20. `scripts/task-types.yaml` `stations:` seeds `def-<type>` AgentDefinition/Station pairs (exec
     model, `{station_input}` prompt, lore-station image via `.Values.stationImage`, deadline
@@ -371,7 +371,7 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   ambient default (`KUBECONFIG`, then `~/.kube/config`). In-cluster wins over the override, so a
   stray `LORE_KUBECONFIG` in a pod env can never repoint a deployed process; the override exists so
   a developer's host-run Floor can drive a laptop minikube
-  (`runbooks/floor-assembly-line-minikube-smoke.md`). ([validated by `kube-config.test.ts:24`](libs/shared/src/kube-config.test.ts#L24), [`kube-config.test.ts:30`](libs/shared/src/kube-config.test.ts#L30), [`kube-config.test.ts:36`](libs/shared/src/kube-config.test.ts#L36), [`kube-config.test.ts:40`](libs/shared/src/kube-config.test.ts#L40), [`kube-config.test.ts:49`](libs/shared/src/kube-config.test.ts#L49), [`kube-config.test.ts:57`](libs/shared/src/kube-config.test.ts#L57), [`kube-config.test.ts:65`](libs/shared/src/kube-config.test.ts#L65), [`kube-config.test.ts:73`](libs/shared/src/kube-config.test.ts#L73))
+  (`runbooks/floor-assembly-run-minikube-smoke.md`). ([validated by `kube-config.test.ts:24`](libs/shared/src/kube-config.test.ts#L24), [`kube-config.test.ts:30`](libs/shared/src/kube-config.test.ts#L30), [`kube-config.test.ts:36`](libs/shared/src/kube-config.test.ts#L36), [`kube-config.test.ts:40`](libs/shared/src/kube-config.test.ts#L40), [`kube-config.test.ts:49`](libs/shared/src/kube-config.test.ts#L49), [`kube-config.test.ts:57`](libs/shared/src/kube-config.test.ts#L57), [`kube-config.test.ts:65`](libs/shared/src/kube-config.test.ts#L65), [`kube-config.test.ts:73`](libs/shared/src/kube-config.test.ts#L73))
 - **Pending-task single-flight.** The Floor worker's `pollWithGuard` claims and processes one task
   per tick, does nothing when there is no runnable task, and skips a concurrent tick while a task is
   still processing (only one claim in flight). ([validated by `worker.poll.test.ts:5`](apps/floor/src/jobs/task/worker.poll.test.ts#L5), [`worker.poll.test.ts:17`](apps/floor/src/jobs/task/worker.poll.test.ts#L17), [`worker.poll.test.ts:29`](apps/floor/src/jobs/task/worker.poll.test.ts#L29))

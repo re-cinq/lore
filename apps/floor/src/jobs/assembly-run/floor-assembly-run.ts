@@ -7,7 +7,7 @@ import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { serializeStationInput } from "@re-cinq/lore-shared/station-input.js";
 import { stationName } from "../agent/agent-catalog.js";
 
-export interface FloorAssemblyLineTask {
+export interface FloorAssemblyRunTask {
   taskId: string;
   /** The backing pipeline.tasks row id — null for task-less lines (code-review).
    *  Feeds the lease + audit + `Lore-Task:` trailer; a synthetic id there violates
@@ -61,7 +61,7 @@ export const STATION_RUN_ID_LABEL = "lore.re-cinq.com/station-run-id";
 
 function nodeLabels(
   node: RunGraphNode,
-  task: FloorAssemblyLineTask,
+  task: FloorAssemblyRunTask,
   iteration: number,
   stationRunId?: string,
 ): Record<string, string> {
@@ -78,7 +78,7 @@ function nodeLabels(
 
 /** The git ref a node's pod checks out: `args.ref` when the line's branch is
  *  only a lease key (ingest lines lease `ingest/<kind>/<ref>`), else the branch. */
-function cloneRef(task: FloorAssemblyLineTask): string {
+function cloneRef(task: FloorAssemblyRunTask): string {
   const ref = task.args?.ref;
 
   return typeof ref === "string" && ref.length > 0 ? ref : task.branch;
@@ -88,7 +88,7 @@ function cloneRef(task: FloorAssemblyLineTask): string {
  *  from the node (else inherited); repo/branch/description from the task. */
 export function nodeAgentSpec(
   node: RunGraphNode,
-  task: FloorAssemblyLineTask,
+  task: FloorAssemblyRunTask,
   prompt: string,
   iteration = 1,
   stationRunId?: string,
@@ -135,7 +135,7 @@ const STATION_PARAM_FIELDS = [
  *  the node names a custom one via `station_ref`. */
 export function nodeStationSpec(
   node: RunGraphNode,
-  task: FloorAssemblyLineTask,
+  task: FloorAssemblyRunTask,
   iteration = 1,
   stationRunId?: string,
 ): LoreTaskSpec {

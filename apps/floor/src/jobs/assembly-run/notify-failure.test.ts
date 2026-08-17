@@ -180,7 +180,7 @@ describe("notifyLineFailure", () => {
       {
         event_type: "failure_notify_failed",
         repo: "re-cinq/lore",
-        payload: { assembly_line_id: "al-1", channel: "notify" },
+        payload: { assembly_run_id: "al-1", channel: "notify" },
       },
     ]);
   });
