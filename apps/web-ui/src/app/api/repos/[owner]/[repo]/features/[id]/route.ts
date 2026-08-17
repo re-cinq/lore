@@ -9,7 +9,7 @@ import { loadFeaturePoll } from "@/lib/feature-poll";
 // coverage, so anything that lives here is untested by construction — the reads
 // are in @/lib/feature-poll, under the gate.
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ owner: string; repo: string; id: string }> },
 ) {
   const { owner, repo, id } = await params;
@@ -31,7 +31,13 @@ export async function GET(
       { status: 403 },
     );
   }
-  const payload = await loadFeaturePoll(fullName, id);
+  // `?graph=<runId>` — the run whose immutable graph clone the client already
+  // holds, so the server can omit it instead of re-sending it every four seconds.
+  const payload = await loadFeaturePoll(
+    fullName,
+    id,
+    new URL(req.url).searchParams.get("graph"),
+  );
 
   if (!payload) {
     return NextResponse.json({ error: "feature not found" }, { status: 404 });

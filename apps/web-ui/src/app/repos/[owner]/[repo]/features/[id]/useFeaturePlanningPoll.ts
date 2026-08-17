@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toApiResult } from "@/lib/api/result";
 import type { FeaturePollPayload } from "@/lib/feature-poll";
+import type { FeatureRunPayload } from "@/lib/feature-run";
+import { graphIsCacheable, mergeRunGraph } from "@/lib/run-graph-cache";
 
 /** How often the planning page asks the server what the line is doing. */
 const POLL_MS = 4000;
@@ -22,6 +24,14 @@ const POLL_MS = 4000;
  * A failed poll keeps the last good payload: a 500 or a dropped connection is not
  * news about the feature, and blanking the page on one bad tick would be worse
  * than showing state that is four seconds old.
+ *
+ * The run GRAPH is fetched once per run, not once per tick. It is a clone of the
+ * blueprint, stamped at start and never edited (FR6.38), so re-downloading it every
+ * four seconds for the life of a planning round is pure waste next to the nodes and
+ * tokens that actually change. The request names the run whose graph it holds and
+ * the server omits that one; `mergeRunGraph` puts it back. Naming the RUN rather
+ * than sending a bare flag is what makes a retry — a new run, a new clone — fetch
+ * its own graph instead of inheriting the previous one.
  */
 export function useFeaturePlanningPoll({
   owner,
@@ -39,9 +49,25 @@ export function useFeaturePlanningPoll({
 } {
   const [data, setData] = useState<FeaturePollPayload>(initial);
 
+  // The run whose graph is in hand, read through a ref so `refresh` keeps a stable
+  // identity: it is the polling effect's only dependency, and re-creating it each
+  // tick would tear down and restart the interval on every poll. Written in an
+  // effect rather than during render — a ref touched while rendering is not safe
+  // under concurrent React.
+  const held = useRef<FeatureRunPayload | null>(null);
+
+  useEffect(() => {
+    held.current = data.run ?? null;
+  }, [data.run]);
+
   const refresh = useCallback(async (): Promise<FeaturePollPayload | null> => {
+    const cached = held.current;
+    const query =
+      cached && graphIsCacheable(cached)
+        ? `?graph=${encodeURIComponent(cached.id)}`
+        : "";
     const result = await toApiResult<FeaturePollPayload>(
-      await fetch(`/api/repos/${owner}/${repo}/features/${featureId}`, {
+      await fetch(`/api/repos/${owner}/${repo}/features/${featureId}${query}`, {
         cache: "no-store",
       }),
     );
@@ -49,14 +75,22 @@ export function useFeaturePlanningPoll({
     if (result.status !== "ok") {
       return null;
     }
+    const fresh = result.data;
 
-    setData(result.data);
+    // Merged through the functional update so the graph is folded into whatever
+    // the CURRENT payload holds, not into a snapshot this closure captured.
+    setData((previous) =>
+      fresh.run
+        ? { ...fresh, run: mergeRunGraph(previous.run ?? null, fresh.run) }
+        : fresh,
+    );
 
-    return result.data;
+    return fresh.run
+      ? { ...fresh, run: mergeRunGraph(held.current, fresh.run) }
+      : fresh;
   }, [owner, repo, featureId]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount; state is set inside the async fetch
     void refresh();
     const timer = setInterval(() => void refresh(), POLL_MS);
 

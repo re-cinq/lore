@@ -129,13 +129,29 @@ describe("loadFeaturePoll", () => {
     expect((await loadFeaturePoll("re-cinq/lore", "f1"))?.run).toEqual({
       status: "running",
     });
-    expect(fetchFeatureRunById).toHaveBeenCalledWith("line-7");
+    // The second argument is the run whose graph the caller already holds —
+    // undefined here, because this call names no cached graph.
+    expect(fetchFeatureRunById).toHaveBeenCalledWith("line-7", undefined);
   });
 
   it("draws no run for a round whose feature has no line yet", async () => {
     answerStatus({ latest_iteration: { iteration: 1 } });
 
     expect((await loadFeaturePoll("re-cinq/lore", "f1"))?.run).toEqual(null);
-    expect(fetchFeatureRunById).toHaveBeenCalledWith(null);
+    expect(fetchFeatureRunById).toHaveBeenCalledWith(null, undefined);
+  });
+
+  it("passes the client's cached-graph run through to the run read", async () => {
+    // The whole point of the protocol change: the wizard says which run's graph it
+    // already holds, and the server omits that clone instead of re-shipping it
+    // every four seconds.
+    answerStatus({
+      latest_iteration: { iteration: 4, task_id: "t4" },
+      assembly_line_id: "line-7",
+    });
+
+    await loadFeaturePoll("re-cinq/lore", "f1", "line-7");
+
+    expect(fetchFeatureRunById).toHaveBeenCalledWith("line-7", "line-7");
   });
 });
