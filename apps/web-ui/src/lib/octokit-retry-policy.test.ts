@@ -8,10 +8,17 @@ import { withoutBlindRetryOnCreates as canonical } from "../../../../libs/shared
 
 /** A client that records what the hook did to each request's options. */
 function recordingClient() {
-  const handlers: Array<(o: { method?: string; request?: Record<string, unknown> }) => void> = [];
+  const handlers: Array<
+    (o: { method?: string; request?: Record<string, unknown> }) => void
+  > = [];
 
   return {
-    client: { hook: { before: (_n: "request", h: (typeof handlers)[number]) => handlers.push(h) } },
+    client: {
+      hook: {
+        before: (_n: "request", h: (typeof handlers)[number]) =>
+          handlers.push(h),
+      },
+    },
     /** Options as the hook leaves them for one method. */
     optionsFor(method: string) {
       const options: { method?: string; request?: Record<string, unknown> } = {
@@ -31,28 +38,31 @@ const IMPLEMENTATIONS = [
   ["shared canonical", canonical],
 ] as const;
 
-describe.each(IMPLEMENTATIONS)("withoutBlindRetryOnCreates (%s)", (_name, install) => {
-  it("zeroes the retry budget for a POST", () => {
-    const { client, optionsFor } = recordingClient();
+describe.each(IMPLEMENTATIONS)(
+  "withoutBlindRetryOnCreates (%s)",
+  (_name, install) => {
+    it("zeroes the retry budget for a POST", () => {
+      const { client, optionsFor } = recordingClient();
 
-    install(client);
+      install(client);
 
-    expect(optionsFor("POST").request).toEqual({ fetch: "kept", retries: 0 });
-  });
+      expect(optionsFor("POST").request).toEqual({ fetch: "kept", retries: 0 });
+    });
 
-  it("leaves GET, PUT, PATCH and DELETE options untouched", () => {
-    const { client, optionsFor } = recordingClient();
+    it("leaves GET, PUT, PATCH and DELETE options untouched", () => {
+      const { client, optionsFor } = recordingClient();
 
-    install(client);
+      install(client);
 
-    for (const method of ["GET", "PUT", "PATCH", "DELETE"]) {
-      expect(optionsFor(method).request).toEqual({ fetch: "kept" });
-    }
-  });
+      for (const method of ["GET", "PUT", "PATCH", "DELETE"]) {
+        expect(optionsFor(method).request).toEqual({ fetch: "kept" });
+      }
+    });
 
-  it("returns the same client, so construction stays one expression", () => {
-    const { client } = recordingClient();
+    it("returns the same client, so construction stays one expression", () => {
+      const { client } = recordingClient();
 
-    expect(install(client)).toBe(client);
-  });
-});
+      expect(install(client)).toBe(client);
+    });
+  },
+);

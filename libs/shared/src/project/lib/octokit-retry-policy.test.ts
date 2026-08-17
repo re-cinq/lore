@@ -37,10 +37,7 @@ function client(fetch: unknown, guarded: boolean): Octokit {
   return guarded ? withoutBlindRetryOnCreates(ok) : ok;
 }
 
-async function attemptsFor(
-  route: string,
-  guarded: boolean,
-): Promise<string[]> {
+async function attemptsFor(route: string, guarded: boolean): Promise<string[]> {
   const { fetch, attempts } = failingFetch();
 
   await expect(client(fetch, guarded).request(route)).rejects.toThrow();
@@ -68,9 +65,8 @@ describe("withoutBlindRetryOnCreates", () => {
   it("leaves an unguarded client retrying a POST, which is the bug it prevents", async () => {
     // Pins the baseline: without the policy the retry happens, so this test fails
     // if a future octokit upgrade changes the default and the guard becomes moot.
-    expect(await attemptsFor("POST /repos/o/r/pulls/1/reviews", false)).toEqual([
-      "POST",
-      "POST",
-    ]);
+    expect(await attemptsFor("POST /repos/o/r/pulls/1/reviews", false)).toEqual(
+      ["POST", "POST"],
+    );
   });
 });
