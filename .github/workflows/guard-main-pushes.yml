@@ -37,7 +37,7 @@ jobs:
           # through on any 4xx/5xx.
           pr_count_for() {
             local count
-            if ! count=$(gh api "repos/$REPO/commits/$1/pulls" --jq 'length' 2>/dev/null); then
+            if ! count=$(gh api "repos/$REPO/commits/$1/pulls" --jq 'length'); then
               echo "PR lookup for $1 failed — treating as no PR" >&2
               echo 0
               return
@@ -55,6 +55,8 @@ jobs:
           pending=$(echo "$COMMIT_IDS" | jq -r '.[]')
           for pass in 1 2 3 4; do
             unresolved=""
+            # $pending is deliberately unquoted: word-splitting the
+            # newline-separated shas is the iteration mechanism.
             for sha in $pending; do
               if [ "$(pr_count_for "$sha")" = "0" ]; then
                 unresolved="${unresolved}${sha}"$'\n'
