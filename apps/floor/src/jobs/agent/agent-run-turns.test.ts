@@ -6,7 +6,9 @@ import {
 
 const envelope = (
   event: Record<string, unknown>,
-  source: Record<string, string> = { task: "t1" },
+  // `unknown`, not `string`: the attribution carries a numeric `iteration`
+  // (#1147), so a string-valued map is a narrower shape than the wire's.
+  source: Record<string, unknown> = { task: "t1" },
 ) => ({
   source,
   event,
