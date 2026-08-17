@@ -39,14 +39,17 @@ export async function initOtel(): Promise<void> {
   }
 }
 
-// A failed export flush (e.g. no GCP project ID in an unauthed env) must never
-// crash the process — telemetry is best-effort. Mirrors the Floor's otel-init.
+/**
+ * Flush and stop the SDK. Rejects if the export fails — deliberately.
+ *
+ * A failed flush (an unauthed environment has no GCP project id) must not crash
+ * the process, but the swallowing belongs to ONE owner:
+ * `shutdownGracefully`, where the best-effort contract is stated and tested.
+ * Catching here as well left that outer handler dead for the only real call path,
+ * so the test that covers it would have been exercising nothing but its own fake.
+ */
 export async function shutdownOtel(): Promise<void> {
   if (sdk) {
-    await sdk
-      .shutdown()
-      .catch((err) =>
-        console.warn(`[otel] shutdown flush failed: ${(err as Error).message}`),
-      );
+    await sdk.shutdown();
   }
 }
