@@ -4,7 +4,7 @@ import { runGithubActionStation } from "./github-action.js";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 
 const input = (over: Partial<StationInput> = {}): StationInput => ({
-  assembly_line_id: "al-1",
+  assembly_run_id: "al-1",
   node_id: "n",
   node_type: "gate",
   repo: "o/r",

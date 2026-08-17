@@ -52,7 +52,7 @@ export async function runValidateStation(
     { id: input.node_id, type: "validate" },
     {
       taskId: input.task_id ?? "",
-      assemblyRunId: input.assembly_line_id,
+      assemblyRunId: input.assembly_run_id,
       branchName: input.branch,
       gitDir,
       iteration: 0,

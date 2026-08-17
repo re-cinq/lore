@@ -137,6 +137,7 @@ describe("nodeStationSpec (station pod contract)", () => {
     // input rides this one JSON parameter that every lore-station pod parses.
     expect(spec.stationRef).toBe("def-validate");
     expect(JSON.parse(spec.parameters!.station_input)).toEqual({
+      assembly_run_id: "a1b2c3d4e5f6a7b8",
       assembly_line_id: "a1b2c3d4e5f6a7b8",
       node_id: "validate",
       node_type: "validate",

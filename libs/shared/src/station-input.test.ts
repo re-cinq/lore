@@ -10,7 +10,7 @@ import {
 // lockstep" by hand. One module owns the shape now, so lockstep is the type
 // system's job rather than a reader's.
 const floorEmitted = JSON.stringify({
-  assembly_line_id: "a1b2c3d4e5f6a7b8",
+  assembly_run_id: "a1b2c3d4e5f6a7b8",
   node_id: "validate",
   node_type: "validate",
   repo: "re-cinq/lore",
@@ -22,7 +22,7 @@ const floorEmitted = JSON.stringify({
 describe("parseStationInput", () => {
   it("parses the Floor's station_input JSON", () => {
     expect(parseStationInput(floorEmitted)).toEqual({
-      assembly_line_id: "a1b2c3d4e5f6a7b8",
+      assembly_run_id: "a1b2c3d4e5f6a7b8",
       node_id: "validate",
       node_type: "validate",
       repo: "re-cinq/lore",
@@ -55,7 +55,7 @@ describe("parseStationInput", () => {
 
 describe("serializeStationInput", () => {
   const input: StationInput = {
-    assembly_line_id: "a1b2c3d4e5f6a7b8",
+    assembly_run_id: "a1b2c3d4e5f6a7b8",
     node_id: "validate",
     node_type: "validate",
     repo: "re-cinq/lore",
@@ -76,5 +76,55 @@ describe("serializeStationInput", () => {
     // An empty repo is a Floor bug. Learning it here beats learning it from a
     // pod's logs after the run has already been dispatched and charged for.
     expect(() => serializeStationInput({ ...input, repo: "" })).toThrow();
+  });
+});
+
+describe("the run-id dual-key window (FR6.41 readers-first)", () => {
+  it("parses a pre-flip pod input carrying only assembly_line_id", () => {
+    const legacy = JSON.stringify({
+      assembly_line_id: "al-legacy",
+      node_id: "validate",
+      node_type: "validate",
+      repo: "re-cinq/lore",
+      branch: "b",
+      task_id: null,
+    });
+
+    expect(parseStationInput(legacy)).toMatchObject({
+      assembly_run_id: "al-legacy",
+    });
+  });
+
+  it("serializes both spellings so the neighbouring release parses either", () => {
+    const wire = JSON.parse(
+      serializeStationInput({
+        assembly_run_id: "al-9",
+        node_id: "n",
+        node_type: "gate",
+        repo: "o/r",
+        branch: "b",
+        task_id: null,
+        params: {},
+      }),
+    ) as Record<string, unknown>;
+
+    expect(wire).toMatchObject({
+      assembly_run_id: "al-9",
+      assembly_line_id: "al-9",
+    });
+  });
+
+  it("refuses an input naming the run under neither spelling", () => {
+    expect(() =>
+      parseStationInput(
+        JSON.stringify({
+          node_id: "n",
+          node_type: "gate",
+          repo: "o/r",
+          branch: "b",
+          task_id: null,
+        }),
+      ),
+    ).toThrow();
   });
 });

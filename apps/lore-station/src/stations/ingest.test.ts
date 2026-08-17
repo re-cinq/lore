@@ -16,7 +16,7 @@ import type { DgraphClientPort, DgraphTxn } from "@re-cinq/lore-shared";
 
 function input(params: Record<string, unknown>): StationInput {
   return {
-    assembly_line_id: "a1b2c3d4e5f6a7b8",
+    assembly_run_id: "a1b2c3d4e5f6a7b8",
     node_id: "ingest",
     node_type: "detect",
     repo: "re-cinq/lore",

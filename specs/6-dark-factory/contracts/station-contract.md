@@ -25,6 +25,7 @@ Produced by the Floor's `nodeStationSpec`
 
 ```json
 {
+  "assembly_run_id": "a1b2c3d4e5f6a7b8",
   "assembly_line_id": "a1b2c3d4e5f6a7b8",
   "node_id": "validate",
   "node_type": "validate",
@@ -35,6 +36,11 @@ Produced by the Floor's `nodeStationSpec`
 }
 ```
 
+- `assembly_run_id` is the canonical run id; `assembly_line_id` is its pre-rename
+  duplicate, emitted AND accepted for exactly one release so the neighbouring
+  floor/lore-station image parses either direction (FR6.41 readers-first).
+  Delete the legacy key from both ends once no deployed image predates the
+  dual-key release.
 - `task_id` is **null** for task-less runs (detection assembly lines).
 - `params` carries the node YAML's execution knobs (`validator`, `job_ref`,
   `condition_ref`, `prompt_ref`, `model`) — only the ones the node set.
