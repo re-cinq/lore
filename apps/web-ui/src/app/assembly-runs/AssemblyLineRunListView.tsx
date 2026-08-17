@@ -25,14 +25,14 @@ export default function AssemblyLineRunListView({
   return (
     <div>
       <div className={styles.header}>
-        <h1>Assembly Lines</h1>
-        <Link href="/assembly-lines/create">
+        <h1>Assembly Runs</h1>
+        <Link href="/assembly-runs/create">
           <button>+ Create Task</button>
         </Link>
       </div>
 
       <div className="filter-form">
-        <a href="/assembly-lines" className={!activeStatus ? "active" : ""}>
+        <a href="/assembly-runs" className={!activeStatus ? "active" : ""}>
           All
         </a>
         {FILTERS.map((s) => (

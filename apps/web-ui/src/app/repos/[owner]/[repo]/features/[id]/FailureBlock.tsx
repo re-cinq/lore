@@ -43,7 +43,7 @@ export default function FailureBlock({
       {diagnosis && <pre className={styles.diagnosis}>{diagnosis}</pre>}
       {run && (
         <p className="meta">
-          <a href={`/assembly-lines/${run.id}`}>
+          <a href={`/assembly-runs/${run.id}`}>
             View the full run transcript →
           </a>
         </p>

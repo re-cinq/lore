@@ -80,7 +80,7 @@ describe("TaskDetailView", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "#aaaaaaaa" })).toHaveAttribute(
       "href",
-      "/assembly-lines/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      "/assembly-runs/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
     );
   });
 

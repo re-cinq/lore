@@ -15,11 +15,11 @@ describe("AssemblyLineRunListView", () => {
     render(<AssemblyLineRunListView runs={[]} />);
 
     expect(
-      screen.getByRole("heading", { name: "Assembly Lines" }),
+      screen.getByRole("heading", { name: "Assembly Runs" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "+ Create Task" })).toHaveAttribute(
       "href",
-      "/assembly-lines/create",
+      "/assembly-runs/create",
     );
   });
 

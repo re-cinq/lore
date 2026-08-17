@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 // isolation), so the reference scanner is hand-duplicated. This CI-only test
 // (runs in a full checkout) imports shared's PURE references.ts by file path —
 // never the package — to keep the mirror in lockstep. The mirror always links
-// task UUIDs to the relative internal /assembly-lines page; canonical does the
+// task UUIDs to the relative internal /assembly-runs page; canonical does the
 // same when `uiUrl: "/"` is passed (the trailing slash is stripped), so deep
 // equality against that context pins every scanner behaviour at once.
 import { parseReferences as mirror } from "./references";
@@ -32,7 +32,7 @@ describe("references parity (web-ui mirror vs shared canonical)", () => {
 
   it("documents the intentional delta: mirror always links uuids, canonical without uiUrl does not", () => {
     expect(mirror(uuid, ctx)).toEqual([
-      { text: uuid, href: `/assembly-lines/${uuid}` },
+      { text: uuid, href: `/assembly-runs/${uuid}` },
     ]);
     expect(canonical(uuid, ctx)).toEqual([{ text: uuid }]);
   });

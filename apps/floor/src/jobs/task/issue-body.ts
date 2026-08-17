@@ -42,7 +42,7 @@ export function loreTaskRef(taskId: string, uiUrl?: string): string {
     return taskId;
   }
 
-  return `[${taskId}](${uiUrl.replace(/\/+$/, "")}/assembly-lines/${taskId})`;
+  return `[${taskId}](${uiUrl.replace(/\/+$/, "")}/assembly-runs/${taskId})`;
 }
 
 function renderStatement(s: DriftStatementView): string {

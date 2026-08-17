@@ -242,7 +242,7 @@ system is performing.
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no
-  duplicate work. ([validated by `AssemblyLineRunListView.test.tsx:14`](apps/web-ui/src/app/assembly-lines/AssemblyLineRunListView.test.tsx#L14))
+  duplicate work. ([validated by `AssemblyLineRunListView.test.tsx:14`](apps/web-ui/src/app/assembly-runs/AssemblyLineRunListView.test.tsx#L14))
 - Watcher posts the PR link and any Slack notifications on completion.
 
 **Scenario 8 — Automated Gap Detection (Phase 2)**
@@ -657,7 +657,7 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   reason set, review iteration greater than zero) and are omitted
   otherwise. ([validated by `TaskDetailView.test.tsx:195`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L195), [`TaskDetailView.test.tsx:201`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L201), [`TaskDetailView.test.tsx:223`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L223), [`TaskDetailView.test.tsx:229`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L229), [`TaskDetailView.test.tsx:235`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L235))
 - FR-19.3: The view lists the task's run attempts under a "Runs"
-  heading, each linking to its run detail at `/assembly-lines/<run-id>`,
+  heading, each linking to its run detail at `/assembly-runs/<run-id>`,
   and omits the section entirely when the task has no runs. ([validated by `TaskDetailView.test.tsx:66`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L66), [`TaskDetailView.test.tsx:87`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L87))
 - FR-19.4: In-flight controls follow actions-up: a "Run Now" form
   posting to `/api/tasks/<id>/run-now` appears only for pending

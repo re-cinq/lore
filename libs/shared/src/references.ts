@@ -46,7 +46,7 @@ function hrefFor(
   }
 
   return ctx.uiUrl
-    ? `${ctx.uiUrl.replace(/\/$/, "")}/assembly-lines/${match}`
+    ? `${ctx.uiUrl.replace(/\/$/, "")}/assembly-runs/${match}`
     : undefined;
 }
 

@@ -4,13 +4,13 @@ import { loreTaskRef, composeIssueBody } from "./issue-body.js";
 describe("loreTaskRef", () => {
   it("links to the deployed task page when a UI url is set", () => {
     expect(loreTaskRef("abc-123", "https://lore.example.com")).toBe(
-      "[abc-123](https://lore.example.com/assembly-lines/abc-123)",
+      "[abc-123](https://lore.example.com/assembly-runs/abc-123)",
     );
   });
 
   it("trims a trailing slash on the UI url", () => {
     expect(loreTaskRef("abc-123", "https://lore.example.com/")).toBe(
-      "[abc-123](https://lore.example.com/assembly-lines/abc-123)",
+      "[abc-123](https://lore.example.com/assembly-runs/abc-123)",
     );
   });
 
@@ -38,7 +38,7 @@ describe("composeIssueBody", () => {
     expect(body).toMatch(/What you should actually do/);
     expect(body).toMatch(/created by `spec-drift`/);
     expect(body).toMatch(
-      /Lore-Task: \[t1\]\(https:\/\/lore\.example\.com\/assembly-lines\/t1\)/,
+      /Lore-Task: \[t1\]\(https:\/\/lore\.example\.com\/assembly-runs\/t1\)/,
     );
   });
 

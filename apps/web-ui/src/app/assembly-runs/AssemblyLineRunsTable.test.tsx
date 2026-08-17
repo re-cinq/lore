@@ -46,7 +46,7 @@ describe("AssemblyLineRunsTable", () => {
       screen.getByRole("link", { name: "implementation" }),
     ).toHaveAttribute(
       "href",
-      "/assembly-lines/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      "/assembly-runs/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
     );
     expect(screen.getByRole("link", { name: "re-cinq/lore" })).toHaveAttribute(
       "href",

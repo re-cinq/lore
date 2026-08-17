@@ -13,7 +13,7 @@ own lockfile, not an npm-workspace member.
 
 - **Repo views** (`/repos/[owner]/[repo]`) — overview, tasks, specs, context,
   ADRs, graph, settings, plus self-service onboarding.
-- **Assembly Lines** (`/assembly-lines`) — cross-repo run list and live run
+- **Assembly Lines** (`/assembly-runs`) — cross-repo run list and live run
   detail; task detail lives at `/tasks/[id]` (logs, PR status, stage
   timeline). Legacy `/pipeline` URLs redirect here.
 - **Cross-repo** — global specs viewer, semantic search, knowledge-graph

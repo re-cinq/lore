@@ -165,7 +165,7 @@ describe("assemblyLineCheck", () => {
     expect(
       assemblyLineCheck(line({}), [], "https://lore.example.com"),
     ).toMatchObject({
-      detailsUrl: "https://lore.example.com/assembly-lines/al-1",
+      detailsUrl: "https://lore.example.com/assembly-runs/al-1",
     });
   });
 

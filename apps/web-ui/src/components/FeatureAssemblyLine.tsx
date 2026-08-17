@@ -1,8 +1,8 @@
 "use client";
 
 import CollapsibleCard from "@/components/CollapsibleCard";
-import RunGraphView from "@/app/assembly-lines/[id]/RunGraphView";
-import { isTerminalRunStatus } from "@/app/assembly-lines/[id]/run-stream-presenter";
+import RunGraphView from "@/app/assembly-runs/[id]/RunGraphView";
+import { isTerminalRunStatus } from "@/app/assembly-runs/[id]/run-stream-presenter";
 import { deriveVisibleGraph } from "@/lib/graph-view-model";
 import { walkRunData } from "@/lib/run-walk-data";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";

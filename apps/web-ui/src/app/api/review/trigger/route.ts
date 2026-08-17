@@ -70,7 +70,7 @@ export async function POST(req: Request) {
     const base = referer ?? new URL(req.url).origin;
 
     return NextResponse.redirect(
-      new URL(referer ? base : "/assembly-lines", base),
+      new URL(referer ? base : "/assembly-runs", base),
       {
         status: 303,
       },

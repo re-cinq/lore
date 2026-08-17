@@ -1,6 +1,6 @@
 import Link from "next/link";
 import HelpPopover from "@/components/HelpPopover";
-import AssemblyLineRunsTable from "@/app/assembly-lines/AssemblyLineRunsTable";
+import AssemblyLineRunsTable from "@/app/assembly-runs/AssemblyLineRunsTable";
 import { type AssemblyLineRun } from "@/lib/assembly-line-runs";
 import styles from "./RepoTasksView.module.css";
 
@@ -24,7 +24,7 @@ export default function RepoTasksView({
     <div>
       <div className={styles.header}>
         <div className={styles.heading}>
-          <h2 className={styles.title}>Assembly Lines</h2>
+          <h2 className={styles.title}>Assembly Runs</h2>
           <HelpPopover label="How assembly lines work">
             <p>
               An assembly line is one execution attempt: a graph of nodes (agent

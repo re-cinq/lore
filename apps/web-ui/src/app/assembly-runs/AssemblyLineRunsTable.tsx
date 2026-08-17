@@ -86,7 +86,7 @@ export default function AssemblyLineRunsTable({
             return (
               <tr key={run.id}>
                 <td>
-                  <Link href={`/assembly-lines/${run.id}`}>
+                  <Link href={`/assembly-runs/${run.id}`}>
                     {run.blueprintName}
                   </Link>
                   <span className={styles.subId}>

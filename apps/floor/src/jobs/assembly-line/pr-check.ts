@@ -51,7 +51,7 @@ export function assemblyLineCheck(
     headSha,
     name: `lore/${displayName}`,
     title: `Lore ${displayName}`,
-    ...(uiUrl ? { detailsUrl: `${uiUrl}/assembly-lines/${line.id}` } : {}),
+    ...(uiUrl ? { detailsUrl: `${uiUrl}/assembly-runs/${line.id}` } : {}),
   };
 
   if (line.status === "queued" || line.status === "running") {

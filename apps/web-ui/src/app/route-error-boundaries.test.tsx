@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import AppError from "./error";
 import GlobalError from "./global-error";
-import AssemblyLinesError from "./assembly-lines/error";
+import AssemblyLinesError from "./assembly-runs/error";
 import RepoError from "./repos/[owner]/[repo]/error";
 
 const boundaries: Array<

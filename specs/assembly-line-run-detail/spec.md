@@ -9,11 +9,11 @@
 | Owner     | Platform Engineering                                               |
 | Builds on | [specs/assembly-line-run-viz](../assembly-line-run-viz/spec.md)    |
 
-The `/assembly-lines/[id]` page is the main window into what the platform is doing in the background, but its components were added incrementally and never reconciled into a hierarchy. This refactor imposes two levels — line and node — so a developer can navigate to a node's detail without already knowing where to click.
+The `/assembly-runs/[id]` page is the main window into what the platform is doing in the background, but its components were added incrementally and never reconciled into a hierarchy. This refactor imposes two levels — line and node — so a developer can navigate to a node's detail without already knowing where to click.
 
 ## Problem Statement
 
-The current page under `apps/web-ui/src/app/assembly-lines/[id]/` has seven view components and two levels of information that do not compose:
+The current page under `apps/web-ui/src/app/assembly-runs/[id]/` has seven view components and two levels of information that do not compose:
 
 **Line-level** (about the whole run): `RunGraphView`, `RunTimelineView`, `ReplayScrubberView`, `FileHeatmapView`, `AssemblyLineRunView` (header + static step list)
 

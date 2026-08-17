@@ -13,14 +13,35 @@ const nextConfig: NextConfig = {
     "octokit",
     "@octokit/auth-app",
   ],
-  // The tasks tab was renamed /pipeline → /assembly-lines (ADR-024 ubiquitous
-  // language). Keep the old paths alive: GitHub Issues / PR bodies posted before
-  // the rename embed /pipeline/<task-id> links via libs/shared linkifyMarkdown.
+  // Two rounds of the same rename, and the same reason each time: links to these
+  // paths live OUTSIDE this app — GitHub Issues, PR bodies and check-run summaries
+  // posted before the rename, via libs/shared `linkifyMarkdown` and the Floor's
+  // pr-check `detailsUrl`. Those cannot be rewritten, so the paths stay alive here.
+  //
+  // /pipeline → /assembly-runs (ADR-024 ubiquitous language), and
+  // /assembly-lines → /assembly-runs (the blueprint/run split, FR6.41). The
+  // /pipeline entries point at the CURRENT path rather than chaining through
+  // /assembly-lines: a chain costs a round trip and breaks the day the middle hop
+  // is deleted.
+  //
+  // `permanent: false` matches the /pipeline precedent and is deliberate — a 301
+  // is cached by browsers indefinitely, so it cannot be taken back if a path has
+  // to move again.
   redirects: async () => [
-    { source: "/pipeline", destination: "/assembly-lines", permanent: false },
+    { source: "/pipeline", destination: "/assembly-runs", permanent: false },
     {
       source: "/pipeline/:path*",
-      destination: "/assembly-lines/:path*",
+      destination: "/assembly-runs/:path*",
+      permanent: false,
+    },
+    {
+      source: "/assembly-lines",
+      destination: "/assembly-runs",
+      permanent: false,
+    },
+    {
+      source: "/assembly-lines/:path*",
+      destination: "/assembly-runs/:path*",
       permanent: false,
     },
     {

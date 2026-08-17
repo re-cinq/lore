@@ -61,7 +61,7 @@ export default defineConfig({
         // Per-attempt pod-log panel: a fetch + polling shell (setInterval,
         // expand on toggle) like the shells above. Its pure logic (URL, poll
         // gate, unavailable messages) is covered in node-pod-logs-presenter.ts.
-        "src/app/assembly-lines/[id]/NodeLogPanel.tsx",
+        "src/app/assembly-runs/[id]/NodeLogPanel.tsx",
         // Type shapes + constants mirroring the /trace API JSON (no logic).
         "src/lib/spec-graph.ts",
         // Test / type-only files.
