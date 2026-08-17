@@ -177,7 +177,7 @@ describe("onTrigger", () => {
         },
       },
     ]);
-    expect(comments[0]?.body).toContain(`/assembly-lines/${port.rows[0]?.id}`);
+    expect(comments[0]?.body).toContain(`/assembly-runs/${port.rows[0]?.id}`);
     expect(comments[0]?.body).toContain("@lore review");
   });
 

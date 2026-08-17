@@ -63,7 +63,7 @@ describe("failureNotice", () => {
     expect(notice.message).toContain("error");
     expect(notice.message).toContain("node review failed");
     expect(notice.message).toContain(
-      "https://lore.example.com/assembly-lines/al-1",
+      "https://lore.example.com/assembly-runs/al-1",
     );
   });
 
@@ -77,7 +77,7 @@ describe("failureNotice", () => {
 
     expect(notice.prNumber).toBe(862);
     expect(notice.prComment).toContain(
-      "https://lore.example.com/assembly-lines/al-1",
+      "https://lore.example.com/assembly-runs/al-1",
     );
     expect(notice.prComment).toContain("@lore review");
   });

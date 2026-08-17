@@ -1,6 +1,6 @@
 import Link from "next/link";
 import HelpPopover from "@/components/HelpPopover";
-import AssemblyLineRunsTable from "@/app/assembly-lines/AssemblyLineRunsTable";
+import AssemblyLineRunsTable from "@/app/assembly-runs/AssemblyLineRunsTable";
 import { type AssemblyLineRun } from "@/lib/assembly-line-runs";
 import styles from "./RepoTasksView.module.css";
 
@@ -11,7 +11,7 @@ export interface RepoTasksViewProps {
 }
 
 /**
- * Per-repo assembly-lines tab, scoped to one repo. Pure render: the container
+ * Per-repo assembly-runs tab, scoped to one repo. Pure render: the container
  * (`page.tsx`) fetches the per-attempt runs and this component renders them
  * through the shared <AssemblyLineRunsTable>.
  */
@@ -24,7 +24,7 @@ export default function RepoTasksView({
     <div>
       <div className={styles.header}>
         <div className={styles.heading}>
-          <h2 className={styles.title}>Assembly Lines</h2>
+          <h2 className={styles.title}>Assembly Runs</h2>
           <HelpPopover label="How assembly lines work">
             <p>
               An assembly line is one execution attempt: a graph of nodes (agent

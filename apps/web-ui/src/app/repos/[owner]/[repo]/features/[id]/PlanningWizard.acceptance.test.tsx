@@ -26,7 +26,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 /** The run panel opens an SSE stream; jsdom has no EventSource, and the graph's
  *  own rendering is not what this test is about — only whether it is on screen. */
-vi.mock("@/app/assembly-lines/[id]/RunVisualizationPanel", () => ({
+vi.mock("@/app/assembly-runs/[id]/RunVisualizationPanel", () => ({
   default: () => <div data-testid="run-graph" />,
 }));
 

@@ -32,11 +32,11 @@ const run = (over: Partial<AssemblyLineRun> = {}): AssemblyLineRun => ({
 });
 
 describe("RepoTasksView", () => {
-  it("renders the Assembly Lines heading, intro copy and New Task link", () => {
+  it("renders the Assembly Runs heading, intro copy and New Task link", () => {
     render(<RepoTasksView owner="re-cinq" repo="lore" runs={[]} />);
 
     expect(
-      screen.getByRole("heading", { level: 2, name: "Assembly Lines" }),
+      screen.getByRole("heading", { level: 2, name: "Assembly Runs" }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Assembly lines targeting this repo/),
@@ -66,7 +66,7 @@ describe("RepoTasksView", () => {
       screen.getByRole("link", { name: "implementation" }),
     ).toHaveAttribute(
       "href",
-      "/assembly-lines/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      "/assembly-runs/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
     );
   });
 });

@@ -25,7 +25,7 @@ describe("parseReferences", () => {
   it("links a task uuid to the internal pipeline page", () => {
     expect(parseReferences(`task ${uuid}`, ctx)).toEqual([
       { text: "task " },
-      { text: uuid, href: `/assembly-lines/${uuid}` },
+      { text: uuid, href: `/assembly-runs/${uuid}` },
     ]);
   });
 

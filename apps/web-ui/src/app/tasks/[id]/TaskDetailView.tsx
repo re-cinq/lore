@@ -184,7 +184,7 @@ export default function TaskDetailView({
             <ul>
               {runs.map((run) => (
                 <li key={run.id}>
-                  <Link href={`/assembly-lines/${run.id}`}>
+                  <Link href={`/assembly-runs/${run.id}`}>
                     #{run.id.substring(0, 8)}
                   </Link>{" "}
                   — {run.outcome ?? run.status}

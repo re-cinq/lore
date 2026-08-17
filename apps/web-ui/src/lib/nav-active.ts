@@ -2,7 +2,7 @@
  * Whether a nav link is active for the current path. The `rootHref` (e.g. `/`
  * for the sidebar, the repo base for the tab group) matches only on its exact
  * path; every other link also matches its sub-routes, on a `/` boundary so
- * `/assembly-lines` does not light up on `/assembly-liness`.
+ * `/assembly-runs` does not light up on `/assembly-runss`.
  */
 export function isNavActive(
   pathname: string,

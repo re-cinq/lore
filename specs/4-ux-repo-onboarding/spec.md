@@ -312,7 +312,7 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
   native `<select>` option popups are pinned to theme surface tokens (no
   per-control hardcoding). ([validated by `globals-styling.test.ts:11`](apps/web-ui/src/app/globals-styling.test.ts#L11), [`globals-styling.test.ts:15`](apps/web-ui/src/app/globals-styling.test.ts#L15), [`globals-styling.test.ts:23`](apps/web-ui/src/app/globals-styling.test.ts#L23))
 - FR-4.2: Repo selector is a dropdown populated from the registry,
-  not free text. ([validated by `AssemblyLineCreateView.test.tsx:39`](apps/web-ui/src/app/assembly-lines/create/AssemblyLineCreateView.test.tsx#L39))
+  not free text. ([validated by `AssemblyLineCreateView.test.tsx:39`](apps/web-ui/src/app/assembly-runs/create/AssemblyLineCreateView.test.tsx#L39))
 - FR-4.3: Task type selector shows descriptions, not just names —
   describing the first option by default, updating the description on
   change, and keeping the `task_type` field name for submission. ([validated by `RepoTaskCreateView.test.tsx:34`](apps/web-ui/src/app/repos/[owner]/[repo]/tasks/create/RepoTaskCreateView.test.tsx#L34), [`TaskTypeSelect.test.tsx:12`](apps/web-ui/src/components/TaskTypeSelect.test.tsx#L12), [`TaskTypeSelect.test.tsx:19`](apps/web-ui/src/components/TaskTypeSelect.test.tsx#L19), [`TaskTypeSelect.test.tsx:29`](apps/web-ui/src/components/TaskTypeSelect.test.tsx#L29))

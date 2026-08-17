@@ -20,8 +20,8 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
-import type { ConnectionState } from "@/app/assembly-lines/[id]/run-stream-presenter";
-import { useRunEventStream } from "@/app/assembly-lines/[id]/useRunEventStream";
+import type { ConnectionState } from "@/app/assembly-runs/[id]/run-stream-presenter";
+import { useRunEventStream } from "@/app/assembly-runs/[id]/useRunEventStream";
 import type { RunStreamEvent } from "@/lib/run-stream-types";
 import {
   eventRefreshDelayMs,
@@ -206,7 +206,7 @@ export default function TaskRefreshProvider({
 
   // "offline" from the hook means it gave up for good; flipping
   // streamUnavailable hands the page to the coordinated poll — the same
-  // degradation the assembly-lines panel uses.
+  // degradation the assembly-runs panel uses.
   const onConnectionChange = useCallback((next: ConnectionState) => {
     setConnection(next);
 

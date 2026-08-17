@@ -36,7 +36,7 @@ async function createTask(formData: FormData) {
   }
   // Land on the task detail — a fresh task has no run row yet (it only appears in
   // the run list once execution starts), and Run Now / Cancel live on task detail.
-  revalidatePath("/assembly-lines");
+  revalidatePath("/assembly-runs");
   redirect(`/tasks/${created.data.task_id}`);
 }
 

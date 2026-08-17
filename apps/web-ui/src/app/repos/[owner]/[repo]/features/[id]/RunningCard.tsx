@@ -5,7 +5,7 @@ import styles from "./RunningCard.module.scss";
 import { formatSeconds } from "@/lib/format-time";
 import { nodeBudgetMinutes } from "@/lib/node-budget";
 import { formatTokens, type RunTokens } from "@/lib/run-tokens";
-import RunVisualizationPanel from "@/app/assembly-lines/[id]/RunVisualizationPanel";
+import RunVisualizationPanel from "@/app/assembly-runs/[id]/RunVisualizationPanel";
 import type { FeatureRunPayload } from "@/lib/feature-run";
 
 /** Elapsed / budget (m:ss / mm:00) from when the working node started, ticking every

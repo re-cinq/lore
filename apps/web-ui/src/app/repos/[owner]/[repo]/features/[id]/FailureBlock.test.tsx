@@ -116,7 +116,7 @@ describe("FailureBlock", () => {
 
     expect(
       screen.getByRole("link", { name: /full run transcript/i }),
-    ).toHaveAttribute("href", "/assembly-lines/run-42");
+    ).toHaveAttribute("href", "/assembly-runs/run-42");
   });
 
   it("omits the transcript link for a round with no run", () => {

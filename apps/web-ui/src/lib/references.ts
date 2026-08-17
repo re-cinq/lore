@@ -3,7 +3,7 @@
 // shared/src/references.ts — duplicated here because web-ui does not depend on
 // the shared package; `references.parity.test.ts` holds the two in lockstep.
 // Intentional delta: task UUIDs always link to the relative internal
-// /assembly-lines page (shared needs an absolute `uiUrl` and omits the href
+// /assembly-runs page (shared needs an absolute `uiUrl` and omits the href
 // without one), and web-ui renders segments itself so `linkifyMarkdown` has no
 // mirror here.
 
@@ -45,7 +45,7 @@ function hrefFor(
     return `https://github.com/${ctx.repo}/issues/${match.slice(1)}`;
   }
 
-  return `/assembly-lines/${match}`;
+  return `/assembly-runs/${match}`;
 }
 
 function scanPlain(text: string, ctx: RefContext): Segment[] {

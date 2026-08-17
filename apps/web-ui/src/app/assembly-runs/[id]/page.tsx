@@ -17,7 +17,7 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Resolver for `/assembly-lines/[id]`. The id disambiguates itself: a
+ * Resolver for `/assembly-runs/[id]`. The id disambiguates itself: a
  * `pipeline.assembly_runs` run renders the run detail; otherwise a
  * `pipeline.tasks` row redirects to the task detail at `/tasks/[id]` (so every
  * legacy task-UUID link — UUID linkification, repo overview, GitHub comments —

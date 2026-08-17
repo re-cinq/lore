@@ -33,7 +33,7 @@ describe("Linkified", () => {
     render(<Linkified text={`task ${uuid}`} repo={repo} />);
     const link = screen.getByRole("link", { name: uuid });
 
-    expect(link).toHaveAttribute("href", `/assembly-lines/${uuid}`);
+    expect(link).toHaveAttribute("href", `/assembly-runs/${uuid}`);
     expect(link).not.toHaveAttribute("target");
   });
 

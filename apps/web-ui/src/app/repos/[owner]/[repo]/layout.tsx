@@ -14,7 +14,7 @@ export default async function RepoLayout({
   const meta = await getRepoMeta(`${owner}/${repo}`).catch(() => null);
   const tabs = [
     { href: base, label: "Overview" },
-    { href: `${base}/tasks`, label: "Assembly Lines" },
+    { href: `${base}/tasks`, label: "Assembly Runs" },
     { href: `${base}/context`, label: "Context" },
     { href: `${base}/assembled`, label: "Assembled" },
     { href: `${base}/specs`, label: "Specs" },

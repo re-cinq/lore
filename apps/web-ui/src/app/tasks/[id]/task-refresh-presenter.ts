@@ -1,12 +1,12 @@
 // Every decision the task page's coordinated refresh makes, as pure functions.
 // TaskRefreshProvider is the IO shell around this file — the same split as
-// run-stream-presenter on the assembly-lines page, whose stream vocabulary
+// run-stream-presenter on the assembly-runs page, whose stream vocabulary
 // (ConnectionState, isTerminalRunStatus) is reused rather than redefined.
 
 import {
   isTerminalRunStatus,
   type ConnectionState,
-} from "@/app/assembly-lines/[id]/run-stream-presenter";
+} from "@/app/assembly-runs/[id]/run-stream-presenter";
 
 /** The one coordinated cadence that replaced the panels' 5s/10s/15s intervals. */
 export const COORDINATED_POLL_MS = 10_000;

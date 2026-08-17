@@ -11,7 +11,7 @@
 > extends the same `auto_review` opt-in to **any open PR, including human-authored**, driven
 > by PR-lifecycle webhooks on the event bus instead of the `pr-created` hook:
 > - **PR opened / reopened / ready_for_review** → start a review pass + post a "review has
->   started" PR comment linking `${LORE_UI_URL}/assembly-lines/<id>`.
+>   started" PR comment linking `${LORE_UI_URL}/assembly-runs/<id>`.
 > - **Review pass** → the `review` node posts **line-level** inline comments; a
 >   `changes_requested` verdict routes to `refine`, which acts on it.
 > - **Human reply** (`issue_comment.created` / `pull_request_review_comment.created`) →
@@ -422,9 +422,9 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - defaults to ignore when classification fails. ([validated by](apps/lore-station/src/stations/comment-triage.test.ts#L41))
 - reports the classification call's usage on the node result, so the cost sink records the triage spend. ([validated by](apps/lore-station/src/stations/comment-triage.test.ts#L51))
 
-### `apps/web-ui/src/app/assembly-lines/[id]/TriggerReviewButton.test.tsx`
+### `apps/web-ui/src/app/assembly-runs/[id]/TriggerReviewButton.test.tsx`
 
-- posts the repo and pr_number to the review-trigger proxy. ([validated by](apps/web-ui/src/app/assembly-lines/[id]/TriggerReviewButton.test.tsx#L7))
+- posts the repo and pr_number to the review-trigger proxy. ([validated by](apps/web-ui/src/app/assembly-runs/[id]/TriggerReviewButton.test.tsx#L7))
 
 ### `libs/assembly-lines/src/loader.test.ts`
 
