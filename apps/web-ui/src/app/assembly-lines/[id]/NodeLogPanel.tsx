@@ -10,53 +10,24 @@ import {
   unavailableMessage,
   type NodeLogsResponse,
 } from "./node-pod-logs-presenter";
-import styles from "./NodePodLogs.module.css";
+import styles from "./NodeLogPanel.module.css";
 
 const POLL_INTERVAL_MS = 5_000;
 
-export interface NodeLogTarget {
-  nodeId: string;
+export interface NodeLogPanelProps {
+  assemblyLineId: string;
   agentCrName: string;
+  label: string;
 }
 
-/** One collapsible live-log panel per node (its Agent CR's pod). Logs are read
- *  on-demand from the cluster and vanish when the pod is cleaned up. */
-export default function NodePodLogs({
+/** One collapsible live-log panel for one node attempt (its Agent CR's pod).
+ *  Logs are read on-demand from the cluster and vanish when the pod is cleaned
+ *  up; older runs fall back to retained logs from Cloud Logging. */
+export default function NodeLogPanel({
   assemblyLineId,
-  nodes,
-}: {
-  assemblyLineId: string;
-  nodes: NodeLogTarget[];
-}) {
-  if (nodes.length === 0) {
-    return null;
-  }
-
-  return (
-    <section className={styles.wrap}>
-      <h2>Pod logs</h2>
-      <p className="meta">
-        Live per-node output, read from the cluster. Once a node's pod is
-        cleaned up, older runs fall back to retained logs from Cloud Logging.
-      </p>
-      {nodes.map((node) => (
-        <NodeLogPanel
-          key={node.agentCrName}
-          assemblyLineId={assemblyLineId}
-          node={node}
-        />
-      ))}
-    </section>
-  );
-}
-
-function NodeLogPanel({
-  assemblyLineId,
-  node,
-}: {
-  assemblyLineId: string;
-  node: NodeLogTarget;
-}) {
+  agentCrName,
+  label,
+}: NodeLogPanelProps) {
   const [open, setOpen] = useState(false);
   const [resp, setResp] = useState<NodeLogsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +37,7 @@ function NodeLogPanel({
 
   const fetchLogs = useCallback(async () => {
     try {
-      const res = await fetch(nodeLogsUrl(assemblyLineId, node.agentCrName));
+      const res = await fetch(nodeLogsUrl(assemblyLineId, agentCrName));
 
       if (res.status === 403) {
         setError("Access denied — you do not have access to this repository.");
@@ -83,7 +54,7 @@ function NodeLogPanel({
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [assemblyLineId, node.agentCrName]);
+  }, [assemblyLineId, agentCrName]);
 
   useEffect(() => {
     if (open && resp === null && error === null) {
@@ -111,7 +82,7 @@ function NodeLogPanel({
       onToggle={(e) => setOpen(e.currentTarget.open)}
     >
       <summary className={styles.summary}>
-        <span className={styles.mono}>{node.nodeId}</span>
+        <span>{label}</span>
         {resp?.phase && <span className="meta"> · {resp.phase}</span>}
         {resp?.archived && <span className="meta"> · retained</span>}
       </summary>

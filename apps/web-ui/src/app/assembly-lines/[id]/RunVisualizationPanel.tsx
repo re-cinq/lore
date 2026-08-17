@@ -25,7 +25,9 @@ import { latestRowByNode, replayRunData } from "@/lib/run-replay-view";
 import { deriveVisibleGraph, type RunData } from "@/lib/graph-view-model";
 import { parseRunStreamRow, type RunStreamEvent } from "@/lib/run-stream-types";
 import { toTranscriptRows } from "@/lib/transcript-rows";
+import { stepViews } from "@/lib/step-presenter";
 import FileHeatmapView from "./FileHeatmapView";
+import NodeLogPanel from "./NodeLogPanel";
 import NodeTranscriptView, {
   recallScroll,
   rememberScroll,
@@ -55,7 +57,6 @@ export interface RunVisualizationPanelProps {
   runStatus: string;
   startedAt: string | null;
   definition: AssemblyLineDefinition | null;
-  showEdgeLabels: boolean;
   nodes: readonly AssemblyLineRunNode[];
   repo: string;
   reason: string | null;
@@ -327,6 +328,16 @@ export default function RunVisualizationPanel({
     () => (selected ? toTranscriptRows(selected.transcript) : []),
     [selected],
   );
+  // The selected node's walk rows in execution order — the inspector's attempt
+  // history and the source of its per-attempt pod-log panels.
+  const selectedRows = useMemo(
+    () => nodes.filter((node) => node.nodeId === selectedNodeId),
+    [nodes, selectedNodeId],
+  );
+  const selectedAttempts = useMemo(
+    () => stepViews(definition, selectedRows, reason),
+    [definition, selectedRows, reason],
+  );
   const takenEdges = useMemo(
     () => takenEdgeKeys(definition, nodes),
     [definition, nodes],
@@ -474,16 +485,6 @@ export default function RunVisualizationPanel({
           {showOutcomes ? "Show executed path" : "Show possible outcomes"}
         </button>
       ) : null}
-      {selectedNodeId ? (
-        <RunNodeDetail
-          nodeId={selectedNodeId}
-          state={selected ?? undefined}
-          row={latestRows.get(selectedNodeId)}
-          definition={definition}
-          reason={reason}
-          repo={repo}
-        />
-      ) : null}
       {scrubberVisible ? (
         <div className={styles.replayControls}>
           <ReplayScrubberView
@@ -502,18 +503,53 @@ export default function RunVisualizationPanel({
           </button>
         </div>
       ) : null}
-      {selected && selectedNodeId ? (
-        <div
-          className={styles.transcriptScroll}
-          ref={scrollRef}
-          onScroll={onTranscriptScroll}
+      {selectedNodeId ? (
+        <section
+          className={styles.inspector}
+          aria-label={`${selectedNodeId} inspector`}
         >
-          <NodeTranscriptView
+          <RunNodeDetail
             nodeId={selectedNodeId}
-            rows={rows}
-            droppedCount={selected.droppedCount}
+            state={selected ?? undefined}
+            row={latestRows.get(selectedNodeId)}
+            definition={definition}
+            reason={reason}
+            repo={repo}
+            attempts={selectedAttempts}
           />
-        </div>
+          {selected ? (
+            <div
+              className={styles.transcriptScroll}
+              ref={scrollRef}
+              onScroll={onTranscriptScroll}
+            >
+              <NodeTranscriptView
+                nodeId={selectedNodeId}
+                rows={rows}
+                droppedCount={selected.droppedCount}
+              />
+            </div>
+          ) : null}
+          {selectedRows
+            .filter((row) => row.agentCrName)
+            .map((row) => (
+              <NodeLogPanel
+                key={row.agentCrName as string}
+                assemblyLineId={runId}
+                agentCrName={row.agentCrName as string}
+                label={`Pod logs · attempt ${row.iteration}`}
+              />
+            ))}
+        </section>
+      ) : null}
+      {!selectedNodeId && visibleGraph.nodes.length > 0 ? (
+        <p className={styles.hint}>
+          Select a node in the graph to inspect its detail, transcript, and pod
+          logs.
+        </p>
+      ) : null}
+      {!selectedNodeId && visibleGraph.nodes.length === 0 ? (
+        <p className={styles.hint}>No node executions recorded.</p>
       ) : null}
       <RunTimelineView
         ticks={displayState.timeline}

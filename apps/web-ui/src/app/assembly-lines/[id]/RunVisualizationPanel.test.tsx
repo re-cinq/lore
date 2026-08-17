@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import RunVisualizationPanel from "./RunVisualizationPanel";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
+import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
 import { codeReviewDefinition } from "@/lib/definition-fixtures";
 import { HISTORY_PAGE_LIMIT } from "./run-stream-presenter";
 
@@ -106,7 +107,6 @@ function renderPanel(runStatus: string) {
       runStatus={runStatus}
       startedAt={null}
       definition={definition}
-      showEdgeLabels
       nodes={[]}
       repo="re-cinq/lore"
       reason={null}
@@ -351,7 +351,6 @@ describe("node transcript drill-in", () => {
         runStatus="running"
         startedAt={null}
         definition={definition}
-        showEdgeLabels
         nodes={[
           {
             nodeId: "implement",
@@ -624,7 +623,6 @@ describe("run-graph verdict on a finished run (regression)", () => {
         runStatus="finished"
         startedAt={null}
         definition={codeReviewDefinition}
-        showEdgeLabels
         nodes={[
           {
             nodeId: "review",
@@ -698,7 +696,6 @@ describe("replay rewinds the run graph (regression)", () => {
         runStatus="finished"
         startedAt={null}
         definition={codeReviewDefinition}
-        showEdgeLabels
         nodes={reviewNodes}
         repo="re-cinq/lore"
         reason={'node "review" failed'}
@@ -865,5 +862,122 @@ describe("stream give-up and history polling", () => {
     expect(
       container.querySelector('[data-node="validate"]')?.textContent,
     ).toContain("Running");
+  });
+});
+
+describe("node inspector", () => {
+  const HINT =
+    "Select a node in the graph to inspect its detail, transcript, and pod logs.";
+
+  async function selectNode(name: string) {
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: new RegExp(`^${name} —`) }),
+      );
+    });
+  }
+
+  function walkRow(over: Partial<AssemblyLineRunNode>): AssemblyLineRunNode {
+    return {
+      nodeId: "implement",
+      iteration: 1,
+      outcome: "success",
+      agentCrName: null,
+      commitSha: null,
+      durationSeconds: 30,
+      ...over,
+    };
+  }
+
+  function renderWithNodes(nodes: AssemblyLineRunNode[]) {
+    return render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        startedAt={null}
+        definition={definition}
+        nodes={nodes}
+        repo="re-cinq/lore"
+        reason={null}
+      />,
+    );
+  }
+
+  it("shows the select-a-node hint until a node is selected, then the inspector", async () => {
+    stubHistory([
+      eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
+    ]);
+    useFakeEventSource();
+
+    renderPanel("running");
+    await settle();
+
+    expect(screen.getByText(HINT)).toBeInTheDocument();
+
+    await selectNode("implement");
+
+    expect(screen.queryByText(HINT)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "implement inspector" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the selected node's pod logs inside the inspector, one panel per attempt", async () => {
+    stubHistory([]);
+    useFakeEventSource();
+
+    renderWithNodes([
+      walkRow({ outcome: "implement-failed", agentCrName: "run1-implement" }),
+      walkRow({ iteration: 2, agentCrName: "run1-implement-2" }),
+      walkRow({ nodeId: "validate", agentCrName: "run1-validate" }),
+    ]);
+    await settle();
+    await selectNode("implement");
+
+    expect(screen.getByText("Pod logs · attempt 1")).toBeInTheDocument();
+    expect(screen.getByText("Pod logs · attempt 2")).toBeInTheDocument();
+    expect(screen.queryByText("Pod logs · attempt 3")).not.toBeInTheDocument();
+
+    await selectNode("validate");
+
+    expect(screen.getByText("Pod logs · attempt 1")).toBeInTheDocument();
+    expect(screen.queryByText("Pod logs · attempt 2")).not.toBeInTheDocument();
+  });
+
+  it("renders the attempts history inside the inspector for a node that looped", async () => {
+    stubHistory([]);
+    useFakeEventSource();
+
+    renderWithNodes([
+      walkRow({ outcome: "implement-failed" }),
+      walkRow({ iteration: 2 }),
+    ]);
+    await settle();
+    await selectNode("implement");
+
+    expect(screen.getByText("Attempts (2)")).toBeInTheDocument();
+  });
+
+  it("renders the no-node-executions empty state instead of the hint for a run with no graph", async () => {
+    stubHistory([]);
+    useFakeEventSource();
+
+    render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        startedAt={null}
+        definition={null}
+        nodes={[]}
+        repo="re-cinq/lore"
+        reason={null}
+      />,
+    );
+    await settle();
+
+    expect(
+      screen.getByText("No node executions recorded."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(HINT)).not.toBeInTheDocument();
   });
 });

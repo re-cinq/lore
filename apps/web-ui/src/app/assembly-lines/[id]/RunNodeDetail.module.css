@@ -149,6 +149,49 @@
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
 }
+.attempts {
+  margin: 0.7rem 0 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.attemptsHead {
+  padding: 0.35rem 0.7rem;
+  background: var(--bg-muted, var(--bg-elevated));
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.attemptList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.attemptItem {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.4rem 0.7rem;
+  border-top: 1px solid var(--border);
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.attemptMeta {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+.attemptEdge {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-style: italic;
+}
+.attemptReason {
+  flex-basis: 100%;
+  color: var(--danger);
+  font-size: var(--fs-sm);
+}
+
 .files {
   list-style: none;
   margin: 0.7rem 0 0;

@@ -1,4 +1,4 @@
-// Pure logic behind NodePodLogs — kept out of the component so it is directly
+// Pure logic behind NodeLogPanel — kept out of the component so it is directly
 // testable. The Floor's /api/agent-logs response drives what the panel shows and
 // whether it keeps polling.
 

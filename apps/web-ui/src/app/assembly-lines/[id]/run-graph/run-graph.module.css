@@ -96,7 +96,8 @@
     fill var(--transition);
 }
 .node[tabindex]:hover .box {
-  stroke: var(--border-hover);
+  stroke: var(--info);
+  stroke-width: 2;
 }
 .nodeId {
   fill: var(--text);

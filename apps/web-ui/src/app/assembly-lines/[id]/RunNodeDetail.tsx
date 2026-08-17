@@ -4,9 +4,13 @@
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
 import type { NodeRunState } from "@/lib/run-event-reducer";
-import { formatRelativeTime } from "@/lib/assembly-line-presenter";
+import {
+  formatDuration,
+  formatRelativeTime,
+} from "@/lib/assembly-line-presenter";
 import { describeNode, type NodeDetail } from "@/lib/run-node-detail-presenter";
 import type { NodeStatusTone } from "@/lib/run-node-status";
+import type { StepView } from "@/lib/step-presenter";
 import styles from "./RunNodeDetail.module.css";
 
 const PILL_CLASS: Record<NodeStatusTone, string> = {
@@ -34,6 +38,8 @@ export interface RunNodeDetailProps {
   definition: AssemblyLineDefinition | null;
   reason: string | null;
   repo: string;
+  /** Every walk row of this node in execution order — the loop history. */
+  attempts: StepView[];
 }
 
 function Fact({
@@ -120,6 +126,50 @@ export default function RunNodeDetail(props: RunNodeDetailProps) {
           </Fact>
         ) : null}
       </dl>
+
+      {props.attempts.length > 1 ? (
+        <div className={styles.attempts}>
+          <div className={styles.attemptsHead}>
+            Attempts ({props.attempts.length})
+          </div>
+          <ol className={styles.attemptList}>
+            {props.attempts.map((step) => (
+              <li key={step.iteration} className={styles.attemptItem}>
+                <span className={styles.attemptMeta}>
+                  attempt {step.iteration}
+                </span>
+                <span className={`${styles.pill} ${PILL_CLASS[step.tone]}`}>
+                  {step.label}
+                </span>
+                <span className={styles.attemptMeta}>
+                  {formatDuration(step.durationSeconds)}
+                </span>
+                {step.agentCrName ? (
+                  <span className={`${styles.attemptMeta} ${styles.mono}`}>
+                    {step.agentCrName}
+                  </span>
+                ) : null}
+                {step.commitSha ? (
+                  <a
+                    className={styles.mono}
+                    href={`https://github.com/${props.repo}/commit/${step.commitSha}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {step.commitSha.substring(0, 7)}
+                  </a>
+                ) : null}
+                {step.transition ? (
+                  <span className={styles.attemptEdge}>{step.transition}</span>
+                ) : null}
+                {step.reason ? (
+                  <span className={styles.attemptReason}>{step.reason}</span>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
 
       {detail.files.length > 0 ? (
         <ul className={styles.files}>

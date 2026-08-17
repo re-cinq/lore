@@ -179,7 +179,7 @@ Clicking Raw shows the verbatim blob and clicking Formatted restores the transcr
 
 A JSON line split across an offset poll is classified once the completing chunk arrives, leaving no dangling raw fragment. ([validated by `TaskLogs.test.tsx:686`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L686))
 
-An opened assembly-line pod-log panel renders the same formatted transcript, switches to the raw blob via the toggle, and keeps the `(no output yet)` placeholder for empty logs. ([validated by `NodePodLogs.test.tsx:72`](apps/web-ui/src/app/assembly-lines/[id]/NodePodLogs.test.tsx#L72), [validated by `NodePodLogs.test.tsx:91`](apps/web-ui/src/app/assembly-lines/[id]/NodePodLogs.test.tsx#L91), [validated by `NodePodLogs.test.tsx:110`](apps/web-ui/src/app/assembly-lines/[id]/NodePodLogs.test.tsx#L110))
+An opened assembly-line pod-log panel renders the same formatted transcript, switches to the raw blob via the toggle, and keeps the `(no output yet)` placeholder for empty logs. ([validated by `NodeLogPanel.test.tsx:67`](apps/web-ui/src/app/assembly-lines/[id]/NodeLogPanel.test.tsx#L67), [validated by `NodeLogPanel.test.tsx:81`](apps/web-ui/src/app/assembly-lines/[id]/NodeLogPanel.test.tsx#L81), [validated by `NodeLogPanel.test.tsx:95`](apps/web-ui/src/app/assembly-lines/[id]/NodeLogPanel.test.tsx#L95))
 
 ### FailurePanel
 

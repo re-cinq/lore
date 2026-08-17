@@ -5,6 +5,7 @@ import RunNodeDetail from "./RunNodeDetail";
 import { implementationDefinition } from "@/lib/definition-fixtures";
 import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
 import type { NodeRunState } from "@/lib/run-event-reducer";
+import type { StepView } from "@/lib/step-presenter";
 
 const row = (over: Partial<AssemblyLineRunNode> = {}): AssemblyLineRunNode => ({
   nodeId: "implement",
@@ -24,6 +25,20 @@ const state = (over: Partial<NodeRunState> = {}): NodeRunState => ({
   ...over,
 });
 
+const attempt = (over: Partial<StepView> = {}): StepView => ({
+  nodeId: "validate",
+  iteration: 1,
+  tone: "ok",
+  label: "Succeeded",
+  outcome: "success",
+  agentCrName: "cr-1",
+  commitSha: null,
+  durationSeconds: 45,
+  transition: null,
+  reason: null,
+  ...over,
+});
+
 describe("RunNodeDetail", () => {
   it("renders the why line, status pill and shortened commit link", () => {
     render(
@@ -34,6 +49,7 @@ describe("RunNodeDetail", () => {
         definition={implementationDefinition}
         reason={null}
         repo="re-cinq/lore"
+        attempts={[]}
       />,
     );
 
@@ -56,6 +72,7 @@ describe("RunNodeDetail", () => {
         definition={implementationDefinition}
         reason={null}
         repo="re-cinq/lore"
+        attempts={[]}
       />,
     );
 
@@ -105,6 +122,7 @@ describe("RunNodeDetail", () => {
         definition={implementationDefinition}
         reason={null}
         repo="re-cinq/lore"
+        attempts={[]}
       />,
     );
 
@@ -113,5 +131,62 @@ describe("RunNodeDetail", () => {
     expect(screen.getByText("2 problems")).toBeInTheDocument();
     expect(screen.getByText("Bash")).toBeInTheDocument();
     expect(screen.getByText("tsc exited 2")).toBeInTheDocument();
+  });
+
+  it("renders the attempts history with transitions and commit links when the node looped", () => {
+    render(
+      <RunNodeDetail
+        nodeId="validate"
+        state={state()}
+        row={row({ nodeId: "validate", iteration: 2 })}
+        definition={implementationDefinition}
+        reason={null}
+        repo="re-cinq/lore"
+        attempts={[
+          attempt({
+            tone: "err",
+            label: "Failed",
+            outcome: "failed",
+            agentCrName: "cr-a1",
+            commitSha: "aaa1111ffff",
+            transition: "failed ↩ implement",
+            reason: "lint failed",
+          }),
+          attempt({
+            iteration: 2,
+            agentCrName: "cr-a2",
+            commitSha: "bbb2222ffff",
+            transition: "success → done",
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Attempts (2)")).toBeInTheDocument();
+    expect(screen.getByText("failed ↩ implement")).toBeInTheDocument();
+    expect(screen.getByText("success → done")).toBeInTheDocument();
+    expect(screen.getByText("cr-a1")).toBeInTheDocument();
+    expect(screen.getByText("cr-a2")).toBeInTheDocument();
+    expect(screen.getByText("lint failed")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "aaa1111" })).toHaveAttribute(
+      "href",
+      "https://github.com/re-cinq/lore/commit/aaa1111ffff",
+    );
+  });
+
+  it("omits the attempts history for a single attempt", () => {
+    render(
+      <RunNodeDetail
+        nodeId="implement"
+        state={state()}
+        row={row()}
+        definition={implementationDefinition}
+        reason={null}
+        repo="re-cinq/lore"
+        attempts={[attempt({ nodeId: "implement" })]}
+      />,
+    );
+
+    expect(screen.queryByText(/^Attempts \(/)).not.toBeInTheDocument();
   });
 });

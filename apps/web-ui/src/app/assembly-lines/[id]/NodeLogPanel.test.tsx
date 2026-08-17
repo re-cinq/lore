@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
-import NodePodLogs from "./NodePodLogs";
+import NodeLogPanel from "./NodeLogPanel";
 import { SAMPLE_LOG } from "@/lib/agent-log-entries.fixtures";
 
 beforeEach(() => {
@@ -26,6 +26,16 @@ function logsResponse(logs: string) {
   };
 }
 
+function renderPanel() {
+  return render(
+    <NodeLogPanel
+      assemblyLineId="run-1"
+      agentCrName="a1b2c3d4-review"
+      label="Pod logs · attempt 1"
+    />,
+  );
+}
+
 async function openPanel(container: HTMLElement) {
   const details = container.querySelector("details");
 
@@ -42,42 +52,22 @@ async function openPanel(container: HTMLElement) {
   }
 }
 
-describe("NodePodLogs", () => {
-  it("renders nothing when there are no nodes", () => {
-    const { container } = render(
-      <NodePodLogs assemblyLineId="run-1" nodes={[]} />,
-    );
+describe("NodeLogPanel", () => {
+  it("renders the collapsed label without fetching until opened", () => {
+    const fetchMock = vi.fn();
 
-    expect(container).toBeEmptyDOMElement();
-  });
+    vi.stubGlobal("fetch", fetchMock);
 
-  it("renders a collapsed panel per node without fetching until opened", () => {
-    render(
-      <NodePodLogs
-        assemblyLineId="run-1"
-        nodes={[
-          { nodeId: "review", agentCrName: "a1b2c3d4-review" },
-          { nodeId: "refine", agentCrName: "a1b2c3d4-refine" },
-        ]}
-      />,
-    );
+    renderPanel();
 
-    expect(
-      screen.getByRole("heading", { name: "Pod logs" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("review")).toBeInTheDocument();
-    expect(screen.getByText("refine")).toBeInTheDocument();
+    expect(screen.getByText("Pod logs · attempt 1")).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("renders formatted entries inside an opened panel serving the sample log", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(logsResponse(SAMPLE_LOG)));
 
-    const { container } = render(
-      <NodePodLogs
-        assemblyLineId="run-1"
-        nodes={[{ nodeId: "review", agentCrName: "a1b2c3d4-review" }]}
-      />,
-    );
+    const { container } = renderPanel();
 
     await openPanel(container);
 
@@ -91,12 +81,7 @@ describe("NodePodLogs", () => {
   it("switches the open panel to the raw blob when Raw is clicked", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(logsResponse(SAMPLE_LOG)));
 
-    const { container } = render(
-      <NodePodLogs
-        assemblyLineId="run-1"
-        nodes={[{ nodeId: "review", agentCrName: "a1b2c3d4-review" }]}
-      />,
-    );
+    const { container } = renderPanel();
 
     await openPanel(container);
     fireEvent.click(screen.getByRole("button", { name: "Raw" }));
@@ -110,12 +95,7 @@ describe("NodePodLogs", () => {
   it("keeps the '(no output yet)' placeholder when available logs are empty", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(logsResponse("")));
 
-    const { container } = render(
-      <NodePodLogs
-        assemblyLineId="run-1"
-        nodes={[{ nodeId: "review", agentCrName: "a1b2c3d4-review" }]}
-      />,
-    );
+    const { container } = renderPanel();
 
     await openPanel(container);
 
