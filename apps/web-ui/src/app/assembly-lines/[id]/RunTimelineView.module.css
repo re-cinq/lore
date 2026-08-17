@@ -27,6 +27,10 @@
 button.tick {
   cursor: pointer;
 }
+button.tick:hover {
+  transform: translate(-50%, -50%) scale(1.6);
+  border-color: var(--text-muted);
+}
 
 .start {
   background: var(--info);

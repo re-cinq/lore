@@ -58,10 +58,10 @@ export default defineConfig({
         // it pages is covered in events/pagination.ts; the row markup in
         // EventsView/EventRow tests.
         "src/app/repos/[owner]/[repo]/events/InfiniteEvents.tsx",
-        // Per-node pod-log panels: a fetch + polling shell (setInterval, expand
-        // on toggle) like the shells above. Its pure logic (URL, poll gate,
-        // unavailable messages) is covered in node-pod-logs-presenter.ts.
-        "src/app/assembly-lines/[id]/NodePodLogs.tsx",
+        // Per-attempt pod-log panel: a fetch + polling shell (setInterval,
+        // expand on toggle) like the shells above. Its pure logic (URL, poll
+        // gate, unavailable messages) is covered in node-pod-logs-presenter.ts.
+        "src/app/assembly-lines/[id]/NodeLogPanel.tsx",
         // Type shapes + constants mirroring the /trace API JSON (no logic).
         "src/lib/spec-graph.ts",
         // Test / type-only files.

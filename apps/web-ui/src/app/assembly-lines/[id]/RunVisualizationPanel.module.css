@@ -66,6 +66,17 @@
   border: 1px solid var(--tone-muted-border, #d8dde3);
 }
 
+.inspector {
+  margin-top: 0.5rem;
+}
+
+.hint {
+  margin-top: 0.5rem;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  font-style: italic;
+}
+
 .transcriptScroll {
   margin-top: 0.5rem;
   max-height: 24rem;

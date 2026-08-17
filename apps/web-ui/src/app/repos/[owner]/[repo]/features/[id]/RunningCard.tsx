@@ -121,7 +121,6 @@ export default function RunningCard({
           runStatus={run.status}
           startedAt={run.startedAt}
           definition={run.definition}
-          showEdgeLabels={!run.synthetic}
           nodes={run.nodes}
           repo={run.repo}
           reason={run.reason}

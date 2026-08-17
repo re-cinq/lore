@@ -9,7 +9,6 @@ import { fetchTaskEvents, fetchLlmCalls } from "@/lib/task-runtime";
 import { definitionForRun } from "@/lib/run-graph-definition";
 import AssemblyLineRunView from "./AssemblyLineRunView";
 import RunVisualizationPanel from "./RunVisualizationPanel";
-import NodePodLogs from "./NodePodLogs";
 import { TriggerReviewButton } from "./TriggerReviewButton";
 import EventTimeline from "@/app/tasks/[id]/EventTimeline";
 import LlmCallsTable from "@/app/tasks/[id]/LlmCallsTable";
@@ -39,16 +38,13 @@ export default async function AssemblyLineResolverPage({
 
   if (run) {
     const nodes = await fetchAssemblyLineRunNodes(id);
-    const logNodes = nodes
-      .filter((n) => n.agentCrName)
-      .map((n) => ({ nodeId: n.nodeId, agentCrName: n.agentCrName as string }));
     const [events, llmCalls] = run.taskId
       ? await Promise.all([
           fetchTaskEvents(run.taskId),
           fetchLlmCalls(run.taskId),
         ])
       : [[], []];
-    const { definition, synthetic } = definitionForRun(
+    const { definition } = definitionForRun(
       run.blueprintName,
       nodes,
       run.graph,
@@ -56,7 +52,7 @@ export default async function AssemblyLineResolverPage({
 
     return (
       <>
-        <AssemblyLineRunView run={run} nodes={nodes} definition={definition} />
+        <AssemblyLineRunView run={run} />
         {run.blueprintName === "code-review" && run.prNumber ? (
           <TriggerReviewButton repo={run.repo} prNumber={run.prNumber} />
         ) : null}
@@ -65,12 +61,10 @@ export default async function AssemblyLineResolverPage({
           runStatus={run.status}
           startedAt={run.startedAt}
           definition={definition}
-          showEdgeLabels={!synthetic}
           nodes={nodes}
           repo={run.repo}
           reason={run.reason}
         />
-        <NodePodLogs assemblyLineId={run.id} nodes={logNodes} />
         {run.taskId ? (
           <>
             <EventTimeline events={events} />

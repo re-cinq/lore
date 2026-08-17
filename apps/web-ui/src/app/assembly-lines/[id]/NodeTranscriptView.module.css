@@ -96,6 +96,24 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.5rem;
+  border-radius: 4px;
+}
+/* flex on a summary suppresses the native disclosure marker; put the
+   expand affordance back explicitly. */
+.toolResult summary::before,
+.errorRow summary::before {
+  content: "▸";
+  color: var(--tone-muted-fg, #5b6672);
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+}
+.toolResult details[open] summary::before,
+.errorRow details[open] summary::before {
+  transform: rotate(90deg);
+}
+.toolResult summary:hover,
+.errorRow summary:hover {
+  background: var(--tone-muted-bg, #f0f2f5);
 }
 
 .notice {

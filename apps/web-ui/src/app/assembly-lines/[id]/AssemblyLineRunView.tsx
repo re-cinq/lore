@@ -1,46 +1,18 @@
 import Link from "next/link";
-import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
-import type {
-  AssemblyLineRun,
-  AssemblyLineRunNode,
-} from "@/lib/assembly-line-runs";
+import type { AssemblyLineRun } from "@/lib/assembly-line-runs";
 import { formatDuration, runStatusVisual } from "@/lib/assembly-line-presenter";
-import { stepViews, type StepTone } from "@/lib/step-presenter";
 import styles from "./AssemblyLineRunView.module.css";
 
 const EM_DASH = "—";
 
-const DOT_CLASS: Record<StepTone, string> = {
-  ok: styles.dotOk,
-  warn: styles.dotWarn,
-  err: styles.dotErr,
-  running: styles.dotRunning,
-  idle: styles.dotIdle,
-};
-
-const PILL_CLASS: Record<StepTone, string> = {
-  ok: styles.pillOk,
-  warn: styles.pillWarn,
-  err: styles.pillErr,
-  running: styles.pillRunning,
-  idle: styles.pillIdle,
-};
-
 export interface AssemblyLineRunViewProps {
   run: AssemblyLineRun;
-  nodes: AssemblyLineRunNode[];
-  definition: AssemblyLineDefinition | null;
 }
 
-/** Run detail — the per-attempt execution: header facts + the node timeline from
- *  pipeline.station_runs. Pure render. */
-export default function AssemblyLineRunView({
-  run,
-  nodes,
-  definition,
-}: AssemblyLineRunViewProps) {
+/** Run header — the line-level facts of the attempt. Per-node state lives in the
+ *  visualization panel below (graph + node inspector). Pure render. */
+export default function AssemblyLineRunView({ run }: AssemblyLineRunViewProps) {
   const visual = runStatusVisual(run.status, run.outcome);
-  const steps = stepViews(definition, nodes, run.reason);
 
   return (
     <div>
@@ -87,52 +59,6 @@ export default function AssemblyLineRunView({
           </>
         ) : null}
       </dl>
-
-      <h2>Steps</h2>
-      {steps.length === 0 ? (
-        <p className={styles.empty}>No node executions recorded.</p>
-      ) : (
-        <ol className={styles.steps}>
-          {steps.map((step, i) => (
-            <li
-              key={`${step.nodeId}-${step.iteration}-${i}`}
-              className={styles.step}
-            >
-              <span
-                className={`${styles.dot} ${DOT_CLASS[step.tone]}`}
-                aria-hidden="true"
-              />
-              <div className={styles.stepHead}>
-                <span className={styles.stepName}>{step.nodeId}</span>
-                <span className={`${styles.pill} ${PILL_CLASS[step.tone]}`}>
-                  {step.label}
-                </span>
-                <span className={styles.stepMeta}>
-                  attempt {step.iteration} ·{" "}
-                  {formatDuration(step.durationSeconds)}
-                  {step.agentCrName ? ` · ${step.agentCrName}` : ""}
-                </span>
-                {step.commitSha ? (
-                  <a
-                    className={styles.mono}
-                    href={`https://github.com/${run.repo}/commit/${step.commitSha}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {step.commitSha.substring(0, 7)}
-                  </a>
-                ) : null}
-              </div>
-              {step.reason ? (
-                <p className={styles.stepReason}>{step.reason}</p>
-              ) : null}
-              {step.transition ? (
-                <p className={styles.stepEdge}>{step.transition}</p>
-              ) : null}
-            </li>
-          ))}
-        </ol>
-      )}
     </div>
   );
 }
