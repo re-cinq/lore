@@ -2015,6 +2015,7 @@ export interface components {
         created_at: string;
         updated_at: string;
       } | null;
+      assembly_run_id: string | null;
       assembly_line_id: string | null;
     };
     FeatureDecomposition: {
@@ -2033,10 +2034,12 @@ export interface components {
     RoundStarted: {
       iteration: number;
       task_id?: string | null;
+      assembly_run_id?: string;
       assembly_line_id?: string;
     };
     FinalizeStarted: {
       task_id?: string;
+      assembly_run_id?: string;
       assembly_line_id?: string;
     };
     Feature: {

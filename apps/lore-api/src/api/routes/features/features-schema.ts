@@ -157,15 +157,19 @@ export const FeatureCreatedSchema = z.object({
 export const OkSchema = z.object({ ok: z.literal(true) });
 
 /** A round that started, however it was dispatched: a fresh Station mints a
- *  `task_id`; a resumed line reports `assembly_line_id` and a null task. */
+ *  `task_id`; a resumed run reports the run id and a null task. */
 export const RoundStartedSchema = z.object({
   iteration: z.number().int(),
   task_id: z.string().nullable().optional(),
+  assembly_run_id: z.string().optional(),
+  /** @deprecated the pre-rename spelling — see `runIdBothSpellings`. */
   assembly_line_id: z.string().optional(),
 });
 
 export const FinalizeStartedSchema = z.object({
   task_id: z.string().optional(),
+  assembly_run_id: z.string().optional(),
+  /** @deprecated the pre-rename spelling — see `runIdBothSpellings`. */
   assembly_line_id: z.string().optional(),
 });
 
@@ -173,8 +177,31 @@ export const FeaturePollSchema = z.object({
   feature: FeatureSchema,
   latest_iteration: FeatureIterationSchema.nullable(),
   last_ready_iteration: FeatureIterationSchema.nullable(),
+  assembly_run_id: z.string().nullable(),
+  /** @deprecated the pre-rename spelling — see `runIdBothSpellings`. */
   assembly_line_id: z.string().nullable(),
 });
+
+/**
+ * The run id under BOTH spellings — the expand half of the AssemblyRun rename
+ * (specs/6-dark-factory FR6.44).
+ *
+ * lore-api and web-ui are separate images in one umbrella release, so their
+ * rollouts do not land together. Emitting only the new key breaks the running UI
+ * for that window; emitting only the old one leaves the rename unfinishable. So
+ * the response carries both, and the deprecated key is dropped in a later release
+ * once no deployed reader asks for it.
+ *
+ * It exists as ONE function rather than a spread at each of the three response
+ * sites because a pair that is assembled by hand is a pair that eventually
+ * disagrees — and a poll reporting one id while a dispatch reports another is a
+ * run graph pointing at the wrong run.
+ */
+export function runIdBothSpellings<T extends string | null>(
+  runId: T,
+): { assembly_run_id: T; assembly_line_id: T } {
+  return { assembly_run_id: runId, assembly_line_id: runId };
+}
 
 export const FeatureDecompositionSchema = z.object({
   tasks: z.array(

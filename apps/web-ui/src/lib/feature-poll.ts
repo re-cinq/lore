@@ -1,4 +1,5 @@
 import { getFeatureStatus } from "@/lib/api/features";
+import { runIdOf } from "./api/run-id";
 import { getTask } from "@/lib/api/tasks";
 import { formatStationConversation } from "@/lib/station-conversation";
 import { fetchFeatureRunById, type FeatureRunPayload } from "@/lib/feature-run";
@@ -99,9 +100,6 @@ export async function loadFeaturePoll(
     // The endpoint already resolved which line the graph hangs on: from round 2
     // a resumed round mints no task, so only the OWNING task can resolve it and
     // the server is the one that knows which that was.
-    run: await fetchFeatureRunById(
-      status.data.assembly_line_id,
-      haveGraphForRun,
-    ),
+    run: await fetchFeatureRunById(runIdOf(status.data), haveGraphForRun),
   };
 }
