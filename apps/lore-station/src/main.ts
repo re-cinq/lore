@@ -8,7 +8,10 @@
 
 import { join } from "node:path";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
-import { parseStationInput, type StationInput } from "./input.js";
+import {
+  parseStationInput,
+  type StationInput,
+} from "@re-cinq/lore-shared/station-input.js";
 import { UsageTrackingLlm } from "./llm-usage-tracker.js";
 import { resultLine, eventLine } from "@re-cinq/lore-assembly-lines";
 import { runValidateStation, type StationEnv } from "./stations/validate.js";

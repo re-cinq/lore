@@ -4,6 +4,7 @@
 
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
+import { serializeStationInput } from "@re-cinq/lore-shared/station-input.js";
 import { stationName } from "../agent/agent-catalog.js";
 
 export interface FloorAssemblyLineTask {
@@ -173,12 +174,13 @@ export function nodeStationSpec(
     hydrate: false,
     clone: CLONING_STATION_TYPES.has(node.type),
     parameters: {
-      station_input: JSON.stringify({
-        // Keeps the PRE-RENAME name deliberately: this JSON is the station pod
-        // contract, and `apps/lore-station` — a separately built and deployed
-        // image — parses `assembly_line_id`. Renaming one side alone breaks
-        // every station run. Both sides move together, with the contract doc, or
-        // not at all.
+      // Written through the shared writer, not an object literal: the shape is a
+      // contract with `apps/lore-station`, a separately built and deployed image,
+      // and it used to be spelled out independently on each side. A sweep once
+      // renamed this side's `assembly_line_id` and left the pod's parser alone,
+      // which would have failed every station run. Now a key that exists on only
+      // one side does not compile.
+      station_input: serializeStationInput({
         assembly_line_id: task.assemblyLineId,
         node_id: node.id,
         node_type: node.type,

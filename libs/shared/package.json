@@ -22,6 +22,10 @@
       "types": "./dist/project/leases/lease-backends.d.ts",
       "default": "./dist/project/leases/lease-backends.js"
     },
+    "./station-input.js": {
+      "types": "./dist/station-input.d.ts",
+      "default": "./dist/station-input.js"
+    },
     "./commit-trailers.js": {
       "types": "./dist/commit-trailers.d.ts",
       "default": "./dist/commit-trailers.js"
@@ -85,7 +89,8 @@
     "minimatch": "^10.0.1",
     "tree-sitter-wasms": "^0.1.11",
     "web-tree-sitter": "^0.24.7",
-    "yaml": "^2.7.0"
+    "yaml": "^2.7.0",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@octokit/auth-app": "^7.1.0",

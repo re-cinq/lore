@@ -6,7 +6,7 @@
 // (the node's job is to mark the run done, not to gate on telemetry).
 
 import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
-import type { StationInput } from "../input.js";
+import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 
 async function postEpisode(input: StationInput): Promise<void> {
   const baseUrl = process.env.LORE_API_URL;

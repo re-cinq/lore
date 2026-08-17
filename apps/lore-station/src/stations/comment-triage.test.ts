@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { runCommentTriageStation } from "./comment-triage.js";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { FakeLlm } from "@re-cinq/lore-shared/llm/fake-llm.js";
-import type { StationInput } from "../input.js";
+import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 
 afterEach(() => Llm.reset());
 

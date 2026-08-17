@@ -15,7 +15,7 @@ import {
 import { parseDecomposition } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
 import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json.js";
 import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
-import type { StationInput } from "../input.js";
+import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 
 export interface IssuesStationDeps {
   /** Injectable project for tests; defaults to the pod's HTTP facade. */

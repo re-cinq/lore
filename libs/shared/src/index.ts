@@ -169,6 +169,12 @@ export {
   type ProvenanceRef,
 } from "./commit-trailers.js";
 export {
+  StationInputSchema,
+  parseStationInput,
+  serializeStationInput,
+  type StationInput,
+} from "./station-input.js";
+export {
   resolveDarkFactorySettings,
   resolveExecutionImage,
   trustMeets,

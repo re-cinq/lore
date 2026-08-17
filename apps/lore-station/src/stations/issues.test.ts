@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { runIssuesStation } from "./issues.js";
-import type { StationInput } from "../input.js";
+import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 
 const DECOMPOSITION = JSON.stringify({
   stories: [
