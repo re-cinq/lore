@@ -13,6 +13,7 @@ on:
 permissions:
   contents: read
   issues: write
+  pull-requests: read
 
 jobs:
   guard:
@@ -28,25 +29,71 @@ jobs:
           COMMIT_IDS: ${{ toJson(github.event.commits.*.id) }}
         run: |
           set -euo pipefail
-          suspicious=""
-          for sha in $(echo "$COMMIT_IDS" | jq -r '.[]'); do
-            # A commit that arrived via a merged PR resolves to that PR here; a
-            # commit pushed directly to the branch resolves to none.
-            pr_count=$(gh api "repos/$REPO/commits/$sha/pulls" --jq 'length' 2>/dev/null || echo 0)
-            if [ "$pr_count" = "0" ]; then
-              author=$(gh api "repos/$REPO/commits/$sha" \
-                --jq '.author.login // .commit.author.name // "unknown"' 2>/dev/null || echo unknown)
-              echo "::warning title=Direct push to main::$sha by $author has no associated PR"
-              suspicious="${suspicious}- \`${sha}\` — author \`${author}\`, no associated PR"$'\n'
+
+          # A commit that arrived via a merged PR resolves to that PR here; a
+          # commit pushed directly to the branch resolves to none. An API error
+          # must count as "no PR" (fail closed): gh prints the raw error body
+          # to stdout, so trusting captured output would wave the commit
+          # through on any 4xx/5xx.
+          pr_count_for() {
+            local count
+            if ! count=$(gh api "repos/$REPO/commits/$1/pulls" --jq 'length'); then
+              echo "PR lookup for $1 failed — treating as no PR" >&2
+              echo 0
+              return
+            fi
+            case "$count" in
+              '' | *[!0-9]*) echo 0 ;;
+              *) echo "$count" ;;
+            esac
+          }
+
+          # The commit→PR index is eventually consistent — a squash-merge
+          # queried seconds after landing can still resolve to no PR — so
+          # re-check the unresolved set for up to 45s before flagging. Retrying
+          # the set (not per commit) bounds total sleep regardless of push size.
+          pending=$(echo "$COMMIT_IDS" | jq -r '.[]')
+          for pass in 1 2 3 4; do
+            unresolved=""
+            # $pending is deliberately unquoted: word-splitting the
+            # newline-separated shas is the iteration mechanism.
+            for sha in $pending; do
+              if [ "$(pr_count_for "$sha")" = "0" ]; then
+                unresolved="${unresolved}${sha}"$'\n'
+              fi
+            done
+            pending="$unresolved"
+            if [ -z "$pending" ]; then
+              break
+            fi
+            if [ "$pass" -lt 4 ]; then
+              echo "Commit(s) still resolving to no PR after pass $pass, retrying in 15s..."
+              sleep 15
             fi
           done
 
-          if [ -z "$suspicious" ]; then
+          if [ -z "$pending" ]; then
             echo "All pushed commits trace to a PR — OK."
             exit 0
           fi
 
-          gh label create security --color D93F0B --description "Security" 2>/dev/null || true
-          gh issue create --repo "$REPO" --label security \
-            --title "Direct/unattributed push to main: ${AFTER:0:12}" \
-            --body "$(printf 'Push by `%s` to `main` (`%s`..`%s`) contains commit(s) with **no associated pull request** — a direct push or unattributed bot commit, the #1062 attack pattern.\n\n%s\nIf this was an intentional admin action, close this issue. Otherwise investigate immediately, treat reachable credentials as exposed, and rotate.' "$PUSHER" "${BEFORE:0:12}" "${AFTER:0:12}" "$suspicious")"
+          suspicious=""
+          for sha in $pending; do
+            if ! author=$(gh api "repos/$REPO/commits/$sha" \
+              --jq '.author.login // .commit.author.name // "unknown"' 2>/dev/null); then
+              author=unknown
+            fi
+            echo "::warning title=Direct push to main::$sha by $author has no associated PR"
+            suspicious="${suspicious}- \`${sha}\` — author \`${author}\`, no associated PR"$'\n'
+          done
+
+          title="Direct/unattributed push to main: ${AFTER:0:12}"
+          body=$(printf 'Push by `%s` to `main` (`%s`..`%s`) contains commit(s) with **no associated pull request** — a direct push or unattributed bot commit, the #1062 attack pattern.\n\n%s\nIf this was an intentional admin action, close this issue. Otherwise investigate immediately, treat reachable credentials as exposed, and rotate.' "$PUSHER" "${BEFORE:0:12}" "${AFTER:0:12}" "$suspicious")
+          gh label create security --repo "$REPO" --color D93F0B --description "Security" 2>/dev/null || true
+          # The alarm must fire even if the label is unavailable: fall back to
+          # an unlabeled issue rather than dying on "'security' not found".
+          gh issue create --repo "$REPO" --label security --title "$title" --body "$body" \
+            || gh issue create --repo "$REPO" --title "$title" --body "$body"
+          # Detection must be loud on every channel: the issue is the durable
+          # alarm, the red check is the visible one.
+          exit 1
