@@ -36,7 +36,9 @@ export interface NodeEventDeps extends AdvanceDeps {
 
 export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
   return async (params) => {
-    const assemblyLineId = String(params.assemblyLineId ?? "");
+    const assemblyLineId = String(
+      params.assemblyRunId ?? params.assemblyLineId ?? "",
+    );
     const nodeId = String(params.nodeId ?? "");
     const agentName = String(params.agentName ?? "");
     const iteration =

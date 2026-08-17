@@ -34,14 +34,14 @@ export function createResumeEventHandler(
   deps: ResumeEventHandlerDeps,
 ): EventHandler {
   return async (params) => {
-    const assemblyLineId = params.assemblyLineId;
+    const assemblyLineId = params.assemblyRunId ?? params.assemblyLineId;
     const nodeId = params.nodeId;
     const outcome = String(params.outcome ?? "");
 
     enforceTrue(
       typeof assemblyLineId === "string" && assemblyLineId.length > 0,
       Error,
-      "assembly_line.resume event params missing assemblyLineId",
+      "assembly_run.resume event params missing assemblyRunId",
     );
     // The line may be parked on any of several waits; guessing would resume the
     // wrong one, so the reporter must say which node it is completing.

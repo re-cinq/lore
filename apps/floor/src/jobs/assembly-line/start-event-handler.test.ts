@@ -199,13 +199,13 @@ describe("createStartEventHandler", () => {
     expect(calls.advanced).toEqual([]);
   });
 
-  it("rejects malformed params (missing assemblyLineId) so the loop retries or dead-letters", async () => {
+  it("rejects malformed params (missing assemblyRunId) so the loop retries or dead-letters", async () => {
     const { port } = await seededPort("implementation");
     const { deps } = makeDeps(port);
 
     await expect(
       createStartEventHandler(deps)({ blueprintName: "implementation" }),
-    ).rejects.toThrow("missing assemblyLineId");
+    ).rejects.toThrow("missing assemblyRunId");
   });
 });
 

@@ -38,12 +38,12 @@ export function createStartEventHandler(
   deps: StartEventHandlerDeps,
 ): EventHandler {
   return async (params) => {
-    const assemblyLineId = params.assemblyLineId;
+    const assemblyLineId = params.assemblyRunId ?? params.assemblyLineId;
 
     enforceTrue(
       typeof assemblyLineId === "string" && assemblyLineId.length > 0,
       Error,
-      "assembly_line.start event params missing assemblyLineId",
+      "assembly_run.start event params missing assemblyRunId",
     );
     // Branch/args/description ride in the row itself — the walk reads them via
     // taskFromRow, so the event only needs identity + routing fields.
@@ -153,7 +153,9 @@ export const assemblyLineStart: EventHandler = async (params) => {
   // Publish the in_progress PR check as soon as the line starts, so a required
   // `lore/code-review` check blocks merge for the whole review window (not just
   // from the first node-terminal). Best-effort — never fails the start.
-  await publishStartCheck(String(params.assemblyLineId ?? ""));
+  await publishStartCheck(
+    String(params.assemblyRunId ?? params.assemblyLineId ?? ""),
+  );
 };
 
 async function publishStartCheck(assemblyLineId: string): Promise<void> {
