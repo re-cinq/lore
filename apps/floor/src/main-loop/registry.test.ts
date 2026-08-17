@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildRegistry, withExtra } from "./registry.js";
+import { RUN_START_EVENT } from "@re-cinq/lore-shared/project/assembly-runs/run-events.js";
 import { GITHUB_EVENT_NAMES } from "../listeners/github-map.js";
 import { AGENT_EVENT_NAMES } from "../listeners/k8s-map.js";
 import { cronTickEventNames } from "../listeners/cron-emitters.js";
@@ -15,7 +16,10 @@ function producibleEventNames(): string[] {
     ...GITHUB_EVENT_NAMES,
     ...AGENT_EVENT_NAMES,
     "internal.ingest.spec_trace", // ci-ingest-map + ci-tests-map
-    "assembly_line.start", // project.assemblyLines.start() — worker + station backend
+    // Read from the constant, not spelled out: this list drifted from the writer
+    // the moment the writer flipped, which is exactly the failure it exists to
+    // catch and cannot catch if it hardcodes the answer.
+    RUN_START_EVENT,
     ...cronTickEventNames(),
   ];
 }

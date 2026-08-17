@@ -41,7 +41,7 @@ describe("formatTrailers", () => {
 });
 
 describe("formatTrailers with an assemblyLineId", () => {
-  it("emits Lore-Assembly-Line after the required keys", () => {
+  it("emits Lore-Assembly-Run after the required keys", () => {
     const out = formatTrailers({
       stage: "implement",
       iteration: 1,
@@ -51,7 +51,7 @@ describe("formatTrailers with an assemblyLineId", () => {
 
     expect(out).toBe(
       "Lore-Stage: implement\nLore-Iteration: 1\nLore-Task: abc-123\n" +
-        "Lore-Assembly-Line: 11111111-2222-4333-8444-555555555555",
+        "Lore-Assembly-Run: 11111111-2222-4333-8444-555555555555",
     );
   });
 
@@ -75,7 +75,7 @@ describe("formatTrailers with an assemblyLineId", () => {
 
     expect(out).toBe(
       "Lore-Stage: review\nLore-Iteration: 1\n" +
-        "Lore-Assembly-Line: 11111111-2222-4333-8444-555555555555",
+        "Lore-Assembly-Run: 11111111-2222-4333-8444-555555555555",
     );
   });
 });
@@ -135,7 +135,7 @@ describe("parseTrailers", () => {
   it("parses trailer blocks without Lore-Task as taskId empty (task-less line)", () => {
     const parsed = parseTrailers(
       "Lore-Stage: review\nLore-Iteration: 1\n" +
-        "Lore-Assembly-Line: 11111111-2222-4333-8444-555555555555",
+        "Lore-Assembly-Run: 11111111-2222-4333-8444-555555555555",
     );
 
     expect(parsed).toEqual({
