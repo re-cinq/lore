@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mapAgentToEvent } from "./k8s-map.js";
+import { ASSEMBLY_RUN_ID_LABEL } from "../jobs/assembly-line/floor-assembly-line.js";
 
 const LABEL = "lore.re-cinq.com/task-id";
 const AL_LABEL = "lore.re-cinq.com/assembly-line-id";
@@ -31,9 +32,13 @@ describe("mapAgentToEvent reads both CR-label spellings", () => {
   });
 
   it("maps a CR carrying the assembly-run-id label the writer flip will stamp", () => {
-    expect(
-      mapAgentToEvent(labelled("lore.re-cinq.com/assembly-run-id"))?.eventName,
-    ).toBe("kubernetes.agent_node.succeeded");
+    // Imported, not spelled out: this label is still live code, so the test must
+    // follow it if it moves. The legacy one above stays a literal on purpose —
+    // it is a frozen wire value that CRs in the cluster already carry, and
+    // pinning it by hand is what stops a rename from quietly redefining history.
+    expect(mapAgentToEvent(labelled(ASSEMBLY_RUN_ID_LABEL))?.eventName).toBe(
+      "kubernetes.agent_node.succeeded",
+    );
   });
 });
 
