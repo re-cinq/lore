@@ -20,6 +20,24 @@ export type PgPool = {
   ): Promise<{ rows: T[] }>;
 };
 
+/** A checked-out client for a multi-statement transaction. */
+export type MemoryTxClient = {
+  query: PgPool["query"];
+  release: () => void;
+};
+
+/**
+ * connect() is feature-detected rather than declared on the PgPool port:
+ * pg's PoolClient carries an incompatible inherited connect(), so widening
+ * the port would break every client-as-pool call site. A pool without
+ * connect() (file doubles, clients) keeps the plain sequential write path.
+ */
+export function hasConnect(
+  p: PgPool,
+): p is PgPool & { connect(): Promise<MemoryTxClient> } {
+  return typeof (p as { connect?: unknown }).connect === "function";
+}
+
 /**
  * The Dgraph client port the Dgraph backend depends on. Owned by the seam
  * module so the contract lives with the interface, not the implementation —

@@ -475,3 +475,252 @@ describe("writeMemory transactional write", () => {
     expect(poolQuery).not.toHaveBeenCalled();
   });
 });
+
+// Imported here, not up top: 34 anchors across 6 spec files (2-agent-memory
+// + 5 mcp-tools/* specs) point at it() lines above; hoisting shifts them all.
+import { sharedWrite } from "./memory.js";
+
+describe("sharedWrite transactional write", () => {
+  function sharedTxPool(versionInsertError?: Error) {
+    const clientCalls: { sql: string; params: unknown[] }[] = [];
+    const poolCalls: { sql: string; params: unknown[] }[] = [];
+
+    function clientRows(sql: string): unknown[] {
+      if (/INSERT INTO memory\.shared_pools/.test(sql)) {
+        return [{ id: "pool-1" }];
+      }
+
+      if (/INSERT INTO memory\.memories/.test(sql)) {
+        return [{ id: "mem-shared-1", created_at: "2026-08-17" }];
+      }
+
+      return [];
+    }
+
+    const client = {
+      async query<T = Record<string, unknown>>(
+        sql: string,
+        params: unknown[] = [],
+      ): Promise<{ rows: T[] }> {
+        clientCalls.push({ sql, params });
+
+        if (
+          versionInsertError &&
+          /INSERT INTO memory\.memory_versions/.test(sql)
+        ) {
+          throw versionInsertError;
+        }
+
+        return { rows: clientRows(sql) as T[] };
+      },
+      release: vi.fn(),
+    };
+    const pool = {
+      async query<T = Record<string, unknown>>(
+        sql: string,
+        params: unknown[] = [],
+      ): Promise<{ rows: T[] }> {
+        poolCalls.push({ sql, params });
+
+        return { rows: [] };
+      },
+      connect: vi.fn(async () => client),
+      clientCalls,
+      poolCalls,
+      client,
+    };
+
+    return pool;
+  }
+
+  it("commits the pool create, memories insert, and version insert in one transaction", async () => {
+    const pool = sharedTxPool();
+
+    setMemoryPool(pool);
+
+    const result = await sharedWrite(
+      "team-pool",
+      "shared-key",
+      "shared-value",
+      "agent-sh",
+    );
+
+    expect(result).toEqual({
+      key: "shared-key",
+      version: 1,
+      agent_id: "agent-sh",
+      created_at: "2026-08-17",
+    });
+
+    const sqls = pool.clientCalls.map((c) => c.sql);
+
+    expect(sqls[0]).toBe("BEGIN");
+    expect(sqls.at(-1)).toBe("COMMIT");
+    expect(
+      sqls.some((s) => /SELECT id FROM memory\.shared_pools/.test(s)),
+    ).toBe(true);
+    expect(sqls.some((s) => /INSERT INTO memory\.shared_pools/.test(s))).toBe(
+      true,
+    );
+    expect(sqls.some((s) => /INSERT INTO memory\.memories/.test(s))).toBe(true);
+    expect(
+      sqls.some((s) => /INSERT INTO memory\.memory_versions/.test(s)),
+    ).toBe(true);
+    expect(pool.poolCalls.map((c) => c.sql)).toEqual([
+      expect.stringMatching(/memory\.audit_log/),
+    ]);
+    expect(pool.client.release).toHaveBeenCalled();
+  });
+
+  it("rolls back the pool create and memories insert when the version insert fails", async () => {
+    const pool = sharedTxPool(
+      new Error('relation "memory.memory_versions" does not exist'),
+    );
+
+    setMemoryPool(pool);
+
+    await expect(
+      sharedWrite("team-pool", "shared-key", "shared-value", "agent-sh"),
+    ).rejects.toThrow('relation "memory.memory_versions" does not exist');
+
+    const sqls = pool.clientCalls.map((c) => c.sql);
+
+    expect(sqls).toContain("ROLLBACK");
+    expect(sqls).not.toContain("COMMIT");
+    expect(pool.poolCalls).toEqual([]);
+    expect(pool.client.release).toHaveBeenCalled();
+  });
+
+  it("writes sequentially through the bare pool when it has no connect()", async () => {
+    const pool = scriptedPool([
+      {
+        match: /SELECT id FROM memory\.shared_pools/,
+        rows: [{ id: "pool-1" }],
+      },
+      {
+        match: /INSERT INTO memory\.memories/,
+        rows: [{ id: "mem-shared-1", created_at: "2026-08-17" }],
+      },
+    ]);
+
+    setMemoryPool(pool);
+
+    const result = await sharedWrite(
+      "team-pool",
+      "shared-key",
+      "shared-value",
+      "agent-sh",
+    );
+
+    expect(result).toEqual({
+      key: "shared-key",
+      version: 1,
+      agent_id: "agent-sh",
+      created_at: "2026-08-17",
+    });
+    expect(
+      pool.calls.some((c) => /INSERT INTO memory\.memory_versions/.test(c.sql)),
+    ).toBe(true);
+    expect(pool.calls.some((c) => c.sql === "BEGIN")).toBe(false);
+  });
+});
+
+describe("writeMemory ttl parameterization", () => {
+  it("binds ttl 3600 as a make_interval parameter on a fresh insert", async () => {
+    const pool = scriptedPool([
+      { match: /SELECT id, version FROM memory\.memories/, rows: [] },
+      {
+        match: /INSERT INTO memory\.memories/,
+        rows: [{ id: "mem-ttl-1", created_at: "2026-08-17" }],
+      },
+      {
+        match: /SELECT created_at FROM memory\.memories/,
+        rows: [{ created_at: "2026-08-17" }],
+      },
+    ]);
+
+    setMemoryPool(pool);
+
+    await writeMemory("ttl-key", "ttl-value", "agent-ttl", 3600);
+
+    const insert = pool.calls.find((c) =>
+      /INSERT INTO memory\.memories/.test(c.sql),
+    );
+
+    expect(insert?.sql).toMatch(/make_interval\(secs => \$\d+\)/);
+    expect(insert?.sql).not.toMatch(/3600/);
+    expect(insert?.params).toEqual([
+      "agent-ttl",
+      "ttl-key",
+      "ttl-value",
+      null,
+      3600,
+      3600,
+      null,
+    ]);
+  });
+
+  it("binds ttl 3600 as a make_interval parameter on a version bump", async () => {
+    const pool = scriptedPool([
+      {
+        match: /SELECT id, version FROM memory\.memories/,
+        rows: [{ id: "mem-ttl-1", version: 1 }],
+      },
+      {
+        match: /SELECT created_at FROM memory\.memories/,
+        rows: [{ created_at: "2026-08-17" }],
+      },
+    ]);
+
+    setMemoryPool(pool);
+
+    await writeMemory("ttl-key", "ttl-value", "agent-ttl", 3600);
+
+    const update = pool.calls.find((c) =>
+      /UPDATE memory\.memories/.test(c.sql),
+    );
+
+    expect(update?.sql).toMatch(/make_interval\(secs => \$\d+\)/);
+    expect(update?.sql).not.toMatch(/3600/);
+    expect(update?.params).toEqual([
+      "ttl-value",
+      2,
+      null,
+      3600,
+      3600,
+      "mem-ttl-1",
+    ]);
+  });
+
+  it("binds null so expires_at stays NULL when no ttl is given", async () => {
+    const pool = scriptedPool([
+      { match: /SELECT id, version FROM memory\.memories/, rows: [] },
+      {
+        match: /INSERT INTO memory\.memories/,
+        rows: [{ id: "mem-ttl-2", created_at: "2026-08-17" }],
+      },
+      {
+        match: /SELECT created_at FROM memory\.memories/,
+        rows: [{ created_at: "2026-08-17" }],
+      },
+    ]);
+
+    setMemoryPool(pool);
+
+    await writeMemory("ttl-key", "ttl-value", "agent-ttl");
+
+    const insert = pool.calls.find((c) =>
+      /INSERT INTO memory\.memories/.test(c.sql),
+    );
+
+    expect(insert?.params).toEqual([
+      "agent-ttl",
+      "ttl-key",
+      "ttl-value",
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
+});

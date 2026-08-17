@@ -5,6 +5,7 @@
  * as a sibling implementation without touching callers.
  */
 
+import { hasConnect } from "./memory-store.js";
 import type {
   MemoryRecord,
   MemoryStore,
@@ -12,89 +13,116 @@ import type {
   WriteResult,
 } from "./memory-store.js";
 
+interface UpsertInput {
+  key: string;
+  value: string;
+  agentId: string;
+  ttl?: number;
+  embedding?: number[];
+  repo?: string;
+}
+
+async function upsertMemoryWithVersion(
+  db: Pick<PgPool, "query">,
+  input: UpsertInput,
+): Promise<{ memoryId: string; version: number }> {
+  const embedding = input.embedding ? `[${input.embedding.join(",")}]` : null;
+  const ttlSeconds = input.ttl || null;
+
+  // Check if key already exists for this repo (or agent if no repo)
+  const lookupField = input.repo ? "repo" : "agent_id";
+  const lookupValue = input.repo || input.agentId;
+  const existing = await db.query<{ version: number; id: string }>(
+    `SELECT id, version FROM memory.memories
+     WHERE ${lookupField} = $1 AND key = $2 AND is_deleted = FALSE
+     ORDER BY version DESC LIMIT 1`,
+    [lookupValue, input.key],
+  );
+
+  let version: number;
+  let memoryId: string;
+
+  if (existing.rows.length > 0) {
+    // Update: increment version
+    version = existing.rows[0].version + 1;
+    memoryId = existing.rows[0].id;
+
+    await db.query(
+      `UPDATE memory.memories
+       SET value = $1, version = $2, embedding = $3,
+           ttl_seconds = $4, expires_at = now() + make_interval(secs => $5),
+           created_at = now()
+       WHERE id = $6`,
+      [input.value, version, embedding, ttlSeconds, ttlSeconds, memoryId],
+    );
+  } else {
+    // New memory
+    version = 1;
+    const result = await db.query<{ id: string }>(
+      `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
+       VALUES ($1, $2, $3, $4, 1, $5, now() + make_interval(secs => $6), $7)
+       RETURNING id, created_at`,
+      [
+        input.agentId,
+        input.key,
+        input.value,
+        embedding,
+        ttlSeconds,
+        ttlSeconds,
+        input.repo || null,
+      ],
+    );
+
+    memoryId = result.rows[0].id;
+  }
+
+  // Always insert a version record
+  await db.query(
+    `INSERT INTO memory.memory_versions (memory_id, version, value, embedding)
+     VALUES ($1, $2, $3, $4)`,
+    [memoryId, version, input.value, embedding],
+  );
+
+  return { memoryId, version };
+}
+
 export class PostgresMemoryStore implements MemoryStore {
   readonly backend = "postgres" as const;
 
   constructor(private readonly pool: PgPool) {}
 
-  async writeMemory(input: {
-    key: string;
-    value: string;
-    agentId: string;
-    ttl?: number;
-    embedding?: number[];
-    repo?: string;
-  }): Promise<WriteResult> {
+  async writeMemory(input: UpsertInput): Promise<WriteResult> {
     const agent = input.agentId;
-    const expiresAt = input.ttl
-      ? `now() + interval '${input.ttl} seconds'`
-      : null;
 
-    // Check if key already exists for this repo (or agent if no repo)
-    const lookupField = input.repo ? "repo" : "agent_id";
-    const lookupValue = input.repo || agent;
-    const existing = await this.pool.query<{ version: number; id: string }>(
-      `SELECT id, version FROM memory.memories
-       WHERE ${lookupField} = $1 AND key = $2 AND is_deleted = FALSE
-       ORDER BY version DESC LIMIT 1`,
-      [lookupValue, input.key],
-    );
-
-    let version: number;
+    // The memories row and its version row must land together (#1154): with a
+    // connect()-capable pool the upsert runs in one transaction; a query-only
+    // pool keeps the plain sequential path.
+    const client = hasConnect(this.pool) ? await this.pool.connect() : null;
     let memoryId: string;
+    let version: number;
 
-    if (existing.rows.length > 0) {
-      // Update: increment version
-      version = existing.rows[0].version + 1;
-      memoryId = existing.rows[0].id;
+    try {
+      if (client) {
+        await client.query("BEGIN");
+      }
 
-      await this.pool.query(
-        `UPDATE memory.memories
-         SET value = $1, version = $2, embedding = $3,
-             ttl_seconds = $4, expires_at = ${expiresAt ? expiresAt : "NULL"},
-             created_at = now()
-         WHERE id = $5`,
-        [
-          input.value,
-          version,
-          input.embedding ? `[${input.embedding.join(",")}]` : null,
-          input.ttl || null,
-          memoryId,
-        ],
-      );
-    } else {
-      // New memory
-      version = 1;
-      const result = await this.pool.query<{ id: string }>(
-        `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
-         VALUES ($1, $2, $3, $4, 1, $5, ${expiresAt ? expiresAt : "NULL"}, $6)
-         RETURNING id, created_at`,
-        [
-          agent,
-          input.key,
-          input.value,
-          input.embedding ? `[${input.embedding.join(",")}]` : null,
-          input.ttl || null,
-          input.repo || null,
-        ],
-      );
+      ({ memoryId, version } = await upsertMemoryWithVersion(
+        client ?? this.pool,
+        input,
+      ));
 
-      memoryId = result.rows[0].id;
+      if (client) {
+        await client.query("COMMIT");
+      }
+    } catch (err) {
+      // Best-effort: the connection may already be dead, and that failure must
+      // not mask the original error.
+      await client?.query("ROLLBACK").catch(() => undefined);
+      throw err;
+    } finally {
+      client?.release();
     }
 
-    // Always insert a version record
-    await this.pool.query(
-      `INSERT INTO memory.memory_versions (memory_id, version, value, embedding)
-       VALUES ($1, $2, $3, $4)`,
-      [
-        memoryId,
-        version,
-        input.value,
-        input.embedding ? `[${input.embedding.join(",")}]` : null,
-      ],
-    );
-
-    // Audit log
     await this.auditLog(agent, "write", input.key);
 
     const row = await this.pool.query(

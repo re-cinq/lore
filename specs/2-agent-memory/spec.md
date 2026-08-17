@@ -84,6 +84,21 @@ available to agents — the authoritative interface.
   failed version insert rolls the memories insert back instead of leaving a
   version-less memory behind (#1154). ([validated by `memory.test.ts:388`](libs/server-core/src/features/memory/memory.test.ts#L388), [`memory.test.ts:413`](libs/server-core/src/features/memory/memory.test.ts#L413), [`memory.test.ts:432`](libs/server-core/src/features/memory/memory.test.ts#L432))
 
+- `sharedWrite` (pool-scoped writes) carries the same atomicity contract: the
+  shared-pool lookup/create, the memories insert, and the version insert all
+  run on one client between `BEGIN` and `COMMIT` when the pool provides
+  `connect()`, a failed version insert rolls the whole write back, and a
+  query-only pool keeps the sequential path (#1158). ([validated by `memory.test.ts:536`](libs/server-core/src/features/memory/memory.test.ts#L536), [`memory.test.ts:575`](libs/server-core/src/features/memory/memory.test.ts#L575), [`memory.test.ts:594`](libs/server-core/src/features/memory/memory.test.ts#L594))
+
+- `PostgresMemoryStore.writeMemory` (the `MemoryStore` seam's Postgres backend)
+  applies the same transaction around its memories write and version insert,
+  for both the fresh-insert and version-bump branches, falling back to
+  sequential writes on a query-only pool (#1158). ([validated by `postgres-memory-store.test.ts:290`](libs/shared/src/postgres-memory-store.test.ts#L290), [`postgres-memory-store.test.ts:318`](libs/shared/src/postgres-memory-store.test.ts#L318), [`postgres-memory-store.test.ts:342`](libs/shared/src/postgres-memory-store.test.ts#L342), [`postgres-memory-store.test.ts:368`](libs/shared/src/postgres-memory-store.test.ts#L368))
+
+- Memory writers bind `ttl` as a `make_interval(secs => $n)` query parameter
+  instead of interpolating it into the SQL text, binding NULL when no ttl is
+  given (#1158). ([validated by `memory.test.ts:629`](libs/server-core/src/features/memory/memory.test.ts#L629), [`memory.test.ts:663`](libs/server-core/src/features/memory/memory.test.ts#L663), [`memory.test.ts:695`](libs/server-core/src/features/memory/memory.test.ts#L695), [`postgres-memory-store.test.ts:402`](libs/shared/src/postgres-memory-store.test.ts#L402), [`postgres-memory-store.test.ts:440`](libs/shared/src/postgres-memory-store.test.ts#L440), [`postgres-memory-store.test.ts:476`](libs/shared/src/postgres-memory-store.test.ts#L476))
+
 - **`lore_read_memory(key, agent_id?, version?)`** — returns the latest
   version by default. Pass `version="all"` for full version history. ([validated by `memory.test.ts:110`](libs/server-core/src/features/memory/memory.test.ts#L110), [`memory.test.ts:137`](libs/server-core/src/features/memory/memory.test.ts#L137))
 

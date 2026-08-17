@@ -1,4 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { hasConnect } from "@re-cinq/lore-shared";
 import type { PgPool } from "@re-cinq/lore-shared";
 /**
  * PostgreSQL-backed memory CRUD module.
@@ -50,17 +51,6 @@ export interface WriteResult {
 
 // ── Write ────────────────────────────────────────────────────────────
 
-type MemoryTxClient = {
-  query: PgPool["query"];
-  release: () => void;
-};
-
-function hasConnect(
-  p: PgPool,
-): p is PgPool & { connect(): Promise<MemoryTxClient> } {
-  return typeof (p as { connect?: unknown }).connect === "function";
-}
-
 interface UpsertArgs {
   key: string;
   value: string;
@@ -74,7 +64,8 @@ async function upsertMemoryWithVersion(
   db: Pick<PgPool, "query">,
   { key, value, agent, ttl, embedding, repo }: UpsertArgs,
 ): Promise<{ memoryId: string; version: number }> {
-  const expiresAt = ttl ? `now() + interval '${ttl} seconds'` : null;
+  const embeddingParam = embedding ? `[${embedding.join(",")}]` : null;
+  const ttlSeconds = ttl || null;
 
   // Check if key already exists for this repo (or agent if no repo)
   const lookupField = repo ? "repo" : "agent_id";
@@ -97,32 +88,19 @@ async function upsertMemoryWithVersion(
     await db.query(
       `UPDATE memory.memories
        SET value = $1, version = $2, embedding = $3,
-           ttl_seconds = $4, expires_at = ${expiresAt ? expiresAt : "NULL"},
+           ttl_seconds = $4, expires_at = now() + make_interval(secs => $5),
            created_at = now()
-       WHERE id = $5`,
-      [
-        value,
-        version,
-        embedding ? `[${embedding.join(",")}]` : null,
-        ttl || null,
-        memoryId,
-      ],
+       WHERE id = $6`,
+      [value, version, embeddingParam, ttlSeconds, ttlSeconds, memoryId],
     );
   } else {
     // New memory
     version = 1;
     const result = await db.query(
       `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
-       VALUES ($1, $2, $3, $4, 1, $5, ${expiresAt ? expiresAt : "NULL"}, $6)
+       VALUES ($1, $2, $3, $4, 1, $5, now() + make_interval(secs => $6), $7)
        RETURNING id, created_at`,
-      [
-        agent,
-        key,
-        value,
-        embedding ? `[${embedding.join(",")}]` : null,
-        ttl || null,
-        repo || null,
-      ],
+      [agent, key, value, embeddingParam, ttlSeconds, ttlSeconds, repo || null],
     );
 
     memoryId = result.rows[0].id as string;
@@ -132,7 +110,7 @@ async function upsertMemoryWithVersion(
   await db.query(
     `INSERT INTO memory.memory_versions (memory_id, version, value, embedding)
      VALUES ($1, $2, $3, $4)`,
-    [memoryId, version, value, embedding ? `[${embedding.join(",")}]` : null],
+    [memoryId, version, value, embeddingParam],
   );
 
   return { memoryId, version };
@@ -150,11 +128,9 @@ export async function writeMemory(
 
   // The memories row and its version row must land together: prod ran for
   // months with memory.memory_versions missing, and the sequential writes
-  // left version-less memories behind on every call (#1154). connect() is
-  // feature-detected locally rather than declared on the PgPool port: pg's
-  // PoolClient carries an incompatible inherited connect(), so widening the
-  // port breaks every client-as-pool call site. A pool double without
-  // connect() keeps the plain sequential path.
+  // left version-less memories behind on every call (#1154). hasConnect
+  // (see @re-cinq/lore-shared memory-store.ts) feature-detects connect();
+  // a pool without it keeps the plain sequential path.
   const db = pool!;
   const client = hasConnect(db) ? await db.connect() : null;
   let memoryId: string;
@@ -333,36 +309,65 @@ export async function sharedWrite(
   embedding?: number[],
 ): Promise<WriteResult> {
   const agent = resolveAgentId(agentId);
-  // Get or create pool
-  let poolResult = await pool!.query(
-    `SELECT id FROM memory.shared_pools WHERE name = $1`,
-    [poolName],
-  );
+  const embeddingParam = embedding ? `[${embedding.join(",")}]` : null;
 
-  if (poolResult.rows.length === 0) {
-    poolResult = await pool!.query(
-      `INSERT INTO memory.shared_pools (name, created_by) VALUES ($1, $2) RETURNING id`,
-      [poolName, agent],
+  // Same atomicity contract as writeMemory (#1154): the pool lookup/create,
+  // the memories insert, and the version insert land in one transaction when
+  // the pool provides connect(); a query-only pool stays sequential.
+  const db = pool!;
+  const client = hasConnect(db) ? await db.connect() : null;
+  const tx = client ?? db;
+  let createdAt: string;
+
+  try {
+    if (client) {
+      await client.query("BEGIN");
+    }
+
+    // Get or create pool
+    let poolResult = await tx.query(
+      `SELECT id FROM memory.shared_pools WHERE name = $1`,
+      [poolName],
     );
-  }
-  const poolId = poolResult.rows[0].id;
-  // Write memory with pool_id
-  const result = await pool!.query(
-    `INSERT INTO memory.memories (agent_id, key, value, embedding, version, pool_id) VALUES ($1, $2, $3, $4, 1, $5) RETURNING id, created_at`,
-    [agent, key, value, embedding ? `[${embedding.join(",")}]` : null, poolId],
-  );
 
-  await pool!.query(
-    `INSERT INTO memory.memory_versions (memory_id, version, value, embedding) VALUES ($1, 1, $2, $3)`,
-    [result.rows[0].id, value, embedding ? `[${embedding.join(",")}]` : null],
-  );
+    if (poolResult.rows.length === 0) {
+      poolResult = await tx.query(
+        `INSERT INTO memory.shared_pools (name, created_by) VALUES ($1, $2) RETURNING id`,
+        [poolName, agent],
+      );
+    }
+    const poolId = poolResult.rows[0].id;
+    // Write memory with pool_id
+    const result = await tx.query(
+      `INSERT INTO memory.memories (agent_id, key, value, embedding, version, pool_id) VALUES ($1, $2, $3, $4, 1, $5) RETURNING id, created_at`,
+      [agent, key, value, embeddingParam, poolId],
+    );
+
+    await tx.query(
+      `INSERT INTO memory.memory_versions (memory_id, version, value, embedding) VALUES ($1, 1, $2, $3)`,
+      [result.rows[0].id, value, embeddingParam],
+    );
+    createdAt = result.rows[0].created_at as string;
+
+    if (client) {
+      await client.query("COMMIT");
+    }
+  } catch (err) {
+    // Best-effort: the connection may already be dead, and that failure must
+    // not mask the original error.
+    await client?.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client?.release();
+  }
+
   await auditLog(agent, "shared_write", key, { pool: poolName });
 
   return {
     key,
     version: 1,
     agent_id: agent,
-    created_at: result.rows[0].created_at as string,
+    created_at: createdAt,
   };
 }
 
