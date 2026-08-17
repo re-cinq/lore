@@ -206,7 +206,7 @@ export default function TaskRefreshProvider({
 
   // "offline" from the hook means it gave up for good; flipping
   // streamUnavailable hands the page to the coordinated poll — the same
-  // degradation the assembly-lines panel uses.
+  // degradation the assembly-runs panel uses.
   const onConnectionChange = useCallback((next: ConnectionState) => {
     setConnection(next);
 

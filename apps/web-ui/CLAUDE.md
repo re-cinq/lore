@@ -7,7 +7,7 @@ Next.js 15 App Router frontend for the Lore platform.
 ```
 src/app/
   repos/[owner]/[repo]/   — repo-centric view (overview, tasks, specs, context, settings)
-  assembly-lines/         — run-keyed list (pipeline.assembly_lines) + [id] resolver:
+  assembly-runs/          — run-keyed list (pipeline.assembly_runs) + [id] resolver:
                             a run id renders run detail (header + node timeline),
                             a task id redirects to /tasks/[id]
   tasks/[id]/             — task detail (facts, Timeline, TaskLogs, PR status,

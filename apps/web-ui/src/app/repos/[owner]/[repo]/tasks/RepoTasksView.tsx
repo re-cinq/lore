@@ -11,7 +11,7 @@ export interface RepoTasksViewProps {
 }
 
 /**
- * Per-repo assembly-lines tab, scoped to one repo. Pure render: the container
+ * Per-repo assembly-runs tab, scoped to one repo. Pure render: the container
  * (`page.tsx`) fetches the per-attempt runs and this component renders them
  * through the shared <AssemblyLineRunsTable>.
  */

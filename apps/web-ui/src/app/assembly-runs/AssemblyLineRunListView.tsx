@@ -14,7 +14,7 @@ export interface AssemblyLineRunListViewProps {
 const FILTERS = ["queued", "running", "finished", "failed"] as const;
 
 /**
- * Global assembly-lines list, keyed on the per-attempt run records. Pure render:
+ * Global assembly-runs list, keyed on the per-attempt run records. Pure render:
  * the container (`page.tsx`) fetches the runs (already status-filtered) and
  * passes them down; the table is the shared <AssemblyLineRunsTable>.
  */
@@ -38,7 +38,7 @@ export default function AssemblyLineRunListView({
         {FILTERS.map((s) => (
           <a
             key={s}
-            href={`/assembly-lines?status=${s}`}
+            href={`/assembly-runs?status=${s}`}
             className={activeStatus === s ? "active" : ""}
           >
             {runStatusVisual(s, null).label}

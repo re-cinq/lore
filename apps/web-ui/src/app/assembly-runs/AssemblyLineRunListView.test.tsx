@@ -31,11 +31,11 @@ describe("AssemblyLineRunListView", () => {
     expect(all).toHaveClass("active");
     expect(screen.getByRole("link", { name: "Running" })).toHaveAttribute(
       "href",
-      "/assembly-lines?status=running",
+      "/assembly-runs?status=running",
     );
     expect(screen.getByRole("link", { name: "Finished" })).toHaveAttribute(
       "href",
-      "/assembly-lines?status=finished",
+      "/assembly-runs?status=finished",
     );
   });
 

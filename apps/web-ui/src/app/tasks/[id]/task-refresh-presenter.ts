@@ -1,6 +1,6 @@
 // Every decision the task page's coordinated refresh makes, as pure functions.
 // TaskRefreshProvider is the IO shell around this file — the same split as
-// run-stream-presenter on the assembly-lines page, whose stream vocabulary
+// run-stream-presenter on the assembly-runs page, whose stream vocabulary
 // (ConnectionState, isTerminalRunStatus) is reused rather than redefined.
 
 import {

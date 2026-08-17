@@ -16,7 +16,7 @@ describe("isNavActive", () => {
   });
 
   it("does not match a sibling that shares a prefix without a slash boundary", () => {
-    expect(isNavActive("/assembly-liness", "/assembly-runs", "/")).toBe(false);
+    expect(isNavActive("/assembly-runss", "/assembly-runs", "/")).toBe(false);
   });
 
   it("treats a repo base as the exact-only root for its tab group", () => {

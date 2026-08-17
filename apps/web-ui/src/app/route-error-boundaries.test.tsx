@@ -10,7 +10,7 @@ const boundaries: Array<
   [string, React.ComponentType<{ error: Error; reset: () => void }>]
 > = [
   ["app", AppError],
-  ["assembly-lines", AssemblyLinesError],
+  ["assembly-runs", AssemblyLinesError],
   ["repo", RepoError],
 ];
 
