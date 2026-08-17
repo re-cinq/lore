@@ -18,6 +18,7 @@ import {
 } from "./assembly-line-runs";
 import { definitionForRun } from "./run-graph-definition";
 import type { RunTokens } from "./run-tokens";
+import { graphIsCacheable } from "./run-graph-cache";
 
 /** Exactly the props RunVisualizationPanel needs, serialized over the poll route. */
 export interface FeatureRunPayload {
@@ -32,6 +33,12 @@ export interface FeatureRunPayload {
   nodes: AssemblyLineRunNode[];
   /** What the run has spent so far, or null when it has reported nothing yet. */
   tokens: RunTokens | null;
+  /**
+   * Set when `definition` was OMITTED because the client said it already holds
+   * this run's graph — not because the run has none. The two are different
+   * answers and a client that conflated them would blank the graph every tick.
+   */
+  definitionUnchanged?: boolean;
 }
 
 /** Shape a run + its visit rows into the poll payload, resolving the graph to draw.
@@ -93,6 +100,10 @@ export function runTaskIdFor(input: {
  *  when run visualization is unavailable. */
 export async function fetchFeatureRunById(
   assemblyLineId: string | null | undefined,
+  /** The run whose graph the caller already holds, if any — see
+   *  {@link graphIsCacheable}. Naming the RUN (not just "yes") is what keeps a
+   *  retry's new clone from being mistaken for the one already on screen. */
+  haveGraphForRun?: string | null,
 ): Promise<FeatureRunPayload | null> {
   if (!assemblyLineId) {
     return null;
@@ -105,11 +116,17 @@ export async function fetchFeatureRunById(
       return null;
     }
 
-    return toFeatureRunPayload(
+    const payload = toFeatureRunPayload(
       run,
       await fetchAssemblyLineRunNodes(run.id),
       await fetchRunTokens(run.id),
     );
+
+    // Omit the graph the caller already has. Only for THIS run, and never for a
+    // synthetic graph, which changes as visit rows land.
+    return haveGraphForRun === run.id && graphIsCacheable(payload)
+      ? { ...payload, definition: null, definitionUnchanged: true }
+      : payload;
   } catch {
     return null;
   }

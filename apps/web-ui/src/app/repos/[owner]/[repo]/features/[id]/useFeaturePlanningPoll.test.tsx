@@ -32,6 +32,106 @@ function stubFetch(...bodies: FeaturePollPayload[]) {
   return fetchStub;
 }
 
+describe("useFeaturePlanningPoll graph caching", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  const withRun = (over: Record<string, unknown> = {}) =>
+    ({
+      ...seed,
+      run: {
+        id: "run-1",
+        status: "running",
+        startedAt: null,
+        repo: "re-cinq/lore",
+        reason: null,
+        definition: { name: "feature-planning", nodes: [], edges: [] },
+        synthetic: false,
+        nodes: [],
+        tokens: null,
+        ...over,
+      },
+    }) as unknown as FeaturePollPayload;
+
+  it("names the run whose graph it holds, so the server can stop re-sending it", async () => {
+    const fetchStub = stubFetch(withRun());
+    const { result } = renderHook(() =>
+      useFeaturePlanningPoll({
+        owner: "re-cinq",
+        repo: "lore",
+        featureId: "f1",
+        initial: seed,
+      }),
+    );
+
+    // First tick has nothing cached, so it asks for everything.
+    await waitFor(() => expect(result.current.data.run).not.toBeNull());
+    expect(String(fetchStub.mock.calls[0][0])).not.toContain("graph=");
+
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    expect(String(fetchStub.mock.calls[1][0])).toContain("graph=run-1");
+  });
+
+  it("keeps the graph it holds when the server omits it", async () => {
+    const fetchStub = stubFetch(
+      withRun(),
+      withRun({
+        definition: null,
+        definitionUnchanged: true,
+        nodes: [{ nodeId: "analyze" }],
+      }),
+    );
+    const { result } = renderHook(() =>
+      useFeaturePlanningPoll({
+        owner: "re-cinq",
+        repo: "lore",
+        featureId: "f1",
+        initial: seed,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.data.run).not.toBeNull());
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    // The omitted graph is restored, and the fields that DO change came through.
+    expect(result.current.data.run?.definition).toMatchObject({
+      name: "feature-planning",
+    });
+    expect(result.current.data.run?.nodes).toHaveLength(1);
+    expect(fetchStub).toHaveBeenCalledTimes(2);
+  });
+
+  it("does NOT ask the server to omit a synthetic graph, which grows as rows land", async () => {
+    const fetchStub = stubFetch(withRun({ synthetic: true }));
+    const { result } = renderHook(() =>
+      useFeaturePlanningPoll({
+        owner: "re-cinq",
+        repo: "lore",
+        featureId: "f1",
+        initial: seed,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.data.run).not.toBeNull());
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    expect(String(fetchStub.mock.calls[1][0])).not.toContain("graph=");
+  });
+});
+
 describe("useFeaturePlanningPoll", () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });

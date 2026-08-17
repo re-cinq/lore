@@ -50,6 +50,9 @@ function liveStationLog(taskId: string): string | null {
 export async function loadFeaturePoll(
   fullName: string,
   id: string,
+  /** The run whose graph the polling client already holds. Sent by the wizard so
+   *  the immutable clone is not re-shipped every four seconds. */
+  haveGraphForRun?: string | null,
 ): Promise<FeaturePollPayload | null> {
   // One call for the row, its latest round, and the most recent round that
   // produced a result — lore-api built this endpoint for exactly this 4s poll,
@@ -96,6 +99,9 @@ export async function loadFeaturePoll(
     // The endpoint already resolved which line the graph hangs on: from round 2
     // a resumed round mints no task, so only the OWNING task can resolve it and
     // the server is the one that knows which that was.
-    run: await fetchFeatureRunById(status.data.assembly_line_id),
+    run: await fetchFeatureRunById(
+      status.data.assembly_line_id,
+      haveGraphForRun,
+    ),
   };
 }
