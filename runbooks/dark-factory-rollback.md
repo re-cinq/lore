@@ -18,7 +18,7 @@ cluster gate. What exists instead:
   resource** (`agents.re-cinq.com/v1alpha1`) in the **`ai-agents`**
   namespace, executed by the ai-agent-subsystem controller.
 - The walk is **event-driven on the Floor**: state lives in
-  `pipeline.assembly_lines` + `pipeline.assembly_line_nodes`; terminal
+  `pipeline.assembly_runs` + `pipeline.station_runs`; terminal
   CR phases emit `kubernetes.agent_node.*` events, handled by
   `apps/floor/src/jobs/assembly-line/node-event-handler.ts` and driven
   through `advance.ts`; a
@@ -35,20 +35,22 @@ cluster gate. What exists instead:
 Before disabling, snapshot the current state for forensics:
 
 ```bash
-# Open assembly lines and their in-flight nodes
+# Open assembly runs and their in-flight station runs
 psql "$LORE_DB_URL" -c "
-  SELECT al.id, al.definition_name, al.repo, al.branch, al.status,
-         n.node_id, n.iteration, n.agent_cr_name, n.started_at
-    FROM pipeline.assembly_lines al
-    LEFT JOIN pipeline.assembly_line_nodes n
-      ON n.assembly_line_id = al.id AND n.finished_at IS NULL
-   WHERE al.status IN ('queued', 'running')
-   ORDER BY al.created_at;
+  SELECT ar.id, ar.blueprint_name, ar.repo, ar.branch, ar.status,
+         sr.node_id, sr.iteration, sr.agent_cr_name, sr.started_at
+    FROM pipeline.assembly_runs ar
+    LEFT JOIN pipeline.station_runs sr
+      ON sr.assembly_run_id = ar.id AND sr.finished_at IS NULL
+   WHERE ar.status IN ('queued', 'running')
+   ORDER BY ar.created_at;
 "
 
-# Live Agent CRs (one per running node or single-CR task)
+# Live Agent CRs (one per running node or single-CR task). CRs created
+# before the 2026-08-17 label flip carry lore.re-cinq.com/assembly-line-id
+# instead — list both columns while any pre-flip CR can still be in flight.
 kubectl get agents.agents.re-cinq.com -n ai-agents \
-  -L lore.re-cinq.com/task-id,lore.re-cinq.com/assembly-line-id,lore.re-cinq.com/node-id
+  -L lore.re-cinq.com/task-id,lore.re-cinq.com/assembly-run-id,lore.re-cinq.com/node-id
 
 # Active branch leases (if any tasks are in flight)
 psql "$LORE_DB_URL" -c "SELECT * FROM pipeline.task_leases;"
@@ -134,38 +136,38 @@ response and the settings row.
 ### Step 2: Reconcile in-flight work
 
 ```bash
-# Open assembly lines for this repo, with their open node and CR name
+# Open assembly runs for this repo, with their open station run and CR name
 psql "$LORE_DB_URL" -c "
-  SELECT al.id, al.definition_name, al.branch, al.status,
-         n.node_id, n.agent_cr_name, n.started_at
-    FROM pipeline.assembly_lines al
-    LEFT JOIN pipeline.assembly_line_nodes n
-      ON n.assembly_line_id = al.id AND n.finished_at IS NULL
-   WHERE al.repo = '$REPO' AND al.status IN ('queued', 'running');
+  SELECT ar.id, ar.blueprint_name, ar.branch, ar.status,
+         sr.node_id, sr.agent_cr_name, sr.started_at
+    FROM pipeline.assembly_runs ar
+    LEFT JOIN pipeline.station_runs sr
+      ON sr.assembly_run_id = ar.id AND sr.finished_at IS NULL
+   WHERE ar.repo = '$REPO' AND ar.status IN ('queued', 'running');
 "
 ```
 
-Options per in-flight line:
+Options per in-flight run:
 
 | State | Action |
 |---|---|
-| Line running, node healthy | Let it complete on its original flow (FR4.4). Auto-merge is skipped after the disable; the PR waits for a human |
-| Node stuck | Do nothing — the per-minute reaper times it out at the node's `timeout_minutes` (+2 min buffer, default 60 min), records the node `failed` and fails the line with reason `node "<nodeId>" failed`. The `<kind>-timeout` wording appears only in the Floor pod log, never in `pipeline.assembly_lines.reason` — do not query for it |
-| Line must be halted NOW | Follow the halt procedure below — order matters |
+| Run running, node healthy | Let it complete on its original flow (FR4.4). Auto-merge is skipped after the disable; the PR waits for a human |
+| Node stuck | Do nothing — the per-minute reaper times it out at the node's `timeout_minutes` (+2 min buffer, default 60 min), records the node `failed` and fails the run with reason `node "<nodeId>" failed`. The `<kind>-timeout` wording appears only in the Floor pod log, never in `pipeline.assembly_runs.reason` — do not query for it |
+| Run must be halted NOW | Follow the halt procedure below — order matters |
 | PR open, awaiting auto-merge | It will not merge — the auto-merge trigger short-circuits on a disabled repo and writes no audit row. Close it manually or let a human review and merge |
 | Stale branch lease | The lease reaper (`cron.lease_reaper.tick`, every minute) deletes leases >5 min past expiry and writes a `lease_expired` audit entry. Force-release only a named row: `DELETE FROM pipeline.task_leases WHERE branch_name = $1;` |
 
-**Halting a running line.** Mark the DB row terminal FIRST, then
-delete the CR. The reaper relaunches missing CRs for open nodes every
-minute — delete the CR first and it comes back:
+**Halting a running assembly run.** Mark the DB row terminal FIRST,
+then delete the CR. The reaper relaunches missing CRs for open nodes
+every minute — delete the CR first and it comes back:
 
 ```bash
-# 1. Take the line out of the reaper's sweep (it only touches queued/running rows)
+# 1. Take the run out of the reaper's sweep (it only touches queued/running rows)
 psql "$LORE_DB_URL" -c "
-  UPDATE pipeline.assembly_lines
+  UPDATE pipeline.assembly_runs
      SET status = 'failed', outcome = 'error',
          reason = 'manual halt: <ticket>', finished_at = now()
-   WHERE id = '$ASSEMBLY_LINE_ID' AND status IN ('queued', 'running');
+   WHERE id = '$ASSEMBLY_RUN_ID' AND status IN ('queued', 'running');
 "
 
 # 2. Kill the in-flight pod
@@ -210,10 +212,10 @@ When dark mode must be disabled across every onboarded repo
 ### Step 0 (optional, worst case): stop the Floor
 
 Merge authority lives only in the Floor process. Scaling it to zero
-halts every auto-merge, every line advance, and every reaper tick
+halts every auto-merge, every run advance, and every reaper tick
 immediately; in-flight Agent pods finish but nothing consumes their
 results until scale-up. State is durable (`pipeline.events`,
-`pipeline.assembly_lines`) — the reaper reconciles everything on
+`pipeline.assembly_runs`) — the reaper reconciles everything on
 restart, so this is safe to do first and think second:
 
 ```bash
@@ -267,10 +269,10 @@ Affected repos: <count>
 
 ### Step 2: drain in-flight work
 
-With `enabled = false` everywhere, in-flight lines finish but nothing
+With `enabled = false` everywhere, in-flight runs finish but nothing
 auto-merges — and no `auto_merge_decision` rows are written at all
-(see "How to verify the flip took" above). If lines must be killed, use
-the per-line halt procedure above (DB row first, then CR). To sweep
+(see "How to verify the flip took" above). If runs must be killed, use
+the per-run halt procedure above (DB row first, then CR). To sweep
 all live pods after failing their rows:
 
 ```bash
@@ -342,11 +344,11 @@ Watch:
 
 - **Escalation Issues** labelled `needs-human-help` — should be rare
   (< 1 per 50 tasks).
-- **Failed lines and CRs** —
+- **Failed assembly runs and CRs** —
 
   ```bash
   psql "$LORE_DB_URL" -c "
-    SELECT id, definition_name, outcome, reason FROM pipeline.assembly_lines
+    SELECT id, blueprint_name, outcome, reason FROM pipeline.assembly_runs
      WHERE repo = 'org/pilot-repo' AND status = 'failed'
      ORDER BY created_at DESC LIMIT 20;
   "
