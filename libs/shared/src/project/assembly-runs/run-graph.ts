@@ -45,6 +45,9 @@ export interface RunGraphNode {
   job_ref?: string;
   /** Which prior run this node continues, and which thread it belongs to. */
   continues?: { node: string; key: string };
+  /** The run may not finish unless this node's latest visit recorded a
+   *  success-class outcome (`nextTransition` fails it `goal_gate_unmet`). */
+  goal_gate?: boolean;
   description?: string;
 }
 

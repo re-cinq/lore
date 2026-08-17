@@ -63,6 +63,7 @@ export function snapshotGraph(
         ...(node.job_ref ? { job_ref: node.job_ref } : {}),
         ...(node.route ? { route: node.route } : {}),
         ...(node.continues ? { continues: { ...node.continues } } : {}),
+        ...(node.goal_gate ? { goal_gate: true } : {}),
         ...(node.description ? { description: node.description } : {}),
       };
     }),

@@ -19,7 +19,7 @@ export const codeReviewDefinition: AssemblyLineDefinition = {
   entry: "review",
   exit: "done",
   nodes: [
-    { id: "review", type: "agent" },
+    { id: "review", type: "agent", goal_gate: true },
     { id: "done", type: "retrospective" },
   ],
   edges: [
@@ -246,7 +246,7 @@ export const implementationDefinition: AssemblyLineDefinition = {
     { id: "implement", type: "agent" },
     { id: "validate", type: "validate", validator: "all" },
     { id: "push", type: "agent" },
-    { id: "review", type: "agent" },
+    { id: "review", type: "agent", goal_gate: true },
     { id: "address", type: "agent" },
     { id: "retrospective", type: "retrospective" },
     { id: "done", type: "retrospective" },
@@ -254,7 +254,7 @@ export const implementationDefinition: AssemblyLineDefinition = {
   edges: [
     { from: "implement", to: "validate", on: "success" },
     { from: "implement", to: "implement", on: "failed", iteration_max: 1 },
-    { from: "implement", to: "retrospective", on: "changes_requested" },
+    { from: "implement", to: "validate", on: "changes_requested" },
     { from: "validate", to: "push", on: "success" },
     { from: "validate", to: "implement", on: "failed", iteration_max: 1 },
     { from: "push", to: "review", on: "always" },

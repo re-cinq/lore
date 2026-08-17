@@ -25,6 +25,7 @@ export interface RunGraphNode {
   condition_ref?: string;
   job_ref?: string;
   continues?: { node: string; key: string };
+  goal_gate?: boolean;
   description?: string;
 }
 

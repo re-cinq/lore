@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { definitionForRun } from "./run-graph-definition";
+import {
+  codeReviewDefinition,
+  implementationDefinition,
+} from "./definition-fixtures";
 import type { AssemblyLineRunNode } from "./assembly-line-runs";
 import type { RunGraph } from "./run-graph";
 

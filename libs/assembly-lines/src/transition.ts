@@ -20,10 +20,19 @@ export interface WalkEdge {
   iteration_max?: number;
 }
 
+/** The slice of a node the walk reads: gate flags only. Nodes are optional on
+ *  the graph — a clone stamped before goal gates existed carries none, and a
+ *  graph without them simply has no gates to enforce. */
+export interface WalkNode {
+  id: string;
+  goal_gate?: boolean;
+}
+
 export interface WalkGraph {
   name: string;
   entry: string;
   exit: string;
+  nodes?: readonly WalkNode[];
   edges: readonly WalkEdge[];
 }
 import type { StageOutcome } from "./node-types.js";
@@ -87,14 +96,14 @@ function satisfiesGate(outcome: StageOutcome | null): boolean {
  *  out-of-order history therefore fails before it can reach a gate verdict.
  *  Deliberately not defended with a sort here — that would mask the divergence
  *  check and let a genuinely corrupt history replay as a clean gate result. */
-function unmetGates(assemblyLine: AssemblyLine, visits: NodeVisit[]): string[] {
+function unmetGates(assemblyLine: WalkGraph, visits: NodeVisit[]): string[] {
   const latest = new Map<string, StageOutcome | null>();
 
   for (const v of visits) {
     latest.set(v.nodeId, v.outcome);
   }
 
-  return assemblyLine.nodes
+  return (assemblyLine.nodes ?? [])
     .filter((n) => n.goal_gate && !satisfiesGate(latest.get(n.id) ?? null))
     .map((n) => n.id);
 }
