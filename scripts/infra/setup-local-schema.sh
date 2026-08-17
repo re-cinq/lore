@@ -11,10 +11,47 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONTAINER="${LORE_PG_CONTAINER:-lore-postgres}"
 
+# How to reach Postgres. `docker` (default) execs inside the local dev container;
+# `tcp` connects over PG* env vars, which is what CI has — a service container on
+# localhost with no docker CLI in the job.
+#
+# The TRANSPORT is the only difference between the two environments. Everything
+# after it — role bootstrap, the setup-*.sh chain, the ownership reconcile, the
+# migration loop — is shared, deliberately: a CI database built by a second,
+# parallel script is a database whose shape nobody has checked against the one
+# production gets, and a test passing against it reports confidence it has not
+# earned.
+TRANSPORT="${LORE_SCHEMA_TRANSPORT:-docker}"
+
+# Who to bootstrap as. The dev container ships a `postgres` superuser; a CI
+# service container's superuser is whatever POSTGRES_USER it was given, so the
+# caller names it.
+SUPERUSER="${LORE_SCHEMA_SUPERUSER:-postgres}"
+
 log() { echo "[lore] $*"; }
 
-docker inspect "$CONTAINER" >/dev/null 2>&1 \
-  || { echo "[lore] ERROR: container '$CONTAINER' not found — run 'npm run db:up' first" >&2; exit 1; }
+# Run psql as $1; remaining args and stdin pass through.
+pg() {
+  local role="$1"
+  shift
+
+  # `lore` on BOTH transports, deliberately: the setup-*.sh chain connects with
+  # `-d lore` hardcoded (matching the cluster), so any other value here would
+  # build half the schema in one database and half in another. Honouring
+  # $PGDATABASE would make a developer with it set in their shell silently
+  # target the wrong database — a footgun, not flexibility.
+  if [ "$TRANSPORT" = "docker" ]; then
+    docker exec -i "$CONTAINER" psql -U "$role" -d lore "$@"
+  else
+    command psql -h "${PGHOST:-localhost}" -p "${PGPORT:-5432}" \
+      -U "$role" -d lore "$@"
+  fi
+}
+
+if [ "$TRANSPORT" = "docker" ]; then
+  docker inspect "$CONTAINER" >/dev/null 2>&1 \
+    || { echo "[lore] ERROR: container '$CONTAINER' not found — run 'npm run db:up' first" >&2; exit 1; }
+fi
 
 # On a restart over a persisted data dir, the postmaster opens its port before
 # crash recovery finishes, so a bare TCP probe passes while queries still get
@@ -23,7 +60,7 @@ docker inspect "$CONTAINER" >/dev/null 2>&1 \
 log "Waiting for Postgres to accept queries..."
 ready=0
 for _ in $(seq 1 60); do
-  if docker exec -i "$CONTAINER" psql -U postgres -d lore -tAc 'SELECT 1' >/dev/null 2>&1; then
+  if pg "$SUPERUSER" -tAc 'SELECT 1' >/dev/null 2>&1; then
     ready=1; break
   fi
   sleep 1
@@ -34,10 +71,25 @@ done
 # The GKE schemas GRANT to the 'lore' role and web-ui logs in as 'lore_ui';
 # both pre-exist in the cluster but not in a fresh container. Create them first.
 log "Ensuring roles, pgvector extension, and team chunk schemas..."
-docker exec -i "$CONTAINER" psql -U postgres -d lore -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
+pg "$SUPERUSER" -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- The `lore` schema. On GKE it pre-exists (setup-db.sh), and on a dev container
+-- that has been through this script before it survives — which is why the GRANT
+-- further down never failed locally. On a genuinely EMPTY database it does not
+-- exist yet and that GRANT is the first thing to touch it, so create it here.
+-- Found by running this script against a fresh database for the first time.
+CREATE SCHEMA IF NOT EXISTS lore;
+
 DO $$ BEGIN
+  -- The setup-*.sh scripts connect as `postgres` by name (their kubectl calls
+  -- hardcode `-U postgres`, matching the cluster). A CI service container has no
+  -- such role, so create it rather than rewrite five scripts' invocations —
+  -- making the environment match what they already expect is the smaller change,
+  -- and it keeps those scripts byte-identical between CI and the cluster.
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'postgres') THEN
+    CREATE ROLE postgres SUPERUSER LOGIN;
+  END IF;
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'lore') THEN
     CREATE ROLE lore LOGIN PASSWORD 'lore';
   END IF;
@@ -78,6 +130,19 @@ BEGIN
 END $$;
 SQL
 
+# Over tcp the shimmed `psql -U postgres` authenticates for real, and the role
+# created above has no password — so give it the one this run is using. Not needed
+# for the docker transport, where the connection is local and trusted.
+#
+# Found by CI: a connection from INSIDE the container matches a `trust` pg_hba
+# line, so the local rehearsal passed while the runner — reaching the service
+# container across the bridge — hit `scram-sha-256` and failed.
+if [ "$TRANSPORT" != "docker" ] && [ -n "${PGPASSWORD:-}" ]; then
+  log "Setting the bootstrap superuser's password for tcp auth"
+  pg "$SUPERUSER" -v ON_ERROR_STOP=1 -q \
+    -c "ALTER ROLE postgres PASSWORD \$\$${PGPASSWORD}\$\$" >/dev/null
+fi
+
 # kubectl shim: run whatever follows `--` inside the container instead of a pod.
 SHIM_DIR="$(mktemp -d)"
 trap 'rm -rf "$SHIM_DIR"' EXIT
@@ -92,7 +157,10 @@ for a in "\$@"; do
 done
 # Non-exec kubectl calls (get/wait/etc.) have no '--' — treat as no-op success.
 [ "\$seen" -eq 1 ] && [ "\${#cmd[@]}" -gt 0 ] || exit 0
-exec docker exec -i "$CONTAINER" "\${cmd[@]}"
+if [ "$TRANSPORT" = "docker" ]; then
+  exec docker exec -i "$CONTAINER" "\${cmd[@]}"
+fi
+exec "\${cmd[@]}"
 SHIM
 chmod +x "$SHIM_DIR/kubectl"
 export PATH="$SHIM_DIR:$PATH"
@@ -119,7 +187,7 @@ done
 # 0003 (ALTER pipeline.job_runs, created by setup-agent-schema.sh) would fail
 # with "must be owner". Reconcile here, idempotently, via the local socket as
 # postgres (not a network superuser) so the local chain matches the cluster.
-docker exec -i "$CONTAINER" psql -U postgres -d lore -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
+pg "$SUPERUSER" -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
 GRANT CREATE ON DATABASE lore TO lore;
 GRANT CREATE, USAGE ON SCHEMA lore, payments, platform, mobile, data, org_shared TO lore;
 -- web-ui connects as lore_ui and reads lore.* tables (e.g. lore.features,
@@ -153,7 +221,7 @@ SQL
 # role cannot apply (e.g. DDL on a schema it lacks CREATE on) fails here too,
 # instead of silently passing as superuser and only breaking on deploy.
 MIGRATIONS_DIR="$DIR/../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations"
-psql() { docker exec -i "$CONTAINER" psql -U lore -d lore "$@"; }
+psql() { pg lore "$@"; }
 log "Applying migrations from $MIGRATIONS_DIR (as role 'lore')"
 psql -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
 CREATE SCHEMA IF NOT EXISTS lore;
