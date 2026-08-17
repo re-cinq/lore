@@ -125,6 +125,19 @@ BEGIN
 END $$;
 SQL
 
+# Over tcp the shimmed `psql -U postgres` authenticates for real, and the role
+# created above has no password — so give it the one this run is using. Not needed
+# for the docker transport, where the connection is local and trusted.
+#
+# Found by CI: a connection from INSIDE the container matches a `trust` pg_hba
+# line, so the local rehearsal passed while the runner — reaching the service
+# container across the bridge — hit `scram-sha-256` and failed.
+if [ "$TRANSPORT" != "docker" ] && [ -n "${PGPASSWORD:-}" ]; then
+  log "Setting the bootstrap superuser's password for tcp auth"
+  pg "$SUPERUSER" -v ON_ERROR_STOP=1 -q \
+    -c "ALTER ROLE postgres PASSWORD \$\$${PGPASSWORD}\$\$" >/dev/null
+fi
+
 # kubectl shim: run whatever follows `--` inside the container instead of a pod.
 SHIM_DIR="$(mktemp -d)"
 trap 'rm -rf "$SHIM_DIR"' EXIT
