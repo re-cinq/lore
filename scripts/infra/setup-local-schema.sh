@@ -35,11 +35,16 @@ pg() {
   local role="$1"
   shift
 
+  # `lore` on BOTH transports, deliberately: the setup-*.sh chain connects with
+  # `-d lore` hardcoded (matching the cluster), so any other value here would
+  # build half the schema in one database and half in another. Honouring
+  # $PGDATABASE would make a developer with it set in their shell silently
+  # target the wrong database — a footgun, not flexibility.
   if [ "$TRANSPORT" = "docker" ]; then
     docker exec -i "$CONTAINER" psql -U "$role" -d lore "$@"
   else
     command psql -h "${PGHOST:-localhost}" -p "${PGPORT:-5432}" \
-      -U "$role" -d "${PGDATABASE:-lore}" "$@"
+      -U "$role" -d lore "$@"
   fi
 }
 

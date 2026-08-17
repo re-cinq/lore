@@ -74,7 +74,6 @@ jobs:
           PGPORT: 5432
           PGUSER: lore
           PGPASSWORD: test
-          PGDATABASE: lore
           LORE_SCHEMA_TRANSPORT: tcp
           LORE_SCHEMA_SUPERUSER: lore
         run: bash scripts/infra/setup-local-schema.sh
