@@ -162,14 +162,18 @@ export const RoundStartedSchema = z.object({
   iteration: z.number().int(),
   task_id: z.string().nullable().optional(),
   assembly_run_id: z.string().optional(),
-  /** @deprecated the pre-rename spelling — see `runIdBothSpellings`. */
+  /** @deprecated the pre-rename spelling. Drop once no deployed READER still
+   *  needs it — web-ui prefers `assembly_run_id` as of #1256, so the condition is
+   *  "that web-ui is the deployed one". See `runIdBothSpellings`. */
   assembly_line_id: z.string().optional(),
 });
 
 export const FinalizeStartedSchema = z.object({
   task_id: z.string().optional(),
   assembly_run_id: z.string().optional(),
-  /** @deprecated the pre-rename spelling — see `runIdBothSpellings`. */
+  /** @deprecated the pre-rename spelling. Drop once no deployed READER still
+   *  needs it — web-ui prefers `assembly_run_id` as of #1256, so the condition is
+   *  "that web-ui is the deployed one". See `runIdBothSpellings`. */
   assembly_line_id: z.string().optional(),
 });
 
@@ -178,7 +182,9 @@ export const FeaturePollSchema = z.object({
   latest_iteration: FeatureIterationSchema.nullable(),
   last_ready_iteration: FeatureIterationSchema.nullable(),
   assembly_run_id: z.string().nullable(),
-  /** @deprecated the pre-rename spelling — see `runIdBothSpellings`. */
+  /** @deprecated the pre-rename spelling. Drop once no deployed READER still
+   *  needs it — web-ui prefers `assembly_run_id` as of #1256, so the condition is
+   *  "that web-ui is the deployed one". See `runIdBothSpellings`. */
   assembly_line_id: z.string().nullable(),
 });
 

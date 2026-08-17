@@ -22,4 +22,14 @@ describe("runIdOf", () => {
       runIdOf({ assembly_run_id: null, assembly_line_id: null }),
     ).toBeNull();
   });
+
+  it("treats an empty string as naming no run", () => {
+    expect(runIdOf({ assembly_run_id: "" })).toBeNull();
+  });
+
+  it("falls through an empty new key to a populated old one", () => {
+    expect(runIdOf({ assembly_run_id: "", assembly_line_id: "run-1" })).toBe(
+      "run-1",
+    );
+  });
 });

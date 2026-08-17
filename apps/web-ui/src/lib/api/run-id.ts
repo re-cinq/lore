@@ -15,7 +15,12 @@ export interface RunIdCarrier {
  * The new key wins so that the day the deprecated one is dropped is a no-op here
  * rather than a regression. Delete the fallback once no deployed lore-api emits
  * only the old key.
+ *
+ * `||`, not `??`: an empty string is not a run id. It would satisfy `??` and then
+ * be handed to the run read as if it named something, which fails as a missing
+ * run rather than as the malformed response it is — so it falls through to the
+ * fallback and finally to null, the same as absent.
  */
 export function runIdOf(response: RunIdCarrier): string | null {
-  return response.assembly_run_id ?? response.assembly_line_id ?? null;
+  return response.assembly_run_id || response.assembly_line_id || null;
 }
