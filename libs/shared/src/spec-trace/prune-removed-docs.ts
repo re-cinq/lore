@@ -8,10 +8,21 @@
  * Scope discipline: candidates pass through the SAME selection filter that
  * produced the tree files (prefixes / manifest patterns / glob), so a
  * glob-chunked run can only prune inside its own chunk and a manifest-pattern
- * change never mass-deletes out-of-pattern docs. An empty tree selection prunes
- * nothing — a bad or partial tree read must never wipe the graph. Known
- * residual: a chunk-glob run cannot prune a fully deleted directory (chunk
- * globs are derived from the current tree); the next unchunked ingest sweeps it.
+ * change never mass-deletes out-of-pattern docs. The bad-tree-read fuse is
+ * proportional: an empty tree selection prunes nothing, and a removal set of
+ * more than 2 candidates exceeding 50% of the in-scope docs is refused —
+ * a bad or PARTIAL tree read must never wipe MOST of the graph. The live
+ * partial-read risk is the ingest station's `listClone` readdir walk, which
+ * would silently return a short listing over a partial clone (GitHub's
+ * `listTree` already throws on a truncated response, so that path cannot
+ * arrive here short). The floor bounds the exposure rather than removing it:
+ * a set of at most 2 docs always passes, so an undetected bad read costs at
+ * most 2 docs while a tiny repo deleting its only spec (or a genuine 50%
+ * cleanup) still converges. `force` bypasses the proportional fuse — never
+ * the empty-selection guard — as the operator escape hatch for a legitimate
+ * bulk deletion. Known residual: a chunk-glob run cannot prune a fully
+ * deleted directory (chunk globs are derived from the current tree); the
+ * next unchunked ingest sweeps it.
  *
  * Crash safety: each subtree delete cleans chunks, Feature, and Blocks FIRST
  * and drops the doc node + its Repo edge LAST in one atomic mutation — the
@@ -29,20 +40,55 @@ import { gcOrphanChunks } from "./gc-orphan-chunks.js";
 export type PrunableDocType = "Spec" | "ADR";
 
 /**
+ * The prune selection, or its refusal. `refused-suspicious-tree` means the
+ * candidates looked like the product of a partial tree read, not real
+ * deletions — the caller must prune nothing and report "didn't run".
+ */
+export type PruneSelection =
+  | { outcome: "ok"; candidates: string[] }
+  | {
+      outcome: "refused-suspicious-tree";
+      candidateCount: number;
+      inScopeDocCount: number;
+    };
+
+/**
  * Graph doc paths that are in scope for this run but absent from the tree
- * selection. Empty `selectedFiles` → no candidates (the bad-tree-read fuse).
+ * selection — or a refusal when the selection itself looks broken (the
+ * proportional bad-tree-read fuse). Empty `selectedFiles` → ok with no
+ * candidates, even under `force` (an empty tree is a broken read, not a
+ * deletion). Removal sets of at most 2 docs always pass (the floor: a tiny
+ * repo deleting its only spec must still converge, at the cost of exposing
+ * at most 2 docs to an undetected bad read); larger sets are refused when
+ * they exceed 50% of the currently-known in-scope docs (exactly 50% passes)
+ * — the fuse catches a partial tree read vanishing MOST of the graph, not
+ * smaller losses. `force` bypasses the proportional fuse (the operator
+ * escape hatch for a legitimate bulk deletion) but not the empty guard.
  */
 export function selectPruneCandidates(
   graphDocPaths: string[],
   selectedFiles: string[],
   isInScope: (path: string) => boolean,
-): string[] {
+  force = false,
+): PruneSelection {
   if (selectedFiles.length === 0) {
-    return [];
+    return { outcome: "ok", candidates: [] };
   }
   const selected = new Set(selectedFiles);
+  const inScopeDocs = graphDocPaths.filter(isInScope);
+  const candidates = inScopeDocs.filter((path) => !selected.has(path));
+  const suspicious =
+    candidates.length > 2 && candidates.length * 2 > inScopeDocs.length;
 
-  return graphDocPaths.filter((path) => isInScope(path) && !selected.has(path));
+  if (suspicious && !force) {
+    return {
+      outcome: "refused-suspicious-tree",
+      candidateCount: candidates.length,
+      inScopeDocCount: inScopeDocs.length,
+    };
+  }
+
+  return { outcome: "ok", candidates };
 }
 
 /**

@@ -63,7 +63,8 @@ export interface IngestGraphSummary {
   failed: number;
   failedFiles: string[];
   /** Whole-file subtrees deleted for disappeared files; absent when the prune
-   *  didn't run (no prune seam, empty selection, or an all-failed run). */
+   *  didn't run (no prune seam, empty selection, an all-failed run, a failed
+   *  doc-list read, or the suspicious-tree refusal — which `force` bypasses). */
   pruned?: number;
   status: "completed" | "skipped" | "failed";
   message: string;
@@ -359,8 +360,11 @@ export async function runIngestGraph(
  * Deletes the subtrees of graph docs whose files left the tree. Runs even when
  * every current file hash-skipped — a moved file's OLD path never re-projects,
  * so freshness gives no signal. Skips (returns undefined) without a prune seam,
- * on an empty selection (never mass-delete on a bad tree read), when every
- * attempted file failed (a systemically broken run must not delete anything),
+ * on an empty selection, on a suspicious one (more than 2 candidates covering
+ * over half the in-scope docs — never mass-delete on a bad or partial tree
+ * read; `params.force` bypasses this refusal for a legitimate bulk deletion,
+ * never the empty-selection skip), when every attempted file failed (a
+ * systemically broken run must not delete anything),
  * or when the doc-list read itself throws (a dgraph read error is "didn't run",
  * NOT a clean "nothing to delete" — the two must stay distinguishable in the
  * summary). A per-candidate delete failure never fails the ingest: it is
@@ -401,11 +405,22 @@ async function pruneDisappearedDocs(
       selectIngestFiles([path], params.kind, params.glob, registry, patterns)
         .length === 1;
 
-    for (const filePath of selectPruneCandidates(
+    const selection = selectPruneCandidates(
       graphDocPaths,
       files,
       isInScope,
-    )) {
+      params.force,
+    );
+
+    if (selection.outcome === "refused-suspicious-tree") {
+      console.error(
+        `[ingest-graph] ${params.kind} ${params.repo} :: prune refused: suspicious tree read (${selection.candidateCount} of ${selection.inScopeDocCount} in-scope docs missing)`,
+      );
+
+      return undefined;
+    }
+
+    for (const filePath of selection.candidates) {
       try {
         await def.prune.deleteSubtree(dgraph, params.repo, filePath);
         pruned += 1;

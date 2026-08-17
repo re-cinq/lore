@@ -24,12 +24,12 @@ describe("selectPruneCandidates", () => {
         ["specs/alive/spec.md"],
         inScope,
       ),
-    ).toEqual(["specs/moved/spec.md"]);
+    ).toEqual({ outcome: "ok", candidates: ["specs/moved/spec.md"] });
   });
 
   it("returns nothing when the tree selection is empty", () => {
     expect(selectPruneCandidates(["specs/moved/spec.md"], [], inScope)).toEqual(
-      [],
+      { outcome: "ok", candidates: [] },
     );
   });
 
@@ -40,7 +40,7 @@ describe("selectPruneCandidates", () => {
         ["specs/alive/spec.md"],
         inScope,
       ),
-    ).toEqual(["specs/moved/spec.md"]);
+    ).toEqual({ outcome: "ok", candidates: ["specs/moved/spec.md"] });
   });
 
   it("scopes a glob-chunked run to its own directory", () => {
@@ -52,7 +52,7 @@ describe("selectPruneCandidates", () => {
         ["specs/auth/other.md"],
         chunkScope,
       ),
-    ).toEqual(["specs/auth/spec.md"]);
+    ).toEqual({ outcome: "ok", candidates: ["specs/auth/spec.md"] });
   });
 });
 
@@ -592,5 +592,92 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     await deleteSpecSubtree(dgraphClient, repo, deadPath);
 
     expect(await countTestChunks(repo, "src/shared.test.ts")).toBe(1);
+  });
+});
+
+describe("selectPruneCandidates proportional fuse", () => {
+  const inScope = (path: string) => path.startsWith("specs/");
+  const specPaths = (count: number) =>
+    Array.from({ length: count }, (_, i) => `specs/s${i}/spec.md`);
+
+  it("refuses to prune when 7 of 10 in-scope docs vanish from the tree", () => {
+    const graphDocPaths = specPaths(10);
+
+    expect(
+      selectPruneCandidates(graphDocPaths, graphDocPaths.slice(0, 3), inScope),
+    ).toEqual({
+      outcome: "refused-suspicious-tree",
+      candidateCount: 7,
+      inScopeDocCount: 10,
+    });
+  });
+
+  it("allows a removal set of exactly 50% (5 of 10 in-scope docs)", () => {
+    const graphDocPaths = specPaths(10);
+
+    expect(
+      selectPruneCandidates(graphDocPaths, graphDocPaths.slice(0, 5), inScope),
+    ).toEqual({ outcome: "ok", candidates: graphDocPaths.slice(5) });
+  });
+
+  it("allows 2 candidates even at 100% of in-scope docs (small-set floor)", () => {
+    expect(
+      selectPruneCandidates(specPaths(2), ["specs/other/plan.md"], inScope),
+    ).toEqual({ outcome: "ok", candidates: specPaths(2) });
+  });
+
+  it("refuses 3 candidates out of 4 in-scope docs (over 50% above the floor)", () => {
+    const graphDocPaths = specPaths(4);
+
+    expect(
+      selectPruneCandidates(graphDocPaths, graphDocPaths.slice(0, 1), inScope),
+    ).toEqual({
+      outcome: "refused-suspicious-tree",
+      candidateCount: 3,
+      inScopeDocCount: 4,
+    });
+  });
+
+  it("force bypasses the fuse: 7 of 10 in-scope docs all become candidates", () => {
+    const graphDocPaths = specPaths(10);
+
+    expect(
+      selectPruneCandidates(
+        graphDocPaths,
+        graphDocPaths.slice(0, 3),
+        inScope,
+        true,
+      ),
+    ).toEqual({ outcome: "ok", candidates: graphDocPaths.slice(3) });
+  });
+
+  it("a forced run with an empty tree selection still prunes nothing", () => {
+    expect(selectPruneCandidates(specPaths(3), [], inScope, true)).toEqual({
+      outcome: "ok",
+      candidates: [],
+    });
+  });
+
+  it("measures the ratio against in-scope docs only: 20 out-of-scope paths never dilute a 3-of-4 refusal", () => {
+    const outOfScope = Array.from({ length: 20 }, (_, i) => `docs/d${i}.md`);
+    const graphDocPaths = [...specPaths(4), ...outOfScope];
+
+    expect(selectPruneCandidates(graphDocPaths, specPaths(1), inScope)).toEqual(
+      {
+        outcome: "refused-suspicious-tree",
+        candidateCount: 3,
+        inScopeDocCount: 4,
+      },
+    );
+  });
+
+  it("returns no candidates when every graph doc falls out of scope", () => {
+    expect(
+      selectPruneCandidates(
+        ["docs/a.md", "docs/b.md", "docs/c.md"],
+        ["specs/alive/spec.md"],
+        inScope,
+      ),
+    ).toEqual({ outcome: "ok", candidates: [] });
   });
 });

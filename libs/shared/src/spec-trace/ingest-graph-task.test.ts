@@ -376,4 +376,46 @@ describe("runIngestGraph", () => {
     expect(result.status).toBe("skipped");
     expect(result.message).toMatch(/local/i);
   });
+
+  it("refuses to prune when the tree selection is a small subset of many graph docs", async () => {
+    const graphDocPaths = Array.from(
+      { length: 10 },
+      (_, i) => `specs/s${i}/spec.md`,
+    );
+    const { registry, deleted } = pruneRegistry(graphDocPaths);
+
+    const result = await runIngestGraph(
+      { kind: "specs", repo: "o/r" },
+      {
+        dgraph: DUMMY_DGRAPH,
+        listTree: async () => ["specs/s0/spec.md", "specs/s1/spec.md"],
+        readFile: async () => "x",
+      },
+      registry,
+    );
+
+    expect(deleted).toEqual([]);
+    expect(result.pruned).toBeUndefined();
+  });
+
+  it("force prunes 8 of 10 graph docs where an unforced run refuses the suspicious tree", async () => {
+    const graphDocPaths = Array.from(
+      { length: 10 },
+      (_, i) => `specs/s${i}/spec.md`,
+    );
+    const { registry, deleted } = pruneRegistry(graphDocPaths);
+
+    const result = await runIngestGraph(
+      { kind: "specs", repo: "o/r", force: true },
+      {
+        dgraph: DUMMY_DGRAPH,
+        listTree: async () => ["specs/s0/spec.md", "specs/s1/spec.md"],
+        readFile: async () => "x",
+      },
+      registry,
+    );
+
+    expect(deleted).toEqual(graphDocPaths.slice(2));
+    expect(result.pruned).toBe(8);
+  });
 });
