@@ -18,6 +18,7 @@ function turn(id: string, nodeId: string | null): AgentRunTurn {
     assemblyLineId: "line-1",
     nodeId,
     iteration: nodeId === null ? null : 1,
+    stationRunId: null,
     eventType: "assistant",
     envelope: { event: { type: "assistant", id } },
     createdAt: "2026-08-12T10:00:00.000Z",

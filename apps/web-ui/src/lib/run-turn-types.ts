@@ -19,6 +19,7 @@ export interface AgentRunTurn {
   assemblyLineId: string | null;
   nodeId: string | null;
   iteration: number | null;
+  stationRunId: string | null;
   eventType: string | null;
   /** The untruncated `{source, event}` line. */
   envelope: Record<string, unknown>;
@@ -61,6 +62,7 @@ export function parseAgentRunTurn(value: unknown): AgentRunTurn | null {
     assemblyLineId: str(body.assemblyLineId),
     nodeId: str(body.nodeId),
     iteration: num(body.iteration),
+    stationRunId: str(body.stationRunId),
     eventType: str(body.eventType),
     envelope: record(body.envelope),
     createdAt,

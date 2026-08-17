@@ -8,6 +8,7 @@ const wire = {
   assemblyLineId: "line-1",
   nodeId: "implement",
   iteration: 2,
+  stationRunId: "station-run-1",
   eventType: "assistant",
   envelope: {
     source: { agent: "05fc5491-implement" },
@@ -29,6 +30,7 @@ describe("parseAgentRunTurn", () => {
       assemblyLineId: null,
       nodeId: null,
       iteration: null,
+      stationRunId: null,
     };
 
     expect(parseAgentRunTurn(uncorrelated)).toEqual(uncorrelated);

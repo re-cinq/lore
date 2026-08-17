@@ -24,6 +24,7 @@ function uncorrelatedRow(id: string): AgentRunTurnRow {
     assemblyLineId: null,
     nodeId: null,
     iteration: null,
+    stationRunId: null,
     eventType: "assistant",
     envelope: { event: { type: "assistant" } },
     createdAt: new Date("2026-08-12T10:00:00.000Z"),
