@@ -19,13 +19,13 @@ import type { RunStreamEvent } from "@/lib/run-stream-types";
 describe("historyUrl", () => {
   it("returns the events path with after and limit for cursor 42", () => {
     expect(historyUrl("run-1", "42")).toBe(
-      `/api/assembly-lines/run-1/events?limit=${HISTORY_PAGE_LIMIT}&after=42`,
+      `/api/assembly-runs/run-1/events?limit=${HISTORY_PAGE_LIMIT}&after=42`,
     );
   });
 
   it("omits the after param from the events path for cursor 0", () => {
     expect(historyUrl("run-1", "0")).toBe(
-      `/api/assembly-lines/run-1/events?limit=${HISTORY_PAGE_LIMIT}`,
+      `/api/assembly-runs/run-1/events?limit=${HISTORY_PAGE_LIMIT}`,
     );
   });
 
@@ -37,13 +37,13 @@ describe("historyUrl", () => {
 describe("streamUrl", () => {
   it("returns the stream path with after for cursor 42", () => {
     expect(streamUrl("run-1", "42")).toBe(
-      "/api/assembly-lines/run-1/events/stream?after=42",
+      "/api/assembly-runs/run-1/events/stream?after=42",
     );
   });
 
   it("omits the after param from the stream path for cursor 0", () => {
     expect(streamUrl("run-1", "0")).toBe(
-      "/api/assembly-lines/run-1/events/stream",
+      "/api/assembly-runs/run-1/events/stream",
     );
   });
 });

@@ -36,7 +36,7 @@ export type ChipState = ConnectionState | "polling";
 export type StreamMode = "live" | "history-only";
 
 export function historyUrl(runId: string, afterId: string): string {
-  const base = `/api/assembly-lines/${encodeURIComponent(
+  const base = `/api/assembly-runs/${encodeURIComponent(
     runId,
   )}/events?limit=${HISTORY_PAGE_LIMIT}`;
 
@@ -46,7 +46,7 @@ export function historyUrl(runId: string, afterId: string): string {
 }
 
 export function streamUrl(runId: string, afterId: string): string {
-  const base = `/api/assembly-lines/${encodeURIComponent(runId)}/events/stream`;
+  const base = `/api/assembly-runs/${encodeURIComponent(runId)}/events/stream`;
 
   return afterId === "0"
     ? base

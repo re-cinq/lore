@@ -20,7 +20,8 @@ import { agentEventsHistoryRoute } from "./routes/agent-events-history.js";
 import { agentTurnsHistoryRoute } from "./routes/agent-turns-history.js";
 import { assemblyLineDefinitionsRoute } from "./routes/assembly-line-definitions.js";
 import {
-  assemblyLineReadRoute,
+  assemblyRunReadRoute,
+  legacyAssemblyLineReadRoute,
   assemblyLineCatalogRoute,
 } from "./routes/assembly-line-reads.js";
 import { githubWebhookRoute } from "./routes/github-webhook.js";
@@ -60,7 +61,8 @@ export function buildServer(opts: {
     agentEventsHistoryRoute(),
     agentTurnsHistoryRoute(),
     assemblyLineDefinitionsRoute(),
-    assemblyLineReadRoute(),
+    assemblyRunReadRoute(),
+    legacyAssemblyLineReadRoute(),
     assemblyLineCatalogRoute(),
     agentLogsRoute(opts.podLogSource, opts.podLogArchive),
     githubWebhookRoute,

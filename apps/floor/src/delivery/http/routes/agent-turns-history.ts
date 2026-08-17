@@ -1,5 +1,5 @@
 /**
- * GET /api/agent-turns/{assemblyLineId}?after=&limit= — the read half of the
+ * GET /api/agent-turns/{assemblyRunId}?after=&limit= — the read half of the
  * turn-level transcript store (specs/turn-level-transcript-store FR4). Without
  * it the table would be a second write-only archive, which is exactly the gap
  * the feature exists to close.
@@ -27,11 +27,11 @@ export function agentTurnsHistoryRoute(turns?: {
 }): ServerRoute {
   return {
     method: "GET",
-    path: "/api/agent-turns/{assemblyLineId}",
+    path: "/api/agent-turns/{assemblyRunId}",
     options: { auth: "ingest-token" },
     handler: async (request, h) => {
       const rows = await (turns ?? agentRunTurns()).listByLine(
-        request.params.assemblyLineId,
+        request.params.assemblyRunId,
         parseAfter(request.query.after),
         parseLimit(request.query.limit),
       );

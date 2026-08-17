@@ -4,7 +4,7 @@
 // repo-access check. Any signed-in user could poll any repo's feature and read
 // its original prompt, every round's gap analysis, and the draft spec — for a repo
 // they cannot see on GitHub. Its sibling
-// (api/assembly-lines/[id]/nodes/[name]/logs) always gated both.
+// (api/assembly-runs/[id]/nodes/[name]/logs) always gated both.
 //
 // The gate runs BEFORE the feature is looked up, so a 404 cannot be used to probe
 // which feature ids exist in a repo the caller has no access to.

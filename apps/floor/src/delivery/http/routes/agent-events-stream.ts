@@ -1,5 +1,5 @@
 /**
- * GET /api/agent-events/stream/{assemblyLineId} — the stack's first SSE
+ * GET /api/agent-events/stream/{assemblyRunId} — the stack's first SSE
  * endpoint (FR2.x). hapi has no SSE support, so the handler returns a
  * `PassThrough` and `streamRunEvents` drives it.
  *
@@ -207,11 +207,11 @@ export function agentEventsStreamRoute(
 ): ServerRoute {
   return {
     method: "GET",
-    path: "/api/agent-events/stream/{assemblyLineId}",
+    path: "/api/agent-events/stream/{assemblyRunId}",
     options: { auth: "ingest-token" },
     handler: (request, h) => {
       const stream = new PassThrough();
-      const assemblyLineId = request.params.assemblyLineId;
+      const assemblyLineId = request.params.assemblyRunId;
       const after = parseCursor(
         request.headers["last-event-id"],
         request.query.after,
