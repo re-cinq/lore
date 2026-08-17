@@ -27,9 +27,7 @@ export interface RunGraphDefinition {
 }
 
 /** Distinct visited node ids, in the order the walk first reached them. */
-function visitedNodes(
-  visitRows: readonly AssemblyRunNode[],
-): DefinitionNode[] {
+function visitedNodes(visitRows: readonly AssemblyRunNode[]): DefinitionNode[] {
   const seen = new Set<string>();
   const nodes: DefinitionNode[] = [];
 

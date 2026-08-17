@@ -1,10 +1,7 @@
 export const dynamic = "force-dynamic";
 import { getTask } from "@/lib/api/tasks";
 import { redirect } from "next/navigation";
-import {
-  fetchAssemblyRun,
-  fetchAssemblyRunNodes,
-} from "@/lib/assembly-runs";
+import { fetchAssemblyRun, fetchAssemblyRunNodes } from "@/lib/assembly-runs";
 import { fetchTaskEvents, fetchLlmCalls } from "@/lib/task-runtime";
 import { definitionForRun } from "@/lib/run-graph-definition";
 import AssemblyRunView from "./AssemblyRunView";

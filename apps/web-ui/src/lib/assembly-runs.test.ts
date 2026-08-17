@@ -7,13 +7,9 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { toAssemblyRun, toAssemblyRunNode } =
-  await import("./assembly-runs");
+const { toAssemblyRun, toAssemblyRunNode } = await import("./assembly-runs");
 
-import type {
-  AssemblyRunRow,
-  AssemblyRunNodeRow,
-} from "./assembly-runs";
+import type { AssemblyRunRow, AssemblyRunNodeRow } from "./assembly-runs";
 
 const baseRow: AssemblyRunRow = {
   id: "al-1",

@@ -120,9 +120,7 @@ export function toAssemblyRun(row: AssemblyRunRow): AssemblyRun {
   };
 }
 
-export function toAssemblyRunNode(
-  row: AssemblyRunNodeRow,
-): AssemblyRunNode {
+export function toAssemblyRunNode(row: AssemblyRunNodeRow): AssemblyRunNode {
   return {
     nodeId: row.node_id,
     iteration: row.iteration,
@@ -200,9 +198,7 @@ export async function fetchAssemblyRunNodes(
     `/api/assembly-lines/${encodeURIComponent(id)}/nodes`,
   );
 
-  return result.status === "ok"
-    ? result.data.nodes.map(toAssemblyRunNode)
-    : [];
+  return result.status === "ok" ? result.data.nodes.map(toAssemblyRunNode) : [];
 }
 
 /**

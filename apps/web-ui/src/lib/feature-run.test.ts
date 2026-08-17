@@ -10,10 +10,7 @@ vi.mock("server-only", () => ({}));
 const { fetchFeatureRun, runTaskIdFor, toFeatureRunPayload } =
   await import("./feature-run");
 
-import type {
-  AssemblyRun,
-  AssemblyRunNode,
-} from "./assembly-runs";
+import type { AssemblyRun, AssemblyRunNode } from "./assembly-runs";
 import { featurePlanningDefinition } from "./definition-fixtures";
 
 const planningRun: AssemblyRun = {

@@ -36,9 +36,7 @@ export interface AssemblyRunsTableProps {
  * webhook-driven family) fall back to args.pr_number / args.actor / the
  * line-keyed llm_calls rows. Em-dash when a run has neither.
  */
-export default function AssemblyRunsTable({
-  runs,
-}: AssemblyRunsTableProps) {
+export default function AssemblyRunsTable({ runs }: AssemblyRunsTableProps) {
   const [showSkips, setShowSkips] = useState(false);
 
   if (runs.length === 0) {

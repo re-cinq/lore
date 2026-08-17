@@ -3,9 +3,7 @@ import { stepViews } from "./step-presenter";
 import { implementationDefinition } from "./definition-fixtures";
 import type { AssemblyRunNode } from "./assembly-runs";
 
-const node = (
-  over: Partial<AssemblyRunNode> = {},
-): AssemblyRunNode => ({
+const node = (over: Partial<AssemblyRunNode> = {}): AssemblyRunNode => ({
   nodeId: "implement",
   iteration: 1,
   outcome: "success",

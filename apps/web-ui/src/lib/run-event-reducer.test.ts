@@ -34,9 +34,7 @@ function event(over: Partial<RunStreamEvent> = {}): RunStreamEvent {
   };
 }
 
-function visitRow(
-  over: Partial<AssemblyRunNode> = {},
-): AssemblyRunNode {
+function visitRow(over: Partial<AssemblyRunNode> = {}): AssemblyRunNode {
   return {
     nodeId: "implement",
     iteration: 1,

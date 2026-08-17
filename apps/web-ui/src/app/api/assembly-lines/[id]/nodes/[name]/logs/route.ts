@@ -2,10 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import {
-  fetchAssemblyRun,
-  fetchAssemblyRunNodes,
-} from "@/lib/assembly-runs";
+import { fetchAssemblyRun, fetchAssemblyRunNodes } from "@/lib/assembly-runs";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { serverError } from "@/lib/api-error";
 
