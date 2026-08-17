@@ -26,7 +26,7 @@ async function postEpisode(input: StationInput): Promise<void> {
   const content =
     `Assembly line ${input.assembly_line_id} reached its retrospective node for ${input.repo}` +
     ` on ${input.branch}.`;
-  const res = await fetch(`${baseUrl}/api/episode`, {
+  const res = await fetch(`${baseUrl}/api/episode`, { signal: AbortSignal.timeout(30_000),
     method: "POST",
     headers,
     body: JSON.stringify({

@@ -255,7 +255,7 @@ export default function TaskRefreshProvider({
       inFlight = true;
 
       try {
-        const res = await fetch(`/api/tasks/${taskId}/runs`);
+        const res = await fetch(`/api/tasks/${taskId}/runs`, { signal: AbortSignal.timeout(15_000) });
 
         if (!res.ok) {
           return;

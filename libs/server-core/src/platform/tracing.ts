@@ -35,6 +35,7 @@ export async function tracedSearch(params: TraceParams): Promise<void> {
 
   try {
     await fetch(`${LANGFUSE_HOST}/api/public/ingestion`, {
+      signal: AbortSignal.timeout(10_000),
       method: "POST",
       headers: {
         "Content-Type": "application/json",

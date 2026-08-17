@@ -37,7 +37,7 @@ export async function getWebhookStatus(
   if (!c) {
     return null;
   }
-  const res = await fetch(`${c.api}/api/repos/${repo}/webhook`, {
+  const res = await fetch(`${c.api}/api/repos/${repo}/webhook`, { signal: AbortSignal.timeout(15_000),
     headers: { Authorization: `Bearer ${c.token}` },
     cache: "no-store",
   });
@@ -59,7 +59,7 @@ export async function getWebhookSecret(repo: string): Promise<string | null> {
   if (!c) {
     return null;
   }
-  const res = await fetch(`${c.api}/api/repos/${repo}/webhook/secret`, {
+  const res = await fetch(`${c.api}/api/repos/${repo}/webhook/secret`, { signal: AbortSignal.timeout(15_000),
     headers: { Authorization: `Bearer ${c.token}` },
     cache: "no-store",
   });
@@ -80,7 +80,7 @@ export async function ensureWebhook(
   if (!c) {
     return { error: "web-ui is not configured to reach the Lore API" };
   }
-  const res = await fetch(`${c.api}/api/repos/${repo}/webhook/ensure`, {
+  const res = await fetch(`${c.api}/api/repos/${repo}/webhook/ensure`, { signal: AbortSignal.timeout(15_000),
     method: "POST",
     headers: { Authorization: `Bearer ${c.token}` },
     cache: "no-store",

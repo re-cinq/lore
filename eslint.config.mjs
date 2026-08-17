@@ -67,6 +67,7 @@ export default tseslint.config(
       "lore/require-spec-link": "error",
       "lore/default-export-matches-filename": "error",
       "lore/no-inline-styles": "warn",
+      "lore/require-fetch-timeout": "error",
     },
   },
 

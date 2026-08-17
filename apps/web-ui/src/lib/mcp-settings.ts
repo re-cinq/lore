@@ -56,7 +56,7 @@ export async function putPrivilegedSettings(
   let res: Response;
 
   try {
-    res = await fetch(`${apiUrl}/api/repos/${repo}/settings/dark-factory`, {
+    res = await fetch(`${apiUrl}/api/repos/${repo}/settings/dark-factory`, { signal: AbortSignal.timeout(15_000),
       method: "PUT",
       headers,
       body: JSON.stringify(privilegedRequestBody(patch)),

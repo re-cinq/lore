@@ -41,7 +41,7 @@ function applySchema(): void {
 async function querySchema(
   dql: string,
 ): Promise<{ schema: Array<Record<string, unknown>> }> {
-  const res = await fetch(`${DGRAPH_HTTP}/query`, {
+  const res = await fetch(`${DGRAPH_HTTP}/query`, { signal: AbortSignal.timeout(30_000),
     method: "POST",
     headers: { "Content-Type": "application/dql" },
     body: dql,
@@ -147,7 +147,7 @@ describe.skipIf(!reachable)(
     });
 
     it("lists Statement.violated and Statement.violation_reason in the Statement type", async () => {
-      const res = await fetch(`${DGRAPH_HTTP}/query`, {
+      const res = await fetch(`${DGRAPH_HTTP}/query`, { signal: AbortSignal.timeout(30_000),
         method: "POST",
         headers: { "Content-Type": "application/dql" },
         body: "schema(type: Statement) {}",
@@ -164,7 +164,7 @@ describe.skipIf(!reachable)(
     });
 
     it("lists AcceptanceCriterion.violated and AcceptanceCriterion.violation_reason in the type", async () => {
-      const res = await fetch(`${DGRAPH_HTTP}/query`, {
+      const res = await fetch(`${DGRAPH_HTTP}/query`, { signal: AbortSignal.timeout(30_000),
         method: "POST",
         headers: { "Content-Type": "application/dql" },
         body: "schema(type: AcceptanceCriterion) {}",

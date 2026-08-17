@@ -30,7 +30,7 @@ export async function listAgents(repo: string): Promise<AgentDefinition[]> {
   }
 
   try {
-    const res = await fetch(`${c.apiUrl}/api/repos/${repo}/agent-definitions`, {
+    const res = await fetch(`${c.apiUrl}/api/repos/${repo}/agent-definitions`, { signal: AbortSignal.timeout(15_000),
       headers: { authorization: `Bearer ${c.token}` },
       cache: "no-store",
     });
@@ -74,7 +74,7 @@ export async function saveAgent(
   let res: Response;
 
   try {
-    res = await fetch(url, {
+    res = await fetch(url, { signal: AbortSignal.timeout(15_000),
       method: isUpdate ? "PUT" : "POST",
       headers,
       body: JSON.stringify(def),
@@ -122,7 +122,7 @@ export async function deleteAgent(
   try {
     res = await fetch(
       `${c.apiUrl}/api/repos/${repo}/agent-definitions/${encodeURIComponent(name)}`,
-      {
+      { signal: AbortSignal.timeout(15_000),
         method: "DELETE",
         headers: { authorization: `Bearer ${c.token}` },
         cache: "no-store",

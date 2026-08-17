@@ -197,7 +197,7 @@ export async function fetchPrStatus(
   }
 
   async function ghFetch(path: string): Promise<Record<string, unknown>> {
-    const res = await fetch(`https://api.github.com${path}`, {
+    const res = await fetch(`https://api.github.com${path}`, { signal: AbortSignal.timeout(15_000),
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/vnd.github+json",

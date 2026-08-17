@@ -60,6 +60,7 @@ export default function InfiniteEvents({
       try {
         const res = await fetch(
           `/api/repos/${owner}/${repo}/events?offset=${offset}`,
+          { signal: AbortSignal.timeout(15_000) },
         );
 
         if (!res.ok) {

@@ -40,7 +40,7 @@ function applySchema(): void {
 async function querySchema(
   dql: string,
 ): Promise<{ schema: Array<Record<string, unknown>> }> {
-  const res = await fetch(`${DGRAPH_HTTP}/query`, {
+  const res = await fetch(`${DGRAPH_HTTP}/query`, { signal: AbortSignal.timeout(30_000),
     method: "POST",
     headers: { "Content-Type": "application/dql" },
     body: dql,

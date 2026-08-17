@@ -24,7 +24,7 @@ export default function TimelinePanel({
 
   const fetchTimeline = useCallback(async () => {
     try {
-      const r = await fetch(`/api/tasks/${taskId}/timeline`);
+      const r = await fetch(`/api/tasks/${taskId}/timeline`, { signal: AbortSignal.timeout(15_000) });
 
       if (!r.ok) {
         setError(`HTTP ${r.status}`);
