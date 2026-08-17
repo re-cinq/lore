@@ -6,7 +6,7 @@
 
 import { classifyComment } from "@re-cinq/lore-shared/review/comment-triage.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
-import type { StationInput } from "../input.js";
+import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 
 export async function runCommentTriageStation(
   input: StationInput,

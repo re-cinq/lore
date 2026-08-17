@@ -5,7 +5,7 @@ import * as path from "node:path";
 import { execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 import { runValidateStation } from "./validate.js";
-import type { StationInput } from "../input.js";
+import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 
 const execFile = promisify(execFileCb);
 

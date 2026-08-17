@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { runGateStation } from "./gate.js";
 import { runGithubActionStation } from "./github-action.js";
-import type { StationInput } from "../input.js";
+import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 
 const input = (over: Partial<StationInput> = {}): StationInput => ({
   assembly_line_id: "al-1",

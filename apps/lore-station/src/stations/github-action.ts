@@ -7,7 +7,7 @@
 
 import { ciOutcome, type NodeResult } from "@re-cinq/lore-assembly-lines";
 import { createStationProject } from "@re-cinq/lore-shared";
-import type { StationInput } from "../input.js";
+import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 import type { StationEnv } from "./validate.js";
 
 const POLL_INTERVAL_MS = 15_000;

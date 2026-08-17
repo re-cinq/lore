@@ -5,7 +5,7 @@
 // pod-side condition is needed it plugs in here without touching the contract.
 
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
-import type { StationInput } from "../input.js";
+import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 
 export async function runGateStation(input: StationInput): Promise<NodeResult> {
   return {

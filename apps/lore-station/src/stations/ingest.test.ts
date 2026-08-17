@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runIngestStation, apiEmbed } from "./ingest.js";
-import type { StationInput } from "../input.js";
+import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 import type { DgraphClientPort, DgraphTxn } from "@re-cinq/lore-shared";
 
 /**

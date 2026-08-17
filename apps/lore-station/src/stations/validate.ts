@@ -11,7 +11,7 @@ import {
   createValidateHandler,
   type NodeResult,
 } from "@re-cinq/lore-assembly-lines";
-import type { StationInput } from "../input.js";
+import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 
 const execFile = promisify(execFileCb);
 
