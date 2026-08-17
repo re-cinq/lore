@@ -144,4 +144,27 @@ describe("GET /api/spend", () => {
 
     expect(monthly.length).toBe(pool.query.mock.calls.length - 1);
   });
+
+  it("attributes run-scoped spend through llm_calls.assembly_line_id", async () => {
+    // The column is deliberately NOT renamed with the run model: no compat view
+    // can cover a renamed column on a table that keeps its own name, and this
+    // query is what breaks when one tries — it 500s permanently on 42703, which
+    // is how the attempt during the rename was found. Pinned as SQL TEXT, since
+    // a mocked pool answers any column name happily.
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [] });
+    await get(pool);
+
+    const runScoped = pool.query.mock.calls.filter(([sql]) =>
+      String(sql).includes("assembly_line_id"),
+    );
+
+    expect(runScoped.length).toBeGreaterThan(0);
+    expect(
+      pool.query.mock.calls.some(([sql]) =>
+        String(sql).includes("assembly_run_id"),
+      ),
+    ).toBe(false);
+  });
 });
