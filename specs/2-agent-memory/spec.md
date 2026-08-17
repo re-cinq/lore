@@ -212,9 +212,10 @@ Mirrors each write to `memories`, preserving full history queryable via
 
 Raw text blobs ingested via `lore_write_episode` are the source of truth for
 passive knowledge capture; fact and graph extraction runs asynchronously
-after write. ([validated by `episode.test.ts:86`](apps/lore-api/src/api/routes/memory/episode.test.ts#L86)) Episode inserts are idempotent —
-deduplicated on `(agent_id, content_hash)`, returning the new id or
-null when a duplicate already exists. ([validated by `memory-lifecycle.test.ts:275`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L275), [`memory-lifecycle.test.ts:293`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L293), [`memory-lifecycle.test.ts:524`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L524))
+after write. ([validated by `episode.test.ts:86`](apps/lore-api/src/api/routes/memory/episode.test.ts#L86))
+
+Episode inserts are idempotent — deduplicated on `(agent_id, content_hash)`,
+returning the new id or null when a duplicate already exists. ([validated by `memory-lifecycle.test.ts:275`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L275), [`memory-lifecycle.test.ts:293`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L293), [`memory-lifecycle.test.ts:524`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L524))
 
 ### entities + edges
 
@@ -303,6 +304,7 @@ Groups recent valid facts (7-day lookback, newest-first) by repo. ([validated by
 Haiku extracts 1–3 higher-level patterns per repo (a minimum of 5 facts is
 required to trigger), stored as `consolidated/{repo}/{timestamp}` memories —
 turning noisy raw facts into actionable insights. ([validated by `memory-lifecycle.test.ts:245`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L245), [`memory-lifecycle.test.ts:103`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L103))
+
 Only `PATTERN:`-prefixed lines from the LLM response are kept (short
 patterns filtered out; a `NONE` response yields no patterns), and each
 consolidated memory is inserted once, deduped on its key. ([validated by `memory-lifecycle.test.ts:245`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L245), [`memory-lifecycle.test.ts:264`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L264), [`memory-lifecycle.test.ts:275`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L275), [`memory-lifecycle.test.ts:103`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L103), [`memory-lifecycle.test.ts:351`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L351))
