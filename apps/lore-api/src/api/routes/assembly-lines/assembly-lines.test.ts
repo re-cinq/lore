@@ -32,6 +32,28 @@ describe("assembly-line reads", () => {
     });
   }
 
+  describe("both path spellings are served", () => {
+    // web-ui ships as a separate image in the same umbrella release, so for the
+    // length of a rollout one side is always older than the other. Whichever way
+    // round that falls, the call has to land.
+    it.each([
+      ["/api/assembly-runs", "/api/assembly-lines"],
+      ["/api/assembly-runs/run-1", "/api/assembly-lines/run-1"],
+      ["/api/assembly-runs/run-1/nodes", "/api/assembly-lines/run-1/nodes"],
+      [
+        "/api/assembly-runs/run-1/token-usage",
+        "/api/assembly-lines/run-1/token-usage",
+      ],
+    ])(
+      "serves %s and its pre-rename alias %s alike",
+      async (canonical, legacy) => {
+        expect((await get(canonical)).statusCode).toBe(
+          (await get(legacy)).statusCode,
+        );
+      },
+    );
+  });
+
   describe("GET /api/assembly-lines", () => {
     it("returns 503 when pool is null", async () => {
       expect((await get("/api/assembly-lines", null)).statusCode).toBe(503);
