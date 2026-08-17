@@ -16,7 +16,7 @@ const input: StationInput = {
   repo: "owner/repo",
   branch: "lore/x",
   task_id: "t-1",
-  params: { validator: "all" },
+  params: {},
 };
 
 describe("runValidateStation", () => {

@@ -16,9 +16,9 @@ nodes:
     description: write the code
   - id: check
     type: validate
-    validator: lint
     station_ref: custom-validate
     timeout_minutes: 5
+    job_ref: quick-checks
   - id: done
     type: retrospective
 edges:
@@ -88,9 +88,11 @@ describe("snapshotGraph", () => {
   });
 
   it("carries the knobs a station pod receives as params", () => {
-    // nodeStationSpec reads validator / job_ref / condition_ref straight off the
-    // node, so a clone that dropped them would dispatch a station with no input.
-    expect(graph().nodes[1]).toMatchObject({ validator: "lint" });
+    // The Floor reads job_ref / condition_ref straight off the node into the pod's
+    // params, so a clone that dropped them would dispatch a station with no input.
+    // (`validator` used to be one of these and was removed in #1051 — nothing ever
+    // read it.)
+    expect(graph().nodes[1]).toMatchObject({ job_ref: "quick-checks" });
   });
 
   it("carries every edge with its condition and iteration budget", () => {

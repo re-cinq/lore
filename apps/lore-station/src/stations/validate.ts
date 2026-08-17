@@ -49,7 +49,7 @@ export async function runValidateStation(
   );
 
   return handler(
-    { id: input.node_id, type: "validate", validator: input.params.validator },
+    { id: input.node_id, type: "validate" },
     {
       taskId: input.task_id ?? "",
       assemblyLineId: input.assembly_line_id,

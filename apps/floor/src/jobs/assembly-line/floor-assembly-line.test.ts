@@ -129,7 +129,7 @@ describe("nodeStationSpec (station pod contract)", () => {
 
   it("builds the station_input payload the pod parses, defaulting stationRef to def-<type>", () => {
     const spec = nodeStationSpec(
-      cloneNode({ id: "validate", type: "validate", validator: "lint" }),
+      cloneNode({ id: "validate", type: "validate" }),
       task,
     );
 
@@ -143,7 +143,7 @@ describe("nodeStationSpec (station pod contract)", () => {
       repo: "re-cinq/lore",
       branch: "lore/impl-abcdef12",
       task_id: "abcdef1234567890",
-      params: { validator: "lint" },
+      params: {},
     });
   });
 

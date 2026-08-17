@@ -40,7 +40,6 @@ export interface RunGraphNode {
   model?: string;
   timeout_minutes?: number;
   /** Station knobs passed through to the pod as params. */
-  validator?: string;
   condition_ref?: string;
   job_ref?: string;
   /** Which prior run this node continues, and which thread it belongs to. */

@@ -58,7 +58,6 @@ export function snapshotGraph(
         ...(node.timeout_minutes
           ? { timeout_minutes: node.timeout_minutes }
           : {}),
-        ...(node.validator ? { validator: node.validator } : {}),
         ...(node.condition_ref ? { condition_ref: node.condition_ref } : {}),
         ...(node.job_ref ? { job_ref: node.job_ref } : {}),
         ...(node.route ? { route: node.route } : {}),

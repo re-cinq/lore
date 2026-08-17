@@ -132,7 +132,6 @@ export {
   selectStationBackend,
   defaultStationName,
 } from "./agents/station-port.js";
-export { stationPlainEnv } from "./agents/station-env.js";
 export type {
   StationCredentials,
   StationLlmCredential,

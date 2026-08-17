@@ -39,8 +39,14 @@ export async function initOtel(): Promise<void> {
   }
 }
 
+// A failed export flush (e.g. no GCP project ID in an unauthed env) must never
+// crash the process — telemetry is best-effort. Mirrors the Floor's otel-init.
 export async function shutdownOtel(): Promise<void> {
   if (sdk) {
-    await sdk.shutdown();
+    await sdk
+      .shutdown()
+      .catch((err) =>
+        console.warn(`[otel] shutdown flush failed: ${(err as Error).message}`),
+      );
   }
 }

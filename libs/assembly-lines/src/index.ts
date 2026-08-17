@@ -61,8 +61,17 @@ export {
 // wire format lives with the port that stores it) — import it from there.
 export { snapshotGraph } from "./snapshot-graph.js";
 
-export { RelayExecutor, type RelayResult } from "./relay/relay-executor.js";
-export { RELAY_SCRIPT } from "./relay/relay-script.js";
+// The BYO toolchain relay is NOT exported. It is ADR-025 phase 2 — built, with a
+// real round-trip test, and deliberately not wired: phase 3 is what makes the
+// kernel run `detectTooling`'s commands in the repo's sidecar. Exporting it from
+// the public barrel advertised a capability no production code sets up, so a
+// reader could reasonably conclude BYO validation works today. It stays in the
+// package (`./relay/`), reachable by the handler that will use it, and becomes
+// public when phase 3 wires it.
+//
+// For Floor assembly lines the station pod already superseded this path: the
+// lore-station image IS the toolchain container (ADR-025's amendment). The relay
+// remains for the in-pod agent runs it was built for.
 
 export {
   createValidateHandler,

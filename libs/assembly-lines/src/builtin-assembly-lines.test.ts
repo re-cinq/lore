@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readdir } from "node:fs/promises";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   loadBuiltinAssemblyLines,
@@ -14,6 +15,19 @@ describe("loadBuiltinAssemblyLines", () => {
     const definitions = await loadBuiltinAssemblyLines();
 
     expect(definitions.get("code-review")?.name).toBe("code-review");
+  });
+
+  it("loads every YAML in the directory, none skipped", async () => {
+    // The schemas are strict, so an undeclared key in any shipped recipe is a load
+    // failure rather than a silently dropped field. Counting the files keeps that
+    // honest: a per-file catch that swallowed one would leave the map short, and
+    // "the catalog resolved" alone would not notice.
+    const dir = new URL("./assembly-lines/", import.meta.url);
+    const yamlCount = (await readdir(dir)).filter((f) =>
+      f.endsWith(".yaml"),
+    ).length;
+
+    expect((await loadBuiltinAssemblyLines()).size).toBe(yamlCount);
   });
 });
 
