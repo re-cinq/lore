@@ -6,6 +6,7 @@
  */
 
 import { Octokit } from "octokit";
+import { withoutBlindRetryOnCreates } from "@re-cinq/lore-shared/project/lib/octokit-retry-policy.js";
 import { createAppAuth } from "@octokit/auth-app";
 
 const APP_ID = process.env.GITHUB_APP_ID || "";
@@ -28,19 +29,21 @@ export function isAppConfigured(): boolean {
  */
 export async function getOctokit(): Promise<Octokit> {
   if (APP_ID && PRIVATE_KEY && INSTALLATION_ID) {
-    return new Octokit({
-      authStrategy: createAppAuth,
-      auth: {
-        appId: APP_ID,
-        privateKey: PRIVATE_KEY,
-        installationId: INSTALLATION_ID,
-      },
-    });
+    return withoutBlindRetryOnCreates(
+      new Octokit({
+        authStrategy: createAppAuth,
+        auth: {
+          appId: APP_ID,
+          privateKey: PRIVATE_KEY,
+          installationId: INSTALLATION_ID,
+        },
+      }),
+    );
   }
   const token = process.env.GITHUB_TOKEN;
 
   if (token) {
-    return new Octokit({ auth: token });
+    return withoutBlindRetryOnCreates(new Octokit({ auth: token }));
   }
   throw new Error(
     "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN",

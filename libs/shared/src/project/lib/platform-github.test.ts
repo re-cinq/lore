@@ -21,6 +21,9 @@ const state: {
 
 vi.mock("octokit", () => ({
   Octokit: class {
+    // Part of the real client; the retry policy (#1017) installs a request hook at
+    // construction, so a fake without it models a client that does not exist.
+    hook = { before: () => {} };
     auth = async () => ({ token: state.token });
     paginate = async (
       fn: (p: unknown) => Promise<unknown[]>,

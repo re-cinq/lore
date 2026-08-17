@@ -18,7 +18,10 @@ const rest = {
 
 vi.mock("octokit", () => ({
   Octokit: vi.fn(function () {
-    return { rest };
+    // `hook` is part of the real client, and the retry policy (#1017) installs a
+    // request hook at construction — a fake without it models a client that does
+    // not exist.
+    return { rest, hook: { before: () => {} } };
   }),
 }));
 vi.mock("@octokit/auth-app", () => ({ createAppAuth: vi.fn() }));
