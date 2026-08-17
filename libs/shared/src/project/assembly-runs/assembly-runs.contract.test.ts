@@ -153,6 +153,9 @@ afterAll(async () => {
 const IMPLEMENTATIONS: Array<[string, () => Subject]> = [
   [
     "in-memory",
+    // A fixed repo is safe ONLY because `make()` hands back a fresh store per
+    // test, so nothing leaks between them. Hoisting this into a shared instance
+    // (a beforeEach refactor, say) would silently break every filtered read.
     () => ({
       port: new InMemoryAssemblyRuns(),
       repo: "re-cinq/contract",
@@ -395,19 +398,92 @@ describe.each(IMPLEMENTATIONS)(
       expect(await port.list({ repo, limit: 2 })).toHaveLength(2);
     });
 
-    it("findOpenByPr finds an open run by the PR stamped on its args", async () => {
+    it("listOpen returns queued and running runs, never a terminal one", async () => {
       const { port, repo } = make();
-      const id = await port.start({
+      const queued = await port.start({ blueprintName: "code-review", repo });
+      const running = await port.start({ blueprintName: "code-review", repo });
+      const closed = await port.start({ blueprintName: "code-review", repo });
+
+      await port.markRunning(running);
+      await port.markRunning(closed);
+      await port.finish(closed, "completed");
+
+      const ids = (await port.listOpen()).map((run) => run.id);
+
+      expect(ids).toContain(queued);
+      expect(ids).toContain(running);
+      expect(ids).not.toContain(closed);
+    });
+
+    it("findOpenOnBranch returns open runs for that repo+branch as graph-less summaries", async () => {
+      // The overlap guard's read. It compares five scalars, so the summary must
+      // NOT haul the graph clone — and it must not see other branches, or a run
+      // would defer to work it has nothing to do with.
+      const { port, repo } = make();
+      const branch = "feat/contract";
+      const open = await port.start({
+        blueprintName: "code-review",
+        repo,
+        branch,
+      });
+      const closed = await port.start({
+        blueprintName: "code-review",
+        repo,
+        branch,
+      });
+
+      await port.start({
+        blueprintName: "code-review",
+        repo,
+        branch: "feat/elsewhere",
+      });
+      await port.markRunning(closed);
+      await port.finish(closed, "completed");
+
+      const summaries = await port.findOpenOnBranch(repo, branch);
+
+      expect(summaries.map((row) => row.id)).toEqual([open]);
+      expect(summaries[0]).toMatchObject({ repo, branch, status: "queued" });
+    });
+
+    it("hasReviewedPr is true once ANY code-review run exists for the repo+PR, terminal included", async () => {
+      // The first-review-only guard: a push after the first review must not
+      // re-review, so a FINISHED run still has to count.
+      const { port, repo } = make();
+      const reviewed = await port.start({
+        blueprintName: "code-review",
+        repo,
+        args: { pr_number: 7 },
+      });
+
+      await port.markRunning(reviewed);
+      await port.finish(reviewed, "completed");
+
+      expect(await port.hasReviewedPr(repo, 7)).toBe(true);
+      expect(await port.hasReviewedPr(repo, 99)).toBe(false);
+    });
+
+    it("findOpenByPr finds BOTH a queued and a running run for that PR", async () => {
+      // Open means queued OR running: a run that has not started yet still holds
+      // the PR, and missing it starts a second review on the same pull request.
+      const { port, repo } = make();
+      const queued = await port.start({
+        blueprintName: "code-review",
+        repo,
+        args: { pr_number: 4242 },
+      });
+      const running = await port.start({
         blueprintName: "code-review",
         repo,
         args: { pr_number: 4242 },
       });
 
-      await port.markRunning(id);
+      await port.markRunning(running);
 
-      expect(
-        (await port.findOpenByPr(repo, 4242)).map((run) => run.id),
-      ).toEqual([id]);
+      const ids = (await port.findOpenByPr(repo, 4242)).map((run) => run.id);
+
+      expect(ids).toContain(queued);
+      expect(ids).toContain(running);
     });
 
     it("finishOpenByPr closes only the definitions the caller names", async () => {
@@ -429,6 +505,11 @@ describe.each(IMPLEMENTATIONS)(
       expect(
         await port.finishOpenByPr(repo, 99, "pr_closed", ["code-review"]),
       ).toBe(1);
+      // The count alone would pass even if the outcome were never written.
+      expect(await port.getById(review)).toMatchObject({
+        status: "finished",
+        outcome: "pr_closed",
+      });
       // The planning run was parked WAITING for that merge — closing it here is
       // the bug FR6.37 was written about.
       expect((await port.getById(planning))?.status).toBe("running");
