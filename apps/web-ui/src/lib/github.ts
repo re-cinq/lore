@@ -5,6 +5,7 @@
  */
 
 import { Octokit } from "octokit";
+import { withoutBlindRetryOnCreates } from "./octokit-retry-policy";
 import { createAppAuth } from "@octokit/auth-app";
 
 export type PRStatus =
@@ -44,10 +45,12 @@ async function octokit(): Promise<Octokit> {
     throw new Error("GitHub App credentials not configured");
   }
 
-  return new Octokit({
-    authStrategy: createAppAuth,
-    auth: { appId, privateKey, installationId },
-  });
+  return withoutBlindRetryOnCreates(
+    new Octokit({
+      authStrategy: createAppAuth,
+      auth: { appId, privateKey, installationId },
+    }),
+  );
 }
 
 export function isGitHubConfigured(): boolean {

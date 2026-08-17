@@ -1,4 +1,5 @@
 import type { Octokit } from "octokit";
+import { withoutBlindRetryOnCreates } from "./octokit-retry-policy.js";
 import { enforceTrue } from "../../lib/enforce.js";
 import type {
   GitHubPort,
@@ -958,15 +959,17 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     if (appId && privateKey && installationId) {
       const { createAppAuth } = await import("@octokit/auth-app");
 
-      return new Octokit({
-        authStrategy: createAppAuth,
-        auth: { appId, privateKey, installationId },
-      });
+      return withoutBlindRetryOnCreates(
+        new Octokit({
+          authStrategy: createAppAuth,
+          auth: { appId, privateKey, installationId },
+        }),
+      );
     }
     const token = this.env.GITHUB_TOKEN;
 
     if (token) {
-      return new Octokit({ auth: token });
+      return withoutBlindRetryOnCreates(new Octokit({ auth: token }));
     }
     throw new Error(
       "GitHub not configured. Set GITHUB_APP_ID/PRIVATE_KEY/INSTALLATION_ID or GITHUB_TOKEN",
