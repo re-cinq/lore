@@ -641,9 +641,11 @@ non-terminal states and resolve them without manual intervention. ([validated by
 
 The web UI MUST present a per-task detail view at `/tasks/[id]` that
 surfaces the task's metadata, run attempts, stage timeline, PR status,
-event history, and LLM-call ledger. ([validated by `TaskDetailView.test.tsx:95`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L95)) Live sections follow a
-data-down/actions-up split: pure `*View` presentational components are
-fed by IO `*Panel` containers that own fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L82))
+event history, and LLM-call ledger. ([validated by `TaskDetailView.test.tsx:95`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L95))
+
+Live sections follow a data-down/actions-up split: pure `*View`
+presentational components are fed by IO `*Panel` containers that own
+fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L82))
 
 - FR-19.1: The detail heading reads `Task: <description>` with the
   description truncated to 80 characters, and the view shows the task
