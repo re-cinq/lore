@@ -10,7 +10,10 @@ name: PR Checks
 
 on:
   pull_request:
-    branches: [main]
+    # No `branches` filter (#1146): stacked PRs (base = another feature branch) are
+    # part of what eventually lands in main, and a filter here silently skips their
+    # whole matrix. Retargeting to main (which only happens when the parent's branch
+    # is deleted on merge) emits only `edited`, so the gap never self-heals.
     types: [opened, synchronize, reopened]
   workflow_dispatch:
 
@@ -57,13 +60,18 @@ jobs:
         run: npm run format
 
       # The write token enters the job only here — after every npm install and
-      # every third-party tool run — and only for the auto-commit push.
+      # every third-party tool run — and only for the auto-commit push. Both push
+      # steps skip when the branch being pushed is main itself — a main → feature
+      # sync PR (in scope now that any-base PRs trigger) or a dispatch on main —
+      # since branch protection would reject the push and fail the whole needs-chain.
       - name: Authenticate push
+        if: github.head_ref != 'main' && github.ref != 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
 
       - name: Commit formatting
+        if: github.head_ref != 'main' && github.ref != 'refs/heads/main'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "style: prettier [skip ci]"
