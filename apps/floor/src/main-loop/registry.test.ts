@@ -40,18 +40,14 @@ describe("buildRegistry", () => {
     }
   });
 
-  it("registers both run-event spellings onto the same handlers (rollout shim)", () => {
-    // The emitters ship the legacy spelling until every Floor handles the new
-    // one; the registry must answer to both, with one handler each, or the
-    // flip release dead-letters whichever side moves first.
+  it("no longer answers to the pre-flip run-event spellings (shim deleted)", () => {
+    // The legacy entries lived exactly one retention window past the writer
+    // flip (#1255, deployed 2026-08-17): the events table is pruned after
+    // handling, so no unhandled row still carries the old names (#1272).
     const registry = buildRegistry();
 
-    expect(registry.get("assembly_run.start")).toBe(
-      registry.get("assembly_line.start"),
-    );
-    expect(registry.get("assembly_run.resume")).toBe(
-      registry.get("assembly_line.resume"),
-    );
+    expect(registry.get("assembly_line.start")).toBeUndefined();
+    expect(registry.get("assembly_line.resume")).toBeUndefined();
     expect(registry.get("assembly_run.start")).toBeTypeOf("function");
     expect(registry.get("assembly_run.resume")).toBeTypeOf("function");
   });

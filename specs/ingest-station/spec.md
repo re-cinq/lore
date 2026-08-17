@@ -118,7 +118,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   (`params.repo` narrows it to the ingested repo, job-run bookkeeping and the
   overlap-guard branch included) — the validate core runs in the detect station
   pod on both triggers, never inline in the Floor.
-  ([validated by `registry.test.ts:55`](apps/floor/src/main-loop/registry.test.ts#L59); implemented by [`registry.ts:70`](apps/floor/src/main-loop/registry.ts#L70))
+  ([validated by `registry.test.ts:55`](apps/floor/src/main-loop/registry.test.ts#L55); implemented by [`registry.ts:70`](apps/floor/src/main-loop/registry.ts#L70))
 
 - **FR6 — the Floor is pure orchestration.** With no in-process dgraph writer left,
   `SERIAL_FAMILIES` empties (chunk isolation comes from one-pod-per-event, the
