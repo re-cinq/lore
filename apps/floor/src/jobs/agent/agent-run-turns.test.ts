@@ -53,7 +53,9 @@ describe("turnFromEnvelope", () => {
       { task: "t1", agent: "cr-a" },
     );
 
-    expect(turnFromEnvelope(parsed, JSON.stringify(parsed))?.carried).toBeNull();
+    expect(
+      turnFromEnvelope(parsed, JSON.stringify(parsed))?.carried,
+    ).toBeNull();
   });
 
   it("stores the raw line verbatim when redaction changes nothing", () => {

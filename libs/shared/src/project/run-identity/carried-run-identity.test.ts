@@ -37,9 +37,14 @@ describe("parseCarriedRunIdentity", () => {
     // while leaving which VISIT produced it to a guess, mixing a stamped id with
     // an inferred node — so the whole tuple is required or the CR-name fallback
     // stays in charge.
-    expect(parseCarriedRunIdentity({ assembly_run: full.assembly_run })).toBeNull();
     expect(
-      parseCarriedRunIdentity({ assembly_run: full.assembly_run, node: "implement" }),
+      parseCarriedRunIdentity({ assembly_run: full.assembly_run }),
+    ).toBeNull();
+    expect(
+      parseCarriedRunIdentity({
+        assembly_run: full.assembly_run,
+        node: "implement",
+      }),
     ).toBeNull();
   });
 
