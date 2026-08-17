@@ -414,7 +414,7 @@ async function pruneDisappearedDocs(
 
     if (selection.outcome === "refused-suspicious-tree") {
       console.error(
-        `[ingest-graph] ${params.kind} ${params.repo} :: prune refused: suspicious tree read (${selection.candidateCount} of ${selection.inScopeDocCount} in-scope docs missing)`,
+        `[ingest-graph] ${params.kind} ${params.repo} :: prune refused: suspicious tree read (${selection.candidateCount} of ${selection.inScopeDocCount} in-scope docs missing — rerun with force to override)`,
       );
 
       return undefined;
