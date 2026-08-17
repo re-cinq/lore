@@ -156,11 +156,11 @@ describe("GET /api/spend", () => {
     pool.query.mockResolvedValue({ rows: [] });
     await get(pool);
 
-    const runScoped = pool.query.mock.calls.filter(([sql]) =>
+    const callsNamingColumn = pool.query.mock.calls.filter(([sql]) =>
       String(sql).includes("assembly_line_id"),
     );
 
-    expect(runScoped.length).toBeGreaterThan(0);
+    expect(callsNamingColumn.length).toBeGreaterThan(0);
     expect(
       pool.query.mock.calls.some(([sql]) =>
         String(sql).includes("assembly_run_id"),
