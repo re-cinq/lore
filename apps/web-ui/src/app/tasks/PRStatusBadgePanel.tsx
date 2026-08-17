@@ -10,7 +10,9 @@ export default function PRStatusBadgePanel({ taskId }: { taskId: string }) {
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/tasks/${taskId}/pr-status`, { signal: AbortSignal.timeout(15_000) })
+    fetch(`/api/tasks/${taskId}/pr-status`, {
+      signal: AbortSignal.timeout(15_000),
+    })
       .then((r) => r.json())
       .then((data) => {
         if (data.computed_status) {

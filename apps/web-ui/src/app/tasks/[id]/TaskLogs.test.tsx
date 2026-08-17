@@ -96,7 +96,10 @@ describe("TaskLogs", () => {
     render(<TaskLogs taskId="abc" initialStatus="succeeded" />);
     await settle();
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/abc/logs", expect.objectContaining({ signal: expect.anything() }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tasks/abc/logs",
+      expect.objectContaining({ signal: expect.anything() }),
+    );
     // succeeded is not an ACTIVE_STATE → the offset branch is never taken.
     expect(offsetCalls(fetchMock)).toHaveLength(0);
   });
@@ -763,6 +766,9 @@ describe("TaskLogs", () => {
 
     // totalSize 0→4 and status queued→running both settled; still a single fetch.
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/t1/logs", expect.objectContaining({ signal: expect.anything() }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tasks/t1/logs",
+      expect.objectContaining({ signal: expect.anything() }),
+    );
   });
 });

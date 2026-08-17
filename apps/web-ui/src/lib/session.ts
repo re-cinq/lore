@@ -9,7 +9,8 @@ export async function getUserRepos(accessToken: string): Promise<string[]> {
   try {
     const res = await fetch(
       "https://api.github.com/user/repos?per_page=100&sort=updated",
-      { signal: AbortSignal.timeout(10_000),
+      {
+        signal: AbortSignal.timeout(10_000),
         headers: { Authorization: `Bearer ${accessToken}` },
       },
     );

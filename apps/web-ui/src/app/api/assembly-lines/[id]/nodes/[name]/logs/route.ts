@@ -70,7 +70,10 @@ export async function GET(
     const query = tail ? `?tail=${encodeURIComponent(tail)}` : "";
     const upstream = await fetch(
       `${floorUrl}/api/agent-logs/${encodeURIComponent(name)}${query}`,
-      { signal: AbortSignal.timeout(30_000), headers: { Authorization: `Bearer ${token}` } },
+      {
+        signal: AbortSignal.timeout(30_000),
+        headers: { Authorization: `Bearer ${token}` },
+      },
     );
     const body = await upstream.text();
 

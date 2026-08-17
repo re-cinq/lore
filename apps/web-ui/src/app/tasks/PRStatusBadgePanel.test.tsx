@@ -55,7 +55,10 @@ describe("PRStatusBadgePanel", () => {
     render(<PRStatusBadgePanel taskId="abc-123" />);
     await flushFetch();
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/abc-123/pr-status", expect.objectContaining({ signal: expect.anything() }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tasks/abc-123/pr-status",
+      expect.objectContaining({ signal: expect.anything() }),
+    );
   });
 
   it("renders the resolved status in the pill after the fetch settles", async () => {

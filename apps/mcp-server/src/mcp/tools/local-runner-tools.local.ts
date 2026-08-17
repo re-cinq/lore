@@ -69,7 +69,8 @@ export function registerLocalRunnerTools(server: McpServer) {
 
         if (apiUrl && token) {
           try {
-            const resp = await fetch(`${apiUrl}/api/task`, { signal: AbortSignal.timeout(30_000),
+            const resp = await fetch(`${apiUrl}/api/task`, {
+              signal: AbortSignal.timeout(30_000),
               method: "POST",
               headers: {
                 Authorization: `Bearer ${token}`,
@@ -216,7 +217,8 @@ export function registerLocalRunnerTools(server: McpServer) {
 
           if (apiUrl && apiToken) {
             try {
-              const resp = await fetch(`${apiUrl}/api/task/${args.task_id}`, { signal: AbortSignal.timeout(30_000),
+              const resp = await fetch(`${apiUrl}/api/task/${args.task_id}`, {
+                signal: AbortSignal.timeout(30_000),
                 headers: { Authorization: `Bearer ${apiToken}` },
               });
 
@@ -265,7 +267,8 @@ export function registerLocalRunnerTools(server: McpServer) {
 
         if (apiUrl && token) {
           try {
-            await fetch(`${apiUrl}/api/task`, { signal: AbortSignal.timeout(30_000),
+            await fetch(`${apiUrl}/api/task`, {
+              signal: AbortSignal.timeout(30_000),
               method: "POST",
               headers: {
                 Authorization: `Bearer ${token}`,

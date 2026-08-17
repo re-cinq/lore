@@ -21,7 +21,9 @@ export default function PRStatusPanel({
   const [error, setError] = useState<string | null>(null);
 
   const fetchStatus = useCallback(() => {
-    fetch(`/api/tasks/${taskId}/pr-status`, { signal: AbortSignal.timeout(15_000) })
+    fetch(`/api/tasks/${taskId}/pr-status`, {
+      signal: AbortSignal.timeout(15_000),
+    })
       .then((r) => r.json())
       .then((data) => {
         if (data.error) {

@@ -52,7 +52,8 @@ export class NotifySlack implements NotifyPort {
     channel: string,
     text: string,
   ): Promise<void> {
-    await fetch("https://slack.com/api/chat.postMessage", { signal: AbortSignal.timeout(10_000),
+    await fetch("https://slack.com/api/chat.postMessage", {
+      signal: AbortSignal.timeout(10_000),
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,

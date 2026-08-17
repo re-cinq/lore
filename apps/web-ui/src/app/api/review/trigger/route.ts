@@ -50,7 +50,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const upstream = await fetch(`${floorUrl}/api/review/start`, { signal: AbortSignal.timeout(30_000),
+    const upstream = await fetch(`${floorUrl}/api/review/start`, {
+      signal: AbortSignal.timeout(30_000),
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,

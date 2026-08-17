@@ -42,7 +42,10 @@ describe("LoadMore", () => {
     const link = screen.getByRole("link", { name: "docs/next.md" });
 
     expect(link).toHaveAttribute("href", "/repos/o/r/context/docs%2Fnext.md");
-    expect(fetch).toHaveBeenCalledWith("/api/repos/o/r/context?offset=50", expect.objectContaining({ signal: expect.anything() }));
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/repos/o/r/context?offset=50",
+      expect.objectContaining({ signal: expect.anything() }),
+    );
   });
 
   it("forwards the active query and type to the API", async () => {

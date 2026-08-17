@@ -280,7 +280,8 @@ export function registerPipelineTools(server: McpServer) {
           let res: Response;
 
           try {
-            res = await fetch(`${apiUrl}/api/task/${task_id}`, { signal: AbortSignal.timeout(30_000),
+            res = await fetch(`${apiUrl}/api/task/${task_id}`, {
+              signal: AbortSignal.timeout(30_000),
               headers: { Authorization: `Bearer ${apiToken}` },
             });
           } catch (err) {
@@ -430,7 +431,8 @@ export function registerPipelineTools(server: McpServer) {
           }
           params.set("limit", String(Math.min(limit, 100)));
           params.set("offset", String(offset));
-          const res = await fetch(`${apiUrl}/api/tasks?${params}`, { signal: AbortSignal.timeout(30_000),
+          const res = await fetch(`${apiUrl}/api/tasks?${params}`, {
+            signal: AbortSignal.timeout(30_000),
             headers: { Authorization: `Bearer ${apiToken}` },
           });
 
@@ -703,7 +705,8 @@ export function registerPipelineTools(server: McpServer) {
             ttlSeconds: 86400,
           },
           async () => {
-            const res = await fetch(`${apiUrl}/api/task-logs?${params}`, { signal: AbortSignal.timeout(30_000),
+            const res = await fetch(`${apiUrl}/api/task-logs?${params}`, {
+              signal: AbortSignal.timeout(30_000),
               headers: { Authorization: `Bearer ${apiToken}` },
             });
 
@@ -793,7 +796,8 @@ export function registerPipelineTools(server: McpServer) {
             ttlSeconds: 86400,
           },
           async () => {
-            const res = await fetch(`${apiUrl}/api/job-run-logs?${params}`, { signal: AbortSignal.timeout(30_000),
+            const res = await fetch(`${apiUrl}/api/job-run-logs?${params}`, {
+              signal: AbortSignal.timeout(30_000),
               headers: { Authorization: `Bearer ${apiToken}` },
             });
 
@@ -869,7 +873,8 @@ export function registerPipelineTools(server: McpServer) {
         if (apiUrl && token) {
           const resp = await fetch(
             `${apiUrl}/api/tasks?status=pending&limit=50`,
-            { signal: AbortSignal.timeout(30_000),
+            {
+              signal: AbortSignal.timeout(30_000),
               headers: { Authorization: `Bearer ${token}` },
             },
           );

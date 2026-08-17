@@ -24,7 +24,8 @@ export async function getAssemblyLineDefinition(
   try {
     const res = await fetch(
       `${floorUrl}/api/assembly-line-definitions/${encodeURIComponent(name)}`,
-      { signal: AbortSignal.timeout(15_000),
+      {
+        signal: AbortSignal.timeout(15_000),
         headers: { authorization: `Bearer ${token}` },
         next: { revalidate: revalidateSeconds },
       },

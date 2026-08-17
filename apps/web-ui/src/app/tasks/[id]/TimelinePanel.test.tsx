@@ -107,7 +107,10 @@ describe("TimelinePanel", () => {
     render(<TimelinePanel taskId="task-42" initialStatus="done" />);
     await flush();
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/task-42/timeline", expect.objectContaining({ signal: expect.anything() }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tasks/task-42/timeline",
+      expect.objectContaining({ signal: expect.anything() }),
+    );
   });
 
   it("renders the error state when the response is not ok", async () => {

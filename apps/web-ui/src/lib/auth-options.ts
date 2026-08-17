@@ -25,7 +25,8 @@ export const authOptions: NextAuthOptions = {
       const login = (profile as { login?: string })?.login ?? "unknown";
 
       try {
-        const res = await fetch(`https://api.github.com/user/orgs`, { signal: AbortSignal.timeout(10_000),
+        const res = await fetch(`https://api.github.com/user/orgs`, {
+          signal: AbortSignal.timeout(10_000),
           headers: { Authorization: `Bearer ${account?.access_token}` },
         });
 

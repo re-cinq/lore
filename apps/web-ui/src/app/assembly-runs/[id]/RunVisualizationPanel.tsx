@@ -126,7 +126,9 @@ export default function RunVisualizationPanel({
 
       try {
         for (;;) {
-          const res = await fetch(historyUrl(runId, cursor), { signal: AbortSignal.timeout(15_000) });
+          const res = await fetch(historyUrl(runId, cursor), {
+            signal: AbortSignal.timeout(15_000),
+          });
 
           if (!res.ok) {
             if (!cancelled) {
@@ -243,7 +245,9 @@ export default function RunVisualizationPanel({
       inFlight = true;
 
       try {
-        const res = await fetch(historyUrl(runId, lastEventIdRef.current), { signal: AbortSignal.timeout(15_000) });
+        const res = await fetch(historyUrl(runId, lastEventIdRef.current), {
+          signal: AbortSignal.timeout(15_000),
+        });
 
         if (!res.ok || cancelled) {
           return;
