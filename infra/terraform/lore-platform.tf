@@ -88,7 +88,18 @@ resource "helm_release" "lore_platform" {
         LORE_DB_USER     = "lore"
         LORE_DGRAPH_HTTP = local.dgraph_http_url
         LORE_AGENT_URL   = "http://lore-floor.lore-floor.svc.cluster.local:8080"
-        LORE_WEBHOOK_URL = var.lore_webhook_hostname != "" ? "https://${var.lore_webhook_hostname}/api/webhook/github" : ""
+        # Rendered onto UI-authored agent recipes (#1080): the live Lore MCP gateway
+        # and the run-telemetry sink, so a repo that overrides its recipe through
+        # /agents keeps the mid-run memory/context access and the cost accounting a
+        # seeded recipe has. IN-CLUSTER for the same reason as ai-agents' loreMcpUrl
+        # — Dataplane V2 short-circuits the public VIP and the post-DNAT 10.x address
+        # hits the run-pod egress policy's except-list, so the public host hangs.
+        # Empty leaves the fields off entirely rather than pointing a pod at nothing.
+        LORE_MCP_URL = var.lore_mcp_url != "" ? "${local.lore_mcp_in_cluster}/mcp" : ""
+        # LORE_AGENT_EVENTS_URL was read by the code and set NOWHERE, so the http sink
+        # never materialised on a UI-authored recipe.
+        LORE_AGENT_EVENTS_URL = "http://lore-floor.lore-floor.svc.cluster.local:8080/api/agent-events"
+        LORE_WEBHOOK_URL      = var.lore_webhook_hostname != "" ? "https://${var.lore_webhook_hostname}/api/webhook/github" : ""
       }
       dbPasswordSecret  = { name = "lore-api-db-password", key = "password" }
       ingestTokenSecret = { name = "lore-ingest-token", key = "token" }
