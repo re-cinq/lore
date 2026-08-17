@@ -27,6 +27,7 @@ describe("parseAgentEvents", () => {
       {
         taskId: "task-uuid-1",
         agentCrName: "agent-abc",
+        carried: null,
         model: "claude-sonnet-4-6",
         inputTokens: 1200,
         outputTokens: 340,
@@ -106,6 +107,7 @@ describe("parseAgentEvents", () => {
       {
         taskId: "task-uuid-1",
         agentCrName: "agent-abc",
+        carried: null,
         model: "claude-sonnet-4-6",
         inputTokens: 1200,
         outputTokens: 340,
@@ -181,6 +183,7 @@ describe("parseAgentEvents on a station terminal line", () => {
       {
         taskId: "al-uuid-1",
         agentCrName: "abc123-triage",
+        carried: null,
         model: "claude-haiku-4-5-20251001",
         inputTokens: 812,
         outputTokens: 41,

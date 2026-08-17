@@ -20,6 +20,7 @@
 // (specs/turn-level-transcript-store; capped per batch, overflow counted).
 
 import { unwrapAttribution } from "@re-cinq/lore-assembly-lines";
+import { parseCarriedRunIdentity } from "@re-cinq/lore-shared/project/run-identity/carried-run-identity.js";
 import type {
   AgentRunEventInsert,
   AgentRunEventType,
@@ -272,10 +273,13 @@ export function rowsFromEnvelope(envelope: unknown): AgentRunEventInsert[] {
   }
   const agentCrName = str(source?.agent);
 
+  const carried = parseCarriedRunIdentity(source);
+
   return rowsFromEvent(event).map((row) => ({
     ...row,
     taskId,
     agentCrName,
+    carried,
     eventType: row.eventType as AgentRunEventType,
   }));
 }

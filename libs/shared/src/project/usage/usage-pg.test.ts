@@ -42,6 +42,9 @@ describe("PgUsage adapter", () => {
       1500,
       "success",
       null,
+      // $11/$12 — the carried identity, null when the producer stated none.
+      null,
+      null,
     ]);
   });
 
@@ -70,6 +73,43 @@ describe("PgUsage adapter", () => {
     expect(calls[0]?.params?.[0]).toBe("d6f1c2a0-0000-0000-0000-000000000000");
     expect(calls[0]?.params?.[1]).toBe("abc12345-review");
     expect(calls[0]?.params?.[6]).toBe(0.5);
+  });
+
+  it("prefers a carried identity and skips the CR-name lateral for that row", async () => {
+    const { pool, calls } = fakePool();
+
+    await new PgUsage(pool).logLlmCall({
+      taskId: "d6f1c2a0-0000-0000-0000-000000000000",
+      agentCrName: "abc12345-review",
+      model: "claude-sonnet-4-6",
+      inputTokens: 1,
+      outputTokens: 2,
+      durationMs: 10,
+      carried: {
+        assemblyLineId: "11111111-2222-4333-8444-555555555555",
+        nodeId: "review",
+        iteration: 1,
+        stationRunId: "99999999-2222-4333-8444-555555555555",
+      },
+    });
+
+    expect(calls[0]?.text).toContain("$11::uuid IS NULL");
+    expect(calls[0]?.params?.[10]).toBe("11111111-2222-4333-8444-555555555555");
+    expect(calls[0]?.params?.[11]).toBe("99999999-2222-4333-8444-555555555555");
+  });
+
+  it("passes nulls for an uncarried identity so the lateral stays in charge", async () => {
+    const { pool, calls } = fakePool();
+
+    await new PgUsage(pool).logLlmCall({
+      model: "claude-sonnet-4-6",
+      inputTokens: 1,
+      outputTokens: 2,
+      durationMs: 10,
+    });
+
+    expect(calls[0]?.params?.[10]).toBeNull();
+    expect(calls[0]?.params?.[11]).toBeNull();
   });
 
   it("reports correlated true when the RETURNING row says so", async () => {

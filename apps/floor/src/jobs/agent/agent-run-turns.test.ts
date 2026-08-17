@@ -26,6 +26,36 @@ describe("turnFromEnvelope", () => {
     });
   });
 
+  it("carries the run identity the producer stamped into the attribution", () => {
+    const parsed = envelope(
+      { type: "assistant" },
+      {
+        task: "t1",
+        agent: "cr-a",
+        assembly_run: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        node: "implement",
+        iteration: 2,
+        station_run: "11111111-2222-4333-8444-555555555555",
+      },
+    );
+
+    expect(turnFromEnvelope(parsed, JSON.stringify(parsed))?.carried).toEqual({
+      assemblyLineId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+      nodeId: "implement",
+      iteration: 2,
+      stationRunId: "11111111-2222-4333-8444-555555555555",
+    });
+  });
+
+  it("carries no identity for a producer that stamps none, leaving the CR-name lookup", () => {
+    const parsed = envelope(
+      { type: "assistant" },
+      { task: "t1", agent: "cr-a" },
+    );
+
+    expect(turnFromEnvelope(parsed, JSON.stringify(parsed))?.carried).toBeNull();
+  });
+
   it("stores the raw line verbatim when redaction changes nothing", () => {
     const parsed = envelope({ type: "assistant", text: "hello" });
     const raw = JSON.stringify(parsed);

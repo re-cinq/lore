@@ -60,6 +60,36 @@ describe("InMemoryAgentRunTurns insertBatch", () => {
     });
   });
 
+  it("takes the identity the turn carried over the agent_cr_name lookup", async () => {
+    // Same rule as agent_run_events: stated beats inferred, and beats it whole.
+    const repo = new InMemoryAgentRunTurns();
+
+    repo.registerNode({
+      agentCrName: "a1b2c3d4-implement",
+      assemblyLineId: "guessed-line",
+      nodeId: "implement",
+      iteration: 1,
+    });
+
+    const [row] = await repo.insertBatch([
+      turn({
+        carried: {
+          assemblyLineId: "stated-line",
+          nodeId: "review",
+          iteration: 3,
+          stationRunId: "stated-station-run",
+        },
+      }),
+    ]);
+
+    expect(row).toMatchObject({
+      assemblyLineId: "stated-line",
+      nodeId: "review",
+      iteration: 3,
+      stationRunId: "stated-station-run",
+    });
+  });
+
   it("keeps a turn whose agent_cr_name matches no node, with null correlation and the name retained", async () => {
     const repo = new InMemoryAgentRunTurns();
 
@@ -284,6 +314,29 @@ describe("PgAgentRunTurns adapter", () => {
     expect(calls[0]?.text).toContain("RETURNING *");
   });
 
+  it("insertBatch prefers the carried identity and skips the lookup for that row", async () => {
+    const { pool, calls } = fakePool([[]]);
+
+    await new PgAgentRunTurns(pool).insertBatch([
+      turn({
+        carried: {
+          assemblyLineId: "line-9",
+          nodeId: "review",
+          iteration: 2,
+          stationRunId: null,
+        },
+      }),
+    ]);
+
+    expect(calls[0]?.text).toContain("v.assembly_run_id IS NULL");
+    expect(JSON.parse(String(calls[0]?.params?.[0]))[0]).toMatchObject({
+      assembly_run_id: "line-9",
+      node_id: "review",
+      iteration: 2,
+      station_run_id: null,
+    });
+  });
+
   it("insertBatch passes the whole batch as a single bound jsonb parameter", async () => {
     const { pool, calls } = fakePool([[]]);
     const envelope = '{"event":{"text":"$1; DROP TABLE pipeline.tasks --"}}';
@@ -297,6 +350,10 @@ describe("PgAgentRunTurns adapter", () => {
       {
         task_id: "task-1",
         agent_cr_name: "a1b2c3d4-implement",
+        assembly_run_id: null,
+        node_id: null,
+        iteration: null,
+        station_run_id: null,
         event_type: "assistant",
         envelope,
       },

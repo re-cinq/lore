@@ -9,6 +9,10 @@
 // this mapper consumes unwrapAttribution and peels nothing of its own (#875).
 
 import { unwrapAttribution } from "@re-cinq/lore-assembly-lines";
+import {
+  parseCarriedRunIdentity,
+  type CarriedRunIdentity,
+} from "@re-cinq/lore-shared/project/run-identity/carried-run-identity.js";
 import type {
   AgentRunEventInsert,
   AgentRunTurnInsert,
@@ -30,6 +34,9 @@ export interface LlmCallRow {
    *  attempt at ingest, giving task-backed runs per-attempt cost (#947). Null
    *  when the pod sent no agent attribution. */
   agentCrName: string | null;
+  /** The identity the producer STATED, when it did (#1147) — authoritative over
+   *  the CR-name lookup. Null from a producer that stamps none. */
+  carried: CarriedRunIdentity | null;
   model: string;
   inputTokens: number;
   outputTokens: number;
@@ -73,6 +80,7 @@ function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
   return {
     taskId,
     agentCrName: typeof source?.agent === "string" ? source.agent : null,
+    carried: parseCarriedRunIdentity(source),
     model: resultModel(ev),
     inputTokens: num(ev.usage.input_tokens),
     outputTokens: num(ev.usage.output_tokens),

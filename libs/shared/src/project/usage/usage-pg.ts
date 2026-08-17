@@ -30,7 +30,16 @@ export class PgUsage implements UsagePort {
     const { rows } = await this.pool.query<{ correlated: boolean }>(
       `INSERT INTO pipeline.llm_calls
          (task_id, assembly_line_id, station_run_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms, status, error)
-       SELECT t.id, COALESCE(node.assembly_run_id, al.id), node.station_run_id, $3, $4, $5, $6, $7, $8, $9, $10
+       -- A carried identity ($11/$12) is STATED by the producer and wins over both
+       -- guesses — the CR-name lateral and the given-id fallback. Whole, on one
+       -- predicate: a stated run beside an inferred station run would be a row
+       -- wrong in a way no reader can detect.
+       SELECT t.id,
+              CASE WHEN $11::uuid IS NULL
+                   THEN COALESCE(node.assembly_run_id, al.id) ELSE $11::uuid END,
+              CASE WHEN $11::uuid IS NULL
+                   THEN node.station_run_id ELSE $12::uuid END,
+              $3, $4, $5, $6, $7, $8, $9, $10
          FROM (SELECT $1::uuid AS given, $2::text AS cr) g
          LEFT JOIN pipeline.tasks t ON t.id = g.given
          LEFT JOIN pipeline.assembly_runs al ON al.id = g.given AND t.id IS NULL
@@ -38,6 +47,8 @@ export class PgUsage implements UsagePort {
            SELECT n.assembly_run_id, n.station_run_id
              FROM pipeline.station_runs n
             WHERE n.agent_cr_name = g.cr
+              -- Only rows that carry no identity need the guess.
+              AND $11::uuid IS NULL
             ORDER BY n.id DESC
             LIMIT 1
          ) node ON true
@@ -53,6 +64,8 @@ export class PgUsage implements UsagePort {
         record.durationMs,
         record.status ?? "success",
         record.error ?? null,
+        record.carried?.assemblyLineId ?? null,
+        record.carried?.stationRunId ?? null,
       ],
     );
 

@@ -83,7 +83,8 @@ export class InMemoryAgentRunTurns implements AgentRunTurnsRepository {
   }
 
   private persist(insert: AgentRunTurnInsert): AgentRunTurnRow {
-    const node = this.correlate(insert.agentCrName);
+    // Stated beats inferred, whole — see agent-run-events-memory.
+    const node = insert.carried ?? this.correlate(insert.agentCrName);
     const row: AgentRunTurnRow = {
       id: String(this.nextId++),
       taskId: insert.taskId,

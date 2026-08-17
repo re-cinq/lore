@@ -76,6 +76,10 @@ export class PgAgentRunEvents implements AgentRunEventsRepository {
     const batch = rows.map((row) => ({
       task_id: row.taskId,
       agent_cr_name: row.agentCrName,
+      assembly_run_id: row.carried?.assemblyLineId ?? null,
+      node_id: row.carried?.nodeId ?? null,
+      iteration: row.carried?.iteration ?? null,
+      station_run_id: row.carried?.stationRunId ?? null,
       event_type: row.eventType,
       tool_name: row.toolName ?? null,
       tool_use_id: row.toolUseId ?? null,
@@ -90,13 +94,26 @@ export class PgAgentRunEvents implements AgentRunEventsRepository {
          task_id, agent_cr_name, assembly_line_id, station_run_id, node_id, iteration,
          event_type, tool_name, tool_use_id, is_error, file_paths, summary, payload
        )
-       SELECT v.task_id, v.agent_cr_name, correlated.assembly_run_id,
-              correlated.station_run_id,
-              correlated.node_id, correlated.iteration, v.event_type,
+       -- Every branch keys on the SAME predicate, so a row takes its identity
+       -- whole from one source. Per-column COALESCE would let a stated run id sit
+       -- beside an inferred node id — a row wrong in a way no reader can detect.
+       -- A carried station_run_id of NULL is kept as NULL rather than falling
+       -- through to the guess, for the same reason.
+       SELECT v.task_id, v.agent_cr_name,
+              CASE WHEN v.assembly_run_id IS NULL
+                   THEN correlated.assembly_run_id ELSE v.assembly_run_id END,
+              CASE WHEN v.assembly_run_id IS NULL
+                   THEN correlated.station_run_id ELSE v.station_run_id END,
+              CASE WHEN v.assembly_run_id IS NULL
+                   THEN correlated.node_id ELSE v.node_id END,
+              CASE WHEN v.assembly_run_id IS NULL
+                   THEN correlated.iteration ELSE v.iteration END,
+              v.event_type,
               v.tool_name, v.tool_use_id, v.is_error, v.file_paths,
               v.summary, v.payload
        FROM jsonb_to_recordset($1::jsonb) AS v(
-         task_id TEXT, agent_cr_name TEXT, event_type TEXT, tool_name TEXT,
+         task_id TEXT, agent_cr_name TEXT, assembly_run_id UUID, node_id TEXT,
+         iteration INT, station_run_id UUID, event_type TEXT, tool_name TEXT,
          tool_use_id TEXT, is_error BOOLEAN, file_paths TEXT[], summary TEXT,
          payload JSONB
        )
@@ -114,6 +131,8 @@ export class PgAgentRunEvents implements AgentRunEventsRepository {
                 node.iteration
          FROM pipeline.station_runs node
          WHERE node.agent_cr_name = v.agent_cr_name
+           -- Only rows that carry no identity need the guess.
+           AND v.assembly_run_id IS NULL
          ORDER BY node.id DESC
          LIMIT 1
        ) correlated ON true

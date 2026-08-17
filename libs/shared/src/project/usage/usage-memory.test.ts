@@ -46,6 +46,46 @@ describe("InMemoryUsage.logLlmCall", () => {
     expect(usage.rows[0]).toMatchObject({ assembly_line_id: "line-new" });
   });
 
+  it("takes the identity the call carried over both the CR name and the given id", async () => {
+    // Cost attribution stops depending on a node row being findable by name — the
+    // failure this replaces is a copied node row stealing another run's cost.
+    const usage = new InMemoryUsage();
+
+    usage.registerNode({ agentCrName: "cr-a", assemblyLineId: "guessed-line" });
+    const result = await usage.logLlmCall({
+      ...CALL,
+      agentCrName: "cr-a",
+      carried: {
+        assemblyLineId: "stated-line",
+        nodeId: "review",
+        iteration: 1,
+        stationRunId: "stated-station-run",
+      },
+    });
+
+    expect(result).toEqual({ correlated: true });
+    expect(usage.rows[0]).toMatchObject({
+      assembly_line_id: "stated-line",
+      station_run_id: "stated-station-run",
+    });
+  });
+
+  it("counts a carried identity as correlated even with no seeded node or task", async () => {
+    const usage = new InMemoryUsage();
+
+    const result = await usage.logLlmCall({
+      ...CALL,
+      carried: {
+        assemblyLineId: "stated-line",
+        nodeId: "review",
+        iteration: 1,
+        stationRunId: null,
+      },
+    });
+
+    expect(result).toEqual({ correlated: true });
+  });
+
   it("stores an unknown-but-valid uuid uncorrelated, both ids null, instead of rejecting it", async () => {
     const usage = new InMemoryUsage();
     const result = await usage.logLlmCall({

@@ -59,6 +59,7 @@ describe("POST /api/agent-events turn store", () => {
       {
         taskId: "task-uuid-1",
         agentCrName: "cr-1",
+        carried: null,
         eventType: "result",
         envelope: RESULT_LINE,
       },

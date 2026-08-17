@@ -509,6 +509,7 @@ describe("run-event projection through parseAgentSink", () => {
       {
         taskId: "task-uuid-1",
         agentCrName: "abcd1234-review",
+        carried: null,
         model: "claude-opus-4",
         inputTokens: 10,
         outputTokens: 2,
@@ -572,6 +573,7 @@ describe("station log-line projection", () => {
       {
         taskId: "task-uuid-1",
         agentCrName: "abcd1234-review",
+        carried: null,
         eventType: "message",
         summary: "lore-station detect starting",
         payload: {},
