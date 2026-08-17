@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import AssemblyLineCreateView from "./AssemblyLineCreateView";
+import AssemblyRunCreateView from "./AssemblyRunCreateView";
 
 const action = vi.fn();
 
-describe("AssemblyLineCreateView", () => {
+describe("AssemblyRunCreateView", () => {
   it("renders the heading and the Create Task submit button", () => {
     render(
-      <AssemblyLineCreateView onboardedRepos={[]} createTaskAction={action} />,
+      <AssemblyRunCreateView onboardedRepos={[]} createTaskAction={action} />,
     );
     expect(
       screen.getByRole("heading", { level: 1, name: "Create Task" }),
@@ -20,7 +20,7 @@ describe("AssemblyLineCreateView", () => {
 
   it("renders all four task-type options", () => {
     render(
-      <AssemblyLineCreateView onboardedRepos={[]} createTaskAction={action} />,
+      <AssemblyRunCreateView onboardedRepos={[]} createTaskAction={action} />,
     );
     expect(screen.getByRole("option", { name: "General" })).toHaveValue(
       "general",
@@ -38,7 +38,7 @@ describe("AssemblyLineCreateView", () => {
 
   it("renders a target_repo dropdown option per onboarded repo when repos exist", () => {
     const { container } = render(
-      <AssemblyLineCreateView
+      <AssemblyRunCreateView
         onboardedRepos={[
           { full_name: "re-cinq/lore" },
           { full_name: "re-cinq/other" },
@@ -62,7 +62,7 @@ describe("AssemblyLineCreateView", () => {
 
   it("falls back to a free-text target_repo input defaulting to re-cinq/lore when no repos exist", () => {
     const { container } = render(
-      <AssemblyLineCreateView onboardedRepos={[]} createTaskAction={action} />,
+      <AssemblyRunCreateView onboardedRepos={[]} createTaskAction={action} />,
     );
 
     expect(
@@ -75,7 +75,7 @@ describe("AssemblyLineCreateView", () => {
 
   it("renders the immediate-priority checkbox carrying value immediate", () => {
     const { container } = render(
-      <AssemblyLineCreateView onboardedRepos={[]} createTaskAction={action} />,
+      <AssemblyRunCreateView onboardedRepos={[]} createTaskAction={action} />,
     );
     const checkbox = container.querySelector('input[name="priority"]');
 
@@ -89,7 +89,7 @@ describe("AssemblyLineCreateView", () => {
 
   it("renders the required description textarea", () => {
     const { container } = render(
-      <AssemblyLineCreateView onboardedRepos={[]} createTaskAction={action} />,
+      <AssemblyRunCreateView onboardedRepos={[]} createTaskAction={action} />,
     );
     const textarea = container.querySelector('textarea[name="description"]');
 
@@ -102,7 +102,7 @@ describe("AssemblyLineCreateView", () => {
 
   it("wires the form to the injected createTaskAction", () => {
     const { container } = render(
-      <AssemblyLineCreateView onboardedRepos={[]} createTaskAction={action} />,
+      <AssemblyRunCreateView onboardedRepos={[]} createTaskAction={action} />,
     );
 
     expect(container.querySelector("form.task-form")).toBeInTheDocument();

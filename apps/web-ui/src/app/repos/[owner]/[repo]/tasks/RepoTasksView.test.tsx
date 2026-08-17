@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import RepoTasksView from "./RepoTasksView";
-import type { AssemblyLineRun } from "@/lib/assembly-line-runs";
+import type { AssemblyRun } from "@/lib/assembly-runs";
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -11,7 +11,7 @@ beforeEach(() => {
   );
 });
 
-const run = (over: Partial<AssemblyLineRun> = {}): AssemblyLineRun => ({
+const run = (over: Partial<AssemblyRun> = {}): AssemblyRun => ({
   id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
   blueprintName: "implementation",
   graph: null,

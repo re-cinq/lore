@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { fetchAssemblyLineRun } from "@/lib/assembly-line-runs";
+import { fetchAssemblyRun } from "@/lib/assembly-runs";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { serverError } from "@/lib/api-error";
 
@@ -33,7 +33,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const run = await fetchAssemblyLineRun(id);
+    const run = await fetchAssemblyRun(id);
 
     if (!run) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });

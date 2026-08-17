@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { definitionForRun } from "./run-graph-definition";
-import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { AssemblyRunNode } from "./assembly-runs";
 import type { RunGraph } from "./run-graph";
 
 const storedGraph: RunGraph = {
@@ -26,8 +26,8 @@ const storedGraph: RunGraph = {
 
 const row = (
   nodeId: string,
-  over: Partial<AssemblyLineRunNode> = {},
-): AssemblyLineRunNode => ({
+  over: Partial<AssemblyRunNode> = {},
+): AssemblyRunNode => ({
   nodeId,
   iteration: 1,
   outcome: "success",

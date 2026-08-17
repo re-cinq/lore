@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { walkRunData } from "./run-walk-data";
-import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { AssemblyRunNode } from "./assembly-runs";
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 
 const definition: AssemblyLineDefinition = {
@@ -21,7 +21,7 @@ const definition: AssemblyLineDefinition = {
   ],
 };
 
-const row = (over: Partial<AssemblyLineRunNode> = {}): AssemblyLineRunNode => ({
+const row = (over: Partial<AssemblyRunNode> = {}): AssemblyRunNode => ({
   nodeId: "analyze",
   iteration: 1,
   outcome: null,

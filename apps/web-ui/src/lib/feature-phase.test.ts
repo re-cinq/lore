@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { featurePhaseOf } from "./feature-phase";
-import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { AssemblyRunNode } from "./assembly-runs";
 
 const node = (
   nodeId: string,
   outcome: string | null,
   startedAt?: string,
-): AssemblyLineRunNode => ({
+): AssemblyRunNode => ({
   nodeId,
   iteration: 1,
   outcome,
@@ -16,7 +16,7 @@ const node = (
   startedAt,
 });
 
-const run = (status: string, nodes: AssemblyLineRunNode[]) => ({
+const run = (status: string, nodes: AssemblyRunNode[]) => ({
   status,
   nodes,
 });

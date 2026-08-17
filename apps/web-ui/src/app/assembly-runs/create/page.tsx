@@ -4,7 +4,7 @@ import { createTask as queueTask } from "@/lib/api/tasks";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import AssemblyLineCreateView from "./AssemblyLineCreateView";
+import AssemblyRunCreateView from "./AssemblyRunCreateView";
 
 async function createTask(formData: FormData) {
   "use server";
@@ -50,7 +50,7 @@ export default async function CreateTaskPage() {
       : [];
 
   return (
-    <AssemblyLineCreateView
+    <AssemblyRunCreateView
       onboardedRepos={onboardedRepos}
       createTaskAction={createTask}
     />

@@ -1,17 +1,17 @@
 import Link from "next/link";
-import type { AssemblyLineRun } from "@/lib/assembly-line-runs";
-import { formatDuration, runStatusVisual } from "@/lib/assembly-line-presenter";
-import styles from "./AssemblyLineRunView.module.css";
+import type { AssemblyRun } from "@/lib/assembly-runs";
+import { formatDuration, runStatusVisual } from "@/lib/assembly-run-presenter";
+import styles from "./AssemblyRunView.module.css";
 
 const EM_DASH = "—";
 
-export interface AssemblyLineRunViewProps {
-  run: AssemblyLineRun;
+export interface AssemblyRunViewProps {
+  run: AssemblyRun;
 }
 
 /** Run header — the line-level facts of the attempt. Per-node state lives in the
  *  visualization panel below (graph + node inspector). Pure render. */
-export default function AssemblyLineRunView({ run }: AssemblyLineRunViewProps) {
+export default function AssemblyRunView({ run }: AssemblyRunViewProps) {
   const visual = runStatusVisual(run.status, run.outcome);
 
   return (

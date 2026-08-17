@@ -1,5 +1,5 @@
 import styles from "./TimeAgo.module.scss";
-import { formatRelativeTime } from "@/lib/assembly-line-presenter";
+import { formatRelativeTime } from "@/lib/assembly-run-presenter";
 
 export function TimeAgo({
   date,

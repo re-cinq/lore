@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
-import AssemblyLineRunListView from "./AssemblyLineRunListView";
-import { fetchAssemblyLineRuns } from "@/lib/assembly-line-runs";
+import AssemblyRunListView from "./AssemblyRunListView";
+import { fetchAssemblyRuns } from "@/lib/assembly-runs";
 
 export default async function AssemblyLinesPage({
   searchParams,
@@ -8,7 +8,7 @@ export default async function AssemblyLinesPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   const { status } = await searchParams;
-  const runs = await fetchAssemblyLineRuns({ status });
+  const runs = await fetchAssemblyRuns({ status });
 
-  return <AssemblyLineRunListView activeStatus={status} runs={runs} />;
+  return <AssemblyRunListView activeStatus={status} runs={runs} />;
 }

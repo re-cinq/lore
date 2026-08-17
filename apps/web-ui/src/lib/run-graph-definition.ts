@@ -17,7 +17,7 @@ import type {
   DefinitionEdge,
   DefinitionNode,
 } from "./assembly-line-definition";
-import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { AssemblyRunNode } from "./assembly-runs";
 import type { RunGraph } from "./run-graph";
 
 export interface RunGraphDefinition {
@@ -28,7 +28,7 @@ export interface RunGraphDefinition {
 
 /** Distinct visited node ids, in the order the walk first reached them. */
 function visitedNodes(
-  visitRows: readonly AssemblyLineRunNode[],
+  visitRows: readonly AssemblyRunNode[],
 ): DefinitionNode[] {
   const seen = new Set<string>();
   const nodes: DefinitionNode[] = [];
@@ -88,7 +88,7 @@ function fromRunGraph(graph: RunGraph): AssemblyLineDefinition {
  */
 export function definitionForRun(
   blueprintName: string,
-  visitRows: readonly AssemblyLineRunNode[],
+  visitRows: readonly AssemblyRunNode[],
   graph?: RunGraph | null,
 ): RunGraphDefinition {
   if (graph) {

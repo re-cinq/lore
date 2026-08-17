@@ -4,9 +4,9 @@ import {
   codeReviewDefinition,
   implementationDefinition,
 } from "./definition-fixtures";
-import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { AssemblyRunNode } from "./assembly-runs";
 
-const node = (nodeId: string, outcome: string | null): AssemblyLineRunNode => ({
+const node = (nodeId: string, outcome: string | null): AssemblyRunNode => ({
   nodeId,
   iteration: 1,
   outcome,

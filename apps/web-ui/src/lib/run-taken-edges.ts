@@ -12,7 +12,7 @@ import type {
   AssemblyLineDefinition,
   DefinitionEdge,
 } from "./assembly-line-definition";
-import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { AssemblyRunNode } from "./assembly-runs";
 
 /** Stable key matching RunGraphView's edgeKey: `${from}-${to}-${on}`. */
 export function edgeKey(
@@ -59,7 +59,7 @@ export function chosenEdge(
  */
 export function takenEdgeKeys(
   definition: AssemblyLineDefinition | null,
-  nodes: readonly AssemblyLineRunNode[],
+  nodes: readonly AssemblyRunNode[],
 ): Set<string> {
   const keys = new Set<string>();
 

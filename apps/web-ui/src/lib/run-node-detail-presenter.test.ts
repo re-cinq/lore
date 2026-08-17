@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { describeNode } from "./run-node-detail-presenter";
 import { implementationDefinition } from "./definition-fixtures";
-import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { AssemblyRunNode } from "./assembly-runs";
 import type { NodeRunState } from "./run-event-reducer";
 import type { RunStreamEvent } from "./run-stream-types";
 
-const row = (over: Partial<AssemblyLineRunNode> = {}): AssemblyLineRunNode => ({
+const row = (over: Partial<AssemblyRunNode> = {}): AssemblyRunNode => ({
   nodeId: "implement",
   iteration: 1,
   outcome: "success",

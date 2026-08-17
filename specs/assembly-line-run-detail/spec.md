@@ -15,19 +15,19 @@ The `/assembly-runs/[id]` page is the main window into what the platform is doin
 
 The current page under `apps/web-ui/src/app/assembly-runs/[id]/` has seven view components and two levels of information that do not compose:
 
-**Line-level** (about the whole run): `RunGraphView`, `RunTimelineView`, `ReplayScrubberView`, `FileHeatmapView`, `AssemblyLineRunView` (header + static step list)
+**Line-level** (about the whole run): `RunGraphView`, `RunTimelineView`, `ReplayScrubberView`, `FileHeatmapView`, `AssemblyRunView` (header + static step list)
 
 **Node-level** (about one execution pod): `RunNodeDetail`, `NodeTranscriptView`, `NodePodLogs`
 
-The problem is that `NodePodLogs` is rendered at the page level in `page.tsx` alongside the line-level `AssemblyLineRunView`, completely detached from the selected-node state owned by `RunVisualizationPanel`. A developer who wants to correlate the graph state with a pod's log output has to know that the log section is two pages below the graph. There is no navigation signal connecting them.
+The problem is that `NodePodLogs` is rendered at the page level in `page.tsx` alongside the line-level `AssemblyRunView`, completely detached from the selected-node state owned by `RunVisualizationPanel`. A developer who wants to correlate the graph state with a pod's log output has to know that the log section is two pages below the graph. There is no navigation signal connecting them.
 
-A secondary problem is that `AssemblyLineRunView` renders a static `<ol>` step list whose information content duplicates the interactive `RunGraphView`. The interactive graph supersedes the static list; keeping both gives the page two competing answers to the same question.
+A secondary problem is that `AssemblyRunView` renders a static `<ol>` step list whose information content duplicates the interactive `RunGraphView`. The interactive graph supersedes the static list; keeping both gives the page two competing answers to the same question.
 
 The three imported components from `apps/web-ui/src/app/tasks/[id]/` (`EventTimeline`, `LlmCallsTable`) are task-level accounting — they report on cost and status transitions for the backing task, not on individual node executions — and belong at the page bottom as a separate grouping.
 
 ## FR1 — The static step list is deleted
 
-- `AssemblyLineRunView` renders only the metadata facts table (definition name, status, repo, branch, outcome, reason, duration, task link, PR link). The `<ol>` step list produced by `stepViews()` is removed.
+- `AssemblyRunView` renders only the metadata facts table (definition name, status, repo, branch, outcome, reason, duration, task link, PR link). The `<ol>` step list produced by `stepViews()` is removed.
 - The interactive `RunGraphView` is the sole visual answer to "what did this run do and in what order." The two are not duplicated.
 - Any tests that cover only the step list rendering are deleted with it.
 
@@ -55,7 +55,7 @@ The three imported components from `apps/web-ui/src/app/tasks/[id]/` (`EventTime
 
 - The refactor moves and resizes existing components. It does not introduce new component files.
 - `NodePodLogs.tsx` prop signature changes (FR2) but its rendering logic is unchanged.
-- `AssemblyLineRunView.tsx` loses the step list and `stepViews()` helper. The component is not deleted — its header rendering is still server-rendered above the visualization panel.
+- `AssemblyRunView.tsx` loses the step list and `stepViews()` helper. The component is not deleted — its header rendering is still server-rendered above the visualization panel.
 - `TriggerReviewButton` placement is unchanged (below the header, gated on `code-review` definition and PR number).
 
 ## Alternatives Rejected

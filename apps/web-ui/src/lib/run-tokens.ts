@@ -4,7 +4,7 @@
  * Deliberately free of IO, because `RunningCard` is a client component: importing a
  * value from a module that reaches `db` drags `pg` into the browser bundle and the
  * build dies on `Can't resolve 'fs'`. The read that fills these numbers lives in
- * `assembly-line-runs.ts` with the rest of the run queries.
+ * `assembly-runs.ts` with the rest of the run queries.
  */
 
 /** One turn's usage, already unwrapped from the stream-json envelope by SQL. */

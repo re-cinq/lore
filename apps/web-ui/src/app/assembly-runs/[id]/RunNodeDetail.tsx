@@ -2,12 +2,12 @@
 // supporting facts and links. Pure render over the presenter's output.
 
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
-import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
+import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { NodeRunState } from "@/lib/run-event-reducer";
 import {
   formatDuration,
   formatRelativeTime,
-} from "@/lib/assembly-line-presenter";
+} from "@/lib/assembly-run-presenter";
 import { describeNode, type NodeDetail } from "@/lib/run-node-detail-presenter";
 import type { NodeStatusTone } from "@/lib/run-node-status";
 import type { StepView } from "@/lib/step-presenter";
@@ -34,7 +34,7 @@ const WHY_CLASS: Record<NodeStatusTone, string> = {
 export interface RunNodeDetailProps {
   nodeId: string;
   state: NodeRunState | undefined;
-  row: AssemblyLineRunNode | undefined;
+  row: AssemblyRunNode | undefined;
   definition: AssemblyLineDefinition | null;
   reason: string | null;
   repo: string;

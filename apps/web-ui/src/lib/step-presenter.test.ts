@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { stepViews } from "./step-presenter";
 import { implementationDefinition } from "./definition-fixtures";
-import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { AssemblyRunNode } from "./assembly-runs";
 
 const node = (
-  over: Partial<AssemblyLineRunNode> = {},
-): AssemblyLineRunNode => ({
+  over: Partial<AssemblyRunNode> = {},
+): AssemblyRunNode => ({
   nodeId: "implement",
   iteration: 1,
   outcome: "success",

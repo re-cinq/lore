@@ -11,7 +11,7 @@
 // `db` -> `pg` chain into the browser bundle ("Can't resolve 'fs'"). This replaces
 // spec-phase.ts, which carried the same constraint and covered only the spec half.
 
-import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { AssemblyRunNode } from "./assembly-runs";
 import type { FeatureStatus } from "./feature-types";
 import { humanStation } from "./human-station";
 import { isPlanningActive } from "@/app/repos/[owner]/[repo]/features/feature-status";
@@ -70,7 +70,7 @@ export interface FeaturePhaseInput {
   run?: {
     status: string;
     outcome?: string | null;
-    nodes: readonly AssemblyLineRunNode[];
+    nodes: readonly AssemblyRunNode[];
     /** The run's own graph, so a human station's phase reads off its declared
      *  type rather than off a transcribed list of node ids. */
     graph?: { nodes: readonly { id: string; type: string }[] } | null;

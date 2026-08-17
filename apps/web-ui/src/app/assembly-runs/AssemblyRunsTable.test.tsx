@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent } from "@testing-library/react";
-import AssemblyLineRunsTable from "./AssemblyLineRunsTable";
-import type { AssemblyLineRun } from "@/lib/assembly-line-runs";
+import AssemblyRunsTable from "./AssemblyRunsTable";
+import type { AssemblyRun } from "@/lib/assembly-runs";
 
 // PRStatusBadgePanel fetches on mount; stub it so the badge case doesn't hit network.
 beforeEach(() => {
@@ -12,7 +12,7 @@ beforeEach(() => {
   );
 });
 
-const run = (over: Partial<AssemblyLineRun> = {}): AssemblyLineRun => ({
+const run = (over: Partial<AssemblyRun> = {}): AssemblyRun => ({
   id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
   blueprintName: "implementation",
   graph: null,
@@ -32,15 +32,15 @@ const run = (over: Partial<AssemblyLineRun> = {}): AssemblyLineRun => ({
   ...over,
 });
 
-describe("AssemblyLineRunsTable", () => {
+describe("AssemblyRunsTable", () => {
   it("renders the empty-state line when there are no runs", () => {
-    render(<AssemblyLineRunsTable runs={[]} />);
+    render(<AssemblyRunsTable runs={[]} />);
 
     expect(screen.getByText("No assembly line runs.")).toBeInTheDocument();
   });
 
   it("renders a finished run with a definition link, repo link, duration and PR", () => {
-    render(<AssemblyLineRunsTable runs={[run()]} />);
+    render(<AssemblyRunsTable runs={[run()]} />);
 
     expect(
       screen.getByRole("link", { name: "implementation" }),
@@ -62,7 +62,7 @@ describe("AssemblyLineRunsTable", () => {
 
   it("renders em dashes for creator, cost, PR and duration on a run with no task", () => {
     render(
-      <AssemblyLineRunsTable
+      <AssemblyRunsTable
         runs={[
           run({
             taskId: null,
@@ -84,7 +84,7 @@ describe("AssemblyLineRunsTable", () => {
 
   it("shows the failure reason under a failed status", () => {
     render(
-      <AssemblyLineRunsTable
+      <AssemblyRunsTable
         runs={[
           run({ status: "failed", outcome: "error", reason: "lint failed" }),
         ]}
@@ -97,7 +97,7 @@ describe("AssemblyLineRunsTable", () => {
 
   it("hides lease_held coordination skips by default behind a labelled toggle", () => {
     render(
-      <AssemblyLineRunsTable
+      <AssemblyRunsTable
         runs={[
           run({ id: "real-1", blueprintName: "code-review" }),
           run({
@@ -129,7 +129,7 @@ describe("AssemblyLineRunsTable", () => {
 
   it("reveals the skips when the toggle is clicked", () => {
     render(
-      <AssemblyLineRunsTable
+      <AssemblyRunsTable
         runs={[
           run({ id: "real-1", blueprintName: "code-review" }),
           run({
@@ -157,7 +157,7 @@ describe("AssemblyLineRunsTable", () => {
 
   it("shows a placeholder row when all runs are coordination skips", () => {
     render(
-      <AssemblyLineRunsTable
+      <AssemblyRunsTable
         runs={[
           run({ id: "skip-1", status: "finished", outcome: "lease_held" }),
         ]}
@@ -174,14 +174,14 @@ describe("AssemblyLineRunsTable", () => {
   });
 
   it("shows no toggle when there are no coordination skips", () => {
-    render(<AssemblyLineRunsTable runs={[run()]} />);
+    render(<AssemblyRunsTable runs={[run()]} />);
 
     expect(screen.queryByRole("button")).toBeNull();
   });
 
   it("renders the PR link built from args.pr_number without a status badge (no task)", () => {
     render(
-      <AssemblyLineRunsTable
+      <AssemblyRunsTable
         runs={[
           run({
             taskId: null,
@@ -203,7 +203,7 @@ describe("AssemblyLineRunsTable", () => {
   });
 
   it("renders an em dash for a null branch", () => {
-    render(<AssemblyLineRunsTable runs={[run({ branch: null })]} />);
+    render(<AssemblyRunsTable runs={[run({ branch: null })]} />);
 
     expect(screen.getByText("—")).toBeInTheDocument();
   });
@@ -212,7 +212,7 @@ describe("AssemblyLineRunsTable", () => {
     const branch =
       "ingest/test-report/1883314dcd3d9c0008c2dcbea876c552d77c6b02";
 
-    render(<AssemblyLineRunsTable runs={[run({ branch })]} />);
+    render(<AssemblyRunsTable runs={[run({ branch })]} />);
 
     expect(screen.getByTitle(branch)).toHaveTextContent(branch);
   });

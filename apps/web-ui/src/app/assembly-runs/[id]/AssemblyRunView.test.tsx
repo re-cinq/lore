@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import AssemblyLineRunView from "./AssemblyLineRunView";
-import type { AssemblyLineRun } from "@/lib/assembly-line-runs";
+import AssemblyRunView from "./AssemblyRunView";
+import type { AssemblyRun } from "@/lib/assembly-runs";
 
-const run = (over: Partial<AssemblyLineRun> = {}): AssemblyLineRun => ({
+const run = (over: Partial<AssemblyRun> = {}): AssemblyRun => ({
   id: "al-1",
   blueprintName: "code-review",
   graph: null,
@@ -24,9 +24,9 @@ const run = (over: Partial<AssemblyLineRun> = {}): AssemblyLineRun => ({
   ...over,
 });
 
-describe("AssemblyLineRunView", () => {
+describe("AssemblyRunView", () => {
   it("renders the run header with definition, repo link and outcome", () => {
-    render(<AssemblyLineRunView run={run()} />);
+    render(<AssemblyRunView run={run()} />);
 
     expect(
       screen.getByRole("heading", { name: "code-review", level: 1 }),
@@ -40,7 +40,7 @@ describe("AssemblyLineRunView", () => {
 
   it("shows the reason on a failed run", () => {
     render(
-      <AssemblyLineRunView
+      <AssemblyRunView
         run={run({ status: "failed", outcome: "error", reason: "no edge" })}
       />,
     );
@@ -50,7 +50,7 @@ describe("AssemblyLineRunView", () => {
 
   it("links the backing task when task_id is set, omits it otherwise", () => {
     const { rerender } = render(
-      <AssemblyLineRunView run={run({ taskId: "task-9" })} />,
+      <AssemblyRunView run={run({ taskId: "task-9" })} />,
     );
 
     expect(screen.getByRole("link", { name: "View task →" })).toHaveAttribute(
@@ -58,14 +58,14 @@ describe("AssemblyLineRunView", () => {
       "/tasks/task-9",
     );
 
-    rerender(<AssemblyLineRunView run={run({ taskId: null })} />);
+    rerender(<AssemblyRunView run={run({ taskId: null })} />);
     expect(
       screen.queryByRole("link", { name: "View task →" }),
     ).not.toBeInTheDocument();
   });
 
   it("builds the PR link for a code-review run with no task", () => {
-    render(<AssemblyLineRunView run={run()} />);
+    render(<AssemblyRunView run={run()} />);
 
     expect(screen.getByRole("link", { name: "#7" })).toHaveAttribute(
       "href",

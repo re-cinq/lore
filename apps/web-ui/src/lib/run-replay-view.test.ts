@@ -4,14 +4,14 @@ import {
   latestRowByNode,
   replayRunData,
 } from "./run-replay-view";
-import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { AssemblyRunNode } from "./assembly-runs";
 import type { NodeRunState } from "./run-event-reducer";
 import {
   codeReviewDefinition,
   implementationDefinition,
 } from "./definition-fixtures";
 
-function row(over: Partial<AssemblyLineRunNode> = {}): AssemblyLineRunNode {
+function row(over: Partial<AssemblyRunNode> = {}): AssemblyRunNode {
   return {
     nodeId: "implement",
     iteration: 1,

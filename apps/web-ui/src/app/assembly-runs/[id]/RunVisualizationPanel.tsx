@@ -14,7 +14,7 @@ import {
   useState,
 } from "react";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
-import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
+import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import {
   initialRunState,
   reduceRunEvent,
@@ -57,7 +57,7 @@ export interface RunVisualizationPanelProps {
   runStatus: string;
   startedAt: string | null;
   definition: AssemblyLineDefinition | null;
-  nodes: readonly AssemblyLineRunNode[];
+  nodes: readonly AssemblyRunNode[];
   repo: string;
   reason: string | null;
 }

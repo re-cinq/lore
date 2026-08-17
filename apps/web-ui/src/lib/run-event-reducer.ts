@@ -8,7 +8,7 @@
 // which is what keeps that true.
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
-import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { AssemblyRunNode } from "./assembly-runs";
 import type { AgentRunEventType, RunStreamEvent } from "./run-stream-types";
 import { touchKind, type TouchCounts } from "./file-heatmap";
 
@@ -18,7 +18,7 @@ export const TRANSCRIPT_CAP = 500;
 export type NodeRunStatus = "idle" | "running" | "succeeded" | "failed";
 
 // Deliberately verdict-free: the recorded outcome lives on the walk rows
-// (AssemblyLineRunNode) and is joined in by the view layer, so the event stream
+// (AssemblyRunNode) and is joined in by the view layer, so the event stream
 // can never overwrite a verdict — a review that exits 0 with a "failed" verdict
 // cannot masquerade as succeeded, by construction rather than by carry rules.
 export interface NodeRunState {
@@ -75,7 +75,7 @@ function seedStatus(outcome: string | null): NodeRunStatus {
  */
 export function initialRunState(
   def: AssemblyLineDefinition | null,
-  visitRows: readonly AssemblyLineRunNode[],
+  visitRows: readonly AssemblyRunNode[],
 ): RunLiveState {
   const nodeStates: Record<string, NodeRunState> = {};
 

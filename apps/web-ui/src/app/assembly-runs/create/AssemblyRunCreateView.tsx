@@ -1,8 +1,8 @@
 import { SubmitButton } from "@/components/SubmitButton";
 import { TaskTypeSelect } from "@/components/TaskTypeSelect";
-import styles from "./AssemblyLineCreateView.module.css";
+import styles from "./AssemblyRunCreateView.module.css";
 
-export interface AssemblyLineCreateViewProps {
+export interface AssemblyRunCreateViewProps {
   /** Onboarded repos for the target-repo dropdown. */
   onboardedRepos: { full_name: string }[];
   /** Server action wired to the Create-Task form ("actions up"). */
@@ -15,10 +15,10 @@ export interface AssemblyLineCreateViewProps {
  * down; the only mutation (Create Task) is handed in as `createTaskAction`
  * and fired back up via the form, keeping this component free of data access.
  */
-export default function AssemblyLineCreateView({
+export default function AssemblyRunCreateView({
   onboardedRepos,
   createTaskAction,
-}: AssemblyLineCreateViewProps) {
+}: AssemblyRunCreateViewProps) {
   return (
     <div>
       <h1>Create Task</h1>

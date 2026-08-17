@@ -14,7 +14,7 @@ import { apiFetch } from "./api/client";
 import { sumTurnUsage, type RunTokens, type TurnUsageRow } from "./run-tokens";
 
 /** Raw run row: pipeline.assembly_runs LEFT JOIN pipeline.tasks + a cost lateral. */
-export interface AssemblyLineRunRow {
+export interface AssemblyRunRow {
   id: string;
   blueprint_name: string;
   /** The blueprint clone this run recorded (FR6.38); null for pre-clone rows. */
@@ -35,7 +35,7 @@ export interface AssemblyLineRunRow {
   cost_usd: number | null;
 }
 
-export interface AssemblyLineRun {
+export interface AssemblyRun {
   id: string;
   blueprintName: string;
   graph: RunGraph | null;
@@ -54,7 +54,7 @@ export interface AssemblyLineRun {
   costUsd: number | null;
 }
 
-export interface AssemblyLineRunNodeRow {
+export interface AssemblyRunNodeRow {
   node_id: string;
   iteration: number;
   outcome: string | null;
@@ -64,7 +64,7 @@ export interface AssemblyLineRunNodeRow {
   finished_at: string | null;
 }
 
-export interface AssemblyLineRunNode {
+export interface AssemblyRunNode {
   nodeId: string;
   iteration: number;
   outcome: string | null;
@@ -90,7 +90,7 @@ function durationSeconds(
   );
 }
 
-export function toAssemblyLineRun(row: AssemblyLineRunRow): AssemblyLineRun {
+export function toAssemblyRun(row: AssemblyRunRow): AssemblyRun {
   // PR link precedence: the backing task's PR, else a code-review run's
   // args.pr_number reconstructed against the repo.
   const prNumber = row.task_pr_number ?? row.args_pr_number;
@@ -120,9 +120,9 @@ export function toAssemblyLineRun(row: AssemblyLineRunRow): AssemblyLineRun {
   };
 }
 
-export function toAssemblyLineRunNode(
-  row: AssemblyLineRunNodeRow,
-): AssemblyLineRunNode {
+export function toAssemblyRunNode(
+  row: AssemblyRunNodeRow,
+): AssemblyRunNode {
   return {
     nodeId: row.node_id,
     iteration: row.iteration,
@@ -137,23 +137,23 @@ export function toAssemblyLineRunNode(
 /** Rows come from lore-api, which owns the SQL (the join onto tasks and the cost
  *  lateral moved there verbatim). Every read answers empty rather than throwing:
  *  a run view is additive, and a pre-0025 database must not take a page down. */
-async function readRuns(query: string): Promise<AssemblyLineRun[]> {
-  const result = await apiFetch<{ runs: AssemblyLineRunRow[] }>(
+async function readRuns(query: string): Promise<AssemblyRun[]> {
+  const result = await apiFetch<{ runs: AssemblyRunRow[] }>(
     "lore-api",
     `/api/assembly-lines${query}`,
   );
 
-  return result.status === "ok" ? result.data.runs.map(toAssemblyLineRun) : [];
+  return result.status === "ok" ? result.data.runs.map(toAssemblyRun) : [];
 }
 
 /** The run list, filterable by status and repo (both SQL-side). Empty on pre-0025 DBs. */
-export async function fetchAssemblyLineRuns(
+export async function fetchAssemblyRuns(
   opts: {
     status?: string;
     repo?: string;
     limit?: number;
   } = {},
-): Promise<AssemblyLineRun[]> {
+): Promise<AssemblyRun[]> {
   const params = new URLSearchParams();
 
   if (opts.status) {
@@ -169,15 +169,15 @@ export async function fetchAssemblyLineRuns(
 }
 
 /** One run by id, or null (also null on pre-0025 DBs so the resolver falls through). */
-export async function fetchAssemblyLineRun(
+export async function fetchAssemblyRun(
   id: string,
-): Promise<AssemblyLineRun | null> {
-  const result = await apiFetch<AssemblyLineRunRow>(
+): Promise<AssemblyRun | null> {
+  const result = await apiFetch<AssemblyRunRow>(
     "lore-api",
     `/api/assembly-lines/${encodeURIComponent(id)}`,
   );
 
-  return result.status === "ok" ? toAssemblyLineRun(result.data) : null;
+  return result.status === "ok" ? toAssemblyRun(result.data) : null;
 }
 
 /** The newest run for a task, or null. A task-centric page (the feature planning
@@ -185,23 +185,23 @@ export async function fetchAssemblyLineRun(
  *  attempt, since a retry mints a fresh row against the same task. */
 export async function fetchLatestRunForTask(
   taskId: string,
-): Promise<AssemblyLineRun | null> {
+): Promise<AssemblyRun | null> {
   const runs = await readRuns(`?task_id=${encodeURIComponent(taskId)}&limit=1`);
 
   return runs[0] ?? null;
 }
 
 /** The run's node executions in visit order. */
-export async function fetchAssemblyLineRunNodes(
+export async function fetchAssemblyRunNodes(
   id: string,
-): Promise<AssemblyLineRunNode[]> {
-  const result = await apiFetch<{ nodes: AssemblyLineRunNodeRow[] }>(
+): Promise<AssemblyRunNode[]> {
+  const result = await apiFetch<{ nodes: AssemblyRunNodeRow[] }>(
     "lore-api",
     `/api/assembly-lines/${encodeURIComponent(id)}/nodes`,
   );
 
   return result.status === "ok"
-    ? result.data.nodes.map(toAssemblyLineRunNode)
+    ? result.data.nodes.map(toAssemblyRunNode)
     : [];
 }
 

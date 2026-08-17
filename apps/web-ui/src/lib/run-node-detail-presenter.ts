@@ -4,16 +4,16 @@
 // the walk facts from the row, so this stays unit-testable.
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
-import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { AssemblyRunNode } from "./assembly-runs";
 import type { NodeRunState } from "./run-event-reducer";
 import { nodeRunVisual, type NodeStatusTone } from "./run-node-status";
 import { humanStation } from "./human-station";
-import { formatDuration } from "./assembly-line-presenter";
+import { formatDuration } from "./assembly-run-presenter";
 
 export interface NodeDetailInput {
   nodeId: string;
   state: NodeRunState | undefined;
-  row: AssemblyLineRunNode | undefined;
+  row: AssemblyRunNode | undefined;
   definition: AssemblyLineDefinition | null;
   reason: string | null;
 }

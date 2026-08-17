@@ -242,7 +242,7 @@ system is performing.
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no
-  duplicate work. ([validated by `AssemblyLineRunListView.test.tsx:14`](apps/web-ui/src/app/assembly-runs/AssemblyLineRunListView.test.tsx#L14))
+  duplicate work. ([validated by `AssemblyRunListView.test.tsx:14`](apps/web-ui/src/app/assembly-runs/AssemblyRunListView.test.tsx#L14))
 - Watcher posts the PR link and any Slack notifications on completion.
 
 **Scenario 8 — Automated Gap Detection (Phase 2)**

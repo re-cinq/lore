@@ -3,7 +3,7 @@ import {
   formatRelativeTime,
   formatDuration,
   runStatusVisual,
-} from "./assembly-line-presenter";
+} from "./assembly-run-presenter";
 
 describe("formatRelativeTime", () => {
   const now = Date.parse("2026-07-14T12:00:00Z");

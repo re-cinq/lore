@@ -1,13 +1,13 @@
 import Link from "next/link";
-import type { AssemblyLineRun } from "@/lib/assembly-line-runs";
-import { runStatusVisual } from "@/lib/assembly-line-presenter";
-import AssemblyLineRunsTable from "./AssemblyLineRunsTable";
-import styles from "./AssemblyLineRunListView.module.css";
+import type { AssemblyRun } from "@/lib/assembly-runs";
+import { runStatusVisual } from "@/lib/assembly-run-presenter";
+import AssemblyRunsTable from "./AssemblyRunsTable";
+import styles from "./AssemblyRunListView.module.css";
 
-export interface AssemblyLineRunListViewProps {
+export interface AssemblyRunListViewProps {
   /** The active status filter, or undefined for "All". */
   activeStatus?: string;
-  runs: AssemblyLineRun[];
+  runs: AssemblyRun[];
 }
 
 /** The run status vocabulary — one status per run, so filtering is SQL-side. */
@@ -16,12 +16,12 @@ const FILTERS = ["queued", "running", "finished", "failed"] as const;
 /**
  * Global assembly-runs list, keyed on the per-attempt run records. Pure render:
  * the container (`page.tsx`) fetches the runs (already status-filtered) and
- * passes them down; the table is the shared <AssemblyLineRunsTable>.
+ * passes them down; the table is the shared <AssemblyRunsTable>.
  */
-export default function AssemblyLineRunListView({
+export default function AssemblyRunListView({
   activeStatus,
   runs,
-}: AssemblyLineRunListViewProps) {
+}: AssemblyRunListViewProps) {
   return (
     <div>
       <div className={styles.header}>
@@ -46,7 +46,7 @@ export default function AssemblyLineRunListView({
         ))}
       </div>
 
-      <AssemblyLineRunsTable runs={runs} />
+      <AssemblyRunsTable runs={runs} />
     </div>
   );
 }

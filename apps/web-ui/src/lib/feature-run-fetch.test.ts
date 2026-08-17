@@ -5,14 +5,14 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const fetchAssemblyLineRun = vi.fn();
-const fetchAssemblyLineRunNodes = vi.fn();
+const fetchAssemblyRun = vi.fn();
+const fetchAssemblyRunNodes = vi.fn();
 const fetchLatestRunForTask = vi.fn();
 const fetchRunTokens = vi.fn();
 
-vi.mock("./assembly-line-runs", () => ({
-  fetchAssemblyLineRun,
-  fetchAssemblyLineRunNodes,
+vi.mock("./assembly-runs", () => ({
+  fetchAssemblyRun,
+  fetchAssemblyRunNodes,
   fetchLatestRunForTask,
   fetchRunTokens,
 }));
@@ -41,13 +41,13 @@ const run = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  fetchAssemblyLineRunNodes.mockResolvedValue([]);
+  fetchAssemblyRunNodes.mockResolvedValue([]);
   fetchRunTokens.mockResolvedValue(null);
 });
 
 describe("fetchFeatureRunById", () => {
   it("shapes the run lore-api resolved, with its nodes and tokens", async () => {
-    fetchAssemblyLineRun.mockResolvedValue(run);
+    fetchAssemblyRun.mockResolvedValue(run);
 
     const payload = await fetchFeatureRunById("run-1");
 
@@ -58,24 +58,24 @@ describe("fetchFeatureRunById", () => {
       nodes: [],
       tokens: null,
     });
-    expect(fetchAssemblyLineRun).toHaveBeenCalledWith("run-1");
-    expect(fetchAssemblyLineRunNodes).toHaveBeenCalledWith("run-1");
+    expect(fetchAssemblyRun).toHaveBeenCalledWith("run-1");
+    expect(fetchAssemblyRunNodes).toHaveBeenCalledWith("run-1");
   });
 
   it("returns null for an absent line id without fetching anything", async () => {
     expect(await fetchFeatureRunById(null)).toBeNull();
     expect(await fetchFeatureRunById(undefined)).toBeNull();
-    expect(fetchAssemblyLineRun).not.toHaveBeenCalled();
+    expect(fetchAssemblyRun).not.toHaveBeenCalled();
   });
 
   it("returns null when no run row exists yet", async () => {
-    fetchAssemblyLineRun.mockResolvedValue(null);
+    fetchAssemblyRun.mockResolvedValue(null);
 
     expect(await fetchFeatureRunById("run-9")).toBeNull();
   });
 
   it("returns null instead of throwing when the lookup fails — the poll must keep reporting", async () => {
-    fetchAssemblyLineRun.mockRejectedValue(new Error("api down"));
+    fetchAssemblyRun.mockRejectedValue(new Error("api down"));
 
     expect(await fetchFeatureRunById("run-1")).toBeNull();
   });

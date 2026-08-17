@@ -8,7 +8,7 @@
 // event replays, and reads Running before it).
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
-import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { AssemblyRunNode } from "./assembly-runs";
 import type { NodeRunState } from "./run-event-reducer";
 import type { RunData } from "./graph-view-model";
 import { takenEdgeKeys } from "./run-taken-edges";
@@ -19,9 +19,9 @@ import { takenEdgeKeys } from "./run-taken-edges";
  * data, the detail card's row pick, and the replay lens below.
  */
 export function latestRowByNode(
-  rows: readonly AssemblyLineRunNode[],
-): Map<string, AssemblyLineRunNode> {
-  const latest = new Map<string, AssemblyLineRunNode>();
+  rows: readonly AssemblyRunNode[],
+): Map<string, AssemblyRunNode> {
+  const latest = new Map<string, AssemblyRunNode>();
 
   for (const row of rows) {
     const prev = latest.get(row.nodeId);
@@ -36,7 +36,7 @@ export function latestRowByNode(
 
 function rowCompleted(
   state: NodeRunState | undefined,
-  row: AssemblyLineRunNode,
+  row: AssemblyRunNode,
 ): boolean {
   // An idle node has completed nothing, whatever iteration a replayed
   // non-lifecycle event stamped on it (the reducer raises `iteration` on every
@@ -62,9 +62,9 @@ function rowCompleted(
  * so the row's outcome may not show yet.
  */
 export function completedRowsAt(
-  rows: readonly AssemblyLineRunNode[],
+  rows: readonly AssemblyRunNode[],
   nodeStates: Readonly<Record<string, NodeRunState>>,
-): AssemblyLineRunNode[] {
+): AssemblyRunNode[] {
   return rows.filter((row) => rowCompleted(nodeStates[row.nodeId], row));
 }
 
@@ -75,7 +75,7 @@ export function completedRowsAt(
  */
 export function replayRunData(
   definition: AssemblyLineDefinition | null,
-  rows: readonly AssemblyLineRunNode[],
+  rows: readonly AssemblyRunNode[],
   nodeStates: Readonly<Record<string, NodeRunState>>,
 ): RunData {
   const completed = completedRowsAt(rows, nodeStates);

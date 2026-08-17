@@ -7,7 +7,7 @@
 // row at all has not been reached — which run mode draws as pending.
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
-import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { AssemblyRunNode } from "./assembly-runs";
 import type { RunData } from "./graph-view-model";
 import type { NodeRunStatus } from "./run-event-reducer";
 import { latestRowByNode } from "./run-replay-view";
@@ -41,7 +41,7 @@ function runResult(anyFailed: boolean, finished: boolean): string | null {
  *  of the run status — the view layer owns that vocabulary. */
 export function walkRunData(
   definition: AssemblyLineDefinition | null,
-  rows: readonly AssemblyLineRunNode[],
+  rows: readonly AssemblyRunNode[],
   finished: boolean,
 ): RunData {
   const latest = latestRowByNode(rows);
