@@ -255,7 +255,12 @@ async function applyCatalogCrd(def: AgentDefinition): Promise<boolean> {
 
   try {
     await applyAgentCrds(
-      agentDefToCrds(def, { eventsUrl: process.env.LORE_AGENT_EVENTS_URL }),
+      // Both URLs come from the deploy, never from the recipe row: a host stored in
+      // the DB would survive a rollout that moved it (#1080).
+      agentDefToCrds(def, {
+        eventsUrl: process.env.LORE_AGENT_EVENTS_URL,
+        mcpUrl: process.env.LORE_MCP_URL,
+      }),
     );
 
     return true;

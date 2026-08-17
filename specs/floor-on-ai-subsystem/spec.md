@@ -43,6 +43,8 @@ assembly lines.
 We want all Floor task execution to run on that subsystem and to retire the LoreTask path — without
 losing any of Lore's deterministic guarantees.
 
+- A UI-authored recipe carries the same live Lore MCP entry and pipeline-tool deny as a seeded one. It carried NEITHER: a repo that overrode its recipe through `/agents` got a run with no `lore` server, so the agent silently lost the mid-run memory and context access every seeded recipe has, and lost the guard that stops it spawning more pipeline work from inside a run. Injected at CR-render time rather than surfaced as an editable field, because a capability every recipe needs should not depend on each author remembering to add it. The gateway URL comes from the DEPLOY value, never the recipe row — a host stored in the database would outlive the rollout that moved it — so an unset value leaves `mcp_servers` off entirely rather than pointing a pod at something unreachable. The deny is unconditional for the opposite reason: making it depend on deploy config would drop it exactly where the config is wrong. Stations get it too, since a custom station reads and writes through the same API surface. ([validated by carries the live Lore MCP gateway onto a UI-authored recipe](apps/lore-api/src/features/agents/agent-crd.test.ts#L80), [`agent-crd.test.ts:98`](apps/lore-api/src/features/agents/agent-crd.test.ts#L98), [`agent-crd.test.ts:111`](apps/lore-api/src/features/agents/agent-crd.test.ts#L111), [`agent-crd.test.ts:119`](apps/lore-api/src/features/agents/agent-crd.test.ts#L119); implemented by [`agent-crd.ts:56`](apps/lore-api/src/features/agents/agent-crd.ts#L56))
+
 ## Solution
 
 Make the `ai-agent-subsystem` the **production execution substrate** and turn the **Floor into the
@@ -414,7 +416,7 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   prompt is rejected outright (the subsystem refuses a promptless AgentDefinition at admission, so
   emitting one only moved the failure to the apply), deadline defaults to 30 and image to
   `node:22-bookworm`, and stdout-only sinks stand in without an events URL. An `execution_mode:"station"` recipe materialises an exec-vendor station (`model:"exec"`,
-  `{station_input}` prompt, `max_turns:1`, `lore-station <type>` command) on its own image. ([validated by `agent-crd.test.ts:17`](apps/lore-api/src/features/agents/agent-crd.test.ts#L17), [`agent-crd.test.ts:58`](apps/lore-api/src/features/agents/agent-crd.test.ts#L58), [`agent-crd.test.ts:78`](apps/lore-api/src/features/agents/agent-crd.test.ts#L78), [`agent-crd.test.ts:86`](apps/lore-api/src/features/agents/agent-crd.test.ts#L86))
+  `{station_input}` prompt, `max_turns:1`, `lore-station <type>` command) on its own image. ([validated by `agent-crd.test.ts:17`](apps/lore-api/src/features/agents/agent-crd.test.ts#L17), [`agent-crd.test.ts:58`](apps/lore-api/src/features/agents/agent-crd.test.ts#L60), [`agent-crd.test.ts:78`](apps/lore-api/src/features/agents/agent-crd.test.ts#L132), [`agent-crd.test.ts:86`](apps/lore-api/src/features/agents/agent-crd.test.ts#L140))
 - **CR-watch idempotency.** Event dedupe keys collapse redundant deliveries so a Floor restart replays
   nothing twice: `githubDedupeKey` prefixes the delivery id, `k8sDedupeKey` keys a terminal Agent CR
   on task-id+phase (repeated `MODIFIED` events collapse), `cronDedupeKey` floors the tick to the

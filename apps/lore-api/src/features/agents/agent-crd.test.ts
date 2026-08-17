@@ -27,6 +27,8 @@ describe("agentDefToCrds", () => {
         labels: { "app.kubernetes.io/managed-by": "lore-catalog-ui" },
       },
       spec: {
+        // Unconditional, so it appears even with no gateway configured (#1080).
+        disallowed_tools: ["mcp__lore__lore_create_pipeline_task"],
         description: "Lore implementation recipe (UI-authored).",
         model: "claude-sonnet-4-6",
         prompt: "Implement {description}\n\n{context}",
@@ -73,6 +75,58 @@ describe("agentDefToCrds", () => {
     ).spec.containers;
 
     expect(containers[0].image).toBe("node:22-bookworm");
+  });
+
+  it("carries the live Lore MCP gateway onto a UI-authored recipe", () => {
+    // A repo that overrides its recipe through /agents used to get a run with no
+    // `lore` MCP server at all, so the agent silently lost mid-run memory and
+    // context access that every seeded recipe has (#1080).
+    const { agentDefinition } = agentDefToCrds(full, {
+      mcpUrl: "http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/mcp",
+    });
+
+    expect(agentDefinition.spec?.resources?.mcp_servers).toEqual([
+      {
+        name: "lore",
+        transport: "http",
+        url: "http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/mcp",
+        headers_secret: "lore-mcp-auth",
+      },
+    ]);
+  });
+
+  it("denies lore_create_pipeline_task whether or not a gateway is configured", () => {
+    // Defence in depth, and it does NOT depend on the URL: an agent must never
+    // spawn more pipeline work from inside a run, and the guard being conditional
+    // on deploy config is how it would go missing exactly where it matters.
+    expect(agentDefToCrds(full).agentDefinition.spec?.disallowed_tools).toEqual(
+      ["mcp__lore__lore_create_pipeline_task"],
+    );
+    expect(
+      agentDefToCrds(full, { mcpUrl: "http://gw/mcp" }).agentDefinition.spec
+        ?.disallowed_tools,
+    ).toEqual(["mcp__lore__lore_create_pipeline_task"]);
+  });
+
+  it("omits mcp_servers entirely when no gateway is deployed", () => {
+    // Same posture as the events sink: an unset deploy value leaves the feature
+    // inert rather than emitting a server the pod cannot reach.
+    expect(
+      agentDefToCrds(full).agentDefinition.spec?.resources,
+    ).toBeUndefined();
+  });
+
+  it("carries the gateway onto a station recipe too", () => {
+    // A custom station reads and writes through the same API surface, so it needs
+    // the same access — and losing it silently is the bug either way.
+    const { agentDefinition } = agentDefToCrds(
+      { ...full, name: "def-ingest", execution_mode: "station" },
+      { mcpUrl: "http://gw/mcp" },
+    );
+
+    expect(agentDefinition.spec?.resources?.mcp_servers?.[0]?.name).toBe(
+      "lore",
+    );
   });
 
   it("throws when a claude-code recipe has no prompt", () => {
