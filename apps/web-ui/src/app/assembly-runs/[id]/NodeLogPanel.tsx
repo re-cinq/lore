@@ -37,7 +37,9 @@ export default function NodeLogPanel({
 
   const fetchLogs = useCallback(async () => {
     try {
-      const res = await fetch(nodeLogsUrl(assemblyLineId, agentCrName));
+      const res = await fetch(nodeLogsUrl(assemblyLineId, agentCrName), {
+        signal: AbortSignal.timeout(15_000),
+      });
 
       if (res.status === 403) {
         setError("Access denied — you do not have access to this repository.");

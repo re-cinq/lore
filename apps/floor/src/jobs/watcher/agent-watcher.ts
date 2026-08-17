@@ -213,6 +213,7 @@ async function notifySlack(
 
   try {
     await fetch("https://slack.com/api/chat.postMessage", {
+      signal: AbortSignal.timeout(10_000),
       method: "POST",
       headers: {
         Authorization: `Bearer ${botToken}`,

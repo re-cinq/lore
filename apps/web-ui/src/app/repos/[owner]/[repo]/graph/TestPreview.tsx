@@ -31,7 +31,9 @@ export default function TestPreview({
       ...(end ? { end: String(end) } : {}),
     });
 
-    fetch(`/api/repos/${repo}/file?${params.toString()}`)
+    fetch(`/api/repos/${repo}/file?${params.toString()}`, {
+      signal: AbortSignal.timeout(15_000),
+    })
       .then((res) =>
         res.ok ? res.json() : Promise.reject(new Error("unavailable")),
       )

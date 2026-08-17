@@ -404,7 +404,10 @@ describe("run discovery", () => {
 
     await advance(COORDINATED_POLL_MS);
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/task-1/runs");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tasks/task-1/runs",
+      expect.objectContaining({ signal: expect.anything() }),
+    );
     expect(FakeEventSource.instances).toHaveLength(1);
     expect(FakeEventSource.instances[0].url).toBe(
       "/api/assembly-lines/run-9/events/stream",

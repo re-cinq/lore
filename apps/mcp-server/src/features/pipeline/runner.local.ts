@@ -227,6 +227,7 @@ async function updateTaskViaAPI(
 
   try {
     await fetch(`${apiUrl}/api/task`, {
+      signal: AbortSignal.timeout(30_000),
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -511,6 +512,7 @@ async function monitorTask(task: LocalTask): Promise<void> {
 
     if (apiUrl && tkn) {
       await fetch(`${apiUrl}/api/task-logs`, {
+        signal: AbortSignal.timeout(30_000),
         method: "POST",
         headers: {
           Authorization: `Bearer ${tkn}`,
@@ -867,6 +869,7 @@ export async function cleanupStaleTasks(): Promise<void> {
       if (apiUrl && token) {
         try {
           await fetch(`${apiUrl}/api/task`, {
+            signal: AbortSignal.timeout(30_000),
             method: "POST",
             headers: {
               Authorization: `Bearer ${token}`,
@@ -958,6 +961,7 @@ export async function fetchPendingTasks(
 
   try {
     const resp = await fetch(`${apiUrl}/api/task`, {
+      signal: AbortSignal.timeout(30_000),
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,

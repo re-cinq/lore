@@ -68,6 +68,7 @@ export function useFeaturePlanningPoll({
         : "";
     const result = await toApiResult<FeaturePollPayload>(
       await fetch(`/api/repos/${owner}/${repo}/features/${featureId}${query}`, {
+        signal: AbortSignal.timeout(15_000),
         cache: "no-store",
       }),
     );

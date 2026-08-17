@@ -30,7 +30,7 @@ export default function AssembledContextPanel({
 
     try {
       const url = `/api/repos/${owner}/${repo}/context-preview?query=${encodeURIComponent(query)}&template=${encodeURIComponent(template)}&debug=1`;
-      const r = await fetch(url);
+      const r = await fetch(url, { signal: AbortSignal.timeout(15_000) });
 
       if (!r.ok) {
         setError(`HTTP ${r.status}`);

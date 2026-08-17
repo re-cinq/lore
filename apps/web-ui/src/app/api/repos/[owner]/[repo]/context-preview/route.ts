@@ -46,7 +46,10 @@ export async function GET(
 
     const upstream = await fetch(
       `${apiUrl}/api/context?repo=${encodeURIComponent(fullName)}&query=${encodeURIComponent(query)}&template=${encodeURIComponent(template)}${debug}`,
-      { headers: { Authorization: `Bearer ${apiToken}` } },
+      {
+        signal: AbortSignal.timeout(30_000),
+        headers: { Authorization: `Bearer ${apiToken}` },
+      },
     );
     const body = await upstream.text();
 

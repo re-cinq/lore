@@ -114,7 +114,10 @@ async function fetchPayloadFromApi(
   enforceTrue(baseUrl, Error, "ingest station: LORE_API_URL not configured");
   const res = await fetch(
     `${baseUrl}/api/repos/${repo}/events/${eventId}/payload`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    {
+      signal: AbortSignal.timeout(30_000),
+      headers: { Authorization: `Bearer ${token}` },
+    },
   );
 
   enforceTrue(

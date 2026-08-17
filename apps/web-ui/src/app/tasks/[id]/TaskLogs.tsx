@@ -44,7 +44,7 @@ export default function TaskLogs({
       : `/api/tasks/${taskId}/logs`;
 
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
 
       if (res.status === 403) {
         setAccessDenied(true);

@@ -87,7 +87,10 @@ describe("PRStatusPanel", () => {
     );
 
     await renderSettled({ taskId: "abc-123", prUrl: "https://gh/pr/1" });
-    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/abc-123/pr-status");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tasks/abc-123/pr-status",
+      expect.objectContaining({ signal: expect.anything() }),
+    );
     expect(screen.getByText("#7 My PR")).toBeInTheDocument();
   });
 
@@ -143,7 +146,11 @@ describe("PRStatusPanel", () => {
       prUrl: "https://gh/pr/1",
     });
 
-    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/tasks/first/pr-status");
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/tasks/first/pr-status",
+      expect.objectContaining({ signal: expect.anything() }),
+    );
 
     await act(async () => {
       rerender(<PRStatusPanel taskId="second" prUrl="https://gh/pr/1" />);
@@ -151,7 +158,11 @@ describe("PRStatusPanel", () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/tasks/second/pr-status");
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/tasks/second/pr-status",
+      expect.objectContaining({ signal: expect.anything() }),
+    );
   });
 
   it("keeps the loaded details on screen when a later poll fails", async () => {

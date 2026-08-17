@@ -98,6 +98,7 @@ describe("AssembledContextPanel", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/repos/re-cinq/lore/context-preview?query=add%20auth%20%26%20roles&template=review&debug=1",
+      expect.objectContaining({ signal: expect.anything() }),
     );
   });
 

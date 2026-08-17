@@ -55,7 +55,9 @@ export default function LoadMore({
       if (type) {
         params.set("type", type);
       }
-      const res = await fetch(`/api/repos/${owner}/${repo}/context?${params}`);
+      const res = await fetch(`/api/repos/${owner}/${repo}/context?${params}`, {
+        signal: AbortSignal.timeout(15_000),
+      });
 
       if (!res.ok) {
         return;

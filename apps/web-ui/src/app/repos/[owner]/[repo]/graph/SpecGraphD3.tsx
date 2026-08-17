@@ -1138,6 +1138,7 @@ export default function SpecGraphD3({
       d.fy = d.y;
       const res = await fetch(
         `/api/repos/${repo}/spec-ring?spec=${encodeURIComponent(d.path)}`,
+        { signal: AbortSignal.timeout(15_000) },
       );
 
       if (!res.ok) {

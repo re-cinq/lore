@@ -69,6 +69,7 @@ async function fetchAllBuckets(
     }
 
     const res = await fetch(url, {
+      signal: AbortSignal.timeout(30_000),
       headers: {
         "x-api-key": adminKey,
         "anthropic-version": ANTHROPIC_VERSION,

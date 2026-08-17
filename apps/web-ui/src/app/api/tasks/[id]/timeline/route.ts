@@ -11,6 +11,7 @@ async function checkRepoAccess(
 ): Promise<boolean> {
   try {
     const res = await fetch(`https://api.github.com/repos/${repo}`, {
+      signal: AbortSignal.timeout(30_000),
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/vnd.github+json",
@@ -70,7 +71,10 @@ export async function GET(
 
     const upstream = await fetch(
       `${apiUrl}/api/tasks/${encodeURIComponent(id)}/timeline`,
-      { headers: { Authorization: `Bearer ${apiToken}` } },
+      {
+        signal: AbortSignal.timeout(30_000),
+        headers: { Authorization: `Bearer ${apiToken}` },
+      },
     );
     const body = await upstream.text();
 

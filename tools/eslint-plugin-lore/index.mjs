@@ -1,5 +1,6 @@
 import defaultExportMatchesFilename from "./rules/default-export-matches-filename.mjs";
 import noInlineStyles from "./rules/no-inline-styles.mjs";
+import requireFetchTimeout from "./rules/require-fetch-timeout.mjs";
 import preferEnforceTrue from "./rules/prefer-enforce-true.mjs";
 import noCatchAsControlFlow from "./rules/no-catch-as-control-flow.mjs";
 import noInfraSdkInFloor from "./rules/no-infra-sdk-in-floor.mjs";
@@ -23,6 +24,7 @@ export default {
   rules: {
     "default-export-matches-filename": defaultExportMatchesFilename,
     "no-inline-styles": noInlineStyles,
+    "require-fetch-timeout": requireFetchTimeout,
     "prefer-enforce-true": preferEnforceTrue,
     "no-catch-as-control-flow": noCatchAsControlFlow,
     "no-infra-sdk-in-floor": noInfraSdkInFloor,

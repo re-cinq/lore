@@ -35,6 +35,7 @@ async function apiGet<T>(pathAndQuery: string): Promise<T | null> {
     return null;
   }
   const res = await fetch(`${c.api}${pathAndQuery}`, {
+    signal: AbortSignal.timeout(15_000),
     headers: { Authorization: `Bearer ${c.token}` },
     cache: "no-store",
   });

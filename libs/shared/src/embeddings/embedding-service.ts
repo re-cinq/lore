@@ -35,7 +35,10 @@ export async function resolveVertexProject(): Promise<string> {
   try {
     const res = await fetch(
       "http://metadata.google.internal/computeMetadata/v1/project/project-id",
-      { headers: { "Metadata-Flavor": "Google" } },
+      {
+        signal: AbortSignal.timeout(30_000),
+        headers: { "Metadata-Flavor": "Google" },
+      },
     );
 
     if (res.ok) {
@@ -62,7 +65,10 @@ export async function getQueryEmbedding(
     try {
       const metaRes = await fetch(
         "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
-        { headers: { "Metadata-Flavor": "Google" } },
+        {
+          signal: AbortSignal.timeout(30_000),
+          headers: { "Metadata-Flavor": "Google" },
+        },
       );
       const metaJson = (await metaRes.json()) as { access_token: string };
 
@@ -86,6 +92,7 @@ export async function getQueryEmbedding(
     }
 
     const res = await fetch(buildVertexUrl(project, VERTEX_REGION), {
+      signal: AbortSignal.timeout(30_000),
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,

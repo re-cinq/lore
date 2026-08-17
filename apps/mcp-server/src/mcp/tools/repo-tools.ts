@@ -187,6 +187,7 @@ export function registerRepoTools(server: McpServer) {
         }
 
         const res = await fetch(`${apiUrl}/api/ingest`, {
+          signal: AbortSignal.timeout(30_000),
           method: "POST",
           headers: {
             Authorization: `Bearer ${apiToken}`,
