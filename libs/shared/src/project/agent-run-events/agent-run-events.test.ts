@@ -74,7 +74,7 @@ describe("InMemoryAgentRunEvents insertBatch", () => {
     const [row] = await repo.insertBatch([
       insert({
         carried: {
-          assemblyLineId: "stated-line",
+          assemblyRunId: "stated-line",
           nodeId: "review",
           iteration: 3,
           stationRunId: "stated-station-run",
@@ -99,7 +99,7 @@ describe("InMemoryAgentRunEvents insertBatch", () => {
       insert({
         agentCrName: null,
         carried: {
-          assemblyLineId: "stated-line",
+          assemblyRunId: "stated-line",
           nodeId: "review",
           iteration: 3,
           stationRunId: null,
@@ -383,7 +383,7 @@ describe("PgAgentRunEvents adapter", () => {
     await new PgAgentRunEvents(pool).insertBatch([
       insert({
         carried: {
-          assemblyLineId: "line-9",
+          assemblyRunId: "line-9",
           nodeId: "review",
           iteration: 2,
           stationRunId: null,

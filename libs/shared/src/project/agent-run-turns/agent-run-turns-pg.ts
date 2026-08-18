@@ -65,7 +65,7 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
     const batch = rows.map((row) => ({
       task_id: row.taskId,
       agent_cr_name: row.agentCrName,
-      assembly_run_id: row.carried?.assemblyLineId ?? null,
+      assembly_run_id: row.carried?.assemblyRunId ?? null,
       node_id: row.carried?.nodeId ?? null,
       iteration: row.carried?.iteration ?? null,
       station_run_id: row.carried?.stationRunId ?? null,

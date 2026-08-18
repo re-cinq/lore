@@ -36,8 +36,8 @@ export interface NodeResult {
 
 export interface NodeContext {
   taskId: string;
-  /** Per-attempt assembly line id — distinct across retries of one task. */
-  assemblyLineId: string;
+  /** Per-attempt assembly run id — distinct across retries of one task. */
+  assemblyRunId: string;
   branchName: string;
   gitDir: string;
   iteration: number;

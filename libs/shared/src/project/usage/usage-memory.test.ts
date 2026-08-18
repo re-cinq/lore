@@ -56,7 +56,7 @@ describe("InMemoryUsage.logLlmCall", () => {
       ...CALL,
       agentCrName: "cr-a",
       carried: {
-        assemblyLineId: "stated-line",
+        assemblyRunId: "stated-line",
         nodeId: "review",
         iteration: 1,
         stationRunId: "stated-station-run",
@@ -76,7 +76,7 @@ describe("InMemoryUsage.logLlmCall", () => {
     const result = await usage.logLlmCall({
       ...CALL,
       carried: {
-        assemblyLineId: "stated-line",
+        assemblyRunId: "stated-line",
         nodeId: "review",
         iteration: 1,
         stationRunId: null,

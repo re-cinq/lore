@@ -84,12 +84,15 @@ export class InMemoryAgentRunTurns implements AgentRunTurnsRepository {
 
   private persist(insert: AgentRunTurnInsert): AgentRunTurnRow {
     // Stated beats inferred, whole — see agent-run-events-memory.
-    const node = insert.carried ?? this.correlate(insert.agentCrName);
+    const carried = insert.carried ?? undefined;
+    const inferred = carried ? undefined : this.correlate(insert.agentCrName);
+    const node = carried ?? inferred;
     const row: AgentRunTurnRow = {
       id: String(this.nextId++),
       taskId: insert.taskId,
       agentCrName: insert.agentCrName,
-      assemblyLineId: node?.assemblyLineId ?? null,
+      assemblyLineId:
+        carried?.assemblyRunId ?? inferred?.assemblyLineId ?? null,
       stationRunId: node?.stationRunId ?? null,
       nodeId: node?.nodeId ?? null,
       iteration: node?.iteration ?? null,
