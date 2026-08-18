@@ -31,6 +31,36 @@ import type {
  *  something other than "push". */
 const PUSH_PROMPT_REF = "push-only";
 
+/**
+ * What a failed PR open MEANS for the line.
+ *
+ * `empty-branch` — GitHub refused because the branch carries nothing to review.
+ * The pushing node reported success and pushed nothing (#1330), so no retry can
+ * help and the wait node downstream would park forever on a PR that cannot
+ * exist. That is a failed line, and saying so is the whole point: the wizard
+ * reads a diagnosis instead of showing "Waiting for the spec PR" indefinitely.
+ *
+ * `transient` — anything else (a 5xx, a token blip). The line keeps its shape
+ * and the reaper re-drives it; failing a run on a network hiccup would throw
+ * away work that is genuinely fine.
+ *
+ * Matched on GitHub's own validation text rather than a status code: a 422 is
+ * also what a duplicate PR or a bad base returns, and only this one means the
+ * branch is empty.
+ */
+export function decideStampFailure(
+  message: string,
+): "empty-branch" | "transient" {
+  return /no commits between/i.test(message) ? "empty-branch" : "transient";
+}
+
+/** The reason recorded on a line whose branch had nothing to open a PR from —
+ *  written for whoever reads it in the wizard, naming the node that should have
+ *  delivered and the branch that stayed empty. */
+export function emptyBranchReason(branch: string | null): string {
+  return `the push node reported success but pushed nothing — ${branch ?? "the run branch"} has no commits, so no spec PR could be opened`;
+}
+
 /** Whether the node that just finished should cause the line's PR to be ensured.
  *  Pure. A line that already carries a `pr_number` is skipped, so a push re-run
  *  after a write/analyse correction updates the existing PR rather than opening a

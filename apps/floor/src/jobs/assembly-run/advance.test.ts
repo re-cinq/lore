@@ -64,6 +64,39 @@ edges:
     on: failed
 `);
 
+/** push → merged(wait), the delivery shape: the pushing node is followed by a
+ *  human station, so a push that delivered nothing parks the walk on a PR that
+ *  cannot exist unless the stamp failure fails the line (#1330). */
+const pushThenWait = parseAssemblyLine(`
+name: push-then-wait
+description: push, then wait for the PR to merge
+version: 1
+entry: push
+exit: done
+nodes:
+  - id: push
+    type: agent
+    prompt_ref: push-only
+  - id: merged
+    type: pr_review
+    route: "{args.pr_url}"
+  - id: done
+    type: retrospective
+edges:
+  - from: push
+    to: merged
+    on: always
+  - from: merged
+    to: done
+    on: success
+  - from: merged
+    to: done
+    on: changes_requested
+  - from: merged
+    to: done
+    on: failed
+`);
+
 /** A line whose entry node is parked on the author — the shape stage 1 introduces. */
 const authorGated = parseAssemblyLine(`
 name: author-gated
@@ -94,6 +127,7 @@ function makeDeps(port: InMemoryAssemblyRuns) {
       new Map<string, AssemblyLine>([
         ["code-review", codeReviewLike],
         ["comment-triage", commentTriageLike],
+        ["push-then-wait", pushThenWait],
       ]),
     launch: async (spec) => {
       launched.push(spec);
@@ -1140,5 +1174,101 @@ describe("advanceLine overlap guard on a fork that revisits its resume node", ()
     expect(launched.map((spec) => spec.name)).toContain(
       `${forked.substring(0, 12)}-validate-2`,
     );
+  });
+});
+
+describe("a push node that delivered nothing", () => {
+  async function pushLine(port: InMemoryAssemblyRuns) {
+    const id = await port.start({
+      blueprintName: "push-then-wait",
+      repo: "re-cinq/lore",
+      branch: "lore/feature-planning/topic-b81f9fd2",
+      args: { description: "Ship the spec", feature_id: "feat-1" },
+    });
+
+    await port.stampBlueprint(
+      id,
+      "hash-push-then-wait",
+      snapshotGraph(pushThenWait, "push-then-wait"),
+    );
+    await port.markRunning(id);
+    await port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "push",
+      iteration: 1,
+    });
+
+    return id;
+  }
+
+  it("fails the line instead of parking it on a PR that cannot exist", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await pushLine(port);
+    const { deps, notified } = makeDeps(port);
+
+    // The pod says it worked; GitHub says the branch is empty. GitHub wins.
+    await finishNodeAndAdvance(
+      { assemblyLineId: id, nodeId: "push", result: { outcome: "success" } },
+      {
+        ...deps,
+        stampPr: async () => {
+          throw new Error(
+            'Validation Failed: {"message":"No commits between main and lore/feature-planning/topic-b81f9fd2"}',
+          );
+        },
+      },
+    );
+
+    expect(await port.getById(id)).toMatchObject({
+      status: "failed",
+      reason:
+        "the push node reported success but pushed nothing — lore/feature-planning/topic-b81f9fd2 has no commits, so no spec PR could be opened",
+    });
+    // and the author is told, rather than left watching a wait node
+    expect(notified).toHaveLength(1);
+  });
+
+  it("never reaches the wait node, so nothing waits for the missing PR", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await pushLine(port);
+    const { deps } = makeDeps(port);
+
+    await finishNodeAndAdvance(
+      { assemblyLineId: id, nodeId: "push", result: { outcome: "success" } },
+      {
+        ...deps,
+        stampPr: async () => {
+          throw new Error("No commits between main and topic");
+        },
+      },
+    );
+
+    expect((await port.listStationRuns(id)).map((n) => n.nodeId)).toEqual([
+      "push",
+    ]);
+  });
+
+  it("keeps walking when the stamp failed for a transient reason", async () => {
+    // A 502 says nothing about the branch; the reaper re-drives the stamp, and
+    // failing the run here would throw away work that is genuinely fine.
+    const port = new InMemoryAssemblyRuns();
+    const id = await pushLine(port);
+    const { deps } = makeDeps(port);
+
+    await finishNodeAndAdvance(
+      { assemblyLineId: id, nodeId: "push", result: { outcome: "success" } },
+      {
+        ...deps,
+        stampPr: async () => {
+          throw new Error("502 Bad Gateway");
+        },
+      },
+    );
+
+    expect(await port.getById(id)).toMatchObject({ status: "running" });
+    expect((await port.listStationRuns(id)).map((n) => n.nodeId)).toEqual([
+      "push",
+      "merged",
+    ]);
   });
 });
