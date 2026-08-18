@@ -102,6 +102,7 @@ describe("request-error logging (#1319)", () => {
       podsForJob: () => Promise.resolve([]),
       podLog: () => Promise.resolve(""),
     };
+
     try {
       const res = await buildServer({
         getJobStatus: () => ({}),
