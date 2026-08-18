@@ -105,16 +105,22 @@ describe("/api/task-logs", () => {
     });
     const LOG_SLICE_MAX = 256 * 1024;
     const poolWithTurns = (
-      turnRows: Array<Record<string, unknown>>,
+      turnRows: Array<{ id: string }>,
       task?: Record<string, unknown>,
     ) => {
       const pool = makePool();
 
-      pool.query.mockImplementation((sql: string) =>
-        sql.includes("agent_run_turns")
-          ? Promise.resolve({ rows: turnRows })
-          : Promise.resolve({ rows: task ? [task] : [] }),
-      );
+      pool.query.mockImplementation((sql: string, params?: unknown[]) => {
+        if (!sql.includes("agent_run_turns")) {
+          return Promise.resolve({ rows: task ? [task] : [] });
+        }
+        const [, afterId, limit] = params as [string, string, number];
+        const page = turnRows
+          .filter((row) => Number(row.id) > Number(afterId))
+          .slice(0, limit);
+
+        return Promise.resolve({ rows: page });
+      });
 
       return pool;
     };
@@ -277,33 +283,12 @@ describe("/api/task-logs", () => {
 
       expect(res.result).toEqual({ logs: "", next_offset: 0, complete: true });
     });
-    const pagingPool = (
-      rows: Array<{ id: string }>,
-      task: Record<string, unknown>,
-    ) => {
-      const pool = makePool();
-
-      pool.query.mockImplementation((sql: string, params?: unknown[]) => {
-        if (!sql.includes("agent_run_turns")) {
-          return Promise.resolve({ rows: [task] });
-        }
-        const [, afterId, limit] = params as [string, string, number];
-        const page = rows
-          .filter((row) => Number(row.id) > Number(afterId))
-          .slice(0, limit);
-
-        return Promise.resolve({ rows: page });
-      });
-
-      return pool;
-    };
-
     it("pages the cursor across a transcript larger than one page", async () => {
       const envelope = { event: { type: "assistant" } };
       const rows = Array.from({ length: 2500 }, (_, i) =>
         turnRow(i + 1, envelope),
       );
-      const pool = pagingPool(rows, {
+      const pool = poolWithTurns(rows, {
         target_repo: "o/r",
         status: "completed",
       });
@@ -328,6 +313,24 @@ describe("/api/task-logs", () => {
       );
 
       expect(res.result).toMatchObject({ complete: true });
+    });
+    it("returns complete false for a GCS hit while the local task still runs", async () => {
+      storage.file.exists.mockResolvedValue([true]);
+      storage.file.download.mockResolvedValue([Buffer.from("hello")]);
+      const pool = poolWithTurns([], {
+        target_repo: "o/r",
+        status: "running-local",
+      });
+      const res = await inject(
+        { method: "GET", url: "/api/task-logs?task_id=t" },
+        pool,
+      );
+
+      expect(res.result).toEqual({
+        logs: "hello",
+        next_offset: 5,
+        complete: false,
+      });
     });
   });
 });

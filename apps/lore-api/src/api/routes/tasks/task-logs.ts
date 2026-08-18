@@ -201,10 +201,13 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
         const [content] = await file.download();
         const full = content.toString("utf-8");
 
+        // The local runner re-POSTs the full buffer while still running, so a
+        // bucket hit does not mean the run ended; without a pool there is no
+        // status to consult and the legacy always-complete read stands.
         return h.response({
           logs: full.substring(offset),
           next_offset: full.length,
-          complete: true,
+          complete: pool ? finished : true,
         });
       } catch (err) {
         return h.response({ error: errorMessage(err) }).code(500);
