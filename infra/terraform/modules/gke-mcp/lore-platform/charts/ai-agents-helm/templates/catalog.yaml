@@ -244,6 +244,186 @@ spec:
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
+  name: address-feedback
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore address-feedback task recipe (seeded).
+  model: claude-sonnet-4-6
+  prompt: |-
+    A reviewer requested changes on the pull request for this work. Address
+    that feedback in the code, on the branch you are already on.
+
+    The review comments are in the Context section below, alongside the
+    original specification. Read the comments first, then the files they
+    refer to.
+
+    RULES:
+    - Change only what the feedback asks for. Unrelated edits make the
+      re-review harder and are not what was requested.
+    - A comment you disagree with is still an answer you owe: make the
+      change, or leave the code as it is and say plainly why, so the
+      reviewer reads a reason rather than silence.
+    - Do not commit or push — the next step in the line does that.
+
+    Original specification: {description}
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+  resources:
+    secrets:
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
+{{- if .Values.loreMcpUrl }}
+    mcp_servers:
+      - name: lore
+        transport: http
+        url: {{ .Values.loreMcpUrl }}
+        headers_secret: lore-mcp-auth
+{{- end }}
+{{- if .Values.loreSkillsUrl }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
+  disallowed_tools:
+    - mcp__lore__lore_create_pipeline_task
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: address-feedback
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: address-feedback
+  deadlineMinutes: 60
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          workingDir: /workspace/target
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+              ephemeral-storage: 2Gi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+              ephemeral-storage: 4Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
+  name: push-only
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore push-only task recipe (seeded).
+  model: claude-haiku-4-5-20251001
+  prompt: |-
+    Deliver the work already in this repository's worktree. Do not write,
+    edit, review or improve anything — a previous step did that, and changing
+    it now would ship something nobody reviewed.
+
+    Do exactly this:
+    1. `git status` to see what is there.
+    2. If nothing is staged or modified and the branch has no unpushed
+       commits, say so and stop — there is nothing to deliver.
+    3. Otherwise stage the changes and commit them with a short, factual
+       message (skip this if the work is already committed).
+    4. `git push origin HEAD` — this is the step that matters. The clone
+       carries its own credentials, so a plain push authenticates; you need
+       no token and must never look for one.
+    5. Confirm the push landed: `git status` must report the branch is not
+       ahead of its upstream.
+
+    If the push fails, report the error verbatim and exit non-zero. Do NOT
+    report success for an unpushed commit — it lives only in this container
+    and dies with it.
+
+    Do not open a pull request: you have no `gh` and no GitHub token. Lore
+    opens the PR from the branch you push.
+
+    Context for the commit message: {description}
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+  resources:
+    secrets:
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
+{{- if .Values.loreMcpUrl }}
+    mcp_servers:
+      - name: lore
+        transport: http
+        url: {{ .Values.loreMcpUrl }}
+        headers_secret: lore-mcp-auth
+{{- end }}
+{{- if .Values.loreSkillsUrl }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
+  disallowed_tools:
+    - mcp__lore__lore_create_pipeline_task
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: push-only
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: push-only
+  deadlineMinutes: 10
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          workingDir: /workspace/target
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+              ephemeral-storage: 2Gi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+              ephemeral-storage: 4Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
   name: gap-fill
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed

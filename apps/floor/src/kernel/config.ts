@@ -8,6 +8,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse } from "yaml";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -94,7 +95,9 @@ export function getTaskTypes(): string[] {
  * Build a prompt string for the given task type and description.
  *
  * Falls back to the "general" type if `taskType` is not found,
- * and to a hardcoded default if "general" is also missing.
+ * and to a hardcoded default if "general" is also missing. That fallback is for
+ * a TASK whose type predates the config; a node naming a `prompt_ref` must use
+ * {@link buildNodePrompt}, which refuses to substitute a different recipe.
  */
 export function buildPrompt(taskType: string, description: string): string {
   const cfg = taskTypes.get(taskType) ?? taskTypes.get("general");
@@ -102,6 +105,34 @@ export function buildPrompt(taskType: string, description: string): string {
     cfg?.prompt_template ?? "Complete the following task: {description}";
 
   return template.replace("{description}", description);
+}
+
+/**
+ * The prompt for an assembly-line node — resolved STRICTLY, throwing when the
+ * `prompt_ref` names nothing.
+ *
+ * A node's `prompt_ref` is a claim about which recipe the node runs, and the
+ * silent fallback made it unfalsifiable: every push node in the platform
+ * declared `prompt_ref: push-only`, no such task type ever existed, and so every
+ * one of them quietly ran the GENERAL prompt — "complete the following task" —
+ * against the whole feature description. They edited files, committed, exited 0
+ * and reported success, for weeks, while no line opened a PR (#1329). A missing
+ * recipe is a broken blueprint; running a different one and calling it success
+ * is the failure mode that hid it.
+ */
+export function buildNodePrompt(
+  promptRef: string,
+  description: string,
+): string {
+  const cfg = taskTypes.get(promptRef);
+
+  enforceTrue(
+    cfg !== undefined,
+    Error,
+    `no prompt template named "${promptRef}" — an assembly-line node names a recipe that does not exist (known: ${getTaskTypes().join(", ")})`,
+  );
+
+  return cfg.prompt_template.replace("{description}", description);
 }
 
 /**
