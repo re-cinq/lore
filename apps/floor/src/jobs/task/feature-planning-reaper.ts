@@ -20,12 +20,15 @@
  */
 
 import { query } from "../../kernel/db.js";
+import { assemblyRuns, agentRunTurns } from "../../kernel/queues.js";
 import { projectFor, stationBackend } from "../../composition/project-boot.js";
 import {
   decidePlanningRecovery,
   latestReadyGap,
   type FeatureWithIterations,
 } from "@re-cinq/lore-shared/project/features/features-port.js";
+import { applyGapResult } from "@re-cinq/lore-shared/feature-planning/apply-gap-result.js";
+import { gapResultFromTurns } from "@re-cinq/lore-shared/feature-planning/recover-gap-result.js";
 import {
   decideFeatureStatus,
   isPlanningPhase,
@@ -39,12 +42,16 @@ interface Candidate {
 }
 
 export async function featurePlanningReaperJob(): Promise<string> {
+  // The failed arm is bounded to a day: a genuinely failed old round stays
+  // failed; only a recent one can still be an artifact-recovery candidate.
   const rows = await query<Candidate>(
     `SELECT DISTINCT f.id, f.repo
        FROM lore.features f
        JOIN lore.feature_iterations i ON i.feature_id = f.id
       WHERE i.status = 'running'
-         OR (i.status = 'ready' AND f.status = 'planning')`,
+         OR (i.status = 'ready' AND f.status = 'planning')
+         OR (i.status = 'failed' AND i.gap_result IS NULL
+             AND i.updated_at > now() - interval '1 day')`,
   );
 
   if (rows.length === 0) {
@@ -54,6 +61,7 @@ export async function featurePlanningReaperJob(): Promise<string> {
   const now = Date.now();
   let orphaned = 0;
   let transitioned = 0;
+  let recovered = 0;
 
   for (const row of rows) {
     try {
@@ -64,12 +72,49 @@ export async function featurePlanningReaperJob(): Promise<string> {
         continue;
       }
 
-      // isActive probes the agent-cr backend this repo's round ran on.
-      const station = stationBackend();
       const latest = feature.iterations[feature.iterations.length - 1];
+      // The round runs on an assembly run now, and the run is the liveness
+      // authority: the assembly-run reaper owns its timeouts and relaunches, so
+      // an OPEN run means alive regardless of what a k8s CR listing says — a
+      // transient empty list executed a live round on 2026-08-18 (#1297). The
+      // direct probe survives only for legacy rounds with no run row.
+      const latestRun = latest?.task_id
+        ? (await assemblyRuns().listForTask(latest.task_id))[0]
+        : undefined;
+      const runOpen =
+        latestRun !== undefined &&
+        ["queued", "running"].includes(latestRun.status);
+
+      // A round whose agent already SUCCEEDED but whose result delivery was
+      // lost (#1298) is healed from the transcript, never orphaned: the
+      // artifact is re-applied through the same applyGapResult the pod's own
+      // delivery uses.
+      const lostRound = lostArtifactRound(latest, latestRun, feature.status);
+
+      if (
+        lostRound !== null &&
+        (await recoverArtifact(
+          project,
+          feature.id,
+          lostRound.round,
+          lostRound.runId,
+        ))
+      ) {
+        recovered++;
+        console.log(
+          `[feature-planning-reaper] recovered round ${latest.iteration} for ${row.repo}/${row.id} from the run transcript`,
+        );
+        continue;
+      }
+
+      // isActive probes the agent-cr backend this repo's round ran on — the
+      // legacy path for rounds that predate assembly-run execution.
+      const station = stationBackend();
       const isActive =
         latest?.status === "running" && latest.task_id
-          ? await station.isActive(latest.task_id)
+          ? latestRun !== undefined
+            ? runOpen
+            : await station.isActive(latest.task_id)
           : true;
 
       const action = decidePlanningRecovery({
@@ -77,6 +122,7 @@ export async function featurePlanningReaperJob(): Promise<string> {
         featureStatus: feature.status,
         isActive,
         nowMs: now,
+        runOpen,
       });
 
       if (action.kind === "orphan") {
@@ -107,7 +153,87 @@ export async function featurePlanningReaperJob(): Promise<string> {
     }
   }
 
-  return `Recovered ${orphaned} orphaned round(s), fixed ${transitioned} missed transition(s) across ${rows.length} feature(s)`;
+  return `Recovered ${orphaned} orphaned round(s), fixed ${transitioned} missed transition(s), replayed ${recovered} lost artifact(s) across ${rows.length} feature(s)`;
+}
+
+/** The round + run pair eligible for artifact recovery (#1298): a recent round
+ *  with no result whose task ran on an assembly run, while the feature is still
+ *  mid-planning. Null otherwise — including for a round that already carries a
+ *  result, which needs no archaeology. */
+function lostArtifactRound(
+  latest: FeatureWithIterations["iterations"][number] | undefined,
+  latestRun: { id: string } | undefined,
+  featureStatus: string,
+): { round: { iteration: number }; runId: string } | null {
+  if (!latest || !latestRun || latest.gap_result) {
+    return null;
+  }
+
+  if (latest.status !== "failed" && latest.status !== "running") {
+    return null;
+  }
+
+  return isPlanningPhase(featureStatus)
+    ? { round: latest, runId: latestRun.id }
+    : null;
+}
+
+/** How many transcript turns one recovery scan will page through before giving
+ *  up — a planning round runs a few hundred turns; this is a runaway bound, not
+ *  a tuning knob. */
+const RECOVERY_TURN_PAGE = 200;
+const RECOVERY_TURN_PAGES_MAX = 25;
+
+/**
+ * Re-apply a lost round result from the run transcript (#1298): when the run's
+ * agent node SUCCEEDED, the terminal `Write` of the watch artifact
+ * (`result.json`) holds the full GapResult, and `applyGapResult` is already
+ * built for late delivery. Returns false when the run never produced one — a
+ * genuinely failed analysis has no artifact and stays failed.
+ */
+async function recoverArtifact(
+  project: Project,
+  featureId: string,
+  latest: { iteration: number },
+  runId: string,
+): Promise<boolean> {
+  const nodes = await assemblyRuns().listStationRuns(runId);
+
+  if (!nodes.some((node) => node.outcome === "success")) {
+    return false;
+  }
+
+  const envelopes: unknown[] = [];
+  let cursor = "0";
+
+  for (let page = 0; page < RECOVERY_TURN_PAGES_MAX; page++) {
+    const turns = await agentRunTurns().listByLine(
+      runId,
+      cursor,
+      RECOVERY_TURN_PAGE,
+    );
+
+    if (turns.length === 0) {
+      break;
+    }
+    envelopes.push(...turns.map((turn) => turn.envelope));
+    cursor = turns[turns.length - 1].id;
+  }
+
+  const payload = gapResultFromTurns(envelopes, "result.json");
+
+  if (payload === null) {
+    return false;
+  }
+
+  const applied = await applyGapResult(
+    project.features,
+    featureId,
+    latest.iteration,
+    payload,
+  );
+
+  return applied.outcome === "ready";
 }
 
 /**

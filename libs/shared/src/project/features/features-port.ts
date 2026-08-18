@@ -239,6 +239,13 @@ export function decidePlanningRecovery(args: {
   isActive: boolean;
   nowMs: number;
   windowMs?: number;
+  /** True when the round's task has an OPEN assembly run. The run is then the
+   *  single liveness authority — the assembly-run reaper owns its timeouts and
+   *  relaunches — so the running case never orphans here. Without this, a k8s
+   *  probe that transiently listed zero CRs executed a live round (#1297,
+   *  2026-08-18: the analyze agent had already SUCCEEDED when the reaper
+   *  failed its iteration). */
+  runOpen?: boolean;
 }): PlanningRecovery {
   const {
     iterations,
@@ -254,6 +261,9 @@ export function decidePlanningRecovery(args: {
   }
 
   if (latest.status === "running") {
+    if (args.runOpen) {
+      return { kind: "none" };
+    }
     const ageMs = nowMs - Date.parse(latest.created_at);
     const stale = ageMs > windowMs;
     // Inside the grace window an absent runtime means the CR has not been created
