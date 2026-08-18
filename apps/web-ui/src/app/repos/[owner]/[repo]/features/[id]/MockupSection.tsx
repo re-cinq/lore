@@ -75,7 +75,10 @@ function useMermaidSvg(mockup: GapMockup, index: number): string | null {
         );
 
         if (live) {
-          setSvg(rendered.svg);
+          // Tripwire, not a sanitizer: strict-mode mermaid does not emit script
+          // tags, so an output carrying one is treated as a failed render rather
+          // than framed. The frame's sandbox would inert it anyway.
+          setSvg(/<script/i.test(rendered.svg) ? "" : rendered.svg);
         }
       } catch {
         // A diagram that will not parse is not worth failing the round over — the
@@ -106,7 +109,6 @@ function MockupFigure({
   const mermaidSvg = useMermaidSvg(mockup, index);
   const isMermaid = mockup.format === "mermaid";
   const isHtml = mockup.format === "html";
-  const raw = isMermaid ? (mermaidSvg ?? "") : mockup.markup;
   // Sanitized only where there is a DOM. This component renders on the SERVER too —
   // "use client" means "also on the client" — and DOMPurify's default export is a
   // FACTORY there, with no `sanitize` on it, which took the whole feature page down
@@ -118,13 +120,26 @@ function MockupFigure({
     () => true,
     () => false,
   );
-  const clean = isBrowser
-    ? sanitizeMockupMarkup(
-        DOMPurify,
-        raw,
-        isHtml ? MOCKUP_HTML_CONFIG : MOCKUP_SVG_CONFIG,
-      )
-    : "";
+  // A mermaid-RENDERED svg is framed WITHOUT a DOMPurify pass: DOMPurify's mXSS
+  // defense strips foreignObject INTERIORS under every configuration (verified
+  // against 3.4.11 — plain, xhtml parser mode, extra ADD_TAGS), and mermaid v11
+  // puts ER labels and flowchart edge labels there, so purifying the output
+  // guarantees an unlabeled skeleton. Its two boundaries are mermaid's own
+  // securityLevel:"strict" render (which sanitizes label text) and the
+  // no-script sandboxed frame; useMermaidSvg additionally refuses an output
+  // carrying a script tag. Author-supplied raw svg/html markup — which mermaid
+  // never vetted — still goes through DOMPurify.
+  const clean = isMermaid
+    ? isBrowser
+      ? (mermaidSvg ?? "")
+      : ""
+    : isBrowser
+      ? sanitizeMockupMarkup(
+          DOMPurify,
+          mockup.markup,
+          isHtml ? MOCKUP_HTML_CONFIG : MOCKUP_SVG_CONFIG,
+        )
+      : "";
   const href = `data:text/plain;charset=utf-8,${encodeURIComponent(mockup.markup)}`;
 
   return (
