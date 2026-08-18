@@ -62,7 +62,9 @@ export default function FullTranscriptPanel({
         let hitCap = false;
 
         for (;;) {
-          const res = await fetch(turnsUrl(runId, cursor));
+          const res = await fetch(turnsUrl(runId, cursor), {
+            signal: AbortSignal.timeout(15_000),
+          });
 
           if (disposedRef.current) {
             return;
