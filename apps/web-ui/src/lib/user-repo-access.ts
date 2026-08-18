@@ -31,6 +31,7 @@ export async function userCanAccessRepo(
 ): Promise<boolean> {
   try {
     const res = await fetchImpl(`https://api.github.com/repos/${repo}`, {
+      signal: AbortSignal.timeout(30_000),
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: "application/vnd.github+json",
