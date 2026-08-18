@@ -51,18 +51,34 @@ spec:
           ports:
             - name: health
               containerPort: 8081
+          # Probe budgets sized for the STARTUP SYNC (#1290, 2026-08-18): the
+          # controller reconciles its whole Agent inventory before the event
+          # loop breathes, and the defaulted 1s probe timeout executed it ~80s
+          # into a 2,657-CR sync — every restart regrew the pile the pruner
+          # never lived to shrink. The startupProbe owns the boot window (up to
+          # ~10 min of sync); liveness then watches for real wedges with a
+          # timeout that tolerates a busy event loop.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
           livenessProbe:
             httpGet:
               path: /healthz
               port: health
-            initialDelaySeconds: 5
             periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
           readinessProbe:
             httpGet:
               path: /readyz
               port: health
             initialDelaySeconds: 3
             periodSeconds: 10
+            timeoutSeconds: 5
           resources:
             {{- toYaml .Values.controller.resources | nindent 12 }}
           securityContext:
