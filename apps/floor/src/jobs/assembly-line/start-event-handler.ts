@@ -46,15 +46,10 @@ export function createStartEventHandler(
       "assembly_run.start event params missing assemblyRunId",
     );
     // Branch/args/description ride in the row itself — the walk reads them via
-    // taskFromRow, so the event only needs identity + routing fields.
-    // `definitionName` is the pre-rename wire name for the same field. Rows sit in
-    // `pipeline.events` across a deploy, so a start queued by the old image would
-    // otherwise resolve to "" and be closed as a line with no definition.
-    // DELETE once no unhandled event predates the rename — the events table is
-    // pruned after handling, so one retention window is enough.
-    const blueprintName = String(
-      params.blueprintName ?? params.definitionName ?? "",
-    );
+    // taskFromRow, so the event only needs identity + routing fields. (The
+    // pre-rename `definitionName` fallback was deleted 2026-08-18, #1272, one
+    // retention window after the writer flip.)
+    const blueprintName = String(params.blueprintName ?? "");
     const taskId = typeof params.taskId === "string" ? params.taskId : null;
 
     const definitions = await deps.definitions();
