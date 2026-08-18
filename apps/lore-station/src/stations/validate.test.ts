@@ -10,7 +10,7 @@ import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 const execFile = promisify(execFileCb);
 
 const input: StationInput = {
-  assembly_line_id: "al-1",
+  assembly_run_id: "al-1",
   node_id: "validate",
   node_type: "validate",
   repo: "owner/repo",

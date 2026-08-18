@@ -18,17 +18,19 @@
 // rather than a broken deploy.
 //
 // Field names are the CONTRACT and are deliberately snake_case: they cross a
-// process boundary into a pod, and `assembly_line_id` in particular keeps its
-// pre-rename spelling until both images can move together (specs/6-dark-factory
-// FR6.41 — readers-first). Renaming anything here means shipping both sides and
-// the contract doc in one change.
+// process boundary into a pod. The run id is mid-rename (specs/6-dark-factory
+// FR6.41/FR6.45 — readers-first): the canonical key is `assembly_run_id`, the
+// parser also accepts the pre-rename `assembly_line_id`, and the serializer
+// emits BOTH so a station image from the neighbouring release parses either
+// direction. DELETE the legacy key from both ends once no deployed floor or
+// lore-station image predates this dual-key release.
 //
 // Contract: specs/6-dark-factory/contracts/station-contract.md
 
 import { z } from "zod";
 
 export const StationInputSchema = z.object({
-  assembly_line_id: z.string().min(1),
+  assembly_run_id: z.string().min(1),
   node_id: z.string().min(1),
   node_type: z.string().min(1),
   repo: z.string().min(1),
@@ -40,13 +42,27 @@ export const StationInputSchema = z.object({
 
 export type StationInput = z.infer<typeof StationInputSchema>;
 
+/** The wire shape: either run-id spelling satisfies it, new key winning. */
+const StationInputWireSchema = StationInputSchema.extend({
+  assembly_run_id: z.string().min(1).optional(),
+  assembly_line_id: z.string().min(1).optional(),
+}).refine((wire) => wire.assembly_run_id ?? wire.assembly_line_id, {
+  message: "station_input carries neither assembly_run_id nor assembly_line_id",
+});
+
 /**
  * Read the input a pod was launched with. Throws on anything that does not match
  * the contract — a station that ran with a malformed brief would do the wrong
  * work silently, which is worse than not starting.
  */
 export function parseStationInput(json: string): StationInput {
-  return StationInputSchema.parse(JSON.parse(json));
+  const wire = StationInputWireSchema.parse(JSON.parse(json));
+  const { assembly_line_id: legacyRunId, ...rest } = wire;
+
+  return {
+    ...rest,
+    assembly_run_id: (wire.assembly_run_id ?? legacyRunId) as string,
+  };
 }
 
 /**
@@ -58,5 +74,12 @@ export function parseStationInput(json: string): StationInput {
  * someone has to go find.
  */
 export function serializeStationInput(input: StationInput): string {
-  return JSON.stringify(StationInputSchema.parse(input));
+  const valid = StationInputSchema.parse(input);
+
+  return JSON.stringify({
+    ...valid,
+    // The legacy spelling rides along for exactly one release — a lore-station
+    // image from the previous release still REQUIRES it.
+    assembly_line_id: valid.assembly_run_id,
+  });
 }

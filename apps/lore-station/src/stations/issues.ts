@@ -122,7 +122,7 @@ function taskInput(
     createdBy: "issues-station",
     // The line IS the decomposition attempt, so its id groups the tasks it produced —
     // stable across a re-drive of the same run, distinct for a genuine re-run.
-    taskGroupId: input.assembly_line_id,
+    taskGroupId: input.assembly_run_id,
     contextBundle: {
       spec_task_id: planned.task.id,
       depends_on: planned.task.depends_on,
@@ -131,7 +131,7 @@ function taskInput(
       ...(planned.task.file_path ? { file_path: planned.task.file_path } : {}),
       ...(planned.task.labels ? { labels: planned.task.labels } : {}),
       story_issue: filed[planned.storyIndex],
-      assembly_line_id: input.assembly_line_id,
+      assembly_line_id: input.assembly_run_id,
       // Absent rather than null when the line carries no feature: the UI filter is a
       // JSON text match, and a literal "null" would match nothing while looking set.
       ...(featureId ? { feature_id: featureId } : {}),

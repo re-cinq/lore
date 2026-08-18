@@ -179,7 +179,7 @@ export function nodeStationSpec(
       // which would have failed every station run. Now a key that exists on only
       // one side does not compile.
       station_input: serializeStationInput({
-        assembly_line_id: task.assemblyLineId,
+        assembly_run_id: task.assemblyLineId,
         node_id: node.id,
         node_type: node.type,
         repo: task.targetRepo,

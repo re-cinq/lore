@@ -25,7 +25,7 @@ const DECOMPOSITION = JSON.stringify({
 
 function input(params: Record<string, string> = {}): StationInput {
   return {
-    assembly_line_id: "11111111-2222-3333-4444-555555555555",
+    assembly_run_id: "11111111-2222-3333-4444-555555555555",
     node_id: "issues",
     node_type: "issues",
     repo: "re-cinq/lore",

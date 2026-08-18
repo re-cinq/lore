@@ -8,7 +8,7 @@ afterEach(() => Llm.reset());
 
 function input(params: Record<string, string>): StationInput {
   return {
-    assembly_line_id: "al-1",
+    assembly_run_id: "al-1",
     node_id: "triage",
     node_type: "comment-triage",
     repo: "re-cinq/lore",

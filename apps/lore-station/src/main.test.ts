@@ -5,7 +5,7 @@ import { FakeLlm } from "@re-cinq/lore-shared/llm/fake-llm.js";
 
 const env = { workspaceDir: "/tmp" };
 const inputJson = JSON.stringify({
-  assembly_line_id: "al-1",
+  assembly_run_id: "al-1",
   node_id: "n",
   node_type: "detect",
   repo: "o/r",
