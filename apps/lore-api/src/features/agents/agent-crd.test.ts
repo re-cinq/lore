@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { AgentDefinition as RecipeDef } from "@re-cinq/lore-shared";
-import { agentDefToCrds } from "./agent-crd.js";
+import { agentDefToCrds, preserveUnownedFields } from "./agent-crd.js";
 
 const full: RecipeDef = {
   name: "implementation",
@@ -163,5 +163,68 @@ describe("agentDefToCrds — station mode", () => {
     ).spec.containers;
 
     expect(containers[0].image).toBe("ghcr.io/re-cinq/lore-station:latest");
+  });
+});
+
+describe("preserveUnownedFields — a UI save never amputates what it does not render (#1301)", () => {
+  const live = {
+    metadata: {
+      name: "feature-planning",
+      labels: { "app.kubernetes.io/managed-by": "lore-catalog-seed" },
+      annotations: { "helm.sh/resource-policy": "keep" },
+      resourceVersion: "42",
+    },
+    spec: {
+      prompt: "old prompt",
+      output: {
+        sinks: [{ type: "stdout" }],
+        watch: [{ event: "planning.result", path: "target/result.json" }],
+      },
+    },
+  };
+  const desired = {
+    metadata: {
+      name: "feature-planning",
+      labels: { "app.kubernetes.io/managed-by": "lore-catalog-ui" },
+    },
+    spec: {
+      prompt: "new prompt",
+      output: { sinks: [{ type: "stdout" }, { type: "http", url: "x" }] },
+    },
+  };
+
+  it("carries output.watch through a save whose render does not know it", () => {
+    const merged = preserveUnownedFields(live, desired) as typeof live;
+
+    expect(merged.spec.output.watch).toEqual([
+      { event: "planning.result", path: "target/result.json" },
+    ]);
+  });
+
+  it("lets the editor win the fields it owns", () => {
+    const merged = preserveUnownedFields(live, desired) as never as {
+      spec: { prompt: string; output: { sinks: unknown[] } };
+      metadata: { labels: Record<string, string> };
+    };
+
+    expect(merged.spec.prompt).toBe("new prompt");
+    expect(merged.spec.output.sinks).toHaveLength(2);
+    expect(merged.metadata.labels["app.kubernetes.io/managed-by"]).toBe(
+      "lore-catalog-ui",
+    );
+  });
+
+  it("keeps helm's annotations on the object across a UI save", () => {
+    const merged = preserveUnownedFields(live, desired) as never as {
+      metadata: { annotations: Record<string, string> };
+    };
+
+    expect(merged.metadata.annotations["helm.sh/resource-policy"]).toBe("keep");
+  });
+
+  it("is a plain pass-through when nothing lives yet (fresh create shape)", () => {
+    expect(preserveUnownedFields(undefined, desired)).toMatchObject({
+      spec: { prompt: "new prompt" },
+    });
   });
 });

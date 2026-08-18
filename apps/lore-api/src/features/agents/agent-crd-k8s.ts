@@ -4,7 +4,7 @@
 // the live resourceVersion when the resource already exists.
 
 import { loadKube } from "@re-cinq/lore-shared";
-import type { CrdPair } from "./agent-crd.js";
+import { preserveUnownedFields, type CrdPair } from "./agent-crd.js";
 
 const GROUP = "agents.re-cinq.com";
 const VERSION = "v1alpha1";
@@ -59,8 +59,12 @@ async function applyOne(
       plural,
       name,
     })) as { metadata?: { resourceVersion?: string } };
-    const meta =
-      (body as { metadata?: Record<string, unknown> }).metadata ?? {};
+    // Replace-with-preservation (#1301): the editor's render wins the fields it
+    // owns; everything else the live object carries (output.watch, helm labels
+    // and annotations) survives the save instead of being amputated.
+    const preserved = preserveUnownedFields(current, body) as {
+      metadata?: Record<string, unknown>;
+    };
 
     await client.replaceNamespacedCustomObject({
       group: GROUP,
@@ -69,9 +73,9 @@ async function applyOne(
       plural,
       name,
       body: {
-        ...body,
+        ...preserved,
         metadata: {
-          ...meta,
+          ...(preserved.metadata ?? {}),
           resourceVersion: current.metadata?.resourceVersion,
         },
       },
