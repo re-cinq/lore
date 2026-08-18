@@ -144,7 +144,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     { assemblyRuns, jobRuns, taskStore, conversations },
     { loadBuiltinAssemblyLines },
     { agentCrBackend, projectFor },
-    { buildPrompt },
+    { buildNodePrompt },
     { cleanupPerTaskToken },
     { KubeAgentApi },
     { settleTaskForLine },
@@ -169,7 +169,9 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     launch: async (spec) => {
       await agentCrBackend().launch(spec);
     },
-    resolvePrompt: buildPrompt,
+    // Strict: a node's prompt_ref names the recipe it runs, so an unknown one
+    // fails the node instead of silently running `general` (#1329).
+    resolvePrompt: buildNodePrompt,
     cleanupToken: cleanupPerTaskToken,
     jobRuns: jobRuns(),
     notifyFailure: notifyLineFailure,
