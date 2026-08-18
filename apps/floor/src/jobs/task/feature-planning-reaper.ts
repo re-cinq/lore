@@ -29,6 +29,7 @@ import {
 } from "@re-cinq/lore-shared/project/features/features-port.js";
 import { applyGapResult } from "@re-cinq/lore-shared/feature-planning/apply-gap-result.js";
 import { gapResultFromTurns } from "@re-cinq/lore-shared/feature-planning/recover-gap-result.js";
+import { decideArtifactRecovery } from "./planning-artifact-recovery.js";
 import {
   decideFeatureStatus,
   isPlanningPhase,
@@ -91,30 +92,38 @@ export async function featurePlanningReaperJob(): Promise<string> {
       // A round whose agent already SUCCEEDED but whose result delivery was
       // lost (#1298) is healed from the transcript, never orphaned: the
       // artifact is re-applied through the same applyGapResult the pod's own
-      // delivery uses.
-      // A `running` round on an OPEN run is simply in flight — its artifact is
-      // not lost, it has not been written yet; probing station runs every tick
-      // for it would be noise. Recovery considers it only once the run closes
-      // (or the round was already failed, the incident shape).
-      const lostRound =
-        runOpen && latest?.status === "running"
-          ? null
-          : lostArtifactRound(latest, latestRun, feature.status);
+      // delivery uses. Whether that applies — and whose transcript to read —
+      // is decideArtifactRecovery's call (#1302): the blanket "running on an
+      // open run" exemption this replaces hid the parked-on-author shape,
+      // where the work is done and the round still reads `running`.
+      const lostRound = lostArtifactRound(latest, latestRun, feature.status);
 
-      if (
-        lostRound !== null &&
-        (await recoverArtifact(
-          project,
-          feature.id,
-          lostRound.round,
+      if (lostRound !== null) {
+        const stationRuns = await assemblyRuns().listStationRuns(
           lostRound.runId,
-        ))
-      ) {
-        recovered++;
-        console.log(
-          `[feature-planning-reaper] recovered round ${latest.iteration} for ${row.repo}/${row.id} from the run transcript`,
         );
-        continue;
+        const decision = decideArtifactRecovery(
+          stationRuns,
+          latestRun?.graph ?? null,
+          runOpen,
+        );
+
+        if (
+          decision.kind === "recover" &&
+          (await recoverArtifact(
+            project,
+            feature.id,
+            lostRound.round,
+            lostRound.runId,
+            decision.agentCrName,
+          ))
+        ) {
+          recovered++;
+          console.log(
+            `[feature-planning-reaper] recovered round ${latest.iteration} for ${row.repo}/${row.id} from the run transcript`,
+          );
+          continue;
+        }
       }
 
       // isActive probes the agent-cr backend this repo's round ran on — the
@@ -195,24 +204,24 @@ const RECOVERY_TURN_PAGE = 200;
 const RECOVERY_TURN_PAGES_MAX = 25;
 
 /**
- * Re-apply a lost round result from the run transcript (#1298): when the run's
- * agent node SUCCEEDED, the terminal `Write` of the watch artifact
- * (`result.json`) holds the full GapResult, and `applyGapResult` is already
- * built for late delivery. Returns false when the run never produced one — a
- * genuinely failed analysis has no artifact and stays failed.
+ * Re-apply a lost round result from the run transcript (#1298): the terminal
+ * `Write` of the watch artifact (`result.json`) holds the full GapResult, and
+ * `applyGapResult` is already built for late delivery. Returns false when the
+ * run never produced one — a genuinely failed analysis has no artifact and
+ * stays failed.
+ *
+ * `agentCrName` scopes the scan to THIS round's pod (#1302): on a multi-round
+ * run the transcript also holds every PREVIOUS round's `result.json`, and an
+ * unscoped scan would replay one of those as the current round's result. Null
+ * (a work row that never recorded its CR) scans unscoped — the legacy behavior.
  */
 async function recoverArtifact(
   project: Project,
   featureId: string,
   latest: { iteration: number },
   runId: string,
+  agentCrName: string | null,
 ): Promise<boolean> {
-  const nodes = await assemblyRuns().listStationRuns(runId);
-
-  if (!nodes.some((node) => node.outcome === "success")) {
-    return false;
-  }
-
   const envelopes: unknown[] = [];
   let cursor = "0";
 
@@ -226,7 +235,13 @@ async function recoverArtifact(
     if (turns.length === 0) {
       break;
     }
-    envelopes.push(...turns.map((turn) => turn.envelope));
+    envelopes.push(
+      ...turns
+        .filter(
+          (turn) => agentCrName === null || turn.agentCrName === agentCrName,
+        )
+        .map((turn) => turn.envelope),
+    );
     cursor = turns[turns.length - 1].id;
   }
 
