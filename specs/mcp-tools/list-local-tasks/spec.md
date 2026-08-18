@@ -66,7 +66,7 @@ summary, or `"Error: {message}"`. **Never throws**.
 ## Acceptance Criteria
 
 `listPendingTasks` returns an array (empty when the backing file is absent).
-([validated by `listPendingTasks returns empty array when file is missing`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L163))
+([validated by `listPendingTasks returns empty array when file is missing`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L164))
 
 The live-PID reconciliation of `listLocalTasks` and the per-line formatting are
 exercised only end-to-end. *(untested: `listLocalTasks` reads

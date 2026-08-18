@@ -15,6 +15,7 @@ import {
   cancelLocalTask,
   buildTurnLines,
   batchTurnLines,
+  dropOversizedTurnLines,
   type LocalRunnerConfig,
   type PendingTask,
 } from "./runner.local.js";
@@ -417,5 +418,32 @@ describe("batchTurnLines", () => {
       [big],
       ["b"],
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// dropOversizedTurnLines — a line that can never fit one relay request is
+// dropped loudly instead of 413-ing its batch
+// ---------------------------------------------------------------------------
+
+describe("dropOversizedTurnLines", () => {
+  it("keeps lines at or under the byte cap and counts the rest", () => {
+    const small = "x".repeat(10);
+    const big = "y".repeat(40);
+
+    expect(dropOversizedTurnLines([small, big, small], 20)).toEqual({
+      kept: [small, small],
+      oversized: 1,
+    });
+  });
+
+  it("measures utf-8 bytes plus the join newline, not characters", () => {
+    // 10 chars but 20 utf-8 bytes: over a 15-byte cap despite length 10.
+    const multibyte = "ü".repeat(10);
+
+    expect(dropOversizedTurnLines([multibyte], 15)).toEqual({
+      kept: [],
+      oversized: 1,
+    });
   });
 });

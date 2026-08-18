@@ -385,12 +385,16 @@ async function monitorTask(task: LocalTask): Promise<void> {
               await updateTaskViaAPI(task.taskId, "needs-human-help", {
                 failure_reason: retryOutput.substring(0, 2000),
               });
+              // Status is written BEFORE the artifact round-trips: writeTasks
+              // rewrites the whole file from this monitor's snapshot, so
+              // holding it across slow network calls widens the lost-update
+              // window against a concurrently finishing task.
+              writeTasks(tasks);
               // This early return used to skip the log upload entirely — the
               // needs-human-help runs are exactly the ones whose transcript a
               // human needs. Worktree cleanup stays skipped on purpose (kept
               // for debugging).
               await persistRunArtifacts(task);
-              writeTasks(tasks);
 
               return;
             }
@@ -513,9 +517,10 @@ async function monitorTask(task: LocalTask): Promise<void> {
     console.error(`[lore] local-runner: task ${task.taskId} failed: ${errMsg}`);
   }
 
-  await persistRunArtifacts(task);
-
+  // Same ordering rule as the early-return path: persist the status snapshot
+  // before the slow artifact round-trips.
   writeTasks(tasks);
+  await persistRunArtifacts(task);
 }
 
 // Use shared redaction (alias for backward compatibility)
@@ -619,6 +624,22 @@ export function batchTurnLines(
 const TURN_BATCH_MAX_BYTES = 700 * 1024;
 const TURN_BATCH_MAX_LINES = 2000;
 
+/**
+ * A line whose own bytes exceed the batch cap can never relay — lore-api's
+ * body limit would 413 the whole request. Dropping it loudly here keeps one
+ * pathological line from costing the batches behind it.
+ */
+export function dropOversizedTurnLines(
+  lines: string[],
+  maxBytes: number,
+): { kept: string[]; oversized: number } {
+  const kept = lines.filter(
+    (line) => Buffer.byteLength(line, "utf8") + 1 <= maxBytes,
+  );
+
+  return { kept, oversized: lines.length - kept.length };
+}
+
 async function ingestTurns(task: LocalTask, rawLogs: string): Promise<void> {
   const apiUrl = getApiUrl();
   const token = getToken();
@@ -635,25 +656,55 @@ async function ingestTurns(task: LocalTask, rawLogs: string): Promise<void> {
     );
   }
 
-  for (const batch of batchTurnLines(
+  const { kept, oversized } = dropOversizedTurnLines(
     lines,
+    TURN_BATCH_MAX_BYTES,
+  );
+
+  if (oversized > 0) {
+    console.warn(
+      `[lore] local-runner: ${oversized} turn line(s) dropped for ${task.taskId}: line exceeds the ${TURN_BATCH_MAX_BYTES}-byte relay cap`,
+    );
+  }
+
+  // A failed batch is counted and skipped, never allowed to abandon the
+  // batches behind it — the terminal result line rides last, so aborting
+  // here would cost the cost row and the whole transcript tail.
+  let failed = 0;
+
+  for (const batch of batchTurnLines(
+    kept,
     TURN_BATCH_MAX_BYTES,
     TURN_BATCH_MAX_LINES,
   )) {
-    const resp = await fetch(`${apiUrl}/api/task-turns/${task.taskId}`, {
-      signal: AbortSignal.timeout(30_000),
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/x-ndjson",
-      },
-      body: batch.join("\n"),
-    });
+    try {
+      const resp = await fetch(`${apiUrl}/api/task-turns/${task.taskId}`, {
+        signal: AbortSignal.timeout(30_000),
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/x-ndjson",
+        },
+        body: batch.join("\n"),
+      });
 
-    enforceTrue(
-      resp.ok,
-      Error,
-      `turn ingest returned ${resp.status} for task ${task.taskId}`,
+      enforceTrue(
+        resp.ok,
+        Error,
+        `turn ingest returned ${resp.status} for task ${task.taskId}`,
+      );
+    } catch (err) {
+      failed++;
+      warnBestEffort(
+        `turn batch (${batch.length} lines) for task ${task.taskId}`,
+        err,
+      );
+    }
+  }
+
+  if (failed > 0) {
+    console.warn(
+      `[lore] local-runner: ${failed} turn batch(es) failed for ${task.taskId}; transcript is incomplete server-side (log kept locally)`,
     );
   }
 }

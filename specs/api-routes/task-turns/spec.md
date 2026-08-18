@@ -56,8 +56,10 @@ Registered in `routeList`
    the pool, else 503. ([validated by returns 503 when the Floor relay env is not configured](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L120), [validated by returns 503 when no pool is available](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L114))
 2. The task id keys everything the Floor sink writes (`llm_calls`, run events,
    turns), so an unknown id is refused with 404 rather than stored
-   uncorrelated — a write-scoped token cannot forge cost rows or transcripts
-   under an arbitrary id. ([validated by returns 404 when the task does not exist](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L104), [validated by returns 400 when taskId is not a uuid](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L135))
+   uncorrelated. Ownership is NOT checked — any write-scoped token may post
+   under any existing task id, matching the `/api/task-logs` precedent (which
+   checks nothing at all); the guarantee here is only that fabricated ids are
+   refused. ([validated by returns 404 when the task does not exist](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L104), [validated by returns 400 when taskId is not a uuid](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L135))
 3. Split the body on newlines; a relayable line must parse as a plain JSON
    object and must NOT be an attributed envelope (`source` + `event` keys —
    the double-peel in `unwrapAttribution` would let a forged inner source
@@ -84,11 +86,16 @@ entirely).
 1. `buildTurnLines` redacts PER LINE — the same rule as the Floor's own turn
    collector, because a whole-text redaction pass can span JSON boundaries and
    erase every line in between. Non-JSON lines are not turns and are skipped
-   silently; a line whose JSON breaks under redaction is dropped and counted. ([validated by keeps parseable stream-json lines untouched](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L338), [validated by skips non-JSON lines without counting them as dropped](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L350), [validated by redacts a secret inside a line and keeps the still-parseable result](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L362), [validated by drops and counts a line whose JSON breaks under redaction](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L375))
+   silently; a line whose JSON breaks under redaction is dropped and counted. ([validated by keeps parseable stream-json lines untouched](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L339), [validated by skips non-JSON lines without counting them as dropped](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L351), [validated by redacts a secret inside a line and keeps the still-parseable result](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L363), [validated by drops and counts a line whose JSON breaks under redaction](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L376))
 2. `batchTurnLines` splits the relay into batches capped by utf-8 bytes
    (~700KB, under lore-api's 1MB body limit) and line count (2000, under the
-   Floor's 10k-turns-per-batch cap); an oversized single line still ships as
-   its own batch rather than being silently discarded. ([validated by splits on the line cap](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L391), [validated by splits on the byte cap measured with Buffer.byteLength](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L401), [validated by emits a line larger than the byte cap as its own batch](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L412))
+   Floor's 10k-turns-per-batch cap). ([validated by splits on the line cap](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L392), [validated by splits on the byte cap measured with Buffer.byteLength](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L402), [validated by emits a line larger than the byte cap as its own batch](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L413))
+3. A line that can never fit one relay request (its own bytes exceed the batch
+   cap) is dropped BEFORE batching, with a counted warning — shipping it would
+   413 and cost the batches behind it. A failed batch is likewise counted and
+   skipped, never allowed to abandon the rest: the terminal result line rides
+   last, so aborting mid-relay would silently lose the cost row and the
+   transcript tail. ([validated by keeps lines at or under the byte cap and counts the rest](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L430), [validated by measures utf-8 bytes plus the join newline, not characters](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L440))
 
 ## Alternatives rejected
 
