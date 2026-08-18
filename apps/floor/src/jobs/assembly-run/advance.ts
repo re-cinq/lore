@@ -29,7 +29,11 @@ import {
 } from "./floor-assembly-run.js";
 import { isFailureOutcome } from "./notify-failure.js";
 import { roundContent } from "./round-content.js";
-import { decidePrStamp } from "./spec-pr.js";
+import {
+  decidePrStamp,
+  decideStampFailure,
+  emptyBranchReason,
+} from "./spec-pr.js";
 
 export interface AdvanceDeps {
   assemblyRuns: AssemblyRunsPort;
@@ -398,8 +402,15 @@ export async function finishNodeAndAdvance(
  *
  *  Runs here rather than inside `advanceLine` because it is a reaction to a node
  *  FINISHING — advanceLine is also driven by the start handler and the reaper,
- *  where nothing just pushed. It never throws: a line whose stamp failed is worth
- *  advancing anyway, and the reaper re-drives it. */
+ *  where nothing just pushed. It never throws: a line whose stamp failed for a
+ *  transient reason is worth advancing anyway, and the reaper re-drives it.
+ *
+ *  An EMPTY branch is not transient, and is the one case that must not be
+ *  swallowed (#1330): the node reported success having pushed nothing, so the
+ *  wait node downstream would park forever on a PR that cannot exist. The line
+ *  is failed with a reason instead, which `advanceLine` then declines to walk
+ *  (it only advances a `running` row) and `settleTask` puts in front of the
+ *  author. */
 async function maybeStampPr(
   assemblyLineId: string,
   nodeId: string,
@@ -409,13 +420,13 @@ async function maybeStampPr(
   if (!deps.stampPr) {
     return;
   }
+  const row = await deps.assemblyRuns.getById(assemblyLineId);
+
+  if (!row) {
+    return;
+  }
 
   try {
-    const row = await deps.assemblyRuns.getById(assemblyLineId);
-
-    if (!row) {
-      return;
-    }
     const node = (await graphForRun(row, deps.definitions))?.nodes.find(
       (n) => n.id === nodeId,
     );
@@ -432,6 +443,12 @@ async function maybeStampPr(
 
     await deps.stampPr(row);
   } catch (err) {
-    console.error("[spec-pr] stamp failed:", (err as Error).message);
+    const message = (err as Error).message;
+
+    console.error("[spec-pr] stamp failed:", message);
+
+    if (decideStampFailure(message) === "empty-branch") {
+      await finishLine(row, "error", emptyBranchReason(row.branch), deps);
+    }
   }
 }
