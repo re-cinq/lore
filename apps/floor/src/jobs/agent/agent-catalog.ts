@@ -209,9 +209,22 @@ export function buildStation(
               ...(cfg.repo_workdir === false
                 ? {}
                 : { workingDir: REPO_WORKDIR }),
+              // ephemeral-storage is EXPLICIT: Autopilot caps an undeclared pod
+              // at 1Gi, and a large-diff review run (clone + claude session
+              // temp) blows through that and gets EVICTED mid-run after the
+              // model has already billed — 2026-08-18, PRs #1287/#1288, the
+              // same class as the 2026-08-13 review-pod evictions (#1160).
               resources: {
-                requests: { cpu: "250m", memory: "512Mi" },
-                limits: { cpu: "1", memory: "1Gi" },
+                requests: {
+                  cpu: "250m",
+                  memory: "512Mi",
+                  "ephemeral-storage": "2Gi",
+                },
+                limits: {
+                  cpu: "1",
+                  memory: "1Gi",
+                  "ephemeral-storage": "4Gi",
+                },
               },
             },
           ],
@@ -284,9 +297,20 @@ export function buildStationStation(
             {
               name: "agent",
               image: STATION_IMAGE_SENTINEL,
+              // Same explicit ephemeral-storage as the agent template: ingest
+              // and validate stations clone the repo too, and Autopilot's 1Gi
+              // undeclared default is the eviction line.
               resources: {
-                requests: { cpu: "250m", memory: "512Mi" },
-                limits: { cpu: "1", memory: "1Gi" },
+                requests: {
+                  cpu: "250m",
+                  memory: "512Mi",
+                  "ephemeral-storage": "2Gi",
+                },
+                limits: {
+                  cpu: "1",
+                  memory: "1Gi",
+                  "ephemeral-storage": "4Gi",
+                },
               },
             },
           ],
