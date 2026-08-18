@@ -102,16 +102,16 @@ describe("request-error logging (#1319)", () => {
       podsForJob: () => Promise.resolve([]),
       podLog: () => Promise.resolve(""),
     };
-    const res = await buildServer({
-      getJobStatus: () => ({}),
-      podLogSource: throwing,
-    }).inject({
-      method: "GET",
-      url: "/api/agent-logs/05fc5491-review",
-      headers: { authorization: "Bearer ingest-secret" },
-    });
-
     try {
+      const res = await buildServer({
+        getJobStatus: () => ({}),
+        podLogSource: throwing,
+      }).inject({
+        method: "GET",
+        url: "/api/agent-logs/05fc5491-review",
+        headers: { authorization: "Bearer ingest-secret" },
+      });
+
       expect(res.statusCode).toBe(500);
       expect(errorSpy).toHaveBeenCalledWith(
         expect.stringContaining(
