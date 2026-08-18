@@ -97,3 +97,18 @@ describe("what a denial reports to the server log", () => {
     expect(JSON.stringify(warn.mock.calls)).not.toContain("gho_supersecret");
   });
 });
+
+describe("deadline", () => {
+  it("sends an abort signal so a hung GitHub call cannot pin the caller", async () => {
+    let init: RequestInit | undefined;
+    const capturing = ((_url: unknown, requestInit?: RequestInit) => {
+      init = requestInit;
+
+      return Promise.resolve(new Response("", { status: 200 }));
+    }) as typeof fetch;
+
+    await userCanAccessRepo("tok", "re-cinq/lore", capturing);
+
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+});

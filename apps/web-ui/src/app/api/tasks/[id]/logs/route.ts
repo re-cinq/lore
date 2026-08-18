@@ -4,39 +4,29 @@ import { getTask } from "@/lib/api/tasks";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { serverError, upstreamError } from "@/lib/api-error";
-import { Storage } from "@google-cloud/storage";
+import { userCanAccessRepo } from "@/lib/user-repo-access";
 
-const BUCKET = process.env.LORE_LOG_BUCKET || "lore-task-logs";
-
-async function checkRepoAccess(
-  accessToken: string,
-  repo: string,
-): Promise<boolean> {
-  try {
-    const res = await fetch(`https://api.github.com/repos/${repo}`, {
-      signal: AbortSignal.timeout(30_000),
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/vnd.github+json",
-      },
-    });
-
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
+/**
+ * GET /api/tasks/[id]/logs — session-authed proxy for a task's stored agent
+ * turns, forwarding to the Floor's /api/agent-turns/task/{taskId}
+ * (specs/turn-level-transcript-store FR4, #1292). Replaces the old GCS
+ * `output.log` read: cluster pods stopped writing that object when the
+ * agent-events ingest landed, so the bucket path served nothing for any
+ * cluster-run task.
+ *
+ * The auth ladder mirrors the run-page turns proxy — session (401) → task
+ * lookup (upstream code preserved) → repo access (403) — and the body is the
+ * Floor's, byte for byte. The one addition: the task's recorded status rides
+ * the X-Task-Status header, because the viewer's badge and poll gate need it
+ * and the turn rows do not carry it.
+ */
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const { searchParams } = new URL(req.url);
-  const offset = parseInt(searchParams.get("offset") || "0", 10);
 
   try {
-    // Auth check
     const session = (await getServerSession(authOptions)) as {
       accessToken?: string;
     } | null;
@@ -52,60 +42,47 @@ export async function GET(
     }
     const task = result.data;
 
-    // Repo access check
-    const hasAccess = await checkRepoAccess(
-      session.accessToken,
-      task.target_repo,
-    );
-
-    if (!hasAccess) {
+    if (!(await userCanAccessRepo(session.accessToken, task.target_repo))) {
       return NextResponse.json(
         { error: "Access denied — you do not have access to this repo" },
         { status: 403 },
       );
     }
 
-    // Read from GCS
-    const storage = new Storage();
-    const file = storage
-      .bucket(BUCKET)
-      .file(`${task.target_repo}/${task.id}/output.log`);
+    const floorUrl = process.env.LORE_FLOOR_URL;
+    const token = process.env.LORE_INGEST_TOKEN;
 
-    const [exists] = await file.exists();
-
-    if (!exists) {
-      return NextResponse.json({
-        logs: null,
-        status: task.status,
-        totalSize: 0,
-      });
+    if (!floorUrl || !token) {
+      return NextResponse.json(
+        { error: "LORE_FLOOR_URL/LORE_INGEST_TOKEN not configured" },
+        { status: 500 },
+      );
     }
 
-    if (offset > 0) {
-      const [metadata] = await file.getMetadata();
-      const totalSize = Number(metadata.size || 0);
+    const incoming = new URL(req.url).searchParams;
+    const forwarded = new URLSearchParams();
 
-      if (offset >= totalSize) {
-        return NextResponse.json({ logs: "", status: task.status, totalSize });
+    for (const key of ["after", "limit"]) {
+      const value = incoming.get(key);
+
+      if (value !== null) {
+        forwarded.set(key, value);
       }
-      const [content] = await file.download({
-        start: offset,
-        end: totalSize - 1,
-      });
-
-      return NextResponse.json({
-        logs: content.toString("utf-8"),
-        status: task.status,
-        totalSize,
-      });
     }
 
-    const [content] = await file.download();
+    const query = forwarded.size === 0 ? "" : `?${forwarded}`;
+    const upstream = await fetch(
+      `${floorUrl}/api/agent-turns/task/${encodeURIComponent(id)}${query}`,
+      { headers: { Authorization: `Bearer ${token}` }, signal: req.signal },
+    );
+    const body = await upstream.text();
 
-    return NextResponse.json({
-      logs: content.toString("utf-8"),
-      status: task.status,
-      totalSize: content.length,
+    return new NextResponse(body, {
+      status: upstream.status,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Task-Status": task.status,
+      },
     });
   } catch (err) {
     return serverError("logs", err);
