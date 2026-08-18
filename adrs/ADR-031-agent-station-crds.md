@@ -27,10 +27,10 @@ This ADR adopts the standalone ai-agent-subsystem as Lore's production execution
 
 > **Revised 2026-07 (2): the walk is event-driven.** The Floor no longer runs an in-process
 > polling walk (a fire-and-backgrounded promise died with the pod — PR #805's run proved it).
-> Node CRs carry `assembly-line-id`/`node-id` labels; their terminal phases emit
+> Node CRs carry `assembly-run-id`/`node-id` labels; their terminal phases emit
 > `kubernetes.agent_node.{succeeded,failed}` (deduped PER CR — the old per-task dedupe swallowed
 > every node after the first); a transition handler records the outcome (CAS) and re-derives the
-> next launch/finish purely from `pipeline.assembly_line_nodes` (`nextTransition` replay). A
+> next launch/finish purely from `pipeline.station_runs` (`nextTransition` replay). A
 > per-minute reaper is the liveness bound (timeouts, relaunches, dropped/dead-lettered events).
 > Branch lease + stage-commit resume are retired on this path — the stage commits were local-only
 > and never pushed, so git-log resume was a fiction in production; DB uniqueness
@@ -99,12 +99,12 @@ dispatches one `Agent` CR per node — agent or station (D9) — and **advances 
 terminal `kubernetes.agent_node.*` event**; a per-minute reaper (`cron.assembly_line_reaper.tick`)
 is the liveness bound for timeouts, unlaunched nodes, and dropped events. There is no walker
 process, no clone, no branch lease, and no stage commits on this path: the walk state IS
-`pipeline.assembly_line_nodes` (FR6.9), `iteration_max` is enforced by replaying the rows
+`pipeline.station_runs` (FR6.9), `iteration_max` is enforced by replaying the rows
 (`nextTransition`), and pod-death survivability is inherent. CR names key on the per-attempt
 assemblyLineId (`<assemblyLineId:12>-<nodeId>`, with `-<iteration>` appended on revisits, FR6.5)
 so two attempts of one task never collide;
 the CR spec keeps `taskId` for the watcher/reaper label probes and adds the full
-`assembly-line-id`/`node-id` labels the event mapping reads.
+`assembly-run-id`/`node-id` labels the event mapping reads.
 
 **D5 — Context hydration.** The Floor injects assembled context into `Agent.spec.parameters` at
 dispatch (deterministic, turn-1); code-editing recipes also declare the Lore MCP server for

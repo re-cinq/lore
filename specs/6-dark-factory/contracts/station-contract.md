@@ -21,7 +21,7 @@ the rendered prompt appended. Station recipes use the prompt template
 
 Produced by the Floor's `nodeStationSpec`
 (`apps/floor/src/jobs/assembly-line/floor-assembly-line.ts`); parsed by
-`apps/lore-station/src/input.ts` (the reference zod schema):
+`libs/shared/src/station-input.ts` (the reference zod schema, shared by both images since #1248):
 
 ```json
 {

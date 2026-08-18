@@ -165,7 +165,7 @@ into a repeated whole-window query. The existing polled views stay polled.
 lines of text, `EventSource` is native, and this epic is explicitly zero-dep.
 
 **A `node_status` event type published alongside the run events.** Rejected. Node
-state already has a source of truth in `pipeline.assembly_line_nodes`, which the
+state already has a source of truth in `pipeline.station_runs`, which the
 walk writes; a parallel status event would be a second source that drifts against
 it. The client seeds from the table and derives running-versus-finished from the
 per-node `init` and `result` events.

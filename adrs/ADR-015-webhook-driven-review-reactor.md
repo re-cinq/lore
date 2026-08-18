@@ -174,8 +174,8 @@ table (migration 0023) drained by a single loop. Three layers:
    spec-PR-merge) keyed in the registry — one `event_name` → one handler.
 
 Event names are source-prefixed + globally unique (`github.*`, `kubernetes.*`,
-`cron.*`, `internal.*`) — with one deliberate exception: the `assembly_line.*`
-family is subject-first (`assembly_line.start`, `source: "internal"`), because the
+`cron.*`, `internal.*`) — with one deliberate exception: the `assembly_run.*`
+family is subject-first (`assembly_run.start`, `source: "internal"`), because the
 assembly line is a primary concept whose start events come from multiple producers
 (the worker's dark-factory branch, the AssemblyLine station backend, future API
 callers) via the atomic row+event insert in `project.assemblyLines.start()`. Floor's `/api/trigger/*` endpoints and mcp-server's GitHub
