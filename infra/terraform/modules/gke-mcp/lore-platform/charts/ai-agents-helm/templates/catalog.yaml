@@ -525,7 +525,7 @@ metadata:
     helm.sh/resource-policy: keep
 spec:
   agentDefRef: code-review
-  deadlineMinutes: 15
+  deadlineMinutes: 25
   template:
     spec:
       containers:
