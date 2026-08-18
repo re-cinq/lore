@@ -76,9 +76,16 @@ export async function GET(
       { headers: { Authorization: `Bearer ${token}` }, signal: req.signal },
     );
     const body = await upstream.text();
+    // The Floor's own auth answers (a rotated/mismatched ingest token) must
+    // not masquerade as this proxy's session (401) / repo-access (403) ladder
+    // — the viewer would tell every signed-in user to sign in.
+    const status =
+      upstream.status === 401 || upstream.status === 403
+        ? 502
+        : upstream.status;
 
     return new NextResponse(body, {
-      status: upstream.status,
+      status,
       headers: {
         "Content-Type": "application/json",
         "X-Task-Status": task.status,

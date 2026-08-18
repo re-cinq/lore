@@ -756,4 +756,89 @@ describe("TaskLogs", () => {
       expect.objectContaining({ signal: expect.anything() }),
     );
   });
+
+  it("stops fetching once the turn cap is loaded", async () => {
+    // Every page comes back full, so only the cap can end the walk — and a
+    // later poll tick must not fetch past it (the cap bounds the tab's
+    // memory across the task's whole lifetime, not one walk).
+    let base = 0;
+    const fetchMock = vi.fn().mockImplementation(() => {
+      const page = Array.from({ length: TURNS_PAGE_LIMIT }, (_, i) =>
+        turnRow(STATION_LOG, { id: String(base + i + 1) }),
+      );
+
+      base += TURNS_PAGE_LIMIT;
+
+      return Promise.resolve(turnsResponse(page, "running"));
+    });
+
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderWithRefresh(<TaskLogs taskId="t1" initialStatus="running" />);
+    await settle();
+
+    // 10_000-turn cap / 5_000-row pages → the mount walk fetched twice.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(
+      screen.getByText(/Loaded only the first 10000 turns/),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+    });
+    await settle();
+    // The coordinator ticked, but the capped viewer fetches nothing more.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops walking when a full page never advances the cursor", async () => {
+    // A full page whose rows carry no string id cannot move the cursor;
+    // continuing would refetch the same page forever.
+    const idlessPage = Array.from({ length: TURNS_PAGE_LIMIT }, () => ({}));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(turnsResponse(idlessPage, "succeeded"));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
+    await settle();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("updates the badge from the X-Task-Status header even when the upstream read fails", async () => {
+    // The proxy stamps the header on pass-through error responses too; a Floor
+    // outage must not pin a completed task on "running" (and its poll loop).
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          turnsResponse([], "pr-created", { ok: false, status: 502 }),
+        ),
+    );
+    render(<TaskLogs taskId="t1" initialStatus="running" />);
+    await settle();
+
+    expect(screen.getByText("Completed")).toBeInTheDocument();
+    expect(
+      screen.getByText("Failed to load logs: HTTP 502"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Auto-refreshing/)).not.toBeInTheDocument();
+  });
+
+  it("shows the no-stored-turns explainer for a needs-human-help task with no turns", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(turnsResponse([], "needs-human-help")),
+    );
+    render(<TaskLogs taskId="t1" initialStatus="needs-human-help" />);
+    await settle();
+
+    expect(
+      screen.getByText(/No stored agent turns for this task/),
+    ).toBeInTheDocument();
+  });
 });

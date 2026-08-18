@@ -106,8 +106,3 @@ export function segmentLabel(segment: TurnSegment): string | null {
     ? segment.nodeId
     : `${segment.nodeId} · iteration ${segment.iteration}`;
 }
-
-/** The stored stream, re-serialized one envelope per line — the Raw view. */
-export function turnsToRawLog(turns: readonly AgentRunTurn[]): string {
-  return turns.map((turn) => JSON.stringify(turn.envelope)).join("\n");
-}

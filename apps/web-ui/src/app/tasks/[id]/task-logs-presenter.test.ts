@@ -4,7 +4,6 @@ import {
   segmentLabel,
   segmentTurns,
   taskLogsUrl,
-  turnsToRawLog,
   walkContinues,
 } from "./task-logs-presenter";
 import {
@@ -150,23 +149,5 @@ describe("segmentLabel", () => {
     expect(segmentLabel({ nodeId: "review", iteration: 2, rawLog: "" })).toBe(
       "review · iteration 2",
     );
-  });
-});
-
-describe("turnsToRawLog", () => {
-  it("serializes each envelope as one NDJSON line in order", () => {
-    expect(
-      turnsToRawLog([
-        turn({ id: "1", envelope: { a: 1 } }),
-        turn({
-          id: "2",
-          envelope: { source: { agent: "x" }, event: { b: 2 } },
-        }),
-      ]),
-    ).toBe('{"a":1}\n{"source":{"agent":"x"},"event":{"b":2}}');
-  });
-
-  it("is empty for no turns", () => {
-    expect(turnsToRawLog([])).toBe("");
   });
 });

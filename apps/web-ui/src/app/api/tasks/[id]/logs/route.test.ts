@@ -162,4 +162,25 @@ describe("upstream proxying", () => {
 
     expect(res.headers.get("X-Task-Status")).toBe("pr-created");
   });
+
+  it("surfaces a Floor 401 as 502 so it cannot masquerade as the proxy's own auth ladder", async () => {
+    authorized();
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ error: "bad token" }), { status: 401 }),
+    );
+
+    const res = await GET(new Request("http://ui/x"), { params });
+
+    expect(res.status).toBe(502);
+    expect(res.headers.get("X-Task-Status")).toBe("running");
+  });
+
+  it("surfaces a Floor 403 as 502", async () => {
+    authorized();
+    fetchMock.mockResolvedValue(new Response("{}", { status: 403 }));
+
+    const res = await GET(new Request("http://ui/x"), { params });
+
+    expect(res.status).toBe(502);
+  });
 });

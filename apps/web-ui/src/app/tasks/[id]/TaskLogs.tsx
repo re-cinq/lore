@@ -15,7 +15,6 @@ import {
   segmentLabel,
   segmentTurns,
   taskLogsUrl,
-  turnsToRawLog,
   walkContinues,
 } from "./task-logs-presenter";
 import LogEntriesView from "@/components/LogEntriesView";
@@ -49,15 +48,24 @@ export default function TaskLogs({
     () =>
       segmentTurns(turns ?? []).map((segment) => ({
         label: segmentLabel(segment),
+        rawLog: segment.rawLog,
         entries: parseAgentLog(segment.rawLog),
       })),
     [turns],
   );
-  const rawLog = useMemo(() => turnsToRawLog(turns ?? []), [turns]);
+  const rawLog = useMemo(
+    () => segments.map((segment) => segment.rawLog).join("\n"),
+    [segments],
+  );
 
   const fetchLogs = useCallback(async () => {
-    // Don't keep polling if access was denied, and never overlap a walk.
-    if (accessDenied || inFlightRef.current) {
+    // Don't keep polling if access was denied or the tab-memory cap is
+    // already loaded, and never overlap a walk.
+    if (
+      accessDenied ||
+      inFlightRef.current ||
+      loadedRef.current >= MAX_TURNS_LOADED
+    ) {
       return;
     }
     inFlightRef.current = true;
@@ -67,6 +75,15 @@ export default function TaskLogs({
         const res = await fetch(taskLogsUrl(taskId, cursorRef.current), {
           signal: AbortSignal.timeout(15_000),
         });
+
+        // Read before the ok-check: the proxy stamps the header on
+        // pass-through error responses too, and a Floor outage must not pin
+        // a completed task on "running" (and its poll loop).
+        const taskStatus = res.headers.get("X-Task-Status");
+
+        if (taskStatus !== null) {
+          setStatus(taskStatus);
+        }
 
         if (res.status === 403) {
           setAccessDenied(true);
@@ -85,7 +102,6 @@ export default function TaskLogs({
           throw new Error(`HTTP ${res.status}`);
         }
 
-        const taskStatus = res.headers.get("X-Task-Status");
         const body = (await res.json()) as { turns?: unknown[] };
         const rows = Array.isArray(body.turns) ? body.turns : [];
         const parsed = rows
@@ -96,14 +112,14 @@ export default function TaskLogs({
           parsed.length > 0 ? [...(prev ?? []), ...parsed] : (prev ?? []),
         );
         loadedRef.current += parsed.length;
-        cursorRef.current = advanceCursor(rows, cursorRef.current);
+        const next = advanceCursor(rows, cursorRef.current);
+        const progressed = next !== cursorRef.current;
 
-        if (taskStatus !== null) {
-          setStatus(taskStatus);
-        }
+        cursorRef.current = next;
         setError(null);
 
-        if (!walkContinues(rows, loadedRef.current)) {
+        // A full page that cannot move the cursor would refetch itself forever.
+        if (!progressed || !walkContinues(rows, loadedRef.current)) {
           setCapped(loadedRef.current >= MAX_TURNS_LOADED);
 
           return;
@@ -144,7 +160,11 @@ export default function TaskLogs({
   const isDone =
     status === "succeeded" || status === "pr-created" || status === "merged";
   const isFailed = status === "failed" || status === "cancelled";
-  const finished = isDone || isFailed;
+  // Anything past the not-yet-started and running phases is settled — this
+  // must include statuses with no badge of their own (needs-human-help,
+  // review), or their empty state would claim the agent has not started.
+  const notStarted = status === "queued" || status === "pending";
+  const finished = !notStarted && !isRunning;
   const hasTurns = turns !== null && turns.length > 0;
   const emptyAfterFinish = turns !== null && turns.length === 0 && finished;
 
