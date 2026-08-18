@@ -103,11 +103,37 @@ describe("/api/task-logs", () => {
 
       expect(res.statusCode).toBe(503);
     });
-    it("resolves repo from task_id when repo is omitted", async () => {
-      storage.file.exists.mockResolvedValue([false]);
+    const LOG_SLICE_MAX = 256 * 1024;
+    const poolWithTurns = (
+      turnRows: Array<Record<string, unknown>>,
+      task?: Record<string, unknown>,
+    ) => {
       const pool = makePool();
 
-      pool.query.mockResolvedValue({ rows: [{ target_repo: "o/r" }] });
+      pool.query.mockImplementation((sql: string) =>
+        sql.includes("agent_run_turns")
+          ? Promise.resolve({ rows: turnRows })
+          : Promise.resolve({ rows: task ? [task] : [] }),
+      );
+
+      return pool;
+    };
+    const turnRow = (id: number, envelope: Record<string, unknown>) => ({
+      id: String(id),
+      task_id: "t",
+      agent_cr_name: null,
+      assembly_line_id: null,
+      station_run_id: null,
+      node_id: null,
+      iteration: null,
+      event_type: null,
+      envelope,
+      created_at: new Date(),
+    });
+
+    it("resolves repo from task_id when repo is omitted", async () => {
+      storage.file.exists.mockResolvedValue([false]);
+      const pool = poolWithTurns([], { target_repo: "o/r", status: "running" });
       const res = await inject(
         { method: "GET", url: "/api/task-logs?task_id=t" },
         pool,
@@ -159,6 +185,97 @@ describe("/api/task-logs", () => {
 
       expect(res.statusCode).toBe(403);
       expect(JSON.parse(res.payload)).toEqual({ error: "insufficient scope" });
+    });
+    it("returns flattened turn envelopes with complete true when the task is finished", async () => {
+      const first = { source: { task: "t" }, event: { type: "assistant" } };
+      const second = { source: { task: "t" }, event: { type: "result" } };
+      const pool = poolWithTurns([turnRow(1, first), turnRow(2, second)], {
+        target_repo: "o/r",
+        status: "completed",
+      });
+      const res = await inject(
+        { method: "GET", url: "/api/task-logs?task_id=t" },
+        pool,
+      );
+      const logs = `${JSON.stringify(first)}\n${JSON.stringify(second)}\n`;
+
+      expect(res.result).toEqual({
+        logs,
+        next_offset: logs.length,
+        complete: true,
+      });
+      expect(storage.file.exists).not.toHaveBeenCalled();
+    });
+    it("returns complete false for turns of a task still running", async () => {
+      const pool = poolWithTurns(
+        [turnRow(1, { event: { type: "assistant" } })],
+        { target_repo: "o/r", status: "running" },
+      );
+      const res = await inject(
+        { method: "GET", url: "/api/task-logs?task_id=t" },
+        pool,
+      );
+
+      expect(res.result).toMatchObject({ complete: false });
+    });
+    it("returns the slice from offset into the flattened transcript", async () => {
+      const first = { event: { type: "assistant", text: "one" } };
+      const second = { event: { type: "result", text: "two" } };
+      const pool = poolWithTurns([turnRow(1, first), turnRow(2, second)], {
+        target_repo: "o/r",
+        status: "completed",
+      });
+      const flat = `${JSON.stringify(first)}\n${JSON.stringify(second)}\n`;
+      const offset = JSON.stringify(first).length + 4;
+      const res = await inject(
+        { method: "GET", url: `/api/task-logs?task_id=t&offset=${offset}` },
+        pool,
+      );
+
+      expect(res.result).toEqual({
+        logs: flat.substring(offset),
+        next_offset: flat.length,
+        complete: true,
+      });
+    });
+    it("caps the slice at LOG_SLICE_MAX and stops fetching further pages", async () => {
+      const envelope = { event: { type: "assistant", text: "x".repeat(280) } };
+      const rows = Array.from({ length: 1000 }, (_, i) =>
+        turnRow(i + 1, envelope),
+      );
+      const pool = poolWithTurns(rows, {
+        target_repo: "o/r",
+        status: "completed",
+      });
+      const res = await inject(
+        { method: "GET", url: "/api/task-logs?task_id=t" },
+        pool,
+      );
+      const body = res.result as {
+        logs: string;
+        next_offset: number;
+        complete: boolean;
+      };
+
+      expect(body.logs.length).toBe(LOG_SLICE_MAX);
+      expect(body).toMatchObject({
+        next_offset: LOG_SLICE_MAX,
+        complete: false,
+      });
+      expect(pool.query).toHaveBeenCalledTimes(2);
+    });
+    it("falls back to GCS with complete true when a finished task has no turns", async () => {
+      storage.file.exists.mockResolvedValue([false]);
+      const pool = poolWithTurns([], {
+        target_repo: "o/r",
+        status: "completed",
+      });
+      const res = await inject(
+        { method: "GET", url: "/api/task-logs?task_id=t" },
+        pool,
+      );
+
+      expect(res.result).toEqual({ logs: "", next_offset: 0, complete: true });
     });
   });
 });

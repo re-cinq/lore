@@ -1,4 +1,6 @@
 import { errorMessage } from "@re-cinq/lore-shared";
+import type { AgentRunTurnsRepository } from "@re-cinq/lore-shared";
+import { PgAgentRunTurns } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-pg.js";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -55,6 +57,80 @@ export function taskLogsPostRoute(): ServerRoute {
   };
 }
 
+export const LOG_SLICE_MAX = 256 * 1024;
+
+const TURNS_PAGE_SIZE = 1000;
+
+const ACTIVE_STATUSES = new Set([
+  "pending",
+  "queued",
+  "running",
+  "running-local",
+  "awaiting_approval",
+]);
+
+interface TurnSlice {
+  slice: string;
+  hasMore: boolean;
+  sawTurns: boolean;
+}
+
+/**
+ * Flatten a task's turns (one `JSON.stringify(envelope)` NDJSON line each) and
+ * return the UTF-16 code-unit slice `[offset, offset + LOG_SLICE_MAX)`. The
+ * prefix before `offset` is length-counted and dropped, never accumulated, so
+ * peak memory is one slice plus one page regardless of how deep the caller has
+ * paged. Offsets are stable across polls because rows are append-only and
+ * jsonb key order is deterministic — except when concurrent ingest POSTs
+ * commit out of id order, which can splice a late row into an already-read
+ * prefix; a re-poll from an earlier offset self-heals.
+ */
+async function readTurnSlice(
+  turns: AgentRunTurnsRepository,
+  taskId: string,
+  offset: number,
+): Promise<TurnSlice> {
+  let consumed = 0;
+  let slice = "";
+  let sawTurns = false;
+  let cursor = "0";
+
+  for (;;) {
+    const page = await turns.listByTask(taskId, cursor, TURNS_PAGE_SIZE);
+
+    sawTurns = sawTurns || page.length > 0;
+
+    for (const row of page) {
+      if (slice.length >= LOG_SLICE_MAX) {
+        return { slice, hasMore: true, sawTurns };
+      }
+      const line = `${JSON.stringify(row.envelope)}\n`;
+
+      if (consumed + line.length <= offset) {
+        consumed += line.length;
+        continue;
+      }
+      const start = Math.max(0, offset - consumed);
+      const piece = line.substring(
+        start,
+        start + (LOG_SLICE_MAX - slice.length),
+      );
+
+      slice += piece;
+
+      if (start + piece.length < line.length) {
+        return { slice, hasMore: true, sawTurns };
+      }
+      consumed += line.length;
+    }
+
+    if (page.length < TURNS_PAGE_SIZE) {
+      return { slice, hasMore: false, sawTurns };
+    }
+    cursor = page.at(-1)?.id ?? cursor;
+  }
+}
+
 export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -70,24 +146,44 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
       let repo: string | null = query.repo ?? null;
 
       try {
-        // The local adapter no longer resolves the task's repo (it holds no DB);
-        // when omitted, resolve it here from task_id before building the GCS path.
-        if (!repo) {
-          const pool = getPool();
+        const pool = getPool();
+        let finished = false;
 
-          if (!pool) {
-            return h.response({ error: DB_UNAVAILABLE }).code(503);
-          }
-          const { rows } = await pool.query(
-            `SELECT target_repo FROM pipeline.tasks WHERE id = $1`,
-            [taskId],
+        // Cluster runs stream to pipeline.agent_run_turns (the bucket object is
+        // only ever written by the mcp local runner), so the turn store is read
+        // first and GCS is the local-runner fallback.
+        if (pool) {
+          const { rows } = await pool.query<{
+            status: string;
+            target_repo: string | null;
+          }>(`SELECT status, target_repo FROM pipeline.tasks WHERE id = $1`, [
+            taskId,
+          ]);
+          const task = rows[0];
+
+          finished = task !== undefined && !ACTIVE_STATUSES.has(task.status);
+          const turnSlice = await readTurnSlice(
+            new PgAgentRunTurns(pool),
+            taskId,
+            offset,
           );
 
-          repo = rows[0]?.target_repo ?? null;
-
-          if (!repo) {
-            return h.response({ error: `task not found: ${taskId}` }).code(404);
+          if (turnSlice.sawTurns) {
+            return h.response({
+              logs: turnSlice.slice,
+              next_offset: offset + turnSlice.slice.length,
+              complete: finished && !turnSlice.hasMore,
+            });
           }
+          repo = repo ?? task?.target_repo ?? null;
+        }
+
+        if (!repo && !pool) {
+          return h.response({ error: DB_UNAVAILABLE }).code(503);
+        }
+
+        if (!repo) {
+          return h.response({ error: `task not found: ${taskId}` }).code(404);
         }
         const { Storage } = await import("@google-cloud/storage");
         const bucket = new Storage().bucket(
@@ -97,7 +193,7 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
         const [exists] = await file.exists();
 
         if (!exists) {
-          return h.response({ logs: "", next_offset: 0, complete: false });
+          return h.response({ logs: "", next_offset: 0, complete: finished });
         }
         const [content] = await file.download();
         const full = content.toString("utf-8");

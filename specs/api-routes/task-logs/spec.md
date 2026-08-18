@@ -1,24 +1,33 @@
 # Feature Specification: POST /api/task-logs
 
-| Field      | Value                                              |
-|------------|----------------------------------------------------|
-| Feature    | Task log upload                                    |
-| Status     | In Progress                                        |
-| Created    | 2026-06-10                                        |
-| Owner      | Platform Engineering                             |
-| Route      | `POST /api/task-logs`                             |
-| Auth scope | `write` (prefix `/api/task-logs` → `write`)      |
-| Module     | Logs (`api/routes/logs.ts` → `handleTaskLogs`)   |
+| Field      | Value                                          |
+| ---------- | ---------------------------------------------- |
+| Feature    | Task log upload                                |
+| Status     | In Progress                                    |
+| Created    | 2026-06-10                                     |
+| Owner      | Platform Engineering                           |
+| Route      | `POST /api/task-logs`                          |
+| Auth scope | `write` (prefix `/api/task-logs` → `write`)    |
+| Module     | Logs (`api/routes/logs.ts` → `handleTaskLogs`) |
 
 POST /api/task-logs receives a task's captured execution output from the local runner or Job pods and persists it to a single canonical GCS object per task, which the UI's live log viewer reads back.
 
 ## Problem Statement
 
-The local task runner and the claude-runner Job pods produce a stream of
-execution output that the web UI's live log viewer needs to read back. The
-runner POSTs the captured output here; the handler persists it to a single
-canonical GCS object per task (`{repo}/{task_id}/output.log`). The companion
-`GET /api/task-logs` (separate handler) reads slices back from the same object.
+The local task runner produces a stream of execution output that readers
+(the `lore_get_task_logs` MCP tool) need to read back. The runner POSTs the
+captured output here; the handler persists it to a single canonical GCS object
+per task (`{repo}/{task_id}/output.log`). Cluster runs do NOT write this
+object — their output streams to `pipeline.agent_run_turns` via
+`/api/agent-events` — so the companion `GET /api/task-logs` (separate handler)
+reads the turn store first, flattening each turn envelope to one NDJSON line,
+and falls back to the GCS object only when the task has no turns. `offset` /
+`next_offset` are UTF-16 code-unit offsets into the flattened transcript (or
+the GCS object body on the fallback path), and the read is capped at
+`LOG_SLICE_MAX` (256 Ki code units) per request; `complete` is true only when
+the task is in a settled status (not
+pending/queued/running/running-local/awaiting_approval) and no content remains
+past the returned slice.
 
 ## Interface
 
@@ -40,11 +49,11 @@ passed to this handler — it takes only `(req, res)`.
 
 ### Response
 
-| Status | Body                          | When                              |
-|--------|-------------------------------|-----------------------------------|
-| 200    | `{ ok: true }`                | Logs saved to GCS.                |
+| Status | Body                          | When                                  |
+| ------ | ----------------------------- | ------------------------------------- |
+| 200    | `{ ok: true }`                | Logs saved to GCS.                    |
 | 400    | `{ error: "missing fields" }` | Any of `task_id`/`repo`/`logs` falsy. |
-| 500    | `{ error: <message> }`        | JSON parse error or GCS throw.    |
+| 500    | `{ error: <message> }`        | JSON parse error or GCS throw.        |
 
 ## Behavior
 
@@ -55,7 +64,7 @@ passed to this handler — it takes only `(req, res)`.
 3. Dynamically `import("@google-cloud/storage")`; construct
    `new Storage().bucket(process.env.LORE_LOG_BUCKET || "lore-task-logs")`.
 4. `bucket.file("${repo}/${task_id}/output.log").save(logs, { resumable: false,
-   contentType: "text/plain" })` — overwrites the canonical per-task object.
+contentType: "text/plain" })` — overwrites the canonical per-task object.
    Return `200 { ok: true }`.
 5. Any thrown error → `500 { error: err.message }`.
 
@@ -88,20 +97,31 @@ A GCS failure returns 500. ([validated by `returns 500 when storage throws`](app
 
 The companion read returns 400 without `task_id`/`repo`. ([validated by `returns 400 when task_id is missing`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L90))
 
-The companion read returns empty for a missing object. ([validated by `returns empty and incomplete when the log file does not exist`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L118))
+The companion read returns empty for a missing object. ([validated by `returns empty and incomplete when the log file does not exist`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L144))
 
-The companion read returns the slice from `offset` for an existing object. ([validated by `returns a slice from offset when the file exists`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L127))
+The companion read returns the slice from `offset` for an existing object. ([validated by `returns a slice from offset when the file exists`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L153))
 
-The companion read returns 500 on a GCS failure. ([validated by `returns 500 when storage throws`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L141))
+The companion read returns 500 on a GCS failure. ([validated by `returns 500 when storage throws`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L167))
 
-A `task`-scoped token that lacks `write` is rejected 403 on both the POST upload and the GET read, before the handler runs. ([validated by `task-logs.test.ts:70`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L70), [validated by `task-logs.test.ts:150`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L150))
+A `task`-scoped token that lacks `write` is rejected 403 on both the POST upload and the GET read, before the handler runs. ([validated by `task-logs.test.ts:70`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L70), [validated by `task-logs.test.ts:176`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L176))
 
-The companion read resolves `repo` from `task_id` via the pool when `repo` is omitted, and returns 503 when no pool can resolve it. ([validated by `task-logs.test.ts:106`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L106), [validated by `task-logs.test.ts:98`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L98))
+The companion read resolves `repo` from `task_id` via the pool when `repo` is omitted, and returns 503 when no pool can resolve it. ([validated by `task-logs.test.ts:134`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L134), [validated by `task-logs.test.ts:98`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L98))
 
-The live-GCS save body (real bucket I/O, resumable flag, contentType) is exercised only against a real bucket. *(untested: real `@google-cloud/storage` network I/O has no unit seam beyond the mocked save call already asserted above.)*
+The companion read returns a task's `pipeline.agent_run_turns` rows flattened to one NDJSON envelope line each, with `complete: true` when the task is settled, without touching GCS. ([validated by `returns flattened turn envelopes with complete true when the task is finished`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L189))
+
+The companion read returns `complete: false` for the turns of a task still in an active status. ([validated by `returns complete false for turns of a task still running`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L209))
+
+The companion read slices the flattened transcript from `offset` (UTF-16 code units). ([validated by `returns the slice from offset into the flattened transcript`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L221))
+
+The companion read caps one response at `LOG_SLICE_MAX` code units, stops fetching turn pages once the cap is filled, and reports `complete: false` while content remains. ([validated by `caps the slice at LOG_SLICE_MAX and stops fetching further pages`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L241))
+
+A task with no turns falls back to the GCS object, and a settled task whose object is also missing reports `complete: true` so pollers stop. ([validated by `falls back to GCS with complete true when a finished task has no turns`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L267))
+
+The live-GCS save body (real bucket I/O, resumable flag, contentType) is exercised only against a real bucket. _(untested: real `@google-cloud/storage` network I/O has no unit seam beyond the mocked save call already asserted above.)_
 
 ## Out of Scope
 
-- `GET /api/task-logs` full spec (covered here only as the companion read; handler `handleGetTaskLogs`).
+- `GET /api/task-logs` full behavior spec beyond the acceptance criteria above (the turn-store read + GCS fallback are covered as the companion read; handler `taskLogsGetRoute`).
+- The local runner's write-side cutover to the turn store (issue #1295) — until it lands, the POST upload and the GCS fallback read stay.
 - `GET /api/job-run-logs` (separate handler, `__job_runs__/` keyspace).
 - GCS bucket provisioning / IAM (terraform).
