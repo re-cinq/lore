@@ -277,5 +277,57 @@ describe("/api/task-logs", () => {
 
       expect(res.result).toEqual({ logs: "", next_offset: 0, complete: true });
     });
+    const pagingPool = (
+      rows: Array<{ id: string }>,
+      task: Record<string, unknown>,
+    ) => {
+      const pool = makePool();
+
+      pool.query.mockImplementation((sql: string, params?: unknown[]) => {
+        if (!sql.includes("agent_run_turns")) {
+          return Promise.resolve({ rows: [task] });
+        }
+        const [, afterId, limit] = params as [string, string, number];
+        const page = rows
+          .filter((row) => Number(row.id) > Number(afterId))
+          .slice(0, limit);
+
+        return Promise.resolve({ rows: page });
+      });
+
+      return pool;
+    };
+
+    it("pages the cursor across a transcript larger than one page", async () => {
+      const envelope = { event: { type: "assistant" } };
+      const rows = Array.from({ length: 2500 }, (_, i) =>
+        turnRow(i + 1, envelope),
+      );
+      const pool = pagingPool(rows, {
+        target_repo: "o/r",
+        status: "completed",
+      });
+      const res = await inject(
+        { method: "GET", url: "/api/task-logs?task_id=t" },
+        pool,
+      );
+      const line = `${JSON.stringify(envelope)}\n`;
+
+      expect(res.result).toEqual({
+        logs: line.repeat(2500),
+        next_offset: line.length * 2500,
+        complete: true,
+      });
+      expect(pool.query).toHaveBeenCalledTimes(4);
+    });
+    it("returns complete true for turns whose task row is gone", async () => {
+      const pool = poolWithTurns([turnRow(1, { event: { type: "result" } })]);
+      const res = await inject(
+        { method: "GET", url: "/api/task-logs?task_id=t" },
+        pool,
+      );
+
+      expect(res.result).toMatchObject({ complete: true });
+    });
   });
 });

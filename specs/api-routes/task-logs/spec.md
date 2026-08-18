@@ -117,6 +117,10 @@ The companion read caps one response at `LOG_SLICE_MAX` code units, stops fetchi
 
 A task with no turns falls back to the GCS object, and a settled task whose object is also missing reports `complete: true` so pollers stop. ([validated by `falls back to GCS with complete true when a finished task has no turns`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L267))
 
+The turn read pages through the id cursor, so a transcript larger than one page flattens whole. ([validated by `pages the cursor across a transcript larger than one page`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L301))
+
+Turns whose task row no longer exists count as settled — the row can only be gone, never transition — so their read reports `complete: true`. ([validated by `returns complete true for turns whose task row is gone`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L323))
+
 The live-GCS save body (real bucket I/O, resumable flag, contentType) is exercised only against a real bucket. _(untested: real `@google-cloud/storage` network I/O has no unit seam beyond the mocked save call already asserted above.)_
 
 ## Out of Scope

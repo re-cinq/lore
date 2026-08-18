@@ -57,7 +57,7 @@ export function taskLogsPostRoute(): ServerRoute {
   };
 }
 
-export const LOG_SLICE_MAX = 256 * 1024;
+const LOG_SLICE_MAX = 256 * 1024;
 
 const TURNS_PAGE_SIZE = 1000;
 
@@ -161,7 +161,10 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
           ]);
           const task = rows[0];
 
-          finished = task !== undefined && !ACTIVE_STATUSES.has(task.status);
+          // A task row that no longer exists will never transition again, so it
+          // counts as settled — otherwise turns for a deleted task (the store
+          // keeps them: no FKs, by design) poll forever with complete: false.
+          finished = task === undefined || !ACTIVE_STATUSES.has(task.status);
           const turnSlice = await readTurnSlice(
             new PgAgentRunTurns(pool),
             taskId,
