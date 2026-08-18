@@ -111,13 +111,18 @@ describe("request-error logging (#1319)", () => {
       headers: { authorization: "Bearer ingest-secret" },
     });
 
-    expect(res.statusCode).toBe(500);
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[http] GET /api/agent-logs/05fc5491-review 500"),
-    );
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining("etcdserver: leader changed"),
-    );
-    errorSpy.mockRestore();
+    try {
+      expect(res.statusCode).toBe(500);
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "[http] GET /api/agent-logs/05fc5491-review 500",
+        ),
+      );
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("etcdserver: leader changed"),
+      );
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });

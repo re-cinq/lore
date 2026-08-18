@@ -53,18 +53,18 @@ export function buildServer(opts: {
 
   registerRequestTracing(server);
   registerBearerAuth(server);
-  // Unexpected throws anywhere in the request lifecycle (handler, auth scheme,
-  // extension) get boomified into an anonymous 500 whose cause hapi never
-  // prints — the #1319 outage was undiagnosable for exactly that reason. The
-  // `request` error channel fires only for those boomified throws (deliberate
-  // Boom 4xx/503s were never silent), and unlike tracing's onPreResponse it
-  // still holds the pre-boomification error with its stack.
+  // A handler or auth-scheme throw gets boomified into an anonymous 500 whose
+  // cause hapi never prints (hapi's own debug covers developer errors only, and
+  // tracing's onPreResponse feeds the exception to OTel, never the console) —
+  // the #1319 outage was undiagnosable for exactly that reason. The `request`
+  // error channel fires only for 500s carrying an error; 4xx/503 Booms were
+  // never silent. request.info.id joins the line to its request and span.
   server.events.on({ name: "request", channels: "error" }, (request, event) => {
     const err = event.error;
     const detail = err instanceof Error ? (err.stack ?? err.message) : `${err}`;
 
     console.error(
-      `[http] ${request.method.toUpperCase()} ${request.path} 500: ${detail}`,
+      `[http] ${request.method.toUpperCase()} ${request.path} 500 (${request.info.id}): ${detail}`,
     );
   });
   server.route([
