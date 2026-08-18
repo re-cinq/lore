@@ -470,8 +470,8 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
     name,
     k8sApi,
   } = ctx;
-  const logUrl = taskPageUrl(taskId, process.env.LORE_UI_URL);
-  const logsRef = logUrl ? `See [logs](${logUrl})` : "See logs";
+  const taskUrl = taskPageUrl(taskId, process.env.LORE_UI_URL);
+  const logsRef = taskUrl ? `See [logs](${taskUrl})` : "See logs";
 
   // Agent.status has no changedFiles — compute it via compare-commits.
   let changedFiles = 0;
@@ -545,7 +545,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
           .then((p) => p.issues.comment(issue_number!, body))
           .catch(() => {});
       }
-      await taskStore().setStatus(taskId, "completed", { log_url: logUrl });
+      await taskStore().setStatus(taskId, "completed", { log_url: taskUrl });
       await taskStore().recordEvent(taskId, "running", "completed", {
         no_changes: true,
         issue_number,
@@ -610,7 +610,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       pr_url: pr.url,
       pr_number: pr.number,
       target_branch: branch,
-      log_url: logUrl,
+      log_url: taskUrl,
     });
     await taskStore().recordEvent(taskId, "running", "pr-created", {
       pr_url: pr.url,
@@ -757,7 +757,7 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
   const failedTask = await taskStore().getById(taskId);
   const bundle = failedTask?.context_bundle ?? {};
   const infraRetries = Number(bundle.infra_retry_count ?? 0);
-  const logUrl = taskPageUrl(taskId, process.env.LORE_UI_URL);
+  const taskUrl = taskPageUrl(taskId, process.env.LORE_UI_URL);
 
   if (
     failedTask?.status === "running" &&
@@ -766,7 +766,7 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
   ) {
     await taskStore().setStatus(taskId, "failed", {
       failure_reason: reason,
-      log_url: logUrl,
+      log_url: taskUrl,
     });
     await taskStore().recordEvent(taskId, "running", "failed", {
       error: reason,
@@ -797,7 +797,7 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
   } else if (failedTask?.status === "running") {
     await taskStore().setStatus(taskId, "failed", {
       failure_reason: reason,
-      log_url: logUrl,
+      log_url: taskUrl,
     });
     await taskStore().recordEvent(taskId, "running", "failed", {
       error: reason,
