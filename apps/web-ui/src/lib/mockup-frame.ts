@@ -53,22 +53,22 @@ export function mockupHeight(mockup: GapMockup): number {
   return Math.min(declared, MAX_MOCKUP_HEIGHT);
 }
 
-// Sanitizer configs for the two mockup formats. LLM-generated markup is
-// UNTRUSTED; the sandboxed frame (no scripts, no same-origin) is the boundary
-// that HOLDS, and the sanitizer is defense in depth on top of it.
+// Sanitizer configs for AUTHOR-SUPPLIED mockup markup (raw svg / html). LLM
+// markup is UNTRUSTED; the sandboxed frame (no scripts, no same-origin) is the
+// boundary that HOLDS, and the sanitizer is defense in depth on top of it.
 //
-// `foreignObject` is deliberately ALLOWED for svg (with the html profile on, so
-// its interior is sanitized like any other html): mermaid v11 renders ER-diagram
-// labels and flowchart EDGE labels as foreignObject html regardless of
-// `flowchart.htmlLabels`, and forbidding the tag stripped every label — an ER
-// mockup rendered as an unlabeled skeleton, which reads as an empty frame
-// (found live on feature be6ad6a5, 2026-08-18). Nothing in a foreignObject can
-// execute here: script/iframe/object/embed stay forbidden and the frame has no
-// scripting at all.
+// A mermaid-RENDERED svg never passes through these: DOMPurify's mXSS defense
+// strips foreignObject INTERIORS under every configuration (verified against
+// 3.4.11 — plain, xhtml parser mode, ADD_TAGS with the html tags spelled out),
+// and mermaid v11 puts ER labels and flowchart edge labels there, so a purify
+// pass on mermaid output structurally guarantees an unlabeled skeleton — an
+// empty-looking frame (feature be6ad6a5, twice, 2026-08-18). Mermaid output is
+// framed as rendered; its boundaries are mermaid's securityLevel:"strict" and
+// the no-script frame (see MockupSection). `foreignObject` stays forbidden for
+// raw svg — DOMPurify would empty it anyway, and the bare tag is only surface.
 export const MOCKUP_SVG_CONFIG = {
-  USE_PROFILES: { svg: true, svgFilters: true, html: true },
-  ADD_TAGS: ["foreignObject"],
-  FORBID_TAGS: ["script", "iframe", "object", "embed", "link", "base"],
+  USE_PROFILES: { svg: true, svgFilters: true },
+  FORBID_TAGS: ["script", "foreignObject"],
   FORBID_ATTR: ["onload", "onclick", "onmouseover", "onmouseenter", "onfocus"],
 };
 export const MOCKUP_HTML_CONFIG = {

@@ -143,37 +143,39 @@ describe("mermaidFrameHeight", () => {
   });
 });
 
-describe("the svg sanitizer config keeps mermaid's html labels", () => {
-  // mermaid v11 emits ER labels and flowchart EDGE labels as foreignObject html
-  // whatever flowchart.htmlLabels says. Forbidding the tag stripped every label
-  // and an ER mockup rendered as an unlabeled skeleton — an empty-looking frame
-  // (feature be6ad6a5, 2026-08-18). The sandboxed no-script frame is the boundary
-  // that holds; the config only needs to keep executable content out.
-  it("keeps the foreignObject element and never a script", () => {
-    // jsdom parses the foreignObject interior stricter than a browser; in real
-    // chromium this config keeps the label text too (verified against the
-    // be6ad6a5 diagrams: 84/84 ER labels survive). What is assertable here:
-    // the element is no longer stripped wholesale, and script never passes.
+describe("DOMPurify cannot pass mermaid's html labels — which is why mermaid output skips it", () => {
+  // The lesson of 2026-08-18, learned twice on feature be6ad6a5: DOMPurify's
+  // mXSS defense strips foreignObject INTERIORS under every configuration —
+  // the element can be allowed, its html children never survive. mermaid v11
+  // puts ER labels and flowchart edge labels exactly there, so purifying a
+  // mermaid-rendered svg structurally guarantees an unlabeled skeleton. This
+  // test DOCUMENTS the library behaviour the mermaid bypass rests on; if it
+  // ever fails, DOMPurify learned a new trick and the bypass can be revisited.
+  it("strips the interior of a foreignObject even when the element is allowed", () => {
     const clean = DOMPurify.sanitize(
       '<svg viewBox="0 0 10 10"><foreignObject width="1" height="1">' +
-        '<div xmlns="http://www.w3.org/1999/xhtml"><span>contains</span>' +
-        "<script>evil()</scr" +
-        "ipt></div></foreignObject></svg>",
-      MOCKUP_SVG_CONFIG,
+        '<div xmlns="http://www.w3.org/1999/xhtml"><span>LABEL</span></div>' +
+        "</foreignObject><text>EDGE</text></svg>",
+      {
+        USE_PROFILES: { svg: true, svgFilters: true, html: true },
+        ADD_TAGS: ["foreignObject", "div", "span"],
+      },
     );
 
-    expect(clean).toContain("<foreignObject");
-    expect(clean).not.toContain("script");
+    expect(clean).not.toContain("LABEL");
+    expect(clean).toContain("EDGE");
   });
 
-  it("still strips event handlers and nested frames", () => {
+  it("the raw-svg config forbids the tag outright and strips executables", () => {
     const clean = DOMPurify.sanitize(
       '<svg onload="evil()"><foreignObject><iframe src="x"></iframe>' +
-        "</foreignObject></svg>",
+        "</foreignObject><text>KEPT</text></svg>",
       MOCKUP_SVG_CONFIG,
     );
 
+    expect(clean).not.toContain("foreignObject");
     expect(clean).not.toContain("onload");
     expect(clean).not.toContain("iframe");
+    expect(clean).toContain("KEPT");
   });
 });
