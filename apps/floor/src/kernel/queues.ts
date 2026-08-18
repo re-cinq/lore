@@ -34,7 +34,7 @@ import { PgMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-li
 let eventQueueSingleton: PgEventQueue | undefined;
 let taskQueueSingleton: PgTaskQueue | undefined;
 let taskStoreSingleton: PgTaskStore | undefined;
-let assemblyLinesSingleton: PgAssemblyRuns | undefined;
+let assemblyRunsSingleton: PgAssemblyRuns | undefined;
 let leaseBackendSingleton: DbLeaseBackend | undefined;
 let auditLogSingleton: PgAudit | undefined;
 let usageSingleton: PgUsage | undefined;
@@ -68,10 +68,10 @@ export const taskStore = (): PgTaskStore =>
 /**
  * First-class assembly line runs (pipeline.assembly_runs + _nodes), repo-agnostic.
  * The event-loop handler and watchers reach the rows through this; a job that
- * holds a Project uses `project.assemblyLines` instead.
+ * holds a Project uses `project.assemblyRuns` instead.
  */
-export const assemblyLines = (): PgAssemblyRuns =>
-  (assemblyLinesSingleton ??= new PgAssemblyRuns(getPool()));
+export const assemblyRuns = (): PgAssemblyRuns =>
+  (assemblyRunsSingleton ??= new PgAssemblyRuns(getPool()));
 
 /** The cluster lease backend (its reap side feeds the lease-reaper). */
 export const leaseBackend = (): DbLeaseBackend =>

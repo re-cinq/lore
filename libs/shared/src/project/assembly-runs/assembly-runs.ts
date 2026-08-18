@@ -8,7 +8,7 @@ import type {
 /**
  * Repo-scoped facade over {@link AssemblyRunsPort}: fills `repo` from the
  * Project's fullName so callers write
- * `project.assemblyLines.start("implementation", { taskId })`.
+ * `project.assemblyRuns.start("implementation", { taskId })`.
  */
 export class AssemblyRuns {
   constructor(

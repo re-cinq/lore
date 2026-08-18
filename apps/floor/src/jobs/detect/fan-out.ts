@@ -18,7 +18,7 @@ import { loadBuiltinAssemblyLines } from "@re-cinq/lore-assembly-lines";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { EventHandler } from "../../main-loop/types.js";
 import { query } from "../../kernel/db.js";
-import { assemblyLines, jobRuns } from "../../kernel/queues.js";
+import { assemblyRuns, jobRuns } from "../../kernel/queues.js";
 
 /** The old lease key, now the overlap-guard key (advanceLine defers duplicates). */
 export function detectBranchName(blueprintName: string, repo: string): string {
@@ -132,7 +132,7 @@ const onboardedRepos = async (): Promise<string[]> =>
   (await query<{ repo: string }>(ONBOARDED_REPOS_SQL)).map((r) => r.repo);
 
 export interface DetectFanOutDeps {
-  assemblyLines: AssemblyRunsPort;
+  assemblyRuns: AssemblyRunsPort;
   /** Pre-create the `<job_ref>:<repo>` pipeline.job_runs row; the walk closes it
    *  via `args.job_run_id` when the line reaches a terminal state. */
   jobRuns: {
@@ -172,7 +172,7 @@ export function createDetectTickHandler(
       let id: string;
 
       try {
-        id = await deps.assemblyLines.start({
+        id = await deps.assemblyRuns.start({
           blueprintName,
           repo,
           branch: detectBranchName(blueprintName, repo),
@@ -202,7 +202,7 @@ const productionTick =
   ): EventHandler =>
   (params) =>
     createDetectTickHandler(blueprintName, {
-      assemblyLines: assemblyLines(),
+      assemblyRuns: assemblyRuns(),
       jobRuns: jobRuns(),
       jobRef: () => builtinJobRef(blueprintName),
       listTargetRepos,

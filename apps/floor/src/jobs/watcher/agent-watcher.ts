@@ -26,7 +26,7 @@ import {
   taskStore,
   settings,
   taskQueue,
-  assemblyLines,
+  assemblyRuns,
 } from "../../kernel/queues.js";
 import {
   writeEpisode,
@@ -346,7 +346,7 @@ async function finishSingleCrRunRows(
   phase: string | undefined,
   failureReason?: string,
 ): Promise<void> {
-  const open = (await assemblyLines().listForTask(taskId)).filter((row) =>
+  const open = (await assemblyRuns().listForTask(taskId)).filter((row) =>
     ["queued", "running"].includes(row.status),
   );
 
@@ -358,7 +358,7 @@ async function finishSingleCrRunRows(
   const outcome = runOutcomeFromTaskStatus(task?.status ?? "completed", phase);
 
   await Promise.all(
-    open.map((row) => assemblyLines().finish(row.id, outcome, failureReason)),
+    open.map((row) => assemblyRuns().finish(row.id, outcome, failureReason)),
   );
 }
 

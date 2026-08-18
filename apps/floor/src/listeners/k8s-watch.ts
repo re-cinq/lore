@@ -10,7 +10,7 @@
 import { KubeConfig, Watch, CustomObjectsApi } from "@kubernetes/client-node";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import { loadKube, selectStationBackend } from "@re-cinq/lore-shared";
-import { taskStore, assemblyLines } from "../kernel/queues.js";
+import { taskStore, assemblyRuns } from "../kernel/queues.js";
 import { insertEvent } from "../main-loop/store.js";
 import { mapAgentToEvent } from "./k8s-map.js";
 import { makeAgentsApi } from "../jobs/watcher/agent-watcher.js";
@@ -113,7 +113,7 @@ async function reconcileAgent(
     // dead-lettered transition is the assembly-line reaper, not this pass.
     const assemblyLineId = String((ev.params ?? {}).assemblyLineId ?? "");
     const row = assemblyLineId
-      ? await assemblyLines().getById(assemblyLineId)
+      ? await assemblyRuns().getById(assemblyLineId)
       : null;
 
     if (row && ["running", "queued"].includes(row.status)) {

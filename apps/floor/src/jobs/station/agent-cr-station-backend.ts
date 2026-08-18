@@ -24,7 +24,7 @@ export class AgentCrStationBackend implements StationBackend {
     private readonly assemblyLine: StationBackend,
     private readonly singleAgent: StationBackend,
     private readonly assemblyLineNames: ReadonlySet<string>,
-    private readonly assemblyLines: Pick<
+    private readonly assemblyRuns: Pick<
       AssemblyRunsPort,
       "start" | "listForTask"
     >,
@@ -41,12 +41,12 @@ export class AgentCrStationBackend implements StationBackend {
     // Single CRs are keyed on taskId (not a per-attempt id), so a crash-recovery
     // re-dispatch reuses the same CR — skip start() when an open row already
     // exists, else that re-dispatch mints a phantom second row for one execution.
-    const alreadyOpen = (
-      await this.assemblyLines.listForTask(spec.taskId)
-    ).some((row) => row.status === "queued" || row.status === "running");
+    const alreadyOpen = (await this.assemblyRuns.listForTask(spec.taskId)).some(
+      (row) => row.status === "queued" || row.status === "running",
+    );
 
     if (!alreadyOpen) {
-      await this.assemblyLines.start({
+      await this.assemblyRuns.start({
         blueprintName: spec.taskType,
         repo: spec.targetRepo,
         branch: spec.branch,

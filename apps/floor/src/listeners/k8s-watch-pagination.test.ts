@@ -11,7 +11,7 @@ const insertEvent = vi.fn();
 
 vi.mock("../kernel/queues.js", () => ({
   taskStore: () => ({ getById }),
-  assemblyLines: () => ({ getById: getLineById }),
+  assemblyRuns: () => ({ getById: getLineById }),
 }));
 vi.mock("../main-loop/store.js", () => ({
   insertEvent: (...args: unknown[]) => insertEvent(...args),

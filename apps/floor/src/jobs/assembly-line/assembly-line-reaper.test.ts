@@ -140,7 +140,7 @@ function harness() {
   const taskStatusById: Record<string, string | null> = {};
 
   const deps = {
-    assemblyLines: port,
+    assemblyRuns: port,
     definitions: async () => new Map([["code-review", line]]),
     launch: async (spec: LoreTaskSpec) => {
       launched.push(spec);

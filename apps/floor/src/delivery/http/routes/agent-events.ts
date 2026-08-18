@@ -18,7 +18,7 @@ import {
   usage,
   agentRunEvents,
   taskStore,
-  assemblyLines,
+  assemblyRuns,
   agentRunTurns,
 } from "../../../kernel/queues.js";
 import { projectFor } from "../../../composition/project-boot.js";
@@ -192,7 +192,7 @@ async function recordPlanningResults(
       // The round number the LINE is on. A resumed round mints no task, so the task's
       // own value is stuck at the feature's first round (FR6.22).
       roundOf: async (taskId) => {
-        const open = (await assemblyLines().listForTask(taskId)).filter(
+        const open = (await assemblyRuns().listForTask(taskId)).filter(
           (line) => line.status === "running" || line.status === "queued",
         );
         const round = open[open.length - 1]?.args?.iteration;
@@ -237,7 +237,7 @@ async function mergeArtifacts(
 ): Promise<void> {
   for (const fileEvent of fileEvents) {
     try {
-      await deliverArtifact(fileEvent, { assemblyLines: assemblyLines() });
+      await deliverArtifact(fileEvent, { assemblyRuns: assemblyRuns() });
     } catch (err) {
       console.warn(`[floor] artifact not merged: ${errorMessage(err)}`);
     }

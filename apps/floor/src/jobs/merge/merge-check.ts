@@ -4,7 +4,7 @@ import {
   taskQueue,
   settings,
   memoryLifecycle,
-  assemblyLines,
+  assemblyRuns,
 } from "../../kernel/queues.js";
 import { getPool } from "../../kernel/db.js";
 import { poolReporter, resumeDecomposition } from "./decompose-resume.js";
@@ -342,7 +342,7 @@ async function handleMergedTask(
     try {
       await resumeDecomposition(
         { repo: task.target_repo, prNumber: task.pr_number },
-        { assemblyLines: assemblyLines(), report: poolReporter(pool) },
+        { assemblyRuns: assemblyRuns(), report: poolReporter(pool) },
       );
     } catch (err) {
       console.error(

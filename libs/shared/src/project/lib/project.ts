@@ -82,10 +82,10 @@ export class Project {
   }
 
   /** First-class assembly line runs (pipeline.assembly_runs); start() fires the assembly_line.start event. */
-  get assemblyLines(): AssemblyRuns {
+  get assemblyRuns(): AssemblyRuns {
     return new AssemblyRuns(
       this.fullName,
-      this.port<AssemblyRunsPort>("assemblyLines"),
+      this.port<AssemblyRunsPort>("assemblyRuns"),
     );
   }
 

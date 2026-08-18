@@ -17,7 +17,7 @@ import {
 } from "../jobs/station/kube-token-provisioner.js";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
 import { AssemblyLineStationBackend } from "../jobs/assembly-line/assembly-line-station-backend.js";
-import { assemblyLines } from "../kernel/queues.js";
+import { assemblyRuns } from "../kernel/queues.js";
 import { AgentCrStationBackend } from "../jobs/station/agent-cr-station-backend.js";
 
 /**
@@ -58,12 +58,12 @@ export function stationBackend(
   const agentBackend = agentCrBackend();
 
   return new AgentCrStationBackend(
-    // launch() = project.assemblyLines.start(); the assembly_line.start event
+    // launch() = project.assemblyRuns.start(); the assembly_line.start event
     // handler launches the entry node — the walk advances on agent_node events.
-    new AssemblyLineStationBackend(assemblyLines()),
+    new AssemblyLineStationBackend(assemblyRuns()),
     agentBackend,
     assemblyLineDefinitions,
-    assemblyLines(),
+    assemblyRuns(),
   );
 }
 

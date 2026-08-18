@@ -61,7 +61,7 @@ function makeDeps(
     advanced: [] as string[],
   };
   const deps: StartEventHandlerDeps = {
-    assemblyLines: port,
+    assemblyRuns: port,
     definitions: async () => TEST_DEFINITIONS,
     advance: async (assemblyLineId) => {
       calls.advanced.push(assemblyLineId);

@@ -12,7 +12,7 @@ function harness() {
     outcome: string;
   }> = [];
   const handler = createResumeEventHandler({
-    assemblyLines: lines,
+    assemblyRuns: lines,
     finishNodeAndAdvance: async (input) => {
       finished.push({
         assemblyLineId: input.assemblyLineId,

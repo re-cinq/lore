@@ -157,7 +157,7 @@ export interface CodeReviewProject {
     comment(number: number, body: string): Promise<void>;
     listComments(number: number): Promise<ReviewComment[]>;
   };
-  assemblyLines: {
+  assemblyRuns: {
     start(
       blueprintName: string,
       opts: { branch?: string; args?: Record<string, unknown> },
@@ -261,7 +261,7 @@ export async function startReview(
   ) {
     return null;
   }
-  const id = await project.assemblyLines.start("code-review", {
+  const id = await project.assemblyRuns.start("code-review", {
     branch: pr.branch,
     args: {
       pr_number: input.prNumber,
@@ -304,7 +304,7 @@ export async function startRecheck(
     return null;
   }
 
-  return project.assemblyLines.start("code-review-recheck", {
+  return project.assemblyRuns.start("code-review-recheck", {
     branch: pr.branch,
     args: {
       pr_number: input.prNumber,
@@ -336,7 +336,7 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     // re-decides APPROVE / REQUEST_CHANGES on the updated diff so the PR's formal
     // verdict tracks the fix. `hasReviewedPr` matches the `code-review` line only,
     // so re-check lines never flip it and every subsequent push routes here.
-    if (await project.assemblyLines.hasReviewedPr(pr_number)) {
+    if (await project.assemblyRuns.hasReviewedPr(pr_number)) {
       await startRecheck(project, { repo, prNumber: pr_number, autoReview });
 
       return;
@@ -384,7 +384,7 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     // Everything else → the Haiku triage line, which classifies + routes.
     const ctx = commentContext(p, pr!);
 
-    await project.assemblyLines.start("comment-triage", {
+    await project.assemblyRuns.start("comment-triage", {
       branch: pr!.branch,
       args: { ...ctx, mode: "triage", description: triageDescription(ctx) },
     });
@@ -427,7 +427,7 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     };
     const route = routeTriagedComment("address", ctx)!;
 
-    await project.assemblyLines.start(route.definition, {
+    await project.assemblyRuns.start(route.definition, {
       branch: pr!.branch,
       args: route.args,
     });
@@ -448,7 +448,7 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     }
     const project = await deps.project(ctx.repo);
 
-    await project.assemblyLines.start(route.definition, {
+    await project.assemblyRuns.start(route.definition, {
       branch: ctx.branch,
       args: route.args,
     });
@@ -463,7 +463,7 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     // spec PR meant a merged spec PR closed the FEATURE-PLANNING line parked on
     // `merged` — killing the feature exactly one step before decomposition, on the
     // same event that was supposed to advance it.
-    await project.assemblyLines.finishOpenByPr(
+    await project.assemblyRuns.finishOpenByPr(
       pr_number,
       "pr_closed",
       REVIEW_DEFINITIONS,

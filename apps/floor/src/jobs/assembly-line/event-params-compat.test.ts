@@ -43,7 +43,7 @@ describe("assembly_run.* params accept assemblyRunId with assemblyLineId fallbac
     });
     const advanced: string[] = [];
     const handler = createStartEventHandler({
-      assemblyLines: port,
+      assemblyRuns: port,
       definitions: async () => new Map([["implementation", twoNodeLine]]),
       advance: async (assemblyLineId) => {
         advanced.push(assemblyLineId);
@@ -67,7 +67,7 @@ describe("assembly_run.* params accept assemblyRunId with assemblyLineId fallbac
     const port = new InMemoryAssemblyRuns();
     const finished: Array<{ assemblyLineId: string; nodeId: string }> = [];
     const handler = createResumeEventHandler({
-      assemblyLines: port,
+      assemblyRuns: port,
       finishNodeAndAdvance: async (input) => {
         finished.push({
           assemblyLineId: input.assemblyLineId,
@@ -111,7 +111,7 @@ describe("assembly_run.* params accept assemblyRunId with assemblyLineId fallbac
     });
     const launched: string[] = [];
     const handler = createNodeEventHandler({
-      assemblyLines: port,
+      assemblyRuns: port,
       definitions: async () => new Map([["implementation", twoNodeLine]]),
       launch: async (spec) => {
         launched.push(spec.name ?? "");

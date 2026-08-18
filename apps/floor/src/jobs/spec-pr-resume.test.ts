@@ -15,7 +15,7 @@ const listStationRuns = vi.fn();
 const query = vi.fn();
 
 vi.mock("../kernel/queues.js", () => ({
-  assemblyLines: () => ({ findOpenByPr, listStationRuns }),
+  assemblyRuns: () => ({ findOpenByPr, listStationRuns }),
   settings: () => ({}),
   taskStore: () => ({}),
   taskQueue: () => ({}),

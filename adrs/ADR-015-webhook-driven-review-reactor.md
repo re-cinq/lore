@@ -178,7 +178,7 @@ Event names are source-prefixed + globally unique (`github.*`, `kubernetes.*`,
 family is subject-first (`assembly_run.start`, `source: "internal"`), because the
 assembly line is a primary concept whose start events come from multiple producers
 (the worker's dark-factory branch, the AssemblyLine station backend, future API
-callers) via the atomic row+event insert in `project.assemblyLines.start()`. Floor's `/api/trigger/*` endpoints and mcp-server's GitHub
+callers) via the atomic row+event insert in `project.assemblyRuns.start()`. Floor's `/api/trigger/*` endpoints and mcp-server's GitHub
 webhook + `triggerAgent*` forwarders are removed. **Carve-out:** heavy batch jobs
 stay as Kubernetes CronJobs running their work directly (ADR-019) — they need
 ephemeral-pod isolation + big memory, so they are *not* routed through the loop;

@@ -50,7 +50,7 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
       "kubernetes.agent_node event params missing assemblyLineId/nodeId/agentName",
     );
 
-    const row = await deps.assemblyLines.getById(assemblyLineId);
+    const row = await deps.assemblyRuns.getById(assemblyLineId);
 
     if (!row || row.status !== "running") {
       return;
@@ -141,7 +141,7 @@ export { advanceLine };
  *  advance, and the reaper tick. */
 export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   const [
-    { assemblyLines, jobRuns, taskStore, conversations },
+    { assemblyRuns, jobRuns, taskStore, conversations },
     { loadBuiltinAssemblyLines },
     { agentCrBackend, projectFor },
     { buildPrompt },
@@ -164,7 +164,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   const kubeApi = new KubeAgentApi();
 
   return {
-    assemblyLines: assemblyLines(),
+    assemblyRuns: assemblyRuns(),
     definitions: loadBuiltinAssemblyLines,
     launch: async (spec) => {
       await agentCrBackend().launch(spec);
@@ -187,7 +187,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
           // Rewind: `args.resume_from_task` names the round the author chose, and the
           // conversation it reserved is keyed by the assembly line that ran it.
           linesForTask: async (taskId) =>
-            (await assemblyLines().listForTask(taskId)).map((line) => line.id),
+            (await assemblyRuns().listForTask(taskId)).map((line) => line.id),
         },
         priorOutcome,
       ),
@@ -201,7 +201,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
 
       await stampLinePr(row, {
         pulls: project.pulls,
-        assemblyLines: assemblyLines(),
+        assemblyRuns: assemblyRuns(),
         features: project.features,
       });
     },

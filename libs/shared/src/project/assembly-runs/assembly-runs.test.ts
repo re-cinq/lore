@@ -247,16 +247,16 @@ describe("PgAssemblyRuns adapter", () => {
 
 describe("InMemoryAssemblyRuns double", () => {
   it("start seeds a queued row with a fresh uuid and one assembly_run.start event", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
+    const assemblyRuns = new InMemoryAssemblyRuns();
 
-    const id = await assemblyLines.start({
+    const id = await assemblyRuns.start({
       blueprintName: "implementation",
       repo: "re-cinq/lore",
       taskId: "task-9",
     });
 
     expect(id).toMatch(UUID_RE);
-    expect(assemblyLines.rows).toMatchObject([
+    expect(assemblyRuns.rows).toMatchObject([
       {
         id,
         blueprintName: "implementation",
@@ -266,7 +266,7 @@ describe("InMemoryAssemblyRuns double", () => {
         outcome: null,
       },
     ]);
-    expect(assemblyLines.events).toMatchObject([
+    expect(assemblyRuns.events).toMatchObject([
       {
         eventName: "assembly_run.start",
         source: "internal",
@@ -508,57 +508,57 @@ describe("InMemoryAssemblyRuns double", () => {
   });
 
   it("markRunning transitions the matching row to running with started_at", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
-    const id = await assemblyLines.start({
+    const assemblyRuns = new InMemoryAssemblyRuns();
+    const id = await assemblyRuns.start({
       blueprintName: "general",
       repo: "re-cinq/lore",
     });
 
-    await assemblyLines.markRunning(id);
+    await assemblyRuns.markRunning(id);
 
-    expect(assemblyLines.rows[0]).toMatchObject({ status: "running" });
-    expect(assemblyLines.rows[0]?.startedAt).not.toBeNull();
+    expect(assemblyRuns.rows[0]).toMatchObject({ status: "running" });
+    expect(assemblyRuns.rows[0]?.startedAt).not.toBeNull();
   });
 
   it("finish returns true for the first writer and false for the losing duplicate", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
-    const id = await assemblyLines.start({
+    const assemblyRuns = new InMemoryAssemblyRuns();
+    const id = await assemblyRuns.start({
       blueprintName: "general",
       repo: "re-cinq/lore",
     });
 
-    expect(await assemblyLines.finish(id, "completed")).toBe(true);
-    expect(await assemblyLines.finish(id, "error")).toBe(false);
-    expect(assemblyLines.rows[0]).toMatchObject({ outcome: "completed" });
+    expect(await assemblyRuns.finish(id, "completed")).toBe(true);
+    expect(await assemblyRuns.finish(id, "error")).toBe(false);
+    expect(assemblyRuns.rows[0]).toMatchObject({ outcome: "completed" });
   });
 
   it("finish with outcome pr_created closes the row as finished", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
-    const id = await assemblyLines.start({
+    const assemblyRuns = new InMemoryAssemblyRuns();
+    const id = await assemblyRuns.start({
       blueprintName: "general",
       repo: "re-cinq/lore",
     });
 
-    await assemblyLines.finish(id, "pr_created");
+    await assemblyRuns.finish(id, "pr_created");
 
-    expect(assemblyLines.rows[0]).toMatchObject({
+    expect(assemblyRuns.rows[0]).toMatchObject({
       status: "finished",
       outcome: "pr_created",
       reason: null,
     });
-    expect(assemblyLines.rows[0]?.finishedAt).not.toBeNull();
+    expect(assemblyRuns.rows[0]?.finishedAt).not.toBeNull();
   });
 
   it("finish with outcome error closes the row as failed with the reason", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
-    const id = await assemblyLines.start({
+    const assemblyRuns = new InMemoryAssemblyRuns();
+    const id = await assemblyRuns.start({
       blueprintName: "general",
       repo: "re-cinq/lore",
     });
 
-    await assemblyLines.finish(id, "error", "iteration_max exceeded");
+    await assemblyRuns.finish(id, "error", "iteration_max exceeded");
 
-    expect(assemblyLines.rows[0]).toMatchObject({
+    expect(assemblyRuns.rows[0]).toMatchObject({
       status: "failed",
       outcome: "error",
       reason: "iteration_max exceeded",
@@ -566,22 +566,22 @@ describe("InMemoryAssemblyRuns double", () => {
   });
 
   it("ensureStationRun and finishStationRunOnce trace one node execution", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
-    const id = await assemblyLines.start({
+    const assemblyRuns = new InMemoryAssemblyRuns();
+    const id = await assemblyRuns.start({
       blueprintName: "implementation",
       repo: "re-cinq/lore",
     });
 
-    const { nodeRowId } = await assemblyLines.ensureStationRun({
+    const { nodeRowId } = await assemblyRuns.ensureStationRun({
       assemblyRunId: id,
       nodeId: "implement",
       iteration: 1,
       agentCrName: "al1abcde-implement",
     });
 
-    await assemblyLines.finishStationRunOnce(nodeRowId, "success", "deadbeef");
+    await assemblyRuns.finishStationRunOnce(nodeRowId, "success", "deadbeef");
 
-    expect(assemblyLines.nodes).toMatchObject([
+    expect(assemblyRuns.nodes).toMatchObject([
       {
         id: nodeRowId,
         assemblyRunId: id,
@@ -592,25 +592,25 @@ describe("InMemoryAssemblyRuns double", () => {
         commitSha: "deadbeef",
       },
     ]);
-    expect(assemblyLines.nodes[0]?.finishedAt).not.toBeNull();
+    expect(assemblyRuns.nodes[0]?.finishedAt).not.toBeNull();
   });
 
   it("ensureStationRun without an agent CR name stores null", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
-    const id = await assemblyLines.start({
+    const assemblyRuns = new InMemoryAssemblyRuns();
+    const id = await assemblyRuns.start({
       blueprintName: "general",
       repo: "re-cinq/lore",
     });
 
-    const { nodeRowId } = await assemblyLines.ensureStationRun({
+    const { nodeRowId } = await assemblyRuns.ensureStationRun({
       assemblyRunId: id,
       nodeId: "validate",
       iteration: 1,
     });
 
-    await assemblyLines.finishStationRunOnce(nodeRowId, "failed");
+    await assemblyRuns.finishStationRunOnce(nodeRowId, "failed");
 
-    expect(assemblyLines.nodes[0]).toMatchObject({
+    expect(assemblyRuns.nodes[0]).toMatchObject({
       agentCrName: null,
       commitSha: null,
       outcome: "failed",
@@ -618,87 +618,87 @@ describe("InMemoryAssemblyRuns double", () => {
   });
 
   it("throws on unknown ids for markRunning and returns false for finishStationRunOnce", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
+    const assemblyRuns = new InMemoryAssemblyRuns();
 
-    await expect(assemblyLines.markRunning("nope")).rejects.toThrow(
+    await expect(assemblyRuns.markRunning("nope")).rejects.toThrow(
       new Error('no assembly line "nope"'),
     );
-    await expect(assemblyLines.finish("nope", "error")).rejects.toThrow(
+    await expect(assemblyRuns.finish("nope", "error")).rejects.toThrow(
       new Error('no assembly line "nope"'),
     );
-    expect(await assemblyLines.finishStationRunOnce("nope", "success")).toBe(
+    expect(await assemblyRuns.finishStationRunOnce("nope", "success")).toBe(
       false,
     );
   });
 
   it("getById returns the record and null for unknown ids", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
-    const id = await assemblyLines.start({
+    const assemblyRuns = new InMemoryAssemblyRuns();
+    const id = await assemblyRuns.start({
       blueprintName: "general",
       repo: "re-cinq/lore",
     });
 
-    expect(await assemblyLines.getById(id)).toMatchObject({
+    expect(await assemblyRuns.getById(id)).toMatchObject({
       id,
       blueprintName: "general",
     });
-    expect(await assemblyLines.getById("nope")).toBeNull();
+    expect(await assemblyRuns.getById("nope")).toBeNull();
   });
 
   it("listForTask returns only that task's assembly lines, newest first", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns(
+    const assemblyRuns = new InMemoryAssemblyRuns(
       () => new Date("2026-07-03T10:00:00Z"),
     );
-    const first = await assemblyLines.start({
+    const first = await assemblyRuns.start({
       blueprintName: "general",
       repo: "r/a",
       taskId: "task-1",
     });
 
-    assemblyLines.clock = () => new Date("2026-07-03T11:00:00Z");
-    const second = await assemblyLines.start({
+    assemblyRuns.clock = () => new Date("2026-07-03T11:00:00Z");
+    const second = await assemblyRuns.start({
       blueprintName: "general",
       repo: "r/a",
       taskId: "task-1",
     });
 
-    await assemblyLines.start({
+    await assemblyRuns.start({
       blueprintName: "general",
       repo: "r/a",
       taskId: "task-2",
     });
 
-    const forTask = await assemblyLines.listForTask("task-1");
+    const forTask = await assemblyRuns.listForTask("task-1");
 
     expect(forTask.map((r) => r.id)).toEqual([second, first]);
   });
 
   it("findOpenByPr returns open rows for the repo+PR, excluding finished and other PRs", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
-    const open = await assemblyLines.start({
+    const assemblyRuns = new InMemoryAssemblyRuns();
+    const open = await assemblyRuns.start({
       blueprintName: "code-review",
       repo: "r/a",
       args: { pr_number: 42 },
     });
-    const done = await assemblyLines.start({
+    const done = await assemblyRuns.start({
       blueprintName: "code-review",
       repo: "r/a",
       args: { pr_number: 42 },
     });
 
-    await assemblyLines.finish(done, "success");
-    await assemblyLines.start({
+    await assemblyRuns.finish(done, "success");
+    await assemblyRuns.start({
       blueprintName: "code-review",
       repo: "r/a",
       args: { pr_number: 99 },
     });
-    await assemblyLines.start({
+    await assemblyRuns.start({
       blueprintName: "code-review",
       repo: "r/b",
       args: { pr_number: 42 },
     });
 
-    const found = await assemblyLines.findOpenByPr("r/a", 42);
+    const found = await assemblyRuns.findOpenByPr("r/a", 42);
 
     expect(found.map((r) => r.id)).toEqual([open]);
   });
@@ -709,87 +709,87 @@ describe("InMemoryAssemblyRuns double", () => {
   // pr_number in args", which stopped being true when the push node began stamping it
   // on the planning line.
   it("finishOpenByPr leaves a line outside the named definitions alone", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
-    const review = await assemblyLines.start({
+    const assemblyRuns = new InMemoryAssemblyRuns();
+    const review = await assemblyRuns.start({
       blueprintName: "code-review",
       repo: "r/a",
       args: { pr_number: 42 },
     });
-    const planning = await assemblyLines.start({
+    const planning = await assemblyRuns.start({
       blueprintName: "feature-planning",
       repo: "r/a",
       args: { pr_number: 42 },
     });
 
-    const count = await assemblyLines.finishOpenByPr("r/a", 42, "pr_closed", [
+    const count = await assemblyRuns.finishOpenByPr("r/a", 42, "pr_closed", [
       "code-review",
     ]);
 
     expect(count).toBe(1);
-    expect(await assemblyLines.getById(review)).toMatchObject({
+    expect(await assemblyRuns.getById(review)).toMatchObject({
       status: "finished",
     });
-    expect(await assemblyLines.getById(planning)).toMatchObject({
+    expect(await assemblyRuns.getById(planning)).toMatchObject({
       status: "queued",
       outcome: null,
     });
   });
 
   it("finishOpenByPr with no definition filter still closes every open line", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
+    const assemblyRuns = new InMemoryAssemblyRuns();
 
-    await assemblyLines.start({
+    await assemblyRuns.start({
       blueprintName: "feature-planning",
       repo: "r/a",
       args: { pr_number: 42 },
     });
 
-    expect(await assemblyLines.finishOpenByPr("r/a", 42, "pr_closed")).toBe(1);
+    expect(await assemblyRuns.finishOpenByPr("r/a", 42, "pr_closed")).toBe(1);
   });
 
   it("finishOpenByPr closes only the open matching rows and returns the count", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
-    const a = await assemblyLines.start({
+    const assemblyRuns = new InMemoryAssemblyRuns();
+    const a = await assemblyRuns.start({
       blueprintName: "code-review",
       repo: "r/a",
       args: { pr_number: 42 },
     });
-    const other = await assemblyLines.start({
+    const other = await assemblyRuns.start({
       blueprintName: "code-review",
       repo: "r/a",
       args: { pr_number: 99 },
     });
 
-    const count = await assemblyLines.finishOpenByPr("r/a", 42, "pr_closed");
+    const count = await assemblyRuns.finishOpenByPr("r/a", 42, "pr_closed");
 
     expect(count).toBe(1);
-    expect(await assemblyLines.getById(a)).toMatchObject({
+    expect(await assemblyRuns.getById(a)).toMatchObject({
       status: "finished",
       outcome: "pr_closed",
     });
-    expect(await assemblyLines.getById(other)).toMatchObject({
+    expect(await assemblyRuns.getById(other)).toMatchObject({
       status: "queued",
     });
   });
 
   it("hasReviewedPr is true once any code-review line ran, false otherwise", async () => {
-    const assemblyLines = new InMemoryAssemblyRuns();
-    const reviewed = await assemblyLines.start({
+    const assemblyRuns = new InMemoryAssemblyRuns();
+    const reviewed = await assemblyRuns.start({
       blueprintName: "code-review",
       repo: "r/a",
       args: { pr_number: 42 },
     });
 
-    await assemblyLines.finish(reviewed, "success");
-    await assemblyLines.start({
+    await assemblyRuns.finish(reviewed, "success");
+    await assemblyRuns.start({
       blueprintName: "comment-triage",
       repo: "r/a",
       args: { pr_number: 99 },
     });
 
-    expect(await assemblyLines.hasReviewedPr("r/a", 42)).toBe(true);
-    expect(await assemblyLines.hasReviewedPr("r/a", 99)).toBe(false);
-    expect(await assemblyLines.hasReviewedPr("r/b", 42)).toBe(false);
+    expect(await assemblyRuns.hasReviewedPr("r/a", 42)).toBe(true);
+    expect(await assemblyRuns.hasReviewedPr("r/a", 99)).toBe(false);
+    expect(await assemblyRuns.hasReviewedPr("r/b", 42)).toBe(false);
   });
 });
 

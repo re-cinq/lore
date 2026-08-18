@@ -142,7 +142,7 @@ describe("resumeDecomposition", () => {
 
     await resumeDecomposition(
       { repo: REPO, prNumber: 42 },
-      { assemblyLines: lines, report: rec.report },
+      { assemblyRuns: lines, report: rec.report },
     );
 
     expect(rec.events).toEqual([
@@ -155,7 +155,7 @@ describe("resumeDecomposition", () => {
 
     await resumeDecomposition(
       { repo: REPO, prNumber: 999 },
-      { assemblyLines: new InMemoryAssemblyRuns(), report: rec.report },
+      { assemblyRuns: new InMemoryAssemblyRuns(), report: rec.report },
     );
 
     expect(rec.events).toEqual([]);
@@ -182,7 +182,7 @@ describe("resumeDecomposition", () => {
 
     await resumeDecomposition(
       { repo: REPO, prNumber: 7 },
-      { assemblyLines: lines, report: rec.report },
+      { assemblyRuns: lines, report: rec.report },
     );
 
     expect(rec.events).toEqual([]);
@@ -204,7 +204,7 @@ describe("resumeDecomposition", () => {
 
     await resumeDecomposition(
       { repo: REPO, prNumber: 42 },
-      { assemblyLines: lines, report: rec.report },
+      { assemblyRuns: lines, report: rec.report },
     );
 
     expect(rec.events).toEqual([
