@@ -16,6 +16,24 @@ interface LogsResponse {
 
 const ACTIVE_STATES = new Set(["running"]);
 
+// Past-running task statuses (from the shared TaskStatus union) whose null
+// logs are no longer worth a "will appear" promise: direct-API task types
+// (onboard, feature-request) produce no transcript at all, and cluster
+// transcripts live in pipeline.agent_run_turns, unreadable from this page
+// until the task-keyed turn route lands (#1150/#1292). "review" can still
+// mint follow-up runs, which is why the copy is a present-tense availability
+// statement rather than a claim that nothing was ever recorded.
+const PAST_RUNNING_STATES = new Set([
+  "pr-created",
+  "merged",
+  "completed",
+  "failed",
+  "cancelled",
+  "review",
+  "needs-human-help",
+  "retried",
+]);
+
 export default function TaskLogs({
   taskId,
   initialStatus,
@@ -111,6 +129,9 @@ export default function TaskLogs({
   const isDone =
     status === "succeeded" || status === "pr-created" || status === "merged";
   const isFailed = status === "failed" || status === "cancelled";
+  const placeholder = PAST_RUNNING_STATES.has(status)
+    ? "No transcript is available on this page."
+    : "Logs will appear when the agent starts.";
 
   return (
     <div className={styles.wrap}>
@@ -150,9 +171,7 @@ export default function TaskLogs({
       )}
 
       {!accessDenied && logs === null && !error ? (
-        <p className={`meta ${styles.placeholder}`}>
-          Logs will appear when the agent starts.
-        </p>
+        <p className={`meta ${styles.placeholder}`}>{placeholder}</p>
       ) : !accessDenied && logs !== null ? (
         <div className={styles.terminal}>
           {showRaw ? logs : <LogEntriesView entries={entries} />}

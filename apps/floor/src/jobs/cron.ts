@@ -23,8 +23,38 @@ const AGENT_RUN_EVENT_RETENTION_DAYS = 14;
  *  days because the store exists precisely for questions asked after the live
  *  view has moved on, but deliberately conservative. There is no pilot and so no
  *  growth measurement to justify a longer horizon; 30 days is the starting bet
- *  and the prune's log line is the only growth signal until one exists. */
-const AGENT_RUN_TURN_RETENTION_DAYS = 30;
+ *  and the prune's log line is the only growth signal until one exists. The env
+ *  override is the operator lever the GCS task-log bucket had via the
+ *  `log_retention_days` terraform variable (also 30 by default) — read per call
+ *  (an hourly tick, so free) purely as a test seam; env is fixed for a pod's
+ *  lifetime either way. */
+const DEFAULT_AGENT_RUN_TURN_RETENTION_DAYS = 30;
+
+/** Postgres `make_interval(days => N)` takes an int32; an absurd override must
+ *  fall back rather than fail every hourly eventsPrune tick. */
+const MAX_AGENT_RUN_TURN_RETENTION_DAYS = 3650;
+
+const turnRetentionDays = (): number => {
+  const raw = process.env.LORE_AGENT_RUN_TURN_RETENTION_DAYS;
+
+  if (raw === undefined) {
+    return DEFAULT_AGENT_RUN_TURN_RETENTION_DAYS;
+  }
+  const parsed = Number(raw);
+
+  if (
+    Number.isInteger(parsed) &&
+    parsed > 0 &&
+    parsed <= MAX_AGENT_RUN_TURN_RETENTION_DAYS
+  ) {
+    return parsed;
+  }
+  console.warn(
+    `[events] ignoring LORE_AGENT_RUN_TURN_RETENTION_DAYS=${raw}: not an integer in 1..${MAX_AGENT_RUN_TURN_RETENTION_DAYS}, keeping ${DEFAULT_AGENT_RUN_TURN_RETENTION_DAYS}`,
+  );
+
+  return DEFAULT_AGENT_RUN_TURN_RETENTION_DAYS;
+};
 
 /** Adapt an existing `() => Promise<string>` job into an event handler (drop the summary). */
 const fromJob =
@@ -82,9 +112,7 @@ export const eventsPrune: EventHandler = async () => {
     console.log(`[events] pruned ${runEvents} agent run event(s)`);
   }
 
-  const runTurns = await agentRunTurns().pruneOld(
-    AGENT_RUN_TURN_RETENTION_DAYS,
-  );
+  const runTurns = await agentRunTurns().pruneOld(turnRetentionDays());
 
   if (runTurns > 0) {
     console.log(`[events] pruned ${runTurns} agent run turn(s)`);

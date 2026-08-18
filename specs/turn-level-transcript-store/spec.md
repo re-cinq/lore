@@ -69,6 +69,7 @@ every other migration.
 - The table carries **no foreign keys**, on `task_id` and `assembly_line_id` alike: ingest is a batch insert and one bad row under a FK would abort the whole statement and drop the batch.
 - `task_id` is nullable, unlike the projection's `NOT NULL` column, so a line the subsystem never attributed to a task is still stored rather than dropped. ([validated by `agent-run-turns.test.ts:97`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L128))
 - Retention is 30 days, longer than the projection's 14 because the table exists precisely for questions asked after the live view has moved on, but deliberately conservative: there is no pilot, so no growth measurement justifies a longer horizon yet. The prune runs on the existing `eventsPrune` housekeeping tick and logs its deleted count, which is the only growth signal the feature ships with. ([validated by `cron.test.ts:61`](apps/floor/src/jobs/cron.test.ts#L61), [`cron.test.ts:68`](apps/floor/src/jobs/cron.test.ts#L68), [`agent-run-turns.test.ts:241`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L273), [`agent-run-turns.test.ts:253`](libs/shared/src/project/agent-run-turns/agent-run-turns.test.ts#L285))
+- *(Amended 2026-08-18, #1296:)* the window is an operator knob: `LORE_AGENT_RUN_TURN_RETENTION_DAYS`, read at prune time, falling back to the 30-day default — with a warning — when set to anything but an integer in 1..3650 (the cap keeps a pathological value from overflowing Postgres's int32 interval days and failing every hourly tick). This is the same lever the GCS task-log bucket has via the `log_retention_days` terraform variable — both default to 30 days, so retiring the bucket loses no retention at defaults (the issue's "the bucket kept logs indefinitely" premise was wrong). A commented entry in `floor-helm/values.yaml` documents the knob. ([validated by `cron.test.ts:85`](apps/floor/src/jobs/cron.test.ts#L85), [`cron.test.ts:93`](apps/floor/src/jobs/cron.test.ts#L93))
 - The migration is idempotent: every statement is `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS`, and the `lore_ui` grant is guarded by a role-existence check, so re-running it on a deploy that changed nothing is a no-op.
 - Three indexes cover the three access paths: `(assembly_line_id, id)` for the per-line read, `(task_id, id)` for the per-task read that reaches uncorrelated rows, and `(created_at)` for the retention prune.
 
@@ -245,3 +246,29 @@ a parallel page, per #1102).
   first cut. *(Superseded by the #1148 follow-up:)* the web-ui proxy exists
   (FR5) — and it proxies the Floor API rather than using the grant, matching
   the events flow.
+
+## Amendment — turn coverage per execution path (2026-08-18, #1296)
+
+The GCS task-log cutover (#1148) assumed the store covers every execution
+whose logs users read. Audited per path, it does not, and the gaps are
+deliberate answers rather than shims:
+
+| Execution path | Turn rows | Notes |
+|---|---|---|
+| Agent nodes on an assembly line (implementation, review, general, feature-planning, …) | full stream-json transcript | correlated to `assembly_line_id`/`node_id`/`iteration` |
+| Plain Agent CR on a non-dark-factory repo (`agent-<taskId8>`) | full transcript, `task_id` only | readable via `listByTask` and the task-keyed HTTP route (#1150, landed) |
+| Station pods (validate, gate, detect, github_action, comment-triage, ingest, issues, retrospective) | 2–6 `log`/`result` lines | not a Claude Code transcript; `log` lines exist only here (the viz projection drops them) |
+| `onboard`, `feature-request` (direct Anthropic SDK in the Floor process) | none | no transcript artifact exists anywhere; cost lands in `pipeline.llm_calls`, a summary in `memory.episodes` |
+| Floor-side batch LLM calls (episode-writer, artifact-copy, memory-lifecycle) | none | same no-transcript property |
+| Human stations (`feature_review`, `pr_review`) | none | nothing executes — correct |
+| Local runner / `AgentRunner` local mode | none | GCS `output.log` split-brain; write-side cutover is #1295 |
+
+The reader-side answer for the no-transcript paths is explicit, not
+synthetic: the task-page log viewer states "No transcript is available
+on this page." once a task is past running with no logs (see
+`specs/job-log-streaming/spec.md`), instead of an ingest shim
+fabricating turn rows that would duplicate `pipeline.llm_calls` and the
+episode summary. Residual cutover dependency: task-only turns (row 2)
+were HTTP-unreachable until #1150's task-keyed route landed; that
+dependency is satisfied, and the remaining write-side gap before #1148
+may delete the GCS path is the local runner (#1295).

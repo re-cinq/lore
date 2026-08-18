@@ -36,8 +36,10 @@ import type { AgentRunTurnInsert } from "@re-cinq/lore-shared";
 
 /** Upper bound on turns one `/api/agent-events` POST may collect, matching the
  *  visualization projection's cap. Turn envelopes are untruncated, so their
- *  COUNT is the only bound available; beyond it collection stops and the raw
- *  stream remains the GCS archive's job. */
+ *  COUNT is the only bound available; beyond it collection stops and the
+ *  overflow is lost — counted as the `turn_dropped_cap` anomaly and warned by
+ *  the ingest route (the GCS raw-stream archive that used to catch it was
+ *  retired in #1149). */
 export const MAX_RUN_TURNS_PER_BATCH = 10_000;
 
 const isObject = (x: unknown): x is Record<string, unknown> =>
