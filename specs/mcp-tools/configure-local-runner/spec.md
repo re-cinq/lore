@@ -72,17 +72,17 @@ A single MCP text content block: the pretty-printed current config (view mode),
 ## Acceptance Criteria
 
 `readConfig` returns a config with the expected shape (all five fields, correct
-types). ([validated by `runner.local.test.ts:83`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L83))
+types). ([validated by `runner.local.test.ts:85`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L85))
 
 The default config carries sensible values (`max_concurrent` 2, includes
 `implementation`/`general`, model `claude-sonnet-4-6`).
-([validated by `runner.local.test.ts:100`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L100))
+([validated by `runner.local.test.ts:102`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L102))
 
 The config serializes and round-trips through JSON unchanged.
-([validated by `runner.local.test.ts:127`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L127))
+([validated by `runner.local.test.ts:129`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L129))
 
 The update merge keeps untouched fields and overwrites only provided ones.
-([validated by `runner.local.test.ts:310`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L310))
+([validated by `runner.local.test.ts:312`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L312))
 
 `writeConfig` writing to the live `~/.lore/local-runner.json` path is exercised
 only end-to-end. *(untested: `readConfig`/`writeConfig` use a module-load-fixed

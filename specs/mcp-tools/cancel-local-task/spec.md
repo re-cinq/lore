@@ -68,7 +68,7 @@ or `"Error: {message}"`. **Never throws**.
 ## Acceptance Criteria
 
 Cancelling an unknown task id reports it as not found without claiming success.
-([validated by `runner.local.test.ts:266`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L266))
+([validated by `runner.local.test.ts:268`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L268))
 
 The SIGTERM kill, worktree removal, and not-running short-circuit are exercised
 only end-to-end. *(untested: those branches require a populated

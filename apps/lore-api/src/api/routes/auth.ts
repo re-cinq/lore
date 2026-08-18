@@ -10,7 +10,7 @@ import { createHash } from "node:crypto";
 
 // ── Rate limiter (in-memory sliding window) ─────────────────────────
 
-export type RateBucket = "webhook" | "task" | "embed" | "default";
+export type RateBucket = "webhook" | "task" | "embed" | "turns" | "default";
 
 const RATE_LIMITS: Record<RateBucket, number> = {
   webhook: 30, // 30/min for webhooks
@@ -20,6 +20,10 @@ const RATE_LIMITS: Record<RateBucket, number> = {
   // under `default`). Own bucket, sized under Vertex's RPM quota, so the burst
   // neither starves nor is starved by everything else.
   embed: 1200,
+  // A local run's transcript relay arrives as a burst of ≤~700KB batches at
+  // run end (dozens for a long run). Own bucket for the same reason as embed:
+  // the burst must neither starve nor be starved by `default`.
+  turns: 300,
   default: 200, // 200/min for everything else
 };
 

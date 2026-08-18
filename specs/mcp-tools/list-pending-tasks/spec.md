@@ -73,7 +73,7 @@ listing, a "No pending tasks" message, or the error message. Never throws.
 ## Acceptance Criteria
 
 `listPendingTasks` returns an array (empty when the cached pending file is
-absent). ([validated by `runner.local.test.ts:161`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L161))
+absent). ([validated by `runner.local.test.ts:163`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L163))
 
 The local-fallback path applies the `repo` filter, returns the repo-scoped empty
 message when nothing matches, and lists all repos when no filter is given.
