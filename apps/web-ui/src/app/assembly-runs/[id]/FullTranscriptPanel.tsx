@@ -57,6 +57,9 @@ export default function FullTranscriptPanel({
 
     async function walk() {
       try {
+        // A reopen retries a failed walk — drop the stale error so the retry
+        // shows Loading… rather than the previous failure.
+        setError(null);
         const collected: AgentRunTurn[] = [];
         let cursor = "0";
         let hitCap = false;

@@ -226,4 +226,24 @@ describe("FullTranscriptPanel", () => {
     expect(await screen.findByText(/full text of turn 1/)).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it("a reopened retry shows Loading instead of the stale error", async () => {
+    const fetchMock = vi.fn();
+
+    fetchMock.mockResolvedValueOnce(new Response("{}", { status: 500 }));
+    fetchMock.mockReturnValueOnce(new Promise(() => {}));
+    vi.stubGlobal("fetch", fetchMock);
+    const { container } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" />,
+    );
+
+    await openPanel(container);
+    expect(await screen.findByText(/Failed to load turns/)).toBeTruthy();
+
+    toggle(container, false);
+    await openPanel(container);
+
+    expect(screen.queryByText(/Failed to load turns/)).toBeNull();
+    expect(screen.getByText("Loading…")).toBeTruthy();
+  });
 });
