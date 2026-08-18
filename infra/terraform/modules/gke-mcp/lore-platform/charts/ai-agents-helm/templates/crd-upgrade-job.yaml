@@ -32,6 +32,13 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 2
+  # Applying three CRDs takes seconds. Without a deadline a Job that cannot even
+  # START — an image that does not exist, a node that never schedules — keeps
+  # retrying until HELM's timeout, and since this is a PRE-upgrade hook that
+  # stalls every umbrella deploy behind it while reporting only "timed out
+  # waiting for the condition". Failing fast puts the pod's real error in front
+  # of whoever is watching the deploy.
+  activeDeadlineSeconds: 120
   template:
     metadata:
       labels:
@@ -42,15 +49,14 @@ spec:
       containers:
         - name: apply-crds
           image: {{ .Values.crdUpgrade.image | quote }}
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              set -eu
-              for f in /crds/*.yaml; do
-                echo "[crd-upgrade] applying $f"
-                kubectl apply --server-side --force-conflicts -f "$f"
-              done
-              echo "[crd-upgrade] done"
+          # kubectl invoked DIRECTLY, not through a shell: the image is
+          # distroless (entrypoint `/bin/kubectl`, no /bin/sh), so a shell
+          # wrapper would fail to exec. `-f` on the mounted directory applies
+          # every CRD in it — kubectl reads the .yaml entries and ignores the
+          # ConfigMap volume's dotted `..data` bookkeeping — so the loop the
+          # shell was there for is not needed either.
+          command: ["/bin/kubectl"]
+          args: ["apply", "--server-side", "--force-conflicts", "-f", "/crds"]
           volumeMounts:
             - name: crds
               mountPath: /crds
