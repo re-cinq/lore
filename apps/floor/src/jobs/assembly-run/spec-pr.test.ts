@@ -12,7 +12,13 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import { InMemoryFeatures } from "@re-cinq/lore-shared/project/features/features-memory.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
-import { decidePrStamp, stampLinePr, type SpecPrPorts } from "./spec-pr.js";
+import {
+  decidePrStamp,
+  decideStampFailure,
+  emptyBranchReason,
+  stampLinePr,
+  type SpecPrPorts,
+} from "./spec-pr.js";
 
 const REPO = "re-cinq/lore";
 
@@ -252,6 +258,46 @@ describe("stampLinePr", () => {
     expect((await h.lines.getById(h.lineId))?.args).toMatchObject({
       pr_number: 4201,
     });
+  });
+});
+
+describe("decideStampFailure", () => {
+  it("reads GitHub's empty-branch refusal as terminal", () => {
+    expect(
+      decideStampFailure(
+        'Validation Failed: {"resource":"PullRequest","code":"custom","message":"No commits between main and lore/feature-planning/a-system-b81f9fd2"}',
+      ),
+    ).toEqual("empty-branch");
+  });
+
+  it("matches the refusal whatever its casing", () => {
+    expect(decideStampFailure("no commits between main and topic")).toEqual(
+      "empty-branch",
+    );
+  });
+
+  it("treats a 5xx as transient, so a blip does not fail a healthy line", () => {
+    expect(decideStampFailure("502 Bad Gateway")).toEqual("transient");
+  });
+
+  it("treats another 422 as transient — only the empty branch is terminal", () => {
+    expect(
+      decideStampFailure(
+        'Validation Failed: {"message":"A pull request already exists for re-cinq:topic."}',
+      ),
+    ).toEqual("transient");
+  });
+});
+
+describe("emptyBranchReason", () => {
+  it("names the node that should have delivered and the branch that stayed empty", () => {
+    expect(emptyBranchReason("lore/feature-planning/topic-b81f9fd2")).toEqual(
+      "the push node reported success but pushed nothing — lore/feature-planning/topic-b81f9fd2 has no commits, so no spec PR could be opened",
+    );
+  });
+
+  it("still reads as a sentence when the run carries no branch", () => {
+    expect(emptyBranchReason(null)).toContain("the run branch has no commits");
   });
 });
 
