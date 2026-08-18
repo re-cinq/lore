@@ -103,21 +103,27 @@ controller:
   replicas: 1
   image:
     repository: ghcr.io/re-cinq/ai-agent-controller
-    # Pinned by digest (never a floating tag) — v0.10.5: the startup/poll sync now
-    # prunes already-terminal Agent CRs to each Station's history limits BEFORE the
-    # reconcile pass (ai-agent-subsystem#202, re-cinq/lore#1290 — 2,657 accumulated
-    # CRs drove the controller into CrashLoopBackOff), on top of the v0.9–v0.10 line:
-    # informer watch + cache reconcile, /healthz served from bind independent of sync,
-    # conversation continuity (working auth since v0.10.3, tar-free archiving in
-    # v0.10.4). Digests come from the release's install.yaml
-    # (https://github.com/re-cinq/ai-agent-subsystem/releases/tag/v0.10.5), or:
-    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.10.5
-    digest: "sha256:7fbea29248a7d1e1ea8a17f278f1c60ae5c412c42719009eb4849931c1157f3c"
+    # Pinned by digest (never a floating tag) — v0.10.6: the init container now
+    # PERSISTS the clone's credential helper into the repo config
+    # (ai-agent-subsystem#204), so an agent can push. It could not before: the
+    # helper rode the clone's `-c` flags, which live for that one invocation, and
+    # a pushing node therefore committed into a container that then died — the
+    # branch stayed empty and the PR open failed "No commits between"
+    # (re-cinq/lore#1329). Carries v0.10.5's prune-before-reconcile
+    # (ai-agent-subsystem#202, re-cinq/lore#1290) and the v0.9–v0.10 line:
+    # informer watch + cache reconcile, /healthz served from bind independent of
+    # sync, conversation continuity, tar-free conversation archiving.
+    # Digests come from the release's install.yaml
+    # (https://github.com/re-cinq/ai-agent-subsystem/releases/tag/v0.10.6), or:
+    #   skopeo inspect docker://ghcr.io/re-cinq/ai-agent-controller:v0.10.6
+    digest: "sha256:c7aa11b5de2de89f41502ce9ba5c0925c4ae1d127694f83a43ed7ff1debfad91"
   # The image whose init container injects the agent runtime + supervisor into each run
-  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.10.5
-  # digest, paired with the controller above. Both images are public since v0.10.4:
-  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.10.5
-  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:cea19f17190c0975a18dcbb00185adc089ff3d083f83196c4e5c872490d2093e"
+  # pod. Controller + agent ship as a PAIR from the v-tag matrix — pinned to the v0.10.6
+  # digest, paired with the controller above. The credential fix lives in THIS image
+  # (the init container is what clones), so the pair must move together or a pushing
+  # node still has nothing to authenticate with. Both images are public since v0.10.4:
+  #   skopeo inspect --no-tags docker://ghcr.io/re-cinq/ai-agent:v0.10.6
+  agentImage: "ghcr.io/re-cinq/ai-agent@sha256:0d22a17b301037618333fb450ed6a771e07d2940fcdc698601c8deb1edca3360"
   # Tail of run-pod log kept in Agent.status.output (bounds the object under etcd's limit).
   maxOutputBytes: "262144"
   resources:
