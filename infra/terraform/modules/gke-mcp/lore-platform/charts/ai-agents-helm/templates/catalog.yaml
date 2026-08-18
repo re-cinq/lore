@@ -71,9 +71,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -144,9 +146,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -231,9 +235,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -304,9 +310,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -401,9 +409,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -525,9 +535,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -639,9 +651,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -749,9 +763,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -827,9 +843,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -1116,9 +1134,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -1277,9 +1297,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -1355,9 +1377,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -1427,9 +1451,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -1561,9 +1587,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -1619,9 +1647,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -1677,9 +1707,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -1735,9 +1767,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -1793,9 +1827,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -1851,9 +1887,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -1909,9 +1947,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -1967,9 +2007,11 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -2030,7 +2072,9 @@ spec:
             requests:
               cpu: 250m
               memory: 512Mi
+              ephemeral-storage: 2Gi
             limits:
               cpu: "1"
               memory: 1Gi
+              ephemeral-storage: 4Gi
 {{- end }}
