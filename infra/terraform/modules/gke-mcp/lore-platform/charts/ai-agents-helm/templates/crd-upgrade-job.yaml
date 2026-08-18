@@ -1,0 +1,67 @@
+# pre-install/pre-upgrade hook: apply crds/*.yaml so CRD SCHEMA CHANGES reach
+# live clusters. Helm's native crds/ handling is install-only (#1134) — an
+# upgraded chart never updates an existing CRD, and Kubernetes then PRUNES any
+# field the stale schema does not know from every write, silently. That is how
+# `output.watch` vanished from the feature-planning AgentDefinition and killed
+# artifact delivery platform-wide for five days (2026-08-13 → 08-18, #1301).
+# The crds/ dir stays the single source of truth: helm still installs it on
+# first install; this hook re-applies it on every deploy (idempotent — an
+# unchanged CRD is a no-op server-side apply).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-crds
+  namespace: {{ .Values.namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+data:
+{{ (.Files.Glob "crds/*.yaml").AsConfig | indent 2 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-crd-upgrade
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Chart.Name }}-crd-upgrade
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-4"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}-crd-upgrade
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ .Chart.Name }}-crd-upgrade
+      containers:
+        - name: apply-crds
+          image: {{ .Values.crdUpgrade.image | quote }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              for f in /crds/*.yaml; do
+                echo "[crd-upgrade] applying $f"
+                kubectl apply --server-side --force-conflicts -f "$f"
+              done
+              echo "[crd-upgrade] done"
+          volumeMounts:
+            - name: crds
+              mountPath: /crds
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: crds
+          configMap:
+            name: {{ .Chart.Name }}-crds

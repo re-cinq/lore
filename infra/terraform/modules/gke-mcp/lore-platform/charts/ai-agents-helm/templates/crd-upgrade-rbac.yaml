@@ -1,0 +1,49 @@
+# RBAC for the crd-upgrade hook: CRDs are cluster-scoped, so the hook's
+# ServiceAccount needs a ClusterRole. Scoped to this API group's CRDs by
+# resourceNames — the hook can update the three agents.re-cinq.com schemas and
+# nothing else. Hook-weighted before the Job so the SA exists when it runs.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Chart.Name }}-crd-upgrade
+  namespace: {{ .Values.namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook-delete-policy": before-hook-creation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Chart.Name }}-crd-upgrade
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook-delete-policy": before-hook-creation
+rules:
+  # No `create`: RBAC ignores resourceNames for creation, and first-install CRD
+  # creation is helm's native crds/ handling anyway — the hook only updates.
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "patch", "update"]
+    resourceNames:
+      - agents.agents.re-cinq.com
+      - agentdefinitions.agents.re-cinq.com
+      - stations.agents.re-cinq.com
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Chart.Name }}-crd-upgrade
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-6"
+    "helm.sh/hook-delete-policy": before-hook-creation
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Chart.Name }}-crd-upgrade
+    namespace: {{ .Values.namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ .Chart.Name }}-crd-upgrade
+  apiGroup: rbac.authorization.k8s.io

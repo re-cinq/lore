@@ -1,6 +1,12 @@
 # Namespace for this subchart's own resources (controller, catalog, netpol, its RBAC).
 namespace: ai-agents
 
+# The kubectl image the crd-upgrade hook runs (templates/crd-upgrade-job.yaml):
+# re-applies crds/*.yaml every deploy so schema changes reach live clusters —
+# helm's native crds/ handling is install-only (#1134).
+crdUpgrade:
+  image: bitnami/kubectl:1.31
+
 # Seed the initial AgentDefinition/Station catalog from scripts/task-types.yaml
 # (templates/catalog.yaml). Operators set this false after first install so they
 # stop re-seeding — the web UI owns the recipes thereafter (re-cinq/lore#698).
