@@ -3,6 +3,7 @@
 
 import type { NodeStatusVisual } from "@/lib/run-node-status";
 import StatusIcon from "./StatusIcon";
+import { fitNodeLabel } from "./run-graph-geometry";
 import { classes, textFillClass } from "./run-graph-tone-classes";
 import styles from "./run-graph.module.css";
 
@@ -14,12 +15,24 @@ export interface NodeRunBadgeProps {
   centerY: number;
 }
 
+/** The text as it will be drawn, plus a hover title ONLY when drawing it cost
+ *  characters — a tooltip repeating text already on screen is noise, and it
+ *  would also make the same string findable twice in the accessibility tree. */
+function fitted(text: string) {
+  const shown = fitNodeLabel(text);
+
+  return { shown, full: shown === text ? null : text };
+}
+
 export default function NodeRunBadge({
   title,
   badge,
   leftEdge,
   centerY,
 }: NodeRunBadgeProps) {
+  const name = fitted(title);
+  const verdict = fitted(badge.label);
+
   return (
     <>
       <StatusIcon tone={badge.tone} cx={leftEdge + 24} cy={centerY} />
@@ -29,7 +42,8 @@ export default function NodeRunBadge({
         y={centerY - 2}
         textAnchor="start"
       >
-        {title}
+        {name.full && <title>{name.full}</title>}
+        {name.shown}
       </text>
       <text
         className={classes(styles.statusLabel, textFillClass(badge.tone))}
@@ -37,7 +51,8 @@ export default function NodeRunBadge({
         y={centerY + 13}
         textAnchor="start"
       >
-        {badge.label}
+        {verdict.full && <title>{verdict.full}</title>}
+        {verdict.shown}
       </text>
     </>
   );
