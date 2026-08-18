@@ -3,11 +3,11 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import RunNodeDetail from "./RunNodeDetail";
 import { implementationDefinition } from "@/lib/definition-fixtures";
-import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
+import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { NodeRunState } from "@/lib/run-event-reducer";
 import type { StepView } from "@/lib/step-presenter";
 
-const row = (over: Partial<AssemblyLineRunNode> = {}): AssemblyLineRunNode => ({
+const row = (over: Partial<AssemblyRunNode> = {}): AssemblyRunNode => ({
   nodeId: "implement",
   iteration: 1,
   outcome: "success",

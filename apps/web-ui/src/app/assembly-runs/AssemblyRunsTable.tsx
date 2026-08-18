@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { AssemblyLineRun } from "@/lib/assembly-line-runs";
+import type { AssemblyRun } from "@/lib/assembly-runs";
 import {
   formatDuration,
   formatRelativeTime,
   runStatusVisual,
-} from "@/lib/assembly-line-presenter";
+} from "@/lib/assembly-run-presenter";
 import { formatCost, shortAgentId } from "@/lib/task-presenter";
 import PRStatusBadgePanel from "../tasks/PRStatusBadgePanel";
-import styles from "./AssemblyLineRunsTable.module.css";
+import styles from "./AssemblyRunsTable.module.css";
 
 const EM_DASH = "—";
 const TABLE_COLUMNS = 9;
@@ -21,11 +21,11 @@ const TABLE_COLUMNS = 9;
  * coordination artifacts (a burst on one branch spawns many), so they are
  * folded away by default rather than drowning the real runs.
  */
-const isCoordinationSkip = (run: AssemblyLineRun): boolean =>
+const isCoordinationSkip = (run: AssemblyRun): boolean =>
   run.status === "finished" && run.outcome === "lease_held";
 
-export interface AssemblyLineRunsTableProps {
-  runs: AssemblyLineRun[];
+export interface AssemblyRunsTableProps {
+  runs: AssemblyRun[];
 }
 
 /**
@@ -36,9 +36,7 @@ export interface AssemblyLineRunsTableProps {
  * webhook-driven family) fall back to args.pr_number / args.actor / the
  * line-keyed llm_calls rows. Em-dash when a run has neither.
  */
-export default function AssemblyLineRunsTable({
-  runs,
-}: AssemblyLineRunsTableProps) {
+export default function AssemblyRunsTable({ runs }: AssemblyRunsTableProps) {
   const [showSkips, setShowSkips] = useState(false);
 
   if (runs.length === 0) {

@@ -1,19 +1,19 @@
 import Link from "next/link";
 import HelpPopover from "@/components/HelpPopover";
-import AssemblyLineRunsTable from "@/app/assembly-runs/AssemblyLineRunsTable";
-import { type AssemblyLineRun } from "@/lib/assembly-line-runs";
+import AssemblyRunsTable from "@/app/assembly-runs/AssemblyRunsTable";
+import { type AssemblyRun } from "@/lib/assembly-runs";
 import styles from "./RepoTasksView.module.css";
 
 export interface RepoTasksViewProps {
   owner: string;
   repo: string;
-  runs: AssemblyLineRun[];
+  runs: AssemblyRun[];
 }
 
 /**
  * Per-repo assembly-runs tab, scoped to one repo. Pure render: the container
  * (`page.tsx`) fetches the per-attempt runs and this component renders them
- * through the shared <AssemblyLineRunsTable>.
+ * through the shared <AssemblyRunsTable>.
  */
 export default function RepoTasksView({
   owner,
@@ -55,7 +55,7 @@ export default function RepoTasksView({
         Assembly lines targeting this repo. Delegate work to agents and track
         their status, stages, PRs, and cost.
       </p>
-      <AssemblyLineRunsTable runs={runs} />
+      <AssemblyRunsTable runs={runs} />
     </div>
   );
 }

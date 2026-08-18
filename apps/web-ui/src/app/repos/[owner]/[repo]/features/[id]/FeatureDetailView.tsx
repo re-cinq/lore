@@ -6,7 +6,7 @@ import CollapsibleCard from "@/components/CollapsibleCard";
 import { DangerZone } from "@/components/DangerZone";
 import {
   FeatureAssemblyLine,
-  type AssemblyLineRunSummary,
+  type AssemblyRunSummary,
 } from "@/components/FeatureAssemblyLine";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import { featurePhaseOf } from "@/lib/feature-phase";
@@ -93,7 +93,7 @@ export default function FeatureDetailView({
   timeoutMinutes: number;
   decomposition: { stories: DecompStoryGroup[]; total: number };
   definition?: AssemblyLineDefinition | null;
-  run?: AssemblyLineRunSummary | null;
+  run?: AssemblyRunSummary | null;
   refine: (
     userAnswers: SectionAnswers,
     fromIteration?: number,

@@ -9,13 +9,13 @@
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import {
-  fetchAssemblyLineRun,
-  fetchAssemblyLineRunNodes,
+  fetchAssemblyRun,
+  fetchAssemblyRunNodes,
   fetchLatestRunForTask,
   fetchRunTokens,
-  type AssemblyLineRun,
-  type AssemblyLineRunNode,
-} from "./assembly-line-runs";
+  type AssemblyRun,
+  type AssemblyRunNode,
+} from "./assembly-runs";
 import { definitionForRun } from "./run-graph-definition";
 import type { RunTokens } from "./run-tokens";
 import { graphIsCacheable } from "./run-graph-cache";
@@ -30,7 +30,7 @@ export interface FeatureRunPayload {
   definition: AssemblyLineDefinition | null;
   /** True when the graph was inferred from visit rows — the caller hides edge labels. */
   synthetic: boolean;
-  nodes: AssemblyLineRunNode[];
+  nodes: AssemblyRunNode[];
   /** What the run has spent so far, or null when it has reported nothing yet. */
   tokens: RunTokens | null;
   /**
@@ -44,8 +44,8 @@ export interface FeatureRunPayload {
 /** Shape a run + its visit rows into the poll payload, resolving the graph to draw.
  *  Pure — definitionForRun does no IO. */
 export function toFeatureRunPayload(
-  run: AssemblyLineRun,
-  nodes: AssemblyLineRunNode[],
+  run: AssemblyRun,
+  nodes: AssemblyRunNode[],
   tokens: RunTokens | null = null,
 ): FeatureRunPayload {
   const { definition, synthetic } = definitionForRun(
@@ -110,7 +110,7 @@ export async function fetchFeatureRunById(
   }
 
   try {
-    const run = await fetchAssemblyLineRun(assemblyLineId);
+    const run = await fetchAssemblyRun(assemblyLineId);
 
     if (!run) {
       return null;
@@ -118,7 +118,7 @@ export async function fetchFeatureRunById(
 
     const payload = toFeatureRunPayload(
       run,
-      await fetchAssemblyLineRunNodes(run.id),
+      await fetchAssemblyRunNodes(run.id),
       await fetchRunTokens(run.id),
     );
 
@@ -148,7 +148,7 @@ export async function fetchFeatureRun(
 
     return toFeatureRunPayload(
       run,
-      await fetchAssemblyLineRunNodes(run.id),
+      await fetchAssemblyRunNodes(run.id),
       await fetchRunTokens(run.id),
     );
   } catch {

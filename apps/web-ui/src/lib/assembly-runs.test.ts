@@ -7,15 +7,11 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-const { toAssemblyLineRun, toAssemblyLineRunNode } =
-  await import("./assembly-line-runs");
+const { toAssemblyRun, toAssemblyRunNode } = await import("./assembly-runs");
 
-import type {
-  AssemblyLineRunRow,
-  AssemblyLineRunNodeRow,
-} from "./assembly-line-runs";
+import type { AssemblyRunRow, AssemblyRunNodeRow } from "./assembly-runs";
 
-const baseRow: AssemblyLineRunRow = {
+const baseRow: AssemblyRunRow = {
   id: "al-1",
   blueprint_name: "implementation",
   graph: null,
@@ -35,9 +31,9 @@ const baseRow: AssemblyLineRunRow = {
   cost_usd: 0.1234,
 };
 
-describe("toAssemblyLineRun", () => {
+describe("toAssemblyRun", () => {
   it("resolves the PR from the task join when pr_url is set", () => {
-    expect(toAssemblyLineRun(baseRow)).toMatchObject({
+    expect(toAssemblyRun(baseRow)).toMatchObject({
       id: "al-1",
       blueprintName: "implementation",
       graph: null,
@@ -51,7 +47,7 @@ describe("toAssemblyLineRun", () => {
   });
 
   it("builds a github pull link from args.pr_number for a code-review run without a task PR", () => {
-    const run = toAssemblyLineRun({
+    const run = toAssemblyRun({
       ...baseRow,
       task_id: null,
       pr_url: null,
@@ -71,7 +67,7 @@ describe("toAssemblyLineRun", () => {
   });
 
   it("maps a run with no task and no PR to null pr/creator/cost", () => {
-    const run = toAssemblyLineRun({
+    const run = toAssemblyRun({
       ...baseRow,
       task_id: null,
       pr_url: null,
@@ -89,15 +85,15 @@ describe("toAssemblyLineRun", () => {
 
   it("leaves duration null for a run that has not finished", () => {
     expect(
-      toAssemblyLineRun({ ...baseRow, started_at: null, finished_at: null })
+      toAssemblyRun({ ...baseRow, started_at: null, finished_at: null })
         .durationSeconds,
     ).toBeNull();
   });
 });
 
-describe("toAssemblyLineRunNode", () => {
+describe("toAssemblyRunNode", () => {
   it("maps a node row and computes its duration", () => {
-    const row: AssemblyLineRunNodeRow = {
+    const row: AssemblyRunNodeRow = {
       node_id: "implement",
       iteration: 1,
       outcome: "success",
@@ -107,7 +103,7 @@ describe("toAssemblyLineRunNode", () => {
       finished_at: "2026-07-14T10:01:05Z",
     };
 
-    expect(toAssemblyLineRunNode(row)).toEqual({
+    expect(toAssemblyRunNode(row)).toEqual({
       nodeId: "implement",
       iteration: 1,
       outcome: "success",
@@ -120,7 +116,7 @@ describe("toAssemblyLineRunNode", () => {
 
   it("leaves duration null for a still-running node", () => {
     expect(
-      toAssemblyLineRunNode({
+      toAssemblyRunNode({
         node_id: "review",
         iteration: 1,
         outcome: null,

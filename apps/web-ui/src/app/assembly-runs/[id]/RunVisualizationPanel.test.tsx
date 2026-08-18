@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import RunVisualizationPanel from "./RunVisualizationPanel";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
-import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
+import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import { codeReviewDefinition } from "@/lib/definition-fixtures";
 import { HISTORY_PAGE_LIMIT } from "./run-stream-presenter";
 
@@ -877,7 +877,7 @@ describe("node inspector", () => {
     });
   }
 
-  function walkRow(over: Partial<AssemblyLineRunNode>): AssemblyLineRunNode {
+  function walkRow(over: Partial<AssemblyRunNode>): AssemblyRunNode {
     return {
       nodeId: "implement",
       iteration: 1,
@@ -889,7 +889,7 @@ describe("node inspector", () => {
     };
   }
 
-  function renderWithNodes(nodes: AssemblyLineRunNode[]) {
+  function renderWithNodes(nodes: AssemblyRunNode[]) {
     return render(
       <RunVisualizationPanel
         runId="run-1"

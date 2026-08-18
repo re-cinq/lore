@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import AssemblyLineRunListView from "./AssemblyLineRunListView";
+import AssemblyRunListView from "./AssemblyRunListView";
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -10,9 +10,9 @@ beforeEach(() => {
   );
 });
 
-describe("AssemblyLineRunListView", () => {
+describe("AssemblyRunListView", () => {
   it("renders the heading and the Create Task link", () => {
-    render(<AssemblyLineRunListView runs={[]} />);
+    render(<AssemblyRunListView runs={[]} />);
 
     expect(
       screen.getByRole("heading", { name: "Assembly Runs" }),
@@ -24,7 +24,7 @@ describe("AssemblyLineRunListView", () => {
   });
 
   it("marks All active and links the four run statuses when none is selected", () => {
-    render(<AssemblyLineRunListView runs={[]} />);
+    render(<AssemblyRunListView runs={[]} />);
 
     const all = screen.getByRole("link", { name: "All" });
 
@@ -40,7 +40,7 @@ describe("AssemblyLineRunListView", () => {
   });
 
   it("marks the selected status filter active", () => {
-    render(<AssemblyLineRunListView activeStatus="failed" runs={[]} />);
+    render(<AssemblyRunListView activeStatus="failed" runs={[]} />);
 
     expect(screen.getByRole("link", { name: "Failed" })).toHaveClass("active");
     expect(screen.getByRole("link", { name: "All" })).not.toHaveClass("active");

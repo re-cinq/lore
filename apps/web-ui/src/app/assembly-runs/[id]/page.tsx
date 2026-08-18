@@ -1,13 +1,10 @@
 export const dynamic = "force-dynamic";
 import { getTask } from "@/lib/api/tasks";
 import { redirect } from "next/navigation";
-import {
-  fetchAssemblyLineRun,
-  fetchAssemblyLineRunNodes,
-} from "@/lib/assembly-line-runs";
+import { fetchAssemblyRun, fetchAssemblyRunNodes } from "@/lib/assembly-runs";
 import { fetchTaskEvents, fetchLlmCalls } from "@/lib/task-runtime";
 import { definitionForRun } from "@/lib/run-graph-definition";
-import AssemblyLineRunView from "./AssemblyLineRunView";
+import AssemblyRunView from "./AssemblyRunView";
 import RunVisualizationPanel from "./RunVisualizationPanel";
 import { TriggerReviewButton } from "./TriggerReviewButton";
 import EventTimeline from "@/app/tasks/[id]/EventTimeline";
@@ -34,10 +31,10 @@ export default async function AssemblyLineResolverPage({
     return <p>Not found.</p>;
   }
 
-  const run = await fetchAssemblyLineRun(id);
+  const run = await fetchAssemblyRun(id);
 
   if (run) {
-    const nodes = await fetchAssemblyLineRunNodes(id);
+    const nodes = await fetchAssemblyRunNodes(id);
     const [events, llmCalls] = run.taskId
       ? await Promise.all([
           fetchTaskEvents(run.taskId),
@@ -52,7 +49,7 @@ export default async function AssemblyLineResolverPage({
 
     return (
       <>
-        <AssemblyLineRunView run={run} />
+        <AssemblyRunView run={run} />
         {run.blueprintName === "code-review" && run.prNumber ? (
           <TriggerReviewButton repo={run.repo} prNumber={run.prNumber} />
         ) : null}

@@ -1,6 +1,6 @@
 // @vitest-environment node
 //
-// feature-run reaches assembly-line-runs, which now reads through the
+// feature-run reaches assembly-runs, which now reads through the
 // server-only lore-api client.
 
 import { describe, it, expect, vi } from "vitest";
@@ -10,13 +10,10 @@ vi.mock("server-only", () => ({}));
 const { fetchFeatureRun, runTaskIdFor, toFeatureRunPayload } =
   await import("./feature-run");
 
-import type {
-  AssemblyLineRun,
-  AssemblyLineRunNode,
-} from "./assembly-line-runs";
+import type { AssemblyRun, AssemblyRunNode } from "./assembly-runs";
 import { featurePlanningDefinition } from "./definition-fixtures";
 
-const planningRun: AssemblyLineRun = {
+const planningRun: AssemblyRun = {
   id: "ae7918b1-4baa-41fc-8b34-deb1be4cddf9",
   blueprintName: "feature-planning",
   // A real run carries its clone, stamped at start — so the wizard can draw the
@@ -48,7 +45,7 @@ const planningRun: AssemblyLineRun = {
   costUsd: null,
 };
 
-const analyzeNode: AssemblyLineRunNode = {
+const analyzeNode: AssemblyRunNode = {
   nodeId: "analyze",
   iteration: 1,
   outcome: null,

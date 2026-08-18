@@ -6,7 +6,7 @@ import {
   replayTo,
 } from "./run-event-reducer";
 import type { RunStreamEvent } from "./run-stream-types";
-import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { AssemblyRunNode } from "./assembly-runs";
 import { implementationDefinition } from "./definition-fixtures";
 
 let nextId = 0;
@@ -34,9 +34,7 @@ function event(over: Partial<RunStreamEvent> = {}): RunStreamEvent {
   };
 }
 
-function visitRow(
-  over: Partial<AssemblyLineRunNode> = {},
-): AssemblyLineRunNode {
+function visitRow(over: Partial<AssemblyRunNode> = {}): AssemblyRunNode {
   return {
     nodeId: "implement",
     iteration: 1,

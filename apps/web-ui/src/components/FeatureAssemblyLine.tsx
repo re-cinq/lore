@@ -6,14 +6,14 @@ import { isTerminalRunStatus } from "@/app/assembly-runs/[id]/run-stream-present
 import { deriveVisibleGraph } from "@/lib/graph-view-model";
 import { walkRunData } from "@/lib/run-walk-data";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
-import type { AssemblyLineRunNode } from "@/lib/assembly-line-runs";
+import type { AssemblyRunNode } from "@/lib/assembly-runs";
 
 /** The run to draw, narrowed to what the graph needs. A TYPE-ONLY import of the
  *  node row on purpose: a value import from feature-run.ts drags its db → pg chain
  *  into the browser bundle (see feature-phase.ts). */
-export interface AssemblyLineRunSummary {
+export interface AssemblyRunSummary {
   status: string;
-  nodes: readonly AssemblyLineRunNode[];
+  nodes: readonly AssemblyRunNode[];
 }
 
 // The machine behind the planning pages, shown on both of them: what "Start
@@ -33,7 +33,7 @@ export function FeatureAssemblyLine({
   title = "How planning works",
 }: {
   definition: AssemblyLineDefinition | null;
-  run?: AssemblyLineRunSummary | null;
+  run?: AssemblyRunSummary | null;
   title?: string;
 }) {
   if (!definition) {

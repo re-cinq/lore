@@ -3,7 +3,7 @@
 // ordering and transition rules stay unit-testable away from the DB and React.
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
-import type { AssemblyLineRunNode } from "./assembly-line-runs";
+import type { AssemblyRunNode } from "./assembly-runs";
 import { layerByLongestPath } from "./dag-layout";
 import { chosenEdge } from "./run-taken-edges";
 
@@ -51,7 +51,7 @@ function toneOf(outcome: string | null): { tone: StepTone; label: string } {
 function transitionOf(
   definition: AssemblyLineDefinition | null,
   layers: Map<string, number>,
-  node: AssemblyLineRunNode,
+  node: AssemblyRunNode,
 ): string | null {
   const edge = chosenEdge(definition, node.nodeId, node.outcome);
 
@@ -70,7 +70,7 @@ function transitionOf(
  */
 export function stepViews(
   definition: AssemblyLineDefinition | null,
-  nodes: readonly AssemblyLineRunNode[],
+  nodes: readonly AssemblyRunNode[],
   runReason: string | null = null,
 ): StepView[] {
   const layers = definition
