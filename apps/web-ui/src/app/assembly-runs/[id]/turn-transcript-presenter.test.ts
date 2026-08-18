@@ -34,19 +34,19 @@ function fullPage(): AgentRunTurn[] {
 describe("turnsUrl", () => {
   it("requests the run's turns proxy with the page limit", () => {
     expect(turnsUrl("run-1", "0")).toBe(
-      `/api/assembly-lines/run-1/turns?limit=${TURNS_PAGE_LIMIT}`,
+      `/api/assembly-runs/run-1/turns?limit=${TURNS_PAGE_LIMIT}`,
     );
   });
 
   it("appends the cursor for a resumed page", () => {
     expect(turnsUrl("run-1", "42")).toBe(
-      `/api/assembly-lines/run-1/turns?limit=${TURNS_PAGE_LIMIT}&after=42`,
+      `/api/assembly-runs/run-1/turns?limit=${TURNS_PAGE_LIMIT}&after=42`,
     );
   });
 
   it("URL-encodes a hostile run id", () => {
     expect(turnsUrl("a/b?c", "0")).toBe(
-      `/api/assembly-lines/a%2Fb%3Fc/turns?limit=${TURNS_PAGE_LIMIT}`,
+      `/api/assembly-runs/a%2Fb%3Fc/turns?limit=${TURNS_PAGE_LIMIT}`,
     );
   });
 });

@@ -2,12 +2,12 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { fetchAssemblyLineRun } from "@/lib/assembly-line-runs";
+import { fetchAssemblyRun } from "@/lib/assembly-runs";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { serverError } from "@/lib/api-error";
 
 /**
- * GET /api/assembly-lines/[id]/turns — session-authed proxy for one run's
+ * GET /api/assembly-runs/[id]/turns — session-authed proxy for one run's
  * full-fidelity turns, forwarding to the Floor's /api/agent-turns/{id}
  * (specs/turn-level-transcript-store, #1148). The sibling of the ./events
  * proxy: same auth ladder, same forwarded paging params, but the rows carry
@@ -32,7 +32,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const run = await fetchAssemblyLineRun(id);
+    const run = await fetchAssemblyRun(id);
 
     if (!run) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });

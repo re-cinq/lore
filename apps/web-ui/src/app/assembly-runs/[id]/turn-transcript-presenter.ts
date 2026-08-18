@@ -16,7 +16,7 @@ export const TURNS_PAGE_LIMIT = 5000;
 export const MAX_TURNS_LOADED = 10_000;
 
 export function turnsUrl(runId: string, afterId: string): string {
-  const base = `/api/assembly-lines/${encodeURIComponent(
+  const base = `/api/assembly-runs/${encodeURIComponent(
     runId,
   )}/turns?limit=${TURNS_PAGE_LIMIT}`;
 
