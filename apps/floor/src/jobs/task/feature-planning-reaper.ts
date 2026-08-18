@@ -44,6 +44,9 @@ interface Candidate {
 export async function featurePlanningReaperJob(): Promise<string> {
   // The failed arm is bounded to a day: a genuinely failed old round stays
   // failed; only a recent one can still be an artifact-recovery candidate.
+  // The arm matches features by ANY qualifying failed iteration, but the loop
+  // below only ever inspects the LATEST one — an older failed round behind a
+  // newer iteration is settled history, and lostArtifactRound rejects it.
   const rows = await query<Candidate>(
     `SELECT DISTINCT f.id, f.repo
        FROM lore.features f
@@ -89,7 +92,14 @@ export async function featurePlanningReaperJob(): Promise<string> {
       // lost (#1298) is healed from the transcript, never orphaned: the
       // artifact is re-applied through the same applyGapResult the pod's own
       // delivery uses.
-      const lostRound = lostArtifactRound(latest, latestRun, feature.status);
+      // A `running` round on an OPEN run is simply in flight — its artifact is
+      // not lost, it has not been written yet; probing station runs every tick
+      // for it would be noise. Recovery considers it only once the run closes
+      // (or the round was already failed, the incident shape).
+      const lostRound =
+        runOpen && latest?.status === "running"
+          ? null
+          : lostArtifactRound(latest, latestRun, feature.status);
 
       if (
         lostRound !== null &&

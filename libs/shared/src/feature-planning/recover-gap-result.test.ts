@@ -69,6 +69,39 @@ describe("gapResultFromTurns", () => {
     expect(gapResultFromTurns(turns, "result.json")).toEqual(gap);
   });
 
+  it("prefers the last write within a single message too", () => {
+    const turns = [
+      {
+        event: {
+          type: "assistant",
+          message: {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_use",
+                name: "Write",
+                input: {
+                  file_path: "/workspace/target/result.json",
+                  content: JSON.stringify({ draft_spec_markdown: "old" }),
+                },
+              },
+              {
+                type: "tool_use",
+                name: "Write",
+                input: {
+                  file_path: "/workspace/target/result.json",
+                  content: JSON.stringify(gap),
+                },
+              },
+            ],
+          },
+        },
+      },
+    ];
+
+    expect(gapResultFromTurns(turns, "result.json")).toEqual(gap);
+  });
+
   it("tolerates envelopes that are not turn-shaped at all", () => {
     expect(
       gapResultFromTurns([null, 42, {}, { event: {} }], "result.json"),

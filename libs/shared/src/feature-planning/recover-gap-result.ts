@@ -47,7 +47,13 @@ export function gapResultFromTurns(
       continue;
     }
 
-    for (const block of content as ToolUseBlock[]) {
+    // Blocks scan newest-first too: one message can carry several Writes and
+    // the LAST one is the version the watch would have shipped.
+    const blocks = content as ToolUseBlock[];
+
+    for (let b = blocks.length - 1; b >= 0; b--) {
+      const block = blocks[b];
+
       if (block?.type !== "tool_use" || block.name !== "Write") {
         continue;
       }
