@@ -34,7 +34,8 @@ mislead every later reader.
 > **Amendment (2026-08-11, #1148).** The GCS archive described above is retired.
 > `pipeline.agent_run_turns` (`specs/turn-level-transcript-store`) now holds the
 > full redacted stream — keyed by run, correlated to assembly-line nodes, 30-day
-> retention, readable at `GET /api/agent-turns/{assemblyLineId}` — which is
+> default retention (`LORE_AGENT_RUN_TURN_RETENTION_DAYS`, #1296), readable at
+> `GET /api/agent-turns/{assemblyLineId}` — which is
 > strictly stronger than the archive on every axis the Alternatives section used
 > to reject reading it. The sink's durable outputs are the three Postgres row
 > families; existing `__agent_events__/` objects age out via the bucket's

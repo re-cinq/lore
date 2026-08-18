@@ -43,6 +43,11 @@ env:
   # Shared Dgraph endpoint (memory + spec-trace graphs). Empty → graph features
   # fail soft. Overridden by terraform set to the in-cluster service DNS.
   LORE_DGRAPH_HTTP: ""
+  # Retention window in days for pipeline.agent_run_turns (the full-fidelity
+  # transcript store), pruned hourly. Uncomment to override the 30-day default —
+  # the same operator lever the GCS task-log bucket has via the
+  # `log_retention_days` terraform variable (also 30 by default).
+  # LORE_AGENT_RUN_TURN_RETENTION_DAYS: "30"
   ANTHROPIC_MODEL: claude-haiku-4-5-20251001
   TASK_TYPES_PATH: /config/task-types.yaml
   PORT: "8080"

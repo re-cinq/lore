@@ -76,3 +76,40 @@ describe("eventsPrune turn retention", () => {
     ).toBe(true);
   });
 });
+
+describe("eventsPrune turn retention override", () => {
+  afterEach(() => {
+    delete process.env.LORE_AGENT_RUN_TURN_RETENTION_DAYS;
+  });
+
+  it("prunes agent run turns at 90 days when LORE_AGENT_RUN_TURN_RETENTION_DAYS=90", async () => {
+    process.env.LORE_AGENT_RUN_TURN_RETENTION_DAYS = "90";
+
+    await eventsPrune(tick as never);
+
+    expect(pruneTurns).toHaveBeenCalledWith(90);
+  });
+
+  it("falls back to 30 days with a warning when the override is not a positive integer within 3650", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    process.env.LORE_AGENT_RUN_TURN_RETENTION_DAYS = "0";
+    await eventsPrune(tick as never);
+    expect(pruneTurns).toHaveBeenCalledWith(30);
+
+    pruneTurns.mockClear();
+    process.env.LORE_AGENT_RUN_TURN_RETENTION_DAYS = "ninety";
+    await eventsPrune(tick as never);
+    expect(pruneTurns).toHaveBeenCalledWith(30);
+
+    pruneTurns.mockClear();
+    process.env.LORE_AGENT_RUN_TURN_RETENTION_DAYS = "99999999999999999";
+    await eventsPrune(tick as never);
+    expect(pruneTurns).toHaveBeenCalledWith(30);
+
+    expect(warn).toHaveBeenCalledTimes(3);
+    expect(String(warn.mock.calls[0]?.[0])).toContain(
+      "LORE_AGENT_RUN_TURN_RETENTION_DAYS=0",
+    );
+  });
+});

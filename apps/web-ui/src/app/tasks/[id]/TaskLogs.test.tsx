@@ -771,4 +771,61 @@ describe("TaskLogs", () => {
       expect.objectContaining({ signal: expect.anything() }),
     );
   });
+
+  it("renders the no-transcript state when a completed task resolves null logs", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ logs: null, status: "completed", totalSize: 0 }),
+        ),
+    );
+
+    render(<TaskLogs taskId="t1" initialStatus="completed" />);
+    await settle();
+
+    expect(
+      screen.getByText("No transcript is available on this page."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Logs will appear when the agent starts."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the no-transcript state when a failed task resolves null logs", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ logs: null, status: "failed", totalSize: 0 }),
+        ),
+    );
+
+    render(<TaskLogs taskId="t1" initialStatus="failed" />);
+    await settle();
+
+    expect(
+      screen.getByText("No transcript is available on this page."),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the no-transcript state when a task in review resolves null logs", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ logs: null, status: "review", totalSize: 0 }),
+        ),
+    );
+
+    render(<TaskLogs taskId="t1" initialStatus="review" />);
+    await settle();
+
+    expect(
+      screen.getByText("No transcript is available on this page."),
+    ).toBeInTheDocument();
+  });
 });
