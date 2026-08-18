@@ -1,6 +1,13 @@
+// @vitest-environment jsdom
+//
+// jsdom on purpose: the sanitizer-config tests need DOMPurify's browser shape
+// (an instance, not the windowless factory the component code has to absorb).
 import { describe, it, expect } from "vitest";
+import DOMPurify from "dompurify";
 import {
   DEFAULT_MOCKUP_HEIGHT,
+  MOCKUP_SVG_CONFIG,
+  mermaidFrameHeight,
   mockupFrameSrcdoc,
   mockupHeight,
   sanitizeMockupMarkup,
@@ -117,5 +124,56 @@ describe("a stylesheet that tries to close its own style block", () => {
 
     expect(doc).not.toContain("</style><img");
     expect(doc.match(/<\/style>/g)).toHaveLength(1);
+  });
+});
+
+describe("mermaidFrameHeight", () => {
+  it("sizes the frame from the rendered svg's viewBox, with breathing room", () => {
+    expect(
+      mermaidFrameHeight('<svg viewBox="0 0 586 1477.5" class="flowchart">'),
+    ).toBe(1494);
+  });
+
+  it("caps an absurdly tall diagram at the same ceiling a declared height gets", () => {
+    expect(mermaidFrameHeight('<svg viewBox="0 0 100 99999">')).toBe(2000);
+  });
+
+  it("returns null for an svg that declares no viewBox — the default serves", () => {
+    expect(mermaidFrameHeight("<svg><g/></svg>")).toBeNull();
+  });
+});
+
+describe("the svg sanitizer config keeps mermaid's html labels", () => {
+  // mermaid v11 emits ER labels and flowchart EDGE labels as foreignObject html
+  // whatever flowchart.htmlLabels says. Forbidding the tag stripped every label
+  // and an ER mockup rendered as an unlabeled skeleton — an empty-looking frame
+  // (feature be6ad6a5, 2026-08-18). The sandboxed no-script frame is the boundary
+  // that holds; the config only needs to keep executable content out.
+  it("keeps the foreignObject element and never a script", () => {
+    // jsdom parses the foreignObject interior stricter than a browser; in real
+    // chromium this config keeps the label text too (verified against the
+    // be6ad6a5 diagrams: 84/84 ER labels survive). What is assertable here:
+    // the element is no longer stripped wholesale, and script never passes.
+    const clean = DOMPurify.sanitize(
+      '<svg viewBox="0 0 10 10"><foreignObject width="1" height="1">' +
+        '<div xmlns="http://www.w3.org/1999/xhtml"><span>contains</span>' +
+        "<script>evil()</scr" +
+        "ipt></div></foreignObject></svg>",
+      MOCKUP_SVG_CONFIG,
+    );
+
+    expect(clean).toContain("<foreignObject");
+    expect(clean).not.toContain("script");
+  });
+
+  it("still strips event handlers and nested frames", () => {
+    const clean = DOMPurify.sanitize(
+      '<svg onload="evil()"><foreignObject><iframe src="x"></iframe>' +
+        "</foreignObject></svg>",
+      MOCKUP_SVG_CONFIG,
+    );
+
+    expect(clean).not.toContain("onload");
+    expect(clean).not.toContain("iframe");
   });
 });
