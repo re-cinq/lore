@@ -105,3 +105,16 @@ export function decideFeatureLink(
 
   return { featureId: contextBundle.feature_id, slug: contextBundle.slug };
 }
+
+/** The web-ui task page — the canonical log surface (#1294). Undefined when no
+ *  UI base URL is configured: callers drop the link rather than fabricate one. */
+export function taskPageUrl(
+  taskId: string,
+  uiUrl: string | undefined,
+): string | undefined {
+  if (!uiUrl) {
+    return undefined;
+  }
+
+  return `${uiUrl.replace(/\/+$/, "")}/tasks/${taskId}`;
+}
