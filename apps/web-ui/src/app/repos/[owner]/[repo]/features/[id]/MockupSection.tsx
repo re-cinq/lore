@@ -4,6 +4,9 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import DOMPurify from "dompurify";
 import type { GapMockup } from "@/lib/feature-types";
 import {
+  MOCKUP_HTML_CONFIG,
+  MOCKUP_SVG_CONFIG,
+  mermaidFrameHeight,
   mockupFrameSrcdoc,
   mockupHeight,
   sanitizeMockupMarkup,
@@ -16,20 +19,12 @@ import {
 //     `<style>` inside an inline svg applies document-wide, so the old inline
 //     rendering would have let a mockup restyle the wizard around it.
 //  2. DOMPurify over the markup before it goes in, with the profile that matches
-//     the format — the svg profile would strip an html mockup's divs to nothing.
+//     the format (MOCKUP_*_CONFIG in mockup-frame.ts, where the foreignObject
+//     decision is documented) — the svg profile would strip an html mockup's
+//     divs to nothing.
 //
 // sanitizeGapResult() runs on the write path too (defense in depth). NEVER put
 // mockup markup anywhere but inside the frame.
-const SVG_CONFIG = {
-  USE_PROFILES: { svg: true, svgFilters: true },
-  FORBID_TAGS: ["script", "foreignObject"],
-  FORBID_ATTR: ["onload", "onclick", "onmouseover", "onmouseenter", "onfocus"],
-};
-const HTML_CONFIG = {
-  USE_PROFILES: { html: true, svg: true },
-  FORBID_TAGS: ["script", "iframe", "object", "embed", "link", "base"],
-  FORBID_ATTR: ["onload", "onclick", "onmouseover", "onmouseenter", "onfocus"],
-};
 
 const DOWNLOAD_EXTENSION: Record<string, string> = {
   svg: "svg",
@@ -68,8 +63,10 @@ function useMermaidSvg(mockup: GapMockup, index: number): string | null {
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: "strict",
-          // No foreignObject labels: the frame renders fine either way, but plain
-          // <text> survives the svg sanitizer, and foreignObject does not.
+          // Plain <text> node labels where mermaid offers the choice — crisper in
+          // the sandboxed frame and independent of html sanitization. This flag is
+          // flowchart-only: ER labels and flowchart EDGE labels are foreignObject
+          // html regardless, which is why MOCKUP_SVG_CONFIG must allow the tag.
           flowchart: { htmlLabels: false },
         });
         const rendered = await mermaid.render(
@@ -122,7 +119,11 @@ function MockupFigure({
     () => false,
   );
   const clean = isBrowser
-    ? sanitizeMockupMarkup(DOMPurify, raw, isHtml ? HTML_CONFIG : SVG_CONFIG)
+    ? sanitizeMockupMarkup(
+        DOMPurify,
+        raw,
+        isHtml ? MOCKUP_HTML_CONFIG : MOCKUP_SVG_CONFIG,
+      )
     : "";
   const href = `data:text/plain;charset=utf-8,${encodeURIComponent(mockup.markup)}`;
 
@@ -153,7 +154,12 @@ function MockupFigure({
           sandbox=""
           srcDoc={mockupFrameSrcdoc(clean, stylesheet)}
           title={mockup.title || `Mockup ${index + 1}`}
-          height={mockupHeight(mockup)}
+          // A rendered mermaid diagram knows its real height (the frame cannot
+          // measure itself); a declared/default height serves the rest.
+          height={
+            (isMermaid && mermaidSvg ? mermaidFrameHeight(mermaidSvg) : null) ??
+            mockupHeight(mockup)
+          }
           style={{
             width: "100%",
             border: "1px solid var(--border)",

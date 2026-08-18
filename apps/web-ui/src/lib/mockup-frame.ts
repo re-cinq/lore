@@ -53,6 +53,48 @@ export function mockupHeight(mockup: GapMockup): number {
   return Math.min(declared, MAX_MOCKUP_HEIGHT);
 }
 
+// Sanitizer configs for the two mockup formats. LLM-generated markup is
+// UNTRUSTED; the sandboxed frame (no scripts, no same-origin) is the boundary
+// that HOLDS, and the sanitizer is defense in depth on top of it.
+//
+// `foreignObject` is deliberately ALLOWED for svg (with the html profile on, so
+// its interior is sanitized like any other html): mermaid v11 renders ER-diagram
+// labels and flowchart EDGE labels as foreignObject html regardless of
+// `flowchart.htmlLabels`, and forbidding the tag stripped every label — an ER
+// mockup rendered as an unlabeled skeleton, which reads as an empty frame
+// (found live on feature be6ad6a5, 2026-08-18). Nothing in a foreignObject can
+// execute here: script/iframe/object/embed stay forbidden and the frame has no
+// scripting at all.
+export const MOCKUP_SVG_CONFIG = {
+  USE_PROFILES: { svg: true, svgFilters: true, html: true },
+  ADD_TAGS: ["foreignObject"],
+  FORBID_TAGS: ["script", "iframe", "object", "embed", "link", "base"],
+  FORBID_ATTR: ["onload", "onclick", "onmouseover", "onmouseenter", "onfocus"],
+};
+export const MOCKUP_HTML_CONFIG = {
+  USE_PROFILES: { html: true, svg: true },
+  FORBID_TAGS: ["script", "iframe", "object", "embed", "link", "base"],
+  FORBID_ATTR: ["onload", "onclick", "onmouseover", "onmouseenter", "onfocus"],
+};
+
+/**
+ * The frame height a RENDERED mermaid svg actually needs, from its viewBox —
+ * or null when the svg declares none. The frame cannot measure itself
+ * (`sandbox=""`, no same-origin), and mermaid diagrams routinely run taller
+ * than the 420px default, which clipped a tall flowchart to its top third.
+ * Clamped like a declared height; small padding covers the frame's own chrome.
+ */
+export function mermaidFrameHeight(svg: string): number | null {
+  const viewBox = /viewBox="[-\d.]+ [-\d.]+ [-\d.]+ ([\d.]+)"/.exec(svg);
+  const height = viewBox ? Number(viewBox[1]) : NaN;
+
+  if (!(height > 0)) {
+    return null;
+  }
+
+  return Math.min(Math.ceil(height) + 16, MAX_MOCKUP_HEIGHT);
+}
+
 /** A purifier that may or may not have been handed a window yet. */
 interface MaybePurifier {
   sanitize?: unknown;
