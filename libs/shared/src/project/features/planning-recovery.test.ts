@@ -199,3 +199,39 @@ describe("decidePlanningRecovery — startup grace", () => {
     ).toEqual({ kind: "none" });
   });
 });
+
+describe("decidePlanningRecovery with an open assembly run (#1297)", () => {
+  const running = (ageMs: number): FeatureIteration =>
+    iter({
+      iteration: 2,
+      status: "running",
+      created_at: new Date(now - ageMs).toISOString(),
+    });
+
+  it("never orphans a running round whose assembly run is open, whatever the probe said", () => {
+    // The run is the single liveness authority: its own reaper times it out and
+    // relaunches its CRs. A transiently empty CR listing must not execute a live
+    // round — on 2026-08-18 it did, a minute before the agent SUCCEEDED.
+    expect(
+      decidePlanningRecovery({
+        iterations: [running(PLANNING_RECOVERY_STALE_MS + 1_000)],
+        featureStatus: "planning",
+        isActive: false,
+        nowMs: now,
+        runOpen: true,
+      }),
+    ).toEqual({ kind: "none" });
+  });
+
+  it("still orphans past the window once the run is no longer open", () => {
+    expect(
+      decidePlanningRecovery({
+        iterations: [running(PLANNING_RECOVERY_STALE_MS + 1_000)],
+        featureStatus: "planning",
+        isActive: false,
+        nowMs: now,
+        runOpen: false,
+      }),
+    ).toEqual({ kind: "orphan", iteration: 2 });
+  });
+});
