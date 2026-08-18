@@ -3,7 +3,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import TaskLogs from "./TaskLogs";
 import TaskRefreshProvider from "./TaskRefreshProvider";
-import { SAMPLE_LOG, TOOL_USE_BASH } from "@/lib/agent-log-entries.fixtures";
+import {
+  ASSISTANT_TEXT,
+  ASSISTANT_THINKING,
+  LIFECYCLE_STARTED,
+  LIFECYCLE_SUCCEEDED,
+  RESULT_TERMINAL,
+  SESSION_INIT,
+  STATION_LOG,
+  THINKING_TOKENS_11,
+  THINKING_TOKENS_21,
+  THINKING_TOKENS_444,
+  TOOL_RESULT_ERROR,
+  TOOL_RESULT_OK,
+  TOOL_USE_BASH,
+  TOOL_USE_SKILL,
+  USER_PROMPT,
+} from "@/lib/agent-log-entries.fixtures";
+import { TURNS_PAGE_LIMIT } from "@/app/assembly-runs/[id]/turn-transcript-presenter";
 
 // The coordinated interval now lives in TaskRefreshProvider, so timer-driven
 // tests render inside it (taskStatus "done" keeps run discovery off; jsdom has
@@ -16,7 +33,7 @@ function renderWithRefresh(ui: React.ReactElement) {
   );
 }
 
-// jsdom does not implement scrollIntoView; the auto-scroll effect calls it on every logs change.
+// jsdom does not implement scrollIntoView; the auto-scroll effect calls it on every turns change.
 beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
 });
@@ -27,48 +44,92 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-type Payload = {
-  logs: string | null;
-  status: string;
-  totalSize: number;
-  error?: string;
-};
+let nextTurnId = 0;
 
-function jsonResponse(
-  body: Payload,
+// One stored turn row as the proxy serves it: the untruncated {source, event}
+// envelope plus correlation fields (mirrors AgentRunTurnRow's JSON projection).
+function turnRow(
+  line: string,
+  over: Partial<{
+    id: string;
+    nodeId: string | null;
+    iteration: number | null;
+  }> = {},
+) {
+  nextTurnId += 1;
+
+  return {
+    id: over.id ?? String(nextTurnId),
+    taskId: "t1",
+    agentCrName: "cr-1",
+    assemblyLineId: null,
+    nodeId: over.nodeId ?? null,
+    iteration: over.iteration ?? null,
+    stationRunId: null,
+    eventType: null,
+    envelope: { source: { agent: "cr-1" }, event: JSON.parse(line) },
+    createdAt: "2026-08-18T00:00:00.000Z",
+  };
+}
+
+function turnsResponse(
+  turns: unknown[],
+  taskStatus: string,
   init: { ok?: boolean; status?: number } = {},
 ) {
   return {
     ok: init.ok ?? true,
     status: init.status ?? 200,
-    json: async () => body,
-    text: async () => JSON.stringify(body),
+    headers: {
+      get: (name: string) => (name === "X-Task-Status" ? taskStatus : null),
+    },
+    json: async () => ({ turns }),
+    text: async () => JSON.stringify({ turns }),
   };
 }
 
 // Flush the pending fetch().then() microtask chain so the state setters run inside act().
-// Several `.then` hops chain (fetch -> res -> res.json -> setState), so loop until quiet.
+// The cursor walk chains several hops per page (fetch -> json -> setState -> next page),
+// so loop until quiet.
 async function settle() {
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 12; i++) {
     await act(async () => {
       await Promise.resolve();
     });
   }
 }
 
-function offsetCalls(fetchMock: ReturnType<typeof vi.fn>): string[] {
+function afterCalls(fetchMock: ReturnType<typeof vi.fn>): string[] {
   return fetchMock.mock.calls
     .map((c) => c[0] as string)
-    .filter((u) => u.includes("offset="));
+    .filter((u) => u.includes("after="));
+}
+
+// The full production sample as stored turns (the non-JSON runner marker has no
+// turn row — the ingest only stores stream-json lines).
+function sampleTurns() {
+  return [
+    LIFECYCLE_STARTED,
+    SESSION_INIT,
+    THINKING_TOKENS_11,
+    THINKING_TOKENS_21,
+    ASSISTANT_THINKING,
+    TOOL_USE_SKILL,
+    TOOL_RESULT_OK,
+    USER_PROMPT,
+    THINKING_TOKENS_444,
+    ASSISTANT_TEXT,
+    TOOL_USE_BASH,
+    TOOL_RESULT_ERROR,
+    STATION_LOG,
+    RESULT_TERMINAL,
+    LIFECYCLE_SUCCEEDED,
+  ].map((line) => turnRow(line));
 }
 
 describe("TaskLogs", () => {
-  it("renders the empty placeholder before any logs resolve", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        jsonResponse({ logs: null, status: "queued", totalSize: 0 }),
-      );
+  it("renders the empty placeholder before any turns resolve", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(turnsResponse([], "queued"));
 
     vi.stubGlobal("fetch", fetchMock);
 
@@ -78,18 +139,17 @@ describe("TaskLogs", () => {
     ).toBeInTheDocument();
 
     await settle();
-    // Server returned null logs → placeholder remains, terminal block absent.
+    // Zero turns on a not-yet-terminal task → the agent has emitted nothing
+    // yet, so the placeholder remains.
     expect(
       screen.getByText("Logs will appear when the agent starts."),
     ).toBeInTheDocument();
   });
 
-  it("requests the bare logs URL (no offset) on the initial full fetch", async () => {
+  it("requests the page-limit URL with no after param on the initial fetch", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(
-        jsonResponse({ logs: "line-1\n", status: "succeeded", totalSize: 7 }),
-      );
+      .mockResolvedValue(turnsResponse([turnRow(ASSISTANT_TEXT)], "succeeded"));
 
     vi.stubGlobal("fetch", fetchMock);
 
@@ -97,28 +157,25 @@ describe("TaskLogs", () => {
     await settle();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/tasks/abc/logs",
+      `/api/tasks/abc/logs?limit=${TURNS_PAGE_LIMIT}`,
       expect.objectContaining({ signal: expect.anything() }),
     );
-    // succeeded is not an ACTIVE_STATE → the offset branch is never taken.
-    expect(offsetCalls(fetchMock)).toHaveLength(0);
+    expect(afterCalls(fetchMock)).toHaveLength(0);
   });
 
-  it("renders fetched logs in the terminal block after the first resolved fetch", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse({
-        logs: "hello world output",
-        status: "succeeded",
-        totalSize: 18,
-      }),
-    );
+  it("renders fetched turns in the terminal block after the first resolved fetch", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(turnsResponse([turnRow(ASSISTANT_TEXT)], "succeeded"));
 
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TaskLogs taskId="t1" initialStatus="queued" />);
     await settle();
 
-    expect(screen.getByText("hello world output")).toBeInTheDocument();
+    expect(
+      screen.getByText(/fetch the PR metadata and diff/),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText("Logs will appear when the agent starts."),
     ).not.toBeInTheDocument();
@@ -130,7 +187,7 @@ describe("TaskLogs", () => {
       vi
         .fn()
         .mockResolvedValue(
-          jsonResponse({ logs: "x", status: "succeeded", totalSize: 1 }),
+          turnsResponse([turnRow(ASSISTANT_TEXT)], "succeeded"),
         ),
     );
     render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
@@ -144,7 +201,7 @@ describe("TaskLogs", () => {
       vi
         .fn()
         .mockResolvedValue(
-          jsonResponse({ logs: "x", status: "pr-created", totalSize: 1 }),
+          turnsResponse([turnRow(ASSISTANT_TEXT)], "pr-created"),
         ),
     );
     render(<TaskLogs taskId="t1" initialStatus="pr-created" />);
@@ -157,9 +214,7 @@ describe("TaskLogs", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValue(
-          jsonResponse({ logs: "x", status: "merged", totalSize: 1 }),
-        ),
+        .mockResolvedValue(turnsResponse([turnRow(ASSISTANT_TEXT)], "merged")),
     );
     render(<TaskLogs taskId="t1" initialStatus="merged" />);
     await settle();
@@ -171,9 +226,7 @@ describe("TaskLogs", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValue(
-          jsonResponse({ logs: "x", status: "review", totalSize: 1 }),
-        ),
+        .mockResolvedValue(turnsResponse([turnRow(ASSISTANT_TEXT)], "review")),
     );
     render(<TaskLogs taskId="t1" initialStatus="review" />);
     await settle();
@@ -185,9 +238,7 @@ describe("TaskLogs", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValue(
-          jsonResponse({ logs: "x", status: "failed", totalSize: 1 }),
-        ),
+        .mockResolvedValue(turnsResponse([turnRow(ASSISTANT_TEXT)], "failed")),
     );
     render(<TaskLogs taskId="t1" initialStatus="failed" />);
     await settle();
@@ -200,7 +251,7 @@ describe("TaskLogs", () => {
       vi
         .fn()
         .mockResolvedValue(
-          jsonResponse({ logs: "x", status: "cancelled", totalSize: 1 }),
+          turnsResponse([turnRow(ASSISTANT_TEXT)], "cancelled"),
         ),
     );
     render(<TaskLogs taskId="t1" initialStatus="cancelled" />);
@@ -208,11 +259,14 @@ describe("TaskLogs", () => {
     expect(screen.getByText("Failed")).toBeInTheDocument();
   });
 
-  it("renders the pulse indicator and KB polling note while running", async () => {
+  it("renders the pulse indicator and turn-count polling note while running", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(
-        jsonResponse({ logs: "x", status: "running", totalSize: 2048 }),
+        turnsResponse(
+          [turnRow(ASSISTANT_TEXT), turnRow(STATION_LOG)],
+          "running",
+        ),
       );
 
     vi.stubGlobal("fetch", fetchMock);
@@ -224,20 +278,15 @@ describe("TaskLogs", () => {
     await settle();
 
     expect(container.querySelector('span[class*="pulse"]')).not.toBeNull();
-    // 2048 bytes / 1024 = 2.0 KB received.
     expect(
-      screen.getByText(/Auto-refreshing — 2\.0 KB received/),
+      screen.getByText(/Auto-refreshing — 2 turns received/),
     ).toBeInTheDocument();
   });
 
-  it("shows the bare refresh note when running with zero bytes received", async () => {
+  it("shows the bare refresh note when running with zero turns received", async () => {
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValue(
-          jsonResponse({ logs: null, status: "running", totalSize: 0 }),
-        ),
+      vi.fn().mockResolvedValue(turnsResponse([], "running")),
     );
     render(<TaskLogs taskId="t1" initialStatus="running" />);
     await settle();
@@ -247,32 +296,28 @@ describe("TaskLogs", () => {
     expect(note.textContent).toBe("Auto-refreshing");
   });
 
-  it("appends new content using the offset URL once totalSize is known and status is running", async () => {
-    // Converging buffer server: a full log of 18 bytes ("first-chunk-second").
-    // Bare URL -> the head (first 11 bytes) so the next poll uses ?offset=11.
-    // ?offset=11 -> the 7-byte tail, which the component appends.
-    // ?offset=18 (after append) -> empty tail, no further growth → fixed point, no oscillation.
-    const FULL = "first-chunk-second";
+  it("appends new turns using the after cursor once the first page landed", async () => {
+    // First page: two turns. The coordinator's poll then asks after=2 and the
+    // server answers one more turn, which the component appends.
     const fetchMock = vi.fn().mockImplementation((url: string) => {
-      const m = url.match(/offset=(\d+)/);
-
-      if (!m) {
+      if (url.includes("after=2")) {
         return Promise.resolve(
-          jsonResponse({
-            logs: FULL.slice(0, 11),
-            status: "running",
-            totalSize: 11,
-          }),
+          turnsResponse([turnRow(STATION_LOG, { id: "3" })], "running"),
         );
       }
-      const off = Number(m[1]);
+
+      if (url.includes("after=")) {
+        return Promise.resolve(turnsResponse([], "running"));
+      }
 
       return Promise.resolve(
-        jsonResponse({
-          logs: FULL.slice(off),
-          status: "running",
-          totalSize: FULL.length,
-        }),
+        turnsResponse(
+          [
+            turnRow(ASSISTANT_TEXT, { id: "1" }),
+            turnRow(TOOL_USE_BASH, { id: "2" }),
+          ],
+          "running",
+        ),
       );
     });
 
@@ -282,102 +327,75 @@ describe("TaskLogs", () => {
     renderWithRefresh(<TaskLogs taskId="job9" initialStatus="running" />);
     await settle();
 
-    // The coordinator's poll fires the offset fetch (totalSize 11 + running), which appends.
     await act(async () => {
       vi.advanceTimersByTime(10_000);
     });
     await settle();
 
-    expect(offsetCalls(fetchMock)).toContain("/api/tasks/job9/logs?offset=11");
-    expect(screen.getByText("first-chunk-second")).toBeInTheDocument();
-  });
-
-  it("does not append when an offset poll returns an empty logs string", async () => {
-    const fetchMock = vi.fn().mockImplementation((url: string) => {
-      if (url.includes("offset=")) {
-        return Promise.resolve(
-          jsonResponse({ logs: "", status: "running", totalSize: 10 }),
-        );
-      }
-
-      return Promise.resolve(
-        jsonResponse({ logs: "only-chunk", status: "running", totalSize: 10 }),
-      );
-    });
-
-    vi.useFakeTimers();
-    vi.stubGlobal("fetch", fetchMock);
-
-    renderWithRefresh(<TaskLogs taskId="t1" initialStatus="running" />);
-    await settle();
-    await act(async () => {
-      vi.advanceTimersByTime(10_000);
-    });
-    await settle();
-
-    expect(offsetCalls(fetchMock).length).toBeGreaterThan(0);
-    // The empty offset delta must not be appended (and must not blank the head chunk).
-    expect(screen.getByText("only-chunk")).toBeInTheDocument();
-  });
-
-  it("appends onto a still-null log buffer when the first fetch reports size but no body", async () => {
-    // Initial fetch: totalSize>0 but logs===null (e.g. a counted-but-not-yet-flushed buffer),
-    // so `logs` state stays null while totalSize becomes >0. The next poll uses ?offset and
-    // returns a body, exercising the `(prev ?? "") + data.logs` null-prev branch on line 84.
-    // Server buffer: 5 already-counted bytes (never flushed to body) + "late-body".
-    const HEAD = 5;
-    const BODY = "late-body";
-    const TOTAL = HEAD + BODY.length;
-    const fetchMock = vi.fn().mockImplementation((url: string) => {
-      const m = url.match(/offset=(\d+)/);
-
-      if (!m) {
-        // Bare fetch: counted but unflushed → null body, size only.
-        return Promise.resolve(
-          jsonResponse({ logs: null, status: "running", totalSize: HEAD }),
-        );
-      }
-      const off = Number(m[1]);
-      // Tail beyond the offset converges to empty once the whole body is delivered.
-      const tail = off >= HEAD ? BODY.slice(off - HEAD) : BODY;
-
-      return Promise.resolve(
-        jsonResponse({ logs: tail, status: "running", totalSize: TOTAL }),
-      );
-    });
-
-    vi.useFakeTimers();
-    vi.stubGlobal("fetch", fetchMock);
-
-    renderWithRefresh(<TaskLogs taskId="t1" initialStatus="running" />);
-    await settle();
-    await act(async () => {
-      vi.advanceTimersByTime(10_000);
-    });
-    await settle();
-
-    expect(offsetCalls(fetchMock).length).toBeGreaterThan(0);
-    // prev was null → coalesced to "" → terminal shows just the appended tail.
-    expect(screen.getByText("late-body")).toBeInTheDocument();
-  });
-
-  it("replaces logs on the full (non-offset) fetch path", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse({
-        logs: "replaced-entirely",
-        status: "succeeded",
-        totalSize: 17,
-      }),
+    expect(afterCalls(fetchMock)).toContain(
+      `/api/tasks/job9/logs?limit=${TURNS_PAGE_LIMIT}&after=2`,
     );
+    expect(screen.getByText(/detect: scanning 42 specs/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/fetch the PR metadata and diff/),
+    ).toBeInTheDocument();
+  });
+
+  it("does not duplicate turns when a poll returns nothing new", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("after=")) {
+        return Promise.resolve(turnsResponse([], "running"));
+      }
+
+      return Promise.resolve(
+        turnsResponse([turnRow(ASSISTANT_TEXT, { id: "1" })], "running"),
+      );
+    });
+
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderWithRefresh(<TaskLogs taskId="t1" initialStatus="running" />);
+    await settle();
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+    });
+    await settle();
+
+    expect(afterCalls(fetchMock).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/fetch the PR metadata and diff/)).toHaveLength(
+      1,
+    );
+  });
+
+  it("keeps walking within one fetch while pages come back full", async () => {
+    // A page of exactly TURNS_PAGE_LIMIT rows means more may follow: the same
+    // fetch cycle immediately asks after=<last id> instead of waiting for the
+    // next poll tick.
+    const fullPage = Array.from({ length: TURNS_PAGE_LIMIT }, (_, i) =>
+      turnRow(STATION_LOG, { id: String(i + 1) }),
+    );
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("after=")) {
+        return Promise.resolve(
+          turnsResponse([turnRow(ASSISTANT_TEXT, { id: "9001" })], "succeeded"),
+        );
+      }
+
+      return Promise.resolve(turnsResponse(fullPage, "succeeded"));
+    });
 
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
     await settle();
 
-    // Non-active status keeps useOffset false → the replace branch runs on the bare URL.
-    expect(offsetCalls(fetchMock)).toHaveLength(0);
-    expect(screen.getByText("replaced-entirely")).toBeInTheDocument();
+    expect(afterCalls(fetchMock)).toContain(
+      `/api/tasks/t1/logs?limit=${TURNS_PAGE_LIMIT}&after=${TURNS_PAGE_LIMIT}`,
+    );
+    expect(
+      screen.getByText(/fetch the PR metadata and diff/),
+    ).toBeInTheDocument();
   });
 
   it("renders the access-denied message and stops polling on a 403 response", async () => {
@@ -385,10 +403,7 @@ describe("TaskLogs", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(
-        jsonResponse(
-          { logs: null, status: "running", totalSize: 0 },
-          { ok: false, status: 403 },
-        ),
+        turnsResponse([], "running", { ok: false, status: 403 }),
       );
 
     vi.stubGlobal("fetch", fetchMock);
@@ -421,10 +436,7 @@ describe("TaskLogs", () => {
       vi
         .fn()
         .mockResolvedValue(
-          jsonResponse(
-            { logs: null, status: "running", totalSize: 0 },
-            { ok: false, status: 401 },
-          ),
+          turnsResponse([], "running", { ok: false, status: 401 }),
         ),
     );
     render(<TaskLogs taskId="t1" initialStatus="running" />);
@@ -443,10 +455,7 @@ describe("TaskLogs", () => {
       vi
         .fn()
         .mockResolvedValue(
-          jsonResponse(
-            { logs: null, status: "failed", totalSize: 0 },
-            { ok: false, status: 500 },
-          ),
+          turnsResponse([], "failed", { ok: false, status: 500 }),
         ),
     );
     render(<TaskLogs taskId="t1" initialStatus="failed" />);
@@ -476,29 +485,22 @@ describe("TaskLogs", () => {
 
   it("clears the error once a later fetch succeeds", async () => {
     vi.useFakeTimers();
-    const RECOVERED = "recovered";
     let failFirst = true;
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       if (failFirst) {
         failFirst = false;
 
         return Promise.resolve(
-          jsonResponse(
-            { logs: null, status: "running", totalSize: 0 },
-            { ok: false, status: 500 },
-          ),
+          turnsResponse([], "running", { ok: false, status: 500 }),
         );
       }
-      // Converging buffer so the re-fired offset poll returns an empty tail (no double-append).
-      const m = url.match(/offset=(\d+)/);
-      const off = m ? Number(m[1]) : 0;
+
+      if (url.includes("after=")) {
+        return Promise.resolve(turnsResponse([], "running"));
+      }
 
       return Promise.resolve(
-        jsonResponse({
-          logs: RECOVERED.slice(off),
-          status: "running",
-          totalSize: RECOVERED.length,
-        }),
+        turnsResponse([turnRow(STATION_LOG, { id: "1" })], "running"),
       );
     });
 
@@ -516,16 +518,20 @@ describe("TaskLogs", () => {
     await settle();
 
     expect(screen.queryByText(/Failed to load logs/)).not.toBeInTheDocument();
-    expect(screen.getByText("recovered")).toBeInTheDocument();
+    expect(screen.getByText(/detect: scanning 42 specs/)).toBeInTheDocument();
   });
 
   it("keeps polling on the running interval and stops fetching after unmount", async () => {
     vi.useFakeTimers();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        jsonResponse({ logs: "tick", status: "running", totalSize: 4 }),
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("after=")) {
+        return Promise.resolve(turnsResponse([], "running"));
+      }
+
+      return Promise.resolve(
+        turnsResponse([turnRow(STATION_LOG, { id: "1" })], "running"),
       );
+    });
 
     vi.stubGlobal("fetch", fetchMock);
 
@@ -559,9 +565,7 @@ describe("TaskLogs", () => {
     vi.useFakeTimers();
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(
-        jsonResponse({ logs: "final", status: "succeeded", totalSize: 5 }),
-      );
+      .mockResolvedValue(turnsResponse([turnRow(ASSISTANT_TEXT)], "succeeded"));
 
     vi.stubGlobal("fetch", fetchMock);
 
@@ -580,11 +584,7 @@ describe("TaskLogs", () => {
   it("always renders the Agent Output heading", async () => {
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValue(
-          jsonResponse({ logs: null, status: "queued", totalSize: 0 }),
-        ),
+      vi.fn().mockResolvedValue(turnsResponse([], "queued")),
     );
     render(<TaskLogs taskId="t1" initialStatus="queued" />);
     expect(
@@ -602,21 +602,11 @@ describe("TaskLogs", () => {
       // The single mount fetch keeps it running; after the poll, report pr-created.
       if (phase <= 1) {
         return Promise.resolve(
-          jsonResponse({
-            logs: "working...",
-            status: "running",
-            totalSize: 10,
-          }),
+          turnsResponse([turnRow(ASSISTANT_TEXT, { id: "1" })], "running"),
         );
       }
 
-      return Promise.resolve(
-        jsonResponse({
-          logs: "working...done",
-          status: "pr-created",
-          totalSize: 14,
-        }),
-      );
+      return Promise.resolve(turnsResponse([], "pr-created"));
     });
 
     vi.stubGlobal("fetch", fetchMock);
@@ -636,23 +626,49 @@ describe("TaskLogs", () => {
     expect(screen.queryByText(/Auto-refreshing/)).not.toBeInTheDocument();
   });
 
-  it("renders the sample NDJSON as formatted entries by default", async () => {
+  it("shows the no-stored-turns explainer for a finished task with no turns", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        jsonResponse({
-          logs: SAMPLE_LOG,
-          status: "succeeded",
-          totalSize: SAMPLE_LOG.length,
-        }),
-      ),
+      vi.fn().mockResolvedValue(turnsResponse([], "succeeded")),
+    );
+    render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
+    await settle();
+
+    expect(
+      screen.getByText(/No stored agent turns for this task/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Logs will appear when the agent starts."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the placeholder for a running task with no turns yet", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(turnsResponse([], "running")),
+    );
+    render(<TaskLogs taskId="t1" initialStatus="running" />);
+    await settle();
+
+    expect(
+      screen.getByText("Logs will appear when the agent starts."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/No stored agent turns for this task/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the sample turns as formatted entries by default", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(turnsResponse(sampleTurns(), "succeeded")),
     );
 
     render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
     await settle();
 
     expect(screen.getByText(/^→ Bash: gh pr view 871/)).toBeInTheDocument();
-    // SAMPLE_LOG carries two thinking_tokens runs → exactly two counters.
+    // The sample carries two thinking_tokens runs → exactly two counters.
     expect(screen.getAllByText(/^thinking… ~/)).toHaveLength(2);
     expect(
       screen.getByText("✓ finished — 3m 21s · $0.51 · 27 turns"),
@@ -661,16 +677,35 @@ describe("TaskLogs", () => {
     expect(screen.queryByText(/estimated_tokens/)).not.toBeInTheDocument();
   });
 
-  it("shows the verbatim blob after clicking Raw and formats again after clicking Formatted", async () => {
+  it("labels each node visit's segment with its node and iteration", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
-        jsonResponse({
-          logs: SAMPLE_LOG,
-          status: "succeeded",
-          totalSize: SAMPLE_LOG.length,
-        }),
+        turnsResponse(
+          [
+            turnRow(ASSISTANT_TEXT, {
+              id: "1",
+              nodeId: "implement",
+              iteration: 1,
+            }),
+            turnRow(TOOL_USE_BASH, { id: "2", nodeId: "review", iteration: 2 }),
+          ],
+          "succeeded",
+        ),
       ),
+    );
+
+    render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
+    await settle();
+
+    expect(screen.getByText("implement · iteration 1")).toBeInTheDocument();
+    expect(screen.getByText("review · iteration 2")).toBeInTheDocument();
+  });
+
+  it("shows the stored stream after clicking Raw and formats again after clicking Formatted", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(turnsResponse(sampleTurns(), "succeeded")),
     );
 
     render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
@@ -686,57 +721,10 @@ describe("TaskLogs", () => {
     expect(screen.getByText(/^→ Bash: gh pr view 871/)).toBeInTheDocument();
   });
 
-  it("classifies a JSON line split across an offset poll after the second chunk arrives", async () => {
-    // Converging buffer: the head fetch delivers half a JSON line, the offset
-    // poll the rest — the full-blob reparse must classify the healed line.
-    const HEAD = TOOL_USE_BASH.slice(0, 40);
-    const FULL = `${TOOL_USE_BASH}\n`;
-    const fetchMock = vi.fn().mockImplementation((url: string) => {
-      const m = url.match(/offset=(\d+)/);
-
-      if (!m) {
-        return Promise.resolve(
-          jsonResponse({
-            logs: HEAD,
-            status: "running",
-            totalSize: HEAD.length,
-          }),
-        );
-      }
-
-      return Promise.resolve(
-        jsonResponse({
-          logs: FULL.slice(Number(m[1])),
-          status: "running",
-          totalSize: FULL.length,
-        }),
-      );
-    });
-
-    vi.useFakeTimers();
-    vi.stubGlobal("fetch", fetchMock);
-
-    renderWithRefresh(<TaskLogs taskId="t1" initialStatus="running" />);
-    await settle();
-    await act(async () => {
-      vi.advanceTimersByTime(10_000);
-    });
-    await settle();
-
-    expect(offsetCalls(fetchMock).length).toBeGreaterThan(0);
-    expect(screen.getByText(/^→ Bash: gh pr view 871/)).toBeInTheDocument();
-    // No dangling half-line rendered as raw.
-    expect(screen.queryByText(HEAD)).not.toBeInTheDocument();
-  });
-
-  it("hides the format toggle until logs arrive", async () => {
+  it("hides the format toggle until turns arrive", async () => {
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValue(
-          jsonResponse({ logs: null, status: "queued", totalSize: 0 }),
-        ),
+      vi.fn().mockResolvedValue(turnsResponse([], "queued")),
     );
 
     render(<TaskLogs taskId="t1" initialStatus="queued" />);
@@ -747,85 +735,110 @@ describe("TaskLogs", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("issues exactly one mount fetch even when the response changes totalSize and status", async () => {
-    // Regression: the mount fetch was keyed on fetchLogs identity, which changes
-    // whenever totalSize/status settle — every growing response re-fired the
-    // "initial" effect, doubling requests. The run-once effect must not re-fire.
-    // Rendered without the provider: the inert context guarantees zero refresh
-    // ticks, so the assertion isolates the mount effect completely.
+  it("issues exactly one mount fetch even when the response changes status", async () => {
+    // Regression guard carried over from the offset viewer: the mount fetch
+    // must not re-fire when the response settles new state. Rendered without
+    // the provider: the inert context guarantees zero refresh ticks, so the
+    // assertion isolates the mount effect completely.
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(
-        jsonResponse({ logs: "grow", status: "running", totalSize: 4 }),
-      );
+      .mockResolvedValue(turnsResponse([turnRow(ASSISTANT_TEXT)], "running"));
 
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TaskLogs taskId="t1" initialStatus="queued" />);
     await settle();
 
-    // totalSize 0→4 and status queued→running both settled; still a single fetch.
+    // status queued→running and the turn append both settled; still a single fetch.
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/tasks/t1/logs",
+      `/api/tasks/t1/logs?limit=${TURNS_PAGE_LIMIT}`,
       expect.objectContaining({ signal: expect.anything() }),
     );
   });
 
-  it("renders the no-transcript state when a completed task resolves null logs", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn()
-        .mockResolvedValue(
-          jsonResponse({ logs: null, status: "completed", totalSize: 0 }),
-        ),
-    );
+  it("stops fetching once the turn cap is loaded", async () => {
+    // Every page comes back full, so only the cap can end the walk — and a
+    // later poll tick must not fetch past it (the cap bounds the tab's
+    // memory across the task's whole lifetime, not one walk).
+    let base = 0;
+    const fetchMock = vi.fn().mockImplementation(() => {
+      const page = Array.from({ length: TURNS_PAGE_LIMIT }, (_, i) =>
+        turnRow(STATION_LOG, { id: String(base + i + 1) }),
+      );
 
-    render(<TaskLogs taskId="t1" initialStatus="completed" />);
+      base += TURNS_PAGE_LIMIT;
+
+      return Promise.resolve(turnsResponse(page, "running"));
+    });
+
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderWithRefresh(<TaskLogs taskId="t1" initialStatus="running" />);
     await settle();
 
+    // 10_000-turn cap / 5_000-row pages → the mount walk fetched twice.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(
-      screen.getByText("No transcript is available on this page."),
+      screen.getByText(/Loaded only the first 10000 turns/),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText("Logs will appear when the agent starts."),
-    ).not.toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+    });
+    await settle();
+    // The coordinator ticked, but the capped viewer fetches nothing more.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("renders the no-transcript state when a failed task resolves null logs", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn()
-        .mockResolvedValue(
-          jsonResponse({ logs: null, status: "failed", totalSize: 0 }),
-        ),
-    );
+  it("stops walking when a full page never advances the cursor", async () => {
+    // A full page whose rows carry no string id cannot move the cursor;
+    // continuing would refetch the same page forever.
+    const idlessPage = Array.from({ length: TURNS_PAGE_LIMIT }, () => ({}));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(turnsResponse(idlessPage, "succeeded"));
 
-    render(<TaskLogs taskId="t1" initialStatus="failed" />);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
     await settle();
 
-    expect(
-      screen.getByText("No transcript is available on this page."),
-    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("renders the no-transcript state when a task in review resolves null logs", async () => {
+  it("updates the badge from the X-Task-Status header even when the upstream read fails", async () => {
+    // The proxy stamps the header on pass-through error responses too; a Floor
+    // outage must not pin a completed task on "running" (and its poll loop).
     vi.stubGlobal(
       "fetch",
       vi
         .fn()
         .mockResolvedValue(
-          jsonResponse({ logs: null, status: "review", totalSize: 0 }),
+          turnsResponse([], "pr-created", { ok: false, status: 502 }),
         ),
     );
+    render(<TaskLogs taskId="t1" initialStatus="running" />);
+    await settle();
 
-    render(<TaskLogs taskId="t1" initialStatus="review" />);
+    expect(screen.getByText("Completed")).toBeInTheDocument();
+    expect(
+      screen.getByText("Failed to load logs: HTTP 502"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Auto-refreshing/)).not.toBeInTheDocument();
+  });
+
+  it("shows the no-stored-turns explainer for a needs-human-help task with no turns", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(turnsResponse([], "needs-human-help")),
+    );
+    render(<TaskLogs taskId="t1" initialStatus="needs-human-help" />);
     await settle();
 
     expect(
-      screen.getByText("No transcript is available on this page."),
+      screen.getByText(/No stored agent turns for this task/),
     ).toBeInTheDocument();
   });
 });

@@ -1,38 +1,28 @@
 "use client";
 
+// The task page's agent-output viewer, read from the turn-level transcript
+// store through the /api/tasks/[id]/logs proxy (#1292 — the GCS byte log it
+// replaced had no cluster-side writer left). Unlike the run page's one-shot
+// FullTranscriptPanel walk, this polls: the row-id cursor persists across the
+// coordinator's ticks, each fetch walking forward until a short page.
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { parseAgentLog } from "@/lib/agent-log-entries";
+import { parseAgentRunTurn, type AgentRunTurn } from "@/lib/run-turn-types";
+import { MAX_TURNS_LOADED } from "@/app/assembly-runs/[id]/turn-transcript-presenter";
+import {
+  advanceCursor,
+  segmentLabel,
+  segmentTurns,
+  taskLogsUrl,
+  walkContinues,
+} from "./task-logs-presenter";
 import LogEntriesView from "@/components/LogEntriesView";
 import LogFormatToggle from "@/components/LogFormatToggle";
 import { useCoordinatedRefresh } from "./TaskRefreshProvider";
 import styles from "./TaskLogs.module.css";
 
-interface LogsResponse {
-  logs: string | null;
-  status: string;
-  totalSize: number;
-  error?: string;
-}
-
 const ACTIVE_STATES = new Set(["running"]);
-
-// Past-running task statuses (from the shared TaskStatus union) whose null
-// logs are no longer worth a "will appear" promise: direct-API task types
-// (onboard, feature-request) produce no transcript at all, and cluster
-// transcripts live in pipeline.agent_run_turns, unreadable from this page
-// until the task-keyed turn route lands (#1150/#1292). "review" can still
-// mint follow-up runs, which is why the copy is a present-tense availability
-// statement rather than a claim that nothing was ever recorded.
-const PAST_RUNNING_STATES = new Set([
-  "pr-created",
-  "merged",
-  "completed",
-  "failed",
-  "cancelled",
-  "review",
-  "needs-human-help",
-  "retried",
-]);
 
 export default function TaskLogs({
   taskId,
@@ -41,65 +31,106 @@ export default function TaskLogs({
   taskId: string;
   initialStatus: string;
 }) {
-  const [logs, setLogs] = useState<string | null>(null);
+  const [turns, setTurns] = useState<AgentRunTurn[] | null>(null);
   const [status, setStatus] = useState(initialStatus);
-  const [totalSize, setTotalSize] = useState(0);
+  const [capped, setCapped] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
+  // Cursor and in-flight latch live in refs, not state: the coordinator can
+  // tick while a walk is mid-flight, and two overlapping walks reading the
+  // same cursor would append every row twice.
+  const cursorRef = useRef("0");
+  const loadedRef = useRef(0);
+  const inFlightRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const entries = useMemo(() => parseAgentLog(logs ?? ""), [logs]);
+  const segments = useMemo(
+    () =>
+      segmentTurns(turns ?? []).map((segment) => ({
+        label: segmentLabel(segment),
+        rawLog: segment.rawLog,
+        entries: parseAgentLog(segment.rawLog),
+      })),
+    [turns],
+  );
+  const rawLog = useMemo(
+    () => segments.map((segment) => segment.rawLog).join("\n"),
+    [segments],
+  );
 
   const fetchLogs = useCallback(async () => {
-    // Don't keep polling if access was denied
-    if (accessDenied) {
+    // Don't keep polling if access was denied or the tab-memory cap is
+    // already loaded, and never overlap a walk.
+    if (
+      accessDenied ||
+      inFlightRef.current ||
+      loadedRef.current >= MAX_TURNS_LOADED
+    ) {
       return;
     }
-
-    const useOffset = totalSize > 0 && ACTIVE_STATES.has(status);
-    const url = useOffset
-      ? `/api/tasks/${taskId}/logs?offset=${totalSize}`
-      : `/api/tasks/${taskId}/logs`;
+    inFlightRef.current = true;
 
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+      for (;;) {
+        const res = await fetch(taskLogsUrl(taskId, cursorRef.current), {
+          signal: AbortSignal.timeout(15_000),
+        });
 
-      if (res.status === 403) {
-        setAccessDenied(true);
+        // Read before the ok-check: the proxy stamps the header on
+        // pass-through error responses too, and a Floor outage must not pin
+        // a completed task on "running" (and its poll loop).
+        const taskStatus = res.headers.get("X-Task-Status");
+
+        if (taskStatus !== null) {
+          setStatus(taskStatus);
+        }
+
+        if (res.status === 403) {
+          setAccessDenied(true);
+          setError(null);
+
+          return;
+        }
+
+        if (res.status === 401) {
+          setError("You must be signed in to view logs.");
+
+          return;
+        }
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const body = (await res.json()) as { turns?: unknown[] };
+        const rows = Array.isArray(body.turns) ? body.turns : [];
+        const parsed = rows
+          .map(parseAgentRunTurn)
+          .filter((turn): turn is AgentRunTurn => turn !== null);
+
+        setTurns((prev) =>
+          parsed.length > 0 ? [...(prev ?? []), ...parsed] : (prev ?? []),
+        );
+        loadedRef.current += parsed.length;
+        const next = advanceCursor(rows, cursorRef.current);
+        const progressed = next !== cursorRef.current;
+
+        cursorRef.current = next;
         setError(null);
 
-        return;
-      }
+        // A full page that cannot move the cursor would refetch itself forever.
+        if (!progressed || !walkContinues(rows, loadedRef.current)) {
+          setCapped(loadedRef.current >= MAX_TURNS_LOADED);
 
-      if (res.status === 401) {
-        setError("You must be signed in to view logs.");
-
-        return;
-      }
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-
-      const data: LogsResponse = await res.json();
-
-      if (data.logs !== null) {
-        if (useOffset && data.logs.length > 0) {
-          // Append new content to existing logs
-          setLogs((prev) => (prev ?? "") + data.logs);
-        } else if (!useOffset) {
-          // Full fetch — replace logs
-          setLogs(data.logs);
+          return;
         }
       }
-
-      setStatus(data.status);
-      setTotalSize(data.totalSize);
-      setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      inFlightRef.current = false;
     }
-  }, [taskId, status, totalSize, accessDenied]);
+  }, [taskId, accessDenied]);
 
   const latestFetchLogs = useRef(fetchLogs);
 
@@ -108,7 +139,7 @@ export default function TaskLogs({
   }, [fetchLogs]);
 
   // Initial fetch — once on mount; the ref keeps fetchLogs identity churn
-  // (status/totalSize updates) from re-firing this effect
+  // (accessDenied updates) from re-firing this effect
   useEffect(() => {
     void latestFetchLogs.current();
   }, []);
@@ -119,19 +150,23 @@ export default function TaskLogs({
     ACTIVE_STATES.has(status) && !accessDenied,
   );
 
-  // Auto-scroll to bottom when logs update
+  // Auto-scroll to bottom when new turns land
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logs]);
+  }, [turns]);
 
   const isRunning = ACTIVE_STATES.has(status);
   const isInReview = status === "review";
   const isDone =
     status === "succeeded" || status === "pr-created" || status === "merged";
   const isFailed = status === "failed" || status === "cancelled";
-  const placeholder = PAST_RUNNING_STATES.has(status)
-    ? "No transcript is available on this page."
-    : "Logs will appear when the agent starts.";
+  // Anything past the not-yet-started and running phases is settled — this
+  // must include statuses with no badge of their own (needs-human-help,
+  // review), or their empty state would claim the agent has not started.
+  const notStarted = status === "queued" || status === "pending";
+  const finished = !notStarted && !isRunning;
+  const hasTurns = turns !== null && turns.length > 0;
+  const emptyAfterFinish = turns !== null && turns.length === 0 && finished;
 
   return (
     <div className={styles.wrap}>
@@ -153,7 +188,7 @@ export default function TaskLogs({
             Failed
           </span>
         )}
-        {logs !== null && !accessDenied && (
+        {hasTurns && !accessDenied && (
           <span className={styles.toggle}>
             <LogFormatToggle raw={showRaw} onChange={setShowRaw} />
           </span>
@@ -170,21 +205,47 @@ export default function TaskLogs({
         <p className={styles.error}>Failed to load logs: {error}</p>
       )}
 
-      {!accessDenied && logs === null && !error ? (
-        <p className={`meta ${styles.placeholder}`}>{placeholder}</p>
-      ) : !accessDenied && logs !== null ? (
+      {!accessDenied && !error && !hasTurns && !emptyAfterFinish && (
+        <p className={`meta ${styles.placeholder}`}>
+          Logs will appear when the agent starts.
+        </p>
+      )}
+
+      {!accessDenied && !error && emptyAfterFinish && (
+        <p className={`meta ${styles.placeholder}`}>
+          No stored agent turns for this task. Direct-API task types (onboard,
+          feature-request) produce no transcript; locally-run tasks do not
+          stream turns yet; and tasks predating the transcript store, or older
+          than its 30-day retention, have none left.
+        </p>
+      )}
+
+      {!accessDenied && hasTurns && (
         <div className={styles.terminal}>
-          {showRaw ? logs : <LogEntriesView entries={entries} />}
+          {showRaw
+            ? rawLog
+            : segments.map((segment, index) => (
+                <section key={index} className={styles.segment}>
+                  {segment.label !== null && (
+                    <div className={styles.segmentLabel}>{segment.label}</div>
+                  )}
+                  <LogEntriesView entries={segment.entries} />
+                </section>
+              ))}
           <div ref={bottomRef} />
         </div>
-      ) : null}
+      )}
+
+      {capped && !accessDenied && (
+        <p className={`meta ${styles.notice}`}>
+          Loaded only the first {MAX_TURNS_LOADED} turns of this task.
+        </p>
+      )}
 
       {isRunning && !accessDenied && (
         <p className={`meta ${styles.polling}`}>
           {live ? "Live" : "Auto-refreshing"}
-          {totalSize > 0
-            ? ` — ${(totalSize / 1024).toFixed(1)} KB received`
-            : ""}
+          {hasTurns ? ` — ${turns.length} turns received` : ""}
         </p>
       )}
     </div>
