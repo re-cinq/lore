@@ -97,7 +97,7 @@ describe("createResumeEventHandler", () => {
     const { handler } = harness();
 
     await expect(handler(params({ assemblyLineId: "" }))).rejects.toThrow(
-      /assemblyLineId/,
+      /assemblyRunId/,
     );
   });
 
