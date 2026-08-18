@@ -7,7 +7,7 @@ import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { serverError } from "@/lib/api-error";
 
 /**
- * GET /api/assembly-lines/[id]/nodes/[name]/logs — proxy for one node's live pod
+ * GET /api/assembly-runs/[id]/nodes/[name]/logs — proxy for one node's live pod
  * logs. Resolves the run, confirms `name` is actually a node of it, checks the
  * user can see the repo, then proxies to the Floor's /api/agent-logs/{name}
  * (the UI SA has no cluster access; the Floor brokers the read). Passes `?tail`

@@ -81,7 +81,7 @@ A subscriber that cannot keep up is disconnected rather than allowed to apply
 back-pressure to the ingest path, which shares a process with the cost sink and
 the Floor's job loops. ([validated by `agent-event-bus.test.ts:187`](apps/floor/src/jobs/agent/agent-event-bus.test.ts#L188), [`agent-events-stream.test.ts:419`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L420))
 
-Both hops set `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`. ([validated by `agent-events-stream.test.ts:511`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L512), [`route.test.ts:149`](apps/web-ui/src/app/api/assembly-lines/[id]/events/stream/route.test.ts#L149))
+Both hops set `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`. ([validated by `agent-events-stream.test.ts:511`](apps/floor/src/delivery/http/routes/agent-events-stream.test.ts#L512), [`route.test.ts:149`](apps/web-ui/src/app/api/assembly-runs/[id]/events/stream/route.test.ts#L149))
 
 The `AgentRunEventRow` type is canonical in `libs/shared` and hand-mirrored in
 `apps/web-ui`, with a type-only drift guard under `scripts/type-drift/`. ([validated by `run-stream-types.test.ts:26`](apps/web-ui/src/lib/run-stream-types.test.ts#L27), [`run-stream-types.test.ts:66`](apps/web-ui/src/lib/run-stream-types.test.ts#L67))

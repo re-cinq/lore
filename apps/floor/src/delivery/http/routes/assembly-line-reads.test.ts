@@ -10,8 +10,11 @@ vi.mock("../../../kernel/queues.js", () => ({
   assemblyRuns: () => ({ getById, listStationRuns }),
 }));
 
-const { assemblyLineReadRoute, assemblyLineCatalogRoute } =
-  await import("./assembly-line-reads.js");
+const {
+  assemblyRunReadRoute,
+  legacyAssemblyLineReadRoute,
+  assemblyLineCatalogRoute,
+} = await import("./assembly-line-reads.js");
 
 const ORIG = process.env.LORE_INGEST_TOKEN;
 
@@ -49,7 +52,8 @@ function server(load = loadBuiltinAssemblyLines) {
   const s = Hapi.server({ port: 0 });
 
   registerBearerAuth(s);
-  s.route(assemblyLineReadRoute(load));
+  s.route(assemblyRunReadRoute(load));
+  s.route(legacyAssemblyLineReadRoute(load));
   s.route(assemblyLineCatalogRoute(load));
 
   return s;
@@ -62,12 +66,12 @@ const get = (url: string) =>
     headers: { authorization: "Bearer ingest-secret" },
   });
 
-describe("GET /api/assembly-lines/{id}", () => {
+describe("GET /api/assembly-runs/{id}", () => {
   it("returns the line with its nodes", async () => {
     getById.mockResolvedValue(line());
     listStationRuns.mockResolvedValue([node("analyze", "success")]);
 
-    const res = await get("/api/assembly-lines/line-1");
+    const res = await get("/api/assembly-runs/line-1");
 
     expect(res.statusCode).toBe(200);
     expect(res.result).toMatchObject({
@@ -84,7 +88,7 @@ describe("GET /api/assembly-lines/{id}", () => {
     getById.mockResolvedValue(line());
     listStationRuns.mockResolvedValue([node("analyze", "success")]);
 
-    const res = await get("/api/assembly-lines/line-1");
+    const res = await get("/api/assembly-runs/line-1");
 
     expect(
       (res.result as { nodes: Record<string, unknown>[] }).nodes[0],
@@ -101,7 +105,7 @@ describe("GET /api/assembly-lines/{id}", () => {
     );
     listStationRuns.mockResolvedValue([node("author", null)]);
 
-    const res = await get("/api/assembly-lines/line-1");
+    const res = await get("/api/assembly-runs/line-1");
 
     expect(
       (res.result as { nodes: Record<string, unknown>[] }).nodes[0],
@@ -141,7 +145,7 @@ describe("GET /api/assembly-lines/{id}", () => {
 
     const res = await server(async () => new Map()).inject({
       method: "GET",
-      url: "/api/assembly-lines/line-1",
+      url: "/api/assembly-runs/line-1",
       headers: { authorization: "Bearer ingest-secret" },
     });
 
@@ -181,7 +185,7 @@ describe("GET /api/assembly-lines/{id}", () => {
     listStationRuns.mockResolvedValue([node("analyze", "success")]);
 
     // The CURRENT blueprint says something else — an edit after the run started.
-    const res = await get("/api/assembly-lines/line-1");
+    const res = await get("/api/assembly-runs/line-1");
 
     expect(
       (res.result as { nodes: Record<string, unknown>[] }).nodes[0],
@@ -194,7 +198,7 @@ describe("GET /api/assembly-lines/{id}", () => {
   it("returns 404 for a line that does not exist", async () => {
     getById.mockResolvedValue(null);
 
-    expect((await get("/api/assembly-lines/nope")).statusCode).toBe(404);
+    expect((await get("/api/assembly-runs/nope")).statusCode).toBe(404);
   });
 
   it("still returns the rows when the definition is unknown", async () => {
@@ -204,7 +208,7 @@ describe("GET /api/assembly-lines/{id}", () => {
     getById.mockResolvedValue(line({ blueprintName: "gone" }));
     listStationRuns.mockResolvedValue([node("analyze", "success")]);
 
-    const res = await get("/api/assembly-lines/line-1");
+    const res = await get("/api/assembly-runs/line-1");
 
     expect(res.statusCode).toBe(200);
     expect(res.result).toMatchObject({
@@ -218,10 +222,19 @@ describe("GET /api/assembly-lines/{id}", () => {
 
     const res = await server().inject({
       method: "GET",
-      url: "/api/assembly-lines/line-1",
+      url: "/api/assembly-runs/line-1",
     });
 
     expect(res.statusCode).toBe(401);
+  });
+});
+
+describe("GET /api/assembly-lines/{id} (legacy alias)", () => {
+  it("serves the same run at the pre-rename path until no deployed client calls it", async () => {
+    const res = await get("/api/assembly-lines/line-1");
+
+    expect(res.statusCode).toBe(200);
+    expect((res.result as { line: { id: string } }).line.id).toBe("line-1");
   });
 });
 

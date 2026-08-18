@@ -7,7 +7,7 @@ import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { serverError } from "@/lib/api-error";
 
 /**
- * GET /api/assembly-lines/[id]/events — session-authed history proxy for one
+ * GET /api/assembly-runs/[id]/events — session-authed history proxy for one
  * run's agent events, forwarding to the Floor's /api/agent-events/{id}. Keeps
  * the event history out of the RSC payload: the page ships the graph, the
  * client pages the events.

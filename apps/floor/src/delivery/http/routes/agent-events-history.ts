@@ -1,5 +1,5 @@
 /**
- * GET /api/agent-events/{assemblyLineId}?after=&limit= (FR3.1) — the plain REST
+ * GET /api/agent-events/{assemblyRunId}?after=&limit= (FR3.1) — the plain REST
  * read of a finished run, and the fallback for clients without EventSource.
  * A thin clamped wrapper over the same `listSince` the SSE catch-up uses, so
  * both surfaces share one scoping rule: rows are selected by assembly line AND
@@ -34,11 +34,11 @@ export function agentEventsHistoryRoute(events?: {
 }): ServerRoute {
   return {
     method: "GET",
-    path: "/api/agent-events/{assemblyLineId}",
+    path: "/api/agent-events/{assemblyRunId}",
     options: { auth: "ingest-token" },
     handler: async (request, h) => {
       const rows = await (events ?? agentRunEvents()).listSince(
-        request.params.assemblyLineId,
+        request.params.assemblyRunId,
         parseAfter(request.query.after),
         parseLimit(request.query.limit),
       );

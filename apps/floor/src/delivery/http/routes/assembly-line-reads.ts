@@ -74,14 +74,14 @@ function describeNode(
   };
 }
 
-/** GET /api/assembly-lines/{id} — one run: the line, its nodes, and the Station each
- *  node dispatches to. */
-export function assemblyLineReadRoute(
+/** GET /api/assembly-runs/{id} — one run: the run row, its nodes, and the Station
+ *  each node dispatches to. */
+export function assemblyRunReadRoute(
   load: () => Promise<Map<string, AssemblyLine>> = loadBuiltinAssemblyLines,
 ): ServerRoute {
   return {
     method: "GET",
-    path: "/api/assembly-lines/{id}",
+    path: "/api/assembly-runs/{id}",
     options: { auth: "ingest-token" },
     handler: async (request) => {
       const line = await assemblyRuns().getById(request.params.id);
@@ -107,6 +107,16 @@ export function assemblyLineReadRoute(
       };
     },
   };
+}
+
+/** Legacy path for the run read — this route reads a RUN, so it moved to
+ *  `/api/assembly-runs/{id}`; the old spelling stays because the deployed web-ui
+ *  still calls it and ships as its own image. DELETE once no deployed client
+ *  calls it (same rule as lore-api's withLegacyAlias). */
+export function legacyAssemblyLineReadRoute(
+  load: () => Promise<Map<string, AssemblyLine>> = loadBuiltinAssemblyLines,
+): ServerRoute {
+  return { ...assemblyRunReadRoute(load), path: "/api/assembly-lines/{id}" };
 }
 
 /** GET /api/assembly-line-definitions — the catalog: every line and, per node, the

@@ -7,7 +7,7 @@ import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { serverError } from "@/lib/api-error";
 
 /**
- * GET /api/assembly-lines/[id]/events/stream — session-authed SSE proxy to the
+ * GET /api/assembly-runs/[id]/events/stream — session-authed SSE proxy to the
  * Floor's /api/agent-events/stream/{id}. EventSource cannot send an
  * Authorization header, so the browser's same-origin session cookie is the
  * credential and this route exchanges it for the Floor's bearer token.
