@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { buildServer } from "../server.js";
 import { parseTail } from "./agent-logs.js";
 import type {
@@ -90,5 +90,34 @@ describe("parseTail", () => {
     expect(parseTail("-5")).toBe(5000);
     expect(parseTail("abc")).toBe(5000);
     expect(parseTail(undefined)).toBe(5000);
+  });
+});
+
+describe("request-error logging (#1319)", () => {
+  it("names an unexpected route throw on the console instead of 500ing anonymously", async () => {
+    process.env.LORE_INGEST_TOKEN = "ingest-secret";
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const throwing: PodLogSource = {
+      agentInfo: () => Promise.reject(new Error("etcdserver: leader changed")),
+      podsForJob: () => Promise.resolve([]),
+      podLog: () => Promise.resolve(""),
+    };
+    const res = await buildServer({
+      getJobStatus: () => ({}),
+      podLogSource: throwing,
+    }).inject({
+      method: "GET",
+      url: "/api/agent-logs/05fc5491-review",
+      headers: { authorization: "Bearer ingest-secret" },
+    });
+
+    expect(res.statusCode).toBe(500);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[http] GET /api/agent-logs/05fc5491-review 500"),
+    );
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("etcdserver: leader changed"),
+    );
+    errorSpy.mockRestore();
   });
 });

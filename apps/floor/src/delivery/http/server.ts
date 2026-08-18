@@ -53,6 +53,20 @@ export function buildServer(opts: {
 
   registerRequestTracing(server);
   registerBearerAuth(server);
+  // Unexpected throws anywhere in the request lifecycle (handler, auth scheme,
+  // extension) get boomified into an anonymous 500 whose cause hapi never
+  // prints — the #1319 outage was undiagnosable for exactly that reason. The
+  // `request` error channel fires only for those boomified throws (deliberate
+  // Boom 4xx/503s were never silent), and unlike tracing's onPreResponse it
+  // still holds the pre-boomification error with its stack.
+  server.events.on({ name: "request", channels: "error" }, (request, event) => {
+    const err = event.error;
+    const detail = err instanceof Error ? (err.stack ?? err.message) : `${err}`;
+
+    console.error(
+      `[http] ${request.method.toUpperCase()} ${request.path} 500: ${detail}`,
+    );
+  });
   server.route([
     healthRoute(opts.getJobStatus),
     agentEventsRoute,
