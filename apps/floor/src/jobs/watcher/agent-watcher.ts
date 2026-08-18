@@ -58,6 +58,7 @@ import {
   runOutcomeFromTaskStatus,
   type ReviewResult,
   decideFeatureLink,
+  taskPageUrl,
 } from "./agent-watcher-logic.js";
 import {
   KubeTokenProvisioner,
@@ -73,10 +74,6 @@ const PLURAL = "agents";
 
 export function agentsNamespace(): string {
   return process.env.LORE_AGENTS_NAMESPACE ?? "ai-agents";
-}
-
-function logUrlFor(repo: string, taskId: string): string {
-  return `gs://${process.env.LORE_LOG_BUCKET || "lore-task-logs"}/${repo}/${taskId}/output.log`;
 }
 
 /** Agent output can be large — keep only the tail for issue/PR bodies. */
@@ -473,7 +470,8 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
     name,
     k8sApi,
   } = ctx;
-  const logUrl = logUrlFor(targetRepo, taskId);
+  const taskUrl = taskPageUrl(taskId, process.env.LORE_UI_URL);
+  const logsRef = taskUrl ? `See [logs](${taskUrl})` : "See logs";
 
   // Agent.status has no changedFiles — compute it via compare-commits.
   let changedFiles = 0;
@@ -525,7 +523,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
           });
           const body = output
             ? `${tailOutput(output)}\n\n---\n*Lore-Task: ${taskId}*`
-            : `${copy.body}\n\nTask completed (no output). See [logs](${logUrl}).`;
+            : `${copy.body}\n\nTask completed (no output). ${logsRef}.`;
           const issue = await (
             await projectFor(target_repo)
           ).issues.create(copy.title, body, ["lore-managed", taskType]);
@@ -541,13 +539,13 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       } else {
         const body = output
           ? `## Result\n\n${tailOutput(output)}`
-          : "Task completed (no code changes). See logs for full output.";
+          : `Task completed (no code changes). ${logsRef} for full output.`;
 
         await projectFor(target_repo)
           .then((p) => p.issues.comment(issue_number!, body))
           .catch(() => {});
       }
-      await taskStore().setStatus(taskId, "completed", { log_url: logUrl });
+      await taskStore().setStatus(taskId, "completed", { log_url: taskUrl });
       await taskStore().recordEvent(taskId, "running", "completed", {
         no_changes: true,
         issue_number,
@@ -612,7 +610,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       pr_url: pr.url,
       pr_number: pr.number,
       target_branch: branch,
-      log_url: logUrl,
+      log_url: taskUrl,
     });
     await taskStore().recordEvent(taskId, "running", "pr-created", {
       pr_url: pr.url,
@@ -759,7 +757,7 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
   const failedTask = await taskStore().getById(taskId);
   const bundle = failedTask?.context_bundle ?? {};
   const infraRetries = Number(bundle.infra_retry_count ?? 0);
-  const logUrl = logUrlFor(targetRepo, taskId);
+  const taskUrl = taskPageUrl(taskId, process.env.LORE_UI_URL);
 
   if (
     failedTask?.status === "running" &&
@@ -768,7 +766,7 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
   ) {
     await taskStore().setStatus(taskId, "failed", {
       failure_reason: reason,
-      log_url: logUrl,
+      log_url: taskUrl,
     });
     await taskStore().recordEvent(taskId, "running", "failed", {
       error: reason,
@@ -799,7 +797,7 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
   } else if (failedTask?.status === "running") {
     await taskStore().setStatus(taskId, "failed", {
       failure_reason: reason,
-      log_url: logUrl,
+      log_url: taskUrl,
     });
     await taskStore().recordEvent(taskId, "running", "failed", {
       error: reason,

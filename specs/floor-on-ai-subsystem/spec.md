@@ -391,6 +391,11 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   and `review` → `pr_created`; `failed` and `needs-human-help` → `failed`; `completed` → `completed`;
   an un-advanced task on a `Failed` CR maps to `failed` (not completed) while a `Succeeded` CR maps to
   `completed`. ([validated by `agent-watcher-logic.test.ts:89`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L89), [`agent-watcher-logic.test.ts:93`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L93), [`agent-watcher-logic.test.ts:97`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L97), [`agent-watcher-logic.test.ts:78`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L78), [`agent-watcher-logic.test.ts:100`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L100), [`agent-watcher-logic.test.ts:106`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L106))
+- **Issue-body log links.** `taskPageUrl` builds the web-ui task-page link (`{LORE_UI_URL}/tasks/{taskId}`,
+  trailing slashes stripped) that the watcher embeds as the "See [logs](…)" copy in Lore-managed issue
+  bodies — the task page's log viewer is the canonical surface, replacing the browser-unclickable
+  `gs://` object URL (#1294). When no UI base URL is configured it returns undefined and the copy
+  degrades to plain "See logs" rather than fabricating a dead link. ([validated by `agent-watcher-logic.test.ts:157`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L157), [`agent-watcher-logic.test.ts:163`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L163), [`agent-watcher-logic.test.ts:169`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L169), [`agent-watcher-logic.test.ts:173`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L173))
 - **Station failure diagnostic.** When a station CR fails, `stationLogTail` surfaces the tail of the
   pod output where the git/clone error lives: it drops blank lines, bounds to the last `maxLines`, and
   returns empty for empty output. ([validated by `finalize-station-run.test.ts:5`](apps/floor/src/jobs/task/finalize-station-run.test.ts#L5), [`finalize-station-run.test.ts:18`](apps/floor/src/jobs/task/finalize-station-run.test.ts#L18), [`finalize-station-run.test.ts:22`](apps/floor/src/jobs/task/finalize-station-run.test.ts#L22))

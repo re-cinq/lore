@@ -148,3 +148,29 @@ describe("decideFeatureLink", () => {
     );
   });
 });
+
+// Imported here, not at the top: three spec files anchor #Lxx links into the
+// it() lines above, so nothing may shift them (#1294).
+import { taskPageUrl } from "./agent-watcher-logic.js";
+
+describe("taskPageUrl", () => {
+  it("builds https://lore.example.com/tasks/t-1 from the UI base URL", () => {
+    expect(taskPageUrl("t-1", "https://lore.example.com")).toEqual(
+      "https://lore.example.com/tasks/t-1",
+    );
+  });
+
+  it("strips trailing slashes so https://lore.example.com/// still yields a clean path", () => {
+    expect(taskPageUrl("t-1", "https://lore.example.com///")).toEqual(
+      "https://lore.example.com/tasks/t-1",
+    );
+  });
+
+  it("returns undefined when LORE_UI_URL is unset", () => {
+    expect(taskPageUrl("t-1", undefined)).toBeUndefined();
+  });
+
+  it("returns undefined when LORE_UI_URL is empty", () => {
+    expect(taskPageUrl("t-1", "")).toBeUndefined();
+  });
+});
