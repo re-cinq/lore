@@ -230,7 +230,7 @@ export function agentEventsStreamRoute(
           highWaterMark: deps?.highWaterMark,
         });
       } catch (err) {
-        // The bus refuses past MAX_SUBSCRIBERS_PER_LINE. That is capacity, not a
+        // The bus refuses past MAX_SUBSCRIBERS_PER_RUN. That is capacity, not a
         // bug in the request — 503 tells the client to come back. Anything else
         // is a real fault and must surface as a 500; swallowing it here would
         // report every programming error as backpressure. Matched on the bus's

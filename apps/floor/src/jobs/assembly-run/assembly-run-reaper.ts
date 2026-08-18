@@ -23,7 +23,7 @@ import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/ru
 import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { advanceLine, finishLine, taskFromRow } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
-import { nodeAgentSpec, nodeStationSpec } from "./floor-assembly-line.js";
+import { nodeAgentSpec, nodeStationSpec } from "./floor-assembly-run.js";
 import { runOutcomeFromTaskStatus } from "../watcher/agent-watcher-logic.js";
 import type { NodeEventDeps } from "./node-event-handler.js";
 
@@ -204,7 +204,7 @@ export async function assemblyLineReaperJob(
         );
         timedOut++;
         console.warn(
-          `[assembly-line-reaper] node ${openNode.nodeId} of ${row.id} timed out (${node.type === "agent" ? "agent" : "station"}-timeout)`,
+          `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} timed out (${node.type === "agent" ? "agent" : "station"}-timeout)`,
         );
       } else if (recovery.kind === "relaunch") {
         await deps.launch(
@@ -220,7 +220,7 @@ export async function assemblyLineReaperJob(
       }
     } catch (err) {
       console.error(
-        `[assembly-line-reaper] ${row.blueprintName}/${row.id}: ${(err as Error).message}`,
+        `[assembly-run-reaper] ${row.blueprintName}/${row.id}: ${(err as Error).message}`,
       );
     }
   }

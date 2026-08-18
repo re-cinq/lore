@@ -197,7 +197,7 @@ export async function settleTaskForLine(
       return;
     }
     await deps.tasks.recordEvent(task.id, previousStatus, settlement.status, {
-      assembly_line_id: row.id,
+      assembly_run_id: row.id,
       outcome,
     });
   } catch (err) {

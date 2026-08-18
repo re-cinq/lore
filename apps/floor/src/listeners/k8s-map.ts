@@ -4,7 +4,7 @@
  * task-id + phase so repeated MODIFIED notifications and re-list catch-ups
  * collapse to one row. No `@kubernetes/client-node` or `@re-cinq/agent-contracts`
  * import here — keeps the mapper unit-testable; the label is the CR contract,
- * and the label NAMES come from floor-assembly-line, the module that stamps them.
+ * and the label NAMES come from floor-assembly-run, the module that stamps them.
  */
 
 import type { EventInput } from "../main-loop/types.js";
@@ -14,7 +14,7 @@ import {
   LEGACY_ASSEMBLY_LINE_ID_LABEL,
   NODE_ID_LABEL,
   NODE_ITERATION_LABEL,
-} from "../jobs/assembly-line/floor-assembly-line.js";
+} from "../jobs/assembly-run/floor-assembly-run.js";
 
 /** Mirror of agent-watcher-logic's TASK_ID_LABEL (the AgentCrBackend sets it on
  *  every CR). A mirror, not an import: agent-watcher-logic drags the task worker

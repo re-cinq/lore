@@ -9,7 +9,7 @@ import {
 import {
   assemblyLineReaperJob,
   decideNodeRecovery,
-} from "./assembly-line-reaper.js";
+} from "./assembly-run-reaper.js";
 
 const line: AssemblyLine = parseAssemblyLine(`
 name: code-review

@@ -3,7 +3,7 @@ import type { AgentRunEventRow } from "@re-cinq/lore-shared";
 import {
   AgentEventBus,
   MAX_BUFFERED_EVENTS,
-  MAX_SUBSCRIBERS_PER_LINE,
+  MAX_SUBSCRIBERS_PER_RUN,
   agentEventBus,
 } from "./agent-event-bus.js";
 
@@ -133,13 +133,13 @@ describe("AgentEventBus", () => {
   it("rejects a subscriber past the per-line cap", () => {
     const bus = new AgentEventBus();
 
-    for (let i = 0; i < MAX_SUBSCRIBERS_PER_LINE; i++) {
+    for (let i = 0; i < MAX_SUBSCRIBERS_PER_RUN; i++) {
       bus.subscribe("line-a", vi.fn());
     }
 
     expect(() => bus.subscribe("line-a", vi.fn())).toThrow(
       new Error(
-        `agent event bus: line-a already has ${MAX_SUBSCRIBERS_PER_LINE} subscribers`,
+        `agent event bus: line-a already has ${MAX_SUBSCRIBERS_PER_RUN} subscribers`,
       ),
     );
   });

@@ -48,7 +48,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > [merge-check.ts](../apps/floor/src/jobs/merge/merge-check.ts) resolves the line via
 > `findOpenByPr` ([assembly-lines-port.ts](../libs/shared/src/project/assembly-runs/assembly-runs-port.ts))
 > and reports to the parked node with an `assembly_run.resume` event, handled by the
-> existing [resume-event-handler.ts](../apps/floor/src/jobs/assembly-line/resume-event-handler.ts).
+> existing [resume-event-handler.ts](../apps/floor/src/jobs/assembly-run/resume-event-handler.ts).
 > That is the same mechanism finalize already uses, so no new event type is introduced and
 > `decompose-kick.ts` is deleted rather than corrected. This depends on the `push` node
 > stamping `pr_number` on the line — `findOpenByPr` cannot resolve a line whose PR was

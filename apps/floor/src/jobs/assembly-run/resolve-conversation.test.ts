@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryConversations } from "@re-cinq/lore-shared/project/conversations/conversations-memory.js";
 import { resolveConversation } from "./resolve-conversation.js";
-import type { FloorAssemblyLineTask } from "./floor-assembly-line.js";
+import type { FloorAssemblyRunTask } from "./floor-assembly-run.js";
 
-const task: FloorAssemblyLineTask = {
+const task: FloorAssemblyRunTask = {
   taskId: "task-1",
   pipelineTaskId: "task-1",
   assemblyLineId: "line-2",
@@ -140,7 +140,7 @@ describe("resolveConversation", () => {
 });
 
 describe("resolveConversation rewind", () => {
-  const rewinding: FloorAssemblyLineTask = {
+  const rewinding: FloorAssemblyRunTask = {
     ...task,
     assemblyLineId: "line-5",
     args: { feature_id: "feature-9", resume_from_task: "task-round-2" },

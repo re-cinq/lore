@@ -36,7 +36,7 @@ import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
 import {
   ASSEMBLY_RUN_ID_LABEL,
   LEGACY_ASSEMBLY_LINE_ID_LABEL,
-} from "../assembly-line/floor-assembly-line.js";
+} from "../assembly-run/floor-assembly-run.js";
 import {
   isTransientInfraFailure,
   MAX_INFRA_RETRIES,

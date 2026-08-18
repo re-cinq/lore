@@ -222,7 +222,7 @@ describe("postReviewFromNode", () => {
         repo: "re-cinq/lore",
         payload: {
           pr_number: 841,
-          assembly_line_id: "line-1",
+          assembly_run_id: "line-1",
           error: "Validation Failed",
         },
       },
@@ -467,7 +467,7 @@ describe("postReviewFromNode dedupe (#870)", () => {
       {
         event_type: "review_post_deduped",
         repo: "re-cinq/lore",
-        payload: { pr_number: 841, assembly_line_id: "line-1", marker },
+        payload: { pr_number: 841, assembly_run_id: "line-1", marker },
       },
     ]);
   });
@@ -626,7 +626,7 @@ describe("postReplyFromNode dedupe (#1004)", () => {
       {
         event_type: "review_reply_post_deduped",
         repo: "re-cinq/lore",
-        payload: { pr_number: 841, assembly_line_id: "line-1", marker },
+        payload: { pr_number: 841, assembly_run_id: "line-1", marker },
       },
     ]);
   });

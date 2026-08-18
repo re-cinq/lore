@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
-import { AssemblyLineStationBackend } from "./assembly-line-station-backend.js";
+import { AssemblyLineStationBackend } from "./assembly-run-station-backend.js";
 
 function spec(taskId: string): LoreTaskSpec {
   return {

@@ -310,27 +310,27 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - returns 400 when repo or pr_number is missing. ([validated by](apps/floor/src/delivery/http/routes/review-start.test.ts#L40))
 - starts a forced review and returns 202 with the line id. ([validated by](apps/floor/src/delivery/http/routes/review-start.test.ts#L48))
 
-### `apps/floor/src/jobs/assembly-line/pr-check.test.ts`
+### `apps/floor/src/jobs/assembly-run/pr-check.test.ts`
 
-- returns null when the line carries no pr_number. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L48))
-- returns null when the line carries no head_sha. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L54))
-- maps a running line to an in_progress check named lore/<definition>. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L58))
-- keeps a running line in_progress even when a node already recorded changes_requested. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L66))
-- maps a changes_requested line outcome to a neutral conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L74))
-- maps a completed line whose review node recorded changes_requested to a neutral conclusion — the walk routes `changes_requested → done`, so only the node walk row carries the verdict. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L83))
-- reads the latest iteration of a node, so a re-reviewed success wins over an earlier changes_requested. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L95))
-- maps a completed line to a success conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L104))
-- maps a failed line to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L110))
-- maps a failed line with a changes_requested node to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L116))
-- maps a pr_closed outcome to a cancelled conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L150))
-- maps a pr_closed line with a changes_requested node to a cancelled conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L156))
-- adds a details_url to the Lore UI when a uiUrl is given. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L164))
-- maps an iteration_max outcome to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L172))
-- publishes a code-review-recheck line under the aliased `lore/code-review` check name so a required branch-protection check is refreshed on every push, not stranded under a separate name. ([validated by](apps/floor/src/jobs/assembly-line/pr-check.test.ts#L183))
+- returns null when the line carries no pr_number. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L48))
+- returns null when the line carries no head_sha. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L54))
+- maps a running line to an in_progress check named lore/<definition>. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L58))
+- keeps a running line in_progress even when a node already recorded changes_requested. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L66))
+- maps a changes_requested line outcome to a neutral conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L74))
+- maps a completed line whose review node recorded changes_requested to a neutral conclusion — the walk routes `changes_requested → done`, so only the node walk row carries the verdict. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L83))
+- reads the latest iteration of a node, so a re-reviewed success wins over an earlier changes_requested. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L95))
+- maps a completed line to a success conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L104))
+- maps a failed line to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L110))
+- maps a failed line with a changes_requested node to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L116))
+- maps a pr_closed outcome to a cancelled conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L150))
+- maps a pr_closed line with a changes_requested node to a cancelled conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L156))
+- adds a details_url to the Lore UI when a uiUrl is given. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L164))
+- maps an iteration_max outcome to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L172))
+- publishes a code-review-recheck line under the aliased `lore/code-review` check name so a required branch-protection check is refreshed on every push, not stranded under a separate name. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L183))
 
-### `apps/floor/src/jobs/assembly-line/advance.test.ts`
+### `apps/floor/src/jobs/assembly-run/advance.test.ts`
 
-- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by](apps/floor/src/jobs/assembly-line/advance.test.ts#L809))
+- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by](apps/floor/src/jobs/assembly-run/advance.test.ts#L809))
 
 ### `apps/floor/src/jobs/merge/auto-merge.test.ts`
 
@@ -394,21 +394,21 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - A LEFT-side comment is checked against the left side, not the right. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L63))
 - A file deleted in the diff (`+++ /dev/null`) is uncommentable on either side. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L80))
 
-### `apps/floor/src/jobs/assembly-line/node-terminal.test.ts`
+### `apps/floor/src/jobs/assembly-run/node-terminal.test.ts`
 
-- A code-review node's findings are posted as one review against the line's PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L145))
-- A node that is not a code review posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L160))
-- A line carrying no `pr_number` posts nothing. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L169))
-- A verdict that reaches no parseable findings MUST be audited as `review_findings_unparsed` rather than passing silently — that state is indistinguishable from a clean review at the PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L177))
-- An inline post that GitHub rejects and that is delivered as the top-level-comment fallback MUST be audited as `review_post_degraded` while the node still reports posted — a silent downgrade is invisible at the PR. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L197))
-- A post that throws MUST be audited as `review_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L233))
-- A code-review-refine node emits its reply as a fenced `REVIEW_REPLY` block (the pod has no `gh`); the Floor posts it in-thread when the line carries an `in_reply_to_id`. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L293))
-- A refine reply with no thread id falls back to a plain PR comment. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L310))
-- A node that is not a refine node posts no reply. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L324))
-- A refine node that emits no reply block MUST be audited as `review_reply_unparsed` rather than passing silently. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L339))
-- A reply post that throws MUST be audited as `review_reply_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L360))
-- A `code-review-recheck` node's changes-requested verdict is posted as a formal `REQUEST_CHANGES` review. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L787))
-- A `code-review-recheck` node's approving verdict is posted as a formal `APPROVE` review. ([validated by](apps/floor/src/jobs/assembly-line/node-terminal.test.ts#L801))
+- A code-review node's findings are posted as one review against the line's PR. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L145))
+- A node that is not a code review posts nothing. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L160))
+- A line carrying no `pr_number` posts nothing. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L169))
+- A verdict that reaches no parseable findings MUST be audited as `review_findings_unparsed` rather than passing silently — that state is indistinguishable from a clean review at the PR. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L177))
+- An inline post that GitHub rejects and that is delivered as the top-level-comment fallback MUST be audited as `review_post_degraded` while the node still reports posted — a silent downgrade is invisible at the PR. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L197))
+- A post that throws MUST be audited as `review_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L233))
+- A code-review-refine node emits its reply as a fenced `REVIEW_REPLY` block (the pod has no `gh`); the Floor posts it in-thread when the line carries an `in_reply_to_id`. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L293))
+- A refine reply with no thread id falls back to a plain PR comment. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L310))
+- A node that is not a refine node posts no reply. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L324))
+- A refine node that emits no reply block MUST be audited as `review_reply_unparsed` rather than passing silently. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L339))
+- A reply post that throws MUST be audited as `review_reply_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L360))
+- A `code-review-recheck` node's changes-requested verdict is posted as a formal `REQUEST_CHANGES` review. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L787))
+- A `code-review-recheck` node's approving verdict is posted as a formal `APPROVE` review. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L801))
 
 ### `apps/floor/src/listeners/github-map.test.ts`
 

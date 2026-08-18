@@ -29,7 +29,7 @@ export type AgentEventOverflowHandler = () => void;
 
 /** Defensive cap: one assembly line's run page should need a handful of
  *  watchers, not hundreds of leaked subscriptions. */
-export const MAX_SUBSCRIBERS_PER_LINE = 20;
+export const MAX_SUBSCRIBERS_PER_RUN = 20;
 
 /** Undelivered events one subscriber may hold before the bus drops it (FR5.4). */
 export const MAX_BUFFERED_EVENTS = 1000;
@@ -42,43 +42,43 @@ interface Subscriber {
   draining: boolean;
 }
 
-function groupByLine(
+function groupByRun(
   rows: readonly AgentRunEventRow[],
 ): Map<string, AgentRunEventRow[]> {
-  const byLine = new Map<string, AgentRunEventRow[]>();
+  const byRun = new Map<string, AgentRunEventRow[]>();
 
   for (const row of rows) {
     if (row.assemblyLineId === null) {
       continue;
     }
-    const existing = byLine.get(row.assemblyLineId);
+    const existing = byRun.get(row.assemblyLineId);
 
     if (existing) {
       existing.push(row);
     } else {
-      byLine.set(row.assemblyLineId, [row]);
+      byRun.set(row.assemblyLineId, [row]);
     }
   }
 
-  return byLine;
+  return byRun;
 }
 
 export class AgentEventBus {
-  private readonly lines = new Map<string, Set<Subscriber>>();
+  private readonly runs = new Map<string, Set<Subscriber>>();
 
   /** Watch one assembly line's events. Returns the unsubscribe; calling it more
    *  than once is a no-op. */
   subscribe(
-    assemblyLineId: string,
+    assemblyRunId: string,
     handler: AgentEventHandler,
     onOverflow: AgentEventOverflowHandler = () => {},
   ): () => void {
-    const subscribers = this.lines.get(assemblyLineId) ?? new Set<Subscriber>();
+    const subscribers = this.runs.get(assemblyRunId) ?? new Set<Subscriber>();
 
     enforceTrue(
-      subscribers.size < MAX_SUBSCRIBERS_PER_LINE,
+      subscribers.size < MAX_SUBSCRIBERS_PER_RUN,
       Error,
-      `agent event bus: ${assemblyLineId} already has ${MAX_SUBSCRIBERS_PER_LINE} subscribers`,
+      `agent event bus: ${assemblyRunId} already has ${MAX_SUBSCRIBERS_PER_RUN} subscribers`,
     );
     const subscriber: Subscriber = {
       handler,
@@ -89,13 +89,13 @@ export class AgentEventBus {
     };
 
     subscribers.add(subscriber);
-    this.lines.set(assemblyLineId, subscribers);
+    this.runs.set(assemblyRunId, subscribers);
 
-    return () => this.remove(assemblyLineId, subscribers, subscriber);
+    return () => this.remove(assemblyRunId, subscribers, subscriber);
   }
 
   private remove(
-    assemblyLineId: string,
+    assemblyRunId: string,
     subscribers: Set<Subscriber>,
     subscriber: Subscriber,
   ): void {
@@ -107,30 +107,30 @@ export class AgentEventBus {
     // the CURRENT subscribers of the line — silently, and permanently.
     if (
       subscribers.size === 0 &&
-      this.lines.get(assemblyLineId) === subscribers
+      this.runs.get(assemblyRunId) === subscribers
     ) {
-      this.lines.delete(assemblyLineId);
+      this.runs.delete(assemblyRunId);
     }
   }
 
   /** Fan out persisted rows. Rows that correlate to no assembly line are ignored
    *  — they are still durable, they simply have no per-line stream to feed. */
   publish(rows: readonly AgentRunEventRow[]): void {
-    for (const [assemblyLineId, batch] of groupByLine(rows)) {
-      const subscribers = this.lines.get(assemblyLineId);
+    for (const [assemblyRunId, batch] of groupByRun(rows)) {
+      const subscribers = this.runs.get(assemblyRunId);
 
       if (!subscribers) {
         continue;
       }
 
       for (const subscriber of [...subscribers]) {
-        this.enqueue(assemblyLineId, subscribers, subscriber, batch);
+        this.enqueue(assemblyRunId, subscribers, subscriber, batch);
       }
     }
   }
 
   private enqueue(
-    assemblyLineId: string,
+    assemblyRunId: string,
     subscribers: Set<Subscriber>,
     subscriber: Subscriber,
     batch: AgentRunEventRow[],
@@ -139,7 +139,7 @@ export class AgentEventBus {
     subscriber.buffered += batch.length;
 
     if (subscriber.buffered > MAX_BUFFERED_EVENTS) {
-      this.remove(assemblyLineId, subscribers, subscriber);
+      this.remove(assemblyRunId, subscribers, subscriber);
       subscriber.buffer = [];
       subscriber.buffered = 0;
       this.safely(subscriber.onOverflow);

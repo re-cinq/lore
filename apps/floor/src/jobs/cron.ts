@@ -50,8 +50,8 @@ export const assemblyLineReaper: EventHandler = async () => {
     { productionNodeEventDeps },
     { taskStore },
   ] = await Promise.all([
-    import("./assembly-line/assembly-line-reaper.js"),
-    import("./assembly-line/node-event-handler.js"),
+    import("./assembly-run/assembly-run-reaper.js"),
+    import("./assembly-run/node-event-handler.js"),
     import("../kernel/queues.js"),
   ]);
   const summary = await assemblyLineReaperJob({
@@ -61,7 +61,7 @@ export const assemblyLineReaper: EventHandler = async () => {
   });
 
   if (!summary.startsWith("resolved 0, relaunched 0, timed out 0")) {
-    console.log(`[assembly-line-reaper] ${summary}`);
+    console.log(`[assembly-run-reaper] ${summary}`);
   }
 };
 

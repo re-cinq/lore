@@ -20,7 +20,7 @@ the rendered prompt appended. Station recipes use the prompt template
 ### The `station_input` JSON (final argv element)
 
 Produced by the Floor's `nodeStationSpec`
-(`apps/floor/src/jobs/assembly-line/floor-assembly-line.ts`); parsed by
+(`apps/floor/src/jobs/assembly-run/floor-assembly-run.ts`); parsed by
 `libs/shared/src/station-input.ts` (the reference zod schema, shared by both images since #1248):
 
 ```json

@@ -119,7 +119,7 @@ async function attempt(
       event_type: "failure_notify_failed",
       repo: row.repo,
       payload: {
-        assembly_line_id: row.id,
+        assembly_run_id: row.id,
         definition: row.blueprintName,
         channel,
         error: message,
