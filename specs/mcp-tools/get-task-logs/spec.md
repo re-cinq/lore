@@ -27,7 +27,7 @@ Registered via `server.tool` ([registration + handler](apps/mcp-server/src/mcp/t
 - **description** (verbatim):
 
 ```text
-Fetches raw execution output for one pipeline task (by UUID), returning {logs, next_offset, complete}. Pass next_offset back as offset to poll incrementally. Instead: lore_get_job_logs (job_name + run_id) for scheduled CronJob run logs.
+Fetches raw execution output for one pipeline task (by UUID), returning {logs, next_offset, complete, cursor?}. Pass next_offset back as offset (and cursor back verbatim, when present) to poll incrementally. Instead: lore_get_job_logs (job_name + run_id) for scheduled CronJob run logs.
 ```
 
 ### Input schema (Zod)
@@ -36,6 +36,7 @@ Fetches raw execution output for one pipeline task (by UUID), returning {logs, n
 |-------|------|----------|---------|--------------------|
 | `task_id` | string | yes | — | UUID of the pipeline task. |
 | `offset` | number | no | `0` | Byte offset to start reading from; pass previous `next_offset` to poll incrementally. |
+| `cursor` | string | no | — | Opaque resume cursor from the previous response; pass it back only together with that response's `next_offset` as `offset`. Omit it when reading from any other offset. |
 
 ## Behavior
 

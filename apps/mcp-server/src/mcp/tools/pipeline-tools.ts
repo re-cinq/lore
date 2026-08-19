@@ -669,7 +669,7 @@ export function registerPipelineTools(server: McpServer) {
 
   server.tool(
     "lore_get_task_logs",
-    "Fetches raw execution output for one pipeline task (by UUID), returning {logs, next_offset, complete}. Pass next_offset back as offset to poll incrementally. Instead: lore_get_job_logs (job_name + run_id) for scheduled CronJob run logs.",
+    "Fetches raw execution output for one pipeline task (by UUID), returning {logs, next_offset, complete, cursor?}. Pass next_offset back as offset (and cursor back verbatim, when present) to poll incrementally. Instead: lore_get_job_logs (job_name + run_id) for scheduled CronJob run logs.",
     {
       task_id: z.string(),
       offset: z
@@ -678,8 +678,14 @@ export function registerPipelineTools(server: McpServer) {
         .describe(
           "Byte offset to start reading from; pass previous next_offset to poll incrementally.",
         ),
+      cursor: z
+        .string()
+        .optional()
+        .describe(
+          "Opaque resume cursor from the previous response; pass it back only together with that response's next_offset as offset. Omit it when reading from any other offset.",
+        ),
     },
-    async ({ task_id, offset }) => {
+    async ({ task_id, offset, cursor }) => {
       try {
         // Logs live server-side in GCS; proxy the read. The API resolves the
         // task's repo from task_id — the local adapter holds no DB to look it up,
@@ -698,10 +704,17 @@ export function registerPipelineTools(server: McpServer) {
           };
         }
         const params = new URLSearchParams({ task_id, offset: String(offset) });
+
+        if (cursor !== undefined) {
+          params.set("cursor", cursor);
+        }
         const proxied = await withReadCache(
           {
             tool: "lore_get_task_logs",
-            args: { task_id, offset },
+            args:
+              cursor === undefined
+                ? { task_id, offset }
+                : { task_id, offset, cursor },
             ttlSeconds: 86400,
           },
           async () => {
