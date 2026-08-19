@@ -23,6 +23,9 @@ export async function importanceDecay(
   const agents = await memory.countMemoriesByAgentOverCap(
     MAX_MEMORIES_PER_AGENT,
   );
+  // One clock for the whole batch: read per iteration, two agents scored
+  // milliseconds apart could rank the same memory differently in one run.
+  const now = Date.now();
 
   let totalEvicted = 0;
 
@@ -41,7 +44,7 @@ export async function importanceDecay(
       DECAY_MIN_AGE_DAYS,
     );
     const scored = candidates
-      .map((m) => ({ ...m, importance: scoreImportance(m, Date.now()) }))
+      .map((m) => ({ ...m, importance: scoreImportance(m, now) }))
       .sort((a, b) => a.importance - b.importance);
     const toEvict = scored.slice(0, excess);
 
@@ -61,6 +64,12 @@ export async function importanceDecay(
     totalEvicted += toEvict.length;
   }
 
+  // NOTE: `deleteOldestInvalidatedFacts` is GLOBAL — it ignores the agent this
+  // loop is handling and deletes the oldest invalidated facts table-wide, so a
+  // multi-agent run over-deletes and can take facts from agents under the cap.
+  // Carried over verbatim from the Floor; tracked as #1376 rather than changed
+  // here, because this PR is a move and altering eviction semantics inside it
+  // would make the diff lie about what it does.
   const factAgents = await memory.countInvalidatedFactsByAgentOverCap(
     MAX_FACTS_PER_AGENT,
     DECAY_MIN_AGE_DAYS,

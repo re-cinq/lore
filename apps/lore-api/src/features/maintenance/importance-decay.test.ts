@@ -88,3 +88,32 @@ describe("importanceDecay", () => {
     );
   });
 });
+
+describe("importanceDecay — facts", () => {
+  /** An invalidated fact old enough to be past the decay age gate. */
+  const invalidated = (id: string, agentId: string) => ({
+    id,
+    agent_id: agentId,
+    fact_text: `fact ${id}`,
+    repo: "re-cinq/lore",
+    valid_to: daysAgo(120),
+    confidence: "observed",
+    created_at: daysAgo(200),
+    last_retrieved_at: null,
+    half_life_days: null,
+    retrieval_count: 0,
+  });
+
+  it("reports 0 evicted facts when no agent is over the fact cap", async () => {
+    const store = new InMemoryMemoryLifecycle({
+      facts: [invalidated("f1", "agent-1"), invalidated("f2", "agent-1")],
+    });
+
+    const summary = await importanceDecay(store);
+
+    expect({ summary, remaining: store.facts.length }).toEqual({
+      summary: "Evicted 0 memories, 0 old facts, 0 stale transitions",
+      remaining: 2,
+    });
+  });
+});

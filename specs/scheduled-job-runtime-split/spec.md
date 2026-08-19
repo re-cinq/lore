@@ -250,8 +250,11 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   only the count above the cap is evicted, the highest-scoring memory survives,
   an agent under the cap loses nothing, one `importance-decay` audit entry is
   written per agent evicted from, and the summary names memories, facts and
-  stale transitions. Ageing facts to `stale` stays non-fatal — failing the run
-  over it would leave a completed eviction unreported. ([validated by `importance-decay.test.ts:32`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L32), [`importance-decay.test.ts:44`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L44), [`importance-decay.test.ts:54`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L54), [`importance-decay.test.ts:67`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L67), [`importance-decay.test.ts:79`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L79))
+  stale transitions, reporting zero for each path with nothing to do. Ageing
+  facts to `stale` stays non-fatal — failing the run over it would leave a
+  completed eviction unreported. Memories are scored against one clock read
+  once for the whole batch, so two agents cannot rank the same memory
+  differently within a run. ([validated by `importance-decay.test.ts:32`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L32), [`importance-decay.test.ts:44`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L44), [`importance-decay.test.ts:54`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L54), [`importance-decay.test.ts:67`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L67), [`importance-decay.test.ts:79`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L79), [`importance-decay.test.ts:107`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L107))
 - **FR9.3 — `memory_ttl` is the first job to move.** Its 14 lines around one
   `expireMemories()` call, and the CronJob pod built from the Floor's image that
   ran them, are deleted; the schedule is unchanged. The registry in
