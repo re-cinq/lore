@@ -102,4 +102,9 @@ courier:
   # anything in this repo changing. The tag is kept alongside the digest for
   # human legibility; the digest is what Kubernetes resolves.
   image: curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69
-courierJobs: []
+courierJobs:
+  # Was the Floor's memory_ttl CronJob (#1351): a single DELETE that had its own
+  # pod built from the coordinator's image. Same hour, same work, two hops.
+  - name: memory-ttl
+    schedule: "0 * * * *"
+    path: /api/maintenance/memory-ttl

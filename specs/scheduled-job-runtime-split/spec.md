@@ -227,13 +227,35 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   arbitrary assembly lines is a privileged capability — the courier holds a token
   like any other client. ([validated by `start-run.test.ts:109`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L109))
 
+- **FR9 — A scheduled job with no steps runs in lore-api, not in a line.** The
+  assembly-line node types are a closed set (`agent`, `validate`, `gate`,
+  `retrospective`, `github_action`, `detect`, `comment-triage`, `ingest`,
+  `issues`, human stations) and none of them is "do a data operation". A
+  one-node line for a single `DELETE` would put a station pod and a Floor walk
+  between the alarm and one statement, so the courier posts
+  `POST /api/maintenance/<job>` instead and lore-api runs it next to the
+  database it writes. Work with steps still starts a line — only the courier's
+  path differs.
+- **FR9.1 — The endpoint runs the job named in the path and returns its
+  summary.** `200` with `{ job, summary }`, the summary being the one-line
+  string that was `pipeline.job_runs.result_summary`. An unknown job name is
+  `404` — a courier typo must not read as success. ([validated by `maintenance.test.ts:24`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L24), [`maintenance.test.ts:36`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L36), [`maintenance.test.ts:57`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L57))
+- **FR9.2 — A failing job answers with a status and nothing else.** The
+  courier's only channel is an HTTP status, and a job's error can carry
+  connection strings and hostnames; the detail is logged where operators look
+  and never returned. ([validated by `maintenance.test.ts:43`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L43))
+- **FR9.3 — `memory_ttl` is the first job to move.** Its 14 lines around one
+  `expireMemories()` call, and the CronJob pod built from the Floor's image that
+  ran them, are deleted; the schedule is unchanged. The registry in
+  [`maintenance.ts`](apps/lore-api/src/api/routes/maintenance/maintenance.ts) is where the remaining data jobs land as they follow.
+
 ## Acceptance Criteria
 
 1. `node dist/job-runner.js <jobName>` runs each of the 10 batch jobs, initializes
    the DB pool, logs the job summary, and exits 0 on success / non-zero on error;
    an unknown name exits non-zero. `resolveJob` returns the dispatch handler for a known name and
    null for an unknown or empty name; `runJobByName` invokes the resolved handler and exits 0.
-   ([`job-runner.test.ts:50`](apps/floor/src/delivery/job-runner.test.ts#L50), [`job-runner.test.ts:54`](apps/floor/src/delivery/job-runner.test.ts#L54), [`job-runner.test.ts:64`](apps/floor/src/delivery/job-runner.test.ts#L64), [validated by `resolves %s to a handler function`](apps/floor/src/delivery/job-runner.test.ts#L38))
+   ([`job-runner.test.ts:53`](apps/floor/src/delivery/job-runner.test.ts#L53), [`job-runner.test.ts:57`](apps/floor/src/delivery/job-runner.test.ts#L57), [`job-runner.test.ts:67`](apps/floor/src/delivery/job-runner.test.ts#L67), [validated by `resolves %s to a handler function`](apps/floor/src/delivery/job-runner.test.ts#L41))
 
 1a. Each runner invocation writes a `pipeline.job_runs` row — `running` on start,
    then `completed` (with `result_summary`) or `failed` (with `error`) — so a
@@ -273,7 +295,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    `README.md` naming its runtime/container; `agent` typecheck and `vitest run`
    pass after the move.
 7. `kubectl create job --from=cronjob/<name>` runs a batch job on demand.
-8. No job is scheduled both in-process and as a CronJob in any release. ([validated by `job-runner.test.ts:44`](apps/floor/src/delivery/job-runner.test.ts#L44))
+8. No job is scheduled both in-process and as a CronJob in any release. ([validated by `job-runner.test.ts:47`](apps/floor/src/delivery/job-runner.test.ts#L47))
 
 9. Each migrated batch job is an independently-runnable unit the runner dispatches and whose one-line
    result the run row records: `memory_ttl` soft-deletes expired memories and reports the count,

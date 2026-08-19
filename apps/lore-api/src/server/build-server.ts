@@ -37,6 +37,10 @@ import { taskRunsRoute } from "../api/routes/tasks/task-runs.js";
 import { taskViewRoutes } from "../api/routes/tasks/task-views.js";
 import { assemblyLineRoutes } from "../api/routes/assembly-lines/assembly-lines.js";
 import { startRunRoute } from "../api/routes/assembly-lines/start-run.js";
+import {
+  maintenanceRoute,
+  maintenanceJobs,
+} from "../api/routes/maintenance/maintenance.js";
 import { taskByPrRoute } from "../api/routes/tasks/task-by-pr.js";
 import {
   taskLogsGetRoute,
@@ -122,6 +126,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     ...taskViewRoutes(getPool),
     ...assemblyLineRoutes(getPool),
     startRunRoute(),
+    maintenanceRoute(maintenanceJobs(getPool)),
     taskByPrRoute(getPool),
     taskLogsGetRoute(getPool),
     jobRunLogsRoute(),
