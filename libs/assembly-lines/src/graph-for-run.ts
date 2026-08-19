@@ -12,7 +12,7 @@
 // copy would miss the others, and walk vs reap would resolve different graphs
 // for the same run.
 
-import { snapshotGraph, type AssemblyLine } from "@re-cinq/lore-assembly-lines";
+import { snapshotGraph, type AssemblyLine } from "./index.js";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 

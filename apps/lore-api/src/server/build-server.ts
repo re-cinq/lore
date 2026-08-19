@@ -37,6 +37,7 @@ import { taskRunsRoute } from "../api/routes/tasks/task-runs.js";
 import { taskViewRoutes } from "../api/routes/tasks/task-views.js";
 import { assemblyLineRoutes } from "../api/routes/assembly-lines/assembly-lines.js";
 import { startRunRoute } from "../api/routes/assembly-lines/start-run.js";
+import { runReadRoute } from "../api/routes/assembly-lines/run-read.js";
 import {
   maintenanceRoute,
   maintenanceJobs,
@@ -127,6 +128,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     ...taskViewRoutes(getPool),
     ...assemblyLineRoutes(getPool),
     startRunRoute(),
+    runReadRoute(getPool),
     maintenanceRoute(maintenanceJobs(getPool)),
     taskByPrRoute(getPool),
     taskLogsGetRoute(getPool),

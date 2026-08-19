@@ -32,6 +32,7 @@ export {
 } from "./agent-output.js";
 
 export { ciOutcome, type CiConclusion } from "./github-action-handler.js";
+export { graphForRun } from "./graph-for-run.js";
 
 export {
   loadAssemblyLineDir,

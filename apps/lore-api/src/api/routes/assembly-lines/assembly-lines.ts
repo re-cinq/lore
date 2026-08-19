@@ -146,38 +146,6 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
 
     {
       method: "GET",
-      path: "/api/assembly-runs/{id}",
-      options: bearerScope("read"),
-      handler: async (request, h) => {
-        const pool = getPool();
-
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
-
-        try {
-          const { rows } = await pool.query(
-            `${RUN_DETAIL_SELECT} WHERE al.id = $1`,
-            [request.params.id],
-          );
-
-          return rows.length > 0
-            ? h.response(rows[0])
-            : h.response({ error: "Run not found" }).code(404);
-        } catch (err) {
-          if (missingTable(err)) {
-            // Same answer as "no such run": a database with no table holds none,
-            // and the id resolver falls through to treating it as a task id.
-            return h.response({ error: "Run not found" }).code(404);
-          }
-
-          throw err;
-        }
-      },
-    },
-
-    {
-      method: "GET",
       path: "/api/assembly-runs/{id}/nodes",
       options: bearerScope("read"),
       handler: async (request, h) => {
@@ -247,6 +215,47 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
         } catch (err) {
           if (missingTable(err)) {
             return h.response({ usage: null });
+          }
+
+          throw err;
+        }
+      },
+    },
+  ]).concat([
+    // The FLAT by-id read, now served ONLY under the legacy spelling. The
+    // canonical /api/assembly-runs/{id} serves the enriched shape (the run, its
+    // nodes, and the Station each node dispatches to) from run-read.ts. This one
+    // stays until the deployed web-ui moves to that shape — web-ui ships as its
+    // own image, so one side of a rollout is always older than the other.
+    // DELETE with the aliases (#1347 PR3).
+    //
+    // Registered OUTSIDE withLegacyAlias deliberately: passing it through would
+    // alias the legacy path to itself and hapi rejects the duplicate route.
+    {
+      method: "GET",
+      path: "/api/assembly-lines/{id}",
+      options: bearerScope("read"),
+      handler: async (request, h) => {
+        const pool = getPool();
+
+        if (!pool) {
+          return h.response({ error: DB_UNAVAILABLE }).code(503);
+        }
+
+        try {
+          const { rows } = await pool.query(
+            `${RUN_DETAIL_SELECT} WHERE al.id = $1`,
+            [request.params.id],
+          );
+
+          return rows.length > 0
+            ? h.response(rows[0])
+            : h.response({ error: "Run not found" }).code(404);
+        } catch (err) {
+          if (missingTable(err)) {
+            // Same answer as "no such run": a database with no table holds none,
+            // and the id resolver falls through to treating it as a task id.
+            return h.response({ error: "Run not found" }).code(404);
           }
 
           throw err;
