@@ -105,8 +105,11 @@ jobs:
           - name: mcp-server
             build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core
             test: npm test -w @re-cinq/lore-mcp
+          # lore-api imports the compiled @re-cinq/lore-assembly-lines kernel too,
+          # for the enriched run read's station resolution — so it must be built
+          # here as it is for the floor entry below.
           - name: lore-api
-            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core
+            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-assembly-lines
             test: npm test -w @re-cinq/lore-api
           # agent also imports the compiled @re-cinq/lore-assembly-lines kernel, so
           # both shared and assembly-lines must be built before its suite runs.
@@ -135,7 +138,7 @@ jobs:
           # without regenerating. Needs shared + server-core prebuilt; the script
           # builds lore-api itself.
           - name: openapi-drift
-            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core
+            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-assembly-lines
             test: bash scripts/check-openapi-drift.sh
           # Skill-docs guard. /lore-help renders each platform skill from that
           # skill's own `## Help` block, so a skill without one is invisible in
