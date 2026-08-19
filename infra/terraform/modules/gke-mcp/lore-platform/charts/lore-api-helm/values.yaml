@@ -88,8 +88,14 @@ slackBotTokenSecret:
 # exit, so a scheduled job runs as an assembly line instead of as code inside a
 # coordinator. Empty by default — an entry is added when its line exists.
 #
-# Each entry: name (k8s suffix), schedule (cron), definition (blueprint name),
-# repo (owner/name). Optional: branch, args (object), startingDeadlineSeconds.
+# Each entry: name (k8s suffix), schedule (cron), path (the lore-api path to
+# post to). Optional: body (object -> JSON payload), startingDeadlineSeconds,
+# successfulJobsHistoryLimit, failedJobsHistoryLimit.
+#
+# path is per-entry because the two kinds of scheduled work land in different
+# places: work with STEPS posts /api/assembly-runs and runs as a real assembly
+# line; a single data operation posts /api/maintenance/<job> and runs inside
+# lore-api. Neither runs in a coordinator, which is the point.
 courier:
   # Pinned by DIGEST, not by tag: this container is handed the org ingest token,
   # and a tag is mutable — `8.11.1` can be repointed at a different image without

@@ -7,9 +7,15 @@ the assembly line — which brings run rows, retries, a timeline, and per-node
 logs that a bare CronJob pod never had. This is what replaces "a batch job lives
 in the coordinator because the coordinator's image is what the alarm launched".
 
-Required per entry: .name (k8s suffix), .schedule (cron), .definition (blueprint
-name), .repo (owner/name).
-Optional: .branch, .args (object, rendered as JSON).
+Required per entry: .name (k8s suffix), .schedule (cron), .path (the lore-api
+path to post to).
+Optional: .body (object, rendered as the JSON payload; omitted entirely when
+absent, for endpoints that take none).
+
+The path is deliberately per-entry rather than fixed. Work with STEPS posts
+`/api/assembly-runs` and runs as a real line; a single data operation posts
+`/api/maintenance/<job>` and runs in lore-api. Both are "the schedule is in
+Kubernetes and the pod holds no logic" — only the URL differs.
 
 The token is written to a curl config file by a shell BUILTIN rather than passed
 as an argument, so it never appears in any process's argv (readable via /proc by
@@ -17,10 +23,7 @@ anything else in the pod).
 */}}
 {{- $root := . -}}
 {{- range .Values.courierJobs }}
-{{- $body := dict "definition" .definition "repo" .repo -}}
-{{- if .branch }}{{- $_ := set $body "branch" .branch -}}{{- end -}}
-{{- if .args }}{{- $_ := set $body "args" .args -}}{{- end -}}
-{{- $url := printf "http://%s.%s.svc.cluster.local:%v/api/assembly-runs" $root.Chart.Name $root.Values.namespace $root.Values.service.port }}
+{{- $url := printf "http://%s.%s.svc.cluster.local:%v%s" $root.Chart.Name $root.Values.namespace $root.Values.service.port .path }}
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -30,7 +33,7 @@ metadata:
   labels:
     app: lore-api
     component: courier
-    definition: {{ .definition | trunc 63 }}
+    courier-job: {{ .name | trunc 63 }}
 spec:
   schedule: {{ .schedule | quote }}
   # A courier post is idempotent only in the sense that a second run starts a
@@ -50,7 +53,7 @@ spec:
           labels:
             app: lore-api
             component: courier
-            definition: {{ .definition | trunc 63 }}
+            courier-job: {{ .name | trunc 63 }}
         spec:
           restartPolicy: Never
           # Talks to lore-api over HTTP and to nothing else; a mounted API-server
@@ -87,9 +90,9 @@ spec:
                   exec curl --config /tmp/curlrc \
                     --fail-with-body --silent --show-error \
                     --retry 3 --retry-connrefused --max-time 30 \
+                    -X POST {{ $url | quote }}{{ if .body }} \
                     -H 'Content-Type: application/json' \
-                    -X POST {{ $url | quote }} \
-                    -d {{ $body | toJson | quote }}
+                    -d {{ .body | toJson | quote }}{{ end }}
               volumeMounts:
                 - name: tmp
                   mountPath: /tmp
