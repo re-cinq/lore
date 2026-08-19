@@ -71,7 +71,13 @@ describe("POST /api/task-turns/{taskId}", () => {
     const sent = (init.body as string).split("\n").map((l) => JSON.parse(l));
 
     expect(sent).toEqual(
-      lines.map((l) => ({ source: { task: TASK_ID }, event: JSON.parse(l) })),
+      lines.map((l) => ({
+        source: {
+          task: TASK_ID,
+          turn_key: expect.stringMatching(/^[0-9a-f]{64}$/),
+        },
+        event: JSON.parse(l),
+      })),
     );
   });
 
@@ -88,10 +94,12 @@ describe("POST /api/task-turns/{taskId}", () => {
 
     expect(res.result).toEqual({ forwarded: 1, skipped: 3 });
     const [, init] = fetchMock.mock.calls[0];
+    const sent = JSON.parse(init.body as string);
 
-    expect(init.body).toBe(
-      JSON.stringify({ source: { task: TASK_ID }, event: JSON.parse(good) }),
-    );
+    expect(sent).toMatchObject({
+      source: { task: TASK_ID },
+      event: JSON.parse(good),
+    });
   });
 
   it("returns 200 without calling the Floor when no line survives filtering", async () => {
@@ -162,5 +170,89 @@ describe("POST /api/task-turns/{taskId}", () => {
 
     expect(res.statusCode).toBe(503);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Re-ingest dedup (#1389): every forwarded line carries a deterministic
+// turn_key so the Floor's turn store can skip retried lines idempotently.
+// ---------------------------------------------------------------------------
+
+describe("POST /api/task-turns turn_key stamping", () => {
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    process.env.LORE_AGENT_URL = FLOOR_URL;
+    process.env.LORE_AGENT_INTERNAL_TOKEN = INTERNAL;
+    fetchMock.mockResolvedValue({ ok: true, status: 200 });
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  const L1 = JSON.stringify({ type: "system", subtype: "init" });
+  const L2 = JSON.stringify({ type: "assistant" });
+
+  const sentKeys = () =>
+    (fetchMock.mock.calls.at(-1)?.[1].body as string)
+      .split("\n")
+      .map((line) => JSON.parse(line).source.turn_key as string);
+
+  it("stamps the same keys when the same body is retried", async () => {
+    await post([L1, L2].join("\n"));
+    const first = sentKeys();
+
+    await post([L1, L2].join("\n"));
+    const second = sentKeys();
+
+    expect(first).toHaveLength(2);
+    expect(first.every((key) => /^[0-9a-f]{64}$/.test(key))).toBe(true);
+    expect(first[0]).not.toBe(first[1]);
+    expect(second).toEqual(first);
+  });
+
+  it("keys byte-identical lines within one POST apart", async () => {
+    await post([L2, L2].join("\n"));
+    const keys = sentKeys();
+
+    expect(keys[0]).not.toBe(keys[1]);
+  });
+
+  it("keys a line by its x-turn-offset position so a tail-only re-POST reproduces its key", async () => {
+    await post([L1, L2].join("\n"), taskPool(), {
+      ...AUTH,
+      "x-turn-offset": "0",
+    });
+    const wholeBuffer = sentKeys();
+
+    await post(L2, taskPool(), { ...AUTH, "x-turn-offset": "1" });
+
+    expect(sentKeys()).toEqual([wholeBuffer[1]]);
+  });
+
+  it("keys identical lines under different tasks apart", async () => {
+    const OTHER_TASK = "1b7e3f7e-1111-4222-8333-444455556666";
+
+    await post(L1);
+    const first = sentKeys();
+
+    await post(L1, taskPool(), AUTH, OTHER_TASK);
+
+    expect(sentKeys()).not.toEqual(first);
+  });
+
+  it("falls back to per-POST occurrence keying when the offset header is not a number", async () => {
+    const res = await post([L2, L2].join("\n"), taskPool(), {
+      ...AUTH,
+      "x-turn-offset": "banana",
+    });
+    const keys = sentKeys();
+
+    expect(res.statusCode).toBe(200);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).not.toBe(keys[1]);
   });
 });

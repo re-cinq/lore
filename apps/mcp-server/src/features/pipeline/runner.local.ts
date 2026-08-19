@@ -639,7 +639,10 @@ export function dropOversizedTurnLines(
   return { kept, oversized: lines.length - kept.length };
 }
 
-async function ingestTurns(task: LocalTask, rawLogs: string): Promise<void> {
+export async function ingestTurns(
+  task: LocalTask,
+  rawLogs: string,
+): Promise<void> {
   const apiUrl = getApiUrl();
   const token = getToken();
 
@@ -670,12 +673,21 @@ async function ingestTurns(task: LocalTask, rawLogs: string): Promise<void> {
   // batches behind it — the terminal result line rides last, so aborting
   // here would cost the cost row and the whole transcript tail.
   let failed = 0;
+  // Each batch declares where in the full transcript it starts, so the relay
+  // can key every line by position (#1389) and a re-POST of an already-sent
+  // buffer dedups instead of duplicating. Advanced on failure too: a batch
+  // consumes its positions whether or not it relayed.
+  let offset = 0;
 
   for (const batch of batchTurnLines(
     kept,
     TURN_BATCH_MAX_BYTES,
     TURN_BATCH_MAX_LINES,
   )) {
+    const batchOffset = offset;
+
+    offset += batch.length;
+
     try {
       const resp = await fetch(`${apiUrl}/api/task-turns/${task.taskId}`, {
         signal: AbortSignal.timeout(30_000),
@@ -683,6 +695,7 @@ async function ingestTurns(task: LocalTask, rawLogs: string): Promise<void> {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/x-ndjson",
+          "x-turn-offset": String(batchOffset),
         },
         body: batch.join("\n"),
       });

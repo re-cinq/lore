@@ -15,6 +15,9 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
  * `ORDER BY node.id DESC LIMIT 1` does), string-encoded ids compared
  * numerically, ascending capped reads, and horizon pruning. The envelope
  * arrives as JSON text and comes back parsed, exactly as `jsonb` does.
+ * A non-null `dedupKey` already stored skips its row (#1389) — `insertBatch`
+ * returns only the rows the call actually inserted — and pruning a row frees
+ * its key, exactly as deleting the indexed row does in Postgres.
  *
  * Seed the correlation table with {@link registerNode}; inject `now` to drive
  * `pruneOld` deterministically.
@@ -23,6 +26,7 @@ export class InMemoryAgentRunTurns implements AgentRunTurnsRepository {
   readonly rows: AgentRunTurnRow[] = [];
   private readonly nodes: AgentRunTurnNodeRef[] = [];
   private readonly now: () => Date;
+  private readonly rowIdByDedupKey = new Map<string, string>();
   private nextId = 1;
 
   constructor(opts: { now?: () => Date } = {}) {
@@ -36,7 +40,21 @@ export class InMemoryAgentRunTurns implements AgentRunTurnsRepository {
   async insertBatch(
     rows: readonly AgentRunTurnInsert[],
   ): Promise<AgentRunTurnRow[]> {
-    return rows.map((row) => this.persist(row)).sort(compareTurnIdAscending);
+    const inserted: AgentRunTurnRow[] = [];
+
+    for (const row of rows) {
+      if (row.dedupKey != null && this.rowIdByDedupKey.has(row.dedupKey)) {
+        continue;
+      }
+      const persisted = this.persist(row);
+
+      if (row.dedupKey != null) {
+        this.rowIdByDedupKey.set(row.dedupKey, persisted.id);
+      }
+      inserted.push(persisted);
+    }
+
+    return inserted.sort(compareTurnIdAscending);
   }
 
   async listByLine(
@@ -65,6 +83,13 @@ export class InMemoryAgentRunTurns implements AgentRunTurnsRepository {
     const deleted = this.rows.length - kept.length;
 
     this.rows.splice(0, this.rows.length, ...kept);
+    const keptIds = new Set(kept.map((row) => row.id));
+
+    for (const [key, rowId] of this.rowIdByDedupKey) {
+      if (!keptIds.has(rowId)) {
+        this.rowIdByDedupKey.delete(key);
+      }
+    }
 
     return deleted;
   }

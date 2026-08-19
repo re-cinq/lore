@@ -102,5 +102,8 @@ export function turnFromEnvelope(
     carried: parseCarriedRunIdentity(source),
     eventType: isObject(event) ? str(event.type) : null,
     envelope,
+    // The task-turns relay's idempotency key (#1389). Only that relay stamps
+    // it; pod-produced envelopes carry none, so cluster ingest never dedups.
+    dedupKey: str(source?.turn_key),
   };
 }
