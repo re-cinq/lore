@@ -265,6 +265,16 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   ran them, are deleted; the schedule is unchanged. The registry in
   [`maintenance.ts`](apps/lore-api/src/api/routes/maintenance/maintenance.ts) is where the remaining data jobs land as they follow.
 
+- **FR10 — The chart's job names and the dispatch map may not drift.** Every
+  `cronJobs[].job` in `floor-helm/values.yaml` MUST resolve in the runner's
+  dispatch map, and every dispatch entry MUST have a chart CronJob. Nothing tied
+  the two together, so they drifted in both directions at once: `autoresearch`
+  kept a weekly CronJob for months after its handler was gone — scheduling a pod
+  that pulled the image, requested bumped resources, and exited on
+  `Unknown job: autoresearch` — while a dispatch entry with no CronJob would
+  simply never run and never say so. A scheduled failure and a silent no-op are
+  both worse than a build error. ([validated by `job-runner.test.ts:92`](apps/floor/src/delivery/job-runner.test.ts#L92), [`job-runner.test.ts:103`](apps/floor/src/delivery/job-runner.test.ts#L103))
+
 ## Acceptance Criteria
 
 1. `node dist/job-runner.js <jobName>` runs each of the 10 batch jobs, initializes

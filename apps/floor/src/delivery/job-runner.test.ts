@@ -78,3 +78,38 @@ describe("runJobByName", () => {
     }
   });
 });
+
+describe("chart ↔ dispatch drift", () => {
+  // Nothing tied the Helm chart's job names to the dispatch map, so they drifted:
+  // `autoresearch` kept a weekly CronJob for months after its handler was gone,
+  // scheduling a pod that pulled the image and exited on "Unknown job" (#1379).
+  // A chart entry naming a job the runner cannot resolve is a scheduled failure.
+  const chartPath = new URL(
+    "../../../../infra/terraform/modules/gke-mcp/lore-platform/charts/floor-helm/values.yaml",
+    import.meta.url,
+  );
+
+  it("resolves every cronJobs[].job in the chart against the dispatch map", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { parse } = await import("yaml");
+    const values = parse(readFileSync(chartPath, "utf8")) as {
+      cronJobs?: { name: string; job: string }[];
+    };
+    const declared = (values.cronJobs ?? []).map((c) => c.job);
+
+    expect(declared.filter((job) => resolveJob(job) === null)).toEqual([]);
+  });
+
+  it("declares a chart CronJob for every dispatch entry", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { parse } = await import("yaml");
+    const values = parse(readFileSync(chartPath, "utf8")) as {
+      cronJobs?: { name: string; job: string }[];
+    };
+    const declared = new Set((values.cronJobs ?? []).map((c) => c.job));
+
+    expect(Object.keys(dispatch).filter((job) => !declared.has(job))).toEqual(
+      [],
+    );
+  });
+});
