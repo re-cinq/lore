@@ -77,18 +77,32 @@ export type ReviewPostOutcome =
   "posted" | "already_posted" | "no_findings" | "post_failed" | "not_review";
 
 /**
- * The outage shape: the review produced neither findings nor a verdict (e.g. the
- * agent could not read the diff), yet the CR exited 0 — recording `success` would
- * finish the line green ("Approved." on an unreviewed PR). A verdict without a
- * findings block stays untouched: that is a legitimate minimal approve. A
- * `post_failed` also stays — the verdict is real, and the throw is audited.
+ * The outage shape: the review published nothing, yet the CR exited 0 —
+ * recording `success` would finish the line green ("Approved." on an unreviewed
+ * PR).
+ *
+ * `no_findings` means `maybePostReview` could parse neither a REVIEW_FINDINGS
+ * block nor a bare approval, so it covers three cases, and only one of them is
+ * benign:
+ *
+ * - **no verdict either** — the agent never reached a conclusion (it could not
+ *   read the diff). Fails.
+ * - **verdict `changes_requested`** — the review HAD something to say and could
+ *   not say it. This is what #1401 was: the model emitted a findings block whose
+ *   `body` carried unescaped quotes, `JSON.parse` died, nothing reached the PR,
+ *   and the check went green while four findings (one blocking) were lost. Fails.
+ * - **verdict `success`** — a legitimate minimal approve, which
+ *   `approvedWithoutFindings` posts, so this combination does not arise in
+ *   practice. Left untouched anyway: approving nothing harms nothing.
+ *
+ * A `post_failed` also stays — the verdict is real, and the throw is audited.
  */
 export function reviewNodeResultOverride(
   post: ReviewPostOutcome,
   output: string | undefined,
   result: NodeResult,
 ): NodeResult {
-  if (post === "no_findings" && parseReviewVerdict(output) === null) {
+  if (post === "no_findings" && parseReviewVerdict(output) !== "success") {
     return { outcome: "failed" };
   }
 

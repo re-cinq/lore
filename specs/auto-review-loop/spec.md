@@ -407,8 +407,8 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - A node that is not a refine node posts no reply. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L324))
 - A refine node that emits no reply block MUST be audited as `review_reply_unparsed` rather than passing silently. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L339))
 - A reply post that throws MUST be audited as `review_reply_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L360))
-- A `code-review-recheck` node's changes-requested verdict is posted as a formal `REQUEST_CHANGES` review. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L787))
-- A `code-review-recheck` node's approving verdict is posted as a formal `APPROVE` review. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L801))
+- A `code-review-recheck` node's changes-requested verdict is posted as a formal `REQUEST_CHANGES` review. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L801))
+- A `code-review-recheck` node's approving verdict is posted as a formal `APPROVE` review. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L815))
 
 ### `apps/floor/src/listeners/github-map.test.ts`
 
