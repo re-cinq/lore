@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { clampedLimit, DB_UNAVAILABLE } from "../common-schemas.js";
 
@@ -63,6 +64,65 @@ const runSelect = (graphColumn: string) => `
 const RUN_DETAIL_SELECT = runSelect("al.graph,");
 const RUN_BROWSE_SELECT = runSelect("");
 
+/**
+ * What the run reads answer with.
+ *
+ * A CROSS-TABLE read model, not a projection of `pipeline.assembly_runs`: it
+ * carries the task's PR, the summed cost from `pipeline.llm_calls`, and the
+ * `args->>'pr_number'` lift. Its keys stay snake_case because that is what the
+ * deployed web-ui reads — the `AssemblyRun` MODEL is the table's shape, and this
+ * is the contract over it, so the two live apart on purpose.
+ *
+ * `definition_name` doubles `blueprint_name` for the rollout window described
+ * above; it goes when the legacy path alias does.
+ */
+const RunRowSchema = z.object({
+  id: z.string(),
+  blueprint_name: z.string(),
+  definition_name: z.string(),
+  task_id: z.string().nullable(),
+  repo: z.string(),
+  branch: z.string().nullable(),
+  subject_key: z.string().nullable(),
+  graph: z.unknown().optional(),
+  status: z.string(),
+  outcome: z.string().nullable(),
+  reason: z.string().nullable(),
+  created_at: z.string(),
+  started_at: z.string().nullable(),
+  finished_at: z.string().nullable(),
+  args_pr_number: z.number().nullable(),
+  pr_url: z.string().nullable(),
+  task_pr_number: z.number().nullable(),
+  created_by: z.string().nullable(),
+  cost_usd: z.number().nullable(),
+});
+
+const RunListSchema = z.object({ runs: z.array(RunRowSchema) });
+
+/** One `pipeline.station_runs` row as the run page reads it. */
+const StationRunRowSchema = z.object({
+  node_id: z.string(),
+  iteration: z.number(),
+  outcome: z.string().nullable(),
+  agent_cr_name: z.string().nullable(),
+  station_run_id: z.string().nullable(),
+  commit_sha: z.string().nullable(),
+  started_at: z.string(),
+  finished_at: z.string().nullable(),
+});
+
+const StationRunListSchema = z.object({
+  nodes: z.array(StationRunRowSchema),
+});
+
+const TokenUsageSchema = z.object({
+  input_tokens: z.number(),
+  output_tokens: z.number(),
+  cache_creation_tokens: z.number(),
+  cache_read_tokens: z.number(),
+});
+
 const RunsQuery = z.object({
   status: z.string().max(40).optional(),
   repo: z.string().max(200).optional(),
@@ -107,10 +167,17 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/assembly-runs",
-      options: {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(RunsQuery) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("read"),
+          validate: { query: zodValidate(RunsQuery) },
+        },
+        RunListSchema,
+        {
+          name: "AssemblyRunList",
+          description: "A page of runs, newest first",
+        },
+      ),
       handler: async (request, h) => {
         const pool = getPool();
 
@@ -160,7 +227,10 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/assembly-runs/{id}/nodes",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), StationRunListSchema, {
+        name: "StationRunList",
+        description: "The run's station visits, in visit order",
+      }),
       handler: async (request, h) => {
         const pool = getPool();
 
@@ -192,7 +262,10 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/assembly-runs/{id}/token-usage",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), TokenUsageSchema, {
+        name: "AssemblyRunTokenUsage",
+        description: "Tokens spent so far on the run",
+      }),
       handler: async (request, h) => {
         const pool = getPool();
 
@@ -247,7 +320,11 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/assembly-lines/{id}",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), RunRowSchema, {
+        name: "AssemblyRunDetail",
+        description: "One run, carrying the blueprint clone it walked",
+        errors: [404],
+      }),
       handler: async (request, h) => {
         const pool = getPool();
 

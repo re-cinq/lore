@@ -1,18 +1,21 @@
-// web-ui is not a workspace member and can't import @re-cinq/lore-shared, so the
-// agent display type + curated model list are mirrored here. Keep in sync with
-// libs/shared/src/project/agents/agent-defs-port.ts.
+// The agent display type is NOT mirrored any more: `AgentDefinition` is an alias
+// over the OpenAPI document lore-api generates from its own route contracts
+// (ADR-035), so the shape has one declaration — the `ResolvedAgentDefinition`
+// schema in libs/shared/src/models/agent-definition.ts — and
+// scripts/check-openapi-drift.sh fails CI when the generated artifact is stale.
+// This file previously hand-copied the interface with no drift guard at all.
+//
+// KNOWN_MODELS stays here on purpose. It is a curated DROPDOWN, not part of any
+// response, so no generated type can carry it; the API accepts custom text for
+// `model` regardless of what this list offers.
 
-export interface AgentDefinition {
-  name: string;
-  model: string | null;
-  timeout_minutes: number | null;
-  prompt: string | null;
-  image: string | null;
-  execution_mode: string;
-  review_required: boolean;
-  /** null when resolved from the org default / yaml (inherited); set = repo override. */
-  project_id: string | null;
-}
+import type { components } from "./api/schema";
+
+/** One resolved agent definition, as the API serves it. */
+export type AgentDefinition = Extract<
+  components["schemas"]["AgentDefinitionRead"],
+  { name: string }
+>;
 
 export const KNOWN_MODELS: ReadonlyArray<{ id: string; label: string }> = [
   { id: "claude-opus-4-8", label: "Opus 4.8" },

@@ -1857,12 +1857,124 @@ export interface components {
         [key: string]: unknown;
       } | null;
     };
+    AssemblyRunList: {
+      runs: {
+        id: string;
+        blueprint_name: string;
+        definition_name: string;
+        task_id: string | null;
+        repo: string;
+        branch: string | null;
+        subject_key: string | null;
+        graph?: unknown;
+        status: string;
+        outcome: string | null;
+        reason: string | null;
+        created_at: string;
+        started_at: string | null;
+        finished_at: string | null;
+        args_pr_number: number | null;
+        pr_url: string | null;
+        task_pr_number: number | null;
+        created_by: string | null;
+        cost_usd: number | null;
+      }[];
+    };
+    StationRunList: {
+      nodes: {
+        node_id: string;
+        iteration: number;
+        outcome: string | null;
+        agent_cr_name: string | null;
+        station_run_id: string | null;
+        commit_sha: string | null;
+        started_at: string;
+        finished_at: string | null;
+      }[];
+    };
+    AssemblyRunTokenUsage: {
+      input_tokens: number;
+      output_tokens: number;
+      cache_creation_tokens: number;
+      cache_read_tokens: number;
+    };
+    AssemblyRunDetail: {
+      id: string;
+      blueprint_name: string;
+      definition_name: string;
+      task_id: string | null;
+      repo: string;
+      branch: string | null;
+      subject_key: string | null;
+      graph?: unknown;
+      status: string;
+      outcome: string | null;
+      reason: string | null;
+      created_at: string;
+      started_at: string | null;
+      finished_at: string | null;
+      args_pr_number: number | null;
+      pr_url: string | null;
+      task_pr_number: number | null;
+      created_by: string | null;
+      cost_usd: number | null;
+    };
     AssemblyRunStarted: {
       id: string;
     };
     MaintenanceResult: {
       job: string;
       summary: string;
+    };
+    AgentDefinitionRead:
+      | {
+          name: string;
+          model: string | null;
+          timeout_minutes: number | null;
+          prompt: string | null;
+          image: string | null;
+          execution_mode: string;
+          review_required: boolean;
+          project_id: string | null;
+        }
+      | {
+          agents: {
+            name: string;
+            model: string | null;
+            timeout_minutes: number | null;
+            prompt: string | null;
+            image: string | null;
+            execution_mode: string;
+            review_required: boolean;
+            project_id: string | null;
+          }[];
+        };
+    AgentDefinitionWritten: {
+      /** @constant */
+      ok: true;
+      agent: {
+        name: string;
+        model: string | null;
+        timeout_minutes: number | null;
+        prompt: string | null;
+        image: string | null;
+        execution_mode: string;
+        review_required: boolean;
+        project_id: string | null;
+      };
+      ceremony: {
+        /** @enum {string} */
+        tier: "two_key" | "admin";
+        pr_ref?: string;
+        approver?: string;
+      };
+      crd_applied: boolean;
+    };
+    AgentDefinitionDeleted: {
+      /** @constant */
+      ok: true;
+      deleted: string;
+      crd_deleted: boolean;
     };
     FeatureList: {
       features: {
@@ -2899,12 +3011,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description A page of runs, newest first */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["AssemblyRunList"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -2958,12 +3072,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description A page of runs, newest first */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["AssemblyRunList"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -2982,12 +3098,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The run's station visits, in visit order */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["StationRunList"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -3006,12 +3124,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The run's station visits, in visit order */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["StationRunList"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -3030,12 +3150,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description Tokens spent so far on the run */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["AssemblyRunTokenUsage"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -3054,12 +3176,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description Tokens spent so far on the run */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["AssemblyRunTokenUsage"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -3078,15 +3202,18 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description One run, carrying the blueprint clone it walked */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["AssemblyRunDetail"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -4152,15 +4279,18 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description One resolved agent definition, or the repo's list */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["AgentDefinitionRead"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -4195,12 +4325,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The updated definition, its ceremony, and the CRD outcome */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["AgentDefinitionWritten"];
+        };
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
@@ -4223,12 +4355,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description Which definition was removed, and the CRD outcome */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["AgentDefinitionDeleted"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -4265,12 +4399,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The created definition, its ceremony, and the CRD outcome */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["AgentDefinitionWritten"];
+        };
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];

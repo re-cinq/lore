@@ -44,3 +44,29 @@ export const AGENT_DEFINITION_COLUMNS = {
 } as const satisfies ColumnMap<AgentDefinition>;
 
 export const AGENT_DEFINITION_TABLE = "lore.agent_definitions";
+
+/**
+ * The RESOLVED definition — what a caller gets after project row → org default →
+ * `task-types.yaml` have been merged, and what crosses the wire to the web UI
+ * and the runner.
+ *
+ * Deliberately not the row. It carries no `id`, `createdAt` or `updatedAt`
+ * because a resolved definition may come from the YAML fallback, where no row
+ * exists to have them. Its keys stay SNAKE_CASE because this is the published
+ * wire shape; flipping it is expand/contract work, since the station runner
+ * reads it from a separately deployed image.
+ */
+export const ResolvedAgentDefinitionSchema = z.object({
+  name: z.string(),
+  model: z.string().nullable(),
+  timeout_minutes: z.number().nullable(),
+  prompt: z.string().nullable(),
+  image: z.string().nullable(),
+  execution_mode: z.string(),
+  review_required: z.boolean(),
+  project_id: z.string().nullable(),
+});
+
+export type ResolvedAgentDefinition = z.infer<
+  typeof ResolvedAgentDefinitionSchema
+>;

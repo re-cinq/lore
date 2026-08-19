@@ -982,7 +982,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "A page of runs, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyRunList"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1087,7 +1094,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "A page of runs, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyRunList"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1118,7 +1132,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The run's station visits, in visit order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StationRunList"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1159,7 +1180,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The run's station visits, in visit order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StationRunList"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1200,7 +1228,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Tokens spent so far on the run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyRunTokenUsage"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1241,7 +1276,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Tokens spent so far on the run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyRunTokenUsage"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1282,13 +1324,23 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "One run, carrying the blueprint clone it walked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyRunDetail"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3278,13 +3330,23 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "One resolved agent definition, or the repo's list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDefinitionRead"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3334,7 +3396,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The updated definition, its ceremony, and the CRD outcome",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDefinitionWritten"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -3470,7 +3539,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Which definition was removed, and the CRD outcome",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDefinitionDeleted"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3527,7 +3603,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The created definition, its ceremony, and the CRD outcome",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDefinitionWritten"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -6220,6 +6303,252 @@
         ],
         "additionalProperties": false
       },
+      "AssemblyRunList": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "blueprint_name": {
+                  "type": "string"
+                },
+                "definition_name": {
+                  "type": "string"
+                },
+                "task_id": {
+                  "type": ["string", "null"]
+                },
+                "repo": {
+                  "type": "string"
+                },
+                "branch": {
+                  "type": ["string", "null"]
+                },
+                "subject_key": {
+                  "type": ["string", "null"]
+                },
+                "graph": {},
+                "status": {
+                  "type": "string"
+                },
+                "outcome": {
+                  "type": ["string", "null"]
+                },
+                "reason": {
+                  "type": ["string", "null"]
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "started_at": {
+                  "type": ["string", "null"]
+                },
+                "finished_at": {
+                  "type": ["string", "null"]
+                },
+                "args_pr_number": {
+                  "type": ["number", "null"]
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "task_pr_number": {
+                  "type": ["number", "null"]
+                },
+                "created_by": {
+                  "type": ["string", "null"]
+                },
+                "cost_usd": {
+                  "type": ["number", "null"]
+                }
+              },
+              "required": [
+                "id",
+                "blueprint_name",
+                "definition_name",
+                "task_id",
+                "repo",
+                "branch",
+                "subject_key",
+                "status",
+                "outcome",
+                "reason",
+                "created_at",
+                "started_at",
+                "finished_at",
+                "args_pr_number",
+                "pr_url",
+                "task_pr_number",
+                "created_by",
+                "cost_usd"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["runs"],
+        "additionalProperties": false
+      },
+      "StationRunList": {
+        "type": "object",
+        "properties": {
+          "nodes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "node_id": {
+                  "type": "string"
+                },
+                "iteration": {
+                  "type": "number"
+                },
+                "outcome": {
+                  "type": ["string", "null"]
+                },
+                "agent_cr_name": {
+                  "type": ["string", "null"]
+                },
+                "station_run_id": {
+                  "type": ["string", "null"]
+                },
+                "commit_sha": {
+                  "type": ["string", "null"]
+                },
+                "started_at": {
+                  "type": "string"
+                },
+                "finished_at": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "node_id",
+                "iteration",
+                "outcome",
+                "agent_cr_name",
+                "station_run_id",
+                "commit_sha",
+                "started_at",
+                "finished_at"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["nodes"],
+        "additionalProperties": false
+      },
+      "AssemblyRunTokenUsage": {
+        "type": "object",
+        "properties": {
+          "input_tokens": {
+            "type": "number"
+          },
+          "output_tokens": {
+            "type": "number"
+          },
+          "cache_creation_tokens": {
+            "type": "number"
+          },
+          "cache_read_tokens": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "input_tokens",
+          "output_tokens",
+          "cache_creation_tokens",
+          "cache_read_tokens"
+        ],
+        "additionalProperties": false
+      },
+      "AssemblyRunDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "blueprint_name": {
+            "type": "string"
+          },
+          "definition_name": {
+            "type": "string"
+          },
+          "task_id": {
+            "type": ["string", "null"]
+          },
+          "repo": {
+            "type": "string"
+          },
+          "branch": {
+            "type": ["string", "null"]
+          },
+          "subject_key": {
+            "type": ["string", "null"]
+          },
+          "graph": {},
+          "status": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": ["string", "null"]
+          },
+          "reason": {
+            "type": ["string", "null"]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": ["string", "null"]
+          },
+          "finished_at": {
+            "type": ["string", "null"]
+          },
+          "args_pr_number": {
+            "type": ["number", "null"]
+          },
+          "pr_url": {
+            "type": ["string", "null"]
+          },
+          "task_pr_number": {
+            "type": ["number", "null"]
+          },
+          "created_by": {
+            "type": ["string", "null"]
+          },
+          "cost_usd": {
+            "type": ["number", "null"]
+          }
+        },
+        "required": [
+          "id",
+          "blueprint_name",
+          "definition_name",
+          "task_id",
+          "repo",
+          "branch",
+          "subject_key",
+          "status",
+          "outcome",
+          "reason",
+          "created_at",
+          "started_at",
+          "finished_at",
+          "args_pr_number",
+          "pr_url",
+          "task_pr_number",
+          "created_by",
+          "cost_usd"
+        ],
+        "additionalProperties": false
+      },
       "AssemblyRunStarted": {
         "type": "object",
         "properties": {
@@ -6241,6 +6570,188 @@
           }
         },
         "required": ["job", "summary"],
+        "additionalProperties": false
+      },
+      "AgentDefinitionRead": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "model": {
+                "type": ["string", "null"]
+              },
+              "timeout_minutes": {
+                "type": ["number", "null"]
+              },
+              "prompt": {
+                "type": ["string", "null"]
+              },
+              "image": {
+                "type": ["string", "null"]
+              },
+              "execution_mode": {
+                "type": "string"
+              },
+              "review_required": {
+                "type": "boolean"
+              },
+              "project_id": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": [
+              "name",
+              "model",
+              "timeout_minutes",
+              "prompt",
+              "image",
+              "execution_mode",
+              "review_required",
+              "project_id"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "agents": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "model": {
+                      "type": ["string", "null"]
+                    },
+                    "timeout_minutes": {
+                      "type": ["number", "null"]
+                    },
+                    "prompt": {
+                      "type": ["string", "null"]
+                    },
+                    "image": {
+                      "type": ["string", "null"]
+                    },
+                    "execution_mode": {
+                      "type": "string"
+                    },
+                    "review_required": {
+                      "type": "boolean"
+                    },
+                    "project_id": {
+                      "type": ["string", "null"]
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "model",
+                    "timeout_minutes",
+                    "prompt",
+                    "image",
+                    "execution_mode",
+                    "review_required",
+                    "project_id"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["agents"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "AgentDefinitionWritten": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "agent": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "model": {
+                "type": ["string", "null"]
+              },
+              "timeout_minutes": {
+                "type": ["number", "null"]
+              },
+              "prompt": {
+                "type": ["string", "null"]
+              },
+              "image": {
+                "type": ["string", "null"]
+              },
+              "execution_mode": {
+                "type": "string"
+              },
+              "review_required": {
+                "type": "boolean"
+              },
+              "project_id": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": [
+              "name",
+              "model",
+              "timeout_minutes",
+              "prompt",
+              "image",
+              "execution_mode",
+              "review_required",
+              "project_id"
+            ],
+            "additionalProperties": false
+          },
+          "ceremony": {
+            "type": "object",
+            "properties": {
+              "tier": {
+                "type": "string",
+                "enum": ["two_key", "admin"]
+              },
+              "pr_ref": {
+                "type": "string"
+              },
+              "approver": {
+                "type": "string"
+              }
+            },
+            "required": ["tier"],
+            "additionalProperties": false
+          },
+          "crd_applied": {
+            "type": "boolean"
+          }
+        },
+        "required": ["ok", "agent", "ceremony", "crd_applied"],
+        "additionalProperties": false
+      },
+      "AgentDefinitionDeleted": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "deleted": {
+            "type": "string"
+          },
+          "crd_deleted": {
+            "type": "boolean"
+          }
+        },
+        "required": ["ok", "deleted", "crd_deleted"],
         "additionalProperties": false
       },
       "FeatureList": {
