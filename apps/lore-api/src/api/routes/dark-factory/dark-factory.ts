@@ -12,6 +12,11 @@ import {
   type DarkFactorySettings,
   type TaskOverridesPatch,
 } from "../../../features/dark-factory/dark-factory-settings.js";
+import { PgBaseline } from "@re-cinq/lore-shared/project/baseline/baseline-pg.js";
+import {
+  captureBaselineForRepo,
+  shouldCaptureBaseline,
+} from "../../../features/dark-factory/baseline-capture.js";
 import { projectFor } from "../../../platform/project-boot.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { checkApproval } from "../two-key.js";
@@ -209,6 +214,24 @@ async function handlePut(
       });
 
     await client.query("COMMIT");
+
+    // The pre-enablement snapshot SC1/SC4/SC6 measure against (#1353). Taken
+    // here because this write is the only moment that knows dark mode is being
+    // turned ON: a schedule cannot guarantee the window is pre-enablement, and
+    // one taken afterwards compares the repo against itself.
+    //
+    // After COMMIT and best-effort: the settings change is the user's request
+    // and a failed snapshot must not roll it back or 500 the response.
+    if (shouldCaptureBaseline(prev, next)) {
+      await captureBaselineForRepo(repo, new PgBaseline(pool))
+        .then((summary) => console.log(`[dark-factory] ${summary}`))
+        .catch((err: unknown) =>
+          console.error(
+            `[dark-factory] baseline capture failed for ${repo}:`,
+            err,
+          ),
+        );
+    }
 
     return h.response({ ok: true, applied: next, ceremony });
   } catch (err) {
