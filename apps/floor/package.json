@@ -1,7 +1,7 @@
 {
   "name": "@re-cinq/lore-floor",
   "version": "0.1.0",
-  "description": "Lore agent runner — processes pipeline tasks via Anthropic API, runs scheduled jobs",
+  "description": "Lore agent runner \u2014 processes pipeline tasks via Anthropic API, runs scheduled jobs",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -17,7 +17,6 @@
     "jobs:all": "for j in context_reindex eval_runner context_core_builder importance_decay consolidation autoresearch gap_detection spec_drift spec_test_linker memory_ttl; do echo \"[jobs:all] === $j ===\"; node dist/delivery/job-runner.js $j || exit 1; done"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
     "@google-cloud/opentelemetry-cloud-monitoring-exporter": "^0.20.0",
     "@google-cloud/opentelemetry-cloud-trace-exporter": "^2.4.1",
     "@hapi/boom": "^10.0.1",
@@ -33,12 +32,8 @@
     "@re-cinq/lore-shared": "*",
     "cron-parser": "^4.9.0",
     "google-auth-library": "^9.15.1",
-    "libsodium-wrappers": "^0.8.2",
-    "minimatch": "^10.0.1",
     "octokit": "^4.1.0",
     "pg": "^8.13.0",
-    "tree-sitter-wasms": "^0.1.11",
-    "web-tree-sitter": "^0.24.7",
     "yaml": "^2.7.0",
     "zod": "^3.24.2"
   },
