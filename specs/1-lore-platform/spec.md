@@ -574,8 +574,12 @@ reliability. ([validated by `pipeline-tasks.trust.test.ts:37`](libs/shared/src/p
   `full` (all). `onboard` is allowed at every tier — it produces a
   docs-only scaffolding PR and duplicate protection lives in its own
   route's guard, not the trust ladder. ([validated by `allows an onboard task at trust level %s`](libs/shared/src/pipeline-tasks.trust.test.ts#L37), [`still refuses an implementation task at trust level docs`](libs/shared/src/pipeline-tasks.trust.test.ts#L52))
-- Decision: trust auto-promotes after 3 successful merges at the current
-  level; the default level is `implementation` for backward compatibility.
+- FR-15.2: Trust auto-promotes after 3 successful merges at the current level
+  (overridable per repo via `auto_promote_threshold`), climbing
+  `docs → tests → implementation → full` and resetting the merge counter on
+  each promotion. A repo already at `full`, or carrying no level at all, is
+  left untouched rather than banking a counter with nothing to spend it on.
+  The default level is `implementation` for backward compatibility. ([validated by `trust-ladder.test.ts:5`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L5), [`trust-ladder.test.ts:14`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L14), [`trust-ladder.test.ts:23`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L23), [`trust-ladder.test.ts:38`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L38), [`trust-ladder.test.ts:47`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L47), [`trust-ladder.test.ts:56`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L56))
 
 ### FR-16: Prompt Caching on Agent LLM Calls (Phase 1)
 

@@ -10,6 +10,7 @@ import { getPool } from "../../kernel/db.js";
 import { poolReporter, resumeDecomposition } from "./decompose-resume.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { writeEpisodeWithCuration } from "../lib/episode-writer.js";
+import { nextTrust } from "./trust-ladder.js";
 import {
   parseTasks,
   inferPhaseDependencies,
@@ -71,8 +72,6 @@ async function syncSpecTasksFromMerge(task: {
     `[job] merge-check: synced ${created}/${withDeps.length} spec-tasks for ${specSlug} (group ${taskGroupId})`,
   );
 }
-
-const TRUST_LEVELS = ["docs", "tests", "implementation", "full"];
 
 interface RepoTrust {
   level?: string;
@@ -408,8 +407,9 @@ async function applyOutcomeFeedback(
   }
 }
 
-/** Progressive trust: after N successful merges at a level, promote the repo to the
- *  next trust level (docs → tests → implementation → full). Best-effort. */
+/** Progressive trust: bank one successful merge, promoting a level when the
+ *  threshold is reached. The ladder itself is `nextTrust` — this only writes
+ *  what it decides. Best-effort: a failure here must not fail a merge. */
 async function promoteTrust(targetRepo: string): Promise<void> {
   try {
     const repoSettings = await settings().rawSettings(targetRepo);
@@ -418,37 +418,26 @@ async function promoteTrust(targetRepo: string): Promise<void> {
       return;
     }
     const trust = repoSettings.trust as RepoTrust | undefined;
+    const decision = nextTrust(trust);
 
-    if (!trust?.level || trust.level === "full") {
+    if (decision.hold) {
       return;
     }
-    const threshold = trust.auto_promote_threshold || 3;
-    const count = (trust.successful_tasks || 0) + 1;
 
-    if (count >= threshold) {
-      const nextIdx = Math.min(
-        TRUST_LEVELS.indexOf(trust.level) + 1,
-        TRUST_LEVELS.length - 1,
-      );
-      const nextLevel = TRUST_LEVELS[nextIdx];
+    await settings().updateSettings(targetRepo, {
+      ...repoSettings,
+      trust: {
+        ...trust,
+        level: decision.level,
+        successful_tasks: decision.successfulTasks,
+        ...(decision.promoted ? { promoted_at: new Date().toISOString() } : {}),
+      },
+    });
 
-      await settings().updateSettings(targetRepo, {
-        ...repoSettings,
-        trust: {
-          ...trust,
-          level: nextLevel,
-          successful_tasks: 0,
-          promoted_at: new Date().toISOString(),
-        },
-      });
+    if (decision.promoted) {
       console.log(
-        `[job] merge-check: ${targetRepo} trust promoted to ${nextLevel}`,
+        `[job] merge-check: ${targetRepo} trust promoted to ${decision.level}`,
       );
-    } else {
-      await settings().updateSettings(targetRepo, {
-        ...repoSettings,
-        trust: { ...trust, successful_tasks: count },
-      });
     }
   } catch {
     /* trust promotion is best-effort */
