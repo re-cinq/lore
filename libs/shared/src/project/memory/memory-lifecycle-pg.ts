@@ -127,20 +127,22 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
   }
 
   async deleteOldestInvalidatedFacts(
+    agentId: string,
     limit: number,
     minAgeDays: number,
   ): Promise<number> {
     const { rows } = await this.pool.query(
       `WITH oldest AS (
          SELECT id FROM memory.facts
-         WHERE valid_to IS NOT NULL
+         WHERE agent_id = $1
+           AND valid_to IS NOT NULL
            AND valid_to < now() - interval '${minAgeDays} days'
          ORDER BY valid_to ASC
-         LIMIT $1
+         LIMIT $2
        )
        DELETE FROM memory.facts WHERE id IN (SELECT id FROM oldest)
        RETURNING id`,
-      [limit],
+      [agentId, limit],
     );
 
     return rows.length;

@@ -180,13 +180,13 @@ describe("PgMemoryLifecycle memory.facts", () => {
 
     const deleted = await new PgMemoryLifecycle(
       pool,
-    ).deleteOldestInvalidatedFacts(50, 30);
+    ).deleteOldestInvalidatedFacts("lore-agent", 50, 30);
 
     expect(deleted).toBe(2);
     expect(calls[0]?.text).toContain(
       "DELETE FROM memory.facts WHERE id IN (SELECT id FROM oldest)",
     );
-    expect(calls[0]?.params).toEqual([50]);
+    expect(calls[0]?.params).toEqual(["lore-agent", 50]);
   });
 
   it("transitions unretrieved facts to stale and returns the count", async () => {
@@ -423,7 +423,7 @@ describe("InMemoryMemoryLifecycle facts", () => {
       ],
     });
 
-    expect(await dbl.deleteOldestInvalidatedFacts(1, 30)).toBe(1);
+    expect(await dbl.deleteOldestInvalidatedFacts("lore-agent", 1, 30)).toBe(1);
     expect(dbl.facts.map((f) => f.id)).toEqual(["newer"]);
   });
 
@@ -542,5 +542,59 @@ describe("InMemoryMemoryLifecycle outcome feedback + audit + episodes", () => {
     expect(first).toBe("episode-1");
     expect(second).toBeNull();
     expect(dbl.episodes).toHaveLength(1);
+  });
+});
+
+describe("deleteOldestInvalidatedFacts is scoped to one agent", () => {
+  // The decay job loops over agents whose invalidated-fact count is over cap and
+  // calls this once per agent. While the delete was global it ran N table-wide
+  // deletes: all of one agent's quota could be taken from another agent, and an
+  // agent UNDER the cap could lose facts it should have kept (#1376).
+  const twoAgents = () => [
+    factRow({ id: "keep-1", agent_id: "under-cap", valid_to: ago(300) }),
+    factRow({ id: "keep-2", agent_id: "under-cap", valid_to: ago(290) }),
+    factRow({ id: "evict-1", agent_id: "over-cap", valid_to: ago(100) }),
+    factRow({ id: "evict-2", agent_id: "over-cap", valid_to: ago(90) }),
+  ];
+
+  it("deletes only the named agent's facts, oldest first", async () => {
+    const dbl = new InMemoryMemoryLifecycle({ facts: twoAgents() });
+
+    const deleted = await dbl.deleteOldestInvalidatedFacts("over-cap", 1, 30);
+
+    expect({ deleted, remaining: dbl.facts.map((f) => f.id).sort() }).toEqual({
+      deleted: 1,
+      remaining: ["evict-2", "keep-1", "keep-2"],
+    });
+  });
+
+  it("leaves an under-cap agent's older facts untouched", async () => {
+    const dbl = new InMemoryMemoryLifecycle({ facts: twoAgents() });
+
+    await dbl.deleteOldestInvalidatedFacts("over-cap", 50, 30);
+
+    expect(dbl.facts.map((f) => f.agent_id)).toEqual([
+      "under-cap",
+      "under-cap",
+    ]);
+  });
+
+  it("filters by agent in SQL, not only by limit", async () => {
+    const calls: unknown[][] = [];
+    const pool = {
+      query: async (_text: string, params: unknown[]) => {
+        calls.push(params);
+
+        return { rows: [] };
+      },
+    };
+
+    await new PgMemoryLifecycle(pool as never).deleteOldestInvalidatedFacts(
+      "over-cap",
+      50,
+      30,
+    );
+
+    expect(calls[0]).toEqual(["over-cap", 50]);
   });
 });
