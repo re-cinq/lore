@@ -100,7 +100,7 @@ function parseTurnCursor(
   if (!raw || offset === 0) {
     return null;
   }
-  const match = /^(.+):(\d{1,19}):(\d+)$/.exec(raw);
+  const match = /^(.+):(\d{1,19}):(\d{1,19})$/.exec(raw);
 
   if (!match) {
     return null;
@@ -131,9 +131,13 @@ function parseTurnCursor(
  * resumed offset sits past the boundary (`offset > chars`) it must land
  * strictly inside the first row after `rowId` — anything else means the cursor
  * is stale or forged, and the read restarts as a full authoritative scan from
- * row id 0. At the boundary itself (`offset == chars`) the pair is trusted
- * as-is: server-minted cursors are self-consistent with real rows, and
- * verifying the boundary would take the very prefix scan this resume avoids.
+ * row id 0; the restart recurses at most once, since it passes `resume: null`,
+ * which disarms the validation. At the boundary itself (`offset == chars`) the
+ * pair is trusted as-is: server-minted cursors are self-consistent with real
+ * rows, and verifying the boundary would take the very prefix scan this resume
+ * avoids. The accepted consequence is that a caller can forge
+ * `<taskId>:<rowId>:<offset>` at the boundary and skip rows — reads are
+ * bearer-scoped and the damage is confined to the forger's own response.
  * The returned `cursor` names the last fully consumed row and the flattened
  * char count through its end; when a request consumes no full row it echoes
  * the resume point, so an idle tail-follow poll stays O(new rows).

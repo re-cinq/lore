@@ -152,6 +152,8 @@ Turn row ids are string-encoded bigints and round-trip through the cursor withou
 
 A cursor whose row id exceeds the PG bigint range is rejected at parse time and falls back to the full re-scan, instead of 500ing inside the `id > $2::bigint` cast. ([validated by `rejects a cursor whose row id exceeds the PG bigint range`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L579))
 
+A resumed poll whose turn rows have since been pruned by retention stays on the turn-store path and returns empty slices — the GCS object, if any, is reached by dropping the cursor. ([validated by `stays on the turn-store path when a resumed task's rows were pruned`](apps/lore-api/src/api/routes/tasks/task-logs.test.ts#L596))
+
 The live-GCS save body (real bucket I/O, resumable flag, contentType) is exercised only against a real bucket. _(untested: real `@google-cloud/storage` network I/O has no unit seam beyond the mocked save call already asserted above.)_
 
 ## Out of Scope

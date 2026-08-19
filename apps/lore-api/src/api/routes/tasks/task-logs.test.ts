@@ -593,5 +593,22 @@ describe("/api/task-logs", () => {
       });
       expect(turnQueryAfterIds(pool)).toEqual(["0"]);
     });
+    it("stays on the turn-store path when a resumed task's rows were pruned", async () => {
+      storage.file.exists.mockResolvedValue([true]);
+      storage.file.download.mockResolvedValue([Buffer.from("hello")]);
+      const pool = poolWithTurns([], {
+        target_repo: "o/r",
+        status: "completed",
+      });
+      const res = await get(pool, 10, "t:5:10");
+
+      expect(res.result).toEqual({
+        logs: "",
+        next_offset: 10,
+        complete: true,
+        cursor: "t:5:10",
+      });
+      expect(storage.file.exists).not.toHaveBeenCalled();
+    });
   });
 });
