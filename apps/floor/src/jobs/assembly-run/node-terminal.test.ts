@@ -406,6 +406,20 @@ describe("reviewNodeResultOverride", () => {
     expect(result).toEqual({ outcome: "success" });
   });
 
+  it("fails the node when the verdict says changes_requested and nothing was posted", () => {
+    // The #1401 shape: the model emitted a REVIEW_FINDINGS block whose `body`
+    // carried unescaped quotes, so JSON.parse died and nothing reached the PR —
+    // while REVIEW_RESULT parsed fine. A review that reached a non-approving
+    // verdict and published nothing has not approved anything.
+    const result = reviewNodeResultOverride(
+      "no_findings",
+      "```REVIEW_FINDINGS\n{ bad json }\n```\nREVIEW_RESULT:CHANGES_REQUESTED:doc mismatch",
+      { outcome: "success" },
+    );
+
+    expect(result).toEqual({ outcome: "failed" });
+  });
+
   it("keeps the result when findings were posted", () => {
     const result = reviewNodeResultOverride(
       "posted",
