@@ -52,18 +52,11 @@ function subjectOf(filename) {
  * test loads SOME production module rather than re-implementing its subject.
  */
 function loadsProductionCode(source) {
-  if (isTestRunner(source)) {
-    return false;
-  }
-
   // First-party: a relative path, or one of this repo's workspace packages.
+  // No test-runner exclusion is needed — "vitest", "node:test", "@jest/globals",
+  // "chai" and "assert" all fail both checks already, so an explicit guard for
+  // them never changed the answer.
   return source.startsWith(".") || source.startsWith("@re-cinq/");
-}
-
-function isTestRunner(source) {
-  return ["vitest", "node:test", "@jest/globals", "chai", "assert"].includes(
-    source,
-  );
 }
 
 export default {
@@ -71,7 +64,7 @@ export default {
     type: "problem",
     docs: {
       description:
-        "a test file must import the module it is named after, so it exercises production code",
+        "a test file must import at least one first-party module, so it exercises production code",
     },
     schema: [],
     messages: {

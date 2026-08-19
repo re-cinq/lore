@@ -65,7 +65,10 @@ export default tseslint.config(
       "lore/max-boolean-operators": ["error", { max: 2 }],
       "lore/no-io-in-view": "error",
       "lore/require-spec-link": "error",
-      // warn first: the sweep below shows how many suites need attention.
+      // warn, not error: a repo-wide sweep at the time of writing flagged 22
+      // suites — a mix of real copies and tests that legitimately import
+      // nothing (architecture boundaries, migrations, CSS tokens). That list is
+      // a triage queue, and turning it red would block unrelated work.
       "lore/test-imports-its-subject": "warn",
       "lore/default-export-matches-filename": "error",
       "lore/no-inline-styles": "warn",

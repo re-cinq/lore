@@ -35,10 +35,24 @@ ruleTester.run("test-imports-its-subject", rule, {
     },
     // Not a test file at all.
     { code: `const a = 1;`, filename: "/repo/libs/shared/src/scoring.ts" },
-    // Integration tests drive a server rather than one module.
+    // All four exempt suffixes skip the check — suites that drive a system
+    // rather than one module. Listing each keeps EXEMPT_SUFFIXES honest against
+    // a regex regression.
     {
       code: `import { buildServer } from "./server.js";`,
       filename: "/repo/apps/lore-api/src/x.integration.test.ts",
+    },
+    {
+      code: `import { suite } from "vitest";`,
+      filename: "/repo/apps/x.acceptance.test.ts",
+    },
+    {
+      code: `import { suite } from "vitest";`,
+      filename: "/repo/apps/x.e2e.test.ts",
+    },
+    {
+      code: `import { suite } from "vitest";`,
+      filename: "/repo/apps/x.contract.test.ts",
     },
   ],
   invalid: [
