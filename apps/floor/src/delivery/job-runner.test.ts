@@ -9,14 +9,13 @@ import { describe, it, expect, vi } from "vitest";
 // table with the ADR-019 amendment: their cron ticks fan out per-repo
 // assembly-line runs instead of a CronJob pod.
 //
-// memory_ttl left it too (#1351): a single data operation needs none of the
-// Floor's three exclusive powers, so a courier CronJob posts
-// /api/maintenance/memory-ttl and lore-api runs the DELETE.
+// memory_ttl left it too (#1351), and importance_decay after it (#1350): a
+// single data operation needs none of the Floor's three exclusive powers, so a
+// courier CronJob posts /api/maintenance/<job> and lore-api runs it.
 const EXPECTED_JOBS = [
   "context_reindex",
   "eval_runner",
   "context_core_builder",
-  "importance_decay",
   "consolidation",
   "anthropic_cost_sync",
 ];
@@ -44,7 +43,7 @@ describe("dispatch map", () => {
     expect(typeof handler).toBe("function");
   });
 
-  it("exposes exactly the 6 batch jobs (no extras, no gaps)", () => {
+  it("exposes exactly the 5 batch jobs (no extras, no gaps)", () => {
     expect(Object.keys(dispatch).sort()).toEqual([...EXPECTED_JOBS].sort());
   });
 });

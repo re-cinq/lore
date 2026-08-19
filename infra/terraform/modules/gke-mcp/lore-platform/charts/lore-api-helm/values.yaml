@@ -108,3 +108,7 @@ courierJobs:
   - name: memory-ttl
     schedule: "0 * * * *"
     path: /api/maintenance/memory-ttl
+  # Was the Floor's importance_decay CronJob (#1350).
+  - name: importance-decay
+    schedule: "0 5 * * *"
+    path: /api/maintenance/importance-decay

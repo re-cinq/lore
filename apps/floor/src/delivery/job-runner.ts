@@ -14,10 +14,7 @@ import { Llm } from "@re-cinq/lore-shared";
 import { anthropicCostSyncJob } from "../jobs/cost/anthropic-cost-sync/index.js";
 import { contextCoreBuilderJob } from "../jobs/context-jobs/context-core-builder/index.js";
 import { evalRunnerJob } from "../jobs/context-jobs/eval-runner/index.js";
-import {
-  consolidationJob,
-  importanceDecayJob,
-} from "../jobs/memory/memory-lifecycle/index.js";
+import { consolidationJob } from "../jobs/memory/memory-lifecycle/index.js";
 import { reindexJob } from "../jobs/context-jobs/reindex/index.js";
 import {
   startJobRun,
@@ -37,7 +34,6 @@ export const dispatch: Record<string, JobHandler> = {
   context_reindex: reindexJob,
   eval_runner: evalRunnerJob,
   context_core_builder: contextCoreBuilderJob,
-  importance_decay: importanceDecayJob,
   consolidation: consolidationJob,
   anthropic_cost_sync: anthropicCostSyncJob,
 };

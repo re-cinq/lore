@@ -1,1 +1,1 @@
-export { importanceDecayJob, consolidationJob } from "./memory-lifecycle.js";
+export { consolidationJob } from "./memory-lifecycle.js";
