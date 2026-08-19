@@ -72,6 +72,8 @@ export const DOMAIN_BODIES: Record<string, DomainBody> = {
 export const BODYLESS_WRITES = new Set<string>([
   "POST /api/repos/{owner}/{repo}/webhook/ensure",
   "POST /api/repos/{owner}/{repo}/features/{id}/finalize",
+  // The job to run is the path param; a courier posts it with no body at all.
+  "POST /api/maintenance/{job}",
 ]);
 
 /** Look up the documented body for a write route with no `zodValidate` schema. */

@@ -170,9 +170,6 @@ cronJobDefaults:
 
 cronJobs:
   # Lightweight cleanups (defaults are fine)
-  - name: memory-ttl
-    job: memory_ttl
-    schedule: "0 * * * *"
   - name: importance-decay
     job: importance_decay
     schedule: "0 5 * * *"

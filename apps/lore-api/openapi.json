@@ -1334,6 +1334,60 @@
         ]
       }
     },
+    "/api/maintenance/{job}": {
+      "post": {
+        "operationId": "post_api_maintenance_job",
+        "summary": "POST /api/maintenance/{job}",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Job completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "task",
+        "parameters": [
+          {
+            "name": "job",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/tasks/by-pr/{owner}/{repo}/{number}": {
       "get": {
         "operationId": "get_api_tasks_by-pr_owner_repo_number",
@@ -5650,6 +5704,19 @@
           }
         },
         "required": ["id"],
+        "additionalProperties": false
+      },
+      "MaintenanceResult": {
+        "type": "object",
+        "properties": {
+          "job": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": ["job", "summary"],
         "additionalProperties": false
       },
       "FeatureList": {

@@ -516,6 +516,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/maintenance/{job}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/maintenance/{job} */
+    post: operations["post_api_maintenance_job"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tasks/by-pr/{owner}/{repo}/{number}": {
     parameters: {
       query?: never;
@@ -1681,6 +1698,10 @@ export interface components {
     };
     AssemblyRunStarted: {
       id: string;
+    };
+    MaintenanceResult: {
+      job: string;
+      summary: string;
     };
     FeatureList: {
       features: {
@@ -2924,6 +2945,34 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_maintenance_job: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        job: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Job completed */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MaintenanceResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

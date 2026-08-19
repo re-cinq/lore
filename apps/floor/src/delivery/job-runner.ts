@@ -19,7 +19,6 @@ import {
   importanceDecayJob,
 } from "../jobs/memory/memory-lifecycle/index.js";
 import { reindexJob } from "../jobs/context-jobs/reindex/index.js";
-import { ttlCleanupJob } from "../jobs/memory/ttl-cleanup/index.js";
 import {
   startJobRun,
   completeJobRun,
@@ -40,7 +39,6 @@ export const dispatch: Record<string, JobHandler> = {
   context_core_builder: contextCoreBuilderJob,
   importance_decay: importanceDecayJob,
   consolidation: consolidationJob,
-  memory_ttl: ttlCleanupJob,
   anthropic_cost_sync: anthropicCostSyncJob,
 };
 
