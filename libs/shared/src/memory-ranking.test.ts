@@ -188,3 +188,67 @@ describe("scoreImportance", () => {
     ).toBe(0);
   });
 });
+
+/**
+ * These cases existed only against a pasted COPY of scoreImportance in the
+ * Floor's memory-lifecycle test, so nothing here was ever proven about the real
+ * function (#1374). Moved to run against it.
+ */
+describe("scoreImportance — cases recovered from a duplicate", () => {
+  const base = {
+    key: "a-plain-key",
+    value:
+      "A neutral observation about the staging server that sits between fifty and five hundred chars",
+    created_at: "2026-01-01T00:00:00.000Z",
+    last_retrieved_at: null as string | null,
+    half_life_days: 60,
+    retrieval_count: 0,
+    confidence: "observed" as string | null,
+  };
+  const born = Date.parse(base.created_at);
+  const DAY = 86400000;
+
+  it("honours a custom half_life_days rather than the 60-day default", () => {
+    const shortLived = { ...base, half_life_days: 7 };
+
+    expect(scoreImportance(shortLived, born + 7 * DAY)).toBe(5);
+  });
+
+  it("adds 1 at 5 retrievals and 2 at 20", () => {
+    expect({
+      five: scoreImportance({ ...base, retrieval_count: 5 }, born + 60 * DAY),
+      twenty: scoreImportance(
+        { ...base, retrieval_count: 20 },
+        born + 60 * DAY,
+      ),
+    }).toEqual({ five: 6, twenty: 7 });
+  });
+
+  it("clamps to 10 rather than exceeding it for a fresh boosted memory", () => {
+    const boosted = {
+      ...base,
+      key: "gotcha/convention",
+      value: "x".repeat(600),
+      retrieval_count: 50,
+    };
+
+    expect(scoreImportance(boosted, born)).toBe(10);
+  });
+
+  it("orders least-important-first, which is the order eviction consumes", () => {
+    const now = born + 30 * DAY;
+    const memories = [
+      { ...base, key: "important-decision" },
+      { ...base, key: "auto-curation/task1", value: "short" },
+      { ...base, key: "plain" },
+    ];
+
+    const ordered = memories
+      .map((m) => ({ key: m.key, score: scoreImportance(m, now) }))
+      .sort((a, b) => a.score - b.score)
+      .map((m) => m.key);
+
+    expect(ordered[0]).toBe("auto-curation/task1");
+    expect(ordered[2]).toBe("important-decision");
+  });
+});

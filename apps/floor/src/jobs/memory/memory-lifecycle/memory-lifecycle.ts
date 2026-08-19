@@ -20,6 +20,22 @@ import { Llm } from "@re-cinq/lore-shared";
 const CONSOLIDATION_MIN_FACTS = 5;
 const CONSOLIDATION_LOOKBACK_DAYS = 7;
 
+/**
+ * Pull the `PATTERN: ` lines out of the model's reply.
+ *
+ * Extracted so it can be tested against the real thing: the test file used to
+ * re-implement this pipeline inline, so a change here could not fail it (#1374).
+ * The length floor drops the model's occasional one-word non-answers, and a
+ * "NONE" reply produces nothing because it carries no prefix.
+ */
+export function parseConsolidationPatterns(text: string): string[] {
+  return text
+    .split("\n")
+    .filter((line) => line.startsWith("PATTERN: "))
+    .map((line) => line.replace("PATTERN: ", "").trim())
+    .filter((pattern) => pattern.length > 10);
+}
+
 // ── Consolidation job ───────────────────────────────────────────────
 
 export async function consolidationJob(): Promise<string> {
@@ -65,11 +81,7 @@ export async function consolidationJob(): Promise<string> {
         jobName: "consolidation",
       });
 
-      const patterns = result.text
-        .split("\n")
-        .filter((line) => line.startsWith("PATTERN: "))
-        .map((line) => line.replace("PATTERN: ", "").trim())
-        .filter((p) => p.length > 10);
+      const patterns = parseConsolidationPatterns(result.text);
 
       if (patterns.length === 0) {
         continue;
