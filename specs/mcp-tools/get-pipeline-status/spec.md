@@ -28,7 +28,7 @@ Registered via `server.tool` ([registration](apps/mcp-server/src/mcp/tools/pipel
 - **description** (verbatim):
 
 ```text
-Returns one pipeline task's full record (status + ordered event timeline) as JSON, by UUID. Instead: lore_list_pipeline_tasks for a multi-task listing; lore_get_pr_status for the live GitHub PR/CI verdict; lore_get_task_logs for raw log bytes; lore_list_task_group for a group rollup.
+Returns one pipeline task's full record (status + ordered event timeline) as JSON, by UUID. Instead: lore_list_pipeline_tasks for a multi-task listing; lore_get_pr_status for the live GitHub PR/CI verdict; lore_get_task_logs for the execution transcript; lore_list_task_group for a group rollup.
 ```
 
 ### Input schema (Zod)
@@ -93,5 +93,5 @@ The `/api/task/:id` HTTP route (the stdio-proxy target) returns the task when fo
 ## Out of Scope
 
 - Live PR / CI state (covered by `lore_get_pr_status`).
-- Execution log bytes (covered by `lore_get_task_logs`).
+- The execution transcript (covered by `lore_get_task_logs`).
 - Cross-task group rollups (covered by `lore_list_task_group`).
