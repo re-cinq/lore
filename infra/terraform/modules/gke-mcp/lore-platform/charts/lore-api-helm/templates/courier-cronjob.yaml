@@ -30,15 +30,15 @@ metadata:
   labels:
     app: lore-api
     component: courier
-    definition: {{ .definition }}
+    definition: {{ .definition | trunc 63 }}
 spec:
   schedule: {{ .schedule | quote }}
   # A courier post is idempotent only in the sense that a second run starts a
   # SECOND line. Forbid, so a wedged pod cannot fan out duplicate runs.
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: {{ default 300 .startingDeadlineSeconds }}
-  successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 3
+  successfulJobsHistoryLimit: {{ default 1 .successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ default 3 .failedJobsHistoryLimit }}
   jobTemplate:
     spec:
       backoffLimit: 2
@@ -50,9 +50,13 @@ spec:
           labels:
             app: lore-api
             component: courier
-            definition: {{ .definition }}
+            definition: {{ .definition | trunc 63 }}
         spec:
           restartPolicy: Never
+          # Talks to lore-api over HTTP and to nothing else; a mounted API-server
+          # token would be pure standing credential in a pod holding the ingest
+          # token already.
+          automountServiceAccountToken: false
           {{- if $root.Values.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml $root.Values.imagePullSecrets | nindent 12 }}
