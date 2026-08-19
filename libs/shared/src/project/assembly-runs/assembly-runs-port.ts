@@ -16,6 +16,10 @@ export interface AssemblyRunQuery {
   taskId?: string;
   /** Matches `args->>'pr_number'`. */
   prNumber?: number;
+  /** Every run for one subject, whatever its blueprint — "what has worked on
+   *  this feature", which nothing could ask for while the only key was a task id
+   *  and a blueprint name. */
+  subjectKey?: string;
   createdAfter?: Date;
   /** Defaults to 50. */
   limit?: number;
@@ -35,6 +39,24 @@ export interface AssemblyRunStartInput {
   branch?: string;
   taskId?: string;
   args?: Record<string, unknown>;
+  /**
+   * What this run is working ON — `feature:<uuid>`, `detect:<blueprint>:<repo>`,
+   * `ingest:<kind>:<ref>[:<chunk>]`. At most one OPEN run may hold a given
+   * (repo, subjectKey), so `start` is start-or-JOIN: a second caller for a
+   * subject already in flight gets the id of the run already working it rather
+   * than a second run.
+   *
+   * The SUBJECT, never the action. `feature:<id>` is what lets one query find
+   * that feature's planning run and its finalize run; `feature:<id>:finalize`
+   * would guard repeat finalizes while still allowing two lines to work one
+   * feature at once, which is the thing that actually went wrong.
+   *
+   * Optional, and opt-in by design: a run with no key is unconstrained. Lines
+   * that are MEANT to overlap — comment-triage and code-review-reply carry
+   * distinct human comments on one branch — simply pass nothing, which replaces
+   * the old opt-out-by-blueprint-name list.
+   */
+  subjectKey?: string;
   /** Content hash of the definition the caller loaded. Required with
    *  {@link resumeFrom} — it is the drift guard's left-hand side. */
   blueprintHash?: string;
@@ -77,6 +99,7 @@ export interface OpenRunSummary {
   status: "queued" | "running";
   repo: string;
   branch: string | null;
+  subjectKey: string | null;
   createdAt: Date;
 }
 
@@ -86,6 +109,9 @@ export interface AssemblyRunRecord {
   taskId: string | null;
   repo: string;
   branch: string | null;
+  /** What this run works on; null for a run that declared no subject. See
+   *  {@link AssemblyRunStartInput.subjectKey}. */
+  subjectKey: string | null;
   args: Record<string, unknown>;
   status: "queued" | "running" | "finished" | "failed";
   outcome: string | null;
@@ -191,6 +217,19 @@ export interface AssemblyRunsPort {
    * OTHER branches.
    */
   findOpenOnBranch(repo: string, branch: string): Promise<OpenRunSummary[]>;
+  /**
+   * The open run working this subject, or null.
+   *
+   * At most one can exist — the store enforces it — so this returns a single row
+   * rather than a list, unlike {@link findOpenOnBranch}, whose branch key never
+   * carried that guarantee. Callers answer "already in flight" with the id they
+   * get back, which is what lets a rejected duplicate request still name the run
+   * the caller should be watching.
+   */
+  findOpenBySubject(
+    repo: string,
+    subjectKey: string,
+  ): Promise<OpenRunSummary | null>;
   /**
    * Open (`queued`/`running`) assembly lines whose `args.pr_number` matches — the
    * PR-scoped lookup the code-review choreography uses. NOT only code-review lines:

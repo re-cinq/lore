@@ -121,13 +121,9 @@ export default function PlanningWizard({
 
   const submitFinalize = () =>
     startTransition(async () => {
-      console.log("finalizing");
       setFinalizing(true);
-      console.log("finalizing: await finalize");
       await finalize();
-      console.log("finalizing: await fetchLatest");
       await fetchLatest();
-      console.log("finalizing: done");
     });
 
   // After finalize, the feature-finalize task runs async (no intermediate status). The

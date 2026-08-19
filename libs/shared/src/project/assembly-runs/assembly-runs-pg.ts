@@ -14,8 +14,39 @@ import type {
   OpenRunSummary,
 } from "./assembly-runs-port.js";
 
+/** The graph-less projection both open-run reads use. `listOpen` hauls every open
+ *  run's graph clone org-wide; these two compare a handful of scalars. */
+const OPEN_SUMMARY_COLUMNS = `SELECT id, status, repo, branch, subject_key, created_at
+         FROM pipeline.assembly_runs`;
+
+interface OpenRunRow {
+  id: string;
+  status: "queued" | "running";
+  repo: string;
+  branch: string | null;
+  subject_key: string | null;
+  created_at: Date;
+}
+
+/** Postgres `unique_violation`. The subject guard is a partial unique index, so
+ *  this is how "someone is already working that subject" arrives. */
+function isUniqueViolation(err: unknown): boolean {
+  return (err as { code?: string } | null)?.code === "23505";
+}
+
+function toOpenSummary(row: OpenRunRow): OpenRunSummary {
+  return {
+    id: row.id,
+    status: row.status,
+    repo: row.repo,
+    branch: row.branch,
+    subjectKey: row.subject_key,
+    createdAt: new Date(row.created_at),
+  };
+}
+
 /** Every column `toRecord` maps, single-sourced so the four read sites cannot drift. */
-const LINE_COLUMNS = `id, graph, blueprint_name, task_id, repo, branch, args, status, outcome, reason,
+const LINE_COLUMNS = `id, graph, blueprint_name, task_id, repo, branch, subject_key, args, status, outcome, reason,
          blueprint_hash, resumed_from_run_id, resumed_from_node_id, inherited_node_count,
          created_at, started_at, finished_at`;
 
@@ -34,10 +65,34 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
       return this.startResumed(input, input.resumeFrom);
     }
 
+    try {
+      return await this.insertStart(input);
+    } catch (err) {
+      if (!isUniqueViolation(err) || !input.subjectKey) {
+        throw err;
+      }
+      // Start-or-JOIN: the subject is already in flight, so hand back the run
+      // doing the work instead of a second one. The index — not this branch — is
+      // what makes that true under concurrency; reaching here means it fired.
+      const open = await this.findOpenBySubject(input.repo, input.subjectKey);
+
+      if (open) {
+        return open.id;
+      }
+
+      // The holder settled between the violation and this read, freeing the key.
+      // Retry ONCE: looping would spin against a subject being restarted in a
+      // tight cycle, and a second violation is a genuine race worth surfacing.
+      return await this.insertStart(input);
+    }
+  }
+
+  /** The plain-start write: row + `assembly_line.start` event in ONE CTE. */
+  private async insertStart(input: AssemblyRunStartInput): Promise<string> {
     const { rows } = await this.pool.query(
       `WITH al AS (
-         INSERT INTO pipeline.assembly_runs (blueprint_name, task_id, repo, branch, args)
-         VALUES ($1, $2, $3, $4, $5::jsonb)
+         INSERT INTO pipeline.assembly_runs (blueprint_name, task_id, repo, branch, subject_key, args)
+         VALUES ($1, $2, $3, $4, $6, $5::jsonb)
          RETURNING id
        ), ev AS (
          INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
@@ -61,6 +116,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
         input.repo,
         input.branch ?? null,
         JSON.stringify(input.args ?? {}),
+        input.subjectKey ?? null,
       ],
     );
 
@@ -115,8 +171,8 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
       `WITH al AS (
          INSERT INTO pipeline.assembly_runs
            (blueprint_name, task_id, repo, branch, args, blueprint_hash, graph,
-            resumed_from_run_id, resumed_from_node_id, inherited_node_count)
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $11::jsonb, $7, $8, $10)
+            resumed_from_run_id, resumed_from_node_id, inherited_node_count, subject_key)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $11::jsonb, $7, $8, $10, $12)
          RETURNING id
        ), ev AS (
          INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
@@ -157,6 +213,13 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
         prefix.length,
         // A fork replays its source's rows, so it walks the same graph.
         source.graph ? JSON.stringify(source.graph) : null,
+        // A fork re-runs the SAME work: it takes over its source's subject, so it
+        // holds the guard and a subject query finds it. Legal only from a
+        // terminal run, so the key is free by the time we get here.
+        // `?? null` and not just `??`: a bound parameter must be a VALUE. An
+        // undefined here reaches the driver as an absent parameter rather than
+        // SQL NULL, which is a different thing from "this run has no subject".
+        input.subjectKey ?? source.subjectKey ?? null,
       ],
     );
 
@@ -287,15 +350,8 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     repo: string,
     branch: string,
   ): Promise<OpenRunSummary[]> {
-    const { rows } = await this.pool.query<{
-      id: string;
-      status: "queued" | "running";
-      repo: string;
-      branch: string | null;
-      created_at: Date;
-    }>(
-      `SELECT id, status, repo, branch, created_at
-         FROM pipeline.assembly_runs
+    const { rows } = await this.pool.query<OpenRunRow>(
+      `${OPEN_SUMMARY_COLUMNS}
         WHERE status IN ('queued', 'running')
           AND repo = $1
           AND branch = $2
@@ -303,13 +359,28 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
       [repo, branch],
     );
 
-    return rows.map((r) => ({
-      id: r.id,
-      status: r.status,
-      repo: r.repo,
-      branch: r.branch,
-      createdAt: new Date(r.created_at),
-    }));
+    return rows.map(toOpenSummary);
+  }
+
+  async findOpenBySubject(
+    repo: string,
+    subjectKey: string,
+  ): Promise<OpenRunSummary | null> {
+    // LIMIT 1 states the intent; the partial unique index makes it a fact rather
+    // than a hope. Ordered anyway so that a database predating the index (or one
+    // where it was dropped) answers deterministically instead of returning
+    // whichever row the planner reached first.
+    const { rows } = await this.pool.query<OpenRunRow>(
+      `${OPEN_SUMMARY_COLUMNS}
+        WHERE status IN ('queued', 'running')
+          AND repo = $1
+          AND subject_key = $2
+        ORDER BY created_at, id
+        LIMIT 1`,
+      [repo, subjectKey],
+    );
+
+    return rows[0] ? toOpenSummary(rows[0]) : null;
   }
 
   async mergeArgs(id: string, patch: Record<string, unknown>): Promise<void> {
@@ -359,6 +430,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
           AND ($4::uuid   IS NULL OR task_id = $4)
           AND ($5::int    IS NULL OR (args->>'pr_number')::int = $5)
           AND ($6::timestamptz IS NULL OR created_at >= $6)
+          AND ($8::text   IS NULL OR subject_key = $8)
         -- id breaks the tie: two runs started in the same millisecond would
         -- otherwise come back in an order Postgres is free to vary between
         -- calls, which reads as rows jumping around a paged list.
@@ -372,6 +444,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
         query.prNumber ?? null,
         query.createdAfter ?? null,
         query.limit ?? 50,
+        query.subjectKey ?? null,
       ],
     );
 
@@ -477,6 +550,7 @@ function toRecord(row: {
   task_id: string | null;
   repo: string;
   branch: string | null;
+  subject_key: string | null;
   args: Record<string, unknown> | null;
   status: AssemblyRunRecord["status"];
   outcome: string | null;
@@ -496,6 +570,7 @@ function toRecord(row: {
     taskId: row.task_id,
     repo: row.repo,
     branch: row.branch,
+    subjectKey: row.subject_key,
     args: row.args ?? {},
     status: row.status,
     outcome: row.outcome,

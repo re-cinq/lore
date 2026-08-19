@@ -2,6 +2,7 @@ import type {
   AssemblyRunsPort,
   AssemblyRunStartInput,
   AssemblyRunRecord,
+  OpenRunSummary,
   StationRunRecord,
 } from "./assembly-runs-port.js";
 
@@ -40,6 +41,19 @@ export class AssemblyRuns {
   /** The line's node rows — how a reader tells which node it is parked on. */
   listStationRuns(id: string): Promise<StationRunRecord[]> {
     return this.port.listStationRuns(id);
+  }
+
+  /** The open run working this subject, or null — "is something already doing
+   *  this?", which a caller answers a duplicate request with. */
+  findOpenBySubject(subjectKey: string): Promise<OpenRunSummary | null> {
+    return this.port.findOpenBySubject(this.repo, subjectKey);
+  }
+
+  /** Every run for this subject, newest first — "what has worked on this", which
+   *  is how a reader finds the run to show without knowing which task or which
+   *  blueprint produced it. */
+  listForSubject(subjectKey: string): Promise<AssemblyRunRecord[]> {
+    return this.port.list({ repo: this.repo, subjectKey });
   }
 
   findOpenByPr(prNumber: number): Promise<AssemblyRunRecord[]> {

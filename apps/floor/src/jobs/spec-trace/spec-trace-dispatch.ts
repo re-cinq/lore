@@ -44,19 +44,25 @@ export interface SpecTraceDispatchDeps {
   eventId?: string;
 }
 
-/** The ingest line's overlap-guard key: one lease per unit of WORK, not per
- *  commit. Chunked work — a posted test-report/coverage chunk (identified by
- *  its scheduling event) or a force pass's per-directory glob — carries its
- *  chunk identity in the key: under a bare (kind, ref) key every chunk after
- *  the first deferred as lease_held while the first still ran, silently
- *  dropping all but ~1 of 40 test-report chunks per push (2026-07-31).
- *  Duplicate drives of the SAME chunk still share a lease and dedupe, and an
- *  unchunked docs push keeps the (kind, ref) lease so a double webhook
- *  delivery never runs the whole-repo projection twice. */
+/** The ingest line's branch — the ref the pod clones at, per kind so the
+ *  specs/adrs/test-report lines of one push do not collide. */
 function ingestLineBranch(kind: string, ref: string, chunk?: string): string {
   const base = `ingest/${kind}/${ref}`;
 
   return chunk ? `${base}/${chunk}` : base;
+}
+
+/** The ingest line's subject: one unit of WORK, not one commit. Chunked work — a
+ *  posted test-report/coverage chunk (identified by its scheduling event) or a
+ *  force pass's per-directory glob — carries its chunk identity here. Dropping it
+ *  makes sibling chunks read as duplicates of each other, which silently dropped
+ *  all but ~1 of 40 test-report chunks per push (2026-07-31). Duplicate drives of
+ *  the SAME chunk still dedupe, and an unchunked docs push keeps the (kind, ref)
+ *  subject so a double webhook delivery never runs the whole-repo projection twice. */
+function ingestSubjectKey(kind: string, ref: string, chunk?: string): string {
+  const base = `ingest:${kind}:${ref}`;
+
+  return chunk ? `${base}:${chunk}` : base;
 }
 
 function routedResult(
@@ -140,13 +146,9 @@ export async function dispatchSpecTrace(
     const lineId = await deps.startLine!({
       blueprintName: "ingest",
       repo,
-      // The line's branch is the overlap-guard lease key: per kind, so the
-      // specs/adrs/test-report lines of one push never take each other's lease
-      // (branch=<sha> alone closed all but one of every push's lines as
-      // lease_held, 2026-07-17), and per glob for a force pass's per-directory
-      // chunks, which are sibling units of work, not duplicates. The pod
-      // clones at args.ref.
+      // The pod clones at args.ref; the branch only has to be distinct per kind.
       branch: ingestLineBranch(kind, ref, p.glob),
+      subjectKey: ingestSubjectKey(kind, ref, p.glob),
       args: {
         kind,
         ref,
@@ -191,6 +193,7 @@ export async function dispatchSpecTrace(
     blueprintName: "ingest",
     repo,
     branch: ingestLineBranch(kind, ref, deps.eventId),
+    subjectKey: ingestSubjectKey(kind, ref, deps.eventId),
     args: { kind, ref, payload_event_id: deps.eventId },
   });
 

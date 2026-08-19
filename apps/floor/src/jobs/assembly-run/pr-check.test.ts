@@ -13,6 +13,7 @@ function line(over: Partial<AssemblyRunRecord>): AssemblyRunRecord {
     taskId: null,
     repo: "re-cinq/lore",
     branch: "feat/x",
+    subjectKey: null,
     args: { pr_number: 7, head_sha: "abc123" },
     status: "running",
     outcome: null,

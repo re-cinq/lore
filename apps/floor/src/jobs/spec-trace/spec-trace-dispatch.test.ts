@@ -49,13 +49,14 @@ describe("dispatchSpecTrace", () => {
       { projectFor, startLine },
     );
 
-    // branch is the overlap-guard lease key — per kind, so the specs and adrs
-    // lines of one push never collide; the clone ref rides args.ref.
+    // subjectKey is the guard — per kind, so the specs and adrs lines of one push
+    // never read as duplicates of each other; the clone ref rides args.ref.
     expect(started).toEqual([
       {
         blueprintName: "ingest",
         repo: "re-cinq/lore",
         branch: "ingest/specs/abc123",
+        subjectKey: "ingest:specs:abc123",
         args: { kind: "specs", ref: "abc123" },
       },
     ]);
@@ -205,13 +206,14 @@ describe("dispatchSpecTrace", () => {
         blueprintName: "ingest",
         repo: "re-cinq/lore",
         branch: "ingest/test-report/abc123/4711",
+        subjectKey: "ingest:test-report:abc123:4711",
         args: { kind: "test-report", ref: "abc123", payload_event_id: "4711" },
       },
     ]);
     expect(result.logLine).toContain("ingest line a1b2c3d4");
   });
 
-  it("test-report chunks of one commit lease per event, so chunk 2 of 40 never defers to chunk 1", async () => {
+  it("test-report chunks of one commit take a subject per event, so chunk 2 of 40 never defers to chunk 1", async () => {
     const { started, startLine } = startLineRecorder();
     const f = fakeProjectFor();
 
@@ -228,9 +230,9 @@ describe("dispatchSpecTrace", () => {
       { projectFor: f.projectFor, eventId: "4712", startLine },
     );
 
-    expect(started.map((s) => s.branch)).toEqual([
-      "ingest/test-report/abc123/4711",
-      "ingest/test-report/abc123/4712",
+    expect(started.map((s) => s.subjectKey)).toEqual([
+      "ingest:test-report:abc123:4711",
+      "ingest:test-report:abc123:4712",
     ]);
   });
 

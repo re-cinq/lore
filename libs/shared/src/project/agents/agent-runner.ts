@@ -77,6 +77,7 @@ export class AgentRunner implements AgentRunnerPort {
         taskId,
         mode,
         started: res.launched,
+        joinedRun: res.joinedRun,
         completion: res.completion,
       };
     }

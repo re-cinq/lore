@@ -42,6 +42,8 @@ function fakeAssemblyLines(overrides: Record<string, unknown> = {}) {
   return {
     listForTask: vi.fn().mockResolvedValue([]),
     listStationRuns: vi.fn().mockResolvedValue([]),
+    findOpenBySubject: vi.fn().mockResolvedValue(null),
+    listForSubject: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }
@@ -615,16 +617,16 @@ describe("accepting the plan resumes the parked node", () => {
       expect(body.last_ready_iteration).toMatchObject({ iteration: 1 });
     });
 
-    it("resolves the line that owns the feature's planning", async () => {
-      // From round 2 on, a resumed round mints no task — only the OWNING task can
-      // resolve the line, which is what the run graph hangs on.
+    it("resolves the newest run working the feature, whatever line it is", async () => {
+      // Not "the planning line": a feature's finalize run is a different task AND a
+      // different blueprint, so resolving by either hid the run the page must draw.
       useProject(
         fakeFeatures({ get: vi.fn().mockResolvedValue(feature) }),
         fakeAssemblyLines({
-          listForTask: vi
+          listForSubject: vi
             .fn()
             .mockResolvedValue([
-              { id: "line-1", blueprintName: "feature-planning" },
+              { id: "line-1", blueprintName: "feature-finalize" },
             ]),
         }),
       );
@@ -640,7 +642,7 @@ describe("accepting the plan resumes the parked node", () => {
       useProject(
         fakeFeatures({ get: vi.fn().mockResolvedValue(feature) }),
         fakeAssemblyLines({
-          listForTask: vi
+          listForSubject: vi
             .fn()
             .mockResolvedValue([
               { id: "line-1", blueprintName: "feature-planning" },
@@ -655,7 +657,7 @@ describe("accepting the plan resumes the parked node", () => {
       });
     });
 
-    it("reports no line for a feature whose rounds name no task", async () => {
+    it("reports no run for a feature nothing has ever worked on", async () => {
       useProject(
         fakeFeatures({
           get: vi.fn().mockResolvedValue({ ...feature, iterations: [] }),
@@ -725,5 +727,80 @@ describe("accepting the plan resumes the parked node", () => {
         tasks: [],
       });
     });
+  });
+});
+
+describe("finalize refuses to start a second run for one feature", () => {
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  const specReady = {
+    id: "f1",
+    repo: "re-cinq/lore",
+    title: "T",
+    slug: "t",
+    status: "spec-ready",
+    original_prompt: "p",
+    iterations: [],
+  };
+
+  it("answers 409 naming the run already in flight, and mints no task", async () => {
+    useProject(
+      fakeFeatures({ get: vi.fn().mockResolvedValue(specReady) }),
+      fakeAssemblyLines({
+        findOpenBySubject: vi.fn().mockResolvedValue({ id: "run-live" }),
+      }),
+    );
+    vi.mocked(createTask).mockClear();
+
+    const res = await req("POST", `${base}/f1/finalize`, {});
+
+    // The id is the point. A bare 409 would be correct and useless: the caller
+    // pressed the button because it wanted to see work happening, so the refusal
+    // has to say where that work is.
+    expect(res.statusCode).toBe(409);
+    expect(res.result).toMatchObject({
+      assembly_run_id: "run-live",
+      assembly_line_id: "run-live",
+    });
+    expect(createTask).not.toHaveBeenCalled();
+  });
+
+  it("kicks the task when nothing is working the feature", async () => {
+    useProject(
+      fakeFeatures({ get: vi.fn().mockResolvedValue(specReady) }),
+      fakeAssemblyLines({
+        findOpenBySubject: vi.fn().mockResolvedValue(null),
+      }),
+    );
+    vi.mocked(createTask).mockResolvedValue({ task_id: "fin" } as never);
+
+    const res = await req("POST", `${base}/f1/finalize`, {});
+
+    expect(res.statusCode).toBe(202);
+    expect(res.result).toEqual({ task_id: "fin" });
+  });
+
+  it("asks about THIS feature's subject, not some other feature's", async () => {
+    const findOpenBySubject = vi.fn().mockResolvedValue(null);
+
+    useProject(
+      fakeFeatures({ get: vi.fn().mockResolvedValue(specReady) }),
+      fakeAssemblyLines({ findOpenBySubject }),
+    );
+    vi.mocked(createTask).mockResolvedValue({ task_id: "fin" } as never);
+
+    await req("POST", `${base}/f1/finalize`, {});
+
+    // The Floor stamps this exact string in AssemblyLineStationBackend.launch. If
+    // the two ever spell it differently the guard silently matches nothing, which
+    // looks identical to "no run in flight" — the bug it exists to prevent.
+    expect(findOpenBySubject).toHaveBeenCalledWith("feature:f1");
   });
 });

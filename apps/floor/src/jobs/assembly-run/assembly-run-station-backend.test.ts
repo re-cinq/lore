@@ -89,4 +89,38 @@ describe("AssemblyLineStationBackend", () => {
     expect(first.ref).not.toBe(second.ref);
     expect(port.rows).toHaveLength(2);
   });
+  it("a feature's run declares that feature as its subject", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const backend = new AssemblyLineStationBackend(port);
+
+    await backend.launch({ ...spec("t-1"), featureId: "f-9" });
+
+    expect(port.rows[0]).toMatchObject({ subjectKey: "feature:f-9" });
+  });
+
+  it("a second task for a feature already in flight joins that run instead of starting one", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const backend = new AssemblyLineStationBackend(port);
+
+    const first = await backend.launch({ ...spec("t-1"), featureId: "f-9" });
+    const second = await backend.launch({ ...spec("t-2"), featureId: "f-9" });
+
+    // One run, and the loser is TOLD it lost — a joined task owns no CR, so a
+    // caller that read this as a launch would leave it running forever.
+    expect(port.rows).toHaveLength(1);
+    expect(second).toEqual({
+      ref: first.ref,
+      launched: false,
+      joinedRun: first.ref,
+    });
+  });
+
+  it("the task that started the run is not reported as having joined it", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const backend = new AssemblyLineStationBackend(port);
+
+    const first = await backend.launch({ ...spec("t-1"), featureId: "f-9" });
+
+    expect(first).toEqual({ ref: port.rows[0].id, launched: true });
+  });
 });

@@ -160,7 +160,11 @@ export interface CodeReviewProject {
   assemblyRuns: {
     start(
       blueprintName: string,
-      opts: { branch?: string; args?: Record<string, unknown> },
+      opts: {
+        branch?: string;
+        subjectKey?: string;
+        args?: Record<string, unknown>;
+      },
     ): Promise<string>;
     finishOpenByPr(
       prNumber: number,
@@ -232,6 +236,12 @@ export interface CommentContext {
   actor?: string;
 }
 
+/** The subject a PR review works on. The repo is already the guard's other half
+ *  (the index is on `(repo, subject_key)`), so it is not repeated here. */
+function reviewSubjectKey(prNumber: number): string {
+  return `review:pr-${prNumber}`;
+}
+
 /**
  * Start a `code-review` line (mode `review`) and post the how-to started comment.
  * `forced` bypasses the auto-review gate (explicit human intent: the `@lore review`
@@ -263,6 +273,11 @@ export async function startReview(
   }
   const id = await project.assemblyRuns.start("code-review", {
     branch: pr.branch,
+    // One review run per PR. Keyed on the PR rather than its branch: the branch is
+    // a shared workspace — recheck, reply and triage lines all ride it and are MEANT
+    // to overlap — so a branch key made a review defer to whichever comment line
+    // happened to be open. They now declare no subject and are unaffected.
+    subjectKey: reviewSubjectKey(input.prNumber),
     args: {
       pr_number: input.prNumber,
       mode: "review",
