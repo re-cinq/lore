@@ -490,7 +490,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "A page of ranked context chunks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkList"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -521,7 +528,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The content types in scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkTypeList"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -552,7 +566,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "How much context a repo has ingested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoChunkSummary"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -2267,7 +2288,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Every shared pool, with how much it holds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedPoolList"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -2298,13 +2326,23 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "One pool and the live entries in it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedPoolDetail"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2339,7 +2377,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "A page of ingested episodes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpisodePage"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -6347,6 +6392,100 @@
         ],
         "additionalProperties": false
       },
+      "ChunkList": {
+        "type": "object",
+        "properties": {
+          "chunks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "file_path": {
+                  "type": ["string", "null"]
+                },
+                "content_type": {
+                  "type": ["string", "null"]
+                },
+                "repo": {
+                  "type": ["string", "null"]
+                },
+                "metadata": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "content": {
+                  "type": "string"
+                },
+                "ingested_at": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "rank": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "id",
+                "file_path",
+                "content_type",
+                "repo",
+                "metadata",
+                "content",
+                "ingested_at"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["chunks"],
+        "additionalProperties": false
+      },
+      "ChunkTypeList": {
+        "type": "object",
+        "properties": {
+          "types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["types"],
+        "additionalProperties": false
+      },
+      "RepoChunkSummary": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number"
+          },
+          "convention_files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["count", "convention_files"],
+        "additionalProperties": false
+      },
       "TaskDetail": {
         "type": "object",
         "properties": {
@@ -6832,6 +6971,162 @@
           }
         },
         "required": ["job", "summary"],
+        "additionalProperties": false
+      },
+      "SharedPoolList": {
+        "type": "object",
+        "properties": {
+          "pools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "created_by": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "entry_count": {
+                  "type": "number"
+                },
+                "agent_count": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "created_by",
+                "created_at",
+                "entry_count",
+                "agent_count"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["pools"],
+        "additionalProperties": false
+      },
+      "SharedPoolDetail": {
+        "type": "object",
+        "properties": {
+          "pool": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "created_by": {
+                "type": "string"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": ["id", "name", "created_by", "created_at"],
+            "additionalProperties": false
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "key": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "agent_id": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "number"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "id",
+                "key",
+                "value",
+                "agent_id",
+                "version",
+                "created_at"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["pool", "entries"],
+        "additionalProperties": false
+      },
+      "EpisodePage": {
+        "type": "object",
+        "properties": {
+          "episodes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "agent_id": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "ref": {
+                  "type": ["string", "null"]
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "content_preview": {
+                  "type": ["string", "null"]
+                },
+                "fact_count": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "id",
+                "agent_id",
+                "source",
+                "ref",
+                "created_at",
+                "content_preview",
+                "fact_count"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": ["episodes", "total"],
         "additionalProperties": false
       },
       "AgentDefinitionRead": {

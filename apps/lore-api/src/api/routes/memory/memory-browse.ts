@@ -1,6 +1,20 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
+import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
+import {
+  SharedPoolSchema,
+  SHARED_POOL_COLUMNS,
+} from "@re-cinq/lore-shared/models/shared-pool.js";
+import {
+  MemoryEntrySchema,
+  MEMORY_ENTRY_COLUMNS,
+} from "@re-cinq/lore-shared/models/memory-entry.js";
+import {
+  EpisodeSchema,
+  EPISODE_COLUMNS,
+} from "@re-cinq/lore-shared/models/episode.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import {
@@ -48,6 +62,59 @@ const MemoriesQuery = z.object({
 });
 
 type MemoriesQuery = z.infer<typeof MemoriesQuery>;
+
+/**
+ * The memory browser's read models. Each shares its stored fields with a model —
+ * derived, so a renamed column cannot leave the contract behind — and states the
+ * COMPUTED ones (counts, previews) that no table holds.
+ */
+const PoolSchema = wireSchema(SharedPoolSchema, SHARED_POOL_COLUMNS);
+
+const PoolListSchema = z.object({
+  pools: z.array(
+    PoolSchema.extend({
+      entry_count: z.number(),
+      agent_count: z.number(),
+    }),
+  ),
+});
+
+const PoolDetailSchema = z.object({
+  pool: PoolSchema,
+  entries: z.array(
+    wireSchema(
+      MemoryEntrySchema.pick({
+        id: true,
+        key: true,
+        value: true,
+        agentId: true,
+        version: true,
+        createdAt: true,
+      }),
+      MEMORY_ENTRY_COLUMNS,
+    ),
+  ),
+});
+
+const EpisodePageSchema = z.object({
+  episodes: z.array(
+    wireSchema(
+      EpisodeSchema.pick({
+        id: true,
+        agentId: true,
+        source: true,
+        ref: true,
+        createdAt: true,
+      }),
+      EPISODE_COLUMNS,
+    ).extend({
+      /** The first 300 characters — the list never ships whole episodes. */
+      content_preview: z.string().nullable(),
+      fact_count: z.number(),
+    }),
+  ),
+  total: z.number(),
+});
 
 export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
@@ -125,7 +192,10 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/pools",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), PoolListSchema, {
+        name: "SharedPoolList",
+        description: "Every shared pool, with how much it holds",
+      }),
       handler: async (_request, h) => {
         const pool = getPool();
 
@@ -149,7 +219,11 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/pools/{name}",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), PoolDetailSchema, {
+        name: "SharedPoolDetail",
+        description: "One pool and the live entries in it",
+        errors: [404],
+      }),
       handler: async (request, h) => {
         const pool = getPool();
 
@@ -182,10 +256,14 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/episodes",
-      options: {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(EpisodesQuery) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("read"),
+          validate: { query: zodValidate(EpisodesQuery) },
+        },
+        EpisodePageSchema,
+        { name: "EpisodePage", description: "A page of ingested episodes" },
+      ),
       handler: async (request, h) => {
         const pool = getPool();
 

@@ -1857,6 +1857,27 @@ export interface components {
         [key: string]: unknown;
       } | null;
     };
+    ChunkList: {
+      chunks: {
+        id: string;
+        file_path: string | null;
+        content_type: string | null;
+        repo: string | null;
+        metadata: {
+          [key: string]: unknown;
+        } | null;
+        content: string;
+        ingested_at: string | null;
+        rank?: number;
+      }[];
+    };
+    ChunkTypeList: {
+      types: string[];
+    };
+    RepoChunkSummary: {
+      count: number;
+      convention_files: string[];
+    };
     TaskDetail: {
       id: string;
       description: string;
@@ -1981,6 +2002,48 @@ export interface components {
     MaintenanceResult: {
       job: string;
       summary: string;
+    };
+    SharedPoolList: {
+      pools: {
+        id: string;
+        name: string;
+        created_by: string;
+        /** Format: date-time */
+        created_at: string;
+        entry_count: number;
+        agent_count: number;
+      }[];
+    };
+    SharedPoolDetail: {
+      pool: {
+        id: string;
+        name: string;
+        created_by: string;
+        /** Format: date-time */
+        created_at: string;
+      };
+      entries: {
+        id: string;
+        key: string;
+        value: string;
+        agent_id: string;
+        version: number;
+        /** Format: date-time */
+        created_at: string;
+      }[];
+    };
+    EpisodePage: {
+      episodes: {
+        id: string;
+        agent_id: string;
+        source: string;
+        ref: string | null;
+        /** Format: date-time */
+        created_at: string;
+        content_preview: string | null;
+        fact_count: number;
+      }[];
+      total: number;
     };
     AgentDefinitionRead:
       | {
@@ -2788,12 +2851,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description A page of ranked context chunks */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ChunkList"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -2810,12 +2875,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The content types in scope */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["ChunkTypeList"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -2835,12 +2902,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description How much context a repo has ingested */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["RepoChunkSummary"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -3789,12 +3858,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description Every shared pool, with how much it holds */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["SharedPoolList"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -3813,15 +3884,18 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description One pool and the live entries in it */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["SharedPoolDetail"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -3835,12 +3909,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description A page of ingested episodes */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["EpisodePage"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];

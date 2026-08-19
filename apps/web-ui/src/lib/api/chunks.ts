@@ -1,21 +1,18 @@
 import "server-only";
 import { apiFetch } from "./client";
 import type { ApiResult } from "./result";
+import type { components } from "./schema";
 
 // The context browser's chunk reads. Chunks live in per-team schemas plus
 // `org_shared`, and the UNION ALL across them moved to lore-api along with the
 // schema catalog it depends on — which is what let web-ui stop holding a pool.
 
-export interface ChunkRow {
-  id: string;
-  file_path?: string;
-  content_type: string;
-  repo: string | null;
-  metadata: Record<string, unknown> | null;
-  content: string;
-  ingested_at?: string;
-  rank?: number;
-}
+// The row is an alias over the OpenAPI document lore-api generates from its
+// route contract (ADR-035), which derives its shared fields from the chunk model
+// and its column map. `content` is a 300-char preview and `rank` is computed per
+// query — both stated by that contract, neither invented here.
+
+export type ChunkRow = components["schemas"]["ChunkList"]["chunks"][number];
 
 /** Ranked chunks: org-wide across every schema, or one repo's own. Returns one
  *  row past `limit` so the caller can detect a further page without a COUNT. */
