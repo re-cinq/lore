@@ -83,3 +83,15 @@ slackSigningSecret:
 slackBotTokenSecret:
   name: lore-slack-credentials
   key: bot-token
+
+# The courier (#1357): CronJobs whose only job is to POST /api/assembly-runs and
+# exit, so a scheduled job runs as an assembly line instead of as code inside a
+# coordinator. Empty by default — an entry is added when its line exists.
+#
+# Each entry: name (k8s suffix), schedule (cron), definition (blueprint name),
+# repo (owner/name). Optional: branch, args (object), startingDeadlineSeconds.
+courier:
+  # Pinned by digest-bearing tag: this container holds the org ingest token, so
+  # a floating tag would let the image under it change without review.
+  image: curlimages/curl:8.11.1
+courierJobs: []

@@ -1,0 +1,102 @@
+{{/*
+The courier (#1357). One CronJob per entry in .Values.courierJobs. Each pod does
+exactly one thing: POST /api/assembly-runs to start an assembly line, then exit.
+
+It holds NO business logic. The schedule lives in Kubernetes, the work lives in
+the assembly line — which brings run rows, retries, a timeline, and per-node
+logs that a bare CronJob pod never had. This is what replaces "a batch job lives
+in the coordinator because the coordinator's image is what the alarm launched".
+
+Required per entry: .name (k8s suffix), .schedule (cron), .definition (blueprint
+name), .repo (owner/name).
+Optional: .branch, .args (object, rendered as JSON).
+
+The token is written to a curl config file by a shell BUILTIN rather than passed
+as an argument, so it never appears in any process's argv (readable via /proc by
+anything else in the pod).
+*/}}
+{{- $root := . -}}
+{{- range .Values.courierJobs }}
+{{- $body := dict "definition" .definition "repo" .repo -}}
+{{- if .branch }}{{- $_ := set $body "branch" .branch -}}{{- end -}}
+{{- if .args }}{{- $_ := set $body "args" .args -}}{{- end -}}
+{{- $url := printf "http://%s.%s.svc.cluster.local:%v/api/assembly-runs" $root.Chart.Name $root.Values.namespace $root.Values.service.port }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $root.Chart.Name }}-courier-{{ .name }}
+  namespace: {{ $root.Values.namespace }}
+  labels:
+    app: lore-api
+    component: courier
+    definition: {{ .definition }}
+spec:
+  schedule: {{ .schedule | quote }}
+  # A courier post is idempotent only in the sense that a second run starts a
+  # SECOND line. Forbid, so a wedged pod cannot fan out duplicate runs.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: {{ default 300 .startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      # The post returns in milliseconds; anything longer is a broken service,
+      # not a slow job. The WORK's deadline belongs to the assembly line.
+      activeDeadlineSeconds: 120
+      template:
+        metadata:
+          labels:
+            app: lore-api
+            component: courier
+            definition: {{ .definition }}
+        spec:
+          restartPolicy: Never
+          {{- if $root.Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml $root.Values.imagePullSecrets | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+          containers:
+            - name: courier
+              image: "{{ $root.Values.courier.image }}"
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: LORE_INGEST_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $root.Values.ingestTokenSecret.name }}
+                      key: {{ $root.Values.ingestTokenSecret.key }}
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  printf 'header = "Authorization: Bearer %s"\n' "$LORE_INGEST_TOKEN" > /tmp/curlrc
+                  exec curl --config /tmp/curlrc \
+                    --fail-with-body --silent --show-error \
+                    --retry 3 --retry-connrefused --max-time 30 \
+                    -H 'Content-Type: application/json' \
+                    -X POST {{ $url | quote }} \
+                    -d {{ $body | toJson | quote }}
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: "10m"
+                  memory: 32Mi
+                limits:
+                  cpu: "100m"
+                  memory: 64Mi
+          volumes:
+            - name: tmp
+              emptyDir: {}
+{{- end }}
