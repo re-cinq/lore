@@ -106,11 +106,15 @@ export async function handleClaudeCodeTask(
   // leaving it `running` would strand it until the stale sweep, which is what a
   // duplicate click used to look like before the subject guard existed.
   if (result.joinedRun) {
-    await project.tasks.setStatus(task.id, "completed", {
-      failure_reason: `superseded — run ${result.joinedRun} already works this subject`,
-    });
+    // `completed` with NO failure_reason. The task's work IS being done — by the run
+    // it joined — so this is not a failure, and the task page renders any
+    // failure_reason under a "Failure:" heading in failure styling. Writing the
+    // explanation there would show a red failure on a task that succeeded. The why
+    // is durable in the run row and in this log line; the task has nothing of its
+    // own to report.
+    await project.tasks.setStatus(task.id, "completed");
     console.log(
-      `[floor] task ${task.id} joined run ${result.joinedRun}; settled as superseded`,
+      `[floor] task ${task.id} joined run ${result.joinedRun}; nothing dispatched`,
     );
 
     return;

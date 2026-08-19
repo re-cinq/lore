@@ -206,6 +206,23 @@ export function createDetectTickHandler(
         throw err;
       }
 
+      // The pre-check above closes the common case, not the race: two ticks can both
+      // read "nothing in flight" before either calls start(). The loser's start()
+      // JOINS the winner's run, and its job_run — already minted — has no owner to
+      // close it and no reaper to find it. The run carries the job_run_id of
+      // whichever tick actually started it, so a mismatch IS the join.
+      const startedRun = await deps.assemblyRuns.getById(id);
+
+      if (startedRun && startedRun.args.job_run_id !== jobRunId) {
+        await deps.jobRuns
+          .fail(jobRunId, `superseded — ${repo} is already running as ${id}`)
+          .catch(() => {});
+        console.log(
+          `[detect] ${blueprintName}: ${repo} joined ${id}; job_run ${jobRunId} closed`,
+        );
+        continue;
+      }
+
       console.log(
         `[detect] ${blueprintName}: started assembly line ${id} for ${repo}`,
       );
