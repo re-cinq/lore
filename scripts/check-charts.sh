@@ -20,6 +20,12 @@ failed=0
 
 say() { echo "[charts] $*"; }
 
+# Fail closed on a moved or renamed tree. Without this the loop below iterates an
+# unmatched glob, checks nothing, and prints "all charts lint and render" — the
+# exact false green this script exists to prevent, in the script itself.
+[[ -d "$charts_dir" ]] || { say "FAIL: charts dir not found: $charts_dir"; exit 1; }
+[[ -d "$umbrella" ]] || { say "FAIL: umbrella not found: $umbrella"; exit 1; }
+
 check() {
   local chart="$1" name
   name="$(basename "$chart")"
@@ -40,16 +46,23 @@ check() {
   fi
 }
 
+checked=0
+
 for chart in "$charts_dir"/*/; do
-  [[ -f "$chart/Chart.yaml" ]] && check "${chart%/}"
+  if [[ -f "$chart/Chart.yaml" ]]; then
+    check "${chart%/}"
+    checked=$((checked + 1))
+  fi
 done
 
-say "lint umbrella"
-helm lint "$umbrella" >/dev/null || { say "FAIL lint umbrella"; failed=1; }
+# A tree that exists but holds no charts is also a false green.
+(( checked > 0 )) || { say "FAIL: no charts found under $charts_dir"; exit 1; }
+
+check "$umbrella"
 
 if (( failed )); then
   say "FAILED"
   exit 1
 fi
 
-say "all charts lint and render"
+say "$checked chart(s) + the umbrella lint and render"

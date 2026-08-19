@@ -1,9 +1,12 @@
-# CI fixture: exercises templates that render NOTHING under default values.
+# CI fixture: exercises the conditional path a defaults-only render never reaches.
 #
-# `courierJobs` is empty by default, so a defaults-only render proves nothing
-# about the courier CronJob template. Both entry shapes are covered here — a
-# bodyless maintenance post and a body-carrying assembly-run start — because the
-# body block and its Content-Type header are conditional.
+# Every real `courierJobs` entry is bodyless (memory-ttl, importance-decay,
+# anthropic-cost-sync), so the `{{ if .body }}` block and its Content-Type header
+# are never rendered from default values. Both shapes are covered here.
+#
+# The same applies to any template guarded by an empty list: when courierJobs was
+# `[]`, a defaults-only pass was green against the chomp bug that shipped
+# `emptyDir: {}---`.
 courierJobs:
   - name: ci-bodyless
     schedule: "0 * * * *"
