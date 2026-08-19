@@ -585,10 +585,9 @@ function parsesAsJson(line: string): boolean {
 
 /**
  * Greedy batches under both relay caps: bytes (Buffer.byteLength of the joined
- * NDJSON — lore-api's body limit is 1MB, so the caller passes ~700KB headroom)
- * and line count. A single line above the byte cap still ships as its own
- * batch — the relay may reject it, but silently discarding it here would be
- * worse.
+ * NDJSON — lore-api's body limit is 1MB, so the caller passes ~700KB headroom
+ * and pre-filters oversized lines via dropOversizedTurnLines before this call)
+ * and line count.
  */
 export function batchTurnLines(
   lines: string[],

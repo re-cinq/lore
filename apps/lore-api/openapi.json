@@ -1823,7 +1823,17 @@
             }
           }
         ],
-        "description": "Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON."
+        "description": "Raw NDJSON body — one claude stream-json line per row, already redacted on the laptop before anything left the machine.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-ndjson": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
       }
     },
     "/api/memory": {

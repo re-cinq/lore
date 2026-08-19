@@ -155,4 +155,12 @@ describe("POST /api/task-turns/{taskId}", () => {
 
     expect(res.statusCode).toBe(403);
   });
+
+  it("returns 503 when the internal token is missing even though the floor URL is set", async () => {
+    delete process.env.LORE_AGENT_INTERNAL_TOKEN;
+    const res = await post(JSON.stringify({ type: "assistant" }));
+
+    expect(res.statusCode).toBe(503);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

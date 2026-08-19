@@ -53,7 +53,7 @@ Registered in `routeList`
 ## Behavior
 
 1. Require `LORE_AGENT_URL` + `LORE_AGENT_INTERNAL_TOKEN`, else 503; require
-   the pool, else 503. ([validated by returns 503 when the Floor relay env is not configured](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L120), [validated by returns 503 when no pool is available](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L114))
+   the pool, else 503. ([validated by returns 503 when the Floor relay env is not configured](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L120), [validated by returns 503 when the internal token is missing even though the floor URL is set](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L159), [validated by returns 503 when no pool is available](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L114))
 2. The task id keys everything the Floor sink writes (`llm_calls`, run events,
    turns), so an unknown id is refused with 404 rather than stored
    uncorrelated. Ownership is NOT checked — any write-scoped token may post

@@ -680,7 +680,7 @@ export interface paths {
     put?: never;
     /**
      * POST /api/task-turns/{taskId}
-     * @description Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON.
+     * @description Raw NDJSON body — one claude stream-json line per row, already redacted on the laptop before anything left the machine.
      */
     post: operations["post_api_task-turns_taskId"];
     delete?: never;
@@ -3199,7 +3199,11 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        "application/x-ndjson": string;
+      };
+    };
     responses: {
       /** @description Successful response (2xx; the response body is not described — see info.description) */
       200: {

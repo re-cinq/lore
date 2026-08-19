@@ -68,6 +68,13 @@ export function taskTurnsPostRoute(getPool: () => Pool | null): ServerRoute {
       ...bearerScope("write"),
       validate: { params: zodValidate(TaskTurnsParams) },
       payload: { parse: false },
+      app: {
+        rawBody: {
+          contentType: "application/x-ndjson",
+          description:
+            "Raw NDJSON body — one claude stream-json line per row, already redacted on the laptop before anything left the machine.",
+        },
+      },
     },
     handler: async (request, h) => {
       const { taskId } = request.params as z.infer<typeof TaskTurnsParams>;
