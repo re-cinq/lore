@@ -69,6 +69,19 @@ describe("POST /api/assembly-runs", () => {
     });
   });
 
+  it("omits branch and args from the start input when the body has neither", async () => {
+    const { server, calls } = await serverWith(async () => "run-abc");
+
+    await server.inject(
+      POST({ definition: "memory-consolidation", repo: "re-cinq/lore" }),
+    );
+
+    expect(calls[0]).toEqual({
+      blueprintName: "memory-consolidation",
+      repo: "re-cinq/lore",
+    });
+  });
+
   it("returns 400 when definition is missing", async () => {
     const { server, calls } = await serverWith(async () => "run-abc");
     const res = await server.inject(POST({ repo: "re-cinq/lore" }));

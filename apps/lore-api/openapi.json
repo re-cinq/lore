@@ -993,8 +993,15 @@
         ],
         "x-rate-limit-bucket": "default",
         "responses": {
-          "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+          "201": {
+            "description": "Run started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyRunStarted"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -5634,6 +5641,16 @@
           }
         },
         "required": ["error"]
+      },
+      "AssemblyRunStarted": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
       },
       "FeatureList": {
         "type": "object",

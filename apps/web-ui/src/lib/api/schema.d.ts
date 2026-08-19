@@ -1679,6 +1679,9 @@ export interface components {
     Error: {
       error: string;
     };
+    AssemblyRunStarted: {
+      id: string;
+    };
     FeatureList: {
       features: {
         id: string;
@@ -2742,12 +2745,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
-      200: {
+      /** @description Run started */
+      201: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["AssemblyRunStarted"];
+        };
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];

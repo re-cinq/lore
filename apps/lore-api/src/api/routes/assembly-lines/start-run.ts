@@ -4,6 +4,7 @@ import type { AssemblyRunStartInput } from "@re-cinq/lore-shared/project/assembl
 import { projectFor } from "../../../platform/project-boot.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { repoFullName } from "../common-schemas.js";
 
 /**
@@ -30,6 +31,11 @@ const StartBody = z.object({
   args: z.record(z.unknown()).optional(),
 });
 
+/** Declared so the generator emits 201 + `{ id }`. Without a contract it infers
+ *  a bodyless 200, and web-ui's generated client types then describe a response
+ *  the server never sends. */
+const StartResponse = z.object({ id: z.string() });
+
 type StartRun = (input: AssemblyRunStartInput) => Promise<string>;
 
 const defaultStart: StartRun = async ({ blueprintName, repo, ...opts }) =>
@@ -39,10 +45,14 @@ export function startRunRoute(start: StartRun = defaultStart): ServerRoute {
   return {
     method: "POST",
     path: "/api/assembly-runs",
-    options: {
-      ...bearerScope("task"),
-      validate: { payload: zodValidate(StartBody) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("task"),
+        validate: { payload: zodValidate(StartBody) },
+      },
+      StartResponse,
+      { name: "AssemblyRunStarted", status: 201, description: "Run started" },
+    ),
     handler: async (request, h) => {
       const body = request.payload as z.infer<typeof StartBody>;
       const id = await start({

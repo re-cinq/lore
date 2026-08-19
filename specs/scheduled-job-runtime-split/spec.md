@@ -217,15 +217,15 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   the Floor, so anything wanting to start a line had to be the Floor. The write is
   `start()`'s existing atomic CTE — the `pipeline.assembly_runs` row and its
   `assembly_run.start` event land together — and the Floor's event loop claims the
-  event and walks the line as it does for every other run. ([validated by `start-run.test.ts:40`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L40), [`start-run.test.ts:52`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L52))
+  event and walks the line as it does for every other run. ([validated by `start-run.test.ts:40`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L40), [`start-run.test.ts:52`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L52), [`start-run.test.ts:72`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L72))
 - **FR8.2 — The start endpoint refuses a body it cannot act on.** A missing
   `definition` or a `repo` that is not `owner/name` is rejected `400` and starts
   nothing; a run row minted from a malformed body would be walked by the Floor and
-  fail somewhere less legible than the call that made it. ([validated by `start-run.test.ts:72`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L72), [`start-run.test.ts:82`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L82))
+  fail somewhere less legible than the call that made it. ([validated by `start-run.test.ts:85`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L85), [`start-run.test.ts:95`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L95))
 - **FR8.3 — The endpoint is authenticated.** It is registered on the built server
   under the `task` bearer scope; an unauthenticated post is rejected `401`. Starting
   arbitrary assembly lines is a privileged capability — the courier holds a token
-  like any other client. ([validated by `start-run.test.ts:96`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L96))
+  like any other client. ([validated by `start-run.test.ts:109`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L109))
 
 ## Acceptance Criteria
 
