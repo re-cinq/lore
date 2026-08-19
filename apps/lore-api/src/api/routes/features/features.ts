@@ -20,6 +20,7 @@ import {
 import { decideRoundDispatch } from "@re-cinq/lore-shared/feature-planning/round-dispatch.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { AssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs.js";
+import { featureSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import { reportToParkedNode } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../../platform/project-boot.js";
@@ -163,17 +164,10 @@ async function runAlreadyWorking(
   featureId: string,
 ): Promise<string | null> {
   const open = await project.assemblyRuns.findOpenBySubject(
-    featureSubjectKey(featureId),
+    featureSubject(featureId),
   );
 
   return open?.id ?? null;
-}
-
-/** What every run for this feature declares as its subject, so one query finds
- *  them whatever line they turned out to be. Mirrors the key the Floor stamps in
- *  `AssemblyLineStationBackend.launch` — the two must agree or nothing matches. */
-export function featureSubjectKey(featureId: string): string {
-  return `feature:${featureId}`;
 }
 
 /**
@@ -193,7 +187,7 @@ async function featureRunId(
   featureId: string,
 ): Promise<string | null> {
   const runs = await project.assemblyRuns.listForSubject(
-    featureSubjectKey(featureId),
+    featureSubject(featureId),
   );
 
   return runs[0]?.id ?? null;

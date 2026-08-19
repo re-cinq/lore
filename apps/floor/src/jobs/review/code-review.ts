@@ -28,6 +28,7 @@ import type { TriageAction } from "@re-cinq/lore-shared/review/comment-triage.js
 import { projectFor } from "../../composition/project-boot.js";
 import { shouldAutoReview } from "./should-auto-review.js";
 import { loreTaskRef } from "../task/issue-body.js";
+import { reviewSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 
 /** The definitions THIS choreography owns. A PR's close ends these and nothing
  *  else: other lines may carry the same `pr_number` without having asked to be
@@ -236,12 +237,6 @@ export interface CommentContext {
   actor?: string;
 }
 
-/** The subject a PR review works on. The repo is already the guard's other half
- *  (the index is on `(repo, subject_key)`), so it is not repeated here. */
-function reviewSubjectKey(prNumber: number): string {
-  return `review:pr-${prNumber}`;
-}
-
 /**
  * Start a `code-review` line (mode `review`) and post the how-to started comment.
  * `forced` bypasses the auto-review gate (explicit human intent: the `@lore review`
@@ -277,7 +272,7 @@ export async function startReview(
     // a shared workspace — recheck, reply and triage lines all ride it and are MEANT
     // to overlap — so a branch key made a review defer to whichever comment line
     // happened to be open. They now declare no subject and are unaffected.
-    subjectKey: reviewSubjectKey(input.prNumber),
+    subjectKey: reviewSubject(input.prNumber),
     args: {
       pr_number: input.prNumber,
       mode: "review",

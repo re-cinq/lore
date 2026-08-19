@@ -16,22 +16,16 @@
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { loadBuiltinAssemblyLines } from "@re-cinq/lore-assembly-lines";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { detectSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import type { EventHandler } from "../../main-loop/types.js";
 import { query } from "../../kernel/db.js";
 import { assemblyRuns, jobRuns } from "../../kernel/queues.js";
 
 /** The line's branch: a synthetic ref no `git checkout` resolves — detect nodes
  *  read through the API and clone nothing. It used to double as the overlap-guard
- *  key; guarding now rides {@link detectSubjectKey}, and this is only a branch. */
+ *  key; guarding now rides {@link detectSubject}, and this is only a branch. */
 export function detectBranchName(blueprintName: string, repo: string): string {
   return `detect/${blueprintName}/${repo}`;
-}
-
-/** One detection run per blueprint per repo. The unit of WORK, which is what the
- *  subject guard keys on — a second tick for a repo already being detected is
- *  duplicate work, not a second thing to do. */
-export function detectSubjectKey(blueprintName: string, repo: string): string {
-  return `detect:${blueprintName}:${repo}`;
 }
 
 /** The definition's detect node's job_ref — the job-run name prefix. */
@@ -178,7 +172,7 @@ export function createDetectTickHandler(
       // owner to close it (there is no job_runs reaper) and would sit open forever.
       const inFlight = await deps.assemblyRuns.findOpenBySubject(
         repo,
-        detectSubjectKey(blueprintName, repo),
+        detectSubject(blueprintName, repo),
       );
 
       if (inFlight) {
@@ -199,7 +193,7 @@ export function createDetectTickHandler(
           blueprintName,
           repo,
           branch: detectBranchName(blueprintName, repo),
-          subjectKey: detectSubjectKey(blueprintName, repo),
+          subjectKey: detectSubject(blueprintName, repo),
           args: { job_run_id: jobRunId },
         });
       } catch (err) {

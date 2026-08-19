@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
+import { detectSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import {
   activeSpecRepos,
   chunkSchemas,
   createDetectTickHandler,
   detectBranchName,
-  detectSubjectKey,
   specRepos,
   specReposSql,
 } from "./fan-out.js";
@@ -132,7 +132,7 @@ describe("createDetectTickHandler", () => {
     await assemblyRuns.start({
       blueprintName: "spec-drift",
       repo: "re-cinq/lore",
-      subjectKey: detectSubjectKey("spec-drift", "re-cinq/lore"),
+      subjectKey: detectSubject("spec-drift", "re-cinq/lore"),
     });
 
     const handler = createDetectTickHandler("spec-drift", {
