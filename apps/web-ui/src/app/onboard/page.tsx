@@ -57,7 +57,7 @@ export default async function OnboardPage() {
   const repoList = await listRepos();
   const onboarded =
     repoList.status === "ok"
-      ? repoList.data.repos.map((repo) => ({ full_name: repo.full_name }))
+      ? repoList.data.repos.map((repo) => ({ full_name: repo.fullName }))
       : [];
 
   return <OnboardView onboarded={onboarded} onboardRepoAction={onboardRepo} />;

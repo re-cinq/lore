@@ -13,9 +13,9 @@ export async function GET() {
     // lore-api already orders by onboarded_at DESC; this route only ever needed
     // three of the columns it returns.
     const onboarded = repos.data.repos.map((repo) => ({
-      full_name: repo.full_name,
-      onboarding_pr_merged: repo.onboarding_pr_merged,
-      last_ingested_at: repo.last_ingested_at,
+      full_name: repo.fullName,
+      onboarding_pr_merged: repo.onboardingPrMerged,
+      last_ingested_at: repo.lastIngestedAt,
     }));
 
     // Get repos from GitHub App installation

@@ -109,7 +109,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "A page of onboarded repos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoList"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -140,13 +147,23 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "One lore.repos row",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Repo"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -5753,6 +5770,455 @@
           }
         },
         "required": ["error"]
+      },
+      "RepoList": {
+        "type": "object",
+        "properties": {
+          "repos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "fullName": {
+                  "type": "string"
+                },
+                "team": {
+                  "type": ["string", "null"]
+                },
+                "onboardedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "lastIngestedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "onboardingPrUrl": {
+                  "type": ["string", "null"]
+                },
+                "onboardingPrMerged": {
+                  "type": "boolean"
+                },
+                "settings": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "dark_factory": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "create_issue": {
+                              "type": "string",
+                              "enum": ["never", "on_gate", "always"]
+                            },
+                            "auto_merge": {
+                              "type": "object",
+                              "properties": {
+                                "paths": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "min_trust": {
+                                  "type": "string",
+                                  "enum": [
+                                    "docs",
+                                    "tests",
+                                    "implementation",
+                                    "full"
+                                  ]
+                                },
+                                "require_green_ci": {
+                                  "type": "boolean"
+                                },
+                                "require_bot_approval": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "review": {
+                              "type": "string",
+                              "enum": ["trust_based", "always", "never"]
+                            },
+                            "notify": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "enum": ["escalation", "watched", "all"]
+                              }
+                            },
+                            "execution": {
+                              "type": "object",
+                              "properties": {
+                                "image": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "trust": {
+                          "type": "object",
+                          "properties": {
+                            "level": {
+                              "type": "string",
+                              "enum": [
+                                "docs",
+                                "tests",
+                                "implementation",
+                                "full"
+                              ]
+                            }
+                          },
+                          "additionalProperties": true
+                        },
+                        "task_types": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "task_overrides": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "model": {
+                                "type": "string"
+                              },
+                              "timeout_minutes": {
+                                "type": "number"
+                              },
+                              "system_prompt_suffix": {
+                                "type": "string"
+                              },
+                              "review_required": {
+                                "type": "boolean"
+                              },
+                              "execution": {
+                                "type": "object",
+                                "properties": {
+                                  "image": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            },
+                            "additionalProperties": true
+                          }
+                        },
+                        "auto_review": {
+                          "type": "boolean"
+                        },
+                        "cross_repo": {
+                          "type": "boolean"
+                        },
+                        "cross_repo_repos": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "slack_channel_id": {
+                          "type": "string"
+                        },
+                        "dispatch_label": {
+                          "type": "string"
+                        },
+                        "dispatch_default_type": {
+                          "type": "string"
+                        },
+                        "test_commands": {},
+                        "incidents": {
+                          "type": "array",
+                          "items": {}
+                        }
+                      },
+                      "additionalProperties": true
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "outcomeStats": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "taskCount": {
+                  "type": "number"
+                },
+                "activeAgents": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "id",
+                "owner",
+                "name",
+                "fullName",
+                "team",
+                "onboardedAt",
+                "lastIngestedAt",
+                "onboardingPrUrl",
+                "onboardingPrMerged",
+                "settings",
+                "outcomeStats",
+                "taskCount",
+                "activeAgents"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "offset": {
+            "type": "number"
+          }
+        },
+        "required": ["repos", "total", "limit", "offset"],
+        "additionalProperties": false
+      },
+      "Repo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "team": {
+            "type": ["string", "null"]
+          },
+          "onboardedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastIngestedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "onboardingPrUrl": {
+            "type": ["string", "null"]
+          },
+          "onboardingPrMerged": {
+            "type": "boolean"
+          },
+          "settings": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "dark_factory": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "create_issue": {
+                        "type": "string",
+                        "enum": ["never", "on_gate", "always"]
+                      },
+                      "auto_merge": {
+                        "type": "object",
+                        "properties": {
+                          "paths": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "min_trust": {
+                            "type": "string",
+                            "enum": ["docs", "tests", "implementation", "full"]
+                          },
+                          "require_green_ci": {
+                            "type": "boolean"
+                          },
+                          "require_bot_approval": {
+                            "type": "boolean"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "review": {
+                        "type": "string",
+                        "enum": ["trust_based", "always", "never"]
+                      },
+                      "notify": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": ["escalation", "watched", "all"]
+                        }
+                      },
+                      "execution": {
+                        "type": "object",
+                        "properties": {
+                          "image": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "trust": {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string",
+                        "enum": ["docs", "tests", "implementation", "full"]
+                      }
+                    },
+                    "additionalProperties": true
+                  },
+                  "task_types": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "task_overrides": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "properties": {
+                        "model": {
+                          "type": "string"
+                        },
+                        "timeout_minutes": {
+                          "type": "number"
+                        },
+                        "system_prompt_suffix": {
+                          "type": "string"
+                        },
+                        "review_required": {
+                          "type": "boolean"
+                        },
+                        "execution": {
+                          "type": "object",
+                          "properties": {
+                            "image": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": true
+                    }
+                  },
+                  "auto_review": {
+                    "type": "boolean"
+                  },
+                  "cross_repo": {
+                    "type": "boolean"
+                  },
+                  "cross_repo_repos": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "slack_channel_id": {
+                    "type": "string"
+                  },
+                  "dispatch_label": {
+                    "type": "string"
+                  },
+                  "dispatch_default_type": {
+                    "type": "string"
+                  },
+                  "test_commands": {},
+                  "incidents": {
+                    "type": "array",
+                    "items": {}
+                  }
+                },
+                "additionalProperties": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outcomeStats": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "owner",
+          "name",
+          "fullName",
+          "team",
+          "onboardedAt",
+          "lastIngestedAt",
+          "onboardingPrUrl",
+          "onboardingPrMerged",
+          "settings",
+          "outcomeStats"
+        ],
+        "additionalProperties": false
       },
       "AssemblyRunStarted": {
         "type": "object",

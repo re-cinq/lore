@@ -45,7 +45,7 @@ export default async function CreateTaskPage() {
   const onboardedRepos =
     repoList.status === "ok"
       ? repoList.data.repos
-          .map((repo) => ({ full_name: repo.full_name }))
+          .map((repo) => ({ full_name: repo.fullName }))
           .sort((a, b) => a.full_name.localeCompare(b.full_name))
       : [];
 

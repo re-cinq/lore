@@ -1716,6 +1716,147 @@ export interface components {
     Error: {
       error: string;
     };
+    RepoList: {
+      repos: {
+        id: string;
+        owner: string;
+        name: string;
+        fullName: string;
+        team: string | null;
+        /** Format: date-time */
+        onboardedAt: string;
+        lastIngestedAt: string | null;
+        onboardingPrUrl: string | null;
+        onboardingPrMerged: boolean;
+        settings:
+          | ({
+              dark_factory?: {
+                enabled?: boolean;
+                /** @enum {string} */
+                create_issue?: "never" | "on_gate" | "always";
+                auto_merge?: {
+                  paths?: string[];
+                  /** @enum {string} */
+                  min_trust?: "docs" | "tests" | "implementation" | "full";
+                  require_green_ci?: boolean;
+                  require_bot_approval?: boolean;
+                };
+                /** @enum {string} */
+                review?: "trust_based" | "always" | "never";
+                notify?: ("escalation" | "watched" | "all")[];
+                execution?: {
+                  image?: string;
+                };
+              };
+              trust?: {
+                /** @enum {string} */
+                level?: "docs" | "tests" | "implementation" | "full";
+              } & {
+                [key: string]: unknown;
+              };
+              task_types?: string[];
+              task_overrides?: {
+                [key: string]: {
+                  model?: string;
+                  timeout_minutes?: number;
+                  system_prompt_suffix?: string;
+                  review_required?: boolean;
+                  execution?: {
+                    image?: string;
+                  };
+                } & {
+                  [key: string]: unknown;
+                };
+              };
+              auto_review?: boolean;
+              cross_repo?: boolean;
+              cross_repo_repos?: string[];
+              slack_channel_id?: string;
+              dispatch_label?: string;
+              dispatch_default_type?: string;
+              test_commands?: unknown;
+              incidents?: unknown[];
+            } & {
+              [key: string]: unknown;
+            })
+          | null;
+        outcomeStats: {
+          [key: string]: unknown;
+        } | null;
+        taskCount: number;
+        activeAgents: number;
+      }[];
+      total: number;
+      limit: number;
+      offset: number;
+    };
+    Repo: {
+      id: string;
+      owner: string;
+      name: string;
+      fullName: string;
+      team: string | null;
+      /** Format: date-time */
+      onboardedAt: string;
+      lastIngestedAt: string | null;
+      onboardingPrUrl: string | null;
+      onboardingPrMerged: boolean;
+      settings:
+        | ({
+            dark_factory?: {
+              enabled?: boolean;
+              /** @enum {string} */
+              create_issue?: "never" | "on_gate" | "always";
+              auto_merge?: {
+                paths?: string[];
+                /** @enum {string} */
+                min_trust?: "docs" | "tests" | "implementation" | "full";
+                require_green_ci?: boolean;
+                require_bot_approval?: boolean;
+              };
+              /** @enum {string} */
+              review?: "trust_based" | "always" | "never";
+              notify?: ("escalation" | "watched" | "all")[];
+              execution?: {
+                image?: string;
+              };
+            };
+            trust?: {
+              /** @enum {string} */
+              level?: "docs" | "tests" | "implementation" | "full";
+            } & {
+              [key: string]: unknown;
+            };
+            task_types?: string[];
+            task_overrides?: {
+              [key: string]: {
+                model?: string;
+                timeout_minutes?: number;
+                system_prompt_suffix?: string;
+                review_required?: boolean;
+                execution?: {
+                  image?: string;
+                };
+              } & {
+                [key: string]: unknown;
+              };
+            };
+            auto_review?: boolean;
+            cross_repo?: boolean;
+            cross_repo_repos?: string[];
+            slack_channel_id?: string;
+            dispatch_label?: string;
+            dispatch_default_type?: string;
+            test_commands?: unknown;
+            incidents?: unknown[];
+          } & {
+            [key: string]: unknown;
+          })
+        | null;
+      outcomeStats: {
+        [key: string]: unknown;
+      } | null;
+    };
     AssemblyRunStarted: {
       id: string;
     };
@@ -2227,12 +2368,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description A page of onboarded repos */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["RepoList"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -2252,15 +2395,18 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description One lore.repos row */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["Repo"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

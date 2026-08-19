@@ -1,9 +1,11 @@
 import { errorMessage } from "@re-cinq/lore-shared";
+import { RepoSchema } from "@re-cinq/lore-shared/models/repo.js";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { getOnboardedReposWithCounts } from "../../../features/repo/repo-onboard.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import {
   DB_UNAVAILABLE,
@@ -20,14 +22,31 @@ const ReposQuery = z.object({
 
 type ReposQuery = z.infer<typeof ReposQuery>;
 
+/** The list body: the `Repo` model plus the counts this page renders beside it. */
+const RepoListResponse = z.object({
+  repos: z.array(
+    RepoSchema.extend({
+      taskCount: z.number(),
+      activeAgents: z.number(),
+    }),
+  ),
+  total: z.number(),
+  limit: z.number(),
+  offset: z.number(),
+});
+
 export function reposRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos",
-    options: {
-      ...bearerScope("read"),
-      validate: { query: zodValidate(ReposQuery) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(ReposQuery) },
+      },
+      RepoListResponse,
+      { name: "RepoList", description: "A page of onboarded repos" },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
 
