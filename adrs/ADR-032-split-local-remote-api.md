@@ -160,3 +160,40 @@ omits the laptop-only + task-creating tools. The two runtime shapes of `apps/mcp
 This does not violate the split's "names stop lying" goal: unlike `lore-api` (plain REST), the gateway
 genuinely **speaks MCP** — so the `lore-mcp` name is honest. `lore-api` stays the REST backend both
 shapes proxy to.
+
+## Amendment (2026-08): `lore-api` owns every REST read — the Floor serves none
+
+Decision 2 made `apps/lore-api` **the** remote HTTPS REST API. The Floor was never
+meant to be a second one. It became one anyway: it now serves six read-only
+endpoints — run-event history, turn transcripts by run and by task, conversation
+fetch/save, assembly-run reads plus the catalog, and definition-by-name — because
+that is where the code writing those tables happened to live. Proximity to the
+writer is not a reason to host a reader.
+
+**The rule, restated so it can be enforced:** `/api/*` reads are served by
+`lore-api`, one folder per endpoint under `apps/lore-api/src/api/routes/`. A route
+may live on the Floor only if it needs one of the Floor's three exclusive powers
+([ADR-024](./ADR-024-ubiquitous-language-execution-model.md), amendment 2026-08).
+Today exactly four qualify:
+
+| Floor route | Which power |
+|---|---|
+| `POST /api/webhook/github` | feeds the drain loop directly — relocating it buys a hop and a failure mode |
+| `POST /api/agent-events` (NDJSON sink) | publishes to the in-process SSE bus |
+| `GET /api/agent-events/stream/{id}` | subscribes to that same bus — welded to the sink until PG `LISTEN`/`NOTIFY` |
+| `GET /api/agent-logs/{name}` | reads pod logs through the Kubernetes API |
+
+Everything else on the Floor's hapi server is a squatter and moves.
+
+The ingest ingress is the awkward case worth naming: `POST /api/webhook/ci-tests`
+and the graph-ingest route sit on the Floor while `POST /api/repos/:o/:r/ingest-graph`
+already sits on `lore-api`, so the same conceptual surface is split across both
+deployables by accident of history. Both Floor routes only map a payload onto a
+`pipeline.events` row, which any process holding the database can do. They belong
+next to their sibling on `lore-api` — with the caveat that moving them repoints
+every onboarded repo's CI workflow and the `lore-code-trace` binary's default
+target, so it wants a deprecation window serving both hosts rather than a cutover.
+
+This changes no contract: same paths, same auth, same body limits, same status
+codes. It is the same structural argument the original split made, applied to the
+deployable that grew a REST API after the fact.
