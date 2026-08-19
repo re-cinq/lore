@@ -12,14 +12,16 @@ import type {
 } from "@re-cinq/lore-shared";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { featureSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 
 /** The subject a task's run works on, or undefined when it declares none.
  *
- *  A feature is the only subject a task carries today. Kept as a function rather
- *  than inlined so the next subject (a PR, a spec path) is one arm here instead of
- *  a second derivation site. */
+ *  A feature is the only subject a task carries today. The STRING comes from the
+ *  shared builder, not from a template here: lore-api reads runs by the same key,
+ *  and two independent spellings would not fail to compile — they would just never
+ *  match, which reads as "nothing in flight". */
 function subjectKeyFor(spec: LoreTaskSpec): string | undefined {
-  return spec.featureId ? `feature:${spec.featureId}` : undefined;
+  return spec.featureId ? featureSubject(spec.featureId) : undefined;
 }
 
 export class AssemblyLineStationBackend implements StationBackend {

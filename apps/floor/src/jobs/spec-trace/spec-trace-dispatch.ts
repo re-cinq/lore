@@ -15,6 +15,7 @@ import type { EventInput } from "../../main-loop/types.js";
 import type { AssemblyRunStartInput } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { graphIngestAuditEntry } from "./spec-trace-audit.js";
 import type { AuditLogEntry } from "@re-cinq/lore-shared/project/audit/audit-port.js";
+import { ingestSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 
 /** Kinds whose data is read from the repo (not carried in the trigger payload). */
 const REPO_READ_KINDS = new Set(["specs", "adrs"]);
@@ -50,19 +51,6 @@ function ingestLineBranch(kind: string, ref: string, chunk?: string): string {
   const base = `ingest/${kind}/${ref}`;
 
   return chunk ? `${base}/${chunk}` : base;
-}
-
-/** The ingest line's subject: one unit of WORK, not one commit. Chunked work — a
- *  posted test-report/coverage chunk (identified by its scheduling event) or a
- *  force pass's per-directory glob — carries its chunk identity here. Dropping it
- *  makes sibling chunks read as duplicates of each other, which silently dropped
- *  all but ~1 of 40 test-report chunks per push (2026-07-31). Duplicate drives of
- *  the SAME chunk still dedupe, and an unchunked docs push keeps the (kind, ref)
- *  subject so a double webhook delivery never runs the whole-repo projection twice. */
-function ingestSubjectKey(kind: string, ref: string, chunk?: string): string {
-  const base = `ingest:${kind}:${ref}`;
-
-  return chunk ? `${base}:${chunk}` : base;
 }
 
 function routedResult(
@@ -148,7 +136,7 @@ export async function dispatchSpecTrace(
       repo,
       // The pod clones at args.ref; the branch only has to be distinct per kind.
       branch: ingestLineBranch(kind, ref, p.glob),
-      subjectKey: ingestSubjectKey(kind, ref, p.glob),
+      subjectKey: ingestSubject(kind, ref, p.glob),
       args: {
         kind,
         ref,
@@ -193,7 +181,7 @@ export async function dispatchSpecTrace(
     blueprintName: "ingest",
     repo,
     branch: ingestLineBranch(kind, ref, deps.eventId),
-    subjectKey: ingestSubjectKey(kind, ref, deps.eventId),
+    subjectKey: ingestSubject(kind, ref, deps.eventId),
     args: { kind, ref, payload_event_id: deps.eventId },
   });
 
