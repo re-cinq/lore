@@ -28,10 +28,13 @@ describe("runtime dependencies hidden behind a dynamic import", () => {
     expect(packageJson.devDependencies?.["libsodium-wrappers"]).toBeUndefined();
   });
 
-  it("resolves libsodium-wrappers with the four calls setRepoSecret makes", async () => {
+  it("resolves libsodium-wrappers with the five API members setRepoSecret uses", async () => {
     const sodium = (
       (await import("libsodium-wrappers")) as unknown as {
-        default: Record<string, unknown> & { ready: Promise<void> };
+        default: Record<string, unknown> & {
+          ready: Promise<void>;
+          base64_variants?: { ORIGINAL?: number };
+        };
       }
     ).default;
 
@@ -42,11 +45,13 @@ describe("runtime dependencies hidden behind a dynamic import", () => {
       from_string: typeof sodium.from_string,
       crypto_box_seal: typeof sodium.crypto_box_seal,
       to_base64: typeof sodium.to_base64,
+      base64_variants_ORIGINAL: typeof sodium.base64_variants?.ORIGINAL,
     }).toEqual({
       from_base64: "function",
       from_string: "function",
       crypto_box_seal: "function",
       to_base64: "function",
+      base64_variants_ORIGINAL: "number",
     });
   });
 });

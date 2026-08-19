@@ -148,6 +148,12 @@ or naming-honesty goal).
   The server-core proxy client round-trips a GET read and a POST write through the
   real lore-api server (the change persists in the DB), and returns
   `not_configured` when no `LORE_API_URL` is set. ([validated by `proxy.test.ts:91`](apps/lore-api/src/integration-tests/proxy.test.ts#L91), [validated by `proxy.test.ts:104`](apps/lore-api/src/integration-tests/proxy.test.ts#L104), [validated by `proxy.test.ts:132`](apps/lore-api/src/integration-tests/proxy.test.ts#L132))
+- **FR-8** Infra points at the new remote app: Dockerfile, Helm values,
+  terraform, and CI workflows build/deploy `apps/lore-api`.
+- **FR-9** Developer scripts updated: `install.sh`, `dev-local.sh`,
+  `lore-doctor.sh`, `lore-init.sh` reference the correct package/app for each
+  runtime.
+
 - **FR-10** A package declares every dependency it imports at runtime, at
   dependency strength — a runtime import reached only through a
   `devDependency` breaks the moment an install omits dev deps. `libs/shared`
@@ -158,11 +164,6 @@ or naming-honesty goal).
   (`const spec = "libsodium-wrappers"`) to avoid demanding a declaration file
   for an untyped package, which makes it invisible to every static dependency
   checker — so the declaration is pinned by a test rather than by tooling. ([validated by `runtime-deps.test.ts:23`](libs/shared/src/project/lib/runtime-deps.test.ts#L23), [`runtime-deps.test.ts:27`](libs/shared/src/project/lib/runtime-deps.test.ts#L27), [`runtime-deps.test.ts:31`](libs/shared/src/project/lib/runtime-deps.test.ts#L31))
-- **FR-8** Infra points at the new remote app: Dockerfile, Helm values,
-  terraform, and CI workflows build/deploy `apps/lore-api`.
-- **FR-9** Developer scripts updated: `install.sh`, `dev-local.sh`,
-  `lore-doctor.sh`, `lore-init.sh` reference the correct package/app for each
-  runtime.
 
 ## Success Criteria
 
