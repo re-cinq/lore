@@ -3,6 +3,12 @@ import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { createHash } from "node:crypto";
+import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
+import {
+  ApiTokenSchema,
+  API_TOKEN_COLUMNS,
+} from "@re-cinq/lore-shared/models/api-token.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import type { TokenScope } from "../auth.js";
@@ -29,6 +35,42 @@ const TokensQuery = z.object({
 
 type TokensQuery = z.infer<typeof TokensQuery>;
 
+/**
+ * The token surface never returns `token_hash` — the plaintext exists once, in
+ * the create response, and the hash is not a caller's business. Derived from the
+ * model so that omission is a deliberate `pick`, not a column someone forgot.
+ */
+const TokenListSchema = z.object({
+  tokens: z.array(
+    wireSchema(
+      ApiTokenSchema.pick({
+        id: true,
+        name: true,
+        scopes: true,
+        createdBy: true,
+        expiresAt: true,
+        lastUsed: true,
+        createdAt: true,
+      }),
+      API_TOKEN_COLUMNS,
+    ),
+  ),
+  total: z.number(),
+  limit: z.number(),
+  offset: z.number(),
+});
+
+const TokenWriteSchema = z.union([
+  z.object({ ok: z.literal(true) }),
+  z.object({
+    id: z.string(),
+    name: z.string(),
+    token: z.string(),
+    scopes: z.array(z.string()),
+    expires_at: z.string().nullable(),
+  }),
+]);
+
 export function tokensRoute(getPool: () => Pool | null): ServerRoute {
   return {
     // "*" so an unsupported verb still reaches the handler's 405 (rather than a
@@ -38,10 +80,21 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute {
     // body is hapi-parsed rather than hand-parsed (ADR-034 FR6).
     method: "*",
     path: "/api/tokens",
-    options: {
-      ...bearerScope("admin"),
-      validate: { query: zodValidate(TokensQuery) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("admin"),
+        validate: { query: zodValidate(TokensQuery) },
+      },
+      // ONE route serves both methods here (`method: "*"`), and the generator
+      // stamps a route's contract onto each of them — so the declaration is the
+      // union it genuinely is: the list on GET, the write acknowledgement on POST.
+      z.union([TokenListSchema, TokenWriteSchema]),
+      {
+        name: "TokenResponse",
+        description: "The token list (GET) or the write result (POST)",
+        errors: [400],
+      },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
 

@@ -1716,6 +1716,17 @@ export interface components {
     Error: {
       error: string;
     };
+    RepoStatus: {
+      onboarded: boolean;
+      repo?: string;
+      running?: number;
+      pr_ready?: number;
+      memories?: number;
+      auto_review?: boolean;
+      last_ingested_at?: string | null;
+      stale?: boolean;
+      error?: string;
+    };
     RepoList: {
       repos: {
         id: string;
@@ -1934,6 +1945,67 @@ export interface components {
         created_at: string;
       }[];
     };
+    RepoTaskList: {
+      tasks: {
+        id: string;
+        description: string;
+        task_type: string;
+        status: string;
+        agent_id: string | null;
+        pr_url: string | null;
+        /** Format: date-time */
+        created_at: string;
+      }[];
+    };
+    TaskStats: {
+      total: number;
+      today: number;
+    };
+    AgentActivity: {
+      agents: {
+        agent_id: string | null;
+        task_count: number;
+        cost_usd: number;
+        created_by: string | null;
+        reason_type: string | null;
+        reason: string | null;
+        memory_count: number;
+        last_active: string | null;
+      }[];
+    };
+    TaskRuntime: {
+      events: {
+        id: string;
+        task_id: string;
+        from_status: string | null;
+        to_status: string;
+        metadata: {
+          [key: string]: unknown;
+        } | null;
+        /** Format: date-time */
+        created_at: string;
+      }[];
+      llm_calls: {
+        model: string;
+        input_tokens: number;
+        output_tokens: number;
+        duration_ms: number;
+        /** @enum {string} */
+        status: "success" | "failed";
+        error: string | null;
+        created_at: string | null;
+      }[];
+    };
+    AuditLogPage: {
+      entries: {
+        event_type: string;
+        payload: {
+          [key: string]: unknown;
+        };
+        /** Format: date-time */
+        created_at: string;
+      }[];
+    };
     AssemblyRunList: {
       runs: {
         id: string;
@@ -2045,6 +2117,76 @@ export interface components {
       }[];
       total: number;
     };
+    TokenResponse:
+      | {
+          tokens: {
+            id: string;
+            name: string;
+            scopes: string[];
+            created_by: string;
+            expires_at: string | null;
+            last_used: string | null;
+            /** Format: date-time */
+            created_at: string;
+          }[];
+          total: number;
+          limit: number;
+          offset: number;
+        }
+      | (
+          | {
+              /** @constant */
+              ok: true;
+            }
+          | {
+              id: string;
+              name: string;
+              token: string;
+              scopes: string[];
+              expires_at: string | null;
+            }
+        );
+    DarkFactorySettings:
+      | {
+          enabled: boolean;
+          /** @enum {string} */
+          create_issue: "never" | "on_gate" | "always";
+          auto_merge: {
+            paths: string[];
+            /** @enum {string} */
+            min_trust: "docs" | "tests" | "implementation" | "full";
+            require_green_ci: boolean;
+            require_bot_approval: boolean;
+          };
+          /** @enum {string} */
+          review: "trust_based" | "always" | "never";
+          notify: ("escalation" | "watched" | "all")[];
+        }
+      | {
+          /** @constant */
+          ok: true;
+          applied: {
+            enabled: boolean;
+            /** @enum {string} */
+            create_issue: "never" | "on_gate" | "always";
+            auto_merge: {
+              paths: string[];
+              /** @enum {string} */
+              min_trust: "docs" | "tests" | "implementation" | "full";
+              require_green_ci: boolean;
+              require_bot_approval: boolean;
+            };
+            /** @enum {string} */
+            review: "trust_based" | "always" | "never";
+            notify: ("escalation" | "watched" | "all")[];
+          };
+          ceremony: {
+            /** @enum {string} */
+            tier: "two_key" | "admin";
+            pr_ref?: string;
+            approver?: string;
+          };
+        };
     AgentDefinitionRead:
       | {
           name: string;
@@ -2134,6 +2276,137 @@ export interface components {
       result_summary: string | null;
       error: string | null;
       log_path: string | null;
+    };
+    RepoOnboarded: {
+      onboarded: boolean;
+    };
+    RepoIssueList: {
+      issues: {
+        repo: string;
+        number: number;
+        title: string;
+        /** @enum {string} */
+        state: "open" | "closed";
+        labels: string[];
+        url?: string;
+      }[];
+    };
+    RepoLabelList: {
+      labels: string[];
+    };
+    RepoIssueCreated: {
+      repo: string;
+      number: number;
+      title: string;
+      /** @enum {string} */
+      state: "open" | "closed";
+      labels: string[];
+      url?: string;
+    };
+    BranchCreated: {
+      /** @constant */
+      ok: true;
+    };
+    CommitCreated: {
+      /** @constant */
+      ok: true;
+    };
+    PullOpened: {
+      repo: string;
+      number: number;
+      title: string;
+      branch: string;
+      /** @enum {string} */
+      state: "open" | "closed" | "merged";
+      labels: string[];
+      url: string;
+      author?: string;
+      draft?: boolean;
+    };
+    RepoCiConclusion: {
+      /** @enum {string} */
+      conclusion: "success" | "failure" | "pending" | "none";
+    };
+    DriftTaskList: {
+      tasks: {
+        id?: string;
+        description?: string;
+        task_type?: string;
+        status?: string;
+        target_repo?: string;
+        target_branch?: string | null;
+        agent_id?: string | null;
+        pr_url?: string | null;
+        pr_number?: number | null;
+        review_iteration?: number;
+        context_bundle?: {
+          [key: string]: unknown;
+        } | null;
+        context_refs?: {
+          [key: string]: unknown;
+        } | null;
+        dark_factory_overrides?: {
+          [key: string]: unknown;
+        } | null;
+        failure_reason?: string | null;
+        created_by?: string;
+        /** Format: date-time */
+        created_at?: string;
+        /** Format: date-time */
+        updated_at?: string;
+        priority?: string;
+        log_url?: string | null;
+        claimed_by?: string | null;
+        claimed_at?: string | null;
+        task_group_id?: string | null;
+        actor?: string | null;
+        issue_number?: number | null;
+        issue_url?: string | null;
+      }[];
+    };
+    OpenLikeTaskList: {
+      tasks: {
+        id?: string;
+        description?: string;
+        task_type?: string;
+        status?: string;
+        target_repo?: string;
+        target_branch?: string | null;
+        agent_id?: string | null;
+        pr_url?: string | null;
+        pr_number?: number | null;
+        review_iteration?: number;
+        context_bundle?: {
+          [key: string]: unknown;
+        } | null;
+        context_refs?: {
+          [key: string]: unknown;
+        } | null;
+        dark_factory_overrides?: {
+          [key: string]: unknown;
+        } | null;
+        failure_reason?: string | null;
+        created_by?: string;
+        /** Format: date-time */
+        created_at?: string;
+        /** Format: date-time */
+        updated_at?: string;
+        priority?: string;
+        log_url?: string | null;
+        claimed_by?: string | null;
+        claimed_at?: string | null;
+        task_group_id?: string | null;
+        actor?: string | null;
+        issue_number?: number | null;
+        issue_url?: string | null;
+      }[];
+    };
+    StationTaskCreated: {
+      task_id: string;
+      task_type: string;
+      status: string;
+      priority: string;
+      created_at: string;
     };
     FeatureList: {
       features: {
@@ -2617,12 +2890,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description Onboarding state and current activity for a repo */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["RepoStatus"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -3070,12 +3345,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description A repo's recent tasks */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["RepoTaskList"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -3092,12 +3369,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description Pipeline task counts */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["TaskStats"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -3114,12 +3393,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description Per-agent activity roll-up */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["AgentActivity"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -3138,12 +3419,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description A task's transitions and LLM calls */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["TaskRuntime"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -3160,12 +3443,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description Recent audit entries for a repo */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["AuditLogPage"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -4328,13 +4613,16 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The token list (GET) or the write result (POST) */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["TokenResponse"];
+        };
       };
+      400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       429: components["responses"]["RateLimited"];
@@ -4356,12 +4644,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The token list (GET) or the write result (POST) */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["TokenResponse"];
+        };
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
@@ -4383,15 +4673,19 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The resolved settings (GET) or the applied change (PUT) */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["DarkFactorySettings"];
+        };
       };
+      400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -4429,16 +4723,19 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The resolved settings (GET) or the applied change (PUT) */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["DarkFactorySettings"];
+        };
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
@@ -4931,12 +5228,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description Whether the repo has completed onboarding */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["RepoOnboarded"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -4956,12 +5255,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The repo's issues */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["RepoIssueList"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -4989,12 +5290,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The issue that was opened */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["RepoIssueCreated"];
+        };
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
@@ -5016,12 +5319,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The repo's labels */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["RepoLabelList"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -5048,12 +5353,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The branch was created */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["BranchCreated"];
+        };
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
@@ -5084,12 +5391,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The commit was pushed */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["CommitCreated"];
+        };
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
@@ -5121,12 +5430,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The pull request that was opened */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["PullOpened"];
+        };
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
@@ -5148,12 +5459,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description CI's verdict for a ref */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["RepoCiConclusion"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -5173,12 +5486,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description Tasks already open for a spec */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["DriftTaskList"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -5198,12 +5513,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description Open tasks matching a prefix */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["OpenLikeTaskList"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -5234,12 +5551,14 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The task that was queued */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["StationTaskCreated"];
+        };
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
