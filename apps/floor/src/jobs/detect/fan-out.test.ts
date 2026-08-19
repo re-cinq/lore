@@ -5,6 +5,7 @@ import {
   chunkSchemas,
   createDetectTickHandler,
   detectBranchName,
+  detectSubjectKey,
   specRepos,
   specReposSql,
 } from "./fan-out.js";
@@ -124,10 +125,34 @@ describe("createDetectTickHandler", () => {
     expect(started).toEqual([]);
   });
 
+  it("starts nothing and mints no job_run for a repo already being detected", async () => {
+    const { started, jobRuns } = fakeJobRuns();
+    const assemblyRuns = new InMemoryAssemblyRuns();
+
+    await assemblyRuns.start({
+      blueprintName: "spec-drift",
+      repo: "re-cinq/lore",
+      subjectKey: detectSubjectKey("spec-drift", "re-cinq/lore"),
+    });
+
+    const handler = createDetectTickHandler("spec-drift", {
+      assemblyRuns,
+      jobRuns,
+      jobRef: async () => "spec_drift",
+      listTargetRepos: async () => ["re-cinq/lore"],
+    });
+
+    await handler({});
+
+    expect(assemblyRuns.rows).toHaveLength(1);
+    expect(started).toEqual([]);
+  });
+
   it("fails the just-created job_run when assemblyRuns.start throws before rethrowing", async () => {
     const { started, failed, jobRuns } = fakeJobRuns();
     const handler = createDetectTickHandler("spec-drift", {
       assemblyRuns: {
+        findOpenBySubject: async () => null,
         start: async () => {
           throw new Error("db down");
         },

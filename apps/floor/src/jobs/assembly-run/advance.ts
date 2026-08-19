@@ -137,26 +137,6 @@ export function taskFromRow(row: AssemblyRunRecord): FloorAssemblyRunTask {
   };
 }
 
-// Definitions whose branch is a shared workspace, not a work identity. Every
-// comment on a PR rides the PR's head branch, so two of these lines on one branch
-// carry DISTINCT human comments — not the duplicate per-repo/per-commit work the
-// overlap guard exists to suppress (detect: detect/<def>/<repo>; ingest:
-// ingest/<kind>/<sha>[/<chunk>], where the branch encodes the exact unit of
-// work — chunked ingest carries its chunk identity precisely so sibling chunks
-// never read as duplicates here). Guarding them would
-// drop the newer as lease_held and silently lose a comment, so they opt out. They
-// then run concurrently: comment-triage commits nothing, and a code-review-reply
-// push race fails loudly rather than a comment vanishing without a trace.
-// code-review-recheck opts out for the same reason: each push carries a distinct
-// diff and it commits nothing, so guarding it would silently drop a verdict update
-// — stranding a stale REQUEST_CHANGES that blocks auto-merge while a reply line
-// holds the branch — rather than suppress duplicate work.
-const BRANCH_SHARED_WORKSPACE = new Set([
-  "comment-triage",
-  "code-review-reply",
-  "code-review-recheck",
-]);
-
 /** Re-derive the line's next step from its node rows and perform it: launch the next
  *  node CR, finish the row, or fail it. Safe to call redundantly — no-ops unless the
  *  replay says there is something to do. */
@@ -178,54 +158,6 @@ export async function advanceLine(
   }
 
   const nodes = await deps.assemblyRuns.listStationRuns(assemblyLineId);
-
-  // Overlap guard (branch-lease parity): a second not-yet-started run on the same
-  // repo+branch defers to the one already in flight — the detect fan-out relies on
-  // this to suppress duplicate per-repo runs, exactly as the old lease did. It is
-  // check-then-act (not atomic like the old lease CTE): two starts in the same
-  // drain batch can both markRunning before either reaches here. So defer only to a
-  // DETERMINISTICALLY-chosen winner — the one with the smaller row id — so at most
-  // one side backs off (a naive "any other running" would make BOTH defer and skip
-  // detection for the tick).
-  //
-  // "Not yet started" is `nodes.length === row.inheritedNodeCount` rather than a
-  // recomputed prefix: a fork starts life with its source's rows, but its own walk
-  // may REVISIT the node it resumed from (implementation.yaml loops
-  // validate -> implement). Deriving the prefix from the current rows makes the
-  // count grow back, re-arming this guard mid-walk and closing a RUNNING fork as
-  // lease_held — paid work lost. The stored count never moves, so the test is
-  // false forever after the first launch.
-  if (
-    nodes.length === row.inheritedNodeCount &&
-    row.branch &&
-    !BRANCH_SHARED_WORKSPACE.has(row.blueprintName)
-  ) {
-    // Defer only to a strictly-older winner (earlier createdAt, ties broken by id):
-    // the single oldest open row on the branch proceeds, all others defer. A stale
-    // winner that never progresses is re-driven / failed by the reaper, so it can't
-    // wedge the branch permanently. The read is the branch-scoped graph-less
-    // summary — listOpen would haul every open run's graph clone org-wide to
-    // compare five scalars.
-    const isOlder = (other: { createdAt: Date; id: string }): boolean => {
-      const dt = other.createdAt.getTime() - row.createdAt.getTime();
-
-      return dt < 0 || (dt === 0 && other.id < row.id);
-    };
-    const overlapping = (
-      await deps.assemblyRuns.findOpenOnBranch(row.repo, row.branch)
-    ).some((other) => other.id !== row.id && isOlder(other));
-
-    if (overlapping) {
-      await finishLine(
-        row,
-        "lease_held",
-        "another run holds this branch",
-        deps,
-      );
-
-      return;
-    }
-  }
 
   const visits: NodeVisit[] = nodes.map((n) => ({
     nodeId: n.nodeId,

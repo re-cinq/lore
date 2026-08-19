@@ -11,6 +11,9 @@ export interface AgentRunResult {
   taskId: string;
   mode: AgentMode;
   started: boolean;
+  /** Set when the dispatch joined a run already working this subject rather than
+   *  starting one. The task owns no run of its own and the caller must settle it. */
+  joinedRun?: string;
   /** Set when a synchronous Station backend (docker) waited on the run; the
    *  caller finalizes it inline. Omitted for async backends (k8s). */
   completion?: import("./station-port.js").StationCompletion;

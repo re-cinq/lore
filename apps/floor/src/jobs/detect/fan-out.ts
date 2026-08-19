@@ -20,9 +20,18 @@ import type { EventHandler } from "../../main-loop/types.js";
 import { query } from "../../kernel/db.js";
 import { assemblyRuns, jobRuns } from "../../kernel/queues.js";
 
-/** The old lease key, now the overlap-guard key (advanceLine defers duplicates). */
+/** The line's branch: a synthetic ref no `git checkout` resolves — detect nodes
+ *  read through the API and clone nothing. It used to double as the overlap-guard
+ *  key; guarding now rides {@link detectSubjectKey}, and this is only a branch. */
 export function detectBranchName(blueprintName: string, repo: string): string {
   return `detect/${blueprintName}/${repo}`;
+}
+
+/** One detection run per blueprint per repo. The unit of WORK, which is what the
+ *  subject guard keys on — a second tick for a repo already being detected is
+ *  duplicate work, not a second thing to do. */
+export function detectSubjectKey(blueprintName: string, repo: string): string {
+  return `detect:${blueprintName}:${repo}`;
 }
 
 /** The definition's detect node's job_ref — the job-run name prefix. */
@@ -164,6 +173,20 @@ export function createDetectTickHandler(
     const jobRef = await deps.jobRef();
 
     for (const repo of repos) {
+      // Asked BEFORE the job_run is minted, not after the start comes back joined:
+      // a job_run created for work that turns out to be already running has no
+      // owner to close it (there is no job_runs reaper) and would sit open forever.
+      const inFlight = await deps.assemblyRuns.findOpenBySubject(
+        repo,
+        detectSubjectKey(blueprintName, repo),
+      );
+
+      if (inFlight) {
+        console.log(
+          `[detect] ${blueprintName}: ${repo} already running as ${inFlight.id}, skipping`,
+        );
+        continue;
+      }
       const jobRunId = await deps.jobRuns.start(`${jobRef}:${repo}`);
 
       // start() throwing mid-loop (the case the header blesses for tick retry)
@@ -176,6 +199,7 @@ export function createDetectTickHandler(
           blueprintName,
           repo,
           branch: detectBranchName(blueprintName, repo),
+          subjectKey: detectSubjectKey(blueprintName, repo),
           args: { job_run_id: jobRunId },
         });
       } catch (err) {

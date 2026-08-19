@@ -33,8 +33,24 @@ export interface SeedAssemblyLineNode {
   finishedAt: Date | null;
 }
 
-/** A fork inherits branch and taskId from its source and its args unless the
- *  caller overrides them; a plain start is passed through untouched. */
+/** The graph-less projection the two open-run reads hand back. */
+function toOpenSummary(row: AssemblyRunRecord): OpenRunSummary {
+  return {
+    id: row.id,
+    status: row.status as "queued" | "running",
+    repo: row.repo,
+    branch: row.branch,
+    subjectKey: row.subjectKey,
+    createdAt: row.createdAt,
+  };
+}
+
+/** A fork inherits branch, taskId and subject from its source and its args unless
+ *  the caller overrides them; a plain start is passed through untouched.
+ *
+ *  The subject rides along because a fork re-runs the SAME work: it must hold the
+ *  guard its source held, and a query for that subject must find it. Forking is
+ *  only legal from a terminal run, so the key is always free by then. */
 function inheritFromSource(
   input: AssemblyRunStartInput,
   source: AssemblyRunRecord | null,
@@ -47,6 +63,7 @@ function inheritFromSource(
     ...input,
     branch: source.branch ?? undefined,
     taskId: source.taskId ?? undefined,
+    subjectKey: input.subjectKey ?? source.subjectKey ?? undefined,
     args: input.args ?? source.args,
   };
 }
@@ -64,6 +81,19 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   constructor(public clock: () => Date = () => new Date()) {}
 
   async start(input: AssemblyRunStartInput): Promise<string> {
+    // Start-or-JOIN. A subject already in flight yields its run rather than a
+    // second one, so a caller that raced (or a user who clicked twice) ends up
+    // holding the id of the work already happening. The Pg adapter reaches the
+    // same answer from a unique-violation; here the check IS the enforcement,
+    // which is sound because the double is single-threaded.
+    if (input.subjectKey) {
+      const open = await this.findOpenBySubject(input.repo, input.subjectKey);
+
+      if (open) {
+        return open.id;
+      }
+    }
+
     const resumeFrom = input.resumeFrom;
     const source = resumeFrom ? await this.getById(resumeFrom.lineId) : null;
     // Validate the fork BEFORE minting anything, so a rejected resume leaves no
@@ -274,7 +304,9 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
             (query.prNumber === undefined ||
               Number(row.args.pr_number) === query.prNumber) &&
             (query.createdAfter === undefined ||
-              row.createdAt >= query.createdAfter),
+              row.createdAt >= query.createdAfter) &&
+            (query.subjectKey === undefined ||
+              row.subjectKey === query.subjectKey),
         )
         // Newest first, id as the tiebreak. The tiebreak buys STABILITY, not
         // insertion order — run ids are random uuids, so two runs created in the
@@ -301,13 +333,18 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   ): Promise<OpenRunSummary[]> {
     return (await this.listOpen())
       .filter((r) => r.repo === repo && r.branch === branch)
-      .map((r) => ({
-        id: r.id,
-        status: r.status as "queued" | "running",
-        repo: r.repo,
-        branch: r.branch,
-        createdAt: r.createdAt,
-      }));
+      .map(toOpenSummary);
+  }
+
+  async findOpenBySubject(
+    repo: string,
+    subjectKey: string,
+  ): Promise<OpenRunSummary | null> {
+    const open = (await this.listOpen()).find(
+      (r) => r.repo === repo && r.subjectKey === subjectKey,
+    );
+
+    return open ? toOpenSummary(open) : null;
   }
 
   async mergeArgs(id: string, patch: Record<string, unknown>): Promise<void> {
@@ -386,6 +423,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       taskId: input.taskId ?? null,
       repo: input.repo,
       branch: input.branch ?? null,
+      subjectKey: input.subjectKey ?? null,
       args: input.args ?? {},
       graph: null,
       status: "queued",

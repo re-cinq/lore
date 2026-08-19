@@ -19,6 +19,7 @@ import {
 } from "@re-cinq/lore-shared/project/features/features-port.js";
 import { decideRoundDispatch } from "@re-cinq/lore-shared/feature-planning/round-dispatch.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import type { AssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs.js";
 import { reportToParkedNode } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { projectFor } from "../../../platform/project-boot.js";
@@ -144,21 +145,58 @@ function firstTaskId(
   );
 }
 
-/** The id of the feature's planning line, or null. Resolved the way
- *  {@link resolveDispatch} does — the FIRST round's task owns the line for its
- *  whole life, and later rounds are resumes that mint no task of their own. */
-async function planningLineId(
-  project: { assemblyRuns: Pick<AssemblyRunsPort, "listForTask"> },
-  iterations: readonly { iteration: number; task_id: string | null }[],
+/**
+ * The run already working this feature, or null.
+ *
+ * Asked ONLY on the path that would start a new one. The resume path reports to a
+ * node the open run is PARKED on — that run being open is the precondition for
+ * resuming it, not a reason to refuse — so guarding there would reject every
+ * ordinary refine and accept.
+ *
+ * Finalize is the only caller: refine's legacy arm already holds `roundInFlight`,
+ * an iteration-scoped guard for the same double-click, and two overlapping guards
+ * in one handler is a precedence question nobody should have to answer. That
+ * finalize had NO equivalent is why it was the endpoint that duplicated.
+ */
+async function runAlreadyWorking(
+  project: { assemblyRuns: Pick<AssemblyRuns, "findOpenBySubject"> },
+  featureId: string,
 ): Promise<string | null> {
-  const taskId = firstTaskId(iterations);
+  const open = await project.assemblyRuns.findOpenBySubject(
+    featureSubjectKey(featureId),
+  );
 
-  if (!taskId) {
-    return null;
-  }
-  const lines = await project.assemblyRuns.listForTask(taskId);
+  return open?.id ?? null;
+}
 
-  return lines.find((l) => l.blueprintName === PLANNING_DEFINITION)?.id ?? null;
+/** What every run for this feature declares as its subject, so one query finds
+ *  them whatever line they turned out to be. Mirrors the key the Floor stamps in
+ *  `AssemblyLineStationBackend.launch` — the two must agree or nothing matches. */
+export function featureSubjectKey(featureId: string): string {
+  return `feature:${featureId}`;
+}
+
+/**
+ * The run the feature page should draw: the NEWEST run for this feature.
+ *
+ * This used to resolve through the first round's task and then filter to the
+ * `feature-planning` blueprint, which excluded by name every other line a feature
+ * can start. A finalize run is a different task AND a different blueprint, so
+ * pressing "Create spec PR" started work the page had no way to see — it kept
+ * drawing the planning run, and looked like nothing had happened.
+ *
+ * Newest wins rather than newest-OPEN: a feature whose run has finished must still
+ * show that run (and its failure reason) rather than falling back to silence.
+ */
+async function featureRunId(
+  project: { assemblyRuns: Pick<AssemblyRuns, "listForSubject"> },
+  featureId: string,
+): Promise<string | null> {
+  const runs = await project.assemblyRuns.listForSubject(
+    featureSubjectKey(featureId),
+  );
+
+  return runs[0]?.id ?? null;
 }
 
 async function kickPlanning(
@@ -301,7 +339,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             last_ready_iteration: latestReadyIteration(iterations),
             // The run the graph hangs on. From round 2 a resumed round mints no
             // task, so only the OWNING task — the first round's — can resolve it.
-            ...runIdBothSpellings(await planningLineId(project, iterations)),
+            ...runIdBothSpellings(await featureRunId(project, feature.id)),
           });
         }),
     },
@@ -570,6 +608,23 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             );
 
             return h.response(runIdBothSpellings(dispatch.lineId)).code(202);
+          }
+          // Starting a fresh run for a feature something is already working is the
+          // duplicate this endpoint used to accept without a murmur: `canFinalize`
+          // gates on feature.status, which does not move until a PR lands ~18
+          // minutes later, so every click inside that window minted another task,
+          // another run, another branch and another spec PR. The run id rides the
+          // 409 so the caller can show the work already in flight instead of an
+          // error — a duplicate press means "show me", not "you broke something".
+          const inFlight = await runAlreadyWorking(project, id);
+
+          if (inFlight) {
+            return h
+              .response({
+                error: "a run is already in flight for this feature",
+                ...runIdBothSpellings(inFlight),
+              })
+              .code(409);
           }
           const task = await createTask(
             `Finalize feature: ${feature.title}`,

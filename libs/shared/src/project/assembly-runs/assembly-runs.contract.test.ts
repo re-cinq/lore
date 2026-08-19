@@ -528,5 +528,181 @@ describe.each(IMPLEMENTATIONS)(
         id,
       ]);
     });
+    it("start with a subject key already open returns the run already in flight", async () => {
+      const { port, repo } = make();
+      const first = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        subjectKey: "feature:one",
+      });
+      const second = await port.start({
+        blueprintName: "feature-finalize",
+        repo,
+        subjectKey: "feature:one",
+      });
+
+      expect(second).toBe(first);
+    });
+
+    it("start records the subject key on the run it mints", async () => {
+      const { port, repo } = make();
+      const id = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        subjectKey: "feature:two",
+      });
+
+      expect(await port.getById(id)).toMatchObject({
+        subjectKey: "feature:two",
+      });
+    });
+
+    it("a settled run frees its subject key for the next start", async () => {
+      const { port, repo } = make();
+      const first = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        subjectKey: "feature:three",
+      });
+
+      await port.finish(first, "completed");
+
+      const second = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        subjectKey: "feature:three",
+      });
+
+      expect(second).not.toBe(first);
+    });
+
+    it("runs carrying no subject key start independently of each other", async () => {
+      const { port, repo } = make();
+      const first = await port.start({ blueprintName: "comment-triage", repo });
+      const second = await port.start({
+        blueprintName: "comment-triage",
+        repo,
+      });
+
+      expect(second).not.toBe(first);
+    });
+
+    it("the same subject key on two repos is two independent runs", async () => {
+      const { port, repo } = make();
+      const mine = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        subjectKey: "feature:four",
+      });
+      const theirs = await port.start({
+        blueprintName: "feature-planning",
+        repo: `${repo}-other`,
+        subjectKey: "feature:four",
+      });
+
+      expect(theirs).not.toBe(mine);
+    });
+
+    it("findOpenBySubject returns the open run for that subject", async () => {
+      const { port, repo } = make();
+      const id = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        subjectKey: "feature:five",
+      });
+
+      expect(await port.findOpenBySubject(repo, "feature:five")).toMatchObject({
+        id,
+        status: "queued",
+        repo,
+        subjectKey: "feature:five",
+      });
+    });
+
+    it("findOpenBySubject returns null once the run is settled", async () => {
+      const { port, repo } = make();
+      const id = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        subjectKey: "feature:six",
+      });
+
+      await port.finish(id, "completed");
+
+      expect(await port.findOpenBySubject(repo, "feature:six")).toBeNull();
+    });
+
+    it("findOpenBySubject returns null for a subject nothing is working", async () => {
+      const { port, repo } = make();
+
+      expect(await port.findOpenBySubject(repo, "feature:absent")).toBeNull();
+    });
+
+    it("list by subject returns that subject's runs whatever blueprint they ran", async () => {
+      const { port, repo } = make();
+      const planning = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        subjectKey: "feature:seven",
+      });
+
+      await port.finish(planning, "completed");
+
+      const finalize = await port.start({
+        blueprintName: "feature-finalize",
+        repo,
+        subjectKey: "feature:seven",
+      });
+
+      // Membership, not order: both runs are created in the same millisecond here,
+      // and this port documents ties as stable-but-arbitrary in BOTH adapters. The
+      // property under test is that the blueprint name is not a filter — the point
+      // of a subject is finding the run without knowing which line produced it.
+      expect(
+        (await port.list({ repo, subjectKey: "feature:seven" }))
+          .map((r) => r.id)
+          .sort(),
+      ).toEqual([finalize, planning].sort());
+    });
+
+    it("a fork takes over the subject of the run it forks from", async () => {
+      const { port, repo } = make();
+      const source = await port.start({
+        blueprintName: "code-review",
+        repo,
+        subjectKey: "feature:eight",
+      });
+
+      await port.stampBlueprint(source, "hash-1", GRAPH);
+      await port.markRunning(source);
+
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: source,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, "success");
+      await port.finish(source, "failed");
+
+      const fork = await port.start({
+        blueprintName: "code-review",
+        repo,
+        blueprintHash: "hash-1",
+        resumeFrom: { lineId: source, nodeId: "review" },
+      });
+
+      // A fork RE-RUNS the same work, so it must hold the guard its source held and
+      // answer the same subject query. Inheriting is safe precisely because forking
+      // is legal only from a terminal run — the key is always free by then.
+      expect(await port.getById(fork)).toMatchObject({
+        subjectKey: "feature:eight",
+      });
+      expect(await port.findOpenBySubject(repo, "feature:eight")).toMatchObject(
+        {
+          id: fork,
+        },
+      );
+    });
   },
 );

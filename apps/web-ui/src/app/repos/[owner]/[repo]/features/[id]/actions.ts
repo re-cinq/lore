@@ -40,11 +40,8 @@ export async function finalizeFeatureAction(
   fullName: string,
   id: string,
 ): Promise<void> {
-  console.log("finalizing feature");
   enforceOk("Finalizing the spec", await finalizeFeature(fullName, id));
-  console.log("finalized feature");
   revalidatePath(`/repos/${fullName}/features/${id}`);
-  console.log("revalidated path");
 }
 
 export async function splitFeatureAction(

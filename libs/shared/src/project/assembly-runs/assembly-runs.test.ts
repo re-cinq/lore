@@ -50,10 +50,24 @@ describe("PgAssemblyRuns adapter", () => {
       "re-cinq/lore",
       "lore/implementation/x-12345678",
       JSON.stringify({ spec: "specs/x/spec.md" }),
+      null,
     ]);
   });
 
-  it("start defaults branch, taskId, and args when omitted", async () => {
+  it("start binds the subject key it was given", async () => {
+    const { pool, calls } = fakePool([[{ id: "al-3" }]]);
+
+    await new PgAssemblyRuns(pool).start({
+      blueprintName: "feature-planning",
+      repo: "re-cinq/lore",
+      subjectKey: "feature:abc",
+    });
+
+    expect(calls[0]?.text).toContain("subject_key");
+    expect(calls[0]?.params?.[5]).toBe("feature:abc");
+  });
+
+  it("start defaults branch, taskId, args and subject key when omitted", async () => {
     const { pool, calls } = fakePool([[{ id: "al-2" }]]);
 
     await new PgAssemblyRuns(pool).start({
@@ -67,6 +81,7 @@ describe("PgAssemblyRuns adapter", () => {
       "re-cinq/lore",
       null,
       "{}",
+      null,
     ]);
   });
 
@@ -1469,6 +1484,9 @@ describe("PgAssemblyRuns resumeFrom", () => {
       // The source's clone rides along: a fork replays its rows, so it must walk
       // the same graph. Null here because this fixture's source predates the column.
       null,
+      // The source's subject too — a fork re-runs the same work, so it takes over
+      // the guard. Null because this fixture's source declared no subject.
+      null,
     ]);
   });
 
@@ -1536,7 +1554,7 @@ describe("PgAssemblyRuns resumeFrom", () => {
     expect(calls[2]?.params?.[4]).toBe(JSON.stringify({}));
   });
 
-  it("keeps the plain start on its own two-CTE statement with five parameters", async () => {
+  it("keeps the plain start on its own two-CTE statement with six parameters", async () => {
     const { pool, calls } = fakePool([[{ id: "al-1" }]]);
 
     await new PgAssemblyRuns(pool).start({
@@ -1545,7 +1563,7 @@ describe("PgAssemblyRuns resumeFrom", () => {
     });
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.params).toHaveLength(5);
+    expect(calls[0]?.params).toHaveLength(6);
     expect(calls[0]?.text).not.toContain("INSERT INTO pipeline.station_runs");
   });
 });

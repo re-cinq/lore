@@ -35,7 +35,7 @@ const missingTable = (err: unknown) =>
 // window the alias exists for. DELETE alongside the alias.
 const runSelect = (graphColumn: string) => `
   SELECT al.id, al.blueprint_name, al.blueprint_name AS definition_name,
-         al.task_id, al.repo, al.branch,
+         al.task_id, al.repo, al.branch, al.subject_key,
          ${graphColumn}
          al.status, al.outcome, al.reason,
          al.created_at, al.started_at, al.finished_at,
@@ -72,6 +72,12 @@ const RunsQuery = z.object({
   /** A task-centric caller (the planning wizard) knows only its task id; the run
    *  to draw is the newest attempt, since a retry mints a fresh row. */
   task_id: z.string().max(100).optional(),
+  /** Browse by SUBJECT — every run that has worked on one thing, whatever
+   *  blueprint each ran. This is how a reader finds "the run for this feature"
+   *  without knowing which task started it or which line it turned out to be;
+   *  resolving it through task id + blueprint name is what made a feature's
+   *  finalize run invisible to its own page. */
+  subject_key: z.string().max(200).optional(),
   limit: clampedLimit.default(50),
 });
 
@@ -111,7 +117,7 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
         if (!pool) {
           return h.response({ error: DB_UNAVAILABLE }).code(503);
         }
-        const { status, repo, blueprint, task_id, limit } =
+        const { status, repo, blueprint, task_id, subject_key, limit } =
           request.query as unknown as RunsQuery;
 
         try {
@@ -125,12 +131,19 @@ export function assemblyLineRoutes(getPool: () => Pool | null): ServerRoute[] {
                   WHERE ($1::text IS NULL OR al.status = $1)
                     AND ($2::text IS NULL OR al.repo = $2)
                     AND ($3::text IS NULL OR al.blueprint_name = $3)
+                    AND ($5::text IS NULL OR al.subject_key = $5)
                   -- id breaks the tie: two runs created in the same millisecond
                   -- would otherwise come back in an order Postgres may vary
                   -- between calls, which reads as rows jumping around the list.
                   ORDER BY al.created_at DESC, al.id DESC
                   LIMIT $4`,
-                [status ?? null, repo ?? null, blueprint ?? null, limit],
+                [
+                  status ?? null,
+                  repo ?? null,
+                  blueprint ?? null,
+                  limit,
+                  subject_key ?? null,
+                ],
               );
 
           return h.response({ runs: rows });

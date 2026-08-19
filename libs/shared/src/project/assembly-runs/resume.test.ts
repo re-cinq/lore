@@ -37,6 +37,7 @@ function source(overrides: Partial<AssemblyRunRecord> = {}): AssemblyRunRecord {
     taskId: "task-9",
     repo: "re-cinq/lore",
     branch: "lore/implementation/x",
+    subjectKey: null,
     args: { spec: "specs/x/spec.md" },
     status: "failed",
     outcome: "error",

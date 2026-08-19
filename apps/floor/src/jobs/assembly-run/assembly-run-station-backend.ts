@@ -11,16 +11,31 @@ import type {
   StationLaunchResult,
 } from "@re-cinq/lore-shared";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+
+/** The subject a task's run works on, or undefined when it declares none.
+ *
+ *  A feature is the only subject a task carries today. Kept as a function rather
+ *  than inlined so the next subject (a PR, a spec path) is one arm here instead of
+ *  a second derivation site. */
+function subjectKeyFor(spec: LoreTaskSpec): string | undefined {
+  return spec.featureId ? `feature:${spec.featureId}` : undefined;
+}
 
 export class AssemblyLineStationBackend implements StationBackend {
   constructor(private readonly assemblyRuns: AssemblyRunsPort) {}
 
   async launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
+    const subjectKey = subjectKeyFor(spec);
     const assemblyLineId = await this.assemblyRuns.start({
       blueprintName: spec.taskType,
       repo: spec.targetRepo,
       branch: spec.branch,
       taskId: spec.taskId,
+      // What this run WORKS ON, which is not the same as which task asked for it:
+      // a feature's planning run and its finalize run share a subject, so only one
+      // can be open at a time and one query finds whichever it is.
+      ...(subjectKey ? { subjectKey } : {}),
       // Per-run values a definition can name with `continues.key: args.<name>`.
       // The engine stays domain-free: it never learns what a feature is, it just
       // carries the value the consumer put here.
@@ -34,7 +49,25 @@ export class AssemblyLineStationBackend implements StationBackend {
       },
     });
 
-    return { ref: assemblyLineId, launched: true };
+    // Only a subject-keyed start can have joined, so an unkeyed one asks nothing.
+    if (!subjectKey) {
+      return { ref: assemblyLineId, launched: true };
+    }
+    const run = await this.assemblyRuns.getById(assemblyLineId);
+
+    enforceTrue(
+      run !== null,
+      Error,
+      `assembly run ${assemblyLineId} is missing immediately after start`,
+    );
+
+    // start() is start-or-JOIN: a subject already in flight yields ITS run, which
+    // belongs to another task exactly when that happened. The difference matters —
+    // a joined task owns no CR of its own and will never complete, so the caller
+    // has to settle it rather than leave it running.
+    return run.taskId === spec.taskId
+      ? { ref: assemblyLineId, launched: true }
+      : { ref: assemblyLineId, launched: false, joinedRun: assemblyLineId };
   }
 
   /** The assembly line walk runs in the event handler's background continuation; the

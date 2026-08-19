@@ -92,6 +92,7 @@ describe("Project wiring", () => {
       "re-cinq/lore",
       null,
       "{}",
+      null,
     ]);
   });
 });

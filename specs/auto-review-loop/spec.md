@@ -312,21 +312,21 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `apps/floor/src/jobs/assembly-run/pr-check.test.ts`
 
-- returns null when the line carries no pr_number. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L48))
-- returns null when the line carries no head_sha. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L54))
-- maps a running line to an in_progress check named lore/<definition>. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L58))
-- keeps a running line in_progress even when a node already recorded changes_requested. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L66))
-- maps a changes_requested line outcome to a neutral conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L74))
-- maps a completed line whose review node recorded changes_requested to a neutral conclusion — the walk routes `changes_requested → done`, so only the node walk row carries the verdict. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L83))
-- reads the latest iteration of a node, so a re-reviewed success wins over an earlier changes_requested. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L95))
-- maps a completed line to a success conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L104))
-- maps a failed line to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L110))
-- maps a failed line with a changes_requested node to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L116))
-- maps a pr_closed outcome to a cancelled conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L150))
-- maps a pr_closed line with a changes_requested node to a cancelled conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L156))
-- adds a details_url to the Lore UI when a uiUrl is given. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L164))
-- maps an iteration_max outcome to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L172))
-- publishes a code-review-recheck line under the aliased `lore/code-review` check name so a required branch-protection check is refreshed on every push, not stranded under a separate name. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L183))
+- returns null when the line carries no pr_number. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L49))
+- returns null when the line carries no head_sha. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L55))
+- maps a running line to an in_progress check named lore/<definition>. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L59))
+- keeps a running line in_progress even when a node already recorded changes_requested. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L67))
+- maps a changes_requested line outcome to a neutral conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L75))
+- maps a completed line whose review node recorded changes_requested to a neutral conclusion — the walk routes `changes_requested → done`, so only the node walk row carries the verdict. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L84))
+- reads the latest iteration of a node, so a re-reviewed success wins over an earlier changes_requested. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L96))
+- maps a completed line to a success conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L105))
+- maps a failed line to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L111))
+- maps a failed line with a changes_requested node to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L117))
+- maps a pr_closed outcome to a cancelled conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L151))
+- maps a pr_closed line with a changes_requested node to a cancelled conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L157))
+- adds a details_url to the Lore UI when a uiUrl is given. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L165))
+- maps an iteration_max outcome to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L173))
+- publishes a code-review-recheck line under the aliased `lore/code-review` check name so a required branch-protection check is refreshed on every push, not stranded under a separate name. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L184))
 
 ### `apps/floor/src/jobs/assembly-run/advance.test.ts`
 
@@ -435,15 +435,15 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/shared/src/project/assembly-runs/assembly-runs.test.ts`
 
-- markRunning transitions the matching row to running with started_at. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L510))
-- throws on unknown ids for markRunning and returns false for finishNodeOnce. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L620))
-- getById returns the record and null for unknown ids. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L634))
-- listForTask and getById pass through to the port. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L811))
-- ensureNodeStart enforces exactly one returned row (invariant names itself). ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L980))
-- finishNodeOnce CASes on a null outcome and reports whether it won. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L992))
-- listOpen selects queued and running rows oldest-first. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1043))
-- does not overwrite an already-terminal row (InMemory). ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1054))
-- guards the Pg UPDATE on a non-terminal status. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1069))
+- markRunning transitions the matching row to running with started_at. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L525))
+- throws on unknown ids for markRunning and returns false for finishNodeOnce. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L635))
+- getById returns the record and null for unknown ids. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L649))
+- listForTask and getById pass through to the port. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L826))
+- ensureNodeStart enforces exactly one returned row (invariant names itself). ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L995))
+- finishNodeOnce CASes on a null outcome and reports whether it won. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1007))
+- listOpen selects queued and running rows oldest-first. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1058))
+- does not overwrite an already-terminal row (InMemory). ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1069))
+- guards the Pg UPDATE on a non-terminal status. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1084))
 
 ### `libs/shared/src/project/issues/issues.test.ts`
 

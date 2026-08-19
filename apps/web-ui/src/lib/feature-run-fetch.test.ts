@@ -17,7 +17,7 @@ vi.mock("./assembly-runs", () => ({
   fetchRunTokens,
 }));
 
-const { fetchFeatureRunById, fetchFeatureRun } = await import("./feature-run");
+const { fetchFeatureRunById } = await import("./feature-run");
 
 const run = {
   id: "run-1",
@@ -78,33 +78,5 @@ describe("fetchFeatureRunById", () => {
     fetchAssemblyRun.mockRejectedValue(new Error("api down"));
 
     expect(await fetchFeatureRunById("run-1")).toBeNull();
-  });
-});
-
-describe("fetchFeatureRun", () => {
-  it("resolves the task's newest run and shapes it", async () => {
-    fetchLatestRunForTask.mockResolvedValue(run);
-
-    const payload = await fetchFeatureRun("task-1");
-
-    expect(payload).toMatchObject({ id: "run-1", status: "running" });
-    expect(fetchLatestRunForTask).toHaveBeenCalledWith("task-1");
-  });
-
-  it("returns null for a round with no task yet", async () => {
-    expect(await fetchFeatureRun(null)).toBeNull();
-    expect(fetchLatestRunForTask).not.toHaveBeenCalled();
-  });
-
-  it("returns null when the task has no run row", async () => {
-    fetchLatestRunForTask.mockResolvedValue(null);
-
-    expect(await fetchFeatureRun("task-1")).toBeNull();
-  });
-
-  it("returns null instead of throwing when the lookup fails", async () => {
-    fetchLatestRunForTask.mockRejectedValue(new Error("api down"));
-
-    expect(await fetchFeatureRun("task-1")).toBeNull();
   });
 });
