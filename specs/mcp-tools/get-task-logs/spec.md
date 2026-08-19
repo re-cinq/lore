@@ -3,31 +3,31 @@
 | Field   | Value                          |
 |---------|--------------------------------|
 | Feature | lore_get_task_logs MCP Tool         |
-| Status  | Draft                          |
+| Status  | In Progress                    |
 | Created | 2026-06-10                     |
 | Owner   | Platform Engineering           |
 | Tool    | `lore_get_task_logs`                |
 | Module  | pipeline (`pipeline-tools.ts`) |
 | Scope   | shared                         |
 
-`lore_get_task_logs` fetches a pipeline task's raw execution output by id, supporting incremental polling from a byte offset and reporting whether the task has finished so a poller knows when to stop.
+`lore_get_task_logs` fetches a pipeline task's execution transcript by id — NDJSON turn envelopes when the task has recorded agent turns, the raw captured output otherwise — supporting incremental polling from a UTF-16 code-unit offset and reporting whether the task has finished so a poller knows when to stop.
 
 ## Problem Statement
 
-While a task runs (and after it finishes) the developer wants its raw execution
-output without opening the GKE console or a GCS bucket. Polling should be
-incremental — only the bytes after a known offset — and the response should say
-whether the task has finished so a poller can stop.
+While a task runs (and after it finishes) the developer wants its execution
+transcript without opening the GKE console or the web UI. Polling should be
+incremental — only the code units after a known offset — and the response should
+say whether the task has finished so a poller can stop.
 
 ## Interface
 
-Registered via `server.tool` ([registration + handler](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L886)).
+Registered via `server.tool` ([registration + handler](apps/mcp-server/src/mcp/tools/pipeline-tools.ts#L671)).
 
 - **name**: `lore_get_task_logs`
 - **description** (verbatim):
 
 ```text
-Fetches raw execution output for one pipeline task (by UUID), returning {logs, next_offset, complete}. Pass next_offset back as offset to poll incrementally. Instead: lore_get_job_logs (job_name + run_id) for scheduled CronJob run logs.
+Fetches one pipeline task's execution transcript (by UUID), returning {logs, next_offset, complete}. Tasks with recorded agent turns return NDJSON — one {source, event} stream-json envelope per line from the turn store; tasks with no recorded turns fall back to the raw captured output. Responses may be capped: pass next_offset back as offset and poll until complete is true. Instead: lore_get_job_logs (job_name + run_id) for scheduled CronJob run logs.
 ```
 
 ### Input schema (Zod)
@@ -35,7 +35,7 @@ Fetches raw execution output for one pipeline task (by UUID), returning {logs, n
 | Param | Type | Required | Default | Constraint / notes |
 |-------|------|----------|---------|--------------------|
 | `task_id` | string | yes | — | UUID of the pipeline task. |
-| `offset` | number | no | `0` | Byte offset to start reading from; pass previous `next_offset` to poll incrementally. |
+| `offset` | number | no | `0` | UTF-16 code-unit offset (not bytes) into the flattened transcript; pass previous `next_offset` to poll incrementally. |
 
 ## Behavior
 
@@ -75,7 +75,10 @@ or `"Error: {message}"`. **Never throws.**
 
 ## Acceptance Criteria
 
-The bytes after `offset` are returned with the new `next_offset` and a
+The registered tool description is byte-identical to this spec's verbatim description block, so the two cannot drift apart silently.
+([validated by `matches the spec's verbatim description block`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L466))
+
+The content after `offset` is returned with the new `next_offset` and a
 `complete` flag derived from task status.
 *(untested: the GCS download + slice is inline in the handler closure against `@google-cloud/storage`, with no injectable bucket seam — live-IO.)*
 

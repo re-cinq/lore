@@ -248,7 +248,7 @@ One-line purpose: register a new server-side pipeline task (backlog by default; 
 One-line purpose: return one pipeline task's full record by UUID — current status plus the ordered event timeline.
 
 - **When to use:** check where a specific delegated task stands.
-- **When not to use:** multi-task listing → `lore_list_pipeline_tasks`; live GitHub PR/CI state → `lore_get_pr_status`; raw log bytes → `lore_get_task_logs`; group rollup → `lore_list_task_group`.
+- **When not to use:** multi-task listing → `lore_list_pipeline_tasks`; live GitHub PR/CI state → `lore_get_pr_status`; execution transcript → `lore_get_task_logs`; group rollup → `lore_list_task_group`.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -400,7 +400,7 @@ One-line purpose: mark a `running` spec-task `completed` and report which depend
 
 #### `lore_get_task_logs`
 
-One-line purpose: fetch the raw execution output of one pipeline TASK by UUID, with byte-offset polling.
+One-line purpose: fetch the execution transcript of one pipeline TASK by UUID (NDJSON turn envelopes; raw captured output for tasks with no recorded turns), with code-unit-offset polling.
 
 - **When to use:** a user-created/delegated task's logs.
 - **When not to use:** for a scheduled CronJob RUN use `lore_get_job_logs` (by `job_name` + `run_id`).
@@ -408,9 +408,9 @@ One-line purpose: fetch the raw execution output of one pipeline TASK by UUID, w
 | Parameter | Required | Default | Description |
 |---|---|---|---|
 | `task_id` | yes | — | UUID of the pipeline task whose logs to fetch. |
-| `offset` | no | `0` | Byte offset to start from; pass the previous `next_offset` to fetch only new bytes when polling. |
+| `offset` | no | `0` | UTF-16 code-unit offset (not bytes) to start from; pass the previous `next_offset` to fetch only new content when polling. |
 
-- **Returns:** JSON `{logs, next_offset, complete}` where `complete` reflects whether the task is still running.
+- **Returns:** JSON `{logs, next_offset, complete}`; responses may be capped, and `complete` is true only when the task has settled AND nothing remains past the returned slice — keep polling until it is true.
 - **Where it runs:** stdio mode → `GET /api/task-logs` over `LORE_API_URL`; GKE mode → direct GCS read of `{repo}/{task_id}/output.log`. `Task not found: {id}` for an unknown id.
 - **Cache/mutation:** read-only. Proxy path caches **only once the task is complete** (TTL 86400s), so live polls always hit fresh bytes.
 
@@ -760,7 +760,7 @@ Quick-reference for the confusable clusters.
 
 | Use | Tool |
 |---|---|
-| Execution output of a specific pipeline TASK (by task UUID), with byte-offset polling for a still-running task. | `lore_get_task_logs` |
+| Execution transcript of a specific pipeline TASK (by task UUID), with code-unit-offset polling for a still-running task. | `lore_get_task_logs` |
 | Full output of a scheduled batch/CronJob RUN (by `job_name` + `run_id`), e.g. `context_reindex` or `spec_test_linker`. | `lore_get_job_logs` |
 
 ### Running work

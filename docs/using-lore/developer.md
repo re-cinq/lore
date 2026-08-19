@@ -132,7 +132,7 @@ Filter any repo with `label:lore-managed` to see all Lore activity at a glance.
 | `lore_get_analytics` | Repos | Task throughput and token usage by period |
 | `lore_list_repos` | Repos | All onboarded repos with activity stats |
 | `lore_onboard_repo` | Repos | Onboard a new repo to Lore |
-| `lore_get_task_logs` | Pipeline | Fetch task execution logs from GCS (no UI needed) |
+| `lore_get_task_logs` | Pipeline | Fetch a task's execution transcript (no UI needed) |
 | `lore_list_task_group` | Pipeline | List all tasks in a multi-repo task group |
 | `lore_my_usage` | Pipeline | Per-developer task and token usage (today, 7-day, 30-day) |
 | `lore_ingest_files` | Ingest | Manually ingest files into Lore's context store |
