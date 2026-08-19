@@ -84,12 +84,20 @@ Registered in `routeList`
    counted as `turn_deduped`) instead of duplicating the transcript, and a
    batch is never rejected (ADR-037 skip-not-fail). Identical lines within
    one POST stay distinct either way; the occurrence fallback's known limit
-   is byte-identical lines in different POSTs, which collide. ([validated by
+   is byte-identical lines in different POSTs, which collide. The offset is
+   TRUSTED from the client: a producer that sends wrong offsets for one task
+   turns its own legitimate lines into dedup skips (dropped, counted
+   Floor-side as `turn_deduped`) — the loss mode is dropped turns, not
+   duplicates. Dedup covers ONLY `agent_run_turns`: a re-POSTed buffer still
+   re-inserts `pipeline.llm_calls` cost rows and `agent_run_events` viz rows
+   (follow-up #1394), and rows duplicated before #1389 stay until the 30-day
+   prune ages them out. ([validated by
    stamps the same keys when the same body is retried](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L204),
    [validated by keys byte-identical lines within one POST apart](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L217),
+   [validated by keys byte-identical lines apart under an offset header too](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L237),
    [validated by keys a line by its x-turn-offset position so a tail-only re-POST reproduces its key](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L224),
-   [validated by keys identical lines under different tasks apart](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L236),
-   [validated by falls back to per-POST occurrence keying when the offset header is not a number](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L247))
+   [validated by keys identical lines under different tasks apart](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L248),
+   [validated by falls back to per-POST occurrence keying when the offset header is not a number](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L259))
 6. Zero survivors → 200 `{ forwarded: 0, skipped }` without calling the Floor. ([validated by returns 200 without calling the Floor when no line survives filtering](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L105))
 7. A non-OK upstream response → 502. ([validated by returns 502 when the Floor rejects the forward](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L136))
 8. Write scope is enforced like every task route. ([validated by returns 403 when the token has task scope but not write](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L154))

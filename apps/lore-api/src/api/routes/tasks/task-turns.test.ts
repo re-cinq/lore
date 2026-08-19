@@ -230,7 +230,19 @@ describe("POST /api/task-turns turn_key stamping", () => {
 
     await post(L2, taskPool(), { ...AUTH, "x-turn-offset": "1" });
 
+    expect(wholeBuffer[1]).toMatch(/^[0-9a-f]{64}$/);
     expect(sentKeys()).toEqual([wholeBuffer[1]]);
+  });
+
+  it("keys byte-identical lines apart under an offset header too", async () => {
+    await post([L2, L2].join("\n"), taskPool(), {
+      ...AUTH,
+      "x-turn-offset": "5",
+    });
+    const keys = sentKeys();
+
+    expect(keys[0]).toMatch(/^[0-9a-f]{64}$/);
+    expect(keys[0]).not.toBe(keys[1]);
   });
 
   it("keys identical lines under different tasks apart", async () => {

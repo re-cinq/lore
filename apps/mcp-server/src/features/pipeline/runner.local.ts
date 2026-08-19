@@ -639,6 +639,8 @@ export function dropOversizedTurnLines(
   return { kept, oversized: lines.length - kept.length };
 }
 
+// Exported for tests (the x-turn-offset accounting); production callers stay
+// inside this module via persistRunArtifacts.
 export async function ingestTurns(
   task: LocalTask,
   rawLogs: string,

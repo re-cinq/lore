@@ -114,10 +114,11 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
        ) correlated ON true
        -- Re-ingest dedup (#1389): a duplicate dedup_key skips its row, never
        -- fails the batch. Deliberately NO arbiter target: naming the partial
-       -- index would 42P10-fail EVERY insert against a database missing it
-       -- (migrations disabled), turning "duplicates" into total turn loss.
-       -- The only other unique index is the identity PK, which cannot
-       -- conflict, so the bare form over-swallows nothing.
+       -- index would 42P10-fail every insert on a database where the column
+       -- exists but the index was dropped by hand — the bare form degrades
+       -- that to duplicates instead of total turn loss. The cost: conflicts
+       -- on ANY future unique index on this table would be swallowed here
+       -- and mis-attributed to turn_deduped.
        ON CONFLICT DO NOTHING
        RETURNING *`,
       [JSON.stringify(batch)],

@@ -273,7 +273,7 @@ deliberate answers rather than shims:
 | `onboard`, `feature-request` (direct Anthropic SDK in the Floor process) | none | no transcript artifact exists anywhere; cost lands in `pipeline.llm_calls`, a summary in `memory.episodes` |
 | Floor-side batch LLM calls (episode-writer, artifact-copy, memory-lifecycle) | none | same no-transcript property |
 | Human stations (`feature_review`, `pr_review`) | none | nothing executes — correct |
-| Local runner / `AgentRunner` local mode | full transcript via the task-turns relay (#1295, landed in #1312) | `task_id`-only correlation like row 2; re-POSTed buffers dedup via `dedup_key` (#1389) |
+| Local runner / `AgentRunner` local mode | full transcript via the task-turns relay (#1295, landed in #1312) | `task_id`-only correlation like row 2; re-POSTed buffers dedup via `dedup_key` (#1389) — turns only, `llm_calls`/`agent_run_events` still duplicate (#1394) |
 
 The reader-side answer for the no-transcript paths is explicit, not
 synthetic: the task-page log viewer states "No transcript is available
