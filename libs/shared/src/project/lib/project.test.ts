@@ -91,8 +91,8 @@ describe("Project wiring", () => {
       "task-9",
       "re-cinq/lore",
       null,
-      "{}",
       null,
+      "{}",
     ]);
   });
 });

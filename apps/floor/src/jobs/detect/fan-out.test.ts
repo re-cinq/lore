@@ -148,6 +148,45 @@ describe("createDetectTickHandler", () => {
     expect(started).toEqual([]);
   });
 
+  it("closes its own job_run when a racing tick already started the run", async () => {
+    const { failed, jobRuns } = fakeJobRuns();
+    const assemblyRuns = new InMemoryAssemblyRuns();
+
+    // The winner: already running, holding the subject. The pre-check cannot see it
+    // because this handler read BEFORE the winner started — so simulate the race by
+    // letting start() do what it does, which is join.
+    const winner = await assemblyRuns.start({
+      blueprintName: "spec-drift",
+      repo: "re-cinq/lore",
+      subjectKey: detectSubject("spec-drift", "re-cinq/lore"),
+      args: { job_run_id: "jr-winner" },
+    });
+    const handler = createDetectTickHandler("spec-drift", {
+      // Only the HANDLER's read is stale — start() and getById delegate to the real
+      // store, whose own guard still refuses a second run. Stubbing the method on the
+      // store itself would disable that guard too, since start() consults it.
+      assemblyRuns: {
+        findOpenBySubject: async () => null,
+        start: (input: Parameters<InMemoryAssemblyRuns["start"]>[0]) =>
+          assemblyRuns.start(input),
+        getById: (id: string) => assemblyRuns.getById(id),
+      } as never,
+      jobRuns,
+      jobRef: async () => "spec_drift",
+      listTargetRepos: async () => ["re-cinq/lore"],
+    });
+
+    await handler({});
+
+    // One run, and the loser's job_run is CLOSED rather than left open forever —
+    // nothing reaps job_runs, so an orphan here is permanent.
+    expect(assemblyRuns.rows).toHaveLength(1);
+    expect(assemblyRuns.rows[0].id).toBe(winner);
+    expect(failed).toEqual([
+      { runId: "jr-1", reason: expect.stringContaining("already running") },
+    ]);
+  });
+
   it("fails the just-created job_run when assemblyRuns.start throws before rethrowing", async () => {
     const { started, failed, jobRuns } = fakeJobRuns();
     const handler = createDetectTickHandler("spec-drift", {

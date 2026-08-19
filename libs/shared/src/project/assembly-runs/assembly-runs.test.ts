@@ -49,8 +49,8 @@ describe("PgAssemblyRuns adapter", () => {
       "task-9",
       "re-cinq/lore",
       "lore/implementation/x-12345678",
-      JSON.stringify({ spec: "specs/x/spec.md" }),
       null,
+      JSON.stringify({ spec: "specs/x/spec.md" }),
     ]);
   });
 
@@ -64,7 +64,7 @@ describe("PgAssemblyRuns adapter", () => {
     });
 
     expect(calls[0]?.text).toContain("subject_key");
-    expect(calls[0]?.params?.[5]).toBe("feature:abc");
+    expect(calls[0]?.params?.[4]).toBe("feature:abc");
   });
 
   it("start defaults branch, taskId, args and subject key when omitted", async () => {
@@ -80,8 +80,8 @@ describe("PgAssemblyRuns adapter", () => {
       null,
       "re-cinq/lore",
       null,
-      "{}",
       null,
+      "{}",
     ]);
   });
 

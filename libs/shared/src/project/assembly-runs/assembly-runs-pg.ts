@@ -92,7 +92,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     const { rows } = await this.pool.query(
       `WITH al AS (
          INSERT INTO pipeline.assembly_runs (blueprint_name, task_id, repo, branch, subject_key, args)
-         VALUES ($1, $2, $3, $4, $6, $5::jsonb)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb)
          RETURNING id
        ), ev AS (
          INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
@@ -103,7 +103,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
                   'repo', $3,
                   'branch', $4,
                   'taskId', $2,
-                  'args', $5::jsonb,
+                  'args', $6::jsonb,
                   'resumedFrom', NULL::jsonb
                 ),
                 $3, '${RUN_START_EVENT}:' || al.id
@@ -115,8 +115,8 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
         input.taskId ?? null,
         input.repo,
         input.branch ?? null,
-        JSON.stringify(input.args ?? {}),
         input.subjectKey ?? null,
+        JSON.stringify(input.args ?? {}),
       ],
     );
 
