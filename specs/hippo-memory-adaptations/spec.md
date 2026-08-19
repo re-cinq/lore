@@ -59,7 +59,7 @@ outcomes feed back into the memories that contributed to the task.
   hit (both facts and memories).
 - `half_life_days` increased by +2 per retrieval (capped at 365).
 - Importance scoring in `memory-lifecycle.ts` uses `half_life_days`
-  and `last_retrieved_at` instead of raw `created_at` for recency. ([validated by `memory-lifecycle.test.ts:93`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L93))
+  and `last_retrieved_at` instead of raw `created_at` for recency. ([validated by `memory-ranking.test.ts:168`](libs/shared/src/memory-ranking.test.ts#L168))
 
 ### Scenario 2: Confidence Tiers on Facts
 
@@ -220,11 +220,11 @@ repo B
 ### FR-7: Updated Importance Scoring
 
 - FR-7.1: Replace raw `created_at` recency with
-  `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-lifecycle.test.ts:93`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L93))
-- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`, mapping strength to a 0–10 score and honoring a custom `half_life_days`. ([validated by `memory-lifecycle.test.ts:80`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L80), [`memory-lifecycle.test.ts:69`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L69), [`memory-lifecycle.test.ts:106`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L106))
+  `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-ranking.test.ts:168`](libs/shared/src/memory-ranking.test.ts#L168))
+- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`, mapping strength to a 0–10 score and honoring a custom `half_life_days`. ([validated by `memory-ranking.test.ts:143`](libs/shared/src/memory-ranking.test.ts#L143), [`memory-ranking.test.ts:113`](libs/shared/src/memory-ranking.test.ts#L113), [`memory-ranking.test.ts:211`](libs/shared/src/memory-ranking.test.ts#L211))
 - FR-7.3: Incorporate `retrieval_count` as a minor boost: `+1` if
-  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-lifecycle.test.ts:127`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L127))
-- FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-lifecycle.test.ts:144`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L144))
+  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-ranking.test.ts:217`](libs/shared/src/memory-ranking.test.ts#L217))
+- FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-ranking.test.ts:162`](libs/shared/src/memory-ranking.test.ts#L162))
 
 ## Non-Functional Requirements
 
