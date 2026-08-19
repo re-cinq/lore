@@ -901,6 +901,10 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       owner,
       repo: repoName,
     });
+    // Indirected through a variable so tsc does not demand a declaration file for
+    // an untyped package. The cost is that every static dependency checker is blind
+    // to this import, so the declaration is pinned by runtime-deps.test.ts — it is a
+    // production dependency of libs/shared, not the Floor's and not a devDependency.
     const spec = "libsodium-wrappers";
     const sodium = ((await import(spec)) as { default: Sodium }).default;
 
