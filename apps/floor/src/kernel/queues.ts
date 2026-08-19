@@ -26,7 +26,6 @@ import { PgAgentRunTurns } from "@re-cinq/lore-shared/project/agent-run-turns/ag
 import { PgEvalRuns } from "@re-cinq/lore-shared/project/evals/evals-pg.js";
 import { PgCost } from "@re-cinq/lore-shared/project/cost/cost-pg.js";
 import { PgContextCore } from "@re-cinq/lore-shared/project/context-core/context-core-pg.js";
-import { PgBaseline } from "@re-cinq/lore-shared/project/baseline/baseline-pg.js";
 import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
 import { PgChunks } from "@re-cinq/lore-shared/project/chunks/chunks-pg.js";
 import { PgMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-pg.js";
@@ -45,7 +44,6 @@ let agentRunTurnsSingleton: PgAgentRunTurns | undefined;
 let evalRunsSingleton: PgEvalRuns | undefined;
 let costSingleton: PgCost | undefined;
 let contextCoreSingleton: PgContextCore | undefined;
-let baselineSingleton: PgBaseline | undefined;
 let settingsSingleton: PgSettings | undefined;
 let chunksSingleton: PgChunks | undefined;
 let memoryLifecycleSingleton: PgMemoryLifecycle | undefined;
@@ -113,10 +111,6 @@ export const cost = (): PgCost => (costSingleton ??= new PgCost(getPool()));
 /** Context-core promotion history (pipeline.context_core_history). */
 export const contextCore = (): PgContextCore =>
   (contextCoreSingleton ??= new PgContextCore(getPool()));
-
-/** Dark-factory pre-feature baseline snapshots + stats (pipeline.dark_factory_baseline). */
-export const baseline = (): PgBaseline =>
-  (baselineSingleton ??= new PgBaseline(getPool()));
 
 /**
  * Org-wide lore.repos record reads/writes (settings JSONB, team, onboarded set,
