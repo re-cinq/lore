@@ -154,6 +154,17 @@ or naming-honesty goal).
   `lore-doctor.sh`, `lore-init.sh` reference the correct package/app for each
   runtime.
 
+- **FR-10** A package declares every dependency it imports at runtime, at
+  dependency strength — a runtime import reached only through a
+  `devDependency` breaks the moment an install omits dev deps. `libs/shared`
+  declares `libsodium-wrappers` in `dependencies`, not `devDependencies`,
+  because `platform-github.ts` imports it at runtime to encrypt the ingest
+  token before uploading it as a GitHub Actions secret during repo
+  onboarding. The import is indirected through a variable
+  (`const spec = "libsodium-wrappers"`) to avoid demanding a declaration file
+  for an untyped package, which makes it invisible to every static dependency
+  checker — so the declaration is pinned by a test rather than by tooling. ([validated by `runtime-deps.test.ts:23`](libs/shared/src/project/lib/runtime-deps.test.ts#L23), [`runtime-deps.test.ts:27`](libs/shared/src/project/lib/runtime-deps.test.ts#L27), [`runtime-deps.test.ts:31`](libs/shared/src/project/lib/runtime-deps.test.ts#L31))
+
 ## Success Criteria
 
 - **SC-1** From a clean checkout, `npm install` scoped to the local app
