@@ -334,4 +334,18 @@ describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
       await screen.findByText(new RegExp(`first ${MAX_WALK_PAGES} turns`)),
     ).toBeTruthy();
   });
+
+  it("shows the cap notice when the Floor reports more over an empty page", async () => {
+    const fetchMock = stubFetch(turnsPageResponse([], true));
+    const { container } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" />,
+    );
+
+    await openPanel(container);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(
+      await screen.findByText(/Loaded only the first 0 turns/),
+    ).toBeTruthy();
+  });
 });

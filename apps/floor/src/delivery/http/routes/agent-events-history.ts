@@ -8,7 +8,7 @@
  * Deliberate asymmetry with the turn routes: they respond `{turns, hasMore}`
  * (#1310) because the web-ui turn walks end on the flag; this route's `{events}`
  * body still ends its client's paging by page length against DEFAULT_LIMIT —
- * the same latent drift class, tracked separately.
+ * the same latent drift class, tracked in #1397.
  */
 
 import { agentRunEvents } from "../../../kernel/queues.js";
