@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
+import { InMemoryCost } from "@re-cinq/lore-shared/project/cost/cost-memory.js";
 import { anthropicCostSyncJob, reportWindow } from "./anthropic-cost-sync.js";
 
 describe("anthropicCostSyncJob", () => {
@@ -8,7 +9,9 @@ describe("anthropicCostSyncJob", () => {
 
   it("returns a skip summary without throwing when ANTHROPIC_ADMIN_KEY is unset", async () => {
     delete process.env.ANTHROPIC_ADMIN_KEY;
-    expect(await anthropicCostSyncJob()).toMatch(/ANTHROPIC_ADMIN_KEY not set/);
+    expect(await anthropicCostSyncJob(new InMemoryCost())).toMatch(
+      /ANTHROPIC_ADMIN_KEY not set/,
+    );
   });
 });
 

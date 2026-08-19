@@ -59,7 +59,7 @@ day-old data.
    Anthropic caller.** The cost report changes once a day, so a single sync
    after the day settles is sufficient. The per-page live read, its Floor
    route (`GET /api/anthropic-cost/live`), and the web-ui mirror rollups
-   (`aggregateMonthToDate` and friends) are removed. ([validated by `anthropic-cost-sync.test.ts:28`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L28), [`anthropic-cost-sync.test.ts:34`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L34), [`anthropic-cost-sync.test.ts:40`](apps/floor/src/jobs/cost/anthropic-cost-sync/anthropic-cost-sync.test.ts#L40))
+   (`aggregateMonthToDate` and friends) are removed. ([validated by `anthropic-cost-sync.test.ts:31`](apps/lore-api/src/features/maintenance/cost/anthropic-cost-sync.test.ts#L31), [`anthropic-cost-sync.test.ts:37`](apps/lore-api/src/features/maintenance/cost/anthropic-cost-sync.test.ts#L37), [`anthropic-cost-sync.test.ts:43`](apps/lore-api/src/features/maintenance/cost/anthropic-cost-sync.test.ts#L43))
 2. **`/spend` reads the database only.** Billed figures come from
    `pipeline.anthropic_cost_daily`; everything current-day comes from
    `pipeline.llm_calls`, which is the only source that can cover today at

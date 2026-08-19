@@ -1,10 +1,10 @@
-import { cost } from "../../../kernel/queues.js";
+import type { CostPort } from "@re-cinq/lore-shared/project/cost/cost-port.js";
 import {
   parseCostReport,
   parseUsageReport,
   mergeCostAndUsage,
   type AnthropicCostDailyRow,
-} from "../anthropic-cost.js";
+} from "./anthropic-cost.js";
 
 const ADMIN_BASE = "https://api.anthropic.com/v1/organizations";
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -97,8 +97,8 @@ async function fetchAllBuckets(
   return buckets;
 }
 
-function upsertRow(row: AnthropicCostDailyRow): Promise<void> {
-  return cost().upsertDaily({
+function upsertRow(costs: CostPort, row: AnthropicCostDailyRow): Promise<void> {
+  return costs.upsertDaily({
     bucketDate: row.date,
     model: row.model,
     costUsd: row.costUsd,
@@ -133,16 +133,17 @@ export async function fetchAnthropicCostRows(
   );
 }
 
-export async function anthropicCostSyncJob(): Promise<string> {
-  const adminKey = process.env.ANTHROPIC_ADMIN_KEY;
-
+export async function anthropicCostSyncJob(
+  costs: CostPort,
+  adminKey = process.env.ANTHROPIC_ADMIN_KEY,
+): Promise<string> {
   if (!adminKey) {
     return "ANTHROPIC_ADMIN_KEY not set; skipping Anthropic org cost sync";
   }
 
   const merged = await fetchAnthropicCostRows(adminKey);
 
-  await Promise.all(merged.map(upsertRow));
+  await Promise.all(merged.map((row) => upsertRow(costs, row)));
 
   const total = merged.reduce((sum, row) => sum + row.costUsd, 0);
 
