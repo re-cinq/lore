@@ -83,3 +83,23 @@ slackSigningSecret:
 slackBotTokenSecret:
   name: lore-slack-credentials
   key: bot-token
+
+# The courier (#1357): CronJobs whose only job is to POST /api/assembly-runs and
+# exit, so a scheduled job runs as an assembly line instead of as code inside a
+# coordinator. Empty by default — an entry is added when its line exists.
+#
+# Each entry: name (k8s suffix), schedule (cron), path (the lore-api path to
+# post to). Optional: body (object -> JSON payload), startingDeadlineSeconds,
+# successfulJobsHistoryLimit, failedJobsHistoryLimit.
+#
+# path is per-entry because the two kinds of scheduled work land in different
+# places: work with STEPS posts /api/assembly-runs and runs as a real assembly
+# line; a single data operation posts /api/maintenance/<job> and runs inside
+# lore-api. Neither runs in a coordinator, which is the point.
+courier:
+  # Pinned by DIGEST, not by tag: this container is handed the org ingest token,
+  # and a tag is mutable — `8.11.1` can be repointed at a different image without
+  # anything in this repo changing. The tag is kept alongside the digest for
+  # human legibility; the digest is what Kubernetes resolves.
+  image: curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69
+courierJobs: []

@@ -1,0 +1,109 @@
+{{/*
+The courier (#1357). One CronJob per entry in .Values.courierJobs. Each pod does
+exactly one thing: POST /api/assembly-runs to start an assembly line, then exit.
+
+It holds NO business logic. The schedule lives in Kubernetes, the work lives in
+the assembly line — which brings run rows, retries, a timeline, and per-node
+logs that a bare CronJob pod never had. This is what replaces "a batch job lives
+in the coordinator because the coordinator's image is what the alarm launched".
+
+Required per entry: .name (k8s suffix), .schedule (cron), .path (the lore-api
+path to post to).
+Optional: .body (object, rendered as the JSON payload; omitted entirely when
+absent, for endpoints that take none).
+
+The path is deliberately per-entry rather than fixed. Work with STEPS posts
+`/api/assembly-runs` and runs as a real line; a single data operation posts
+`/api/maintenance/<job>` and runs in lore-api. Both are "the schedule is in
+Kubernetes and the pod holds no logic" — only the URL differs.
+
+The token is written to a curl config file by a shell BUILTIN rather than passed
+as an argument, so it never appears in any process's argv (readable via /proc by
+anything else in the pod).
+*/}}
+{{- $root := . -}}
+{{- range .Values.courierJobs }}
+{{- $url := printf "http://%s.%s.svc.cluster.local:%v%s" $root.Chart.Name $root.Values.namespace $root.Values.service.port .path }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $root.Chart.Name }}-courier-{{ .name }}
+  namespace: {{ $root.Values.namespace }}
+  labels:
+    app: lore-api
+    component: courier
+    courier-job: {{ .name | trunc 63 }}
+spec:
+  schedule: {{ .schedule | quote }}
+  # A courier post is idempotent only in the sense that a second run starts a
+  # SECOND line. Forbid, so a wedged pod cannot fan out duplicate runs.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: {{ default 300 .startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: {{ default 1 .successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ default 3 .failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      # The post returns in milliseconds; anything longer is a broken service,
+      # not a slow job. The WORK's deadline belongs to the assembly line.
+      activeDeadlineSeconds: 120
+      template:
+        metadata:
+          labels:
+            app: lore-api
+            component: courier
+            courier-job: {{ .name | trunc 63 }}
+        spec:
+          restartPolicy: Never
+          # Talks to lore-api over HTTP and to nothing else; a mounted API-server
+          # token would be pure standing credential in a pod holding the ingest
+          # token already.
+          automountServiceAccountToken: false
+          {{- if $root.Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml $root.Values.imagePullSecrets | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+          containers:
+            - name: courier
+              image: "{{ $root.Values.courier.image }}"
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: LORE_INGEST_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $root.Values.ingestTokenSecret.name }}
+                      key: {{ $root.Values.ingestTokenSecret.key }}
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  printf 'header = "Authorization: Bearer %s"\n' "$LORE_INGEST_TOKEN" > /tmp/curlrc
+                  exec curl --config /tmp/curlrc \
+                    --fail-with-body --silent --show-error \
+                    --retry 3 --retry-connrefused --max-time 30 \
+                    -X POST {{ $url | quote }}{{ if .body }} \
+                    -H 'Content-Type: application/json' \
+                    -d {{ .body | toJson | quote }}{{ end }}
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: "10m"
+                  memory: 32Mi
+                limits:
+                  cpu: "100m"
+                  memory: 64Mi
+          volumes:
+            - name: tmp
+              emptyDir: {}
+{{- end }}
