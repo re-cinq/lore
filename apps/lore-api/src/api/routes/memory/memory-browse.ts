@@ -116,15 +116,40 @@ const EpisodePageSchema = z.object({
   total: z.number(),
 });
 
+/** The knowledge graph as the browser reads it. */
+const GraphBrowseSchema = z.object({
+  stats: z.record(z.unknown()),
+  entity_types: z.array(z.unknown()),
+  entities: z.array(z.record(z.unknown())),
+  edges: z.array(z.record(z.unknown())),
+});
+
+/** Memories and facts, ranked together — the two carry different fields. */
+const MemorySearchSchema = z.object({
+  results: z.array(z.record(z.unknown())),
+});
+
+/** One agent's memories, each with its version history and extracted facts. */
+const MemoryListSchema = z.object({
+  memories: z.array(z.record(z.unknown())),
+});
+
 export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
     {
       method: "GET",
       path: "/api/graph-browse",
-      options: {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(GraphBrowseQuery) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("read"),
+          validate: { query: zodValidate(GraphBrowseQuery) },
+        },
+        GraphBrowseSchema,
+        {
+          name: "GraphBrowse",
+          description: "Entities and edges of the knowledge graph",
+        },
+      ),
       handler: async (request, h) => {
         const pool = getPool();
 
@@ -312,10 +337,17 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/memory-search",
-      options: {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(MemorySearchQuery) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("read"),
+          validate: { query: zodValidate(MemorySearchQuery) },
+        },
+        MemorySearchSchema,
+        {
+          name: "MemorySearchResults",
+          description: "Ranked memories and facts",
+        },
+      ),
       handler: async (request, h) => {
         const pool = getPool();
 
@@ -367,10 +399,17 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/memories",
-      options: {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(MemoriesQuery) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("read"),
+          validate: { query: zodValidate(MemoriesQuery) },
+        },
+        MemoryListSchema,
+        {
+          name: "MemoryList",
+          description: "An agent's memories with versions and facts",
+        },
+      ),
       handler: async (request, h) => {
         const pool = getPool();
 

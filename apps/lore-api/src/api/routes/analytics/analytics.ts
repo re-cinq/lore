@@ -1,3 +1,4 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
@@ -16,14 +17,21 @@ const AnalyticsQuery = z.object({
 
 type AnalyticsQuery = z.infer<typeof AnalyticsQuery>;
 
+/** Org-wide pipeline analytics for a period — a roll-up, not a row. */
+const PipelineAnalyticsSchema = z.record(z.unknown());
+
 export function analyticsRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/analytics",
-    options: {
-      ...bearerScope("read"),
-      validate: { query: zodValidate(AnalyticsQuery) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(AnalyticsQuery) },
+      },
+      PipelineAnalyticsSchema,
+      { name: "PipelineAnalytics", description: "Org-wide pipeline analytics" },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
 

@@ -121,6 +121,18 @@ const ChunkBrowseSchema = wireSchema(
 
 const ChunkListSchema = z.object({ chunks: z.array(ChunkBrowseSchema) });
 
+const ChunkByPathSchema = z.object({
+  chunks: z.array(
+    z.object({
+      id: z.string(),
+      content_type: z.string().nullable(),
+      content: z.string(),
+      metadata: z.record(z.unknown()).nullable(),
+      repo: z.string().nullable(),
+    }),
+  ),
+});
+
 const ChunkTypeListSchema = z.object({ types: z.array(z.string()) });
 
 const ChunkSummarySchema = z.object({
@@ -296,10 +308,17 @@ export function chunkBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/chunks/by-path",
-      options: {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(ByPathQuery) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("read"),
+          validate: { query: zodValidate(ByPathQuery) },
+        },
+        ChunkByPathSchema,
+        {
+          name: "ChunkByPath",
+          description: "Every chunk ingested from one file",
+        },
+      ),
       handler: async (request, h) => {
         const pool = getPool();
 

@@ -1,3 +1,5 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { z } from "zod";
 import type { Pool, QueryResultRow } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
@@ -42,13 +44,33 @@ async function billedRows<T extends QueryResultRow>(
  * `GET /api/analytics-overview` — the analytics screen's six reads. Same
  * shape-per-screen rule as spend: they render together and have one caller.
  */
+/** The analytics dashboard's roll-ups — every field is a SQL aggregate. */
+const AnalyticsOverviewSchema = z.object({
+  task_summary: z.record(z.unknown()).nullable(),
+  usage_by_task_type: z.array(z.record(z.unknown())),
+  usage_by_repo: z.array(z.record(z.unknown())),
+  daily_usage: z.array(z.record(z.unknown())),
+  latency_stats: z.array(z.record(z.unknown())),
+  job_runs: z.array(z.record(z.unknown())),
+});
+
+/**
+ * Spend from TWO sources, deliberately: Anthropic's own billing (`org_*`) and
+ * what this platform attributes to itself (`lore_*`). They are reported side by
+ * side rather than reconciled, because only one of them is authoritative.
+ */
+const SpendSchema = z.record(z.unknown());
+
 export function analyticsOverviewRoute(
   getPool: () => Pool | null,
 ): ServerRoute {
   return {
     method: "GET",
     path: "/api/analytics-overview",
-    options: bearerScope("read"),
+    options: zodResponse(bearerScope("read"), AnalyticsOverviewSchema, {
+      name: "AnalyticsOverview",
+      description: "Pipeline and usage roll-ups",
+    }),
     handler: async (_request, h) => {
       const pool = getPool();
 
@@ -133,7 +155,10 @@ export function spendRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/spend",
-    options: bearerScope("read"),
+    options: zodResponse(bearerScope("read"), SpendSchema, {
+      name: "Spend",
+      description: "Billed and attributed spend, side by side",
+    }),
     handler: async (_request, h) => {
       const pool = getPool();
 

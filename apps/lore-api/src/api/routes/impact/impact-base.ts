@@ -1,3 +1,5 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { z } from "zod";
 /**
  * `GET /api/repos/:o/:r/impact/base` — the commit whose line numbering the
  * repo's trace-graph ranges are expressed in.
@@ -20,11 +22,17 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 // the object to a caller who could mutate it.
 const UNSTAMPED = { graphCommit: null, graphCommitAt: null, source: "none" };
 
+/** The commit a repo's impact reports are measured against. */
+const ImpactBaseSchema = z.record(z.unknown());
+
 export function impactBaseRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/impact/base",
-    options: bearerScope("read"),
+    options: zodResponse(bearerScope("read"), ImpactBaseSchema, {
+      name: "ImpactBase",
+      description: "The stamped base commit, or unstamped",
+    }),
     handler: async (request, h) => {
       const repo = `${request.params.owner}/${request.params.repo}`;
       const dgraph = createDgraphClient(process.env);

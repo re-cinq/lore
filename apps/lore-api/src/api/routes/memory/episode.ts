@@ -1,3 +1,4 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
@@ -19,14 +20,24 @@ const EpisodeBody = z.object({
 
 type EpisodeBody = z.infer<typeof EpisodeBody>;
 
+/** An episode is stored, or recognised as one already held. */
+const EpisodeWrittenSchema = z.union([
+  z.object({ status: z.literal("ok"), episode_id: z.string() }),
+  z.object({ status: z.literal("duplicate") }),
+]);
+
 export function episodeRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/episode",
-    options: {
-      ...bearerScope("write"),
-      validate: { payload: zodValidate(EpisodeBody) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        validate: { payload: zodValidate(EpisodeBody) },
+      },
+      EpisodeWrittenSchema,
+      { name: "EpisodeWritten", description: "Whether the episode was new" },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
 

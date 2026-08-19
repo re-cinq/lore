@@ -1,3 +1,4 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { mergePersistentFeatures } from "@re-cinq/lore-shared";
@@ -33,14 +34,29 @@ const TRACE_KINDS = new Set([
   "ring",
 ]);
 
+/**
+ * One route, many kinds (`/trace/{kind}`), so the contract is the union of what
+ * each kind answers. Declaring it as such is honest: the alternative is one
+ * route pretending to a single shape it does not have.
+ */
+const TraceReadSchema = z.record(z.unknown());
+
 export function traceRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/trace/{kind}",
-    options: {
-      ...bearerScope("read"),
-      validate: { query: zodValidate(TraceQuery) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(TraceQuery) },
+      },
+      TraceReadSchema,
+      {
+        name: "TraceRead",
+        description: "A traceability read, shaped by {kind}",
+        errors: [400, 404],
+      },
+    ),
     handler: async (request, h) => {
       const kind = request.params.kind;
 

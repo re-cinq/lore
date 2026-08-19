@@ -1,3 +1,4 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
@@ -18,14 +19,25 @@ const IngestBody = z.object({
 
 type IngestBody = z.infer<typeof IngestBody>;
 
+/** What the ingest wrote — counts per kind. */
+const IngestResultSchema = z.record(z.unknown());
+
 export function ingestRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/ingest",
-    options: {
-      ...bearerScope("write"),
-      validate: { payload: zodValidate(IngestBody) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        validate: { payload: zodValidate(IngestBody) },
+      },
+      IngestResultSchema,
+      {
+        name: "IngestResult",
+        description: "What the ingest stored",
+        errors: [400],
+      },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
 

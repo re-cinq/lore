@@ -1,3 +1,4 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
@@ -21,14 +22,28 @@ const SessionSummaryBody = z.object({
 
 type SessionSummaryBody = z.infer<typeof SessionSummaryBody>;
 
+/** A session summary is ingested, skipped as empty, or recognised as a duplicate. */
+const SessionSummarySchema = z.union([
+  z.object({ status: z.literal("ok"), episode_id: z.string() }),
+  z.object({ status: z.literal("skipped"), reason: z.string() }),
+  z.object({ status: z.literal("duplicate") }),
+]);
+
 export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/session-summary",
-    options: {
-      ...bearerScope("write"),
-      validate: { payload: zodValidate(SessionSummaryBody) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        validate: { payload: zodValidate(SessionSummaryBody) },
+      },
+      SessionSummarySchema,
+      {
+        name: "SessionSummaryResult",
+        description: "What became of the posted session",
+      },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
 

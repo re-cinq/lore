@@ -1,3 +1,4 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 /**
  * `POST /api/repos/:o/:r/ingest-graph` — the REST/curl/CI (re-)projection
  * trigger for the spec-traceability graph. Only docs (`specs`/`adrs`) flow
@@ -31,14 +32,25 @@ const IngestGraphBody = z.preprocess(
 
 type IngestGraphBody = z.infer<typeof IngestGraphBody>;
 
+/** Which projection kinds the push triggered. */
+const IngestTriggeredSchema = z.object({ triggered: z.array(z.string()) });
+
 export function ingestGraphRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/ingest-graph",
-    options: {
-      ...bearerScope("write"),
-      validate: { payload: zodValidate(IngestGraphBody) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        validate: { payload: zodValidate(IngestGraphBody) },
+      },
+      IngestTriggeredSchema,
+      {
+        name: "IngestTriggered",
+        description: "The projections this push started",
+        errors: [400],
+      },
+    ),
     handler: async (request, h) => {
       const repo = `${request.params.owner}/${request.params.repo}`;
       const body = request.payload as IngestGraphBody;

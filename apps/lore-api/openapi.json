@@ -213,7 +213,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Org-wide settings and the repo count they cover",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgSettings"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -242,7 +249,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The settings were written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgSettingsSaved"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -311,7 +325,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Local-session activity against a repo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoSessions"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -360,7 +381,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The repo settings were written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoSettingsSaved"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -435,7 +463,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Checks, reviews and the computed state of a PR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrStatus"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -466,7 +501,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The assembled context block",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssembledContext"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -629,7 +671,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Every chunk ingested from one file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkByPath"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -660,7 +709,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Entities and relationships matching a query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphQuery"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -742,7 +798,14 @@
         "x-rate-limit-bucket": "task",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "A page of pipeline tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPage"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -773,13 +836,23 @@
         "x-rate-limit-bucket": "task",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "A task's stage commits and lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskTimeline"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1458,13 +1531,23 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "A run joined to the graph it walked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyRunRead"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1553,13 +1636,23 @@
         "x-rate-limit-bucket": "task",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The task a pull request belongs to",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskByPr"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1610,13 +1703,23 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "A slice of a task's transcript",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskLogSlice"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1639,7 +1742,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The log buffer was stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskLogsAccepted"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1702,7 +1812,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "A job run's captured output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRunLogs"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1733,7 +1850,14 @@
         "x-rate-limit-bucket": "task",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The created task, or the transition's acknowledgement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskWriteResult"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1743,6 +1867,12 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
@@ -1820,7 +1950,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Every task in a group, with completion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskGroup"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1861,7 +1998,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "How many spec tasks the sync parsed and created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecTasksSynced"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1925,7 +2069,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Spec tasks whose dependencies have merged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecTasksReady"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1956,7 +2107,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Whether the claim succeeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecTaskClaimed"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2016,7 +2174,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The completed task's new state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecTaskCompleted"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2071,7 +2236,14 @@
         "x-rate-limit-bucket": "turns",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Turns accepted from a local runner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TurnsRelayed"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2129,7 +2301,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The result of the requested memory action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryOperationResult"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2139,6 +2318,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
@@ -2299,7 +2481,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Entities and edges of the knowledge graph",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphBrowse"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -2457,7 +2646,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Ranked memories and facts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemorySearchResults"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -2488,7 +2684,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "An agent's memories with versions and facts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryList"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -2519,7 +2722,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Whether the episode was new",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpisodeWritten"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2583,7 +2793,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "What became of the posted session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionSummaryResult"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2657,7 +2874,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "What the ingest stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestResult"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2738,7 +2962,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The projections this push started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestTriggered"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2821,13 +3052,23 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "One event's stored params",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventPayload"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2878,7 +3119,14 @@
         "x-rate-limit-bucket": "embed",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The embedding for a piece of text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Embedding"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2934,7 +3182,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The queued onboarding, or the block that refused it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardResult"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2944,6 +3199,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
@@ -2988,7 +3246,14 @@
         "x-rate-limit-bucket": "webhook",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The message Slack renders back in the channel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackAck"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -3012,7 +3277,14 @@
         "x-rate-limit-bucket": "webhook",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The incident was attached to a repo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentRecorded"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -3040,7 +3312,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Whether the repo's webhook points at this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoWebhookStatus"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3089,7 +3368,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The webhook's state after ensuring it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoWebhookEnsured"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -3144,7 +3430,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The HMAC secret a repo's webhook must sign with",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoWebhookSecret"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3887,7 +4180,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Token and cost usage for an agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentUsage"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3918,7 +4218,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Org-wide pipeline analytics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineAnalytics"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -4076,7 +4383,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Seven-day activity counters for a repo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoActivityCounts"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -4125,7 +4439,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Billed and attributed spend, side by side",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Spend"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -4156,7 +4477,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Pipeline and usage roll-ups",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsOverview"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -4187,7 +4515,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Health and activity counters for an agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentStats"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -4218,7 +4553,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Coupled spec statements and orphans for a diff",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImpactReport"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -4300,7 +4642,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The stamped base commit, or unstamped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImpactBase"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -4349,13 +4698,26 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "A traceability read, shaped by {kind}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraceRead"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -4406,7 +4768,17 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "A chunk collection, shaped by {kind}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoChunks"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -5238,7 +5610,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Every ADR in the traceability graph",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdrList"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -5269,7 +5648,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "Every spec in the traceability graph",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecList"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -6585,6 +6971,71 @@
         ],
         "additionalProperties": false
       },
+      "OrgSettings": {
+        "type": "object",
+        "properties": {
+          "settings": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "repo_count": {
+            "type": "number"
+          }
+        },
+        "required": ["settings", "repo_count"],
+        "additionalProperties": false
+      },
+      "OrgSettingsSaved": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "RepoSessions": {
+        "type": "object",
+        "properties": {
+          "devs": {
+            "type": "number"
+          },
+          "last": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["devs", "last"],
+        "additionalProperties": false
+      },
+      "RepoSettingsSaved": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "PrStatus": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "AssembledContext": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": ["string", "null"]
+          },
+          "sections": {},
+          "trace": {}
+        },
+        "required": ["text"],
+        "additionalProperties": false
+      },
       "ChunkList": {
         "type": "object",
         "properties": {
@@ -6678,6 +7129,50 @@
         },
         "required": ["count", "convention_files"],
         "additionalProperties": false
+      },
+      "ChunkByPath": {
+        "type": "object",
+        "properties": {
+          "chunks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "content_type": {
+                  "type": ["string", "null"]
+                },
+                "content": {
+                  "type": "string"
+                },
+                "metadata": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "repo": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": ["id", "content_type", "content", "metadata", "repo"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["chunks"],
+        "additionalProperties": false
+      },
+      "GraphQuery": {
+        "type": "object",
+        "additionalProperties": {}
       },
       "TaskDetail": {
         "type": "object",
@@ -6863,6 +7358,84 @@
           "issue_number",
           "issue_url",
           "events"
+        ],
+        "additionalProperties": false
+      },
+      "TaskPage": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "offset": {
+            "type": "number"
+          }
+        },
+        "required": ["tasks", "total", "limit", "offset"],
+        "additionalProperties": false
+      },
+      "TaskTimeline": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string"
+          },
+          "branch_name": {
+            "type": ["string", "null"]
+          },
+          "repo": {
+            "type": ["string", "null"]
+          },
+          "pr_number": {
+            "type": ["number", "null"]
+          },
+          "pr_url": {
+            "type": ["string", "null"]
+          },
+          "pr_state": {
+            "type": ["string", "null"]
+          },
+          "commits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "current_stage": {
+            "type": ["string", "null"]
+          },
+          "lease": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "task_id",
+          "branch_name",
+          "repo",
+          "pr_number",
+          "pr_url",
+          "pr_state",
+          "commits",
+          "current_stage"
         ],
         "additionalProperties": false
       },
@@ -7390,6 +7963,27 @@
         "required": ["id"],
         "additionalProperties": false
       },
+      "AssemblyRunRead": {
+        "type": "object",
+        "properties": {
+          "line": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "definitionKnown": {
+            "type": "boolean"
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": ["line", "definitionKnown", "nodes"],
+        "additionalProperties": false
+      },
       "MaintenanceResult": {
         "type": "object",
         "properties": {
@@ -7401,6 +7995,186 @@
           }
         },
         "required": ["job", "summary"],
+        "additionalProperties": false
+      },
+      "TaskByPr": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string"
+          },
+          "trailer_source": {
+            "type": "string",
+            "enum": ["db", "pr_body", "final_commit"]
+          }
+        },
+        "required": ["task_id", "trailer_source"],
+        "additionalProperties": false
+      },
+      "TaskLogSlice": {
+        "type": "object",
+        "properties": {
+          "logs": {
+            "type": "string"
+          },
+          "next_offset": {
+            "type": "number"
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "cursor": {
+            "type": "string"
+          }
+        },
+        "required": ["logs", "next_offset", "complete"],
+        "additionalProperties": false
+      },
+      "JobRunLogs": {
+        "type": "object",
+        "properties": {
+          "logs": {
+            "type": "string"
+          },
+          "complete": {
+            "type": "boolean"
+          }
+        },
+        "required": ["logs", "complete"],
+        "additionalProperties": false
+      },
+      "TaskWriteResult": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "TaskGroup": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string"
+          },
+          "total": {
+            "type": "number"
+          },
+          "completed": {
+            "type": "number"
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": ["group_id", "total", "completed", "tasks"],
+        "additionalProperties": false
+      },
+      "SpecTasksSynced": {
+        "type": "object",
+        "properties": {
+          "parsed": {
+            "type": "number"
+          },
+          "synced": {
+            "type": "number"
+          },
+          "created": {
+            "type": "number"
+          }
+        },
+        "required": ["parsed", "synced", "created"],
+        "additionalProperties": false
+      },
+      "SpecTasksReady": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": ["tasks"],
+        "additionalProperties": false
+      },
+      "SpecTaskClaimed": {
+        "type": "object",
+        "properties": {
+          "claimed": {
+            "type": "boolean"
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "agent_id": {
+            "type": "string"
+          }
+        },
+        "required": ["claimed", "task_id", "agent_id"],
+        "additionalProperties": false
+      },
+      "SpecTaskCompleted": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "TaskLogsAccepted": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": ["ok"],
+        "additionalProperties": false
+      },
+      "TurnsRelayed": {
+        "type": "object",
+        "properties": {
+          "forwarded": {
+            "type": "number"
+          },
+          "skipped": {
+            "type": "number"
+          }
+        },
+        "required": ["forwarded", "skipped"],
+        "additionalProperties": false
+      },
+      "MemoryOperationResult": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "GraphBrowse": {
+        "type": "object",
+        "properties": {
+          "stats": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "entity_types": {
+            "type": "array",
+            "items": {}
+          },
+          "entities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": ["stats", "entity_types", "entities", "edges"],
         "additionalProperties": false
       },
       "SharedPoolList": {
@@ -7557,6 +8331,325 @@
           }
         },
         "required": ["episodes", "total"],
+        "additionalProperties": false
+      },
+      "MemorySearchResults": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": ["results"],
+        "additionalProperties": false
+      },
+      "MemoryList": {
+        "type": "object",
+        "properties": {
+          "memories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": ["memories"],
+        "additionalProperties": false
+      },
+      "EpisodeWritten": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "ok"
+              },
+              "episode_id": {
+                "type": "string"
+              }
+            },
+            "required": ["status", "episode_id"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "duplicate"
+              }
+            },
+            "required": ["status"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "SessionSummaryResult": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "ok"
+              },
+              "episode_id": {
+                "type": "string"
+              }
+            },
+            "required": ["status", "episode_id"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "skipped"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": ["status", "reason"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "duplicate"
+              }
+            },
+            "required": ["status"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "IngestResult": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "IngestTriggered": {
+        "type": "object",
+        "properties": {
+          "triggered": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["triggered"],
+        "additionalProperties": false
+      },
+      "EventPayload": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "Embedding": {
+        "type": "object",
+        "properties": {
+          "embedding": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "required": ["embedding"],
+        "additionalProperties": false
+      },
+      "OnboardResult": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "repo_id": {
+                "type": "string"
+              },
+              "task_id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "webhook": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "ok": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "hookId": {
+                        "type": "number"
+                      },
+                      "created": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": ["ok", "hookId", "created"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "ok": {
+                        "type": "boolean",
+                        "const": false
+                      },
+                      "reason": {
+                        "type": "string"
+                      },
+                      "detail": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["ok", "reason"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": ["repo_id", "task_id", "status", "webhook"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "blocked": {
+                "type": "string"
+              },
+              "error": {
+                "type": "string"
+              },
+              "task_id": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": ["blocked", "error", "task_id"],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "SlackAck": {
+        "type": "object",
+        "properties": {
+          "response_type": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        "additionalProperties": false
+      },
+      "IncidentRecorded": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "repo": {
+            "type": "string"
+          }
+        },
+        "required": ["ok", "repo"],
+        "additionalProperties": false
+      },
+      "RepoWebhookStatus": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "canonicalUrl": {
+            "type": "string"
+          },
+          "hookId": {
+            "type": "number"
+          },
+          "url": {
+            "type": ["string", "null"]
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "lastCode": {
+            "type": ["number", "null"]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": ["state", "canonicalUrl"],
+        "additionalProperties": false
+      },
+      "RepoWebhookEnsured": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "canonicalUrl": {
+            "type": "string"
+          },
+          "hookId": {
+            "type": "number"
+          },
+          "url": {
+            "type": ["string", "null"]
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "lastCode": {
+            "type": ["number", "null"]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": ["state", "canonicalUrl"],
+        "additionalProperties": false
+      },
+      "RepoWebhookSecret": {
+        "type": "object",
+        "properties": {
+          "secret": {
+            "type": "string"
+          },
+          "canonicalUrl": {
+            "type": "string"
+          }
+        },
+        "required": ["secret", "canonicalUrl"],
         "additionalProperties": false
       },
       "TokenResponse": {
@@ -8010,6 +9103,14 @@
         "required": ["ok", "deleted", "crd_deleted"],
         "additionalProperties": false
       },
+      "AgentUsage": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "PipelineAnalytics": {
+        "type": "object",
+        "additionalProperties": {}
+      },
       "MemoryAuditPage": {
         "type": "object",
         "properties": {
@@ -8161,6 +9262,96 @@
           "log_path"
         ],
         "additionalProperties": false
+      },
+      "RepoActivityCounts": {
+        "type": "object",
+        "additionalProperties": {
+          "type": ["number", "null"]
+        }
+      },
+      "Spend": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "AnalyticsOverview": {
+        "type": "object",
+        "properties": {
+          "task_summary": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "usage_by_task_type": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "usage_by_repo": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "daily_usage": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "latency_stats": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "job_runs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": [
+          "task_summary",
+          "usage_by_task_type",
+          "usage_by_repo",
+          "daily_usage",
+          "latency_stats",
+          "job_runs"
+        ],
+        "additionalProperties": false
+      },
+      "AgentStats": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "ImpactReport": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "ImpactBase": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "TraceRead": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "RepoChunks": {
+        "type": "object",
+        "additionalProperties": {}
       },
       "RepoOnboarded": {
         "type": "object",
@@ -8608,6 +9799,34 @@
           "priority",
           "created_at"
         ],
+        "additionalProperties": false
+      },
+      "AdrList": {
+        "type": "object",
+        "properties": {
+          "adrs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": ["adrs"],
+        "additionalProperties": false
+      },
+      "SpecList": {
+        "type": "object",
+        "properties": {
+          "specs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": ["specs"],
         "additionalProperties": false
       },
       "FeatureList": {

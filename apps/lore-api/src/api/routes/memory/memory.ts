@@ -1,3 +1,4 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
@@ -76,14 +77,30 @@ const MemoryBody = z.discriminatedUnion("action", [
 
 type MemoryBody = z.infer<typeof MemoryBody>;
 
+/**
+ * One POST multiplexes write, read, search, delete and list, and each answers a
+ * different shape — so the contract is stated as the open document it genuinely
+ * is rather than as one of the five pretending to be all of them. Splitting the
+ * actions into their own routes is what would buy five precise contracts.
+ */
+const MemoryOperationSchema = z.record(z.unknown());
+
 export function memoryRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/memory",
-    options: {
-      ...bearerScope("write"),
-      validate: { payload: zodValidate(MemoryBody) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        validate: { payload: zodValidate(MemoryBody) },
+      },
+      MemoryOperationSchema,
+      {
+        name: "MemoryOperationResult",
+        description: "The result of the requested memory action",
+        errors: [400, 404],
+      },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
       const body = request.payload as MemoryBody;

@@ -1,3 +1,5 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { z } from "zod";
 import type { ServerRoute } from "@hapi/hapi";
 import { projectFor } from "../../../platform/project-boot.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
@@ -29,11 +31,18 @@ const CHUNK_KINDS = new Set([
   "stale",
 ]);
 
+/** One route per chunk KIND; the body is whichever collection the kind names. */
+const RepoChunksSchema = z.record(z.unknown());
+
 export function chunksRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/chunks/{kind}",
-    options: bearerScope("read"),
+    options: zodResponse(bearerScope("read"), RepoChunksSchema, {
+      name: "RepoChunks",
+      description: "A chunk collection, shaped by {kind}",
+      errors: [400],
+    }),
     handler: async (request, h) => {
       const kind = request.params.kind;
 

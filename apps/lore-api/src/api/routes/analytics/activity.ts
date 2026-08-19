@@ -111,6 +111,9 @@ const EventListSchema = z.object({
   ),
 });
 
+/** Seven-day counters for a repo's activity cards; null when the table is absent. */
+const ActivityCountsSchema = z.record(z.number().nullable());
+
 const JobRunReadSchema = wireSchema(JobRunSchema, JOB_RUN_COLUMNS);
 
 export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
@@ -244,7 +247,10 @@ export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/repos/{owner}/{repo}/activity-counts",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), ActivityCountsSchema, {
+        name: "RepoActivityCounts",
+        description: "Seven-day activity counters for a repo",
+      }),
       handler: async (request, h) => {
         const pool = getPool();
 

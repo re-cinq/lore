@@ -1,3 +1,4 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 /**
  * `POST /api/repos/:o/:r/impact` — the deterministic, zero-LLM pre-merge
  * spec-breakage query. Body: `{ commit?, base?, files: [{ path, ranges, deleted }] }`
@@ -54,15 +55,26 @@ const UNAVAILABLE: ImpactReport = {
   testSelectors: [],
 };
 
+/** A change-impact report plus the PR annotations and comment it produced. */
+const ImpactReportSchema = z.record(z.unknown());
+
 export function impactRoute(): ServerRoute {
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/impact",
-    options: {
-      ...bearerScope("write"),
-      payload: { maxBytes: 2 * 1_048_576 },
-      validate: { payload: zodValidate(ImpactBody) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        payload: { maxBytes: 2 * 1_048_576 },
+        validate: { payload: zodValidate(ImpactBody) },
+      },
+      ImpactReportSchema,
+      {
+        name: "ImpactReport",
+        description: "Coupled spec statements and orphans for a diff",
+        errors: [400],
+      },
+    ),
     handler: async (request, h) => {
       const repo = `${request.params.owner}/${request.params.repo}`;
       const body = request.payload as ImpactBody;

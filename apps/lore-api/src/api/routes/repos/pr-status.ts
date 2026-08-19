@@ -1,3 +1,4 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * `GET /api/pr-status?repo=owner/name&pr_number=N` — live PR/CI/review verdict
@@ -19,14 +20,24 @@ const PrStatusQuery = z.object({
 
 type PrStatusQuery = z.infer<typeof PrStatusQuery>;
 
+/** A pull request's computed status, as the task page renders it. */
+const PrStatusSchema = z.record(z.unknown());
+
 export function prStatusRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/pr-status",
-    options: {
-      ...bearerScope("read"),
-      validate: { query: zodValidate(PrStatusQuery) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(PrStatusQuery) },
+      },
+      PrStatusSchema,
+      {
+        name: "PrStatus",
+        description: "Checks, reviews and the computed state of a PR",
+      },
+    ),
     handler: async (request, h) => {
       const { repo, pr_number: prNumber } =
         request.query as unknown as PrStatusQuery;
