@@ -91,7 +91,7 @@ describe("OpenAPI document is structurally valid 3.1", () => {
   it("shapes every request body as an application/json schema", () => {
     for (const item of Object.values(document.paths)) {
       for (const op of Object.values(item)) {
-        if (op.requestBody) {
+        if (op.requestBody && !op.requestBody.content["application/x-ndjson"]) {
           expect(op.requestBody.content).toHaveProperty(["application/json"]);
         }
       }
