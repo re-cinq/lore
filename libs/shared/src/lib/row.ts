@@ -43,3 +43,22 @@ export function fromRow<T>(columns: ColumnMap<T>, row: DbRow): T {
 
   return record as T;
 }
+
+/**
+ * A projection of a column map: the named fields, in the order named.
+ *
+ * A read that wants some of a table's columns still derives them from the one
+ * declaration, so a projection cannot name a column the model does not have.
+ */
+export function pickColumns<T, K extends keyof T>(
+  columns: ColumnMap<T>,
+  fields: readonly K[],
+): ColumnMap<Pick<T, K>> {
+  const picked = {} as ColumnMap<Pick<T, K>>;
+
+  for (const field of fields) {
+    picked[field] = columns[field];
+  }
+
+  return picked;
+}

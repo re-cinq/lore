@@ -1,41 +1,25 @@
 import "server-only";
 import { apiFetch } from "./client";
 import type { ApiResult } from "./result";
+import type { components } from "./schema";
 
 // The activity reads — memory audit, the event bus, job runs, and a repo's
 // dashboard counts. Each was a direct SELECT in a page body before lore-api
 // grew the endpoints (ADR-032).
 
-export interface MemoryAuditEntry {
-  id: string;
-  agent_id: string | null;
-  operation: string;
-  memory_key: string | null;
-  pool_name: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-}
+// None of these row shapes is restated here. Each is an alias over the OpenAPI
+// document lore-api generates from its route contracts (ADR-035), and those
+// contracts are themselves derived from the shared models plus their column
+// maps — so a column, its contract and this type have ONE declaration between
+// them, and check-openapi-drift.sh fails CI when the generated artifact is stale.
 
-export interface RepoEventRow {
-  id: string;
-  event_name: string;
-  source: string;
-  params: Record<string, unknown> | null;
-  status: string;
-  captured_at: string;
-}
+export type MemoryAuditEntry =
+  components["schemas"]["MemoryAuditPage"]["entries"][number];
 
-export interface JobRunRow {
-  id: string;
-  job_name: string;
-  status: string;
-  /** A row always carries its start; the column is NOT NULL. */
-  started_at: string;
-  completed_at: string | null;
-  result_summary: string | null;
-  error: string | null;
-  log_path: string | null;
-}
+export type RepoEventRow =
+  components["schemas"]["RepoEventList"]["events"][number];
+
+export type JobRunRow = components["schemas"]["JobRun"];
 
 /** A page of memory-audit entries plus the unpaged total the pager needs. */
 export function getMemoryAudit(opts: {

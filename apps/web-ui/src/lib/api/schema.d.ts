@@ -1976,6 +1976,46 @@ export interface components {
       deleted: string;
       crd_deleted: boolean;
     };
+    MemoryAuditPage: {
+      entries: {
+        id: string;
+        agent_id: string;
+        operation: string;
+        memory_key: string | null;
+        pool_name: string | null;
+        metadata: {
+          [key: string]: unknown;
+        } | null;
+        /** Format: date-time */
+        created_at: string;
+      }[];
+      total: number;
+    };
+    RepoEventList: {
+      events: {
+        id: string;
+        event_name: string;
+        source: string;
+        params: {
+          [key: string]: unknown;
+        };
+        /** @enum {string} */
+        status: "pending" | "processing" | "done" | "failed" | "dead";
+        /** Format: date-time */
+        captured_at: string;
+      }[];
+    };
+    JobRun: {
+      id: string;
+      job_name: string;
+      /** Format: date-time */
+      started_at: string;
+      completed_at: string | null;
+      status: string;
+      result_summary: string | null;
+      error: string | null;
+      log_path: string | null;
+    };
     FeatureList: {
       features: {
         id: string;
@@ -4469,12 +4509,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description A page of memory-audit entries */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["MemoryAuditPage"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -4491,12 +4533,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description A repo's recent events */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["RepoEventList"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
@@ -4515,15 +4559,18 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description One scheduled-job run */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["JobRun"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
