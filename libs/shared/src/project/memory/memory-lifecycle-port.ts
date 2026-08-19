@@ -114,9 +114,13 @@ export interface MemoryLifecyclePort {
     minAgeDays: number,
   ): Promise<AgentCount[]>;
 
-  /** memory-lifecycle.ts importanceDecayJob — DELETE the `limit` oldest
-   * invalidated facts (CTE on valid_to); returns how many were deleted. */
+  /** DELETE the `limit` oldest invalidated facts BELONGING TO `agentId` (CTE on
+   * valid_to); returns how many were deleted. The agent scope is load-bearing:
+   * the decay job calls this once per over-cap agent, so a global delete ran N
+   * table-wide deletes and could take one agent's quota out of another's facts,
+   * including agents under the cap (#1376). */
   deleteOldestInvalidatedFacts(
+    agentId: string,
     limit: number,
     minAgeDays: number,
   ): Promise<number>;

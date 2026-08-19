@@ -64,12 +64,6 @@ export async function importanceDecay(
     totalEvicted += toEvict.length;
   }
 
-  // NOTE: `deleteOldestInvalidatedFacts` is GLOBAL — it ignores the agent this
-  // loop is handling and deletes the oldest invalidated facts table-wide, so a
-  // multi-agent run over-deletes and can take facts from agents under the cap.
-  // Carried over verbatim from the Floor; tracked as #1376 rather than changed
-  // here, because this PR is a move and altering eviction semantics inside it
-  // would make the diff lie about what it does.
   const factAgents = await memory.countInvalidatedFactsByAgentOverCap(
     MAX_FACTS_PER_AGENT,
     DECAY_MIN_AGE_DAYS,
@@ -77,7 +71,7 @@ export async function importanceDecay(
 
   let factsEvicted = 0;
 
-  for (const { cnt } of factAgents) {
+  for (const { agent_id, cnt } of factAgents) {
     const excess = cnt - MAX_FACTS_PER_AGENT;
 
     if (excess <= 0) {
@@ -85,6 +79,7 @@ export async function importanceDecay(
     }
 
     factsEvicted += await memory.deleteOldestInvalidatedFacts(
+      agent_id,
       excess,
       DECAY_MIN_AGE_DAYS,
     );

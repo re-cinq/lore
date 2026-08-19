@@ -222,11 +222,14 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
   }
 
   async deleteOldestInvalidatedFacts(
+    agentId: string,
     limit: number,
     minAgeDays: number,
   ): Promise<number> {
     const victims = this.facts
-      .filter((f) => olderThanDays(f.valid_to, minAgeDays))
+      .filter(
+        (f) => f.agent_id === agentId && olderThanDays(f.valid_to, minAgeDays),
+      )
       .sort((a, b) => (a.valid_to ?? "").localeCompare(b.valid_to ?? ""))
       .slice(0, limit);
 

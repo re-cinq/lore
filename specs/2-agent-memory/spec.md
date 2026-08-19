@@ -215,6 +215,16 @@ Mirrors each write to `memories`, preserving full history queryable via
   `fact_conflicts` before invalidation so context assembly can surface disputed
   knowledge with a `[CONFLICT]` prefix. ([validated by `facts-extraction.test.ts:50`](libs/server-core/src/features/memory/facts-extraction.test.ts#L50))
 
+#### Invalidated-fact eviction
+
+- Eviction of old invalidated facts is **scoped to one agent**. The decay job
+  counts invalidated facts per agent and calls the delete once per agent that is
+  over the cap, passing that agent's excess — so the delete must filter on
+  `agent_id`, in SQL and not only by `LIMIT`. A table-wide delete answering a
+  per-agent quota takes the oldest facts anywhere, which means one agent's quota
+  can be filled entirely from another agent's rows and an agent **under** the cap
+  can lose facts it should have kept. ([validated by `memory-lifecycle.test.ts:560`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L560), [`memory-lifecycle.test.ts:571`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L571), [`memory-lifecycle.test.ts:582`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L582))
+
 #### Confidence lifecycle
 
 - `observed` — default for episode-sourced facts. ([validated by `facts-extraction.test.ts:150`](libs/server-core/src/features/memory/facts-extraction.test.ts#L150))
