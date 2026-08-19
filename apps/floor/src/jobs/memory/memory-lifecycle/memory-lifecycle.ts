@@ -1,10 +1,9 @@
 /**
- * Memory lifecycle — importance-based decay + automatic consolidation.
+ * Memory lifecycle — automatic consolidation.
  *
- * Importance decay:
- *   Scores memories by recency, access frequency, and content quality.
- *   Evicts old, low-importance entries beyond a per-agent cap.
- *   Inspired by agentmemory's Ebbinghaus-style forgetting.
+ * The importance-decay half moved to lore-api in #1350: it was scoring plus
+ * database writes, needing none of the Floor's three exclusive powers. This
+ * half stays for now only because it calls Haiku; #1346 moves it to a station.
  *
  * Consolidation:
  *   Periodically groups related facts from recent episodes and
@@ -13,107 +12,13 @@
  *   Inspired by ByteRover's ACE Curator phase.
  */
 
-import { scoreImportance } from "@re-cinq/lore-shared";
 import { memoryLifecycle } from "../../../kernel/queues.js";
 import { Llm } from "@re-cinq/lore-shared";
 
 // ── Config ──────────────────────────────────────────────────────────
 
-const MAX_MEMORIES_PER_AGENT = 500;
-const MAX_FACTS_PER_AGENT = 2000;
-const DECAY_MIN_AGE_DAYS = 30;
 const CONSOLIDATION_MIN_FACTS = 5;
 const CONSOLIDATION_LOOKBACK_DAYS = 7;
-
-// ── Importance decay job ────────────────────────────────────────────
-
-export async function importanceDecayJob(): Promise<string> {
-  // Find agents with too many memories
-  const agents = await memoryLifecycle().countMemoriesByAgentOverCap(
-    MAX_MEMORIES_PER_AGENT,
-  );
-
-  let totalEvicted = 0;
-
-  for (const { agent_id, cnt } of agents) {
-    const excess = cnt - MAX_MEMORIES_PER_AGENT;
-
-    if (excess <= 0) {
-      continue;
-    }
-
-    // Get old memories (older than DECAY_MIN_AGE_DAYS), fetch double to have room for scoring
-    const candidates = await memoryLifecycle().findDecayCandidates(
-      agent_id,
-      excess * 2,
-      DECAY_MIN_AGE_DAYS,
-    );
-
-    // Score and sort by importance (ascending = least important first)
-    const scored = candidates
-      .map((m) => ({ ...m, importance: scoreImportance(m, Date.now()) }))
-      .sort((a, b) => a.importance - b.importance);
-
-    // Evict the least important up to the excess count
-    const toEvict = scored.slice(0, excess);
-
-    if (toEvict.length === 0) {
-      continue;
-    }
-
-    const ids = toEvict.map((m) => m.id);
-
-    await memoryLifecycle().softDeleteMemories(ids);
-
-    // Audit log
-    await memoryLifecycle().writeAuditLog({
-      agentId: agent_id,
-      operation: "importance-decay",
-      metadata: { evicted: ids.length, lowest_score: toEvict[0]?.importance },
-    });
-
-    totalEvicted += toEvict.length;
-  }
-
-  // Also evict old invalidated facts beyond cap
-  const factAgents =
-    await memoryLifecycle().countInvalidatedFactsByAgentOverCap(
-      MAX_FACTS_PER_AGENT,
-      DECAY_MIN_AGE_DAYS,
-    );
-
-  let factsEvicted = 0;
-
-  for (const { cnt } of factAgents) {
-    const excess = cnt - MAX_FACTS_PER_AGENT;
-
-    if (excess <= 0) {
-      continue;
-    }
-
-    factsEvicted += await memoryLifecycle().deleteOldestInvalidatedFacts(
-      excess,
-      DECAY_MIN_AGE_DAYS,
-    );
-  }
-
-  // Transition unretrieved facts to 'stale' after 30 days
-  let staleTransitioned = 0;
-
-  try {
-    staleTransitioned = await memoryLifecycle().transitionStaleFacts();
-  } catch {
-    // Non-fatal
-  }
-
-  if (totalEvicted > 0 || factsEvicted > 0 || staleTransitioned > 0) {
-    console.log(
-      `[job] importance-decay: evicted ${totalEvicted} memories, ${factsEvicted} old facts, transitioned ${staleTransitioned} facts to stale`,
-    );
-  }
-
-  return `Evicted ${totalEvicted} memories, ${factsEvicted} old facts, ${staleTransitioned} stale transitions`;
-}
 
 // ── Consolidation job ───────────────────────────────────────────────
 

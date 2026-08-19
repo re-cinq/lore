@@ -170,9 +170,6 @@ cronJobDefaults:
 
 cronJobs:
   # Lightweight cleanups (defaults are fine)
-  - name: importance-decay
-    job: importance_decay
-    schedule: "0 5 * * *"
   - name: consolidation
     job: consolidation
     schedule: "30 5 * * *"

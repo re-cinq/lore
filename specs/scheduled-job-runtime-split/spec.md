@@ -244,6 +244,14 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   courier's only channel is an HTTP status, and a job's error can carry
   connection strings and hostnames; the detail is logged where operators look
   and never returned. ([validated by `maintenance.test.ts:43`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L43))
+- **FR9.4 — Importance decay follows the same route.** Scoring memories against
+  the half-life model and evicting past the per-agent cap is scoring plus
+  database writes, so it runs in lore-api. Behaviour is carried over unchanged:
+  only the count above the cap is evicted, the highest-scoring memory survives,
+  an agent under the cap loses nothing, one `importance-decay` audit entry is
+  written per agent evicted from, and the summary names memories, facts and
+  stale transitions. Ageing facts to `stale` stays non-fatal — failing the run
+  over it would leave a completed eviction unreported. ([validated by `importance-decay.test.ts:32`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L32), [`importance-decay.test.ts:44`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L44), [`importance-decay.test.ts:54`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L54), [`importance-decay.test.ts:67`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L67), [`importance-decay.test.ts:79`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L79))
 - **FR9.3 — `memory_ttl` is the first job to move.** Its 14 lines around one
   `expireMemories()` call, and the CronJob pod built from the Floor's image that
   ran them, are deleted; the schedule is unchanged. The registry in
@@ -255,7 +263,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    the DB pool, logs the job summary, and exits 0 on success / non-zero on error;
    an unknown name exits non-zero. `resolveJob` returns the dispatch handler for a known name and
    null for an unknown or empty name; `runJobByName` invokes the resolved handler and exits 0.
-   ([`job-runner.test.ts:53`](apps/floor/src/delivery/job-runner.test.ts#L53), [`job-runner.test.ts:57`](apps/floor/src/delivery/job-runner.test.ts#L57), [`job-runner.test.ts:67`](apps/floor/src/delivery/job-runner.test.ts#L67), [validated by `resolves %s to a handler function`](apps/floor/src/delivery/job-runner.test.ts#L41))
+   ([`job-runner.test.ts:52`](apps/floor/src/delivery/job-runner.test.ts#L52), [`job-runner.test.ts:56`](apps/floor/src/delivery/job-runner.test.ts#L56), [`job-runner.test.ts:66`](apps/floor/src/delivery/job-runner.test.ts#L66), [validated by `resolves %s to a handler function`](apps/floor/src/delivery/job-runner.test.ts#L40))
 
 1a. Each runner invocation writes a `pipeline.job_runs` row — `running` on start,
    then `completed` (with `result_summary`) or `failed` (with `error`) — so a
@@ -295,7 +303,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    `README.md` naming its runtime/container; `agent` typecheck and `vitest run`
    pass after the move.
 7. `kubectl create job --from=cronjob/<name>` runs a batch job on demand.
-8. No job is scheduled both in-process and as a CronJob in any release. ([validated by `job-runner.test.ts:47`](apps/floor/src/delivery/job-runner.test.ts#L47))
+8. No job is scheduled both in-process and as a CronJob in any release. ([validated by `job-runner.test.ts:46`](apps/floor/src/delivery/job-runner.test.ts#L46))
 
 9. Each migrated batch job is an independently-runnable unit the runner dispatches and whose one-line
    result the run row records: `memory_ttl` soft-deletes expired memories and reports the count,
