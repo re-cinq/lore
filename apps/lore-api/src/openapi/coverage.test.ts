@@ -91,7 +91,7 @@ describe("OpenAPI document is structurally valid 3.1", () => {
   it("shapes every request body as an application/json schema", () => {
     for (const item of Object.values(document.paths)) {
       for (const op of Object.values(item)) {
-        if (op.requestBody && !op.requestBody.content["application/x-ndjson"]) {
+        if (op.requestBody && !hasRawNdjsonBody(op.requestBody)) {
           expect(op.requestBody.content).toHaveProperty(["application/json"]);
         }
       }
@@ -156,3 +156,11 @@ describe("Features responses are declaratively described", () => {
     }
   });
 });
+
+/** The one sanctioned non-JSON body shape: a parse:false relay route that
+ *  declared options.app.rawBody (FR4b, specs/lore-api-openapi). */
+function hasRawNdjsonBody(body: unknown): boolean {
+  const content = (body as { content?: Record<string, unknown> }).content;
+
+  return Boolean(content?.["application/x-ndjson"]);
+}
