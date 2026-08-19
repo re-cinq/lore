@@ -17,6 +17,22 @@ import type { ColumnMap } from "../lib/row.js";
  * view to hide behind (0040:130-137). `stationRunId` is the go-forward key.
  */
 
+/**
+ * The six stream-json line kinds the projector persists. A line of any other
+ * kind is dropped before it reaches the store, so the column is closed in
+ * practice even though the DDL does not constrain it.
+ */
+export const AgentRunEventTypeSchema = z.enum([
+  "init",
+  "message",
+  "thinking",
+  "tool_call",
+  "tool_result",
+  "result",
+]);
+
+export type AgentRunEventType = z.infer<typeof AgentRunEventTypeSchema>;
+
 export const AgentRunEventSchema = z.object({
   id: z.string(),
   taskId: z.string(),
@@ -25,7 +41,7 @@ export const AgentRunEventSchema = z.object({
   stationRunId: z.string().nullable(),
   nodeId: z.string().nullable(),
   iteration: z.number().nullable(),
-  eventType: z.string(),
+  eventType: AgentRunEventTypeSchema,
   toolName: z.string().nullable(),
   toolUseId: z.string().nullable(),
   isError: z.boolean(),

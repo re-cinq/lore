@@ -597,4 +597,31 @@ describe("deleteOldestInvalidatedFacts is scoped to one agent", () => {
 
     expect(calls[0]).toEqual(["over-cap", 50]);
   });
+
+  // `memory.facts` has NO agent_id column — a fact reaches its agent only
+  // through the memory or episode it was extracted from, which is how the
+  // over-cap COUNT above already groups them. Scoping the delete with a bare
+  // `WHERE agent_id = $1` reads correctly and throws 42703 against the real
+  // schema; the fake pool here returns rows for any SQL, so nothing but this
+  // assertion stands between that and the daily decay job.
+  it("scopes to the agent through the source memory and episode", async () => {
+    let sql = "";
+    const pool = {
+      query: async (text: string) => {
+        sql = text;
+
+        return { rows: [] };
+      },
+    };
+
+    await new PgMemoryLifecycle(pool as never).deleteOldestInvalidatedFacts(
+      "over-cap",
+      50,
+      30,
+    );
+
+    expect(sql).toContain("memory.memories");
+    expect(sql).toContain("memory.episodes");
+    expect(sql).not.toMatch(/WHERE\s+agent_id\s*=/);
+  });
 });

@@ -25,7 +25,14 @@ export interface MemoryLifecycleRow {
   expires_at: string | null;
 }
 
-/** A `memory.facts` row the double tracks. */
+/**
+ * A `memory.facts` row the double tracks.
+ *
+ * `agent_id` and `repo` are NOT columns of that table — a fact reaches its
+ * agent through the memory or episode it came from. They are flattened here so
+ * a seed can state ownership in one line, and the Pg adapter must reproduce
+ * them by joining, never by selecting a column of that name.
+ */
 export interface FactRow {
   id: string;
   agent_id: string;

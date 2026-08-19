@@ -4,7 +4,8 @@ import type { ColumnMap } from "../lib/row.js";
 /**
  * `lore.feature_iterations` — one planning round of a feature.
  *
- * DDL: migration `0017_feature_planning.sql`. `taskId` is a SOFT reference to
+ * DDL: migration `0017_feature_planning.sql`, plus `parent_iteration` (0036).
+ * `taskId` is a SOFT reference to
  * `pipeline.tasks` with no FK, deliberately: a pruned task must not take the
  * planning history with it. `(featureId, iteration)` is unique.
  */
@@ -23,6 +24,7 @@ export const FeatureIterationSchema = z.object({
   status: FeatureIterationStatusSchema,
   userAnswers: z.record(z.unknown()).nullable(),
   gapResult: z.record(z.unknown()).nullable(),
+  parentIteration: z.number().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -40,6 +42,7 @@ export const FEATURE_ITERATION_COLUMNS = {
   status: "status",
   userAnswers: "user_answers",
   gapResult: "gap_result",
+  parentIteration: "parent_iteration",
   createdAt: "created_at",
   updatedAt: "updated_at",
 } as const satisfies ColumnMap<FeatureIteration>;
