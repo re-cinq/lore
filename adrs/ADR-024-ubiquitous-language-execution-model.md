@@ -234,3 +234,52 @@ shared `@re-cinq/lore-shared/project/*` ports**, not inline SQL.
   `content_type` / `file_path` filters), and a few read the global `lore.settings`
   / `lore.features` tables. These need a knowledge-read port surface and are the
   remaining inline-SQL holdouts, tracked as a fast follow.
+
+## Amendment (2026-08): the Floor's three-powers membership test
+
+The vocabulary above says what a Floor **is**; it never said what may **live inside
+one**. Without that rule the Floor accreted work that merely happened to need a
+long-running process: in-process LLM calls (onboarding generation, feature-request
+translation, episode curation, memory consolidation), repo-content chunking, a
+promptfoo shell-out, six read-only REST endpoints, and an Anthropic billing
+importer. An audit of `apps/floor/src` (2026-08-19) found ~3,400 of 18,514 lines
+that no property of the Floor justified.
+
+**The Floor has exactly three exclusive powers.** Code that needs none of them does
+not belong in the Floor process:
+
+1. **Cluster authority** — the Kubernetes API, Agent CR dispatch, per-task pod
+   tokens, pod logs. Only the Floor holds the credentials and the RBAC.
+2. **The drain loop** — the single-instance `pipeline.events` claim
+   (`FOR UPDATE SKIP LOCKED`), leases, and the reapers. Only the Floor is pinned
+   to one replica and may therefore coordinate.
+3. **The in-process SSE bus** — [ADR-037](./ADR-037-sse-run-observability.md),
+   sound only under the Floor's `replicaCount: 1` pin.
+
+Everything else has one of two homes:
+
+| Shape of the work | Home |
+|---|---|
+| LLM- or repo-content-shaped: prompts, clones, chunking, shelling out to a CLI, reading a working tree | a **Station** — it already has a sandbox, a checkout, and a model |
+| A data read or write with no coordination: REST reads, scoring, counter snapshots, batch imports | **`apps/lore-api`** ([ADR-032](./ADR-032-split-local-remote-api.md)) |
+
+The test is deliberately about *powers*, not about cadence or weight. "It is a
+nightly batch" and "it needs a long-running process" were the two arguments that
+put every squatter where it is, and neither is a property only the Floor has.
+
+**Three pinned exceptions** — they fail the test on a reading of the code but pass
+on the mechanism, and a later cleanup must not evict them:
+
+- The `/api/agent-events` NDJSON sink and the SSE stream are **welded** by the
+  in-process bus. Splitting them requires PG `LISTEN`/`NOTIFY` first (ADR-037
+  names it as the multi-replica swap); moving either alone goes dark.
+- `/api/agent-logs` reads pod logs through the Kubernetes API — power 1. `lore-ui`
+  holds no such RBAC.
+- `/api/webhook/github` could move to `lore-api`, but it feeds the drain loop
+  directly; relocating it buys a network hop and a new failure mode.
+
+**Consequence.** After the eviction the Floor is: the drain loop and its reapers,
+the listeners, the AssemblyRun walk, the Station/pod machinery, the Agent-CR
+watcher, the detection fan-out, auto-merge authority, and the dispatch half of the
+task worker — about 13,700 lines that each pass the test. Merge authority in
+particular stays: it is deliberately not delegated to a pod.

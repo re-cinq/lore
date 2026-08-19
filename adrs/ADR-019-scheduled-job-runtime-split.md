@@ -254,3 +254,42 @@ closing that needs a GitHub tree read and belongs in the reindex `verify.ts`
 sweep as a follow-up (widen the prune to `ingested_by = 'api'`). Spec
 statements: FR-10.8 / FR-20.6 in `specs/1-lore-platform/spec.md`, statement 11
 in `specs/scheduled-job-runtime-split/spec.md`.
+
+## Amendment (2026-08): the batch carve-out is a cadence rule, not a home
+
+The original decision split scheduled work by **cadence**: hot-path and sub-minute
+jobs stay in the resident scheduler, heavy infrequent batch jobs become isolated
+Kubernetes CronJobs. That split was and remains right about *when* work runs. It
+was silently read as also deciding *where the code lives* — and so the carve-out
+became the reason a set of jobs still sit in `apps/floor` that have nothing to do
+with coordinating a factory floor.
+
+Being a nightly batch is not one of the Floor's three exclusive powers
+([ADR-024](./ADR-024-ubiquitous-language-execution-model.md), amendment 2026-08).
+A CronJob pod running `dist/delivery/job-runner.js` is already a separate process
+from the Floor — the only thing it still shares is the Floor's codebase and
+dependency tree. The detection family made this move first (amendment 2026-07,
+above): each became an assembly-line definition with a deterministic `detect`
+node, and nothing about their cadence had to change to allow it.
+
+The remaining `job-runner` entries are therefore re-homed by **shape**, keeping
+their schedules:
+
+| Job | Shape | New home |
+|---|---|---|
+| `context_reindex` | tree-sitter chunking + embeddings over a checkout | the **ingest assembly line**, which already owns a chunking path |
+| `eval_runner` | shells out to the `promptfoo` binary, reads `EVALS_DIR` off disk | a **Station** |
+| `context_core_builder` | same promptfoo shell-out, plus promote/reject thresholds | a **Station** — sequenced after the eval line by an edge instead of by two cron times |
+| `consolidation` | Haiku pattern-extraction over recent facts | a **Station** |
+| `importance_decay` | half-life scoring + DB writes | **`lore-api`** |
+| `memory_ttl` | one `DELETE` | **`lore-api`** |
+| `anthropic_cost_sync` | Anthropic Admin API import + row writes | **`lore-api`** |
+
+Note what this does to the "isolated failure domain" and "per-run logs" arguments
+the original decision made for CronJobs: a Station delivers both, plus a run row,
+a timeline, and the same retry semantics as every other node — strictly more than
+a CronJob offers. The two jobs that go to `lore-api` keep their schedule but lose
+a pod each, which is the point: neither ever needed one.
+
+`delivery/job-runner.ts` is expected to end up empty and be deleted; when it does,
+the Floor's Dockerfile no longer needs to ship the batch job tree.
