@@ -14,6 +14,7 @@ import requireSpecLink from "./rules/require-spec-link.mjs";
 import requireStatementLinks from "./rules/require-statement-links.mjs";
 import requireIntroParagraph from "./rules/require-intro-paragraph.mjs";
 import requireStatusMatchesCoverage from "./rules/require-status-matches-coverage.mjs";
+import testImportsItsSubject from "./rules/test-imports-its-subject.mjs";
 
 /**
  * eslint-plugin-lore — repo-local ESLint rules codifying Lore house conventions.
@@ -23,6 +24,7 @@ export default {
   meta: { name: "eslint-plugin-lore", version: "0.1.0" },
   rules: {
     "default-export-matches-filename": defaultExportMatchesFilename,
+    "test-imports-its-subject": testImportsItsSubject,
     "no-inline-styles": noInlineStyles,
     "require-fetch-timeout": requireFetchTimeout,
     "prefer-enforce-true": preferEnforceTrue,
