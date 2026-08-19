@@ -65,6 +65,8 @@ export default tseslint.config(
       "lore/max-boolean-operators": ["error", { max: 2 }],
       "lore/no-io-in-view": "error",
       "lore/require-spec-link": "error",
+      // warn first: the sweep below shows how many suites need attention.
+      "lore/test-imports-its-subject": "warn",
       "lore/default-export-matches-filename": "error",
       "lore/no-inline-styles": "warn",
       "lore/require-fetch-timeout": "error",
