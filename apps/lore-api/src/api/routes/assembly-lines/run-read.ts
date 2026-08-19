@@ -84,6 +84,10 @@ export function runReadRoute(
     handler: async (request) => {
       const pool = getPool();
 
+      // A disjunction cannot narrow `pool`, so the cast below carries the proof:
+      // it is only reached when `runs` is undefined, which the guard pairs with
+      // `pool !== null`. Narrowing properly would mean two guards saying the same
+      // thing, and an injected port has no pool to check.
       enforceTrue(
         runs !== undefined || pool !== null,
         Boom.serverUnavailable,
