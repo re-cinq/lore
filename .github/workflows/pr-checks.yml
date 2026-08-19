@@ -232,3 +232,27 @@ jobs:
 
       - name: Run tests
         run: ${{ matrix.test }}
+
+  # Nothing else in CI renders or lints the Helm charts, so a broken template was
+  # caught at deploy time — or by whoever happened to run `helm template` by hand.
+  # That is not hypothetical: a one-character Go-template chomp shipped
+  # `emptyDir: {}---`, gluing two documents into one unparseable blob, with every
+  # unit test in the repo green (#1372).
+  #
+  # Deliberately NOT in the `test` matrix: this needs helm and no node_modules,
+  # so an `npm ci` for it would be pure wasted minutes.
+  charts:
+    name: charts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      # SHA-pinned like every other third-party action here: a tag is mutable,
+      # and this one runs before any repo code does.
+      - uses: azure/setup-helm@fe7b79cd5ee1e45176fcad797de68ecaf3ca4814 # v4.2.0
+        with:
+          version: v3.19.0
+
+      - run: bash scripts/check-charts.sh
