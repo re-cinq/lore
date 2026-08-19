@@ -67,6 +67,18 @@ spec:
                   name: lore-anthropic-key
                   key: anthropic-api-key
                   optional: true
+            {{- if .Values.anthropicAdminKeySecret }}
+            # The Anthropic ORG admin key, for the cost-sync maintenance job
+            # (#1348). Distinct from the API key above: it reads the billing
+            # reports and mints nothing. Optional — an unset key makes the job
+            # report a skip rather than fail.
+            - name: ANTHROPIC_ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.anthropicAdminKeySecret.name }}
+                  key: {{ .Values.anthropicAdminKeySecret.key }}
+                  optional: true
+            {{- end }}
             {{- if .Values.webhookSecret }}
             - name: LORE_WEBHOOK_SECRET
               valueFrom:

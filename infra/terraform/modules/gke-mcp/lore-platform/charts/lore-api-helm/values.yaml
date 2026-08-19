@@ -112,3 +112,16 @@ courierJobs:
   - name: importance-decay
     schedule: "0 5 * * *"
     path: /api/maintenance/importance-decay
+  # Was the Floor's anthropic_cost_sync CronJob (#1348). Daily, deliberately:
+  # the cost report only changes once a day (buckets close at UTC midnight and
+  # the in-progress day is never emitted), so one sync after the day settles is
+  # sufficient — see ADR-043.
+  - name: anthropic-cost-sync
+    schedule: "0 7 * * *"
+    path: /api/maintenance/anthropic-cost-sync
+
+# The Anthropic ORG admin key used by the cost-sync maintenance job. Same secret
+# the Floor read while the job lived there; unset simply makes the job skip.
+anthropicAdminKeySecret:
+  name: lore-floor-anthropic-key
+  key: anthropic-admin-key

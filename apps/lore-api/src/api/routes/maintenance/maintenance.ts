@@ -4,6 +4,8 @@ import { z } from "zod";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { PgMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-pg.js";
 import { importanceDecay } from "../../../features/maintenance/importance-decay.js";
+import { anthropicCostSyncJob } from "../../../features/maintenance/cost/anthropic-cost-sync.js";
+import { PgCost } from "@re-cinq/lore-shared/project/cost/cost-pg.js";
 import type { Pool } from "pg";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
@@ -54,6 +56,10 @@ export function maintenanceJobs(getPool: () => Pool | null): MaintenanceJobs {
 
     // Was the Floor's `importance_decay` job (#1350).
     "importance-decay": () => importanceDecay(new PgMemoryLifecycle(pool())),
+
+    // Was the Floor's `anthropic_cost_sync` job (#1348). Reads the Anthropic
+    // Admin API and upserts daily rows — an import, not coordination.
+    "anthropic-cost-sync": () => anthropicCostSyncJob(new PgCost(pool())),
   };
 }
 
