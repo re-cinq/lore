@@ -27,6 +27,10 @@ export function bucketFor(path: string): RateBucket {
     return "embed";
   }
 
+  if (path.startsWith("/api/task-turns/")) {
+    return "turns";
+  }
+
   return "default";
 }
 

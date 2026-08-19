@@ -46,6 +46,7 @@ import {
   taskLogsGetRoute,
   taskLogsPostRoute,
 } from "../api/routes/tasks/task-logs.js";
+import { taskTurnsPostRoute } from "../api/routes/tasks/task-turns.js";
 import { jobRunLogsRoute } from "../api/routes/tasks/job-run-logs.js";
 import { taskPostRoute } from "../api/routes/tasks/task-post.js";
 import { taskGroupRoute } from "../api/routes/tasks/task-group.js";
@@ -137,6 +138,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     specTasksClaimRoute(getPool),
     specTasksCompleteRoute(getPool),
     taskLogsPostRoute(),
+    taskTurnsPostRoute(getPool),
     memoryRoute(getPool),
     ...memoryBrowseRoutes(getPool),
     episodeRoute(getPool),

@@ -1906,6 +1906,64 @@
         }
       }
     },
+    "/api/task-turns/{taskId}": {
+      "post": {
+        "operationId": "post_api_task-turns_taskId",
+        "summary": "POST /api/task-turns/{taskId}",
+        "tags": ["Tasks"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "turns",
+        "responses": {
+          "200": {
+            "description": "Successful response (2xx; the response body is not described — see info.description)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Raw NDJSON body — one claude stream-json line per row, already redacted on the laptop before anything left the machine.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-ndjson": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/memory": {
       "post": {
         "operationId": "post_api_memory",

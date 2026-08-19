@@ -89,6 +89,11 @@ export LORE_INGEST_TOKEN="${LORE_INGEST_TOKEN:-lore-local-dev-token}"
 #     "not configured" and every live run graph sits permanently Offline.
 export LORE_FLOOR_URL="${LORE_FLOOR_URL:-http://localhost:8080}"
 
+# 2c. lore-api's own Floor URL: the /api/task-turns relay (issue #1295) forwards
+#     locally-run task transcripts to the Floor's /api/agent-events sink through
+#     it. Unset, the relay answers 503 and local-run transcripts stay on disk.
+export LORE_AGENT_URL="${LORE_AGENT_URL:-http://localhost:8080}"
+
 # Station execution. Tasks run as Agent CRs on the ai-agent-subsystem (agent-cr),
 # which needs a Kubernetes cluster. The default `inprocess` keeps the lightweight
 # feature-planning/finalize path for a dev without one; set LORE_STATION_BACKEND=k8s

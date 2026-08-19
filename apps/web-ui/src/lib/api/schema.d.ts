@@ -687,6 +687,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/task-turns/{taskId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * POST /api/task-turns/{taskId}
+     * @description Raw NDJSON body — one claude stream-json line per row, already redacted on the laptop before anything left the machine.
+     */
+    post: operations["post_api_task-turns_taskId"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/memory": {
     parameters: {
       query?: never;
@@ -3242,6 +3262,36 @@ export interface operations {
         "application/json": {
           task_id: string;
         };
+      };
+    };
+    responses: {
+      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_task-turns_taskId": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        taskId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/x-ndjson": string;
       };
     };
     responses: {

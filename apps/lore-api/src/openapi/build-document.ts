@@ -74,6 +74,21 @@ function selfHandlesBody(route: ServerRoute): boolean {
   return payload?.parse === false;
 }
 
+/** A parse:false route whose raw body is a real API surface (an NDJSON relay),
+ *  not a handler-verified webhook payload, declares it via `options.app.rawBody`
+ *  so the document carries its true description and request body instead of the
+ *  HMAC boilerplate. */
+interface RawBodyMeta {
+  contentType: string;
+  description: string;
+}
+
+function rawBodyOf(route: ServerRoute): RawBodyMeta | undefined {
+  const app = optionsOf(route).app as { rawBody?: RawBodyMeta } | undefined;
+
+  return app?.rawBody;
+}
+
 export interface GenerateOptions {
   version?: string;
   serverUrl?: string;
@@ -423,8 +438,18 @@ function buildOperation(
 
     if (selfHandlesBody(route)) {
       coverage.selfHandled.push(key);
-      op.description =
-        "Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON.";
+      const raw = rawBodyOf(route);
+
+      if (raw) {
+        op.description = raw.description;
+        op.requestBody = {
+          required: true,
+          content: { [raw.contentType]: { schema: { type: "string" } } },
+        };
+      } else {
+        op.description =
+          "Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON.";
+      }
     } else if (BODYLESS_WRITES.has(key)) {
       coverage.bodyless.push(key);
     } else {

@@ -330,10 +330,14 @@ async function monitorTask(task: LocalTask): Promise<void> {
           const config = readConfig();
           const fixModel = config.model || "claude-sonnet-4-6";
           const fixLogFd = fs.openSync(task.logFile, "a");
+          const fixErrFd = fs.openSync(errFileFor(task.logFile), "a");
           const fixChild = spawn(
             "claude",
             [
               "--print",
+              "--output-format",
+              "stream-json",
+              "--verbose",
               "--dangerously-skip-permissions",
               "--model",
               fixModel,
@@ -343,13 +347,14 @@ async function monitorTask(task: LocalTask): Promise<void> {
             {
               cwd: task.worktreePath,
               detached: true,
-              stdio: ["ignore", fixLogFd, fixLogFd],
+              stdio: ["ignore", fixLogFd, fixErrFd],
               env: { ...process.env, HOME: os.homedir() },
             },
           );
 
           fixChild.unref();
           fs.closeSync(fixLogFd);
+          fs.closeSync(fixErrFd);
 
           if (fixChild.pid) {
             await waitForExit(fixChild.pid);
@@ -380,7 +385,16 @@ async function monitorTask(task: LocalTask): Promise<void> {
               await updateTaskViaAPI(task.taskId, "needs-human-help", {
                 failure_reason: retryOutput.substring(0, 2000),
               });
+              // Status is written BEFORE the artifact round-trips: writeTasks
+              // rewrites the whole file from this monitor's snapshot, so
+              // holding it across slow network calls widens the lost-update
+              // window against a concurrently finishing task.
               writeTasks(tasks);
+              // This early return used to skip the log upload entirely — the
+              // needs-human-help runs are exactly the ones whose transcript a
+              // human needs. Worktree cleanup stays skipped on purpose (kept
+              // for debugging).
+              await persistRunArtifacts(task);
 
               return;
             }
@@ -503,10 +517,219 @@ async function monitorTask(task: LocalTask): Promise<void> {
     console.error(`[lore] local-runner: task ${task.taskId} failed: ${errMsg}`);
   }
 
-  // Upload redacted logs to GCS via API (best effort)
+  // Same ordering rule as the early-return path: persist the status snapshot
+  // before the slow artifact round-trips.
+  writeTasks(tasks);
+  await persistRunArtifacts(task);
+}
+
+// Use shared redaction (alias for backward compatibility)
+const redactLogs = redactSecrets;
+
+// ---------------------------------------------------------------------------
+// Turn ingest — relay the run's stream-json transcript to the Floor's turn
+// store via lore-api POST /api/task-turns/{taskId} (issue #1295), so local
+// runs are readable like cluster runs. Redaction happens here, per line,
+// before anything leaves the machine.
+// ---------------------------------------------------------------------------
+
+/** Sibling file capturing stderr, kept out of the NDJSON transcript so a
+ *  stderr write can never land mid-JSON-line. */
+function errFileFor(logFile: string): string {
+  return `${logFile}.err`;
+}
+
+/**
+ * The relayable transcript of a raw log: per-line redaction (matching the
+ * Floor's own per-line rule — a whole-text pass could span JSON boundaries and
+ * erase every line in between), keeping only lines that parse as JSON after
+ * redaction. Non-JSON lines (validation markers, stray text) are not turns and
+ * are skipped silently; a line whose JSON breaks under redaction was a turn
+ * and is counted in `dropped`.
+ */
+export function buildTurnLines(
+  rawLog: string,
+  redact: (text: string) => string = redactLogs,
+): { lines: string[]; dropped: number } {
+  const lines: string[] = [];
+  let dropped = 0;
+
+  for (const raw of rawLog.split("\n")) {
+    const line = raw.trim();
+
+    if (!line || !parsesAsJson(line)) {
+      continue;
+    }
+
+    const redacted = redact(line);
+
+    if (redacted === line || parsesAsJson(redacted)) {
+      lines.push(redacted);
+      continue;
+    }
+    dropped++;
+  }
+
+  return { lines, dropped };
+}
+
+function parsesAsJson(line: string): boolean {
   try {
-    const rawLogs = fs.readFileSync(task.logFile, "utf-8");
-    const redacted = redactLogs(rawLogs);
+    JSON.parse(line);
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Greedy batches under both relay caps: bytes (Buffer.byteLength of the joined
+ * NDJSON — lore-api's body limit is 1MB, so the caller passes ~700KB headroom
+ * and pre-filters oversized lines via dropOversizedTurnLines before this call)
+ * and line count.
+ */
+export function batchTurnLines(
+  lines: string[],
+  maxBytes: number,
+  maxLines: number,
+): string[][] {
+  const batches: string[][] = [];
+  let batch: string[] = [];
+  let batchBytes = 0;
+
+  for (const line of lines) {
+    const lineBytes = Buffer.byteLength(line, "utf8") + 1;
+
+    if (
+      batch.length > 0 &&
+      (batch.length >= maxLines || batchBytes + lineBytes > maxBytes)
+    ) {
+      batches.push(batch);
+      batch = [];
+      batchBytes = 0;
+    }
+    batch.push(line);
+    batchBytes += lineBytes;
+  }
+
+  if (batch.length > 0) {
+    batches.push(batch);
+  }
+
+  return batches;
+}
+
+const TURN_BATCH_MAX_BYTES = 700 * 1024;
+const TURN_BATCH_MAX_LINES = 2000;
+
+/**
+ * A line whose own bytes exceed the batch cap can never relay — lore-api's
+ * body limit would 413 the whole request. Dropping it loudly here keeps one
+ * pathological line from costing the batches behind it.
+ */
+export function dropOversizedTurnLines(
+  lines: string[],
+  maxBytes: number,
+): { kept: string[]; oversized: number } {
+  const kept = lines.filter(
+    (line) => Buffer.byteLength(line, "utf8") + 1 <= maxBytes,
+  );
+
+  return { kept, oversized: lines.length - kept.length };
+}
+
+async function ingestTurns(task: LocalTask, rawLogs: string): Promise<void> {
+  const apiUrl = getApiUrl();
+  const token = getToken();
+
+  if (!apiUrl || !token) {
+    return;
+  }
+
+  const { lines, dropped } = buildTurnLines(rawLogs);
+
+  if (dropped > 0) {
+    console.warn(
+      `[lore] local-runner: ${dropped} turn line(s) dropped for ${task.taskId}: redaction left the line unparseable`,
+    );
+  }
+
+  const { kept, oversized } = dropOversizedTurnLines(
+    lines,
+    TURN_BATCH_MAX_BYTES,
+  );
+
+  if (oversized > 0) {
+    console.warn(
+      `[lore] local-runner: ${oversized} turn line(s) dropped for ${task.taskId}: line exceeds the ${TURN_BATCH_MAX_BYTES}-byte relay cap`,
+    );
+  }
+
+  // A failed batch is counted and skipped, never allowed to abandon the
+  // batches behind it — the terminal result line rides last, so aborting
+  // here would cost the cost row and the whole transcript tail.
+  let failed = 0;
+
+  for (const batch of batchTurnLines(
+    kept,
+    TURN_BATCH_MAX_BYTES,
+    TURN_BATCH_MAX_LINES,
+  )) {
+    try {
+      const resp = await fetch(`${apiUrl}/api/task-turns/${task.taskId}`, {
+        signal: AbortSignal.timeout(30_000),
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/x-ndjson",
+        },
+        body: batch.join("\n"),
+      });
+
+      enforceTrue(
+        resp.ok,
+        Error,
+        `turn ingest returned ${resp.status} for task ${task.taskId}`,
+      );
+    } catch (err) {
+      failed++;
+      warnBestEffort(
+        `turn batch (${batch.length} lines) for task ${task.taskId}`,
+        err,
+      );
+    }
+  }
+
+  if (failed > 0) {
+    console.warn(
+      `[lore] local-runner: ${failed} turn batch(es) failed for ${task.taskId}; transcript is incomplete server-side (log kept locally)`,
+    );
+  }
+}
+
+/**
+ * Best-effort persistence of the run's artifacts: the redacted log to GCS (the
+ * legacy viewer path, retirement tracked in #1295's follow-ups) and the
+ * redacted stream-json transcript to the Floor's turn store via lore-api.
+ * Called on EVERY monitorTask exit path, including the needs-human-help early
+ * return — the runs whose transcript matters most are the failed ones.
+ */
+async function persistRunArtifacts(task: LocalTask): Promise<void> {
+  let rawLogs = "";
+
+  try {
+    rawLogs = fs.readFileSync(task.logFile, "utf-8");
+    const errFile = errFileFor(task.logFile);
+    const stderr = fs.existsSync(errFile)
+      ? fs.readFileSync(errFile, "utf-8").trim()
+      : "";
+    // stderr is appended as a trailing block, no longer interleaved with
+    // stdout — chronology across the two streams is lost in the GCS copy.
+    const combined = stderr
+      ? `${rawLogs}\n--- STDERR ---\n${stderr}\n`
+      : rawLogs;
+    const redacted = redactLogs(combined);
     const apiUrl = getApiUrl();
     const tkn = getToken();
 
@@ -532,11 +755,15 @@ async function monitorTask(task: LocalTask): Promise<void> {
     );
   }
 
-  writeTasks(tasks);
+  try {
+    await ingestTurns(task, rawLogs);
+  } catch (err) {
+    warnBestEffort(
+      `turn ingest for task ${task.taskId} (transcript kept locally)`,
+      err,
+    );
+  }
 }
-
-// Use shared redaction (alias for backward compatibility)
-const redactLogs = redactSecrets;
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -657,8 +884,11 @@ export async function spawnLocalTask(opts: {
   );
   const fullPrompt = preambleParts.join("\n");
 
-  // Open log file for stdout/stderr capture
+  // stdout gets the stream-json transcript (the turn-ingest source, #1295);
+  // stderr goes to a sibling file so its writes can never corrupt an NDJSON
+  // line mid-write.
   const logFd = fs.openSync(logFile, "w");
+  const errFd = fs.openSync(errFileFor(logFile), "w");
 
   // Spawn headless Claude Code in the worktree
   const selectedModel = model || config.model || "claude-sonnet-4-6";
@@ -666,6 +896,9 @@ export async function spawnLocalTask(opts: {
     "claude",
     [
       "--print",
+      "--output-format",
+      "stream-json",
+      "--verbose",
       "--dangerously-skip-permissions",
       "--model",
       selectedModel,
@@ -675,13 +908,14 @@ export async function spawnLocalTask(opts: {
     {
       cwd: worktreePath,
       detached: true,
-      stdio: ["ignore", logFd, logFd],
+      stdio: ["ignore", logFd, errFd],
       env: { ...process.env, HOME: os.homedir() },
     },
   );
 
   child.unref();
   fs.closeSync(logFd);
+  fs.closeSync(errFd);
 
   if (!child.pid) {
     // Cleanup on spawn failure

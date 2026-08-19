@@ -162,6 +162,10 @@ A test builds the document from `routeList(() => null)` and asserts:
   defaults `servers` to the relative root when no `serverUrl` is given. ([validated by `build-document.test.ts:29`](apps/lore-api/src/openapi/build-document.test.ts#L29), [validated by `build-document.test.ts:33`](apps/lore-api/src/openapi/build-document.test.ts#L33), [validated by `build-document.test.ts:210`](apps/lore-api/src/openapi/build-document.test.ts#L210))
 - **FR4** Auth is modelled as a `bearerAuth` security scheme; authed operations set
   `security: [{ bearerAuth: [] }]`, HMAC webhook operations set `security: []`. ([validated by `build-document.test.ts:13`](apps/lore-api/src/openapi/build-document.test.ts#L13), [`build-document.test.ts:148`](apps/lore-api/src/openapi/build-document.test.ts#L148))
+- **FR4b** A `parse:false` route that declares `options.app.rawBody` is a real raw-body
+  API surface (an NDJSON relay), not a handler-verified webhook: its operation carries
+  the route's own description and a required request body of the declared content type
+  (`type: string`) instead of the generic HMAC boilerplate. ([validated by `build-document.test.ts:228`](apps/lore-api/src/openapi/build-document.test.ts#L228))
 - **FR5** `GET /api/openapi.json` (read scope) serves the document. `GET /api/docs`
   (read scope) serves a Redoc HTML page with the document **inlined**. Both gate on
   read scope: a missing bearer is `401` and a token lacking read scope is `403`

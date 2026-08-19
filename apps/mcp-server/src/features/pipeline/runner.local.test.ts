@@ -13,6 +13,9 @@ import {
   listPendingTasks,
   validateRepoMatch,
   cancelLocalTask,
+  buildTurnLines,
+  batchTurnLines,
+  dropOversizedTurnLines,
   type LocalRunnerConfig,
   type PendingTask,
 } from "./runner.local.js";
@@ -324,6 +327,123 @@ describe("lore_configure_local_runner update merge", () => {
       repos: ["re-cinq/lore"],
       task_types: ["implementation", "general"],
       model: "claude-opus-4-6",
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildTurnLines — per-line redaction + stream-json filtering for turn ingest
+// ---------------------------------------------------------------------------
+
+describe("buildTurnLines", () => {
+  it("keeps parseable stream-json lines untouched", () => {
+    const lines = [
+      JSON.stringify({ type: "system", subtype: "init" }),
+      JSON.stringify({ type: "result", is_error: false, result: "done" }),
+    ];
+
+    expect(buildTurnLines(lines.join("\n"))).toEqual({
+      lines,
+      dropped: 0,
+    });
+  });
+
+  it("skips non-JSON lines without counting them as dropped", () => {
+    const good = JSON.stringify({ type: "assistant" });
+    const raw = [
+      "--- VALIDATION FAILED ---",
+      "plain stderr text",
+      good,
+      "",
+    ].join("\n");
+
+    expect(buildTurnLines(raw)).toEqual({ lines: [good], dropped: 0 });
+  });
+
+  it("redacts a secret inside a line and keeps the still-parseable result", () => {
+    const raw = JSON.stringify({
+      type: "assistant",
+      text: "token ghp_abcdefghijklmnopqrstuvwxyz012345 leaked",
+    });
+    const result = buildTurnLines(raw);
+
+    expect(result.dropped).toBe(0);
+    expect(result.lines).toHaveLength(1);
+    expect(result.lines[0]).not.toContain("ghp_abcdefghijklmnopqrstuvwxyz");
+    expect(JSON.parse(result.lines[0])).toMatchObject({ type: "assistant" });
+  });
+
+  it("drops and counts a line whose JSON breaks under redaction", () => {
+    const broken = `{"a":"-----BEGIN PRIVATE KEY-----","b":{"c":"-----END PRIVATE KEY-----"}}`;
+    const good = JSON.stringify({ type: "assistant" });
+
+    expect(buildTurnLines([broken, good].join("\n"))).toEqual({
+      lines: [good],
+      dropped: 1,
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// batchTurnLines — greedy batching under the relay's byte and line caps
+// ---------------------------------------------------------------------------
+
+describe("batchTurnLines", () => {
+  it("splits on the line cap", () => {
+    const lines = ["1", "2", "3", "4", "5"];
+
+    expect(batchTurnLines(lines, 1000, 2)).toEqual([
+      ["1", "2"],
+      ["3", "4"],
+      ["5"],
+    ]);
+  });
+
+  it("splits on the byte cap measured with Buffer.byteLength", () => {
+    // "ü" is 1 char but 2 utf-8 bytes: 3 lines of 10 bytes each under a
+    // 25-byte cap must split after two lines, not three.
+    const line = "ü".repeat(5);
+
+    expect(batchTurnLines([line, line, line], 25, 100)).toEqual([
+      [line, line],
+      [line],
+    ]);
+  });
+
+  it("emits a line larger than the byte cap as its own batch", () => {
+    const big = "x".repeat(50);
+
+    expect(batchTurnLines(["a", big, "b"], 20, 100)).toEqual([
+      ["a"],
+      [big],
+      ["b"],
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// dropOversizedTurnLines — a line that can never fit one relay request is
+// dropped loudly instead of 413-ing its batch
+// ---------------------------------------------------------------------------
+
+describe("dropOversizedTurnLines", () => {
+  it("keeps lines at or under the byte cap and counts the rest", () => {
+    const small = "x".repeat(10);
+    const big = "y".repeat(40);
+
+    expect(dropOversizedTurnLines([small, big, small], 20)).toEqual({
+      kept: [small, small],
+      oversized: 1,
+    });
+  });
+
+  it("measures utf-8 bytes plus the join newline, not characters", () => {
+    // 10 chars but 20 utf-8 bytes: over a 15-byte cap despite length 10.
+    const multibyte = "ü".repeat(10);
+
+    expect(dropOversizedTurnLines([multibyte], 15)).toEqual({
+      kept: [],
+      oversized: 1,
     });
   });
 });

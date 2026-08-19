@@ -110,6 +110,14 @@ produces the cost rows and the projection rows.
 - Turn collection is skipped entirely for an oversized body, reusing the projection's existing `MAX_VIZ_BODY_BYTES` gate rather than adding a second size rule. ([validated by `agent-events-turns.test.ts:87`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L88))
 - A failure to persist turns is counted and logged, never propagated: cost accounting is the sink's contract and a non-authoritative store must not be able to fail it. ([validated by `agent-events-turns.test.ts:77`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L78), [`agent-events-turns.test.ts:54`](apps/floor/src/delivery/http/routes/agent-events-turns.test.ts#L54))
 
+Since issue #1295 the sink has a second producer besides the ai-agent-subsystem
+pods: the mcp-server local runner relays its redacted stream-json transcript
+through lore-api's `POST /api/task-turns/{taskId}`
+(`specs/api-routes/task-turns/spec.md`), which wraps each line in the task
+attribution envelope and forwards it to this same ingest. Those turns carry a
+task id but no agent CR name, so they land uncorrelated to any assembly line —
+the rows FR1 preserves and `listByTask` exists to reach.
+
 ## FR4 — The read API
 
 `GET /api/agent-turns/{assemblyLineId}` on the Floor HTTP server mirrors
