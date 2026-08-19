@@ -1857,6 +1857,62 @@ export interface components {
         [key: string]: unknown;
       } | null;
     };
+    TaskDetail: {
+      id: string;
+      description: string;
+      task_type: string;
+      status: string;
+      target_repo: string;
+      target_branch: string | null;
+      agent_id: string | null;
+      pr_url: string | null;
+      pr_number: number | null;
+      review_iteration: number;
+      context_bundle: {
+        [key: string]: unknown;
+      } | null;
+      context_refs: {
+        [key: string]: unknown;
+      } | null;
+      dark_factory_overrides: {
+        [key: string]: unknown;
+      } | null;
+      failure_reason: string | null;
+      created_by: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      updated_at: string;
+      priority: string;
+      log_url: string | null;
+      claimed_by: string | null;
+      claimed_at: string | null;
+      task_group_id: string | null;
+      actor: string | null;
+      issue_number: number | null;
+      issue_url: string | null;
+      events: {
+        id: string;
+        task_id: string;
+        from_status: string | null;
+        to_status: string;
+        metadata: {
+          [key: string]: unknown;
+        } | null;
+        /** Format: date-time */
+        created_at: string;
+      }[];
+    };
+    TaskRunList: {
+      runs: {
+        id: string;
+        /** @enum {string} */
+        status: "queued" | "running" | "finished" | "failed";
+        outcome: string | null;
+        /** Format: date-time */
+        created_at: string;
+      }[];
+    };
     AssemblyRunList: {
       runs: {
         id: string;
@@ -2847,15 +2903,18 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description One task and the transitions it has recorded */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["TaskDetail"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -2917,15 +2976,18 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      /** @description The task's per-attempt runs, newest first */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": components["schemas"]["TaskRunList"];
+        };
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };

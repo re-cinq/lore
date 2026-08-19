@@ -663,13 +663,23 @@
         "x-rate-limit-bucket": "task",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "One task and the transitions it has recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetail"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -776,13 +786,23 @@
         "x-rate-limit-bucket": "task",
         "responses": {
           "200": {
-            "description": "Successful response (2xx; the response body is not described — see info.description)"
+            "description": "The task's per-attempt runs, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskRunList"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -6325,6 +6345,224 @@
           "settings",
           "outcomeStats"
         ],
+        "additionalProperties": false
+      },
+      "TaskDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "task_type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "target_repo": {
+            "type": "string"
+          },
+          "target_branch": {
+            "type": ["string", "null"]
+          },
+          "agent_id": {
+            "type": ["string", "null"]
+          },
+          "pr_url": {
+            "type": ["string", "null"]
+          },
+          "pr_number": {
+            "type": ["number", "null"]
+          },
+          "review_iteration": {
+            "type": "number"
+          },
+          "context_bundle": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context_refs": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dark_factory_overrides": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_reason": {
+            "type": ["string", "null"]
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "log_url": {
+            "type": ["string", "null"]
+          },
+          "claimed_by": {
+            "type": ["string", "null"]
+          },
+          "claimed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "task_group_id": {
+            "type": ["string", "null"]
+          },
+          "actor": {
+            "type": ["string", "null"]
+          },
+          "issue_number": {
+            "type": ["number", "null"]
+          },
+          "issue_url": {
+            "type": ["string", "null"]
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "task_id": {
+                  "type": "string"
+                },
+                "from_status": {
+                  "type": ["string", "null"]
+                },
+                "to_status": {
+                  "type": "string"
+                },
+                "metadata": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "id",
+                "task_id",
+                "from_status",
+                "to_status",
+                "metadata",
+                "created_at"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "task_type",
+          "status",
+          "target_repo",
+          "target_branch",
+          "agent_id",
+          "pr_url",
+          "pr_number",
+          "review_iteration",
+          "context_bundle",
+          "context_refs",
+          "dark_factory_overrides",
+          "failure_reason",
+          "created_by",
+          "created_at",
+          "updated_at",
+          "priority",
+          "log_url",
+          "claimed_by",
+          "claimed_at",
+          "task_group_id",
+          "actor",
+          "issue_number",
+          "issue_url",
+          "events"
+        ],
+        "additionalProperties": false
+      },
+      "TaskRunList": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["queued", "running", "finished", "failed"]
+                },
+                "outcome": {
+                  "type": ["string", "null"]
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": ["id", "status", "outcome", "created_at"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["runs"],
         "additionalProperties": false
       },
       "AssemblyRunList": {
