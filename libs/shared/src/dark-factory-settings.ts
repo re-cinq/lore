@@ -1,56 +1,40 @@
 /**
- * Canonical dark-factory settings types + resolver. Shared between
- * mcp-server (writes the JSONB), agent (reads + applies), and the
- * forthcoming GKE Job pod runner (reads via env). Centralized here so
- * the three consumers cannot drift.
+ * The dark-factory RESOLVER and its defaults. Shared between mcp-server (writes
+ * the JSONB), the agent (reads + applies), and the Station pod runner.
  *
- * The Zod schema for input validation lives in the mcp-server (it's
- * the only edge that accepts raw user input). Both consumers depend
- * on the same {@link ResolvedDarkFactorySettings} shape and the same
- * defaulting logic.
+ * The SHAPES live in `models/dark-factory-settings.ts` — one declaration beside
+ * the other stored types — and are re-exported here so the ~40 existing importers
+ * keep working. Types and resolver stayed together historically; splitting them
+ * is what stops a settings shape being restated per consumer.
  */
 
-export type TrustLevel = "docs" | "tests" | "implementation" | "full";
-export type ReviewMode = "trust_based" | "always" | "never";
-export type CreateIssueMode = "never" | "on_gate" | "always";
-export type NotifyChannel = "escalation" | "watched" | "all";
+export {
+  DarkFactoryAutoMergeSchema,
+  DarkFactoryExecutionSchema,
+  DarkFactorySettingsSchema,
+  ResolvedDarkFactorySettingsSchema,
+  CreateIssueModeSchema,
+  NotifyChannelSchema,
+  ReviewModeSchema,
+  TrustLevelSchema,
+} from "./models/dark-factory-settings.js";
+export type {
+  CreateIssueMode,
+  DarkFactoryAutoMerge,
+  DarkFactoryExecution,
+  DarkFactorySettings,
+  NotifyChannel,
+  ResolvedDarkFactorySettings,
+  ReviewMode,
+  TrustLevel,
+} from "./models/dark-factory-settings.js";
 
-export interface DarkFactoryAutoMerge {
-  paths?: string[];
-  min_trust?: TrustLevel;
-  require_green_ci?: boolean;
-  require_bot_approval?: boolean;
-}
-
-export interface DarkFactorySettings {
-  enabled?: boolean;
-  create_issue?: CreateIssueMode;
-  auto_merge?: DarkFactoryAutoMerge;
-  review?: ReviewMode;
-  notify?: NotifyChannel[];
-  execution?: DarkFactoryExecution;
-}
-
-/**
- * Per-repo execution knobs. `image` is the container image a task's Station
- * runs in (ADR-025). All tasks run on the ai-agent-subsystem (`agent-cr`).
- */
-export interface DarkFactoryExecution {
-  image?: string;
-}
-
-export interface ResolvedDarkFactorySettings {
-  enabled: boolean;
-  create_issue: CreateIssueMode;
-  auto_merge: {
-    paths: string[];
-    min_trust: TrustLevel;
-    require_green_ci: boolean;
-    require_bot_approval: boolean;
-  };
-  review: ReviewMode;
-  notify: NotifyChannel[];
-}
+import type {
+  DarkFactoryExecution,
+  DarkFactorySettings,
+  ResolvedDarkFactorySettings,
+  TrustLevel,
+} from "./models/dark-factory-settings.js";
 
 export const DEFAULT_AUTO_MERGE_PATHS = [
   "specs/**",

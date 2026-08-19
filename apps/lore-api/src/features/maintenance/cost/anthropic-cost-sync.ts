@@ -97,18 +97,6 @@ async function fetchAllBuckets(
   return buckets;
 }
 
-function upsertRow(costs: CostPort, row: AnthropicCostDailyRow): Promise<void> {
-  return costs.upsertDaily({
-    bucketDate: row.date,
-    model: row.model,
-    costUsd: row.costUsd,
-    inputTokens: row.inputTokens,
-    outputTokens: row.outputTokens,
-    cacheCreationTokens: row.cacheCreationTokens,
-    cacheReadTokens: row.cacheReadTokens,
-  });
-}
-
 /**
  * The 31-day cost+usage pull behind the daily sync. Extracted from the job
  * body so the window/bucket/merge mechanics are testable without a database.
@@ -143,7 +131,7 @@ export async function anthropicCostSyncJob(
 
   const merged = await fetchAnthropicCostRows(adminKey);
 
-  await Promise.all(merged.map((row) => upsertRow(costs, row)));
+  await Promise.all(merged.map((row) => costs.upsertDaily(row)));
 
   const total = merged.reduce((sum, row) => sum + row.costUsd, 0);
 

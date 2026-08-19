@@ -65,29 +65,57 @@ const loaded: Array<[string, ModelModule]> = await Promise.all(
   ),
 );
 
+function columnsKey(mod: ModelModule): string | undefined {
+  return Object.keys(mod).find((k) => k.endsWith("_COLUMNS"));
+}
+
 function columnsOf(mod: ModelModule): Record<string, string> | undefined {
-  const key = Object.keys(mod).find((k) => k.endsWith("_COLUMNS"));
+  const key = columnsKey(mod);
 
   return key ? (mod[key] as Record<string, string>) : undefined;
 }
 
+/**
+ * The schema name a column map implies: `ASSEMBLY_RUN_COLUMNS` → `AssemblyRunSchema`.
+ *
+ * Derived rather than "the first export ending in Schema", which quietly picked a
+ * model's status ENUM — it has no `.shape`, so the model dropped out of the sweep
+ * and reported nothing while looking covered.
+ */
+export function schemaNameFor(columnsExport: string): string {
+  const pascal = columnsExport
+    .replace(/_COLUMNS$/, "")
+    .toLowerCase()
+    .replace(/(^|_)([a-z])/g, (_m, _sep, c: string) => c.toUpperCase());
+
+  return `${pascal}Schema`;
+}
+
 function shapeOf(mod: ModelModule): ZodRawShape | undefined {
-  const key = Object.keys(mod).find(
-    (k) => k.endsWith("Schema") && !k.startsWith("Resolved"),
-  );
+  const key = columnsKey(mod);
   const schema = key
-    ? (mod[key] as ZodTypeAny & { shape?: ZodRawShape })
+    ? (mod[schemaNameFor(key)] as
+        (ZodTypeAny & { shape?: ZodRawShape }) | undefined)
     : undefined;
 
   return schema?.shape;
 }
 
+/** Files that declare a table but whose schema the sweep could not resolve. */
+const unreadable: string[] = [];
+
 const tableModels: TableModel[] = loaded.flatMap(([file, mod]) => {
   const columns = columnsOf(mod);
-  const shape = shapeOf(mod);
   const tableKey = Object.keys(mod).find((k) => k.endsWith("_TABLE"));
 
-  if (!columns || !shape || !tableKey) {
+  if (!columns || !tableKey) {
+    return [];
+  }
+  const shape = shapeOf(mod);
+
+  if (!shape) {
+    unreadable.push(file);
+
     return [];
   }
 
@@ -99,6 +127,10 @@ describe("the models folder", () => {
     const repo = tableModels.find((m) => m.table === REPO_TABLE);
 
     expect(repo?.columns).toEqual(REPO_COLUMNS);
+  });
+
+  it("resolves the schema of every table model, so none escapes the sweep", () => {
+    expect(unreadable).toEqual([]);
   });
 
   it("gives every table model a distinct table", () => {
@@ -153,5 +185,9 @@ describe("the guard itself", () => {
 
   it("reports a camelCase column name", () => {
     expect(nonSnakeColumns({ fullName: "fullName" })).toEqual(["fullName"]);
+  });
+
+  it("derives AssemblyRunSchema from ASSEMBLY_RUN_COLUMNS", () => {
+    expect(schemaNameFor("ASSEMBLY_RUN_COLUMNS")).toBe("AssemblyRunSchema");
   });
 });
