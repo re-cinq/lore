@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { listRepos } from "@/lib/api/repos";
+import { listAllRepos } from "@/lib/api/repos";
 import { createTask as queueTask } from "@/lib/api/tasks";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
@@ -41,13 +41,19 @@ async function createTask(formData: FormData) {
 }
 
 export default async function CreateTaskPage() {
-  const repoList = await listRepos();
-  const onboardedRepos =
-    repoList.status === "ok"
-      ? repoList.data.repos
-          .map((repo) => ({ full_name: repo.full_name }))
-          .sort((a, b) => a.full_name.localeCompare(b.full_name))
-      : [];
+  const repoList = await listAllRepos();
+
+  if (repoList.status !== "ok") {
+    // An unreachable lore-api used to throw here, before these reads moved
+    // behind it. Answering `[]` instead renders "no repos" — a degraded
+    // dependency reported as legitimate empty data (#1427).
+    throw new Error(
+      `repo list unavailable: ${repoList.status === "error" ? repoList.message : "LORE_API_URL not configured"}`,
+    );
+  }
+  const onboardedRepos = repoList.data.repos
+    .map((repo) => ({ full_name: repo.full_name }))
+    .sort((a, b) => a.full_name.localeCompare(b.full_name));
 
   return (
     <AssemblyRunCreateView

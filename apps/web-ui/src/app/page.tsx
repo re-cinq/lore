@@ -22,7 +22,19 @@ const HOME_REPO_LIMIT = 100;
 export default async function HomePage() {
   // Query repos with activity summary, bounded to the most recently onboarded.
   const repoList = await listRepos();
-  const repos = (repoList.status === "ok" ? repoList.data.repos : []).slice(
+
+  if (repoList.status !== "ok") {
+    // The worst instance of the empty-on-failure read: this page renders "No
+    // repositories onboarded yet — add your first repo" when the list is empty,
+    // so an unreachable lore-api told an org with repos that it had none. An
+    // error boundary is the honest answer (#1427).
+    throw new Error(
+      `repo list unavailable: ${repoList.status === "error" ? repoList.message : "LORE_API_URL not configured"}`,
+    );
+  }
+  // Deliberately ONE page: this list is sliced to the most recently onboarded
+  // few, so it never needed the whole set (unlike the pickers, which do).
+  const repos = repoList.data.repos.slice(
     0,
     HOME_REPO_LIMIT,
   ) as unknown as Repo[];

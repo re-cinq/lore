@@ -24,11 +24,57 @@ export function getRepo(fullName: string): Promise<ApiResult<RepoRecord>> {
   return apiFetch("lore-api", `/api/repos/${fullName}`);
 }
 
-/** Every onboarded repo, newest first, each row carrying its task count. */
-export function listRepos(): Promise<
+/** ONE page of onboarded repos, newest first, each row carrying its task count.
+ *  Answers at most `MAX_PAGE_LIMIT` rows — see {@link listAllRepos}. */
+export function listRepos(
+  limit?: number,
+  offset?: number,
+): Promise<ApiResult<{ repos: RepoWithCounts[]; total: number }>> {
+  const query =
+    limit === undefined && offset === undefined
+      ? ""
+      : `?limit=${limit ?? PAGE}&offset=${offset ?? 0}`;
+
+  return apiFetch("lore-api", `/api/repos${query}`);
+}
+
+/** lore-api CLAMPS `limit` to this, so a bigger ask is silently trimmed rather
+ *  than honoured — paging is the only way past it. Mirrors `MAX_PAGE_LIMIT`. */
+const PAGE = 100;
+
+/**
+ * EVERY onboarded repo, paged.
+ *
+ * `/api/repos` clamps its limit at 100, so a caller that wants a complete list —
+ * a repo picker, a filter dropdown — cannot ask for one. Reading a single page
+ * and treating it as the whole set loses every repo past the hundredth, with
+ * nothing in the UI to say so.
+ *
+ * A failed page returns the FAILURE, never the rows gathered so far: a short
+ * list is indistinguishable from a complete one at the call site, which is the
+ * bug this exists to prevent.
+ */
+export async function listAllRepos(): Promise<
   ApiResult<{ repos: RepoWithCounts[]; total: number }>
 > {
-  return apiFetch("lore-api", "/api/repos");
+  const repos: RepoWithCounts[] = [];
+
+  for (;;) {
+    const page = await listRepos(PAGE, repos.length);
+
+    if (page.status !== "ok") {
+      return page;
+    }
+    const { total } = page.data;
+
+    repos.push(...page.data.repos);
+
+    // An empty page ends the walk even when `total` disagrees — a count that
+    // outruns the rows (a repo deleted mid-read) would otherwise loop forever.
+    if (page.data.repos.length === 0 || repos.length >= total) {
+      return { status: "ok", data: { repos, total } };
+    }
+  }
 }
 
 /** The onboarding result lore-api answers with when the guard clears. */
