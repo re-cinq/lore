@@ -148,6 +148,28 @@ describe("stationNodeOutcome failure classification", () => {
     });
   });
 
+  it("falls back to the Job-level reason when the agent errored with an empty string", () => {
+    // `terminalErrorText` answers `parsed.result` for any line carrying
+    // `is_error`, and "" is a result. Under `??` that empty string won the
+    // precedence, so the summary went out blank and the only real information —
+    // the Job-level reason — was discarded.
+    expect(
+      stationNodeOutcome(
+        { type: "agent" },
+        {
+          phase: "Failed",
+          errorText: "",
+          failureReason:
+            "BackoffLimitExceeded: Job has reached the specified backoff limit",
+        },
+      ),
+    ).toMatchObject({
+      failureClass: "infra",
+      failureDetail:
+        "BackoffLimitExceeded: Job has reached the specified backoff limit",
+    });
+  });
+
   it("classifies unknown for a failure with neither text", () => {
     expect(
       stationNodeOutcome({ type: "agent" }, { phase: "Failed" }),

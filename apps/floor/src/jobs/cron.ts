@@ -113,7 +113,7 @@ export const llmCreditProbe: EventHandler = async () => {
   const [{ anthropicCreditsExhausted }, { llmDispatchGate }] =
     await Promise.all([
       import("@re-cinq/lore-shared/llm/credit-probe.js"),
-      import("./assembly-run/node-event-handler.js"),
+      import("./assembly-run/llm-dispatch-gate.js"),
     ]);
 
   if (!llmDispatchGate.isBlocked()) {

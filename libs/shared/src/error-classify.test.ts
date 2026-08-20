@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   classifyError,
+  isFailureCategory,
   isPermanentFailure,
   summarizeFailures,
   TaskFailure,
@@ -91,6 +92,41 @@ describe("classifyError", () => {
     for (const m of messages) {
       expect(classifyError(m).hint.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("the infra matcher and the agent's own timeouts", () => {
+  it.each([
+    "DeadlineExceeded: Job was active longer than specified deadline",
+    "Job lore-station-x timed out",
+    "timed out waiting for the condition",
+    "OOMKilled",
+    "Evicted: The node was low on resource: ephemeral-storage",
+  ])("classifies %s as infra", (message) => {
+    expect(classifyError(message)).toMatchObject({ category: "infra" });
+  });
+
+  it("leaves the agent's own request timeout unclassified, not infra", () => {
+    // The infra hint says "the pod died rather than the work failing". For an
+    // Anthropic request timeout that sentence is false, and it is the one line
+    // an operator reads to find out what happened.
+    expect(classifyError("Request timed out")).toMatchObject({
+      category: "unknown",
+    });
+  });
+});
+
+describe("isFailureCategory", () => {
+  it("accepts a category the module declares", () => {
+    expect(isFailureCategory("anthropic-credit")).toBe(true);
+  });
+
+  it("rejects a name inherited from Object.prototype", () => {
+    // `in` walks the prototype chain: with it, both of these answered true and
+    // failureHint returned a function, which the terminal reason would have
+    // interpolated as source text.
+    expect(isFailureCategory("toString")).toBe(false);
+    expect(isFailureCategory("constructor")).toBe(false);
   });
 });
 

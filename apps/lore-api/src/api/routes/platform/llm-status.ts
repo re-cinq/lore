@@ -71,15 +71,37 @@ export function decideLlmStatus(groups: RecentFailureGroup[]): LlmStatus {
   };
 }
 
+/**
+ * One row per recent failure class: how many runs it touched, when it started,
+ * and the detail of the run that started it.
+ *
+ * `min(failure_detail)` alongside `min(finished_at)` was two INDEPENDENT
+ * aggregates — `min` over text is lexicographic, so the quoted message was the
+ * alphabetically smallest in the group and belonged to no particular row, while
+ * `since` came from a different one. The banner quotes a message and dates it;
+ * both must come from the same failure. `DISTINCT ON` picks the oldest row per
+ * class, and the count is joined onto it.
+ */
 const RECENT_FAILURES_SQL = `
-  SELECT failure_class,
-         min(failure_detail) AS failure_detail,
-         min(finished_at)    AS oldest,
-         count(DISTINCT assembly_run_id)::int AS runs
-    FROM pipeline.station_runs
-   WHERE failure_class IS NOT NULL
-     AND finished_at > now() - ($1 || ' minutes')::interval
-   GROUP BY failure_class`;
+  WITH recent AS (
+    SELECT failure_class, failure_detail, finished_at, assembly_run_id
+      FROM pipeline.station_runs
+     WHERE failure_class IS NOT NULL
+       AND finished_at > now() - ($1 || ' minutes')::interval
+  ), oldest AS (
+    SELECT DISTINCT ON (failure_class)
+           failure_class, failure_detail, finished_at AS oldest
+      FROM recent
+     ORDER BY failure_class, finished_at
+  )
+  SELECT o.failure_class, o.failure_detail, o.oldest,
+         count(DISTINCT r.assembly_run_id)::int AS runs
+    FROM oldest o
+    JOIN recent r ON r.failure_class = o.failure_class
+   GROUP BY o.failure_class, o.failure_detail, o.oldest`;
+
+/** Postgres "undefined column" — a database that predates migration 0042. */
+const UNDEFINED_COLUMN = "42703";
 
 export function llmStatusRoute(getPool: () => Pool | null): ServerRoute {
   return {
@@ -97,9 +119,25 @@ export function llmStatusRoute(getPool: () => Pool | null): ServerRoute {
         return h.response({ error: "database unavailable" }).code(503);
       }
 
-      const { rows } = await pool.query(RECENT_FAILURES_SQL, [WINDOW_MINUTES]);
+      try {
+        const { rows } = await pool.query(RECENT_FAILURES_SQL, [
+          WINDOW_MINUTES,
+        ]);
 
-      return h.response(decideLlmStatus(rows as RecentFailureGroup[]));
+        return h.response(decideLlmStatus(rows as RecentFailureGroup[]));
+      } catch (err) {
+        // A database without the failure columns answers HEALTHY rather than
+        // 500, the same way the run reads degrade to empty on a pre-0025 one.
+        // The deploy hook makes migrate-then-serve the normal ordering, so this
+        // is the abnormal path — a rolled-back migration, an image ahead of the
+        // hook, a local dev database. This endpoint is polled by a BANNER, and
+        // a 500 there is the outage-reporting machinery reporting itself.
+        if ((err as { code?: string }).code === UNDEFINED_COLUMN) {
+          return h.response(HEALTHY);
+        }
+
+        throw err;
+      }
     },
   };
 }

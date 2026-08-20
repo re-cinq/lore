@@ -135,6 +135,12 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
         // correlation joins resolve agent_cr_name -> newest node row, and an
         // echoed name would steal the source's late-arriving rows.
         agentCrName: null,
+        // Nor its VERDICT. `nextTransition` replays the copied prefix and fails
+        // the run on a permanent failure it meets on a revisit edge, so an
+        // inherited `anthropic-credit` visit would kill the fork on its first
+        // advance — the operation someone performs after topping the account up.
+        failureClass: null,
+        failureDetail: null,
       });
     }
     this.events.push({

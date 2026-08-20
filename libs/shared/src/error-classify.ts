@@ -64,8 +64,15 @@ function categorize(message: string, step?: string): FailureCategory {
   // reports when the agent never got to say anything itself, so they are checked
   // last — a pod that died for a credential reason has already matched above, and
   // its Job would otherwise be reclassified as generic infrastructure.
+  //
+  // Anchored to the KUBERNETES phrasings. A bare /timed out/ also matches the
+  // agent's own "Request timed out" from the Anthropic API, and the infra hint
+  // then tells the operator "the pod died rather than the work failing" — which
+  // would be false. The retry budget treats `infra` and `unknown` alike, so the
+  // cost of the loose match was never behaviour; it was a confidently wrong
+  // sentence in the one place someone reads to find out what happened.
   if (
-    /backofflimitexceeded|deadlineexceeded|oomkilled|evicted|timed out/i.test(
+    /backofflimitexceeded|deadlineexceeded|oomkilled|evicted|job .* timed out|timed out waiting/i.test(
       message,
     )
   ) {
@@ -116,9 +123,14 @@ export function failureHint(category: FailureCategory): string {
   return HINTS[category];
 }
 
-/** True for a string that names a category this module knows. */
+/** True for a string that names a category this module knows.
+ *
+ *  `hasOwn`, not `in`: `in` walks the prototype chain, so "toString" and
+ *  "constructor" would both pass and `failureHint` would answer a FUNCTION.
+ *  `failure_class` is a plain TEXT column read straight back into a visit, so
+ *  this predicate is the only thing between that column and `HINTS[...]`. */
 export function isFailureCategory(value: string): value is FailureCategory {
-  return value in HINTS;
+  return Object.hasOwn(HINTS, value);
 }
 
 export function isPermanentFailure(category: FailureCategory): boolean {

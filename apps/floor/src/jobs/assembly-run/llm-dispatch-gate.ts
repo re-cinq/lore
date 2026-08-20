@@ -75,3 +75,14 @@ export class LlmDispatchGate {
     };
   }
 }
+
+/**
+ * The one gate the factory shares.
+ *
+ * It lives here, beside the class, because BOTH sides of the outage reach for
+ * it: the node-event handler trips it, and the credit-probe cron clears it. They
+ * must hold the same object — a second instance leaves the factory parked after
+ * the account is topped up — and the holder should be the module that owns the
+ * concept rather than whichever handler happened to need it first.
+ */
+export const llmDispatchGate = new LlmDispatchGate();

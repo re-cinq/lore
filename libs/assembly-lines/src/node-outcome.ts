@@ -109,9 +109,15 @@ export function stationNodeOutcome(
     // Job-level reason only when it never got to speak. Reading `failureReason`
     // first classified every death as `BackoffLimitExceeded` — which is how a
     // dry Anthropic account reached an author as a retry-budget message.
+    //
+    // `||`, not `??`: `terminalErrorText` answers `parsed.result` for any line
+    // with `is_error`, and an agent that errors with an EMPTY result string
+    // would otherwise win the precedence with nothing to say — classifying as
+    // `unknown`, emitting an empty summary, and discarding the Job-level reason
+    // that was the only information anyone had. "Said nothing" is not "spoke".
     const detail = (
-      status.errorText ??
-      status.failureReason ??
+      status.errorText ||
+      status.failureReason ||
       `${failureKind(node)} run failed`
     ).substring(0, 300);
 

@@ -15,7 +15,7 @@ import { advanceLine, type AdvanceDeps } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { notifyLineFailure } from "./notify-failure.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
-import { LlmDispatchGate } from "./llm-dispatch-gate.js";
+import { llmDispatchGate } from "./llm-dispatch-gate.js";
 import {
   codeReviewOnCommentTriaged,
   type CommentContext,
@@ -245,11 +245,6 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
 /** Module singleton: the billing outage is account-wide, so the alert throttle
  *  must survive across per-event deps (one alert/hour across all repos). */
 const billingAlertThrottle = new BillingAlertThrottle();
-
-/** Module singleton for the same reason, and exported because the credit-probe
- *  cron is what CLEARS it — the gate has to be the same object on both sides or
- *  the factory stays parked after the account is topped up. */
-export const llmDispatchGate = new LlmDispatchGate();
 
 /** Composed production handler for the registry (both node-terminal events). */
 export const agentNodeTerminal: EventHandler = async (params) => {

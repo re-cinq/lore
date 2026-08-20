@@ -213,6 +213,15 @@ export async function advanceLine(
   // it will boot, install, call the API once, and die. Park it instead. Only
   // agent nodes are gated; a validate or gate station has no model call to fail.
   if (node.type === "agent" && deps.llmGate?.isBlocked()) {
+    // Parking is INVISIBLE otherwise: this returns void, so the caller cannot
+    // tell "parked" from "advanced", and during an outage an operator gets one
+    // gate-trip warning and then silence while runs sit `running` with no open
+    // node. Naming the run and the node is what answers "which ones are
+    // waiting", at one line per reaper tick per parked run.
+    console.log(
+      `[llm-dispatch-gate] parked ${row.id} at node "${node.id}" — agent dispatch is blocked`,
+    );
+
     return;
   }
   const task = taskFromRow(row);

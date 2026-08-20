@@ -181,6 +181,15 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     // sequentially and its upsert mints no new id on replay, so "rows up to the
     // chosen visit" and "rows with id <= its id" are the same set (including for
     // a fork of a fork, whose copied rows are inserted in ORDER BY n.id).
+    //
+    // `failure_class` / `failure_detail` are dropped alongside `agent_cr_name`,
+    // and for the same reason: all three describe the ATTEMPT that is over, not
+    // the history the fork inherits. Copying the verdict would be worse than
+    // untidy — `nextTransition` replays every visit from the entry node and
+    // fails the run on a permanent failure it meets on a revisit edge, so an
+    // inherited `anthropic-credit` visit anywhere in the copied prefix kills the
+    // fork on its first `advanceLine`. That is exactly the operation someone
+    // performs after topping the account up.
     const cutoffNodeRowId = prefix[prefix.length - 1].id;
     const { rows } = await this.pool.query(
       `WITH al AS (
@@ -208,8 +217,8 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
            (assembly_run_id, node_id, iteration, outcome, failure_class,
             failure_detail, agent_cr_name, commit_sha, started_at, finished_at)
          SELECT al.id,
-                n.node_id, n.iteration, n.outcome, n.failure_class,
-                n.failure_detail, NULL, n.commit_sha, n.started_at, n.finished_at
+                n.node_id, n.iteration, n.outcome, NULL,
+                NULL, NULL, n.commit_sha, n.started_at, n.finished_at
            FROM pipeline.station_runs n, al
           WHERE n.assembly_run_id = $7
             AND n.id <= $9::bigint

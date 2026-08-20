@@ -1,5 +1,7 @@
+import Hapi from "@hapi/hapi";
 import { describe, it, expect } from "vitest";
-import { decideLlmStatus } from "./llm-status.js";
+import { makePool } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
+import { decideLlmStatus, llmStatusRoute } from "./llm-status.js";
 
 const AT = new Date("2026-08-20T09:14:00Z");
 
@@ -76,5 +78,56 @@ describe("decideLlmStatus", () => {
         },
       ]),
     ).toMatchObject({ degraded: true, detail: null });
+  });
+});
+
+describe("GET /api/platform/llm-status", () => {
+  async function serve(pool: ReturnType<typeof makePool> | null) {
+    const server = Hapi.server();
+
+    server.auth.scheme("stub", () => ({
+      authenticate: (_r, h) => h.authenticated({ credentials: {} }),
+    }));
+    server.auth.strategy("bearer-scope", "stub");
+    server.auth.default("bearer-scope");
+    server.route(llmStatusRoute(() => pool as never));
+
+    return server;
+  }
+
+  it("answers healthy on a database that predates the failure columns", async () => {
+    // Every sibling run read degrades to empty on a pre-migration database. This
+    // one is polled by a BANNER, so a 500 here is the outage-reporting machinery
+    // reporting itself rather than the outage.
+    const pool = makePool();
+
+    pool.query.mockRejectedValue(
+      Object.assign(new Error('column "failure_class" does not exist'), {
+        code: "42703",
+      }),
+    );
+
+    const res = await (await serve(pool)).inject("/api/platform/llm-status");
+
+    expect(res.statusCode).toEqual(200);
+    expect(JSON.parse(res.payload)).toMatchObject({ degraded: false });
+  });
+
+  it("propagates a failure that is not a missing column", async () => {
+    const pool = makePool();
+
+    pool.query.mockRejectedValue(
+      Object.assign(new Error("connection terminated"), { code: "57P01" }),
+    );
+
+    const res = await (await serve(pool)).inject("/api/platform/llm-status");
+
+    expect(res.statusCode).toEqual(500);
+  });
+
+  it("answers 503 without a pool", async () => {
+    const res = await (await serve(null)).inject("/api/platform/llm-status");
+
+    expect(res.statusCode).toEqual(503);
   });
 });

@@ -626,6 +626,29 @@ edges:
     expect(await port.getById(id)).toMatchObject({ status: "running" });
   });
 
+  it("names the run and node it parked, so an outage is not silent", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+    const gate = new LlmDispatchGate(() => new Date());
+    const logged: string[] = [];
+    const realLog = console.log;
+
+    console.log = (message: string) => logged.push(message);
+    gate.trip("anthropic-credit", "Credit balance is too low");
+
+    try {
+      await advanceLine(id, { ...deps, llmGate: gate });
+    } finally {
+      console.log = realLog;
+    }
+
+    // `advanceLine` answers void, so the caller cannot tell parked from
+    // advanced. Without this line an operator gets one gate-trip warning and
+    // then silence, while runs sit `running` with no open node.
+    expect(logged.join("\n")).toContain(`parked ${id} at node "review"`);
+  });
+
   it("dispatches the node it parked once the account is healthy again", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
