@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { getChunks, getChunkTypes } from "@/lib/api/chunks";
 import { previewBlock } from "@/lib/preview-block";
+import { contentTypeOf } from "@/lib/content-types";
 import ContextView, { type ContextChunk } from "./ContextView";
 
 interface RankedChunk extends ContextChunk {
@@ -27,7 +28,7 @@ export default async function ContextPage({
 
   const chunks = allChunks.map((c) => ({
     ...c,
-    content: previewBlock(c.content, c.content_type ?? ""),
+    content: previewBlock(c.content, contentTypeOf(c.content_type)),
   }));
 
   return <ContextView type={type} q={q} types={types} chunks={chunks} />;

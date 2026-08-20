@@ -1,6 +1,6 @@
 import Link from "next/link";
 import ChunkBody from "./ChunkBody";
-import { badgeClassForType } from "@/lib/content-types";
+import { badgeClassForType, contentTypeOf } from "@/lib/content-types";
 import { chunkHeader, type ChunkMeta } from "@/lib/chunk-presenter";
 import { formatEnumLabel } from "@/lib/enum-label";
 import { TimeAgo } from "@/components/TimeAgo";
@@ -39,7 +39,7 @@ export default function ContextCard({
 }: ContextCardProps) {
   // Both columns permit NULL, which the hand-written type denied. An untyped or
   // pathless chunk is a real row, not a crash.
-  const contentType = chunk.content_type ?? "unknown";
+  const contentType = contentTypeOf(chunk.content_type);
   const header = chunkHeader(contentType, chunk.metadata ?? null);
 
   return (

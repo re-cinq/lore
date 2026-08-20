@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { previewBlock } from "@/lib/preview-block";
+import { contentTypeOf } from "@/lib/content-types";
 import { fetchRepoChunks } from "./context-data";
 import { getChunkTypes } from "@/lib/api/chunks";
 import RepoContextView, { type RepoContextChunk } from "./RepoContextView";
@@ -26,7 +27,7 @@ export default async function RepoContext({
   const hasMore = page.hasMore;
   const chunks = (page.chunks as unknown as RepoContextChunk[]).map((c) => ({
     ...c,
-    content: previewBlock(c.content, c.content_type ?? ""),
+    content: previewBlock(c.content, contentTypeOf(c.content_type)),
   }));
 
   return (

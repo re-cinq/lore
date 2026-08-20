@@ -118,8 +118,8 @@ export default function AgentsTable({
           </tr>
         </thead>
         <tbody>
-          {visible.map((a) => (
-            <tr key={a.agent_id ?? `unattributed-${a.kind}`}>
+          {visible.map((a, index) => (
+            <tr key={a.agent_id ?? `unattributed-${index}`}>
               <td>
                 {a.agent_id ? (
                   <a href={`/agents/${encodeURIComponent(a.agent_id)}`}>

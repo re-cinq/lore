@@ -8,6 +8,9 @@ import AgentList from "./AgentList";
 import styles from "./agents.module.css";
 import type { components } from "@/lib/api/schema";
 
+/** The whole activity row, deliberately — this page renders every column the
+ *  contract publishes, so there is nothing for a `Pick` to narrow. The global
+ *  /agents page reads six of them and says so. */
 type RepoAgentQueryRow =
   components["schemas"]["AgentActivity"]["agents"][number];
 

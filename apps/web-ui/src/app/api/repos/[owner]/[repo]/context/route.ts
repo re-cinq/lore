@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { previewBlock } from "@/lib/preview-block";
+import { contentTypeOf } from "@/lib/content-types";
 import { fetchRepoChunks } from "@/app/repos/[owner]/[repo]/context/context-data";
 import { serverError } from "@/lib/api-error";
 import type { RepoContextChunk } from "@/app/repos/[owner]/[repo]/context/RepoContextView";
@@ -26,7 +27,7 @@ export async function GET(
     const page = await fetchRepoChunks(fullName, type, q, offset);
     const chunks = (page.chunks as unknown as RepoContextChunk[]).map((c) => ({
       ...c,
-      content: previewBlock(c.content, c.content_type ?? ""),
+      content: previewBlock(c.content, contentTypeOf(c.content_type)),
     }));
 
     return NextResponse.json({ chunks, hasMore: page.hasMore });
