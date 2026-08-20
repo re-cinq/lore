@@ -90,7 +90,8 @@ export function getSpend(): Promise<
     org_mtd: Record<string, unknown>;
     org_by_model: Record<string, unknown>[];
     org_daily: Record<string, unknown>[];
-    lore_today_usd: number;
+    lore_unbilled_usd: number;
+    lore_unbilled_days: number;
     lore_mtd: Record<string, unknown>;
     lore_by_model: Record<string, unknown>[];
     lore_by_kind: Record<string, unknown>[];
