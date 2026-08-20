@@ -67,8 +67,8 @@ export default async function RepoSettings({
   const allRepos: Repo[] =
     repoList.status === "ok"
       ? repoList.data.repos
-          .filter((r) => r.fullName !== fullName)
-          .map((r) => ({ full_name: r.fullName }))
+          .filter((r) => r.full_name !== fullName)
+          .map((r) => ({ full_name: r.full_name }))
           .sort((a, b) => a.full_name.localeCompare(b.full_name))
       : [];
 

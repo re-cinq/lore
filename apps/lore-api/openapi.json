@@ -6539,17 +6539,17 @@
                 "name": {
                   "type": "string"
                 },
-                "fullName": {
+                "full_name": {
                   "type": "string"
                 },
                 "team": {
                   "type": ["string", "null"]
                 },
-                "onboardedAt": {
+                "onboarded_at": {
                   "type": "string",
                   "format": "date-time"
                 },
-                "lastIngestedAt": {
+                "last_ingested_at": {
                   "anyOf": [
                     {
                       "type": "string",
@@ -6560,10 +6560,10 @@
                     }
                   ]
                 },
-                "onboardingPrUrl": {
+                "onboarding_pr_url": {
                   "type": ["string", "null"]
                 },
-                "onboardingPrMerged": {
+                "onboarding_pr_merged": {
                   "type": "boolean"
                 },
                 "settings": {
@@ -6716,7 +6716,7 @@
                     }
                   ]
                 },
-                "outcomeStats": {
+                "outcome_stats": {
                   "anyOf": [
                     {
                       "type": "object",
@@ -6727,10 +6727,10 @@
                     }
                   ]
                 },
-                "taskCount": {
+                "task_count": {
                   "type": "number"
                 },
-                "activeAgents": {
+                "active_agents": {
                   "type": "number"
                 }
               },
@@ -6738,16 +6738,16 @@
                 "id",
                 "owner",
                 "name",
-                "fullName",
+                "full_name",
                 "team",
-                "onboardedAt",
-                "lastIngestedAt",
-                "onboardingPrUrl",
-                "onboardingPrMerged",
+                "onboarded_at",
+                "last_ingested_at",
+                "onboarding_pr_url",
+                "onboarding_pr_merged",
                 "settings",
-                "outcomeStats",
-                "taskCount",
-                "activeAgents"
+                "outcome_stats",
+                "task_count",
+                "active_agents"
               ],
               "additionalProperties": false
             }
@@ -6777,17 +6777,17 @@
           "name": {
             "type": "string"
           },
-          "fullName": {
+          "full_name": {
             "type": "string"
           },
           "team": {
             "type": ["string", "null"]
           },
-          "onboardedAt": {
+          "onboarded_at": {
             "type": "string",
             "format": "date-time"
           },
-          "lastIngestedAt": {
+          "last_ingested_at": {
             "anyOf": [
               {
                 "type": "string",
@@ -6798,10 +6798,10 @@
               }
             ]
           },
-          "onboardingPrUrl": {
+          "onboarding_pr_url": {
             "type": ["string", "null"]
           },
-          "onboardingPrMerged": {
+          "onboarding_pr_merged": {
             "type": "boolean"
           },
           "settings": {
@@ -6944,7 +6944,7 @@
               }
             ]
           },
-          "outcomeStats": {
+          "outcome_stats": {
             "anyOf": [
               {
                 "type": "object",
@@ -6960,14 +6960,14 @@
           "id",
           "owner",
           "name",
-          "fullName",
+          "full_name",
           "team",
-          "onboardedAt",
-          "lastIngestedAt",
-          "onboardingPrUrl",
-          "onboardingPrMerged",
+          "onboarded_at",
+          "last_ingested_at",
+          "onboarding_pr_url",
+          "onboarding_pr_merged",
           "settings",
-          "outcomeStats"
+          "outcome_stats"
         ],
         "additionalProperties": false
       },

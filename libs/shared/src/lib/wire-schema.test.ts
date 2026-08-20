@@ -71,3 +71,18 @@ describe("wireSchema", () => {
     expect(Object.keys(wire.shape)).toEqual(["id", "job_name"]);
   });
 });
+
+describe("an unbound field", () => {
+  // `ColumnMap<T>` already demands every field, so this is unreachable through
+  // the types — the cast is how a real caller gets here: a schema built at
+  // runtime, or a map widened through `as`. The guard exists for that path,
+  // because the alternative was publishing the camelCase spelling as if it were
+  // a column.
+  it("refuses to rename a field the column map does not bind", () => {
+    const withExtra = JobRunSchema.extend({ unbound: z.string() });
+
+    expect(() =>
+      wireSchema(withExtra, JOB_RUN_COLUMNS as ColumnMap<never>),
+    ).toThrow(new Error('wireSchema: no column bound for field "unbound"'));
+  });
+});

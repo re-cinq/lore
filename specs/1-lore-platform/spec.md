@@ -788,7 +788,7 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   rather than a per-caller projection: nine web-ui call sites across
   five files each selected a different column subset of this row, and
   projecting per caller would move that duplication into the API
-  instead of removing it. ([validated by `repo-record.test.ts:49`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L49), [`repo-record.test.ts:58`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L58), [`repo-record.test.ts:66`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L66), [`repo-record.test.ts:75`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L75))
+  instead of removing it. ([validated by `repo-record.test.ts:69`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L69), [`repo-record.test.ts:78`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L78), [`repo-record.test.ts:86`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L86), [`repo-record.test.ts:95`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L95))
 - FR-19.18: `SettingsPort.record(repo)` is that read — the whole row or
   null — implemented by the Pg adapter against `lore.repos` and by the
   in-memory double over its seeded rows, so a caller that needs more

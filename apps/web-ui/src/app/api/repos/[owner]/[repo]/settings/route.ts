@@ -51,7 +51,7 @@ export async function POST(
     }
 
     return NextResponse.json({
-      full_name: updated.data.fullName,
+      full_name: updated.data.full_name,
       team: updated.data.team,
       settings: updated.data.settings,
     });

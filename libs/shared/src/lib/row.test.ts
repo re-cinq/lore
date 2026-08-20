@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { selectList, fromRow, pickColumns, type ColumnMap } from "./row.js";
+import {
+  selectList,
+  fromRow,
+  toRow,
+  pickColumns,
+  type ColumnMap,
+} from "./row.js";
 
 interface Repo {
   id: string;
@@ -68,5 +74,31 @@ describe("pickColumns", () => {
     expect(
       selectList(pickColumns(REPO_COLUMNS, ["id", "lastIngestedAt"])),
     ).toBe("id, last_ingested_at");
+  });
+});
+
+describe("toRow", () => {
+  it("keys the model's fields by the columns that store them", () => {
+    const repo = {
+      id: "abc",
+      fullName: "re-cinq/lore",
+      lastIngestedAt: null,
+    };
+
+    expect(toRow(REPO_COLUMNS, repo)).toEqual({
+      id: "abc",
+      full_name: "re-cinq/lore",
+      last_ingested_at: null,
+    });
+  });
+
+  it("round-trips a row through fromRow and back unchanged", () => {
+    const row = {
+      id: "abc",
+      full_name: "re-cinq/lore",
+      last_ingested_at: null,
+    };
+
+    expect(toRow(REPO_COLUMNS, fromRow<Repo>(REPO_COLUMNS, row))).toEqual(row);
   });
 });

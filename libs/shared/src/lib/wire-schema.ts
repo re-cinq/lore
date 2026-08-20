@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { enforceTrue } from "./enforce.js";
 import type { ColumnMap } from "./row.js";
 
 /**
@@ -30,7 +31,16 @@ export function wireSchema<
   for (const [field, value] of Object.entries(schema.shape)) {
     const column = (columns as Record<string, string>)[field];
 
-    renamed[column ?? field] = value as z.ZodTypeAny;
+    // No silent fallback to the field name. A miss here means the schema and the
+    // column map disagree about which fields exist, and defaulting to the
+    // camelCase spelling would publish a key no reader is looking for — a wrong
+    // contract, which is worse than none.
+    enforceTrue(
+      column !== undefined,
+      Error,
+      `wireSchema: no column bound for field "${String(field)}"`,
+    );
+    renamed[column] = value as z.ZodTypeAny;
   }
 
   return z.object(renamed) as z.ZodObject<{

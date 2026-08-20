@@ -109,6 +109,20 @@ const AgentActivitySchema = z.object({
   ),
 });
 
+const TASK_RUNTIME_LLM_FIELDS = [
+  "model",
+  "inputTokens",
+  "outputTokens",
+  "durationMs",
+  "status",
+  "error",
+  "createdAt",
+] as const;
+const TASK_RUNTIME_LLM_COLUMNS = pickColumns(
+  LLM_CALL_COLUMNS,
+  TASK_RUNTIME_LLM_FIELDS,
+);
+
 const TaskRuntimeSchema = z.object({
   events: z.array(wireSchema(TaskEventSchema, TASK_EVENT_COLUMNS)),
   llm_calls: z.array(
@@ -292,7 +306,7 @@ export function taskViewRoutes(getPool: () => Pool | null): ServerRoute[] {
           [taskId],
         );
         const { rows: llmCalls } = await pool.query(
-          `SELECT model, input_tokens, output_tokens, duration_ms, status, error, created_at
+          `SELECT ${selectList(TASK_RUNTIME_LLM_COLUMNS)}
              FROM pipeline.llm_calls WHERE task_id = $1 ORDER BY created_at`,
           [taskId],
         );

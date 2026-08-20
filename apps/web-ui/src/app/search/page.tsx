@@ -20,7 +20,7 @@ export default async function SearchPage({
   const repos: SearchRepoOption[] =
     repoList.status === "ok"
       ? repoList.data.repos
-          .map((repo) => ({ full_name: repo.fullName }))
+          .map((repo) => ({ full_name: repo.full_name }))
           .sort((a, b) => a.full_name.localeCompare(b.full_name))
       : [];
 

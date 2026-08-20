@@ -1,3 +1,7 @@
+import type {
+  DarkFactorySettings,
+  ResolvedDarkFactorySettings,
+} from "../dark-factory-settings.js";
 import { z } from "zod";
 
 /**
@@ -57,13 +61,43 @@ export const ResolvedDarkFactorySettingsSchema = z.object({
   notify: z.array(NotifyChannelSchema),
 });
 
-export type TrustLevel = z.infer<typeof TrustLevelSchema>;
-export type ReviewMode = z.infer<typeof ReviewModeSchema>;
-export type CreateIssueMode = z.infer<typeof CreateIssueModeSchema>;
-export type NotifyChannel = z.infer<typeof NotifyChannelSchema>;
-export type DarkFactoryAutoMerge = z.infer<typeof DarkFactoryAutoMergeSchema>;
-export type DarkFactoryExecution = z.infer<typeof DarkFactoryExecutionSchema>;
-export type DarkFactorySettings = z.infer<typeof DarkFactorySettingsSchema>;
-export type ResolvedDarkFactorySettings = z.infer<
-  typeof ResolvedDarkFactorySettingsSchema
->;
+export type {
+  CreateIssueMode,
+  DarkFactoryAutoMerge,
+  DarkFactoryExecution,
+  DarkFactorySettings,
+  NotifyChannel,
+  ResolvedDarkFactorySettings,
+  ReviewMode,
+  TrustLevel,
+} from "../dark-factory-settings.js";
+
+type Assert<T extends true> = T;
+
+/**
+ * Identity-based equality, not a bidirectional `extends`. An `extends` pair
+ * cannot see an added OPTIONAL field — `{a?: x}` and `{}` each extend the other
+ * — which is exactly the drift most likely to appear here.
+ */
+type Equals<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+    ? true
+    : false;
+
+/**
+ * The schemas above and the plain types in `../dark-factory-settings.ts` are two
+ * representations of ONE shape. They are separate only because that module has
+ * to stay dependency-free for web-ui, which cannot have zod — so this is where
+ * the equivalence is proved. A field added to either side alone fails `tsc`.
+ */
+type SchemaMatchesTypes = Assert<
+  Equals<z.infer<typeof DarkFactorySettingsSchema>, DarkFactorySettings>
+> &
+  Assert<
+    Equals<
+      z.infer<typeof ResolvedDarkFactorySettingsSchema>,
+      ResolvedDarkFactorySettings
+    >
+  >;
+
+export type { SchemaMatchesTypes };

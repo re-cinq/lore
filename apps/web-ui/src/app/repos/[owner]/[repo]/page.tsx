@@ -95,10 +95,10 @@ export default async function RepoOverview({
 
   const enrollmentChecks = computeEnrollmentChecks({
     onboarded: !!repoInfo,
-    onboardedAt: iso(repoInfo?.onboardedAt),
-    onboardingPrMerged: repoInfo?.onboardingPrMerged === true,
-    onboardingPrUrl: repoInfo?.onboardingPrUrl ?? null,
-    lastIngestedAt: iso(repoInfo?.lastIngestedAt),
+    onboardedAt: iso(repoInfo?.onboarded_at),
+    onboardingPrMerged: repoInfo?.onboarding_pr_merged === true,
+    onboardingPrUrl: repoInfo?.onboarding_pr_url ?? null,
+    lastIngestedAt: iso(repoInfo?.last_ingested_at),
     chunkCount: chunkSummary.count,
     hasConventions: chunkSummary.convention_files.length > 0,
     team: repoInfo?.team ?? null,

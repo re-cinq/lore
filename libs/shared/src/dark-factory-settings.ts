@@ -1,40 +1,58 @@
 /**
- * The dark-factory RESOLVER and its defaults. Shared between mcp-server (writes
- * the JSONB), the agent (reads + applies), and the Station pod runner.
+ * The dark-factory settings types + resolver.
  *
- * The SHAPES live in `models/dark-factory-settings.ts` — one declaration beside
- * the other stored types — and are re-exported here so the ~40 existing importers
- * keep working. Types and resolver stayed together historically; splitting them
- * is what stops a settings shape being restated per consumer.
+ * This module is DEPENDENCY-FREE on purpose. `apps/web-ui` reaches it by
+ * relative file path (it cannot import `@re-cinq/lore-shared`), so anything
+ * imported here has to exist in web-ui's own lockfile — and web-ui has no zod.
+ * That is why the shapes are plain interfaces here rather than inferred from the
+ * schema in `models/dark-factory-settings.ts`.
+ *
+ * The two cannot drift: the model imports these types and asserts, at compile
+ * time, that its schema infers exactly them. The dependency runs one way —
+ * model → this file — so the zero-dep boundary holds.
  */
 
-export {
-  DarkFactoryAutoMergeSchema,
-  DarkFactoryExecutionSchema,
-  DarkFactorySettingsSchema,
-  ResolvedDarkFactorySettingsSchema,
-  CreateIssueModeSchema,
-  NotifyChannelSchema,
-  ReviewModeSchema,
-  TrustLevelSchema,
-} from "./models/dark-factory-settings.js";
-export type {
-  CreateIssueMode,
-  DarkFactoryAutoMerge,
-  DarkFactoryExecution,
-  DarkFactorySettings,
-  NotifyChannel,
-  ResolvedDarkFactorySettings,
-  ReviewMode,
-  TrustLevel,
-} from "./models/dark-factory-settings.js";
+export type TrustLevel = "docs" | "tests" | "implementation" | "full";
+export type ReviewMode = "trust_based" | "always" | "never";
+export type CreateIssueMode = "never" | "on_gate" | "always";
+export type NotifyChannel = "escalation" | "watched" | "all";
 
-import type {
-  DarkFactoryExecution,
-  DarkFactorySettings,
-  ResolvedDarkFactorySettings,
-  TrustLevel,
-} from "./models/dark-factory-settings.js";
+export interface DarkFactoryAutoMerge {
+  paths?: string[];
+  min_trust?: TrustLevel;
+  require_green_ci?: boolean;
+  require_bot_approval?: boolean;
+}
+
+/**
+ * Per-repo execution knobs. `image` is the container image a task's Station
+ * runs in (ADR-025).
+ */
+export interface DarkFactoryExecution {
+  image?: string;
+}
+
+export interface DarkFactorySettings {
+  enabled?: boolean;
+  create_issue?: CreateIssueMode;
+  auto_merge?: DarkFactoryAutoMerge;
+  review?: ReviewMode;
+  notify?: NotifyChannel[];
+  execution?: DarkFactoryExecution;
+}
+
+export interface ResolvedDarkFactorySettings {
+  enabled: boolean;
+  create_issue: CreateIssueMode;
+  auto_merge: {
+    paths: string[];
+    min_trust: TrustLevel;
+    require_green_ci: boolean;
+    require_bot_approval: boolean;
+  };
+  review: ReviewMode;
+  notify: NotifyChannel[];
+}
 
 export const DEFAULT_AUTO_MERGE_PATHS = [
   "specs/**",

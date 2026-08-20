@@ -62,3 +62,26 @@ export function pickColumns<T, K extends keyof T>(
 
   return picked;
 }
+
+/**
+ * The inverse of {@link fromRow}: one model keyed by the columns that store it.
+ *
+ * Used where a body publishes the STORED spelling — several clients read
+ * snake_case, and flipping any of them is expand/contract work across images
+ * rather than a rename, so the model stays camelCase inside and the wire keeps
+ * its own keys.
+ */
+export function toRow<T extends object>(
+  columns: ColumnMap<T>,
+  record: T,
+): DbRow {
+  const row: DbRow = {};
+
+  for (const [field, column] of Object.entries<string>(columns) as Array<
+    [keyof T, string]
+  >) {
+    row[column] = record[field];
+  }
+
+  return row;
+}

@@ -1732,13 +1732,13 @@ export interface components {
         id: string;
         owner: string;
         name: string;
-        fullName: string;
+        full_name: string;
         team: string | null;
         /** Format: date-time */
-        onboardedAt: string;
-        lastIngestedAt: string | null;
-        onboardingPrUrl: string | null;
-        onboardingPrMerged: boolean;
+        onboarded_at: string;
+        last_ingested_at: string | null;
+        onboarding_pr_url: string | null;
+        onboarding_pr_merged: boolean;
         settings:
           | ({
               dark_factory?: {
@@ -1791,11 +1791,11 @@ export interface components {
               [key: string]: unknown;
             })
           | null;
-        outcomeStats: {
+        outcome_stats: {
           [key: string]: unknown;
         } | null;
-        taskCount: number;
-        activeAgents: number;
+        task_count: number;
+        active_agents: number;
       }[];
       total: number;
       limit: number;
@@ -1805,13 +1805,13 @@ export interface components {
       id: string;
       owner: string;
       name: string;
-      fullName: string;
+      full_name: string;
       team: string | null;
       /** Format: date-time */
-      onboardedAt: string;
-      lastIngestedAt: string | null;
-      onboardingPrUrl: string | null;
-      onboardingPrMerged: boolean;
+      onboarded_at: string;
+      last_ingested_at: string | null;
+      onboarding_pr_url: string | null;
+      onboarding_pr_merged: boolean;
       settings:
         | ({
             dark_factory?: {
@@ -1864,7 +1864,7 @@ export interface components {
             [key: string]: unknown;
           })
         | null;
-      outcomeStats: {
+      outcome_stats: {
         [key: string]: unknown;
       } | null;
     };

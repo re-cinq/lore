@@ -29,7 +29,7 @@ beforeEach(() => {
   putRepoSettings.mockResolvedValue({ status: "ok", data: { ok: true } });
   getRepo.mockResolvedValue({
     status: "ok",
-    data: { fullName: "re-cinq/lore", team: "platform", settings: {} },
+    data: { full_name: "re-cinq/lore", team: "platform", settings: {} },
   });
 });
 

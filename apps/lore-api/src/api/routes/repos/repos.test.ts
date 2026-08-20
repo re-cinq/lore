@@ -59,24 +59,24 @@ describe("GET /api/repos", () => {
       .mockResolvedValueOnce({ rows: [{ total: 1 }] });
     const res = await get("", pool);
 
-    // The body is the `Repo` model plus the two computed counts — the row's
-    // columns mapped by REPO_COLUMNS, not the raw driver row.
+    // The body is the `Repo` model keyed by its COLUMNS plus the two computed
+    // counts — mapped through REPO_COLUMNS, not the raw driver row.
     expect(res.result).toEqual({
       repos: [
         {
           id: "1",
           owner: "re-cinq",
           name: "lore",
-          fullName: "re-cinq/lore",
+          full_name: "re-cinq/lore",
           team: "platform",
-          onboardedAt: new Date("2026-08-01T00:00:00Z"),
-          lastIngestedAt: null,
-          onboardingPrUrl: null,
-          onboardingPrMerged: true,
+          onboarded_at: new Date("2026-08-01T00:00:00Z"),
+          last_ingested_at: null,
+          onboarding_pr_url: null,
+          onboarding_pr_merged: true,
           settings: {},
-          outcomeStats: null,
-          taskCount: 3,
-          activeAgents: 1,
+          outcome_stats: null,
+          task_count: 3,
+          active_agents: 1,
         },
       ],
       total: 1,
