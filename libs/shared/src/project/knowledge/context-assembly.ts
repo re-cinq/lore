@@ -420,7 +420,13 @@ export async function fetchCouplingSource(
  *  surfaces semantically-relevant chunks (incl. code), not just keyword overlap.
  *  Degrades to keyword-only when no query embedding is available. Exported for
  *  unit tests. */
-interface ChunkRow {
+/**
+ * One hybrid-search HIT, not a chunk row: `score` is a `ts_rank`/cosine
+ * aggregate the query computes and no column holds. Named for what it is — the
+ * repo carried three different types called `ChunkRow`, and this was the one
+ * that never described a table.
+ */
+interface ChunkSearchHit {
   content: string;
   file_path: string;
   content_type?: string | null;
@@ -451,7 +457,7 @@ export async function hybridChunkItems(
   // The keyword leg searches the query's distinctive terms (OR'd) rather than the
   // whole paragraph, which would AND every filler word and match almost nothing.
   const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
-  const mapRows = (rows: ChunkRow[]): SourceItem[] =>
+  const mapRows = (rows: ChunkSearchHit[]): SourceItem[] =>
     normalizeScores(
       rows.map((r) =>
         mkItem(r.content, {
@@ -465,7 +471,7 @@ export async function hybridChunkItems(
 
   if (embedding) {
     const embStr = `[${embedding.join(",")}]`;
-    const { rows } = await pool.query<ChunkRow>(
+    const { rows } = await pool.query<ChunkSearchHit>(
       `WITH vec AS (
          SELECT id, content, file_path, content_type, ingested_at,
                 ROW_NUMBER() OVER (ORDER BY embedding <=> $2::vector) AS r
@@ -495,7 +501,7 @@ export async function hybridChunkItems(
   }
 
   // Keyword-only fallback (no embedding available).
-  const { rows } = await pool.query<ChunkRow>(
+  const { rows } = await pool.query<ChunkSearchHit>(
     `SELECT content, file_path, content_type, ingested_at,
             ts_rank(search_tsv, websearch_to_tsquery('english', $2)) AS score
      FROM ${schema}.chunks
@@ -703,7 +709,7 @@ export const fetchers: Record<string, SourceFetcher> = {
 
     try {
       const schema = await resolveChunkSchemaForRepo(pool, repo);
-      const { rows } = await pool.query<ChunkRow>(
+      const { rows } = await pool.query<ChunkSearchHit>(
         `SELECT content, file_path FROM ${schema}.chunks
          WHERE repo = $1 AND content_type = 'rule'
          ORDER BY file_path`,
@@ -771,7 +777,7 @@ export const fetchers: Record<string, SourceFetcher> = {
            FROM ${schema}.chunks
            WHERE ${repoFilter} AND search_tsv @@ plainto_tsquery($2)`,
       );
-      const { rows } = await pool.query<ChunkRow>(
+      const { rows } = await pool.query<ChunkSearchHit>(
         `SELECT content, repo, file_path, score FROM (${branches.join(" UNION ALL ")}) AS matches
          ORDER BY score DESC LIMIT 5`,
         [linkedRepos.length > 0 ? linkedRepos : repo, query],

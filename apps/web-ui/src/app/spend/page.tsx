@@ -17,10 +17,17 @@ export default async function SpendPage() {
   const result = await getSpend();
   const empty = {
     org_available: false,
-    org_mtd: { billed_usd: 0, input_tokens: 0, output_tokens: 0, as_of: null },
+    org_mtd: {
+      billed_usd: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+      as_of: null,
+      billed_through: null,
+    },
     org_by_model: [],
     org_daily: [],
-    lore_today_usd: 0,
+    lore_unbilled_usd: 0,
+    lore_unbilled_days: 0,
     lore_mtd: {
       computed_usd: 0,
       calls: 0,
@@ -38,7 +45,8 @@ export default async function SpendPage() {
     org_mtd: OrgMtdRow;
     org_by_model: OrgByModelRow[];
     org_daily: OrgDailyRow[];
-    lore_today_usd: number;
+    lore_unbilled_usd: number;
+    lore_unbilled_days: number;
     lore_mtd: LoreMtdRow;
     lore_by_model: LoreByModelRow[];
     lore_by_kind: LoreByKindRow[];
@@ -51,7 +59,8 @@ export default async function SpendPage() {
     <SpendView
       orgMtd={spend.org_mtd}
       orgAvailable={spend.org_available}
-      loreTodayUsd={spend.lore_today_usd}
+      loreUnbilledUsd={spend.lore_unbilled_usd}
+      loreUnbilledDays={spend.lore_unbilled_days}
       orgByModel={spend.org_by_model}
       orgDaily={spend.org_daily}
       loreMtd={spend.lore_mtd}

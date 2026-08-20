@@ -184,9 +184,29 @@ and the fallback is a layout dependency confined to the renderer, not a change t
 the transport or the contract.
 
 **Sharing the `AgentRunEventRow` type by importing `libs/shared` into web-ui.**
-Rejected because it is not possible. As `scripts/type-drift/feature-types.drift.ts`
-records, `apps/web-ui` is excluded from the npm workspace and built in an isolated
-Docker context, and `@re-cinq/lore-shared` drags in the Anthropic SDK, dgraph, and
-tree-sitter. The established answer is a hand-mirror plus a type-only drift guard
-that fails `tsc --noEmit` the moment the canonical type gains a key the mirror
-lacks; this feature follows that pattern rather than inventing a second one.
+Rejected, and still rejected: `apps/web-ui` is excluded from the npm workspace and
+built in an isolated Docker context, and `@re-cinq/lore-shared` drags in the
+Anthropic SDK, dgraph, and tree-sitter. Each of the drift guards under
+`scripts/type-drift/` records the same constraint. The answer taken here is a
+hand-mirror plus a type-only guard that fails `tsc --noEmit` the moment the
+canonical type gains a key the mirror lacks.
+
+*(Amended 2026-08: a third option now exists that this rejection does not weigh.
+`apps/lore-api` generates `openapi.json` from its own route contracts, and
+`apps/web-ui/src/lib/api/schema.d.ts` is generated from that — so a published
+shape reaches web-ui as a GENERATED type rather than an imported or a copied one,
+which is neither option considered above. Seven web-ui clients read their types
+that way today. It does not reach THIS feature, for a reason worth stating rather
+than leaving to be rediscovered: the run-event stream is served by the **Floor**
+(`apps/floor/src/delivery/http/routes/agent-events-stream.ts`), and the Floor
+publishes no OpenAPI document. Until it does, or until the route moves to lore-api
+(#1347), `AgentRunEventRow` has nothing to be generated from. The decision above
+stands, but on narrower grounds than it claimed: the mirror is right here because
+of where the route is served, not because mirroring is all web-ui can do.)*
+
+*(Corrected 2026-08-20: this paragraph cited
+`scripts/type-drift/feature-types.drift.ts` as its evidence. That guard was
+retired — `specs/lore-api-openapi/spec.md` FR10 — precisely because the type it
+policed stopped being a mirror. Citing a file that no longer exists made the
+rejection read as stronger than it is; see the amendment below for the option it
+did not consider.)*

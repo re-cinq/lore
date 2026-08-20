@@ -84,15 +84,24 @@ describe("GET /api/spend", () => {
     const pool = makePool();
 
     pool.query.mockResolvedValue({
-      rows: [{ billed_usd: 3, as_of: "2026-08-14", cost_usd: 1 }],
+      rows: [
+        {
+          billed_usd: 3,
+          as_of: "2026-08-14",
+          billed_through: "2026-08-13",
+          cost_usd: 1,
+          days: 1,
+        },
+      ],
     });
     const res = await get(pool);
 
     expect(res.statusCode).toBe(200);
     expect(res.result).toMatchObject({
       org_available: true,
-      org_mtd: { billed_usd: 3 },
-      lore_today_usd: 1,
+      org_mtd: { billed_usd: 3, billed_through: "2026-08-13" },
+      lore_unbilled_usd: 1,
+      lore_unbilled_days: 1,
     });
   });
 
@@ -105,17 +114,18 @@ describe("GET /api/spend", () => {
       .mockRejectedValueOnce(undefinedTable())
       .mockRejectedValueOnce(undefinedTable())
       .mockRejectedValueOnce(undefinedTable())
-      .mockResolvedValue({ rows: [{ cost_usd: 2 }] });
+      .mockResolvedValue({ rows: [{ cost_usd: 2, days: 3 }] });
 
     const res = await get(pool);
 
     expect(res.statusCode).toBe(200);
     expect(res.result).toMatchObject({
       org_available: false,
-      org_mtd: { billed_usd: 0, as_of: null },
+      org_mtd: { billed_usd: 0, as_of: null, billed_through: null },
       org_by_model: [],
       org_daily: [],
-      lore_today_usd: 2,
+      lore_unbilled_usd: 2,
+      lore_unbilled_days: 3,
     });
   });
 
@@ -128,7 +138,7 @@ describe("GET /api/spend", () => {
 
     expect((await get(pool)).result).toMatchObject({
       org_available: false,
-      org_mtd: { billed_usd: 0, as_of: null },
+      org_mtd: { billed_usd: 0, as_of: null, billed_through: null },
     });
   });
 
@@ -142,7 +152,10 @@ describe("GET /api/spend", () => {
       String(sql).includes("date_trunc('month', current_date)"),
     );
 
-    expect(monthly.length).toBe(pool.query.mock.calls.length - 1);
+    // Every statement, with no exception: the unbilled read used to be the one
+    // holdout (`created_at >= current_date`), and that unbounded-below shape is
+    // exactly what could not express a gap wider than today.
+    expect(monthly.length).toBe(pool.query.mock.calls.length);
   });
 
   it("attributes run-scoped spend through llm_calls.assembly_line_id", async () => {
@@ -166,5 +179,47 @@ describe("GET /api/spend", () => {
         String(sql).includes("assembly_run_id"),
       ),
     ).toBe(false);
+  });
+
+  it("bounds the unbilled window by the last billed day, not by today", async () => {
+    // The defect this pins: `created_at >= current_date` could only ever mean
+    // "today", so a sync that stopped at 8/18 left 8/19 in neither figure and
+    // the card's own footnote still claimed a one-day gap.
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [{ billed_through: "2026-08-18" }] });
+    await get(pool);
+
+    const unbilled = pool.query.mock.calls.find(([sql]) =>
+      String(sql).includes("$1::date"),
+    );
+
+    expect(unbilled?.[1]).toEqual(["2026-08-18"]);
+  });
+
+  it("treats the whole month as unbilled when the sync has never run", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [] });
+    await get(pool);
+
+    const unbilled = pool.query.mock.calls.find(([sql]) =>
+      String(sql).includes("$1::date"),
+    );
+
+    expect(unbilled?.[1]).toEqual([null]);
+  });
+
+  it("counts the unbilled days alongside their cost", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({
+      rows: [{ billed_through: "2026-08-18", cost_usd: 47.74, days: 2 }],
+    });
+
+    expect((await get(pool)).result).toMatchObject({
+      lore_unbilled_usd: 47.74,
+      lore_unbilled_days: 2,
+    });
   });
 });

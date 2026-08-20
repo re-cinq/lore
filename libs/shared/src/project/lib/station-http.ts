@@ -6,6 +6,8 @@ import type { PullRef } from "../pulls/pull-requests-port.js";
 import type { CiConclusion } from "../pulls/pull-requests-port.js";
 import type { TraceDocument } from "../../spec-trace/assemble-trace-document.js";
 import type { PipelineTask } from "../../types.js";
+import { acceptEitherSpelling, type DbRow } from "../../lib/row.js";
+import { PIPELINE_TASK_COLUMNS } from "../../models/pipeline-task.js";
 import type {
   DriftTaskRow,
   FindOpenLikeInput,
@@ -172,14 +174,36 @@ class TaskStoreHttp {
       })
     ).tasks;
   }
+  /**
+   * The ACCEPT half of the `pipeline.tasks` wire rename (6-dark-factory FR6.41).
+   *
+   * A station pod ships as its own image, so it is always one rollout apart from
+   * the API that feeds it — in whichever direction the deploy happens to fall.
+   * Reading through `acceptEitherSpelling` means a producer can flip
+   * `task_type` to `taskType` in a later release without a coordinated deploy,
+   * which is the only way that flip is safe to make at all.
+   *
+   * The tolerance is DERIVED from the model's column map, so a field added to
+   * `pipeline.tasks` is accepted in both spellings without anyone remembering to
+   * list it here.
+   */
   async findOpenLike(input: FindOpenLikeInput): Promise<PipelineTask[]> {
-    return (
-      await this.http.get<{ tasks: PipelineTask[] }>("/tasks/open-like", {
+    const { tasks } = await this.http.get<{ tasks: DbRow[] }>(
+      "/tasks/open-like",
+      {
         task_type: input.taskType,
         description_prefix: input.descriptionPrefix,
         statuses: [...input.statuses].join(","),
-      })
-    ).tasks;
+      },
+    );
+
+    return tasks.map(
+      (task) =>
+        acceptEitherSpelling(
+          PIPELINE_TASK_COLUMNS,
+          task,
+        ) as unknown as PipelineTask,
+    );
   }
   async create(input: CreateTaskInput): Promise<unknown> {
     return this.http.post("/tasks", {

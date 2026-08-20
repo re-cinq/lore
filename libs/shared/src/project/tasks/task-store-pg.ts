@@ -1,3 +1,5 @@
+import { selectList } from "../../lib/row.js";
+import { PIPELINE_TASK_COLUMNS } from "../../models/pipeline-task.js";
 import type { PgPool } from "../../memory-store.js";
 import type { PipelineTask } from "../../types.js";
 import {
@@ -54,7 +56,7 @@ export class PgTaskStore implements TaskStorePort {
 
   async getById(id: string): Promise<PipelineTask | null> {
     const { rows } = await this.pool.query<PipelineTask>(
-      "SELECT * FROM pipeline.tasks WHERE id = $1",
+      `SELECT ${selectList(PIPELINE_TASK_COLUMNS)} FROM pipeline.tasks WHERE id = $1`,
       [id],
     );
 
@@ -142,7 +144,7 @@ export class PgTaskStore implements TaskStorePort {
 
   async findOpenLike(input: FindOpenLikeInput): Promise<PipelineTask[]> {
     const { rows } = await this.pool.query<PipelineTask>(
-      `SELECT * FROM pipeline.tasks
+      `SELECT ${selectList(PIPELINE_TASK_COLUMNS)} FROM pipeline.tasks
        WHERE target_repo = $1 AND task_type = $2 AND description LIKE $3 AND status = ANY($4)`,
       [
         input.repo,
@@ -189,7 +191,8 @@ export class PgTaskStore implements TaskStorePort {
     statuses: string[],
   ): Promise<PipelineTask[]> {
     const { rows } = await this.pool.query<PipelineTask>(
-      "SELECT * FROM pipeline.tasks WHERE target_repo = $1 AND status = ANY($2) ORDER BY created_at DESC",
+      `SELECT ${selectList(PIPELINE_TASK_COLUMNS)}
+         FROM pipeline.tasks WHERE target_repo = $1 AND status = ANY($2) ORDER BY created_at DESC`,
       [repo, statuses],
     );
 

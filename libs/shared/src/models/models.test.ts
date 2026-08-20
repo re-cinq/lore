@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readdirSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import type { ZodRawShape, ZodTypeAny } from "zod";
@@ -35,6 +35,29 @@ export function strayColumns(
   return Object.keys(columns).filter((field) => !(field in shape));
 }
 
+/**
+ * Column maps in a model's SOURCE that are not pinned with `as const`.
+ *
+ * Read from the text, because there is nothing else to read: `as const` is a
+ * compile-time pin with no runtime trace, so a sweep that inspects the loaded
+ * object cannot tell a pinned map from a widened one. And a widened one is not a
+ * cosmetic difference — `KeysAreColumns` resolves `Columns[keyof T]` to `string`
+ * without it, `Exclude<keyof Shape, string>` is `never`, and every assertion
+ * built on that map answers `true` no matter what shape it is handed. The guard
+ * would not fail; it would stop inspecting anything.
+ */
+export function unpinnedColumnMaps(source: string): string[] {
+  return source
+    .split(/(?:^|\n)export const /)
+    .slice(1)
+    .map((declaration) => declaration.split(/\nexport /)[0])
+    .filter((declaration) => /^\w+_COLUMNS\s*=/.test(declaration))
+    .filter(
+      (declaration) => !/\}\s*as const satisfies ColumnMap</.test(declaration),
+    )
+    .map((declaration) => declaration.split(/\s*=/)[0]);
+}
+
 /** Column names Postgres would need quoting for; a model must never need it. */
 export function nonSnakeColumns(columns: Record<string, string>): string[] {
   return Object.values(columns).filter((c) => !/^[a-z][a-z0-9_]*$/.test(c));
@@ -49,6 +72,8 @@ interface TableModel {
   table: string;
   shape: ZodRawShape;
   columns: Record<string, string>;
+  /** The model's own source text — the only place an `as const` pin is visible. */
+  source: string;
 }
 
 /**
@@ -141,7 +166,15 @@ const tableModels: TableModel[] = loaded.flatMap(([file, mod]) => {
     return [];
   }
 
-  return [{ file, table: mod[tableKey] as string, shape, columns }];
+  return [
+    {
+      file,
+      table: mod[tableKey] as string,
+      shape,
+      columns,
+      source: readFileSync(join(modelsDir, file), "utf-8"),
+    },
+  ];
 });
 
 describe("the models folder", () => {
@@ -185,6 +218,10 @@ describe.each(tableModels.map((m) => [m.file, m] as const))(
     it("names every column in unquoted snake_case", () => {
       expect(nonSnakeColumns(model.columns)).toEqual([]);
     });
+
+    it("pins its column map with as const, so the type guard still inspects it", () => {
+      expect(unpinnedColumnMaps(model.source)).toEqual([]);
+    });
   },
 );
 
@@ -207,6 +244,22 @@ describe("the guard itself", () => {
 
   it("reports a camelCase column name", () => {
     expect(nonSnakeColumns({ fullName: "fullName" })).toEqual(["fullName"]);
+  });
+
+  it("reports a column map declared without as const", () => {
+    expect(
+      unpinnedColumnMaps(
+        'export const REPO_COLUMNS = {\n  id: "id",\n} satisfies ColumnMap<Repo>;\n',
+      ),
+    ).toEqual(["REPO_COLUMNS"]);
+  });
+
+  it("accepts a column map pinned with as const", () => {
+    expect(
+      unpinnedColumnMaps(
+        'export const REPO_COLUMNS = {\n  id: "id",\n} as const satisfies ColumnMap<Repo>;\n',
+      ),
+    ).toEqual([]);
   });
 
   it("derives AssemblyRunSchema from ASSEMBLY_RUN_COLUMNS", () => {

@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { listRepos } from "@/lib/api/repos";
+import { listAllRepos, reposOrThrow } from "@/lib/api/repos";
 import { searchMemory } from "@/lib/api/memory";
 import { getChunks } from "@/lib/api/chunks";
 import SearchView, {
@@ -16,13 +16,10 @@ export default async function SearchPage({
   let results: SearchResult[] = [];
 
   // Populate repo filter dropdown
-  const repoList = await listRepos();
-  const repos: SearchRepoOption[] =
-    repoList.status === "ok"
-      ? repoList.data.repos
-          .map((repo) => ({ full_name: repo.full_name }))
-          .sort((a, b) => a.full_name.localeCompare(b.full_name))
-      : [];
+  const repoList = reposOrThrow(await listAllRepos());
+  const repos: SearchRepoOption[] = repoList.repos
+    .map((repo) => ({ full_name: repo.full_name }))
+    .sort((a, b) => a.full_name.localeCompare(b.full_name));
 
   if (q) {
     // One call for both the memory and the fact hits: lore-api runs the same

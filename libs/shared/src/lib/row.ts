@@ -85,3 +85,73 @@ export function toRow<T extends object>(
 
   return row;
 }
+
+/**
+ * Read a record whose keys may use EITHER spelling — the model's camelCase field
+ * names or its snake_case column names — and answer keyed by COLUMN.
+ *
+ * The reader half of an expand/contract rename (`specs/6-dark-factory` FR6.41):
+ * every consumer accepts both spellings in one release BEFORE any producer emits
+ * the new one. Without that, flipping a wire key needs a coordinated deploy,
+ * which a separately-shipped image cannot give — a station pod and the API that
+ * feeds it are always one rollout apart in one direction or the other.
+ *
+ * The COLUMN spelling wins when a record carries both, because that is the one
+ * a producer emits today.
+ *
+ * The OUTPUT is always keyed by COLUMN, whichever spelling arrived. This widens
+ * what a reader ACCEPTS; it does not change what a reader ANSWERS — which is
+ * exactly what makes release 1 a no-op on the wire and lets release 2 flip the
+ * producers without touching a consumer. Release 3 is the one that is not free:
+ * the downstream shape stays snake_case only while this function is in the path,
+ * so whoever deletes the shim flips the consumer's own type in the same change.
+ *
+ * A field absent from `raw` stays absent rather than becoming
+ * present-and-undefined — an optional field that is always present, holding
+ * nothing, is a different shape than one that is missing.
+ */
+export function acceptEitherSpelling<T>(
+  columns: ColumnMap<T>,
+  raw: DbRow,
+): DbRow {
+  const row: DbRow = {};
+
+  for (const [field, column] of Object.entries<string>(columns) as Array<
+    [keyof T & string, string]
+  >) {
+    const key = column in raw ? column : field in raw ? field : undefined;
+
+    if (key !== undefined) {
+      row[column] = raw[key];
+    }
+  }
+
+  return row;
+}
+
+/** Type-only: `Assert<Check>` fails `tsc` when `Check` is not `true`. */
+export type Assert<Check extends true> = Check;
+
+/**
+ * Type-only: every key of `Shape` is a column that `Columns` binds.
+ *
+ * The guard for a hand-written row shape that a model already describes — a
+ * pg adapter's result type, an in-memory double's stored row, a wire body.
+ * Pairing it with {@link Assert} turns "this shape is the table's shape" from a
+ * comment into a build failure, which is what catches a column renamed out from
+ * under a `SELECT` before it reaches production as a `42703`.
+ *
+ * Keys the shape carries DELIBERATELY that are not columns — a joined-in owner,
+ * an aggregate — go in an `Omit` at the call site, so the exceptions are a list
+ * someone has to write down rather than a paragraph someone has to believe.
+ *
+ * REQUIRES a column map pinned with `as const`. Without the pin,
+ * `Columns[keyof T]` widens from the literal union to `string`,
+ * `Exclude<keyof Shape, string>` is `never`, and every assertion built on that
+ * map answers `true` whatever shape it is handed — the guard would not fail, it
+ * would stop inspecting. Every map in `models/` is pinned, and `models.test.ts`
+ * reads the source to keep it that way, since the pin leaves no runtime trace to
+ * check.
+ */
+export type KeysAreColumns<Shape, T, Columns extends ColumnMap<T>> =
+  Exclude<keyof Shape, Columns[keyof T]> extends never ? true : false;

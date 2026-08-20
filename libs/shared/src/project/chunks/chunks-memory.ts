@@ -11,8 +11,13 @@ import type {
 } from "./chunks-port.js";
 
 /**
- * One stored chunk row in {@link InMemoryChunks}. Mirrors the columns the Pg
- * adapter writes, plus the formatted `embedding` string set after insert.
+ * One stored chunk row in {@link InMemoryChunks}.
+ *
+ * NOT the `Chunk` model, deliberately. It carries `schema` — which team schema
+ * the row lives in, a thing the double must track because it has no schemas —
+ * and the formatted `embedding` string set after insert, which the model omits
+ * because a 768-float vector is not something a reader of a chunk wants. It also
+ * drops `author`, which nothing in the double's behaviour turns on.
  */
 export interface ChunkRow {
   id: string;
