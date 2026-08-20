@@ -3,15 +3,10 @@ import { PoolValueCell } from "./PoolValueCell";
 import { TimeAgo } from "@/components/TimeAgo";
 import { displayAgentId } from "@/lib/agent-id";
 import styles from "./PoolDetailView.module.css";
+import type { components } from "@/lib/api/schema";
 
-export interface PoolEntryRow {
-  id: string;
-  key: string;
-  value: string;
-  agent_id: string;
-  version: number;
-  created_at: string;
-}
+export type PoolEntryRow =
+  components["schemas"]["SharedPoolDetail"]["entries"][number];
 
 export interface PoolDetailViewProps {
   poolName: string;

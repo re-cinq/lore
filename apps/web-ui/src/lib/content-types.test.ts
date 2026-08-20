@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   badgeClassForType,
+  contentTypeOf,
   labelForType,
   orderTypes,
   contextHref,
@@ -66,5 +67,19 @@ describe("contextHref", () => {
     expect(contextHref("/repos/o/r/context", undefined, "foo")).toEqual(
       "/repos/o/r/context?q=foo",
     );
+  });
+});
+
+describe("contentTypeOf", () => {
+  it("returns the type unchanged when the column holds one", () => {
+    expect(contentTypeOf("code")).toEqual("code");
+  });
+
+  it("returns 'unknown' for a null content_type", () => {
+    expect(contentTypeOf(null)).toEqual("unknown");
+  });
+
+  it("returns 'unknown' for an absent content_type", () => {
+    expect(contentTypeOf(undefined)).toEqual("unknown");
   });
 });

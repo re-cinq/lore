@@ -12,6 +12,7 @@ import {
   type ConsoleAuditEvent,
 } from "./derive-console";
 import DarkFactoryConsoleView from "./DarkFactoryConsoleView";
+import type { components } from "@/lib/api/schema";
 
 const DF_EVENT_TYPES = [
   "auto_merge_decision",
@@ -28,11 +29,7 @@ interface TaskRow {
   created_at: string | Date;
 }
 
-interface AuditRow {
-  event_type: string;
-  payload: Record<string, unknown> | null;
-  created_at: string | Date;
-}
+type AuditRow = components["schemas"]["AuditLogPage"]["entries"][number];
 
 const iso = (value: string | Date): string => new Date(value).toISOString();
 
