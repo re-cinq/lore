@@ -28,6 +28,7 @@ const task = (over: Partial<TaskDetailTask> = {}): TaskDetailTask => ({
 
 const event = (over: Partial<TaskDetailEvent> = {}): TaskDetailEvent => ({
   id: "evt-1",
+  task_id: "task-1",
   from_status: "pending",
   to_status: "running",
   metadata: null,
@@ -307,12 +308,14 @@ describe("TaskDetailView", () => {
       events: [
         event({
           id: "e1",
+          task_id: "task-1",
           from_status: "pending",
           to_status: "running",
           metadata: { foo: "bar" },
         }),
         event({
           id: "e2",
+          task_id: "task-1",
           from_status: null,
           to_status: "queued",
           metadata: null,

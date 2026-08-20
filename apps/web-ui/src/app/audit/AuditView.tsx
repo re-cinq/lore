@@ -4,16 +4,11 @@ import { formatEnumLabel } from "@/lib/enum-label";
 import { displayAgentId } from "@/lib/agent-id";
 import { EmptyState } from "@/components/EmptyState";
 import styles from "./AuditView.module.css";
+import type { components } from "@/lib/api/schema";
 
-export interface AuditEntryRow {
-  id: string;
-  agent_id: string;
-  operation: string;
-  memory_key: string | null;
-  pool_name: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-}
+/** One `memory.audit_log` entry, as `/api/memory-audit` publishes it. */
+export type AuditEntryRow =
+  components["schemas"]["MemoryAuditPage"]["entries"][number];
 
 export interface AuditViewProps {
   entries: AuditEntryRow[];

@@ -1,3 +1,6 @@
+import { selectList } from "../../lib/row.js";
+import { FEATURE_COLUMNS } from "../../models/feature.js";
+import { FEATURE_ITERATION_COLUMNS } from "../../models/feature-iteration.js";
 import type { PgPool } from "../../memory-store.js";
 import type { GapResult } from "../../feature-planning/gap-result.js";
 import {
@@ -60,7 +63,8 @@ export class PgFeatures implements FeaturesPort {
 
   async get(repo: string, id: string): Promise<FeatureWithIterations | null> {
     const { rows } = await this.pool.query(
-      `SELECT * FROM lore.features WHERE id = $1 AND repo = $2`,
+      `SELECT ${selectList(FEATURE_COLUMNS)}
+         FROM lore.features WHERE id = $1 AND repo = $2`,
       [id, repo],
     );
     const feature = rows[0] as unknown as Feature | undefined;
@@ -69,7 +73,8 @@ export class PgFeatures implements FeaturesPort {
       return null;
     }
     const { rows: iterations } = await this.pool.query(
-      `SELECT * FROM lore.feature_iterations WHERE feature_id = $1 ORDER BY iteration ASC`,
+      `SELECT ${selectList(FEATURE_ITERATION_COLUMNS)}
+         FROM lore.feature_iterations WHERE feature_id = $1 ORDER BY iteration ASC`,
       [id],
     );
 
@@ -82,14 +87,16 @@ export class PgFeatures implements FeaturesPort {
   async list(repo: string, status?: FeatureStatus): Promise<Feature[]> {
     if (status) {
       const { rows } = await this.pool.query<Feature>(
-        `SELECT * FROM lore.features WHERE repo = $1 AND status = $2 ORDER BY updated_at DESC`,
+        `SELECT ${selectList(FEATURE_COLUMNS)}
+           FROM lore.features WHERE repo = $1 AND status = $2 ORDER BY updated_at DESC`,
         [repo, status],
       );
 
       return rows as Feature[];
     }
     const { rows } = await this.pool.query<Feature>(
-      `SELECT * FROM lore.features WHERE repo = $1 ORDER BY updated_at DESC`,
+      `SELECT ${selectList(FEATURE_COLUMNS)}
+         FROM lore.features WHERE repo = $1 ORDER BY updated_at DESC`,
       [repo],
     );
 
