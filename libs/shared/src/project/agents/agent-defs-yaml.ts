@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { parseTaskTypesFile } from "../../task-types/task-types-config.js";
+import {
+  parseTaskTypesFile,
+  warnOnDrift,
+} from "../../task-types/task-types-config.js";
 import {
   type AgentDefinition,
   type AgentDefinitionInput,
@@ -61,7 +64,13 @@ export class AgentDefsYaml implements AgentDefsPort {
 
     for (const p of paths) {
       try {
-        const { taskTypes } = parseTaskTypesFile(readFileSync(p, "utf-8"));
+        const { taskTypes, drift } = parseTaskTypesFile(
+          readFileSync(p, "utf-8"),
+        );
+
+        // Same ConfigMap, same #866 risk as the Floor's reader — this fallback
+        // runs inside lore-api and mcp-server, which read their own copies.
+        warnOnDrift("[agent-defs]", p, drift);
         const map = new Map<string, AgentDefinition>();
 
         for (const [name, cfg] of Object.entries(taskTypes)) {

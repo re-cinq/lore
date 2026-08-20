@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   parseTaskTypesFile,
+  warnOnDrift,
   type TaskTypeRecipe,
 } from "@re-cinq/lore-shared/task-types/task-types-config.js";
 
@@ -37,10 +38,15 @@ export function loadTaskTypes(): void {
 
   for (const p of paths) {
     try {
-      config = parseTaskTypesFile(readFileSync(p, "utf-8")).taskTypes;
+      const { taskTypes, drift } = parseTaskTypesFile(readFileSync(p, "utf-8"));
+
+      config = taskTypes;
       console.log(
         `[pipeline] Loaded ${Object.keys(config).length} task types from ${p}`,
       );
+      // Same ConfigMap, same #866 risk as the Floor's reader — reported here
+      // too rather than left for whichever process happens to log it.
+      warnOnDrift("[pipeline]", p, drift);
 
       return;
     } catch {

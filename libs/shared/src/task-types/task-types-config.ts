@@ -80,6 +80,12 @@ export interface TaskTypesFile {
   drift: string[];
 }
 
+/** The value if it is shaped like an entry at all, an empty entry otherwise. */
+const readable = (value: unknown): object =>
+  value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : {};
+
 function readSection<T>(
   section: string,
   raw: unknown,
@@ -95,14 +101,24 @@ function readSection<T>(
 
     if (!result.success) {
       for (const issue of result.error.issues) {
-        drift.push(
-          `${section}.${name}: ${issue.path.join(".")} — ${issue.message}`,
-        );
+        // `issue.path` is empty when the ENTRY itself is wrong (`general:` with
+        // no body parses as null), and "task_types.general:  — Expected object"
+        // names no field at all. The entry is the field in that case.
+        const field = issue.path.length > 0 ? issue.path.join(".") : "<entry>";
+
+        drift.push(`${section}.${name}: ${field} — ${issue.message}`);
       }
     }
     // The entry is kept either way: a reader that drops what it cannot fully
     // validate is the stale-ConfigMap outage, not the fix for it.
-    out[name] = (result.success ? result.data : value) as T;
+    //
+    // "What it can read" stops at an object, though. A `general:` with no body
+    // is null, and keeping it verbatim hands a consumer `null` typed as a
+    // recipe — `buildNodePrompt` guards `!== undefined`, which null passes, and
+    // then throws a raw TypeError instead of the diagnostic this parse just
+    // wrote. An unreadable entry becomes an EMPTY one, so every consumer's
+    // existing per-field default carries it.
+    out[name] = (result.success ? result.data : readable(value)) as T;
   }
 
   return out;
@@ -131,4 +147,21 @@ export function parseTaskTypesFile(text: string): TaskTypesFile {
     ),
     drift,
   };
+}
+
+/**
+ * Report a mismatch between the file a process read and the schema its code
+ * carries.
+ *
+ * Every reader calls this. The YAML also ships as a ConfigMap that can lag any
+ * of the three images independently, so a reader that takes `taskTypes` and
+ * drops `drift` carries the #866 risk with no warning — which is the whole
+ * failure this parse exists to make visible.
+ */
+export function warnOnDrift(tag: string, path: string, drift: string[]): void {
+  if (drift.length > 0) {
+    console.warn(
+      `${tag} ${path} does not match the task-type schema: ${drift.join("; ")}`,
+    );
+  }
 }

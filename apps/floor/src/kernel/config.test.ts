@@ -1,10 +1,18 @@
-import { describe, it, expect, beforeAll } from "vitest";
-import { writeFileSync } from "node:fs";
+import { describe, it, expect, afterAll, afterEach, beforeAll } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildNodePrompt, buildPrompt, loadTaskTypes } from "./config.js";
 
-const CONFIG = join(tmpdir(), `lore-task-types-${process.pid}.yaml`);
+// One throwaway directory for every fixture this file writes, removed when it
+// finishes — a pid-named file in /tmp outlives the run and the next one reads
+// whatever the last one left.
+const FIXTURES = mkdtempSync(join(tmpdir(), "lore-task-types-"));
+const CONFIG = join(FIXTURES, "task-types.yaml");
+
+afterAll(() => {
+  rmSync(FIXTURES, { recursive: true, force: true });
+});
 
 beforeAll(() => {
   writeFileSync(
@@ -66,28 +74,52 @@ describe("buildPrompt", () => {
 });
 
 describe("loadTaskTypes drift reporting", () => {
-  it("warns naming the fields a lagging task-types.yaml omits", () => {
-    const partial = join(tmpdir(), `lore-task-types-drift-${process.pid}.yaml`);
+  const warnings: string[] = [];
+  const realWarn = console.warn;
 
-    writeFileSync(
-      partial,
+  // `loadTaskTypes` writes module state every test in this file reads, so the
+  // restore is a declared hook rather than a `finally` inside one test — the
+  // next test to be added does not have to know it needs one.
+  afterEach(() => {
+    console.warn = realWarn;
+    warnings.length = 0;
+    loadTaskTypes(CONFIG);
+  });
+
+  const loadFixture = (name: string, yaml: string) => {
+    const path = join(FIXTURES, name);
+
+    writeFileSync(path, yaml);
+    console.warn = (message: string) => warnings.push(message);
+    loadTaskTypes(path);
+
+    return warnings.join("\n");
+  };
+
+  it("warns naming the fields a lagging task-types.yaml omits", () => {
+    const warned = loadFixture(
+      "partial.yaml",
       "task_types:\n  general:\n    prompt_template: Do {description}\n",
     );
 
-    const warnings: string[] = [];
-    const realWarn = console.warn;
+    expect(warned).toContain("task_types.general: timeout_minutes — Required");
+  });
 
-    console.warn = (message: string) => warnings.push(message);
+  it("names the entry itself when an entry has no body at all", () => {
+    const warned = loadFixture("bodyless.yaml", "task_types:\n  general:\n");
 
-    try {
-      loadTaskTypes(partial);
-    } finally {
-      console.warn = realWarn;
-      loadTaskTypes(CONFIG);
-    }
+    expect(warned).toContain("task_types.general: <entry> — Expected object");
+  });
 
-    expect(warnings.join("\n")).toContain(
-      "task_types.general: timeout_minutes — Required",
+  it("reads an entry with no body as empty rather than as null", () => {
+    loadFixture("bodyless.yaml", "task_types:\n  general:\n");
+
+    // The diagnostic above is what a stale ConfigMap should produce. Keeping the
+    // null verbatim would instead throw a raw TypeError out of buildNodePrompt.
+    expect(() => buildNodePrompt("general", "ship it")).toThrow(
+      new Error(
+        'task type "general" declares no prompt_template — the loaded task-types.yaml is older than this code',
+      ),
     );
   });
 });

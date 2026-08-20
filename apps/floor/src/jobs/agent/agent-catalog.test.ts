@@ -398,3 +398,13 @@ describe("buildAgentDefinition without a prompt", () => {
     );
   });
 });
+
+describe("buildStationDefinition without a command", () => {
+  it("throws naming the station rather than seeding a pod with nothing to run", () => {
+    expect(() => buildStationDefinition("ingest", {})).toThrow(
+      new Error(
+        'station "ingest" has no command — task-types.yaml is missing a field the catalog needs',
+      ),
+    );
+  });
+});

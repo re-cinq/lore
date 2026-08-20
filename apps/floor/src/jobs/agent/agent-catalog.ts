@@ -220,6 +220,16 @@ export function buildStationDefinition(
   name: string,
   cfg: StationCatalogConfig,
 ): AgentDefinition {
+  // The argv IS the station: `tool_config` is typed `unknown` by the contracts
+  // package, so `{ command: undefined }` compiles and seeds a recipe whose pod
+  // has nothing to run. The committed file carries `command` on all eight
+  // entries; a build that does not is drift worth stopping on.
+  enforceTrue(
+    cfg.command !== undefined,
+    Error,
+    `station "${name}" has no command — task-types.yaml is missing a field the catalog needs`,
+  );
+
   return {
     apiVersion: API_VERSION,
     kind: "AgentDefinition",

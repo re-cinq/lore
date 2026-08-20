@@ -10,6 +10,7 @@ import { resolve } from "node:path";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   parseTaskTypesFile,
+  warnOnDrift,
   type TaskTypeRecipe,
 } from "@re-cinq/lore-shared/task-types/task-types-config.js";
 
@@ -67,11 +68,7 @@ export function loadTaskTypes(configPath?: string): void {
       // The container reads this from a ConfigMap. A stale one is the failure
       // mode that once blinded every review (#866) — say so rather than serve a
       // shape the code no longer describes.
-      if (drift.length > 0) {
-        console.warn(
-          `[floor] ${p} does not match the task-type schema: ${drift.join("; ")}`,
-        );
-      }
+      warnOnDrift("[floor]", p, drift);
 
       return;
     } catch {

@@ -1,8 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   parseTaskTypesFile,
+  warnOnDrift,
   TaskTypeConfigSchema,
 } from "./task-types-config.js";
 
@@ -64,6 +65,67 @@ describe("TaskTypeConfigSchema", () => {
       "prompt_template",
       "review_required",
       "timeout_minutes",
+    ]);
+  });
+});
+
+describe("an entry a reader cannot read at all", () => {
+  const BODYLESS = "task_types:\n  general:\n  broken: hello\n";
+
+  it("names the entry, not an empty field, in the drift line", () => {
+    const { drift } = parseTaskTypesFile(BODYLESS);
+
+    expect(drift).toEqual([
+      "task_types.general: <entry> — Expected object, received null",
+      "task_types.broken: <entry> — Expected object, received string",
+    ]);
+  });
+
+  it("keeps it as an empty recipe rather than as null", () => {
+    const { taskTypes } = parseTaskTypesFile(BODYLESS);
+
+    expect(taskTypes).toEqual({ general: {}, broken: {} });
+  });
+
+  it("keeps what it CAN read of an entry that is merely incomplete", () => {
+    const { taskTypes } = parseTaskTypesFile(
+      "task_types:\n  general:\n    prompt_template: Do {description}\n",
+    );
+
+    expect(taskTypes.general).toEqual({
+      prompt_template: "Do {description}",
+    });
+  });
+});
+
+describe("warnOnDrift", () => {
+  const realWarn = console.warn;
+
+  afterEach(() => {
+    console.warn = realWarn;
+  });
+
+  it("says nothing when the file matches the schema", () => {
+    const said: string[] = [];
+
+    console.warn = (message: string) => said.push(message);
+    warnOnDrift("[floor]", "/config/task-types.yaml", []);
+
+    expect(said).toEqual([]);
+  });
+
+  it("names the reader, the file and every mismatch", () => {
+    const said: string[] = [];
+
+    console.warn = (message: string) => said.push(message);
+    warnOnDrift("[floor]", "/config/task-types.yaml", [
+      "task_types.general: model — Required",
+      "stations.ingest: command — Required",
+    ]);
+
+    expect(said).toEqual([
+      "[floor] /config/task-types.yaml does not match the task-type schema: " +
+        "task_types.general: model — Required; stations.ingest: command — Required",
     ]);
   });
 });
