@@ -14,20 +14,32 @@
 --   memory.facts.invalidated_by
 --   memory.facts.episode_id
 --
--- OWNERSHIP splits the file in two. `lore` owns the `lore` schema, so the repos
--- column applies through the normal channel. The `memory` schema is created by
--- the bootstrap superuser (setup-memory-schema.sh runs `psql -U postgres`), so
--- postgres owns memory.facts and the runner holds GRANT but not the ownership an
--- ALTER needs — the same caveat 0012 and 0013 carry, handled the same way: a
--- subtransaction that catches insufficient_privilege and skips with a NOTICE
--- rather than failing the deploy. Where lore owns the tables it converges by
--- itself; on a superuser-owned cluster, converge by re-running the idempotent
--- setup-memory-schema.sh as the superuser, which declares all of this.
+-- OWNERSHIP guards BOTH halves. The `memory` schema is created by the bootstrap
+-- superuser (setup-memory-schema.sh runs `psql -U postgres`), so postgres owns
+-- memory.facts and the runner holds GRANT but not the ownership an ALTER needs —
+-- the caveat 0012 and 0013 carry. `lore.repos` needs the same guard on any
+-- cluster provisioned before the database `owner` was `lore` (the README's
+-- one-time REASSIGN note), which production is: without it this file failed the
+-- pre-upgrade hook with `must be owner of table repos` and wedged every deploy.
+-- Note the ownership check runs BEFORE `IF NOT EXISTS`, so an un-owned table
+-- raises even when the column is already there and nothing needs doing.
+--
+-- Both halves therefore run in a subtransaction that catches
+-- insufficient_privilege and skips with a NOTICE rather than failing the deploy.
+-- Where `lore` owns the tables they converge by themselves; on a superuser-owned
+-- cluster, converge by re-running the idempotent baseline script as the
+-- superuser, which declares all of this.
 --
 -- Idempotent: safe to re-run.
 
-ALTER TABLE lore.repos
-  ADD COLUMN IF NOT EXISTS outcome_stats JSONB DEFAULT '{}';
+DO $repos$
+BEGIN
+  ALTER TABLE lore.repos
+    ADD COLUMN IF NOT EXISTS outcome_stats JSONB DEFAULT '{}';
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE NOTICE 'skip lore.repos.outcome_stats (runner is not the table owner); run setup-repos-schema.sh as the superuser to converge';
+END$repos$;
 
 DO $migrate$
 BEGIN
