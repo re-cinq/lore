@@ -1887,7 +1887,26 @@ export interface components {
       ok: true;
     };
     PrStatus: {
-      [key: string]: unknown;
+      url: string;
+      number: number;
+      title: string;
+      /** @enum {string} */
+      state: "open" | "closed" | "merged";
+      draft: boolean;
+      mergeable: boolean;
+      /** @enum {string} */
+      checksStatus: "success" | "failure" | "pending" | "none";
+      /** @enum {string} */
+      reviewStatus: "approved" | "changes_requested" | "pending" | "none";
+      /** @enum {string} */
+      computedStatus:
+        | "merged"
+        | "closed"
+        | "draft"
+        | "checks-failing"
+        | "changes-requested"
+        | "approved"
+        | "open";
     };
     AssembledContext: {
       text: string | null;
@@ -2545,7 +2564,9 @@ export interface components {
       log_path: string | null;
     };
     RepoActivityCounts: {
-      [key: string]: number | null;
+      tasks: number | null;
+      auto_merged: number | null;
+      escalations: number | null;
     };
     Spend: {
       org_available: boolean;

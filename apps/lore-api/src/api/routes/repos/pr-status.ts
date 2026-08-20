@@ -20,8 +20,32 @@ const PrStatusQuery = z.object({
 
 type PrStatusQuery = z.infer<typeof PrStatusQuery>;
 
-/** A pull request's computed status, as the task page renders it. */
-const PrStatusSchema = z.record(z.unknown());
+/**
+ * A pull request's computed status.
+ *
+ * A GitHub read, not a table read — so this is stated rather than derived. It
+ * mirrors `PRDetails` in `@re-cinq/lore-shared`, which is where the shape is
+ * declared for every consumer that does not go through HTTP.
+ */
+const PrStatusSchema = z.object({
+  url: z.string(),
+  number: z.number(),
+  title: z.string(),
+  state: z.enum(["open", "closed", "merged"]),
+  draft: z.boolean(),
+  mergeable: z.boolean(),
+  checksStatus: z.enum(["success", "failure", "pending", "none"]),
+  reviewStatus: z.enum(["approved", "changes_requested", "pending", "none"]),
+  computedStatus: z.enum([
+    "merged",
+    "closed",
+    "draft",
+    "checks-failing",
+    "changes-requested",
+    "approved",
+    "open",
+  ]),
+});
 
 export function prStatusRoute(): ServerRoute {
   return {

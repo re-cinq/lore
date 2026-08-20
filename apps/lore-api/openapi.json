@@ -7022,7 +7022,59 @@
       },
       "PrStatus": {
         "type": "object",
-        "additionalProperties": {}
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "number": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["open", "closed", "merged"]
+          },
+          "draft": {
+            "type": "boolean"
+          },
+          "mergeable": {
+            "type": "boolean"
+          },
+          "checksStatus": {
+            "type": "string",
+            "enum": ["success", "failure", "pending", "none"]
+          },
+          "reviewStatus": {
+            "type": "string",
+            "enum": ["approved", "changes_requested", "pending", "none"]
+          },
+          "computedStatus": {
+            "type": "string",
+            "enum": [
+              "merged",
+              "closed",
+              "draft",
+              "checks-failing",
+              "changes-requested",
+              "approved",
+              "open"
+            ]
+          }
+        },
+        "required": [
+          "url",
+          "number",
+          "title",
+          "state",
+          "draft",
+          "mergeable",
+          "checksStatus",
+          "reviewStatus",
+          "computedStatus"
+        ],
+        "additionalProperties": false
       },
       "AssembledContext": {
         "type": "object",
@@ -9357,9 +9409,19 @@
       },
       "RepoActivityCounts": {
         "type": "object",
-        "additionalProperties": {
-          "type": ["number", "null"]
-        }
+        "properties": {
+          "tasks": {
+            "type": ["number", "null"]
+          },
+          "auto_merged": {
+            "type": ["number", "null"]
+          },
+          "escalations": {
+            "type": ["number", "null"]
+          }
+        },
+        "required": ["tasks", "auto_merged", "escalations"],
+        "additionalProperties": false
       },
       "Spend": {
         "type": "object",
