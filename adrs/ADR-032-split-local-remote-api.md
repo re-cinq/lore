@@ -221,8 +221,22 @@ both. The line:
 One constraint is easy to violate and expensive to discover, so it is recorded
 here rather than learned twice: **seven `lore-shared` modules are reachable by
 `apps/web-ui` through a relative file path**, because web-ui cannot import the
-package at all. Everything in that import graph must exist in web-ui's own
-lockfile. Adding `zod` to one of them — via a model re-export — broke both the
+package at all. Everything in those import graphs must exist in web-ui's own
+lockfile. Named, so the boundary is auditable rather than folklore:
+
+| Module | Reached by |
+|---|---|
+| `dark-factory-settings.ts` | `dark-factory-resolve.parity.test.ts` |
+| `feature-planning/gap-result.ts` | `gap-sections.parity.test.ts` |
+| `ingest-workflow.ts` | `ingest-workflow.parity.test.ts` |
+| `project/lib/octokit-retry-policy.ts` | `octokit-retry-policy.test.ts` |
+| `references.ts` | `references.parity.test.ts` |
+| `spec-status.ts` | `spec-status.parity.test.ts` |
+| `trace-impact-workflow.ts` | `trace-impact-workflow.parity.test.ts` |
+
+A `grep` for `"../../../../libs/shared"` under `apps/web-ui/src` is the check;
+adding a dependency to any module on that list, or to anything it imports, is
+what breaks the web-ui build. Adding `zod` to one of them — via a model re-export — broke both the
 web-ui parity suite and the Next build, and the failure names a missing package
 rather than the boundary it crossed. Those modules keep plain TypeScript types;
 where a model must agree with one, the MODEL imports the plain type and asserts
