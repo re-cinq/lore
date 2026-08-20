@@ -79,11 +79,66 @@ type MemoryBody = z.infer<typeof MemoryBody>;
 
 /**
  * One POST multiplexes write, read, search, delete and list, and each answers a
- * different shape — so the contract is stated as the open document it genuinely
- * is rather than as one of the five pretending to be all of them. Splitting the
- * actions into their own routes is what would buy five precise contracts.
+ * different shape.
+ *
+ * Declared as the UNION of the five rather than as the open document it was.
+ * A union still makes a generated client narrow — but it narrows over five named
+ * shapes instead of over nothing, which is the difference between a contract and
+ * a shrug. `read` is itself two answers: one version, or every version.
+ *
+ * SPLITTING the five actions into five routes is what would buy five precise
+ * contracts, and it is deliberately not done here: the action rides in the BODY,
+ * so every caller — the mcp-server memory tools and the `~/.lore/memory` file
+ * fallback among them — posts to this one path. Moving them is an expand/contract
+ * across a separately-shipped image, not a refactor of this file.
  */
-const MemoryOperationSchema = z.record(z.unknown());
+const MemoryVersionSchema = z.object({
+  version: z.number(),
+  value: z.string(),
+  created_at: z.string(),
+});
+
+const MemoryOperationSchema = z.union([
+  /** write — the row it landed, from the pool or the file fallback alike. */
+  z.object({
+    key: z.string(),
+    version: z.number(),
+    agent_id: z.string(),
+    created_at: z.string(),
+  }),
+  /** read, latest — null when the key holds nothing readable. */
+  z
+    .object({
+      key: z.string(),
+      value: z.string(),
+      version: z.number(),
+      created_at: z.string(),
+    })
+    .nullable(),
+  /** read, `version: "all"` — every version, newest first. */
+  z.array(MemoryVersionSchema),
+  /** search — hits across memories, facts, episodes and the graph. */
+  z.array(
+    z.object({
+      key: z.string(),
+      value: z.string(),
+      score: z.number(),
+      agent_id: z.string(),
+      source: z.enum(["memory", "fact", "episode", "graph"]),
+      id: z.string().optional(),
+      confidence: z.string().optional(),
+    }),
+  ),
+  /** delete — soft-delete acknowledgement. */
+  z.object({ key: z.string(), deleted: z.boolean() }),
+  /** list — a page, with the window the caller asked for echoed back. */
+  z.object({
+    memories: z.array(z.record(z.unknown())),
+    total: z.number(),
+    limit: z.number(),
+    offset: z.number(),
+  }),
+]);
 
 export function memoryRoute(getPool: () => Pool | null): ServerRoute {
   return {

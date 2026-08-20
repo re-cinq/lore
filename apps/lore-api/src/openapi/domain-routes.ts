@@ -11,20 +11,28 @@
  * - `features` and `tokens` are hand-rolled (no single zod schema) — documented as
  *   freeform `object` bodies and recorded as uncovered.
  *
- * It also supplies the concrete verbs for the two `method: "*"` routes, which hapi
- * expresses as a wildcard the document cannot. The drift-guard test cross-checks
- * this table against the live route list so it cannot silently drift.
+ * It also names the concrete verbs of any `method: "*"` route that means to serve
+ * them, which hapi expresses as a wildcard the document cannot. That table is
+ * empty today — see {@link WILDCARD_METHODS}.
  */
 
 import type { ZodType } from "zod";
 import { AgentInputSchema } from "../features/agents/agents-schema.js";
 import { DarkFactorySettingsSchema } from "../features/dark-factory/dark-factory-settings.js";
 
-/** Concrete verbs for `method: "*"` routes, keyed by the hapi path. */
-export const WILDCARD_METHODS: Record<string, string[]> = {
-  "/api/tokens": ["GET", "POST"],
-  "/api/repos/{owner}/{repo}/settings/dark-factory": ["GET", "PUT"],
-};
+/**
+ * Concrete verbs for `method: "*"` routes, keyed by the hapi path.
+ *
+ * EMPTY, and that is the point: `/api/tokens` and the dark-factory settings path
+ * each used to be one wildcard route serving two verbs, which the generator
+ * could only document as the union of both answers. They are split into concrete
+ * per-verb routes now, each declaring its own contract; the wildcard route that
+ * remains at each path is a 405 fallback and documents nothing. A path absent
+ * from this table contributes no operations, which is exactly right for one.
+ *
+ * A future wildcard route that DOES mean to serve real verbs adds its entry here.
+ */
+export const WILDCARD_METHODS: Record<string, string[]> = {};
 
 /** How a domain-validated write route's request body is documented. */
 export type DomainBody =

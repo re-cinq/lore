@@ -2218,9 +2218,46 @@ export interface components {
       forwarded: number;
       skipped: number;
     };
-    MemoryOperationResult: {
-      [key: string]: unknown;
-    };
+    MemoryOperationResult:
+      | {
+          key: string;
+          version: number;
+          agent_id: string;
+          created_at: string;
+        }
+      | ({
+          key: string;
+          value: string;
+          version: number;
+          created_at: string;
+        } | null)
+      | {
+          version: number;
+          value: string;
+          created_at: string;
+        }[]
+      | {
+          key: string;
+          value: string;
+          score: number;
+          agent_id: string;
+          /** @enum {string} */
+          source: "memory" | "fact" | "episode" | "graph";
+          id?: string;
+          confidence?: string;
+        }[]
+      | {
+          key: string;
+          deleted: boolean;
+        }
+      | {
+          memories: {
+            [key: string]: unknown;
+          }[];
+          total: number;
+          limit: number;
+          offset: number;
+        };
     GraphBrowse: {
       stats: {
         entity_count: number;
@@ -2397,76 +2434,73 @@ export interface components {
       secret: string;
       canonicalUrl: string;
     };
-    TokenResponse:
-      | {
-          tokens: {
-            id: string;
-            name: string;
-            scopes: string[];
-            created_by: string;
-            expires_at: string | null;
-            last_used: string | null;
-            /** Format: date-time */
-            created_at: string;
-          }[];
-          total: number;
-          limit: number;
-          offset: number;
-        }
-      | (
-          | {
-              /** @constant */
-              ok: true;
-            }
-          | {
-              id: string;
-              name: string;
-              token: string;
-              scopes: string[];
-              expires_at: string | null;
-            }
-        );
-    DarkFactorySettings:
-      | {
-          enabled: boolean;
-          /** @enum {string} */
-          create_issue: "never" | "on_gate" | "always";
-          auto_merge: {
-            paths: string[];
-            /** @enum {string} */
-            min_trust: "docs" | "tests" | "implementation" | "full";
-            require_green_ci: boolean;
-            require_bot_approval: boolean;
-          };
-          /** @enum {string} */
-          review: "trust_based" | "always" | "never";
-          notify: ("escalation" | "watched" | "all")[];
-        }
+    TokenList: {
+      tokens: {
+        id: string;
+        name: string;
+        scopes: string[];
+        created_by: string;
+        expires_at: string | null;
+        last_used: string | null;
+        /** Format: date-time */
+        created_at: string;
+      }[];
+      total: number;
+      limit: number;
+      offset: number;
+    };
+    TokenWriteResult:
       | {
           /** @constant */
           ok: true;
-          applied: {
-            enabled: boolean;
-            /** @enum {string} */
-            create_issue: "never" | "on_gate" | "always";
-            auto_merge: {
-              paths: string[];
-              /** @enum {string} */
-              min_trust: "docs" | "tests" | "implementation" | "full";
-              require_green_ci: boolean;
-              require_bot_approval: boolean;
-            };
-            /** @enum {string} */
-            review: "trust_based" | "always" | "never";
-            notify: ("escalation" | "watched" | "all")[];
-          };
-          ceremony: {
-            /** @enum {string} */
-            tier: "two_key" | "admin";
-            pr_ref?: string;
-            approver?: string;
-          };
+        }
+      | {
+          id: string;
+          name: string;
+          token: string;
+          scopes: string[];
+          expires_at: string | null;
         };
+    DarkFactorySettings: {
+      enabled: boolean;
+      /** @enum {string} */
+      create_issue: "never" | "on_gate" | "always";
+      auto_merge: {
+        paths: string[];
+        /** @enum {string} */
+        min_trust: "docs" | "tests" | "implementation" | "full";
+        require_green_ci: boolean;
+        require_bot_approval: boolean;
+      };
+      /** @enum {string} */
+      review: "trust_based" | "always" | "never";
+      notify: ("escalation" | "watched" | "all")[];
+    };
+    DarkFactorySettingsApplied: {
+      /** @constant */
+      ok: true;
+      applied: {
+        enabled: boolean;
+        /** @enum {string} */
+        create_issue: "never" | "on_gate" | "always";
+        auto_merge: {
+          paths: string[];
+          /** @enum {string} */
+          min_trust: "docs" | "tests" | "implementation" | "full";
+          require_green_ci: boolean;
+          require_bot_approval: boolean;
+        };
+        /** @enum {string} */
+        review: "trust_based" | "always" | "never";
+        notify: ("escalation" | "watched" | "all")[];
+      };
+      ceremony: {
+        /** @enum {string} */
+        tier: "two_key" | "admin";
+        pr_ref?: string;
+        approver?: string;
+      };
+    };
     AgentDefinitionRead:
       | {
           name: string;
@@ -5109,16 +5143,15 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The token list (GET) or the write result (POST) */
+      /** @description A page of active tokens; the hash is never served */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["TokenResponse"];
+          "application/json": components["schemas"]["TokenList"];
         };
       };
-      400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       429: components["responses"]["RateLimited"];
@@ -5140,13 +5173,13 @@ export interface operations {
       };
     };
     responses: {
-      /** @description The token list (GET) or the write result (POST) */
+      /** @description The revoke acknowledgement, or the created token — served once and never again */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["TokenResponse"];
+          "application/json": components["schemas"]["TokenWriteResult"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -5169,7 +5202,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The resolved settings (GET) or the applied change (PUT) */
+      /** @description Every dark-factory knob, resolved */
       200: {
         headers: {
           [name: string]: unknown;
@@ -5178,10 +5211,8 @@ export interface operations {
           "application/json": components["schemas"]["DarkFactorySettings"];
         };
       };
-      400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
-      409: components["responses"]["Conflict"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -5219,13 +5250,13 @@ export interface operations {
       };
     };
     responses: {
-      /** @description The resolved settings (GET) or the applied change (PUT) */
+      /** @description What the write applied, and under whose authority */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["DarkFactorySettings"];
+          "application/json": components["schemas"]["DarkFactorySettingsApplied"];
         };
       };
       400: components["responses"]["BadRequest"];
