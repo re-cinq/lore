@@ -6,17 +6,10 @@ import { listAgents } from "@/lib/agents-api";
 import AgentsTable, { type AgentRow } from "@/components/AgentsTable";
 import AgentList from "./AgentList";
 import styles from "./agents.module.css";
+import type { components } from "@/lib/api/schema";
 
-interface RepoAgentQueryRow {
-  agent_id: string;
-  task_count: number;
-  cost_usd: number;
-  created_by: string | null;
-  reason_type: string | null;
-  reason: string | null;
-  memory_count: number;
-  last_active: string | null;
-}
+type RepoAgentQueryRow =
+  components["schemas"]["AgentActivity"]["agents"][number];
 
 export default async function RepoAgents({
   params,

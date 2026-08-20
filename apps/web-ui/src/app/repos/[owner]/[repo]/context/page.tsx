@@ -26,7 +26,7 @@ export default async function RepoContext({
   const hasMore = page.hasMore;
   const chunks = (page.chunks as unknown as RepoContextChunk[]).map((c) => ({
     ...c,
-    content: previewBlock(c.content, c.content_type),
+    content: previewBlock(c.content, c.content_type ?? ""),
   }));
 
   return (

@@ -3163,9 +3163,15 @@ export interface components {
       tasks: {
         description: string;
         status: string;
-        context_bundle: {
-          [key: string]: unknown;
-        } | null;
+        context_bundle:
+          | ({
+              story_issue?: number | null;
+              spec_task_id?: string;
+              phase?: number;
+            } & {
+              [key: string]: unknown;
+            })
+          | null;
       }[];
     };
     Ok: {

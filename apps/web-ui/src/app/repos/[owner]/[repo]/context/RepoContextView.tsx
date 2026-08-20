@@ -5,15 +5,13 @@ import LoadMore from "./LoadMore";
 import { CONTEXT_PAGE_SIZE } from "./pagination";
 import { type ChunkMeta } from "@/lib/chunk-presenter";
 import styles from "./RepoContextView.module.css";
+import type { components } from "@/lib/api/schema";
 
-export interface RepoContextChunk {
-  id: string;
-  file_path: string;
-  content_type: string;
-  content: string;
-  ingested_at: string;
-  metadata: ChunkMeta | null;
-}
+/** The five chunk fields this view renders, typed by the contract. */
+export type RepoContextChunk = Pick<
+  components["schemas"]["ChunkList"]["chunks"][number],
+  "id" | "file_path" | "content_type" | "content" | "ingested_at"
+> & { metadata: ChunkMeta | null };
 
 export interface RepoContextViewProps {
   owner: string;
@@ -107,7 +105,11 @@ export default function RepoContextView({
               key={c.id}
               chunk={c}
               repo={fullName}
-              detailHref={`${base}/${encodeURIComponent(c.file_path)}`}
+              detailHref={
+                c.file_path
+                  ? `${base}/${encodeURIComponent(c.file_path)}`
+                  : undefined
+              }
             />
           ))}
           <LoadMore

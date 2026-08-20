@@ -11650,7 +11650,18 @@
                   "anyOf": [
                     {
                       "type": "object",
-                      "additionalProperties": {}
+                      "properties": {
+                        "story_issue": {
+                          "type": ["number", "null"]
+                        },
+                        "spec_task_id": {
+                          "type": "string"
+                        },
+                        "phase": {
+                          "type": "number"
+                        }
+                      },
+                      "additionalProperties": true
                     },
                     {
                       "type": "null"

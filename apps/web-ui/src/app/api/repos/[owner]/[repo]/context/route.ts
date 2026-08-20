@@ -26,7 +26,7 @@ export async function GET(
     const page = await fetchRepoChunks(fullName, type, q, offset);
     const chunks = (page.chunks as unknown as RepoContextChunk[]).map((c) => ({
       ...c,
-      content: previewBlock(c.content, c.content_type),
+      content: previewBlock(c.content, c.content_type ?? ""),
     }));
 
     return NextResponse.json({ chunks, hasMore: page.hasMore });

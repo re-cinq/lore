@@ -27,7 +27,7 @@ export default async function ContextPage({
 
   const chunks = allChunks.map((c) => ({
     ...c,
-    content: previewBlock(c.content, c.content_type),
+    content: previewBlock(c.content, c.content_type ?? ""),
   }));
 
   return <ContextView type={type} q={q} types={types} chunks={chunks} />;

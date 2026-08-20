@@ -5,20 +5,21 @@ import { chunkHeader, type ChunkMeta } from "@/lib/chunk-presenter";
 import { formatEnumLabel } from "@/lib/enum-label";
 import { TimeAgo } from "@/components/TimeAgo";
 import styles from "./ContextCard.module.css";
+import type { components } from "@/lib/api/schema";
 
-export interface ContextCardChunk {
-  id: string;
-  file_path: string;
-  content_type: string;
-  content: string;
-  ingested_at: string;
-  metadata?: ChunkMeta | null;
-}
+/** The five chunk fields the card renders. The field TYPES come from the
+ *  contract, which is where `file_path` and `content_type` turn out to be
+ *  nullable — the column permits it and a hand-written `string` did not. */
+export type ContextCardChunk = Pick<
+  components["schemas"]["ChunkList"]["chunks"][number],
+  "id" | "file_path" | "content_type" | "content" | "ingested_at"
+> & { metadata?: ChunkMeta | null };
 
 export interface ContextCardProps {
   chunk: ContextCardChunk;
   /** Link to the per-file detail route. */
-  detailHref: string;
+  /** Absent when the chunk has no `file_path` — there is no detail page for it. */
+  detailHref?: string;
   /** owner/name of the chunk's repo, for GitHub links inside the preview. */
   repo: string;
   /** Shown only in the global cross-repo view. */
@@ -36,27 +37,38 @@ export default function ContextCard({
   repo,
   repoLabel,
 }: ContextCardProps) {
-  const header = chunkHeader(chunk.content_type, chunk.metadata ?? null);
+  // Both columns permit NULL, which the hand-written type denied. An untyped or
+  // pathless chunk is a real row, not a crash.
+  const contentType = chunk.content_type ?? "unknown";
+  const header = chunkHeader(contentType, chunk.metadata ?? null);
 
   return (
     <div className={styles.card}>
       <div className={styles.head}>
-        <span className={badgeClassForType(chunk.content_type)}>
-          {formatEnumLabel(chunk.content_type)}
+        <span className={badgeClassForType(contentType)}>
+          {formatEnumLabel(contentType)}
         </span>
-        <Link href={detailHref} className={styles.path}>
-          {chunk.file_path}
-        </Link>
+        {detailHref ? (
+          <Link href={detailHref} className={styles.path}>
+            {chunk.file_path}
+          </Link>
+        ) : (
+          <span className={styles.path}>{chunk.file_path ?? "—"}</span>
+        )}
         {repoLabel && <span className={styles.repo}>{repoLabel}</span>}
         <span className={styles.date}>
-          <TimeAgo date={chunk.ingested_at} inline />
+          {chunk.ingested_at ? (
+            <TimeAgo date={chunk.ingested_at} inline />
+          ) : (
+            "—"
+          )}
         </span>
       </div>
       {header && <p className={styles.subhead}>{header}</p>}
       <ChunkBody
         content={chunk.content}
-        contentType={chunk.content_type}
-        filePath={chunk.file_path}
+        contentType={contentType}
+        filePath={chunk.file_path ?? ""}
         repo={repo}
         metadata={chunk.metadata ?? undefined}
         preview

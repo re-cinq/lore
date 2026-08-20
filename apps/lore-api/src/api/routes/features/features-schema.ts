@@ -214,7 +214,21 @@ export const FeatureDecompositionSchema = z.object({
     z.object({
       description: z.string(),
       status: z.string(),
-      context_bundle: z.record(z.unknown()).nullable(),
+      /**
+       * A spec-task's bundle, and the three keys the decomposition view groups
+       * by are NAMED. `context_bundle` is free-form JSONB across task types, so
+       * it stays open — but leaving it entirely open made a client's read of
+       * `story_issue` type as `{}`, which is a contract that documents a field
+       * without saying anything about it. Passthrough keeps every other key.
+       */
+      context_bundle: z
+        .object({
+          story_issue: z.number().nullable().optional(),
+          spec_task_id: z.string().optional(),
+          phase: z.number().optional(),
+        })
+        .passthrough()
+        .nullable(),
     }),
   ),
 });
