@@ -5,9 +5,11 @@
  * (converted zod schema for covered routes; lifted domain schema or freeform for
  * the domain-validated ones), and the shared error envelope.
  *
- * The document is request-focused: request contracts and the `{ error }` envelope
- * are declared, so they are described precisely; success bodies are not declared,
- * so they are described generically. Stated in `info.description`.
+ * The document describes both directions: request contracts, the `{ error }`
+ * envelope, and success bodies declared with `zodResponse`. A body that shares
+ * fields with a table derives them from that table's model, so the contract and
+ * the schema cannot drift apart. `info.description` states the two routes that
+ * declare nothing, and why.
  */
 
 import type { ServerRoute, RouteOptions } from "@hapi/hapi";
@@ -520,8 +522,11 @@ export function generateOpenApi(
       version: opts.version ?? DEFAULT_VERSION,
       description:
         "Generated from the lore-api hapi route zod schemas (ADR-035). This document " +
-        "describes request contracts and the uniform `{ error }` error envelope precisely; " +
-        "success response bodies are not declaratively described and appear generically. " +
+        "describes request contracts, success bodies and the uniform `{ error }` error " +
+        "envelope. A route declares its body with `zodResponse`; where that body shares " +
+        "fields with a table, the schema is derived from that table's model and column " +
+        "map, so a renamed column cannot leave the contract behind. The two routes that " +
+        "declare none are `/api/openapi.json` (this document) and `/api/docs` (HTML). " +
         "Per-route required scope is the `x-required-scope` extension (HTTP bearer has no " +
         "scope list); the rate-limit bucket is `x-rate-limit-bucket`.",
     },
