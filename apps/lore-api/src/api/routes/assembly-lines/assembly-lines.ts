@@ -83,6 +83,28 @@ async function enrichmentById(
 }
 
 /**
+ * The PR number a run's args carry, or null when they carry none.
+ *
+ * `Number(null)` is 0, `Number("")` is 0, and `Number.isFinite` is happy with
+ * both — so a bare coercion serves `args_pr_number: 0` for a run whose args hold
+ * an explicit null, and the run page renders a link to a PR that does not exist.
+ * The SQL this replaced lifted the value with `(args->>'pr_number')::int`, which
+ * answers NULL for both.
+ */
+function argsPrNumber(raw: unknown): number | null {
+  if (typeof raw === "number") {
+    return Number.isFinite(raw) ? raw : null;
+  }
+
+  if (typeof raw !== "string" || raw.trim() === "") {
+    return null;
+  }
+  const parsed = Number(raw);
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
  * One run as the run views read it.
  *
  * `definition_name` doubles the blueprint name under its pre-rename spelling for
@@ -98,8 +120,6 @@ function toRunRow(
   enrichment: RunEnrichment | undefined,
   withGraph: boolean,
 ) {
-  const prNumber = Number(run.args["pr_number"]);
-
   return {
     id: run.id,
     blueprint_name: run.blueprintName,
@@ -115,7 +135,7 @@ function toRunRow(
     created_at: run.createdAt.toISOString(),
     started_at: run.startedAt?.toISOString() ?? null,
     finished_at: run.finishedAt?.toISOString() ?? null,
-    args_pr_number: Number.isFinite(prNumber) ? prNumber : null,
+    args_pr_number: argsPrNumber(run.args["pr_number"]),
     pr_url: enrichment?.pr_url ?? null,
     task_pr_number: enrichment?.task_pr_number ?? null,
     created_by:
@@ -228,6 +248,12 @@ export function assemblyLineRoutes(
    *  `run-read.ts` does. */
   runs?: AssemblyRunsPort,
 ): ServerRoute[] {
+  /** The port a handler reads through: the injected one, or one over the pool
+   *  this request resolved. Named once — three handlers building their own is
+   *  three places to remember when the adapter's construction changes. */
+  const portFor = (pool: Pool): AssemblyRunsPort =>
+    runs ?? new PgAssemblyRuns(pool);
+
   return withLegacyAlias([
     {
       method: "GET",
@@ -251,7 +277,7 @@ export function assemblyLineRoutes(
         }
         const { status, repo, blueprint, task_id, subject_key, limit } =
           request.query as unknown as RunsQuery;
-        const port = runs ?? new PgAssemblyRuns(pool);
+        const port = portFor(pool);
 
         try {
           // A task-centric caller draws the run it gets back, so it needs the
@@ -297,9 +323,7 @@ export function assemblyLineRoutes(
         }
 
         try {
-          const visits = await (
-            runs ?? new PgAssemblyRuns(pool)
-          ).listStationRuns(request.params.id);
+          const visits = await portFor(pool).listStationRuns(request.params.id);
 
           return h.response({
             nodes: visits.map((visit) => ({
@@ -397,9 +421,7 @@ export function assemblyLineRoutes(
         }
 
         try {
-          const run = await (runs ?? new PgAssemblyRuns(pool)).getById(
-            request.params.id,
-          );
+          const run = await portFor(pool).getById(request.params.id);
 
           if (!run) {
             return h.response({ error: "Run not found" }).code(404);

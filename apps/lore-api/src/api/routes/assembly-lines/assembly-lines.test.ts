@@ -260,6 +260,92 @@ describe("assembly-line reads", () => {
       expect(pool.query.mock.calls[0][0]).not.toContain("lc.assembly_run_id");
     });
 
+    it("maps the enrichment row onto the run it belongs to", async () => {
+      // Every other test in this file answers the pool with no rows, which
+      // leaves the enriched half of a run row null whatever the mapping does.
+      const runs = new InMemoryAssemblyRuns();
+      const id = await runs.start({
+        blueprintName: "code-review",
+        repo: "re-cinq/lore",
+        taskId: "task-1",
+        args: { pr_number: 42 },
+      });
+      const pool = makePool();
+      // After servePort, which installs the empty-answer default.
+      const server = await servePort(runs, pool);
+
+      pool.query.mockResolvedValue({
+        rows: [
+          {
+            id,
+            pr_url: "https://github.com/re-cinq/lore/pull/42",
+            task_pr_number: 42,
+            created_by: "gedaiu",
+            cost_usd: 1.25,
+          },
+        ],
+      });
+
+      const res = await server.inject("/api/assembly-lines");
+
+      expect((res.result as { runs: object[] }).runs[0]).toMatchObject({
+        id,
+        pr_url: "https://github.com/re-cinq/lore/pull/42",
+        task_pr_number: 42,
+        created_by: "gedaiu",
+        cost_usd: 1.25,
+        args_pr_number: 42,
+      });
+    });
+
+    it("falls back to args.actor when the task row names no author", async () => {
+      const runs = new InMemoryAssemblyRuns();
+
+      await runs.start({
+        blueprintName: "code-review",
+        repo: "re-cinq/lore",
+        args: { actor: "lore-agent" },
+      });
+      const pool = makePool();
+      const server = await servePort(runs, pool);
+
+      const res = await server.inject("/api/assembly-lines");
+
+      expect((res.result as { runs: object[] }).runs[0]).toMatchObject({
+        created_by: "lore-agent",
+        cost_usd: null,
+        pr_url: null,
+      });
+    });
+
+    it.each([
+      ["an explicit null", null, null],
+      ["an empty string", "", null],
+      ["a non-numeric string", "not-a-pr", null],
+      ["a numeric string", "42", 42],
+      ["a number", 7, 7],
+    ])(
+      "answers args_pr_number null for %s",
+      async (_case, prNumber, expected) => {
+        // `Number(null)` and `Number("")` are both a finite 0, so a bare
+        // coercion served PR #0 — a link to a pull request that does not exist.
+        const runs = new InMemoryAssemblyRuns();
+
+        await runs.start({
+          blueprintName: "code-review",
+          repo: "re-cinq/lore",
+          args: { pr_number: prNumber },
+        });
+        const server = await servePort(runs);
+
+        const res = await server.inject("/api/assembly-lines");
+
+        expect((res.result as { runs: object[] }).runs[0]).toMatchObject({
+          args_pr_number: expected,
+        });
+      },
+    );
+
     it("rows carry definition_name for the pre-rename web-ui behind the alias", async () => {
       const runs = new InMemoryAssemblyRuns();
 

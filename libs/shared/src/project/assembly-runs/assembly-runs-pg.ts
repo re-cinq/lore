@@ -46,15 +46,23 @@ function toOpenSummary(row: OpenRunRow): OpenRunSummary {
   };
 }
 
-/** Every column `toRecord` maps, single-sourced so the four read sites cannot drift. */
-/** {@link LINE_COLUMNS} without the blueprint clone — see `listSummaries`. */
-const SUMMARY_COLUMNS = `id, blueprint_name, task_id, repo, branch, subject_key, args, status, outcome, reason,
+/**
+ * Every column `toRecord` maps except `id`, which both lists lead with, and
+ * `graph`, the blueprint clone only the full read carries.
+ *
+ * The two read lists are otherwise identical, so the summary is DERIVED rather
+ * than restated: two hand-kept lists differing by one token is a column added to
+ * one of them and forgotten in the other.
+ */
+const SUMMARY_TAIL = `blueprint_name, task_id, repo, branch, subject_key, args, status, outcome, reason,
          blueprint_hash, resumed_from_run_id, resumed_from_node_id, inherited_node_count,
          created_at, started_at, finished_at`;
 
-const LINE_COLUMNS = `id, graph, blueprint_name, task_id, repo, branch, subject_key, args, status, outcome, reason,
-         blueprint_hash, resumed_from_run_id, resumed_from_node_id, inherited_node_count,
-         created_at, started_at, finished_at`;
+/** {@link LINE_COLUMNS} without the blueprint clone — see `listSummaries`. */
+const SUMMARY_COLUMNS = `id, ${SUMMARY_TAIL}`;
+
+/** Every column `toRecord` maps, single-sourced so the four read sites cannot drift. */
+const LINE_COLUMNS = `id, graph, ${SUMMARY_TAIL}`;
 
 /**
  * Postgres-backed {@link AssemblyRunsPort} over `pipeline.assembly_runs` /
