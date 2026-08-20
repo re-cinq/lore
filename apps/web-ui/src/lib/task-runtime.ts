@@ -3,24 +3,15 @@
 // cost/token rows (pipeline.llm_calls). Both are keyed by task_id.
 
 import { getTaskRuntime } from "./api/tasks";
+import type { components } from "./api/schema";
 
-export interface TaskRuntimeEvent {
-  id: string;
-  from_status: string | null;
-  to_status: string;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-}
+/** One task transition, as `/api/tasks/{id}/runtime` publishes it. */
+export type TaskRuntimeEvent =
+  components["schemas"]["TaskRuntime"]["events"][number];
 
-export interface TaskRuntimeLlmCall {
-  model: string;
-  input_tokens: number;
-  output_tokens: number;
-  duration_ms: number;
-  status: string | null;
-  error: string | null;
-  created_at: string;
-}
+/** One LLM call against the task, from the same read. */
+export type TaskRuntimeLlmCall =
+  components["schemas"]["TaskRuntime"]["llm_calls"][number];
 
 export async function fetchTaskEvents(
   taskId: string,

@@ -1,14 +1,15 @@
 import Link from "next/link";
 import ChunkBody from "./ChunkBody";
 import { type ChunkMeta } from "@/lib/chunk-presenter";
+import { contentTypeOf } from "@/lib/content-types";
 import styles from "./ContextFileView.module.css";
+import type { components } from "@/lib/api/schema";
 
-export interface ContextFileChunk {
-  id: string;
-  content_type: string;
-  content: string;
-  metadata: ChunkMeta | null;
-}
+/** The three chunk fields this view renders, typed by the contract. */
+export type ContextFileChunk = Pick<
+  components["schemas"]["ChunkList"]["chunks"][number],
+  "id" | "content_type" | "content"
+> & { metadata: ChunkMeta | null };
 
 export interface ContextFileGroup {
   /** owner/name (or 'unknown') — used for GitHub links + the repo label. */
@@ -85,7 +86,7 @@ export default function ContextFileView({
             <div key={c.id}>
               <ChunkBody
                 content={c.content}
-                contentType={c.content_type}
+                contentType={contentTypeOf(c.content_type)}
                 filePath={filePath}
                 repo={g.repo}
                 branch={g.branch ?? "main"}

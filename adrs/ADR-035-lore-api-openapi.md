@@ -80,10 +80,16 @@ the repo lockfile.**
    Shared error responses (`400/401/403/413/429/503`, the uniform `{ error }`
    envelope) are `components.responses` referenced by operations.
 
-5. **Request-focused document.** We have declarative schemas for request bodies and
-   the error envelope, not for success bodies. Success responses are documented
-   generically (`object`); `info.description` states this. The doc does not invent
-   response shapes it cannot derive.
+5. **Both directions declared.** Request bodies, the error envelope and success
+   bodies all carry schemas. A route states its response with `zodResponse`, which
+   registers a NAMED component so codegen emits one type rather than an anonymous
+   inline shape. Where a body shares fields with a table, the schema is derived
+   from that table's model and column map rather than restated, so a renamed
+   column cannot leave the contract behind. The doc still invents nothing: two
+   routes declare no body — `/api/openapi.json`, which serves this document, and
+   `/api/docs`, which serves HTML. *(Amended 2026-08; this clause originally read
+   "Request-focused document" and deferred success bodies for want of a
+   declarative source.)*
 
 6. **Surface: read-scoped JSON + inlined Redoc.** `GET /api/openapi.json` (read
    scope, consistent with every other read route on this fully-authenticated
@@ -115,9 +121,10 @@ the repo lockfile.**
 - We hand-assemble the OpenAPI envelope (paths, security, responses) rather than
   delegating to a full generator library. This is deliberate — it is work a schema
   converter cannot do — but it is code we own and test.
-- The document is request-focused: success-body schemas are generic until a later
-  feature supplies a declarative source. Stated in `info.description` so it does not
-  read as complete-but-wrong.
+- Success bodies are declared, and their fields are derived from the models rather
+  than restated — so the cost moves from "the document is incomplete" to "a route
+  and its table are edited together". *(Amended 2026-08: this read "generic until a
+  later feature supplies a declarative source". That source is the model layer.)*
 - The domain-route sidecar is a small second place that names the four
   domain-validated routes. It is bounded, guarded against drift, and exactly mirrors
   ADR-034's already-acknowledged residual — not a new parallel table for the whole
@@ -154,6 +161,10 @@ the repo lockfile.**
    route; a world-readable endpoint map is inconsistent with that posture. Recorded
    as the alternative if external unauthenticated tooling ever needs it.
 
-5. **Document response bodies too.** Deferred: there is no declarative source for
-   success shapes (validation only covers requests). Inventing them by hand would be
-   the un-generated, drift-prone artifact this feature exists to avoid.
+5. **Document response bodies too.** *(Taken, 2026-08 — no longer deferred.)* The
+   objection was that inventing shapes by hand would be exactly the drift-prone
+   artifact this feature avoids, and it was right. What changed is that the shapes
+   stopped being invented: `libs/shared/src/models/` declares each table once, and
+   a response schema derives its stored fields from that declaration. Only the
+   COMPUTED parts of a body — an aggregate, a rank, a truncated preview — are
+   written by hand, because no table holds them.

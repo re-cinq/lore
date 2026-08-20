@@ -1,3 +1,4 @@
+import type { components } from "@/lib/api/schema";
 /**
  * What a run has spent in tokens — the shapes and the arithmetic, and NOTHING ELSE.
  *
@@ -8,12 +9,7 @@
  */
 
 /** One turn's usage, already unwrapped from the stream-json envelope by SQL. */
-export interface TurnUsageRow {
-  input_tokens: number;
-  output_tokens: number;
-  cache_creation_tokens: number;
-  cache_read_tokens: number;
-}
+export type TurnUsageRow = components["schemas"]["AssemblyRunTokenUsage"];
 
 export interface RunTokens {
   /** Prompt side, INCLUDING cache creation and cache reads — all three are billed,

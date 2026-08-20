@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 import type { ServerRoute } from "@hapi/hapi";
 import { routeList } from "../server/build-server.js";
 import { bearerScope } from "../server/plugins/bearer-scope.js";
-import { generateOpenApi, normalizePath } from "./build-document.js";
+import {
+  generateOpenApi,
+  normalizePath,
+  undeclaredWildcards,
+} from "./build-document.js";
 
 /**
  * Drift guard (ADR-035, fork 5). The document is generated from the live
@@ -37,6 +41,56 @@ describe("OpenAPI coverage drift guard", () => {
     );
 
     expect(new Set(Object.keys(document.paths))).toEqual(expected);
+  });
+
+  it("gives a multiplexed path one contract per verb, not one union across both", () => {
+    const schemaOf = (path: string, method: string) =>
+      JSON.stringify(
+        (
+          document.paths[path] as Record<
+            string,
+            { responses: Record<string, unknown> }
+          >
+        )[method].responses["200"],
+      );
+
+    for (const path of [
+      "/api/tokens",
+      "/api/repos/{owner}/{repo}/settings/dark-factory",
+    ]) {
+      const verbs = Object.keys(document.paths[path]);
+
+      expect(verbs).toHaveLength(2);
+      expect(schemaOf(path, verbs[0])).not.toEqual(schemaOf(path, verbs[1]));
+    }
+  });
+
+  it("names every wildcard route as serving verbs or as refusing them", () => {
+    // The gap this closes: a wildcard that means to serve a real verb on a path
+    // concrete verbs ALREADY document adds no path key, so the assertion above
+    // stays green while the operation goes missing from the document.
+    expect(undeclaredWildcards(routes)).toEqual([]);
+
+    const probe: ServerRoute = {
+      method: "*",
+      path: "/api/tokens/{id}",
+      options: bearerScope("admin"),
+      handler: () => null,
+    };
+
+    expect(undeclaredWildcards([...routes, probe])).toEqual([
+      "/api/tokens/{id}",
+    ]);
+  });
+
+  it("documents no operation for a wildcard route that only answers 405", () => {
+    // The 405 fallback shares its path with the concrete verbs above it. It is
+    // absent from WILDCARD_METHODS, so it contributes nothing — which is what
+    // keeps the split from re-adding the union it removed.
+    expect(Object.keys(document.paths["/api/tokens"]).sort()).toEqual([
+      "get",
+      "post",
+    ]);
   });
 
   it("excludes only the operational non-API paths", () => {

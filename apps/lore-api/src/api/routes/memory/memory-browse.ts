@@ -108,8 +108,9 @@ const EpisodePageSchema = z.object({
       }),
       EPISODE_COLUMNS,
     ).extend({
-      /** The first 300 characters — the list never ships whole episodes. */
-      content_preview: z.string().nullable(),
+      /** The first 300 characters — the list never ships whole episodes.
+       *  Not nullable: `LEFT()` of a NOT NULL column always yields a string. */
+      content_preview: z.string(),
       fact_count: z.number(),
     }),
   ),

@@ -12,6 +12,10 @@
 // parse core is held in lockstep by `spec-status.parity.test.ts` (buckets +
 // labels vs `docStatusPill`) and scripts/type-drift/spec-status.drift.ts
 // (the SpecStatus ↔ StatusBucket union, `npm run typecheck:drift`).
+//
+// DECISION (#1419): not a type mirror at all — this side mirrors PARSERS, and no
+// generated type replaces a function. The parity test is the right guard and it
+// stays.
 
 export type DocKind = "spec" | "adr";
 
