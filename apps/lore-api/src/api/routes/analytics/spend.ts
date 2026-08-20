@@ -18,9 +18,11 @@ import { DB_UNAVAILABLE } from "../common-schemas.js";
  * Two sources, deliberately both: `pipeline.anthropic_cost_daily` is Anthropic's
  * authoritative BILLED cost, written once a day by the cost-sync cron — its
  * buckets close at UTC midnight and the in-progress day is never emitted, so the
- * billed total always ends at yesterday. `pipeline.llm_calls` is Lore's own
- * computed cost, token-exact against the hourly usage report and available with
- * no admin key, which is what brings the billed figure current.
+ * billed total ends at the last SYNCED day, which is yesterday only while the
+ * cron keeps up. `pipeline.llm_calls` is Lore's own computed cost, token-exact
+ * against the hourly usage report and available with no admin key, which is
+ * what brings the billed figure current — for every day past `billed_through`,
+ * not for a day assumed to be today.
  */
 
 const MTD = "created_at >= date_trunc('month', current_date)";
