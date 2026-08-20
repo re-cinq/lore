@@ -293,7 +293,7 @@ ADR-031; the FRs carry the reconciled behaviour.)
 **Acceptance Criteria:**
 - Every Lore-authored PR has a `Lore-Task: <uuid>` in its body and on the final commit's trailer.
 - Web-ui resolves the UUID in one click and displays branch + commits + episode side-by-side.
-- The reverse direction (task page → PR) also resolves. ([validated by `TaskDetailView.test.tsx:206`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L206))
+- The reverse direction (task page → PR) also resolves. ([validated by `TaskDetailView.test.tsx:207`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L207))
 
 ## Functional Requirements
 

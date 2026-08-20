@@ -2,15 +2,10 @@ import Link from "next/link";
 import { TimeAgo } from "@/components/TimeAgo";
 import { EmptyState } from "@/components/EmptyState";
 import { displayAgentId } from "@/lib/agent-id";
+import type { components } from "@/lib/api/schema";
 
-export interface PoolRow {
-  id: string;
-  name: string;
-  created_by: string;
-  created_at: string;
-  entry_count: number;
-  agent_count: number;
-}
+/** One shared pool with its counts — the counts are aggregates, not columns. */
+export type PoolRow = components["schemas"]["SharedPoolList"]["pools"][number];
 
 export interface PoolsViewProps {
   pools: PoolRow[];

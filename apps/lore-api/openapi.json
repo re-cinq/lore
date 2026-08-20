@@ -8308,7 +8308,7 @@
                   "format": "date-time"
                 },
                 "content_preview": {
-                  "type": ["string", "null"]
+                  "type": "string"
                 },
                 "fact_count": {
                   "type": "number"
