@@ -4,6 +4,7 @@ import { render, screen, act, fireEvent } from "@testing-library/react";
 import FullTranscriptPanel from "./FullTranscriptPanel";
 import {
   MAX_TURNS_LOADED,
+  MAX_WALK_PAGES,
   TURNS_PAGE_LIMIT,
 } from "./turn-transcript-presenter";
 
@@ -245,5 +246,106 @@ describe("FullTranscriptPanel", () => {
 
     expect(screen.queryByText(/Failed to load turns/)).toBeNull();
     expect(screen.getByText("Loading…")).toBeTruthy();
+  });
+});
+
+// Opt-in hasMore variant: the shared turnsResponse deliberately omits the flag
+// so every pre-#1310 test keeps exercising the short-page fallback.
+function turnsPageResponse(turns: unknown[], hasMore: boolean) {
+  return new Response(JSON.stringify({ turns, hasMore }), { status: 200 });
+}
+
+// A drifted walk crosses up to MAX_WALK_PAGES pages; openPanel's 12 hops
+// flush only a few.
+async function openPanelLong(container: HTMLElement) {
+  toggle(container, true);
+
+  for (let i = 0; i < 100; i++) {
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
+}
+
+describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
+  it("keeps walking across a short page while the Floor reports more", async () => {
+    // A drifted Floor clamp: pages far below TURNS_PAGE_LIMIT that still
+    // report more rows must continue the walk instead of silently truncating.
+    const fetchMock = stubFetch(
+      turnsPageResponse(
+        [wireTurn("1", "implement"), wireTurn("2", "implement")],
+        true,
+      ),
+      turnsPageResponse([wireTurn("3", "implement")], false),
+    );
+    const { container } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" />,
+    );
+
+    await openPanel(container);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[1][0])).toContain("after=2");
+    expect(await screen.findByText(/full text of turn 3/)).toBeTruthy();
+  });
+
+  it("stops walking on a full page when the Floor reports no more", async () => {
+    const fetchMock = stubFetch(
+      turnsPageResponse(fullPage(1, "implement"), false),
+    );
+    const { container } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" />,
+    );
+
+    await openPanel(container);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops paging when the Floor reports more but the page carries no usable cursor, and says so", async () => {
+    const fetchMock = stubFetch(
+      turnsPageResponse([{ id: 7 }, {}] as unknown[], true),
+    );
+    const { container } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" />,
+    );
+
+    await openPanel(container);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(
+      await screen.findByText(/Loaded only the first 0 turns/),
+    ).toBeTruthy();
+  });
+
+  it("stops a drifted walk at the page bound and shows the cap notice", async () => {
+    const responses = Array.from({ length: MAX_WALK_PAGES + 5 }, (_, i) =>
+      turnsPageResponse([wireTurn(String(i + 1), "implement")], true),
+    );
+    const fetchMock = stubFetch(...responses);
+    const { container } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" />,
+    );
+
+    await openPanelLong(container);
+
+    expect(fetchMock).toHaveBeenCalledTimes(MAX_WALK_PAGES);
+    expect(
+      await screen.findByText(new RegExp(`first ${MAX_WALK_PAGES} turns`)),
+    ).toBeTruthy();
+  });
+
+  it("shows the cap notice when the Floor reports more over an empty page", async () => {
+    const fetchMock = stubFetch(turnsPageResponse([], true));
+    const { container } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" />,
+    );
+
+    await openPanel(container);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(
+      await screen.findByText(/Loaded only the first 0 turns/),
+    ).toBeTruthy();
   });
 });

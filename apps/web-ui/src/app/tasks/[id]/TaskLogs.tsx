@@ -9,7 +9,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { parseAgentLog } from "@/lib/agent-log-entries";
 import { parseAgentRunTurn, type AgentRunTurn } from "@/lib/run-turn-types";
-import { MAX_TURNS_LOADED } from "@/app/assembly-runs/[id]/turn-transcript-presenter";
+import {
+  MAX_TURNS_LOADED,
+  MAX_WALK_PAGES,
+  parseHasMore,
+  serverReportsMore,
+} from "@/app/assembly-runs/[id]/turn-transcript-presenter";
 import {
   advanceCursor,
   segmentLabel,
@@ -71,6 +76,8 @@ export default function TaskLogs({
     inFlightRef.current = true;
 
     try {
+      let pages = 0;
+
       for (;;) {
         const res = await fetch(taskLogsUrl(taskId, cursorRef.current), {
           signal: AbortSignal.timeout(15_000),
@@ -102,7 +109,10 @@ export default function TaskLogs({
           throw new Error(`HTTP ${res.status}`);
         }
 
-        const body = (await res.json()) as { turns?: unknown[] };
+        const body = (await res.json()) as {
+          turns?: unknown[];
+          hasMore?: unknown;
+        };
         const rows = Array.isArray(body.turns) ? body.turns : [];
         const parsed = rows
           .map(parseAgentRunTurn)
@@ -111,6 +121,7 @@ export default function TaskLogs({
         setTurns((prev) =>
           parsed.length > 0 ? [...(prev ?? []), ...parsed] : (prev ?? []),
         );
+        pages += 1;
         loadedRef.current += parsed.length;
         const next = advanceCursor(rows, cursorRef.current);
         const progressed = next !== cursorRef.current;
@@ -118,9 +129,20 @@ export default function TaskLogs({
         cursorRef.current = next;
         setError(null);
 
-        // A full page that cannot move the cursor would refetch itself forever.
-        if (!progressed || !walkContinues(rows, loadedRef.current)) {
-          setCapped(loadedRef.current >= MAX_TURNS_LOADED);
+        // A page that cannot move the cursor would refetch itself forever, and
+        // the per-walk page bound keeps a drifted Floor clamp from turning one
+        // walk into a request storm — the persisted cursor lets the next
+        // coordinator tick resume where this walk stopped. Whatever stopped
+        // the walk, the cap notice shows exactly when the server still
+        // reported more rows.
+        const hasMoreFlag = parseHasMore(body);
+
+        if (
+          !progressed ||
+          pages >= MAX_WALK_PAGES ||
+          !walkContinues(rows, loadedRef.current, hasMoreFlag)
+        ) {
+          setCapped(serverReportsMore(rows, hasMoreFlag));
 
           return;
         }
@@ -238,7 +260,7 @@ export default function TaskLogs({
 
       {capped && !accessDenied && (
         <p className={`meta ${styles.notice}`}>
-          Loaded only the first {MAX_TURNS_LOADED} turns of this task.
+          Loaded only the first {(turns ?? []).length} turns of this task.
         </p>
       )}
 

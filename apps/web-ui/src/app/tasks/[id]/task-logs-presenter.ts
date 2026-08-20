@@ -5,11 +5,13 @@
 // Unlike the run page's one-shot walk, the task page polls: the cursor
 // persists across coordinator ticks, so advancing it and deciding whether the
 // walk continues are separate rules (`advanceCursor` moves on every page,
-// full or short; `pageIsFull` alone says whether to keep walking now).
+// full or short; `walkContinues` alone says whether to keep walking now,
+// preferring the Floor's explicit `hasMore` answer over page-length inference).
 
 import {
   MAX_TURNS_LOADED,
   TURNS_PAGE_LIMIT,
+  serverReportsMore,
 } from "@/app/assembly-runs/[id]/turn-transcript-presenter";
 import type { AgentRunTurn } from "@/lib/run-turn-types";
 
@@ -43,21 +45,19 @@ export function advanceCursor(
   return current;
 }
 
-/** A full page means more rows may follow — same short-page rule as the run page. */
-function pageIsFull(page: readonly unknown[]): boolean {
-  return page.length >= TURNS_PAGE_LIMIT;
-}
-
 /**
- * Whether the walk fetches another page now: only while pages come back full
- * and the run-page hard cap is not yet reached — untruncated envelopes over an
+ * Whether the walk fetches another page now: only while the Floor says more
+ * rows follow (`serverReportsMore` — the `hasMore` flag, with page-length
+ * inference as the no-flag fallback, same as `nextTurnsCursor`) and the
+ * run-page hard cap is not yet reached — untruncated envelopes over an
  * unbounded walk would materialize tens of megabytes in the tab.
  */
 export function walkContinues(
   page: readonly unknown[],
   loadedCount: number,
+  hasMore?: boolean,
 ): boolean {
-  return pageIsFull(page) && loadedCount < MAX_TURNS_LOADED;
+  return serverReportsMore(page, hasMore) && loadedCount < MAX_TURNS_LOADED;
 }
 
 /**

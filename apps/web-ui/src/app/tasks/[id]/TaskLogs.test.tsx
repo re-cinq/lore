@@ -20,7 +20,10 @@ import {
   TOOL_USE_SKILL,
   USER_PROMPT,
 } from "@/lib/agent-log-entries.fixtures";
-import { TURNS_PAGE_LIMIT } from "@/app/assembly-runs/[id]/turn-transcript-presenter";
+import {
+  MAX_WALK_PAGES,
+  TURNS_PAGE_LIMIT,
+} from "@/app/assembly-runs/[id]/turn-transcript-presenter";
 
 // The coordinated interval now lives in TaskRefreshProvider, so timer-driven
 // tests render inside it (taskStatus "done" keeps run discovery off; jsdom has
@@ -840,5 +843,152 @@ describe("TaskLogs", () => {
     expect(
       screen.getByText(/No stored agent turns for this task/),
     ).toBeInTheDocument();
+  });
+});
+
+// Opt-in hasMore variant: the shared turnsResponse deliberately omits the flag
+// so every pre-#1310 test keeps exercising the short-page fallback.
+function turnsPageResponse(
+  turns: unknown[],
+  taskStatus: string,
+  hasMore: boolean,
+) {
+  return {
+    ok: true,
+    status: 200,
+    headers: {
+      get: (name: string) => (name === "X-Task-Status" ? taskStatus : null),
+    },
+    json: async () => ({ turns, hasMore }),
+    text: async () => JSON.stringify({ turns, hasMore }),
+  };
+}
+
+// A drifted walk crosses up to MAX_WALK_PAGES pages in one fetch cycle; the
+// default settle()'s 12 hops flush only a few.
+async function settleLong() {
+  for (let i = 0; i < 8; i++) {
+    await settle();
+  }
+}
+
+describe("TaskLogs with the Floor's hasMore flag", () => {
+  it("keeps walking across a short page while the Floor reports more", async () => {
+    // A drifted Floor clamp: pages far below TURNS_PAGE_LIMIT that still
+    // report more rows must continue the walk instead of silently truncating.
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("after=")) {
+        return Promise.resolve(
+          turnsPageResponse(
+            [turnRow(ASSISTANT_TEXT, { id: "9001" })],
+            "succeeded",
+            false,
+          ),
+        );
+      }
+
+      return Promise.resolve(
+        turnsPageResponse(
+          [
+            turnRow(STATION_LOG, { id: "1" }),
+            turnRow(STATION_LOG, { id: "2" }),
+          ],
+          "succeeded",
+          true,
+        ),
+      );
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
+    await settle();
+
+    expect(afterCalls(fetchMock)).toContain(
+      `/api/tasks/t1/logs?limit=${TURNS_PAGE_LIMIT}&after=2`,
+    );
+    expect(
+      screen.getByText(/fetch the PR metadata and diff/),
+    ).toBeInTheDocument();
+  });
+
+  it("stops walking on a full page when the Floor reports no more", async () => {
+    const fullPage = Array.from({ length: TURNS_PAGE_LIMIT }, (_, i) =>
+      turnRow(STATION_LOG, { id: String(i + 1) }),
+    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(turnsPageResponse(fullPage, "succeeded", false));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
+    await settle();
+
+    expect(afterCalls(fetchMock)).toEqual([]);
+  });
+
+  it("stops a drifted walk at the page bound and shows the cap notice", async () => {
+    let served = 0;
+    const fetchMock = vi.fn().mockImplementation(() => {
+      served += 1;
+
+      return Promise.resolve(
+        turnsPageResponse(
+          [turnRow(STATION_LOG, { id: String(served) })],
+          "succeeded",
+          true,
+        ),
+      );
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
+    await settleLong();
+
+    expect(fetchMock).toHaveBeenCalledTimes(MAX_WALK_PAGES);
+    expect(
+      screen.getByText(new RegExp(`first ${MAX_WALK_PAGES} turns`)),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the cap notice when a settled task's walk stalls while the Floor reports more", async () => {
+    // A page that cannot move the cursor while hasMore is true stops the walk;
+    // a settled task never polls again, so the stop must be visible.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(turnsPageResponse([], "succeeded", true));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
+    await settle();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByText(/Loaded only the first 0 turns/),
+    ).toBeInTheDocument();
+  });
+
+  it("suppresses the cap notice when the walk drains exactly at the load cap", async () => {
+    // hasMore false at the cap boundary means nothing was cut off — the old
+    // count-only rule would have shown the notice anyway.
+    let calls = 0;
+    const page = () =>
+      Array.from({ length: TURNS_PAGE_LIMIT }, () => turnRow(STATION_LOG));
+    const fetchMock = vi.fn().mockImplementation(() => {
+      calls += 1;
+
+      return Promise.resolve(turnsPageResponse(page(), "succeeded", calls < 2));
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TaskLogs taskId="t1" initialStatus="succeeded" />);
+    await settleLong();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(/Loaded only the first/)).not.toBeInTheDocument();
   });
 });
