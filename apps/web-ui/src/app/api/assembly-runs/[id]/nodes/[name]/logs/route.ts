@@ -4,14 +4,15 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { fetchAssemblyRun, fetchAssemblyRunNodes } from "@/lib/assembly-runs";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
-import { serverError } from "@/lib/api-error";
+import { proxyUpstreamStatus, serverError } from "@/lib/api-error";
 
 /**
  * GET /api/assembly-runs/[id]/nodes/[name]/logs — proxy for one node's live pod
  * logs. Resolves the run, confirms `name` is actually a node of it, checks the
  * user can see the repo, then proxies to the Floor's /api/agent-logs/{name}
  * (the UI SA has no cluster access; the Floor brokers the read). Passes `?tail`
- * through. Returns the Floor's `{ available, logs, phase, podName }` verbatim.
+ * through. Returns the Floor's `{ available, logs, phase, podName }` verbatim,
+ * except the Floor's own 401/403 (ingest-token drift), which surface as 502.
  */
 export async function GET(
   req: Request,
@@ -75,7 +76,7 @@ export async function GET(
     const body = await upstream.text();
 
     return new NextResponse(body, {
-      status: upstream.status,
+      status: proxyUpstreamStatus(upstream.status),
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {

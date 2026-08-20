@@ -29,6 +29,17 @@ export function upstreamError(
 }
 
 /**
+ * Status for a proxy response fetched from another Lore service under the
+ * web-ui's own credential (the ingest token). That service's 401/403 must not
+ * masquerade as the proxy's session (401) / repo-access (403) ladder — the
+ * viewer would blame the signed-in user for credential drift — so they
+ * surface as 502; every other status passes through verbatim.
+ */
+export function proxyUpstreamStatus(status: number): number {
+  return status === 401 || status === 403 ? 502 : status;
+}
+
+/**
  * Logs the full error (stack included) to the server console and returns a 500
  * JSON response carrying just the message. Centralizes 500 handling for API
  * route handlers so every unexpected throw is debuggable in the terminal — the
