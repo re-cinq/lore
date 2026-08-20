@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { parse } from "yaml";
+import { parseTaskTypesFile } from "../../task-types/task-types-config.js";
 import {
   type AgentDefinition,
   type AgentDefinitionInput,
@@ -14,14 +14,6 @@ import { DECOMPOSITION_INSTRUCTIONS } from "../../feature-planning/decomposition
  * org-level AgentDefinition. Writes throw: definitions are only mutable with a
  * database behind the port.
  */
-
-interface YamlTaskType {
-  prompt_template?: string;
-  timeout_minutes?: number;
-  review_required?: boolean;
-  model?: string;
-  execution_mode?: string;
-}
 
 const READ_ONLY = "agent definitions are read-only without a database";
 
@@ -69,12 +61,10 @@ export class AgentDefsYaml implements AgentDefsPort {
 
     for (const p of paths) {
       try {
-        const parsed = parse(readFileSync(p, "utf-8")) as {
-          task_types?: Record<string, YamlTaskType>;
-        };
+        const { taskTypes } = parseTaskTypesFile(readFileSync(p, "utf-8"));
         const map = new Map<string, AgentDefinition>();
 
-        for (const [name, cfg] of Object.entries(parsed.task_types ?? {})) {
+        for (const [name, cfg] of Object.entries(taskTypes)) {
           map.set(name, {
             name,
             model: cfg.model ?? null,

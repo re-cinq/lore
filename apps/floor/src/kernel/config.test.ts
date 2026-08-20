@@ -64,3 +64,30 @@ describe("buildPrompt", () => {
     );
   });
 });
+
+describe("loadTaskTypes drift reporting", () => {
+  it("warns naming the fields a lagging task-types.yaml omits", () => {
+    const partial = join(tmpdir(), `lore-task-types-drift-${process.pid}.yaml`);
+
+    writeFileSync(
+      partial,
+      "task_types:\n  general:\n    prompt_template: Do {description}\n",
+    );
+
+    const warnings: string[] = [];
+    const realWarn = console.warn;
+
+    console.warn = (message: string) => warnings.push(message);
+
+    try {
+      loadTaskTypes(partial);
+    } finally {
+      console.warn = realWarn;
+      loadTaskTypes(CONFIG);
+    }
+
+    expect(warnings.join("\n")).toContain(
+      "task_types.general: timeout_minutes — Required",
+    );
+  });
+});

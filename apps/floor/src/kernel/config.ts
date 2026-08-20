@@ -7,25 +7,19 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { parse } from "yaml";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import {
+  parseTaskTypesFile,
+  type TaskTypeRecipe,
+} from "@re-cinq/lore-shared/task-types/task-types-config.js";
 
 // ── Types ────────────────────────────────────────────────────────────
 
-export interface TaskTypeConfig {
-  prompt_template: string;
-  target_repo: string | null;
-  timeout_minutes: number;
-  review_required: boolean;
-  model?: string;
-  // "claude-code" (default, LLM) or "graph-ingest" (deterministic, zero-LLM).
-  // Absent is treated as "claude-code" so existing task types are unchanged.
-  execution_mode?: string;
-}
+export type { TaskTypeRecipe };
 
 // ── State ────────────────────────────────────────────────────────────
 
-const taskTypes: Map<string, TaskTypeConfig> = new Map();
+const taskTypes: Map<string, TaskTypeRecipe> = new Map();
 
 // ── Public API ───────────────────────────────────────────────────────
 
@@ -58,9 +52,9 @@ export function loadTaskTypes(configPath?: string): void {
 
   for (const p of paths) {
     try {
-      const raw = readFileSync(p, "utf-8");
-      const parsed = parse(raw);
-      const types: Record<string, TaskTypeConfig> = parsed.task_types || {};
+      const { taskTypes: types, drift } = parseTaskTypesFile(
+        readFileSync(p, "utf-8"),
+      );
 
       taskTypes.clear();
 
@@ -69,6 +63,15 @@ export function loadTaskTypes(configPath?: string): void {
       }
 
       console.log(`[floor] Loaded ${taskTypes.size} task types from ${p}`);
+
+      // The container reads this from a ConfigMap. A stale one is the failure
+      // mode that once blinded every review (#866) — say so rather than serve a
+      // shape the code no longer describes.
+      if (drift.length > 0) {
+        console.warn(
+          `[floor] ${p} does not match the task-type schema: ${drift.join("; ")}`,
+        );
+      }
 
       return;
     } catch {
@@ -82,7 +85,7 @@ export function loadTaskTypes(configPath?: string): void {
 /** Return the config for a specific task type, or undefined. */
 export function getTaskTypeConfig(
   taskType: string,
-): TaskTypeConfig | undefined {
+): TaskTypeRecipe | undefined {
   return taskTypes.get(taskType);
 }
 
@@ -130,6 +133,12 @@ export function buildNodePrompt(
     cfg !== undefined,
     Error,
     `no prompt template named "${promptRef}" — an assembly-line node names a recipe that does not exist (known: ${getTaskTypes().join(", ")})`,
+  );
+
+  enforceTrue(
+    cfg.prompt_template !== undefined,
+    Error,
+    `task type "${promptRef}" declares no prompt_template — the loaded task-types.yaml is older than this code`,
   );
 
   return cfg.prompt_template.replace("{description}", description);
