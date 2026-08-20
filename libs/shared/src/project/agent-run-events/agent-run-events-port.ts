@@ -1,42 +1,18 @@
-/**
- * The six stream-json line kinds the projector persists. A line of any other
- * kind is dropped by the projector before it reaches this port.
- */
-export type AgentRunEventType =
-  "init" | "message" | "thinking" | "tool_call" | "tool_result" | "result";
+import type {
+  AgentRunEvent,
+  AgentRunEventType,
+} from "../../models/agent-run-event.js";
+
+export type { AgentRunEventType };
 
 /**
  * One row of `pipeline.agent_run_events` — the canonical per-tool-call agent
- * telemetry contract for the whole run-visualization epic.
- *
- * `id` is a string-encoded bigint and stays a string across every wire
- * boundary: the identity column outgrows `Number.MAX_SAFE_INTEGER`, and it
- * doubles as the SSE `Last-Event-ID` cursor, so narrowing it to a JS number
- * would silently corrupt the stream position.
- *
- * `assemblyLineId`, `nodeId` and `iteration` are nullable: an agent CR
- * dispatched for a plain task rather than an assembly-line node is named from
- * the task id and correlates to no node row.
+ * telemetry contract for the whole run-visualization epic. The shape is the
+ * `AgentRunEvent` model; see `libs/shared/src/models/agent-run-event.ts` for the
+ * columns, why `id` stays a string, and why `assemblyLineId` keeps its
+ * pre-rename spelling.
  */
-export interface AgentRunEventRow {
-  id: string;
-  taskId: string;
-  agentCrName: string | null;
-  assemblyLineId: string | null;
-  /** The station visit this line belongs to (FR6.39) — the id readers key on,
-   *  resolved at write time from the CR name. Null for a CR that names no visit. */
-  stationRunId: string | null;
-  nodeId: string | null;
-  iteration: number | null;
-  eventType: AgentRunEventType;
-  toolName: string | null;
-  toolUseId: string | null;
-  isError: boolean;
-  filePaths: string[];
-  summary: string | null;
-  payload: Record<string, unknown>;
-  createdAt: Date;
-}
+export type AgentRunEventRow = AgentRunEvent;
 
 /**
  * What the projector supplies for one row. The correlated fields

@@ -1,3 +1,4 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import {
   errorMessage,
   cancelPipelineTask,
@@ -59,14 +60,29 @@ async function refusable<T extends object>(
   }
 }
 
+/**
+ * One POST multiplexes create, cancel, retry, run-now, revise and set-priority,
+ * so the contract is the union of what those answer — the created task, or the
+ * transition's own acknowledgement.
+ */
+const TaskWriteSchema = z.record(z.unknown());
+
 export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/task",
-    options: {
-      ...bearerScope("task"),
-      validate: { payload: zodValidate(TaskBody) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("task"),
+        validate: { payload: zodValidate(TaskBody) },
+      },
+      TaskWriteSchema,
+      {
+        name: "TaskWriteResult",
+        description: "The created task, or the transition's acknowledgement",
+        errors: [400, 404, 409],
+      },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
 

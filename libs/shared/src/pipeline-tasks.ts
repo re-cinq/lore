@@ -1,5 +1,8 @@
 import { enforceTrue } from "./lib/enforce.js";
 import type { PgPool } from "./memory-store.js";
+import { selectList } from "./lib/row.js";
+import { PIPELINE_TASK_COLUMNS } from "./models/pipeline-task.js";
+import { TASK_EVENT_COLUMNS } from "./models/task-event.js";
 
 /**
  * Pipeline-task CRUD over the pipeline.tasks / pipeline.task_events tables.
@@ -263,8 +266,11 @@ export async function getTask(
   pool: PgPool,
   taskId: string,
 ): Promise<(PipelineTaskRow & { events: Record<string, unknown>[] }) | null> {
+  // The MODEL's columns, not `SELECT *`: the read is published as a contract,
+  // and a wildcard cannot state what it returns. A column the table loses now
+  // fails here instead of quietly vanishing from the body.
   const { rows: tasks } = await pool.query<PipelineTaskRow>(
-    `SELECT * FROM pipeline.tasks WHERE id = $1`,
+    `SELECT ${selectList(PIPELINE_TASK_COLUMNS)} FROM pipeline.tasks WHERE id = $1`,
     [taskId],
   );
 
@@ -272,7 +278,8 @@ export async function getTask(
     return null;
   }
   const { rows: events } = await pool.query(
-    `SELECT * FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at`,
+    `SELECT ${selectList(TASK_EVENT_COLUMNS)}
+       FROM pipeline.task_events WHERE task_id = $1 ORDER BY created_at`,
     [taskId],
   );
 

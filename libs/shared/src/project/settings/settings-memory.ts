@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   resolveDarkFactorySettings,
   type DarkFactorySettings,
@@ -20,6 +21,7 @@ export interface SeedRepo {
   settings?: Record<string, unknown> | null;
   last_ingested_at?: Date | null;
   onboarding_pr_merged?: boolean;
+  onboarded_at?: Date | null;
 }
 
 /**
@@ -81,14 +83,20 @@ export class InMemorySettings implements SettingsPort {
       return null;
     }
 
+    const [owner = "", name = ""] = row.full_name.split("/");
+
     return {
-      full_name: row.full_name,
+      id: row.id ?? randomUUID(),
+      owner,
+      name,
+      fullName: row.full_name,
       team: row.team ?? null,
+      onboardedAt: row.onboarded_at ?? new Date(0),
+      lastIngestedAt: row.last_ingested_at ?? null,
+      onboardingPrUrl: row.onboarding_pr_url ?? null,
+      onboardingPrMerged: row.onboarding_pr_merged ?? false,
       settings: row.settings ?? null,
-      onboarded_at: null,
-      last_ingested_at: row.last_ingested_at ?? null,
-      onboarding_pr_url: row.onboarding_pr_url ?? null,
-      onboarding_pr_merged: row.onboarding_pr_merged ?? false,
+      outcomeStats: row.outcome_stats ?? null,
     };
   }
 

@@ -1,3 +1,4 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -11,14 +12,24 @@ const JobRunLogsQuery = z.object({
 
 type JobRunLogsQuery = z.infer<typeof JobRunLogsQuery>;
 
+/** A scheduled job's log text, and whether the run has finished writing it. */
+const JobRunLogsSchema = z.object({
+  logs: z.string(),
+  complete: z.boolean(),
+});
+
 export function jobRunLogsRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/job-run-logs",
-    options: {
-      ...bearerScope("read"),
-      validate: { query: zodValidate(JobRunLogsQuery) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(JobRunLogsQuery) },
+      },
+      JobRunLogsSchema,
+      { name: "JobRunLogs", description: "A job run's captured output" },
+    ),
     handler: async (request, h) => {
       const { job_name: jobName, run_id: runId } =
         request.query as JobRunLogsQuery;

@@ -50,6 +50,10 @@
       "types": "./dist/lib/*.d.ts",
       "default": "./dist/lib/*.js"
     },
+    "./models/*.js": {
+      "types": "./dist/models/*.d.ts",
+      "default": "./dist/models/*.js"
+    },
     "./spec-link-parser.js": {
       "types": "./dist/spec-link-parser.d.ts",
       "default": "./dist/spec-link-parser.js"

@@ -18,6 +18,9 @@ import {
   shouldCaptureBaseline,
 } from "../../../features/dark-factory/baseline-capture.js";
 import { projectFor } from "../../../platform/project-boot.js";
+import { z } from "zod";
+import { ResolvedDarkFactorySettingsSchema } from "@re-cinq/lore-shared/models/dark-factory-settings.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { checkApproval } from "../two-key.js";
 
@@ -34,11 +37,37 @@ type Ceremony = {
 
 // One route for both verbs (both admin-scoped) so an unsupported method reaches
 // the 405 fallback rather than a 404 from an unmatched route.
+/**
+ * The dark-factory settings surface. The READ is the fully resolved block — the
+ * model's own resolved projection, so the published contract and the resolver
+ * cannot disagree about which knobs exist. The WRITE echoes what it applied plus
+ * the ceremony that authorised it (ADR-016's two-key gate).
+ */
+const DarkFactoryAppliedSchema = z.object({
+  ok: z.literal(true),
+  applied: ResolvedDarkFactorySettingsSchema,
+  ceremony: z.object({
+    tier: z.enum(["two_key", "admin"]),
+    pr_ref: z.string().optional(),
+    approver: z.string().optional(),
+  }),
+});
+
 export function darkFactoryRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "*",
     path: DF_PATH,
-    options: bearerScope("admin"),
+    options: zodResponse(
+      bearerScope("admin"),
+      // One route, both methods (`method: "*"`): GET answers the resolved block,
+      // PUT answers what it applied and under whose authority.
+      z.union([ResolvedDarkFactorySettingsSchema, DarkFactoryAppliedSchema]),
+      {
+        name: "DarkFactorySettings",
+        description: "The resolved settings (GET) or the applied change (PUT)",
+        errors: [400, 409],
+      },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
 

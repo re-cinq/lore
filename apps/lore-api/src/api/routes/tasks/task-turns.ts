@@ -1,3 +1,4 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
@@ -60,22 +61,35 @@ function relayableEvent(line: string): boolean {
  * Body is raw NDJSON (payload.parse: false) — one claude stream-json line per
  * row, already redacted on the laptop before anything left the machine.
  */
+/** How many relayed turns were stored, and how many the filter skipped. */
+const TurnsRelayedSchema = z.object({
+  forwarded: z.number(),
+  skipped: z.number(),
+});
+
 export function taskTurnsPostRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/task-turns/{taskId}",
-    options: {
-      ...bearerScope("write"),
-      validate: { params: zodValidate(TaskTurnsParams) },
-      payload: { parse: false },
-      app: {
-        rawBody: {
-          contentType: "application/x-ndjson",
-          description:
-            "Raw NDJSON body — one claude stream-json line per row, already redacted on the laptop before anything left the machine.",
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        validate: { params: zodValidate(TaskTurnsParams) },
+        payload: { parse: false },
+        app: {
+          rawBody: {
+            contentType: "application/x-ndjson",
+            description:
+              "Raw NDJSON body — one claude stream-json line per row, already redacted on the laptop before anything left the machine.",
+          },
         },
       },
-    },
+      TurnsRelayedSchema,
+      {
+        name: "TurnsRelayed",
+        description: "Turns accepted from a local runner",
+      },
+    ),
     handler: async (request, h) => {
       const { taskId } = request.params as z.infer<typeof TaskTurnsParams>;
       const floorUrl = process.env.LORE_AGENT_URL;

@@ -1,3 +1,4 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { AgentRunTurnsRepository } from "@re-cinq/lore-shared";
 import { PgAgentRunTurns } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-pg.js";
@@ -30,14 +31,31 @@ type TaskLogsQuery = z.infer<typeof TaskLogsQuery>;
 // "/api/task-logs"→"write" scope map. The legacy prefix matcher resolved
 // "/api/task-logs".startsWith("/api/task") first, silently shadowing that entry
 // with "task"; per-route declaration removes the collision.
+/**
+ * A slice of a task's transcript. `next_offset` and `cursor` are how a poller
+ * resumes: the cursor rides the turn store, the offset the legacy bucket read.
+ */
+const TaskLogSliceSchema = z.object({
+  logs: z.string(),
+  next_offset: z.number(),
+  complete: z.boolean(),
+  cursor: z.string().optional(),
+});
+
+const LogsAcceptedSchema = z.object({ ok: z.literal(true) });
+
 export function taskLogsPostRoute(): ServerRoute {
   return {
     method: "POST",
     path: "/api/task-logs",
-    options: {
-      ...bearerScope("write"),
-      validate: { payload: zodValidate(TaskLogsBody) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        validate: { payload: zodValidate(TaskLogsBody) },
+      },
+      LogsAcceptedSchema,
+      { name: "TaskLogsAccepted", description: "The log buffer was stored" },
+    ),
     handler: async (request, h) => {
       try {
         const { task_id, repo, logs } = request.payload as TaskLogsBody;
@@ -233,10 +251,18 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/task-logs",
-    options: {
-      ...bearerScope("write"),
-      validate: { query: zodValidate(TaskLogsQuery) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        validate: { query: zodValidate(TaskLogsQuery) },
+      },
+      TaskLogSliceSchema,
+      {
+        name: "TaskLogSlice",
+        description: "A slice of a task's transcript",
+        errors: [404],
+      },
+    ),
     handler: async (request, h) => {
       const query = request.query as unknown as TaskLogsQuery;
       const taskId = query.task_id;

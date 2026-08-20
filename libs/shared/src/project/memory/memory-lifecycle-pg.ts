@@ -132,12 +132,20 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
     minAgeDays: number,
   ): Promise<number> {
     const { rows } = await this.pool.query(
+      // A fact carries no agent of its own — `memory.facts` has no agent_id
+      // column. It belongs to whichever agent owns the memory or episode it was
+      // extracted from, which is the same join the over-cap COUNT above groups
+      // by. Filtering on a bare `agent_id` here reads correctly and raises
+      // 42703 against the real schema.
       `WITH oldest AS (
-         SELECT id FROM memory.facts
-         WHERE agent_id = $1
-           AND valid_to IS NOT NULL
-           AND valid_to < now() - interval '${minAgeDays} days'
-         ORDER BY valid_to ASC
+         SELECT f.id
+         FROM memory.facts f
+         LEFT JOIN memory.memories m ON m.id = f.memory_id
+         LEFT JOIN memory.episodes e ON e.id = f.episode_id
+         WHERE COALESCE(m.agent_id, e.agent_id) = $1
+           AND f.valid_to IS NOT NULL
+           AND f.valid_to < now() - interval '${minAgeDays} days'
+         ORDER BY f.valid_to ASC
          LIMIT $2
        )
        DELETE FROM memory.facts WHERE id IN (SELECT id FROM oldest)

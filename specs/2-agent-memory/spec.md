@@ -219,11 +219,16 @@ Mirrors each write to `memories`, preserving full history queryable via
 
 - Eviction of old invalidated facts is **scoped to one agent**. The decay job
   counts invalidated facts per agent and calls the delete once per agent that is
-  over the cap, passing that agent's excess — so the delete must filter on
-  `agent_id`, in SQL and not only by `LIMIT`. A table-wide delete answering a
-  per-agent quota takes the oldest facts anywhere, which means one agent's quota
-  can be filled entirely from another agent's rows and an agent **under** the cap
-  can lose facts it should have kept. ([validated by `memory-lifecycle.test.ts:560`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L560), [`memory-lifecycle.test.ts:571`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L571), [`memory-lifecycle.test.ts:582`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L582))
+  over the cap, passing that agent's excess — so the delete must filter by agent
+  in SQL and not only by `LIMIT`. A table-wide delete answering a per-agent quota
+  takes the oldest facts anywhere, which means one agent's quota can be filled
+  entirely from another agent's rows and an agent **under** the cap can lose
+  facts it should have kept. It filters THROUGH THE SOURCE: `memory.facts` has no
+  `agent_id` column, and a fact belongs to whichever agent owns the memory or
+  episode it was extracted from — the same join the per-agent count already
+  groups by. Naming a bare `agent_id` on the facts table reads correctly and
+  raises `42703` against the real schema, which a fake pool that answers every
+  statement will not catch. ([validated by `memory-lifecycle.test.ts:560`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L560), [`memory-lifecycle.test.ts:571`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L571), [`memory-lifecycle.test.ts:582`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L582), [`memory-lifecycle.test.ts:607`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L607))
 
 #### Confidence lifecycle
 

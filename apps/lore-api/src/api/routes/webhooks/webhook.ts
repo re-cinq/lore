@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * `GET /api/repos/:o/:r/webhook` — classify the repo's GitHub webhook against the
@@ -12,6 +13,7 @@ import type { ServerRoute } from "@hapi/hapi";
 import { listRepoWebhooks } from "../../../features/webhook/webhook-manage.js";
 import { ensureFloorWebhook } from "../../../features/webhook/webhook-ensure.js";
 import { classifyWebhook } from "../../../features/webhook/webhook-status.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 
 function canonicalUrl(): string {
@@ -21,11 +23,36 @@ function canonicalUrl(): string {
 const repoOf = (request: { params: Record<string, string> }) =>
   `${request.params.owner}/${request.params.repo}`;
 
+/**
+ * The repo's GitHub webhook, as this API sees it. Every read degrades to
+ * `state: "unknown"` with a REASON rather than failing — the App may lack the
+ * Webhooks permission, and a UI that cannot distinguish "no permission" from
+ * "no hook" would tell someone to fix the wrong thing.
+ */
+const WebhookStatusSchema = z.object({
+  state: z.string(),
+  canonicalUrl: z.string(),
+  hookId: z.number().optional(),
+  url: z.string().nullable().optional(),
+  events: z.array(z.string()).optional(),
+  active: z.boolean().optional(),
+  lastCode: z.number().nullable().optional(),
+  reason: z.string().optional(),
+});
+
+const WebhookSecretSchema = z.object({
+  secret: z.string(),
+  canonicalUrl: z.string(),
+});
+
 export function webhookStatusRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/webhook",
-    options: bearerScope("read"),
+    options: zodResponse(bearerScope("read"), WebhookStatusSchema, {
+      name: "RepoWebhookStatus",
+      description: "Whether the repo's webhook points at this platform",
+    }),
     handler: async (request, h) => {
       const url = canonicalUrl();
 
@@ -61,7 +88,10 @@ export function webhookSecretRoute(): ServerRoute {
     path: "/api/repos/{owner}/{repo}/webhook/secret",
     // Admin: the secret is shared across all hooks, so it must not ride the
     // read-scope status response.
-    options: bearerScope("admin"),
+    options: zodResponse(bearerScope("admin"), WebhookSecretSchema, {
+      name: "RepoWebhookSecret",
+      description: "The HMAC secret a repo's webhook must sign with",
+    }),
     handler: async (_request, h) => {
       const secret = process.env.LORE_WEBHOOK_SECRET || "";
 
@@ -80,7 +110,10 @@ export function webhookEnsureRoute(): ServerRoute {
   return {
     method: "POST",
     path: "/api/repos/{owner}/{repo}/webhook/ensure",
-    options: bearerScope("write"),
+    options: zodResponse(bearerScope("write"), WebhookStatusSchema, {
+      name: "RepoWebhookEnsured",
+      description: "The webhook's state after ensuring it",
+    }),
     handler: async (request, h) => {
       const repo = repoOf(request);
       // Shared with onboarding: ensureFloorWebhook reads LORE_WEBHOOK_URL/SECRET +

@@ -1,3 +1,5 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { z } from "zod";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { parseTrailers } from "@re-cinq/lore-shared";
@@ -6,11 +8,21 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 
 const LORE_TASK_TRAILER_RE = /^Lore-Task:\s*([0-9a-f-]+)\s*$/im;
 
+/** Which task a PR belongs to, and where the trailer was found. */
+const TaskByPrSchema = z.object({
+  task_id: z.string(),
+  trailer_source: z.enum(["db", "pr_body", "final_commit"]),
+});
+
 export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/tasks/by-pr/{owner}/{repo}/{number}",
-    options: bearerScope("read"),
+    options: zodResponse(bearerScope("read"), TaskByPrSchema, {
+      name: "TaskByPr",
+      description: "The task a pull request belongs to",
+      errors: [404],
+    }),
     handler: async (request, h) => {
       const pool = getPool();
 

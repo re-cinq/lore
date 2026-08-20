@@ -1,3 +1,5 @@
+import type { AgentRunTurn } from "../../models/agent-run-turn.js";
+
 /**
  * One row of `pipeline.agent_run_turns` — the full-fidelity turn-level
  * transcript store (specs/turn-level-transcript-store), sibling to the
@@ -12,22 +14,13 @@
  * to no task, or whose CR name matches no node row, is still stored — a store
  * whose whole point is fidelity must not drop the lines it cannot label.
  */
-export interface AgentRunTurnRow {
-  id: string;
-  taskId: string | null;
-  agentCrName: string | null;
-  assemblyLineId: string | null;
-  /** The station visit this turn belongs to (FR6.39). */
-  stationRunId: string | null;
-  nodeId: string | null;
-  iteration: number | null;
-  /** The raw stream-json line kind, as emitted; not narrowed to a union, so a
-   *  kind this Floor has never seen is still stored under its own name. */
-  eventType: string | null;
-  /** The untruncated `{source, event}` line. */
-  envelope: Record<string, unknown>;
-  createdAt: Date;
-}
+/**
+ * One row of `pipeline.agent_run_turns`. The shape is the `AgentRunTurn` model —
+ * see `libs/shared/src/models/agent-run-turn.ts` for the columns and why every
+ * correlation field is nullable (a store whose point is fidelity must not drop
+ * the lines it cannot label).
+ */
+export type AgentRunTurnRow = AgentRunTurn;
 
 /**
  * What the ingest tee supplies for one turn. The correlated fields

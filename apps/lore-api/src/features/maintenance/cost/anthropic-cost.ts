@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AnthropicCostDailyRow as SharedCostDailyRow } from "@re-cinq/lore-shared/project/cost/cost-port.js";
 
 const CostResult = z.object({
   amount: z.string(),
@@ -63,15 +64,13 @@ export interface UsageRow {
   cacheCreationTokens: number;
 }
 
-export interface AnthropicCostDailyRow {
-  date: string;
-  model: string;
-  costUsd: number;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheCreationTokens: number;
-}
+/**
+ * The merged bucket IS the stored row's upsert shape — one declaration, in
+ * `libs/shared/src/models/anthropic-cost-daily.ts`. It used to be restated here
+ * with the key spelled `date` while the writer's spelled it `bucketDate`, and
+ * the seam between them was a hand-written field rename in the sync.
+ */
+export type AnthropicCostDailyRow = SharedCostDailyRow;
 
 export function mergeCostAndUsage(
   costRows: CostRow[],
@@ -79,8 +78,8 @@ export function mergeCostAndUsage(
 ): AnthropicCostDailyRow[] {
   const byKey = new Map<string, AnthropicCostDailyRow>();
 
-  const blank = (date: string, model: string): AnthropicCostDailyRow => ({
-    date,
+  const blank = (bucketDate: string, model: string): AnthropicCostDailyRow => ({
+    bucketDate,
     model,
     costUsd: 0,
     inputTokens: 0,

@@ -2,6 +2,7 @@ import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { repoFullName } from "../common-schemas.js";
@@ -10,14 +11,35 @@ const RepoStatusQuery = z.object({ repo: repoFullName.optional() });
 
 type RepoStatusQuery = z.infer<typeof RepoStatusQuery>;
 
+/** The statusline's read: onboarding state plus what the repo is doing now. */
+const RepoStatusSchema = z.object({
+  onboarded: z.boolean(),
+  repo: z.string().optional(),
+  running: z.number().optional(),
+  pr_ready: z.number().optional(),
+  memories: z.number().optional(),
+  auto_review: z.boolean().optional(),
+  last_ingested_at: z.string().nullable().optional(),
+  /** True when the last ingest is older than seven days. */
+  stale: z.boolean().optional(),
+  error: z.string().optional(),
+});
+
 export function repoStatusRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/repo-status",
-    options: {
-      ...bearerScope("read"),
-      validate: { query: zodValidate(RepoStatusQuery) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(RepoStatusQuery) },
+      },
+      RepoStatusSchema,
+      {
+        name: "RepoStatus",
+        description: "Onboarding state and current activity for a repo",
+      },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
       const { repo } = request.query as RepoStatusQuery;

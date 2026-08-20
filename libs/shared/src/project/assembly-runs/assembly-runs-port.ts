@@ -1,6 +1,11 @@
 import type { RunGraph } from "./run-graph.js";
+import type {
+  AssemblyRun,
+  AssemblyRunStatus,
+} from "../../models/assembly-run.js";
+import type { StationRun } from "../../models/station-run.js";
 
-export type AssemblyRunStatus = "queued" | "running" | "finished" | "failed";
+export type { AssemblyRunStatus };
 
 /**
  * The filter `list` accepts. Every field is optional and ANDed; an empty query
@@ -77,21 +82,12 @@ export interface StationRunStartInput {
   agentCrName?: string;
 }
 
-export interface StationRunRecord {
-  /** The row's physical id — ALSO its visit order, which the replay depends on. */
-  id: string;
-  /** The station run's public identity: what telemetry and cost rows key on
-   *  instead of string-matching an Agent CR name (FR6.39). */
-  stationRunId: string;
-  assemblyRunId: string;
-  nodeId: string;
-  iteration: number;
-  outcome: string | null;
-  agentCrName: string | null;
-  commitSha: string | null;
-  startedAt: Date;
-  finishedAt: Date | null;
-}
+/**
+ * One `pipeline.station_runs` row. The shape is the `StationRun` model — see
+ * `libs/shared/src/models/station-run.ts` for the columns it binds and why a
+ * visit carries two ids.
+ */
+export type StationRunRecord = StationRun;
 
 /** The overlap guard's row: everything it compares, nothing it does not. */
 export interface OpenRunSummary {
@@ -103,38 +99,12 @@ export interface OpenRunSummary {
   createdAt: Date;
 }
 
-export interface AssemblyRunRecord {
-  id: string;
-  blueprintName: string;
-  taskId: string | null;
-  repo: string;
-  branch: string | null;
-  /** What this run works on; null for a run that declared no subject. See
-   *  {@link AssemblyRunStartInput.subjectKey}. */
-  subjectKey: string | null;
-  args: Record<string, unknown>;
-  status: "queued" | "running" | "finished" | "failed";
-  outcome: string | null;
-  reason: string | null;
-  /** Content hash of the blueprint this run executed; null for rows that
-   *  predate the column or whose blueprint never resolved. */
-  blueprintHash: string | null;
-  /** The blueprint's graph as THIS run recorded it — what the walk and every
-   *  reader work from. Null for rows started before the clone existed, which
-   *  fall back to resolving the blueprint by name (FR6.38). */
-  graph: RunGraph | null;
-  /** Fork parentage — null for a line that was not forked. */
-  resumedFromRunId: string | null;
-  resumedFromNodeId: string | null;
-  /** Node rows copied from the fork source, fixed at fork time (0 for a plain
-   *  start). The overlap guard's "no work of its own yet" test compares the
-   *  line's CURRENT row count against this; recomputing the prefix instead
-   *  would let a back-edge revisit re-arm the guard mid-walk. */
-  inheritedNodeCount: number;
-  createdAt: Date;
-  startedAt: Date | null;
-  finishedAt: Date | null;
-}
+/**
+ * One `pipeline.assembly_runs` row. The shape is the `AssemblyRun` model — see
+ * `libs/shared/src/models/assembly-run.ts` for the columns it binds, the
+ * blueprint-clone `graph`, and why `repo` is the `owner/repo` string.
+ */
+export type AssemblyRunRecord = AssemblyRun;
 
 /**
  * `pipeline.assembly_runs` + `pipeline.station_runs` — first-class

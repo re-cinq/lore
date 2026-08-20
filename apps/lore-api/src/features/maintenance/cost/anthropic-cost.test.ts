@@ -88,9 +88,11 @@ describe("mergeCostAndUsage", () => {
       },
     ];
 
+    // The merged bucket is the STORED row, so its key is `bucketDate` — the
+    // column. The inputs keep `date`: those are Anthropic's report shapes.
     expect(mergeCostAndUsage(cost, usage)).toEqual([
       {
-        date: "2025-08-01",
+        bucketDate: "2025-08-01",
         model: "claude-opus-4-6",
         costUsd: 1.5,
         inputTokens: 1500,

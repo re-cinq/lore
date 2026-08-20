@@ -15,6 +15,8 @@ import {
   type OnboardTaskRow,
 } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { selectList, fromRow } from "@re-cinq/lore-shared/lib/row.js";
+import { REPO_COLUMNS, type Repo } from "@re-cinq/lore-shared/models/repo.js";
 /**
  * Repo onboarding module.
  *
@@ -71,31 +73,23 @@ export async function getInstallationRepos(): Promise<InstallationRepo[]> {
 
 // ── Database queries ────────────────────────────────────────────────
 
-export interface OnboardedRepo {
-  id: string;
-  owner: string;
-  name: string;
-  full_name: string;
-  team: string | null;
-  onboarded_at: string;
-  last_ingested_at: string | null;
-  onboarding_pr_url: string | null;
-  onboarding_pr_merged: boolean;
-  settings: Record<string, unknown>;
+/** A `lore.repos` row plus the pipeline counts the repo list renders beside it. */
+export interface RepoWithCounts extends Repo {
+  taskCount: number;
+  activeAgents: number;
 }
 
 /**
  * Returns all repos from lore.repos.
  */
-export async function getOnboardedRepos(pool: Pool): Promise<OnboardedRepo[]> {
-  const { rows } = await pool.query(
-    `SELECT id, owner, name, full_name, team, onboarded_at, last_ingested_at,
-            onboarding_pr_url, onboarding_pr_merged, settings
+export async function getOnboardedRepos(pool: Pool): Promise<Repo[]> {
+  const { rows } = await pool.query<Record<string, unknown>>(
+    `SELECT ${selectList(REPO_COLUMNS)}
      FROM lore.repos
      ORDER BY onboarded_at DESC`,
   );
 
-  return rows;
+  return rows.map((row) => fromRow<Repo>(REPO_COLUMNS, row));
 }
 
 /**
@@ -105,11 +99,9 @@ export async function getOnboardedReposWithCounts(
   pool: Pool,
   limit = 100,
   offset = 0,
-): Promise<{ repos: Record<string, unknown>[]; total: number }> {
-  const { rows } = await pool.query(
-    `SELECT r.id, r.owner, r.name, r.full_name, r.team,
-            r.onboarded_at, r.last_ingested_at,
-            r.onboarding_pr_url, r.onboarding_pr_merged, r.settings,
+): Promise<{ repos: RepoWithCounts[]; total: number }> {
+  const { rows } = await pool.query<Record<string, unknown>>(
+    `SELECT ${selectList(REPO_COLUMNS, "r")},
             COALESCE(tc.task_count, 0)::int AS task_count,
             COALESCE(tc.active_agents, 0)::int AS active_agents
      FROM lore.repos r
@@ -127,7 +119,13 @@ export async function getOnboardedReposWithCounts(
     `SELECT count(*)::int as total FROM lore.repos`,
   );
 
-  return { repos: rows, total: countRows[0].total };
+  const repos = rows.map((row) => ({
+    ...fromRow<Repo>(REPO_COLUMNS, row),
+    taskCount: row.task_count as number,
+    activeAgents: row.active_agents as number,
+  }));
+
+  return { repos, total: countRows[0].total };
 }
 
 /**
@@ -141,7 +139,7 @@ export async function getAvailableRepos(
     getOnboardedRepos(pool),
   ]);
 
-  const onboardedSet = new Set(onboarded.map((r) => r.full_name));
+  const onboardedSet = new Set(onboarded.map((r) => r.fullName));
 
   return installation.filter((r) => !onboardedSet.has(r.full_name));
 }

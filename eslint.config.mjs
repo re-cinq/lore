@@ -19,6 +19,11 @@ export default tseslint.config(
       "!apps/lore-api/src/api/routes/dist/**",
       "**/.next/**",
       "**/node_modules/**",
+      // A git worktree is a SECOND checkout of this repo living inside it
+      // (gitignored, .gitignore:48). Linting it re-reports every finding in the
+      // tree under a path that is not source — 6k duplicate errors, and a
+      // spec-link check that resolves its corpus against the wrong root.
+      "**/.claude/worktrees/**",
       "**/coverage/**",
       "**/.lore-pgdata/**",
       "**/.lore-dgraphdata/**",

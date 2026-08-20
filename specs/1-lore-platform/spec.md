@@ -779,7 +779,7 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   and records the transition carrying the priority it replaced.
   `cancelTask` treats `completed`, `merged`, `failed` and `cancelled` as
   terminal — `completed` was missing, so the web UI's own guard refused
-  a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/pipeline-tasks.escalate.test.ts#L25), [`pipeline-tasks.escalate.test.ts:39`](libs/shared/src/pipeline-tasks.escalate.test.ts#L39), [`pipeline-tasks.escalate.test.ts:56`](libs/shared/src/pipeline-tasks.escalate.test.ts#L56), [`pipeline-tasks.escalate.test.ts:64`](libs/shared/src/pipeline-tasks.escalate.test.ts#L64), [`pipeline-tasks.escalate.test.ts:77`](libs/shared/src/pipeline-tasks.escalate.test.ts#L77), [`pipeline-tasks.escalate.test.ts:88`](libs/shared/src/pipeline-tasks.escalate.test.ts#L88))
+  a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/pipeline-tasks.escalate.test.ts#L28), [`pipeline-tasks.escalate.test.ts:42`](libs/shared/src/pipeline-tasks.escalate.test.ts#L42), [`pipeline-tasks.escalate.test.ts:59`](libs/shared/src/pipeline-tasks.escalate.test.ts#L59), [`pipeline-tasks.escalate.test.ts:67`](libs/shared/src/pipeline-tasks.escalate.test.ts#L67), [`pipeline-tasks.escalate.test.ts:80`](libs/shared/src/pipeline-tasks.escalate.test.ts#L80), [`pipeline-tasks.escalate.test.ts:91`](libs/shared/src/pipeline-tasks.escalate.test.ts#L91))
 
 - FR-19.17: lore-api serves one `lore.repos` row at
   `GET /api/repos/{owner}/{repo}` under the `read` scope, reading it
@@ -788,11 +788,11 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   rather than a per-caller projection: nine web-ui call sites across
   five files each selected a different column subset of this row, and
   projecting per caller would move that duplication into the API
-  instead of removing it. ([validated by `repo-record.test.ts:49`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L49), [`repo-record.test.ts:58`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L58), [`repo-record.test.ts:66`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L66), [`repo-record.test.ts:75`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L75))
+  instead of removing it. ([validated by `repo-record.test.ts:69`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L69), [`repo-record.test.ts:78`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L78), [`repo-record.test.ts:86`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L86), [`repo-record.test.ts:95`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L95))
 - FR-19.18: `SettingsPort.record(repo)` is that read — the whole row or
   null — implemented by the Pg adapter against `lore.repos` and by the
   in-memory double over its seeded rows, so a caller that needs more
-  than `rawSettings` or `team` has one place to get it. ([validated by returns the seeded row for an onboarded repo](libs/shared/src/project/settings/settings-record.test.ts#L36), [`settings-record.test.ts:46`](libs/shared/src/project/settings/settings-record.test.ts#L46), [`settings-record.test.ts:54`](libs/shared/src/project/settings/settings-record.test.ts#L54), [`settings-record.test.ts:65`](libs/shared/src/project/settings/settings-record.test.ts#L65))
+  than `rawSettings` or `team` has one place to get it. ([validated by returns the seeded row as the camelCase model](libs/shared/src/project/settings/settings-record.test.ts#L55), [`settings-record.test.ts:66`](libs/shared/src/project/settings/settings-record.test.ts#L66), [`settings-record.test.ts:74`](libs/shared/src/project/settings/settings-record.test.ts#L74), [`settings-record.test.ts:92`](libs/shared/src/project/settings/settings-record.test.ts#L92), [`settings-record.test.ts:104`](libs/shared/src/project/settings/settings-record.test.ts#L104))
 
 - FR-19.19: lore-api serves the run views' four reads under the `read`
   scope — `GET /api/assembly-lines` (filterable by status, repo, or a
@@ -873,7 +873,7 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   UI reaches it through `POST /api/task` with `action: "revise"`; the
   three writes were previously three separate statements in a server
   action, where a dropped event left a parent pointing at a revision the
-  timeline could not explain. ([validated by [`pipeline-tasks.escalate.test.ts:126`](libs/shared/src/pipeline-tasks.escalate.test.ts#L126), [`pipeline-tasks.escalate.test.ts:135`](libs/shared/src/pipeline-tasks.escalate.test.ts#L135), [`pipeline-tasks.escalate.test.ts:155`](libs/shared/src/pipeline-tasks.escalate.test.ts#L155), [`pipeline-tasks.escalate.test.ts:170`](libs/shared/src/pipeline-tasks.escalate.test.ts#L170), [`pipeline-tasks.escalate.test.ts:182`](libs/shared/src/pipeline-tasks.escalate.test.ts#L182), [`pipeline-tasks.escalate.test.ts:202`](libs/shared/src/pipeline-tasks.escalate.test.ts#L202), [`pipeline-tasks.escalate.test.ts:214`](libs/shared/src/pipeline-tasks.escalate.test.ts#L214), [`pipeline-tasks.escalate.test.ts:222`](libs/shared/src/pipeline-tasks.escalate.test.ts#L222))
+  timeline could not explain. ([validated by [`pipeline-tasks.escalate.test.ts:132`](libs/shared/src/pipeline-tasks.escalate.test.ts#L132), [`pipeline-tasks.escalate.test.ts:141`](libs/shared/src/pipeline-tasks.escalate.test.ts#L141), [`pipeline-tasks.escalate.test.ts:161`](libs/shared/src/pipeline-tasks.escalate.test.ts#L161), [`pipeline-tasks.escalate.test.ts:176`](libs/shared/src/pipeline-tasks.escalate.test.ts#L176), [`pipeline-tasks.escalate.test.ts:188`](libs/shared/src/pipeline-tasks.escalate.test.ts#L188), [`pipeline-tasks.escalate.test.ts:208`](libs/shared/src/pipeline-tasks.escalate.test.ts#L208), [`pipeline-tasks.escalate.test.ts:220`](libs/shared/src/pipeline-tasks.escalate.test.ts#L220), [`pipeline-tasks.escalate.test.ts:228`](libs/shared/src/pipeline-tasks.escalate.test.ts#L228))
 
 - FR-19.25: lore-api serves the org-wide `lore.settings` under the
   `admin` scope — `GET /api/settings` (the entries plus the repo count

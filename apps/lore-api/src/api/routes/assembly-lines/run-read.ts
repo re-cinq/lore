@@ -1,3 +1,5 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { z } from "zod";
 import Boom from "@hapi/boom";
 import type { ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
@@ -45,6 +47,16 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
  * are null when the run predates clones AND its blueprint is gone — the rows are
  * the record of what actually ran, so they still serve.
  */
+/**
+ * The ENRICHED run read (FR6.40a): the run, whether its blueprint resolved, and
+ * each node joined to the graph the run actually walked.
+ */
+const RunReadSchema = z.object({
+  line: z.record(z.unknown()),
+  definitionKnown: z.boolean(),
+  nodes: z.array(z.record(z.unknown())),
+});
+
 export function describeNode(
   row: StationRunRecord,
   node: RunGraphNode | undefined,
@@ -80,7 +92,11 @@ export function runReadRoute(
   return {
     method: "GET",
     path: "/api/assembly-runs/{id}",
-    options: bearerScope("read"),
+    options: zodResponse(bearerScope("read"), RunReadSchema, {
+      name: "AssemblyRunRead",
+      description: "A run joined to the graph it walked",
+      errors: [404],
+    }),
     handler: async (request) => {
       const pool = getPool();
 

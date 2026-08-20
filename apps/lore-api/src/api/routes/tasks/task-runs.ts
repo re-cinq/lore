@@ -1,15 +1,38 @@
 import { errorMessage } from "@re-cinq/lore-shared";
+import { selectList, pickColumns } from "@re-cinq/lore-shared/lib/row.js";
+import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
+import {
+  AssemblyRunSchema,
+  ASSEMBLY_RUN_COLUMNS,
+} from "@re-cinq/lore-shared/models/assembly-run.js";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
+import { z } from "zod";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
-export interface TaskRunRow {
-  id: string;
-  status: string;
-  outcome: string | null;
-  created_at: string;
-}
+/** What the page needs of a run: enough to label it and attach a stream. */
+const TASK_RUN_COLUMNS = pickColumns(ASSEMBLY_RUN_COLUMNS, [
+  "id",
+  "status",
+  "outcome",
+  "createdAt",
+]);
+
+const TaskRunSchema = wireSchema(
+  AssemblyRunSchema.pick({
+    id: true,
+    status: true,
+    outcome: true,
+    createdAt: true,
+  }),
+  ASSEMBLY_RUN_COLUMNS,
+);
+
+const TaskRunListSchema = z.object({ runs: z.array(TaskRunSchema) });
+
+export type TaskRunRow = z.infer<typeof TaskRunSchema>;
 
 /** Postgres "relation does not exist" — a database that predates migration
  *  0025 has no assembly_lines table, and a task there simply has no runs. */
@@ -28,7 +51,11 @@ export function taskRunsRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/tasks/{id}/runs",
-    options: bearerScope("read"),
+    options: zodResponse(bearerScope("read"), TaskRunListSchema, {
+      name: "TaskRunList",
+      description: "The task's per-attempt runs, newest first",
+      errors: [404],
+    }),
     handler: async (request, h) => {
       const pool = getPool();
 
@@ -52,7 +79,7 @@ export function taskRunsRoute(getPool: () => Pool | null): ServerRoute {
 
       try {
         const { rows } = await pool.query<TaskRunRow>(
-          `SELECT id, status, outcome, created_at
+          `SELECT ${selectList(TASK_RUN_COLUMNS)}
              FROM pipeline.assembly_runs
             WHERE task_id = $1
             ORDER BY created_at DESC`,

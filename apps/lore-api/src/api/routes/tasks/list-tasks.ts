@@ -1,3 +1,4 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -20,14 +21,26 @@ const ListTasksQuery = z.object({
 
 type ListTasksQuery = z.infer<typeof ListTasksQuery>;
 
+/** A page of tasks plus the paging the caller asked for. */
+const TaskPageSchema = z.object({
+  tasks: z.array(z.record(z.unknown())),
+  total: z.number(),
+  limit: z.number(),
+  offset: z.number(),
+});
+
 export function listTasksRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/tasks",
-    options: {
-      ...bearerScope("read"),
-      validate: { query: zodValidate(ListTasksQuery) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(ListTasksQuery) },
+      },
+      TaskPageSchema,
+      { name: "TaskPage", description: "A page of pipeline tasks" },
+    ),
     handler: async (request, h) => {
       const { status, limit, offset } =
         request.query as unknown as ListTasksQuery;
