@@ -1,11 +1,11 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { listRepos } from "@/lib/api/repos";
+import { listAllRepos } from "@/lib/api/repos";
 import { serverError, upstreamError } from "@/lib/api-error";
 
 export async function GET() {
   try {
-    const repos = await listRepos();
+    const repos = await listAllRepos();
 
     if (repos.status !== "ok") {
       return upstreamError("Repos", repos);

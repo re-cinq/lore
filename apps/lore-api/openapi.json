@@ -3,7 +3,7 @@
   "info": {
     "title": "Lore API",
     "version": "0.1.0",
-    "description": "Generated from the lore-api hapi route zod schemas (ADR-035). This document describes request contracts and the uniform `{ error }` error envelope precisely; success response bodies are not declaratively described and appear generically. Per-route required scope is the `x-required-scope` extension (HTTP bearer has no scope list); the rate-limit bucket is `x-rate-limit-bucket`."
+    "description": "Generated from the lore-api hapi route zod schemas (ADR-035). This document describes request contracts, success bodies and the uniform `{ error }` error envelope. A route declares its body with `zodResponse`; where that body shares fields with a table, the schema is derived from that table's model and column map, so a renamed column cannot leave the contract behind. The two routes that declare none are `/api/openapi.json` (this document) and `/api/docs` (HTML). Per-route required scope is the `x-required-scope` extension (HTTP bearer has no scope list); the rate-limit bucket is `x-rate-limit-bucket`."
   },
   "servers": [
     {
