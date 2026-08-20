@@ -1,16 +1,13 @@
 import type { JobRunsPort, JobRunRecord } from "./job-runs-port.js";
+import type { JobRun } from "../../models/job-run.js";
 
-/** A full in-memory `pipeline.job_runs` row for behavioral assertions. */
-export interface JobRunRow {
-  id: string;
-  jobName: string;
-  status: string;
-  startedAt: Date;
-  completedAt: Date | null;
-  resultSummary: string | null;
-  error: string | null;
-  logPath: string | null;
-}
+/**
+ * A full in-memory `pipeline.job_runs` row for behavioral assertions.
+ *
+ * The MODEL, not a copy of it. The double restated all eight fields, which is
+ * how a double comes to agree with a shape the table no longer has.
+ */
+export type JobRunRow = JobRun;
 
 /**
  * In-memory {@link JobRunsPort}: keeps every run row so the scheduler's

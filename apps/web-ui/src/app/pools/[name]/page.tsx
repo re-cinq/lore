@@ -1,13 +1,9 @@
 export const dynamic = "force-dynamic";
 import { getPool } from "@/lib/api/memory";
 import PoolDetailView, { PoolEntryRow } from "./PoolDetailView";
+import type { components } from "@/lib/api/schema";
 
-interface PoolInfo {
-  id: string;
-  name: string;
-  created_by: string;
-  created_at: string;
-}
+type PoolInfo = components["schemas"]["SharedPoolDetail"]["pool"];
 
 export default async function PoolDetailPage({
   params,

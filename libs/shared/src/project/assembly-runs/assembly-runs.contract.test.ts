@@ -426,6 +426,21 @@ describe.each(IMPLEMENTATIONS)(
       ).toEqual([running]);
     });
 
+    it("listSummaries selects the same runs as list, without the graph clone", async () => {
+      const { port, repo } = make();
+      const wanted = await port.start({ blueprintName: "code-review", repo });
+
+      await port.start({ blueprintName: "implementation", repo });
+
+      const summaries = await port.listSummaries({
+        repo,
+        blueprintName: "code-review",
+      });
+
+      expect(summaries.map((run) => run.id)).toEqual([wanted]);
+      expect(summaries[0]).not.toHaveProperty("graph");
+    });
+
     it("list caps at the limit", async () => {
       const { port, repo } = make();
 

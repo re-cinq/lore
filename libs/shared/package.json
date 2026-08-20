@@ -58,6 +58,10 @@
       "types": "./dist/models/*.d.ts",
       "default": "./dist/models/*.js"
     },
+    "./task-types/*.js": {
+      "types": "./dist/task-types/*.d.ts",
+      "default": "./dist/task-types/*.js"
+    },
     "./spec-link-parser.js": {
       "types": "./dist/spec-link-parser.d.ts",
       "default": "./dist/spec-link-parser.js"

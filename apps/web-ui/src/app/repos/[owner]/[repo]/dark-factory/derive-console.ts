@@ -6,20 +6,16 @@
  */
 
 import type { ResolvedDarkFactorySettings } from "@/lib/dark-factory-resolve";
+import type { components } from "@/lib/api/schema";
 
-export interface ConsoleTask {
-  id: string;
-  task_type: string;
-  status: string;
-  pr_url: string | null;
-  created_at: string;
-}
+/** The five task fields the console derives from, typed by the contract. */
+export type ConsoleTask = Pick<
+  components["schemas"]["RepoTaskList"]["tasks"][number],
+  "id" | "task_type" | "status" | "pr_url" | "created_at"
+>;
 
-export interface ConsoleAuditEvent {
-  event_type: string;
-  payload: Record<string, unknown>;
-  created_at: string;
-}
+export type ConsoleAuditEvent =
+  components["schemas"]["AuditLogPage"]["entries"][number];
 
 export interface DarkFactoryConsoleInput {
   resolved: ResolvedDarkFactorySettings;

@@ -7,7 +7,11 @@ import type { ColumnMap } from "../lib/row.js";
  * DDL: `scripts/infra/setup-pipeline-schema.sh`, plus the idempotent ALTERs that
  * added `log_url`, `claimed_by`, `claimed_at`, `priority`, `task_group_id`,
  * `actor`, `context_refs`, `dark_factory_overrides` (FR3.6), `issue_number`
- * and `issue_url`.
+ * and `issue_url`. Those ten ALTERs live in baseline scripts, which run ONCE at
+ * provisioning — migration `0043_tasks_late_columns.sql` is what puts them on a
+ * database bootstrapped before they were appended. Read `selectList` over this
+ * map on such a database and Postgres answers `42703`, which is how the Floor
+ * crash-looped through 2026-08-20.
  *
  * A task's id is stable ACROSS retries — the per-attempt identity is the
  * AssemblyRun's (ADR-024). `targetRepo` is the canonical `owner/repo` string,

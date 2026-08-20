@@ -35,8 +35,6 @@ type Ceremony = {
   pr_url?: string;
 };
 
-// One route for both verbs (both admin-scoped) so an unsupported method reaches
-// the 405 fallback rather than a 404 from an unmatched route.
 /**
  * The dark-factory settings surface. The READ is the fully resolved block — the
  * model's own resolved projection, so the published contract and the resolver
@@ -53,41 +51,78 @@ const DarkFactoryAppliedSchema = z.object({
   }),
 });
 
-export function darkFactoryRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "*",
-    path: DF_PATH,
-    options: zodResponse(
-      bearerScope("admin"),
-      // One route, both methods (`method: "*"`): GET answers the resolved block,
-      // PUT answers what it applied and under whose authority.
-      z.union([ResolvedDarkFactorySettingsSchema, DarkFactoryAppliedSchema]),
-      {
-        name: "DarkFactorySettings",
-        description: "The resolved settings (GET) or the applied change (PUT)",
-        errors: [400, 409],
-      },
-    ),
-    handler: async (request, h) => {
+/**
+ * GET reads, PUT writes, and each declares its own shape.
+ *
+ * This was ONE `method: "*"` route, so the generator — which stamps a contract
+ * per route and applies it to every verb that route serves — could only declare
+ * the union of the two, leaving a generated client to narrow "resolved settings
+ * or applied change" on a verb that only ever answers one of them.
+ *
+ * The wildcard route stays as a FALLBACK, and only for the 405: hapi answers an
+ * unmatched verb on a matched path with 404, and "you may not DELETE this" is a
+ * better answer than "there is nothing here". It declares no contract, so it
+ * contributes no operation to the document.
+ *
+ * Each route takes the handler for its own verb. Re-dispatching on
+ * `request.method` under three routes that each serve one verb would leave two
+ * arms dead on every request and the 405 arm unreachable from the two that
+ * matter — the split is what makes the dispatch unnecessary. The 405 no longer
+ * waits on the pool either: refusing a verb needs no database.
+ */
+export function darkFactoryRoute(getPool: () => Pool | null): ServerRoute[] {
+  /** Both real verbs need the pool — the GET reads settings through a project
+   *  bound to it — so the one guard is stated once and each verb receives it. */
+  const withPool =
+    (
+      serve: (
+        request: Request,
+        h: ResponseToolkit,
+        pool: Pool,
+        repo: string,
+      ) => Promise<ResponseObject>,
+    ) =>
+    async (request: Request, h: ResponseToolkit) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: "database unavailable" }).code(503);
-      }
-      const repo = repoOf(request.params);
-      const method = request.method.toUpperCase();
+      return pool
+        ? serve(request, h, pool, repoOf(request.params))
+        : h.response({ error: "database unavailable" }).code(503);
+    };
 
-      if (method === "GET") {
-        return handleGet(repo, h);
-      }
-
-      if (method === "PUT") {
-        return handlePut(request, h, pool, repo);
-      }
-
-      return h.response({ error: "method not allowed" }).code(405);
+  return [
+    {
+      method: "GET",
+      path: DF_PATH,
+      options: zodResponse(
+        bearerScope("admin"),
+        ResolvedDarkFactorySettingsSchema,
+        {
+          name: "DarkFactorySettings",
+          description: "Every dark-factory knob, resolved",
+        },
+      ),
+      handler: withPool((_request, h, _pool, repo) => handleGet(repo, h)),
     },
-  };
+    {
+      method: "PUT",
+      path: DF_PATH,
+      options: zodResponse(bearerScope("admin"), DarkFactoryAppliedSchema, {
+        name: "DarkFactorySettingsApplied",
+        description: "What the write applied, and under whose authority",
+        errors: [400, 409],
+      }),
+      handler: withPool(handlePut),
+    },
+    {
+      // Fallback only — a concrete verb above always wins in hapi.
+      method: "*",
+      path: DF_PATH,
+      options: bearerScope("admin"),
+      handler: (_request: Request, h: ResponseToolkit) =>
+        h.response({ error: "method not allowed" }).code(405),
+    },
+  ];
 }
 
 async function handleGet(
