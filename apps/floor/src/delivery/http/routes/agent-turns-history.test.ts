@@ -1,7 +1,11 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import Hapi from "@hapi/hapi";
 import { registerBearerAuth } from "../auth.js";
-import { agentTurnsHistoryRoute } from "./agent-turns-history.js";
+import {
+  agentTurnsHistoryRoute,
+  PAGE_LOOKAHEAD,
+} from "./agent-turns-history.js";
+import { DEFAULT_LIMIT, MAX_LIMIT } from "./agent-events-history.js";
 import type { AgentRunTurnRow } from "@re-cinq/lore-shared";
 
 const ORIG = process.env.LORE_INGEST_TOKEN;
@@ -55,7 +59,7 @@ describe("GET /api/agent-turns/{assemblyLineId}", () => {
     const res = await get(server, "/api/agent-turns/line-1");
 
     expect(res.statusCode).toBe(200);
-    expect(res.result).toEqual({ turns: [row("1")] });
+    expect(res.result).toEqual({ turns: [row("1")], hasMore: false });
   });
 
   it("scopes the read by assembly line and cursor together, not by cursor alone", async () => {
@@ -64,17 +68,24 @@ describe("GET /api/agent-turns/{assemblyLineId}", () => {
 
     await get(server, "/api/agent-turns/line-1?after=42&limit=25");
 
-    expect(listByLine).toHaveBeenCalledWith("line-1", "42", 25);
+    expect(listByLine).toHaveBeenCalledWith(
+      "line-1",
+      "42",
+      25 + PAGE_LOOKAHEAD,
+    );
   });
 
-  it("clamps an oversized limit and defaults a missing one", async () => {
+  it("clamps an oversized limit and defaults a missing one, reading one lookahead row past each", async () => {
     process.env.LORE_INGEST_TOKEN = "t";
     const { server, listByLine } = turnsServer();
 
     await get(server, "/api/agent-turns/line-1?limit=999999");
     await get(server, "/api/agent-turns/line-1");
 
-    expect(listByLine.mock.calls.map((call) => call[2])).toEqual([5000, 1000]);
+    expect(listByLine.mock.calls.map((call) => call[2])).toEqual([
+      MAX_LIMIT + PAGE_LOOKAHEAD,
+      DEFAULT_LIMIT + PAGE_LOOKAHEAD,
+    ]);
   });
 
   it("reads from the start of the run for a malformed cursor", async () => {
@@ -97,5 +108,43 @@ describe("GET /api/agent-turns/{assemblyLineId}", () => {
     });
 
     expect(res.statusCode).toBe(401);
+  });
+});
+
+describe("GET /api/agent-turns/{assemblyLineId} hasMore", () => {
+  it("reports hasMore and withholds the lookahead row when a row exists past the page", async () => {
+    process.env.LORE_INGEST_TOKEN = "t";
+    const listByLine = vi.fn((_line: string, _after: string, _limit: number) =>
+      Promise.resolve([row("1"), row("2"), row("3")]),
+    );
+    const { server } = turnsServer(listByLine);
+
+    const res = await get(server, "/api/agent-turns/line-1?limit=2");
+
+    expect(res.result).toEqual({ turns: [row("1"), row("2")], hasMore: true });
+  });
+
+  it("reports hasMore false for an exactly-full page with no row past it", async () => {
+    process.env.LORE_INGEST_TOKEN = "t";
+    const listByLine = vi.fn((_line: string, _after: string, _limit: number) =>
+      Promise.resolve([row("1"), row("2")]),
+    );
+    const { server } = turnsServer(listByLine);
+
+    const res = await get(server, "/api/agent-turns/line-1?limit=2");
+
+    expect(res.result).toEqual({ turns: [row("1"), row("2")], hasMore: false });
+  });
+
+  it("reports hasMore false for an empty page", async () => {
+    process.env.LORE_INGEST_TOKEN = "t";
+    const listByLine = vi.fn((_line: string, _after: string, _limit: number) =>
+      Promise.resolve([] as AgentRunTurnRow[]),
+    );
+    const { server } = turnsServer(listByLine);
+
+    const res = await get(server, "/api/agent-turns/line-1?limit=2");
+
+    expect(res.result).toEqual({ turns: [], hasMore: false });
   });
 });

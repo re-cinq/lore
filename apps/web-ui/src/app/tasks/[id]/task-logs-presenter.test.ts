@@ -151,3 +151,26 @@ describe("segmentLabel", () => {
     );
   });
 });
+
+describe("walkContinues with the Floor's hasMore flag", () => {
+  it("continues on a short page below the load cap when hasMore is true", () => {
+    expect(walkContinues([{}], 0, true)).toBe(true);
+  });
+
+  it("stops on a full page when hasMore is false", () => {
+    expect(walkContinues(new Array(TURNS_PAGE_LIMIT).fill({}), 0, false)).toBe(
+      false,
+    );
+  });
+
+  it("falls back to the short-page rule when the response carries no flag", () => {
+    expect(walkContinues([{}], 0, undefined)).toBe(false);
+    expect(
+      walkContinues(new Array(TURNS_PAGE_LIMIT).fill({}), 0, undefined),
+    ).toBe(true);
+  });
+
+  it("stops at the load cap even when hasMore is true", () => {
+    expect(walkContinues([{}], MAX_TURNS_LOADED, true)).toBe(false);
+  });
+});

@@ -73,9 +73,9 @@ export default tseslint.config(
       // Repo-WIDE on purpose. A table restated in a port, an adapter or a route
       // is the same defect as one restated in a view, and scoping this to
       // web-ui would guard the tier least likely to reach a database. Starts at
-      // `warn`, the way no-sql-in-web-ui did: the existing copies are a decision
-      // per type (model it, derive it, or keep it as a genuine projection),
-      // not a codemod. See #1418 and #1421 for the surveys.
+      // `warn`: the existing copies are a decision per type (model it, derive
+      // it, or keep it as a genuine projection), not a codemod. See #1418
+      // and #1421 for the surveys.
       "lore/no-row-types-outside-models": "warn",
       // warn, not error: a repo-wide sweep at the time of writing flagged 22
       // suites — a mix of real copies and tests that legitimately import

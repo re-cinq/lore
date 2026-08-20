@@ -16,8 +16,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { parseAgentRunTurn, type AgentRunTurn } from "@/lib/run-turn-types";
 import {
   MAX_TURNS_LOADED,
+  MAX_WALK_PAGES,
   envelopePretty,
   nextTurnsCursor,
+  parseHasMore,
+  serverReportsMore,
   turnHeading,
   turnsForNode,
   turnsUrl,
@@ -62,6 +65,7 @@ export default function FullTranscriptPanel({
         setError(null);
         const collected: AgentRunTurn[] = [];
         let cursor = "0";
+        let pages = 0;
         let hitCap = false;
 
         for (;;) {
@@ -77,13 +81,18 @@ export default function FullTranscriptPanel({
             throw new Error(`HTTP ${res.status}`);
           }
 
-          const body = (await res.json()) as { turns?: unknown[] };
+          const body = (await res.json()) as {
+            turns?: unknown[];
+            hasMore?: unknown;
+          };
 
           if (disposedRef.current) {
             return;
           }
 
           const rows = Array.isArray(body.turns) ? body.turns : [];
+
+          pages += 1;
 
           for (const row of rows) {
             const parsed = parseAgentRunTurn(row);
@@ -93,13 +102,21 @@ export default function FullTranscriptPanel({
             }
           }
 
-          const next = nextTurnsCursor(rows);
+          const hasMoreFlag = parseHasMore(body);
+          const next = nextTurnsCursor(rows, hasMoreFlag);
 
           if (next === null) {
+            // A drained transcript ends silently; a stalled one — the server
+            // reports more but the page carries no usable cursor — must not,
+            // because this one-shot walk never retries.
+            hitCap = serverReportsMore(rows, hasMoreFlag);
             break;
           }
 
-          if (collected.length >= MAX_TURNS_LOADED) {
+          // The page bound backstops a Floor clamp far below the requested
+          // page size — bounded requests, and a visible notice instead of a
+          // silently partial transcript.
+          if (collected.length >= MAX_TURNS_LOADED || pages >= MAX_WALK_PAGES) {
             hitCap = true;
             break;
           }
@@ -146,7 +163,7 @@ export default function FullTranscriptPanel({
 
       {!error && capped && (
         <p className={`meta ${styles.notice}`}>
-          Loaded only the first {MAX_TURNS_LOADED} turns of this run.
+          Loaded only the first {(turns ?? []).length} turns of this run.
         </p>
       )}
 

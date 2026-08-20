@@ -117,12 +117,46 @@ const EpisodePageSchema = z.object({
   total: z.number(),
 });
 
-/** The knowledge graph as the browser reads it. */
+/**
+ * The knowledge graph as the browser reads it.
+ *
+ * `entities` carries an `edge_count` subquery and `edges` is a three-way join
+ * that reads NAMES rather than ids, so neither is a `memory.entities` or
+ * `memory.edges` row — they are this screen's read models, and the shapes belong
+ * here with the queries.
+ *
+ * `edges` is EMPTY unless an entity is selected: reading them unconditionally is
+ * the explorer's most expensive query, run on every page view.
+ */
 const GraphBrowseSchema = z.object({
-  stats: z.record(z.unknown()),
-  entity_types: z.array(z.unknown()),
-  entities: z.array(z.record(z.unknown())),
-  edges: z.array(z.record(z.unknown())),
+  stats: z.object({
+    entity_count: z.number(),
+    active_edge_count: z.number(),
+    invalidated_edge_count: z.number(),
+  }),
+  entity_types: z.array(z.object({ entity_type: z.string(), cnt: z.number() })),
+  entities: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      entity_type: z.string(),
+      repo: z.string().nullable(),
+      updated_at: z.string(),
+      edge_count: z.number(),
+    }),
+  ),
+  edges: z.array(
+    z.object({
+      source_name: z.string(),
+      source_type: z.string(),
+      relation_type: z.string(),
+      target_name: z.string(),
+      target_type: z.string(),
+      valid_from: z.string(),
+      valid_to: z.string().nullable(),
+      source_label: z.string(),
+    }),
+  ),
 });
 
 /** Memories and facts, ranked together — the two carry different fields. */
