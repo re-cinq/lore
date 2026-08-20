@@ -97,8 +97,14 @@ export function toRow<T extends object>(
  * feeds it are always one rollout apart in one direction or the other.
  *
  * The COLUMN spelling wins when a record carries both, because that is the one
- * a producer emits today; when the producers flip, this function's output keying
- * flips with them and the tolerance stays.
+ * a producer emits today.
+ *
+ * The OUTPUT is always keyed by COLUMN, whichever spelling arrived. This widens
+ * what a reader ACCEPTS; it does not change what a reader ANSWERS — which is
+ * exactly what makes release 1 a no-op on the wire and lets release 2 flip the
+ * producers without touching a consumer. Release 3 is the one that is not free:
+ * the downstream shape stays snake_case only while this function is in the path,
+ * so whoever deletes the shim flips the consumer's own type in the same change.
  *
  * A field absent from `raw` stays absent rather than becoming
  * present-and-undefined — an optional field that is always present, holding
