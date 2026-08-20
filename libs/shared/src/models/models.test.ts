@@ -51,9 +51,26 @@ interface TableModel {
   columns: Record<string, string>;
 }
 
-const files = readdirSync(modelsDir)
-  .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
-  .sort();
+/**
+ * Discovery accepts either extension, keyed by STEM so a directory holding both
+ * yields each model once. `dist/**` is excluded from this suite, so today the
+ * sweep only ever sees `.ts` — but pinning it to that extension made the sweep
+ * silently find nothing anywhere else, which is a worse failure than a wrong
+ * answer: it reports success over an empty set.
+ */
+const files = [
+  ...new Map(
+    readdirSync(modelsDir)
+      .filter(
+        (f) =>
+          (f.endsWith(".ts") || f.endsWith(".js")) &&
+          !/\.test\.[tj]s$/.test(f) &&
+          !f.endsWith(".d.ts"),
+      )
+      .sort()
+      .map((f) => [f.replace(/\.[tj]s$/, ""), f] as const),
+  ).values(),
+].sort();
 
 const loaded: Array<[string, ModelModule]> = await Promise.all(
   files.map(
