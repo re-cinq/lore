@@ -217,9 +217,19 @@ shared `@re-cinq/lore-shared/project/*` ports**, not inline SQL.
   `contextCore()`, `research()`, `baseline()`, `chunks()`, `memoryLifecycle()`)
   that binds the shared `Pg…` adapter to the pool — the established
   `eventQueue()`/`auditLog()` pattern.
-- **One home per table.** Each port ships a port interface + Pg adapter (SQL
-  lifted byte-for-byte) + InMemory behavioral double + colocated test. The
-  Floor-local `kernel/repositories/*` halfway house was deleted.
+- **One home per table.** Each port ships a MODEL
+  (`libs/shared/src/models/<entity>.ts` — a schema, the type inferred from it, and
+  a map binding each field to the column that stores it) + a port interface + a Pg
+  adapter that builds its SELECT list and maps its rows FROM that column map + an
+  InMemory behavioral double + a colocated test. The Floor-local
+  `kernel/repositories/*` halfway house was deleted. *(Amended 2026-08: this
+  originally read "port interface + Pg adapter (SQL lifted byte-for-byte) +
+  InMemory double + colocated test". Lifting SQL verbatim was the right move for
+  a relocation, and the wrong resting place: it left each adapter restating the
+  column list its table already defined, which is how one row type came to be
+  declared five times and how two of them drifted to different spellings of the
+  same key. Deriving the list means a column the table loses fails at the read
+  instead of arriving as `undefined`.)*
 - **Byte-for-byte hazards** flagged in #749 are honored: CAS status writes
   (`UPDATE … WHERE id AND status = '…'`) use `setStatusIf`, not `setStatus`;
   column-only stamps use `setColumns` (no status / no `updated_at`); gate-free
