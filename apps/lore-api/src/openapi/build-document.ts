@@ -235,6 +235,9 @@ const TAG_RULES: Array<[RegExp, string]> = [
     /^\/api\/(usage|analytics|analytics-overview|spend|agent-stats|memory-audit|events|job-runs)\b/,
     "Analytics",
   ],
+  // Org-wide platform health (is model access down right now) reads as analytics
+  // rather than as a category of its own — same audience, same question shape.
+  [/^\/api\/platform\//, "Analytics"],
   [/\/features\b/, "Features"],
   [/\/agent-definitions\b/, "Agents"],
   [/\/settings\/dark-factory\b/, "Dark Factory"],

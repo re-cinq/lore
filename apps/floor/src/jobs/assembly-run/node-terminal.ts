@@ -11,6 +11,7 @@
 
 import {
   resultTextFromOutput,
+  terminalErrorText,
   parseReviewVerdict,
   type AgentNodeStatus,
   type NodeResult,
@@ -38,13 +39,26 @@ import type {
  * Unwrap the Agent output envelope so every text parser downstream reads the
  * agent text rather than the NDJSON that carries it. Idempotent for already-plain
  * output, so it is safe at any read boundary.
+ *
+ * It also LIFTS the terminal error text while the raw stream is still here to
+ * read. `terminalErrorText` needs the `is_error` result line, which only exists
+ * before the unwrap — so every reader downstream saw `null` and fell back to the
+ * CR's Job-level `failureReason` (`BackoffLimitExceeded…`) whatever the agent
+ * actually said. That is why FR6.14's billing alert never fired once in
+ * production: the classifier was reading a string that could never be a billing
+ * error. Lifting it here fixes both doors at once, since the node-event handler
+ * and the reaper both normalize before they classify.
  */
 export function normalizeAgentStatus(status: AgentNodeStatus): AgentNodeStatus {
   if (status.output === undefined) {
     return status;
   }
+  // Idempotent: a second pass over already-unwrapped text finds no result line,
+  // so it must not erase what the first pass lifted.
+  const errorText = terminalErrorText(status.output) ?? status.errorText;
+  const unwrapped = { ...status, output: resultTextFromOutput(status.output) };
 
-  return { ...status, output: resultTextFromOutput(status.output) };
+  return errorText === undefined ? unwrapped : { ...unwrapped, errorText };
 }
 
 export interface NodeTerminalInput {

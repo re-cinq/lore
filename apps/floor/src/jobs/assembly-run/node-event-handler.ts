@@ -15,6 +15,7 @@ import { advanceLine, type AdvanceDeps } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { notifyLineFailure } from "./notify-failure.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
+import { llmDispatchGate } from "./llm-dispatch-gate.js";
 import {
   codeReviewOnCommentTriaged,
   type CommentContext,
@@ -79,6 +80,7 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
     if (result.outcome === "failed" && deps.alertBilling) {
       await deps.alertBilling(row.repo, node.type, status);
     }
+    tripGateOnAccountOutage(result, deps);
 
     await finishNodeTerminal(
       { row, node, nodeId, iteration, result, output: status.output },
@@ -87,6 +89,27 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
 
     await routeCommentTriage(row, nodeId, result);
   };
+}
+
+/**
+ * Stop dispatching agent nodes when THIS failure says the account, not the run,
+ * is down. The gate decides which classes qualify; every other failure passes
+ * through untouched. Logged only on the transition, because the whole point is
+ * that an account outage produces one event and not one per drowned run.
+ */
+function tripGateOnAccountOutage(
+  result: NodeResult,
+  deps: NodeEventDeps,
+): void {
+  if (!result.failureClass) {
+    return;
+  }
+
+  if (deps.llmGate?.trip(result.failureClass, result.failureDetail)) {
+    console.warn(
+      `[llm-dispatch-gate] pausing agent dispatch: ${result.failureDetail ?? result.failureClass}`,
+    );
+  }
 }
 
 /** When a comment-triage node goes terminal, read its classified action and start
@@ -208,6 +231,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
       });
     },
     readAgentStatus: (name) => kubeApi.getStatus(name),
+    llmGate: llmDispatchGate,
     alertBilling: async (repo, nodeType, status) => {
       await maybeAlertBilling(repo, nodeType, status, {
         notify: async (level, message) =>

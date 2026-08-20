@@ -291,6 +291,44 @@ describe.each(IMPLEMENTATIONS)(
       expect((await port.listStationRuns(id))[0]?.outcome).toBe("success");
     });
 
+    it("records the failure class and detail a classified node failure carried", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, "failed", undefined, {
+        failureClass: "anthropic-credit",
+        failureDetail: "Credit balance is too low",
+      });
+
+      expect((await port.listStationRuns(id))[0]).toMatchObject({
+        outcome: "failed",
+        failureClass: "anthropic-credit",
+        failureDetail: "Credit balance is too low",
+      });
+    });
+
+    it("leaves the failure columns null for a node that simply succeeded", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, "success");
+
+      expect((await port.listStationRuns(id))[0]).toMatchObject({
+        failureClass: null,
+        failureDetail: null,
+      });
+    });
+
     it("listStationRuns returns the run's visits in visit order", async () => {
       const { port, repo } = make();
       const id = await port.start({ blueprintName: "code-review", repo });
@@ -718,6 +756,51 @@ describe.each(IMPLEMENTATIONS)(
           id: fork,
         },
       );
+    });
+
+    it("a fork inherits the source's visits but not their verdict", async () => {
+      const { port, repo } = make();
+      const source = await port.start({
+        blueprintName: "code-review",
+        repo,
+      });
+
+      await port.stampBlueprint(source, "hash-1", GRAPH);
+      await port.markRunning(source);
+
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: source,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, "failed", undefined, {
+        failureClass: "anthropic-credit",
+        failureDetail: "Credit balance too low",
+      });
+      await port.finish(source, "failed");
+
+      const fork = await port.start({
+        blueprintName: "code-review",
+        repo,
+        blueprintHash: "hash-1",
+        resumeFrom: { lineId: source, nodeId: "review" },
+      });
+
+      // The copied row keeps WHAT happened and drops the classification of WHY,
+      // which belongs to the attempt that is over. `nextTransition` replays the
+      // copied prefix and refuses a retry on a permanent failure — inherit the
+      // verdict and a fork taken to rerun a credit failure dies of the failure
+      // it exists to get past, on its first advance, right after someone tops
+      // the account up.
+      expect(await port.listStationRuns(fork)).toMatchObject([
+        {
+          nodeId: "review",
+          outcome: "failed",
+          failureClass: null,
+          failureDetail: null,
+        },
+      ]);
     });
   },
 );

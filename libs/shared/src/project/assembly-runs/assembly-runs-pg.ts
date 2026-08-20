@@ -8,6 +8,7 @@ import type {
   AssemblyRunsPort,
   AssemblyRunResumeFrom,
   AssemblyRunStartInput,
+  StationRunFailure,
   StationRunStartInput,
   AssemblyRunRecord,
   AssemblyRunSummary,
@@ -180,6 +181,15 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     // sequentially and its upsert mints no new id on replay, so "rows up to the
     // chosen visit" and "rows with id <= its id" are the same set (including for
     // a fork of a fork, whose copied rows are inserted in ORDER BY n.id).
+    //
+    // `failure_class` / `failure_detail` are dropped alongside `agent_cr_name`,
+    // and for the same reason: all three describe the ATTEMPT that is over, not
+    // the history the fork inherits. Copying the verdict would be worse than
+    // untidy — `nextTransition` replays every visit from the entry node and
+    // fails the run on a permanent failure it meets on a revisit edge, so an
+    // inherited `anthropic-credit` visit anywhere in the copied prefix kills the
+    // fork on its first `advanceLine`. That is exactly the operation someone
+    // performs after topping the account up.
     const cutoffNodeRowId = prefix[prefix.length - 1].id;
     const { rows } = await this.pool.query(
       `WITH al AS (
@@ -204,10 +214,11 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
          FROM al
        ), copied AS (
          INSERT INTO pipeline.station_runs
-           (assembly_run_id, node_id, iteration, outcome, agent_cr_name,
-            commit_sha, started_at, finished_at)
+           (assembly_run_id, node_id, iteration, outcome, failure_class,
+            failure_detail, agent_cr_name, commit_sha, started_at, finished_at)
          SELECT al.id,
-                n.node_id, n.iteration, n.outcome, NULL, n.commit_sha, n.started_at, n.finished_at
+                n.node_id, n.iteration, n.outcome, NULL,
+                NULL, NULL, n.commit_sha, n.started_at, n.finished_at
            FROM pipeline.station_runs n, al
           WHERE n.assembly_run_id = $7
             AND n.id <= $9::bigint
@@ -322,13 +333,21 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
+    failure?: StationRunFailure,
   ): Promise<boolean> {
     const { rows } = await this.pool.query(
       `UPDATE pipeline.station_runs
-         SET outcome = $1, commit_sha = $2, finished_at = now()
+         SET outcome = $1, commit_sha = $2, finished_at = now(),
+             failure_class = $4, failure_detail = $5
        WHERE id = $3 AND outcome IS NULL
        RETURNING id`,
-      [outcome, commitSha ?? null, nodeRowId],
+      [
+        outcome,
+        commitSha ?? null,
+        nodeRowId,
+        failure?.failureClass ?? null,
+        failure?.failureDetail ?? null,
+      ],
     );
 
     return rows.length === 1;
@@ -337,6 +356,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
   async listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]> {
     const { rows } = await this.pool.query(
       `SELECT id, station_run_id, assembly_run_id, node_id, iteration, outcome,
+              failure_class, failure_detail,
               agent_cr_name, commit_sha, started_at, finished_at
          FROM pipeline.station_runs
         WHERE assembly_run_id = $1
@@ -567,6 +587,8 @@ function toNodeRecord(row: {
   node_id: string;
   iteration: number;
   outcome: string | null;
+  failure_class: string | null;
+  failure_detail: string | null;
   agent_cr_name: string | null;
   commit_sha: string | null;
   started_at: Date;
@@ -579,6 +601,8 @@ function toNodeRecord(row: {
     nodeId: row.node_id,
     iteration: row.iteration,
     outcome: row.outcome,
+    failureClass: row.failure_class,
+    failureDetail: row.failure_detail,
     agentCrName: row.agent_cr_name,
     commitSha: row.commit_sha,
     startedAt: row.started_at,

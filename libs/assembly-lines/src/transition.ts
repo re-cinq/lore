@@ -27,12 +27,19 @@ export interface WalkGraph {
   edges: readonly WalkEdge[];
 }
 import type { StageOutcome } from "./node-types.js";
+import { isPermanentNodeFailure, nodeFailureReason } from "./failure-reason.js";
 
 /** One node row's contribution to the walk state (outcome null = still running). */
 export interface NodeVisit {
   nodeId: string;
   iteration: number;
   outcome: StageOutcome | null;
+  /** How the Floor classified this visit's failure, replayed off the persisted
+   *  row (migration 0042). The replay reads it to decide whether a retry could
+   *  ever help; absent for every visit recorded before that column existed, which
+   *  simply reads as "retry as before". */
+  failureClass?: string | null;
+  failureDetail?: string | null;
 }
 
 export type Transition =
@@ -118,6 +125,20 @@ export function nextTransition(
     }
 
     if (chosen.iteration_max !== undefined || visited.has(chosen.to)) {
+      // A retry is the one move that cannot help here: the balance, the
+      // credential or the permission has to change first, so running the node
+      // again buys a second identical failure minutes later and then reports the
+      // EDGE BUDGET as the cause. Refuse the retry and say what actually died.
+      // Only the back-edge is suppressed — a `failed` edge that routes FORWARD
+      // (to a retrospective, to exit) still routes, or a permanent failure would
+      // silently skip the work a line does on its way out.
+      if (isPermanentNodeFailure(visit)) {
+        return {
+          kind: "fail",
+          outcome: "error",
+          reason: `AssemblyLine ${assemblyLine.name}: ${nodeFailureReason(visit)}`,
+        };
+      }
       const key = `${chosen.from}->${chosen.to}`;
       const count = (backEdgeCounts.get(key) ?? 0) + 1;
 

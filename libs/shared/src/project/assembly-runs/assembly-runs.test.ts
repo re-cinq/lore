@@ -1014,7 +1014,9 @@ describe("PgAssemblyRuns node-transition primitives", () => {
 
     expect(sql).toContain("outcome IS NULL");
     expect(sql).toContain("RETURNING id");
-    expect(calls[0]?.params).toEqual(["success", "sha-1", "42"]);
+    // The failure columns ride the same CAS: a success writes NULLs into them, so
+    // a row can never claim an outcome and a stale cause at the same time.
+    expect(calls[0]?.params).toEqual(["success", "sha-1", "42", null, null]);
   });
 
   it("listStationRuns selects the line's rows ordered by id", async () => {
@@ -1506,7 +1508,7 @@ describe("PgAssemblyRuns resumeFrom", () => {
     );
   });
 
-  it("copies the source's outcome, commit sha and timestamps but nulls the agent CR name", async () => {
+  it("copies the source's outcome, commit sha and timestamps but not its CR name or verdict", async () => {
     const { pool, calls } = fakePool([
       [sourceRow()],
       NODE_ROWS,
@@ -1516,8 +1518,15 @@ describe("PgAssemblyRuns resumeFrom", () => {
     await new PgAssemblyRuns(pool).start(resumeInput());
     const sql = calls[2]?.text ?? "";
 
+    // `failure_class` / `failure_detail` are dropped with `agent_cr_name`: all
+    // three classify the ATTEMPT that is over. Copying the verdict would fail
+    // the fork on its first advance, because `nextTransition` replays the copied
+    // prefix and refuses a retry on a permanent failure — so a fork taken to
+    // rerun an `anthropic-credit` failure would die of the failure it exists to
+    // get past.
+    expect(sql).toContain("n.node_id, n.iteration, n.outcome, NULL,");
     expect(sql).toContain(
-      "n.node_id, n.iteration, n.outcome, NULL, n.commit_sha, n.started_at, n.finished_at",
+      "NULL, NULL, n.commit_sha, n.started_at, n.finished_at",
     );
   });
 

@@ -41,6 +41,11 @@ export const CRON_EMITTERS: CronEmitter[] = [
     note: "delete leases >5min past expiry, writing a lease_expired audit entry each",
   },
   {
+    name: "llm_credit_probe",
+    schedule: "*/5 * * * *",
+    note: "clears the LLM dispatch gate once the Anthropic account can answer again; no-op while dispatch is allowed",
+  },
+  {
     name: "events_prune",
     schedule: "0 * * * *",
     note: "hourly housekeeping of handled event rows",

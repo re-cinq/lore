@@ -377,6 +377,9 @@ export { allPathsMatch, matchingPatterns } from "./path-match.js";
 export {
   classifyError,
   errorMessage,
+  failureHint,
+  isFailureCategory,
+  isPermanentFailure,
   summarizeFailures,
   TaskFailure,
   type FailureCategory,

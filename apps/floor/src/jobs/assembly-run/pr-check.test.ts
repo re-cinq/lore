@@ -37,6 +37,8 @@ function nodeRow(over: Partial<StationRunRecord>): StationRunRecord {
     nodeId: "review",
     iteration: 1,
     outcome: null,
+    failureClass: null,
+    failureDetail: null,
     agentCrName: null,
     commitSha: null,
     startedAt: new Date(0),

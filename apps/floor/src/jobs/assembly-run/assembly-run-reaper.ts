@@ -178,6 +178,18 @@ export async function assemblyLineReaperJob(
         // A dropped event lands here instead — it owes the PR the same review and
         // check the event path would have posted, off the same resolved outcome.
         const status = normalizeAgentStatus(recovery.status);
+        const result = stationNodeOutcome(node, status);
+
+        // ...and it owes operators the same alert. A billing outage recovered
+        // through this slower door raised nothing at all before, so whether the
+        // account-dry alarm fired depended on which door the event came through.
+        if (result.outcome === "failed" && deps.alertBilling) {
+          await deps.alertBilling(row.repo, node.type, status);
+        }
+
+        if (result.failureClass) {
+          deps.llmGate?.trip(result.failureClass, result.failureDetail);
+        }
 
         await finishNodeTerminal(
           {
@@ -185,20 +197,29 @@ export async function assemblyLineReaperJob(
             node,
             nodeId: openNode.nodeId,
             iteration: openNode.iteration,
-            result: stationNodeOutcome(node, status),
+            result,
             output: status.output,
           },
           deps,
         );
         resolved++;
       } else if (recovery.kind === "timeout") {
+        const budget = node.timeout_minutes ?? DEFAULT_TIMEOUT_MINUTES;
+
         await finishNodeTerminal(
           {
             row,
             node,
             nodeId: openNode.nodeId,
             iteration: openNode.iteration,
-            result: { outcome: "failed" },
+            // A node whose pod stopped reporting died of infrastructure, not of
+            // the work — and saying so is the difference between a run somebody
+            // can diagnose later and a bare `failed` with no story at all.
+            result: {
+              outcome: "failed",
+              failureClass: "infra",
+              failureDetail: `${node.type === "agent" ? "agent" : "station"} node timed out after ${budget} minutes without reporting`,
+            },
           },
           deps,
         );
@@ -207,6 +228,13 @@ export async function assemblyLineReaperJob(
           `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} timed out (${node.type === "agent" ? "agent" : "station"}-timeout)`,
         );
       } else if (recovery.kind === "relaunch") {
+        // The gate applies to the recovery door too. Relaunching an agent CR into
+        // a dry account is the same wasted pod as dispatching a fresh one, and
+        // this arm fires every 60s — it would out-burn the walk itself.
+        if (node.type === "agent" && deps.llmGate?.isBlocked()) {
+          continue;
+        }
+
         await deps.launch(
           specForNode(
             node,

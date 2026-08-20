@@ -20,6 +20,7 @@ import {
   summarizeCoverage,
 } from "../openapi/build-document.js";
 import { healthzRoute } from "../api/routes/healthz/healthz.js";
+import { llmStatusRoute } from "../api/routes/platform/llm-status.js";
 import { distRoute } from "../api/routes/dist/dist.js";
 import { repoStatusRoute } from "../api/routes/repos/repo-status.js";
 import { reposRoute } from "../api/routes/repos/repos.js";
@@ -111,6 +112,7 @@ const MAX_BODY_BYTES = 1_048_576;
 export function routeList(getPool: () => Pool | null): ServerRoute[] {
   return [
     healthzRoute(getPool),
+    llmStatusRoute(getPool),
     distRoute(),
     repoStatusRoute(getPool),
     reposRoute(getPool),

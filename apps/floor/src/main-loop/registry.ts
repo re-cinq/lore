@@ -109,6 +109,7 @@ export function buildRegistry(): Map<string, EventHandler> {
     ["cron.stale_task_check.tick", cron.staleTaskCheck],
     ["cron.feature_planning_reaper.tick", cron.featurePlanningReaper],
     ["cron.assembly_line_reaper.tick", cron.assemblyLineReaper],
+    ["cron.llm_credit_probe.tick", cron.llmCreditProbe],
     ["cron.agent_watcher_reconcile.tick", cron.agentWatcherReconcile],
     ["cron.lease_reaper.tick", cron.leaseReaper],
     ["cron.events_prune.tick", cron.eventsPrune],

@@ -4,7 +4,6 @@ import {
   parseNodeResult,
   parseReviewVerdict,
   stationNodeOutcome,
-  isBillingError,
   type AgentNodeStatus,
 } from "./node-outcome.js";
 
@@ -98,6 +97,8 @@ describe("stationNodeOutcome", () => {
       }),
     ).toEqual({
       outcome: "failed",
+      failureClass: "unknown",
+      failureDetail: "deadline",
       extras: {
         "Lore-Validation-Status": "station-failed",
         "Lore-Validation-Summary": "deadline",
@@ -111,17 +112,77 @@ describe("stationNodeOutcome", () => {
   });
 });
 
-describe("isBillingError", () => {
-  it("matches the Anthropic credit-balance error case-insensitively", () => {
-    expect(isBillingError("Credit balance is too low")).toBe(true);
-    expect(isBillingError("credit balance too low to run")).toBe(true);
-    expect(isBillingError("insufficient credits for this request")).toBe(true);
+describe("stationNodeOutcome failure classification", () => {
+  it("classifies the agent's own terminal text, not the Job-level reason", () => {
+    expect(
+      stationNodeOutcome(
+        { type: "agent" },
+        {
+          phase: "Failed",
+          errorText: "Credit balance is too low",
+          failureReason:
+            "BackoffLimitExceeded: Job has reached the specified backoff limit",
+        },
+      ),
+    ).toMatchObject({
+      outcome: "failed",
+      failureClass: "anthropic-credit",
+      failureDetail: "Credit balance is too low",
+    });
   });
 
-  it("does not match unrelated errors or null", () => {
-    expect(isBillingError("ENOENT: no such file")).toBe(false);
-    expect(isBillingError("rate limit exceeded")).toBe(false);
-    expect(isBillingError(null)).toBe(false);
+  it("falls back to the Job-level reason when the agent printed nothing", () => {
+    expect(
+      stationNodeOutcome(
+        { type: "agent" },
+        {
+          phase: "Failed",
+          failureReason:
+            "BackoffLimitExceeded: Job has reached the specified backoff limit",
+        },
+      ),
+    ).toMatchObject({
+      failureClass: "infra",
+      failureDetail:
+        "BackoffLimitExceeded: Job has reached the specified backoff limit",
+    });
+  });
+
+  it("falls back to the Job-level reason when the agent errored with an empty string", () => {
+    // `terminalErrorText` answers `parsed.result` for any line carrying
+    // `is_error`, and "" is a result. Under `??` that empty string won the
+    // precedence, so the summary went out blank and the only real information —
+    // the Job-level reason — was discarded.
+    expect(
+      stationNodeOutcome(
+        { type: "agent" },
+        {
+          phase: "Failed",
+          errorText: "",
+          failureReason:
+            "BackoffLimitExceeded: Job has reached the specified backoff limit",
+        },
+      ),
+    ).toMatchObject({
+      failureClass: "infra",
+      failureDetail:
+        "BackoffLimitExceeded: Job has reached the specified backoff limit",
+    });
+  });
+
+  it("classifies unknown for a failure with neither text", () => {
+    expect(
+      stationNodeOutcome({ type: "agent" }, { phase: "Failed" }),
+    ).toMatchObject({
+      failureClass: "unknown",
+      failureDetail: "agent run failed",
+    });
+  });
+
+  it("carries no failure class on a successful node", () => {
+    expect(
+      stationNodeOutcome({ type: "agent" }, { phase: "Succeeded" }),
+    ).toEqual({ outcome: "success" });
   });
 });
 

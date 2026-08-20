@@ -13,6 +13,7 @@ import type {
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import {
   isHumanStation,
+  nodeFailureReason,
   nextTransition,
   type AssemblyLine,
   type NodeVisit,
@@ -80,6 +81,16 @@ export interface AdvanceDeps {
     outcome: string,
     reason?: string,
   ) => Promise<void>;
+  /**
+   * The factory's stop button for an account-wide LLM outage. Consulted BEFORE a
+   * station-run row is minted, so a blocked node parks with no row and no CR and
+   * the reaper simply re-drives the line later. Optional seam — a composition
+   * without it dispatches exactly as before.
+   */
+  llmGate?: {
+    isBlocked(): boolean;
+    trip(failureClass: string, detail?: string): boolean;
+  };
   /** Ensure the PR the `push` node produced exists and is recorded on the line
    *  (`args.pr_number`), moving a feature-carrying line to `pr-open`. Nothing else
    *  does it: the push recipe defers to a watcher that ignores assembly-line CRs.
@@ -96,8 +107,11 @@ export function lineOutcomeFromVisits(visits: NodeVisit[]): {
 } {
   const failed = visits.find((v) => visitFailed(v.outcome));
 
+  // `nodeFailureReason` degrades to the old `node "<id>" failed` wording when the
+  // visit carries no classification, so rows written before migration 0042 read
+  // exactly as they did.
   return failed
-    ? { outcome: "failed", reason: `node "${failed.nodeId}" failed` }
+    ? { outcome: "failed", reason: nodeFailureReason(failed) }
     : { outcome: "completed" };
 }
 
@@ -163,6 +177,11 @@ export async function advanceLine(
     nodeId: n.nodeId,
     iteration: n.iteration,
     outcome: n.outcome as StageOutcome | null,
+    // The replay decides whether a retry could help, so the class has to travel
+    // with the visit — reading it back off the row is what survives a Floor
+    // restart mid-line.
+    failureClass: n.failureClass,
+    failureDetail: n.failureDetail,
   }));
   const transition = nextTransition(graph, visits);
 
@@ -188,6 +207,23 @@ export async function advanceLine(
     Error,
     `AssemblyLine ${graph.name}: unknown node "${transition.nodeId}"`,
   );
+
+  // Before ANY of the work below — the conversation lookup, the row, the CR. An
+  // agent node dispatched into a dry account is decided before its pod starts:
+  // it will boot, install, call the API once, and die. Park it instead. Only
+  // agent nodes are gated; a validate or gate station has no model call to fail.
+  if (node.type === "agent" && deps.llmGate?.isBlocked()) {
+    // Parking is INVISIBLE otherwise: this returns void, so the caller cannot
+    // tell "parked" from "advanced", and during an outage an operator gets one
+    // gate-trip warning and then silence while runs sit `running` with no open
+    // node. Naming the run and the node is what answers "which ones are
+    // waiting", at one line per reaper tick per parked run.
+    console.log(
+      `[llm-dispatch-gate] parked ${row.id} at node "${node.id}" — agent dispatch is blocked`,
+    );
+
+    return;
+  }
   const task = taskFromRow(row);
   // Resolved BEFORE the prompt: whether this run resumes a conversation decides how
   // much round content the prompt must carry. Only agent nodes hold one — a station
@@ -323,6 +359,11 @@ export async function finishNodeAndAdvance(
     await deps.assemblyRuns.finishStationRunOnce(
       target.id,
       input.result.outcome,
+      undefined,
+      {
+        failureClass: input.result.failureClass,
+        failureDetail: input.result.failureDetail,
+      },
     );
   }
 

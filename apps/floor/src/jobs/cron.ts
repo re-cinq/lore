@@ -95,6 +95,41 @@ export const assemblyLineReaper: EventHandler = async () => {
   }
 };
 
+/**
+ * Close the circuit breaker's loop: ask the account whether it can answer, and
+ * let dispatch through again if it can.
+ *
+ * Nothing else can clear the gate. The failures that trip it arrive from pods,
+ * and once dispatch is blocked there are no more pods to report — so without a
+ * probe the factory would stay parked until someone restarted the Floor.
+ *
+ * Fail-open by construction: `anthropicCreditsExhausted` returns false with no
+ * API key configured (a Floor billing a subscription token), on any status other
+ * than a credit-shaped 429/403, and on any network error. The worst case is
+ * un-parking a run that then fails and re-trips the gate five minutes later; the
+ * opposite bias would wedge the whole factory on a flaky probe.
+ */
+export const llmCreditProbe: EventHandler = async () => {
+  const [{ anthropicCreditsExhausted }, { llmDispatchGate }] =
+    await Promise.all([
+      import("@re-cinq/lore-shared/llm/credit-probe.js"),
+      import("./assembly-run/llm-dispatch-gate.js"),
+    ]);
+
+  if (!llmDispatchGate.isBlocked()) {
+    return;
+  }
+
+  if (await anthropicCreditsExhausted()) {
+    return;
+  }
+
+  llmDispatchGate.clear();
+  console.log(
+    "[llm-dispatch-gate] the Anthropic account answered — resuming agent dispatch",
+  );
+};
+
 /** Housekeeping: drop old terminal event rows so the claim index stays small, and
  *  reap agent run events past the 14-day retention horizon (FR1.13). */
 export const eventsPrune: EventHandler = async () => {

@@ -6,6 +6,7 @@
 // outcome "failed" as its normal result. Consumed by the Floor's node-event
 // handler + reaper and (parseNodeResult) by the lore-station pod itself.
 
+import { classifyError } from "@re-cinq/lore-shared/error-classify.js";
 import type { NodeResult, StageOutcome } from "./node-types.js";
 
 /** The slice of an Agent's status the outcome mapping reacts to. */
@@ -13,6 +14,15 @@ export interface AgentNodeStatus {
   phase?: string;
   output?: string;
   failureReason?: string;
+  /**
+   * The agent's OWN terminal error text, lifted off the raw NDJSON stream before
+   * anything unwrapped it (`terminalErrorText`). It has to be carried separately
+   * because `output` is normalized at the read boundary, and the unwrapped text
+   * no longer parses as a stream — so a reader downstream of the unwrap could
+   * only see the Job-level `failureReason`, which says `BackoffLimitExceeded`
+   * however the agent actually died.
+   */
+  errorText?: string;
 }
 
 const OUTCOMES = new Set<StageOutcome>([
@@ -77,26 +87,6 @@ export function parseNodeResult(output?: string): NodeResult | null {
   return { outcome: outcome as StageOutcome, extras: stringExtras };
 }
 
-/**
- * A CR failure whose text is the Anthropic account running dry (`Credit balance
- * is too low`, `insufficient credits`) — an operator-actionable, not
- * code-actionable, failure: it takes down EVERY LLM node (review/refine/triage/
- * implementation) at once until the account is topped up, so the Floor routes it
- * to a dedicated throttled Slack alert instead of one PR comment per drowned run.
- */
-export function isBillingError(text: string | null | undefined): boolean {
-  if (!text) {
-    return false;
-  }
-  const lower = text.toLowerCase();
-
-  return (
-    (lower.includes("credit") && lower.includes("balance")) ||
-    lower.includes("credit balance too low") ||
-    lower.includes("insufficient credit")
-  );
-}
-
 const failureKind = (node: NodeKind): string =>
   node.type === "agent" ? "agent" : "station";
 
@@ -115,13 +105,29 @@ export function stationNodeOutcome(
   status: AgentNodeStatus,
 ): NodeResult {
   if (status.phase === "Failed") {
+    // Precedence is the whole point: the agent's own last words first, the
+    // Job-level reason only when it never got to speak. Reading `failureReason`
+    // first classified every death as `BackoffLimitExceeded` — which is how a
+    // dry Anthropic account reached an author as a retry-budget message.
+    //
+    // `||`, not `??`: `terminalErrorText` answers `parsed.result` for any line
+    // with `is_error`, and an agent that errors with an EMPTY result string
+    // would otherwise win the precedence with nothing to say — classifying as
+    // `unknown`, emitting an empty summary, and discarding the Job-level reason
+    // that was the only information anyone had. "Said nothing" is not "spoke".
+    const detail = (
+      status.errorText ||
+      status.failureReason ||
+      `${failureKind(node)} run failed`
+    ).substring(0, 300);
+
     return {
       outcome: "failed",
+      failureClass: classifyError(detail).category,
+      failureDetail: detail,
       extras: {
         "Lore-Validation-Status": `${failureKind(node)}-failed`,
-        "Lore-Validation-Summary": (
-          status.failureReason ?? `${failureKind(node)} run failed`
-        ).substring(0, 300),
+        "Lore-Validation-Summary": detail,
       },
     };
   }

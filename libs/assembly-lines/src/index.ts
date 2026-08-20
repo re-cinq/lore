@@ -19,7 +19,6 @@ export {
   stationNodeOutcome,
   parseNodeResult,
   parseReviewVerdict,
-  isBillingError,
   type AgentNodeStatus,
 } from "./node-outcome.js";
 
@@ -85,3 +84,8 @@ export {
   type NodeVisit,
   type Transition,
 } from "./transition.js";
+export {
+  isPermanentNodeFailure,
+  nodeFailureReason,
+  type NodeFailure,
+} from "./failure-reason.js";

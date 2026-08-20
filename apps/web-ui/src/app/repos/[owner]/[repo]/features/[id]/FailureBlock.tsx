@@ -24,8 +24,11 @@ export default function FailureBlock({
   pending: boolean;
   onRetry: () => void;
 }) {
-  // The task's failure_reason is the richest text (it carries the failing pod's log
-  // tail); the line's reason names the node that failed. Either beats guessing.
+  // The task's failure_reason is the richest text: since #1455 the Floor composes
+  // it from the failed node's CLASSIFIED failure — the agent's own error plus what
+  // to do about it — instead of the routing statement that used to land here
+  // ("edge analyze->analyze exceeded iteration_max 1"). The line's reason names the
+  // node that failed. Either beats guessing.
   const diagnosis = failureReason || run?.reason;
   const submitted = submittedFeedback(answers);
 

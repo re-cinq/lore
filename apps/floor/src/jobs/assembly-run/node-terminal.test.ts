@@ -138,6 +138,43 @@ describe("normalizeAgentStatus", () => {
       phase: "Failed",
     });
   });
+
+  it("lifts the agent's terminal error text off the raw stream before unwrapping", () => {
+    const output = JSON.stringify({
+      type: "result",
+      is_error: true,
+      result: "Credit balance is too low",
+    });
+
+    expect(normalizeAgentStatus({ phase: "Failed", output })).toEqual({
+      phase: "Failed",
+      output: "Credit balance is too low",
+      errorText: "Credit balance is too low",
+    });
+  });
+
+  it("carries no error text when the stream ended without an error result", () => {
+    const output = JSON.stringify({
+      type: "result",
+      is_error: false,
+      result: "REVIEW_RESULT:APPROVED",
+    });
+
+    expect(normalizeAgentStatus({ phase: "Succeeded", output }).errorText).toBe(
+      undefined,
+    );
+  });
+
+  it("is idempotent: re-normalizing keeps the error text it already lifted", () => {
+    const output = JSON.stringify({
+      type: "result",
+      is_error: true,
+      result: "Credit balance is too low",
+    });
+    const once = normalizeAgentStatus({ phase: "Failed", output });
+
+    expect(normalizeAgentStatus(once)).toEqual(once);
+  });
 });
 
 describe("postReviewFromNode", () => {

@@ -22,6 +22,11 @@ export const StationRunSchema = z.object({
   nodeId: z.string(),
   iteration: z.number(),
   outcome: z.string().nullable(),
+  /** WHY a `failed` visit failed: the shared `FailureCategory` the Floor
+   *  classified, and the agent's own error text that produced it. Null on every
+   *  non-failure, and on failures that predate migration 0042. */
+  failureClass: z.string().nullable(),
+  failureDetail: z.string().nullable(),
   agentCrName: z.string().nullable(),
   commitSha: z.string().nullable(),
   startedAt: z.date(),
@@ -37,6 +42,8 @@ export const STATION_RUN_COLUMNS = {
   nodeId: "node_id",
   iteration: "iteration",
   outcome: "outcome",
+  failureClass: "failure_class",
+  failureDetail: "failure_detail",
   agentCrName: "agent_cr_name",
   commitSha: "commit_sha",
   startedAt: "started_at",
