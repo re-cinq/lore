@@ -43,6 +43,11 @@ ruleTester.run("no-row-types-outside-models", rule, {
       code: `export type JobRunRow = components["schemas"]["JobRun"];`,
       filename: "/repo/apps/web-ui/src/lib/api/activity.ts",
     },
+    // a Pick over the generated shape is still an alias, not a declaration
+    {
+      code: `export type Repo = Pick<components["schemas"]["RepoList"]["repos"][number], "full_name">;`,
+      filename: "/repo/apps/web-ui/src/app/HomeView.tsx",
+    },
   ],
   invalid: [
     {
@@ -53,6 +58,12 @@ ruleTester.run("no-row-types-outside-models", rule, {
     // a route restating a table rather than deriving it
     {
       code: `interface TaskRow { task_type: string; target_repo: string; created_by: string; }`,
+      filename: ROUTE,
+      errors: [{ messageId: "rowTypeOutsideModels" }],
+    },
+    // the same declaration wearing `type` instead of `interface`
+    {
+      code: `type TaskRow = { task_type: string; target_repo: string; created_by: string; };`,
       filename: ROUTE,
       errors: [{ messageId: "rowTypeOutsideModels" }],
     },

@@ -22,8 +22,10 @@
  *   * `PipelineTask`, the one wire type held to its model by a compile-time
  *     assertion rather than by being the model — flipping it is expand/contract
  *     work across deployed images, not a rename;
- *   * type ALIASES, since `type X = components["schemas"]["Y"]` is the generated
- *     alias this rule wants people to reach for.
+ *   * an alias to ANOTHER type — `type X = components["schemas"]["Y"]` is exactly
+ *     what this rule wants people to reach for. An alias to an object LITERAL
+ *     (`type X = { full_name: string; … }`) is a declaration wearing a different
+ *     keyword, and is treated as one.
  *
  * KNOWN LIMITATION: a shape from someone ELSE's API — GitHub's `default_branch`
  * and `html_url`, Anthropic's usage blocks — is snake_case for their reasons, not
@@ -81,26 +83,35 @@ export default {
       return {};
     }
 
+    /** Report when a declaration's members are predominantly snake_case. */
+    function check(id, members) {
+      const name = id?.name;
+
+      if (!name || EXEMPT_NAMES.has(name) || members.length < MIN_MEMBERS) {
+        return;
+      }
+      const snake = members.filter(isSnake).length;
+
+      if (snake * 2 > members.length) {
+        context.report({
+          node: id,
+          messageId: "rowTypeOutsideModels",
+          data: { name },
+        });
+      }
+    }
+
     return {
       TSInterfaceDeclaration(node) {
-        const name = node.id?.name;
-
-        if (!name || EXEMPT_NAMES.has(name)) {
-          return;
-        }
-        const members = memberNames(node.body.body);
-
-        if (members.length < MIN_MEMBERS) {
-          return;
-        }
-        const snake = members.filter(isSnake).length;
-
-        if (snake * 2 > members.length) {
-          context.report({
-            node: node.id,
-            messageId: "rowTypeOutsideModels",
-            data: { name },
-          });
+        check(node.id, memberNames(node.body.body));
+      },
+      // `type X = { … }` is the same declaration with a different keyword. An
+      // alias to any OTHER type is untouched, which is what keeps the generated
+      // `components["schemas"][…]` alias — the thing this rule points people at
+      // — from tripping it.
+      TSTypeAliasDeclaration(node) {
+        if (node.typeAnnotation?.type === "TSTypeLiteral") {
+          check(node.id, memberNames(node.typeAnnotation.members));
         }
       },
     };
