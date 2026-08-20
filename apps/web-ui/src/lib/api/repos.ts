@@ -77,6 +77,31 @@ export async function listAllRepos(): Promise<
   }
 }
 
+/**
+ * The repos from a list read, or a throw naming why there are none.
+ *
+ * Every picker used to answer `[]` when lore-api was unreachable, which renders
+ * as "no repos" — a degraded dependency reported as legitimate empty data. The
+ * home page made that worst of all: its empty state invites you to onboard your
+ * FIRST repo, so an outage told an org with dozens that it had none.
+ *
+ * Throwing puts it in front of the root error boundary instead, which is what
+ * these reads did before they moved behind lore-api.
+ */
+export function reposOrThrow<T>(result: ApiResult<T>): T {
+  if (result.status !== "ok") {
+    throw new Error(
+      `repo list unavailable: ${
+        result.status === "error"
+          ? result.message
+          : "LORE_API_URL not configured"
+      }`,
+    );
+  }
+
+  return result.data;
+}
+
 /** The onboarding result lore-api answers with when the guard clears. */
 export interface OnboardResult {
   repo_id: string;

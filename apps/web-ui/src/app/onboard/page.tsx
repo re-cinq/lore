@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { listAllRepos } from "@/lib/api/repos";
+import { listAllRepos, reposOrThrow } from "@/lib/api/repos";
 import { checkRepoAccess } from "@/lib/github";
 import { createOnboardTask } from "@/lib/onboard";
 import { revalidatePath } from "next/cache";
@@ -54,17 +54,8 @@ async function onboardRepo(
 }
 
 export default async function OnboardPage() {
-  const repoList = await listAllRepos();
-
-  if (repoList.status !== "ok") {
-    // An unreachable lore-api used to throw here, before these reads moved
-    // behind it. Answering `[]` instead renders "no repos" — a degraded
-    // dependency reported as legitimate empty data (#1427).
-    throw new Error(
-      `repo list unavailable: ${repoList.status === "error" ? repoList.message : "LORE_API_URL not configured"}`,
-    );
-  }
-  const onboarded = repoList.data.repos.map((repo) => ({
+  const repoList = reposOrThrow(await listAllRepos());
+  const onboarded = repoList.repos.map((repo) => ({
     full_name: repo.full_name,
   }));
 

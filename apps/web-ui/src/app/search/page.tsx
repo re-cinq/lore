@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { listAllRepos } from "@/lib/api/repos";
+import { listAllRepos, reposOrThrow } from "@/lib/api/repos";
 import { searchMemory } from "@/lib/api/memory";
 import { getChunks } from "@/lib/api/chunks";
 import SearchView, {
@@ -16,17 +16,8 @@ export default async function SearchPage({
   let results: SearchResult[] = [];
 
   // Populate repo filter dropdown
-  const repoList = await listAllRepos();
-
-  if (repoList.status !== "ok") {
-    // An unreachable lore-api used to throw here, before these reads moved
-    // behind it. Answering `[]` instead renders "no repos" — a degraded
-    // dependency reported as legitimate empty data (#1427).
-    throw new Error(
-      `repo list unavailable: ${repoList.status === "error" ? repoList.message : "LORE_API_URL not configured"}`,
-    );
-  }
-  const repos: SearchRepoOption[] = repoList.data.repos
+  const repoList = reposOrThrow(await listAllRepos());
+  const repos: SearchRepoOption[] = repoList.repos
     .map((repo) => ({ full_name: repo.full_name }))
     .sort((a, b) => a.full_name.localeCompare(b.full_name));
 

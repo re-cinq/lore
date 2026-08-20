@@ -1,5 +1,10 @@
 export const dynamic = "force-dynamic";
-import { getRepo, listAllRepos, putRepoSettings } from "@/lib/api/repos";
+import {
+  getRepo,
+  listAllRepos,
+  reposOrThrow,
+  putRepoSettings,
+} from "@/lib/api/repos";
 import { revalidatePath } from "next/cache";
 import { parseSettingsForm } from "@/lib/settings-form";
 import SettingsView, { type RepoSettingsShape } from "./SettingsView";
@@ -63,17 +68,8 @@ export default async function RepoSettings({
     settings: record.data.settings as RepoSettingsShape | null,
   };
 
-  const repoList = await listAllRepos();
-
-  if (repoList.status !== "ok") {
-    // An unreachable lore-api used to throw here, before these reads moved
-    // behind it. Answering `[]` instead renders "no repos" — a degraded
-    // dependency reported as legitimate empty data (#1427).
-    throw new Error(
-      `repo list unavailable: ${repoList.status === "error" ? repoList.message : "LORE_API_URL not configured"}`,
-    );
-  }
-  const allRepos: Repo[] = repoList.data.repos
+  const repoList = reposOrThrow(await listAllRepos());
+  const allRepos: Repo[] = repoList.repos
     .filter((r) => r.full_name !== fullName)
     .map((r) => ({ full_name: r.full_name }))
     .sort((a, b) => a.full_name.localeCompare(b.full_name));
