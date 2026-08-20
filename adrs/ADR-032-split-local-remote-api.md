@@ -61,7 +61,7 @@ make the names tell the truth.
 
 3. **`libs/server-core` (new, `@re-cinq/lore-server-core`)** holds the light
    shared logic both apps import — `repo-detect`, the proxy HTTP client,
-   `memory-file` fallback, template loading, shared zod schemas and types. It
+   `memory-file` fallback, template loading, and the wire/proxy schemas. It
    **must not** depend on `pg`, `octokit`, `@google-cloud/storage`,
    `tree-sitter*`, or the OTel gRPC exporters. This package, not the folder
    layout, is where the win is enforced: it draws the line between the proxy
@@ -136,10 +136,14 @@ make the names tell the truth.
    lives only on the local adapter (`@re-cinq/lore-mcp`). See branch
    `infra/rename-lore-api-workload` / spec Phase 8.
 
-4. **Fold the light logic into `@re-cinq/lore-shared`.** Rejected: `lore-shared`
-   is pure helpers (commit-trailers, settings types). Mixing server-runtime glue
-   in risks pulling runtime concerns into a currently-pure lib. A dedicated
-   `server-core` keeps the boundary legible.
+4. **Fold the light logic into `@re-cinq/lore-shared`.** Rejected: mixing
+   server-runtime glue into `lore-shared` risks pulling runtime concerns into a
+   library other packages depend on. A dedicated `server-core` keeps the boundary
+   legible. *(Amended 2026-08: this described `lore-shared` as "pure helpers
+   (commit-trailers, settings types)". It is not, and was already not — it carries
+   the whole `project/*` port tree and, since the data-model consolidation, 32
+   table models. The rejection stands on the boundary argument alone; the
+   purity claim was never load-bearing and is now simply wrong.)*
 
 ## Amendment (2026-08): `apps/mcp-server` gains a third deployable shape — the HTTP gateway
 
@@ -197,3 +201,29 @@ target, so it wants a deprecation window serving both hosts rather than a cutove
 This changes no contract: same paths, same auth, same body limits, same status
 codes. It is the same structural argument the original split made, applied to the
 deployable that grew a REST API after the fact.
+
+## Amendment (2026-08): where a type lives
+
+Decision 3 says `server-core` holds "shared schemas and types", and alternative 4
+called `lore-shared` "pure helpers". Neither reading survives contact with the
+code, and the ambiguity between them is what invites a shape being declared in
+both. The line:
+
+- **A persisted data model** — the shape of a table — lives in
+  `libs/shared/src/models/`, one file per entity, carrying a schema, the type
+  inferred from it, and the map binding each field to its column. Adapters build
+  their SELECT lists from that map; API contracts derive their stored fields from
+  it. One declaration reaches from the column to the generated client.
+- **A wire or proxy schema** — the shape of a request the proxy forwards, or a
+  response it parses — stays in `server-core`, which is where the proxy path
+  lives.
+
+One constraint is easy to violate and expensive to discover, so it is recorded
+here rather than learned twice: **seven `lore-shared` modules are reachable by
+`apps/web-ui` through a relative file path**, because web-ui cannot import the
+package at all. Everything in that import graph must exist in web-ui's own
+lockfile. Adding `zod` to one of them — via a model re-export — broke both the
+web-ui parity suite and the Next build, and the failure names a missing package
+rather than the boundary it crossed. Those modules keep plain TypeScript types;
+where a model must agree with one, the MODEL imports the plain type and asserts
+equivalence, so the dependency runs one way only.
