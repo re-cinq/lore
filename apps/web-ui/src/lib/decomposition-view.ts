@@ -1,3 +1,4 @@
+import type { components } from "@/lib/api/schema";
 // Group a feature's spec-task rows (ADR-029) into the story tree the detail view
 // renders. Pure — the page does the DB read, this shapes it.
 //
@@ -8,15 +9,8 @@
 // `feature_id`, so the page's `context_bundle->>'feature_id'` filter matched
 // nothing at all.
 
-export interface DecompTaskRow {
-  description: string;
-  status: string;
-  context_bundle: {
-    spec_task_id?: string;
-    story_issue?: number;
-    phase?: number;
-  } | null;
-}
+export type DecompTaskRow =
+  components["schemas"]["FeatureDecomposition"]["tasks"][number];
 
 export interface DecompTask {
   specTaskId: string;

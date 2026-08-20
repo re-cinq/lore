@@ -13,35 +13,33 @@ import { TimeAgo } from "@/components/TimeAgo";
 import { formatEnumLabel } from "@/lib/enum-label";
 import type { TaskRuntimeEvent, TaskRuntimeLlmCall } from "@/lib/task-runtime";
 import styles from "./TaskDetailView.module.css";
+import type { components } from "@/lib/api/schema";
 
-export interface TaskDetailTask {
-  id: string;
-  description: string;
-  task_type: string;
-  status: string;
-  priority: string;
-  target_repo: string;
-  target_branch: string | null;
-  agent_id: string | null;
-  pr_url: string | null;
-  pr_number: number | null;
-  review_iteration: number;
-  failure_reason: string | null;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-}
+/** The fifteen task fields this page renders — the field TYPES come from the contract. */
+export type TaskDetailTask = Pick<
+  components["schemas"]["TaskDetail"],
+  | "id"
+  | "description"
+  | "task_type"
+  | "status"
+  | "priority"
+  | "target_repo"
+  | "target_branch"
+  | "agent_id"
+  | "pr_url"
+  | "pr_number"
+  | "review_iteration"
+  | "failure_reason"
+  | "created_by"
+  | "created_at"
+  | "updated_at"
+>;
 
 export type TaskDetailEvent = TaskRuntimeEvent;
 export type TaskDetailLlmCall = TaskRuntimeLlmCall;
 
 /** One per-attempt run row (pipeline.assembly_runs) backing this task. */
-export interface TaskRunRow {
-  id: string;
-  status: string;
-  outcome: string | null;
-  created_at: string;
-}
+export type TaskRunRow = components["schemas"]["TaskRunList"]["runs"][number];
 
 export interface TaskDetailViewProps {
   task: TaskDetailTask;

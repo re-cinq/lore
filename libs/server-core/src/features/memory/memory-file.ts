@@ -77,6 +77,24 @@ export interface MemoryEntry {
   expires_at: string | null;
 }
 
+/**
+ * What a LISTING answers — the pool path's projection, field for field.
+ *
+ * A listing enumerates keys; it deliberately carries no `value` (the pool path's
+ * SELECT does not read one either, since a page of full values is a page of
+ * whole documents). `repo` and `has_facts` are stated as the null and false this
+ * store can honestly answer: it scopes by agent, and it holds no facts.
+ */
+export interface MemoryListEntry {
+  key: string;
+  agent_id: string;
+  repo: string | null;
+  version: number;
+  created_at: string;
+  ttl_seconds: number | null;
+  has_facts: boolean;
+}
+
 export interface SearchResult {
   key: string;
   value: string;
@@ -84,6 +102,11 @@ export interface SearchResult {
   score: number;
   agent_id: string;
   created_at: string;
+  /** Always "memory": this store holds nothing else. The pool path answers
+   *  facts, episodes and graph hits too, and the endpoint declares one shape
+   *  for both — so the field is stated rather than left for the caller to
+   *  guess at from which backend answered. */
+  source: "memory";
 }
 
 // ── Safe JSON read / write ───────────────────────────────────────────
@@ -328,12 +351,12 @@ export function listMemoriesFile(
   agentId?: string,
   limit: number = 50,
   offset: number = 0,
-): { memories: MemoryEntry[]; total: number } {
+): { memories: MemoryListEntry[]; total: number } {
   const id = resolveAgentId(agentId);
   const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
 
   // Filter out deleted and expired entries
-  const active: MemoryEntry[] = [];
+  const active: MemoryListEntry[] = [];
 
   for (const [key, record] of Object.entries(memories)) {
     if (record.is_deleted || isExpired(record)) {
@@ -341,12 +364,12 @@ export function listMemoriesFile(
     }
     active.push({
       key,
-      value: record.value,
+      agent_id: id,
+      repo: null,
       version: record.version,
       created_at: record.created_at,
       ttl_seconds: record.ttl_seconds,
-      is_deleted: record.is_deleted,
-      expires_at: record.expires_at,
+      has_facts: false,
     });
   }
 
@@ -604,6 +627,7 @@ export function searchMemoryFile(
         score: 1.0,
         agent_id: id,
         created_at: record.created_at,
+        source: "memory",
       });
     }
 

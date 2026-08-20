@@ -6,45 +6,16 @@
 
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import { stringify } from "yaml";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import type {
+  StationRecipe,
+  TaskTypeRecipe,
+} from "@re-cinq/lore-shared/task-types/task-types-config.js";
 
-export interface AgentCatalogConfig {
-  prompt_template: string;
-  model?: string;
-  timeout_minutes?: number;
-  /** A file this run is expected to produce, raised as a named `kind:"file"` event
-   *  once the agent exits (ai-agent-subsystem#188). Declared for recipes whose
-   *  deliverable is an artifact rather than their prose — without it the file never
-   *  leaves the pod. `path` resolves against WORKSPACE_DIR, not the agent's cwd. */
-  watch?: { event: string; path: string };
-  /** Extra tool denies appended after the base pipeline-tool deny. The review
-   *  family declares package installs and builds here: Autopilot caps an
-   *  undeclared pod at 1Gi ephemeral storage, and one `npm ci` in the clone
-   *  evicts the pod mid-review (#1160). NOTE: the CLI does not evaluate deny
-   *  rules under permission_mode "bypass" (the current mode), so today these
-   *  document intent and the prompt + repo_workdir carry the prevention; they
-   *  become enforced when the recipe moves to an enforcing permission mode. */
-  disallowed_tools?: string[];
-  /** Default true: the agent container starts in the cloned repo (REPO_WORKDIR).
-   *  False omits workingDir — for read-only recipes (the review family) that must
-   *  not be invited to build in the checkout they are only meant to read (#1160). */
-  repo_workdir?: boolean;
-}
-
-/** A builtin station recipe (non-LLM node run by the exec vendor). */
-export interface StationCatalogConfig {
-  /** The argv the exec vendor spawns; the rendered station_input is appended. */
-  command: string[];
-  timeout_minutes?: number;
-  /** Plain env for the station pod (e.g. def-ingest's LORE_DGRAPH_HTTP — the
-   *  label-scoped dgraph egress exists only for that station type, FR4). */
-  env?: Record<string, string>;
-  /** Pod-template labels (e.g. the dgraph-egress marker a NetworkPolicy selects).
-   *  MUST ride the template, not the Station name: the per-task triple renames
-   *  the Station to pt-<id>, so a name-keyed selector loses its pods, while the
-   *  controller's label merge preserves template labels (learned live: every
-   *  round-3 ingest pod hung to its deadline with dgraph egress silently gone). */
-  pod_labels?: Record<string, string>;
-}
+/** The task-type and station recipes, as `scripts/task-types.yaml` declares them.
+ *  Aliased rather than restated — the field docs live with the schema now. */
+export type AgentCatalogConfig = TaskTypeRecipe;
+export type StationCatalogConfig = StationRecipe;
 
 const API_VERSION = "agents.re-cinq.com/v1alpha1";
 // glibc base; the subsystem's init container injects the claude runtime + supervisor.
@@ -129,6 +100,15 @@ export function buildAgentDefinition(
   taskType: string,
   cfg: AgentCatalogConfig,
 ): AgentDefinition {
+  // A recipe with no prompt cannot be seeded, and an empty one would install a
+  // silently useless AgentDefinition. The committed file carries this on every
+  // entry; a build that does not is drift worth stopping on.
+  enforceTrue(
+    cfg.prompt_template !== undefined,
+    Error,
+    `task type "${taskType}" has no prompt_template — task-types.yaml is missing a field the catalog needs`,
+  );
+
   return {
     apiVersion: API_VERSION,
     kind: "AgentDefinition",
@@ -240,6 +220,16 @@ export function buildStationDefinition(
   name: string,
   cfg: StationCatalogConfig,
 ): AgentDefinition {
+  // The argv IS the station: `tool_config` is typed `unknown` by the contracts
+  // package, so `{ command: undefined }` compiles and seeds a recipe whose pod
+  // has nothing to run. The committed file carries `command` on all eight
+  // entries; a build that does not is drift worth stopping on.
+  enforceTrue(
+    cfg.command !== undefined,
+    Error,
+    `station "${name}" has no command — task-types.yaml is missing a field the catalog needs`,
+  );
+
   return {
     apiVersion: API_VERSION,
     kind: "AgentDefinition",

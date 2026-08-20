@@ -2,15 +2,18 @@ export const dynamic = "force-dynamic";
 import { getAgentActivity } from "@/lib/api/tasks";
 import { classifyAgent } from "@/lib/agent-classify";
 import AgentsTable, { type AgentRow } from "@/components/AgentsTable";
+import type { components } from "@/lib/api/schema";
 
-interface AgentQueryRow {
-  agent_id: string;
-  task_count: number;
-  cost_usd: number;
-  created_by: string | null;
-  memory_count: number;
-  last_active: string | null;
-}
+/** The activity row this page reads — six of the columns the contract publishes. */
+type AgentQueryRow = Pick<
+  components["schemas"]["AgentActivity"]["agents"][number],
+  | "agent_id"
+  | "task_count"
+  | "cost_usd"
+  | "created_by"
+  | "memory_count"
+  | "last_active"
+>;
 
 export default async function AgentsPage() {
   // Union task agents (pipeline.tasks) with memory agents (memory.memories) so
