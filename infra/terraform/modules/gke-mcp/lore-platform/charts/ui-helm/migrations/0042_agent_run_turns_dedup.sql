@@ -1,4 +1,4 @@
--- 0041_agent_run_turns_dedup: re-ingest idempotency for the turn store (#1389).
+-- 0042_agent_run_turns_dedup: re-ingest idempotency for the turn store (#1389).
 --
 -- The task-turns relay (POST /api/task-turns/{taskId}, lore-api) re-receives
 -- the SAME transcript lines whenever the local runner re-POSTs its buffer

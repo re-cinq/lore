@@ -24,9 +24,9 @@ const TaskTurnsParams = z.object({
 function wrapTaskEnvelope(
   taskId: string,
   rawLine: string,
-  turnKey: string,
+  key: string,
 ): string {
-  return `{"source":{"task":${JSON.stringify(taskId)},"turn_key":${JSON.stringify(turnKey)}},"event":${rawLine}}`;
+  return `{"source":{"task":${JSON.stringify(taskId)},"turn_key":${JSON.stringify(key)}},"event":${rawLine}}`;
 }
 
 function turnKey(taskId: string, slot: number, line: string): string {
@@ -41,7 +41,7 @@ function turnKey(taskId: string, slot: number, line: string): string {
  * → null, and keying falls back to per-POST occurrence numbering.
  */
 function parseTurnOffset(value: unknown): number | null {
-  if (typeof value !== "string" || !/^\d{1,15}$/.test(value)) {
+  if (typeof value !== "string" || !/^(?:0|[1-9]\d{0,14})$/.test(value)) {
     return null;
   }
 

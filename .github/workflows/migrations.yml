@@ -155,12 +155,12 @@ jobs:
           SQL
           echo "[migrate] 0035 fixture assertions OK"
 
-      # 0041 adds re-ingest dedup for the turn store (#1389): a duplicate
+      # 0042 adds re-ingest dedup for the turn store (#1389): a duplicate
       # dedup_key must skip its row — intra-statement and across statements —
       # while NULL keys (cluster ingest) must never dedup. Proven here because
       # the unit suites assert the SQL text only, never live ON CONFLICT
       # semantics against the partial unique index.
-      - name: Fixture — 0041 dedups turn re-ingest without failing the batch
+      - name: Fixture — 0042 dedups turn re-ingest without failing the batch
         run: |
           set -eu
           docker exec -i "$LORE_PG_CONTAINER" psql -U lore -d lore -v ON_ERROR_STOP=1 <<'SQL'
@@ -191,7 +191,7 @@ jobs:
             DELETE FROM pipeline.agent_run_turns WHERE task_id = 'fixture-1389';
           END $$;
           SQL
-          echo "[migrate] 0041 fixture assertions OK"
+          echo "[migrate] 0042 fixture assertions OK"
 
       - name: Re-apply the newest migration (idempotency must hold)
         run: |
