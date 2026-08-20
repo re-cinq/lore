@@ -1,3 +1,9 @@
+import { selectList } from "@re-cinq/lore-shared/lib/row.js";
+import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
+import {
+  JobRunSchema,
+  JOB_RUN_COLUMNS,
+} from "@re-cinq/lore-shared/models/job-run.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { z } from "zod";
 import type { Pool, QueryResultRow } from "pg";
@@ -44,14 +50,53 @@ async function billedRows<T extends QueryResultRow>(
  * `GET /api/analytics-overview` — the analytics screen's six reads. Same
  * shape-per-screen rule as spend: they render together and have one caller.
  */
-/** The analytics dashboard's roll-ups — every field is a SQL aggregate. */
+/**
+ * The analytics dashboard's six reads. Five are SQL aggregates and are stated
+ * here, beside the queries that shape them. The sixth is not: `job_runs` selects
+ * a `pipeline.job_runs` ROW, so it derives from that table's model — the one
+ * place in this response where a column rename should reach the contract.
+ *
+ * `task_summary` is null only when the tasks table is empty.
+ */
 const AnalyticsOverviewSchema = z.object({
-  task_summary: z.record(z.unknown()).nullable(),
-  usage_by_task_type: z.array(z.record(z.unknown())),
-  usage_by_repo: z.array(z.record(z.unknown())),
-  daily_usage: z.array(z.record(z.unknown())),
-  latency_stats: z.array(z.record(z.unknown())),
-  job_runs: z.array(z.record(z.unknown())),
+  task_summary: z
+    .object({
+      total: z.number(),
+      succeeded: z.number(),
+      failed: z.number(),
+      active: z.number(),
+    })
+    .nullable(),
+  usage_by_task_type: z.array(
+    z.object({
+      task_type: z.string(),
+      task_count: z.number(),
+      total_input_tokens: z.number(),
+      total_output_tokens: z.number(),
+    }),
+  ),
+  usage_by_repo: z.array(
+    z.object({ target_repo: z.string(), task_count: z.number() }),
+  ),
+  daily_usage: z.array(
+    z.object({
+      day: z.string(),
+      calls: z.number(),
+      input_tokens: z.number(),
+      output_tokens: z.number(),
+    }),
+  ),
+  /** Tool-call timings, which only the memory audit trail records. */
+  latency_stats: z.array(
+    z.object({
+      tool: z.string(),
+      call_count: z.number(),
+      p50_ms: z.number().nullable(),
+      p95_ms: z.number().nullable(),
+      p99_ms: z.number().nullable(),
+    }),
+  ),
+  job_runs: z.array(wireSchema(JobRunSchema, JOB_RUN_COLUMNS)),
 });
 
 /**
@@ -206,7 +251,7 @@ export function analyticsOverviewRoute(
         ORDER BY call_count DESC`,
       );
       const { rows: jobRuns } = await pool.query(
-        `SELECT id, job_name, started_at, completed_at, status, result_summary, error, log_path
+        `SELECT ${selectList(JOB_RUN_COLUMNS)}
         FROM pipeline.job_runs
         ORDER BY started_at DESC
         LIMIT 20`,

@@ -2204,14 +2204,31 @@ export interface components {
     };
     GraphBrowse: {
       stats: {
-        [key: string]: unknown;
+        entity_count: number;
+        active_edge_count: number;
+        invalidated_edge_count: number;
       };
-      entity_types: unknown[];
+      entity_types: {
+        entity_type: string;
+        cnt: number;
+      }[];
       entities: {
-        [key: string]: unknown;
+        id: string;
+        name: string;
+        entity_type: string;
+        repo: string | null;
+        updated_at: string;
+        edge_count: number;
       }[];
       edges: {
-        [key: string]: unknown;
+        source_name: string;
+        source_type: string;
+        relation_type: string;
+        target_name: string;
+        target_type: string;
+        valid_from: string;
+        valid_to: string | null;
+        source_label: string;
       }[];
     };
     SharedPoolList: {
@@ -2585,22 +2602,44 @@ export interface components {
     };
     AnalyticsOverview: {
       task_summary: {
-        [key: string]: unknown;
+        total: number;
+        succeeded: number;
+        failed: number;
+        active: number;
       } | null;
       usage_by_task_type: {
-        [key: string]: unknown;
+        task_type: string;
+        task_count: number;
+        total_input_tokens: number;
+        total_output_tokens: number;
       }[];
       usage_by_repo: {
-        [key: string]: unknown;
+        target_repo: string;
+        task_count: number;
       }[];
       daily_usage: {
-        [key: string]: unknown;
+        day: string;
+        calls: number;
+        input_tokens: number;
+        output_tokens: number;
       }[];
       latency_stats: {
-        [key: string]: unknown;
+        tool: string;
+        call_count: number;
+        p50_ms: number | null;
+        p95_ms: number | null;
+        p99_ms: number | null;
       }[];
       job_runs: {
-        [key: string]: unknown;
+        id: string;
+        job_name: string;
+        /** Format: date-time */
+        started_at: string;
+        completed_at: string | null;
+        status: string;
+        result_summary: string | null;
+        error: string | null;
+        log_path: string | null;
       }[];
     };
     AgentStats: {
