@@ -8305,7 +8305,39 @@
                 "type": "array",
                 "items": {
                   "type": "object",
-                  "additionalProperties": {}
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "agent_id": {
+                      "type": "string"
+                    },
+                    "repo": {
+                      "type": ["string", "null"]
+                    },
+                    "version": {
+                      "type": "number"
+                    },
+                    "ttl_seconds": {
+                      "type": ["number", "null"]
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "has_facts": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "agent_id",
+                    "repo",
+                    "version",
+                    "ttl_seconds",
+                    "created_at",
+                    "has_facts"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "total": {

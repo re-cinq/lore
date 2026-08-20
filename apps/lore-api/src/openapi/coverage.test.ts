@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 import type { ServerRoute } from "@hapi/hapi";
 import { routeList } from "../server/build-server.js";
 import { bearerScope } from "../server/plugins/bearer-scope.js";
-import { generateOpenApi, normalizePath } from "./build-document.js";
+import {
+  generateOpenApi,
+  normalizePath,
+  undeclaredWildcards,
+} from "./build-document.js";
 
 /**
  * Drift guard (ADR-035, fork 5). The document is generated from the live
@@ -59,6 +63,24 @@ describe("OpenAPI coverage drift guard", () => {
       expect(verbs).toHaveLength(2);
       expect(schemaOf(path, verbs[0])).not.toEqual(schemaOf(path, verbs[1]));
     }
+  });
+
+  it("names every wildcard route as serving verbs or as refusing them", () => {
+    // The gap this closes: a wildcard that means to serve a real verb on a path
+    // concrete verbs ALREADY document adds no path key, so the assertion above
+    // stays green while the operation goes missing from the document.
+    expect(undeclaredWildcards(routes)).toEqual([]);
+
+    const probe: ServerRoute = {
+      method: "*",
+      path: "/api/tokens/{id}",
+      options: bearerScope("admin"),
+      handler: () => null,
+    };
+
+    expect(undeclaredWildcards([...routes, probe])).toEqual([
+      "/api/tokens/{id}",
+    ]);
   });
 
   it("documents no operation for a wildcard route that only answers 405", () => {

@@ -24,6 +24,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { bucketFor } from "../server/plugins/rate-limit.js";
 import {
   WILDCARD_METHODS,
+  METHOD_NOT_ALLOWED_FALLBACKS,
   BODYLESS_WRITES,
   domainBody,
 } from "./domain-routes.js";
@@ -140,6 +141,32 @@ function methodsOf(route: ServerRoute): string[] {
   }
 
   return method.map((m) => m.toUpperCase());
+}
+
+/**
+ * Wildcard routes that say nothing about what they serve.
+ *
+ * `methodsOf` documents a `method: "*"` route as whatever `WILDCARD_METHODS`
+ * names, and an unlisted one contributes no operations at all — right for a 405
+ * fallback, silent data loss for a wildcard that means to serve real verbs. On a
+ * NEW path the omission surfaces as a missing path key; on a path that concrete
+ * verbs already document it surfaces as nothing whatsoever.
+ *
+ * So each wildcard declares which it is, and this reports the ones that declare
+ * neither.
+ */
+export function undeclaredWildcards(routes: ServerRoute[]): string[] {
+  const isWildcard = (route: ServerRoute) =>
+    (Array.isArray(route.method) ? route.method : [route.method]).includes("*");
+
+  return routes
+    .filter((route) => route.path.startsWith("/api/") && isWildcard(route))
+    .map((route) => normalizePath(route.path))
+    .filter(
+      (path) =>
+        !(path in WILDCARD_METHODS) &&
+        !METHOD_NOT_ALLOWED_FALLBACKS.includes(path),
+    );
 }
 
 /** `{owner}` / `{name?}` / `{artifact*}` → OpenAPI `{owner}`; strip optional/wildcard markers. */

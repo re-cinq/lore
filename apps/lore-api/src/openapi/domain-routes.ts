@@ -34,6 +34,23 @@ import { DarkFactorySettingsSchema } from "../features/dark-factory/dark-factory
  */
 export const WILDCARD_METHODS: Record<string, string[]> = {};
 
+/**
+ * Paths whose `method: "*"` route exists ONLY to answer 405.
+ *
+ * Every wildcard route must appear here or in {@link WILDCARD_METHODS}, and
+ * `undeclaredWildcards` fails the one that appears in neither. That is what
+ * closes the gap the path-count assertion cannot see: a wildcard meaning to
+ * serve a real verb on a path that is ALREADY documented adds no new path key,
+ * so nothing else notices the operation going missing from the document.
+ *
+ * The claim each entry makes — "this route refuses every verb it receives" — is
+ * held to behaviour by the routes' own 405 tests, not by this list.
+ */
+export const METHOD_NOT_ALLOWED_FALLBACKS: string[] = [
+  "/api/tokens",
+  "/api/repos/{owner}/{repo}/settings/dark-factory",
+];
+
 /** How a domain-validated write route's request body is documented. */
 export type DomainBody =
   | { schema: ZodType; freeform?: false }

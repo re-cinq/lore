@@ -2252,7 +2252,13 @@ export interface components {
         }
       | {
           memories: {
-            [key: string]: unknown;
+            key: string;
+            agent_id: string;
+            repo: string | null;
+            version: number;
+            ttl_seconds: number | null;
+            created_at: string;
+            has_facts: boolean;
           }[];
           total: number;
           limit: number;

@@ -26,8 +26,10 @@ interface TokensPostBody {
   token_id?: string;
 }
 
-// Paging for the GET list. On a "*" route this also validates the bodyless POST's
-// (empty) query, which harmlessly resolves to the defaults.
+// Paging for the GET list. It rode the one "*" route before the split, so it
+// also validated the bodyless POST's (empty) query — harmlessly, since that
+// resolved to the defaults. Scoping it to the GET is deliberate: the POST reads
+// its payload and never a query string, so there is nothing there to validate.
 const TokensQuery = z.object({
   limit: clampedLimit.default(20),
   offset: offsetParam,
@@ -88,6 +90,12 @@ const TokenWriteSchema = z.union([
  * serving a bodyless GET) — deliberately NOT taken here: it would turn the POST
  * handler's residual checks into 400s at the edge, which is a behaviour change
  * and not what splitting the contract is for.
+ *
+ * Each route takes the handler for its own verb. Re-dispatching on
+ * `request.method` under three routes that each serve one verb would leave two
+ * arms dead on every request and the 405 arm unreachable from the two that
+ * matter — the split is what makes the dispatch unnecessary. The wildcard's
+ * 405 no longer waits on the pool: refusing a verb needs no database.
  */
 export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
   const listOptions = zodResponse(
@@ -109,95 +117,102 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
   });
 
   return [
-    { method: "GET", path: "/api/tokens", options: listOptions, handler },
-    { method: "POST", path: "/api/tokens", options: writeOptions, handler },
+    { method: "GET", path: "/api/tokens", options: listOptions, handler: list },
+    {
+      method: "POST",
+      path: "/api/tokens",
+      options: writeOptions,
+      handler: write,
+    },
     {
       // Fallback only — a concrete verb above always wins in hapi.
       method: "*",
       path: "/api/tokens",
       options: bearerScope("admin"),
-      handler,
+      handler: (_request: Request, h: ResponseToolkit) =>
+        h.response({ error: "method not allowed" }).code(405),
     },
   ];
 
-  async function handler(request: Request, h: ResponseToolkit) {
+  async function list(request: Request, h: ResponseToolkit) {
+    const pool = getPool();
+
+    if (!pool) {
+      return h.response({ error: DB_UNAVAILABLE }).code(503);
+    }
+    // List active tokens (never return the actual token)
+    const { limit, offset } = request.query as unknown as TokensQuery;
+    const { rows } = await pool.query(
+      `SELECT id, name, scopes, created_by, expires_at, last_used, created_at
+         FROM pipeline.api_tokens WHERE revoked_at IS NULL ORDER BY created_at DESC
+         LIMIT $1 OFFSET $2`,
+      [limit, offset],
+    );
+    const { rows: countRows } = await pool.query(
+      `SELECT count(*)::int as total FROM pipeline.api_tokens WHERE revoked_at IS NULL`,
+    );
+
+    return h.response({
+      tokens: rows,
+      total: countRows[0].total,
+      limit,
+      offset,
+    });
+  }
+
+  async function write(request: Request, h: ResponseToolkit) {
     const pool = getPool();
 
     if (!pool) {
       return h.response({ error: DB_UNAVAILABLE }).code(503);
     }
 
-    if (request.method.toUpperCase() === "GET") {
-      // List active tokens (never return the actual token)
-      const { limit, offset } = request.query as unknown as TokensQuery;
-      const { rows } = await pool.query(
-        `SELECT id, name, scopes, created_by, expires_at, last_used, created_at
-           FROM pipeline.api_tokens WHERE revoked_at IS NULL ORDER BY created_at DESC
-           LIMIT $1 OFFSET $2`,
-        [limit, offset],
-      );
-      const { rows: countRows } = await pool.query(
-        `SELECT count(*)::int as total FROM pipeline.api_tokens WHERE revoked_at IS NULL`,
-      );
+    try {
+      const { action, name, scopes, expires_in_days, token_id } =
+        (request.payload ?? {}) as TokensPostBody;
 
-      return h.response({
-        tokens: rows,
-        total: countRows[0].total,
-        limit,
-        offset,
-      });
-    }
-
-    if (request.method.toUpperCase() === "POST") {
-      try {
-        const { action, name, scopes, expires_in_days, token_id } =
-          (request.payload ?? {}) as TokensPostBody;
-
-        if (action === "revoke" && token_id) {
-          await pool.query(
-            `UPDATE pipeline.api_tokens SET revoked_at = now() WHERE id = $1`,
-            [token_id],
-          );
-
-          return h.response({ ok: true });
-        }
-
-        // Create new token
-        if (!name) {
-          return h.response({ error: "name required" }).code(400);
-        }
-        const { randomBytes } = await import("node:crypto");
-        const rawToken = `lore_${randomBytes(32).toString("hex")}`;
-        const tokenHash = createHash("sha256").update(rawToken).digest("hex");
-        const validScopes: TokenScope[] = [
-          "read",
-          "write",
-          "task",
-          "webhook",
-          "admin",
-        ];
-        const resolvedScopes = (scopes || ["read"]).filter((s: string) =>
-          validScopes.includes(s as TokenScope),
-        );
-        const expiresAt = expires_in_days
-          ? new Date(Date.now() + expires_in_days * 86400000).toISOString()
-          : null;
-
-        const { rows } = await pool.query(
-          `INSERT INTO pipeline.api_tokens (name, token_hash, scopes, created_by, expires_at)
-             VALUES ($1, $2, $3, $4, $5) RETURNING id, name, scopes, created_at`,
-          [name, tokenHash, resolvedScopes, "admin", expiresAt],
+      if (action === "revoke" && token_id) {
+        await pool.query(
+          `UPDATE pipeline.api_tokens SET revoked_at = now() WHERE id = $1`,
+          [token_id],
         );
 
-        // Return the raw token ONCE — it cannot be retrieved again
-        return h
-          .response({ ...rows[0], token: rawToken, expires_at: expiresAt })
-          .code(201);
-      } catch (err) {
-        return h.response({ error: errorMessage(err) }).code(500);
+        return h.response({ ok: true });
       }
-    }
 
-    return h.response({ error: "method not allowed" }).code(405);
+      // Create new token
+      if (!name) {
+        return h.response({ error: "name required" }).code(400);
+      }
+      const { randomBytes } = await import("node:crypto");
+      const rawToken = `lore_${randomBytes(32).toString("hex")}`;
+      const tokenHash = createHash("sha256").update(rawToken).digest("hex");
+      const validScopes: TokenScope[] = [
+        "read",
+        "write",
+        "task",
+        "webhook",
+        "admin",
+      ];
+      const resolvedScopes = (scopes || ["read"]).filter((s: string) =>
+        validScopes.includes(s as TokenScope),
+      );
+      const expiresAt = expires_in_days
+        ? new Date(Date.now() + expires_in_days * 86400000).toISOString()
+        : null;
+
+      const { rows } = await pool.query(
+        `INSERT INTO pipeline.api_tokens (name, token_hash, scopes, created_by, expires_at)
+           VALUES ($1, $2, $3, $4, $5) RETURNING id, name, scopes, created_at`,
+        [name, tokenHash, resolvedScopes, "admin", expiresAt],
+      );
+
+      // Return the raw token ONCE — it cannot be retrieved again
+      return h
+        .response({ ...rows[0], token: rawToken, expires_at: expiresAt })
+        .code(201);
+    } catch (err) {
+      return h.response({ error: errorMessage(err) }).code(500);
+    }
   }
 }

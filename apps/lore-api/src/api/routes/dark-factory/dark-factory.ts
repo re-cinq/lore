@@ -63,27 +63,32 @@ const DarkFactoryAppliedSchema = z.object({
  * unmatched verb on a matched path with 404, and "you may not DELETE this" is a
  * better answer than "there is nothing here". It declares no contract, so it
  * contributes no operation to the document.
+ *
+ * Each route takes the handler for its own verb. Re-dispatching on
+ * `request.method` under three routes that each serve one verb would leave two
+ * arms dead on every request and the 405 arm unreachable from the two that
+ * matter — the split is what makes the dispatch unnecessary. The 405 no longer
+ * waits on the pool either: refusing a verb needs no database.
  */
 export function darkFactoryRoute(getPool: () => Pool | null): ServerRoute[] {
-  const handler = async (request: Request, h: ResponseToolkit) => {
-    const pool = getPool();
+  /** Both real verbs need the pool — the GET reads settings through a project
+   *  bound to it — so the one guard is stated once and each verb receives it. */
+  const withPool =
+    (
+      serve: (
+        request: Request,
+        h: ResponseToolkit,
+        pool: Pool,
+        repo: string,
+      ) => Promise<ResponseObject>,
+    ) =>
+    async (request: Request, h: ResponseToolkit) => {
+      const pool = getPool();
 
-    if (!pool) {
-      return h.response({ error: "database unavailable" }).code(503);
-    }
-    const repo = repoOf(request.params);
-    const method = request.method.toUpperCase();
-
-    if (method === "GET") {
-      return handleGet(repo, h);
-    }
-
-    if (method === "PUT") {
-      return handlePut(request, h, pool, repo);
-    }
-
-    return h.response({ error: "method not allowed" }).code(405);
-  };
+      return pool
+        ? serve(request, h, pool, repoOf(request.params))
+        : h.response({ error: "database unavailable" }).code(503);
+    };
 
   return [
     {
@@ -97,7 +102,7 @@ export function darkFactoryRoute(getPool: () => Pool | null): ServerRoute[] {
           description: "Every dark-factory knob, resolved",
         },
       ),
-      handler,
+      handler: withPool((_request, h, _pool, repo) => handleGet(repo, h)),
     },
     {
       method: "PUT",
@@ -107,14 +112,15 @@ export function darkFactoryRoute(getPool: () => Pool | null): ServerRoute[] {
         description: "What the write applied, and under whose authority",
         errors: [400, 409],
       }),
-      handler,
+      handler: withPool(handlePut),
     },
     {
       // Fallback only — a concrete verb above always wins in hapi.
       method: "*",
       path: DF_PATH,
       options: bearerScope("admin"),
-      handler,
+      handler: (_request: Request, h: ResponseToolkit) =>
+        h.response({ error: "method not allowed" }).code(405),
     },
   ];
 }
