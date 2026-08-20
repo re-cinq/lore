@@ -114,12 +114,14 @@ describe("getSpend", () => {
 
   it("carries the org-unavailable flag through", async () => {
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ org_available: false, lore_today_usd: 4 })),
+      new Response(
+        JSON.stringify({ org_available: false, lore_unbilled_usd: 4 }),
+      ),
     );
 
     expect(await getSpend()).toMatchObject({
       status: "ok",
-      data: { org_available: false, lore_today_usd: 4 },
+      data: { org_available: false, lore_unbilled_usd: 4 },
     });
   });
 });

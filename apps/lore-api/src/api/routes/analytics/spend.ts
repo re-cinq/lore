@@ -115,6 +115,14 @@ const OrgMtdSchema = z.object({
   input_tokens: z.number(),
   output_tokens: z.number(),
   as_of: z.string().nullable(),
+  /**
+   * The last day Anthropic has actually billed — `MAX(bucket_date)`, NOT
+   * "yesterday". The cost report omits the in-progress day, so a current sync
+   * does end at yesterday; a late or failed one ends earlier, and only this
+   * stamp distinguishes the two. `as_of` records when the sync ran, which is a
+   * different question and cannot answer this one.
+   */
+  billed_through: z.string().nullable(),
 });
 
 const LoreMtdSchema = z.object({
@@ -138,7 +146,8 @@ const SpendSchema = z.object({
   org_daily: z.array(
     z.object({ bucket_date: z.string(), cost_usd: z.number() }),
   ),
-  lore_today_usd: z.number(),
+  lore_unbilled_usd: z.number(),
+  lore_unbilled_days: z.number(),
   lore_mtd: LoreMtdSchema,
   lore_by_model: z.array(
     z.object({
@@ -289,13 +298,15 @@ export function spendRoute(getPool: () => Pool | null): ServerRoute {
         input_tokens: number;
         output_tokens: number;
         as_of: string | null;
+        billed_through: string | null;
       }>(
         pool,
         `SELECT
            COALESCE(SUM(cost_usd), 0)::float8 AS billed_usd,
            COALESCE(SUM(input_tokens), 0) AS input_tokens,
            COALESCE(SUM(output_tokens), 0) AS output_tokens,
-           MAX(fetched_at) AS as_of
+           MAX(fetched_at) AS as_of,
+           MAX(bucket_date)::text AS billed_through
          FROM pipeline.anthropic_cost_daily
          WHERE bucket_date >= date_trunc('month', current_date)`,
       );
@@ -322,9 +333,20 @@ export function spendRoute(getPool: () => Pool | null): ServerRoute {
       const orgMtd = orgMtdRows[0];
       const orgAvailable = !!orgMtd?.as_of;
 
-      const { rows: todayRows } = await pool.query<{ cost_usd: number }>(
-        `SELECT COALESCE(SUM(cost_usd), 0)::float8 AS cost_usd
-         FROM pipeline.llm_calls WHERE created_at >= current_date`,
+      // Everything Anthropic has not billed yet, which is "today" only when the
+      // sync is current. The bound is passed as a parameter rather than joined
+      // in: `anthropic_cost_daily` is absent on clusters with no admin key, and
+      // a subquery against it would take the Lore-computed side down with it —
+      // the one half that never depended on the sync.
+      const { rows: unbilledRows } = await pool.query<{
+        cost_usd: number;
+        days: number;
+      }>(
+        `SELECT COALESCE(SUM(cost_usd), 0)::float8 AS cost_usd,
+           COUNT(DISTINCT created_at::date)::int AS days
+         FROM pipeline.llm_calls
+         WHERE ${MTD} AND ($1::date IS NULL OR created_at::date > $1::date)`,
+        [orgMtd?.billed_through ?? null],
       );
       const { rows: loreMtdRows } = await pool.query(
         `SELECT
@@ -385,10 +407,12 @@ export function spendRoute(getPool: () => Pool | null): ServerRoute {
           input_tokens: 0,
           output_tokens: 0,
           as_of: null,
+          billed_through: null,
         },
         org_by_model: orgByModel,
         org_daily: orgDaily,
-        lore_today_usd: todayRows[0]?.cost_usd ?? 0,
+        lore_unbilled_usd: unbilledRows[0]?.cost_usd ?? 0,
+        lore_unbilled_days: unbilledRows[0]?.days ?? 0,
         lore_mtd: loreMtdRows[0] ?? {
           computed_usd: 0,
           calls: 0,
