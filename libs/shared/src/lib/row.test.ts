@@ -4,6 +4,7 @@ import {
   fromRow,
   toRow,
   pickColumns,
+  acceptEitherSpelling,
   type ColumnMap,
 } from "./row.js";
 
@@ -100,5 +101,46 @@ describe("toRow", () => {
     };
 
     expect(toRow(REPO_COLUMNS, fromRow<Repo>(REPO_COLUMNS, row))).toEqual(row);
+  });
+});
+
+describe("acceptEitherSpelling", () => {
+  it("reads a record keyed by column names", () => {
+    expect(
+      acceptEitherSpelling(REPO_COLUMNS, {
+        id: "abc",
+        full_name: "re-cinq/lore",
+      }),
+    ).toEqual({ id: "abc", full_name: "re-cinq/lore" });
+  });
+
+  it("reads the same record keyed by the model's field names", () => {
+    expect(
+      acceptEitherSpelling(REPO_COLUMNS, {
+        id: "abc",
+        fullName: "re-cinq/lore",
+      }),
+    ).toEqual({ id: "abc", full_name: "re-cinq/lore" });
+  });
+
+  it("prefers the column spelling when a record carries both", () => {
+    expect(
+      acceptEitherSpelling(REPO_COLUMNS, {
+        full_name: "re-cinq/lore",
+        fullName: "re-cinq/other",
+      }),
+    ).toEqual({ full_name: "re-cinq/lore" });
+  });
+
+  it("leaves an absent field absent rather than present and undefined", () => {
+    expect(
+      Object.keys(acceptEitherSpelling(REPO_COLUMNS, { id: "abc" })),
+    ).toEqual(["id"]);
+  });
+
+  it("drops a key the model does not declare in either spelling", () => {
+    expect(
+      acceptEitherSpelling(REPO_COLUMNS, { id: "abc", cost_usd: 4 }),
+    ).toEqual({ id: "abc" });
   });
 });
