@@ -24,14 +24,16 @@ export interface SpendViewProps {
   orgMtd: OrgMtdRow;
   orgAvailable: boolean;
   /**
-   * Today's Lore-computed spend (pipeline.llm_calls). Anthropic's cost report
-   * is daily-granularity and never emits the in-progress day, so the billed
-   * MTD figure always ends at yesterday — this is the only number that can
-   * bring it current, and llm_calls has been verified token-exact against
-   * Anthropic's hourly usage report. Optional so callers without it render
-   * exactly as before.
+   * Lore-computed spend for every day Anthropic has not billed yet, and how
+   * many days that is. Usually one — the cost report never emits the day in
+   * progress — but a sync that ran late, failed, or has not run yet leaves
+   * more, and the previous today-only figure could not say so: it named a
+   * one-day gap while whole days sat in neither number. `llm_calls` is
+   * token-exact against Anthropic's hourly usage report. Optional so callers
+   * without them render exactly as before.
    */
-  loreTodayUsd?: number;
+  loreUnbilledUsd?: number;
+  loreUnbilledDays?: number;
   orgByModel: OrgByModelRow[];
   orgDaily: OrgDailyRow[];
   loreMtd: LoreMtdRow;
@@ -47,10 +49,22 @@ const usd = (n: number) =>
 
 const num = (n: number) => Number(n).toLocaleString();
 
+/**
+ * A `YYYY-MM-DD` calendar day rendered in the viewer's locale. Built from the
+ * parts rather than parsed: `new Date("2026-08-18")` is UTC midnight, which
+ * renders as the 17th for every viewer west of Greenwich.
+ */
+const day = (isoDay: string) => {
+  const [y, m, d] = isoDay.split("-").map(Number);
+
+  return new Date(y, m - 1, d).toLocaleDateString();
+};
+
 export default function SpendView({
   orgMtd,
   orgAvailable,
-  loreTodayUsd,
+  loreUnbilledUsd,
+  loreUnbilledDays,
   orgByModel,
   orgDaily,
   loreMtd,
@@ -99,12 +113,21 @@ export default function SpendView({
               as of {new Date(orgMtd.as_of as string).toLocaleString()}
             </div>
             {/* Anthropic's cost report never includes the in-progress day, so
-                the billed figure ends at yesterday. Surface today separately
-                and labeled rather than folding it in: the sum would silently
-                mix an authoritative number with a computed one. */}
-            {loreTodayUsd !== undefined && loreTodayUsd > 0 && (
+                the billed figure always trails. Surface the remainder
+                separately and labeled rather than folding it in: the sum would
+                silently mix an authoritative number with a computed one. The
+                span is read from `billed_through`, never assumed to be one day
+                — assuming it is what made this line understate the gap by a
+                whole day's spend whenever the sync fell behind. */}
+            {loreUnbilledUsd !== undefined && loreUnbilledUsd > 0 && (
               <div className={`meta ${styles.subnote}`}>
-                billed through yesterday — + {usd(loreTodayUsd)} today
+                {orgMtd.billed_through
+                  ? `billed through ${day(orgMtd.billed_through)}`
+                  : "not yet billed"}{" "}
+                — + {usd(loreUnbilledUsd)}{" "}
+                {loreUnbilledDays === 1
+                  ? "today"
+                  : `over ${num(loreUnbilledDays ?? 0)} days since`}{" "}
                 (Lore-computed)
               </div>
             )}

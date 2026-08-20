@@ -1,18 +1,10 @@
 import ContextFilters from "@/app/repos/[owner]/[repo]/context/ContextFilters";
 import ContextCard from "@/app/repos/[owner]/[repo]/context/ContextCard";
-import { type ChunkMeta } from "@/lib/chunk-presenter";
 import { EmptyState } from "@/components/EmptyState";
 import styles from "./ContextView.module.css";
+import type { components } from "@/lib/api/schema";
 
-export interface ContextChunk {
-  id: string;
-  file_path: string;
-  content_type: string;
-  content: string;
-  ingested_at: string;
-  repo: string | null;
-  metadata: ChunkMeta | null;
-}
+export type ContextChunk = components["schemas"]["ChunkList"]["chunks"][number];
 
 export interface ContextViewProps {
   /** Active content_type filter, or undefined for "All". */
@@ -80,7 +72,11 @@ export default function ContextView({
               chunk={c}
               repo={c.repo ?? ""}
               repoLabel={c.repo ?? undefined}
-              detailHref={`/context/${encodeURIComponent(c.file_path)}`}
+              detailHref={
+                c.file_path
+                  ? `/context/${encodeURIComponent(c.file_path)}`
+                  : undefined
+              }
             />
           ))}
     </div>

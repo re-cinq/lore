@@ -2615,6 +2615,7 @@ export interface components {
         input_tokens: number;
         output_tokens: number;
         as_of: string | null;
+        billed_through: string | null;
       };
       org_by_model: {
         model: string;
@@ -2626,7 +2627,8 @@ export interface components {
         bucket_date: string;
         cost_usd: number;
       }[];
-      lore_today_usd: number;
+      lore_unbilled_usd: number;
+      lore_unbilled_days: number;
       lore_mtd: {
         computed_usd: number;
         calls: number;
@@ -3203,9 +3205,15 @@ export interface components {
       tasks: {
         description: string;
         status: string;
-        context_bundle: {
-          [key: string]: unknown;
-        } | null;
+        context_bundle:
+          | ({
+              story_issue?: number | null;
+              spec_task_id?: string;
+              phase?: number;
+            } & {
+              [key: string]: unknown;
+            })
+          | null;
       }[];
     };
     Ok: {

@@ -26,13 +26,7 @@ export interface TaskLogs {
   totalSize: number;
 }
 
-export interface CreatedTask {
-  task_id: string;
-  task_type: string;
-  status: string;
-  priority: string;
-  created_at: string;
-}
+export type CreatedTask = components["schemas"]["StationTaskCreated"];
 
 /**
  * Queue a task. lore-api inserts the row and its pending `task_events` entry and

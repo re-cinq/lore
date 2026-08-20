@@ -9590,13 +9590,17 @@
               },
               "as_of": {
                 "type": ["string", "null"]
+              },
+              "billed_through": {
+                "type": ["string", "null"]
               }
             },
             "required": [
               "billed_usd",
               "input_tokens",
               "output_tokens",
-              "as_of"
+              "as_of",
+              "billed_through"
             ],
             "additionalProperties": false
           },
@@ -9643,7 +9647,10 @@
               "additionalProperties": false
             }
           },
-          "lore_today_usd": {
+          "lore_unbilled_usd": {
+            "type": "number"
+          },
+          "lore_unbilled_days": {
             "type": "number"
           },
           "lore_mtd": {
@@ -9783,7 +9790,8 @@
           "org_mtd",
           "org_by_model",
           "org_daily",
-          "lore_today_usd",
+          "lore_unbilled_usd",
+          "lore_unbilled_days",
           "lore_mtd",
           "lore_by_model",
           "lore_by_kind",
@@ -11797,7 +11805,18 @@
                   "anyOf": [
                     {
                       "type": "object",
-                      "additionalProperties": {}
+                      "properties": {
+                        "story_issue": {
+                          "type": ["number", "null"]
+                        },
+                        "spec_task_id": {
+                          "type": "string"
+                        },
+                        "phase": {
+                          "type": "number"
+                        }
+                      },
+                      "additionalProperties": true
                     },
                     {
                       "type": "null"
