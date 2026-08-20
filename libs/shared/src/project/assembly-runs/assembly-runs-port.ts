@@ -107,6 +107,17 @@ export interface OpenRunSummary {
 export type AssemblyRunRecord = AssemblyRun;
 
 /**
+ * A run WITHOUT its blueprint clone.
+ *
+ * The browse list renders tables that never draw the graph, so reading up to
+ * `limit` clones per page is transfer paid for nothing. Stated as a narrower
+ * TYPE rather than as a `graph: null` on the full record: a null that means "not
+ * read" is indistinguishable from a null that means "this run predates clones",
+ * and the second is a real state a reader has to handle.
+ */
+export type AssemblyRunSummary = Omit<AssemblyRunRecord, "graph">;
+
+/**
  * `pipeline.assembly_runs` + `pipeline.station_runs` — first-class
  * identity for one assembly line execution (per attempt, unlike the task id
  * which is stable across retries) plus the per-node trace.
@@ -161,6 +172,9 @@ export interface AssemblyRunsPort {
    * openness. Newest first, id as the tiebreak so the order is total.
    */
   list(query: AssemblyRunQuery): Promise<AssemblyRunRecord[]>;
+  /** {@link list}, selecting the same runs in the same order but without the
+   *  blueprint clone — for readers that list runs rather than draw them. */
+  listSummaries(query: AssemblyRunQuery): Promise<AssemblyRunSummary[]>;
   listForTask(taskId: string): Promise<AssemblyRunRecord[]>;
   /**
    * Event-driven transition primitives: the walk state is derived from node rows,

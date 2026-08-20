@@ -9,6 +9,7 @@ import type {
   AssemblyRunStartInput,
   StationRunStartInput,
   AssemblyRunRecord,
+  AssemblyRunSummary,
   StationRunRecord,
   OpenRunSummary,
 } from "./assembly-runs-port.js";
@@ -318,6 +319,15 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
             b.id.localeCompare(a.id),
         )
         .slice(0, query.limit ?? 50)
+    );
+  }
+
+  async listSummaries(query: AssemblyRunQuery): Promise<AssemblyRunSummary[]> {
+    // Same selection, graph dropped — the double must answer the narrower shape
+    // the way Postgres does, or a route tested against it would carry a clone the
+    // deployed read never ships.
+    return (await this.list(query)).map(
+      ({ graph: _graph, ...summary }) => summary,
     );
   }
 

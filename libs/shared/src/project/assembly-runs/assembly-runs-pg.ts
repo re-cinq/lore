@@ -10,6 +10,7 @@ import type {
   AssemblyRunStartInput,
   StationRunStartInput,
   AssemblyRunRecord,
+  AssemblyRunSummary,
   StationRunRecord,
   OpenRunSummary,
 } from "./assembly-runs-port.js";
@@ -46,6 +47,11 @@ function toOpenSummary(row: OpenRunRow): OpenRunSummary {
 }
 
 /** Every column `toRecord` maps, single-sourced so the four read sites cannot drift. */
+/** {@link LINE_COLUMNS} without the blueprint clone — see `listSummaries`. */
+const SUMMARY_COLUMNS = `id, blueprint_name, task_id, repo, branch, subject_key, args, status, outcome, reason,
+         blueprint_hash, resumed_from_run_id, resumed_from_node_id, inherited_node_count,
+         created_at, started_at, finished_at`;
+
 const LINE_COLUMNS = `id, graph, blueprint_name, task_id, repo, branch, subject_key, args, status, outcome, reason,
          blueprint_hash, resumed_from_run_id, resumed_from_node_id, inherited_node_count,
          created_at, started_at, finished_at`;
@@ -411,10 +417,38 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
   }
 
   async list(query: AssemblyRunQuery): Promise<AssemblyRunRecord[]> {
-    // Built as a NULL-guarded predicate per field rather than by concatenating
-    // clauses: every parameter is bound, the statement text is identical for
-    // every filter combination (so Postgres can reuse the plan), and no caller
-    // input reaches the SQL as text.
+    const rows = await this.selectList(LINE_COLUMNS, query);
+
+    return rows.map((r) => toRecord(r as Parameters<typeof toRecord>[0]));
+  }
+
+  async listSummaries(query: AssemblyRunQuery): Promise<AssemblyRunSummary[]> {
+    const rows = await this.selectList(SUMMARY_COLUMNS, query);
+
+    return rows.map((r) => {
+      // toRecord maps `graph` too, and the column is absent here — so drop the
+      // key rather than let it read back as a null the run does not have.
+      const { graph: _graph, ...summary } = toRecord({
+        ...(r as Parameters<typeof toRecord>[0]),
+        graph: null,
+      });
+
+      return summary;
+    });
+  }
+
+  /**
+   * The one filtered read both list shapes run.
+   *
+   * Built as a NULL-guarded predicate per field rather than by concatenating
+   * clauses: every parameter is bound, the statement text is identical for
+   * every filter combination (so Postgres can reuse the plan), and no caller
+   * input reaches the SQL as text.
+   */
+  private async selectList(
+    columns: string,
+    query: AssemblyRunQuery,
+  ): Promise<unknown[]> {
     const blueprints =
       query.blueprintName === undefined
         ? null
@@ -422,7 +456,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
           ? [query.blueprintName]
           : [...query.blueprintName];
     const { rows } = await this.pool.query(
-      `SELECT ${LINE_COLUMNS}
+      `SELECT ${columns}
          FROM pipeline.assembly_runs
         WHERE ($1::text   IS NULL OR repo = $1)
           AND ($2::text[] IS NULL OR blueprint_name = ANY($2::text[]))
@@ -448,7 +482,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
       ],
     );
 
-    return rows.map((r) => toRecord(r as Parameters<typeof toRecord>[0]));
+    return rows;
   }
 
   async listForTask(taskId: string): Promise<AssemblyRunRecord[]> {
