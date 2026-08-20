@@ -388,3 +388,23 @@ describe("read-only review recipes (#1160)", () => {
     expect(containers[0].workingDir).toBeUndefined();
   });
 });
+
+describe("buildAgentDefinition without a prompt", () => {
+  it("throws naming the task type rather than seeding an empty recipe", () => {
+    expect(() => buildAgentDefinition("gap-fill", {})).toThrow(
+      new Error(
+        'task type "gap-fill" has no prompt_template — task-types.yaml is missing a field the catalog needs',
+      ),
+    );
+  });
+});
+
+describe("buildStationDefinition without a command", () => {
+  it("throws naming the station rather than seeding a pod with nothing to run", () => {
+    expect(() => buildStationDefinition("ingest", {})).toThrow(
+      new Error(
+        'station "ingest" has no command — task-types.yaml is missing a field the catalog needs',
+      ),
+    );
+  });
+});
