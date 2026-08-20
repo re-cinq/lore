@@ -7,6 +7,11 @@
 // The one deliberate divergence: `createdAt` is a Date on the port and a string
 // here, because this side only ever sees the JSON projection of the row. The
 // drift guard is therefore keys-only, never structural.
+//
+// DECISION (#1419): structural, not debt. The Floor serves this shape and the
+// Floor generates no OpenAPI document — no generator, no zodResponse call — so
+// there is nothing for a generated type to come from. Revisit if the Floor gains
+// a document, or if #1347 moves this read to lore-api.
 
 export type AgentRunEventType =
   "init" | "message" | "thinking" | "tool_call" | "tool_result" | "result";

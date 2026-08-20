@@ -6,6 +6,9 @@
 //
 // The node `type` and edge `on` unions are mirrored as unions rather than
 // `string`: run-node-status and the DAG renderer depend on exhaustiveness.
+//
+// DECISION (#1419): structural, not debt. Same reason as run-stream-types — the
+// Floor serves /api/assembly-line-definitions and generates no OpenAPI document.
 
 export type DefinitionNodeType =
   | "agent"

@@ -11,6 +11,14 @@
 // `builtin-definitions.ts` — 350 lines of YAML copied by hand, which went stale
 // the moment a definition changed and could only ever describe the CURRENT
 // blueprint, never the one a given run actually walked.
+//
+// DECISION (#1419): removable, but BLOCKED. lore-api serves this inside the run
+// reads, so a generated type is reachable in principle — except the model states
+// the field as `z.custom<RunGraph>()`, which renders as an open schema, so the
+// generated type is `unknown`. Aliasing to it would lose every field name rather
+// than gain safety. The unblock is to declare RunGraph as a zod schema in
+// libs/shared/src/project/assembly-runs/run-graph.ts and reference it from the
+// model — one declaration, generated on both sides, mirror and guard both gone.
 
 export interface RunGraphNode {
   id: string;
