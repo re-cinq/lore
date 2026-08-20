@@ -5,6 +5,8 @@ import {
   toRow,
   pickColumns,
   type ColumnMap,
+  type Assert,
+  type KeysAreColumns,
 } from "./row.js";
 
 interface Repo {
@@ -100,5 +102,22 @@ describe("toRow", () => {
     };
 
     expect(toRow(REPO_COLUMNS, fromRow<Repo>(REPO_COLUMNS, row))).toEqual(row);
+  });
+});
+
+describe("KeysAreColumns", () => {
+  it("holds for a shape whose every key is a column", () => {
+    type Wire = { id: string; full_name: string };
+    type Check = Assert<KeysAreColumns<Wire, Repo, typeof REPO_COLUMNS>>;
+    const holds: Check = true;
+
+    expect(holds).toBe(true);
+  });
+
+  it("resolves false for a shape carrying a key no column binds", () => {
+    type Wire = { id: string; cost_usd: number };
+    const holds: KeysAreColumns<Wire, Repo, typeof REPO_COLUMNS> = false;
+
+    expect(holds).toBe(false);
   });
 });

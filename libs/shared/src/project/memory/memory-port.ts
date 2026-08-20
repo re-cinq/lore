@@ -9,6 +9,12 @@ export interface MemoryWriteResult {
   version: number;
 }
 
+/**
+ * A PROJECTION of `memory.memories` — what a read of one memory answers with,
+ * which is three of its columns. Not the `MemoryEntry` model: a caller reading
+ * a memory back has no use for its agent, its expiry or its delete flag, and a
+ * port that wants three columns should say three columns.
+ */
 export interface MemoryRecord {
   key: string;
   value: string;

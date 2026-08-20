@@ -37,6 +37,13 @@ export interface ExecutionRef {
   iteration?: number;
 }
 
+/**
+ * A PROJECTION of `pipeline.agent_conversations`, not the model: the six fields
+ * a reader of a stored transcript needs. `keyKind`/`keyValue`/`nodeId` are the
+ * write-side key the row was reserved under, and `iteration` belongs to the
+ * dispatch that reserved it — none of them is anything a reader of the object
+ * asks for. A port that wants six columns should say six columns.
+ */
 export interface ConversationRecord {
   id: string;
   conversationId: string;
