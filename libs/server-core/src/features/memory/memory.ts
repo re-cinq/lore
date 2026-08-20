@@ -207,8 +207,11 @@ export async function readMemory(
     (typeof version === "string" && !isNaN(Number(version)))
   ) {
     // Specific version
+    // `m.key` is selected so one-version read answers the same shape as a
+    // latest read — the endpoint declares one contract for `action: "read"`,
+    // and a row without the key it was asked for does not satisfy it.
     const { rows } = await pool!.query(
-      `SELECT mv.version, mv.value, mv.created_at
+      `SELECT m.key, mv.version, mv.value, mv.created_at
        FROM memory.memory_versions mv
        JOIN memory.memories m ON m.id = mv.memory_id
        WHERE m.agent_id = $1 AND m.key = $2 AND mv.version = $3`,

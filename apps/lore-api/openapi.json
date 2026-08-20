@@ -3486,17 +3486,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The token list (GET) or the write result (POST)",
+            "description": "A page of active tokens; the hash is never served",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TokenResponse"
+                  "$ref": "#/components/schemas/TokenList"
                 }
               }
             }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3525,11 +3522,11 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The token list (GET) or the write result (POST)",
+            "description": "The revoke acknowledgement, or the created token — served once and never again",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TokenResponse"
+                  "$ref": "#/components/schemas/TokenWriteResult"
                 }
               }
             }
@@ -3580,7 +3577,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The resolved settings (GET) or the applied change (PUT)",
+            "description": "Every dark-factory knob, resolved",
             "content": {
               "application/json": {
                 "schema": {
@@ -3589,17 +3586,11 @@
               }
             }
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3640,11 +3631,11 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The resolved settings (GET) or the applied change (PUT)",
+            "description": "What the write applied, and under whose authority",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DarkFactorySettings"
+                  "$ref": "#/components/schemas/DarkFactorySettingsApplied"
                 }
               }
             }
@@ -8197,8 +8188,172 @@
         "additionalProperties": false
       },
       "MemoryOperationResult": {
-        "type": "object",
-        "additionalProperties": {}
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "version": {
+                "type": "number"
+              },
+              "agent_id": {
+                "type": "string"
+              },
+              "created_at": {
+                "type": "string"
+              }
+            },
+            "required": ["key", "version", "agent_id", "created_at"],
+            "additionalProperties": false
+          },
+          {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "number"
+                  },
+                  "created_at": {
+                    "type": "string"
+                  }
+                },
+                "required": ["key", "value", "version", "created_at"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "number"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                }
+              },
+              "required": ["version", "value", "created_at"],
+              "additionalProperties": false
+            }
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number"
+                },
+                "agent_id": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string",
+                  "enum": ["memory", "fact", "episode", "graph"]
+                },
+                "id": {
+                  "type": "string"
+                },
+                "confidence": {
+                  "type": "string"
+                }
+              },
+              "required": ["key", "value", "score", "agent_id", "source"],
+              "additionalProperties": false
+            }
+          },
+          {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "deleted": {
+                "type": "boolean"
+              }
+            },
+            "required": ["key", "deleted"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "memories": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "agent_id": {
+                      "type": "string"
+                    },
+                    "repo": {
+                      "type": ["string", "null"]
+                    },
+                    "version": {
+                      "type": "number"
+                    },
+                    "ttl_seconds": {
+                      "type": ["number", "null"]
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "has_facts": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "agent_id",
+                    "repo",
+                    "version",
+                    "ttl_seconds",
+                    "created_at",
+                    "has_facts"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "total": {
+                "type": "number"
+              },
+              "limit": {
+                "type": "number"
+              },
+              "offset": {
+                "type": "number"
+              }
+            },
+            "required": ["memories", "total", "limit", "offset"],
+            "additionalProperties": false
+          }
+        ]
       },
       "GraphBrowse": {
         "type": "object",
@@ -8796,128 +8951,188 @@
         "required": ["secret", "canonicalUrl"],
         "additionalProperties": false
       },
-      "TokenResponse": {
+      "TokenList": {
+        "type": "object",
+        "properties": {
+          "tokens": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "scopes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "created_by": {
+                  "type": "string"
+                },
+                "expires_at": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "last_used": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "scopes",
+                "created_by",
+                "expires_at",
+                "last_used",
+                "created_at"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "offset": {
+            "type": "number"
+          }
+        },
+        "required": ["tokens", "total", "limit", "offset"],
+        "additionalProperties": false
+      },
+      "TokenWriteResult": {
         "anyOf": [
           {
             "type": "object",
             "properties": {
-              "tokens": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "scopes": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "created_by": {
-                      "type": "string"
-                    },
-                    "expires_at": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "format": "date-time"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "last_used": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "format": "date-time"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "created_at": {
-                      "type": "string",
-                      "format": "date-time"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "name",
-                    "scopes",
-                    "created_by",
-                    "expires_at",
-                    "last_used",
-                    "created_at"
-                  ],
-                  "additionalProperties": false
-                }
-              },
-              "total": {
-                "type": "number"
-              },
-              "limit": {
-                "type": "number"
-              },
-              "offset": {
-                "type": "number"
+              "ok": {
+                "type": "boolean",
+                "const": true
               }
             },
-            "required": ["tokens", "total", "limit", "offset"],
+            "required": ["ok"],
             "additionalProperties": false
           },
           {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "ok": {
-                    "type": "boolean",
-                    "const": true
-                  }
-                },
-                "required": ["ok"],
-                "additionalProperties": false
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
               },
-              {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "token": {
-                    "type": "string"
-                  },
-                  "scopes": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "expires_at": {
-                    "type": ["string", "null"]
-                  }
-                },
-                "required": ["id", "name", "token", "scopes", "expires_at"],
-                "additionalProperties": false
+              "name": {
+                "type": "string"
+              },
+              "token": {
+                "type": "string"
+              },
+              "scopes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "expires_at": {
+                "type": ["string", "null"]
               }
-            ]
+            },
+            "required": ["id", "name", "token", "scopes", "expires_at"],
+            "additionalProperties": false
           }
         ]
       },
       "DarkFactorySettings": {
-        "anyOf": [
-          {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "create_issue": {
+            "type": "string",
+            "enum": ["never", "on_gate", "always"]
+          },
+          "auto_merge": {
+            "type": "object",
+            "properties": {
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "min_trust": {
+                "type": "string",
+                "enum": ["docs", "tests", "implementation", "full"]
+              },
+              "require_green_ci": {
+                "type": "boolean"
+              },
+              "require_bot_approval": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "paths",
+              "min_trust",
+              "require_green_ci",
+              "require_bot_approval"
+            ],
+            "additionalProperties": false
+          },
+          "review": {
+            "type": "string",
+            "enum": ["trust_based", "always", "never"]
+          },
+          "notify": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["escalation", "watched", "all"]
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "create_issue",
+          "auto_merge",
+          "review",
+          "notify"
+        ],
+        "additionalProperties": false
+      },
+      "DarkFactorySettingsApplied": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "applied": {
             "type": "object",
             "properties": {
               "enabled": {
@@ -8976,94 +9191,26 @@
             ],
             "additionalProperties": false
           },
-          {
+          "ceremony": {
             "type": "object",
             "properties": {
-              "ok": {
-                "type": "boolean",
-                "const": true
+              "tier": {
+                "type": "string",
+                "enum": ["two_key", "admin"]
               },
-              "applied": {
-                "type": "object",
-                "properties": {
-                  "enabled": {
-                    "type": "boolean"
-                  },
-                  "create_issue": {
-                    "type": "string",
-                    "enum": ["never", "on_gate", "always"]
-                  },
-                  "auto_merge": {
-                    "type": "object",
-                    "properties": {
-                      "paths": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      },
-                      "min_trust": {
-                        "type": "string",
-                        "enum": ["docs", "tests", "implementation", "full"]
-                      },
-                      "require_green_ci": {
-                        "type": "boolean"
-                      },
-                      "require_bot_approval": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "paths",
-                      "min_trust",
-                      "require_green_ci",
-                      "require_bot_approval"
-                    ],
-                    "additionalProperties": false
-                  },
-                  "review": {
-                    "type": "string",
-                    "enum": ["trust_based", "always", "never"]
-                  },
-                  "notify": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "enum": ["escalation", "watched", "all"]
-                    }
-                  }
-                },
-                "required": [
-                  "enabled",
-                  "create_issue",
-                  "auto_merge",
-                  "review",
-                  "notify"
-                ],
-                "additionalProperties": false
+              "pr_ref": {
+                "type": "string"
               },
-              "ceremony": {
-                "type": "object",
-                "properties": {
-                  "tier": {
-                    "type": "string",
-                    "enum": ["two_key", "admin"]
-                  },
-                  "pr_ref": {
-                    "type": "string"
-                  },
-                  "approver": {
-                    "type": "string"
-                  }
-                },
-                "required": ["tier"],
-                "additionalProperties": false
+              "approver": {
+                "type": "string"
               }
             },
-            "required": ["ok", "applied", "ceremony"],
+            "required": ["tier"],
             "additionalProperties": false
           }
-        ]
+        },
+        "required": ["ok", "applied", "ceremony"],
+        "additionalProperties": false
       },
       "AgentDefinitionRead": {
         "anyOf": [
