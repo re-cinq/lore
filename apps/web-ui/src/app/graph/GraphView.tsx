@@ -1,35 +1,16 @@
 import styles from "./GraphView.module.css";
+import type { components } from "@/lib/api/schema";
 
-export interface Entity {
-  id: string;
-  name: string;
-  entity_type: string;
-  repo: string | null;
-  edge_count: number;
-  updated_at: string;
-}
+// Aliases over the /api/graph-browse contract. None of these is a table row:
+// `Entity` carries an edge-count subquery and `Edge` is a three-way join that
+// reads names rather than ids, so the route states them and this reads them.
 
-export interface Edge {
-  source_name: string;
-  source_type: string;
-  relation_type: string;
-  target_name: string;
-  target_type: string;
-  valid_from: string;
-  valid_to: string | null;
-  source_label: string;
-}
+type Browse = components["schemas"]["GraphBrowse"];
 
-export interface Stats {
-  entity_count: number;
-  active_edge_count: number;
-  invalidated_edge_count: number;
-}
-
-export interface EntityTypeCount {
-  entity_type: string;
-  cnt: number;
-}
+export type Entity = Browse["entities"][number];
+export type Edge = Browse["edges"][number];
+export type Stats = Browse["stats"];
+export type EntityTypeCount = Browse["entity_types"][number];
 
 export interface GraphViewProps {
   /** The selected entity name, or undefined when none is being explored. */

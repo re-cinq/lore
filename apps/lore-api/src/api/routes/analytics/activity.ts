@@ -111,8 +111,17 @@ const EventListSchema = z.object({
   ),
 });
 
-/** Seven-day counters for a repo's activity cards; null when the table is absent. */
-const ActivityCountsSchema = z.record(z.number().nullable());
+/**
+ * Seven-day counters for a repo's activity cards. Each is NULL rather than zero
+ * when its table is absent, so the card can say "unknown" instead of claiming
+ * nothing happened — a database that predates a migration has no rows to count,
+ * which is not the same as a quiet week.
+ */
+const ActivityCountsSchema = z.object({
+  tasks: z.number().nullable(),
+  auto_merged: z.number().nullable(),
+  escalations: z.number().nullable(),
+});
 
 const JobRunReadSchema = wireSchema(JobRunSchema, JOB_RUN_COLUMNS);
 

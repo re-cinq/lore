@@ -7022,7 +7022,59 @@
       },
       "PrStatus": {
         "type": "object",
-        "additionalProperties": {}
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "number": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["open", "closed", "merged"]
+          },
+          "draft": {
+            "type": "boolean"
+          },
+          "mergeable": {
+            "type": "boolean"
+          },
+          "checksStatus": {
+            "type": "string",
+            "enum": ["success", "failure", "pending", "none"]
+          },
+          "reviewStatus": {
+            "type": "string",
+            "enum": ["approved", "changes_requested", "pending", "none"]
+          },
+          "computedStatus": {
+            "type": "string",
+            "enum": [
+              "merged",
+              "closed",
+              "draft",
+              "checks-failing",
+              "changes-requested",
+              "approved",
+              "open"
+            ]
+          }
+        },
+        "required": [
+          "url",
+          "number",
+          "title",
+          "state",
+          "draft",
+          "mergeable",
+          "checksStatus",
+          "reviewStatus",
+          "computedStatus"
+        ],
+        "additionalProperties": false
       },
       "AssembledContext": {
         "type": "object",
@@ -8153,24 +8205,116 @@
         "properties": {
           "stats": {
             "type": "object",
-            "additionalProperties": {}
+            "properties": {
+              "entity_count": {
+                "type": "number"
+              },
+              "active_edge_count": {
+                "type": "number"
+              },
+              "invalidated_edge_count": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "entity_count",
+              "active_edge_count",
+              "invalidated_edge_count"
+            ],
+            "additionalProperties": false
           },
           "entity_types": {
             "type": "array",
-            "items": {}
+            "items": {
+              "type": "object",
+              "properties": {
+                "entity_type": {
+                  "type": "string"
+                },
+                "cnt": {
+                  "type": "number"
+                }
+              },
+              "required": ["entity_type", "cnt"],
+              "additionalProperties": false
+            }
           },
           "entities": {
             "type": "array",
             "items": {
               "type": "object",
-              "additionalProperties": {}
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "entity_type": {
+                  "type": "string"
+                },
+                "repo": {
+                  "type": ["string", "null"]
+                },
+                "updated_at": {
+                  "type": "string"
+                },
+                "edge_count": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "entity_type",
+                "repo",
+                "updated_at",
+                "edge_count"
+              ],
+              "additionalProperties": false
             }
           },
           "edges": {
             "type": "array",
             "items": {
               "type": "object",
-              "additionalProperties": {}
+              "properties": {
+                "source_name": {
+                  "type": "string"
+                },
+                "source_type": {
+                  "type": "string"
+                },
+                "relation_type": {
+                  "type": "string"
+                },
+                "target_name": {
+                  "type": "string"
+                },
+                "target_type": {
+                  "type": "string"
+                },
+                "valid_from": {
+                  "type": "string"
+                },
+                "valid_to": {
+                  "type": ["string", "null"]
+                },
+                "source_label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "source_name",
+                "source_type",
+                "relation_type",
+                "target_name",
+                "target_type",
+                "valid_from",
+                "valid_to",
+                "source_label"
+              ],
+              "additionalProperties": false
             }
           }
         },
@@ -9265,13 +9409,242 @@
       },
       "RepoActivityCounts": {
         "type": "object",
-        "additionalProperties": {
-          "type": ["number", "null"]
-        }
+        "properties": {
+          "tasks": {
+            "type": ["number", "null"]
+          },
+          "auto_merged": {
+            "type": ["number", "null"]
+          },
+          "escalations": {
+            "type": ["number", "null"]
+          }
+        },
+        "required": ["tasks", "auto_merged", "escalations"],
+        "additionalProperties": false
       },
       "Spend": {
         "type": "object",
-        "additionalProperties": {}
+        "properties": {
+          "org_available": {
+            "type": "boolean"
+          },
+          "org_mtd": {
+            "type": "object",
+            "properties": {
+              "billed_usd": {
+                "type": "number"
+              },
+              "input_tokens": {
+                "type": "number"
+              },
+              "output_tokens": {
+                "type": "number"
+              },
+              "as_of": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": [
+              "billed_usd",
+              "input_tokens",
+              "output_tokens",
+              "as_of"
+            ],
+            "additionalProperties": false
+          },
+          "org_by_model": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "cost_usd": {
+                  "type": "number"
+                },
+                "input_tokens": {
+                  "type": "number"
+                },
+                "output_tokens": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "model",
+                "cost_usd",
+                "input_tokens",
+                "output_tokens"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "org_daily": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "bucket_date": {
+                  "type": "string"
+                },
+                "cost_usd": {
+                  "type": "number"
+                }
+              },
+              "required": ["bucket_date", "cost_usd"],
+              "additionalProperties": false
+            }
+          },
+          "lore_today_usd": {
+            "type": "number"
+          },
+          "lore_mtd": {
+            "type": "object",
+            "properties": {
+              "computed_usd": {
+                "type": "number"
+              },
+              "calls": {
+                "type": "number"
+              },
+              "input_tokens": {
+                "type": "number"
+              },
+              "output_tokens": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "computed_usd",
+              "calls",
+              "input_tokens",
+              "output_tokens"
+            ],
+            "additionalProperties": false
+          },
+          "lore_by_model": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "calls": {
+                  "type": "number"
+                },
+                "cost_usd": {
+                  "type": "number"
+                },
+                "input_tokens": {
+                  "type": "number"
+                },
+                "output_tokens": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "model",
+                "calls",
+                "cost_usd",
+                "input_tokens",
+                "output_tokens"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "lore_by_kind": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "calls": {
+                  "type": "number"
+                },
+                "cost_usd": {
+                  "type": "number"
+                }
+              },
+              "required": ["kind", "calls", "cost_usd"],
+              "additionalProperties": false
+            }
+          },
+          "lore_daily": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "bucket_date": {
+                  "type": "string"
+                },
+                "calls": {
+                  "type": "number"
+                },
+                "cost_usd": {
+                  "type": "number"
+                }
+              },
+              "required": ["bucket_date", "calls", "cost_usd"],
+              "additionalProperties": false
+            }
+          },
+          "lore_by_repo": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "target_repo": {
+                  "type": "string"
+                },
+                "tasks": {
+                  "type": "number"
+                },
+                "cost_usd": {
+                  "type": "number"
+                }
+              },
+              "required": ["target_repo", "tasks", "cost_usd"],
+              "additionalProperties": false
+            }
+          },
+          "lore_by_task_type": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "task_type": {
+                  "type": "string"
+                },
+                "tasks": {
+                  "type": "number"
+                },
+                "cost_usd": {
+                  "type": "number"
+                }
+              },
+              "required": ["task_type", "tasks", "cost_usd"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "org_available",
+          "org_mtd",
+          "org_by_model",
+          "org_daily",
+          "lore_today_usd",
+          "lore_mtd",
+          "lore_by_model",
+          "lore_by_kind",
+          "lore_daily",
+          "lore_by_repo",
+          "lore_by_task_type"
+        ],
+        "additionalProperties": false
       },
       "AnalyticsOverview": {
         "type": "object",
@@ -9280,7 +9653,22 @@
             "anyOf": [
               {
                 "type": "object",
-                "additionalProperties": {}
+                "properties": {
+                  "total": {
+                    "type": "number"
+                  },
+                  "succeeded": {
+                    "type": "number"
+                  },
+                  "failed": {
+                    "type": "number"
+                  },
+                  "active": {
+                    "type": "number"
+                  }
+                },
+                "required": ["total", "succeeded", "failed", "active"],
+                "additionalProperties": false
               },
               {
                 "type": "null"
@@ -9291,35 +9679,142 @@
             "type": "array",
             "items": {
               "type": "object",
-              "additionalProperties": {}
+              "properties": {
+                "task_type": {
+                  "type": "string"
+                },
+                "task_count": {
+                  "type": "number"
+                },
+                "total_input_tokens": {
+                  "type": "number"
+                },
+                "total_output_tokens": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "task_type",
+                "task_count",
+                "total_input_tokens",
+                "total_output_tokens"
+              ],
+              "additionalProperties": false
             }
           },
           "usage_by_repo": {
             "type": "array",
             "items": {
               "type": "object",
-              "additionalProperties": {}
+              "properties": {
+                "target_repo": {
+                  "type": "string"
+                },
+                "task_count": {
+                  "type": "number"
+                }
+              },
+              "required": ["target_repo", "task_count"],
+              "additionalProperties": false
             }
           },
           "daily_usage": {
             "type": "array",
             "items": {
               "type": "object",
-              "additionalProperties": {}
+              "properties": {
+                "day": {
+                  "type": "string"
+                },
+                "calls": {
+                  "type": "number"
+                },
+                "input_tokens": {
+                  "type": "number"
+                },
+                "output_tokens": {
+                  "type": "number"
+                }
+              },
+              "required": ["day", "calls", "input_tokens", "output_tokens"],
+              "additionalProperties": false
             }
           },
           "latency_stats": {
             "type": "array",
             "items": {
               "type": "object",
-              "additionalProperties": {}
+              "properties": {
+                "tool": {
+                  "type": "string"
+                },
+                "call_count": {
+                  "type": "number"
+                },
+                "p50_ms": {
+                  "type": ["number", "null"]
+                },
+                "p95_ms": {
+                  "type": ["number", "null"]
+                },
+                "p99_ms": {
+                  "type": ["number", "null"]
+                }
+              },
+              "required": ["tool", "call_count", "p50_ms", "p95_ms", "p99_ms"],
+              "additionalProperties": false
             }
           },
           "job_runs": {
             "type": "array",
             "items": {
               "type": "object",
-              "additionalProperties": {}
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "job_name": {
+                  "type": "string"
+                },
+                "started_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "completed_at": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "status": {
+                  "type": "string"
+                },
+                "result_summary": {
+                  "type": ["string", "null"]
+                },
+                "error": {
+                  "type": ["string", "null"]
+                },
+                "log_path": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": [
+                "id",
+                "job_name",
+                "started_at",
+                "completed_at",
+                "status",
+                "result_summary",
+                "error",
+                "log_path"
+              ],
+              "additionalProperties": false
             }
           }
         },

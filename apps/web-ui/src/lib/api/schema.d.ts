@@ -1887,7 +1887,26 @@ export interface components {
       ok: true;
     };
     PrStatus: {
-      [key: string]: unknown;
+      url: string;
+      number: number;
+      title: string;
+      /** @enum {string} */
+      state: "open" | "closed" | "merged";
+      draft: boolean;
+      mergeable: boolean;
+      /** @enum {string} */
+      checksStatus: "success" | "failure" | "pending" | "none";
+      /** @enum {string} */
+      reviewStatus: "approved" | "changes_requested" | "pending" | "none";
+      /** @enum {string} */
+      computedStatus:
+        | "merged"
+        | "closed"
+        | "draft"
+        | "checks-failing"
+        | "changes-requested"
+        | "approved"
+        | "open";
     };
     AssembledContext: {
       text: string | null;
@@ -2204,14 +2223,31 @@ export interface components {
     };
     GraphBrowse: {
       stats: {
-        [key: string]: unknown;
+        entity_count: number;
+        active_edge_count: number;
+        invalidated_edge_count: number;
       };
-      entity_types: unknown[];
+      entity_types: {
+        entity_type: string;
+        cnt: number;
+      }[];
       entities: {
-        [key: string]: unknown;
+        id: string;
+        name: string;
+        entity_type: string;
+        repo: string | null;
+        updated_at: string;
+        edge_count: number;
       }[];
       edges: {
-        [key: string]: unknown;
+        source_name: string;
+        source_type: string;
+        relation_type: string;
+        target_name: string;
+        target_type: string;
+        valid_from: string;
+        valid_to: string | null;
+        source_label: string;
       }[];
     };
     SharedPoolList: {
@@ -2528,29 +2564,103 @@ export interface components {
       log_path: string | null;
     };
     RepoActivityCounts: {
-      [key: string]: number | null;
+      tasks: number | null;
+      auto_merged: number | null;
+      escalations: number | null;
     };
     Spend: {
-      [key: string]: unknown;
+      org_available: boolean;
+      org_mtd: {
+        billed_usd: number;
+        input_tokens: number;
+        output_tokens: number;
+        as_of: string | null;
+      };
+      org_by_model: {
+        model: string;
+        cost_usd: number;
+        input_tokens: number;
+        output_tokens: number;
+      }[];
+      org_daily: {
+        bucket_date: string;
+        cost_usd: number;
+      }[];
+      lore_today_usd: number;
+      lore_mtd: {
+        computed_usd: number;
+        calls: number;
+        input_tokens: number;
+        output_tokens: number;
+      };
+      lore_by_model: {
+        model: string;
+        calls: number;
+        cost_usd: number;
+        input_tokens: number;
+        output_tokens: number;
+      }[];
+      lore_by_kind: {
+        kind: string;
+        calls: number;
+        cost_usd: number;
+      }[];
+      lore_daily: {
+        bucket_date: string;
+        calls: number;
+        cost_usd: number;
+      }[];
+      lore_by_repo: {
+        target_repo: string;
+        tasks: number;
+        cost_usd: number;
+      }[];
+      lore_by_task_type: {
+        task_type: string;
+        tasks: number;
+        cost_usd: number;
+      }[];
     };
     AnalyticsOverview: {
       task_summary: {
-        [key: string]: unknown;
+        total: number;
+        succeeded: number;
+        failed: number;
+        active: number;
       } | null;
       usage_by_task_type: {
-        [key: string]: unknown;
+        task_type: string;
+        task_count: number;
+        total_input_tokens: number;
+        total_output_tokens: number;
       }[];
       usage_by_repo: {
-        [key: string]: unknown;
+        target_repo: string;
+        task_count: number;
       }[];
       daily_usage: {
-        [key: string]: unknown;
+        day: string;
+        calls: number;
+        input_tokens: number;
+        output_tokens: number;
       }[];
       latency_stats: {
-        [key: string]: unknown;
+        tool: string;
+        call_count: number;
+        p50_ms: number | null;
+        p95_ms: number | null;
+        p99_ms: number | null;
       }[];
       job_runs: {
-        [key: string]: unknown;
+        id: string;
+        job_name: string;
+        /** Format: date-time */
+        started_at: string;
+        completed_at: string | null;
+        status: string;
+        result_summary: string | null;
+        error: string | null;
+        log_path: string | null;
       }[];
     };
     AgentStats: {
