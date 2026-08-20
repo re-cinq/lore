@@ -62,6 +62,7 @@ describe("POST /api/agent-events turn store", () => {
         carried: null,
         eventType: "result",
         envelope: RESULT_LINE,
+        dedupKey: null,
       },
     ]);
   });
@@ -156,5 +157,37 @@ describe("POST /api/agent-events dropped-turn signal", () => {
         String(call[0]).includes("3 turn(s) dropped"),
       ),
     ).toBe(true);
+  });
+});
+
+describe("POST /api/agent-events deduped-turn signal (#1389)", () => {
+  it("warns with a count when the store skips already-ingested duplicates", async () => {
+    insertTurns.mockResolvedValue([]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    warn.mockClear();
+
+    const res = await post(RESULT_LINE);
+
+    expect(res.statusCode).toBe(200);
+    expect(
+      warn.mock.calls.some((call) =>
+        String(call[0]).includes("1 turn(s) skipped as already-stored"),
+      ),
+    ).toBe(true);
+  });
+
+  it("warns about no duplicates when every row inserts", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    warn.mockClear();
+
+    await post(RESULT_LINE);
+
+    expect(
+      warn.mock.calls.some((call) =>
+        String(call[0]).includes("already-stored"),
+      ),
+    ).toBe(false);
   });
 });

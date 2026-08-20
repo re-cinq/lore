@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
@@ -17,9 +18,68 @@ const TaskTurnsParams = z.object({
  * (libs/assembly-lines/src/agent-output.ts holds the unwrap side; the pod-side
  * wrap lives in the ai-agent-subsystem, out of repo). The raw line is embedded
  * verbatim so the Floor's turn store keeps the exact bytes the laptop redacted.
+ * `turn_key` is this relay's idempotency stamp (#1389): the Floor's turn store
+ * skips a key it already holds, so a retried POST cannot duplicate rows.
  */
-function wrapTaskEnvelope(taskId: string, rawLine: string): string {
-  return `{"source":{"task":${JSON.stringify(taskId)}},"event":${rawLine}}`;
+function wrapTaskEnvelope(
+  taskId: string,
+  rawLine: string,
+  key: string,
+): string {
+  return `{"source":{"task":${JSON.stringify(taskId)},"turn_key":${JSON.stringify(key)}},"event":${rawLine}}`;
+}
+
+function turnKey(taskId: string, slot: number, line: string): string {
+  return createHash("sha256")
+    .update(`${taskId}\n${slot}\n${line}`)
+    .digest("hex");
+}
+
+/**
+ * The `x-turn-offset` header: the position of this POST's first line within
+ * the runner's full transcript buffer. Absent or malformed (an older runner)
+ * → null, and keying falls back to per-POST occurrence numbering.
+ */
+function parseTurnOffset(value: unknown): number | null {
+  if (typeof value !== "string" || !/^(?:0|[1-9]\d{0,14})$/.test(value)) {
+    return null;
+  }
+
+  return Number(value);
+}
+
+/**
+ * The relayable lines, each with its dedup key: sha256 over (task, slot, line
+ * bytes). With an offset the slot is the line's position in the whole
+ * transcript, so a full-buffer re-POST — including one whose tail batch grew —
+ * reproduces the keys of every line it already sent. The occurrence fallback
+ * numbers byte-identical copies within one POST, which keys a same-body retry
+ * identically while keeping legitimate repeats distinct; its known limit is
+ * byte-identical lines in DIFFERENT POSTs, which collide at occurrence 0 (the
+ * Floor counts such skips as `turn_deduped`).
+ */
+function keyedRelayableLines(
+  taskId: string,
+  lines: string[],
+  offset: number | null,
+): Array<{ line: string; key: string }> {
+  const occurrences = new Map<string, number>();
+  const keyed: Array<{ line: string; key: string }> = [];
+
+  lines.forEach((line, index) => {
+    const occurrence = occurrences.get(line) ?? 0;
+
+    occurrences.set(line, occurrence + 1);
+
+    if (!relayableEvent(line)) {
+      return;
+    }
+    const slot = offset === null ? occurrence : offset + index;
+
+    keyed.push({ line, key: turnKey(taskId, slot, line) });
+  });
+
+  return keyed;
 }
 
 /**
@@ -121,7 +181,8 @@ export function taskTurnsPostRoute(getPool: () => Pool | null): ServerRoute {
           .split("\n")
           .map((line) => line.trim())
           .filter(Boolean);
-        const relayable = lines.filter(relayableEvent);
+        const offset = parseTurnOffset(request.headers["x-turn-offset"]);
+        const relayable = keyedRelayableLines(taskId, lines, offset);
         const skipped = lines.length - relayable.length;
 
         if (relayable.length === 0) {
@@ -136,7 +197,7 @@ export function taskTurnsPostRoute(getPool: () => Pool | null): ServerRoute {
             "Content-Type": "application/x-ndjson",
           },
           body: relayable
-            .map((line) => wrapTaskEnvelope(taskId, line))
+            .map(({ line, key }) => wrapTaskEnvelope(taskId, line, key))
             .join("\n"),
         });
 

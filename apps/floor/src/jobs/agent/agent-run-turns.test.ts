@@ -118,3 +118,35 @@ describe("turnFromEnvelope", () => {
     expect(MAX_RUN_TURNS_PER_BATCH).toBe(10_000);
   });
 });
+
+describe("turnFromEnvelope dedup key (#1389)", () => {
+  it("carries the relay's turn_key as the insert's dedup key", () => {
+    const parsed = envelope(
+      { type: "assistant" },
+      { task: "t1", turn_key: "abc123" },
+    );
+
+    expect(turnFromEnvelope(parsed, JSON.stringify(parsed))).toMatchObject({
+      dedupKey: "abc123",
+    });
+  });
+
+  it("carries a null dedup key when the source has none", () => {
+    const parsed = envelope({ type: "assistant" });
+
+    expect(turnFromEnvelope(parsed, JSON.stringify(parsed))).toMatchObject({
+      dedupKey: null,
+    });
+  });
+
+  it("ignores a non-string turn_key", () => {
+    const parsed = envelope(
+      { type: "assistant" },
+      { task: "t1", turn_key: 42 },
+    );
+
+    expect(turnFromEnvelope(parsed, JSON.stringify(parsed))).toMatchObject({
+      dedupKey: null,
+    });
+  });
+});
