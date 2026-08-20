@@ -1,3 +1,5 @@
+import type { Assert, KeysAreColumns } from "../../lib/row.js";
+import { EVENT_COLUMNS, type Event } from "../../models/event.js";
 import type { EventInsert } from "../../events.js";
 
 export type { EventInsert };
@@ -49,3 +51,14 @@ export interface EventQueueRepository {
   /** Delete terminal rows older than `olderThanDays`; returns the count. */
   pruneHandled(olderThanDays: number): Promise<number>;
 }
+
+/**
+ * `EventRow` is the `Event` MODEL in the stored spelling — every key it declares
+ * is a column of `pipeline.events`, asserted at compile time. The two are not
+ * one type because the queue reads timestamps as the strings pg hands back for
+ * this table, while the model states them as `Date`; the KEYS are what can rot,
+ * and those are held together here.
+ */
+type _EventRowKeysAreColumns = Assert<
+  KeysAreColumns<EventRow, Event, typeof EVENT_COLUMNS>
+>;

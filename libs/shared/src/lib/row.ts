@@ -128,3 +128,30 @@ export function acceptEitherSpelling<T>(
 
   return row;
 }
+
+/** Type-only: `Assert<Check>` fails `tsc` when `Check` is not `true`. */
+export type Assert<Check extends true> = Check;
+
+/**
+ * Type-only: every key of `Shape` is a column that `Columns` binds.
+ *
+ * The guard for a hand-written row shape that a model already describes — a
+ * pg adapter's result type, an in-memory double's stored row, a wire body.
+ * Pairing it with {@link Assert} turns "this shape is the table's shape" from a
+ * comment into a build failure, which is what catches a column renamed out from
+ * under a `SELECT` before it reaches production as a `42703`.
+ *
+ * Keys the shape carries DELIBERATELY that are not columns — a joined-in owner,
+ * an aggregate — go in an `Omit` at the call site, so the exceptions are a list
+ * someone has to write down rather than a paragraph someone has to believe.
+ *
+ * REQUIRES a column map pinned with `as const`. Without the pin,
+ * `Columns[keyof T]` widens from the literal union to `string`,
+ * `Exclude<keyof Shape, string>` is `never`, and every assertion built on that
+ * map answers `true` whatever shape it is handed — the guard would not fail, it
+ * would stop inspecting. Every map in `models/` is pinned, and `models.test.ts`
+ * reads the source to keep it that way, since the pin leaves no runtime trace to
+ * check.
+ */
+export type KeysAreColumns<Shape, T, Columns extends ColumnMap<T>> =
+  Exclude<keyof Shape, Columns[keyof T]> extends never ? true : false;
