@@ -85,3 +85,46 @@ export function toRow<T extends object>(
 
   return row;
 }
+
+/**
+ * Read a record whose keys may use EITHER spelling — the model's camelCase field
+ * names or its snake_case column names — and answer keyed by COLUMN.
+ *
+ * The reader half of an expand/contract rename (`specs/6-dark-factory` FR6.41):
+ * every consumer accepts both spellings in one release BEFORE any producer emits
+ * the new one. Without that, flipping a wire key needs a coordinated deploy,
+ * which a separately-shipped image cannot give — a station pod and the API that
+ * feeds it are always one rollout apart in one direction or the other.
+ *
+ * The COLUMN spelling wins when a record carries both, because that is the one
+ * a producer emits today.
+ *
+ * The OUTPUT is always keyed by COLUMN, whichever spelling arrived. This widens
+ * what a reader ACCEPTS; it does not change what a reader ANSWERS — which is
+ * exactly what makes release 1 a no-op on the wire and lets release 2 flip the
+ * producers without touching a consumer. Release 3 is the one that is not free:
+ * the downstream shape stays snake_case only while this function is in the path,
+ * so whoever deletes the shim flips the consumer's own type in the same change.
+ *
+ * A field absent from `raw` stays absent rather than becoming
+ * present-and-undefined — an optional field that is always present, holding
+ * nothing, is a different shape than one that is missing.
+ */
+export function acceptEitherSpelling<T>(
+  columns: ColumnMap<T>,
+  raw: DbRow,
+): DbRow {
+  const row: DbRow = {};
+
+  for (const [field, column] of Object.entries<string>(columns) as Array<
+    [keyof T & string, string]
+  >) {
+    const key = column in raw ? column : field in raw ? field : undefined;
+
+    if (key !== undefined) {
+      row[column] = raw[key];
+    }
+  }
+
+  return row;
+}

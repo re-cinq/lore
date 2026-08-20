@@ -82,3 +82,31 @@ describe("createStationProject", () => {
     });
   });
 });
+
+describe("findOpenLike accepts either wire spelling", () => {
+  const query =
+    "GET /api/repos/o/r/tasks/open-like?task_type=gap-fill&description_prefix=Gap%3A&statuses=running";
+
+  const find = (tasks: unknown[]) =>
+    createStationProject(
+      "o/r",
+      env,
+      fakeFetch({ [query]: { tasks } }).fetchImpl,
+    ).tasks.findOpenLike({
+      taskType: "gap-fill",
+      descriptionPrefix: "Gap:",
+      statuses: ["running"],
+    });
+
+  it("reads the snake_case body a producer emits today", async () => {
+    expect(
+      await find([{ id: "t1", task_type: "gap-fill", status: "running" }]),
+    ).toEqual([{ id: "t1", task_type: "gap-fill", status: "running" }]);
+  });
+
+  it("reads a camelCase body from a producer that has already flipped", async () => {
+    expect(
+      await find([{ id: "t1", taskType: "gap-fill", status: "running" }]),
+    ).toEqual([{ id: "t1", task_type: "gap-fill", status: "running" }]);
+  });
+});
