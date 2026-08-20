@@ -2251,7 +2251,7 @@ export interface components {
         ref: string | null;
         /** Format: date-time */
         created_at: string;
-        content_preview: string | null;
+        content_preview: string;
         fact_count: number;
       }[];
       total: number;

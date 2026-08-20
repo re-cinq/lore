@@ -22,10 +22,9 @@ const HOME_REPO_LIMIT = 100;
 export default async function HomePage() {
   // Query repos with activity summary, bounded to the most recently onboarded.
   const repoList = await listRepos();
-  const repos = (repoList.status === "ok" ? repoList.data.repos : []).slice(
-    0,
-    HOME_REPO_LIMIT,
-  ) as unknown as Repo[];
+  const repos: Repo[] = (
+    repoList.status === "ok" ? repoList.data.repos : []
+  ).slice(0, HOME_REPO_LIMIT);
 
   // Per-repo ingest-workflow alignment, TTL-cached so steady-state renders
   // make zero GitHub calls (#1027). Skipped entirely when the GitHub App

@@ -1,16 +1,9 @@
 import Link from "next/link";
 import styles from "./JobRunView.module.css";
+import type { components } from "@/lib/api/schema";
 
-export interface JobRunRow {
-  id: string;
-  job_name: string;
-  status: string;
-  started_at: string;
-  completed_at: string | null;
-  result_summary: string | null;
-  error: string | null;
-  log_path: string | null;
-}
+/** One `pipeline.job_runs` row, as `/api/job-runs/{id}` publishes it. */
+export type JobRunRow = components["schemas"]["JobRun"];
 
 export interface JobRunViewProps {
   id: string;
