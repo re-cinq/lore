@@ -58,8 +58,81 @@ const AnalyticsOverviewSchema = z.object({
  * Spend from TWO sources, deliberately: Anthropic's own billing (`org_*`) and
  * what this platform attributes to itself (`lore_*`). They are reported side by
  * side rather than reconciled, because only one of them is authoritative.
+ *
+ * Every field is a SQL aggregate, so none of it derives from a model — the
+ * shapes are stated here, where the queries that produce them live.
+ * `org_available` is false when no admin key is configured, and the `org_*`
+ * rows are empty rather than absent, so a caller reads the same shape either
+ * way.
  */
-const SpendSchema = z.record(z.unknown());
+const OrgMtdSchema = z.object({
+  billed_usd: z.number(),
+  input_tokens: z.number(),
+  output_tokens: z.number(),
+  as_of: z.string().nullable(),
+});
+
+const LoreMtdSchema = z.object({
+  computed_usd: z.number(),
+  calls: z.number(),
+  input_tokens: z.number(),
+  output_tokens: z.number(),
+});
+
+const SpendSchema = z.object({
+  org_available: z.boolean(),
+  org_mtd: OrgMtdSchema,
+  org_by_model: z.array(
+    z.object({
+      model: z.string(),
+      cost_usd: z.number(),
+      input_tokens: z.number(),
+      output_tokens: z.number(),
+    }),
+  ),
+  org_daily: z.array(
+    z.object({ bucket_date: z.string(), cost_usd: z.number() }),
+  ),
+  lore_today_usd: z.number(),
+  lore_mtd: LoreMtdSchema,
+  lore_by_model: z.array(
+    z.object({
+      model: z.string(),
+      calls: z.number(),
+      cost_usd: z.number(),
+      input_tokens: z.number(),
+      output_tokens: z.number(),
+    }),
+  ),
+  lore_by_kind: z.array(
+    z.object({
+      kind: z.string(),
+      calls: z.number(),
+      cost_usd: z.number(),
+    }),
+  ),
+  lore_daily: z.array(
+    z.object({
+      bucket_date: z.string(),
+      calls: z.number(),
+      cost_usd: z.number(),
+    }),
+  ),
+  lore_by_repo: z.array(
+    z.object({
+      target_repo: z.string(),
+      tasks: z.number(),
+      cost_usd: z.number(),
+    }),
+  ),
+  lore_by_task_type: z.array(
+    z.object({
+      task_type: z.string(),
+      tasks: z.number(),
+      cost_usd: z.number(),
+    }),
+  ),
+});
 
 export function analyticsOverviewRoute(
   getPool: () => Pool | null,

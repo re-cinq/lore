@@ -9271,7 +9271,226 @@
       },
       "Spend": {
         "type": "object",
-        "additionalProperties": {}
+        "properties": {
+          "org_available": {
+            "type": "boolean"
+          },
+          "org_mtd": {
+            "type": "object",
+            "properties": {
+              "billed_usd": {
+                "type": "number"
+              },
+              "input_tokens": {
+                "type": "number"
+              },
+              "output_tokens": {
+                "type": "number"
+              },
+              "as_of": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": [
+              "billed_usd",
+              "input_tokens",
+              "output_tokens",
+              "as_of"
+            ],
+            "additionalProperties": false
+          },
+          "org_by_model": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "cost_usd": {
+                  "type": "number"
+                },
+                "input_tokens": {
+                  "type": "number"
+                },
+                "output_tokens": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "model",
+                "cost_usd",
+                "input_tokens",
+                "output_tokens"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "org_daily": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "bucket_date": {
+                  "type": "string"
+                },
+                "cost_usd": {
+                  "type": "number"
+                }
+              },
+              "required": ["bucket_date", "cost_usd"],
+              "additionalProperties": false
+            }
+          },
+          "lore_today_usd": {
+            "type": "number"
+          },
+          "lore_mtd": {
+            "type": "object",
+            "properties": {
+              "computed_usd": {
+                "type": "number"
+              },
+              "calls": {
+                "type": "number"
+              },
+              "input_tokens": {
+                "type": "number"
+              },
+              "output_tokens": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "computed_usd",
+              "calls",
+              "input_tokens",
+              "output_tokens"
+            ],
+            "additionalProperties": false
+          },
+          "lore_by_model": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string"
+                },
+                "calls": {
+                  "type": "number"
+                },
+                "cost_usd": {
+                  "type": "number"
+                },
+                "input_tokens": {
+                  "type": "number"
+                },
+                "output_tokens": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "model",
+                "calls",
+                "cost_usd",
+                "input_tokens",
+                "output_tokens"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "lore_by_kind": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "calls": {
+                  "type": "number"
+                },
+                "cost_usd": {
+                  "type": "number"
+                }
+              },
+              "required": ["kind", "calls", "cost_usd"],
+              "additionalProperties": false
+            }
+          },
+          "lore_daily": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "bucket_date": {
+                  "type": "string"
+                },
+                "calls": {
+                  "type": "number"
+                },
+                "cost_usd": {
+                  "type": "number"
+                }
+              },
+              "required": ["bucket_date", "calls", "cost_usd"],
+              "additionalProperties": false
+            }
+          },
+          "lore_by_repo": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "target_repo": {
+                  "type": "string"
+                },
+                "tasks": {
+                  "type": "number"
+                },
+                "cost_usd": {
+                  "type": "number"
+                }
+              },
+              "required": ["target_repo", "tasks", "cost_usd"],
+              "additionalProperties": false
+            }
+          },
+          "lore_by_task_type": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "task_type": {
+                  "type": "string"
+                },
+                "tasks": {
+                  "type": "number"
+                },
+                "cost_usd": {
+                  "type": "number"
+                }
+              },
+              "required": ["task_type", "tasks", "cost_usd"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "org_available",
+          "org_mtd",
+          "org_by_model",
+          "org_daily",
+          "lore_today_usd",
+          "lore_mtd",
+          "lore_by_model",
+          "lore_by_kind",
+          "lore_daily",
+          "lore_by_repo",
+          "lore_by_task_type"
+        ],
+        "additionalProperties": false
       },
       "AnalyticsOverview": {
         "type": "object",

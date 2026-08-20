@@ -2531,7 +2531,57 @@ export interface components {
       [key: string]: number | null;
     };
     Spend: {
-      [key: string]: unknown;
+      org_available: boolean;
+      org_mtd: {
+        billed_usd: number;
+        input_tokens: number;
+        output_tokens: number;
+        as_of: string | null;
+      };
+      org_by_model: {
+        model: string;
+        cost_usd: number;
+        input_tokens: number;
+        output_tokens: number;
+      }[];
+      org_daily: {
+        bucket_date: string;
+        cost_usd: number;
+      }[];
+      lore_today_usd: number;
+      lore_mtd: {
+        computed_usd: number;
+        calls: number;
+        input_tokens: number;
+        output_tokens: number;
+      };
+      lore_by_model: {
+        model: string;
+        calls: number;
+        cost_usd: number;
+        input_tokens: number;
+        output_tokens: number;
+      }[];
+      lore_by_kind: {
+        kind: string;
+        calls: number;
+        cost_usd: number;
+      }[];
+      lore_daily: {
+        bucket_date: string;
+        calls: number;
+        cost_usd: number;
+      }[];
+      lore_by_repo: {
+        target_repo: string;
+        tasks: number;
+        cost_usd: number;
+      }[];
+      lore_by_task_type: {
+        task_type: string;
+        tasks: number;
+        cost_usd: number;
+      }[];
     };
     AnalyticsOverview: {
       task_summary: {

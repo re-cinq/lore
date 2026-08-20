@@ -1,66 +1,24 @@
 import styles from "./SpendView.module.css";
+import type { components } from "@/lib/api/schema";
 
 // Anthropic's authoritative billed cost (Admin Cost API → anthropic_cost_daily).
 // Optional — only present when an sk-ant-admin… key is configured.
-export interface OrgMtdRow {
-  billed_usd: number;
-  input_tokens: number;
-  output_tokens: number;
-  as_of: string | null;
-}
+// Every row here is an alias over the OpenAPI document lore-api generates from
+// the /api/spend contract (ADR-035). None of these shapes comes from a table —
+// they are SQL aggregates — so the contract is stated beside the queries that
+// produce them, and this file reads it rather than restating it.
 
-export interface OrgByModelRow {
-  model: string;
-  cost_usd: number;
-  input_tokens: number;
-  output_tokens: number;
-}
+type Spend = components["schemas"]["Spend"];
 
-export interface OrgDailyRow {
-  bucket_date: string;
-  cost_usd: number;
-}
-
-// Lore-computed cost (pipeline.llm_calls) — the always-available source, no
-// admin key required. Attributes spend by model, kind, day, repo, task type.
-export interface LoreMtdRow {
-  computed_usd: number;
-  calls: number;
-  input_tokens: number;
-  output_tokens: number;
-}
-
-export interface LoreByModelRow {
-  model: string;
-  calls: number;
-  cost_usd: number;
-  input_tokens: number;
-  output_tokens: number;
-}
-
-export interface LoreByKindRow {
-  kind: string;
-  calls: number;
-  cost_usd: number;
-}
-
-export interface LoreDailyRow {
-  bucket_date: string;
-  calls: number;
-  cost_usd: number;
-}
-
-export interface LoreByRepoRow {
-  target_repo: string;
-  tasks: number;
-  cost_usd: number;
-}
-
-export interface LoreByTaskTypeRow {
-  task_type: string;
-  tasks: number;
-  cost_usd: number;
-}
+export type OrgMtdRow = Spend["org_mtd"];
+export type OrgByModelRow = Spend["org_by_model"][number];
+export type OrgDailyRow = Spend["org_daily"][number];
+export type LoreMtdRow = Spend["lore_mtd"];
+export type LoreByModelRow = Spend["lore_by_model"][number];
+export type LoreByKindRow = Spend["lore_by_kind"][number];
+export type LoreDailyRow = Spend["lore_daily"][number];
+export type LoreByRepoRow = Spend["lore_by_repo"][number];
+export type LoreByTaskTypeRow = Spend["lore_by_task_type"][number];
 
 export interface SpendViewProps {
   orgMtd: OrgMtdRow;
