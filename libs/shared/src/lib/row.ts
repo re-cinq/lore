@@ -101,6 +101,14 @@ export type Assert<Check extends true> = Check;
  * Keys the shape carries DELIBERATELY that are not columns — a joined-in owner,
  * an aggregate — go in an `Omit` at the call site, so the exceptions are a list
  * someone has to write down rather than a paragraph someone has to believe.
+ *
+ * REQUIRES a column map pinned with `as const`. Without the pin,
+ * `Columns[keyof T]` widens from the literal union to `string`,
+ * `Exclude<keyof Shape, string>` is `never`, and every assertion built on that
+ * map answers `true` whatever shape it is handed — the guard would not fail, it
+ * would stop inspecting. Every map in `models/` is pinned, and `models.test.ts`
+ * reads the source to keep it that way, since the pin leaves no runtime trace to
+ * check.
  */
 export type KeysAreColumns<Shape, T, Columns extends ColumnMap<T>> =
   Exclude<keyof Shape, Columns[keyof T]> extends never ? true : false;
