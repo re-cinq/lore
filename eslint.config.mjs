@@ -157,6 +157,11 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-hooks/set-state-in-effect": "error",
       "lore/no-sql-in-web-ui": "error",
+      // Starts at `warn`, the way no-sql-in-web-ui did: the pre-existing copies
+      // are a decision per type (model it, derive it, or keep it as a genuine
+      // projection), not a codemod. Graduates to `error` when the last one is
+      // resolved — see #1421 for the survey.
+      "lore/no-row-types-outside-models": "warn",
     },
   },
 
