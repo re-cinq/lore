@@ -1014,7 +1014,9 @@ describe("PgAssemblyRuns node-transition primitives", () => {
 
     expect(sql).toContain("outcome IS NULL");
     expect(sql).toContain("RETURNING id");
-    expect(calls[0]?.params).toEqual(["success", "sha-1", "42"]);
+    // The failure columns ride the same CAS: a success writes NULLs into them, so
+    // a row can never claim an outcome and a stale cause at the same time.
+    expect(calls[0]?.params).toEqual(["success", "sha-1", "42", null, null]);
   });
 
   it("listStationRuns selects the line's rows ordered by id", async () => {
@@ -1516,8 +1518,13 @@ describe("PgAssemblyRuns resumeFrom", () => {
     await new PgAssemblyRuns(pool).start(resumeInput());
     const sql = calls[2]?.text ?? "";
 
+    // The fork inherits WHY each copied visit failed — a resumed run that showed a
+    // blank cause for history it is carrying forward would be lying by omission.
     expect(sql).toContain(
-      "n.node_id, n.iteration, n.outcome, NULL, n.commit_sha, n.started_at, n.finished_at",
+      "n.node_id, n.iteration, n.outcome, n.failure_class,",
+    );
+    expect(sql).toContain(
+      "n.failure_detail, NULL, n.commit_sha, n.started_at, n.finished_at",
     );
   });
 

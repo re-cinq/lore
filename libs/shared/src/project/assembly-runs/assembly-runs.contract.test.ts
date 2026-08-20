@@ -291,6 +291,44 @@ describe.each(IMPLEMENTATIONS)(
       expect((await port.listStationRuns(id))[0]?.outcome).toBe("success");
     });
 
+    it("records the failure class and detail a classified node failure carried", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, "failed", undefined, {
+        failureClass: "anthropic-credit",
+        failureDetail: "Credit balance is too low",
+      });
+
+      expect((await port.listStationRuns(id))[0]).toMatchObject({
+        outcome: "failed",
+        failureClass: "anthropic-credit",
+        failureDetail: "Credit balance is too low",
+      });
+    });
+
+    it("leaves the failure columns null for a node that simply succeeded", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, "success");
+
+      expect((await port.listStationRuns(id))[0]).toMatchObject({
+        failureClass: null,
+        failureDetail: null,
+      });
+    });
+
     it("listStationRuns returns the run's visits in visit order", async () => {
       const { port, repo } = make();
       const id = await port.start({ blueprintName: "code-review", repo });

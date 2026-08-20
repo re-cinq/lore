@@ -22,6 +22,8 @@ function node(
     nodeId,
     iteration,
     outcome,
+    failureClass: null,
+    failureDetail: null,
     agentCrName: `src12345678-${nodeId}`,
     commitSha: `sha-${id}`,
     startedAt: AT,

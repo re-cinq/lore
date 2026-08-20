@@ -8,6 +8,7 @@ import type {
   AssemblyRunsPort,
   AssemblyRunResumeFrom,
   AssemblyRunStartInput,
+  StationRunFailure,
   StationRunStartInput,
   AssemblyRunRecord,
   StationRunRecord,
@@ -190,10 +191,11 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
          FROM al
        ), copied AS (
          INSERT INTO pipeline.station_runs
-           (assembly_run_id, node_id, iteration, outcome, agent_cr_name,
-            commit_sha, started_at, finished_at)
+           (assembly_run_id, node_id, iteration, outcome, failure_class,
+            failure_detail, agent_cr_name, commit_sha, started_at, finished_at)
          SELECT al.id,
-                n.node_id, n.iteration, n.outcome, NULL, n.commit_sha, n.started_at, n.finished_at
+                n.node_id, n.iteration, n.outcome, n.failure_class,
+                n.failure_detail, NULL, n.commit_sha, n.started_at, n.finished_at
            FROM pipeline.station_runs n, al
           WHERE n.assembly_run_id = $7
             AND n.id <= $9::bigint
@@ -308,13 +310,21 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
+    failure?: StationRunFailure,
   ): Promise<boolean> {
     const { rows } = await this.pool.query(
       `UPDATE pipeline.station_runs
-         SET outcome = $1, commit_sha = $2, finished_at = now()
+         SET outcome = $1, commit_sha = $2, finished_at = now(),
+             failure_class = $4, failure_detail = $5
        WHERE id = $3 AND outcome IS NULL
        RETURNING id`,
-      [outcome, commitSha ?? null, nodeRowId],
+      [
+        outcome,
+        commitSha ?? null,
+        nodeRowId,
+        failure?.failureClass ?? null,
+        failure?.failureDetail ?? null,
+      ],
     );
 
     return rows.length === 1;
@@ -323,6 +333,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
   async listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]> {
     const { rows } = await this.pool.query(
       `SELECT id, station_run_id, assembly_run_id, node_id, iteration, outcome,
+              failure_class, failure_detail,
               agent_cr_name, commit_sha, started_at, finished_at
          FROM pipeline.station_runs
         WHERE assembly_run_id = $1
@@ -525,6 +536,8 @@ function toNodeRecord(row: {
   node_id: string;
   iteration: number;
   outcome: string | null;
+  failure_class: string | null;
+  failure_detail: string | null;
   agent_cr_name: string | null;
   commit_sha: string | null;
   started_at: Date;
@@ -537,6 +550,8 @@ function toNodeRecord(row: {
     nodeId: row.node_id,
     iteration: row.iteration,
     outcome: row.outcome,
+    failureClass: row.failure_class,
+    failureDetail: row.failure_detail,
     agentCrName: row.agent_cr_name,
     commitSha: row.commit_sha,
     startedAt: row.started_at,

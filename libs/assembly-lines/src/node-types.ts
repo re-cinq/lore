@@ -3,6 +3,7 @@
 // (the event-driven walk — spec 6-dark-factory FR6.9 — made the walk loop itself
 // obsolete; the types it defined did not).
 
+import type { FailureCategory } from "@re-cinq/lore-shared/error-classify.js";
 import type { AssemblyLineNode } from "./loader.js";
 
 export type StageOutcome = "success" | "changes_requested" | "failed";
@@ -32,6 +33,16 @@ export interface NodeResult {
    * envelope fields; it is never serialized into the LORE_NODE_RESULT payload.
    */
   usage?: NodeLlmUsage;
+  /**
+   * WHY the node failed, on a `failed` outcome that the Floor classified rather
+   * than the station reporting. Typed rather than stuffed into `extras` because
+   * the walk routes on it (a permanent class must not spend a retry budget) and
+   * it is persisted on the station run — a stringly bag would reach neither
+   * with a compiler watching.
+   */
+  failureClass?: FailureCategory;
+  /** The agent's own error text, capped, that produced `failureClass`. */
+  failureDetail?: string;
 }
 
 export interface NodeContext {

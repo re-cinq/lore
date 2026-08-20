@@ -4,6 +4,7 @@ export type FailureCategory =
   | "github-workflows-permission"
   | "github-permission"
   | "auth"
+  | "infra"
   | "unknown";
 
 export interface StepFailure {
@@ -26,12 +27,18 @@ const HINTS: Record<FailureCategory, string> = {
   "github-permission":
     "Check the Lore GitHub App's repository permissions and that it is installed on the target repo.",
   auth: "Authentication failed — the token or credential is invalid or expired.",
+  infra:
+    "The pod died rather than the work failing — a crash, an OOM, an eviction, or a Job deadline. Re-running is the right response; check pod events if it repeats.",
   unknown:
     "Unrecognized failure — see the Event Timeline metadata and agent pod logs.",
 };
 
 function categorize(message: string, step?: string): FailureCategory {
-  if (/credit balance is too low/i.test(message)) {
+  // Two phrasings, one class. The Anthropic API says "Your credit balance is too
+  // low to access the Anthropic API"; the agent's own terminal line says
+  // "Credit balance is too low"; older copy said "insufficient credit". A second
+  // matcher that recognised only some of them is what this replaces.
+  if (/credit balance is too low|insufficient credits?/i.test(message)) {
     return "anthropic-credit";
   }
 
@@ -53,6 +60,18 @@ function categorize(message: string, step?: string): FailureCategory {
     return "auth";
   }
 
+  // The POD died, not the work. These are the Kubernetes-level reasons a Job
+  // reports when the agent never got to say anything itself, so they are checked
+  // last — a pod that died for a credential reason has already matched above, and
+  // its Job would otherwise be reclassified as generic infrastructure.
+  if (
+    /backofflimitexceeded|deadlineexceeded|oomkilled|evicted|timed out/i.test(
+      message,
+    )
+  ) {
+    return "infra";
+  }
+
   return "unknown";
 }
 
@@ -71,8 +90,40 @@ const CATEGORY_LABELS: Record<FailureCategory, string> = {
   "github-workflows-permission": "GitHub App missing Workflows permission",
   "github-permission": "GitHub App permission denied",
   auth: "Authentication failed",
+  infra: "Pod or Job infrastructure failure",
   unknown: "Unknown error",
 };
+
+/**
+ * Categories no retry can clear: the credential, the permission, or the balance
+ * has to change first. Spending an assembly line's `iteration_max` budget on one
+ * of these buys a second identical failure and a slower, less honest report.
+ *
+ * `anthropic-rate-limit` is deliberately absent — a later attempt genuinely can
+ * succeed. So are `infra` and `unknown`: a crashed pod is the case the retry
+ * budget exists for.
+ */
+const PERMANENT: ReadonlySet<FailureCategory> = new Set<FailureCategory>([
+  "anthropic-credit",
+  "auth",
+  "github-permission",
+  "github-workflows-permission",
+]);
+
+/** The remediation text for a category, for callers that already know the class
+ *  and would otherwise re-run the regex over text they have thrown away. */
+export function failureHint(category: FailureCategory): string {
+  return HINTS[category];
+}
+
+/** True for a string that names a category this module knows. */
+export function isFailureCategory(value: string): value is FailureCategory {
+  return value in HINTS;
+}
+
+export function isPermanentFailure(category: FailureCategory): boolean {
+  return PERMANENT.has(category);
+}
 
 export function summarizeFailures(failures: StepFailure[]): {
   summary: string;

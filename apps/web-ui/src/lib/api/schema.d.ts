@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+  "/api/platform/llm-status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/platform/llm-status */
+    get: operations["get_api_platform_llm-status"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repo-status": {
     parameters: {
       query?: never;
@@ -1716,6 +1733,13 @@ export interface components {
     Error: {
       error: string;
     };
+    PlatformLlmStatus: {
+      degraded: boolean;
+      failure_class: string | null;
+      detail: string | null;
+      since: string | null;
+      affected_runs: number;
+    };
     RepoStatus: {
       onboarded: boolean;
       repo?: string;
@@ -3294,6 +3318,30 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  "get_api_platform_llm-status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Whether an account-wide LLM outage is degrading the factory */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlatformLlmStatus"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "get_api_repo-status": {
     parameters: {
       query?: never;

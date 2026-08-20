@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   classifyError,
+  isPermanentFailure,
   summarizeFailures,
   TaskFailure,
 } from "./error-classify.js";
@@ -38,6 +39,39 @@ describe("classifyError", () => {
     });
   });
 
+  it("returns anthropic-credit for an insufficient-credit message", () => {
+    expect(classifyError("insufficient credit for this request")).toMatchObject(
+      {
+        category: "anthropic-credit",
+      },
+    );
+  });
+
+  it("returns anthropic-credit for the agent's bare terminal text", () => {
+    expect(classifyError("Credit balance is too low")).toMatchObject({
+      category: "anthropic-credit",
+    });
+  });
+
+  it("returns infra for a Job-level BackoffLimitExceeded", () => {
+    expect(
+      classifyError(
+        "BackoffLimitExceeded: Job has reached the specified backoff limit",
+      ),
+    ).toMatchObject({ category: "infra" });
+  });
+
+  it("returns infra for a Job deadline and for an evicted pod", () => {
+    expect(
+      classifyError(
+        "DeadlineExceeded: Job was active longer than the deadline",
+      ),
+    ).toMatchObject({ category: "infra" });
+    expect(classifyError("Pod was Evicted: ephemeral storage")).toMatchObject({
+      category: "infra",
+    });
+  });
+
   it("returns unknown for an unrecognized message", () => {
     expect(classifyError("something exploded")).toMatchObject({
       category: "unknown",
@@ -50,12 +84,31 @@ describe("classifyError", () => {
       "429 rate limit",
       "Resource not accessible by integration",
       "401 Bad credentials",
+      "BackoffLimitExceeded: Job has reached the specified backoff limit",
       "weird unmatched failure",
     ];
 
     for (const m of messages) {
       expect(classifyError(m).hint.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("isPermanentFailure", () => {
+  it("returns true for the categories no retry can fix", () => {
+    expect(isPermanentFailure("anthropic-credit")).toEqual(true);
+    expect(isPermanentFailure("auth")).toEqual(true);
+    expect(isPermanentFailure("github-permission")).toEqual(true);
+    expect(isPermanentFailure("github-workflows-permission")).toEqual(true);
+  });
+
+  it("returns false for a rate limit, which a later attempt can clear", () => {
+    expect(isPermanentFailure("anthropic-rate-limit")).toEqual(false);
+  });
+
+  it("returns false for infra and unknown, which are worth one retry", () => {
+    expect(isPermanentFailure("infra")).toEqual(false);
+    expect(isPermanentFailure("unknown")).toEqual(false);
   });
 });
 

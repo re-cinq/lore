@@ -7,6 +7,7 @@ import type {
   AssemblyRunQuery,
   AssemblyRunsPort,
   AssemblyRunStartInput,
+  StationRunFailure,
   StationRunStartInput,
   AssemblyRunRecord,
   StationRunRecord,
@@ -28,6 +29,8 @@ export interface SeedAssemblyLineNode {
   iteration: number;
   agentCrName: string | null;
   outcome: string | null;
+  failureClass: string | null;
+  failureDetail: string | null;
   commitSha: string | null;
   startedAt: Date;
   finishedAt: Date | null;
@@ -208,6 +211,8 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       iteration: input.iteration,
       agentCrName: input.agentCrName ?? null,
       outcome: null,
+      failureClass: null,
+      failureDetail: null,
       commitSha: null,
       startedAt: this.clock(),
       finishedAt: null,
@@ -220,12 +225,15 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
+    failure?: StationRunFailure,
   ): Promise<void> {
     const node = this.nodes.find((n) => n.id === nodeRowId);
 
     enforceTrue(node, Error, `no assembly line node row "${nodeRowId}"`);
     node.outcome = outcome;
     node.commitSha = commitSha ?? null;
+    node.failureClass = failure?.failureClass ?? null;
+    node.failureDetail = failure?.failureDetail ?? null;
     node.finishedAt = this.clock();
   }
 
@@ -260,6 +268,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
+    failure?: StationRunFailure,
   ): Promise<boolean> {
     const node = this.nodes.find((n) => n.id === nodeRowId);
 
@@ -267,7 +276,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       return false;
     }
 
-    await this.recordNodeFinish(nodeRowId, outcome, commitSha);
+    await this.recordNodeFinish(nodeRowId, outcome, commitSha, failure);
 
     return true;
   }

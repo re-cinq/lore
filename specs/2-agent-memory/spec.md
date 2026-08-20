@@ -106,7 +106,7 @@ available to agents — the authoritative interface.
   preserved in history but excluded from search). ([validated by `memory.test.ts:170`](libs/server-core/src/features/memory/memory.test.ts#L170))
 
 - **`lore_list_memories(agent_id?, limit?, offset?)`** — paginated listing
-  of active (non-deleted, non-expired) memories for an agent. ([validated by `memory.test.ts:200`](libs/server-core/src/features/memory/memory.test.ts#L200), [`memory.test.ts:234`](apps/lore-api/src/api/routes/memory/memory.test.ts#L234))
+  of active (non-deleted, non-expired) memories for an agent. ([validated by `memory.test.ts:200`](libs/server-core/src/features/memory/memory.test.ts#L200), [`memory.test.ts:234`](apps/lore-api/src/api/routes/memory/memory.test.ts#L223))
 
 ### Semantic Search
 

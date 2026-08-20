@@ -10,6 +10,7 @@ import {
   assemblyLineReaperJob,
   decideNodeRecovery,
 } from "./assembly-run-reaper.js";
+import { LlmDispatchGate } from "./llm-dispatch-gate.js";
 
 const line: AssemblyLine = parseAssemblyLine(`
 name: code-review
@@ -43,6 +44,8 @@ describe("decideNodeRecovery", () => {
     nodeId: "review",
     iteration: 1,
     outcome: null,
+    failureClass: null,
+    failureDetail: null,
     agentCrName: "a1b2c3d4-review",
     commitSha: null,
     startedAt: new Date(Date.now() - ageMinutes * MIN),
@@ -138,6 +141,7 @@ function harness() {
   const launched: LoreTaskSpec[] = [];
   const statusByName: Record<string, AgentNodeStatus | null> = {};
   const taskStatusById: Record<string, string | null> = {};
+  const billingAlerts: Array<{ repo: string; nodeType: string }> = [];
 
   const deps = {
     assemblyRuns: port,
@@ -150,9 +154,12 @@ function harness() {
     jobRuns: { complete: async () => {}, fail: async () => {} },
     readAgentStatus: async (name: string) => statusByName[name] ?? null,
     taskStatus: async (taskId: string) => taskStatusById[taskId] ?? null,
+    alertBilling: async (repo: string, nodeType: string) => {
+      billingAlerts.push({ repo, nodeType });
+    },
   };
 
-  return { port, launched, statusByName, taskStatusById, deps };
+  return { port, launched, statusByName, taskStatusById, billingAlerts, deps };
 }
 
 describe("assemblyLineReaperJob", () => {
@@ -187,6 +194,67 @@ describe("assemblyLineReaperJob", () => {
     expect(summary).toContain("resolved 1");
   });
 
+  it("alerts on a billing failure that arrives through the dropped-event door", async () => {
+    const h = harness();
+    const id = await h.port.start({
+      blueprintName: "code-review",
+      repo: "o/r",
+      args: {},
+    });
+
+    await h.port.markRunning(id);
+    const crName = `${id.substring(0, 12)}-review`;
+
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: crName,
+    });
+    h.statusByName[crName] = {
+      phase: "Failed",
+      failureReason: "BackoffLimitExceeded",
+      output: JSON.stringify({
+        type: "result",
+        is_error: true,
+        result: "Credit balance is too low",
+      }),
+    };
+
+    await assemblyLineReaperJob(h.deps);
+
+    expect(h.billingAlerts).toEqual([{ repo: "o/r", nodeType: "agent" }]);
+    expect(h.port.nodes[0]).toMatchObject({
+      failureClass: "anthropic-credit",
+      failureDetail: "Credit balance is too low",
+    });
+  });
+
+  it("does not relaunch a missing agent CR while the account is dry", async () => {
+    const h = harness();
+    const gate = new LlmDispatchGate(() => new Date());
+    const id = await h.port.start({
+      blueprintName: "code-review",
+      repo: "o/r",
+      args: {},
+    });
+
+    await h.port.markRunning(id);
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-review`,
+    });
+    gate.trip("anthropic-credit", "Credit balance is too low");
+
+    // The CR is missing, which normally means "crashed between row and launch,
+    // relaunch me" — every 60s, for the whole outage.
+    await assemblyLineReaperJob({ ...h.deps, llmGate: gate });
+
+    expect(h.launched).toEqual([]);
+  });
+
   it("fails a timed-out node as agent-timeout and routes the failed edge", async () => {
     const h = harness();
     const id = await h.port.start({
@@ -210,7 +278,13 @@ describe("assemblyLineReaperJob", () => {
 
     await assemblyLineReaperJob(h.deps);
 
-    expect(h.port.nodes[0]).toMatchObject({ outcome: "failed" });
+    expect(h.port.nodes[0]).toMatchObject({
+      outcome: "failed",
+      // A pod that stopped reporting died; that is infrastructure, not the work
+      // failing, and the row has to say so or the run is a blank "failed" again.
+      failureClass: "infra",
+    });
+    expect(h.port.nodes[0]?.failureDetail).toContain("timed out");
     // review --failed--> done: the line completes rather than wedging.
     expect(await h.port.getById(id)).toMatchObject({ status: "finished" });
   });

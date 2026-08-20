@@ -68,6 +68,62 @@ const visit = (
   outcome: StageOutcome | null,
 ): NodeVisit => ({ nodeId, iteration, outcome });
 
+// feature-planning.yaml's shape: a node that retries ITSELF once on failure.
+const selfRetry: AssemblyLine = parseAssemblyLine(`
+name: feature-planning
+description: analyze retries itself once, then the author reads the round
+version: 1
+entry: analyze
+exit: done
+nodes:
+  - id: analyze
+    type: agent
+  - id: done
+    type: retrospective
+edges:
+  - from: analyze
+    to: done
+    on: success
+  - from: analyze
+    to: done
+    on: changes_requested
+  - from: analyze
+    to: analyze
+    on: failed
+    iteration_max: 1
+`);
+
+// A line whose `failed` edge routes FORWARD, to the retrospective every
+// definition runs on its way out. Suppressing a permanent failure's RETRY must
+// not suppress its ROUTE, or the line silently skips that work.
+const forwardOnFailed: AssemblyLine = parseAssemblyLine(`
+name: forward-on-failed
+description: review fails forward into the retrospective
+version: 1
+entry: review
+exit: done
+nodes:
+  - id: review
+    type: agent
+  - id: retro
+    type: retrospective
+  - id: done
+    type: retrospective
+edges:
+  - from: review
+    to: done
+    on: success
+  - from: review
+    to: done
+    on: changes_requested
+  - from: review
+    to: retro
+    on: failed
+  - from: retro
+    to: done
+    on: always
+`);
+
 describe("selectEdge", () => {
   it("prefers the exact-outcome edge over always", () => {
     expect(selectEdge(alwaysLoop, "validate", "failed")?.to).toBe("address");
@@ -76,6 +132,77 @@ describe("selectEdge", () => {
 
   it("returns null when no edge matches the outcome", () => {
     expect(selectEdge(reviewLoop, "implement", "failed")).toBeNull();
+  });
+});
+
+describe("nextTransition on a permanent node failure", () => {
+  it("does not retry a node the account has no credit to run", () => {
+    expect(
+      nextTransition(selfRetry, [
+        {
+          nodeId: "analyze",
+          iteration: 1,
+          outcome: "failed",
+          failureClass: "anthropic-credit",
+          failureDetail: "Credit balance is too low",
+        },
+      ]),
+    ).toMatchObject({ kind: "fail", outcome: "error" });
+  });
+
+  it("names the cause rather than the edge budget it declined to spend", () => {
+    const transition = nextTransition(selfRetry, [
+      {
+        nodeId: "analyze",
+        iteration: 1,
+        outcome: "failed",
+        failureClass: "anthropic-credit",
+        failureDetail: "Credit balance is too low",
+      },
+    ]);
+
+    expect(transition.kind === "fail" && transition.reason).toContain(
+      "Credit balance is too low",
+    );
+    expect(transition.kind === "fail" && transition.reason).not.toContain(
+      "iteration_max",
+    );
+  });
+
+  it("still retries a rate limit, which a later attempt can clear", () => {
+    expect(
+      nextTransition(selfRetry, [
+        {
+          nodeId: "analyze",
+          iteration: 1,
+          outcome: "failed",
+          failureClass: "anthropic-rate-limit",
+          failureDetail: "429 rate limit exceeded",
+        },
+      ]),
+    ).toEqual({ kind: "launch", nodeId: "analyze", iteration: 2 });
+  });
+
+  it("still retries an unclassified failure, which is what the budget is for", () => {
+    expect(nextTransition(selfRetry, [visit("analyze", 1, "failed")])).toEqual({
+      kind: "launch",
+      nodeId: "analyze",
+      iteration: 2,
+    });
+  });
+
+  it("still ROUTES a permanent failure forward when the edge is not a retry", () => {
+    expect(
+      nextTransition(forwardOnFailed, [
+        {
+          nodeId: "review",
+          iteration: 1,
+          outcome: "failed",
+          failureClass: "anthropic-credit",
+          failureDetail: "Credit balance is too low",
+        },
+      ]),
+    ).toEqual({ kind: "launch", nodeId: "retro", iteration: 1 });
   });
 });
 

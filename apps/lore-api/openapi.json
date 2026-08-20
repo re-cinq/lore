@@ -65,6 +65,44 @@
     }
   ],
   "paths": {
+    "/api/platform/llm-status": {
+      "get": {
+        "operationId": "get_api_platform_llm-status",
+        "summary": "GET /api/platform/llm-status",
+        "tags": ["Analytics"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Whether an account-wide LLM outage is degrading the factory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformLlmStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
     "/api/repo-status": {
       "get": {
         "operationId": "get_api_repo-status",
@@ -6487,6 +6525,42 @@
           }
         },
         "required": ["error"]
+      },
+      "PlatformLlmStatus": {
+        "type": "object",
+        "properties": {
+          "degraded": {
+            "type": "boolean"
+          },
+          "failure_class": {
+            "type": ["string", "null"]
+          },
+          "detail": {
+            "type": ["string", "null"]
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "affected_runs": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "degraded",
+          "failure_class",
+          "detail",
+          "since",
+          "affected_runs"
+        ],
+        "additionalProperties": false
       },
       "RepoStatus": {
         "type": "object",

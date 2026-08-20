@@ -83,6 +83,17 @@ export interface StationRunStartInput {
 }
 
 /**
+ * WHY a visit failed, recorded alongside its outcome. Optional because only a
+ * `failed` outcome has one — and because the alternative, a fifth positional
+ * argument, would have every existing two-argument caller reading as if it were
+ * declining to classify.
+ */
+export interface StationRunFailure {
+  failureClass?: string;
+  failureDetail?: string;
+}
+
+/**
  * One `pipeline.station_runs` row. The shape is the `StationRun` model — see
  * `libs/shared/src/models/station-run.ts` for the columns it binds and why a
  * visit carries two ids.
@@ -175,6 +186,7 @@ export interface AssemblyRunsPort {
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
+    failure?: StationRunFailure,
   ): Promise<boolean>;
   /** The line's node rows in visit order (row id). */
   listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]>;

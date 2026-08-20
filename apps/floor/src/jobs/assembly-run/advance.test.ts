@@ -13,6 +13,7 @@ import {
   taskFromRow,
   type AdvanceDeps,
 } from "./advance.js";
+import { LlmDispatchGate } from "./llm-dispatch-gate.js";
 
 const codeReviewLike: AssemblyLine = parseAssemblyLine(`
 name: code-review
@@ -604,6 +605,97 @@ edges:
     expect(await port.getById(id)).toMatchObject({ outcome: "failed" });
     expect(notified).toEqual([
       { id, outcome: "failed", reason: 'node "review" failed' },
+    ]);
+  });
+
+  it("parks an agent node instead of dispatching it while the account is dry", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps, launched } = makeDeps(port);
+    const gate = new LlmDispatchGate(() => new Date());
+
+    gate.trip("anthropic-credit", "Credit balance is too low");
+    await advanceLine(id, { ...deps, llmGate: gate });
+
+    // No CR, and — the part that matters — no station-run row either. A row with
+    // a null outcome is what the reaper reads as "relaunch me", so minting one
+    // here would re-dispatch the pod every 60s for the whole outage.
+    expect(launched).toEqual([]);
+    expect(port.nodes).toEqual([]);
+    // Parked, not failed: nobody is told their work died.
+    expect(await port.getById(id)).toMatchObject({ status: "running" });
+  });
+
+  it("dispatches the node it parked once the account is healthy again", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps, launched } = makeDeps(port);
+    const gate = new LlmDispatchGate(() => new Date());
+
+    gate.trip("anthropic-credit", "Credit balance is too low");
+    await advanceLine(id, { ...deps, llmGate: gate });
+    gate.clear();
+    await advanceLine(id, { ...deps, llmGate: gate });
+
+    expect(launched).toHaveLength(1);
+    expect(port.nodes).toHaveLength(1);
+  });
+
+  it("records the classified failure on the station run it just finished", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+
+    await advanceLine(id, deps);
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "review",
+        iteration: 1,
+        result: {
+          outcome: "failed",
+          failureClass: "anthropic-credit",
+          failureDetail: "Credit balance is too low",
+        },
+      },
+      deps,
+    );
+
+    expect(port.nodes[0]).toMatchObject({
+      outcome: "failed",
+      failureClass: "anthropic-credit",
+      failureDetail: "Credit balance is too low",
+    });
+  });
+
+  it("closes the line with the cause the node recorded, not the node id alone", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps, notified } = makeDeps(port);
+
+    await advanceLine(id, deps);
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "review",
+        iteration: 1,
+        result: {
+          outcome: "failed",
+          failureClass: "anthropic-credit",
+          failureDetail: "Credit balance is too low",
+        },
+      },
+      deps,
+    );
+
+    expect(notified).toEqual([
+      {
+        id,
+        outcome: "failed",
+        reason:
+          'node "review" failed: Credit balance is too low — Top up the ' +
+          "Anthropic account behind the agent's ANTHROPIC_API_KEY (Plans & Billing).",
+      },
     ]);
   });
 
