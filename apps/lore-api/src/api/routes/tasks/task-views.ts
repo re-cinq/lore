@@ -86,7 +86,7 @@ const RepoTaskListSchema = z.object({
         prUrl: true,
         createdAt: true,
       }),
-      PIPELINE_TASK_COLUMNS,
+      REPO_TASK_COLUMNS,
     ),
   ),
 });

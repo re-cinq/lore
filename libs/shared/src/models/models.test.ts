@@ -57,6 +57,9 @@ interface TableModel {
  * sweep only ever sees `.ts` — but pinning it to that extension made the sweep
  * silently find nothing anywhere else, which is a worse failure than a wrong
  * answer: it reports success over an empty set.
+ *
+ * When both exist for one stem, SOURCE wins — stated here rather than left to
+ * fall out of sort order, so the tie-break is a decision and not an accident.
  */
 const files = [
   ...new Map(
@@ -68,6 +71,8 @@ const files = [
           !f.endsWith(".d.ts"),
       )
       .sort()
+      // `.js` sorts before `.ts`, and a Map keeps the LAST value written for a
+      // key — so source wins the tie.
       .map((f) => [f.replace(/\.[tj]s$/, ""), f] as const),
   ).values(),
 ].sort();

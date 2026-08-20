@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   resolveDarkFactorySettings,
   type DarkFactorySettings,
@@ -85,7 +86,7 @@ export class InMemorySettings implements SettingsPort {
     const [owner = "", name = ""] = row.full_name.split("/");
 
     return {
-      id: row.id ?? row.full_name,
+      id: row.id ?? randomUUID(),
       owner,
       name,
       fullName: row.full_name,
