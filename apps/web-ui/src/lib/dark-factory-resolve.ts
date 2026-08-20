@@ -5,6 +5,11 @@
  * lib/onboard-guard.ts, etc. mirror server libs. Keep both in step;
  * `dark-factory-resolve.parity.test.ts` holds the resolver and defaults in
  * lockstep with the canonical implementation.
+ *
+ * DECISION (#1419): not a type mirror at all — this mirrors the RESOLVER, and no
+ * generated type replaces a function. The parity test is the right guard for
+ * behaviour and it stays. Only the type half could ever be generated, and the
+ * type half is not what this file is for.
  */
 
 export type TrustLevel = "docs" | "tests" | "implementation" | "full";

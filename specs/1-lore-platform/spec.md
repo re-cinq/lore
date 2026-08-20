@@ -854,14 +854,18 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   `GET /api/analytics-overview` (six reads). Spend draws on BOTH cost
   sources deliberately: `pipeline.anthropic_cost_daily` is Anthropic's
   authoritative billed figure, but its buckets close at UTC midnight and
-  the in-progress day is never emitted, so the billed total always ends
-  at yesterday and `pipeline.llm_calls` — token-exact against the hourly
-  report, available with no admin key — is what brings it current. The
+  the in-progress day is never emitted, so the billed total ends at the
+  last SYNCED day — yesterday when the daily sync is current, earlier
+  when it ran late or failed — and `pipeline.llm_calls` — token-exact
+  against the hourly report, available with no admin key — is what brings
+  it current for every day after `MAX(bucket_date)`, however many that
+  is. Assuming that gap was always exactly one day is what let whole
+  days of spend fall into neither figure. The
   billed reads degrade to empty on a cluster without the table, and
   availability is decided by the `as_of` STAMP rather than a row count:
   only the stamp separates "synced, nothing owed" from "never synced",
   and the view hides the section for the second instead of showing a
-  confident zero. ([validated by [`spend.test.ts:33`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L33), [`spend.test.ts:37`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L37), [`spend.test.ts:49`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L49), [`spend.test.ts:79`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L79), [`spend.test.ts:83`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L83), [`spend.test.ts:99`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L99), [`spend.test.ts:122`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L122), [`spend.test.ts:135`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L135))
+  confident zero. ([validated by [`spend.test.ts:33`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L33), [`spend.test.ts:37`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L37), [`spend.test.ts:49`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L49), [`spend.test.ts:79`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L79), [`spend.test.ts:83`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L83), [`spend.test.ts:108`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L108), [`spend.test.ts:132`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L132), [`spend.test.ts:184`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L184), [`spend.test.ts:200`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L200), [`spend.test.ts:213`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L213), [`spend.test.ts:145`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L145))
 
 - FR-19.24: `reviseTask` is the human feedback loop as ONE seam: it
   queues a follow-up task on the parent's branch and PR at immediate

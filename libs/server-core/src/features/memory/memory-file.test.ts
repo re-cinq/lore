@@ -78,8 +78,15 @@ describe("memory-file round-trips against real disk", () => {
     const listing = mod.listMemoriesFile("agent-list");
 
     expect(listing.total).toBe(1);
+    // A listing enumerates keys and carries no value — the pool path's SELECT
+    // reads none either, and the endpoint declares one shape for both backends.
     expect(listing.memories).toEqual([
-      expect.objectContaining({ key: "keeper", value: "active value" }),
+      expect.objectContaining({
+        key: "keeper",
+        agent_id: "agent-list",
+        repo: null,
+        has_facts: false,
+      }),
     ]);
   });
 

@@ -35,7 +35,7 @@ const checks: Check[] = [
 ];
 
 const task = (over: Partial<RecentTask>): RecentTask => ({
-  id: 1,
+  id: "1",
   description: "Implement the widget",
   status: "completed",
   pr_url: "https://github.com/re-cinq/lore/pull/7",
@@ -44,7 +44,7 @@ const task = (over: Partial<RecentTask>): RecentTask => ({
 });
 
 const event = (over: Partial<RepoEvent>): RepoEvent => ({
-  id: 1,
+  id: "1",
   event_name: "github.pull_request.opened",
   source: "github",
   params: { repo: "re-cinq/lore" },
@@ -154,12 +154,12 @@ describe("RepoOverviewView", () => {
         {...baseProps}
         recentTasks={[
           task({
-            id: 1,
+            id: "1",
             description: "Implement the widget",
             status: "completed",
           }),
           task({
-            id: 2,
+            id: "2",
             description: "Fix the gadget",
             status: "running",
             pr_url: null,
@@ -210,13 +210,13 @@ describe("RepoOverviewView", () => {
         {...baseProps}
         latestEvents={[
           event({
-            id: 1,
+            id: "1",
             event_name: "github.pull_request.opened",
             source: "github",
             status: "done",
           }),
           event({
-            id: 2,
+            id: "2",
             event_name: "internal.ingest.spec_trace",
             source: "internal",
             status: "pending",

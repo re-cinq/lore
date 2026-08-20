@@ -19,6 +19,13 @@ const BADGE_MOD: Record<string, string> = {
   code: "badge-gray",
 };
 
+/** The `content_type` column is nullable, and both the badge and the preview
+ * decision need a string. Resolving the null here — once, at the boundary —
+ * keeps the two from disagreeing about what an untyped chunk is. */
+export function contentTypeOf(type: string | null | undefined): string {
+  return type ?? "unknown";
+}
+
 /** Full className for a content-type badge (`badge` + a color modifier). */
 export function badgeClassForType(type: string): string {
   const mod = BADGE_MOD[type];

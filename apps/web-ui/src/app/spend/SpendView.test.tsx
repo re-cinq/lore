@@ -26,7 +26,13 @@ const loreMtd: LoreMtdRow = {
 
 // The no-admin-key case (orgAvailable false) with full Lore-computed data.
 const loreOnly: SpendViewProps = {
-  orgMtd: { billed_usd: 0, input_tokens: 0, output_tokens: 0, as_of: null },
+  orgMtd: {
+    billed_usd: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    as_of: null,
+    billed_through: null,
+  },
   orgAvailable: false,
   orgByModel: [],
   orgDaily: [],
@@ -64,6 +70,7 @@ const withAdminKey: SpendViewProps = {
     input_tokens: 1000000,
     output_tokens: 50000,
     as_of: "2026-08-07T10:00:00.000Z",
+    billed_through: "2026-08-07",
   },
   orgByModel: [
     {
@@ -78,7 +85,13 @@ const withAdminKey: SpendViewProps = {
 };
 
 const empty: SpendViewProps = {
-  orgMtd: { billed_usd: 0, input_tokens: 0, output_tokens: 0, as_of: null },
+  orgMtd: {
+    billed_usd: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    as_of: null,
+    billed_through: null,
+  },
   orgAvailable: false,
   orgByModel: [],
   orgDaily: [],
@@ -212,27 +225,84 @@ describe("SpendView", () => {
   });
 
   it("brings the billed card current with today's Lore-computed spend, labeled", () => {
-    render(<SpendView {...withAdminKey} loreTodayUsd={1.95} />);
+    render(
+      <SpendView
+        {...withAdminKey}
+        loreUnbilledUsd={1.95}
+        loreUnbilledDays={1}
+      />,
+    );
 
-    const note = screen.getByText(/billed through yesterday/);
+    const note = screen.getByText(/billed through/);
 
     expect(note.textContent).toContain(usd(1.95));
     expect(note.textContent).toContain("today (Lore-computed)");
   });
 
-  it("omits the today line when today's Lore-computed spend is zero", () => {
-    render(<SpendView {...withAdminKey} loreTodayUsd={0} />);
+  it("omits the unbilled line when the unbilled Lore-computed spend is zero", () => {
+    render(
+      <SpendView {...withAdminKey} loreUnbilledUsd={0} loreUnbilledDays={0} />,
+    );
 
-    expect(
-      screen.queryByText(/billed through yesterday/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/billed through/)).not.toBeInTheDocument();
   });
 
-  it("shows no today line without billed data even when today has spend", () => {
-    render(<SpendView {...empty} loreTodayUsd={1.95} />);
+  it("shows no unbilled line without billed data even when there is spend", () => {
+    render(
+      <SpendView {...empty} loreUnbilledUsd={1.95} loreUnbilledDays={1} />,
+    );
 
-    expect(
-      screen.queryByText(/billed through yesterday/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/billed through/)).not.toBeInTheDocument();
+  });
+
+  it("names the last billed day and the whole span when two days are unbilled", () => {
+    // The reported case: the sync stamped 8/19 but its buckets ended at 8/18,
+    // so 8/19 AND 8/20 were unbilled while the card claimed only today's
+    // $11.95 was missing — understating the gap by a full day's spend.
+    render(
+      <SpendView
+        {...withAdminKey}
+        loreUnbilledUsd={47.74}
+        loreUnbilledDays={2}
+      />,
+    );
+
+    const note = screen.getByText(/billed through/);
+
+    expect(note.textContent).toContain(usd(47.74));
+    expect(note.textContent).toContain("over 2 days since");
+    expect(note.textContent).not.toContain("today (Lore-computed)");
+  });
+
+  it("dates the billed-through day in local time, not the UTC instant", () => {
+    // `new Date("2026-08-07")` is UTC midnight, which renders as the 6th for
+    // every viewer west of Greenwich: an off-by-one day inside the fix for an
+    // off-by-one day.
+    render(
+      <SpendView
+        {...withAdminKey}
+        loreUnbilledUsd={1.95}
+        loreUnbilledDays={1}
+      />,
+    );
+
+    expect(screen.getByText(/billed through/).textContent).toContain(
+      new Date(2026, 7, 7).toLocaleDateString(),
+    );
+  });
+
+  it("falls back to the undated wording when nothing has ever been billed", () => {
+    render(
+      <SpendView
+        {...withAdminKey}
+        orgMtd={{ ...withAdminKey.orgMtd, billed_through: null }}
+        loreUnbilledUsd={47.74}
+        loreUnbilledDays={2}
+      />,
+    );
+
+    const note = screen.getByText(/not yet billed/);
+
+    expect(note.textContent).toContain(usd(47.74));
   });
 });
