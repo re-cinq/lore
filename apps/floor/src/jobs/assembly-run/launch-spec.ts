@@ -68,30 +68,67 @@ export function priorOutcomeOf(
  * (FR-15.11) — a resumed round sends only the author's new feedback, a fresh one the
  * whole composition.
  */
-export async function nodeLaunchSpec(
-  input: NodeLaunchInput,
+/** What one dispatch resolved before anything was written: the conversation this
+ *  visit continues, the round content it works from, and the prompt its pod
+ *  renders (null for a station, which runs a deterministic command). */
+export interface NodeDispatch {
+  conversation: LoreTaskSpec["conversation"] | undefined;
+  content: string;
+  prompt: string | null;
+}
+
+/**
+ * Resolve what a visit is dispatched WITH, before its row is written.
+ *
+ * Separate from the spec build because the station-run row is minted between the
+ * two — it records this exact input, and it mints the id the spec's labels carry.
+ * Both halves stay in one module so a field added to one is visible to the other.
+ *
+ * The conversation is resolved FIRST: whether this run resumes one decides how
+ * much round content the prompt must carry (FR-15.11) — a resumed round sends
+ * only the author's new feedback, a fresh one the whole composition.
+ */
+export async function resolveNodeDispatch(
+  input: Omit<NodeLaunchInput, "stationRunId">,
   deps: NodeLaunchDeps,
-): Promise<LoreTaskSpec> {
-  const { node, task, iteration, stationRunId, priorOutcome } = input;
+): Promise<NodeDispatch> {
+  const { node, task, iteration, priorOutcome } = input;
   // Only agent nodes hold a conversation — a station runs a deterministic command.
   const conversation =
     node.type === "agent" && deps.resolveConversation
       ? await deps.resolveConversation(node, task, iteration, priorOutcome)
       : undefined;
   const content = roundContent(task, conversation);
+
+  return {
+    conversation,
+    content,
+    prompt:
+      node.type === "agent"
+        ? deps.resolvePrompt(node.prompt_ref ?? node.type, content)
+        : null,
+  };
+}
+
+/** Build the dispatch spec from an already-resolved {@link NodeDispatch}. Pure. */
+export function nodeLaunchSpec(
+  dispatch: NodeDispatch,
+  input: NodeLaunchInput,
+): LoreTaskSpec {
+  const { node, task, iteration, stationRunId } = input;
   const spec =
     node.type === "agent"
       ? nodeAgentSpec(
           node,
-          { ...task, description: content },
-          deps.resolvePrompt(node.prompt_ref ?? node.type, content),
+          { ...task, description: dispatch.content },
+          dispatch.prompt ?? "",
           iteration,
           stationRunId,
         )
       : nodeStationSpec(node, task, iteration, stationRunId);
 
-  if (conversation) {
-    spec.conversation = conversation;
+  if (dispatch.conversation) {
+    spec.conversation = dispatch.conversation;
   }
 
   return spec;

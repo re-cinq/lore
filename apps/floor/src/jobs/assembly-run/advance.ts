@@ -23,12 +23,14 @@ import {
 import { graphForRun } from "@re-cinq/lore-assembly-lines";
 import {
   nodeAgentName,
+  stationRunInputFor,
   type FloorAssemblyRunTask,
 } from "./floor-assembly-run.js";
 import { isFailureOutcome } from "./notify-failure.js";
 import {
   nodeLaunchSpec,
   priorOutcomeOf,
+  resolveNodeDispatch,
   type ResolveConversationFn,
 } from "./launch-spec.js";
 import {
@@ -213,6 +215,18 @@ export async function advanceLine(
     return;
   }
   const task = taskFromRow(row);
+  // Resolved BEFORE the row, because the row RECORDS it: the prompt and round
+  // content a pod runs on otherwise exist only on an Agent CR that is pruned
+  // after the run, and "what was this node given" then has no answer at all.
+  const dispatch = await resolveNodeDispatch(
+    {
+      node,
+      task,
+      iteration: transition.iteration,
+      priorOutcome: priorOutcomeOf(visits, transition.nodeId),
+    },
+    deps,
+  );
   // Row before CR: a crash in between leaves an open row the reaper resolves by
   // reading the (deterministically named) CR; a rowless CR would be invisible.
   // The row is also what MINTS the station-run id — a converged duplicate returns
@@ -223,6 +237,7 @@ export async function advanceLine(
     nodeId: node.id,
     iteration: transition.iteration,
     agentCrName: nodeAgentName(assemblyLineId, node.id, transition.iteration),
+    input: stationRunInputFor(node, task, dispatch.content, dispatch.prompt),
   });
 
   // A human station's worker is outside the pod system — a person in the wizard,
@@ -237,16 +252,13 @@ export async function advanceLine(
   // The builder is shared with the reaper's relaunch: two of them is how the
   // conversation and the round content went missing on that door (#1466).
   await deps.launch(
-    await nodeLaunchSpec(
-      {
-        node,
-        task,
-        iteration: transition.iteration,
-        stationRunId,
-        priorOutcome: priorOutcomeOf(visits, transition.nodeId),
-      },
-      deps,
-    ),
+    nodeLaunchSpec(dispatch, {
+      node,
+      task,
+      iteration: transition.iteration,
+      stationRunId,
+      priorOutcome: priorOutcomeOf(visits, transition.nodeId),
+    }),
   );
 }
 
