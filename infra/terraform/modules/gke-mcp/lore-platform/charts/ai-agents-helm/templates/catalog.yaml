@@ -1409,8 +1409,8 @@ spec:
 
     Print exactly one of these as your LAST line:
 
-        LORE_NODE_RESULT: success
-        LORE_NODE_RESULT: changes_requested
+        LORE_NODE_RESULT: {"outcome": "success"}
+        LORE_NODE_RESULT: {"outcome": "changes_requested"}
 
     Request changes when the plan cannot be mapped as it stands — it contradicts
     an existing spec or ADR, it is ambiguous in a way that changes WHICH spec is

@@ -189,7 +189,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     (`success`/`failed`/`changes_requested`) via `stationNodeOutcome` in the Floor's node-event
     handler; a forced Floor restart loses nothing because the walk is derived from the persisted
     `pipeline.assembly_line_nodes` rows, not held in memory — the original lease-heartbeat +
-    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:34`](libs/assembly-lines/src/node-outcome.test.ts#L33), [`advance.test.ts:362`](apps/floor/src/jobs/assembly-run/advance.test.ts#L363))
+    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:35`](libs/assembly-lines/src/node-outcome.test.ts#L34), [`advance.test.ts:362`](apps/floor/src/jobs/assembly-run/advance.test.ts#L363))
 12. A `github-action` assembly line node dispatches the referenced GitHub Actions run and gates on its
     conclusion.
 13. The cutover is reversible: flipping the cluster gate off routes new tasks back to LoreTask with
@@ -221,7 +221,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `is_error:true` so the CR fails, and MUST refuse (enforce-throw) to wrap a payload that is
     already a wrapped agent output line — the envelope is applied exactly once, never nested.
     `eventLine` emits the non-terminal log events the result scan skips over.
-    ([validated by parseNodeResult tests](libs/assembly-lines/src/node-outcome.test.ts#L19), [`agent-output.test.ts:270`](libs/assembly-lines/src/agent-output.test.ts#L270), [`agent-output.test.ts:281`](libs/assembly-lines/src/agent-output.test.ts#L281), [`agent-output.test.ts:293`](libs/assembly-lines/src/agent-output.test.ts#L293), [`agent-output.test.ts:301`](libs/assembly-lines/src/agent-output.test.ts#L301), [`agent-output.test.ts:311`](libs/assembly-lines/src/agent-output.test.ts#L311), [`agent-output.test.ts:319`](libs/assembly-lines/src/agent-output.test.ts#L319), [`agent-output.test.ts:329`](libs/assembly-lines/src/agent-output.test.ts#L329); implemented by [`agent-output.ts:180`](libs/assembly-lines/src/agent-output.ts#L180))
+    ([validated by parseNodeResult tests](libs/assembly-lines/src/node-outcome.test.ts#L20), [`agent-output.test.ts:270`](libs/assembly-lines/src/agent-output.test.ts#L270), [`agent-output.test.ts:281`](libs/assembly-lines/src/agent-output.test.ts#L281), [`agent-output.test.ts:293`](libs/assembly-lines/src/agent-output.test.ts#L293), [`agent-output.test.ts:301`](libs/assembly-lines/src/agent-output.test.ts#L301), [`agent-output.test.ts:311`](libs/assembly-lines/src/agent-output.test.ts#L311), [`agent-output.test.ts:319`](libs/assembly-lines/src/agent-output.test.ts#L319), [`agent-output.test.ts:329`](libs/assembly-lines/src/agent-output.test.ts#L329); implemented by [`agent-output.ts:180`](libs/assembly-lines/src/agent-output.ts#L180))
 
 19. Cutover complete: every non-agent node on the Floor-assembly-line path dispatches a station
     (no `LORE_STATION_NODES` flag, no in-process node handlers on that path); the in-process
