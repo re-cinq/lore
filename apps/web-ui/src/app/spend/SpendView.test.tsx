@@ -537,3 +537,47 @@ describe("SpendView anchor precision", () => {
     ).toEqual(budgetOutlook(at("2026-08-01T00:00:00Z"), new Date(2026, 7, 10)));
   });
 });
+
+describe("SpendView top-up legend", () => {
+  const recordAction = async () => ({});
+
+  it("states that a blank date counts from the start of today", () => {
+    // The wording this replaces said "defaults to today", which a reader could
+    // equally take as "defaults to now" — and those anchor the arithmetic at
+    // opposite ends of a day's spend.
+    render(<SpendView {...loreOnly} recordAction={recordAction} />);
+
+    expect(
+      screen.getByText(/blank counts from the start of today/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/defaults to today/)).toBeNull();
+  });
+
+  it("explains which entry moves the counting window", () => {
+    // Counter-intuitive enough to have been got wrong during this feature's
+    // own review, so it is stated on the form rather than inferred.
+    render(<SpendView {...loreOnly} recordAction={recordAction} />);
+
+    const legend = screen.getByText(/Which entry moves the window/)
+      .nextElementSibling as HTMLElement;
+
+    expect(legend.textContent).toMatch(/Only the opening entry/);
+    expect(legend.textContent).toMatch(/recording one days late/);
+  });
+
+  it("explains that a negative amount is a correction", () => {
+    render(<SpendView {...loreOnly} recordAction={recordAction} />);
+
+    const legend = screen.getByText("Amount").nextElementSibling as HTMLElement;
+
+    expect(legend.textContent).toMatch(
+      /negative amount is recorded as a correction/,
+    );
+  });
+
+  it("omits the legend along with the form when no record action is supplied", () => {
+    render(<SpendView {...loreOnly} />);
+
+    expect(screen.queryByText(/Which entry moves the window/)).toBeNull();
+  });
+});

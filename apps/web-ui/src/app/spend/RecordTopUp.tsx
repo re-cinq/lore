@@ -44,15 +44,20 @@ export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
           autoComplete="off"
         />
 
+        {/* "Defaults to today" was ambiguous: a reader could equally take it
+            as "defaults to now", and those anchor the arithmetic at opposite
+            ends of a day's spend. The label now states the consequence rather
+            than the default. */}
         <label htmlFor="effective_date">
-          Date it landed <span className="meta">— defaults to today</span>
+          Date it landed{" "}
+          <span className="meta">— blank counts from the start of today</span>
         </label>
         <input id="effective_date" name="effective_date" type="date" />
 
         <label htmlFor="effective_time">
           Time it landed{" "}
           <span className="meta">
-            — optional; without it the whole day counts against this balance
+            — optional; blank counts from the start of the day
           </span>
         </label>
         <input id="effective_time" name="effective_time" type="time" />
@@ -69,6 +74,35 @@ export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
         />
 
         {first && <input type="hidden" name="kind" value="opening" />}
+
+        {/* The rules are stated on the form rather than left to be inferred
+            from the figures. Two of them are counter-intuitive enough to have
+            been got wrong during this feature's own review: a blank date is
+            NOT "now", and a late-recorded top-up needs no accurate timestamp
+            at all. */}
+        <dl className={styles.legend}>
+          <dt>Amount</dt>
+          <dd>
+            Dollars added. A negative amount is recorded as a correction, which
+            is how a mistyped entry is undone — nothing is ever overwritten.
+          </dd>
+
+          <dt>Date and time</dt>
+          <dd>
+            When the money <em>landed</em>, not when you typed it in. Blank
+            counts from the start of today; a date counts from the start of that
+            day; adding a time counts from that exact moment. Leaving the time
+            out can only ever count more spend against the balance, never less.
+          </dd>
+
+          <dt>Which entry moves the window</dt>
+          <dd>
+            Only the opening entry decides where counting starts. Later top-ups
+            add to the total and nothing else, so recording one days late still
+            gives the right figure — the amount is the part that must be
+            correct.
+          </dd>
+        </dl>
 
         <div className={styles.recordActions}>
           <SubmitButton pendingLabel="Recording…">

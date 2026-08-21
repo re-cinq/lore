@@ -50,6 +50,24 @@
   margin-top: 8px;
 }
 
+/* The form's rules, stated rather than inferred. Muted and small: it is
+   reference material for the first few entries, not competition for the
+   figures above it. */
+.legend {
+  margin: 16px 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.legend dt {
+  font-weight: bold;
+  margin-top: 8px;
+}
+
+.legend dd {
+  margin: 2px 0 0;
+}
+
 .recordActions {
   display: flex;
   align-items: center;
