@@ -279,7 +279,7 @@ describe("GET /api/spend", () => {
   it("reports remaining as the ledger total minus billed and unbilled spend since the anchor", async () => {
     const pool = poolAnswering({
       "pipeline.credit_ledger": [
-        { ledger_total_usd: 500, anchored_at: "2026-08-01" },
+        { ledger_total_usd: 500, anchored_at: "2026-08-01T00:00:00Z" },
       ],
       "pipeline.anthropic_cost_daily": [
         { billed_usd: 300, billed_through: "2026-08-19" },
@@ -292,7 +292,7 @@ describe("GET /api/spend", () => {
         ledger_total_usd: 500,
         spent_since_usd: 312.5,
         remaining_usd: 187.5,
-        anchored_at: "2026-08-01",
+        anchored_at: "2026-08-01T00:00:00Z",
       },
     });
   });
@@ -302,7 +302,7 @@ describe("GET /api/spend", () => {
     // Clamping it at zero would hide exactly the day someone needs to notice.
     const pool = poolAnswering({
       "pipeline.credit_ledger": [
-        { ledger_total_usd: 100, anchored_at: "2026-08-01" },
+        { ledger_total_usd: 100, anchored_at: "2026-08-01T00:00:00Z" },
       ],
       "pipeline.anthropic_cost_daily": [
         { billed_usd: 140, billed_through: "2026-08-19" },
@@ -321,7 +321,7 @@ describe("GET /api/spend", () => {
     // other figure on the page.
     const pool = poolAnswering({
       "pipeline.credit_ledger": [
-        { ledger_total_usd: 100, anchored_at: "2026-06-14" },
+        { ledger_total_usd: 100, anchored_at: "2026-06-14T00:00:00Z" },
       ],
       "pipeline.anthropic_cost_daily": [{ billed_through: "2026-08-19" }],
     });
@@ -333,7 +333,7 @@ describe("GET /api/spend", () => {
         ([sql, params]) =>
           String(sql).includes(table) &&
           Array.isArray(params) &&
-          (params as unknown[]).includes("2026-06-14"),
+          (params as unknown[]).includes("2026-06-14T00:00:00Z"),
       );
 
     expect(anchoredReadsOf("pipeline.anthropic_cost_daily").length).toBe(1);
@@ -347,7 +347,7 @@ describe("GET /api/spend", () => {
     // like a plausible balance.
     const pool = poolAnswering({
       "pipeline.credit_ledger": [
-        { ledger_total_usd: 100, anchored_at: "2026-08-01" },
+        { ledger_total_usd: 100, anchored_at: "2026-08-01T00:00:00Z" },
       ],
       "pipeline.anthropic_cost_daily": [{ billed_through: "2026-08-19" }],
     });
@@ -360,7 +360,7 @@ describe("GET /api/spend", () => {
         String(sql).includes("$2::date"),
     );
 
-    expect(computed?.[1]).toEqual(["2026-08-01", "2026-08-19"]);
+    expect(computed?.[1]).toEqual(["2026-08-01T00:00:00Z", "2026-08-19"]);
   });
 
   it("excludes corrections from the anchor but not from the total", async () => {
@@ -377,7 +377,13 @@ describe("GET /api/spend", () => {
     );
     const sql = String(ledgerRead?.[0]);
 
-    expect(sql).toContain("FILTER (WHERE kind <> 'correction')");
+    // The opening entry decides when counting starts; the earliest row does
+    // not. Anchoring on MIN over everything let a BACKDATED top-up drag the
+    // window weeks earlier and charge old spend against a new balance.
+    expect(sql).toContain("MIN(effective_at) FILTER (WHERE kind = 'opening')");
+    expect(sql).toContain(
+      "MIN(effective_at) FILTER (WHERE kind <> 'correction')",
+    );
     // The SUM stays unfiltered — a correction is still money.
     expect(sql).toContain("COALESCE(SUM(amount_usd), 0)");
     expect(sql).not.toContain("SUM(amount_usd) FILTER");

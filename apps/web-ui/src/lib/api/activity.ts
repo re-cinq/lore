@@ -118,6 +118,9 @@ export function getSpend(): Promise<
 export function recordCreditEntry(entry: {
   amount_usd: number;
   effective_date?: string;
+  /** Omitted anchors the entry to the start of its day, which counts the whole
+   *  day against the balance — the safe direction when the clock is unknown. */
+  effective_time?: string;
   kind?: "opening" | "topup" | "correction";
   note?: string;
   recorded_by?: string;

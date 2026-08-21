@@ -90,6 +90,23 @@ const midnight = (isoDay: string) => {
 };
 
 /**
+ * The anchor arrives as an ISO-8601 UTC instant. Its leading 10 characters are
+ * the calendar day, taken as a STRING rather than via `new Date`, because
+ * every other day on this page is handled that way and for the same reason:
+ * parsing puts it at UTC midnight, which renders as the previous day for every
+ * viewer west of Greenwich.
+ */
+const anchorDay = (anchoredAt: string) => anchoredAt.slice(0, 10);
+
+/** The clock part, or null when the entry anchors to the start of its day —
+ *  which is what a date without a known time records. */
+const anchorTime = (anchoredAt: string) => {
+  const clock = anchoredAt.slice(11, 16);
+
+  return !clock || clock === "00:00" ? null : clock;
+};
+
+/**
  * Average daily burn since the anchor, and how many days the remaining balance
  * covers at that rate — the part that answers "are we running low", which is
  * the question a bare remaining figure leaves open.
@@ -113,7 +130,8 @@ export function budgetOutlook(
   );
   const elapsedDays =
     Math.round(
-      (startOfToday.getTime() - midnight(budget.anchored_at).getTime()) /
+      (startOfToday.getTime() -
+        midnight(anchorDay(budget.anchored_at)).getTime()) /
         MS_PER_DAY,
     ) + 1;
 
@@ -195,10 +213,17 @@ export default function SpendView({
             >
               {usd(budget.remaining_usd)}
             </div>
+            {/* The clock shows only when the anchor carries one. An entry
+                recorded for a day counts that whole day, and printing
+                "00:00" would dress a deliberate approximation up as a
+                measurement. */}
             <div className={`meta ${styles.subnote}`}>
               {usd(budget.ledger_total_usd)} recorded −{" "}
               {usd(budget.spent_since_usd)} spent since{" "}
-              {day(budget.anchored_at)}
+              {day(anchorDay(budget.anchored_at))}
+              {anchorTime(budget.anchored_at)
+                ? `, ${anchorTime(budget.anchored_at)} UTC`
+                : ""}
             </div>
             <BudgetOutlookNote budget={budget} />
           </div>

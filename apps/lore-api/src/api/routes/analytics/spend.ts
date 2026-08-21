@@ -65,6 +65,12 @@ async function remainingBudget(
   anchoredAt: string,
   ledgerTotalUsd: number,
 ) {
+  // Whole days, because Anthropic's cost report is day-bucketed and cannot be
+  // split: an anchor at 14:30 on an already-billed day still charges that
+  // whole day. Unavoidable, and it does not touch the case that matters —
+  // the report never emits the day in progress, so an entry recorded today is
+  // never in here at all.
+  //
   // MAX(bucket_date) over the WHOLE table, not this month: the anchor can
   // predate the month, and a month whose sync has not run yet would otherwise
   // report no billed day at all and shove every dollar onto the computed side.
@@ -74,12 +80,19 @@ async function remainingBudget(
   }>(
     pool,
     `SELECT
-       COALESCE(SUM(cost_usd) FILTER (WHERE bucket_date >= $1::date), 0)::float8
-         AS billed_usd,
+       COALESCE(SUM(cost_usd)
+         FILTER (WHERE bucket_date >= (($1::timestamptz) AT TIME ZONE 'UTC')::date),
+         0)::float8 AS billed_usd,
        MAX(bucket_date)::text AS billed_through
      FROM pipeline.anthropic_cost_daily`,
     [anchoredAt],
   );
+  // Here is the precision. `created_at >= $1::timestamptz` compares MOMENTS,
+  // not days, so a midday top-up on a healthy balance is not charged the
+  // morning's spend — the money was added at 14:30 and the spend before then
+  // came out of the balance it replaced. Day-granularity got this wrong by up
+  // to a full day, and always in the direction of understating what is left.
+  //
   // The bound rides in as a parameter rather than a subquery, for the reason
   // the month-to-date unbilled read already gives: `anthropic_cost_daily` is
   // absent on clusters with no admin key, and a subquery against it would take
@@ -87,7 +100,7 @@ async function remainingBudget(
   const { rows: computed } = await pool.query<{ cost_usd: number }>(
     `SELECT COALESCE(SUM(cost_usd), 0)::float8 AS cost_usd
        FROM pipeline.llm_calls
-      WHERE created_at::date >= $1::date
+      WHERE created_at >= $1::timestamptz
         AND ($2::date IS NULL OR created_at::date > $2::date)`,
     [anchoredAt, billed?.billed_through ?? null],
   );
@@ -216,8 +229,19 @@ const BudgetSchema = z
     /** Deliberately allowed to go negative: an overrun is the state most worth
      *  seeing, and clamping it at zero would hide precisely that day. */
     remaining_usd: z.number(),
-    /** The earliest `effective_date` in the ledger — the day the arithmetic
-     *  starts, shown so a stale anchor is visible rather than merely wrong. */
+    /**
+     * The earliest `effective_at` in the ledger, as an ISO-8601 UTC instant —
+     * the MOMENT the arithmetic starts, shown so a stale anchor is visible
+     * rather than merely wrong.
+     *
+     * A moment and not a day, because a top-up recorded at 14:30 onto a
+     * healthy balance must not be charged that morning's spend: the money
+     * before it came out of the balance this one replaced. Precision reaches
+     * only as far as the sources allow — `llm_calls` timestamps every call,
+     * while Anthropic's billed days cannot be split — but the report never
+     * emits the day in progress, so an entry recorded today always lands in
+     * the half that can be sliced exactly.
+     */
     anchored_at: z.string(),
   })
   .nullable();
@@ -504,9 +528,24 @@ export function spendRoute(getPool: () => Pool | null): ServerRoute {
         // the MIN, one backdated typo fix drags the anchor back to its date
         // and counts every dollar spent in between against the balance —
         // silently, and the resulting figure looks entirely plausible.
+        // Rendered to an explicit ISO-8601 UTC string rather than handed back
+        // as a pg Date: this crosses a wire and then an RSC boundary, and a
+        // Date does not survive that intact.
+        // The anchor is the OPENING entry, not merely the earliest one. Only
+        // an opening declares "the balance was this much, then" — top-ups and
+        // corrections adjust the total and say nothing about when counting
+        // starts. Anchoring on MIN over everything let a backdated top-up drag
+        // the window weeks earlier and charge old spend against a new balance,
+        // silently and plausibly. Falls back to the earliest non-correction so
+        // a ledger of pure top-ups still anchors somewhere.
         `SELECT COALESCE(SUM(amount_usd), 0)::float8 AS ledger_total_usd,
-           (MIN(effective_date) FILTER (WHERE kind <> 'correction'))::text
-             AS anchored_at
+           to_char(
+             COALESCE(
+               MIN(effective_at) FILTER (WHERE kind = 'opening'),
+               MIN(effective_at) FILTER (WHERE kind <> 'correction')
+             ) AT TIME ZONE 'UTC',
+             'YYYY-MM-DD"T"HH24:MI:SS"Z"'
+           ) AS anchored_at
          FROM pipeline.credit_ledger`,
       );
       const budget = ledger?.anchored_at

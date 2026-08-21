@@ -2712,7 +2712,7 @@ export interface components {
     };
     CreditEntryRecorded: {
       id: number;
-      effective_date: string;
+      effective_at: string;
       amount_usd: number;
       kind: string;
       note: string;
@@ -5697,6 +5697,7 @@ export interface operations {
         "application/json": {
           amount_usd: number;
           effective_date?: string;
+          effective_time?: string;
           /**
            * @default topup
            * @enum {string}

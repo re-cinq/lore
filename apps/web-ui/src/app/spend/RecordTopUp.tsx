@@ -49,6 +49,14 @@ export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
         </label>
         <input id="effective_date" name="effective_date" type="date" />
 
+        <label htmlFor="effective_time">
+          Time it landed{" "}
+          <span className="meta">
+            — optional; without it the whole day counts against this balance
+          </span>
+        </label>
+        <input id="effective_time" name="effective_time" type="time" />
+
         <label htmlFor="note">
           Note <span className="meta">— optional</span>
         </label>

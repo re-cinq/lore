@@ -14,7 +14,7 @@ const undefinedTable = () =>
 
 const RECORDED = {
   id: 1,
-  effective_date: "2026-08-21",
+  effective_at: "2026-08-21T00:00:00Z",
   amount_usd: 100,
   kind: "topup",
   note: "",
@@ -71,11 +71,11 @@ describe("POST /api/spend/credits", () => {
     expect(res.result).toMatchObject({ amount_usd: 100, kind: "topup" });
   });
 
-  it("defaults a missing effective_date to today and the kind to topup", async () => {
-    // The common case is recording a top-up the day it happens, so the form
-    // asks for an amount and nothing else. `current_date` is resolved by
-    // Postgres via COALESCE rather than by this process, which has no business
-    // deciding what day it is for the database.
+  it("anchors a dateless entry to the START of today, not to now", async () => {
+    // The trap this pins: stamping `now()` would exclude everything spent
+    // between the money landing and someone typing it in — spend that came
+    // straight out of the new balance — and report MORE remaining than there
+    // is. Midnight can only ever over-count, which is the safe direction.
     const pool = poolRecording();
 
     await post({ amount_usd: 100 }, pool);
@@ -83,23 +83,64 @@ describe("POST /api/spend/credits", () => {
     const [sql, params] = pool.query.mock.calls[0];
 
     expect(String(sql)).toContain("COALESCE($1::date, current_date)");
-    expect(params).toEqual([null, 100, "topup", "", ""]);
+    expect(String(sql)).toContain("COALESCE($2::time, time '00:00')");
+    expect(String(sql)).not.toContain("now()");
+    expect(params).toEqual([null, null, 100, "topup", "", ""]);
   });
 
   it("passes an explicit effective_date through for a late-recorded top-up", async () => {
-    // Money that landed on the 14th and was recorded on the 21st anchors the
-    // spend window to the 14th — otherwise a week of spend goes uncounted.
+    // Money that landed on the 14th and was recorded on the 21st. For a
+    // top-up the date is documentation only — the remaining arithmetic reads
+    // the opening entry's moment and nothing else — but it must still be
+    // stored as given rather than as the day it was typed in.
     const pool = poolRecording();
 
     await post({ amount_usd: 250, effective_date: "2026-08-14" }, pool);
 
     expect(pool.query.mock.calls[0][1]).toEqual([
       "2026-08-14",
+      null,
       250,
       "topup",
       "",
       "",
     ]);
+  });
+
+  it("composes a date and time into one moment when the time is known", async () => {
+    // Topped up at 20:00 on the 14th, typed in the next day: the pair is
+    // composed in Postgres so the entry lands on the evening it happened.
+    const pool = poolRecording();
+
+    await post(
+      {
+        amount_usd: 250,
+        effective_date: "2026-08-14",
+        effective_time: "20:00",
+      },
+      pool,
+    );
+
+    expect(pool.query.mock.calls[0][1]).toEqual([
+      "2026-08-14",
+      "20:00",
+      250,
+      "topup",
+      "",
+      "",
+    ]);
+  });
+
+  it("returns 400 for a time that is not HH:MM", async () => {
+    expect(
+      (await post({ amount_usd: 100, effective_time: "8pm" })).statusCode,
+    ).toBe(400);
+  });
+
+  it("returns 400 for an hour outside the clock", async () => {
+    expect(
+      (await post({ amount_usd: 100, effective_time: "24:00" })).statusCode,
+    ).toBe(400);
   });
 
   it("records a negative amount as a correction", async () => {
@@ -110,6 +151,7 @@ describe("POST /api/spend/credits", () => {
     await post({ amount_usd: -20, kind: "correction", note: "typo" }, pool);
 
     expect(pool.query.mock.calls[0][1]).toEqual([
+      null,
       null,
       -20,
       "correction",

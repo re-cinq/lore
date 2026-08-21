@@ -46,11 +46,16 @@ export async function recordTopUpAction(
     return { error: "An entry of $0 would not move the balance." };
   }
   const effectiveDate = (formData.get("effective_date") as string)?.trim();
+  const effectiveTime = (formData.get("effective_time") as string)?.trim();
   const result = await recordCreditEntry({
     amount_usd: amount,
-    // Omitted rather than sent empty: the API defaults a missing date to today
-    // in Postgres, which is the right clock for a row Postgres is storing.
+    // Omitted rather than sent empty: the API resolves a missing date to today
+    // in Postgres, which is the right clock for a row Postgres is storing, and
+    // a missing time to the start of that day. An empty string would be a
+    // value that fails its format check instead of an absence that takes the
+    // default.
     ...(effectiveDate ? { effective_date: effectiveDate } : {}),
+    ...(effectiveTime ? { effective_time: effectiveTime } : {}),
     // The form offers no kind control, so the sign carries the intent: a
     // negative entry is someone undoing a mistake, and calling that a "topup"
     // makes the ledger read as a negative top-up, which is not a thing.

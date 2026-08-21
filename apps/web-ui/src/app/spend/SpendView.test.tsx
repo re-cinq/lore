@@ -332,7 +332,7 @@ describe("SpendView", () => {
     ledger_total_usd: 500,
     spent_since_usd: 312.5,
     remaining_usd: 187.5,
-    anchored_at: "2026-08-01",
+    anchored_at: "2026-08-01T00:00:00Z",
   };
 
   const balanceCard = () =>
@@ -396,7 +396,7 @@ describe("budgetOutlook", () => {
     ledger_total_usd: 500,
     spent_since_usd: 300,
     remaining_usd: 200,
-    anchored_at: "2026-08-01",
+    anchored_at: "2026-08-01T00:00:00Z",
   };
 
   it("averages spend over the days elapsed since the anchor, inclusive", () => {
@@ -460,7 +460,7 @@ describe("SpendView top-up form", () => {
           ledger_total_usd: 500,
           spent_since_usd: 100,
           remaining_usd: 400,
-          anchored_at: "2026-08-01",
+          anchored_at: "2026-08-01T00:00:00Z",
         }}
       />,
     );
@@ -482,7 +482,7 @@ describe("SpendView runout wording", () => {
     ledger_total_usd: spent + remaining,
     spent_since_usd: spent,
     remaining_usd: remaining,
-    anchored_at: "2026-08-01",
+    anchored_at: "2026-08-01T00:00:00Z",
   });
 
   it("says a day, not 1 days, on the last day of runway", () => {
@@ -499,5 +499,41 @@ describe("SpendView runout wording", () => {
     render(<SpendView {...loreOnly} budget={withDaysLeft(214, 386)} />);
 
     expect(screen.getByText(/about 37 days left/)).toBeTruthy();
+  });
+});
+
+describe("SpendView anchor precision", () => {
+  const at = (anchored_at: string) => ({
+    ledger_total_usd: 600,
+    spent_since_usd: 214,
+    remaining_usd: 386,
+    anchored_at,
+  });
+
+  it("shows no clock when the balance anchors to the start of its day", () => {
+    // Printing "00:00" would dress a deliberate approximation up as a
+    // measurement: a day without a known time counts the WHOLE day.
+    render(<SpendView {...loreOnly} budget={at("2026-08-01T00:00:00Z")} />);
+
+    const note = screen.getByText(/recorded/);
+
+    expect(note.textContent).toContain(day("2026-08-01"));
+    expect(note.textContent).not.toContain("00:00");
+  });
+
+  it("shows the clock when the balance anchors to a known moment", () => {
+    // An opening entered at 14:30 on an already-spending day: the precision is
+    // real, so it is stated rather than implied.
+    render(<SpendView {...loreOnly} budget={at("2026-08-01T14:30:00Z")} />);
+
+    expect(screen.getByText(/14:30 UTC/)).toBeTruthy();
+  });
+
+  it("measures elapsed days from the anchor's day, not from its clock", () => {
+    // The outlook divides by whole days; an afternoon anchor must not parse to
+    // NaN, which is what splitting an ISO instant on "-" used to produce.
+    expect(
+      budgetOutlook(at("2026-08-01T14:30:00Z"), new Date(2026, 7, 10)),
+    ).toEqual(budgetOutlook(at("2026-08-01T00:00:00Z"), new Date(2026, 7, 10)));
   });
 });

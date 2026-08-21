@@ -32,10 +32,14 @@ const CreditEntryBody = z.object({
    */
   amount_usd: z.number().refine((n) => n !== 0, "amount_usd must not be zero"),
   /**
-   * When the money landed, which is not always when someone got round to
-   * recording it. Defaults to today, because the common case is recording a
-   * top-up the day it happens and a form should not ask for what it can
-   * assume.
+   * The DAY the money landed, which is not always the day someone got round to
+   * recording it. Omitted means today.
+   *
+   * A day alone anchors to its START, so the whole day's spend counts against
+   * the balance. That is deliberate and it is the safe direction: over-counting
+   * understates what is left, while under-counting would tell someone they have
+   * money they have already spent. `effective_time` buys back the precision
+   * when it is actually known.
    */
   effective_date: z
     .string()
@@ -57,6 +61,20 @@ const CreditEntryBody = z.object({
       );
     }, "effective_date must be a real calendar date")
     .optional(),
+  /**
+   * The time of day the money landed, when it is known. Only ever consulted
+   * for the OPENING entry, since that is the one moment the remaining
+   * arithmetic reads — a later top-up contributes its amount and nothing else,
+   * so recording it days late changes no figure.
+   *
+   * The case it exists for: entering an opening balance partway through a day
+   * that has already been spending. Anchoring at midnight there would charge
+   * the morning against a balance that did not yet exist.
+   */
+  effective_time: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "effective_time must be HH:MM")
+    .optional(),
   kind: z.enum(["opening", "topup", "correction"]).default("topup"),
   note: z.string().default(""),
   /** Free text, not an authenticated identity — this API has bearer tokens,
@@ -66,7 +84,8 @@ const CreditEntryBody = z.object({
 
 const CreditEntrySchema = z.object({
   id: z.number(),
-  effective_date: z.string(),
+  /** ISO-8601 UTC instant — the moment the balance changed, not the day. */
+  effective_at: z.string(),
   amount_usd: z.number(),
   kind: z.string(),
   note: z.string(),
@@ -97,17 +116,39 @@ export function creditLedgerRoute(getPool: () => Pool | null): ServerRoute {
         return h.response({ error: DB_UNAVAILABLE }).code(503);
       }
 
-      const { amount_usd, effective_date, kind, note, recorded_by } =
-        request.payload as z.infer<typeof CreditEntryBody>;
+      const {
+        amount_usd,
+        effective_date,
+        effective_time,
+        kind,
+        note,
+        recorded_by,
+      } = request.payload as z.infer<typeof CreditEntryBody>;
 
       try {
+        // Day and time are composed in Postgres rather than here: this process
+        // has no business deciding what day it is for the database, and the
+        // midnight default keeps an unknown time counting the whole day rather
+        // than silently skipping the part of it that already spent money.
         const { rows } = await pool.query(
           `INSERT INTO pipeline.credit_ledger
-             (effective_date, amount_usd, kind, note, actor)
-           VALUES (COALESCE($1::date, current_date), $2, $3, $4, $5)
-           RETURNING id::int, effective_date::text, amount_usd::float8,
-             kind, note, actor`,
-          [effective_date ?? null, amount_usd, kind, note, recorded_by],
+             (effective_at, amount_usd, kind, note, actor)
+           VALUES (
+             COALESCE($1::date, current_date)
+               + COALESCE($2::time, time '00:00'),
+             $3, $4, $5, $6)
+           RETURNING id::int,
+             to_char(effective_at AT TIME ZONE 'UTC',
+               'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS effective_at,
+             amount_usd::float8, kind, note, actor`,
+          [
+            effective_date ?? null,
+            effective_time ?? null,
+            amount_usd,
+            kind,
+            note,
+            recorded_by,
+          ],
         );
 
         return h.response(rows[0]).code(201);

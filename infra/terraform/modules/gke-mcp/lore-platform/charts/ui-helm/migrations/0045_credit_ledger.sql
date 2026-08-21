@@ -14,22 +14,30 @@
 -- amount_usd is in DOLLARS, matching pipeline.anthropic_cost_daily.cost_usd,
 -- so the two sides of `remaining = ledger - spend` share a unit.
 --
--- effective_date is when the money landed, which is not always when it was
--- recorded (created_at). Spend is counted from the EARLIEST effective_date,
--- so a balance entered late still anchors to the right day.
+-- effective_at is a TIMESTAMP, not a date, and that is the whole point. A
+-- top-up recorded at 14:30 on a healthy balance must not have the morning's
+-- spend charged against it, and a date column can only ever answer to the
+-- nearest midnight. Anthropic's cost report is day-bucketed and cannot be
+-- split, but it never emits the in-progress day either -- so the day an entry
+-- is recorded is always covered by pipeline.llm_calls, whose created_at is a
+-- real timestamp. The precision is available exactly where it is needed.
+--
+-- It is also when the money LANDED, which is not always when it was recorded
+-- (created_at). Spend counts from the earliest effective_at, so a balance
+-- entered late still anchors to the right moment.
 --
 -- Idempotent: safe to re-run. `pipeline` is owned by `lore` (the migration
 -- runner), so this applies through the Helm hook with no operator step --
 -- same channel as 0014_dark_factory_audit_log.
 
 CREATE TABLE IF NOT EXISTS pipeline.credit_ledger (
-  id             BIGSERIAL PRIMARY KEY,
-  effective_date DATE NOT NULL,
-  amount_usd     NUMERIC NOT NULL,
-  kind           TEXT NOT NULL DEFAULT 'topup',
-  note           TEXT NOT NULL DEFAULT '',
-  actor          TEXT NOT NULL DEFAULT '',
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+  id           BIGSERIAL PRIMARY KEY,
+  effective_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  amount_usd   NUMERIC NOT NULL,
+  kind         TEXT NOT NULL DEFAULT 'topup',
+  note         TEXT NOT NULL DEFAULT '',
+  actor        TEXT NOT NULL DEFAULT '',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- Guarded so a re-run against a table that already carries the constraint is a
