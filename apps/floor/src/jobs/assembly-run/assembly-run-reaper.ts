@@ -19,11 +19,10 @@ import {
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
 import { graphForRun } from "@re-cinq/lore-assembly-lines";
-import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { advanceLine, finishLine, taskFromRow } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
-import { nodeAgentSpec, nodeStationSpec } from "./floor-assembly-run.js";
+import { nodeLaunchSpec, priorOutcomeOf } from "./launch-spec.js";
 import { runOutcomeFromTaskStatus } from "../watcher/agent-watcher-logic.js";
 import type { NodeEventDeps } from "./node-event-handler.js";
 
@@ -38,6 +37,13 @@ const MINUTE_MS = 60_000;
 const DEFAULT_TIMEOUT_MINUTES = 60;
 const TIMEOUT_BUFFER_MINUTES = 2;
 const QUEUED_LIMIT_MINUTES = 30;
+/**
+ * How long after a node's row is minted an absent CR is not yet trusted to mean
+ * "crashed before launch". The row is written BEFORE the CR create, so a tick can
+ * legitimately land between them and race an in-flight provision. Mirror of the
+ * planning reaper's FR-10.4 grace, and generous enough to absorb a flaky kube read.
+ */
+const NODE_STARTUP_GRACE_MS = 2 * MINUTE_MS;
 
 export type NodeRecovery =
   | { kind: "resolve"; status: AgentNodeStatus }
@@ -75,8 +81,13 @@ export function decideNodeRecovery(input: {
     return { kind: "timeout" };
   }
 
+  // Absence — and only absence, a 404 — is the crash-between-row-and-launch case.
+  // An existing CR the controller has not stamped reports `Pending` and falls
+  // through to `wait` below.
   if (input.status === null) {
-    return { kind: "relaunch" };
+    return input.nowMs - input.node.startedAt.getTime() < NODE_STARTUP_GRACE_MS
+      ? { kind: "wait" }
+      : { kind: "relaunch" };
   }
 
   return { kind: "wait" };
@@ -236,12 +247,15 @@ export async function assemblyLineReaperJob(
         }
 
         await deps.launch(
-          specForNode(
-            node,
-            row,
-            openNode.iteration,
+          await nodeLaunchSpec(
+            {
+              node,
+              task: taskFromRow(row),
+              iteration: openNode.iteration,
+              stationRunId: openNode.stationRunId,
+              priorOutcome: priorOutcomeOf(nodes, openNode.nodeId),
+            },
             deps,
-            openNode.stationRunId,
           ),
         );
         relaunched++;
@@ -254,24 +268,4 @@ export async function assemblyLineReaperJob(
   }
 
   return `resolved ${resolved}, relaunched ${relaunched}, timed out ${timedOut}, failed-queued ${failedQueued}, re-advanced ${advanced}, swept-single-cr ${sweptSingleCr} across ${open.length} open line(s)`;
-}
-
-function specForNode(
-  node: RunGraphNode,
-  row: Parameters<typeof taskFromRow>[0],
-  iteration: number,
-  deps: NodeEventDeps,
-  stationRunId?: string,
-) {
-  const task = taskFromRow(row);
-
-  return node.type === "agent"
-    ? nodeAgentSpec(
-        node,
-        task,
-        deps.resolvePrompt(node.prompt_ref ?? node.type, task.description),
-        iteration,
-        stationRunId,
-      )
-    : nodeStationSpec(node, task, iteration, stationRunId);
 }
