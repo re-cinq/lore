@@ -16,9 +16,21 @@ const num = (n: number) => Number(n).toLocaleString();
  *  `YYYY-MM-DD` string as a Date makes it UTC midnight, which is the previous
  *  day for every viewer west of Greenwich. */
 const day = (isoDay: string) => {
-  const [y, m, d] = isoDay.split("-").map(Number);
+  const [y, m, d] = isoDay.split("-");
 
-  return new Date(y, m - 1, d).toLocaleDateString();
+  return `${d}-${m}-${y}`;
+};
+
+/** Mirrors the view's `stamp`: a real instant, so it keeps its clock but is
+ *  rendered day-month-year in the viewer's own timezone. */
+const stamp = (iso: string) => {
+  const t = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  return (
+    `${pad(t.getDate())}-${pad(t.getMonth() + 1)}-${t.getFullYear()} ` +
+    `${pad(t.getHours())}:${pad(t.getMinutes())}`
+  );
 };
 
 const tableByHeading = (heading: string): HTMLElement => {
@@ -169,9 +181,7 @@ describe("SpendView", () => {
     render(<SpendView {...loreOnly} />);
     const table = tableByHeading("Daily Cost (This Month)");
 
-    expect(
-      within(table).getByText(new Date("2026-08-07").toLocaleDateString()),
-    ).toBeInTheDocument();
+    expect(within(table).getByText(day("2026-08-07"))).toBeInTheDocument();
     expect(within(table).getByText(usd(14.24))).toBeInTheDocument();
     expect(within(table).getByText(num(32))).toBeInTheDocument();
   });
@@ -220,9 +230,7 @@ describe("SpendView", () => {
     expect(screen.getByText("Billed cost (Anthropic)")).toBeInTheDocument();
     expect(screen.getByText(usd(1234.5))).toBeInTheDocument();
     expect(
-      screen.getByText(
-        `as of ${new Date("2026-08-07T10:00:00.000Z").toLocaleString()}`,
-      ),
+      screen.getByText(`as of ${stamp("2026-08-07T10:00:00.000Z")}`),
     ).toBeInTheDocument();
     expect(
       within(tableByHeading("Anthropic Billed by Model (MTD)")).getByText(
@@ -299,7 +307,8 @@ describe("SpendView", () => {
   it("dates the billed-through day in local time, not the UTC instant", () => {
     // `new Date("2026-08-07")` is UTC midnight, which renders as the 6th for
     // every viewer west of Greenwich: an off-by-one day inside the fix for an
-    // off-by-one day.
+    // off-by-one day. Formatted from the string's parts, so no Date is built
+    // and no timezone can shift it.
     render(
       <SpendView
         {...withAdminKey}
@@ -309,7 +318,7 @@ describe("SpendView", () => {
     );
 
     expect(screen.getByText(/billed through/).textContent).toContain(
-      new Date(2026, 7, 7).toLocaleDateString(),
+      "07-08-2026",
     );
   });
 
@@ -339,16 +348,17 @@ describe("SpendView", () => {
     screen.getByRole("heading", { name: "Balance", level: 2 })
       .nextElementSibling as HTMLElement;
 
-  it("renders the remaining balance above the month-to-date figures", () => {
-    // Position is the point: "how much is left" is what the page is opened
-    // for, and everything below it is context for that one number.
+  it("renders the remaining balance below the month-to-date figures", () => {
+    // Position is deliberate: the balance is month-to-date spend subtracted
+    // from what was recorded, so it reads better after those figures than
+    // before them.
     render(<SpendView {...loreOnly} budget={budget} />);
 
     const headings = screen
       .getAllByRole("heading", { level: 2 })
       .map((h) => h.textContent);
 
-    expect(headings.indexOf("Balance")).toBeLessThan(
+    expect(headings.indexOf("Balance")).toBeGreaterThan(
       headings.indexOf("Month to Date"),
     );
     expect(within(balanceCard()).getByText(usd(187.5))).toBeTruthy();
@@ -548,8 +558,9 @@ describe("SpendView top-up legend", () => {
     render(<SpendView {...loreOnly} recordAction={recordAction} />);
 
     expect(
-      screen.getByText(/blank counts from the start of today/),
+      screen.getByText(/Leave both blank to count from the start of today/),
     ).toBeTruthy();
+    // The wording it replaces, which read equally as "defaults to now".
     expect(screen.queryByText(/defaults to today/)).toBeNull();
   });
 
