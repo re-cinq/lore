@@ -40,6 +40,22 @@ const CreditEntryBody = z.object({
   effective_date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "effective_date must be YYYY-MM-DD")
+    // Shape is not validity. `2026-02-30` matches the regex above and makes
+    // Postgres raise 22008 (date/time field value out of range) — a code the
+    // handler does not catch, so it rethrew as a 500 and told the caller the
+    // server was broken when the truth was a typo in their own date. Rebuild
+    // the date and check it did not roll over: JS normalises February 30th to
+    // March 2nd rather than refusing it, and the rollover is the tell.
+    .refine((value) => {
+      const [year, month, dayOfMonth] = value.split("-").map(Number);
+      const rebuilt = new Date(year, month - 1, dayOfMonth);
+
+      return (
+        rebuilt.getFullYear() === year &&
+        rebuilt.getMonth() === month - 1 &&
+        rebuilt.getDate() === dayOfMonth
+      );
+    }, "effective_date must be a real calendar date")
     .optional(),
   kind: z.enum(["opening", "topup", "correction"]).default("topup"),
   note: z.string().default(""),

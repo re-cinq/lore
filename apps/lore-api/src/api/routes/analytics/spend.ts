@@ -499,8 +499,14 @@ export function spendRoute(getPool: () => Pool | null): ServerRoute {
         anchored_at: string | null;
       }>(
         pool,
+        // Corrections are excluded from the anchor but NOT from the total.
+        // A correction adjusts an amount; it does not start a balance. Left in
+        // the MIN, one backdated typo fix drags the anchor back to its date
+        // and counts every dollar spent in between against the balance —
+        // silently, and the resulting figure looks entirely plausible.
         `SELECT COALESCE(SUM(amount_usd), 0)::float8 AS ledger_total_usd,
-           MIN(effective_date)::text AS anchored_at
+           (MIN(effective_date) FILTER (WHERE kind <> 'correction'))::text
+             AS anchored_at
          FROM pipeline.credit_ledger`,
       );
       const budget = ledger?.anchored_at

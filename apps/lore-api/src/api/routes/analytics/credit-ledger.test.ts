@@ -145,4 +145,37 @@ describe("POST /api/spend/credits", () => {
 
     expect((await post({ amount_usd: 100 }, pool)).statusCode).toBe(503);
   });
+
+  it.each(["2026-02-30", "2026-13-01", "2026-04-31", "2025-02-29"])(
+    "returns 400 for the impossible date %s",
+    async (effectiveDate) => {
+      // Shape is not validity: each of these matches the YYYY-MM-DD regex and
+      // each makes Postgres raise 22008 (date/time field value out of range).
+      // 22008 is not the 42P01 the handler catches, so before this was pinned
+      // an impossible date rethrew as a 500 — the caller reported their own
+      // typo accurately and was told the server was broken.
+      const pool = makePool();
+
+      const res = await post(
+        { amount_usd: 100, effective_date: effectiveDate },
+        pool,
+      );
+
+      expect(res.statusCode).toBe(400);
+      expect(pool.query).not.toHaveBeenCalled();
+    },
+  );
+
+  it("still accepts a real leap day", async () => {
+    // The guard must reject impossible dates without rejecting unusual ones.
+    const pool = poolRecording();
+
+    const res = await post(
+      { amount_usd: 100, effective_date: "2028-02-29" },
+      pool,
+    );
+
+    expect(res.statusCode).toBe(201);
+    expect(pool.query.mock.calls[0][1]?.[0]).toBe("2028-02-29");
+  });
 });

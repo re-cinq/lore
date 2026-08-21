@@ -105,11 +105,19 @@ describe("recordTopUpAction", () => {
     expect(recordCreditEntry).not.toHaveBeenCalled();
   });
 
-  it("accepts a negative amount as a correction", async () => {
+  it("records a negative amount as a correction, not a topup", async () => {
+    // The form has no kind control, so the sign is the only signal of intent —
+    // and a "-$20 top-up" is a sentence that means nothing. This assertion
+    // used to omit `kind`, which is exactly how the mislabelling survived a
+    // test whose own name claimed to cover it.
     await recordTopUpAction(null, form({ amount_usd: "-20", note: "typo" }));
 
     expect(recordCreditEntry).toHaveBeenCalledWith(
-      expect.objectContaining({ amount_usd: -20, note: "typo" }),
+      expect.objectContaining({
+        amount_usd: -20,
+        kind: "correction",
+        note: "typo",
+      }),
     );
   });
 

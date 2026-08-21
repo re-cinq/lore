@@ -362,4 +362,24 @@ describe("GET /api/spend", () => {
 
     expect(computed?.[1]).toEqual(["2026-08-01", "2026-08-19"]);
   });
+
+  it("excludes corrections from the anchor but not from the total", async () => {
+    // A correction adjusts an amount; it does not start a balance. Left in the
+    // MIN, one backdated typo fix drags the anchor to its own date and counts
+    // every dollar spent in between — verified against Postgres, where a
+    // correction dated 6/14 moved the anchor off 8/01 by seven weeks.
+    const pool = poolAnswering({});
+
+    await get(pool);
+
+    const ledgerRead = pool.query.mock.calls.find(([sql]) =>
+      String(sql).includes("pipeline.credit_ledger"),
+    );
+    const sql = String(ledgerRead?.[0]);
+
+    expect(sql).toContain("FILTER (WHERE kind <> 'correction')");
+    // The SUM stays unfiltered — a correction is still money.
+    expect(sql).toContain("COALESCE(SUM(amount_usd), 0)");
+    expect(sql).not.toContain("SUM(amount_usd) FILTER");
+  });
 });

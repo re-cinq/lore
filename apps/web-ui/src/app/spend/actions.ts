@@ -12,6 +12,19 @@ export interface RecordTopUpState {
   recorded?: string;
 }
 
+/** An explicit opening balance wins; otherwise the sign decides. Extracted so
+ *  the mapping is one readable expression rather than a nested ternary. */
+function kindFor(
+  formKind: FormDataEntryValue | null,
+  amount: number,
+): "opening" | "topup" | "correction" {
+  if (formKind === "opening") {
+    return "opening";
+  }
+
+  return amount < 0 ? "correction" : "topup";
+}
+
 /**
  * Amounts arrive as text from a form field, so every non-numeric case has to be
  * rejected here rather than sent onward: `Number("")` is 0 and `Number("abc")`
@@ -38,7 +51,10 @@ export async function recordTopUpAction(
     // Omitted rather than sent empty: the API defaults a missing date to today
     // in Postgres, which is the right clock for a row Postgres is storing.
     ...(effectiveDate ? { effective_date: effectiveDate } : {}),
-    kind: formData.get("kind") === "opening" ? "opening" : "topup",
+    // The form offers no kind control, so the sign carries the intent: a
+    // negative entry is someone undoing a mistake, and calling that a "topup"
+    // makes the ledger read as a negative top-up, which is not a thing.
+    kind: kindFor(formData.get("kind"), amount),
     note: ((formData.get("note") as string) ?? "").trim(),
     recorded_by: ((formData.get("recorded_by") as string) ?? "").trim(),
   });
