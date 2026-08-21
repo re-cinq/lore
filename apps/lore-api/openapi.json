@@ -8020,6 +8020,51 @@
                 "station_run_id": {
                   "type": ["string", "null"]
                 },
+                "input": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "description": {
+                          "type": "string"
+                        },
+                        "prompt": {
+                          "type": ["string", "null"]
+                        },
+                        "params": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "repo": {
+                          "type": "string"
+                        },
+                        "ref": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "description",
+                        "prompt",
+                        "params",
+                        "repo",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "commit_sha": {
                   "type": ["string", "null"]
                 },
@@ -8036,6 +8081,7 @@
                 "outcome",
                 "agent_cr_name",
                 "station_run_id",
+                "input",
                 "commit_sha",
                 "started_at",
                 "finished_at"

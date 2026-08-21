@@ -3,7 +3,7 @@ import type {
   AssemblyRun,
   AssemblyRunStatus,
 } from "../../models/assembly-run.js";
-import type { StationRun } from "../../models/station-run.js";
+import type { StationRun, StationRunInput } from "../../models/station-run.js";
 
 export type { AssemblyRunStatus };
 
@@ -80,6 +80,10 @@ export interface StationRunStartInput {
   nodeId: string;
   iteration: number;
   agentCrName?: string;
+  /** What this visit is being dispatched WITH — recorded once, by the first
+   *  writer: a converged duplicate (the relaunch door re-dispatching the same
+   *  visit) keeps what the row already says rather than rewriting history. */
+  input?: StationRunInput;
 }
 
 /**

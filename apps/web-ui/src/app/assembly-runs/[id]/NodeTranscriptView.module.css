@@ -131,3 +131,29 @@
   font-size: 0.8rem;
   color: var(--fg-muted, #5b6672);
 }
+
+.input {
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--color-border-strong);
+}
+
+.input .meta {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.params {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-xs);
+}
+
+.params dt {
+  color: var(--color-text-muted);
+}
+
+.params dd {
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}

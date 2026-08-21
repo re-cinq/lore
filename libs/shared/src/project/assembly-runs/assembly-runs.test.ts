@@ -977,7 +977,14 @@ describe("PgAssemblyRuns node-transition primitives", () => {
     expect(sql).toContain("ON CONFLICT (assembly_run_id, node_id, iteration)");
     expect(sql).toContain("DO UPDATE");
     expect(sql).toContain("(xmax = 0) AS created");
-    expect(calls[0]?.params).toEqual(["al-1", "review", 1, "abcd1234-review"]);
+    // The visit's recorded input rides the same insert; null when none was given.
+    expect(calls[0]?.params).toEqual([
+      "al-1",
+      "review",
+      1,
+      "abcd1234-review",
+      null,
+    ]);
   });
 
   it("ensureStationRun reports created:false for a converged duplicate (xmax != 0)", async () => {
@@ -1048,6 +1055,7 @@ describe("PgAssemblyRuns node-transition primitives", () => {
         iteration: 1,
         outcome: "success",
         agentCrName: "abcd1234-implement",
+        input: null,
         commitSha: "sha-1",
         startedAt: new Date("2026-07-14T00:00:00Z"),
         finishedAt: new Date("2026-07-14T00:01:00Z"),
@@ -1525,8 +1533,10 @@ describe("PgAssemblyRuns resumeFrom", () => {
     // rerun an `anthropic-credit` failure would die of the failure it exists to
     // get past.
     expect(sql).toContain("n.node_id, n.iteration, n.outcome, NULL,");
+    // `input` DOES ride along, unlike the three above: what a visit was given is
+    // history the fork inherits, not a verdict about an attempt that is over.
     expect(sql).toContain(
-      "NULL, NULL, n.commit_sha, n.started_at, n.finished_at",
+      "NULL, NULL, n.input, n.commit_sha, n.started_at, n.finished_at",
     );
   });
 

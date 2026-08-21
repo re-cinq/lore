@@ -210,7 +210,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](libs/assembly-lines/src/loader.test.ts#L520))
 
 17. `nodeStationSpec` builds the CR spec: stationRef, `parameters.station_input` JSON
-    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L130), [honors an explicit station_ref override](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L172), [agent nodes thread station_ref too — a renamed recipe (code-review-refine) still resolves](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L102))
+    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L134), [honors an explicit station_ref override](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L176), [agent nodes thread station_ref too — a renamed recipe (code-review-refine) still resolves](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L106))
 
 18. A station pod ends with the claude-style result line carrying `LORE_NODE_RESULT: {outcome,
     extras}`; the Floor's `parseNodeResult` maps it (precedence: LORE_NODE_RESULT → REVIEW_RESULT →
@@ -227,7 +227,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     (no `LORE_STATION_NODES` flag, no in-process node handlers on that path); the in-process
     supervisor path (gap-fill/runbook), untouched at cutover time, has since been removed too —
     gap-fill runs on the Floor AssemblyLine and runbook as a single Agent CR, both via
-    `handleClaudeCodeTask` with no Floor-side clone or App token. ([validated by every non-agent node dispatches a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L130))
+    `handleClaudeCodeTask` with no Floor-side clone or App token. ([validated by every non-agent node dispatches a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L134))
 
 20. `scripts/task-types.yaml` `stations:` seeds `def-<type>` AgentDefinition/Station pairs (exec
     model, `{station_input}` prompt, lore-station image via `.Values.stationImage`, deadline

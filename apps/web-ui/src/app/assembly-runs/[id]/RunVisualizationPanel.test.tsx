@@ -981,3 +981,107 @@ describe("node inspector", () => {
     expect(screen.queryByText(HINT)).not.toBeInTheDocument();
   });
 });
+
+describe("a node's input opens its transcript", () => {
+  async function selectNode(name: string) {
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: new RegExp(`^${name} —`) }),
+      );
+    });
+  }
+
+  const withInput = (input: AssemblyRunNode["input"]) => [
+    {
+      nodeId: "implement",
+      iteration: 1,
+      outcome: null,
+      agentCrName: null,
+      input,
+      commitSha: null,
+      durationSeconds: null,
+    },
+  ];
+
+  it("opens a selected node's transcript with the input that node was given", async () => {
+    stubHistory([
+      eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
+    ]);
+    useFakeEventSource();
+    render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        startedAt={null}
+        definition={definition}
+        nodes={withInput({
+          description: "implement the spec",
+          prompt: "you are an implementer",
+          params: null,
+          repo: "re-cinq/lore",
+          ref: "feat/x",
+        })}
+        repo="re-cinq/lore"
+        reason={null}
+      />,
+    );
+    await settle();
+    await selectNode("implement");
+
+    expect(screen.getAllByText("implement the spec").length).toBeGreaterThan(0);
+  });
+
+  it("shows a dispatched-but-silent node's input instead of the bare empty state", async () => {
+    // The case the feature exists for: the row is minted, the pod has not spoken,
+    // and the page used to say "No agent events" over a node holding a full brief.
+    stubHistory([]);
+    useFakeEventSource();
+    render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        startedAt={null}
+        definition={definition}
+        nodes={withInput({
+          description: "implement the spec",
+          prompt: null,
+          params: null,
+          repo: "re-cinq/lore",
+          ref: "feat/x",
+        })}
+        repo="re-cinq/lore"
+        reason={null}
+      />,
+    );
+    await settle();
+    await selectNode("implement");
+
+    // The summary and the expanded body carry the same short brief.
+    expect(screen.getAllByText("implement the spec").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByText("No agent events for implement yet."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders a pre-migration node's transcript unchanged when its row has no input", async () => {
+    stubHistory([]);
+    useFakeEventSource();
+    render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        startedAt={null}
+        definition={definition}
+        nodes={withInput(null)}
+        repo="re-cinq/lore"
+        reason={null}
+      />,
+    );
+    await settle();
+    await selectNode("implement");
+
+    expect(
+      screen.getByText("No agent events for implement yet."),
+    ).toBeInTheDocument();
+  });
+});
