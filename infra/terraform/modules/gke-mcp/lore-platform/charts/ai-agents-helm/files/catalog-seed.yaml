@@ -1,7 +1,8 @@
 # Code generated from scripts/task-types.yaml by gen-catalog. DO NOT EDIT.
-# Seeded catalog (ADR-031, re-cinq/lore#698). Guarded by .Values.seedCatalog so
-# operators stop re-seeding after first install; the web UI owns these thereafter.
-{{- if .Values.seedCatalog }}
+# Seeded catalog (ADR-031, re-cinq/lore#698). Lives at files/catalog-seed.yaml and is
+# applied server-side by the catalog-seed pre-upgrade hook (templates/catalog-seed-job.yaml),
+# which runs AFTER the CRD hook so a lagging schema cannot prune these fields (#1468).
+# .Values.seedCatalog gates the hook, not this file.
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -2257,4 +2258,3 @@ spec:
               cpu: "1"
               memory: 1Gi
               ephemeral-storage: 4Gi
-{{- end }}

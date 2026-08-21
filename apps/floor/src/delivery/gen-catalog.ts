@@ -3,8 +3,8 @@
 // Thin IO shell around the pure catalog generator (agent-catalog.ts); excluded from
 // coverage. A drift check re-runs it and diffs the committed output.
 
-import { readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { parse } from "yaml";
 import {
   catalogChartYaml,
@@ -17,7 +17,7 @@ function generateCatalog(): void {
   const src = resolve(repoRoot, "scripts/task-types.yaml");
   const dest = resolve(
     repoRoot,
-    "infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/templates/catalog.yaml",
+    "infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/files/catalog-seed.yaml",
   );
 
   const parsed = parse(readFileSync(src, "utf8")) as {
@@ -25,6 +25,9 @@ function generateCatalog(): void {
     stations?: Record<string, StationCatalogConfig>;
   };
 
+  // The generated file lives beside the chart's templates, not among them — a
+  // fresh checkout has no files/ dir until this runs.
+  mkdirSync(dirname(dest), { recursive: true });
   writeFileSync(
     dest,
     catalogChartYaml(parsed.task_types, parsed.stations ?? {}),
