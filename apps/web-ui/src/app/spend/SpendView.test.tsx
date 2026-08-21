@@ -476,3 +476,28 @@ describe("SpendView top-up form", () => {
     expect(screen.queryByLabelText(/Amount/)).toBeNull();
   });
 });
+
+describe("SpendView runout wording", () => {
+  const withDaysLeft = (spent: number, remaining: number) => ({
+    ledger_total_usd: spent + remaining,
+    spent_since_usd: spent,
+    remaining_usd: remaining,
+    anchored_at: "2026-08-01",
+  });
+
+  it("says a day, not 1 days, on the last day of runway", () => {
+    // Caught by rendering the component and reading it, not by an assertion —
+    // every figure was correct and the sentence was still wrong. This is the
+    // line someone reads on the day it matters most.
+    render(<SpendView {...loreOnly} budget={withDaysLeft(561, 39)} />);
+
+    expect(screen.getByText(/about a day left/)).toBeTruthy();
+    expect(screen.queryByText(/1 days left/)).toBeNull();
+  });
+
+  it("pluralises every other runway length", () => {
+    render(<SpendView {...loreOnly} budget={withDaysLeft(214, 386)} />);
+
+    expect(screen.getByText(/about 37 days left/)).toBeTruthy();
+  });
+});

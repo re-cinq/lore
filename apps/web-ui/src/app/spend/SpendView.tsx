@@ -139,12 +139,16 @@ function BudgetOutlookNote({ budget }: { budget: NonNullable<BudgetRow> }) {
     return null;
   }
 
+  // "about 1 days left" is the line a person reads on the day it matters most.
+  const runout =
+    outlook.daysLeft === 1
+      ? "about a day left at that rate"
+      : `about ${num(outlook.daysLeft)} days left at that rate`;
+
   return (
     <div className={`meta ${styles.subnote}`}>
       ≈{usd(outlook.burnPerDay)}/day —{" "}
-      {budget.remaining_usd < 0
-        ? "already over the recorded balance"
-        : `about ${num(outlook.daysLeft)} days left at that rate`}
+      {budget.remaining_usd < 0 ? "already over the recorded balance" : runout}
     </div>
   );
 }
