@@ -178,7 +178,7 @@ describe("features routes", () => {
         appendIteration: vi.fn().mockResolvedValue({ id: "it2", iteration: 2 }),
       }),
       fakeAssemblyLines({
-        listForTask: vi.fn().mockResolvedValue([
+        listForSubject: vi.fn().mockResolvedValue([
           {
             id: "line-1",
             blueprintName: "feature-planning",
@@ -414,7 +414,7 @@ describe("resume_from_iteration is a REWIND, not the ordinary basis", () => {
 
   const parkedLine = () =>
     fakeAssemblyLines({
-      listForTask: vi.fn().mockResolvedValue([
+      listForSubject: vi.fn().mockResolvedValue([
         {
           id: "line-1",
           blueprintName: "feature-planning",
@@ -524,7 +524,7 @@ describe("accepting the plan resumes the parked node", () => {
     useProject(
       fakeFeatures({ get: vi.fn().mockResolvedValue(specReady) }),
       fakeAssemblyLines({
-        listForTask: vi.fn().mockResolvedValue([
+        listForSubject: vi.fn().mockResolvedValue([
           {
             id: "line-1",
             blueprintName: "feature-planning",
@@ -802,5 +802,77 @@ describe("finalize refuses to start a second run for one feature", () => {
     // the two ever spell it differently the guard silently matches nothing, which
     // looks identical to "no run in flight" — the bug it exists to prevent.
     expect(findOpenBySubject).toHaveBeenCalledWith("feature:f1");
+  });
+});
+
+describe("the dispatch finds the line by SUBJECT, not by the first round's task", () => {
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it("resumes the live line of a feature whose failed round 1 owns a finished line", async () => {
+    // Round 1 failed, so round 2 legally minted a NEW task and line via the legacy
+    // path. Resolving through the FIRST round's task finds only the finished line
+    // and takes legacy forever — feature 414aac54 wedged exactly here (#1462).
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [{ id: "1" }] });
+    const round1 = {
+      ...readyIteration(null),
+      iteration: 1,
+      task_id: "task-1",
+      status: "failed",
+    };
+    const round2 = {
+      ...readyIteration({
+        sections: [{ title: "Overview", content: "round two" }],
+        draft_spec_markdown: "d2",
+      }),
+      iteration: 2,
+      task_id: "task-2",
+    };
+    const listForSubject = vi.fn().mockResolvedValue([
+      { id: "line-2", blueprintName: "feature-planning", status: "running" },
+      { id: "line-1", blueprintName: "feature-planning", status: "finished" },
+    ]);
+
+    useProject(
+      fakeFeatures({
+        get: vi
+          .fn()
+          .mockResolvedValue({ id: "f1", iterations: [round1, round2] }),
+        appendIteration: vi.fn().mockResolvedValue({ id: "it3", iteration: 3 }),
+      }),
+      fakeAssemblyLines({
+        listForSubject,
+        listStationRuns: vi.fn().mockResolvedValue([
+          { nodeId: "analyze", iteration: 2, outcome: "success" },
+          { nodeId: "author", iteration: 2, outcome: null },
+        ]),
+      }),
+    );
+
+    const res = await buildServer(() => pool as never).inject({
+      method: "POST",
+      url: `${base}/f1/iterations`,
+      headers: AUTH,
+      payload: JSON.stringify({ user_answers: { free_form: "tighter" } }),
+    });
+
+    expect(res.statusCode).toBe(202);
+    expect(res.result).toMatchObject({
+      iteration: 3,
+      assembly_run_id: "line-2",
+      task_id: null,
+    });
+    expect(createTask).not.toHaveBeenCalled();
+    // The same string the Floor stamps at launch — a second spelling would match
+    // nothing and read as "no line", which is this bug wearing another key.
+    expect(listForSubject).toHaveBeenCalledWith("feature:f1");
   });
 });
