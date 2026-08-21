@@ -28,6 +28,53 @@
   font-size: var(--fs-xs);
 }
 
+/* Spend has overrun the recorded balance. Same weight as the other figures —
+   the colour carries the alarm, so the number stays comparable at a glance. */
+.figureOver {
+  font-size: var(--fs-xl);
+  font-weight: bold;
+  color: var(--danger);
+}
+
+/* Collapsed by default: recording a balance is occasional, reading one is
+   constant, and an always-open form would push the figures down the page. */
+.recordDetails {
+  margin-bottom: 24px;
+}
+
+.recordForm {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 420px;
+  margin-top: 8px;
+}
+
+/* The form's rules, stated rather than inferred. Muted and small: it is
+   reference material for the first few entries, not competition for the
+   figures above it. */
+.legend {
+  margin: 16px 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.legend dt {
+  font-weight: bold;
+  margin-top: 8px;
+}
+
+.legend dd {
+  margin: 2px 0 0;
+}
+
+.recordActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
 .warningCard {
   margin-bottom: 24px;
   border-color: var(--warning);

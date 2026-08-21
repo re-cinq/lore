@@ -28,15 +28,17 @@ import { DB_UNAVAILABLE } from "../common-schemas.js";
 const MTD = "created_at >= date_trunc('month', current_date)";
 const UNDEFINED_TABLE = "42P01";
 
-/** The billed-cost reads degrade to empty: the table arrives with a migration
- *  and the sync with a cron, and a cluster missing either must still render the
- *  Lore-computed half rather than 500. */
-async function billedRows<T extends QueryResultRow>(
+/** Reads of a table that may not exist yet degrade to empty rather than 500:
+ *  `anthropic_cost_daily` arrives with a migration and its rows with a cron,
+ *  and `credit_ledger` arrives with a migration and its rows with a person. A
+ *  cluster missing any of them must still render the halves it does have. */
+async function optionalTableRows<T extends QueryResultRow>(
   pool: Pool,
   sql: string,
+  params: unknown[] = [],
 ): Promise<T[]> {
   try {
-    const { rows } = await pool.query<T>(sql);
+    const { rows } = await pool.query<T>(sql, params);
 
     return rows;
   } catch (err) {
@@ -46,6 +48,71 @@ async function billedRows<T extends QueryResultRow>(
 
     throw err;
   }
+}
+
+/**
+ * `remaining = recorded balance - everything spent since the anchor`, where
+ * spend is the same two sources the rest of this page reports side by side,
+ * summed here because a remaining balance has to commit to one number.
+ *
+ * The two halves meet at `billed_through` and must not overlap: billed covers
+ * up to and including it, Lore-computed starts strictly after. An off-by-one
+ * either double-counts a day or drops one, and both yield a plausible-looking
+ * balance that is wrong.
+ */
+async function remainingBudget(
+  pool: Pool,
+  anchoredAt: string,
+  ledgerTotalUsd: number,
+) {
+  // Whole days, because Anthropic's cost report is day-bucketed and cannot be
+  // split: an anchor at 14:30 on an already-billed day still charges that
+  // whole day. Unavoidable, and it does not touch the case that matters —
+  // the report never emits the day in progress, so an entry recorded today is
+  // never in here at all.
+  //
+  // MAX(bucket_date) over the WHOLE table, not this month: the anchor can
+  // predate the month, and a month whose sync has not run yet would otherwise
+  // report no billed day at all and shove every dollar onto the computed side.
+  const [billed] = await optionalTableRows<{
+    billed_usd: number;
+    billed_through: string | null;
+  }>(
+    pool,
+    `SELECT
+       COALESCE(SUM(cost_usd)
+         FILTER (WHERE bucket_date >= (($1::timestamptz) AT TIME ZONE 'UTC')::date),
+         0)::float8 AS billed_usd,
+       MAX(bucket_date)::text AS billed_through
+     FROM pipeline.anthropic_cost_daily`,
+    [anchoredAt],
+  );
+  // Here is the precision. `created_at >= $1::timestamptz` compares MOMENTS,
+  // not days, so a midday top-up on a healthy balance is not charged the
+  // morning's spend — the money was added at 14:30 and the spend before then
+  // came out of the balance it replaced. Day-granularity got this wrong by up
+  // to a full day, and always in the direction of understating what is left.
+  //
+  // The bound rides in as a parameter rather than a subquery, for the reason
+  // the month-to-date unbilled read already gives: `anthropic_cost_daily` is
+  // absent on clusters with no admin key, and a subquery against it would take
+  // the Lore-computed half down with it.
+  const { rows: computed } = await pool.query<{ cost_usd: number }>(
+    `SELECT COALESCE(SUM(cost_usd), 0)::float8 AS cost_usd
+       FROM pipeline.llm_calls
+      WHERE created_at >= $1::timestamptz
+        AND ($2::date IS NULL OR created_at::date > $2::date)`,
+    [anchoredAt, billed?.billed_through ?? null],
+  );
+  const spentSinceUsd =
+    (billed?.billed_usd ?? 0) + (computed[0]?.cost_usd ?? 0);
+
+  return {
+    ledger_total_usd: ledgerTotalUsd,
+    spent_since_usd: spentSinceUsd,
+    remaining_usd: ledgerTotalUsd - spentSinceUsd,
+    anchored_at: anchoredAt,
+  };
 }
 
 /**
@@ -134,7 +201,53 @@ const LoreMtdSchema = z.object({
   output_tokens: z.number(),
 });
 
+/**
+ * What is LEFT, which no API can tell us. Anthropic's Admin API exposes usage
+ * and cost reports and no credit balance, so the balance is whatever a person
+ * has recorded in `pipeline.credit_ledger` — and `remaining` is that total
+ * minus everything spent since the earliest entry.
+ *
+ * The one figure on this page that is NOT month-to-date. A balance added in
+ * June is still money in August, so clipping this window to the current month
+ * would silently forgive every dollar spent before the 1st.
+ *
+ * Null, not zero, when the ledger is empty or its table has not been migrated
+ * yet: the same distinction `org_available` draws. Nobody having told us the
+ * balance is a different fact from the balance being nothing, and only one of
+ * them should render as a number.
+ */
+const BudgetSchema = z
+  .object({
+    ledger_total_usd: z.number(),
+    /**
+     * Billed spend from the anchor through `billed_through`, plus Lore-computed
+     * spend for every day strictly after it — the same two-source arithmetic
+     * the rest of this page reports side by side, summed here because a
+     * remaining balance has to commit to one number.
+     */
+    spent_since_usd: z.number(),
+    /** Deliberately allowed to go negative: an overrun is the state most worth
+     *  seeing, and clamping it at zero would hide precisely that day. */
+    remaining_usd: z.number(),
+    /**
+     * The earliest `effective_at` in the ledger, as an ISO-8601 UTC instant —
+     * the MOMENT the arithmetic starts, shown so a stale anchor is visible
+     * rather than merely wrong.
+     *
+     * A moment and not a day, because a top-up recorded at 14:30 onto a
+     * healthy balance must not be charged that morning's spend: the money
+     * before it came out of the balance this one replaced. Precision reaches
+     * only as far as the sources allow — `llm_calls` timestamps every call,
+     * while Anthropic's billed days cannot be split — but the report never
+     * emits the day in progress, so an entry recorded today always lands in
+     * the half that can be sliced exactly.
+     */
+    anchored_at: z.string(),
+  })
+  .nullable();
+
 const SpendSchema = z.object({
+  budget: BudgetSchema,
   org_available: z.boolean(),
   org_mtd: OrgMtdSchema,
   org_by_model: z.array(
@@ -295,7 +408,7 @@ export function spendRoute(getPool: () => Pool | null): ServerRoute {
         return h.response({ error: DB_UNAVAILABLE }).code(503);
       }
 
-      const orgMtdRows = await billedRows<{
+      const orgMtdRows = await optionalTableRows<{
         billed_usd: number;
         input_tokens: number;
         output_tokens: number;
@@ -312,7 +425,7 @@ export function spendRoute(getPool: () => Pool | null): ServerRoute {
          FROM pipeline.anthropic_cost_daily
          WHERE bucket_date >= date_trunc('month', current_date)`,
       );
-      const orgByModel = await billedRows(
+      const orgByModel = await optionalTableRows(
         pool,
         `SELECT model, SUM(cost_usd)::float8 AS cost_usd,
            SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens
@@ -320,7 +433,7 @@ export function spendRoute(getPool: () => Pool | null): ServerRoute {
          WHERE bucket_date >= date_trunc('month', current_date)
          GROUP BY model ORDER BY cost_usd DESC`,
       );
-      const orgDaily = await billedRows(
+      const orgDaily = await optionalTableRows(
         pool,
         `SELECT bucket_date, SUM(cost_usd)::float8 AS cost_usd
          FROM pipeline.anthropic_cost_daily
@@ -402,7 +515,49 @@ export function spendRoute(getPool: () => Pool | null): ServerRoute {
          GROUP BY t.task_type ORDER BY cost_usd DESC`,
       );
 
+      // Read last, so the statement ordering every other read already depends
+      // on stays exactly as it was. An empty ledger yields one row whose
+      // `anchored_at` is null — no anchor, no arithmetic, no budget.
+      const [ledger] = await optionalTableRows<{
+        ledger_total_usd: number;
+        anchored_at: string | null;
+      }>(
+        pool,
+        // Corrections are excluded from the anchor but NOT from the total.
+        // A correction adjusts an amount; it does not start a balance. Left in
+        // the MIN, one backdated typo fix drags the anchor back to its date
+        // and counts every dollar spent in between against the balance —
+        // silently, and the resulting figure looks entirely plausible.
+        // Rendered to an explicit ISO-8601 UTC string rather than handed back
+        // as a pg Date: this crosses a wire and then an RSC boundary, and a
+        // Date does not survive that intact.
+        // The anchor is the OPENING entry, not merely the earliest one. Only
+        // an opening declares "the balance was this much, then" — top-ups and
+        // corrections adjust the total and say nothing about when counting
+        // starts. Anchoring on MIN over everything let a backdated top-up drag
+        // the window weeks earlier and charge old spend against a new balance,
+        // silently and plausibly. Falls back to the earliest non-correction so
+        // a ledger of pure top-ups still anchors somewhere.
+        `SELECT COALESCE(SUM(amount_usd), 0)::float8 AS ledger_total_usd,
+           to_char(
+             COALESCE(
+               MIN(effective_at) FILTER (WHERE kind = 'opening'),
+               MIN(effective_at) FILTER (WHERE kind <> 'correction')
+             ) AT TIME ZONE 'UTC',
+             'YYYY-MM-DD"T"HH24:MI:SS"Z"'
+           ) AS anchored_at
+         FROM pipeline.credit_ledger`,
+      );
+      const budget = ledger?.anchored_at
+        ? await remainingBudget(
+            pool,
+            ledger.anchored_at,
+            ledger.ledger_total_usd,
+          )
+        : null;
+
       return h.response({
+        budget,
         org_available: orgAvailable,
         org_mtd: orgMtd ?? {
           billed_usd: 0,
