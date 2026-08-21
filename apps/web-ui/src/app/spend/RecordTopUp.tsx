@@ -24,8 +24,14 @@ export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
   const [state, formAction] = useActionState(recordAction, null);
 
   return (
-    <details className={styles.recordDetails}>
-      <summary>{first ? "Record the balance" : "Record a top-up"}</summary>
+    // Open when nothing is recorded: on an empty ledger this form is the only
+    // useful thing on the screen, and collapsing it behind a triangle made the
+    // whole feature look like it had not deployed. Collapsed once there is a
+    // figure to read, since from then on reading is the common act.
+    <details className={styles.recordDetails} open={first}>
+      <summary>
+        {first ? "Record the starting balance" : "Record a top-up"}
+      </summary>
       <form action={formAction} className={styles.recordForm}>
         <p className={`meta ${styles.subnote}`}>
           {first
@@ -48,19 +54,21 @@ export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
             as "defaults to now", and those anchor the arithmetic at opposite
             ends of a day's spend. The label now states the consequence rather
             than the default. */}
-        <label htmlFor="effective_date">
-          Date it landed{" "}
-          <span className="meta">— blank counts from the start of today</span>
-        </label>
-        <input id="effective_date" name="effective_date" type="date" />
-
-        <label htmlFor="effective_time">
-          Time it landed{" "}
-          <span className="meta">
-            — optional; blank counts from the start of the day
-          </span>
-        </label>
-        <input id="effective_time" name="effective_time" type="time" />
+        {/* One fact — when the money landed — split across two controls, so
+            they share a row and wrap together rather than separately. */}
+        <div className={styles.fieldRow}>
+          <div>
+            <label htmlFor="effective_date">Date it landed</label>
+            <input id="effective_date" name="effective_date" type="date" />
+          </div>
+          <div>
+            <label htmlFor="effective_time">Time it landed</label>
+            <input id="effective_time" name="effective_time" type="time" />
+          </div>
+        </div>
+        <p className={`meta ${styles.subnote}`}>
+          Leave both blank to count from the start of today.
+        </p>
 
         <label htmlFor="note">
           Note <span className="meta">— optional</span>
