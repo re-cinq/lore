@@ -435,3 +435,44 @@ describe("budgetOutlook", () => {
     ).toMatchObject({ daysLeft: 0 });
   });
 });
+
+describe("SpendView top-up form", () => {
+  const recordAction = async () => ({});
+
+  it("asks for the opening balance when no balance is recorded", () => {
+    // Mounting matters as much as the wording: the form is the one client
+    // component on an otherwise server-rendered page, and a broken boundary
+    // shows up here rather than at runtime.
+    render(<SpendView {...loreOnly} recordAction={recordAction} />);
+
+    expect(
+      screen.getByRole("button", { name: "Record balance" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Amount/)).toBeInTheDocument();
+  });
+
+  it("asks for a top-up once a balance exists", () => {
+    render(
+      <SpendView
+        {...loreOnly}
+        recordAction={recordAction}
+        budget={{
+          ledger_total_usd: 500,
+          spent_since_usd: 100,
+          remaining_usd: 400,
+          anchored_at: "2026-08-01",
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Record top-up" }),
+    ).toBeInTheDocument();
+  });
+
+  it("omits the form entirely when no record action is supplied", () => {
+    render(<SpendView {...loreOnly} />);
+
+    expect(screen.queryByLabelText(/Amount/)).toBeNull();
+  });
+});
