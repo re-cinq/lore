@@ -18,7 +18,6 @@ import {
   latestReadyIteration,
 } from "@re-cinq/lore-shared/project/features/features-port.js";
 import { decideRoundDispatch } from "@re-cinq/lore-shared/feature-planning/round-dispatch.js";
-import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { AssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs.js";
 import { featureSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import { reportToParkedNode } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
@@ -96,24 +95,25 @@ function enforcePool(pool: Pool | null): Pool {
  * Where this round goes: back to the node the feature's line is parked on, or down
  * the legacy path that mints a line per round (FR6.21).
  *
- * The line is found through the FIRST round's task, which is the line's owner for
- * its whole life. A feature whose planning predates the merged line has no parked
- * node and must keep the old path, or it strands mid-plan.
+ * The line is found by SUBJECT KEY — the same string the Floor stamps at launch —
+ * never through the first round's task. That task owns the line only while round 1
+ * succeeds: a failed round 1 makes round 2 mint a task and line of its own, and a
+ * resolver keyed on the first task then finds only the finished line and takes the
+ * legacy path forever (#1462). Newest line wins, exactly as `featureRunId` reads.
+ * A feature whose planning predates the merged line resolves no open parked line
+ * and keeps the old path, or it strands mid-plan.
  */
 async function resolveDispatch(
   project: {
-    assemblyRuns: Pick<AssemblyRunsPort, "listForTask" | "listStationRuns">;
+    assemblyRuns: Pick<AssemblyRuns, "listForSubject" | "listStationRuns">;
   },
-  iterations: readonly { iteration: number; task_id: string | null }[],
+  featureId: string,
 ): Promise<
   { kind: "legacy" } | ({ kind: "resume"; lineId: string } & ParkedTarget)
 > {
-  const taskId = firstTaskId(iterations);
-
-  if (!taskId) {
-    return { kind: "legacy" };
-  }
-  const lines = await project.assemblyRuns.listForTask(taskId);
+  const lines = await project.assemblyRuns.listForSubject(
+    featureSubject(featureId),
+  );
   const line = lines.find((l) => l.blueprintName === PLANNING_DEFINITION);
 
   if (!line) {
@@ -128,22 +128,6 @@ async function resolveDispatch(
   return decision.kind === "resume"
     ? { ...decision, lineId: line.id }
     : { kind: "legacy" };
-}
-
-/**
- * Kick a feature-planning Station for the next round of a feature. `repoFullName`
- * MUST be the `owner/repo` slug — it lands verbatim in `target_repo`, which the
- * pod clones as `github.com/<target_repo>.git`.
- */
-/** The task that owns a feature's line: the FIRST round's. Later rounds are
- *  resumes that mint no task, so nothing after it can identify the line. */
-function firstTaskId(
-  iterations: readonly { iteration: number; task_id: string | null }[],
-): string | null {
-  return (
-    [...iterations].sort((a, b) => a.iteration - b.iteration)[0]?.task_id ??
-    null
-  );
 }
 
 /**
@@ -193,6 +177,11 @@ async function featureRunId(
   return runs[0]?.id ?? null;
 }
 
+/**
+ * Kick a feature-planning Station for the next round of a feature. `repoFullName`
+ * MUST be the `owner/repo` slug — it lands verbatim in `target_repo`, which the
+ * pod clones as `github.com/<target_repo>.git`.
+ */
 async function kickPlanning(
   repoFullName: string,
   featureId: string,
@@ -449,7 +438,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             priorGap,
             answers,
           });
-          const dispatch = await resolveDispatch(project, feature.iterations);
+          const dispatch = await resolveDispatch(project, id);
           const row = await features.appendIteration(
             id,
             answers,
@@ -592,7 +581,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           }
           // Accepting is the author station reporting `success`: the spec work runs
           // on the SAME line, so what follows the accept is an edge, not a new run.
-          const dispatch = await resolveDispatch(project, feature.iterations);
+          const dispatch = await resolveDispatch(project, id);
 
           if (dispatch.kind === "resume") {
             await reportToParkedNode(
