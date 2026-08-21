@@ -1,12 +1,25 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import SpendView, { type SpendViewProps, type LoreMtdRow } from "./SpendView";
+import SpendView, {
+  budgetOutlook,
+  type SpendViewProps,
+  type LoreMtdRow,
+} from "./SpendView";
 
 const usd = (n: number) =>
   Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
 
 const num = (n: number) => Number(n).toLocaleString();
+
+/** Mirrors the view's own `day`, for the reason stated there: parsing a
+ *  `YYYY-MM-DD` string as a Date makes it UTC midnight, which is the previous
+ *  day for every viewer west of Greenwich. */
+const day = (isoDay: string) => {
+  const [y, m, d] = isoDay.split("-").map(Number);
+
+  return new Date(y, m - 1, d).toLocaleDateString();
+};
 
 const tableByHeading = (heading: string): HTMLElement => {
   const h2 = screen.getByRole("heading", { name: heading, level: 2 });
@@ -189,8 +202,17 @@ describe("SpendView", () => {
         name: "Anthropic Daily Billed (This Month)",
       }),
     ).not.toBeInTheDocument();
-    // no em-dash placeholders — the page is complete on Lore data alone
-    expect(screen.queryAllByText("—")).toHaveLength(0);
+    // No em-dash placeholders anywhere Lore data reaches — the Anthropic
+    // sections are absent rather than degraded, which is the point of this
+    // test. The balance card is the one exception and is not one of these: no
+    // amount of Lore data can fill it, because Anthropic publishes no credit
+    // balance, so an unrecorded one has nothing to degrade FROM.
+    const balance = screen.getByRole("heading", { name: "Balance", level: 2 })
+      .nextElementSibling as HTMLElement;
+    const placeholders = screen.queryAllByText("—");
+
+    expect(placeholders).toHaveLength(1);
+    expect(balance.contains(placeholders[0])).toBe(true);
   });
 
   it("shows the billed card and Anthropic sections when an admin key is configured", () => {
@@ -304,5 +326,112 @@ describe("SpendView", () => {
     const note = screen.getByText(/not yet billed/);
 
     expect(note.textContent).toContain(usd(47.74));
+  });
+
+  const budget = {
+    ledger_total_usd: 500,
+    spent_since_usd: 312.5,
+    remaining_usd: 187.5,
+    anchored_at: "2026-08-01",
+  };
+
+  const balanceCard = () =>
+    screen.getByRole("heading", { name: "Balance", level: 2 })
+      .nextElementSibling as HTMLElement;
+
+  it("renders the remaining balance above the month-to-date figures", () => {
+    // Position is the point: "how much is left" is what the page is opened
+    // for, and everything below it is context for that one number.
+    render(<SpendView {...loreOnly} budget={budget} />);
+
+    const headings = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((h) => h.textContent);
+
+    expect(headings.indexOf("Balance")).toBeLessThan(
+      headings.indexOf("Month to Date"),
+    );
+    expect(within(balanceCard()).getByText(usd(187.5))).toBeTruthy();
+  });
+
+  it("shows the recorded total, the spend and the day the count starts", () => {
+    render(<SpendView {...loreOnly} budget={budget} />);
+
+    const note = within(balanceCard()).getByText(/recorded/);
+
+    expect(note.textContent).toContain(usd(500));
+    expect(note.textContent).toContain(usd(312.5));
+    expect(note.textContent).toContain(day("2026-08-01"));
+  });
+
+  it("shows an em dash and a prompt when no balance has been recorded", () => {
+    // Never "$0.00": an unrecorded balance and an exhausted one are different
+    // facts, and only one of them is a number.
+    render(<SpendView {...loreOnly} />);
+
+    const card = balanceCard();
+
+    expect(within(card).getByText("—")).toBeTruthy();
+    expect(within(card).queryByText(usd(0))).toBeNull();
+    expect(within(card).getByText(/No balance recorded yet/)).toBeTruthy();
+  });
+
+  it("says the balance is overrun when spend has passed it", () => {
+    render(
+      <SpendView
+        {...loreOnly}
+        budget={{ ...budget, spent_since_usd: 545, remaining_usd: -45 }}
+      />,
+    );
+
+    const card = balanceCard();
+
+    expect(within(card).getByText(usd(-45))).toBeTruthy();
+    expect(within(card).getByText(/already over the recorded balance/));
+  });
+});
+
+describe("budgetOutlook", () => {
+  const budget = {
+    ledger_total_usd: 500,
+    spent_since_usd: 300,
+    remaining_usd: 200,
+    anchored_at: "2026-08-01",
+  };
+
+  it("averages spend over the days elapsed since the anchor, inclusive", () => {
+    // 8/01 through 8/10 is ten days, not nine: the anchor day itself counts,
+    // otherwise a balance recorded this morning divides by zero.
+    expect(budgetOutlook(budget, new Date(2026, 7, 10))).toEqual({
+      burnPerDay: 30,
+      daysLeft: 6,
+    });
+  });
+
+  it("counts a single day when the balance was recorded today", () => {
+    expect(budgetOutlook(budget, new Date(2026, 7, 1))).toMatchObject({
+      burnPerDay: 300,
+    });
+  });
+
+  it("returns null when nothing has been spent yet", () => {
+    // No rate to project from. A zero burn would divide into infinity days,
+    // which renders as a confident promise nobody made.
+    expect(
+      budgetOutlook({ ...budget, spent_since_usd: 0 }, new Date(2026, 7, 10)),
+    ).toBeNull();
+  });
+
+  it("returns null when the anchor is in the future", () => {
+    expect(budgetOutlook(budget, new Date(2026, 6, 20))).toBeNull();
+  });
+
+  it("reports zero days left when the balance is already overrun", () => {
+    expect(
+      budgetOutlook(
+        { ...budget, spent_since_usd: 600, remaining_usd: -100 },
+        new Date(2026, 7, 10),
+      ),
+    ).toMatchObject({ daysLeft: 0 });
   });
 });

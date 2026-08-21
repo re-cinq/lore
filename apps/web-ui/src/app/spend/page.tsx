@@ -1,6 +1,8 @@
 export const dynamic = "force-dynamic";
 import { getSpend } from "@/lib/api/activity";
+import { recordTopUpAction } from "./actions";
 import SpendView, {
+  type BudgetRow,
   type OrgMtdRow,
   type OrgByModelRow,
   type OrgDailyRow,
@@ -16,6 +18,9 @@ export default async function SpendPage() {
   // One call: ten month-to-date aggregates that only ever render together.
   const result = await getSpend();
   const empty = {
+    // Null, not a zeroed shape: a failed read has not established that the
+    // balance is nothing, and the view renders the two states differently.
+    budget: null,
     org_available: false,
     org_mtd: {
       billed_usd: 0,
@@ -41,6 +46,7 @@ export default async function SpendPage() {
     lore_by_task_type: [],
   };
   const spend = (result.status === "ok" ? result.data : empty) as unknown as {
+    budget: BudgetRow;
     org_available: boolean;
     org_mtd: OrgMtdRow;
     org_by_model: OrgByModelRow[];
@@ -57,6 +63,8 @@ export default async function SpendPage() {
 
   return (
     <SpendView
+      budget={spend.budget}
+      recordAction={recordTopUpAction}
       orgMtd={spend.org_mtd}
       orgAvailable={spend.org_available}
       loreUnbilledUsd={spend.lore_unbilled_usd}

@@ -865,7 +865,7 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   availability is decided by the `as_of` STAMP rather than a row count:
   only the stamp separates "synced, nothing owed" from "never synced",
   and the view hides the section for the second instead of showing a
-  confident zero. ([validated by [`spend.test.ts:33`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L33), [`spend.test.ts:37`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L37), [`spend.test.ts:49`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L49), [`spend.test.ts:79`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L79), [`spend.test.ts:83`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L83), [`spend.test.ts:108`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L108), [`spend.test.ts:132`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L132), [`spend.test.ts:184`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L184), [`spend.test.ts:200`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L200), [`spend.test.ts:213`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L213), [`spend.test.ts:145`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L145))
+  confident zero. ([validated by [`spend.test.ts:33`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L33), [`spend.test.ts:37`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L37), [`spend.test.ts:49`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L49), [`spend.test.ts:79`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L79), [`spend.test.ts:83`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L83), [`spend.test.ts:108`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L108), [`spend.test.ts:132`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L132), [`spend.test.ts:193`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L193), [`spend.test.ts:209`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L209), [`spend.test.ts:222`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L222), [`spend.test.ts:145`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L145))
 
 - FR-19.24: `reviseTask` is the human feedback loop as ONE seam: it
   queues a follow-up task on the parent's branch and PR at immediate
@@ -904,6 +904,49 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   disappears the moment it is selected. Moving this read, and the union
   builder with it, is what let web-ui stop holding a Postgres pool at all.
   ([validated by [`chunks-browse.test.ts:62`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L62), [`chunks-browse.test.ts:66`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L66), [`chunks-browse.test.ts:83`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L83), [`chunks-browse.test.ts:97`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L97), [`chunks-browse.test.ts:110`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L110), [`chunks-browse.test.ts:124`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L124), [`chunks-browse.test.ts:138`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L138), [`chunks-browse.test.ts:162`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L162), [`chunks-browse.test.ts:190`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L190), [`chunks-browse.test.ts:212`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L212), [`chunks-browse.test.ts:242`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L242), [`chunks-browse.test.ts:243`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L243))
+
+- FR-19.27: Anthropic's Admin API reports usage and cost and exposes NO
+  credit balance, so what is LEFT cannot be fetched and is instead
+  accumulated in `pipeline.credit_ledger` — an append-only record of money
+  added, written through `POST /api/spend/credits` under the `write` scope
+  and read back on `GET /api/spend` as a `budget` block. The ledger is
+  append-only rather than a single mutable balance row: a wrong entry is
+  compensated with a negative `correction`, never updated, so every write
+  is one atomic INSERT and two people recording a top-up at the same moment
+  cannot lose each other's entry. `remaining` is the recorded total minus
+  spend since the EARLIEST entry, and that window is deliberately not
+  month-to-date like every other figure on the screen — a balance added in
+  June is still money in August, and clipping it to the current month would
+  silently forgive every dollar spent before the 1st. Spend within the
+  window is the same two sources the rest of the page reports side by side,
+  meeting exactly at `billed_through`: billed covers up to and including
+  it, Lore-computed starts strictly after, because an off-by-one there
+  either double-counts a day or drops one and both yield a plausible
+  balance that is wrong. An empty ledger and a missing table both yield a
+  NULL budget rather than a zero one, on the same reasoning that makes
+  `org_available` a stamp rather than a row count — nobody having recorded
+  the balance is a different fact from the balance being nothing.
+  ([`credit-ledger.test.ts:51`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L51), [`credit-ledger.test.ts:63`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L63), [`credit-ledger.test.ts:67`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L67), [`credit-ledger.test.ts:74`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L74), [`credit-ledger.test.ts:89`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L89), [`credit-ledger.test.ts:105`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L105), [`credit-ledger.test.ts:121`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L121), [`credit-ledger.test.ts:127`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L127), [`credit-ledger.test.ts:133`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L133), [`credit-ledger.test.ts:139`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L139), [`spend.test.ts:254`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L254), [`spend.test.ts:264`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L264), [`spend.test.ts:279`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L279), [`spend.test.ts:300`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L300), [`spend.test.ts:318`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L318), [`spend.test.ts:343`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L343))
+
+- FR-19.28: `/spend` renders the remaining balance ABOVE the
+  month-to-date figures, because "how much is left" is the question the
+  screen is opened for and every figure below it is context for that one.
+  A null budget renders an em dash and a prompt to record the balance, never
+  a confident `$0.00` — the one placeholder on a page that otherwise degrades
+  to nothing, and it is unfillable by design since no data source publishes a
+  credit balance. A negative remaining is shown as a negative number in the
+  danger colour rather than clamped at zero, because an overrun is the state
+  most worth seeing. Alongside it the view projects an average daily burn
+  since the anchor and how many days the balance covers at that rate,
+  declining to project at all when the projection would be a guess dressed
+  as a number — an anchor in the future, or no spend yet to average — and
+  rounding day differences rather than flooring them, since a
+  daylight-saving boundary makes a calendar day 23 or 25 hours long and
+  flooring that loses a day from the divisor. Recording a top-up is a
+  server action that revalidates `/spend` on success, rejecting a blank or
+  non-numeric amount before the request is made — `Number("")` is 0, not
+  NaN, so a blank field would otherwise post a zero entry.
+  ([`SpendView.test.tsx:342`](apps/web-ui/src/app/spend/SpendView.test.tsx#L342), [`SpendView.test.tsx:357`](apps/web-ui/src/app/spend/SpendView.test.tsx#L357), [`SpendView.test.tsx:367`](apps/web-ui/src/app/spend/SpendView.test.tsx#L367), [`SpendView.test.tsx:379`](apps/web-ui/src/app/spend/SpendView.test.tsx#L379), [`SpendView.test.tsx:402`](apps/web-ui/src/app/spend/SpendView.test.tsx#L402), [`SpendView.test.tsx:411`](apps/web-ui/src/app/spend/SpendView.test.tsx#L411), [`SpendView.test.tsx:417`](apps/web-ui/src/app/spend/SpendView.test.tsx#L417), [`SpendView.test.tsx:425`](apps/web-ui/src/app/spend/SpendView.test.tsx#L425), [`SpendView.test.tsx:429`](apps/web-ui/src/app/spend/SpendView.test.tsx#L429), [`actions.test.ts:33`](apps/web-ui/src/app/spend/actions.test.ts#L33), [`actions.test.ts:46`](apps/web-ui/src/app/spend/actions.test.ts#L46), [`actions.test.ts:60`](apps/web-ui/src/app/spend/actions.test.ts#L60), [`actions.test.ts:74`](apps/web-ui/src/app/spend/actions.test.ts#L74), [`actions.test.ts:85`](apps/web-ui/src/app/spend/actions.test.ts#L85), [`actions.test.ts:94`](apps/web-ui/src/app/spend/actions.test.ts#L94), [`actions.test.ts:101`](apps/web-ui/src/app/spend/actions.test.ts#L101), [`actions.test.ts:108`](apps/web-ui/src/app/spend/actions.test.ts#L108), [`actions.test.ts:116`](apps/web-ui/src/app/spend/actions.test.ts#L116), [`actions.test.ts:128`](apps/web-ui/src/app/spend/actions.test.ts#L128))
 
 ### FR-20: Project Facade Ports (Phase 1)
 

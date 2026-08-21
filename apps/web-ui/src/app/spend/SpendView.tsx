@@ -1,5 +1,7 @@
 import styles from "./SpendView.module.css";
 import type { components } from "@/lib/api/schema";
+import RecordTopUp from "./RecordTopUp";
+import type { RecordTopUpState } from "./actions";
 
 // Anthropic's authoritative billed cost (Admin Cost API → anthropic_cost_daily).
 // Optional — only present when an sk-ant-admin… key is configured.
@@ -20,7 +22,25 @@ export type LoreDailyRow = Spend["lore_daily"][number];
 export type LoreByRepoRow = Spend["lore_by_repo"][number];
 export type LoreByTaskTypeRow = Spend["lore_by_task_type"][number];
 
+export type BudgetRow = Spend["budget"];
+
 export interface SpendViewProps {
+  /**
+   * What is LEFT of the recorded balance, or null when nobody has recorded
+   * one. Null renders a prompt to record it, never a confident "$0.00
+   * remaining" — an unrecorded balance and an exhausted one are different
+   * facts and only one of them is a number.
+   *
+   * Optional, like the unbilled figures below and for the same reason: a
+   * caller that does not pass it renders exactly as before.
+   */
+  budget?: BudgetRow;
+  /** Records money added. Omitted → the form is not rendered; the figures are
+   *  read-only either way. */
+  recordAction?: (
+    prev: RecordTopUpState | null,
+    formData: FormData,
+  ) => Promise<RecordTopUpState>;
   orgMtd: OrgMtdRow;
   orgAvailable: boolean;
   /**
@@ -60,7 +80,78 @@ const day = (isoDay: string) => {
   return new Date(y, m - 1, d).toLocaleDateString();
 };
 
+const MS_PER_DAY = 86_400_000;
+
+/** Local midnight for a `YYYY-MM-DD` day, for the reason `day` gives. */
+const midnight = (isoDay: string) => {
+  const [y, m, d] = isoDay.split("-").map(Number);
+
+  return new Date(y, m - 1, d);
+};
+
+/**
+ * Average daily burn since the anchor, and how many days the remaining balance
+ * covers at that rate — the part that answers "are we running low", which is
+ * the question a bare remaining figure leaves open.
+ *
+ * `today` is a parameter rather than a `new Date()` inside, so the arithmetic
+ * is testable without freezing a clock.
+ *
+ * Null whenever a projection would be a guess dressed as a number: an anchor
+ * in the future, or no spend yet to average. Day differences are ROUNDED, not
+ * floored — a daylight-saving boundary makes a calendar day 23 or 25 hours
+ * long, and flooring that silently loses a day from the divisor.
+ */
+export function budgetOutlook(
+  budget: NonNullable<BudgetRow>,
+  today: Date,
+): { burnPerDay: number; daysLeft: number } | null {
+  const startOfToday = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+  );
+  const elapsedDays =
+    Math.round(
+      (startOfToday.getTime() - midnight(budget.anchored_at).getTime()) /
+        MS_PER_DAY,
+    ) + 1;
+
+  if (elapsedDays < 1 || budget.spent_since_usd <= 0) {
+    return null;
+  }
+  const burnPerDay = budget.spent_since_usd / elapsedDays;
+
+  return {
+    burnPerDay,
+    daysLeft: Math.max(0, Math.floor(budget.remaining_usd / burnPerDay)),
+  };
+}
+
+/**
+ * The projection line, split out so the one `new Date()` this view needs has a
+ * single home. Renders nothing when `budgetOutlook` declines to project.
+ */
+function BudgetOutlookNote({ budget }: { budget: NonNullable<BudgetRow> }) {
+  const outlook = budgetOutlook(budget, new Date());
+
+  if (!outlook) {
+    return null;
+  }
+
+  return (
+    <div className={`meta ${styles.subnote}`}>
+      ≈{usd(outlook.burnPerDay)}/day —{" "}
+      {budget.remaining_usd < 0
+        ? "already over the recorded balance"
+        : `about ${num(outlook.daysLeft)} days left at that rate`}
+    </div>
+  );
+}
+
 export default function SpendView({
+  budget,
+  recordAction,
   orgMtd,
   orgAvailable,
   loreUnbilledUsd,
@@ -83,6 +174,48 @@ export default function SpendView({
         Anthropic&apos;s authoritative billed total needs an admin key and
         appears only when one is configured.
       </p>
+
+      {/* Above Month to Date on purpose: "how much is left" is the question
+          this screen gets opened for, and every figure below it is context for
+          that one. Anthropic exposes no credit-balance endpoint, so the
+          balance side of the subtraction is whatever a person has recorded. */}
+      <h2>Balance</h2>
+      <div className={styles.cards}>
+        {budget ? (
+          <div className={`spec-card ${styles.card}`}>
+            <div className="meta">Credits remaining</div>
+            <div
+              className={
+                budget.remaining_usd < 0 ? styles.figureOver : styles.figureInfo
+              }
+            >
+              {usd(budget.remaining_usd)}
+            </div>
+            <div className={`meta ${styles.subnote}`}>
+              {usd(budget.ledger_total_usd)} recorded −{" "}
+              {usd(budget.spent_since_usd)} spent since{" "}
+              {day(budget.anchored_at)}
+            </div>
+            <BudgetOutlookNote budget={budget} />
+          </div>
+        ) : (
+          <div className={`spec-card ${styles.card}`}>
+            <div className="meta">Credits remaining</div>
+            {/* Not "$0.00". Nobody having told us the balance is a different
+                fact from the balance being nothing, and rendering the first as
+                the second would read as "we are out of money". */}
+            <div className={styles.figure}>—</div>
+            <div className={`meta ${styles.subnote}`}>
+              No balance recorded yet. Anthropic publishes usage and cost but
+              not a credit balance, so the starting figure has to be entered
+              once.
+            </div>
+          </div>
+        )}
+      </div>
+      {recordAction && (
+        <RecordTopUp first={!budget} recordAction={recordAction} />
+      )}
 
       <h2>Month to Date</h2>
       <div className={styles.cards}>

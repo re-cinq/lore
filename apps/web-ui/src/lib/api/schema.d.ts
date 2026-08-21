@@ -1247,6 +1247,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/spend/credits": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/spend/credits */
+    post: operations["post_api_spend_credits"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/analytics-overview": {
     parameters: {
       query?: never;
@@ -2633,6 +2650,12 @@ export interface components {
       escalations: number | null;
     };
     Spend: {
+      budget: {
+        ledger_total_usd: number;
+        spent_since_usd: number;
+        remaining_usd: number;
+        anchored_at: string;
+      } | null;
       org_available: boolean;
       org_mtd: {
         billed_usd: number;
@@ -2686,6 +2709,14 @@ export interface components {
         tasks: number;
         cost_usd: number;
       }[];
+    };
+    CreditEntryRecorded: {
+      id: number;
+      effective_date: string;
+      amount_usd: number;
+      kind: string;
+      note: string;
+      actor: string;
     };
     AnalyticsOverview: {
       task_summary: {
@@ -5650,6 +5681,48 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_spend_credits: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          amount_usd: number;
+          effective_date?: string;
+          /**
+           * @default topup
+           * @enum {string}
+           */
+          kind?: "opening" | "topup" | "correction";
+          /** @default  */
+          note?: string;
+          /** @default  */
+          recorded_by?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The balance entry that was recorded */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CreditEntryRecorded"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
