@@ -2,6 +2,7 @@ import defaultExportMatchesFilename from "./rules/default-export-matches-filenam
 import noInlineStyles from "./rules/no-inline-styles.mjs";
 import requireFetchTimeout from "./rules/require-fetch-timeout.mjs";
 import preferEnforceTrue from "./rules/prefer-enforce-true.mjs";
+import preferApiError from "./rules/prefer-api-error.mjs";
 import noCatchAsControlFlow from "./rules/no-catch-as-control-flow.mjs";
 import noInfraSdkInFloor from "./rules/no-infra-sdk-in-floor.mjs";
 import noForwardingClass from "./rules/no-forwarding-class.mjs";
@@ -29,6 +30,7 @@ export default {
     "no-inline-styles": noInlineStyles,
     "require-fetch-timeout": requireFetchTimeout,
     "prefer-enforce-true": preferEnforceTrue,
+    "prefer-api-error": preferApiError,
     "no-catch-as-control-flow": noCatchAsControlFlow,
     "no-infra-sdk-in-floor": noInfraSdkInFloor,
     "no-forwarding-class": noForwardingClass,

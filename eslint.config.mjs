@@ -88,6 +88,16 @@ export default tseslint.config(
     },
   },
 
+  // An HTTP refusal is a precondition, so it goes through the same bouncer as
+  // every other guard. Scoped to lore-api because that is where `apiError` —
+  // the one owner of the `{ error }` envelope — lives; the Floor's routes have
+  // the same pattern and want the same treatment once they have a helper of
+  // their own to point at.
+  {
+    files: ["apps/lore-api/src/**/*.ts"],
+    rules: { "lore/prefer-api-error": "error" },
+  },
+
   // SVG transforms and measured iframe heights are computed per render — there is
   // no class that can express them, so these turn the style rule off by path
   // rather than accumulating inline disables.
