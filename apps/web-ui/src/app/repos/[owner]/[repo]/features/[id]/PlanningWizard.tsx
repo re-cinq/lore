@@ -34,7 +34,7 @@ export default function PlanningWizard({
   feature,
   timeoutMinutes,
   refine,
-  finalize,
+  onFinalize,
   onCreateDraft,
   settledView,
 }: {
@@ -46,7 +46,7 @@ export default function PlanningWizard({
     userAnswers: SectionAnswers,
     fromIteration?: number,
   ) => Promise<void>;
-  finalize: () => Promise<void>;
+  onFinalize: () => Promise<void>;
   onCreateDraft: (title: string, prompt: string) => void;
   /** What to show once the lifecycle stops moving. The parent owns it — it needs the
    *  decomposition rows, which the poll does not carry — but the WIZARD decides when,
@@ -119,10 +119,10 @@ export default function PlanningWizard({
       await fetchLatest();
     });
 
-  const submitFinalize = () =>
+  const submitCreateSpecFile = () =>
     startTransition(async () => {
       setFinalizing(true);
-      await finalize();
+      await onFinalize();
       await fetchLatest();
     });
 
@@ -255,7 +255,7 @@ export default function PlanningWizard({
           type="button"
           className="button"
           disabled={pending}
-          onClick={submitFinalize}
+          onClick={submitCreateSpecFile}
         >
           Create the spec PR
         </button>

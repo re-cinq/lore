@@ -133,7 +133,7 @@ function mount(initial: object, over: Partial<FeatureWithIterations> = {}) {
       feature={feature(over)}
       timeoutMinutes={15}
       refine={vi.fn().mockResolvedValue(undefined)}
-      finalize={finalize}
+      onFinalize={finalize}
       onCreateDraft={vi.fn()}
       settledView={<div data-testid="settled" />}
     />,

@@ -49,7 +49,7 @@ export function refineFeature(
   });
 }
 
-export function finalizeFeature(
+export function createSpecFile(
   repo: string,
   id: string,
 ): Promise<ApiResult<{ task_id?: string } & RunIdCarrier>> {

@@ -83,7 +83,7 @@ export default function FeatureDetailView({
   definition = null,
   run = null,
   refine,
-  finalize,
+  onCreateSpecFile,
   split,
   del,
 }: {
@@ -98,7 +98,7 @@ export default function FeatureDetailView({
     userAnswers: SectionAnswers,
     fromIteration?: number,
   ) => Promise<void>;
-  finalize: () => Promise<void>;
+  onCreateSpecFile: () => Promise<void>;
   split: (title: string, prompt: string) => Promise<void>;
   del: () => Promise<void>;
 }) {
@@ -156,7 +156,7 @@ export default function FeatureDetailView({
           feature={feature}
           timeoutMinutes={timeoutMinutes}
           refine={refine}
-          finalize={finalize}
+          onFinalize={onCreateSpecFile}
           onCreateDraft={onCreateDraft}
           settledView={
             <FinalizedView
