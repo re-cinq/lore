@@ -876,3 +876,137 @@ describe("the dispatch finds the line by SUBJECT, not by the first round's task"
     expect(listForSubject).toHaveBeenCalledWith("feature:f1");
   });
 });
+
+describe("accepting the plan delivers the accepted plan to the tail nodes", () => {
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  const acceptedFeature = (iterations: unknown[]) => ({
+    id: "f1",
+    status: "spec-ready",
+    title: "Cluster Dispatch",
+    original_prompt: "run stations anywhere",
+    slug: "cluster-dispatch",
+    iterations,
+  });
+
+  const acceptOn = async (iterations: unknown[]) => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [{ id: "1" }] });
+    useProject(
+      fakeFeatures({
+        get: vi.fn().mockResolvedValue(acceptedFeature(iterations)),
+      }),
+      fakeAssemblyLines({
+        listForSubject: vi.fn().mockResolvedValue([
+          {
+            id: "line-1",
+            blueprintName: "feature-planning",
+            status: "running",
+          },
+        ]),
+        listStationRuns: vi
+          .fn()
+          .mockResolvedValue([
+            { nodeId: "author", iteration: 2, outcome: null },
+          ]),
+      }),
+    );
+    const res = await buildServer(() => pool as never).inject({
+      method: "POST",
+      url: `${base}/f1/finalize`,
+      headers: AUTH,
+      payload: JSON.stringify({}),
+    });
+    const insert = pool.query.mock.calls.find((c) =>
+      String(c[0]).includes("pipeline.events"),
+    );
+    const params = (insert?.[1] ?? []) as string[];
+
+    enforceTrue(
+      Boolean(params[2]),
+      Error,
+      `no event: ${res.statusCode} ${JSON.stringify(res.result)}`,
+    );
+
+    return JSON.parse(params[2]) as {
+      nodeId?: string;
+      outcome?: string;
+      args?: {
+        description?: string;
+        round_feedback?: string | null;
+        resume_from_iteration?: number | null;
+      };
+    };
+  };
+
+  it("carries the accepted round's draft as the line's description, in the form the tail prompts expect", async () => {
+    const event = await acceptOn([
+      {
+        ...readyIteration({
+          sections: [{ title: "Overview", content: "PULL MODEL" }],
+          draft_spec_markdown: "d1",
+        }),
+        iteration: 1,
+        task_id: "task-1",
+      },
+    ]);
+
+    expect(event).toMatchObject({ nodeId: "author", outcome: "success" });
+    const description = event.args?.description ?? "";
+
+    expect(description).toContain("<Title>\nCluster Dispatch\n</Title>");
+    expect(description).toContain("run stations anywhere");
+    expect(description).toContain("<CurrentDraftSpec>");
+    expect(description).toContain("PULL MODEL");
+    // The accept carries no author feedback: nothing to comment with.
+    expect(description).not.toContain("<UserComment");
+  });
+
+  it("renders the LATEST ready round, not the first — a re-accept after a bounce-back reads the newest draft", async () => {
+    const event = await acceptOn([
+      {
+        ...readyIteration({
+          sections: [{ title: "Overview", content: "ROUND ONE" }],
+          draft_spec_markdown: "d1",
+        }),
+        iteration: 1,
+        task_id: "task-1",
+      },
+      {
+        ...readyIteration({
+          sections: [{ title: "Overview", content: "ROUND TWO" }],
+          draft_spec_markdown: "d2",
+        }),
+        iteration: 2,
+        task_id: null,
+      },
+    ]);
+    const description = event.args?.description ?? "";
+
+    expect(description).toContain("ROUND TWO");
+    expect(description).not.toContain("ROUND ONE");
+  });
+
+  it("nulls round_feedback and resume_from_iteration so the shallow merge cannot leave the last refine steering", async () => {
+    const event = await acceptOn([
+      { ...readyIteration(null), iteration: 1, task_id: "task-1" },
+    ]);
+
+    expect(event.args).toMatchObject({
+      round_feedback: null,
+      resume_from_iteration: null,
+    });
+    // This round produced no gap, so there is no draft to render — the brief
+    // degrades to the feature's own request rather than to nothing at all.
+    expect(event.args?.description).toContain("Cluster Dispatch");
+    expect(event.args?.description).not.toContain("<CurrentDraftSpec>");
+  });
+});
