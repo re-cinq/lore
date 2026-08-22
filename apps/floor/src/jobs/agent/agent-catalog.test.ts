@@ -171,11 +171,17 @@ describe("buildCatalog", () => {
 describe("catalogChartYaml", () => {
   const out = catalogChartYaml({ implementation: impl });
 
-  it("guards the seed behind .Values.seedCatalog and keeps it on uninstall", () => {
+  it("emits an unguarded doc stream — the catalog-seed hook owns the seedCatalog gate — and keeps every object on uninstall", () => {
+    // The docs moved out of templates/ into a file the pre-upgrade hook applies
+    // server-side, because Helm diffs RENDERED manifests and so never repairs an
+    // object the API server pruned (#1468). The gate moved with the hook.
     expect(out).toContain("DO NOT EDIT.");
-    expect(out).toContain("{{- if .Values.seedCatalog }}");
-    expect(out).toContain("{{- end }}");
+    expect(out).not.toContain("{{- if .Values.seedCatalog }}");
     expect(out).toContain("helm.sh/resource-policy: keep");
+  });
+  it("names its generated home and the hook that applies it in the header, so a reader of the file finds the mechanism", () => {
+    expect(out).toContain("files/catalog-seed.yaml");
+    expect(out).toContain("catalog-seed");
   });
   it("templates the agent-events sink URL with the helm value (no sentinel leaks)", () => {
     expect(out).toContain("url: {{ .Values.agentEventsUrl }}");

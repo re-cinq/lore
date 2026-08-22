@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { AssemblyLineNode } from "./loader.js";
 import {
+  malformedNodeResultLine,
   parseNodeResult,
   parseReviewVerdict,
   stationNodeOutcome,
@@ -197,5 +198,76 @@ describe("parseReviewVerdict", () => {
   it("returns null for empty output or no marker", () => {
     expect(parseReviewVerdict(undefined)).toBeNull();
     expect(parseReviewVerdict("just logs, no verdict")).toBeNull();
+  });
+});
+
+describe("an outcome line that was spoken is never silently a success", () => {
+  const agentNode: AssemblyLineNode = {
+    id: "analyse-specs",
+    type: "agent",
+    prompt_ref: "spec-analysis",
+  };
+
+  it("parses the legacy bare-word form the spec-analysis prompt taught", () => {
+    // A deployed recipe instructs exactly this. Rejecting it turned a station's
+    // objection into `success` and skipped the human decision point (#1469).
+    expect(
+      parseNodeResult("JSON is valid.\nLORE_NODE_RESULT: changes_requested"),
+    ).toEqual({ outcome: "changes_requested", extras: {} });
+  });
+
+  it("counts only line-start markers, and the last one when several appear", () => {
+    // An agent quoting its own contract mid-sentence must not decide the node;
+    // an agent that discusses the marker and THEN prints it still succeeds.
+    expect(
+      parseNodeResult("the contract says LORE_NODE_RESULT: failed somewhere"),
+    ).toBeNull();
+    expect(
+      parseNodeResult(
+        'LORE_NODE_RESULT: {"outcome": "failed"}\nLORE_NODE_RESULT: success',
+      ),
+    ).toEqual({ outcome: "success", extras: {} });
+  });
+
+  it("names the malformed line when a marker is present but unparseable", () => {
+    expect(malformedNodeResultLine("LORE_NODE_RESULT: {not json}")).toBe(
+      "LORE_NODE_RESULT: {not json}",
+    );
+    expect(malformedNodeResultLine("no marker at all")).toBeNull();
+    expect(
+      malformedNodeResultLine('LORE_NODE_RESULT: {"outcome": "success"}'),
+    ).toBeNull();
+  });
+
+  it("treats a bare LORE_NODE_RESULT: with nothing after it as spoken but empty", () => {
+    // The station printed the marker and then said nothing. That is not "no
+    // marker" — it is a contract the recipe half-followed, and the node must
+    // report it rather than pass.
+    expect(malformedNodeResultLine("LORE_NODE_RESULT:")).not.toBeNull();
+    expect(
+      stationNodeOutcome(agentNode, {
+        phase: "Succeeded",
+        output: "LORE_NODE_RESULT:",
+      }),
+    ).toMatchObject({ outcome: "failed" });
+  });
+
+  it("fails a node whose LORE_NODE_RESULT is present but unparseable, instead of silently succeeding", () => {
+    const result = stationNodeOutcome(agentNode, {
+      phase: "Succeeded",
+      output: 'LORE_NODE_RESULT: {"outcome": "exploded"}',
+    });
+
+    expect(result).toMatchObject({ outcome: "failed" });
+    expect(result.failureDetail).toContain('{"outcome": "exploded"}');
+  });
+
+  it("routes a bare-word changes_requested as changes_requested", () => {
+    expect(
+      stationNodeOutcome(agentNode, {
+        phase: "Succeeded",
+        output: "spec-plan.json written\nLORE_NODE_RESULT: changes_requested",
+      }),
+    ).toMatchObject({ outcome: "changes_requested" });
   });
 });

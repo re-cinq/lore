@@ -329,18 +329,27 @@ export function buildCatalog(
   return out;
 }
 
-/** The ai-agents-helm `templates/catalog.yaml` body: the seeded CRs guarded by
- *  `.Values.seedCatalog` (operators set it false after first install so they stop
- *  re-seeding — the web UI owns the recipes thereafter) and each annotated to
- *  survive uninstall. */
+/** The ai-agents-helm `files/catalog-seed.yaml` body: the seeded CRs, each
+ *  annotated to survive uninstall.
+ *
+ *  NOT a template. The docs are applied SERVER-SIDE by the `catalog-seed`
+ *  pre-upgrade hook, because Helm computes its patch by diffing the previous
+ *  rendered manifest against the new one and never reads live state — so an
+ *  object the API server pruned (a lagging CRD schema, #1301) stays pruned
+ *  through every later deploy whose rendered text happens not to have changed.
+ *  That is how `spec-analysis` and `feature-decompose` lost `output.watch` for
+ *  eight days with nothing reporting it (#1468). `.Values.seedCatalog` still
+ *  gates the seeding; the gate lives on the hook templates now. */
 export function catalogChartYaml(
   taskTypes: Record<string, AgentCatalogConfig>,
   stationTypes: Record<string, StationCatalogConfig> = {},
 ): string {
   const header =
     "# Code generated from scripts/task-types.yaml by gen-catalog. DO NOT EDIT.\n" +
-    "# Seeded catalog (ADR-031, re-cinq/lore#698). Guarded by .Values.seedCatalog so\n" +
-    "# operators stop re-seeding after first install; the web UI owns these thereafter.\n";
+    "# Seeded catalog (ADR-031, re-cinq/lore#698). Lives at files/catalog-seed.yaml and is\n" +
+    "# applied server-side by the catalog-seed pre-upgrade hook (templates/catalog-seed-job.yaml),\n" +
+    "# which runs AFTER the CRD hook so a lagging schema cannot prune these fields (#1468).\n" +
+    "# .Values.seedCatalog gates the hook, not this file.\n";
   const docs = buildCatalog(taskTypes, stationTypes).map((cr) =>
     stringify(
       {
@@ -357,7 +366,7 @@ export function catalogChartYaml(
       { blockQuote: "literal" },
     ),
   );
-  const body = `${header}{{- if .Values.seedCatalog }}\n---\n${docs.join("---\n")}{{- end }}\n`;
+  const body = `${header}---\n${docs.join("---\n")}`;
 
   // Guard the seeded mcp_servers block behind .Values.loreMcpUrl: with the gateway
   // URL unset (the default, and every cluster before the gateway is deployed) the
