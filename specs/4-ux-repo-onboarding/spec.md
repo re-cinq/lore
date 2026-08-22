@@ -429,7 +429,7 @@ every repo. ([validated by `AuditView.test.tsx:31`](apps/web-ui/src/app/audit/Au
   run's PR from its task join or from `args.pr_number` for a code-review
   run without a task PR, maps a run with no task and no PR to null
   pr/creator/cost, and computes node and run durations (left null while
-  still running). ([validated by `assembly-runs.test.ts:40`](apps/web-ui/src/lib/assembly-runs.test.ts#L40), [`assembly-runs.test.ts:54`](apps/web-ui/src/lib/assembly-runs.test.ts#L54), [`assembly-runs.test.ts:74`](apps/web-ui/src/lib/assembly-runs.test.ts#L74), [`assembly-runs.test.ts:91`](apps/web-ui/src/lib/assembly-runs.test.ts#L91), [`assembly-runs.test.ts:100`](apps/web-ui/src/lib/assembly-runs.test.ts#L100), [`assembly-runs.test.ts:123`](apps/web-ui/src/lib/assembly-runs.test.ts#L123))
+  still running). ([validated by `assembly-runs.test.ts:40`](apps/web-ui/src/lib/assembly-runs.test.ts#L40), [`assembly-runs.test.ts:54`](apps/web-ui/src/lib/assembly-runs.test.ts#L54), [`assembly-runs.test.ts:74`](apps/web-ui/src/lib/assembly-runs.test.ts#L74), [`assembly-runs.test.ts:91`](apps/web-ui/src/lib/assembly-runs.test.ts#L91), [`assembly-runs.test.ts:100`](apps/web-ui/src/lib/assembly-runs.test.ts#L100), [`assembly-runs.test.ts:123`](apps/web-ui/src/lib/assembly-runs.test.ts#L125))
 
 ### FR-7: Shared UI Components
 

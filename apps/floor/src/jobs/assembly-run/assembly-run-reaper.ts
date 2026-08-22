@@ -22,7 +22,11 @@ import { graphForRun } from "@re-cinq/lore-assembly-lines";
 import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { advanceLine, finishLine, taskFromRow } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
-import { nodeLaunchSpec, priorOutcomeOf } from "./launch-spec.js";
+import {
+  nodeLaunchSpec,
+  priorOutcomeOf,
+  resolveNodeDispatch,
+} from "./launch-spec.js";
 import { runOutcomeFromTaskStatus } from "../watcher/agent-watcher-logic.js";
 import type { NodeEventDeps } from "./node-event-handler.js";
 
@@ -246,16 +250,18 @@ export async function assemblyLineReaperJob(
           continue;
         }
 
+        const relaunchInput = {
+          node,
+          task: taskFromRow(row),
+          iteration: openNode.iteration,
+          stationRunId: openNode.stationRunId,
+          priorOutcome: priorOutcomeOf(nodes, openNode.nodeId),
+        };
+
         await deps.launch(
-          await nodeLaunchSpec(
-            {
-              node,
-              task: taskFromRow(row),
-              iteration: openNode.iteration,
-              stationRunId: openNode.stationRunId,
-              priorOutcome: priorOutcomeOf(nodes, openNode.nodeId),
-            },
-            deps,
+          nodeLaunchSpec(
+            await resolveNodeDispatch(relaunchInput, deps),
+            relaunchInput,
           ),
         );
         relaunched++;

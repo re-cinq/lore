@@ -4,6 +4,8 @@ import {
   nodeAgentName,
   nodeAgentSpec,
   nodeStationSpec,
+  stationNodeParams,
+  stationRunInputFor,
   type FloorAssemblyRunTask,
 } from "./floor-assembly-run.js";
 
@@ -251,5 +253,74 @@ describe("station-run id label", () => {
       nodeAgentSpec(cloneNode({ id: "implement", type: "agent" }), task, "p")
         .extraLabels,
     ).not.toHaveProperty("lore.re-cinq.com/station-run-id");
+  });
+});
+
+describe("what a visit was GIVEN, recorded at dispatch", () => {
+  const agentNode = (over: Partial<RunGraphNode> & { id: string }) =>
+    ({
+      type: "agent",
+      station: null,
+      station_inherited: false,
+      ...over,
+    }) as RunGraphNode;
+  const stationNode = (over: Partial<RunGraphNode> & { id: string }) =>
+    ({
+      type: "detect",
+      station: null,
+      station_inherited: false,
+      ...over,
+    }) as RunGraphNode;
+
+  const task = {
+    taskId: "t1",
+    pipelineTaskId: "t1",
+    assemblyLineId: "al-1",
+    taskType: "implementation",
+    description: "raw",
+    targetRepo: "o/r",
+    branch: "lore/impl-1",
+    args: { comment_body: "please fix" },
+  };
+
+  it("builds an agent node's input with the resolved prompt and a null params map", () => {
+    expect(
+      stationRunInputFor(
+        agentNode({ id: "review", prompt_ref: "code-review" }),
+        task,
+        "the round content",
+        "the rendered prompt",
+      ),
+    ).toEqual({
+      description: "the round content",
+      prompt: "the rendered prompt",
+      params: null,
+      repo: "o/r",
+      ref: "lore/impl-1",
+    });
+  });
+
+  it("builds a station node's input from the same params the pod receives, without a prompt", () => {
+    const node = stationNode({ id: "detect", job_ref: "spec_drift" });
+    const input = stationRunInputFor(node, task, "d", null);
+
+    expect(input.prompt).toBeNull();
+    expect(input.params).toEqual(stationNodeParams(node, task));
+    expect(input.params).toMatchObject({
+      comment_body: "please fix",
+      job_ref: "spec_drift",
+    });
+  });
+
+  it("caps a long description and prompt with the storage truncation marker", () => {
+    const input = stationRunInputFor(
+      agentNode({ id: "review", prompt_ref: "code-review" }),
+      task,
+      "d".repeat(5_000),
+      "p".repeat(20_000),
+    );
+
+    expect(input.description).toContain("[truncated, 5000 bytes]");
+    expect(input.prompt).toContain("[truncated, 20000 bytes]");
   });
 });

@@ -47,6 +47,7 @@ describe("decideNodeRecovery", () => {
     failureClass: null,
     failureDetail: null,
     agentCrName: "a1b2c3d4-review",
+    input: null,
     commitSha: null,
     startedAt: new Date(Date.now() - ageMinutes * MIN),
     finishedAt: null,

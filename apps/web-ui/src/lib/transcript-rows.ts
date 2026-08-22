@@ -32,7 +32,46 @@ export type TranscriptRow =
       truncated: boolean;
     }
   | { kind: "result"; seq: string; ts: string; text: string; isError: boolean }
-  | { kind: "iteration"; iteration: number };
+  | { kind: "iteration"; iteration: number }
+  | {
+      kind: "input";
+      iteration: number;
+      summary: string;
+      description: string;
+      prompt: string | null;
+      params: readonly (readonly [string, string])[];
+      repo: string;
+      ref: string;
+      truncated: boolean;
+    };
+
+/** One visit's recorded input, as the panel hands it to the fold. */
+export interface NodeInputView {
+  iteration: number;
+  description: string;
+  prompt: string | null;
+  params: Record<string, string> | null;
+  repo: string;
+  ref: string;
+}
+
+function toInputRow(input: NodeInputView): TranscriptRow {
+  return {
+    kind: "input",
+    iteration: input.iteration,
+    summary: clip(input.description, SUMMARY_MAX),
+    description: input.description,
+    prompt: input.prompt,
+    params: Object.entries(input.params ?? {}),
+    repo: input.repo,
+    ref: input.ref,
+    // Same marker the write path leaves on a capped tool payload, so a capped
+    // input wears the badge the reader already knows.
+    truncated:
+      TRUNCATION_MARKER.test(input.description) ||
+      TRUNCATION_MARKER.test(input.prompt ?? ""),
+  };
+}
 
 function payloadContent(payload: Record<string, unknown>): string {
   return typeof payload.content === "string" ? payload.content : "";
@@ -105,10 +144,25 @@ export function toTranscriptRow(event: RunStreamEvent): TranscriptRow | null {
  */
 export function toTranscriptRows(
   events: readonly RunStreamEvent[],
+  inputs: readonly NodeInputView[] = [],
 ): TranscriptRow[] {
   const rows: TranscriptRow[] = [];
   const toolNames = new Map<string, string>();
   let iteration: number | null = null;
+  // What the node was GIVEN leads what it then said. The events alone cannot
+  // supply it — the pod never echoes its own prompt — so it arrives as state.
+  const byIteration = new Map(inputs.map((i) => [i.iteration, i]));
+  const shown = new Set<number>();
+  const emitInput = (n: number) => {
+    const input = byIteration.get(n);
+
+    if (input && !shown.has(n)) {
+      shown.add(n);
+      rows.push(toInputRow(input));
+    }
+  };
+
+  emitInput([...byIteration.keys()].sort((a, b) => a - b)[0] ?? -1);
 
   for (const event of events) {
     const row = toTranscriptRow(event);
@@ -122,6 +176,9 @@ export function toTranscriptRows(
         rows.push({ kind: "iteration", iteration: row.iteration });
       }
       iteration = row.iteration;
+      // A revisit's brief belongs under its divider, not at the top of a
+      // transcript whose earlier rounds ran on something else.
+      emitInput(row.iteration);
     }
 
     if (row.kind === "tool_call" && event.toolUseId !== null) {
@@ -133,6 +190,13 @@ export function toTranscriptRows(
         ? { ...row, tool: toolNames.get(event.toolUseId) ?? null }
         : row,
     );
+  }
+
+  // A visit whose pod has not spoken yet still has a brief to show — the case the
+  // whole feature exists for: dispatched, pending, and previously indistinguishable
+  // from a node nobody had started.
+  for (const n of [...byIteration.keys()].sort((a, b) => a - b)) {
+    emitInput(n);
   }
 
   return rows;

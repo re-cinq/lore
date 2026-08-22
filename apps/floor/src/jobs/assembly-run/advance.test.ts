@@ -1009,3 +1009,52 @@ describe("a push node that delivered nothing", () => {
     ]);
   });
 });
+
+describe("the visit's row records what it was dispatched with", () => {
+  it("dispatching a node persists its input on the station-run row it mints", async () => {
+    // The Agent CR was the only place the prompt and description ever existed, and
+    // it is pruned after the run — so an hour later nobody could answer "what was
+    // this node actually given", and a node fed a stale plan looked exactly like
+    // one fed the right plan and reasoning badly.
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+
+    await advanceLine(id, deps);
+
+    expect((await port.listStationRuns(id))[0].input).toMatchObject({
+      description: "Review pull request #7",
+      // The prompt the pod renders, not the template it renders from.
+      prompt: "code-review::Review pull request #7",
+      params: null,
+      repo: "re-cinq/lore",
+    });
+  });
+
+  it("a human station's row records its input even though nothing is dispatched", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await port.start({
+      blueprintName: "author-gated",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { description: "plan it" },
+    });
+
+    await port.markRunning(id);
+    const { deps, launched } = makeDeps(port);
+
+    await advanceLine(id, {
+      ...deps,
+      definitions: async () =>
+        new Map<string, AssemblyLine>([["author-gated", authorGated]]),
+    });
+
+    expect(launched).toEqual([]);
+    expect((await port.listStationRuns(id))[0].input).toMatchObject({
+      description: "plan it",
+      prompt: null,
+      repo: "re-cinq/lore",
+      ref: "feat/x",
+    });
+  });
+});
