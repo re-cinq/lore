@@ -18,14 +18,14 @@ describe("parseJsonBody", () => {
       thrown = err;
     }
     expect(Boom.isBoom(thrown as Error)).toBe(true);
-    expect((thrown as Boom.Boom).output).toMatchObject({
-      statusCode: 400,
-      // The route, so a 400 in the log says WHICH ingress rejected the body, and
-      // the parser's own complaint, which names the offending position.
-      payload: {
-        error:
-          "invalid JSON in ci-ingest body: Expected property name or '}' in JSON at position 2",
-      },
-    });
+    expect((thrown as Boom.Boom).output.statusCode).toBe(400);
+    const { error } = (thrown as Boom.Boom).output.payload as { error: string };
+
+    // Asserted in two parts rather than as one literal: the ROUTE and the offending
+    // POSITION are this function's contract, but the sentence around them is V8's,
+    // and V8 rewords it between Node versions — 20 ends at "position 2" where 24
+    // appends "(line 1 column 3)". Pinning the whole string tests the runtime.
+    expect(error).toContain("invalid JSON in ci-ingest body:");
+    expect(error).toContain("at position 2");
   });
 });
