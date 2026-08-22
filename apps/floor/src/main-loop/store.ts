@@ -7,11 +7,22 @@
  * the reaper recovers rows stuck in `processing` by a crash.
  */
 
-import { pipeline } from "../kernel/queues.js";
+import { eventReporter, pipeline } from "../kernel/queues.js";
 import type { EventInput, EventRow } from "./types.js";
 
+/**
+ * Report an event.
+ *
+ * Goes through the event-router (ADR-044), not the pool: `pipeline.events` has
+ * one writer, and this is the single seam every Floor producer — the cron
+ * emitter, the CI ingress, the reconcile pass — already inserts through, so
+ * routing it here routes all of them.
+ *
+ * The READ side below still uses the pool directly. The Floor drains the queue
+ * it no longer writes to; that half moves in its own step.
+ */
 export function insertEvent(input: EventInput): Promise<void> {
-  return pipeline().eventQueue.insert(input);
+  return eventReporter().insert(input);
 }
 
 /**

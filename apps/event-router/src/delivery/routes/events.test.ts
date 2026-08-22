@@ -117,4 +117,57 @@ describe("POST /api/events — the bearer branch", () => {
     expect(res.statusCode).toBe(400);
     expect(inserted).toEqual([]);
   });
+
+  it("refuses a body that is not JSON, naming the ingress that rejected it", async () => {
+    const res = await server().inject({
+      method: "POST",
+      url: "/api/events",
+      headers: { authorization: `Bearer ${TOKEN}` },
+      payload: "{not json",
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.result as { error: string }).error).toMatch(
+      /invalid JSON in event body/,
+    );
+    expect(inserted).toEqual([]);
+  });
+
+  it("reports every event a single webhook fans out to", async () => {
+    const body = JSON.stringify({
+      action: "completed",
+      check_suite: {
+        head_sha: "abc",
+        pull_requests: [{ number: 1 }, { number: 2 }],
+      },
+      repository: { full_name: "re-cinq/lore" },
+    });
+
+    const res = await server().inject({
+      method: "POST",
+      url: "/api/events",
+      headers: {
+        "x-hub-signature-256": signed(body),
+        "x-github-event": "check_suite",
+        "x-github-delivery": "d-2",
+      },
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(202);
+    expect(inserted.map((e) => e.params?.pr_number)).toEqual([1, 2]);
+  });
+
+  it("names the body itself when the payload is not even an object", async () => {
+    const res = await server().inject({
+      method: "POST",
+      url: "/api/events",
+      headers: { authorization: `Bearer ${TOKEN}` },
+      payload: "[]",
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.result as { error: string }).error).toMatch(/\(body\)/);
+    expect(inserted).toEqual([]);
+  });
 });

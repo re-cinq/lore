@@ -12,7 +12,7 @@
  * author's accept already uses, so there is no second execution path to keep alive.
  */
 
-import type { Pool } from "pg";
+import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import {
@@ -84,14 +84,16 @@ export function decideResumeFromClosedPr(
 
 export interface DecomposeResumeDeps {
   assemblyRuns: Pick<AssemblyRunsPort, "findOpenByPr" | "listStationRuns">;
-  /** Deliver the resume. Production binds the pool here so this module never holds
-   *  a nullable one it would have to cast away; a test records instead. */
+  /** Deliver the resume. Production binds the event reporter here so this module
+   *  never holds one it would have to resolve itself; a test records instead. */
   report: (target: ParkedTarget, outcome: "success") => Promise<void>;
 }
 
-/** Bind the pool to the real reporter — the production `report`. */
-export function poolReporter(pool: Pool): DecomposeResumeDeps["report"] {
-  return (target, outcome) => reportToParkedNode(pool, target, outcome);
+/** Bind the event reporter — the production `report`. */
+export function eventReport(
+  reporter: EventReporter,
+): DecomposeResumeDeps["report"] {
+  return (target, outcome) => reportToParkedNode(reporter, target, outcome);
 }
 
 /**

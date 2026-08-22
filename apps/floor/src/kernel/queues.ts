@@ -12,6 +12,8 @@
 import { getPool } from "./db.js";
 import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipeline/pipeline-repositories-pg.js";
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
+import { selectEventReporter } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
+import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
 import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
 import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { PgConversations } from "@re-cinq/lore-shared/project/conversations/conversations-pg.js";
@@ -89,3 +91,17 @@ export const chunks = (): PgChunks =>
  */
 export const memoryLifecycle = (): PgMemoryLifecycle =>
   (memoryLifecycleSingleton ??= new PgMemoryLifecycle(getPool()));
+
+let eventReporterSingleton: EventReporter | undefined;
+
+/**
+ * Where this Floor reports events (ADR-044). The event-router owns
+ * `pipeline.events`, so in a cluster this is an HTTP reporter; with no
+ * `EVENT_ROUTER_URL` (local `npm start`) it falls back to the pool.
+ *
+ * Memoized so the resolution logs once per boot rather than once per event.
+ */
+export const eventReporter = (): EventReporter =>
+  (eventReporterSingleton ??= selectEventReporter({
+    local: () => pipeline().eventQueue,
+  }));

@@ -14,11 +14,16 @@ import {
 } from "@re-cinq/lore-shared";
 import { getPool } from "../kernel/db.js";
 import { projectFor } from "../composition/project-boot.js";
-import { pipeline, settings, taskStore } from "../kernel/queues.js";
+import {
+  eventReporter,
+  pipeline,
+  settings,
+  taskStore,
+} from "../kernel/queues.js";
 import { tryAutoMergeForCompletedTask } from "./merge/auto-merge-trigger.js";
 import {
   decideResumeFromClosedPr,
-  poolReporter,
+  eventReport,
   resumeDecomposition,
 } from "./merge/decompose-resume.js";
 import type { EventHandler } from "../main-loop/types.js";
@@ -163,7 +168,7 @@ export const specPrResumeLine: EventHandler = async (params) => {
 
   await resumeDecomposition(pr, {
     assemblyRuns: pipeline().assemblyRuns,
-    report: poolReporter(pool),
+    report: eventReport(eventReporter()),
   });
 };
 

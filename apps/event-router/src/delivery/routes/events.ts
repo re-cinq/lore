@@ -155,8 +155,12 @@ function parseJson<T = unknown>(raw: string): T {
   try {
     return JSON.parse(raw) as T;
   } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-
-    throw apiError(400)(`invalid JSON in event body: ${detail}`);
+    // `JSON.parse` rejects only with SyntaxError, so there is no non-Error case
+    // to guard — and a guard for one would be a branch no test could ever reach.
+    // V8 names the offending position, which is worth more than anything this
+    // could re-derive.
+    throw apiError(400)(
+      `invalid JSON in event body: ${(err as Error).message}`,
+    );
   }
 }

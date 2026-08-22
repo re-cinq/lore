@@ -74,6 +74,39 @@ ADR-024 pins to it and reaches every byte of its data over HTTP.
 - A source outside the known vocabulary is refused at the door. An event whose
   source is a typo reaches no handler and would be discovered only by its
   absence. ([validated by refuses a source outside the known vocabulary](apps/event-router/src/delivery/routes/events.test.ts#L109))
+- A malformed body is refused with the parser's own complaint, which names the
+  offending position. ([validated by refuses a body that is not JSON](apps/event-router/src/delivery/routes/events.test.ts#L121))
+- A rejection that belongs to no field names the body itself rather than an
+  empty path. ([validated by names the body itself when the payload is not even an object](apps/event-router/src/delivery/routes/events.test.ts#L161))
+- One webhook may carry several events — a check suite fans out to one per
+  backing PR — and every one is reported. ([validated by reports every event a single webhook fans out to](apps/event-router/src/delivery/routes/events.test.ts#L136))
+
+### The watch reports what it observes
+
+- A terminal Agent CR becomes its kubernetes event. ([validated by reports a terminal Agent CR as its kubernetes event](apps/event-router/src/listeners/agent-reporting.test.ts#L44))
+- A CR that has not reached a terminal phase reports nothing, so the repeated
+  MODIFIED notifications a running pod generates cost one map and no row.
+  ([validated by reports nothing for a CR that has not reached a terminal phase](apps/event-router/src/listeners/agent-reporting.test.ts#L65))
+- A failed report is swallowed here, unlike everywhere else this repo reports
+  events: the caller is a watch callback with nobody to return a status to, so
+  throwing would end the stream over one CR, and the Floor's reconcile pass
+  re-emits what was missed. ([validated by swallows a failed report so one bad CR cannot end the watch](apps/event-router/src/listeners/agent-reporting.test.ts#L79))
+- The catch-up pass walks the namespace one page at a time. 180 accumulated CRs
+  in a single unpaginated LIST blew Node's heap and crash-looped the Floor on
+  2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/event-router/src/listeners/agent-reporting.test.ts#L99), [`agent-reporting.test.ts:119`](apps/event-router/src/listeners/agent-reporting.test.ts#L119), [`agent-reporting.test.ts:144`](apps/event-router/src/listeners/agent-reporting.test.ts#L144))
+
+### Every other producer reports through the router
+
+A producer keeps its code and its location; only its write changes. The
+selection is the same three-way shape `agentDefs` already uses:
+
+- A producer that can see the router reports over HTTP, and never resolves the
+  pool it would otherwise fall back to. ([validated by reports over HTTP when EVENT_ROUTER_URL names a router](libs/shared/src/project/events/select-event-reporter.test.ts#L9), [`select-event-reporter.test.ts:19`](libs/shared/src/project/events/select-event-reporter.test.ts#L19))
+- One that cannot falls back to the pool it already holds, which is what keeps
+  a local `npm start` — a Floor and a Postgres, no router — working. ([validated by falls back to the local queue when EVENT_ROUTER_URL is unset](libs/shared/src/project/events/select-event-reporter.test.ts#L35))
+- The choice is logged at construction, because the fallback is right locally
+  and wrong in a cluster: a deployment that means to route and has lost
+  `EVENT_ROUTER_URL` would write directly and look perfectly healthy. ([validated by says which way it resolved](libs/shared/src/project/events/select-event-reporter.test.ts#L47))
 
 ### What moves, and what deliberately does not
 

@@ -21,6 +21,7 @@ import { decideRoundDispatch } from "@re-cinq/lore-shared/feature-planning/round
 import type { AssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs.js";
 import { featureSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import { reportToParkedNode } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
+import { eventReporterFor } from "../event-reporter.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError, rethrowBoom } from "../../../server/api-error.js";
 import { projectFor } from "../../../platform/project-boot.js";
@@ -76,18 +77,6 @@ async function run(
       .response({ error: err instanceof Error ? err.message : String(err) })
       .code(500);
   }
-}
-
-/** The resume event IS the round: without a pool, a 202 would tell the author
- *  their round started when nothing did. */
-function enforcePool(pool: Pool | null): Pool {
-  enforceTrue(
-    pool !== null,
-    Error,
-    "no database pool: cannot report the round to its assembly line",
-  );
-
-  return pool;
 }
 
 /**
@@ -412,7 +401,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           );
 
           await reportToParkedNode(
-            enforcePool(getPool()),
+            eventReporterFor(getPool()),
             parked,
             "changes_requested",
             {
@@ -546,7 +535,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             );
 
             await reportToParkedNode(
-              enforcePool(getPool()),
+              eventReporterFor(getPool()),
               parked,
               "success",
               {

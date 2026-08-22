@@ -1,12 +1,13 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import {
+  eventReporter,
   pipeline,
   taskStore,
   settings,
   memoryLifecycle,
 } from "../../kernel/queues.js";
 import { getPool } from "../../kernel/db.js";
-import { poolReporter, resumeDecomposition } from "./decompose-resume.js";
+import { eventReport, resumeDecomposition } from "./decompose-resume.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { writeEpisodeWithCuration } from "../lib/episode-writer.js";
 import { nextTrust } from "./trust-ladder.js";
@@ -342,7 +343,10 @@ async function handleMergedTask(
     try {
       await resumeDecomposition(
         { repo: task.target_repo, prNumber: task.pr_number },
-        { assemblyRuns: pipeline().assemblyRuns, report: poolReporter(pool) },
+        {
+          assemblyRuns: pipeline().assemblyRuns,
+          report: eventReport(eventReporter()),
+        },
       );
     } catch (err) {
       console.error(

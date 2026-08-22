@@ -8,8 +8,12 @@
  * API is only reachable from inside its own cluster.
  *
  * Writes go through the same insert the route's reporting branch uses. Posting
- * to our own HTTP endpoint would be a round-trip through the loopback for a row
- * we are already holding the pool for.
+ * to our own HTTP endpoint would be a loopback round-trip for a row we are
+ * already holding the pool for.
+ *
+ * This file is the CONNECTION — reconnect, backoff, catch-up. What to do with a
+ * CR once it arrives lives in `agent-reporting.ts`, which is testable without a
+ * cluster; only the shell here is not.
  *
  * The reconcile + prune safety net is deliberately NOT here — it stays on the
  * Floor. A backstop in the same process as the watch it backs up dies with it,
@@ -23,87 +27,20 @@ import {
   agentsNamespace,
   loadKube,
   selectStationBackend,
-  type EventInsert,
 } from "@re-cinq/lore-shared";
-import { mapAgentToEvent } from "@re-cinq/lore-shared/project/events/k8s-map.js";
+import {
+  forEachAgentPage,
+  reportForAgent,
+  GROUP,
+  VERSION,
+  PLURAL,
+  type WatchDeps,
+} from "./agent-reporting.js";
 
-const GROUP = "agents.re-cinq.com";
-const VERSION = "v1alpha1";
-const PLURAL = "agents";
-const LIST_PAGE_LIMIT = 50;
-
-export interface WatchDeps {
-  insert: (event: EventInsert) => Promise<void>;
-}
+export type { WatchDeps };
 
 function watchPath(): string {
   return `/apis/${GROUP}/${VERSION}/namespaces/${agentsNamespace()}/${PLURAL}`;
-}
-
-/** The slice of CustomObjectsApi the paginated list needs; tests fake this. */
-export type AgentLister = Pick<CustomObjectsApi, "listNamespacedCustomObject">;
-
-interface AgentListPage {
-  items?: AgentCr[];
-  // The wire field is `continue`; custom-object responses are raw JSON, but the
-  // client's model mapper would surface `_continue` — read whichever is present.
-  metadata?: {
-    continue?: string;
-    _continue?: string;
-    resourceVersion?: string;
-  };
-}
-
-/**
- * Walk the Agent CRs one page at a time, returning the list's resourceVersion.
- * Never holds (or JSON.parses) the whole namespace at once: 180 accumulated CRs
- * (~1.4MB of status each) in a single unpaginated LIST blew Node's heap and
- * crash-looped the Floor on 2026-07-24.
- */
-export async function forEachAgentPage(
-  k8sApi: AgentLister,
-  namespace: string,
-  onPage: (items: AgentCr[]) => Promise<void>,
-): Promise<string | undefined> {
-  let continueToken: string | undefined;
-  let resourceVersion: string | undefined;
-
-  do {
-    const page = (await k8sApi.listNamespacedCustomObject({
-      group: GROUP,
-      version: VERSION,
-      namespace,
-      plural: PLURAL,
-      limit: LIST_PAGE_LIMIT,
-      _continue: continueToken,
-    })) as AgentListPage;
-
-    await onPage(page.items ?? []);
-    continueToken = page.metadata?._continue ?? page.metadata?.continue;
-    resourceVersion = page.metadata?.resourceVersion ?? resourceVersion;
-  } while (continueToken);
-
-  return resourceVersion;
-}
-
-/** Map one observed CR and report it, if it is terminal. */
-export async function reportForAgent(
-  agent: AgentCr,
-  deps: WatchDeps,
-): Promise<void> {
-  const ev = mapAgentToEvent(agent as never);
-
-  if (!ev) {
-    return;
-  }
-  await deps
-    .insert(ev)
-    .catch((err) =>
-      console.error(
-        "[event-router] k8s report failed:",
-        (err as Error).message,
-      ),
-    );
 }
 
 let backoffMs = 1000;
@@ -145,7 +82,7 @@ async function watchOnce(deps: WatchDeps): Promise<void> {
   const k8sApi = kc.makeApiClient(CustomObjectsApi);
   const namespace = agentsNamespace();
   // Seed resourceVersion + catch up on terminal CRs missed while down —
-  // paginated for the same reason the list above is.
+  // paginated for the same reason the reconcile pass is.
   const resourceVersion = await forEachAgentPage(
     k8sApi,
     namespace,
